@@ -45,17 +45,43 @@ npm run client:build
 npm run server:build
 ```
 
-### Testing and Linting
+### Code Quality and Development Tools
 
 ```bash
-# Lint client code
-cd client && npm run lint
+# Format all code with Prettier
+npm run format
 
-# Run client in preview mode (after build)
-cd client && npm run preview
+# Check if code is properly formatted
+npm run format:check
 
-# Start production server (after build)
-cd server && npm start
+# Lint all code (client and server)
+npm run lint
+
+# Auto-fix linting issues
+npm run lint:fix
+
+# Check TypeScript types across entire project
+npm run type-check
+
+# Run all quality checks (format + lint + types)
+npm run check-all
+
+# Auto-fix all issues (format + lint fixes)
+npm run fix-all
+```
+
+### Individual Project Commands
+
+```bash
+# Client-specific commands
+cd client && npm run lint         # Lint React/TypeScript code
+cd client && npm run type-check   # Check TypeScript types
+cd client && npm run preview      # Preview production build
+
+# Server-specific commands
+cd server && npm run lint         # Lint Node.js/TypeScript code
+cd server && npm run type-check   # Check TypeScript types
+cd server && npm start            # Start production server
 ```
 
 ### API Testing
@@ -184,6 +210,32 @@ NODE_ENV=development
 CLIENT_URL=http://localhost:5173
 ```
 
+### Development Tools and Code Quality
+
+**Code Formatting:**
+
+- Prettier configured with consistent rules (single quotes, 2-space tabs)
+- Automatic formatting on commit via Husky pre-commit hooks
+- .prettierrc and .prettierignore files for project-wide consistency
+
+**Code Quality:**
+
+- ESLint configured for TypeScript + React (client) and Node.js (server)
+- Strict TypeScript configuration with enhanced type checking
+- Custom rules for unused variables, explicit any types, and code standards
+
+**Pre-commit Quality Control:**
+
+- Husky + lint-staged automatically format staged files
+- Prevents inconsistent code from being committed
+- Ensures all code follows project standards
+
+**Quality Scripts:**
+
+- Comprehensive npm scripts for formatting, linting, and type checking
+- Monorepo-wide commands that work across client, server, and shared code
+- Individual project commands for targeted development
+
 ### Current Development Status
 
 **Completed:**
@@ -192,9 +244,12 @@ CLIENT_URL=http://localhost:5173
 - Database schema with 9 tables and RLS policies
 - REST API with game management endpoints
 - WebSocket connection framework
-- Basic React frontend with connection status
+- Complete React frontend with game management UI
+- Beautiful responsive design with Tailwind CSS
 - Map generation system (database functions)
 - Unit movement and game state management
+- Comprehensive development tools (Prettier, ESLint, Husky)
+- Pre-commit hooks for code quality
 
 **In Progress/Planned:**
 
