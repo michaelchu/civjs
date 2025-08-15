@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Generated files
+*.min.js
+*.min.css
+
+# Package files
+package-lock.json
+*/package-lock.json
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

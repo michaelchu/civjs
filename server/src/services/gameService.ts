@@ -3,7 +3,9 @@ import type { Game, Player, GameSettings } from '../../../shared/types';
 
 export class GameService {
   // Get or create test user for development
-  async getOrCreateTestUser(userId: string): Promise<{ data: any | null; error: any }> {
+  async getOrCreateTestUser(
+    userId: string
+  ): Promise<{ data: any | null; error: any }> {
     try {
       // First try to get existing profile
       const { data: existingProfile } = await supabaseAdmin
@@ -22,7 +24,7 @@ export class GameService {
         .insert({
           id: userId,
           username: 'testuser',
-          display_name: 'Test User'
+          display_name: 'Test User',
         })
         .select()
         .single();
@@ -35,8 +37,8 @@ export class GameService {
 
   // Create a new game
   async createGame(
-    createdBy: string, 
-    name: string, 
+    createdBy: string,
+    name: string,
     settings: GameSettings
   ): Promise<{ data: Game | null; error: any }> {
     const { data, error } = await supabaseAdmin
@@ -45,7 +47,12 @@ export class GameService {
         name,
         created_by: createdBy,
         settings,
-        max_players: settings.mapSize === 'small' ? 4 : settings.mapSize === 'medium' ? 6 : 6
+        max_players:
+          settings.mapSize === 'small'
+            ? 4
+            : settings.mapSize === 'medium'
+              ? 6
+              : 6,
       })
       .select()
       .single();
@@ -57,10 +64,12 @@ export class GameService {
   async getAvailableGames(): Promise<{ data: Game[] | null; error: any }> {
     const { data, error } = await supabaseAdmin
       .from('games')
-      .select(`
+      .select(
+        `
         *,
         game_players(count)
-      `)
+      `
+      )
       .in('status', ['waiting', 'active'])
       .order('created_at', { ascending: false });
 
@@ -71,7 +80,8 @@ export class GameService {
   async getGame(gameId: string): Promise<{ data: any | null; error: any }> {
     const { data, error } = await supabase
       .from('games')
-      .select(`
+      .select(
+        `
         *,
         game_players(
           player_id,
@@ -80,7 +90,8 @@ export class GameService {
           is_active,
           profiles(username, display_name)
         )
-      `)
+      `
+      )
       .eq('id', gameId)
       .single();
 
@@ -89,8 +100,8 @@ export class GameService {
 
   // Join a game
   async joinGame(
-    gameId: string, 
-    playerId: string, 
+    gameId: string,
+    playerId: string,
     civilization: string
   ): Promise<{ data: any | null; error: any }> {
     // First, get the current player count
@@ -109,7 +120,7 @@ export class GameService {
         game_id: gameId,
         player_id: playerId,
         civilization,
-        turn_order: turnOrder
+        turn_order: turnOrder,
       })
       .select()
       .single();
@@ -119,16 +130,17 @@ export class GameService {
 
   // Start a game (uses the database function)
   async startGame(gameId: string): Promise<{ data: any | null; error: any }> {
-    const { data, error } = await supabaseAdmin
-      .rpc('start_game', { p_game_id: gameId });
+    const { data, error } = await supabaseAdmin.rpc('start_game', {
+      p_game_id: gameId,
+    });
 
     return { data, error };
   }
 
   // Get game state (map, units, cities)
-  async getGameState(gameId: string): Promise<{ 
+  async getGameState(gameId: string): Promise<{
     map: any[] | null;
-    units: any[] | null; 
+    units: any[] | null;
     cities: any[] | null;
     players: any[] | null;
     error: any;
@@ -139,7 +151,14 @@ export class GameService {
       .select('*')
       .eq('game_id', gameId);
 
-    if (mapError) return { map: null, units: null, cities: null, players: null, error: mapError };
+    if (mapError)
+      return {
+        map: null,
+        units: null,
+        cities: null,
+        players: null,
+        error: mapError,
+      };
 
     // Get units
     const { data: units, error: unitsError } = await supabase
@@ -147,7 +166,14 @@ export class GameService {
       .select('*')
       .eq('game_id', gameId);
 
-    if (unitsError) return { map, units: null, cities: null, players: null, error: unitsError };
+    if (unitsError)
+      return {
+        map,
+        units: null,
+        cities: null,
+        players: null,
+        error: unitsError,
+      };
 
     // Get cities
     const { data: cities, error: citiesError } = await supabase
@@ -155,15 +181,18 @@ export class GameService {
       .select('*')
       .eq('game_id', gameId);
 
-    if (citiesError) return { map, units, cities: null, players: null, error: citiesError };
+    if (citiesError)
+      return { map, units, cities: null, players: null, error: citiesError };
 
     // Get player states
     const { data: players, error: playersError } = await supabase
       .from('player_state')
-      .select(`
+      .select(
+        `
         *,
         profiles(username, display_name)
-      `)
+      `
+      )
       .eq('game_id', gameId);
 
     return { map, units, cities, players, error: playersError };
@@ -171,16 +200,16 @@ export class GameService {
 
   // Move unit
   async moveUnit(
-    unitId: string, 
-    newX: number, 
-    newY: number, 
+    unitId: string,
+    newX: number,
+    newY: number,
     playerId: string
   ): Promise<{ data: any | null; error: any }> {
     const { data, error } = await supabase
       .from('units')
       .update({ x: newX, y: newY, movement_left: 0 })
       .eq('id', unitId)
-      .eq('player_id', playerId)  // Ensure player owns the unit
+      .eq('player_id', playerId) // Ensure player owns the unit
       .select()
       .single();
 
@@ -188,13 +217,17 @@ export class GameService {
   }
 
   // End turn
-  async endTurn(gameId: string, currentPlayerId: string): Promise<{ data: any | null; error: any }> {
+  async endTurn(
+    gameId: string,
+    currentPlayerId: string
+  ): Promise<{ data: any | null; error: any }> {
     // Get next player in turn order
     const { data: nextPlayer, error: playerError } = await supabase
       .from('game_players')
       .select('player_id, turn_order')
       .eq('game_id', gameId)
-      .gt('turn_order', 
+      .gt(
+        'turn_order',
         await supabase
           .from('game_players')
           .select('turn_order')
@@ -219,7 +252,7 @@ export class GameService {
         .order('turn_order')
         .limit(1)
         .single();
-      
+
       nextPlayerId = firstPlayer?.player_id;
       newTurn = true;
     }

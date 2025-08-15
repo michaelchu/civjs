@@ -19,8 +19,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
-    persistSession: false
-  }
+    persistSession: false,
+  },
 });
 
 // Test database connection
@@ -29,12 +29,12 @@ export async function testConnection(): Promise<boolean> {
     const { data, error } = await supabase
       .from('profiles')
       .select('count', { count: 'exact', head: true });
-    
+
     if (error) {
       console.error('Database connection test failed:', error);
       return false;
     }
-    
+
     console.log('✅ Database connection successful');
     return true;
   } catch (err) {

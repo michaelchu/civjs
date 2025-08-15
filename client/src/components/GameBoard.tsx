@@ -100,7 +100,9 @@ export default function GameBoard({ game, onExitGame }: GameBoardProps) {
                   </div>
                 </div>
               ) : (
-                <div className="text-gray-400 text-sm">No game state loaded</div>
+                <div className="text-gray-400 text-sm">
+                  No game state loaded
+                </div>
               )}
             </div>
 
@@ -110,7 +112,10 @@ export default function GameBoard({ game, onExitGame }: GameBoardProps) {
               {gameState?.units?.length ? (
                 <div className="space-y-2">
                   {gameState.units.slice(0, 5).map((unit: any) => (
-                    <div key={unit.id} className="flex items-center justify-between p-2 bg-gray-600 rounded">
+                    <div
+                      key={unit.id}
+                      className="flex items-center justify-between p-2 bg-gray-600 rounded"
+                    >
                       <div>
                         <div className="text-sm font-medium">{unit.type}</div>
                         <div className="text-xs text-gray-400">
@@ -141,14 +146,25 @@ export default function GameBoard({ game, onExitGame }: GameBoardProps) {
           <div className="absolute inset-0 bg-gradient-to-br from-green-800 to-blue-900 flex items-center justify-center">
             <div className="text-center">
               <div className="w-32 h-32 border-4 border-dashed border-white rounded-lg flex items-center justify-center mb-4 mx-auto">
-                <svg className="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm8 2a1 1 0 100 2h2a1 1 0 100-2h-2z" clipRule="evenodd" />
+                <svg
+                  className="w-16 h-16 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm8 2a1 1 0 100 2h2a1 1 0 100-2h-2z"
+                    clipRule="evenodd"
+                  />
                 </svg>
               </div>
               <h2 className="text-2xl font-bold mb-2">Game Map</h2>
-              <p className="text-gray-300 mb-4">Map rendering will be implemented here</p>
+              <p className="text-gray-300 mb-4">
+                Map rendering will be implemented here
+              </p>
               <p className="text-sm text-gray-400">
-                This is where the hexagonal game map,<br />
+                This is where the hexagonal game map,
+                <br />
                 units, cities, and terrain will be displayed
               </p>
             </div>

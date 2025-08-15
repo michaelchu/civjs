@@ -7,7 +7,7 @@ interface GameState {
   games: Game[];
   loading: boolean;
   error: string | null;
-  
+
   // Current game
   currentGame: Game | null;
   gameState: {
@@ -16,7 +16,7 @@ interface GameState {
     cities: any[];
     players: any[];
   } | null;
-  
+
   // Actions
   loadGames: () => Promise<void>;
   createGame: (name: string, settings: any) => Promise<Game | null>;
@@ -40,9 +40,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       const response = await gameApi.getGames();
       set({ games: response.games, loading: false });
     } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to load games', 
-        loading: false 
+      set({
+        error: error instanceof Error ? error.message : 'Failed to load games',
+        loading: false,
       });
     }
   },
@@ -52,19 +52,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     try {
       const response = await gameApi.createGame(name, settings);
       const newGame = response.game;
-      
+
       // Add the new game to the list and set it as current
       set(state => ({
         games: [...state.games, newGame],
         currentGame: newGame,
-        loading: false
+        loading: false,
       }));
-      
+
       return newGame;
     } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to create game', 
-        loading: false 
+      set({
+        error: error instanceof Error ? error.message : 'Failed to create game',
+        loading: false,
       });
       return null;
     }
@@ -74,19 +74,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await gameApi.joinGame(gameId, civilization);
-      
+
       // Reload the current game to get updated player list
       const gameResponse = await gameApi.getGame(gameId);
-      set({ 
+      set({
         currentGame: gameResponse.game,
-        loading: false 
+        loading: false,
       });
-      
+
       return true;
     } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to join game', 
-        loading: false 
+      set({
+        error: error instanceof Error ? error.message : 'Failed to join game',
+        loading: false,
       });
       return false;
     }
@@ -96,24 +96,24 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await gameApi.startGame(gameId);
-      
+
       // Reload the game and game state
       const [gameResponse, gameStateResponse] = await Promise.all([
         gameApi.getGame(gameId),
-        gameApi.getGameState(gameId)
+        gameApi.getGameState(gameId),
       ]);
-      
+
       set({
         currentGame: gameResponse.game,
         gameState: gameStateResponse,
-        loading: false
+        loading: false,
       });
-      
+
       return true;
     } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to start game', 
-        loading: false 
+      set({
+        error: error instanceof Error ? error.message : 'Failed to start game',
+        loading: false,
       });
       return false;
     }
@@ -123,14 +123,15 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await gameApi.getGameState(gameId);
-      set({ 
+      set({
         gameState: response,
-        loading: false 
+        loading: false,
       });
     } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to load game state', 
-        loading: false 
+      set({
+        error:
+          error instanceof Error ? error.message : 'Failed to load game state',
+        loading: false,
       });
     }
   },

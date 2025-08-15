@@ -18,16 +18,18 @@ const app = express();
 const server = createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
-    methods: ["GET", "POST"]
-  }
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+  },
 });
 
 // Middleware
 app.use(helmet());
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173"
-}));
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  })
+);
 app.use(express.json());
 
 // Routes
@@ -39,9 +41,9 @@ app.get('/health', (req, res) => {
 });
 
 // Socket.IO connection handling
-io.on('connection', (socket) => {
+io.on('connection', socket => {
   console.log(`Client connected: ${socket.id}`);
-  
+
   socket.on('disconnect', () => {
     console.log(`Client disconnected: ${socket.id}`);
   });
@@ -52,14 +54,16 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌐 Health check: http://localhost:${PORT}/health`);
-  
+
   // Test database connection
   console.log('🔗 Testing database connection...');
   const dbConnected = await testConnection();
-  
+
   if (dbConnected) {
     console.log('🎮 CivJS server ready!');
   } else {
-    console.error('❌ Database connection failed - check your .env configuration');
+    console.error(
+      '❌ Database connection failed - check your .env configuration'
+    );
   }
 });

@@ -9,6 +9,7 @@ CivJS is a browser-based 4X strategy game inspired by Civilization, built with R
 ## Development Commands
 
 ### Setup and Installation
+
 ```bash
 # Install all dependencies (root, client, and server)
 npm run install:all
@@ -19,6 +20,7 @@ copy server\.env.example server\.env
 ```
 
 ### Development Servers
+
 ```bash
 # Start both client and server in development mode
 npm run dev
@@ -26,11 +28,12 @@ npm run dev
 # Start only the client (React + Vite on port 5173)
 npm run client:dev
 
-# Start only the server (Node.js + Express on port 3001)  
+# Start only the server (Node.js + Express on port 3001)
 npm run server:dev
 ```
 
 ### Build Commands
+
 ```bash
 # Build both client and server for production
 npm run build
@@ -43,6 +46,7 @@ npm run server:build
 ```
 
 ### Testing and Linting
+
 ```bash
 # Lint client code
 cd client && npm run lint
@@ -55,6 +59,7 @@ cd server && npm start
 ```
 
 ### API Testing
+
 ```bash
 # Test server health
 curl http://localhost:3001/health
@@ -69,6 +74,7 @@ curl -X POST http://localhost:3001/api/games -H "Content-Type: application/json"
 ## Project Architecture
 
 ### Monorepo Structure
+
 ```
 civjs/
 ├── client/          # React frontend (Vite + TypeScript + Tailwind)
@@ -80,6 +86,7 @@ civjs/
 ### Technology Stack
 
 **Frontend (Client):**
+
 - React 19 with TypeScript
 - Vite for build tooling
 - Tailwind CSS for styling
@@ -88,6 +95,7 @@ civjs/
 - Zod for validation
 
 **Backend (Server):**
+
 - Node.js with Express and TypeScript
 - Socket.io for WebSocket server
 - Supabase for database and authentication
@@ -96,24 +104,28 @@ civjs/
 - Zod for request validation
 
 **Database:**
+
 - PostgreSQL via Supabase
 - 9 tables: games, game_players, players, map_tiles, units, cities, player_state, player_research, profiles
 
 ### Key Architectural Patterns
 
 **Database Layer:**
+
 - Uses Supabase client with Row Level Security (RLS) policies
 - Service layer (`GameService`) abstracts database operations
 - Database functions handle complex operations like game initialization
 - Separate admin client for elevated operations
 
 **API Design:**
+
 - RESTful endpoints for game management
 - WebSocket events for real-time game actions
 - Request validation using Zod schemas
 - Mock authentication middleware (to be replaced with real auth)
 
 **State Management:**
+
 - Shared TypeScript types in `/shared` folder
 - Constants file defines game configuration (map sizes, unit stats, terrain)
 - Server is authoritative for all game state
@@ -121,21 +133,25 @@ civjs/
 ### Core Game Systems
 
 **Map System:**
+
 - Hexagonal grid with configurable sizes (small: 40x40, medium: 60x60, large: 80x80)
 - 12 terrain types with different yields (food, production, gold)
 - Features, resources, and improvements supported
 
 **Unit System:**
+
 - 7 unit types: settler, worker, warrior, scout, archer, swordsman, spearman
 - Units have health, movement points, and experience
 - Combat system with rock-paper-scissors mechanics planned
 
 **City System:**
+
 - Cities can be founded by settlers
 - Population growth and resource management
 - Building construction system planned
 
 **Turn System:**
+
 - Turn-based with player order determined at game start
 - End turn advances to next player or new turn
 - Turn timer support in game settings
@@ -143,6 +159,7 @@ civjs/
 ### Database Schema Highlights
 
 **Critical Tables:**
+
 - `games` - Core game information and current turn state
 - `game_players` - Player participation and turn order
 - `map_tiles` - All map data for each game
@@ -151,14 +168,16 @@ civjs/
 - `player_state` - Player resources and statistics
 
 **Important Functions:**
+
 - `start_game(p_game_id)` - Initializes map generation and starting units
 
 ### Environment Configuration
 
 **Required Environment Variables:**
+
 ```
 SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key  
+SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 PORT=3001
 NODE_ENV=development
@@ -168,6 +187,7 @@ CLIENT_URL=http://localhost:5173
 ### Current Development Status
 
 **Completed:**
+
 - Monorepo project structure with TypeScript
 - Database schema with 9 tables and RLS policies
 - REST API with game management endpoints
@@ -177,6 +197,7 @@ CLIENT_URL=http://localhost:5173
 - Unit movement and game state management
 
 **In Progress/Planned:**
+
 - Frontend game UI (map rendering, unit controls)
 - WebSocket event handling for real-time updates
 - Authentication system (currently mocked)
@@ -186,16 +207,19 @@ CLIENT_URL=http://localhost:5173
 ### Development Notes
 
 **Database Access:**
+
 - Uses both regular Supabase client and admin client
 - Admin client bypasses RLS for system operations
 - Regular client enforces user permissions
 
 **Testing:**
+
 - API endpoints can be tested with curl or PowerShell
 - Health check endpoint at `/health`
 - Game creation, joining, and state retrieval working
 
 **WebSocket Implementation:**
+
 - Socket.io server configured but minimal event handling
 - Client connects and shows connection status
 - Game action events defined in shared types but not implemented
@@ -203,7 +227,7 @@ CLIENT_URL=http://localhost:5173
 ### File Structure Patterns
 
 **Shared Types:** All game-related TypeScript interfaces in `/shared/types.ts`
-**Constants:** Game configuration values in `/shared/constants.ts` 
+**Constants:** Game configuration values in `/shared/constants.ts`
 **Server Services:** Database operations abstracted in service classes
 **API Routes:** RESTful endpoints with Zod validation
 **Client Components:** React components with Tailwind CSS styling

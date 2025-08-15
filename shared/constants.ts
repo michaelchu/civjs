@@ -2,7 +2,7 @@
 export const MAP_SIZES = {
   small: { width: 40, height: 40 },
   medium: { width: 60, height: 60 },
-  large: { width: 80, height: 80 }
+  large: { width: 80, height: 80 },
 } as const;
 
 // Unit Configuration
@@ -13,7 +13,7 @@ export const UNIT_STATS = {
   scout: { health: 100, movement: 3, combat: 4 },
   archer: { health: 100, movement: 2, combat: 5 },
   swordsman: { health: 100, movement: 2, combat: 14 },
-  spearman: { health: 100, movement: 2, combat: 11 }
+  spearman: { health: 100, movement: 2, combat: 11 },
 } as const;
 
 // Terrain Configuration
@@ -29,7 +29,7 @@ export const TERRAIN_STATS = {
   jungle: { food: 1, production: 0, gold: 0, moveCost: 2 },
   coast: { food: 1, production: 0, gold: 2, moveCost: 1 },
   ocean: { food: 1, production: 0, gold: 1, moveCost: 1 },
-  lake: { food: 2, production: 0, gold: 1, moveCost: 1 }
+  lake: { food: 2, production: 0, gold: 1, moveCost: 1 },
 } as const;
 
 // Game Configuration
@@ -38,7 +38,7 @@ export const GAME_CONFIG = {
   MAX_PLAYERS: 6,
   DEFAULT_TURN_TIMER: 300, // 5 minutes in seconds
   STARTING_GOLD: 0,
-  STARTING_UNITS: ['settler', 'warrior'] as const
+  STARTING_UNITS: ['settler', 'warrior'] as const,
 } as const;
 
 // WebSocket Events
@@ -49,5 +49,5 @@ export const SOCKET_EVENTS = {
   LEAVE_GAME: 'leave_game',
   GAME_ACTION: 'game_action',
   GAME_UPDATE: 'game_update',
-  ERROR: 'error'
+  ERROR: 'error',
 } as const;

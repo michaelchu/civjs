@@ -15,6 +15,7 @@ civjs/
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Node.js 18+
 - npm
 - Supabase account (for database setup)
@@ -22,11 +23,13 @@ civjs/
 ### Installation
 
 1. **Install all dependencies:**
+
    ```bash
    npm run install:all
    ```
 
 2. **Set up environment variables:**
+
    ```bash
    # Copy the example environment file
    cp server/.env.example server/.env
@@ -39,6 +42,7 @@ civjs/
    ```
 
 This will start:
+
 - Client on http://localhost:5173
 - Server on http://localhost:3001
 
@@ -47,6 +51,7 @@ This will start:
 **⚠️ NEXT STEP: Configure Supabase**
 
 You'll need to:
+
 1. Create a new Supabase project
 2. Set up the database schema
 3. Configure authentication
@@ -74,6 +79,7 @@ npm run install:all
 ## 🎯 Current Status
 
 ✅ **Phase 1 Foundation Complete:**
+
 - [x] Project structure setup
 - [x] React frontend with Vite + TypeScript
 - [x] Node.js backend with Express + TypeScript
@@ -83,6 +89,7 @@ npm run install:all
 - [x] Development scripts
 
 ✅ **Supabase Integration Complete:**
+
 - [x] Database schema (9 tables with relationships)
 - [x] Row Level Security policies
 - [x] Database functions for game management
@@ -91,6 +98,7 @@ npm run install:all
 - [x] Connection testing and validation
 
 🔄 **Next Steps:**
+
 - [ ] Frontend game management UI
 - [ ] Map generation and rendering system
 - [ ] Unit movement and game logic
@@ -106,6 +114,7 @@ npm run install:all
 ### API Testing
 
 **Available Endpoints:**
+
 ```
 GET    /health              - Health check
 GET    /api/games           - List available games
@@ -121,6 +130,7 @@ See `docs/test-api.md` for detailed testing examples.
 ## 📚 Technology Stack
 
 **Frontend:**
+
 - React 18 + TypeScript
 - Vite (build tool)
 - Tailwind CSS (styling)
@@ -128,12 +138,14 @@ See `docs/test-api.md` for detailed testing examples.
 - Zustand (state management)
 
 **Backend:**
+
 - Node.js + Express + TypeScript
 - Socket.io (WebSocket server)
 - Supabase (database and auth)
 - Zod (validation)
 
 **Shared:**
+
 - TypeScript types and constants
 - Game configuration and rules
 

@@ -7,7 +7,12 @@ import GameLobby from './components/GameLobby';
 import GameBoard from './components/GameBoard';
 import type { Game } from '../../shared/types';
 
-type AppView = 'menu' | 'games-list' | 'create-game' | 'game-lobby' | 'game-board';
+type AppView =
+  | 'menu'
+  | 'games-list'
+  | 'create-game'
+  | 'game-lobby'
+  | 'game-board';
 
 function App() {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -18,7 +23,7 @@ function App() {
   useEffect(() => {
     // Connect to the server
     const newSocket = io('http://localhost:3001');
-    
+
     newSocket.on('connect', () => {
       console.log('Connected to server');
       setConnected(true);
@@ -67,13 +72,19 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
-          <h1 className="text-4xl font-bold text-gray-800 mb-4 text-center">CivJS</h1>
-          <p className="text-gray-600 mb-6 text-center">Browser-based Civilization Game</p>
-          
+          <h1 className="text-4xl font-bold text-gray-800 mb-4 text-center">
+            CivJS
+          </h1>
+          <p className="text-gray-600 mb-6 text-center">
+            Browser-based Civilization Game
+          </p>
+
           <div className="flex items-center justify-center space-x-2 mb-6">
-            <div className={`w-3 h-3 rounded-full ${
-              connected ? 'bg-green-500' : 'bg-red-500'
-            }`}></div>
+            <div
+              className={`w-3 h-3 rounded-full ${
+                connected ? 'bg-green-500' : 'bg-red-500'
+              }`}
+            ></div>
             <span className="text-sm text-gray-600">
               {connected ? 'Connected to server' : 'Disconnected from server'}
             </span>
@@ -92,16 +103,16 @@ function App() {
               </div>
             </div>
           )}
-          
+
           <div className="space-y-3">
-            <button 
+            <button
               className="w-full bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={!connected}
               onClick={() => setCurrentView('games-list')}
             >
               Browse Games
             </button>
-            <button 
+            <button
               className="w-full bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={!connected}
               onClick={() => setCurrentView('create-game')}
@@ -124,8 +135,16 @@ function App() {
               onClick={handleBackToMenu}
               className="text-gray-600 hover:text-gray-800 flex items-center"
             >
-              <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+              <svg
+                className="w-5 h-5 mr-1"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                  clipRule="evenodd"
+                />
               </svg>
               Back to Menu
             </button>
@@ -149,11 +168,21 @@ function App() {
         <div className="max-w-2xl mx-auto">
           <div className="mb-6">
             <button
-              onClick={() => setCurrentView(currentGame ? 'game-lobby' : 'games-list')}
+              onClick={() =>
+                setCurrentView(currentGame ? 'game-lobby' : 'games-list')
+              }
               className="text-gray-600 hover:text-gray-800 flex items-center"
             >
-              <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+              <svg
+                className="w-5 h-5 mr-1"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                  clipRule="evenodd"
+                />
               </svg>
               Back
             </button>
@@ -184,12 +213,7 @@ function App() {
 
   // Game Board View
   if (currentView === 'game-board' && currentGame) {
-    return (
-      <GameBoard
-        game={currentGame}
-        onExitGame={handleBackToGamesList}
-      />
-    );
+    return <GameBoard game={currentGame} onExitGame={handleBackToGamesList} />;
   }
 
   // Fallback
@@ -197,7 +221,9 @@ function App() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
       <div className="bg-white p-8 rounded-lg shadow-lg">
         <h2 className="text-xl font-bold text-red-600 mb-2">Error</h2>
-        <p className="text-gray-600">Something went wrong. Please refresh the page.</p>
+        <p className="text-gray-600">
+          Something went wrong. Please refresh the page.
+        </p>
       </div>
     </div>
   );

@@ -34,18 +34,18 @@ export interface MapTile {
   ownerId?: string;
 }
 
-export type TerrainType = 
-  | 'grassland' 
-  | 'plains' 
-  | 'desert' 
-  | 'tundra' 
+export type TerrainType =
+  | 'grassland'
+  | 'plains'
+  | 'desert'
+  | 'tundra'
   | 'snow'
-  | 'hills' 
-  | 'mountains' 
-  | 'forest' 
+  | 'hills'
+  | 'mountains'
+  | 'forest'
   | 'jungle'
-  | 'coast' 
-  | 'ocean' 
+  | 'coast'
+  | 'ocean'
   | 'lake';
 
 // Units
@@ -61,13 +61,13 @@ export interface Unit {
   experience: number;
 }
 
-export type UnitType = 
-  | 'settler' 
-  | 'worker' 
-  | 'warrior' 
-  | 'scout' 
+export type UnitType =
+  | 'settler'
+  | 'worker'
+  | 'warrior'
+  | 'scout'
   | 'archer'
-  | 'swordsman' 
+  | 'swordsman'
   | 'spearman';
 
 // Cities
@@ -100,7 +100,7 @@ export interface GameAction {
   data: any;
 }
 
-export type GameActionType = 
+export type GameActionType =
   | 'MOVE_UNIT'
   | 'FOUND_CITY'
   | 'END_TURN'
@@ -113,7 +113,7 @@ export interface ServerMessage {
   data: any;
 }
 
-export type ServerMessageType = 
+export type ServerMessageType =
   | 'GAME_STATE_UPDATE'
   | 'PLAYER_ACTION'
   | 'TURN_STARTED'

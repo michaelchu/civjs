@@ -7,7 +7,10 @@ interface CreateGameProps {
   onCancel: () => void;
 }
 
-export default function CreateGame({ onGameCreated, onCancel }: CreateGameProps) {
+export default function CreateGame({
+  onGameCreated,
+  onCancel,
+}: CreateGameProps) {
   const { createGame, loading } = useGameStore();
   const [formData, setFormData] = useState({
     name: '',
@@ -18,7 +21,7 @@ export default function CreateGame({ onGameCreated, onCancel }: CreateGameProps)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) return;
 
     const settings: GameSettings = {
@@ -40,18 +43,21 @@ export default function CreateGame({ onGameCreated, onCancel }: CreateGameProps)
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
       <h2 className="text-2xl font-bold text-gray-900 mb-6">Create New Game</h2>
-      
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Game Name */}
         <div>
-          <label htmlFor="gameName" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="gameName"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Game Name
           </label>
           <input
             type="text"
             id="gameName"
             value={formData.name}
-            onChange={(e) => handleInputChange('name', e.target.value)}
+            onChange={e => handleInputChange('name', e.target.value)}
             placeholder="Enter a name for your game"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             required
@@ -69,7 +75,7 @@ export default function CreateGame({ onGameCreated, onCancel }: CreateGameProps)
               { value: 'small', label: 'Small', description: '40×40 tiles' },
               { value: 'medium', label: 'Medium', description: '60×60 tiles' },
               { value: 'large', label: 'Large', description: '80×80 tiles' },
-            ].map((option) => (
+            ].map(option => (
               <label
                 key={option.value}
                 className={`relative flex flex-col p-4 border rounded-lg cursor-pointer hover:bg-gray-50 ${
@@ -83,16 +89,28 @@ export default function CreateGame({ onGameCreated, onCancel }: CreateGameProps)
                   name="mapSize"
                   value={option.value}
                   checked={formData.mapSize === option.value}
-                  onChange={(e) => handleInputChange('mapSize', e.target.value)}
+                  onChange={e => handleInputChange('mapSize', e.target.value)}
                   className="sr-only"
                   disabled={loading}
                 />
-                <span className="text-sm font-medium text-gray-900">{option.label}</span>
-                <span className="text-xs text-gray-500">{option.description}</span>
+                <span className="text-sm font-medium text-gray-900">
+                  {option.label}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {option.description}
+                </span>
                 {formData.mapSize === option.value && (
                   <div className="absolute top-2 right-2 text-blue-500">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   </div>
                 )}
@@ -103,13 +121,18 @@ export default function CreateGame({ onGameCreated, onCancel }: CreateGameProps)
 
         {/* Turn Timer */}
         <div>
-          <label htmlFor="turnTimer" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="turnTimer"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Turn Timer (seconds)
           </label>
           <select
             id="turnTimer"
             value={formData.turnTimer}
-            onChange={(e) => handleInputChange('turnTimer', parseInt(e.target.value))}
+            onChange={e =>
+              handleInputChange('turnTimer', parseInt(e.target.value))
+            }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             disabled={loading}
           >
@@ -127,7 +150,9 @@ export default function CreateGame({ onGameCreated, onCancel }: CreateGameProps)
             <input
               type="checkbox"
               checked={formData.allowSpectators}
-              onChange={(e) => handleInputChange('allowSpectators', e.target.checked)}
+              onChange={e =>
+                handleInputChange('allowSpectators', e.target.checked)
+              }
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               disabled={loading}
             />

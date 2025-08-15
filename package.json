@@ -14,12 +14,40 @@
     "client:build": "cd client && npm run build",
     "server:build": "cd server && npm run build",
     "install:all": "npm install && cd client && npm install && cd ../server && npm install",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "lint": "npm run client:lint && npm run server:lint",
+    "lint:fix": "npm run client:lint:fix && npm run server:lint:fix",
+    "client:lint": "cd client && npm run lint",
+    "client:lint:fix": "cd client && npm run lint:fix",
+    "server:lint": "cd server && npm run lint",
+    "server:lint:fix": "cd server && npm run lint:fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "type-check": "npm run client:type-check && npm run server:type-check",
+    "client:type-check": "cd client && npm run type-check",
+    "server:type-check": "cd server && npm run type-check",
+    "check-all": "npm run format:check && npm run lint && npm run type-check",
+    "fix-all": "npm run format && npm run lint:fix",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "husky"
   },
-  "keywords": ["civilization", "strategy", "game", "multiplayer", "browser"],
+  "keywords": [
+    "civilization",
+    "strategy",
+    "game",
+    "multiplayer",
+    "browser"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "concurrently": "^9.2.0"
+    "concurrently": "^9.2.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.5",
+    "prettier": "^3.6.2"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,json,md,css,scss}": [
+      "prettier --write"
+    ]
   }
 }
