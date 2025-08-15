@@ -2,6 +2,37 @@ import { supabase, supabaseAdmin } from '../database/supabase';
 import type { Game, Player, GameSettings } from '../../../shared/types';
 
 export class GameService {
+  // Get or create test user for development
+  async getOrCreateTestUser(userId: string): Promise<{ data: any | null; error: any }> {
+    try {
+      // First try to get existing profile
+      const { data: existingProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (existingProfile) {
+        return { data: existingProfile, error: null };
+      }
+
+      // If profile doesn't exist, create it
+      const { data: newProfile, error } = await supabaseAdmin
+        .from('profiles')
+        .insert({
+          id: userId,
+          username: 'testuser',
+          display_name: 'Test User'
+        })
+        .select()
+        .single();
+
+      return { data: newProfile, error };
+    } catch (error) {
+      return { data: null, error };
+    }
+  }
+
   // Create a new game
   async createGame(
     createdBy: string, 

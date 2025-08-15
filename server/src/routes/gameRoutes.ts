@@ -26,10 +26,20 @@ const moveUnitSchema = z.object({
 });
 
 // Mock authentication middleware (replace with real auth later)
-const requireAuth = (req: any, res: any, next: any) => {
-  // For now, use a mock user ID (valid UUID format)
-  req.user = { id: '550e8400-e29b-41d4-a716-446655440000' };
-  next();
+const requireAuth = async (req: any, res: any, next: any) => {
+  try {
+    // Use the real Supabase user ID
+    const testUserId = 'cca02617-25eb-4a44-8f6a-7575033cf5a3';
+    
+    // Try to get or create the test profile
+    const { data: existingProfile } = await gameService.getOrCreateTestUser(testUserId);
+    
+    req.user = { id: testUserId };
+    next();
+  } catch (error) {
+    console.error('Auth error:', error);
+    res.status(500).json({ error: 'Authentication failed' });
+  }
 };
 
 // Get all available games
