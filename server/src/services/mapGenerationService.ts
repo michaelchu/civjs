@@ -47,13 +47,13 @@ export class MapGenerationService {
   public getMapDimensions(mapSize: GameSettings['mapSize']): MapDimensions {
     switch (mapSize) {
       case 'small':
-        return { width: 40, height: 40 };
+        return { width: 100, height: 100 };
       case 'medium':
-        return { width: 60, height: 60 };
+        return { width: 140, height: 140 };
       case 'large':
-        return { width: 80, height: 80 };
+        return { width: 160, height: 160 };
       default:
-        return { width: 40, height: 40 };
+        return { width: 100, height: 100 };
     }
   }
 

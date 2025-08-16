@@ -93,17 +93,17 @@ export default function CreateGame() {
                   {
                     value: 'small',
                     label: 'Small',
-                    description: '40×40 tiles',
+                    description: '100×100 tiles',
                   },
                   {
                     value: 'medium',
                     label: 'Medium',
-                    description: '60×60 tiles',
+                    description: '140×140 tiles',
                   },
                   {
                     value: 'large',
                     label: 'Large',
-                    description: '80×80 tiles',
+                    description: '160×160 tiles',
                   },
                 ].map(option => (
                   <label

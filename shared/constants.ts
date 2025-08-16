@@ -1,8 +1,8 @@
 // Map Configuration
 export const MAP_SIZES = {
-  small: { width: 40, height: 40 },
-  medium: { width: 60, height: 60 },
-  large: { width: 80, height: 80 },
+  small: { width: 100, height: 100 },
+  medium: { width: 140, height: 140 },
+  large: { width: 160, height: 160 },
 } as const;
 
 // Unit Configuration
