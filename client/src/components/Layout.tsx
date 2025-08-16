@@ -2,17 +2,11 @@ import { type ReactNode } from 'react';
 
 interface LayoutProps {
   children: ReactNode;
-  connected: boolean;
   error: string | null;
   onClearError: () => void;
 }
 
-export default function Layout({
-  children,
-  connected,
-  error,
-  onClearError,
-}: LayoutProps) {
+export default function Layout({ children, error, onClearError }: LayoutProps) {
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Global error banner */}

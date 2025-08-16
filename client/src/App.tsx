@@ -39,7 +39,7 @@ function App() {
 
   return (
     <Router>
-      <Layout connected={connected} error={error} onClearError={clearError}>
+      <Layout error={error} onClearError={clearError}>
         <Routes>
           {/* Home page */}
           <Route path="/" element={<HomePage connected={connected} />} />

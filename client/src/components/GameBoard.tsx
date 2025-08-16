@@ -45,9 +45,9 @@ export default function GameBoard({ connected }: GameBoardProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="h-screen bg-gray-900 text-white flex flex-col">
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700 px-6 py-4">
+      <div className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-6">
             <h1 className="text-xl font-bold">{currentGame.name}</h1>
@@ -79,61 +79,59 @@ export default function GameBoard({ connected }: GameBoardProps) {
         </div>
       </div>
 
-      <div className="h-screen">
-        {/* Main Game Area */}
-        <div className="w-full h-full relative">
-          {/* Phaser Game Canvas */}
-          <div className="absolute inset-0">
-            <PhaserGame
-              ref={phaserRef}
-              gameId={gameId!}
-              gameState={
-                gameState
-                  ? {
-                      mapWidth:
-                        gameState.map?.length > 0
-                          ? Math.max(...gameState.map.map((t: any) => t.x)) + 1
-                          : 40,
-                      mapHeight:
-                        gameState.map?.length > 0
-                          ? Math.max(...gameState.map.map((t: any) => t.y)) + 1
-                          : 40,
-                      map: gameState.map || [],
-                      units: gameState.units || [],
-                      cities: gameState.cities || [],
-                    }
-                  : null
-              }
-              onTileClick={(x, y) => {
-                console.log(`Tile clicked at (${x}, ${y})`);
-              }}
-              onUnitSelect={unitId => {
-                console.log(`Unit selected: ${unitId}`);
-              }}
-              onEndTurn={() => {
-                console.log('End turn requested');
-              }}
-            />
-          </div>
+      {/* Main Game Area */}
+      <div className="flex-1 relative">
+        {/* Phaser Game Canvas */}
+        <div className="absolute inset-0">
+          <PhaserGame
+            ref={phaserRef}
+            gameId={gameId!}
+            gameState={
+              gameState
+                ? {
+                    mapWidth:
+                      gameState.map?.length > 0
+                        ? Math.max(...gameState.map.map((t: any) => t.x)) + 1
+                        : 40,
+                    mapHeight:
+                      gameState.map?.length > 0
+                        ? Math.max(...gameState.map.map((t: any) => t.y)) + 1
+                        : 40,
+                    map: gameState.map || [],
+                    units: gameState.units || [],
+                    cities: gameState.cities || [],
+                  }
+                : null
+            }
+            onTileClick={(x, y) => {
+              console.log(`Tile clicked at (${x}, ${y})`);
+            }}
+            onUnitSelect={unitId => {
+              console.log(`Unit selected: ${unitId}`);
+            }}
+            onEndTurn={() => {
+              console.log('End turn requested');
+            }}
+          />
+        </div>
 
-          {/* Bottom Action Bar */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm font-medium">
-                  Next Unit
-                </button>
-                <button className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-sm font-medium">
-                  Found City
-                </button>
-                <button className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded text-sm font-medium">
-                  Tech Tree
-                </button>
-              </div>
-              <button className="bg-yellow-600 hover:bg-yellow-700 px-6 py-2 rounded font-medium">
-                End Turn
+        {/* Bottom Action Bar */}
+        <div className="absolute bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm font-medium">
+                Next Unit
+              </button>
+              <button className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-sm font-medium">
+                Found City
+              </button>
+              <button className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded text-sm font-medium">
+                Tech Tree
               </button>
             </div>
+            <button className="bg-yellow-600 hover:bg-yellow-700 px-6 py-2 rounded font-medium">
+              End Turn
+            </button>
           </div>
         </div>
       </div>
