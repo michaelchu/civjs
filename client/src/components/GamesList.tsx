@@ -1,13 +1,17 @@
 import { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../stores/gameStore';
 import type { Game } from '../../../shared/types';
 
-interface GamesListProps {
-  onSelectGame: (game: Game) => void;
-}
+export default function GamesList() {
+  const navigate = useNavigate();
+  const { games, loading, error, loadGames, clearError, setCurrentGame } =
+    useGameStore();
 
-export default function GamesList({ onSelectGame }: GamesListProps) {
-  const { games, loading, error, loadGames, clearError } = useGameStore();
+  const handleSelectGame = (game: Game) => {
+    setCurrentGame(game);
+    navigate(`/games/${game.id}/lobby`);
+  };
 
   useEffect(() => {
     loadGames();
@@ -106,66 +110,102 @@ export default function GamesList({ onSelectGame }: GamesListProps) {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Available Games</h2>
-        <button
-          onClick={loadGames}
-          className="text-blue-600 hover:text-blue-800 flex items-center"
-        >
-          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-            <path
-              fillRule="evenodd"
-              d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
-              clipRule="evenodd"
-            />
-          </svg>
-          Refresh
-        </button>
-      </div>
-
-      <div className="grid gap-4">
-        {games.map(game => (
-          <div
-            key={game.id}
-            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => onSelectGame(game)}
+    <div className="min-h-screen p-6">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <Link
+            to="/"
+            className="text-gray-600 hover:text-gray-800 flex items-center"
           >
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {game.name}
-                </h3>
-                <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
-                  <span>Turn {game.currentTurn}</span>
-                  <span>Max {game.maxPlayers} players</span>
-                  <span>Map: {game.settings.mapSize}</span>
-                </div>
-                <div className="mt-2">
-                  <span
-                    className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(game.status)}`}
-                  >
-                    {getStatusText(game.status)}
-                  </span>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm text-gray-500">
-                  Created {new Date(game.createdAt).toLocaleDateString()}
-                </div>
-                <button
-                  className="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium"
-                  onClick={e => {
-                    e.stopPropagation();
-                    onSelectGame(game);
-                  }}
-                >
-                  {game.status === 'waiting' ? 'Join Game' : 'View Game'}
-                </button>
-              </div>
-            </div>
+            <svg
+              className="w-5 h-5 mr-1"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Back to Home
+          </Link>
+          <Link
+            to="/games/create"
+            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium"
+          >
+            Create New Game
+          </Link>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-gray-900">
+              Available Games
+            </h2>
+            <button
+              onClick={loadGames}
+              className="text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              <svg
+                className="w-4 h-4 mr-1"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Refresh
+            </button>
           </div>
-        ))}
+
+          <div className="grid gap-4">
+            {games.map(game => (
+              <div
+                key={game.id}
+                className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => handleSelectGame(game)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {game.name}
+                    </h3>
+                    <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
+                      <span>Turn {game.currentTurn}</span>
+                      <span>Max {game.maxPlayers} players</span>
+                      <span>Map: {game.settings.mapSize}</span>
+                    </div>
+                    <div className="mt-2">
+                      <span
+                        className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(game.status)}`}
+                      >
+                        {getStatusText(game.status)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-500">
+                      Created {new Date(game.createdAt).toLocaleDateString()}
+                    </div>
+                    <button
+                      className="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium"
+                      onClick={e => {
+                        e.stopPropagation();
+                        handleSelectGame(game);
+                      }}
+                    >
+                      {game.status === 'waiting' ? 'Join Game' : 'View Game'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

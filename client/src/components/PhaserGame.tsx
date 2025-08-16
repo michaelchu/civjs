@@ -1,7 +1,12 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import * as Phaser from 'phaser';
-import { useGameStore } from '../stores/gameStore';
-import type { GameState } from '../../../shared/types';
+
+interface GameState {
+  mapWidth?: number;
+  mapHeight?: number;
+  units?: Array<{ id: string; x: number; y: number; type: string }>;
+  cities?: Array<{ id: string; x: number; y: number; name: string }>;
+}
 
 interface PhaserGameProps {
   gameId: string;
@@ -19,11 +24,8 @@ interface PhaserGameHandle {
 
 class GameMapScene extends Phaser.Scene {
   private gameState: GameState | null = null;
-  private tileMap?: Phaser.Tilemaps.Tilemap;
   private unitSprites: Map<string, Phaser.GameObjects.Sprite> = new Map();
   private citySprites: Map<string, Phaser.GameObjects.Sprite> = new Map();
-  private selectedUnit: string | null = null;
-  private tileGroup?: Phaser.GameObjects.Group;
   private tileWidth = 64;
   private tileHeight = 32;
   private mapContainer?: Phaser.GameObjects.Container;
@@ -75,9 +77,9 @@ class GameMapScene extends Phaser.Scene {
     this.input.on(
       'wheel',
       (
-        pointer: Phaser.Input.Pointer,
-        gameObjects: any[],
-        deltaX: number,
+        _pointer: Phaser.Input.Pointer,
+        _gameObjects: any[],
+        _deltaX: number,
         deltaY: number
       ) => {
         const zoomLevel = camera.zoom;
@@ -265,7 +267,9 @@ class GameMapScene extends Phaser.Scene {
         }
       });
       unitSprite.setDepth(unit.x + unit.y + 1); // Above tiles
-      this.mapContainer.add(unitSprite);
+      if (this.mapContainer) {
+        this.mapContainer.add(unitSprite);
+      }
       this.unitSprites.set(unit.id, unitSprite as any);
     });
 
@@ -287,29 +291,31 @@ class GameMapScene extends Phaser.Scene {
       );
       citySprite.setStrokeStyle(2, 0xf59e0b);
       citySprite.setDepth(city.x + city.y + 1); // Above tiles
-      this.mapContainer.add(citySprite);
+      if (this.mapContainer) {
+        this.mapContainer.add(citySprite);
+      }
       this.citySprites.set(city.id, citySprite as any);
     });
 
     // Set camera bounds based on isometric map size
     const bottomRight = this.isometricToScreen(mapWidth, mapHeight);
     const topLeft = this.isometricToScreen(0, 0);
-    this.cameras.main.setBounds(
-      topLeft.x - 200,
-      topLeft.y - 200,
-      bottomRight.x - topLeft.x + 400,
-      bottomRight.y - topLeft.y + 400
-    );
+    if (this.mapContainer) {
+      this.cameras.main.setBounds(
+        topLeft.x - 200,
+        topLeft.y - 200,
+        bottomRight.x - topLeft.x + 400,
+        bottomRight.y - topLeft.y + 400
+      );
+    }
   }
 
   centerCamera(x: number, y: number) {
     const screenPos = this.isometricToScreen(x, y);
-    if (this.mapContainer) {
-      this.cameras.main.centerOn(
-        this.mapContainer.x + screenPos.x,
-        this.mapContainer.y + screenPos.y
-      );
-    }
+    this.cameras.main.centerOn(
+      (this.mapContainer?.x || 0) + screenPos.x,
+      (this.mapContainer?.y || 0) + screenPos.y
+    );
   }
 
   highlightTile(x: number, y: number) {
@@ -339,7 +345,9 @@ class GameMapScene extends Phaser.Scene {
 
     highlight.setStrokeStyle(2, 0xfbbf24);
     highlight.setDepth(x + y + 0.5); // Between tile and units
-    this.mapContainer.add(highlight);
+    if (this.mapContainer) {
+      this.mapContainer.add(highlight);
+    }
 
     // Pulse and fade animation
     this.tweens.add({
@@ -355,7 +363,7 @@ class GameMapScene extends Phaser.Scene {
 }
 
 const PhaserGame = forwardRef<PhaserGameHandle, PhaserGameProps>(
-  ({ gameId, gameState, onTileClick, onUnitSelect, onEndTurn }, ref) => {
+  ({ gameState, onTileClick, onUnitSelect, onEndTurn }, ref) => {
     const gameRef = useRef<HTMLDivElement>(null);
     const phaserGame = useRef<Phaser.Game | null>(null);
     const sceneRef = useRef<GameMapScene | null>(null);

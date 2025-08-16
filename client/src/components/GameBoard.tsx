@@ -1,21 +1,31 @@
 import { useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../stores/gameStore';
 import PhaserGame, { type PhaserGameHandle } from './PhaserGame';
-import type { Game } from '../../../shared/types';
 
-interface GameBoardProps {
-  game: Game;
-  onExitGame: () => void;
-}
-
-export default function GameBoard({ game, onExitGame }: GameBoardProps) {
-  const { gameState, loadGameState, loading } = useGameStore();
+export default function GameBoard() {
+  const { gameId } = useParams<{ gameId: string }>();
+  const navigate = useNavigate();
+  const { currentGame, gameState, loadGameState, loading } = useGameStore();
   const phaserRef = useRef<PhaserGameHandle>(null);
 
   useEffect(() => {
     // Load the game state when component mounts
-    loadGameState(game.id);
-  }, [game.id, loadGameState]);
+    if (gameId) {
+      loadGameState(gameId);
+    }
+  }, [gameId, loadGameState]);
+
+  // Redirect if no current game or game ID doesn't match
+  useEffect(() => {
+    if (!currentGame || currentGame.id !== gameId) {
+      navigate('/games');
+    }
+  }, [currentGame, gameId, navigate]);
+
+  if (!currentGame || currentGame.id !== gameId) {
+    return null; // Will redirect
+  }
 
   if (loading) {
     return (
@@ -36,15 +46,17 @@ export default function GameBoard({ game, onExitGame }: GameBoardProps) {
       <div className="bg-gray-800 border-b border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-6">
-            <h1 className="text-xl font-bold">{game.name}</h1>
+            <h1 className="text-xl font-bold">{currentGame.name}</h1>
             <div className="flex items-center space-x-4 text-sm">
-              <span className="text-gray-300">Turn {game.currentTurn}</span>
+              <span className="text-gray-300">
+                Turn {currentGame.currentTurn}
+              </span>
               <span className="text-gray-300">•</span>
               <span className="text-yellow-400">Current Player: Player 1</span>
             </div>
           </div>
           <button
-            onClick={onExitGame}
+            onClick={() => navigate('/games')}
             className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-medium"
           >
             Exit Game
@@ -148,7 +160,7 @@ export default function GameBoard({ game, onExitGame }: GameBoardProps) {
           <div className="absolute inset-0">
             <PhaserGame
               ref={phaserRef}
-              gameId={game.id}
+              gameId={gameId!}
               gameState={gameState}
               onTileClick={(x, y) => {
                 console.log(`Tile clicked at (${x}, ${y})`);

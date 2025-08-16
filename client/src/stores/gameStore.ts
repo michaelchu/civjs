@@ -27,7 +27,7 @@ interface GameState {
   clearError: () => void;
 }
 
-export const useGameStore = create<GameState>((set, get) => ({
+export const useGameStore = create<GameState>(set => ({
   games: [],
   loading: false,
   error: null,

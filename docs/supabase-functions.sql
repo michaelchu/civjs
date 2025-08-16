@@ -29,13 +29,16 @@ CREATE OR REPLACE FUNCTION public.create_starting_units(
 )
 RETURNS void AS $$
 BEGIN
-    -- Create settler at starting position
-    INSERT INTO public.units (game_id, player_id, type, x, y)
-    VALUES (p_game_id, p_player_id, 'settler', p_start_x, p_start_y);
-    
-    -- Create warrior adjacent to settler
-    INSERT INTO public.units (game_id, player_id, type, x, y)
-    VALUES (p_game_id, p_player_id, 'warrior', p_start_x + 1, p_start_y);
+    -- Only create units if player doesn't already have any
+    IF NOT EXISTS (SELECT 1 FROM public.units WHERE game_id = p_game_id AND player_id = p_player_id) THEN
+        -- Create settler at starting position
+        INSERT INTO public.units (game_id, player_id, type, x, y)
+        VALUES (p_game_id, p_player_id, 'settler', p_start_x, p_start_y);
+        
+        -- Create warrior adjacent to settler
+        INSERT INTO public.units (game_id, player_id, type, x, y)
+        VALUES (p_game_id, p_player_id, 'warrior', p_start_x + 1, p_start_y);
+    END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -46,8 +49,13 @@ CREATE OR REPLACE FUNCTION public.initialize_player_state(
 )
 RETURNS void AS $$
 BEGIN
+    -- Only create player state if it doesn't already exist
     INSERT INTO public.player_state (game_id, player_id, gold, science_per_turn, culture_per_turn, happiness)
-    VALUES (p_game_id, p_player_id, 0, 1, 1, 5);
+    SELECT p_game_id, p_player_id, 0, 1, 1, 5
+    WHERE NOT EXISTS (
+        SELECT 1 FROM public.player_state ps 
+        WHERE ps.game_id = p_game_id AND ps.player_id = p_player_id
+    );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -64,6 +72,11 @@ DECLARE
 BEGIN
     -- Get game settings
     SELECT * INTO game_record FROM public.games WHERE id = p_game_id;
+    
+    -- Check if game is already active or completed
+    IF game_record.status != 'waiting' THEN
+        RETURN; -- Game already started, nothing to do
+    END IF;
     
     -- Determine map size
     CASE game_record.settings->>'mapSize'
@@ -82,10 +95,15 @@ BEGIN
     END CASE;
     
     -- Generate basic map (for now, just grassland - we'll improve this later)
+    -- Only create tiles if they don't already exist
     INSERT INTO public.map_tiles (game_id, x, y, terrain)
     SELECT p_game_id, x, y, 'grassland'
     FROM generate_series(0, map_width-1) x
-    CROSS JOIN generate_series(0, map_height-1) y;
+    CROSS JOIN generate_series(0, map_height-1) y
+    WHERE NOT EXISTS (
+        SELECT 1 FROM public.map_tiles mt 
+        WHERE mt.game_id = p_game_id AND mt.x = x AND mt.y = y
+    );
     
     -- Initialize each player
     FOR player_record IN 

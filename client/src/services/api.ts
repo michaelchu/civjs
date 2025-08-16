@@ -3,11 +3,11 @@ import type { Game, GameSettings } from '../../../shared/types';
 const API_BASE_URL = 'http://localhost:3001/api';
 
 class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string
-  ) {
+  public status: number;
+
+  constructor(status: number, message: string) {
     super(message);
+    this.status = status;
     this.name = 'ApiError';
   }
 }
