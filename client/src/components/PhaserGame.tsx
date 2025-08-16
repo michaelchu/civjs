@@ -48,6 +48,12 @@ class GameMapScene extends Phaser.Scene {
     onEndTurn?: () => void;
   } = {};
 
+  // Camera control properties
+  private isMiddleMouseDown = false;
+  private edgeScrollSpeed = 8;
+  private edgeScrollMargin = 50;
+  private panSpeed = 50;
+
   constructor() {
     super({ key: 'GameMapScene' });
   }
@@ -182,24 +188,50 @@ class GameMapScene extends Phaser.Scene {
   }
 
   create() {
-    console.log('Phaser scene created');
-    // Create a container for the isometric map
-    this.mapContainer = this.add.container(400, 300);
-    console.log('Map container created:', this.mapContainer);
+    // Set initial camera zoom to moderate level
+    this.cameras.main.setZoom(0.8);
+
+    // Create a container for the isometric map (will be repositioned after map is rendered)
+    this.mapContainer = this.add.container(0, 0);
 
     // Setup camera controls
-    const cursors = this.input.keyboard?.createCursorKeys();
-    const camera = this.cameras.main;
+    this.setupCameraControls();
 
-    // Enable camera panning with mouse drag
+    // Always render the initial map
+    this.renderGameState();
+
+    // Center the map after it's rendered
+    this.centerMapOnScreen();
+  }
+
+  private setupCameraControls() {
+    const camera = this.cameras.main;
+    const panSpeed = 50;
+
+    // Middle mouse drag panning
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.isDown && pointer.rightButtonDown()) {
-        camera.scrollX -= (pointer.x - pointer.prevPosition.x) / camera.zoom;
-        camera.scrollY -= (pointer.y - pointer.prevPosition.y) / camera.zoom;
+      if (pointer.isDown && pointer.middleButtonDown() && this.mapContainer) {
+        const deltaX = (pointer.x - pointer.prevPosition.x) / camera.zoom;
+        const deltaY = (pointer.y - pointer.prevPosition.y) / camera.zoom;
+
+        this.mapContainer.x += deltaX;
+        this.mapContainer.y += deltaY;
       }
     });
 
-    // Enable zoom with mouse wheel
+    // Handle tile clicks
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (pointer.leftButtonDown()) {
+        const worldPoint = camera.getWorldPoint(pointer.x, pointer.y);
+        const tileCoords = this.screenToIsometric(worldPoint.x, worldPoint.y);
+
+        if (this.callbacks.onTileClick && tileCoords) {
+          this.callbacks.onTileClick(tileCoords.x, tileCoords.y);
+        }
+      }
+    });
+
+    // Mouse wheel zoom
     this.input.on(
       'wheel',
       (
@@ -217,41 +249,54 @@ class GameMapScene extends Phaser.Scene {
       }
     );
 
-    // Handle tile clicks with isometric conversion
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (!pointer.rightButtonDown()) {
-        const worldPoint = camera.getWorldPoint(pointer.x, pointer.y);
-        const tileCoords = this.screenToIsometric(worldPoint.x, worldPoint.y);
-
-        if (this.callbacks.onTileClick && tileCoords) {
-          this.callbacks.onTileClick(tileCoords.x, tileCoords.y);
+    // WASD keyboard controls
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (this.mapContainer) {
+        switch (event.key.toLowerCase()) {
+          case 'w':
+            this.mapContainer.y -= panSpeed;
+            break;
+          case 's':
+            this.mapContainer.y += panSpeed;
+            break;
+          case 'a':
+            this.mapContainer.x -= panSpeed;
+            break;
+          case 'd':
+            this.mapContainer.x += panSpeed;
+            break;
         }
       }
-    });
+      event.preventDefault();
+    };
 
-    // Keyboard camera controls
-    if (cursors) {
-      this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
-        const speed = 10;
-        switch (event.key) {
-          case 'ArrowLeft':
-            camera.scrollX -= speed;
-            break;
-          case 'ArrowRight':
-            camera.scrollX += speed;
-            break;
-          case 'ArrowUp':
-            camera.scrollY -= speed;
-            break;
-          case 'ArrowDown':
-            camera.scrollY += speed;
-            break;
-        }
-      });
-    }
+    // Add global keydown listener
+    document.addEventListener('keydown', handleKeyPress);
 
-    // Always render the initial map
-    this.renderGameState();
+    // Store reference for cleanup
+    (this as any).keyHandler = handleKeyPress;
+  }
+
+  private centerMapOnScreen() {
+    if (!this.mapContainer) return;
+
+    const gameWidth = this.scale.width;
+    const gameHeight = this.scale.height;
+
+    // Calculate the center of the screen
+    const screenCenterX = gameWidth / 2;
+    const screenCenterY = gameHeight / 2;
+
+    // Get map dimensions
+    const mapWidth = this.gameState?.mapWidth || 40;
+    const mapHeight = this.gameState?.mapHeight || 40;
+
+    // Calculate the center of the isometric map
+    const mapCenterTile = this.isometricToScreen(mapWidth / 2, mapHeight / 2);
+
+    // Position the map container so the map center appears at screen center
+    this.mapContainer.x = screenCenterX - mapCenterTile.x;
+    this.mapContainer.y = screenCenterY - mapCenterTile.y;
   }
 
   setCallbacks(callbacks: typeof this.callbacks) {
@@ -261,6 +306,7 @@ class GameMapScene extends Phaser.Scene {
   updateGameState(state: GameState) {
     this.gameState = state;
     this.renderGameState();
+    this.centerMapOnScreen();
   }
 
   // Convert isometric coordinates to screen coordinates
@@ -292,7 +338,6 @@ class GameMapScene extends Phaser.Scene {
   }
 
   private renderGameState() {
-    console.log('Rendering game state, mapContainer:', this.mapContainer);
     if (!this.mapContainer) return;
 
     // Clear existing sprites
@@ -305,8 +350,6 @@ class GameMapScene extends Phaser.Scene {
     // Render map tiles in isometric view - use defaults if no game state
     const mapWidth = this.gameState?.mapWidth || 40;
     const mapHeight = this.gameState?.mapHeight || 40;
-
-    console.log(`Rendering map: ${mapWidth}x${mapHeight}`);
 
     // Generate terrain map from server data or fallback to generated terrain
     if (this.gameState?.map && this.gameState.map.length > 0) {
@@ -382,12 +425,6 @@ class GameMapScene extends Phaser.Scene {
           tile.setFillStyle(color, 0.9);
         });
 
-        tile.on('pointerdown', () => {
-          if (this.callbacks.onTileClick) {
-            this.callbacks.onTileClick(x, y);
-          }
-        });
-
         // Set depth for proper rendering order
         tile.setDepth(x + y);
 
@@ -448,18 +485,6 @@ class GameMapScene extends Phaser.Scene {
       }
       this.citySprites.set(city.id, citySprite as any);
     });
-
-    // Set camera bounds based on isometric map size
-    const bottomRight = this.isometricToScreen(mapWidth, mapHeight);
-    const topLeft = this.isometricToScreen(0, 0);
-    if (this.mapContainer) {
-      this.cameras.main.setBounds(
-        topLeft.x - 200,
-        topLeft.y - 200,
-        bottomRight.x - topLeft.x + 400,
-        bottomRight.y - topLeft.y + 400
-      );
-    }
   }
 
   centerCamera(x: number, y: number) {
