@@ -173,17 +173,37 @@ router.get('/:gameId/state', async (req: Request, res: Response) => {
   try {
     const { gameId } = req.params;
 
+    // Get the game to get settings
+    const { data: game, error: gameError } = await gameService.getGame(gameId!);
+    if (gameError || !game) {
+      return res
+        .status(500)
+        .json({ error: gameError?.message || 'Game not found' });
+    }
+
     const gameState = await gameService.getGameState(gameId!);
 
     if (gameState.error) {
       return res.status(500).json({ error: gameState.error.message });
     }
 
+    // Calculate actual map dimensions from settings
+    const mapSize = game.settings?.mapSize || 'medium';
+    const dimensions: Record<string, { width: number; height: number }> = {
+      small: { width: 40, height: 40 },
+      medium: { width: 60, height: 60 },
+      large: { width: 80, height: 80 },
+    };
+
+    const mapDimensions = dimensions[mapSize] || dimensions['medium'];
+
     return res.json({
       map: gameState.map,
       units: gameState.units,
       cities: gameState.cities,
       players: gameState.players,
+      mapWidth: mapDimensions!.width,
+      mapHeight: mapDimensions!.height,
     });
   } catch (err) {
     return res.status(500).json({ error: 'Internal server error' });

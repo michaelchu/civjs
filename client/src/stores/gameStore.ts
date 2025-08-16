@@ -15,6 +15,8 @@ interface GameState {
     units: any[];
     cities: any[];
     players: any[];
+    mapWidth: number;
+    mapHeight: number;
   } | null;
 
   // Actions
@@ -123,6 +125,14 @@ export const useGameStore = create<GameState>(set => ({
     set({ loading: true, error: null });
     try {
       const response = await gameApi.getGameState(gameId);
+      console.log('Game state loaded:', {
+        mapTiles: response.map?.length || 0,
+        units: response.units?.length || 0,
+        cities: response.cities?.length || 0,
+        players: response.players?.length || 0,
+        mapWidth: response.mapWidth,
+        mapHeight: response.mapHeight,
+      });
       set({
         gameState: response,
         loading: false,

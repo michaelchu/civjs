@@ -83,6 +83,8 @@ export const gameApi = {
     units: any[];
     cities: any[];
     players: any[];
+    mapWidth: number;
+    mapHeight: number;
   }> {
     return apiRequest(`/games/${gameId}/state`);
   },

@@ -89,14 +89,8 @@ export default function GameBoard({ connected }: GameBoardProps) {
             gameState={
               gameState
                 ? {
-                    mapWidth:
-                      gameState.map?.length > 0
-                        ? Math.max(...gameState.map.map((t: any) => t.x)) + 1
-                        : 40,
-                    mapHeight:
-                      gameState.map?.length > 0
-                        ? Math.max(...gameState.map.map((t: any) => t.y)) + 1
-                        : 40,
+                    mapWidth: gameState.mapWidth || 40,
+                    mapHeight: gameState.mapHeight || 40,
                     map: gameState.map || [],
                     units: gameState.units || [],
                     cities: gameState.cities || [],

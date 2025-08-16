@@ -318,8 +318,8 @@ export class GameService {
     players: any[] | null;
     error: any;
   }> {
-    // Get map tiles
-    const { data: map, error: mapError } = await supabase
+    // Get map tiles - using supabaseAdmin since this is public game data
+    const { data: map, error: mapError } = await supabaseAdmin
       .from('map_tiles')
       .select('*')
       .eq('game_id', gameId);
@@ -334,7 +334,7 @@ export class GameService {
       };
 
     // Get units
-    const { data: units, error: unitsError } = await supabase
+    const { data: units, error: unitsError } = await supabaseAdmin
       .from('units')
       .select('*')
       .eq('game_id', gameId);
@@ -349,7 +349,7 @@ export class GameService {
       };
 
     // Get cities
-    const { data: cities, error: citiesError } = await supabase
+    const { data: cities, error: citiesError } = await supabaseAdmin
       .from('cities')
       .select('*')
       .eq('game_id', gameId);
@@ -358,7 +358,7 @@ export class GameService {
       return { map, units, cities: null, players: null, error: citiesError };
 
     // Get player states
-    const { data: players, error: playersError } = await supabase
+    const { data: players, error: playersError } = await supabaseAdmin
       .from('player_state')
       .select(
         `

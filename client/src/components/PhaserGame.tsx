@@ -112,47 +112,44 @@ class GameMapScene extends Phaser.Scene {
     const mapWidth = this.gameState?.mapWidth || 40;
     const mapHeight = this.gameState?.mapHeight || 40;
 
+    // Only render map if we have actual data from the server
     if (this.gameState?.map && this.gameState.map.length > 0) {
+      console.log(
+        `Rendering map with ${this.gameState.map.length} tiles, dimensions: ${mapWidth}x${mapHeight}`
+      );
       this.terrainMap = TerrainService.buildTerrainMapFromServerData(
         this.gameState.map,
         mapWidth,
         mapHeight
       );
-    } else if (
-      this.terrainMap.length !== mapHeight ||
-      this.terrainMap[0]?.length !== mapWidth
-    ) {
-      this.terrainMap = TerrainService.generateContinentTerrain(
+
+      this.mapRenderer.renderTerrain(
+        this.terrainMap,
         mapWidth,
-        mapHeight
+        mapHeight,
+        this.mapContainer
       );
+
+      // Only render units if we have them from the server
+      if (this.gameState?.units && this.gameState.units.length > 0) {
+        this.gameObjectRenderer.renderUnits(
+          this.gameState.units,
+          this.mapContainer,
+          this.callbacks.onUnitSelect
+        );
+      }
+
+      // Only render cities if we have them from the server
+      if (this.gameState?.cities && this.gameState.cities.length > 0) {
+        this.gameObjectRenderer.renderCities(
+          this.gameState.cities,
+          this.mapContainer
+        );
+      }
+    } else {
+      // No map data yet - this is normal on initial load
+      console.log('Waiting for map data from server...');
     }
-
-    this.mapRenderer.renderTerrain(
-      this.terrainMap,
-      mapWidth,
-      mapHeight,
-      this.mapContainer
-    );
-
-    const units: Unit[] = this.gameState?.units || [
-      { id: 'unit1', x: 5, y: 5, type: 'warrior' },
-      { id: 'unit2', x: 8, y: 3, type: 'archer' },
-      { id: 'unit3', x: 12, y: 7, type: 'settler' },
-    ];
-
-    this.gameObjectRenderer.renderUnits(
-      units,
-      this.mapContainer,
-      this.callbacks.onUnitSelect
-    );
-
-    const cities: City[] = this.gameState?.cities || [
-      { id: 'city1', x: 10, y: 10, name: 'Capital City' },
-      { id: 'city2', x: 15, y: 5, name: 'Trading Post' },
-    ];
-
-    this.gameObjectRenderer.renderCities(cities, this.mapContainer);
   }
 
   centerCamera(x: number, y: number) {

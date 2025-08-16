@@ -36,6 +36,14 @@ export default function GameLobby() {
 
   const handleStartGame = async () => {
     if (!gameId) return;
+
+    // If game is already active, just navigate to play
+    if (currentGame.status === 'active') {
+      navigate(`/games/${gameId}/play`);
+      return;
+    }
+
+    // Otherwise, start the game first
     const success = await startGame(gameId);
     if (success) {
       navigate(`/games/${gameId}/play`);
