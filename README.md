@@ -113,9 +113,9 @@ npm run install:all
   - Varied terrain: grassland, hills, mountains, forest, water
   - Resource placement and strategic positioning
 - [x] Isometric tile rendering with Phaser.js
-  - High-performance canvas-based rendering
+  - High-performance canvas-based rendering using polygon geometry
   - Smooth tile transitions and visual effects
-  - Terrain-specific sprites and animations
+  - Dynamic terrain coloring (programmatic color generation)
 
 **Mouse & Keyboard Controls:**
 
@@ -204,6 +204,7 @@ npm run install:all
 - [ ] Save/load game functionality
 - [ ] Replay system and game analysis
 - [ ] Modding support and custom scenarios
+- [ ] Custom sprite assets and tileset.tileOffset migration for enhanced visual fidelity
 
 ## 🧪 Testing the Setup
 
