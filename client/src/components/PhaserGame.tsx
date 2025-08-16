@@ -235,15 +235,15 @@ const PhaserGame = forwardRef<PhaserGameHandle, PhaserGameProps>(
       return () => {
         if (phaserGame.current) {
           const scene = sceneRef.current;
-          if (scene && (scene as any).cameraController) {
-            (scene as any).cameraController.destroy();
+          if (scene && 'cameraController' in scene && scene.cameraController) {
+            scene.cameraController.destroy();
           }
           phaserGame.current.destroy(true);
           phaserGame.current = null;
           sceneRef.current = null;
         }
       };
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Update game state when it changes
     useEffect(() => {

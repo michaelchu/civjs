@@ -52,7 +52,7 @@ export class CameraController {
       'wheel',
       (
         _pointer: Phaser.Input.Pointer,
-        _gameObjects: any[],
+        _gameObjects: Phaser.GameObjects.GameObject[],
         _deltaX: number,
         deltaY: number
       ) => {

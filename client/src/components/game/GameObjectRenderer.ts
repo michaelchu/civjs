@@ -53,7 +53,7 @@ export class GameObjectRenderer {
 
       unitSprite.setDepth(unit.x + unit.y + 1);
       mapContainer.add(unitSprite);
-      this.unitSprites.set(unit.id, unitSprite as any);
+      this.unitSprites.set(unit.id, unitSprite as Phaser.GameObjects.Sprite);
     });
   }
 
@@ -74,7 +74,7 @@ export class GameObjectRenderer {
       citySprite.setStrokeStyle(2, 0xf59e0b);
       citySprite.setDepth(city.x + city.y + 1);
       mapContainer.add(citySprite);
-      this.citySprites.set(city.id, citySprite as any);
+      this.citySprites.set(city.id, citySprite as Phaser.GameObjects.Sprite);
     });
   }
 
