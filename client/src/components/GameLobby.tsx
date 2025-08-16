@@ -35,7 +35,7 @@ export default function GameLobby() {
   };
 
   const handleStartGame = async () => {
-    if (!gameId) return;
+    if (!gameId || !currentGame) return;
 
     // If game is already active, just navigate to play
     if (currentGame.status === 'active') {

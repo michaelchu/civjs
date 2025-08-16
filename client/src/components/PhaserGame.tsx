@@ -7,7 +7,6 @@ import type { CameraCallbacks } from './game/CameraController';
 import { IsometricUtils } from './game/IsometricUtils';
 import { MapRenderer } from './game/MapRenderer';
 import { GameObjectRenderer } from './game/GameObjectRenderer';
-import type { Unit, City } from './game/GameObjectRenderer';
 
 interface GameState {
   mapWidth?: number;
