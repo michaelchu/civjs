@@ -20,7 +20,7 @@ function App() {
 
   useEffect(() => {
     // Connect to the server
-    const newSocket = io('http://localhost:3001');
+    const newSocket = io(process.env.VITE_WS_URL || 'http://localhost:3001');
 
     newSocket.on('connect', () => {
       console.log('Connected to server');
