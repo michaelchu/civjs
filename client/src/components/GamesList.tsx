@@ -91,24 +91,56 @@ export default function GamesList() {
 
   if (games.length === 0) {
     return (
-      <div className="text-center py-8">
-        <div className="text-gray-400 mb-4">
-          <svg
-            className="w-16 h-16 mx-auto"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-          >
-            <path
-              fillRule="evenodd"
-              d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
-              clipRule="evenodd"
-            />
-          </svg>
+      <div className="min-h-screen p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <Link
+              to="/"
+              className="text-gray-600 hover:text-gray-800 flex items-center"
+            >
+              <svg
+                className="w-5 h-5 mr-1"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Back to Home
+            </Link>
+          </div>
+
+          <div className="text-center py-8">
+            <div className="text-gray-400 mb-4">
+              <svg
+                className="w-16 h-16 mx-auto"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No games available
+            </h3>
+            <p className="text-gray-500 mb-6">
+              Create a new game to get started!
+            </p>
+            <Link
+              to="/games/create"
+              className="inline-block bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-medium"
+            >
+              Create New Game
+            </Link>
+          </div>
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">
-          No games available
-        </h3>
-        <p className="text-gray-500">Create a new game to get started!</p>
       </div>
     );
   }
