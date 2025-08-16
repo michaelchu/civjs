@@ -108,6 +108,13 @@ export const gameApi = {
       method: 'POST',
     });
   },
+
+  // Delete a game
+  async deleteGame(gameId: string): Promise<{ message: string }> {
+    return apiRequest(`/games/${gameId}`, {
+      method: 'DELETE',
+    });
+  },
 };
 
 export { ApiError };

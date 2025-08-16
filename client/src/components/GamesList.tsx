@@ -1,16 +1,46 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../stores/gameStore';
 import type { Game } from '../../../shared/types';
 
 export default function GamesList() {
   const navigate = useNavigate();
-  const { games, loading, error, loadGames, clearError, setCurrentGame } =
-    useGameStore();
+  const {
+    games,
+    loading,
+    error,
+    loadGames,
+    clearError,
+    setCurrentGame,
+    deleteGame,
+  } = useGameStore();
+  const [gameToDelete, setGameToDelete] = useState<Game | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleSelectGame = (game: Game) => {
     setCurrentGame(game);
     navigate(`/games/${game.id}/lobby`);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, game: Game) => {
+    e.stopPropagation();
+    setGameToDelete(game);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!gameToDelete) return;
+
+    setIsDeleting(true);
+    const success = await deleteGame(gameToDelete.id);
+    setIsDeleting(false);
+
+    if (success) {
+      setGameToDelete(null);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setGameToDelete(null);
   };
 
   useEffect(() => {
@@ -191,15 +221,36 @@ export default function GamesList() {
                     <div className="text-sm text-gray-500">
                       Created {new Date(game.createdAt).toLocaleDateString()}
                     </div>
-                    <button
-                      className="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium"
-                      onClick={e => {
-                        e.stopPropagation();
-                        handleSelectGame(game);
-                      }}
-                    >
-                      {game.status === 'waiting' ? 'Join Game' : 'View Game'}
-                    </button>
+                    <div className="mt-2 flex gap-2 justify-end items-stretch">
+                      <button
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium"
+                        onClick={e => {
+                          e.stopPropagation();
+                          handleSelectGame(game);
+                        }}
+                      >
+                        {game.status === 'waiting' ? 'Join Game' : 'View Game'}
+                      </button>
+                      <button
+                        className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded text-sm font-medium flex items-center justify-center"
+                        onClick={e => handleDeleteClick(e, game)}
+                        title="Delete game"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -207,6 +258,38 @@ export default function GamesList() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {gameToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Confirm Delete
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete the game "{gameToDelete.name}"?
+              This action cannot be undone and will remove all game data
+              including the map, units, and player progress.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 rounded font-medium"
+                onClick={handleCancelDelete}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded font-medium"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Game'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

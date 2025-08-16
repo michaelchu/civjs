@@ -452,4 +452,60 @@ export class GameService {
 
     return { data, error };
   }
+
+  // Delete a game and all related data
+  async deleteGame(
+    gameId: string,
+    userId: string
+  ): Promise<{ data: any; error: any }> {
+    try {
+      // First check if the user is the creator of the game
+      const { data: game, error: gameError } = await supabaseAdmin
+        .from('games')
+        .select('created_by')
+        .eq('id', gameId)
+        .single();
+
+      if (gameError || !game) {
+        return { data: null, error: gameError || new Error('Game not found') };
+      }
+
+      if (game.created_by !== userId) {
+        return {
+          data: null,
+          error: new Error('Only the game creator can delete this game'),
+        };
+      }
+
+      // Delete in the correct order to respect foreign key constraints
+      // 1. Delete units
+      await supabaseAdmin.from('units').delete().eq('game_id', gameId);
+
+      // 2. Delete cities
+      await supabaseAdmin.from('cities').delete().eq('game_id', gameId);
+
+      // 3. Delete player_state
+      await supabaseAdmin.from('player_state').delete().eq('game_id', gameId);
+
+      // 4. Delete game_players
+      await supabaseAdmin.from('game_players').delete().eq('game_id', gameId);
+
+      // 5. Delete map_tiles
+      await supabaseAdmin.from('map_tiles').delete().eq('game_id', gameId);
+
+      // 6. Finally delete the game itself
+      const { error: deleteError } = await supabaseAdmin
+        .from('games')
+        .delete()
+        .eq('id', gameId);
+
+      if (deleteError) {
+        return { data: null, error: deleteError };
+      }
+
+      return { data: { message: 'Game deleted successfully' }, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  }
 }

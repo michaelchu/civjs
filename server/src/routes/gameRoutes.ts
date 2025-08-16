@@ -262,4 +262,31 @@ router.post(
   }
 );
 
+// Delete a game
+router.delete(
+  '/:gameId',
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { gameId } = req.params;
+
+      const { data, error } = await gameService.deleteGame(
+        gameId!,
+        req.user!.id
+      );
+
+      if (error) {
+        if (error.message.includes('Only the game creator')) {
+          return res.status(403).json({ error: error.message });
+        }
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.json({ message: 'Game deleted successfully' });
+    } catch (err) {
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
 export default router;

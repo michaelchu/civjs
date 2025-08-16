@@ -27,6 +27,7 @@ interface GameState {
   loadGameState: (gameId: string) => Promise<void>;
   setCurrentGame: (game: Game | null) => void;
   clearError: () => void;
+  deleteGame: (gameId: string) => Promise<boolean>;
 }
 
 export const useGameStore = create<GameState>(set => ({
@@ -152,5 +153,29 @@ export const useGameStore = create<GameState>(set => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  deleteGame: async (gameId: string) => {
+    set({ loading: true, error: null });
+    try {
+      await gameApi.deleteGame(gameId);
+
+      // Remove the game from the list
+      set(state => ({
+        games: state.games.filter(game => game.id !== gameId),
+        loading: false,
+        // Clear current game if it was the deleted one
+        currentGame:
+          state.currentGame?.id === gameId ? null : state.currentGame,
+      }));
+
+      return true;
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to delete game',
+        loading: false,
+      });
+      return false;
+    }
   },
 }));
