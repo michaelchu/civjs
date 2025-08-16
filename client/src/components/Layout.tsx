@@ -30,25 +30,6 @@ export default function Layout({
         </div>
       )}
 
-      {/* Connection status bar */}
-      <div className="bg-gray-800 text-white p-2">
-        <div className="max-w-6xl mx-auto flex items-center justify-between text-sm">
-          <div className="flex items-center space-x-2">
-            <div
-              className={`w-2 h-2 rounded-full ${
-                connected ? 'bg-green-400' : 'bg-red-400'
-              }`}
-            />
-            <span>
-              {connected ? 'Connected to server' : 'Disconnected from server'}
-            </span>
-          </div>
-          <div className="text-gray-400">
-            CivJS - Browser-based Civilization Game
-          </div>
-        </div>
-      </div>
-
       {/* Main content */}
       <main>{children}</main>
     </div>

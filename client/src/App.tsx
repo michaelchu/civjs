@@ -48,7 +48,10 @@ function App() {
           <Route path="/games" element={<GamesList />} />
           <Route path="/games/create" element={<CreateGame />} />
           <Route path="/games/:gameId/lobby" element={<GameLobby />} />
-          <Route path="/games/:gameId/play" element={<GameBoard />} />
+          <Route
+            path="/games/:gameId/play"
+            element={<GameBoard connected={connected} />}
+          />
 
           {/* Redirect unknown routes to home */}
           <Route path="*" element={<Navigate to="/" replace />} />

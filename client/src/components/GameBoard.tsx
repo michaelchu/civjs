@@ -3,7 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../stores/gameStore';
 import PhaserGame, { type PhaserGameHandle } from './PhaserGame';
 
-export default function GameBoard() {
+interface GameBoardProps {
+  connected: boolean;
+}
+
+export default function GameBoard({ connected }: GameBoardProps) {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
   const { currentGame, gameState, loadGameState, loading } = useGameStore();
@@ -53,6 +57,17 @@ export default function GameBoard() {
               </span>
               <span className="text-gray-300">•</span>
               <span className="text-yellow-400">Current Player: Player 1</span>
+              <span className="text-gray-300">•</span>
+              <div className="flex items-center space-x-2">
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    connected ? 'bg-green-400' : 'bg-red-400'
+                  }`}
+                />
+                <span className={connected ? 'text-green-400' : 'text-red-400'}>
+                  {connected ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
             </div>
           </div>
           <button
