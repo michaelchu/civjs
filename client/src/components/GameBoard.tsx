@@ -161,7 +161,23 @@ export default function GameBoard() {
             <PhaserGame
               ref={phaserRef}
               gameId={gameId!}
-              gameState={gameState}
+              gameState={
+                gameState
+                  ? {
+                      mapWidth:
+                        gameState.map?.length > 0
+                          ? Math.max(...gameState.map.map((t: any) => t.x)) + 1
+                          : 40,
+                      mapHeight:
+                        gameState.map?.length > 0
+                          ? Math.max(...gameState.map.map((t: any) => t.y)) + 1
+                          : 40,
+                      map: gameState.map || [],
+                      units: gameState.units || [],
+                      cities: gameState.cities || [],
+                    }
+                  : null
+              }
               onTileClick={(x, y) => {
                 console.log(`Tile clicked at (${x}, ${y})`);
               }}

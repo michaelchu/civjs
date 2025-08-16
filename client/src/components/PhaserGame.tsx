@@ -4,6 +4,7 @@ import * as Phaser from 'phaser';
 interface GameState {
   mapWidth?: number;
   mapHeight?: number;
+  map?: Array<{ x: number; y: number; terrain: string }>;
   units?: Array<{ id: string; x: number; y: number; type: string }>;
   cities?: Array<{ id: string; x: number; y: number; name: string }>;
 }
@@ -22,6 +23,17 @@ interface PhaserGameHandle {
   highlightTile: (x: number, y: number) => void;
 }
 
+type TerrainType =
+  | 'ocean'
+  | 'coast'
+  | 'grassland'
+  | 'plains'
+  | 'forest'
+  | 'hills'
+  | 'mountains'
+  | 'desert'
+  | 'tundra';
+
 class GameMapScene extends Phaser.Scene {
   private gameState: GameState | null = null;
   private unitSprites: Map<string, Phaser.GameObjects.Sprite> = new Map();
@@ -29,6 +41,7 @@ class GameMapScene extends Phaser.Scene {
   private tileWidth = 64;
   private tileHeight = 32;
   private mapContainer?: Phaser.GameObjects.Container;
+  private terrainMap: TerrainType[][] = [];
   private callbacks: {
     onTileClick?: (x: number, y: number) => void;
     onUnitSelect?: (unitId: string) => void;
@@ -37,6 +50,119 @@ class GameMapScene extends Phaser.Scene {
 
   constructor() {
     super({ key: 'GameMapScene' });
+  }
+
+  private getTerrainColor(terrain: TerrainType): number {
+    const terrainColors: Record<TerrainType, number> = {
+      ocean: 0x1e40af, // Deep blue
+      coast: 0x3b82f6, // Blue
+      grassland: 0x22c55e, // Green
+      plains: 0x84cc16, // Light green
+      forest: 0x166534, // Dark green
+      hills: 0xa3a3a3, // Gray
+      mountains: 0x525252, // Dark gray
+      desert: 0xfbbf24, // Yellow
+      tundra: 0xe5e7eb, // Light gray
+    };
+    return terrainColors[terrain];
+  }
+
+  private generateContinentTerrain(
+    width: number,
+    height: number
+  ): TerrainType[][] {
+    const terrain: TerrainType[][] = [];
+
+    // Initialize with ocean
+    for (let y = 0; y < height; y++) {
+      terrain[y] = [];
+      for (let x = 0; x < width; x++) {
+        terrain[y][x] = 'ocean';
+      }
+    }
+
+    // Generate continent shape using noise-like generation
+    const centerX = Math.floor(width / 2);
+    const centerY = Math.floor(height / 2);
+    const continentWidth = Math.floor(width * 0.6);
+    const continentHeight = Math.floor(height * 0.6);
+
+    // Create landmass
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const dx = x - centerX;
+        const dy = y - centerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const maxDistance = Math.min(continentWidth, continentHeight) / 2;
+
+        // Add some randomness to create irregular coastline
+        const noise =
+          (Math.sin(x * 0.1) +
+            Math.cos(y * 0.1) +
+            Math.sin(x * 0.05 + y * 0.05)) *
+          3;
+        const adjustedDistance = distance + noise;
+
+        if (adjustedDistance < maxDistance) {
+          // Interior land - determine terrain type based on distance from center
+          const normalizedDistance = adjustedDistance / maxDistance;
+          const elevation =
+            Math.random() * 0.3 + (1 - normalizedDistance) * 0.7;
+
+          if (elevation > 0.8) {
+            terrain[y][x] = 'mountains';
+          } else if (elevation > 0.6) {
+            terrain[y][x] = 'hills';
+          } else if (elevation > 0.4) {
+            terrain[y][x] = Math.random() > 0.5 ? 'forest' : 'grassland';
+          } else if (elevation > 0.2) {
+            terrain[y][x] = Math.random() > 0.3 ? 'plains' : 'grassland';
+          } else {
+            terrain[y][x] = 'grassland';
+          }
+
+          // Add some desert areas
+          if (Math.abs(dy) < continentHeight / 6 && Math.random() > 0.85) {
+            terrain[y][x] = 'desert';
+          }
+
+          // Add tundra near edges
+          if (normalizedDistance > 0.7 && Math.random() > 0.7) {
+            terrain[y][x] = 'tundra';
+          }
+        } else if (adjustedDistance < maxDistance + 2) {
+          // Coast areas
+          terrain[y][x] = 'coast';
+        }
+      }
+    }
+
+    return terrain;
+  }
+
+  private buildTerrainMapFromServerData(
+    mapTiles: Array<{ x: number; y: number; terrain: string }>,
+    width: number,
+    height: number
+  ): TerrainType[][] {
+    const terrain: TerrainType[][] = [];
+
+    // Initialize with ocean (default)
+    for (let y = 0; y < height; y++) {
+      terrain[y] = [];
+      for (let x = 0; x < width; x++) {
+        terrain[y][x] = 'ocean';
+      }
+    }
+
+    // Fill in terrain data from server
+    mapTiles.forEach(tile => {
+      if (tile.x >= 0 && tile.x < width && tile.y >= 0 && tile.y < height) {
+        terrain[tile.y][tile.x] = tile.terrain as TerrainType;
+      }
+    });
+
+    return terrain;
   }
 
   preload() {
@@ -177,10 +303,26 @@ class GameMapScene extends Phaser.Scene {
     this.mapContainer.removeAll(true);
 
     // Render map tiles in isometric view - use defaults if no game state
-    const mapWidth = this.gameState?.mapWidth || 20;
-    const mapHeight = this.gameState?.mapHeight || 20;
+    const mapWidth = this.gameState?.mapWidth || 40;
+    const mapHeight = this.gameState?.mapHeight || 40;
 
     console.log(`Rendering map: ${mapWidth}x${mapHeight}`);
+
+    // Generate terrain map from server data or fallback to generated terrain
+    if (this.gameState?.map && this.gameState.map.length > 0) {
+      // Use terrain data from server
+      this.terrainMap = this.buildTerrainMapFromServerData(
+        this.gameState.map,
+        mapWidth,
+        mapHeight
+      );
+    } else if (
+      this.terrainMap.length !== mapHeight ||
+      this.terrainMap[0]?.length !== mapWidth
+    ) {
+      // Fallback: generate terrain locally (for testing/development)
+      this.terrainMap = this.generateContinentTerrain(mapWidth, mapHeight);
+    }
 
     // Create isometric tiles with depth sorting
     const tiles: Phaser.GameObjects.Polygon[] = [];
@@ -201,8 +343,9 @@ class GameMapScene extends Phaser.Scene {
           0, // Left
         ];
 
-        // Alternate tile colors for checkerboard pattern
-        const color = (x + y) % 2 === 0 ? 0x4ade80 : 0x22c55e;
+        // Get terrain color based on generated terrain
+        const terrainType = this.terrainMap[y][x];
+        const color = this.getTerrainColor(terrainType);
 
         const tile = this.add.polygon(
           screenPos.x,
@@ -212,7 +355,16 @@ class GameMapScene extends Phaser.Scene {
           0.9
         );
 
-        tile.setStrokeStyle(1, 0x16a34a);
+        // Set stroke color based on terrain type
+        const strokeColor =
+          terrainType === 'ocean' || terrainType === 'coast'
+            ? 0x1e3a8a
+            : terrainType === 'mountains'
+              ? 0x374151
+              : terrainType === 'desert'
+                ? 0xd97706
+                : 0x16a34a;
+        tile.setStrokeStyle(1, strokeColor);
         tile.setInteractive(
           new Phaser.Geom.Polygon(points),
           Phaser.Geom.Polygon.Contains

@@ -45,6 +45,12 @@ web_modules/
 # TypeScript cache
 *.tsbuildinfo
 
+# TypeScript compiled outputs from shared folder
+shared/*.d.ts
+shared/*.d.ts.map
+shared/*.js
+shared/*.js.map
+
 # Optional npm cache directory
 .npm
 
