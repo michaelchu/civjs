@@ -20,11 +20,11 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false # Set in Render dashboard
       - key: CLIENT_URL
-        value: https://civjs-client.onrender.com
+        value: https://civjs.onrender.com
 
   # Frontend React App
   - type: web
-    name: civjs-client
+    name: civjs
     runtime: static
     repo: https://github.com/michaelchu/civjs.git
     branch: master
