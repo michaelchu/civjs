@@ -1,6 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { GameService } from '../services/gameService';
 import { z } from 'zod';
+
+interface AuthenticatedRequest extends Request {
+  user?: { id: string };
+}
 
 const router = Router();
 const gameService = new GameService();
@@ -26,7 +30,11 @@ const moveUnitSchema = z.object({
 });
 
 // Mock authentication middleware (replace with real auth later)
-const requireAuth = async (req: any, res: any, next: any) => {
+const requireAuth = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     // Use the real Supabase user ID
     const testUserId = 'cca02617-25eb-4a44-8f6a-7575033cf5a3';
@@ -44,7 +52,7 @@ const requireAuth = async (req: any, res: any, next: any) => {
 };
 
 // Get all available games
-router.get('/', async (req, res) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const { data, error } = await gameService.getAvailableGames();
 
@@ -52,43 +60,47 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
-    res.json({ games: data });
+    return res.json({ games: data });
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Create a new game
-router.post('/', requireAuth, async (req, res) => {
-  try {
-    const validatedData = createGameSchema.parse(req.body);
+router.post(
+  '/',
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const validatedData = createGameSchema.parse(req.body);
 
-    const { data, error } = await gameService.createGame(
-      req.user.id,
-      validatedData.name,
-      validatedData.settings
-    );
+      const { data, error } = await gameService.createGame(
+        req.user!.id,
+        validatedData.name,
+        validatedData.settings
+      );
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.status(201).json({ game: data });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid input', details: err.issues });
+      }
+      return res.status(500).json({ error: 'Internal server error' });
     }
-
-    res.status(201).json({ game: data });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return res
-        .status(400)
-        .json({ error: 'Invalid input', details: err.errors });
-    }
-    res.status(500).json({ error: 'Internal server error' });
   }
-});
+);
 
 // Get a specific game
-router.get('/:gameId', async (req, res) => {
+router.get('/:gameId', async (req: Request, res: Response) => {
   try {
     const { gameId } = req.params;
-    const { data, error } = await gameService.getGame(gameId);
+    const { data, error } = await gameService.getGame(gameId!);
 
     if (error) {
       return res.status(500).json({ error: error.message });
@@ -98,120 +110,136 @@ router.get('/:gameId', async (req, res) => {
       return res.status(404).json({ error: 'Game not found' });
     }
 
-    res.json({ game: data });
+    return res.json({ game: data });
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Join a game
-router.post('/:gameId/join', requireAuth, async (req, res) => {
-  try {
-    const { gameId } = req.params;
-    const validatedData = joinGameSchema.parse(req.body);
+router.post(
+  '/:gameId/join',
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { gameId } = req.params;
+      const validatedData = joinGameSchema.parse(req.body);
 
-    const { data, error } = await gameService.joinGame(
-      gameId,
-      req.user.id,
-      validatedData.civilization
-    );
+      const { data, error } = await gameService.joinGame(
+        gameId!,
+        req.user!.id,
+        validatedData.civilization
+      );
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.json({ gamePlayer: data });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid input', details: err.issues });
+      }
+      return res.status(500).json({ error: 'Internal server error' });
     }
-
-    res.json({ gamePlayer: data });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return res
-        .status(400)
-        .json({ error: 'Invalid input', details: err.errors });
-    }
-    res.status(500).json({ error: 'Internal server error' });
   }
-});
+);
 
 // Start a game
-router.post('/:gameId/start', requireAuth, async (req, res) => {
-  try {
-    const { gameId } = req.params;
+router.post(
+  '/:gameId/start',
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { gameId } = req.params;
 
-    const { data, error } = await gameService.startGame(gameId);
+      const { data, error } = await gameService.startGame(gameId!);
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.json({ message: 'Game started successfully' });
+    } catch (err) {
+      return res.status(500).json({ error: 'Internal server error' });
     }
-
-    res.json({ message: 'Game started successfully' });
-  } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
   }
-});
+);
 
 // Get game state
-router.get('/:gameId/state', async (req, res) => {
+router.get('/:gameId/state', async (req: Request, res: Response) => {
   try {
     const { gameId } = req.params;
 
-    const gameState = await gameService.getGameState(gameId);
+    const gameState = await gameService.getGameState(gameId!);
 
     if (gameState.error) {
       return res.status(500).json({ error: gameState.error.message });
     }
 
-    res.json({
+    return res.json({
       map: gameState.map,
       units: gameState.units,
       cities: gameState.cities,
       players: gameState.players,
     });
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Move unit
-router.post('/:gameId/actions/move-unit', requireAuth, async (req, res) => {
-  try {
-    const validatedData = moveUnitSchema.parse(req.body);
+router.post(
+  '/:gameId/actions/move-unit',
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const validatedData = moveUnitSchema.parse(req.body);
 
-    const { data, error } = await gameService.moveUnit(
-      validatedData.unitId,
-      validatedData.x,
-      validatedData.y,
-      req.user.id
-    );
+      const { data, error } = await gameService.moveUnit(
+        validatedData.unitId,
+        validatedData.x,
+        validatedData.y,
+        req.user!.id
+      );
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.json({ unit: data });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid input', details: err.issues });
+      }
+      return res.status(500).json({ error: 'Internal server error' });
     }
-
-    res.json({ unit: data });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return res
-        .status(400)
-        .json({ error: 'Invalid input', details: err.errors });
-    }
-    res.status(500).json({ error: 'Internal server error' });
   }
-});
+);
 
 // End turn
-router.post('/:gameId/actions/end-turn', requireAuth, async (req, res) => {
-  try {
-    const { gameId } = req.params;
+router.post(
+  '/:gameId/actions/end-turn',
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { gameId } = req.params;
 
-    const { data, error } = await gameService.endTurn(gameId, req.user.id);
+      const { data, error } = await gameService.endTurn(gameId!, req.user!.id);
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.json({ game: data });
+    } catch (err) {
+      return res.status(500).json({ error: 'Internal server error' });
     }
-
-    res.json({ game: data });
-  } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
   }
-});
+);
 
 export default router;
