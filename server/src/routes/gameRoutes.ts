@@ -4,6 +4,8 @@ import { z } from 'zod';
 
 interface AuthenticatedRequest extends Request {
   user?: { id: string };
+  body: any;
+  params: any;
 }
 
 const router = Router();
