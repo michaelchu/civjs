@@ -20,6 +20,7 @@ const io = new SocketIOServer(server, {
   cors: {
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
     methods: ['GET', 'POST'],
+    credentials: true,
   },
 });
 
@@ -28,6 +29,7 @@ app.use(helmet());
 app.use(
   cors({
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    credentials: true,
   })
 );
 app.use(express.json());
