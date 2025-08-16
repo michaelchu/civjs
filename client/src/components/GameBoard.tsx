@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useGameStore } from '../stores/gameStore';
+import PhaserGame, { type PhaserGameHandle } from './PhaserGame';
 import type { Game } from '../../../shared/types';
 
 interface GameBoardProps {
@@ -9,6 +10,7 @@ interface GameBoardProps {
 
 export default function GameBoard({ game, onExitGame }: GameBoardProps) {
   const { gameState, loadGameState, loading } = useGameStore();
+  const phaserRef = useRef<PhaserGameHandle>(null);
 
   useEffect(() => {
     // Load the game state when component mounts
@@ -142,32 +144,22 @@ export default function GameBoard({ game, onExitGame }: GameBoardProps) {
 
         {/* Main Game Area */}
         <div className="flex-1 relative">
-          {/* Map Placeholder */}
-          <div className="absolute inset-0 bg-gradient-to-br from-green-800 to-blue-900 flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-32 h-32 border-4 border-dashed border-white rounded-lg flex items-center justify-center mb-4 mx-auto">
-                <svg
-                  className="w-16 h-16 text-white"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm8 2a1 1 0 100 2h2a1 1 0 100-2h-2z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold mb-2">Game Map</h2>
-              <p className="text-gray-300 mb-4">
-                Map rendering will be implemented here
-              </p>
-              <p className="text-sm text-gray-400">
-                This is where the hexagonal game map,
-                <br />
-                units, cities, and terrain will be displayed
-              </p>
-            </div>
+          {/* Phaser Game Canvas */}
+          <div className="absolute inset-0">
+            <PhaserGame
+              ref={phaserRef}
+              gameId={game.id}
+              gameState={gameState}
+              onTileClick={(x, y) => {
+                console.log(`Tile clicked at (${x}, ${y})`);
+              }}
+              onUnitSelect={unitId => {
+                console.log(`Unit selected: ${unitId}`);
+              }}
+              onEndTurn={() => {
+                console.log('End turn requested');
+              }}
+            />
           </div>
 
           {/* Bottom Action Bar */}
