@@ -1,10 +1,13 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import * as Phaser from 'phaser';
-import { TerrainService, TerrainType } from './game/TerrainService';
-import { CameraController, CameraCallbacks } from './game/CameraController';
+import { TerrainService } from './game/TerrainService';
+import type { TerrainType } from './game/TerrainService';
+import { CameraController } from './game/CameraController';
+import type { CameraCallbacks } from './game/CameraController';
 import { IsometricUtils } from './game/IsometricUtils';
 import { MapRenderer } from './game/MapRenderer';
-import { GameObjectRenderer, Unit, City } from './game/GameObjectRenderer';
+import { GameObjectRenderer } from './game/GameObjectRenderer';
+import type { Unit, City } from './game/GameObjectRenderer';
 
 interface GameState {
   mapWidth?: number;
@@ -164,6 +167,12 @@ class GameMapScene extends Phaser.Scene {
     if (!this.mapContainer) return;
     this.mapRenderer.highlightTile(x, y, this.mapContainer);
   }
+
+  cleanup() {
+    if (this.cameraController) {
+      this.cameraController.destroy();
+    }
+  }
 }
 
 const PhaserGame = forwardRef<PhaserGameHandle, PhaserGameProps>(
@@ -235,8 +244,8 @@ const PhaserGame = forwardRef<PhaserGameHandle, PhaserGameProps>(
       return () => {
         if (phaserGame.current) {
           const scene = sceneRef.current;
-          if (scene && 'cameraController' in scene && scene.cameraController) {
-            scene.cameraController.destroy();
+          if (scene) {
+            scene.cleanup();
           }
           phaserGame.current.destroy(true);
           phaserGame.current = null;
