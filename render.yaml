@@ -7,7 +7,7 @@ services:
     branch: master
     rootDir: server
     buildCommand: npm install && npm run build && pwd && ls -la && ls -la dist/
-    startCommand: pwd && ls -la && ls -la dist/ && node ./dist/index.js
+    startCommand: pwd && ls -la && ls -la dist/ && find dist/ -name "*.js" && node ./dist/server/src/index.js
     envVars:
       - key: NODE_ENV
         value: production
