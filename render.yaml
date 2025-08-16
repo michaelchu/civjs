@@ -17,7 +17,7 @@ services:
         sync: false # Set in Render dashboard
       - key: SUPABASE_ANON_KEY
         sync: false # Set in Render dashboard
-      - key: SUPABASE_SERVICE_KEY
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false # Set in Render dashboard
       - key: CLIENT_URL
         value: https://civjs.onrender.com # Update after deploy
