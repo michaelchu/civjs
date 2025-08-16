@@ -6,8 +6,8 @@ services:
     repo: https://github.com/michaelchu/civjs.git # Update this
     branch: master
     rootDir: server
-    buildCommand: npm install && npm run build && pwd && ls -la && ls -la dist/
-    startCommand: pwd && ls -la && ls -la dist/ && find dist/ -name "*.js" && node ./dist/server/src/index.js
+    buildCommand: npm install && npm run build
+    startCommand: node ./dist/server/src/index.js
     envVars:
       - key: NODE_ENV
         value: production
