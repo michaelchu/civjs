@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
-import { TerrainService, TerrainType } from './TerrainService';
+import { TerrainService } from './TerrainService';
+import type { TerrainType } from './TerrainService';
 import { IsometricUtils } from './IsometricUtils';
 
 export class MapRenderer {
