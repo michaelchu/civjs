@@ -109,8 +109,13 @@ export function setup_window_size(): void {
 
 // Canvas position to tile conversion
 export function canvas_pos_to_tile(x: number, y: number): any {
-  // This will be implemented by our coordinate conversion
-  return { x: Math.floor(x / 96), y: Math.floor(y / 48) };
+  // Use proper isometric coordinate conversion
+  // Import and use the actual mapview_common conversion
+  const MapViewCommon = require('../renderer/2dcanvas/mapview_common');
+
+  // Convert canvas position to map coordinates
+  const result = MapViewCommon.canvas_pos_to_tile(x, y);
+  return result || { x: 0, y: 0 };
 }
 
 export function map_select_units(x: number, y: number): void {

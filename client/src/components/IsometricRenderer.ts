@@ -47,12 +47,16 @@ export class IsometricRenderer {
   private lastRenderTime = 0;
   private renderInterval = 16; // ~60fps
 
+  // Zoom state
+  private zoomLevel = 1.0;
+  private minZoom = 0.5;
+  private maxZoom = 3.0;
+
   // Game object layer for units and cities
   // private gameObjectLayer: GameObjectLayer;
 
-  // Renderer state
-  private mapview_mouse_movement = false;
-  private goto_active = false;
+  // Renderer state - connect to global state
+  private isDragging = false;
 
   // Callbacks for React integration
   private callbacks: RendererCallbacks;
@@ -130,6 +134,9 @@ export class IsometricRenderer {
     this.canvas.addEventListener('mouseup', e => this.handleMouseUp(e));
     this.canvas.addEventListener('mousedown', e => this.handleMouseDown(e));
     this.canvas.addEventListener('mousemove', e => this.handleMouseMove(e));
+    this.canvas.addEventListener('wheel', e => this.handleWheel(e), {
+      passive: false,
+    });
 
     // Touch device support
     this.canvas.addEventListener('touchstart', e =>
@@ -142,6 +149,10 @@ export class IsometricRenderer {
 
     // Prevent context menu on right click
     this.canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    // Make canvas focusable to capture wheel events reliably
+    this.canvas.setAttribute('tabindex', '0');
+    this.canvas.focus();
   }
 
   /**
@@ -149,6 +160,10 @@ export class IsometricRenderer {
    */
   private handleMouseUp(e: MouseEvent): void {
     MapCtrl.update_mouse_position(e, this.canvas);
+
+    // Stop dragging
+    this.isDragging = false;
+
     MapCtrl.mapview_mouse_click(e);
   }
 
@@ -157,6 +172,14 @@ export class IsometricRenderer {
    */
   private handleMouseDown(e: MouseEvent): void {
     MapCtrl.update_mouse_position(e, this.canvas);
+
+    // Start dragging for left mouse button
+    if (e.button === 0) {
+      this.isDragging = true;
+      MapCtrl.set_touch_start_x(MapCtrl.mouse_x);
+      MapCtrl.set_touch_start_y(MapCtrl.mouse_y);
+    }
+
     MapCtrl.mapview_mouse_down(e);
   }
 
@@ -166,15 +189,16 @@ export class IsometricRenderer {
   private handleMouseMove(e: MouseEvent): void {
     MapCtrl.update_mouse_position(e, this.canvas);
 
-    // Panning logic
-    if (this.mapview_mouse_movement && !this.goto_active) {
-      const diff_x = (MapCtrl.touch_start_x - MapCtrl.mouse_x) * 2;
-      const diff_y = (MapCtrl.touch_start_y - MapCtrl.mouse_y) * 2;
+    // Panning logic - use our local isDragging state
+    if (this.isDragging) {
+      const diff_x = MapCtrl.touch_start_x - MapCtrl.mouse_x;
+      const diff_y = MapCtrl.touch_start_y - MapCtrl.mouse_y;
 
-      // Update mapview
+      // Update mapview position
       MapViewCommon.mapview.gui_x0 += diff_x;
       MapViewCommon.mapview.gui_y0 += diff_y;
 
+      // Update start position for next frame
       MapCtrl.set_touch_start_x(MapCtrl.mouse_x);
       MapCtrl.set_touch_start_y(MapCtrl.mouse_y);
 
@@ -182,6 +206,26 @@ export class IsometricRenderer {
         `Pan: diff (${diff_x}, ${diff_y}) -> gui_x0=${MapViewCommon.mapview.gui_x0}, gui_y0=${MapViewCommon.mapview.gui_y0}`
       );
     }
+  }
+
+  /**
+   * Handle mouse wheel events for zooming
+   */
+  private handleWheel(e: WheelEvent): void {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Get mouse position for zoom center
+    const rect = this.canvas.getBoundingClientRect();
+    const centerX = e.clientX - rect.left;
+    const centerY = e.clientY - rect.top;
+
+    // Zoom factor based on wheel direction (smaller steps for smoother zoom)
+    const zoomFactor = e.deltaY > 0 ? 0.95 : 1.05;
+
+    console.log(`Wheel event: deltaY=${e.deltaY}, factor=${zoomFactor}`);
+
+    this.zoom(zoomFactor, centerX, centerY);
   }
 
   /**
@@ -275,24 +319,52 @@ export class IsometricRenderer {
     this.ctx.fillStyle = '#000000';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
+    // Apply zoom transformation
+    this.ctx.save();
+    this.ctx.scale(this.zoomLevel, this.zoomLevel);
+
     // Use update_map_canvas approach
     // For now, we'll implement a simplified version that renders our terrain
     this.renderTerrainMap();
 
     // Render game objects (units, cities) on top of terrain
     // this.gameObjectLayer.render(this.ctx, this.getViewport());
+
+    // Restore transformation
+    this.ctx.restore();
   }
 
   /**
    * Render terrain map using update_map_canvas algorithm
    */
   private renderTerrainMap(): void {
-    // Use complete update_map_canvas implementation
+    // Calculate expanded viewport to account for zoom level
+    // When zoomed out, we need to render more tiles to fill the screen
+    const zoomExpansion = 1 / this.zoomLevel;
+
+    // Add extra buffer to prevent edge culling - especially important for isometric
+    const bufferMultiplier = 1.5;
+    const expandedWidth = Math.floor(
+      MapViewCommon.mapview.width * zoomExpansion * bufferMultiplier
+    );
+    const expandedHeight = Math.floor(
+      MapViewCommon.mapview.height * zoomExpansion * bufferMultiplier
+    );
+
+    // Calculate offset to center the expanded viewport
+    const offsetX = Math.floor(
+      (expandedWidth - MapViewCommon.mapview.width) / 2
+    );
+    const offsetY = Math.floor(
+      (expandedHeight - MapViewCommon.mapview.height) / 2
+    );
+
+    // Use complete update_map_canvas implementation with expanded viewport
     MapViewCommon.update_map_canvas(
-      0,
-      0,
-      MapViewCommon.mapview.width,
-      MapViewCommon.mapview.height,
+      -offsetX,
+      -offsetY,
+      expandedWidth,
+      expandedHeight,
       this.ctx,
       this.terrainMap,
       this.mapWidth,
@@ -373,11 +445,36 @@ export class IsometricRenderer {
   }
 
   /**
-   * Zoom functionality (for mouse controller compatibility)
+   * Zoom functionality
    */
   public zoom(factor: number, centerX?: number, centerY?: number): void {
-    // For now, just log - no built-in zoom
-    console.log(`Zoom request: ${factor} at (${centerX}, ${centerY})`);
+    const newZoom = this.zoomLevel * factor;
+
+    // Clamp zoom level
+    if (newZoom < this.minZoom || newZoom > this.maxZoom) {
+      return;
+    }
+
+    // If zoom center is provided, adjust viewport to keep that point under the mouse
+    if (centerX !== undefined && centerY !== undefined) {
+      // Calculate the world position at the zoom center before zoom
+      const oldZoom = this.zoomLevel;
+      const worldX = centerX / oldZoom + MapViewCommon.mapview.gui_x0 / oldZoom;
+      const worldY = centerY / oldZoom + MapViewCommon.mapview.gui_y0 / oldZoom;
+
+      // Update zoom level
+      this.zoomLevel = newZoom;
+
+      // Recalculate viewport position to keep the same world point under the mouse
+      MapViewCommon.mapview.gui_x0 = worldX * newZoom - centerX;
+      MapViewCommon.mapview.gui_y0 = worldY * newZoom - centerY;
+    } else {
+      this.zoomLevel = newZoom;
+    }
+
+    console.log(
+      `Zoom: ${this.zoomLevel.toFixed(2)} at (${centerX}, ${centerY})`
+    );
   }
 
   /**

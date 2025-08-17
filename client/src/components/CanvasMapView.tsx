@@ -237,7 +237,10 @@ const CanvasMapView = forwardRef<CanvasMapViewHandle, CanvasMapViewProps>(
       <div
         ref={containerRef}
         className="w-full h-full relative bg-black"
-        style={{ minHeight: '600px' }}
+        style={{
+          minHeight: '600px',
+          overflow: 'hidden', // Prevent scrolling on the container
+        }}
       >
         <canvas
           ref={canvasRef}
@@ -245,6 +248,7 @@ const CanvasMapView = forwardRef<CanvasMapViewHandle, CanvasMapViewProps>(
           style={{
             cursor: 'grab',
             imageRendering: 'pixelated', // For crisp pixels
+            touchAction: 'none', // Prevent default touch behaviors
           }}
         />
 
