@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../stores/gameStore';
-import PhaserGame, { type PhaserGameHandle } from './PhaserGame';
+// Using new Canvas2D renderer instead of Phaser
+import CanvasMapView, { type CanvasMapViewHandle } from './CanvasMapView';
 
 interface GameBoardProps {
   connected: boolean;
@@ -11,7 +12,7 @@ export default function GameBoard({ connected }: GameBoardProps) {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
   const { currentGame, gameState, loadGameState, loading } = useGameStore();
-  const phaserRef = useRef<PhaserGameHandle>(null);
+  const canvasRef = useRef<CanvasMapViewHandle>(null);
 
   useEffect(() => {
     // Load the game state when component mounts
@@ -81,10 +82,10 @@ export default function GameBoard({ connected }: GameBoardProps) {
 
       {/* Main Game Area */}
       <div className="flex-1 relative">
-        {/* Phaser Game Canvas */}
+        {/* Canvas2D Map Renderer */}
         <div className="absolute inset-0">
-          <PhaserGame
-            ref={phaserRef}
+          <CanvasMapView
+            ref={canvasRef}
             gameId={gameId!}
             gameState={
               gameState
