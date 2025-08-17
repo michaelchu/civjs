@@ -191,12 +191,12 @@ export class IsometricRenderer {
 
     // Panning logic - use our local isDragging state
     if (this.isDragging) {
-      const diff_x = MapCtrl.touch_start_x - MapCtrl.mouse_x;
-      const diff_y = MapCtrl.touch_start_y - MapCtrl.mouse_y;
+      const diff_x = MapCtrl.mouse_x - MapCtrl.touch_start_x;
+      const diff_y = MapCtrl.mouse_y - MapCtrl.touch_start_y;
 
-      // Update mapview position
-      MapViewCommon.mapview.gui_x0 += diff_x;
-      MapViewCommon.mapview.gui_y0 += diff_y;
+      // Update mapview position (move viewport in opposite direction of drag)
+      MapViewCommon.mapview.gui_x0 -= diff_x;
+      MapViewCommon.mapview.gui_y0 -= diff_y;
 
       // Update start position for next frame
       MapCtrl.set_touch_start_x(MapCtrl.mouse_x);
@@ -440,8 +440,8 @@ export class IsometricRenderer {
    * Pan the viewport by delta values (for mouse controller compatibility)
    */
   public pan(deltaX: number, deltaY: number): void {
-    MapViewCommon.mapview.gui_x0 += deltaX;
-    MapViewCommon.mapview.gui_y0 += deltaY;
+    MapViewCommon.mapview.gui_x0 -= deltaX;
+    MapViewCommon.mapview.gui_y0 -= deltaY;
   }
 
   /**
