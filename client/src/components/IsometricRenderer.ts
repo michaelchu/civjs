@@ -48,9 +48,9 @@ export class IsometricRenderer {
   private renderInterval = 16; // ~60fps
 
   // Zoom state
-  private zoomLevel = 2.0;  // Start zoomed in to show viewport, not entire map
-  private minZoom = 0.5;
-  private maxZoom = 4.0;
+  private zoomLevel = 3.0;  // Start zoomed in to show viewport, not entire map
+  private minZoom = 1.0;  // Don't allow zooming out to see entire map
+  private maxZoom = 5.0;
 
   // Game object layer for units and cities
   // private gameObjectLayer: GameObjectLayer;
@@ -338,17 +338,18 @@ export class IsometricRenderer {
    * Render terrain map using update_map_canvas algorithm
    */
   private renderTerrainMap(): void {
-    // When zoomed, we need to render the visible area at the current zoom
-    // The viewport should only render what's visible on screen
-    const visibleWidth = Math.floor(this.canvas.width / this.zoomLevel);
-    const visibleHeight = Math.floor(this.canvas.height / this.zoomLevel);
+    // Since we're applying ctx.scale(zoomLevel), we need to render
+    // the unscaled canvas dimensions. The zoom transform will scale it up.
+    // This ensures we only render what's visible in the viewport.
+    const renderWidth = Math.floor(this.canvas.width / this.zoomLevel);
+    const renderHeight = Math.floor(this.canvas.height / this.zoomLevel);
 
     // Use update_map_canvas to render only the visible viewport
     MapViewCommon.update_map_canvas(
       0,
       0,
-      visibleWidth,
-      visibleHeight,
+      renderWidth,
+      renderHeight,
       this.ctx,
       this.terrainMap,
       this.mapWidth,
