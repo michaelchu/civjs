@@ -1,6 +1,6 @@
 /**
  * CanvasMapView - React component for pure Canvas2D map rendering
- * Replaces PhaserGame component with Freeciv-inspired implementation
+ * Uses advanced isometric rendering techniques
  */
 
 import {
@@ -10,9 +10,8 @@ import {
   useImperativeHandle,
   useCallback,
 } from 'react';
-import { Canvas2DRenderer } from './canvas/Canvas2DRenderer';
-import { CanvasMouseController } from './canvas/CanvasMouseController';
-import { TerrainService } from './game/TerrainService';
+import { IsometricRenderer } from './IsometricRenderer';
+import { buildTerrainMapFromServerData } from '../types/terrain';
 import { ClientMapGenerator } from '../services/ClientMapGenerator';
 import type { MapSeed } from '../services/ClientMapGenerator';
 
@@ -45,8 +44,7 @@ const CanvasMapView = forwardRef<CanvasMapViewHandle, CanvasMapViewProps>(
   ({ gameState, onTileClick, onUnitSelect }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const rendererRef = useRef<Canvas2DRenderer | null>(null);
-    const mouseControllerRef = useRef<CanvasMouseController | null>(null);
+    const rendererRef = useRef<IsometricRenderer | null>(null);
     const unitsRef = useRef<
       Array<{ id: string; x: number; y: number; type: string }>
     >([]);
@@ -70,12 +68,8 @@ const CanvasMapView = forwardRef<CanvasMapViewHandle, CanvasMapViewProps>(
       canvas.width = container.clientWidth;
       canvas.height = container.clientHeight;
 
-      // Create renderer
-      const renderer = new Canvas2DRenderer(canvas);
-      rendererRef.current = renderer;
-
-      // Create mouse controller with callbacks
-      const mouseController = new CanvasMouseController(canvas, renderer, {
+      // Create renderer with complete mouse handling
+      const renderer = new IsometricRenderer(canvas, {
         onTileClick: (x, y) => {
           // Check if click is on a unit or city first
           const unit = unitsRef.current.find(u => u.x === x && u.y === y);
@@ -89,16 +83,12 @@ const CanvasMapView = forwardRef<CanvasMapViewHandle, CanvasMapViewProps>(
             onTileClick(x, y);
           }
         },
-        onTileHover: (x, y) => {
-          // Could show tile info on hover
-          console.log(`Hovering tile: ${x}, ${y}`);
-        },
         onRightClick: (x, y) => {
-          // Right click for context menu or centering
-          renderer.centerOnTile(x, y);
+          // Right click already handled by renderer for recentering
+          console.log(`Right click on tile: ${x}, ${y}`);
         },
       });
-      mouseControllerRef.current = mouseController;
+      rendererRef.current = renderer;
 
       // Start render loop
       renderer.startRenderLoop();
@@ -163,7 +153,7 @@ const CanvasMapView = forwardRef<CanvasMapViewHandle, CanvasMapViewProps>(
         console.log(`📊 Using legacy map tiles: ${state.map.length} tiles`);
 
         // Build terrain map from server data
-        const terrainMap = TerrainService.buildTerrainMapFromServerData(
+        const terrainMap = buildTerrainMapFromServerData(
           state.map,
           mapWidth,
           mapHeight
@@ -232,11 +222,6 @@ const CanvasMapView = forwardRef<CanvasMapViewHandle, CanvasMapViewProps>(
         if (rendererRef.current) {
           rendererRef.current.destroy();
           rendererRef.current = null;
-        }
-
-        if (mouseControllerRef.current) {
-          mouseControllerRef.current.destroy();
-          mouseControllerRef.current = null;
         }
       };
     }, [initializeCanvas, handleResize]);
