@@ -142,21 +142,7 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
 
   socket.on('get_game_list', async (callback) => {
     try {
-      const activeGames = gameManager.getActiveGames();
-      
-      const games = activeGames.map(game => ({
-        id: game.id,
-        name: game.config.name,
-        hostName: 'Host', // You might want to get actual host name
-        status: game.state,
-        currentPlayers: game.players.size,
-        maxPlayers: game.config.maxPlayers || 8,
-        currentTurn: game.currentTurn,
-        mapSize: `${game.config.mapWidth || 80}x${game.config.mapHeight || 50}`,
-        createdAt: new Date().toISOString(), // You might want to store actual creation time
-        canJoin: game.state === 'waiting' && game.players.size < (game.config.maxPlayers || 8),
-      }));
-
+      const games = await gameManager.getGameListForLobby();
       callback({ success: true, games });
     } catch (error) {
       logger.error('Error getting game list:', error);
@@ -315,17 +301,17 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
   // Game listing
   handler.register(PacketType.GAME_LIST, async socket => {
     try {
-      const activeGames = gameManager.getActiveGames();
+      const games = await gameManager.getGameListForLobby();
 
-      const gameList = activeGames.map(game => ({
+      const gameList = games.map(game => ({
         gameId: game.id,
-        name: game.config.name,
-        status: game.state,
-        players: game.players.size,
-        maxPlayers: game.config.maxPlayers || 8,
+        name: game.name,
+        status: game.status,
+        players: game.currentPlayers,
+        maxPlayers: game.maxPlayers,
         currentTurn: game.currentTurn,
-        mapSize: `${game.config.mapWidth || 80}x${game.config.mapHeight || 50}`,
-        ruleset: game.config.ruleset || 'classic',
+        mapSize: game.mapSize,
+        ruleset: 'classic', // Default ruleset, could be enhanced
       }));
 
       socket.emit('packet', {

@@ -286,6 +286,103 @@ export class GameManager {
     );
   }
 
+  public async getAllGamesFromDatabase(): Promise<any[]> {
+    try {
+      const dbGames = await db.query.games.findMany({
+        where: (games, { inArray }) => inArray(games.status, ['waiting', 'running', 'active']),
+        with: {
+          host: {
+            columns: {
+              username: true,
+            },
+          },
+          players: true,
+        },
+        orderBy: (games, { desc }) => desc(games.createdAt),
+      });
+
+      return dbGames.map(game => ({
+        id: game.id,
+        name: game.name,
+        hostName: game.host?.username || 'Unknown',
+        status: game.status,
+        currentPlayers: game.players?.length || 0,
+        maxPlayers: game.maxPlayers,
+        currentTurn: game.currentTurn,
+        mapSize: `${game.mapWidth}x${game.mapHeight}`,
+        createdAt: game.createdAt.toISOString(),
+        canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
+      }));
+    } catch (error) {
+      logger.error('Error fetching games from database:', error);
+      return [];
+    }
+  }
+
+  public async getGameListForLobby(): Promise<any[]> {
+    // Get games from database (persistent)
+    const dbGames = await this.getAllGamesFromDatabase();
+    
+    // Get in-memory games (runtime state)
+    const memoryGames = this.getActiveGames().map(game => ({
+      id: game.id,
+      name: game.config.name,
+      hostName: 'Host', // Could be improved with actual host lookup
+      status: game.state,
+      currentPlayers: game.players.size,
+      maxPlayers: game.config.maxPlayers || 8,
+      currentTurn: game.currentTurn,
+      mapSize: `${game.config.mapWidth || 80}x${game.config.mapHeight || 50}`,
+      createdAt: new Date().toISOString(),
+      canJoin: game.state === 'waiting' && game.players.size < (game.config.maxPlayers || 8),
+    }));
+
+    // Merge and deduplicate (prefer in-memory data for runtime accuracy)
+    const gameMap = new Map();
+    
+    // Add database games first
+    dbGames.forEach(game => gameMap.set(game.id, game));
+    
+    // Override with in-memory games (more accurate current state)
+    memoryGames.forEach(game => gameMap.set(game.id, game));
+    
+    return Array.from(gameMap.values());
+  }
+
+  public async getGameById(gameId: string): Promise<any | null> {
+    try {
+      const game = await db.query.games.findFirst({
+        where: eq(games.id, gameId),
+        with: {
+          host: {
+            columns: {
+              username: true,
+            },
+          },
+          players: true,
+        },
+      });
+
+      if (!game) return null;
+
+      return {
+        id: game.id,
+        name: game.name,
+        hostName: game.host?.username || 'Unknown',
+        status: game.status,
+        currentPlayers: game.players?.length || 0,
+        maxPlayers: game.maxPlayers,
+        currentTurn: game.currentTurn,
+        mapSize: `${game.mapWidth}x${game.mapHeight}`,
+        createdAt: game.createdAt.toISOString(),
+        canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
+      };
+    } catch (error) {
+      logger.error('Error fetching game by ID from database:', error);
+      return null;
+    }
+  }
+
   public async updatePlayerConnection(playerId: string, isConnected: boolean): Promise<void> {
     const gameId = this.playerToGame.get(playerId);
     if (!gameId) return;
