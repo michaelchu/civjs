@@ -26,7 +26,8 @@
       "Bash(find:*)",
       "Bash(npx jest:*)",
       "Bash(docker logs:*)",
-      "Bash(docker-compose restart:*)"
+      "Bash(docker-compose restart:*)",
+      "Bash(docker-compose:*)"
     ],
     "deny": [],
     "ask": [],
