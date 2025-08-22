@@ -73,6 +73,12 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       socket.join(`game:${gameId}`);
       await gameManager.updatePlayerConnection(playerId, true);
 
+      // Emit game created event to the creator
+      socket.emit('game_created', {
+        gameId,
+        maxPlayers: gameData.maxPlayers
+      });
+
       callback({ success: true, gameId });
       logger.info(`Game created: ${gameData.gameName} by ${connection.username}`, { gameId });
     } catch (error) {

@@ -59,6 +59,11 @@ export const GameLobby: React.FC = () => {
 
     try {
       await gameClient.connect();
+      
+      // Authenticate first
+      await gameClient.authenticatePlayer(playerName.trim());
+      
+      // Then join the game
       await gameClient.joinGame(selectedGame, playerName.trim());
       setClientState('joining_game');
     } catch (err) {

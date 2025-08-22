@@ -51,6 +51,23 @@ class GameClient {
       useGameStore.getState().setClientState('running');
     });
 
+    // Game started (when game transitions from waiting to active)
+    this.socket.on('game_started', (data) => {
+      console.log('Game started:', data);
+      useGameStore.getState().setClientState('running');
+    });
+
+    // Game created successfully (when you create a game)
+    this.socket.on('game_created', (data) => {
+      console.log('Game created:', data);
+      // For single player games, start immediately
+      if (data.maxPlayers === 1) {
+        useGameStore.getState().setClientState('running');
+      } else {
+        useGameStore.getState().setClientState('waiting_for_players');
+      }
+    });
+
     // Turn events
     this.socket.on(PacketType.TURN_STARTED, (data) => {
       console.log('Turn started:', data);
@@ -132,6 +149,40 @@ class GameClient {
     });
   }
 
+  async authenticatePlayer(playerName: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      this.socket.emit('packet', {
+        type: 'SERVER_JOIN_REQ',
+        data: { username: playerName }
+      });
+
+      // Listen for the reply
+      const handleReply = (packet: any) => {
+        if (packet.type === 'SERVER_JOIN_REPLY') {
+          this.socket?.off('packet', handleReply);
+          if (packet.data.accepted) {
+            resolve();
+          } else {
+            reject(new Error(packet.data.message || 'Authentication failed'));
+          }
+        }
+      };
+
+      this.socket.on('packet', handleReply);
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        this.socket?.off('packet', handleReply);
+        reject(new Error('Authentication timeout'));
+      }, 10000);
+    });
+  }
+
   async createGame(gameData: {
     gameName: string;
     playerName: string;
@@ -179,10 +230,10 @@ class GameClient {
       }
 
       this.socket.emit('get_game_list', (response: any) => {
-        if (response.success) {
+        if (response && response.success) {
           resolve(response.games || []);
         } else {
-          reject(new Error(response.error || 'Failed to get game list'));
+          reject(new Error(response?.error || 'Failed to get game list'));
         }
       });
     });
