@@ -41,7 +41,7 @@ services:
   # Game Server
   civjs-server:
     build:
-      context: ./civjs-server
+      context: ./apps/server
       dockerfile: Dockerfile
     container_name: civjs-server
     environment:
@@ -60,15 +60,15 @@ services:
     networks:
       - civjs-network
     volumes:
-      - ./civjs-server:/app
+      - ./apps/server:/app
       - /app/node_modules
-      - ./civjs-server/logs:/app/logs
+      - ./apps/server/logs:/app/logs
     restart: unless-stopped
 
   # React Client
   civjs-client:
     build:
-      context: ./civjs
+      context: ./apps/client
       dockerfile: Dockerfile.dev
     container_name: civjs-client
     environment:
@@ -76,7 +76,7 @@ services:
     ports:
       - '3000:3000'
     volumes:
-      - ./civjs:/app
+      - ./apps/client:/app
       - /app/node_modules
     networks:
       - civjs-network

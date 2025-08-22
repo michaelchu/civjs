@@ -1,0 +1,281 @@
+name: Pull Request Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ================================
+  # FAST FEEDBACK CHECKS
+  # ================================
+  quick-checks:
+    name: Quick Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Type checking
+        run: npm run type-check
+
+  # ================================
+  # COMPREHENSIVE TESTING
+  # ================================
+  test-matrix:
+    name: Test Matrix
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['18', '20', '22']
+        postgres-version: ['14', '15', '16']
+      fail-fast: false
+
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres-version }}-alpine
+        env:
+          POSTGRES_USER: civjs_test
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: civjs_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://civjs_test:test_password@localhost:5432/civjs_test
+          REDIS_URL: redis://localhost:6379
+
+  # ================================
+  # CHANGE IMPACT ANALYSIS
+  # ================================
+  change-analysis:
+    name: Change Impact Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v39
+        with:
+          files: |
+            **/*.ts
+            **/*.js
+            **/*.json
+            **/package*.json
+            **/Dockerfile
+            **/*.yml
+            **/*.yaml
+
+      - name: Analyze changes
+        run: |
+          echo "## Change Impact Analysis" > change-analysis.md
+          echo "" >> change-analysis.md
+
+          if [[ "${{ steps.changed-files.outputs.any_changed }}" == "true" ]]; then
+            echo "### Changed Files:" >> change-analysis.md
+            echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | while read file; do
+              echo "- \`$file\`" >> change-analysis.md
+            done
+            
+            echo "" >> change-analysis.md
+            echo "### Impact Assessment:" >> change-analysis.md
+            
+            # Check for database changes
+            if echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -q "schema\|migration\|drizzle"; then
+              echo "⚠️ **Database schema changes detected** - Review migration strategy" >> change-analysis.md
+            fi
+            
+            # Check for API changes
+            if echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -q "types\|packet\|socket-handlers"; then
+              echo "🔄 **API changes detected** - Verify client compatibility" >> change-analysis.md
+            fi
+            
+            # Check for Docker changes
+            if echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -q "Dockerfile\|docker-compose"; then
+              echo "🐳 **Docker configuration changes** - Test deployment" >> change-analysis.md
+            fi
+            
+            # Check for CI/CD changes
+            if echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -q "\.github"; then
+              echo "⚙️ **CI/CD pipeline changes** - Verify workflow functionality" >> change-analysis.md
+            fi
+          fi
+
+      - name: Comment PR with analysis
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const analysisContent = fs.readFileSync('change-analysis.md', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: analysisContent
+            });
+
+  # ================================
+  # BUILD VERIFICATION
+  # ================================
+  build-verification:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    needs: [quick-checks]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Verify build artifacts
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "❌ Build directory not found"
+            exit 1
+          fi
+
+          if [ ! -f "dist/index.js" ]; then
+            echo "❌ Main entry point not found"
+            exit 1
+          fi
+
+          echo "✅ Build verification passed"
+
+      - name: Test Docker build
+        run: |
+          docker build -t civjs-server:pr-test .
+          echo "✅ Docker build successful"
+
+  # ================================
+  # PERFORMANCE IMPACT
+  # ================================
+  performance-check:
+    name: Performance Impact
+    runs-on: ubuntu-latest
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bundle size analysis
+        run: |
+          npm run build
+          echo "## Bundle Size Analysis" > performance-report.md
+          echo "" >> performance-report.md
+          echo "### Build Output:" >> performance-report.md
+          du -sh dist/* | sed 's/^/- /' >> performance-report.md
+
+      - name: Comment performance report
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('performance-report.md', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+
+  # ================================
+  # SUMMARY STATUS CHECK
+  # ================================
+  pr-validation-complete:
+    name: PR Validation Complete
+    runs-on: ubuntu-latest
+    needs: [quick-checks, test-matrix, build-verification]
+    if: always()
+    steps:
+      - name: Check all jobs status
+        run: |
+          if [[ "${{ needs.quick-checks.result }}" != "success" ]]; then
+            echo "❌ Quick checks failed"
+            exit 1
+          fi
+
+          if [[ "${{ needs.test-matrix.result }}" != "success" ]]; then
+            echo "❌ Test matrix failed"
+            exit 1
+          fi
+
+          if [[ "${{ needs.build-verification.result }}" != "success" ]]; then
+            echo "❌ Build verification failed"
+            exit 1
+          fi
+
+          echo "✅ All PR validations passed!"

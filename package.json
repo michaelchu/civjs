@@ -1,0 +1,53 @@
+{
+  "name": "civjs-monorepo",
+  "version": "1.0.0",
+  "description": "CivJS - A modern civilization game built with TypeScript, React, and Node.js",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "npm run dev --workspace=apps/client",
+    "dev:server": "npm run dev --workspace=apps/server",
+    "build": "npm run build --workspaces",
+    "build:client": "npm run build --workspace=apps/client",
+    "build:server": "npm run build --workspace=apps/server",
+    "test": "npm run test --workspaces",
+    "test:client": "npm run test --workspace=apps/client",
+    "test:server": "npm run test --workspace=apps/server",
+    "lint": "npm run lint --workspaces",
+    "lint:fix": "npm run lint:fix --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "clean": "npm run clean --workspaces && rm -rf node_modules",
+    "docker:up": "docker-compose up",
+    "docker:build": "docker-compose up --build",
+    "docker:down": "docker-compose down",
+    "postinstall": "npm run build --workspace=packages/shared-types"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:michaelchu/civjs.git"
+  },
+  "keywords": [
+    "civilization",
+    "game",
+    "typescript",
+    "react",
+    "nodejs",
+    "socket.io",
+    "canvas",
+    "freeciv"
+  ],
+  "author": "Michael Chu",
+  "license": "MIT"
+}
