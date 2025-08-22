@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { gameClient } from '../services/GameClient';
-import { useGameStore } from '../store/gameStore';
 
 export const GameCreationDialog: React.FC = () => {
   const [playerName, setPlayerName] = useState('');
@@ -10,10 +10,10 @@ export const GameCreationDialog: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
 
-  const { setClientState } = useGameStore();
+  const navigate = useNavigate();
 
   const handleBack = () => {
-    setClientState('initial');
+    navigate('/');
   };
 
   const handleCreateGame = async (e: React.FormEvent) => {
@@ -36,14 +36,15 @@ export const GameCreationDialog: React.FC = () => {
       await gameClient.connect();
       
       // Create the game (server will handle authentication)
-      await gameClient.createGame({
+      const gameId = await gameClient.createGame({
         gameName: gameName.trim(),
         playerName: playerName.trim(),
         maxPlayers,
         mapSize,
       });
       
-      setClientState('waiting_for_players');
+      // Navigate to the game URL
+      navigate(`/game/${gameId}`);
     } catch (err) {
       console.error('Game creation error:', err);
       setError(err instanceof Error ? err.message : 'Failed to create game');

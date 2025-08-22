@@ -25,7 +25,8 @@
       "Bash(curl:*)",
       "Bash(find:*)",
       "Bash(npx jest:*)",
-      "Bash(docker logs:*)"
+      "Bash(docker logs:*)",
+      "Bash(docker-compose restart:*)"
     ],
     "deny": [],
     "ask": [],

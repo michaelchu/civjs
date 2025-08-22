@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { gameClient } from '../services/GameClient';
-import { useGameStore } from '../store/gameStore';
 
 interface GameInfo {
   id: string;
@@ -23,7 +23,7 @@ export const GameLobby: React.FC = () => {
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState('');
 
-  const { setClientState } = useGameStore();
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadGames();
@@ -49,7 +49,7 @@ export const GameLobby: React.FC = () => {
   };
 
   const handleBack = () => {
-    setClientState('initial');
+    navigate('/');
   };
 
   const handleJoinGame = async () => {
@@ -62,15 +62,11 @@ export const GameLobby: React.FC = () => {
     setError('');
 
     try {
-      await gameClient.connect();
-      
-      // Join the game (server will handle authentication)
-      await gameClient.joinSpecificGame(selectedGame, playerName.trim());
-      setClientState('joining_game');
+      // Navigate directly to the game URL with player name as a query parameter
+      navigate(`/game/${selectedGame}?playerName=${encodeURIComponent(playerName.trim())}`);
     } catch (err) {
       console.error('Game join error:', err);
       setError(err instanceof Error ? err.message : 'Failed to join game');
-    } finally {
       setIsJoining(false);
     }
   };

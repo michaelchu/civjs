@@ -1,37 +1,25 @@
 import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useGameStore } from './store/gameStore';
 import { HomePage } from './components/HomePage';
 import { GameCreationDialog } from './components/GameCreationDialog';
 import { GameLobby } from './components/GameLobby';
 import { ConnectionDialog } from './components/ConnectionDialog';
 import { GameLayout } from './components/GameUI/GameLayout';
+import { GameRoute } from './components/GameRoute';
 
 function App() {
-  const { clientState } = useGameStore();
-
-  switch (clientState) {
-    case 'initial':
-      return <HomePage />;
-    
-    case 'creating_game':
-      return <GameCreationDialog />;
-    
-    case 'browsing_games':
-      return <GameLobby />;
-    
-    case 'connecting':
-    case 'waiting_for_players':
-    case 'joining_game':
-      return <ConnectionDialog />;
-    
-    case 'preparing':
-    case 'running':
-    case 'over':
-      return <GameLayout />;
-    
-    default:
-      return <HomePage />;
-  }
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/create-game" element={<GameCreationDialog />} />
+        <Route path="/browse-games" element={<GameLobby />} />
+        <Route path="/game/:gameId" element={<GameRoute />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Router>
+  );
 }
 
 export default App;

@@ -5,6 +5,7 @@ import type { GameState, ClientState, GameTab, MapViewport } from '../types';
 interface GameStore extends GameState {
   // Client state
   clientState: ClientState;
+  currentGameId: string | null;
   activeTab: GameTab;
   viewport: MapViewport;
   selectedUnitId: string | null;
@@ -55,6 +56,7 @@ export const useGameStore = create<GameStore>()(
     
     // Initial client state
     clientState: 'initial',
+    currentGameId: null,
     activeTab: 'map',
     viewport: {
       x: 0,

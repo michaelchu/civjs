@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
-import { useGameStore } from '../store/gameStore';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export const HomePage: React.FC = () => {
-  const { setClientState } = useGameStore();
+  const navigate = useNavigate();
 
   const handleStartNewGame = () => {
-    setClientState('creating_game');
+    navigate('/create-game');
   };
 
   const handleBrowseGames = () => {
-    setClientState('browsing_games');
+    navigate('/browse-games');
   };
 
   return (

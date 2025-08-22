@@ -188,7 +188,7 @@ class GameClient {
     playerName: string;
     maxPlayers: number;
     mapSize: string;
-  }): Promise<void> {
+  }): Promise<string> {
     return new Promise((resolve, reject) => {
       if (!this.socket) {
         reject(new Error('Not connected to server'));
@@ -197,7 +197,7 @@ class GameClient {
 
       this.socket.emit('create_game', gameData, (response: any) => {
         if (response.success) {
-          resolve();
+          resolve(response.gameId);
         } else {
           reject(new Error(response.error || 'Failed to create game'));
         }
