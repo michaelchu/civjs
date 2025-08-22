@@ -1,0 +1,154 @@
+import { io, Socket } from 'socket.io-client';
+import { useGameStore } from '../store/gameStore';
+import { PacketType, type SocketPacket } from '../types/packets';
+
+class GameClient {
+  private socket: Socket | null = null;
+  private serverUrl: string;
+
+  constructor() {
+    this.serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+  }
+
+  connect(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        this.socket = io(this.serverUrl, {
+          transports: ['websocket'],
+          timeout: 10000,
+        });
+
+        this.socket.on('connect', () => {
+          console.log('Connected to game server');
+          useGameStore.getState().setClientState('connecting');
+          resolve();
+        });
+
+        this.socket.on('disconnect', () => {
+          console.log('Disconnected from game server');
+          useGameStore.getState().setClientState('initial');
+        });
+
+        this.socket.on('connect_error', (error) => {
+          console.error('Connection error:', error);
+          reject(error);
+        });
+
+        this.setupGameHandlers();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  private setupGameHandlers() {
+    if (!this.socket) return;
+
+    // Game state updates
+    this.socket.on(PacketType.GAME_STATE, (data) => {
+      console.log('Received game state:', data);
+      useGameStore.getState().updateGameState(data);
+      useGameStore.getState().setClientState('running');
+    });
+
+    // Turn events
+    this.socket.on(PacketType.TURN_STARTED, (data) => {
+      console.log('Turn started:', data);
+      useGameStore.getState().updateGameState({ turn: data.turn });
+    });
+
+    // Unit events
+    this.socket.on(PacketType.UNIT_MOVED, (data) => {
+      console.log('Unit moved:', data);
+      const { units } = useGameStore.getState();
+      if (units[data.unitId]) {
+        useGameStore.getState().updateGameState({
+          units: {
+            ...units,
+            [data.unitId]: { ...units[data.unitId], x: data.x, y: data.y }
+          }
+        });
+      }
+    });
+
+    // City events
+    this.socket.on(PacketType.CITY_FOUNDED, (data) => {
+      console.log('City founded:', data);
+      const { cities } = useGameStore.getState();
+      useGameStore.getState().updateGameState({
+        cities: {
+          ...cities,
+          [data.city.id]: data.city
+        }
+      });
+    });
+
+    // Research events
+    this.socket.on(PacketType.RESEARCH_COMPLETED, (data) => {
+      console.log('Research completed:', data);
+      const { technologies } = useGameStore.getState();
+      useGameStore.getState().updateGameState({
+        technologies: {
+          ...technologies,
+          [data.techId]: { ...technologies[data.techId], discovered: true }
+        }
+      });
+    });
+
+    // Error handling
+    this.socket.on(PacketType.ERROR, (error) => {
+      console.error('Game error:', error);
+    });
+  }
+
+  // Game actions
+  moveUnit(unitId: string, fromX: number, fromY: number, toX: number, toY: number) {
+    if (!this.socket) return;
+    
+    this.socket.emit(PacketType.MOVE_UNIT, {
+      unitId,
+      fromX,
+      fromY,
+      toX,
+      toY
+    });
+  }
+
+  foundCity(name: string, x: number, y: number) {
+    if (!this.socket) return;
+    
+    this.socket.emit(PacketType.FOUND_CITY, {
+      name,
+      x,
+      y
+    });
+  }
+
+  setResearch(techId: string) {
+    if (!this.socket) return;
+    
+    this.socket.emit(PacketType.RESEARCH_SET, {
+      techId
+    });
+  }
+
+  joinGame(playerName: string) {
+    if (!this.socket) return;
+    
+    this.socket.emit('join_game', { playerName });
+  }
+
+  disconnect() {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
+  }
+
+  isConnected(): boolean {
+    return this.socket?.connected || false;
+  }
+}
+
+// Export singleton instance
+export const gameClient = new GameClient();

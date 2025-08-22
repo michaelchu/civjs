@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: civjs-postgres
+    environment:
+      POSTGRES_USER: civjs
+      POSTGRES_PASSWORD: civjs_secret
+      POSTGRES_DB: civjs
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - civjs-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U civjs']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: civjs-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - civjs-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Game Server
+  civjs-server:
+    build:
+      context: ./civjs-server
+      dockerfile: Dockerfile
+    container_name: civjs-server
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://civjs:civjs_secret@postgres:5432/civjs
+      REDIS_URL: redis://redis:6379
+      SOCKET_CORS_ORIGIN: 'http://localhost:3000'
+    ports:
+      - '3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - civjs-network
+    volumes:
+      - ./civjs-server:/app
+      - /app/node_modules
+      - ./civjs-server/logs:/app/logs
+    restart: unless-stopped
+
+  # React Client
+  civjs-client:
+    build:
+      context: ./civjs
+      dockerfile: Dockerfile.dev
+    container_name: civjs-client
+    environment:
+      - VITE_SERVER_URL=http://localhost:3001
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./civjs:/app
+      - /app/node_modules
+    networks:
+      - civjs-network
+    depends_on:
+      - civjs-server
+    restart: unless-stopped
+    command: npm run dev
+
+networks:
+  civjs-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
