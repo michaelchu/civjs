@@ -132,10 +132,60 @@ class GameClient {
     });
   }
 
-  joinGame(playerName: string) {
-    if (!this.socket) return;
-    
-    this.socket.emit('join_game', { playerName });
+  async createGame(gameData: {
+    gameName: string;
+    playerName: string;
+    maxPlayers: number;
+    mapSize: string;
+  }): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      this.socket.emit('create_game', gameData, (response: any) => {
+        if (response.success) {
+          resolve();
+        } else {
+          reject(new Error(response.error || 'Failed to create game'));
+        }
+      });
+    });
+  }
+
+  async joinGame(gameId: string, playerName: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      this.socket.emit('join_game', { gameId, playerName }, (response: any) => {
+        if (response.success) {
+          resolve();
+        } else {
+          reject(new Error(response.error || 'Failed to join game'));
+        }
+      });
+    });
+  }
+
+  async getGameList(): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      this.socket.emit('get_game_list', (response: any) => {
+        if (response.success) {
+          resolve(response.games || []);
+        } else {
+          reject(new Error(response.error || 'Failed to get game list'));
+        }
+      });
+    });
   }
 
   disconnect() {

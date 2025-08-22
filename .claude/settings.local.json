@@ -24,7 +24,8 @@
       "Bash(PORT=4000 npm run dev)",
       "Bash(curl:*)",
       "Bash(find:*)",
-      "Bash(npx jest:*)"
+      "Bash(npx jest:*)",
+      "Bash(docker logs:*)"
     ],
     "deny": [],
     "ask": [],

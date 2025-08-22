@@ -7,7 +7,7 @@ export const ConnectionDialog: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState('');
 
-  const { setClientState } = useGameStore();
+  const { clientState, setClientState } = useGameStore();
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +36,14 @@ export const ConnectionDialog: React.FC = () => {
       <div className="bg-gray-800 p-8 rounded-lg shadow-2xl w-96 border border-gray-700">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">CivJS</h1>
-          <p className="text-gray-300">A modern Civilization game client</p>
+          <p className="text-gray-300">
+            {clientState === 'connecting' && 'Connecting to server...'}
+            {clientState === 'waiting_for_players' && 'Waiting for other players...'}
+            {clientState === 'joining_game' && 'Joining game...'}
+          </p>
+          {clientState === 'waiting_for_players' && (
+            <p className="text-gray-400 text-sm mt-2">Game will start once all players are ready</p>
+          )}
         </div>
 
         <form onSubmit={handleConnect} className="space-y-6">

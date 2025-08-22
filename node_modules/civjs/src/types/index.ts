@@ -74,7 +74,16 @@ export interface GameState {
 }
 
 // Client state types
-export type ClientState = 'initial' | 'connecting' | 'preparing' | 'running' | 'over';
+export type ClientState = 
+  | 'initial' 
+  | 'creating_game' 
+  | 'browsing_games' 
+  | 'connecting' 
+  | 'waiting_for_players'
+  | 'joining_game'
+  | 'preparing' 
+  | 'running' 
+  | 'over';
 
 // UI types
 export interface MapViewport {

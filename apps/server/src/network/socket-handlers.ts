@@ -48,6 +48,116 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
     await packetHandler.process(socket, packet);
   });
 
+  // Add new Socket.IO event handlers for the lobby system
+  socket.on('create_game', async (gameData, callback) => {
+    const connection = activeConnections.get(socket.id);
+    if (!connection?.userId) {
+      callback({ success: false, error: 'Not authenticated' });
+      return;
+    }
+
+    try {
+      const gameId = await gameManager.createGame({
+        name: gameData.gameName,
+        hostId: connection.userId,
+        maxPlayers: gameData.maxPlayers,
+        mapWidth: gameData.mapSize === 'small' ? 40 : gameData.mapSize === 'large' ? 120 : 80,
+        mapHeight: gameData.mapSize === 'small' ? 25 : gameData.mapSize === 'large' ? 75 : 50,
+        ruleset: 'classic',
+      });
+
+      // Automatically join the creator as a player
+      const playerId = await gameManager.joinGame(gameId, connection.userId, 'random');
+      
+      connection.gameId = gameId;
+      socket.join(`game:${gameId}`);
+      await gameManager.updatePlayerConnection(playerId, true);
+
+      callback({ success: true, gameId });
+      logger.info(`Game created: ${gameData.gameName} by ${connection.username}`, { gameId });
+    } catch (error) {
+      logger.error('Error creating game:', error);
+      callback({ success: false, error: error instanceof Error ? error.message : 'Failed to create game' });
+    }
+  });
+
+  socket.on('join_game', async (data, callback) => {
+    const connection = activeConnections.get(socket.id);
+    if (!connection?.userId) {
+      // For joining games, we need to authenticate first
+      try {
+        // Create guest user if needed
+        let userId: string;
+        const existingUser = await db.query.users.findFirst({
+          where: eq(users.username, data.playerName),
+        });
+
+        if (existingUser) {
+          userId = existingUser.id;
+          await db.update(users).set({ lastSeen: new Date() }).where(eq(users.id, userId));
+        } else {
+          const [newUser] = await db
+            .insert(users)
+            .values({
+              username: data.playerName,
+              isGuest: true,
+            })
+            .returning();
+          userId = newUser.id;
+        }
+
+        if (connection) {
+          connection.userId = userId;
+          connection.username = data.playerName;
+        }
+        await sessionCache.setSession(socket.id, userId);
+      } catch (error) {
+        callback({ success: false, error: 'Authentication failed' });
+        return;
+      }
+    }
+
+    try {
+      const playerId = await gameManager.joinGame(data.gameId, connection?.userId || '', 'random');
+      
+      if (connection) {
+        connection.gameId = data.gameId;
+      }
+      socket.join(`game:${data.gameId}`);
+      await gameManager.updatePlayerConnection(playerId, true);
+
+      callback({ success: true, playerId });
+      logger.info(`${connection?.username || 'Unknown'} joined game ${data.gameId}`, { playerId });
+    } catch (error) {
+      logger.error('Error joining game:', error);
+      callback({ success: false, error: error instanceof Error ? error.message : 'Failed to join game' });
+    }
+  });
+
+  socket.on('get_game_list', async (callback) => {
+    try {
+      const activeGames = gameManager.getActiveGames();
+      
+      const games = activeGames.map(game => ({
+        id: game.id,
+        name: game.config.name,
+        hostName: 'Host', // You might want to get actual host name
+        status: game.state,
+        currentPlayers: game.players.size,
+        maxPlayers: game.config.maxPlayers || 8,
+        currentTurn: game.currentTurn,
+        mapSize: `${game.config.mapWidth || 80}x${game.config.mapHeight || 50}`,
+        createdAt: new Date().toISOString(), // You might want to store actual creation time
+        canJoin: game.state === 'waiting' && game.players.size < (game.config.maxPlayers || 8),
+      }));
+
+      callback({ success: true, games });
+    } catch (error) {
+      logger.error('Error getting game list:', error);
+      callback({ success: false, error: 'Failed to get game list' });
+    }
+  });
+
   // Handle disconnect
   socket.on('disconnect', async () => {
     logger.info(`Client disconnected: ${socket.id}`);
