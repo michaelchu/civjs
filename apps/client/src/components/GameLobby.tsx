@@ -33,6 +33,10 @@ export const GameLobby: React.FC = () => {
 
   const loadGames = async () => {
     try {
+      // Connect first if not connected
+      if (!gameClient.isConnected()) {
+        await gameClient.connect();
+      }
       const gameList = await gameClient.getGameList();
       setGames(gameList);
       setError('');
@@ -60,13 +64,11 @@ export const GameLobby: React.FC = () => {
     try {
       await gameClient.connect();
       
-      // Authenticate first
-      await gameClient.authenticatePlayer(playerName.trim());
-      
-      // Then join the game
-      await gameClient.joinGame(selectedGame, playerName.trim());
+      // Join the game (server will handle authentication)
+      await gameClient.joinSpecificGame(selectedGame, playerName.trim());
       setClientState('joining_game');
     } catch (err) {
+      console.error('Game join error:', err);
       setError(err instanceof Error ? err.message : 'Failed to join game');
     } finally {
       setIsJoining(false);

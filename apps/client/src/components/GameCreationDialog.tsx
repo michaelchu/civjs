@@ -35,10 +35,7 @@ export const GameCreationDialog: React.FC = () => {
     try {
       await gameClient.connect();
       
-      // Authenticate first by joining as a player
-      await gameClient.authenticatePlayer(playerName.trim());
-      
-      // Then create the game
+      // Create the game (server will handle authentication)
       await gameClient.createGame({
         gameName: gameName.trim(),
         playerName: playerName.trim(),
@@ -48,6 +45,7 @@ export const GameCreationDialog: React.FC = () => {
       
       setClientState('waiting_for_players');
     } catch (err) {
+      console.error('Game creation error:', err);
       setError(err instanceof Error ? err.message : 'Failed to create game');
     } finally {
       setIsCreating(false);

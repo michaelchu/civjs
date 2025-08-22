@@ -157,13 +157,13 @@ class GameClient {
       }
 
       this.socket.emit('packet', {
-        type: 'SERVER_JOIN_REQ',
+        type: 4, // SERVER_JOIN_REQ
         data: { username: playerName }
       });
 
       // Listen for the reply
       const handleReply = (packet: any) => {
-        if (packet.type === 'SERVER_JOIN_REPLY') {
+        if (packet.type === 5) { // SERVER_JOIN_REPLY
           this.socket?.off('packet', handleReply);
           if (packet.data.accepted) {
             resolve();
@@ -205,7 +205,15 @@ class GameClient {
     });
   }
 
-  async joinGame(gameId: string, playerName: string): Promise<void> {
+  // Simple join method for authentication (used by ConnectionDialog)
+  joinGame(playerName: string): void {
+    if (!this.socket) return;
+    
+    this.socket.emit('join_game', { playerName });
+  }
+
+  // Join specific game method (used by GameLobby)  
+  async joinSpecificGame(gameId: string, playerName: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.socket) {
         reject(new Error('Not connected to server'));
