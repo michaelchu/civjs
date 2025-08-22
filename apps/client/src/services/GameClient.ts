@@ -57,6 +57,21 @@ class GameClient {
       useGameStore.getState().setClientState('running');
     });
 
+    // Map data events
+    this.socket.on('map-data', (data) => {
+      console.log('Received map data:', data);
+      useGameStore.getState().updateGameState({
+        mapData: data
+      });
+    });
+
+    this.socket.on('player-map-view', (data) => {
+      console.log('Received player map view:', data);
+      useGameStore.getState().updateGameState({
+        visibleTiles: data.visibleTiles
+      });
+    });
+
     // Game created successfully (when you create a game)
     this.socket.on('game_created', (data) => {
       console.log('Game created:', data);
@@ -146,6 +161,51 @@ class GameClient {
     
     this.socket.emit(PacketType.RESEARCH_SET, {
       techId
+    });
+  }
+
+  // Map data methods
+  async getMapData(): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      this.socket.emit('get_map_data', {}, (response: any) => {
+        if (response.success) {
+          resolve(response.mapData);
+        } else {
+          reject(new Error(response.error || 'Failed to get map data'));
+        }
+      });
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        reject(new Error('Get map data timeout'));
+      }, 10000);
+    });
+  }
+
+  async getVisibleTiles(): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      this.socket.emit('get_visible_tiles', {}, (response: any) => {
+        if (response.success) {
+          resolve(response.visibleTiles);
+        } else {
+          reject(new Error(response.error || 'Failed to get visible tiles'));
+        }
+      });
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        reject(new Error('Get visible tiles timeout'));
+      }, 10000);
     });
   }
 
