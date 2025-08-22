@@ -54,8 +54,6 @@ export interface PlayerState {
 
 export class GameManager {
   private static instance: GameManager;
-  private games: Map<string, GameInstance> = new Map();
-  private playerToGame: Map<string, string> = new Map(); // playerId -> gameId
   private io: SocketServer;
 
   private constructor(io: SocketServer) {
@@ -86,37 +84,12 @@ export class GameManager {
 
     const [newGame] = await db.insert(games).values(gameData).returning();
 
-    // Initialize game instance
-    const mapManager = new MapManager(config.mapWidth || 80, config.mapHeight || 50);
-    const unitManager = new UnitManager(newGame.id, config.mapWidth || 80, config.mapHeight || 50);
-    const cityManager = new CityManager(newGame.id);
-    const researchManager = new ResearchManager(newGame.id);
-    const visibilityManager = new VisibilityManager(newGame.id, unitManager, mapManager);
-
-    const gameInstance: GameInstance = {
-      id: newGame.id,
-      config,
-      state: 'waiting',
-      currentTurn: 0,
-      turnPhase: 'movement',
-      players: new Map(),
-      turnManager: new TurnManager(newGame.id, this.io),
-      mapManager,
-      unitManager,
-      visibilityManager,
-      cityManager,
-      researchManager,
-      lastActivity: new Date(),
-    };
-
-    this.games.set(newGame.id, gameInstance);
-
-    // Cache game data in Redis
+    // Cache basic game data in Redis for performance
     await gameState.setGameState(newGame.id, {
-      state: gameInstance.state,
-      currentTurn: gameInstance.currentTurn,
-      turnPhase: gameInstance.turnPhase,
-      playerCount: gameInstance.players.size,
+      state: newGame.status,
+      currentTurn: newGame.currentTurn,
+      turnPhase: newGame.turnPhase,
+      playerCount: 0,
     });
 
     logger.info('Game created successfully', { gameId: newGame.id });
@@ -124,28 +97,34 @@ export class GameManager {
   }
 
   public async joinGame(gameId: string, userId: string, civilization?: string): Promise<string> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
+    // Get game from database
+    const game = await db.query.games.findFirst({
+      where: eq(games.id, gameId),
+      with: {
+        players: true,
+      },
+    });
+
+    if (!game) {
       throw new Error('Game not found');
     }
 
-    if (gameInstance.state !== 'waiting') {
+    if (game.status !== 'waiting') {
       throw new Error('Game is not accepting new players');
     }
 
-    if (gameInstance.players.size >= gameInstance.config.maxPlayers!) {
+    if (game.players.length >= game.maxPlayers) {
       throw new Error('Game is full');
     }
 
     // Check if user is already in the game
-    for (const [playerId, player] of gameInstance.players) {
-      if (player.userId === userId) {
-        return playerId; // Already joined
-      }
+    const existingPlayer = game.players.find(p => p.userId === userId);
+    if (existingPlayer) {
+      return existingPlayer.id; // Already joined
     }
 
     // Create player in database
-    const playerNumber = gameInstance.players.size + 1;
+    const playerNumber = game.players.length + 1;
     const playerData = {
       gameId,
       userId,
@@ -161,33 +140,12 @@ export class GameManager {
 
     const [newPlayer] = await db.insert(players).values(playerData).returning();
 
-    // Add to game instance
-    const playerState: PlayerState = {
-      id: newPlayer.id,
-      userId,
-      playerNumber,
-      civilization: playerData.civilization,
-      isReady: false,
-      hasEndedTurn: false,
-      isConnected: true,
-      lastSeen: new Date(),
-    };
-
-    gameInstance.players.set(newPlayer.id, playerState);
-    this.playerToGame.set(newPlayer.id, gameId);
-
-    // Initialize visibility for new player
-    gameInstance.visibilityManager.initializePlayerVisibility(newPlayer.id);
-
-    // Initialize research for new player
-    await gameInstance.researchManager.initializePlayerResearch(newPlayer.id);
-
     // Update Redis cache
     await gameState.setGameState(gameId, {
-      state: gameInstance.state,
-      currentTurn: gameInstance.currentTurn,
-      turnPhase: gameInstance.turnPhase,
-      playerCount: gameInstance.players.size,
+      state: game.status,
+      currentTurn: game.currentTurn,
+      turnPhase: game.turnPhase,
+      playerCount: game.players.length + 1,
     });
 
     logger.info('Player joined game', { gameId, playerId: newPlayer.id, userId });
@@ -197,93 +155,187 @@ export class GameManager {
       playerId: newPlayer.id,
       playerNumber,
       civilization: playerData.civilization,
-      playerCount: gameInstance.players.size,
+      playerCount: game.players.length + 1,
     });
 
     return newPlayer.id;
   }
 
   public async startGame(gameId: string, hostId: string): Promise<void> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
+    // Get game from database
+    const game = await db.query.games.findFirst({
+      where: eq(games.id, gameId),
+      with: {
+        players: true,
+      },
+    });
+
+    if (!game) {
       throw new Error('Game not found');
     }
 
-    if (gameInstance.config.hostId !== hostId) {
+    if (game.hostId !== hostId) {
       throw new Error('Only the host can start the game');
     }
 
-    if (gameInstance.players.size < 2) {
+    if (game.players.length < 2) {
       throw new Error('Need at least 2 players to start');
     }
 
-    if (gameInstance.state !== 'waiting') {
+    if (game.status !== 'waiting') {
       throw new Error('Game is not in waiting state');
     }
 
-    logger.info('Starting game', { gameId, playerCount: gameInstance.players.size });
+    logger.info('Starting game', { gameId, playerCount: game.players.length });
 
-    // Update game state
-    gameInstance.state = 'starting';
-
-    // Generate map
-    await gameInstance.mapManager.generateMap(gameInstance.players);
-
-    // Load existing units and cities (if any)
-    await gameInstance.unitManager.loadUnits();
-    await gameInstance.cityManager.loadCities();
-
-    // Update database
+    // Update database to active state
     await db
       .update(games)
       .set({
         status: 'active',
         startedAt: new Date(),
-        mapData: gameInstance.mapManager.getMapData(),
+        currentTurn: 1,
       })
       .where(eq(games.id, gameId));
 
-    // Initialize turn manager
-    await gameInstance.turnManager.initializeTurn(Array.from(gameInstance.players.keys()));
-
-    gameInstance.state = 'active';
-    gameInstance.currentTurn = 1;
-
     // Update Redis cache
     await gameState.setGameState(gameId, {
-      state: gameInstance.state,
-      currentTurn: gameInstance.currentTurn,
-      turnPhase: gameInstance.turnPhase,
-      playerCount: gameInstance.players.size,
+      state: 'active',
+      currentTurn: 1,
+      turnPhase: 'movement',
+      playerCount: game.players.length,
     });
 
     // Notify all players
     this.broadcastToGame(gameId, 'game-started', {
       gameId,
-      currentTurn: gameInstance.currentTurn,
-      mapData: gameInstance.mapManager.getMapData(),
+      currentTurn: 1,
     });
 
     logger.info('Game started successfully', { gameId });
   }
 
-  public getGame(gameId: string): GameInstance | undefined {
-    return this.games.get(gameId);
+  public async getGame(gameId: string): Promise<any | null> {
+    return await this.getGameById(gameId);
   }
 
-  public getGameByPlayerId(playerId: string): GameInstance | undefined {
-    const gameId = this.playerToGame.get(playerId);
-    return gameId ? this.games.get(gameId) : undefined;
+  public async getGameByPlayerId(playerId: string): Promise<any | null> {
+    try {
+      const player = await db.query.players.findFirst({
+        where: eq(players.id, playerId),
+        with: {
+          game: {
+            with: {
+              host: {
+                columns: {
+                  username: true,
+                },
+              },
+              players: true,
+            },
+          },
+        },
+      });
+
+      if (!player?.game) return null;
+
+      const game = player.game;
+      return {
+        id: game.id,
+        name: game.name,
+        hostName: game.host?.username || 'Unknown',
+        status: game.status,
+        currentPlayers: game.players?.length || 0,
+        maxPlayers: game.maxPlayers,
+        currentTurn: game.currentTurn,
+        mapSize: `${game.mapWidth}x${game.mapHeight}`,
+        createdAt: game.createdAt.toISOString(),
+        canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
+      };
+    } catch (error) {
+      logger.error('Error fetching game by player ID:', error);
+      return null;
+    }
   }
 
-  public getAllGames(): GameInstance[] {
-    return Array.from(this.games.values());
+  public async getAllGames(): Promise<any[]> {
+    return await this.getAllGamesFromDatabase();
   }
 
-  public getActiveGames(): GameInstance[] {
-    return Array.from(this.games.values()).filter(
-      game => game.state === 'active' || game.state === 'waiting'
-    );
+  public async getActiveGames(): Promise<any[]> {
+    return await this.getAllGamesFromDatabase();
+  }
+
+  public async getAllGamesFromDatabase(): Promise<any[]> {
+    try {
+      const dbGames = await db.query.games.findMany({
+        where: (games, { inArray }) => inArray(games.status, ['waiting', 'running', 'active']),
+        with: {
+          host: {
+            columns: {
+              username: true,
+            },
+          },
+          players: true,
+        },
+        orderBy: (games, { desc }) => desc(games.createdAt),
+      });
+
+      return dbGames.map(game => ({
+        id: game.id,
+        name: game.name,
+        hostName: game.host?.username || 'Unknown',
+        status: game.status,
+        currentPlayers: game.players?.length || 0,
+        maxPlayers: game.maxPlayers,
+        currentTurn: game.currentTurn,
+        mapSize: `${game.mapWidth}x${game.mapHeight}`,
+        createdAt: game.createdAt.toISOString(),
+        canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
+      }));
+    } catch (error) {
+      logger.error('Error fetching games from database:', error);
+      return [];
+    }
+  }
+
+  public async getGameListForLobby(): Promise<any[]> {
+    // All games come from database now - single source of truth
+    return await this.getAllGamesFromDatabase();
+  }
+
+  public async getGameById(gameId: string): Promise<any | null> {
+    try {
+      const game = await db.query.games.findFirst({
+        where: eq(games.id, gameId),
+        with: {
+          host: {
+            columns: {
+              username: true,
+            },
+          },
+          players: true,
+        },
+      });
+
+      if (!game) return null;
+
+      return {
+        id: game.id,
+        name: game.name,
+        hostName: game.host?.username || 'Unknown',
+        status: game.status,
+        currentPlayers: game.players?.length || 0,
+        maxPlayers: game.maxPlayers,
+        currentTurn: game.currentTurn,
+        mapSize: `${game.mapWidth}x${game.mapHeight}`,
+        createdAt: game.createdAt.toISOString(),
+        canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
+      };
+    } catch (error) {
+      logger.error('Error fetching game by ID from database:', error);
+      return null;
+    }
   }
 
   public async updatePlayerConnection(playerId: string, isConnected: boolean): Promise<void> {
