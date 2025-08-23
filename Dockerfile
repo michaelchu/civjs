@@ -10,7 +10,11 @@ ENV NODE_OPTIONS="--max-old-space-size=2048"
 COPY . .
 
 # Install dependencies and build
-RUN npm install --no-optional && npm run build
+# Workaround for npm optional dependencies bug with Rollup
+RUN rm -rf node_modules apps/*/node_modules package-lock.json && \
+    npm install && \
+    npm rebuild && \
+    npm run build
 
 # Install production dependencies for server
 RUN npm ci --omit=dev --workspace=apps/server
