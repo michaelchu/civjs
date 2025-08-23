@@ -4,8 +4,7 @@
   "description": "CivJS - A modern civilization game built with TypeScript, React, and Node.js",
   "private": true,
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/*"
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
