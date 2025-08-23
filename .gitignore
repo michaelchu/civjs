@@ -119,3 +119,6 @@ logs
 # Temporary folders
 tmp/
 temp/
+
+# Claude AI settings
+.claude/
