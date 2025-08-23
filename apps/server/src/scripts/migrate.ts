@@ -1,39 +1,37 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { Client } from 'pg';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import postgres from 'postgres';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
 
 async function runMigrations() {
-  console.log('Starting database migrations...');
+  console.log('Migration started ⌛');
   
-  const connectionString = process.env.DATABASE_URL;
+  const dbUrl = process.env.DATABASE_URL;
   
-  if (!connectionString) {
+  if (!dbUrl) {
     throw new Error('DATABASE_URL environment variable is required');
   }
 
-  const client = new Client({
-    connectionString,
+  // Create postgres client with Railway-specific SSL settings
+  const client = postgres(dbUrl, {
+    max: 1,
+    // SSL must be 'require' for Railway's self-signed certificates
+    ssl: process.env.NODE_ENV === 'production' ? 'require' : undefined
   });
 
+  const db = drizzle(client);
+  
   try {
-    await client.connect();
-    console.log('Connected to database');
-    
-    const db = drizzle(client);
-    
     console.log('Running migrations...');
     await migrate(db, { migrationsFolder: './drizzle' });
-    
-    console.log('Migrations completed successfully');
+    console.log('Migration completed ✅');
   } catch (error) {
-    console.error('Migration failed:', error);
+    console.error('Migration failed ❌', error);
     process.exit(1);
   } finally {
     await client.end();
-    console.log('Database connection closed');
   }
 }
 
