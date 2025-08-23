@@ -16,11 +16,9 @@ interface GameInfo {
 }
 
 export const GameLobby: React.FC = () => {
-  const [playerName, setPlayerName] = useState('');
   const [games, setGames] = useState<GameInfo[]>([]);
-  const [selectedGame, setSelectedGame] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isJoining, setIsJoining] = useState(false);
+  const [joiningGameId, setJoiningGameId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const navigate = useNavigate();
@@ -52,24 +50,17 @@ export const GameLobby: React.FC = () => {
     navigate('/');
   };
 
-  const handleJoinGame = async () => {
-    if (!selectedGame || !playerName.trim()) {
-      setError('Please select a game and enter your player name');
-      return;
-    }
-
-    setIsJoining(true);
+  const handleJoinGame = async (gameId: string) => {
+    setJoiningGameId(gameId);
     setError('');
 
     try {
-      // Navigate directly to the game URL with player name as a query parameter
-      navigate(
-        `/game/${selectedGame}?playerName=${encodeURIComponent(playerName.trim())}`
-      );
+      // Navigate directly to the game URL - user will enter name in the dialog
+      navigate(`/game/${gameId}`);
     } catch (err) {
       console.error('Game join error:', err);
       setError(err instanceof Error ? err.message : 'Failed to join game');
-      setIsJoining(false);
+      setJoiningGameId(null);
     }
   };
 
@@ -156,24 +147,6 @@ export const GameLobby: React.FC = () => {
             </button>
           </div>
 
-          <div className="mb-6">
-            <label
-              htmlFor="playerName"
-              className="block text-sm font-medium text-gray-300 mb-2"
-            >
-              Your Player Name
-            </label>
-            <input
-              id="playerName"
-              type="text"
-              value={playerName}
-              onChange={e => setPlayerName(e.target.value)}
-              placeholder="Enter your name to join a game"
-              className="w-full max-w-md px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              maxLength={32}
-            />
-          </div>
-
           {error && (
             <div className="mb-6 p-3 bg-red-900 border border-red-700 rounded-md text-red-200 text-sm">
               {error}
@@ -210,12 +183,7 @@ export const GameLobby: React.FC = () => {
               {games.map(game => (
                 <div
                   key={game.id}
-                  className={`p-4 border rounded-lg cursor-pointer transition-all duration-200 ${
-                    selectedGame === game.id
-                      ? 'border-blue-500 bg-blue-900/30'
-                      : 'border-gray-600 bg-gray-700/50 hover:border-gray-500 hover:bg-gray-700'
-                  } ${!game.canJoin ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  onClick={() => game.canJoin && setSelectedGame(game.id)}
+                  className={`p-4 border rounded-lg transition-all duration-200 ${'border-gray-600 bg-gray-700/50 hover:border-gray-500 hover:bg-gray-700'} ${!game.canJoin ? 'opacity-50' : ''}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -247,45 +215,25 @@ export const GameLobby: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    {selectedGame === game.id && (
-                      <div className="ml-4">
-                        <svg
-                          className="w-6 h-6 text-blue-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      </div>
-                    )}
+                    <div className="ml-4">
+                      <button
+                        onClick={() => handleJoinGame(game.id)}
+                        disabled={!game.canJoin || joiningGameId === game.id}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:text-gray-400 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                      >
+                        {joiningGameId === game.id ? (
+                          <div className="flex items-center">
+                            <div className="animate-spin w-4 h-4 border-2 border-green-300 border-t-transparent rounded-full mr-2"></div>
+                            Joining...
+                          </div>
+                        ) : (
+                          'Join Game'
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
-            </div>
-          )}
-
-          {games.length > 0 && (
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={handleJoinGame}
-                disabled={!selectedGame || !playerName.trim() || isJoining}
-                className="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:text-gray-400 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800"
-              >
-                {isJoining ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin w-5 h-5 border-2 border-green-300 border-t-transparent rounded-full mr-2"></div>
-                    Joining...
-                  </div>
-                ) : (
-                  'Join Selected Game'
-                )}
-              </button>
             </div>
           )}
         </div>

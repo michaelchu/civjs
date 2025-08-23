@@ -11,6 +11,7 @@ export const GameRoute: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [playerName, setPlayerName] = useState('');
+
   const [showNamePrompt, setShowNamePrompt] = useState(true);
 
   const { clientState, setClientState, updateGameState } = useGameStore();
@@ -49,19 +50,12 @@ export const GameRoute: React.FC = () => {
       return;
     }
 
-    // Check for player name in URL query parameter
-    const urlParams = new URLSearchParams(location.search);
-    const urlPlayerName = urlParams.get('playerName');
-    if (urlPlayerName) {
-      setPlayerName(urlPlayerName);
-      handleJoinGame(urlPlayerName);
-    } else {
-      setIsLoading(false);
-    }
+    // Always show name prompt now - no auto-join from URL
+    setIsLoading(false);
 
     // Store the current game ID
     updateGameState({ currentGameId: gameId });
-  }, [gameId, location.search]);
+  }, [gameId]);
 
   const handleNameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
