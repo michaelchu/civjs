@@ -95,10 +95,21 @@ export class GameManager {
     });
 
     logger.info('Game created successfully', { gameId: newGame.id });
+    
+    // Automatically join the creator to the game
+    logger.info('Auto-joining game creator', { gameId: newGame.id, hostId: config.hostId });
+    try {
+      await this.joinGame(newGame.id, config.hostId, 'random');
+    } catch (error) {
+      logger.error('Failed to auto-join creator to game:', error);
+    }
+    
     return newGame.id;
   }
 
   public async joinGame(gameId: string, userId: string, civilization?: string): Promise<string> {
+    logger.info('🚀 JOINAME METHOD CALLED WITH DEBUG 🚀', { gameId, userId, civilization });
+    
     // Get game from database
     const game = await db.query.games.findFirst({
       where: eq(games.id, gameId),
@@ -159,6 +170,35 @@ export class GameManager {
       civilization: playerData.civilization,
       playerCount: game.players.length + 1,
     });
+
+    // Auto-start game if not already started and conditions are met
+    const updatedGame = await db.query.games.findFirst({
+      where: eq(games.id, gameId),
+      with: { players: true },
+    });
+    
+    logger.debug('Checking auto-start conditions', { 
+      gameId, 
+      gameExists: !!updatedGame,
+      gameStatus: updatedGame?.status,
+      playerCount: updatedGame?.players.length 
+    });
+    
+    if (updatedGame && updatedGame.status === 'waiting' && updatedGame.players.length >= 1) {
+      logger.info('Auto-starting game', { gameId, playerCount: updatedGame.players.length });
+      try {
+        await this.startGame(gameId, newPlayer.id);
+      } catch (error) {
+        logger.error('Failed to auto-start game:', error);
+      }
+    } else {
+      logger.debug('Auto-start conditions not met', {
+        gameId,
+        hasGame: !!updatedGame,
+        status: updatedGame?.status,
+        playerCount: updatedGame?.players.length
+      });
+    }
 
     return newPlayer.id;
   }
@@ -316,11 +356,11 @@ export class GameManager {
           2 // Initial sight radius
         );
 
-        // Emit to specific player only to avoid exposing fog of war to others
-        this.emitToPlayer(gameId, startPos.playerId, 'player-map-view', {
-          gameId,
-          playerId: startPos.playerId,
-          visibleTiles: visibleTiles.map(tile => ({
+        // Send individual tile-info packets (like freeciv-web) for each visible tile
+        visibleTiles.forEach(tile => {
+          const tileId = tile.x * 1000 + tile.y; // Simple tile ID calculation
+          this.emitToPlayer(gameId, startPos.playerId, 'tile-info', {
+            tile: tileId,
             x: tile.x,
             y: tile.y,
             terrain: tile.terrain,
@@ -329,7 +369,7 @@ export class GameManager {
             riverMask: tile.riverMask,
             isExplored: true,
             isVisible: true,
-          })),
+          });
         });
       }
     }

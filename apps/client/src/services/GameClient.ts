@@ -62,13 +62,40 @@ class GameClient {
       console.log('Received map data:', data);
       useGameStore.getState().updateGameState({
         mapData: data,
+        map: {
+          width: data.width || 0,
+          height: data.height || 0,
+          tiles: useGameStore.getState().map.tiles, // Preserve existing tiles
+        },
       });
     });
 
-    this.socket.on('player-map-view', data => {
-      console.log('Received player map view:', data);
+    // Handle individual tile info packets (like freeciv-web)
+    this.socket.on('tile-info', data => {
+      console.log('Received tile info:', data);
+      
+      const tileKey = `${data.x},${data.y}`;
+      const currentMap = useGameStore.getState().map;
+      
+      // Update the specific tile in the map (like freeciv-web's handle_tile_info)
+      const updatedTiles = {
+        ...currentMap.tiles,
+        [tileKey]: {
+          x: data.x,
+          y: data.y,
+          terrain: data.terrain,
+          visible: data.isVisible || true,
+          known: data.isExplored || true,
+          units: [],
+          city: undefined,
+        },
+      };
+      
       useGameStore.getState().updateGameState({
-        visibleTiles: data.visibleTiles,
+        map: {
+          ...currentMap,
+          tiles: updatedTiles,
+        },
       });
     });
 

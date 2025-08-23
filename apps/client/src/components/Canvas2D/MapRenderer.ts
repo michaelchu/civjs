@@ -1,4 +1,5 @@
 import type { GameState, MapViewport, Tile, Unit, City } from '../../types';
+import { TilesetLoader } from './TilesetLoader';
 
 interface RenderState {
   viewport: MapViewport;
@@ -9,15 +10,35 @@ interface RenderState {
 
 export class MapRenderer {
   private ctx: CanvasRenderingContext2D;
-  private tileWidth = 64;
-  private tileHeight = 32;
+  // Amplio2 tileset dimensions (from freeciv-web tileset_config_amplio2.js)
+  private tileWidth = 96;
+  private tileHeight = 48;
 
-  // Sprite cache - will be populated when we add tileset loading
-  private sprites: Record<string, HTMLCanvasElement> = {};
+  // Tileset loader for sprite management
+  private tilesetLoader: TilesetLoader;
+  private isInitialized = false;
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
+    this.tilesetLoader = new TilesetLoader();
     this.setupCanvas();
+  }
+
+  async initialize(serverUrl: string): Promise<void> {
+    try {
+      await this.tilesetLoader.loadTileset(serverUrl);
+      
+      // Update tile dimensions from loaded tileset
+      const tileSize = this.tilesetLoader.getTileSize();
+      this.tileWidth = tileSize.width;
+      this.tileHeight = tileSize.height;
+      
+      this.isInitialized = true;
+      console.log('MapRenderer initialized with tileset');
+    } catch (error) {
+      console.error('Failed to initialize MapRenderer:', error);
+      throw error;
+    }
   }
 
   private setupCanvas() {
@@ -30,6 +51,11 @@ export class MapRenderer {
 
   render(state: RenderState) {
     this.clearCanvas();
+
+    if (!this.isInitialized) {
+      this.renderLoadingMessage();
+      return;
+    }
 
     if (!state.map.tiles || Object.keys(state.map.tiles).length === 0) {
       this.renderEmptyMap();
@@ -57,6 +83,12 @@ export class MapRenderer {
         this.renderCity(city, state.viewport);
       }
     });
+    
+    // Debug grid overlay in development
+    if (process.env.NODE_ENV === 'development' && this.isInitialized) {
+      // Uncomment to see the diamond grid overlay
+      // this.debugRenderGrid(state.viewport, true);
+    }
   }
 
   private clearCanvas() {
@@ -98,12 +130,92 @@ export class MapRenderer {
     );
   }
 
+  private renderLoadingMessage() {
+    this.ctx.fillStyle = 'white';
+    this.ctx.font = '20px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText(
+      'Loading Tileset...',
+      this.ctx.canvas.width / 2,
+      this.ctx.canvas.height / 2
+    );
+  }
+
+  // Port of freeciv-web's complex diamond-space tile iteration
+  // Based on freeciv-web mapview_common.js lines 306-379
   private getVisibleTiles(
     viewport: MapViewport,
     map: GameState['map']
   ): Tile[] {
+    if (!this.isInitialized) {
+      return this.getVisibleTilesSimple(viewport, map);
+    }
+    
     const tiles: Tile[] = [];
-
+    
+    // Convert viewport bounds to GUI coordinates
+    const guiX0 = viewport.x;
+    const guiY0 = viewport.y;
+    const guiXW = viewport.width + (this.tileWidth >> 1);
+    const guiYH = viewport.height + (this.tileHeight >> 1);
+    
+    if (guiXW <= 0 || guiYH <= 0) {
+      return tiles;
+    }
+    
+    // Diamond-space bounds calculation (port of lines 324-333)
+    const ptileR1 = 2;
+    const ptileR2 = ptileR1 * 2;
+    const ptileW = this.tileWidth;
+    const ptileH = this.tileHeight;
+    
+    const ptileX0 = Math.floor(((guiX0 * ptileR2) / ptileW) - ptileR1 / 2);
+    const ptileY0 = Math.floor(((guiY0 * ptileR2) / ptileH) - ptileR1 / 2);
+    const ptileX1 = Math.floor((((guiX0 + guiXW) * ptileR2 + ptileW - 1) / ptileW) + ptileR1);
+    const ptileY1 = Math.floor((((guiY0 + guiYH) * ptileR2 + ptileH - 1) / ptileH) + ptileR1);
+    
+    const ptileCount = (ptileX1 - ptileX0) * (ptileY1 - ptileY0);
+    
+    // Diamond-space iteration ensures proper back-to-front rendering
+    for (let ptileIndex = 0; ptileIndex < ptileCount; ptileIndex++) {
+      const ptileXi = ptileX0 + (ptileIndex % (ptileX1 - ptileX0));
+      const ptileYi = Math.floor(ptileY0 + (ptileIndex / (ptileX1 - ptileX0)));
+      const ptileSi = ptileXi + ptileYi;
+      const ptileDi = ptileYi - ptileXi;
+      
+      // Skip non-diamond positions
+      if ((ptileXi + ptileYi) % 2 !== 0) {
+        continue;
+      }
+      
+      if (ptileXi % 2 === 0 && ptileYi % 2 === 0) {
+        if ((ptileXi + ptileYi) % 4 === 0) {
+          // This is a tile position in diamond space
+          const mapX = Math.floor((ptileSi / 4) - 1);
+          const mapY = Math.floor(ptileDi / 4);
+          
+          // Bounds check and get tile
+          if (this.isInMapBounds(mapX, mapY, map)) {
+            const tileKey = `${mapX},${mapY}`;
+            const tile = map.tiles[tileKey];
+            if (tile) {
+              tiles.push(tile);
+            }
+          }
+        }
+      }
+    }
+    
+    return tiles;
+  }
+  
+  // Fallback simple iteration for when tileset isn't loaded
+  private getVisibleTilesSimple(
+    viewport: MapViewport,
+    map: GameState['map']
+  ): Tile[] {
+    const tiles: Tile[] = [];
+    
     // Calculate visible tile bounds (with some padding)
     const startX = Math.max(0, Math.floor(viewport.x / this.tileWidth) - 2);
     const endX = Math.min(
@@ -128,30 +240,49 @@ export class MapRenderer {
 
     return tiles;
   }
+  
+  private isInMapBounds(x: number, y: number, map: GameState['map']): boolean {
+    return x >= 0 && x < map.width && y >= 0 && y < map.height;
+  }
 
   private renderTile(tile: Tile, viewport: MapViewport) {
     const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
 
-    // For now, render simple colored squares based on terrain
-    const color = this.getTerrainColor(tile.terrain);
+    // Try to get the terrain sprite first
+    const terrainSprite = this.getTerrainSprite(tile.terrain);
+    
+    if (terrainSprite) {
+      // Render actual freeciv sprite
+      this.ctx.drawImage(
+        terrainSprite,
+        screenPos.x,
+        screenPos.y,
+        this.tileWidth * viewport.zoom,
+        this.tileHeight * viewport.zoom
+      );
+    } else {
+      // Fallback to colored rectangle if sprite not found
+      const color = this.getTerrainColor(tile.terrain);
+      this.ctx.fillStyle = color;
+      this.ctx.fillRect(
+        screenPos.x,
+        screenPos.y,
+        this.tileWidth * viewport.zoom,
+        this.tileHeight * viewport.zoom
+      );
+    }
 
-    this.ctx.fillStyle = color;
-    this.ctx.fillRect(
-      screenPos.x,
-      screenPos.y,
-      this.tileWidth * viewport.zoom,
-      this.tileHeight * viewport.zoom
-    );
-
-    // Draw tile borders in development mode
-    this.ctx.strokeStyle = '#333333';
-    this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(
-      screenPos.x,
-      screenPos.y,
-      this.tileWidth * viewport.zoom,
-      this.tileHeight * viewport.zoom
-    );
+    // Draw tile borders in development mode for debugging
+    if (process.env.NODE_ENV === 'development') {
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      this.ctx.lineWidth = 1;
+      this.ctx.strokeRect(
+        screenPos.x,
+        screenPos.y,
+        this.tileWidth * viewport.zoom,
+        this.tileHeight * viewport.zoom
+      );
+    }
   }
 
   private renderUnit(unit: Unit, viewport: MapViewport) {
@@ -210,18 +341,63 @@ export class MapRenderer {
     );
   }
 
+  // Port of freeciv-web's map_to_gui_vector() - isometric transformation
+  private mapToGuiVector(mapDx: number, mapDy: number): { guiDx: number; guiDy: number } {
+    const guiDx = ((mapDx - mapDy) * this.tileWidth) >> 1;
+    const guiDy = ((mapDx + mapDy) * this.tileHeight) >> 1;
+    return { guiDx, guiDy };
+  }
+
+  // Port of freeciv-web's gui_to_map_pos() - reverse isometric transformation
+  private guiToMapPos(guiX: number, guiY: number): { mapX: number; mapY: number } {
+    const W = this.tileWidth;
+    const H = this.tileHeight;
+    
+    console.log(`guiToMapPos input: gui(${guiX}, ${guiY}), tile(${W}, ${H})`);
+    
+    // Critical half-tile offset for isometric projection
+    guiX -= W >> 1;
+    console.log(`After half-tile offset: gui(${guiX}, ${guiY})`);
+    
+    // Isometric coordinate math using freeciv's DIVIDE function
+    const numeratorX = guiX * H + guiY * W;
+    const numeratorY = guiY * W - guiX * H;
+    const denominator = W * H;
+    
+    console.log(`Numerators: X=${numeratorX}, Y=${numeratorY}, denominator=${denominator}`);
+    
+    const mapX = this.divide(numeratorX, denominator);
+    const mapY = this.divide(numeratorY, denominator);
+    
+    console.log(`Final result: map(${mapX}, ${mapY})`);
+    return { mapX, mapY };
+  }
+  
+  // Port of freeciv-web's DIVIDE function - handles negative numbers correctly
+  private divide(n: number, d: number): number {
+    if (d === 0) return 0; // Prevent division by zero
+    
+    const result = Math.floor(n / d);
+    console.log(`DIVIDE(${n}, ${d}) = ${result}`);
+    return result;
+  }
+
   private mapToScreen(mapX: number, mapY: number, viewport: MapViewport) {
+    const guiVector = this.mapToGuiVector(mapX, mapY);
     return {
-      x: (mapX * this.tileWidth - viewport.x) * viewport.zoom,
-      y: (mapY * this.tileHeight - viewport.y) * viewport.zoom,
+      x: (guiVector.guiDx - viewport.x) * viewport.zoom,
+      y: (guiVector.guiDy - viewport.y) * viewport.zoom,
     };
   }
 
   canvasToMap(canvasX: number, canvasY: number, viewport: MapViewport) {
-    return {
-      x: Math.floor((canvasX / viewport.zoom + viewport.x) / this.tileWidth),
-      y: Math.floor((canvasY / viewport.zoom + viewport.y) / this.tileHeight),
-    };
+    console.log(`canvasToMap input: canvas(${canvasX}, ${canvasY}), viewport(${viewport.x}, ${viewport.y}), zoom(${viewport.zoom})`);
+    const guiX = canvasX / viewport.zoom + viewport.x;
+    const guiY = canvasY / viewport.zoom + viewport.y;
+    console.log(`Converted to gui: (${guiX}, ${guiY})`);
+    const result = this.guiToMapPos(guiX, guiY);
+    console.log(`canvasToMap final result:`, result);
+    return result;
   }
 
   private isInViewport(
@@ -269,7 +445,114 @@ export class MapRenderer {
     return colors[index];
   }
 
+  private getTerrainSprite(terrain: string): HTMLCanvasElement | null {
+    if (!this.isInitialized) return null;
+    
+    // Use proper terrain-specific sprites based on freeciv tileset
+    const terrainSprites: Record<string, string> = {
+      'grassland': '0grassland_grassland',       // Use grassland terrain sprite
+      'plains': '0plains_plains',               // Use plains terrain sprite  
+      'desert': '0desert_desert',               // Use desert terrain sprite (confirmed available)
+      'ocean': '0ocean_ocean',                  // Use ocean terrain sprite
+      'forest': 't.l1.forest_n1e1s1w1',        // Layer 1 forest (confirmed working)
+      'hills': 't.l1.hills_n1e1s1w1',          // Layer 1 hills (confirmed working)
+      'mountains': 't.l1.mountains_n1e1s1w1',  // Layer 1 mountains (confirmed working)
+      'jungle': 't.l1.jungle_n1e1s1w1',        // Layer 1 jungle (should work)
+      'tundra': '0tundra_tundra',               // Use tundra terrain sprite
+      'swamp': '0swamp_swamp',                  // Use swamp terrain sprite
+    };
+    
+    const spriteTag = terrainSprites[terrain];
+    if (spriteTag) {
+      const sprite = this.tilesetLoader.getSprite(spriteTag);
+      if (sprite) {
+        return sprite;
+      }
+    }
+    
+    // Ultimate fallback - just use any available t.l0 sprite for isometric shape
+    const availableSprites = this.tilesetLoader.getAvailableSprites();
+    const anyTL0Sprite = availableSprites.find(s => s.startsWith('t.l0.cellgroup'));
+    if (anyTL0Sprite) {
+      return this.tilesetLoader.getSprite(anyTL0Sprite);
+    }
+    
+    return null;
+  }
+
+  // Debug method to test coordinate accuracy
+  debugCoordinateAccuracy(): void {
+    if (!this.isInitialized) return;
+    
+    console.log('=== NEW COORDINATE DEBUG TEST v2 ===');
+    console.log('Tile dimensions:', this.tileWidth, 'x', this.tileHeight);
+    
+    // Test simple case first
+    console.log('Testing direct guiToMapPos with (0,0)');
+    const result1 = this.guiToMapPos(0, 0);
+    console.log('Result:', result1);
+    
+    console.log('Testing direct guiToMapPos with (48,24)');
+    const result2 = this.guiToMapPos(48, 24);
+    console.log('Result:', result2);
+  }
+
+  // Debug method to render diamond grid overlay
+  debugRenderGrid(viewport: MapViewport, showTileNumbers = false): void {
+    if (!this.isInitialized) return;
+    
+    this.ctx.save();
+    this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+    this.ctx.lineWidth = 1;
+    this.ctx.font = '10px Arial';
+    this.ctx.fillStyle = 'red';
+    this.ctx.textAlign = 'center';
+    
+    // Draw diamond grid for first 20x20 tiles
+    for (let x = 0; x < 20; x++) {
+      for (let y = 0; y < 20; y++) {
+        const screenPos = this.mapToScreen(x, y, viewport);
+        
+        // Skip if outside viewport
+        if (screenPos.x < -this.tileWidth || screenPos.x > viewport.width + this.tileWidth ||
+            screenPos.y < -this.tileHeight || screenPos.y > viewport.height + this.tileHeight) {
+          continue;
+        }
+        
+        // Draw diamond shape
+        this.drawDiamond(
+          screenPos.x + (this.tileWidth * viewport.zoom) / 2,
+          screenPos.y + (this.tileHeight * viewport.zoom) / 2,
+          (this.tileWidth * viewport.zoom) / 2,
+          (this.tileHeight * viewport.zoom) / 2
+        );
+        
+        // Optionally draw tile coordinates
+        if (showTileNumbers && viewport.zoom > 0.5) {
+          this.ctx.fillText(
+            `${x},${y}`,
+            screenPos.x + (this.tileWidth * viewport.zoom) / 2,
+            screenPos.y + (this.tileHeight * viewport.zoom) / 2
+          );
+        }
+      }
+    }
+    
+    this.ctx.restore();
+  }
+  
+  private drawDiamond(centerX: number, centerY: number, halfWidth: number, halfHeight: number): void {
+    this.ctx.beginPath();
+    this.ctx.moveTo(centerX, centerY - halfHeight); // Top
+    this.ctx.lineTo(centerX + halfWidth, centerY);   // Right
+    this.ctx.lineTo(centerX, centerY + halfHeight);  // Bottom
+    this.ctx.lineTo(centerX - halfWidth, centerY);   // Left
+    this.ctx.closePath();
+    this.ctx.stroke();
+  }
+
   cleanup() {
-    // Cleanup resources if needed
+    this.tilesetLoader.cleanup();
+    this.isInitialized = false;
   }
 }

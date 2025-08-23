@@ -13,15 +13,63 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   const { viewport, map, units, cities, setViewport } = useGameStore();
 
-  // Initialize renderer
+  // Initialize renderer and load tileset
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const initRenderer = async () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    rendererRef.current = new MapRenderer(ctx);
+      rendererRef.current = new MapRenderer(ctx);
+      
+      try {
+        // Initialize with server URL - adjust based on your config
+        await rendererRef.current.initialize('http://localhost:3001');
+        // Add dummy map data AFTER tileset is loaded
+        const dummyTiles: Record<string, any> = {};
+        for (let x = 0; x < 20; x++) {
+          for (let y = 0; y < 15; y++) {
+            const terrains = ['grassland', 'plains', 'desert', 'forest', 'hills', 'mountains', 'ocean'];
+            const terrain = terrains[Math.floor(Math.random() * terrains.length)];
+            dummyTiles[`${x},${y}`] = {
+              x, y, terrain,
+              visible: true,
+              known: true,
+              units: [],
+              city: undefined
+            };
+          }
+        }
+        
+        // Update the game store with dummy map data
+        const { updateGameState } = useGameStore.getState();
+        updateGameState({
+          map: {
+            width: 20,
+            height: 15,
+            tiles: dummyTiles
+          }
+        });
+        // Force a render with the new dummy data
+        const gameState = useGameStore.getState();
+        
+        if (rendererRef.current) {
+          rendererRef.current.render({
+            viewport,
+            map: gameState.map,
+            units: gameState.units,
+            cities: gameState.cities
+          });
+        }
+        
+      } catch (error) {
+        console.error('Failed to initialize MapRenderer:', error);
+      }
+    };
+    
+    initRenderer();
 
     return () => {
       rendererRef.current?.cleanup();
@@ -69,8 +117,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         canvasY,
         viewport
       );
-
-      console.log('Clicked on map coordinates:', mapCoords);
 
       // Handle tile selection, unit selection, etc.
       // This will be expanded later
