@@ -19,7 +19,7 @@
     "test:server": "npm run test --workspace=apps/server",
     "lint": "npm run lint --workspaces",
     "lint:fix": "npm run lint:fix --workspaces",
-    "typecheck": "npm run typecheck --workspaces",
+    "typecheck": "npm run type-check --workspaces",
     "clean": "npm run clean --workspaces && rm -rf node_modules",
     "docker:up": "docker-compose up",
     "docker:build": "docker-compose up --build",
