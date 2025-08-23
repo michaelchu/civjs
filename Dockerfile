@@ -10,12 +10,14 @@ ENV CI=true
 # Copy all source files
 COPY . .
 
-# Install dependencies and build
-# Workaround for npm optional dependencies bug with Rollup
-RUN rm -rf node_modules apps/*/node_modules package-lock.json && \
-    npm install && \
-    npm rebuild && \
-    npm run build
+# Clean previous installs
+RUN rm -rf node_modules apps/*/node_modules package-lock.json
+
+# Install dependencies
+RUN echo "Installing dependencies..." && npm install --verbose
+
+# Build the application
+RUN echo "Building application..." && npm run build
 
 # Install production dependencies for server
 RUN npm ci --omit=dev --workspace=apps/server --ignore-scripts

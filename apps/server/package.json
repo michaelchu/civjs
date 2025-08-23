@@ -27,7 +27,7 @@
     "docker:up": "docker-compose -f docker-compose.dev.yml up -d",
     "docker:down": "docker-compose -f docker-compose.dev.yml down",
     "docker:logs": "docker-compose -f docker-compose.dev.yml logs -f",
-    "prepare": "node -e \"process.exit(process.env.CI ? 0 : 1)\" || husky"
+    "prepare": "is-ci || husky"
   },
   "keywords": [
     "game",
@@ -54,6 +54,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "husky": "^9.1.7",
+    "is-ci": "^3.0.1",
     "jest": "^30.0.5",
     "lint-staged": "^16.1.5",
     "nodemon": "^3.1.10",
