@@ -14,7 +14,7 @@ COPY . .
 RUN rm -rf node_modules apps/*/node_modules package-lock.json
 
 # Install dependencies
-RUN echo "Installing dependencies..." && npm install --verbose
+RUN echo "Installing dependencies..." && npm install
 
 # Build the application
 RUN echo "Building application..." && npm run build
