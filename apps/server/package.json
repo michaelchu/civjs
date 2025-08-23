@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "nodemon",
     "build": "tsc",
-    "start": "npm run db:migrate && node dist/index.js",
-    "start:prod": "NODE_ENV=production npm run db:migrate && node dist/index.js",
+    "start": "echo 'Starting migration...' && npm run db:migrate && echo 'Migration complete, starting server...' && node dist/index.js",
+    "start:prod": "echo 'Starting production migration...' && NODE_ENV=production npm run db:migrate && echo 'Production migration complete, starting server...' && node dist/index.js",
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
     "test": "jest",
