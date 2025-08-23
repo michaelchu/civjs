@@ -70,8 +70,8 @@ if (config.server.env === 'production') {
   const clientPath = path.join(__dirname, '..', 'public');
   app.use(express.static(clientPath));
   
-  // Handle client-side routing - serve index.html for all non-API routes
-  app.get('*', (_req, res) => {
+  // Catch-all route for client-side routing (Express v5 requires named wildcard)
+  app.get('*catchAll', (_req, res) => {
     res.sendFile(path.join(clientPath, 'index.html'));
   });
 }
