@@ -71,7 +71,7 @@ if (config.server.env === 'production') {
   app.use(express.static(clientPath));
   
   // Handle client-side routing - serve index.html for all non-API routes
-  app.get('*', (req, res) => {
+  app.get('*', (_req, res) => {
     res.sendFile(path.join(clientPath, 'index.html'));
   });
 }
