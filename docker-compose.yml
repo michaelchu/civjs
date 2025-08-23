@@ -1,4 +1,4 @@
-version: '3.8'
+name: civjs
 
 services:
   # PostgreSQL Database
@@ -38,6 +38,22 @@ services:
       timeout: 5s
       retries: 5
 
+  # Database Migrations
+  migrations:
+    build:
+      context: ./apps/server
+      dockerfile: migration.Dockerfile
+    container_name: civjs-migrations
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://civjs:civjs_secret@postgres:5432/civjs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - civjs-network
+    restart: "no"  # Run once and exit
+
   # Game Server
   civjs-server:
     build:
@@ -57,6 +73,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
       - civjs-network
     volumes:

@@ -68,7 +68,7 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
 
       // Automatically join the creator as a player
       const playerId = await gameManager.joinGame(gameId, connection.userId, 'random');
-      
+
       connection.gameId = gameId;
       socket.join(`game:${gameId}`);
       await gameManager.updatePlayerConnection(playerId, true);
@@ -76,62 +76,31 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       // Emit game created event to the creator
       socket.emit('game_created', {
         gameId,
-        maxPlayers: gameData.maxPlayers
+        maxPlayers: gameData.maxPlayers,
       });
 
       callback({ success: true, gameId });
       logger.info(`Game created: ${gameData.gameName} by ${connection.username}`, { gameId });
     } catch (error) {
       logger.error('Error creating game:', error);
-      callback({ success: false, error: error instanceof Error ? error.message : 'Failed to create game' });
+      callback({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create game',
+      });
     }
   });
 
   socket.on('join_game', async (data, callback) => {
     const connection = activeConnections.get(socket.id);
     if (!connection?.userId) {
-      // For joining games, we need to authenticate first
-      try {
-        // Create guest user if needed
-        let userId: string;
-        const existingUser = await db.query.users.findFirst({
-          where: eq(users.username, data.playerName),
-        });
-
-        if (existingUser) {
-          userId = existingUser.id;
-          await db.update(users).set({ lastSeen: new Date() }).where(eq(users.id, userId));
-        } else {
-          const [newUser] = await db
-            .insert(users)
-            .values({
-              username: data.playerName,
-              isGuest: true,
-            })
-            .returning();
-          userId = newUser.id;
-        }
-
-        if (connection) {
-          connection.userId = userId;
-          connection.username = data.playerName;
-        }
-        await sessionCache.setSession(socket.id, userId);
-        
-        // Join player-specific room for targeted emissions
-        socket.join(`player:${userId}`);
-      } catch (error) {
-        callback({ success: false, error: 'Authentication failed' });
-        return;
-      }
+      callback({ success: false, error: 'Not authenticated' });
+      return;
     }
 
     try {
-      const playerId = await gameManager.joinGame(data.gameId, connection?.userId || '', 'random');
-      
-      if (connection) {
-        connection.gameId = data.gameId;
-      }
+      const playerId = await gameManager.joinGame(data.gameId, connection.userId, 'random');
+
+      connection.gameId = data.gameId;
       socket.join(`game:${data.gameId}`);
       await gameManager.updatePlayerConnection(playerId, true);
 
@@ -139,11 +108,14 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       logger.info(`${connection?.username || 'Unknown'} joined game ${data.gameId}`, { playerId });
     } catch (error) {
       logger.error('Error joining game:', error);
-      callback({ success: false, error: error instanceof Error ? error.message : 'Failed to join game' });
+      callback({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to join game',
+      });
     }
   });
 
-  socket.on('get_game_list', async (callback) => {
+  socket.on('get_game_list', async callback => {
     try {
       const games = await gameManager.getGameListForLobby();
       callback({ success: true, games });
@@ -154,7 +126,7 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   });
 
   // Map data handlers
-  socket.on('get_map_data', async (data, callback) => {
+  socket.on('get_map_data', async (_data, callback) => {
     const connection = activeConnections.get(socket.id);
     if (!connection?.gameId) {
       callback({ success: false, error: 'Not in a game' });
@@ -166,14 +138,17 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       callback({ success: true, mapData });
     } catch (error) {
       logger.error('Error getting map data:', error);
-      callback({ success: false, error: error instanceof Error ? error.message : 'Failed to get map data' });
+      callback({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get map data',
+      });
     }
   });
 
-  socket.on('get_visible_tiles', async (data, callback) => {
+  socket.on('get_visible_tiles', async (_data, callback) => {
     const connection = activeConnections.get(socket.id);
-    if (!connection?.userId || !connection?.gameId) {
-      callback({ success: false, error: 'Not authenticated or not in a game' });
+    if (!connection?.gameId) {
+      callback({ success: false, error: 'Not in a game' });
       return;
     }
 
@@ -202,7 +177,10 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       callback({ success: true, visibleTiles });
     } catch (error) {
       logger.error('Error getting visible tiles:', error);
-      callback({ success: false, error: error instanceof Error ? error.message : 'Failed to get visible tiles' });
+      callback({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get visible tiles',
+      });
     }
   });
 
@@ -217,11 +195,11 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
 
       // Update game manager about disconnection
       if (connection.gameId) {
-        const game = gameManager.getGame(connection.gameId);
+        const game = await gameManager.getGame(connection.gameId);
         if (game) {
           const player = Array.from(game.players.values()).find(
-            p => p.userId === connection.userId
-          );
+            (p: any) => p.userId === connection.userId
+          ) as any;
           if (player) {
             await gameManager.updatePlayerConnection(player.id, false);
           }
@@ -493,8 +471,10 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
     try {
       // Find player by userId instead of playerId
       let playerId: string | null = null;
-      for (const game of gameManager.getAllGames()) {
-        const player = Array.from(game.players.values()).find(p => p.userId === connection.userId);
+      for (const game of await gameManager.getAllGames()) {
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
         if (player) {
           playerId = player.id;
           break;
@@ -504,7 +484,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       if (!playerId) return;
 
       const turnAdvanced = await gameManager.endTurn(playerId);
-      const game = gameManager.getGameByPlayerId(playerId);
+      const game = await gameManager.getGameByPlayerId(playerId);
 
       if (turnAdvanced && game) {
         // Notify all players that turn advanced
@@ -551,7 +531,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       }
 
       try {
-        const game = gameManager.getGame(connection.gameId);
+        const game = await gameManager.getGame(connection.gameId);
         if (!game || game.state !== 'active') {
           handler.send(socket, PacketType.UNIT_MOVE_REPLY, {
             success: false,
@@ -561,7 +541,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
           return;
         }
 
-        const player = Array.from(game.players.values()).find(p => p.userId === connection.userId);
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
         if (!player) {
           handler.send(socket, PacketType.UNIT_MOVE_REPLY, {
             success: false,
@@ -581,7 +563,8 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
         );
 
         if (moved) {
-          const unit = gameManager.getGame(connection.gameId)?.unitManager.getUnit(data.unitId);
+          const gameForUnit = await gameManager.getGame(connection.gameId);
+          const unit = gameForUnit?.unitManager.getUnit(data.unitId);
           handler.send(socket, PacketType.UNIT_MOVE_REPLY, {
             success: true,
             unitId: data.unitId,
@@ -628,7 +611,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       }
 
       try {
-        const game = gameManager.getGame(connection.gameId);
+        const game = await gameManager.getGame(connection.gameId);
         if (!game || game.state !== 'active') {
           handler.send(socket, PacketType.UNIT_ATTACK_REPLY, {
             success: false,
@@ -637,7 +620,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
           return;
         }
 
-        const player = Array.from(game.players.values()).find(p => p.userId === connection.userId);
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
         if (!player) {
           handler.send(socket, PacketType.UNIT_ATTACK_REPLY, {
             success: false,
@@ -690,7 +675,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       }
 
       try {
-        const game = gameManager.getGame(connection.gameId);
+        const game = await gameManager.getGame(connection.gameId);
         if (!game || game.state !== 'active') {
           handler.send(socket, PacketType.UNIT_FORTIFY_REPLY, {
             success: false,
@@ -700,7 +685,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
           return;
         }
 
-        const player = Array.from(game.players.values()).find(p => p.userId === connection.userId);
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
         if (!player) {
           handler.send(socket, PacketType.UNIT_FORTIFY_REPLY, {
             success: false,
@@ -747,7 +734,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       }
 
       try {
-        const game = gameManager.getGame(connection.gameId);
+        const game = await gameManager.getGame(connection.gameId);
         if (!game || game.state !== 'active') {
           handler.send(socket, PacketType.UNIT_CREATE_REPLY, {
             success: false,
@@ -756,7 +743,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
           return;
         }
 
-        const player = Array.from(game.players.values()).find(p => p.userId === connection.userId);
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
         if (!player) {
           handler.send(socket, PacketType.UNIT_CREATE_REPLY, {
             success: false,
@@ -804,10 +793,12 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
     }
 
     try {
-      const game = gameManager.getGame(connection.gameId);
+      const game = await gameManager.getGame(connection.gameId);
       if (!game) return;
 
-      const player = Array.from(game.players.values()).find(p => p.userId === connection.userId);
+      const player = Array.from(game.players.values()).find(
+        (p: any) => p.userId === connection.userId
+      ) as any;
       if (!player) return;
 
       // Update visibility first
@@ -844,10 +835,12 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       }
 
       try {
-        const game = gameManager.getGame(connection.gameId);
+        const game = await gameManager.getGame(connection.gameId);
         if (!game) return;
 
-        const player = Array.from(game.players.values()).find(p => p.userId === connection.userId);
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
         if (!player) return;
 
         const visibility = gameManager.getTileVisibility(
@@ -898,7 +891,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       }
 
       try {
-        const game = gameManager.getGame(connection.gameId);
+        const game = await gameManager.getGame(connection.gameId);
         if (!game || game.state !== 'active') {
           handler.send(socket, PacketType.CITY_FOUND_REPLY, {
             success: false,
@@ -907,7 +900,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
           return;
         }
 
-        const player = Array.from(game.players.values()).find(p => p.userId === connection.userId);
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
         if (!player) {
           handler.send(socket, PacketType.CITY_FOUND_REPLY, {
             success: false,
@@ -960,7 +955,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       }
 
       try {
-        const game = gameManager.getGame(connection.gameId);
+        const game = await gameManager.getGame(connection.gameId);
         if (!game || game.state !== 'active') {
           handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {
             success: false,
@@ -969,7 +964,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
           return;
         }
 
-        const player = Array.from(game.players.values()).find(p => p.userId === connection.userId);
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
         if (!player) {
           handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {
             success: false,
@@ -1022,7 +1019,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       }
 
       try {
-        const game = gameManager.getGame(connection.gameId);
+        const game = await gameManager.getGame(connection.gameId);
         if (!game || game.state !== 'active') {
           handler.send(socket, PacketType.RESEARCH_SET_REPLY, {
             success: false,
@@ -1031,7 +1028,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
           return;
         }
 
-        const player = Array.from(game.players.values()).find(p => p.userId === connection.userId);
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
         if (!player) {
           handler.send(socket, PacketType.RESEARCH_SET_REPLY, {
             success: false,
@@ -1084,7 +1083,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       }
 
       try {
-        const game = gameManager.getGame(connection.gameId);
+        const game = await gameManager.getGame(connection.gameId);
         if (!game || game.state !== 'active') {
           handler.send(socket, PacketType.RESEARCH_GOAL_SET_REPLY, {
             success: false,
@@ -1093,7 +1092,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
           return;
         }
 
-        const player = Array.from(game.players.values()).find(p => p.userId === connection.userId);
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
         if (!player) {
           handler.send(socket, PacketType.RESEARCH_GOAL_SET_REPLY, {
             success: false,
@@ -1133,10 +1134,12 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       }
 
       try {
-        const game = gameManager.getGame(connection.gameId);
+        const game = await gameManager.getGame(connection.gameId);
         if (!game) return;
 
-        const player = Array.from(game.players.values()).find(p => p.userId === connection.userId);
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
         if (!player) return;
 
         const availableTechs = gameManager.getAvailableTechnologies(connection.gameId, player.id);
@@ -1175,10 +1178,12 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       }
 
       try {
-        const game = gameManager.getGame(connection.gameId);
+        const game = await gameManager.getGame(connection.gameId);
         if (!game) return;
 
-        const player = Array.from(game.players.values()).find(p => p.userId === connection.userId);
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
         if (!player) return;
 
         const playerResearch = gameManager.getPlayerResearch(connection.gameId, player.id);

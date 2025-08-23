@@ -11,7 +11,7 @@ export class MapRenderer {
   private ctx: CanvasRenderingContext2D;
   private tileWidth = 64;
   private tileHeight = 32;
-  
+
   // Sprite cache - will be populated when we add tileset loading
   private sprites: Record<string, HTMLCanvasElement> = {};
 
@@ -23,14 +23,14 @@ export class MapRenderer {
   private setupCanvas() {
     // Disable image smoothing for pixel-perfect rendering
     this.ctx.imageSmoothingEnabled = false;
-    
+
     // Set font for text rendering
     this.ctx.font = '14px Arial, sans-serif';
   }
 
   render(state: RenderState) {
     this.clearCanvas();
-    
+
     if (!state.map.tiles || Object.keys(state.map.tiles).length === 0) {
       this.renderEmptyMap();
       return;
@@ -38,19 +38,19 @@ export class MapRenderer {
 
     // Calculate visible tile range
     const visibleTiles = this.getVisibleTiles(state.viewport, state.map);
-    
+
     // Render tiles
     for (const tile of visibleTiles) {
       this.renderTile(tile, state.viewport);
     }
-    
+
     // Render units
     Object.values(state.units).forEach(unit => {
       if (this.isInViewport(unit.x, unit.y, state.viewport)) {
         this.renderUnit(unit, state.viewport);
       }
     });
-    
+
     // Render cities
     Object.values(state.cities).forEach(city => {
       if (this.isInViewport(city.x, city.y, state.viewport)) {
@@ -61,7 +61,7 @@ export class MapRenderer {
 
   private clearCanvas() {
     this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
-    
+
     // Fill with ocean color as background
     this.ctx.fillStyle = '#4682B4';
     this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
@@ -71,7 +71,7 @@ export class MapRenderer {
     // Render placeholder grid for development
     this.ctx.strokeStyle = '#336699';
     this.ctx.lineWidth = 1;
-    
+
     const gridSize = 50;
     for (let x = 0; x < this.ctx.canvas.width; x += gridSize) {
       this.ctx.beginPath();
@@ -79,14 +79,14 @@ export class MapRenderer {
       this.ctx.lineTo(x, this.ctx.canvas.height);
       this.ctx.stroke();
     }
-    
+
     for (let y = 0; y < this.ctx.canvas.height; y += gridSize) {
       this.ctx.beginPath();
       this.ctx.moveTo(0, y);
       this.ctx.lineTo(this.ctx.canvas.width, y);
       this.ctx.stroke();
     }
-    
+
     // Draw "No Map Data" message
     this.ctx.fillStyle = 'white';
     this.ctx.font = '24px Arial';
@@ -98,15 +98,24 @@ export class MapRenderer {
     );
   }
 
-  private getVisibleTiles(viewport: MapViewport, map: GameState['map']): Tile[] {
+  private getVisibleTiles(
+    viewport: MapViewport,
+    map: GameState['map']
+  ): Tile[] {
     const tiles: Tile[] = [];
-    
+
     // Calculate visible tile bounds (with some padding)
     const startX = Math.max(0, Math.floor(viewport.x / this.tileWidth) - 2);
-    const endX = Math.min(map.width, Math.ceil((viewport.x + viewport.width) / this.tileWidth) + 2);
+    const endX = Math.min(
+      map.width,
+      Math.ceil((viewport.x + viewport.width) / this.tileWidth) + 2
+    );
     const startY = Math.max(0, Math.floor(viewport.y / this.tileHeight) - 2);
-    const endY = Math.min(map.height, Math.ceil((viewport.y + viewport.height) / this.tileHeight) + 2);
-    
+    const endY = Math.min(
+      map.height,
+      Math.ceil((viewport.y + viewport.height) / this.tileHeight) + 2
+    );
+
     for (let y = startY; y < endY; y++) {
       for (let x = startX; x < endX; x++) {
         const tileKey = `${x},${y}`;
@@ -116,16 +125,16 @@ export class MapRenderer {
         }
       }
     }
-    
+
     return tiles;
   }
 
   private renderTile(tile: Tile, viewport: MapViewport) {
     const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
-    
+
     // For now, render simple colored squares based on terrain
     const color = this.getTerrainColor(tile.terrain);
-    
+
     this.ctx.fillStyle = color;
     this.ctx.fillRect(
       screenPos.x,
@@ -133,7 +142,7 @@ export class MapRenderer {
       this.tileWidth * viewport.zoom,
       this.tileHeight * viewport.zoom
     );
-    
+
     // Draw tile borders in development mode
     this.ctx.strokeStyle = '#333333';
     this.ctx.lineWidth = 1;
@@ -147,7 +156,7 @@ export class MapRenderer {
 
   private renderUnit(unit: Unit, viewport: MapViewport) {
     const screenPos = this.mapToScreen(unit.x, unit.y, viewport);
-    
+
     // Render unit as colored circle for now
     this.ctx.fillStyle = this.getPlayerColor(unit.playerId);
     this.ctx.beginPath();
@@ -159,7 +168,7 @@ export class MapRenderer {
       2 * Math.PI
     );
     this.ctx.fill();
-    
+
     // Add unit type indicator
     this.ctx.fillStyle = 'white';
     this.ctx.font = `${12 * viewport.zoom}px Arial`;
@@ -173,7 +182,7 @@ export class MapRenderer {
 
   private renderCity(city: City, viewport: MapViewport) {
     const screenPos = this.mapToScreen(city.x, city.y, viewport);
-    
+
     // Render city as square
     this.ctx.fillStyle = this.getPlayerColor(city.playerId);
     this.ctx.fillRect(
@@ -182,7 +191,7 @@ export class MapRenderer {
       (this.tileWidth - 10) * viewport.zoom,
       (this.tileHeight - 10) * viewport.zoom
     );
-    
+
     // City name
     this.ctx.fillStyle = 'white';
     this.ctx.font = `${10 * viewport.zoom}px Arial`;
@@ -192,7 +201,7 @@ export class MapRenderer {
       screenPos.x + (this.tileWidth * viewport.zoom) / 2,
       screenPos.y - 5
     );
-    
+
     // City size
     this.ctx.fillText(
       city.size.toString(),
@@ -215,7 +224,11 @@ export class MapRenderer {
     };
   }
 
-  private isInViewport(mapX: number, mapY: number, viewport: MapViewport): boolean {
+  private isInViewport(
+    mapX: number,
+    mapY: number,
+    viewport: MapViewport
+  ): boolean {
     const screenPos = this.mapToScreen(mapX, mapY, viewport);
     return (
       screenPos.x + this.tileWidth * viewport.zoom >= 0 &&
@@ -238,13 +251,20 @@ export class MapRenderer {
       ocean: '#4682B4',
       swamp: '#556B2F',
     };
-    
+
     return colors[terrain] || '#808080';
   }
 
   private getPlayerColor(playerId: string): string {
     // Simple color mapping - this should come from player data
-    const colors = ['#FF0000', '#0000FF', '#00FF00', '#FFFF00', '#FF00FF', '#00FFFF'];
+    const colors = [
+      '#FF0000',
+      '#0000FF',
+      '#00FF00',
+      '#FFFF00',
+      '#FF00FF',
+      '#00FFFF',
+    ];
     const index = parseInt(playerId, 36) % colors.length;
     return colors[index];
   }

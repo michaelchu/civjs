@@ -243,15 +243,15 @@ export class GameManager {
 
     // Initialize managers
     const mapManager = new MapManager(game.mapWidth, game.mapHeight);
-    const turnManager = new TurnManager();
-    const unitManager = new UnitManager();
-    const visibilityManager = new VisibilityManager(mapManager);
-    const cityManager = new CityManager();
-    const researchManager = new ResearchManager();
+    const turnManager = new TurnManager(gameId, this.io);
+    const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
+    const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
+    const cityManager = new CityManager(gameId);
+    const researchManager = new ResearchManager(gameId);
 
     // Generate the map with starting positions
     await mapManager.generateMap(players);
-    
+
     const mapData = mapManager.getMapData();
     if (!mapData) {
       throw new Error('Failed to generate map data');
@@ -315,7 +315,7 @@ export class GameManager {
           startPos.y,
           2 // Initial sight radius
         );
-        
+
         // Emit to specific player only to avoid exposing fog of war to others
         this.emitToPlayer(gameId, startPos.playerId, 'player-map-view', {
           gameId,
@@ -521,18 +521,18 @@ export class GameManager {
     if (allPlayersReady) {
       // Process city production first
       await gameInstance.cityManager.processAllCitiesTurn(gameInstance.currentTurn + 1);
-      
+
       // Process research
       await this.processResearchTurn(gameId);
-      
+
       // Process the turn
       await gameInstance.turnManager.processTurn();
-      
+
       // Reset player turn status for next turn
       for (const player of gameInstance.players.values()) {
         player.hasEndedTurn = false;
       }
-      
+
       return true; // Turn advanced
     }
 
@@ -767,7 +767,7 @@ export class GameManager {
     // Get player's starting position if they don't have units yet
     const mapData = gameInstance.mapManager.getMapData();
     const startPos = mapData?.startingPositions.find(pos => pos.playerId === playerId);
-    
+
     if (!startPos) {
       throw new Error('Player starting position not found');
     }
@@ -917,7 +917,7 @@ export class GameManager {
       gameId,
       playerId,
       techId,
-      availableTechs: gameInstance.researchManager.getAvailableTechnologies(playerId)
+      availableTechs: gameInstance.researchManager.getAvailableTechnologies(playerId),
     });
   }
 
@@ -938,7 +938,7 @@ export class GameManager {
     this.broadcastToGame(gameId, 'research_goal_changed', {
       gameId,
       playerId,
-      techGoal: techId
+      techGoal: techId,
     });
   }
 
@@ -988,7 +988,10 @@ export class GameManager {
       }
 
       // Add research points and check for completed techs
-      const completedTech = await gameInstance.researchManager.addResearchPoints(playerId, totalScience);
+      const completedTech = await gameInstance.researchManager.addResearchPoints(
+        playerId,
+        totalScience
+      );
 
       if (completedTech) {
         // Broadcast tech completion to all players
@@ -997,7 +1000,7 @@ export class GameManager {
           playerId,
           techId: completedTech,
           playerName: player.civilization,
-          availableTechs: gameInstance.researchManager.getAvailableTechnologies(playerId)
+          availableTechs: gameInstance.researchManager.getAvailableTechnologies(playerId),
         });
 
         logger.info('Technology completed', { gameId, playerId, techId: completedTech });

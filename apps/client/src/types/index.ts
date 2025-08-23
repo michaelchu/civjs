@@ -97,15 +97,15 @@ export interface GameState {
 }
 
 // Client state types
-export type ClientState = 
-  | 'initial' 
-  | 'creating_game' 
-  | 'browsing_games' 
-  | 'connecting' 
+export type ClientState =
+  | 'initial'
+  | 'creating_game'
+  | 'browsing_games'
+  | 'connecting'
   | 'waiting_for_players'
   | 'joining_game'
-  | 'preparing' 
-  | 'running' 
+  | 'preparing'
+  | 'running'
   | 'over';
 
 // UI types
@@ -117,4 +117,10 @@ export interface MapViewport {
   zoom: number;
 }
 
-export type GameTab = 'map' | 'government' | 'research' | 'nations' | 'cities' | 'options';
+export type GameTab =
+  | 'map'
+  | 'government'
+  | 'research'
+  | 'nations'
+  | 'cities'
+  | 'options';

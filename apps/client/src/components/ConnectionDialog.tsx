@@ -11,7 +11,7 @@ export const ConnectionDialog: React.FC = () => {
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!playerName.trim()) {
       setError('Please enter a player name');
       return;
@@ -25,7 +25,9 @@ export const ConnectionDialog: React.FC = () => {
       gameClient.joinGame(playerName.trim());
       setClientState('preparing');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect to server');
+      setError(
+        err instanceof Error ? err.message : 'Failed to connect to server'
+      );
     } finally {
       setIsConnecting(false);
     }
@@ -38,24 +40,30 @@ export const ConnectionDialog: React.FC = () => {
           <h1 className="text-3xl font-bold text-white mb-2">CivJS</h1>
           <p className="text-gray-300">
             {clientState === 'connecting' && 'Connecting to server...'}
-            {clientState === 'waiting_for_players' && 'Waiting for other players...'}
+            {clientState === 'waiting_for_players' &&
+              'Waiting for other players...'}
             {clientState === 'joining_game' && 'Joining game...'}
           </p>
           {clientState === 'waiting_for_players' && (
-            <p className="text-gray-400 text-sm mt-2">Game will start once all players are ready</p>
+            <p className="text-gray-400 text-sm mt-2">
+              Game will start once all players are ready
+            </p>
           )}
         </div>
 
         <form onSubmit={handleConnect} className="space-y-6">
           <div>
-            <label htmlFor="playerName" className="block text-sm font-medium text-gray-300 mb-2">
+            <label
+              htmlFor="playerName"
+              className="block text-sm font-medium text-gray-300 mb-2"
+            >
               Player Name
             </label>
             <input
               id="playerName"
               type="text"
               value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
+              onChange={e => setPlayerName(e.target.value)}
               placeholder="Enter your name"
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isConnecting}
@@ -87,8 +95,13 @@ export const ConnectionDialog: React.FC = () => {
 
         <div className="mt-6 pt-6 border-t border-gray-700">
           <div className="text-xs text-gray-400 text-center">
-            <p>Server: {import.meta.env.VITE_SERVER_URL || 'http://localhost:3001'}</p>
-            <p className="mt-1">Make sure the server is running before connecting</p>
+            <p>
+              Server:{' '}
+              {import.meta.env.VITE_SERVER_URL || 'http://localhost:3001'}
+            </p>
+            <p className="mt-1">
+              Make sure the server is running before connecting
+            </p>
           </div>
         </div>
       </div>

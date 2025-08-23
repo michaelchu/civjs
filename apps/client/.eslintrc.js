@@ -22,7 +22,13 @@ module.exports = {
       jsx: true,
     },
   },
-  plugins: ['react-refresh', '@typescript-eslint', 'react', 'react-hooks', 'jsx-a11y'],
+  plugins: [
+    'react-refresh',
+    '@typescript-eslint',
+    'react',
+    'react-hooks',
+    'jsx-a11y',
+  ],
   rules: {
     'react-refresh/only-export-components': [
       'warn',
@@ -41,4 +47,4 @@ module.exports = {
       version: 'detect',
     },
   },
-}
+};

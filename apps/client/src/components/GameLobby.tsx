@@ -63,7 +63,9 @@ export const GameLobby: React.FC = () => {
 
     try {
       // Navigate directly to the game URL with player name as a query parameter
-      navigate(`/game/${selectedGame}?playerName=${encodeURIComponent(playerName.trim())}`);
+      navigate(
+        `/game/${selectedGame}?playerName=${encodeURIComponent(playerName.trim())}`
+      );
     } catch (err) {
       console.error('Game join error:', err);
       setError(err instanceof Error ? err.message : 'Failed to join game');
@@ -73,22 +75,33 @@ export const GameLobby: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'waiting': return 'text-yellow-400';
-      case 'active': return 'text-green-400';
-      case 'paused': return 'text-orange-400';
-      case 'finished': return 'text-gray-400';
-      default: return 'text-blue-400';
+      case 'waiting':
+        return 'text-yellow-400';
+      case 'active':
+        return 'text-green-400';
+      case 'paused':
+        return 'text-orange-400';
+      case 'finished':
+        return 'text-gray-400';
+      default:
+        return 'text-blue-400';
     }
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'waiting': return 'Waiting for Players';
-      case 'starting': return 'Starting';
-      case 'active': return 'In Progress';
-      case 'paused': return 'Paused';
-      case 'finished': return 'Finished';
-      default: return status;
+      case 'waiting':
+        return 'Waiting for Players';
+      case 'starting':
+        return 'Starting';
+      case 'active':
+        return 'In Progress';
+      case 'paused':
+        return 'Paused';
+      case 'finished':
+        return 'Finished';
+      default:
+        return status;
     }
   };
 
@@ -102,8 +115,18 @@ export const GameLobby: React.FC = () => {
                 onClick={handleBack}
                 className="mr-4 p-2 text-gray-400 hover:text-white transition-colors"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
                 </svg>
               </button>
               <div>
@@ -116,22 +139,35 @@ export const GameLobby: React.FC = () => {
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading}
             >
-              <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <svg
+                className="w-4 h-4 inline mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
               </svg>
               Refresh
             </button>
           </div>
 
           <div className="mb-6">
-            <label htmlFor="playerName" className="block text-sm font-medium text-gray-300 mb-2">
+            <label
+              htmlFor="playerName"
+              className="block text-sm font-medium text-gray-300 mb-2"
+            >
               Your Player Name
             </label>
             <input
               id="playerName"
               type="text"
               value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
+              onChange={e => setPlayerName(e.target.value)}
               placeholder="Enter your name to join a game"
               className="w-full max-w-md px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               maxLength={32}
@@ -151,15 +187,27 @@ export const GameLobby: React.FC = () => {
             </div>
           ) : games.length === 0 ? (
             <div className="text-center py-12">
-              <svg className="w-16 h-16 text-gray-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              <svg
+                className="w-16 h-16 text-gray-500 mx-auto mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                />
               </svg>
               <p className="text-gray-300 text-lg">No games available</p>
-              <p className="text-gray-500 text-sm">Start a new game to begin playing!</p>
+              <p className="text-gray-500 text-sm">
+                Start a new game to begin playing!
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {games.map((game) => (
+              {games.map(game => (
                 <div
                   key={game.id}
                   className={`p-4 border rounded-lg cursor-pointer transition-all duration-200 ${
@@ -172,8 +220,12 @@ export const GameLobby: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3">
-                        <h3 className="text-lg font-semibold text-white">{game.name}</h3>
-                        <span className={`text-sm font-medium ${getStatusColor(game.status)}`}>
+                        <h3 className="text-lg font-semibold text-white">
+                          {game.name}
+                        </h3>
+                        <span
+                          className={`text-sm font-medium ${getStatusColor(game.status)}`}
+                        >
                           {getStatusLabel(game.status)}
                         </span>
                         {!game.canJoin && (
@@ -184,16 +236,31 @@ export const GameLobby: React.FC = () => {
                       </div>
                       <div className="flex items-center space-x-6 mt-2 text-sm text-gray-400">
                         <span>Host: {game.hostName}</span>
-                        <span>Players: {game.currentPlayers}/{game.maxPlayers}</span>
+                        <span>
+                          Players: {game.currentPlayers}/{game.maxPlayers}
+                        </span>
                         <span>Turn: {game.currentTurn}</span>
                         <span>Map: {game.mapSize}</span>
-                        <span>Created: {new Date(game.createdAt).toLocaleDateString()}</span>
+                        <span>
+                          Created:{' '}
+                          {new Date(game.createdAt).toLocaleDateString()}
+                        </span>
                       </div>
                     </div>
                     {selectedGame === game.id && (
                       <div className="ml-4">
-                        <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        <svg
+                          className="w-6 h-6 text-blue-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                          />
                         </svg>
                       </div>
                     )}

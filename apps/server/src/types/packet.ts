@@ -240,13 +240,17 @@ export const ResearchSetSchema = z.object({
 export const ResearchSetReplySchema = z.object({
   success: z.boolean(),
   message: z.string().optional(),
-  availableTechs: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    cost: z.number(),
-    requirements: z.array(z.string()),
-    description: z.string().optional(),
-  })).optional(),
+  availableTechs: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        cost: z.number(),
+        requirements: z.array(z.string()),
+        description: z.string().optional(),
+      })
+    )
+    .optional(),
 });
 
 export const ResearchGoalSetSchema = z.object({
@@ -261,13 +265,15 @@ export const ResearchGoalSetReplySchema = z.object({
 export const ResearchListSchema = z.object({});
 
 export const ResearchListReplySchema = z.object({
-  availableTechs: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    cost: z.number(),
-    requirements: z.array(z.string()),
-    description: z.string().optional(),
-  })),
+  availableTechs: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      cost: z.number(),
+      requirements: z.array(z.string()),
+      description: z.string().optional(),
+    })
+  ),
   researchedTechs: z.array(z.string()),
 });
 

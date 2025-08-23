@@ -12,7 +12,7 @@ export const GameRoute: React.FC = () => {
   const [error, setError] = useState('');
   const [playerName, setPlayerName] = useState('');
   const [showNamePrompt, setShowNamePrompt] = useState(true);
-  
+
   const { clientState, setClientState, updateGameState } = useGameStore();
 
   const handleJoinGame = async (name: string) => {
@@ -27,16 +27,15 @@ export const GameRoute: React.FC = () => {
     try {
       await gameClient.connect();
       await gameClient.joinSpecificGame(gameId, name.trim());
-      
+
       setShowNamePrompt(false);
       setClientState('connecting');
-      
+
       // Listen for game state updates
       setTimeout(() => {
         setClientState('running');
         setIsLoading(false);
       }, 1000);
-      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join game');
       setIsLoading(false);
@@ -91,19 +90,24 @@ export const GameRoute: React.FC = () => {
         <div className="bg-gray-800 p-8 rounded-lg shadow-2xl w-96 border border-gray-700">
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold text-white mb-2">Join Game</h1>
-            <p className="text-gray-300 text-sm">Game ID: {gameId.slice(0, 8)}...</p>
+            <p className="text-gray-300 text-sm">
+              Game ID: {gameId.slice(0, 8)}...
+            </p>
           </div>
 
           <form onSubmit={handleNameSubmit} className="space-y-4">
             <div>
-              <label htmlFor="playerName" className="block text-sm font-medium text-gray-300 mb-2">
+              <label
+                htmlFor="playerName"
+                className="block text-sm font-medium text-gray-300 mb-2"
+              >
                 Enter Your Name
               </label>
               <input
                 id="playerName"
                 type="text"
                 value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
+                onChange={e => setPlayerName(e.target.value)}
                 placeholder="Your player name"
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 disabled={isLoading}

@@ -27,13 +27,17 @@
       "Bash(npx jest:*)",
       "Bash(docker logs:*)",
       "Bash(docker-compose restart:*)",
-      "Bash(docker-compose:*)"
+      "Bash(docker-compose:*)",
+      "Bash(npx tsc:*)",
+      "Bash(grep:*)",
+      "Bash(docker exec:*)"
     ],
     "deny": [],
     "ask": [],
     "additionalDirectories": [
       "C:\\c\\Users\\Michael\\Documents\\projects\\civjs",
-      "C:\\c\\Users\\Michael\\Documents\\projects"
+      "C:\\c\\Users\\Michael\\Documents\\projects",
+      "C:\\c\\Users\\Michael\\Documents\\civjs\\apps"
     ]
   }
 }

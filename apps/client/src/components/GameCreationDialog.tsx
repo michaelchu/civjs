@@ -18,7 +18,7 @@ export const GameCreationDialog: React.FC = () => {
 
   const handleCreateGame = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!playerName.trim()) {
       setError('Please enter a player name');
       return;
@@ -34,7 +34,7 @@ export const GameCreationDialog: React.FC = () => {
 
     try {
       await gameClient.connect();
-      
+
       // Create the game (server will handle authentication)
       const gameId = await gameClient.createGame({
         gameName: gameName.trim(),
@@ -42,7 +42,7 @@ export const GameCreationDialog: React.FC = () => {
         maxPlayers,
         mapSize,
       });
-      
+
       // Navigate to the game URL
       navigate(`/game/${gameId}`);
     } catch (err) {
@@ -55,7 +55,11 @@ export const GameCreationDialog: React.FC = () => {
 
   const mapSizeOptions = [
     { value: 'small', label: 'Small (40x25)', description: '2-4 players' },
-    { value: 'standard', label: 'Standard (80x50)', description: '4-6 players' },
+    {
+      value: 'standard',
+      label: 'Standard (80x50)',
+      description: '4-6 players',
+    },
     { value: 'large', label: 'Large (120x75)', description: '6-8 players' },
   ];
 
@@ -67,8 +71,18 @@ export const GameCreationDialog: React.FC = () => {
             onClick={handleBack}
             className="mr-4 p-2 text-gray-400 hover:text-white transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
           </button>
           <div>
@@ -79,14 +93,17 @@ export const GameCreationDialog: React.FC = () => {
 
         <form onSubmit={handleCreateGame} className="space-y-6">
           <div>
-            <label htmlFor="playerName" className="block text-sm font-medium text-gray-300 mb-2">
+            <label
+              htmlFor="playerName"
+              className="block text-sm font-medium text-gray-300 mb-2"
+            >
               Your Name
             </label>
             <input
               id="playerName"
               type="text"
               value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
+              onChange={e => setPlayerName(e.target.value)}
               placeholder="Enter your player name"
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
               disabled={isCreating}
@@ -95,14 +112,17 @@ export const GameCreationDialog: React.FC = () => {
           </div>
 
           <div>
-            <label htmlFor="gameName" className="block text-sm font-medium text-gray-300 mb-2">
+            <label
+              htmlFor="gameName"
+              className="block text-sm font-medium text-gray-300 mb-2"
+            >
               Game Name
             </label>
             <input
               id="gameName"
               type="text"
               value={gameName}
-              onChange={(e) => setGameName(e.target.value)}
+              onChange={e => setGameName(e.target.value)}
               placeholder="Enter game name"
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
               disabled={isCreating}
@@ -112,13 +132,16 @@ export const GameCreationDialog: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="maxPlayers" className="block text-sm font-medium text-gray-300 mb-2">
+              <label
+                htmlFor="maxPlayers"
+                className="block text-sm font-medium text-gray-300 mb-2"
+              >
                 Max Players
               </label>
               <select
                 id="maxPlayers"
                 value={maxPlayers}
-                onChange={(e) => setMaxPlayers(Number(e.target.value))}
+                onChange={e => setMaxPlayers(Number(e.target.value))}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 disabled={isCreating}
               >
@@ -131,17 +154,20 @@ export const GameCreationDialog: React.FC = () => {
             </div>
 
             <div>
-              <label htmlFor="mapSize" className="block text-sm font-medium text-gray-300 mb-2">
+              <label
+                htmlFor="mapSize"
+                className="block text-sm font-medium text-gray-300 mb-2"
+              >
                 Map Size
               </label>
               <select
                 id="mapSize"
                 value={mapSize}
-                onChange={(e) => setMapSize(e.target.value)}
+                onChange={e => setMapSize(e.target.value)}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 disabled={isCreating}
               >
-                {mapSizeOptions.map((option) => (
+                {mapSizeOptions.map(option => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -151,15 +177,18 @@ export const GameCreationDialog: React.FC = () => {
           </div>
 
           <div className="bg-gray-700 p-4 rounded-md">
-            <h4 className="text-sm font-medium text-gray-300 mb-2">Map Preview</h4>
-            {mapSizeOptions.map((option) => (
-              mapSize === option.value && (
-                <div key={option.value} className="text-sm text-gray-400">
-                  <p>{option.label}</p>
-                  <p>{option.description}</p>
-                </div>
-              )
-            ))}
+            <h4 className="text-sm font-medium text-gray-300 mb-2">
+              Map Preview
+            </h4>
+            {mapSizeOptions.map(
+              option =>
+                mapSize === option.value && (
+                  <div key={option.value} className="text-sm text-gray-400">
+                    <p>{option.label}</p>
+                    <p>{option.description}</p>
+                  </div>
+                )
+            )}
           </div>
 
           {error && (

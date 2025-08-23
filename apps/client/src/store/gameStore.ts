@@ -10,7 +10,7 @@ interface GameStore extends GameState {
   viewport: MapViewport;
   selectedUnitId: string | null;
   selectedCityId: string | null;
-  
+
   // Actions
   setClientState: (state: ClientState) => void;
   setActiveTab: (tab: GameTab) => void;
@@ -18,7 +18,7 @@ interface GameStore extends GameState {
   setViewport: (viewport: Partial<MapViewport>) => void;
   selectUnit: (unitId: string | null) => void;
   selectCity: (cityId: string | null) => void;
-  
+
   // Computed getters
   getCurrentPlayer: () => ReturnType<typeof getCurrentPlayer>;
   getSelectedUnit: () => ReturnType<typeof getSelectedUnit>;
@@ -31,11 +31,15 @@ const getCurrentPlayer = (state: GameStore) => {
 };
 
 const getSelectedUnit = (state: GameStore) => {
-  return state.selectedUnitId ? state.units[state.selectedUnitId] || null : null;
+  return state.selectedUnitId
+    ? state.units[state.selectedUnitId] || null
+    : null;
 };
 
 const getSelectedCity = (state: GameStore) => {
-  return state.selectedCityId ? state.cities[state.selectedCityId] || null : null;
+  return state.selectedCityId
+    ? state.cities[state.selectedCityId] || null
+    : null;
 };
 
 export const useGameStore = create<GameStore>()(
@@ -53,7 +57,7 @@ export const useGameStore = create<GameStore>()(
     units: {},
     cities: {},
     technologies: {},
-    
+
     // Initial client state
     clientState: 'initial',
     currentGameId: null,
@@ -67,34 +71,34 @@ export const useGameStore = create<GameStore>()(
     },
     selectedUnitId: null,
     selectedCityId: null,
-    
+
     // Actions
     setClientState: (state: ClientState) => {
       set({ clientState: state });
     },
-    
+
     setActiveTab: (tab: GameTab) => {
       set({ activeTab: tab });
     },
-    
+
     updateGameState: (partialState: Partial<GameState>) => {
       set(partialState);
     },
-    
+
     setViewport: (viewport: Partial<MapViewport>) => {
       set(state => ({
-        viewport: { ...state.viewport, ...viewport }
+        viewport: { ...state.viewport, ...viewport },
       }));
     },
-    
+
     selectUnit: (unitId: string | null) => {
       set({ selectedUnitId: unitId });
     },
-    
+
     selectCity: (cityId: string | null) => {
       set({ selectedCityId: cityId });
     },
-    
+
     // Computed getters
     getCurrentPlayer: () => getCurrentPlayer(get()),
     getSelectedUnit: () => getSelectedUnit(get()),

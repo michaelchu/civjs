@@ -32,7 +32,7 @@ export const ChatBox: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (inputValue.trim()) {
       const newMessage: ChatMessage = {
         id: Date.now().toString(),
@@ -41,10 +41,10 @@ export const ChatBox: React.FC = () => {
         message: inputValue.trim(),
         type: 'chat',
       };
-      
+
       setMessages(prev => [...prev, newMessage]);
       setInputValue('');
-      
+
       // TODO: Send message to server via gameClient
     }
   };
@@ -66,9 +66,11 @@ export const ChatBox: React.FC = () => {
   };
 
   return (
-    <div className={`bg-gray-900 bg-opacity-90 border border-gray-600 rounded transition-all duration-200 ${
-      isExpanded ? 'h-64' : 'h-32'
-    }`}>
+    <div
+      className={`bg-gray-900 bg-opacity-90 border border-gray-600 rounded transition-all duration-200 ${
+        isExpanded ? 'h-64' : 'h-32'
+      }`}
+    >
       {/* Header */}
       <div className="flex items-center justify-between p-2 border-b border-gray-700">
         <span className="text-sm font-medium text-gray-300">Chat</span>
@@ -82,14 +84,16 @@ export const ChatBox: React.FC = () => {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1 text-xs">
-        {messages.map((msg) => (
+        {messages.map(msg => (
           <div key={msg.id} className="flex items-start space-x-2">
             <span className="text-gray-500 flex-shrink-0 text-xs">
               {formatTime(msg.timestamp)}
             </span>
             <div className="flex-1 min-w-0">
               {msg.player && (
-                <span className="text-blue-400 font-medium">{msg.player}: </span>
+                <span className="text-blue-400 font-medium">
+                  {msg.player}:{' '}
+                </span>
               )}
               <span className={getMessageStyle(msg.type)}>{msg.message}</span>
             </div>
@@ -105,7 +109,7 @@ export const ChatBox: React.FC = () => {
             ref={inputRef}
             type="text"
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={e => setInputValue(e.target.value)}
             placeholder="Type your message..."
             className="flex-1 bg-gray-800 text-white text-sm px-2 py-1 rounded border border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
             maxLength={255}

@@ -5,33 +5,33 @@ export enum PacketType {
   GAME_ENDED = 'GAME_ENDED',
   TURN_STARTED = 'TURN_STARTED',
   TURN_ENDED = 'TURN_ENDED',
-  
+
   // Player actions
   PLAYER_JOINED = 'PLAYER_JOINED',
   PLAYER_LEFT = 'PLAYER_LEFT',
   PLAYER_READY = 'PLAYER_READY',
-  
+
   // Units
   UNIT_MOVED = 'UNIT_MOVED',
   UNIT_CREATED = 'UNIT_CREATED',
   UNIT_DESTROYED = 'UNIT_DESTROYED',
   MOVE_UNIT = 'MOVE_UNIT',
-  
+
   // Cities
   CITY_FOUNDED = 'CITY_FOUNDED',
   CITY_UPDATED = 'CITY_UPDATED',
   CITY_DESTROYED = 'CITY_DESTROYED',
   FOUND_CITY = 'FOUND_CITY',
-  
+
   // Research
   RESEARCH_COMPLETED = 'RESEARCH_COMPLETED',
   RESEARCH_PROGRESS = 'RESEARCH_PROGRESS',
   RESEARCH_SET = 'RESEARCH_SET',
-  
+
   // Map
   MAP_UPDATE = 'MAP_UPDATE',
   TILE_UPDATE = 'TILE_UPDATE',
-  
+
   // General
   GAME_STATE = 'GAME_STATE',
   ERROR = 'ERROR',
@@ -77,7 +77,7 @@ export interface ResearchSetPacket {
   };
 }
 
-export type SocketPacket = 
+export type SocketPacket =
   | GameStatePacket
   | MoveUnitPacket
   | FoundCityPacket

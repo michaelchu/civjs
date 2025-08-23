@@ -30,16 +30,16 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 10,
     requirements: [],
     flags: [],
-    description: 'Enables writing and record keeping'
+    description: 'Enables writing and record keeping',
   },
-  
+
   pottery: {
     id: 'pottery',
     name: 'Pottery',
     cost: 10,
     requirements: [],
     flags: [],
-    description: 'Enables granary construction and food storage'
+    description: 'Enables granary construction and food storage',
   },
 
   // Tier 1 technologies
@@ -49,7 +49,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 20,
     requirements: ['alphabet'],
     flags: [],
-    description: 'Enables temples and spiritual buildings'
+    description: 'Enables temples and spiritual buildings',
   },
 
   mathematics: {
@@ -58,7 +58,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 20,
     requirements: ['alphabet'],
     flags: [],
-    description: 'Foundation for advanced sciences'
+    description: 'Foundation for advanced sciences',
   },
 
   bronze_working: {
@@ -67,7 +67,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 20,
     requirements: ['pottery'],
     flags: [],
-    description: 'Enables bronze tools and weapons'
+    description: 'Enables bronze tools and weapons',
   },
 
   animal_husbandry: {
@@ -76,7 +76,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 20,
     requirements: ['pottery'],
     flags: [],
-    description: 'Enables domestication of animals'
+    description: 'Enables domestication of animals',
   },
 
   // Tier 2 technologies
@@ -86,7 +86,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 40,
     requirements: ['mysticism', 'mathematics'],
     flags: [],
-    description: 'Enables navigation and calendar systems'
+    description: 'Enables navigation and calendar systems',
   },
 
   iron_working: {
@@ -95,7 +95,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 40,
     requirements: ['bronze_working'],
     flags: [],
-    description: 'Enables iron tools and advanced weapons'
+    description: 'Enables iron tools and advanced weapons',
   },
 
   currency: {
@@ -104,7 +104,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 40,
     requirements: ['bronze_working'],
     flags: [],
-    description: 'Enables trade and marketplace buildings'
+    description: 'Enables trade and marketplace buildings',
   },
 
   writing: {
@@ -113,7 +113,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 40,
     requirements: ['alphabet'],
     flags: [],
-    description: 'Enables libraries and advanced record keeping'
+    description: 'Enables libraries and advanced record keeping',
   },
 
   // Advanced technologies
@@ -123,7 +123,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 80,
     requirements: ['writing', 'mysticism'],
     flags: ['bonus_tech'],
-    description: 'First civilization to discover Philosophy gets a free technology'
+    description: 'First civilization to discover Philosophy gets a free technology',
   },
 
   literature: {
@@ -132,7 +132,7 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 80,
     requirements: ['writing'],
     flags: [],
-    description: 'Enables great works and cultural advancement'
+    description: 'Enables great works and cultural advancement',
   },
 
   engineering: {
@@ -141,8 +141,8 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     cost: 80,
     requirements: ['mathematics', 'iron_working'],
     flags: ['bridge'],
-    description: 'Enables construction of bridges and aqueducts'
-  }
+    description: 'Enables construction of bridges and aqueducts',
+  },
 };
 
 export class ResearchManager {
@@ -158,7 +158,7 @@ export class ResearchManager {
       playerId,
       bulbsAccumulated: 0,
       bulbsLastTurn: 0,
-      researchedTechs: new Set(['alphabet']) // Start with alphabet
+      researchedTechs: new Set(['alphabet']), // Start with alphabet
     };
 
     this.playerResearch.set(playerId, research);
@@ -168,7 +168,7 @@ export class ResearchManager {
       gameId: this.gameId,
       playerId,
       techId: 'alphabet',
-      researchedTurn: 1
+      researchedTurn: 1,
     });
   }
 
@@ -198,10 +198,10 @@ export class ResearchManager {
     playerResearch.currentTech = techId;
 
     // Update database - create research entry if it doesn't exist
-    const existingResearch = await db.select().from(researchTable).where(and(
-      eq(researchTable.gameId, this.gameId),
-      eq(researchTable.playerId, playerId)
-    ));
+    const existingResearch = await db
+      .select()
+      .from(researchTable)
+      .where(and(eq(researchTable.gameId, this.gameId), eq(researchTable.playerId, playerId)));
 
     if (existingResearch.length === 0) {
       await db.insert(researchTable).values({
@@ -209,15 +209,15 @@ export class ResearchManager {
         playerId,
         currentTech: techId,
         bulbsAccumulated: 0,
-        bulbsLastTurn: 0
+        bulbsLastTurn: 0,
       });
     } else {
-      await db.update(researchTable).set({
-        currentTech: techId
-      }).where(and(
-        eq(researchTable.gameId, this.gameId),
-        eq(researchTable.playerId, playerId)
-      ));
+      await db
+        .update(researchTable)
+        .set({
+          currentTech: techId,
+        })
+        .where(and(eq(researchTable.gameId, this.gameId), eq(researchTable.playerId, playerId)));
     }
   }
 
@@ -235,12 +235,12 @@ export class ResearchManager {
     playerResearch.techGoal = techId;
 
     // Update database
-    await db.update(researchTable).set({
-      techGoal: techId
-    }).where(and(
-      eq(researchTable.gameId, this.gameId),
-      eq(researchTable.playerId, playerId)
-    ));
+    await db
+      .update(researchTable)
+      .set({
+        techGoal: techId,
+      })
+      .where(and(eq(researchTable.gameId, this.gameId), eq(researchTable.playerId, playerId)));
   }
 
   public async addResearchPoints(playerId: string, bulbs: number): Promise<string | null> {
@@ -291,7 +291,7 @@ export class ResearchManager {
       gameId: this.gameId,
       playerId,
       techId,
-      researchedTurn: this.getCurrentTurn()
+      researchedTurn: this.getCurrentTurn(),
     });
 
     // Handle bonus tech flag (Philosophy gives free tech)
@@ -305,7 +305,7 @@ export class ResearchManager {
           gameId: this.gameId,
           playerId,
           techId: randomTech.id,
-          researchedTurn: this.getCurrentTurn()
+          researchedTurn: this.getCurrentTurn(),
         });
       }
     }
@@ -332,9 +332,10 @@ export class ResearchManager {
       return [];
     }
 
-    return Object.values(TECHNOLOGIES).filter(tech => 
-      !playerResearch.researchedTechs.has(tech.id) &&
-      tech.requirements.every(req => playerResearch.researchedTechs.has(req))
+    return Object.values(TECHNOLOGIES).filter(
+      tech =>
+        !playerResearch.researchedTechs.has(tech.id) &&
+        tech.requirements.every(req => playerResearch.researchedTechs.has(req))
     );
   }
 
@@ -360,7 +361,9 @@ export class ResearchManager {
     return this.playerResearch.get(playerId);
   }
 
-  public getResearchProgress(playerId: string): { current: number; required: number; turnsRemaining: number } | null {
+  public getResearchProgress(
+    playerId: string
+  ): { current: number; required: number; turnsRemaining: number } | null {
     const playerResearch = this.playerResearch.get(playerId);
     if (!playerResearch || !playerResearch.currentTech) {
       return null;
@@ -372,14 +375,13 @@ export class ResearchManager {
     }
 
     const remaining = tech.cost - playerResearch.bulbsAccumulated;
-    const turnsRemaining = playerResearch.bulbsLastTurn > 0 
-      ? Math.ceil(remaining / playerResearch.bulbsLastTurn)
-      : -1;
+    const turnsRemaining =
+      playerResearch.bulbsLastTurn > 0 ? Math.ceil(remaining / playerResearch.bulbsLastTurn) : -1;
 
     return {
       current: playerResearch.bulbsAccumulated,
       required: tech.cost,
-      turnsRemaining
+      turnsRemaining,
     };
   }
 
@@ -395,7 +397,10 @@ export class ResearchManager {
 
   public async loadPlayerResearch(): Promise<void> {
     // Load research state from database
-    const researchData = await db.select().from(researchTable).where(eq(researchTable.gameId, this.gameId));
+    const researchData = await db
+      .select()
+      .from(researchTable)
+      .where(eq(researchTable.gameId, this.gameId));
     const techData = await db.select().from(playerTechs).where(eq(playerTechs.gameId, this.gameId));
 
     // Group techs by player
@@ -415,7 +420,7 @@ export class ResearchManager {
         techGoal: researchEntry.techGoal || undefined,
         bulbsAccumulated: researchEntry.bulbsAccumulated || 0,
         bulbsLastTurn: researchEntry.bulbsLastTurn || 0,
-        researchedTechs: new Set(playerTechMap.get(researchEntry.playerId) || ['alphabet'])
+        researchedTechs: new Set(playerTechMap.get(researchEntry.playerId) || ['alphabet']),
       };
 
       this.playerResearch.set(researchEntry.playerId, playerResearch);
@@ -444,10 +449,10 @@ export class ResearchManager {
             bulbsAccumulated: research.bulbsAccumulated,
             bulbsLastTurn: research.bulbsLastTurn,
             researchedTechCount: research.researchedTechs.size,
-            researchedTechs: Array.from(research.researchedTechs)
-          }
+            researchedTechs: Array.from(research.researchedTechs),
+          },
         ])
-      )
+      ),
     };
   }
 }

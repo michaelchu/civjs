@@ -10,7 +10,7 @@ interface MapCanvasProps {
 export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<MapRenderer | null>(null);
-  
+
   const { viewport, map, units, cities, setViewport } = useGameStore();
 
   // Initialize renderer
@@ -22,7 +22,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     if (!ctx) return;
 
     rendererRef.current = new MapRenderer(ctx);
-    
+
     return () => {
       rendererRef.current?.cleanup();
     };
@@ -35,7 +35,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
     canvas.width = width;
     canvas.height = height;
-    
+
     setViewport({ width, height });
   }, [width, height, setViewport]);
 
@@ -52,39 +52,52 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   }, [viewport, map, units, cities]);
 
   // Handle mouse events
-  const handleMouseDown = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!rendererRef.current) return;
+  const handleMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!rendererRef.current) return;
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const canvasX = event.clientX - rect.left;
-    const canvasY = event.clientY - rect.top;
+      const rect = canvas.getBoundingClientRect();
+      const canvasX = event.clientX - rect.left;
+      const canvasY = event.clientY - rect.top;
 
-    // Convert canvas coordinates to map coordinates
-    const mapCoords = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
-    
-    console.log('Clicked on map coordinates:', mapCoords);
-    
-    // Handle tile selection, unit selection, etc.
-    // This will be expanded later
-  }, [viewport]);
+      // Convert canvas coordinates to map coordinates
+      const mapCoords = rendererRef.current.canvasToMap(
+        canvasX,
+        canvasY,
+        viewport
+      );
 
-  const handleMouseMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-    // Handle mouse move for hover effects, drag operations, etc.
-    // This will be implemented later
-  }, []);
+      console.log('Clicked on map coordinates:', mapCoords);
 
-  const handleWheel = useCallback((event: React.WheelEvent<HTMLCanvasElement>) => {
-    event.preventDefault();
-    
-    // Zoom in/out
-    const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
-    const newZoom = Math.max(0.5, Math.min(3.0, viewport.zoom * zoomFactor));
-    
-    setViewport({ zoom: newZoom });
-  }, [viewport.zoom, setViewport]);
+      // Handle tile selection, unit selection, etc.
+      // This will be expanded later
+    },
+    [viewport]
+  );
+
+  const handleMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      // Handle mouse move for hover effects, drag operations, etc.
+      // This will be implemented later
+    },
+    []
+  );
+
+  const handleWheel = useCallback(
+    (event: React.WheelEvent<HTMLCanvasElement>) => {
+      event.preventDefault();
+
+      // Zoom in/out
+      const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Math.max(0.5, Math.min(3.0, viewport.zoom * zoomFactor));
+
+      setViewport({ zoom: newZoom });
+    },
+    [viewport.zoom, setViewport]
+  );
 
   return (
     <div className="relative overflow-hidden bg-blue-900">

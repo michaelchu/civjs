@@ -11,9 +11,9 @@ export const TurnDoneButton: React.FC = () => {
     // gameClient.endTurn();
   };
 
-  const isDisabled = 
-    clientState !== 'running' || 
-    !currentPlayer || 
+  const isDisabled =
+    clientState !== 'running' ||
+    !currentPlayer ||
     !currentPlayer.isActive ||
     phase !== 'movement';
 
@@ -40,7 +40,11 @@ export const TurnDoneButton: React.FC = () => {
         focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800
         ${getButtonStyle()}
       `}
-      title={isDisabled ? 'You cannot end your turn right now' : 'End your turn (Shift+Enter)'}
+      title={
+        isDisabled
+          ? 'You cannot end your turn right now'
+          : 'End your turn (Shift+Enter)'
+      }
     >
       {getButtonText()}
     </button>

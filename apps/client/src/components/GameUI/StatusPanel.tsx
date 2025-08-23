@@ -31,12 +31,16 @@ export const StatusPanel: React.FC = () => {
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-1">
           <span className="text-gray-400">Gold:</span>
-          <span className="font-bold text-yellow-400">{currentPlayer.gold}</span>
+          <span className="font-bold text-yellow-400">
+            {currentPlayer.gold}
+          </span>
         </div>
-        
+
         <div className="flex items-center space-x-1">
           <span className="text-gray-400">Science:</span>
-          <span className="font-bold text-blue-400">{currentPlayer.science}</span>
+          <span className="font-bold text-blue-400">
+            {currentPlayer.science}
+          </span>
         </div>
       </div>
 

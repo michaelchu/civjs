@@ -40,7 +40,7 @@ export const GameTabs: React.FC = () => {
 
   return (
     <div className="flex space-x-1">
-      {tabs.map((tab) => (
+      {tabs.map(tab => (
         <button
           key={tab.id}
           onClick={() => setActiveTab(tab.id)}

@@ -16,7 +16,7 @@ export const research = pgTable('research', {
   bulbsAccumulated: integer('bulbs_accumulated').default(0),
   bulbsLastTurn: integer('bulbs_last_turn').default(0),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull()
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 export const playerTechs = pgTable('player_techs', {
@@ -29,7 +29,7 @@ export const playerTechs = pgTable('player_techs', {
     .notNull(),
   techId: varchar('tech_id', { length: 50 }).notNull(),
   researchedTurn: integer('researched_turn').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull()
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 export const researchRelations = relations(research, ({ one }) => ({

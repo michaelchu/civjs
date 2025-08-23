@@ -1,5 +1,10 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from 'react-router-dom';
 import { useGameStore } from './store/gameStore';
 import { HomePage } from './components/HomePage';
 import { GameCreationDialog } from './components/GameCreationDialog';
