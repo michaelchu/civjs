@@ -41,8 +41,8 @@ app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static assets
-app.use('/tileset', express.static('public/tilesets'));
+// Serve static assets 
+app.use('/tilesets', express.static('public/tilesets'));
 app.use('/js', express.static('public/js'));
 app.use('/sprites', express.static('public/sprites'));
 
