@@ -117,6 +117,9 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
           connection.username = data.playerName;
         }
         await sessionCache.setSession(socket.id, userId);
+        
+        // Join player-specific room for targeted emissions
+        socket.join(`player:${userId}`);
       } catch (error) {
         callback({ success: false, error: 'Authentication failed' });
         return;
@@ -289,6 +292,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
 
         // Create session
         await sessionCache.setSession(socket.id, userId);
+
+        // Join player-specific room for targeted emissions
+        socket.join(`player:${userId}`);
 
         // Send success response
         handler.send(socket, PacketType.SERVER_JOIN_REPLY, {

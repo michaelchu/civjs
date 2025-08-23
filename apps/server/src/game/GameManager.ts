@@ -316,7 +316,8 @@ export class GameManager {
           2 // Initial sight radius
         );
         
-        this.io.to(`game:${gameId}`).emit('player-map-view', {
+        // Emit to specific player only to avoid exposing fog of war to others
+        this.emitToPlayer(gameId, startPos.playerId, 'player-map-view', {
           gameId,
           playerId: startPos.playerId,
           visibleTiles: visibleTiles.map(tile => ({
@@ -1014,6 +1015,18 @@ export class GameManager {
         this.io.emit(event, data);
       }
     }
+  }
+
+  private emitToPlayer(gameId: string, playerId: string, event: string, data: any): void {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) return;
+
+    const player = gameInstance.players.get(playerId);
+    if (!player || !player.isConnected) return;
+
+    // Emit to player-specific room using their userId
+    // Sockets should join player-specific rooms when they connect
+    this.io.to(`player:${player.userId}`).emit(event, data);
   }
 
   public async cleanupInactiveGames(): Promise<void> {
