@@ -7,7 +7,9 @@ class GameClient {
   private serverUrl: string;
 
   constructor() {
+    // Use Railway backend URL in production
     this.serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+    console.log('Connecting to server:', this.serverUrl);
   }
 
   connect(): Promise<void> {
