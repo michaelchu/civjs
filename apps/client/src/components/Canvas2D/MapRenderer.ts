@@ -85,7 +85,7 @@ export class MapRenderer {
     });
     
     // Debug grid overlay in development
-    if (process.env.NODE_ENV === 'development' && this.isInitialized) {
+    if (import.meta.env.DEV && this.isInitialized) {
       // Uncomment to see the diamond grid overlay
       // this.debugRenderGrid(state.viewport, true);
     }
@@ -273,7 +273,7 @@ export class MapRenderer {
     }
 
     // Draw tile borders in development mode for debugging
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
       this.ctx.lineWidth = 1;
       this.ctx.strokeRect(

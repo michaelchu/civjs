@@ -113,3 +113,11 @@ The project uses Docker for development services. Main environment variables:
 
 ### Port Context
 This is a port from freeciv-web (the original web client) to a modern React/TypeScript architecture. The Canvas2D rendering maintains compatibility with freeciv-web's 2D tile-based system while the server implements civilization game mechanics with modern Node.js patterns.
+
+## Reference Repositories
+
+The `reference/` folder contains the original source repositories we are porting from:
+- **freeciv/**: The original Freeciv game (C-based backend) - reference for game mechanics, rules, and server logic
+- **freeciv-web/**: The web client implementation - reference for frontend rendering, UI components, and client-side game logic
+
+When implementing features or fixing issues, consult these reference repositories to understand the original implementation and ensure compatibility with established game mechanics.

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useLocation, Navigate } from 'react-router-dom';
+import { useParams, Navigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { gameClient } from '../services/GameClient';
 import { ConnectionDialog } from './ConnectionDialog';
@@ -7,14 +7,13 @@ import { GameLayout } from './GameUI/GameLayout';
 
 export const GameRoute: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
-  const location = useLocation();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [playerName, setPlayerName] = useState('');
 
   const [showNamePrompt, setShowNamePrompt] = useState(true);
 
-  const { clientState, setClientState, updateGameState } = useGameStore();
+  const { clientState, setClientState } = useGameStore();
 
   const handleJoinGame = async (name: string) => {
     if (!gameId || !name.trim()) {
@@ -53,8 +52,8 @@ export const GameRoute: React.FC = () => {
     // Always show name prompt now - no auto-join from URL
     setIsLoading(false);
 
-    // Store the current game ID
-    updateGameState({ currentGameId: gameId });
+    // Store the current game ID - use direct store property instead
+    useGameStore.setState({ currentGameId: gameId });
   }, [gameId]);
 
   const handleNameSubmit = (e: React.FormEvent) => {

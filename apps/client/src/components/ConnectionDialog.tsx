@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { gameClient } from '../services/GameClient';
 import { useGameStore } from '../store/gameStore';
+import { SERVER_URL } from '../config';
 
 export const ConnectionDialog: React.FC = () => {
   const [playerName, setPlayerName] = useState('');
@@ -97,7 +98,7 @@ export const ConnectionDialog: React.FC = () => {
           <div className="text-xs text-gray-400 text-center">
             <p>
               Server:{' '}
-              {import.meta.env.VITE_SERVER_URL || 'http://localhost:3001'}
+              {SERVER_URL}
             </p>
             <p className="mt-1">
               Make sure the server is running before connecting

@@ -104,8 +104,8 @@ export class TilesetLoader {
         img.onload = () => resolve();
         img.onerror = () => reject(new Error(`Failed to load sprite sheet ${i}`));
         
-        // Same URL pattern as freeciv-web
-        img.src = `${serverUrl}/tileset/freeciv-web-tileset-${this.config!.tileset_name}-${i}.png`;
+        // Load from tilesets directory (note: plural)
+        img.src = `${serverUrl}/tilesets/freeciv-web-tileset-${this.config!.tileset_name}-${i}.png`;
         this.spriteSheets[i] = img;
       });
       

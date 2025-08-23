@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "nodemon",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "start:prod": "NODE_ENV=production node dist/index.js",
+    "start": "echo 'Starting migration...' && npm run db:migrate && echo 'Migration complete, starting server...' && node dist/index.js",
+    "start:prod": "echo 'Starting production migration...' && NODE_ENV=production npm run db:migrate && echo 'Production migration complete, starting server...' && node dist/index.js",
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
     "test": "jest",
@@ -21,13 +21,13 @@
     "lint-staged": "lint-staged",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:migrate:prod": "tsx src/scripts/migrate.ts",
+    "db:migrate:prod": "NODE_ENV=production npx vite-node src/scripts/migrate.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "docker:up": "docker-compose -f docker-compose.dev.yml up -d",
     "docker:down": "docker-compose -f docker-compose.dev.yml down",
     "docker:logs": "docker-compose -f docker-compose.dev.yml logs -f",
-    "prepare": "husky"
+    "prepare": "is-ci || husky"
   },
   "keywords": [
     "game",
@@ -49,7 +49,6 @@
     "@types/supertest": "^6.0.3",
     "@typescript-eslint/eslint-plugin": "^8.40.0",
     "@typescript-eslint/parser": "^8.40.0",
-    "drizzle-kit": "^0.31.4",
     "eslint": "^9.33.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
@@ -67,8 +66,10 @@
   "dependencies": {
     "@prisma/client": "^6.14.0",
     "compression": "^1.8.1",
+    "is-ci": "^3.0.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
+    "drizzle-kit": "^0.31.4",
     "drizzle-orm": "^0.44.4",
     "express": "^5.1.0",
     "ioredis": "^5.7.0",
@@ -77,6 +78,7 @@
     "prisma": "^6.14.0",
     "redis": "^5.8.2",
     "socket.io": "^4.8.1",
+    "vite-node": "^2.1.8",
     "winston": "^3.17.0",
     "zod": "^4.0.17"
   }

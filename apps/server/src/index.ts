@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import compression from 'compression';
 import dotenv from 'dotenv';
+import path from 'path';
 
 import config from './config';
 import logger from './utils/logger';
@@ -40,8 +41,8 @@ app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static assets
-app.use('/tileset', express.static('public/tilesets'));
+// Serve static assets 
+app.use('/tilesets', express.static('public/tilesets'));
 app.use('/js', express.static('public/js'));
 app.use('/sprites', express.static('public/sprites'));
 
@@ -63,6 +64,17 @@ app.get('/api/info', (_req, res) => {
     supportedRulesets: ['classic', 'civ1', 'civ2'],
   });
 });
+
+// Serve client build in production
+if (config.server.env === 'production') {
+  const clientPath = path.join(__dirname, '..', 'public');
+  app.use(express.static(clientPath));
+  
+  // Catch-all route for client-side routing (Express v5 requires named wildcard)
+  app.get('*catchAll', (_req, res) => {
+    res.sendFile(path.join(clientPath, 'index.html'));
+  });
+}
 
 // Socket.IO connection handling
 io.on('connection', socket => {

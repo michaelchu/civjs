@@ -5,6 +5,7 @@ const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
 // Create Redis client
 export const redis = new Redis(redisUrl, {
+  family: 0, // Enable IPv4 and IPv6 (fixes Railway private network resolution)
   maxRetriesPerRequest: 3,
   retryStrategy: times => {
     if (times > 3) {

@@ -4,8 +4,7 @@
   "description": "CivJS - A modern civilization game built with TypeScript, React, and Node.js",
   "private": true,
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/*"
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
@@ -14,17 +13,17 @@
     "build": "npm run build --workspaces",
     "build:client": "npm run build --workspace=apps/client",
     "build:server": "npm run build --workspace=apps/server",
+    "start:prod": "npm run db:migrate:prod --workspace=apps/server && node apps/server/dist/index.js",
     "test": "npm run test --workspaces",
     "test:client": "npm run test --workspace=apps/client",
     "test:server": "npm run test --workspace=apps/server",
     "lint": "npm run lint --workspaces",
     "lint:fix": "npm run lint:fix --workspaces",
-    "typecheck": "npm run typecheck --workspaces",
+    "typecheck": "npm run type-check --workspaces",
     "clean": "npm run clean --workspaces && rm -rf node_modules",
     "docker:up": "docker-compose up",
     "docker:build": "docker-compose up --build",
-    "docker:down": "docker-compose down",
-    "postinstall": "npm run build --workspace=packages/shared-types"
+    "docker:down": "docker-compose down"
   },
   "devDependencies": {
     "concurrently": "^9.0.1",

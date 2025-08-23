@@ -122,3 +122,6 @@ temp/
 
 # Claude AI settings
 .claude/
+
+# Reference repositories (not for deployment)
+reference/
