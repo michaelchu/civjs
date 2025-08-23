@@ -54,9 +54,9 @@ jspm_packages/
 # Docker
 docker-compose.override.yml
 
-# Drizzle - keep migration files but ignore local meta
+# Drizzle - keep migration files including meta for deployment
 # drizzle/ - commented out to include migration files in deployment
-meta/
+# meta/ - commented out to include journal files in deployment
 
 # Database
 *.sqlite
