@@ -24,8 +24,7 @@
     "clean": "npm run clean --workspaces && rm -rf node_modules",
     "docker:up": "docker-compose up",
     "docker:build": "docker-compose up --build",
-    "docker:down": "docker-compose down",
-    "postinstall": "npm run build --workspace=packages/shared-types"
+    "docker:down": "docker-compose down"
   },
   "devDependencies": {
     "concurrently": "^9.0.1",

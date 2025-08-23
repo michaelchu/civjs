@@ -6,7 +6,7 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copy root package files
+# Copy root package files and workspace structure
 COPY package*.json ./
 COPY apps/server/package*.json ./apps/server/
 COPY apps/client/package*.json ./apps/client/
