@@ -25,12 +25,7 @@ RUN npm ci --omit=dev --workspace=apps/server --ignore-scripts
 # Copy client build to be served by server
 RUN mkdir -p apps/server/public && cp -r apps/client/dist/* apps/server/public/
 
-# Create non-root user
-RUN groupadd --system --gid 1001 nodejs && \
-    useradd --system --uid 1001 nodejs && \
-    chown -R nodejs:nodejs /app
-
-USER nodejs
+# Railway handles user security, skip user creation for simplicity
 
 # Expose port
 EXPOSE 3001
