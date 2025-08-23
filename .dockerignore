@@ -1,0 +1,76 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+build/
+**/build/
+
+# Environment files
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+RAILWAY_DEPLOYMENT.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+**/logs/
+
+# Testing
+coverage/
+**/coverage/
+.nyc_output/
+**/.nyc_output/
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Reference folder (large, not needed for build)
+reference/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Claude AI
+.claude/
+
+# Cache
+.cache/
+**/.cache/
+.parcel-cache/
+**/.parcel-cache/
+
+# TypeScript
+*.tsbuildinfo
+**/*.tsbuildinfo

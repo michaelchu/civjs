@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import compression from 'compression';
 import dotenv from 'dotenv';
+import path from 'path';
 
 import config from './config';
 import logger from './utils/logger';
@@ -44,6 +45,21 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/tileset', express.static('public/tilesets'));
 app.use('/js', express.static('public/js'));
 app.use('/sprites', express.static('public/sprites'));
+
+// Serve client build in production
+if (config.server.env === 'production') {
+  const clientPath = path.join(__dirname, '..', 'public');
+  app.use(express.static(clientPath));
+  
+  // Handle client-side routing - serve index.html for all non-API routes
+  app.get('*', (req, res, next) => {
+    // Skip API and health check routes
+    if (req.path.startsWith('/api') || req.path === '/health') {
+      return next();
+    }
+    res.sendFile(path.join(clientPath, 'index.html'));
+  });
+}
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
