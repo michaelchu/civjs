@@ -13,7 +13,7 @@
     "build": "npm run build --workspaces",
     "build:client": "npm run build --workspace=apps/client",
     "build:server": "npm run build --workspace=apps/server",
-    "start:prod": "npm run db:migrate --workspace=apps/server && node apps/server/dist/index.js",
+    "start:prod": "ls -la apps/server/drizzle/ && ls -la apps/server/drizzle/meta/ && npm run db:migrate --workspace=apps/server && node apps/server/dist/index.js",
     "test": "npm run test --workspaces",
     "test:client": "npm run test --workspace=apps/client",
     "test:server": "npm run test --workspace=apps/server",
