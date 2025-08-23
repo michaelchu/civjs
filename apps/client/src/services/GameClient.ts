@@ -1,14 +1,15 @@
 import { io, Socket } from 'socket.io-client';
 import { useGameStore } from '../store/gameStore';
 import { PacketType } from '../types/packets';
+import { SERVER_URL } from '../config';
 
 class GameClient {
   private socket: Socket | null = null;
   private serverUrl: string;
 
   constructor() {
-    // Use Railway backend URL in production
-    this.serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+    // Use server URL from config
+    this.serverUrl = SERVER_URL;
     console.log('Connecting to server:', this.serverUrl);
   }
 

@@ -25,9 +25,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       rendererRef.current = new MapRenderer(ctx);
       
       try {
-        // Initialize with server URL from environment
-        const serverUrl = import.meta.env.VITE_SERVER_URL || 'https://civjs.up.railway.app';
-        await rendererRef.current.initialize(serverUrl);
+        // Initialize with server URL from config
+        const { SERVER_URL } = await import('../../config');
+        await rendererRef.current.initialize(SERVER_URL);
         // Add dummy map data AFTER tileset is loaded
         const dummyTiles: Record<string, any> = {};
         for (let x = 0; x < 20; x++) {

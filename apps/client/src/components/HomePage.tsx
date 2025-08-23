@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { SERVER_URL } from '../config';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -73,7 +74,7 @@ export const HomePage: React.FC = () => {
           <div className="text-xs text-gray-400 text-center">
             <p>
               Server:{' '}
-              {import.meta.env.VITE_SERVER_URL || 'http://localhost:3001'}
+              {SERVER_URL}
             </p>
             <p className="mt-1">Welcome to the world of civilization!</p>
           </div>
