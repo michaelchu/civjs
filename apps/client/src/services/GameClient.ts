@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { useGameStore } from '../store/gameStore';
-import { PacketType, type SocketPacket } from '../types/packets';
+import { PacketType } from '../types/packets';
 
 class GameClient {
   private socket: Socket | null = null;

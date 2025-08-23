@@ -1,16 +1,12 @@
-import React from 'react';
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   Navigate,
 } from 'react-router-dom';
-import { useGameStore } from './store/gameStore';
 import { HomePage } from './components/HomePage';
 import { GameCreationDialog } from './components/GameCreationDialog';
 import { GameLobby } from './components/GameLobby';
-import { ConnectionDialog } from './components/ConnectionDialog';
-import { GameLayout } from './components/GameUI/GameLayout';
 import { GameRoute } from './components/GameRoute';
 
 function App() {

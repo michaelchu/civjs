@@ -101,22 +101,22 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   // Handle mouse events
   const handleMouseDown = useCallback(
-    (event: React.MouseEvent<HTMLCanvasElement>) => {
+    (_event: React.MouseEvent<HTMLCanvasElement>) => {
       if (!rendererRef.current) return;
 
       const canvas = canvasRef.current;
       if (!canvas) return;
 
-      const rect = canvas.getBoundingClientRect();
-      const canvasX = event.clientX - rect.left;
-      const canvasY = event.clientY - rect.top;
+      // const rect = canvas.getBoundingClientRect();
+      // const canvasX = event.clientX - rect.left;
+      // const canvasY = event.clientY - rect.top;
 
       // Convert canvas coordinates to map coordinates
-      const mapCoords = rendererRef.current.canvasToMap(
-        canvasX,
-        canvasY,
-        viewport
-      );
+      // const mapCoords = rendererRef.current.canvasToMap(
+      //   canvasX,
+      //   canvasY,
+      //   viewport
+      // );
 
       // Handle tile selection, unit selection, etc.
       // This will be expanded later
@@ -125,7 +125,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   );
 
   const handleMouseMove = useCallback(
-    (event: React.MouseEvent<HTMLCanvasElement>) => {
+    (_event: React.MouseEvent<HTMLCanvasElement>) => {
       // Handle mouse move for hover effects, drag operations, etc.
       // This will be implemented later
     },
