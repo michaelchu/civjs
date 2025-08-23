@@ -46,21 +46,6 @@ app.use('/tileset', express.static('public/tilesets'));
 app.use('/js', express.static('public/js'));
 app.use('/sprites', express.static('public/sprites'));
 
-// Serve client build in production
-if (config.server.env === 'production') {
-  const clientPath = path.join(__dirname, '..', 'public');
-  app.use(express.static(clientPath));
-  
-  // Handle client-side routing - serve index.html for all non-API routes
-  app.get('*', (req, res, next) => {
-    // Skip API and health check routes
-    if (req.path.startsWith('/api') || req.path === '/health') {
-      return next();
-    }
-    res.sendFile(path.join(clientPath, 'index.html'));
-  });
-}
-
 // Health check endpoint
 app.get('/health', (_req, res) => {
   res.json({
@@ -79,6 +64,17 @@ app.get('/api/info', (_req, res) => {
     supportedRulesets: ['classic', 'civ1', 'civ2'],
   });
 });
+
+// Serve client build in production
+if (config.server.env === 'production') {
+  const clientPath = path.join(__dirname, '..', 'public');
+  app.use(express.static(clientPath));
+  
+  // Handle client-side routing - serve index.html for all non-API routes
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientPath, 'index.html'));
+  });
+}
 
 // Socket.IO connection handling
 io.on('connection', socket => {
