@@ -5,7 +5,7 @@
 
 describe('Broadcasting Fix Verification', () => {
   describe('Socket.IO broadcasting patterns', () => {
-    it('should demonstrate the difference between global and player-specific broadcasting', () => {
+    it('should demonstrate the difference between global and game-room broadcasting', () => {
       // Mock Socket.IO server
       const mockEmit = jest.fn();
       const mockTo = jest.fn().mockReturnValue({ emit: mockEmit });
@@ -20,22 +20,19 @@ describe('Broadcasting Fix Verification', () => {
         mockIo.emit(event, data); // This goes to ALL connected sockets (the bug!)
       };
 
-      // Simulate the NEW (fixed) approach - broadcast to specific players in the game
-      const broadcastToGamePlayers = (playerUserIds: string[], event: string, data: any) => {
-        playerUserIds.forEach(userId => {
-          mockIo.to(`player:${userId}`).emit(event, data); // Target each player specifically
-        });
+      // Simulate the NEW (fixed) approach - broadcast to specific game room
+      const broadcastToGameRoom = (gameId: string, event: string, data: any) => {
+        mockIo.to(`game:${gameId}`).emit(event, data); // Target only this game's room
       };
 
       // Test data
       const testData = { message: 'test-data' };
-      const gamePlayerIds = ['user1', 'user2', 'user3'];
       
       // Reset mocks
       mockEmit.mockClear();
       mockTo.mockClear();
 
-      // Test OLD approach (the bug) - goes to everyone
+      // Test OLD approach (the bug) - goes to everyone globally
       broadcastGlobally('map-data', testData);
       expect(mockEmit).toHaveBeenCalledWith('map-data', testData);
       expect(mockTo).not.toHaveBeenCalled(); // No targeting at all
@@ -44,14 +41,11 @@ describe('Broadcasting Fix Verification', () => {
       mockEmit.mockClear();
       mockTo.mockClear();
 
-      // Test NEW approach (the fix) - goes only to game players
-      broadcastToGamePlayers(gamePlayerIds, 'map-data', testData);
-      expect(mockTo).toHaveBeenCalledWith('player:user1');
-      expect(mockTo).toHaveBeenCalledWith('player:user2');
-      expect(mockTo).toHaveBeenCalledWith('player:user3');
-      expect(mockTo).toHaveBeenCalledTimes(3);
+      // Test NEW approach (the fix) - goes only to specific game room
+      broadcastToGameRoom('game-123', 'map-data', testData);
+      expect(mockTo).toHaveBeenCalledWith('game:game-123');
       expect(mockEmit).toHaveBeenCalledWith('map-data', testData);
-      expect(mockEmit).toHaveBeenCalledTimes(3); // Once per player
+      expect(mockEmit).toHaveBeenCalledTimes(1); // Single broadcast to the room
     });
 
     it('should verify room isolation works correctly', () => {

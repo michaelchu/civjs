@@ -1052,13 +1052,8 @@ export class GameManager {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) return;
 
-    for (const player of gameInstance.players.values()) {
-      if (player.isConnected) {
-        // Emit to all sockets of this specific player (they might have multiple connections)
-        // Target the player's room instead of broadcasting globally
-        this.io.to(`player:${player.userId}`).emit(event, data);
-      }
-    }
+    // Broadcast to all sockets in the specific game room
+    this.io.to(`game:${gameId}`).emit(event, data);
   }
 
   private emitToPlayer(gameId: string, playerId: string, event: string, data: any): void {
