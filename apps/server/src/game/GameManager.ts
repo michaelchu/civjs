@@ -55,6 +55,8 @@ export interface PlayerState {
 export class GameManager {
   private static instance: GameManager;
   private io: SocketServer;
+  private games = new Map<string, GameInstance>();
+  private playerToGame = new Map<string, string>();
 
   private constructor(io: SocketServer) {
     this.io = io;
@@ -206,13 +208,131 @@ export class GameManager {
       playerCount: game.players.length,
     });
 
-    // Notify all players
+    // Initialize the in-memory game instance with map generation
+    await this.initializeGameInstance(gameId, game);
+
+    // Notify all players that the game has started
     this.broadcastToGame(gameId, 'game-started', {
       gameId,
       currentTurn: 1,
     });
 
     logger.info('Game started successfully', { gameId });
+  }
+
+  private async initializeGameInstance(gameId: string, game: any): Promise<void> {
+    logger.info('Initializing game instance', { gameId });
+
+    // Create player state map
+    const players = new Map<string, PlayerState>();
+    for (const dbPlayer of game.players) {
+      players.set(dbPlayer.id, {
+        id: dbPlayer.id,
+        userId: dbPlayer.userId,
+        playerNumber: dbPlayer.playerNumber,
+        civilization: dbPlayer.civilization,
+        isReady: false,
+        hasEndedTurn: false,
+        isConnected: true,
+        lastSeen: new Date(),
+      });
+
+      // Track player to game mapping
+      this.playerToGame.set(dbPlayer.id, gameId);
+    }
+
+    // Initialize managers
+    const mapManager = new MapManager(game.mapWidth, game.mapHeight);
+    const turnManager = new TurnManager();
+    const unitManager = new UnitManager();
+    const visibilityManager = new VisibilityManager(mapManager);
+    const cityManager = new CityManager();
+    const researchManager = new ResearchManager();
+
+    // Generate the map with starting positions
+    await mapManager.generateMap(players);
+    
+    const mapData = mapManager.getMapData();
+    if (!mapData) {
+      throw new Error('Failed to generate map data');
+    }
+
+    logger.info('Map generated successfully', {
+      gameId,
+      mapSize: `${mapData.width}x${mapData.height}`,
+      startingPositions: mapData.startingPositions.length,
+    });
+
+    // Create game instance
+    const gameInstance: GameInstance = {
+      id: gameId,
+      config: {
+        name: game.name,
+        hostId: game.hostId,
+        maxPlayers: game.maxPlayers,
+        mapWidth: game.mapWidth,
+        mapHeight: game.mapHeight,
+        ruleset: game.ruleset,
+        turnTimeLimit: game.turnTimeLimit,
+        victoryConditions: game.victoryConditions || ['conquest', 'science', 'culture'],
+      },
+      state: 'active',
+      currentTurn: 1,
+      turnPhase: 'movement',
+      players,
+      turnManager,
+      mapManager,
+      unitManager,
+      visibilityManager,
+      cityManager,
+      researchManager,
+      lastActivity: new Date(),
+    };
+
+    // Store the game instance
+    this.games.set(gameId, gameInstance);
+
+    // Send initial map data to all players
+    this.broadcastMapData(gameId, mapData);
+  }
+
+  private broadcastMapData(gameId: string, mapData: any): void {
+    this.broadcastToGame(gameId, 'map-data', {
+      gameId,
+      width: mapData.width,
+      height: mapData.height,
+      startingPositions: mapData.startingPositions,
+      seed: mapData.seed,
+      generatedAt: mapData.generatedAt,
+    });
+
+    // Send visible tiles to each player based on their starting position
+    const gameInstance = this.games.get(gameId);
+    if (gameInstance) {
+      for (const startPos of mapData.startingPositions) {
+        const visibleTiles = gameInstance.mapManager.getVisibleTiles(
+          startPos.x,
+          startPos.y,
+          2 // Initial sight radius
+        );
+        
+        // Emit to specific player only to avoid exposing fog of war to others
+        this.emitToPlayer(gameId, startPos.playerId, 'player-map-view', {
+          gameId,
+          playerId: startPos.playerId,
+          visibleTiles: visibleTiles.map(tile => ({
+            x: tile.x,
+            y: tile.y,
+            terrain: tile.terrain,
+            resource: tile.resource,
+            elevation: tile.elevation,
+            riverMask: tile.riverMask,
+            isExplored: true,
+            isVisible: true,
+          })),
+        });
+      }
+    }
   }
 
   public async getGame(gameId: string): Promise<any | null> {
@@ -618,6 +738,64 @@ export class GameManager {
     gameInstance.visibilityManager.updatePlayerVisibility(playerId);
   }
 
+  public getMapData(gameId: string) {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) {
+      throw new Error('Game not found');
+    }
+
+    const mapData = gameInstance.mapManager.getMapData();
+    if (!mapData) {
+      throw new Error('Map not generated yet');
+    }
+
+    return {
+      width: mapData.width,
+      height: mapData.height,
+      startingPositions: mapData.startingPositions,
+      seed: mapData.seed,
+      generatedAt: mapData.generatedAt,
+    };
+  }
+
+  public getPlayerVisibleTiles(gameId: string, playerId: string) {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) {
+      throw new Error('Game not found');
+    }
+
+    // Get player's starting position if they don't have units yet
+    const mapData = gameInstance.mapManager.getMapData();
+    const startPos = mapData?.startingPositions.find(pos => pos.playerId === playerId);
+    
+    if (!startPos) {
+      throw new Error('Player starting position not found');
+    }
+
+    const visibleTiles = gameInstance.mapManager.getVisibleTiles(
+      startPos.x,
+      startPos.y,
+      2 // Initial sight radius
+    );
+
+    return visibleTiles.map(tile => ({
+      x: tile.x,
+      y: tile.y,
+      terrain: tile.terrain,
+      resource: tile.resource,
+      elevation: tile.elevation,
+      riverMask: tile.riverMask,
+      continentId: tile.continentId,
+      isExplored: true,
+      isVisible: true,
+      hasRoad: tile.hasRoad,
+      hasRailroad: tile.hasRailroad,
+      improvements: tile.improvements,
+      cityId: tile.cityId,
+      unitIds: tile.unitIds,
+    }));
+  }
+
   // City management methods
   public async foundCity(
     gameId: string,
@@ -837,6 +1015,18 @@ export class GameManager {
         this.io.emit(event, data);
       }
     }
+  }
+
+  private emitToPlayer(gameId: string, playerId: string, event: string, data: any): void {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) return;
+
+    const player = gameInstance.players.get(playerId);
+    if (!player || !player.isConnected) return;
+
+    // Emit to player-specific room using their userId
+    // Sockets should join player-specific rooms when they connect
+    this.io.to(`player:${player.userId}`).emit(event, data);
   }
 
   public async cleanupInactiveGames(): Promise<void> {

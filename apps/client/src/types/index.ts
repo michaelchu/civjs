@@ -71,6 +71,29 @@ export interface GameState {
   units: Record<string, Unit>;
   cities: Record<string, City>;
   technologies: Record<string, Technology>;
+  mapData?: {
+    width: number;
+    height: number;
+    startingPositions: Array<{ x: number; y: number; playerId: string }>;
+    seed: string;
+    generatedAt: Date;
+  };
+  visibleTiles?: Array<{
+    x: number;
+    y: number;
+    terrain: string;
+    resource?: string;
+    elevation: number;
+    riverMask: number;
+    continentId: number;
+    isExplored: boolean;
+    isVisible: boolean;
+    hasRoad: boolean;
+    hasRailroad: boolean;
+    improvements: string[];
+    cityId?: string;
+    unitIds: string[];
+  }>;
 }
 
 // Client state types

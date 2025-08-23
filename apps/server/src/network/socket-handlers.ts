@@ -19,7 +19,7 @@ import {
 } from '../types/packet';
 import { sessionCache } from '../database/redis';
 import { db } from '../database';
-import { users } from '../database/schema';
+import { users, games } from '../database/schema';
 import { eq } from 'drizzle-orm';
 import { GameManager } from '../game/GameManager';
 
@@ -117,6 +117,9 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
           connection.username = data.playerName;
         }
         await sessionCache.setSession(socket.id, userId);
+        
+        // Join player-specific room for targeted emissions
+        socket.join(`player:${userId}`);
       } catch (error) {
         callback({ success: false, error: 'Authentication failed' });
         return;
@@ -147,6 +150,59 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
     } catch (error) {
       logger.error('Error getting game list:', error);
       callback({ success: false, error: 'Failed to get game list' });
+    }
+  });
+
+  // Map data handlers
+  socket.on('get_map_data', async (data, callback) => {
+    const connection = activeConnections.get(socket.id);
+    if (!connection?.gameId) {
+      callback({ success: false, error: 'Not in a game' });
+      return;
+    }
+
+    try {
+      const mapData = gameManager.getMapData(connection.gameId);
+      callback({ success: true, mapData });
+    } catch (error) {
+      logger.error('Error getting map data:', error);
+      callback({ success: false, error: error instanceof Error ? error.message : 'Failed to get map data' });
+    }
+  });
+
+  socket.on('get_visible_tiles', async (data, callback) => {
+    const connection = activeConnections.get(socket.id);
+    if (!connection?.userId || !connection?.gameId) {
+      callback({ success: false, error: 'Not authenticated or not in a game' });
+      return;
+    }
+
+    try {
+      // Get game from database to find player
+      const game = await db.query.games.findFirst({
+        where: eq(games.id, connection.gameId),
+        with: {
+          players: true,
+        },
+      });
+
+      if (!game) {
+        callback({ success: false, error: 'Game not found' });
+        return;
+      }
+
+      // Find player by userId
+      const player = game.players.find(p => p.userId === connection.userId);
+      if (!player) {
+        callback({ success: false, error: 'Player not found in game' });
+        return;
+      }
+
+      const visibleTiles = gameManager.getPlayerVisibleTiles(connection.gameId, player.id);
+      callback({ success: true, visibleTiles });
+    } catch (error) {
+      logger.error('Error getting visible tiles:', error);
+      callback({ success: false, error: error instanceof Error ? error.message : 'Failed to get visible tiles' });
     }
   });
 
@@ -236,6 +292,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
 
         // Create session
         await sessionCache.setSession(socket.id, userId);
+
+        // Join player-specific room for targeted emissions
+        socket.join(`player:${userId}`);
 
         // Send success response
         handler.send(socket, PacketType.SERVER_JOIN_REPLY, {
