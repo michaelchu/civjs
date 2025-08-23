@@ -6,13 +6,13 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies + tsx for TypeScript execution
+# Install production dependencies + drizzle-kit for migrations
 RUN npm ci --omit=dev --ignore-scripts && \
-    npm install tsx
+    npm install drizzle-kit
 
 # Copy migration-related files
 COPY drizzle/ ./drizzle/
-COPY src/scripts/migrate-prod.ts ./src/scripts/migrate-prod.ts
+COPY drizzle.config.ts ./drizzle.config.ts
 
 # Copy .env for local development (production will use env vars)
 COPY .env* ./
@@ -26,5 +26,5 @@ RUN chown -R nodejs:nodejs /app
 
 USER nodejs
 
-# Run our custom migration script
-CMD ["npx", "tsx", "src/scripts/migrate-prod.ts"]
+# Run drizzle migrations
+CMD ["npx", "drizzle-kit", "migrate"]
