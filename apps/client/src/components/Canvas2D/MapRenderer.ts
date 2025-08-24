@@ -39,23 +39,6 @@ export class MapRenderer {
       this.tileHeight = tileSize.height;
 
       this.isInitialized = true;
-      console.log('MapRenderer initialized with tileset');
-
-      // Debug: show available terrain sprites
-      if (import.meta.env.DEV) {
-        const terrainSprites = this.tilesetLoader.findSprites('t.l');
-        console.log(
-          'Available terrain sprites (first 20):',
-          terrainSprites.slice(0, 20)
-        );
-
-        // Show floor/ocean sprites specifically
-        const floorSprites = this.tilesetLoader.findSprites('t.l0.floor');
-        console.log('Available floor sprites:', floorSprites);
-
-        const coastSprites = this.tilesetLoader.findSprites('t.l0.coast');
-        console.log('Available coast sprites:', coastSprites);
-      }
     } catch (error) {
       console.error('Failed to initialize MapRenderer:', error);
       throw error;
@@ -75,6 +58,13 @@ export class MapRenderer {
 
   render(state: RenderState) {
     this.clearCanvas();
+
+    // Reset tile map cache if tiles data has changed
+    const currentGlobalTiles = (window as any).tiles;
+    if (currentGlobalTiles && currentGlobalTiles !== this.lastGlobalTiles) {
+      this.tileMapBuilt = false;
+      this.lastGlobalTiles = currentGlobalTiles;
+    }
 
     if (!this.isInitialized) {
       this.renderLoadingMessage();
@@ -178,9 +168,15 @@ export class MapRenderer {
   }
 
   private renderTerrainLayers(tile: Tile, screenPos: { x: number; y: number }) {
+    let hasAnySprites = false;
+
     // Render all layers (0, 1, 2) like freeciv-web does
     for (let layer = 0; layer <= 2; layer++) {
       const sprites = this.fillTerrainSpriteArraySimple(layer, tile);
+
+      if (sprites.length > 0) {
+        hasAnySprites = true;
+      }
 
       for (const spriteInfo of sprites) {
         const sprite = this.tilesetLoader.getSprite(spriteInfo.key);
@@ -203,28 +199,7 @@ export class MapRenderer {
             const fallbackSprite = this.tilesetLoader.getSprite(fallbackKey);
             if (fallbackSprite) {
               this.ctx.drawImage(fallbackSprite, screenPos.x, screenPos.y);
-            } else {
-              // Debug: log missing sprites
-              if (import.meta.env.DEV && Math.random() < 0.02) {
-                console.log(
-                  `Missing sprite: ${spriteInfo.key} and fallback ${fallbackKey} (terrain: ${tile.terrain}) layer ${layer}`
-                );
-                const availableSprites = this.tilesetLoader.findSprites(
-                  `t.l${layer}.${mappedTerrain}`
-                );
-                console.log(
-                  `Available sprites for ${mappedTerrain} layer ${layer}:`,
-                  availableSprites.slice(0, 3)
-                );
-              }
-            }
-          } else {
-            // Debug: log missing sprites for non-water terrains
-            if (import.meta.env.DEV && Math.random() < 0.02) {
-              const mappedTerrain = this.mapTerrainName(tile.terrain);
-              console.log(
-                `Missing sprite: ${spriteInfo.key} (terrain: ${tile.terrain} → ${mappedTerrain}) layer ${layer}`
-              );
+              hasAnySprites = true;
             }
           }
         }
@@ -232,10 +207,6 @@ export class MapRenderer {
     }
 
     // Fallback: if no sprites rendered, show solid color
-    const hasAnySprites = [0, 1, 2].some(
-      layer => this.fillTerrainSpriteArraySimple(layer, tile).length > 0
-    );
-
     if (!hasAnySprites) {
       const color = this.getTerrainColor(tile.terrain);
       this.ctx.fillStyle = color;
@@ -525,15 +496,31 @@ export class MapRenderer {
     return [];
   }
 
+  // Cached tile lookup for performance
+  private tileMap: Map<string, any> = new Map();
+  private tileMapBuilt = false;
+  private lastGlobalTiles: any = null;
+
+  private buildTileMap() {
+    if (this.tileMapBuilt) return;
+
+    const globalTiles = (window as any).tiles;
+    if (!globalTiles) return;
+
+    this.tileMap.clear();
+    for (const tile of globalTiles) {
+      if (tile) {
+        const key = `${tile.x},${tile.y}`;
+        this.tileMap.set(key, tile);
+      }
+    }
+    this.tileMapBuilt = true;
+  }
+
   // Get neighboring tiles from global tiles array
   // Returns 8 neighbors in DIR8 order: N, NE, E, SE, S, SW, W, NW
   private getNeighboringTerrains(tile: Tile): any[] {
-    const globalTiles = (window as any).tiles;
-    const globalMap = (window as any).map;
-
-    if (!globalTiles || !globalMap) {
-      return [];
-    }
+    this.buildTileMap();
 
     const neighbors = [];
     // 8-directional neighbors: N, NE, E, SE, S, SW, W, NW (DIR8 order)
@@ -551,20 +538,18 @@ export class MapRenderer {
     for (const dir of directions) {
       const nx = tile.x + dir.dx;
       const ny = tile.y + dir.dy;
+      const key = `${nx},${ny}`;
 
-      // Find neighbor tile in global tiles array
+      // Fast O(1) lookup instead of O(n) search
+      const neighborTile = this.tileMap.get(key);
       let neighborTerrain = null;
-      for (const globalTile of globalTiles) {
-        if (globalTile && globalTile.x === nx && globalTile.y === ny) {
-          neighborTerrain = {
-            graphic_str: this.mapTerrainName(globalTile.terrain),
-          };
-          break;
-        }
-      }
 
-      // If no neighbor found, assume same terrain as current tile
-      if (!neighborTerrain) {
+      if (neighborTile && neighborTile.terrain) {
+        neighborTerrain = {
+          graphic_str: this.mapTerrainName(neighborTile.terrain),
+        };
+      } else {
+        // If no neighbor found, assume same terrain as current tile
         neighborTerrain = { graphic_str: this.mapTerrainName(tile.terrain) };
       }
 
@@ -701,10 +686,6 @@ export class MapRenderer {
     const numeratorY = guiY * W - guiX * H;
     const denominator = W * H;
 
-    console.log(
-      `Numerators: X=${numeratorX}, Y=${numeratorY}, denominator=${denominator}`
-    );
-
     const mapX = this.divide(numeratorX, denominator);
     const mapY = this.divide(numeratorY, denominator);
 
@@ -779,18 +760,6 @@ export class MapRenderer {
 
   debugCoordinateAccuracy(): void {
     if (!this.isInitialized) return;
-
-    console.log('=== NEW COORDINATE DEBUG TEST v2 ===');
-    console.log('Tile dimensions:', this.tileWidth, 'x', this.tileHeight);
-
-    // Test simple case first
-    console.log('Testing direct guiToMapPos with (0,0)');
-    const result1 = this.guiToMapPos(0, 0);
-    console.log('Result:', result1);
-
-    console.log('Testing direct guiToMapPos with (48,24)');
-    const result2 = this.guiToMapPos(48, 24);
-    console.log('Result:', result2);
   }
 
   // Debug method to render diamond grid overlay
@@ -887,7 +856,6 @@ export class MapRenderer {
           elevation: tile.elevation || 0,
           resource: tile.resource || undefined,
         });
-
       }
     }
 
