@@ -45,6 +45,14 @@ import {
   LAYER_GOTO,
   MATCH_NONE,
   LAYER_COUNT,
+  DIR8_NORTH,
+  DIR8_NORTHEAST,
+  DIR8_EAST,
+  DIR8_SOUTHEAST,
+  DIR8_SOUTH,
+  DIR8_SOUTHWEST,
+  DIR8_WEST,
+  DIR8_NORTHWEST,
 } from './constants';
 
 import { getSpriteCoordinate } from './tileset-spec';
@@ -135,30 +143,29 @@ export function fill_sprite_array(
         if (spec_sprite != null) sprite_array.push(spec_sprite);
 
         if (tile_has_extra(ptile, EXTRA_MINE)) {
-          sprite_array.push({ key: tileset_extra_id_graphic_tag(EXTRA_MINE) });
+          const tag = tileset_extra_id_graphic_tag(EXTRA_MINE);
+          if (tag) sprite_array.push({ key: tag });
         }
         if (tile_has_extra(ptile, EXTRA_OIL_WELL)) {
-          sprite_array.push({
-            key: tileset_extra_id_graphic_tag(EXTRA_OIL_WELL),
-          });
+          const tag = tileset_extra_id_graphic_tag(EXTRA_OIL_WELL);
+          if (tag) sprite_array.push({ key: tag });
         }
 
         sprite_array.push(...fill_layer1_sprite_array(ptile, pcity));
 
         if (tile_has_extra(ptile, EXTRA_HUT)) {
-          sprite_array.push({ key: tileset_extra_id_graphic_tag(EXTRA_HUT) });
+          const tag = tileset_extra_id_graphic_tag(EXTRA_HUT);
+          if (tag) sprite_array.push({ key: tag });
         }
 
         if (tile_has_extra(ptile, EXTRA_POLLUTION)) {
-          sprite_array.push({
-            key: tileset_extra_id_graphic_tag(EXTRA_POLLUTION),
-          });
+          const tag = tileset_extra_id_graphic_tag(EXTRA_POLLUTION);
+          if (tag) sprite_array.push({ key: tag });
         }
 
         if (tile_has_extra(ptile, EXTRA_FALLOUT)) {
-          sprite_array.push({
-            key: tileset_extra_id_graphic_tag(EXTRA_FALLOUT),
-          });
+          const tag = tileset_extra_id_graphic_tag(EXTRA_FALLOUT);
+          if (tag) sprite_array.push({ key: tag });
         }
 
         sprite_array.push(...get_border_line_sprites(ptile));
@@ -311,6 +318,220 @@ export function fill_sprite_array(
   return sprite_array;
 }
 
+// Tileset tag resolution functions ported from tilespec.js
+
+/**
+ * Returns the tag name for an entity, preferring graphic_str over graphic_alt
+ * Ported from tileset_ruleset_entity_tag_str_or_alt()
+ */
+export function tileset_ruleset_entity_tag_str_or_alt(
+  entity: { graphic_str?: string; graphic_alt?: string; name?: string } | null,
+  kind_name: string
+): string | null {
+  if (entity == null) {
+    console.log('No ' + kind_name + ' to return tag for.');
+    return null;
+  }
+
+  if (entity.graphic_str && tileset_has_tag(entity.graphic_str)) {
+    return entity.graphic_str;
+  }
+
+  if (entity.graphic_alt && tileset_has_tag(entity.graphic_alt)) {
+    return entity.graphic_alt;
+  }
+
+  console.log('No graphic for ' + kind_name + ' ' + entity.name);
+  return null;
+}
+
+/**
+ * Returns the tag name of the graphic showing the specified Extra on the map
+ * Ported from tileset_extra_graphic_tag()
+ */
+export function tileset_extra_graphic_tag(extra: {
+  graphic_str?: string;
+  graphic_alt?: string;
+  name?: string;
+}): string | null {
+  return tileset_ruleset_entity_tag_str_or_alt(extra, 'extra');
+}
+
+/**
+ * Returns the tag name of the graphic showing the specified unit type
+ * Ported from tileset_unit_type_graphic_tag()
+ */
+export function tileset_unit_type_graphic_tag(utype: {
+  graphic_str?: string;
+  graphic_alt?: string;
+  name?: string;
+}): string | null {
+  if (utype.graphic_str && tileset_has_tag(utype.graphic_str + '_Idle')) {
+    return utype.graphic_str + '_Idle';
+  }
+
+  if (utype.graphic_alt && tileset_has_tag(utype.graphic_alt + '_Idle')) {
+    return utype.graphic_alt + '_Idle';
+  }
+
+  console.log('No graphic for unit ' + utype.name);
+  return null;
+}
+
+/**
+ * Returns the tag name of the graphic for the unit
+ * Ported from tileset_unit_graphic_tag()
+ */
+export function tileset_unit_graphic_tag(punit: Unit): string | null {
+  // Currently always uses the default "_Idle" sprite
+  return tileset_unit_type_graphic_tag(unit_type(punit));
+}
+
+/**
+ * Returns the tag name of the graphic showing the specified building
+ * Ported from tileset_building_graphic_tag()
+ */
+export function tileset_building_graphic_tag(pimprovement: {
+  graphic_str?: string;
+  graphic_alt?: string;
+  name?: string;
+}): string | null {
+  return tileset_ruleset_entity_tag_str_or_alt(pimprovement, 'building');
+}
+
+/**
+ * Returns the tag name of the graphic showing the specified tech
+ * Ported from tileset_tech_graphic_tag()
+ */
+export function tileset_tech_graphic_tag(ptech: {
+  graphic_str?: string;
+  graphic_alt?: string;
+  name?: string;
+}): string | null {
+  return tileset_ruleset_entity_tag_str_or_alt(ptech, 'tech');
+}
+
+/**
+ * Returns the tag name of the graphic showing the Extra specified by ID on the map
+ * Ported from tileset_extra_id_graphic_tag()
+ */
+export function tileset_extra_id_graphic_tag(extra_id: number): string | null {
+  return tileset_extra_graphic_tag(extras[extra_id]);
+}
+
+/**
+ * Returns the tag name of the graphic showing that a unit is building the specified Extra
+ * Ported from tileset_extra_activity_graphic_tag()
+ */
+export function tileset_extra_activity_graphic_tag(
+  extra: {
+    activity_gfx?: string;
+    act_gfx_alt?: string;
+    act_gfx_alt2?: string;
+    name?: string;
+  } | null
+): string | null {
+  if (extra == null) {
+    console.log('No extra to return tag for.');
+    return null;
+  }
+
+  if (extra.activity_gfx && tileset_has_tag(extra.activity_gfx)) {
+    return extra.activity_gfx;
+  }
+
+  if (extra.act_gfx_alt && tileset_has_tag(extra.act_gfx_alt)) {
+    return extra.act_gfx_alt;
+  }
+
+  if (extra.act_gfx_alt2 && tileset_has_tag(extra.act_gfx_alt2)) {
+    return extra.act_gfx_alt2;
+  }
+
+  console.log('No activity graphic for extra ' + extra.name);
+  return null;
+}
+
+/**
+ * Returns the tag name of the graphic showing that a unit is building the Extra specified by ID
+ * Ported from tileset_extra_id_activity_graphic_tag()
+ */
+export function tileset_extra_id_activity_graphic_tag(
+  extra_id: number
+): string | null {
+  return tileset_extra_activity_graphic_tag(extras[extra_id]);
+}
+
+/**
+ * Returns the tag name of the graphic showing that a unit is removing the specified Extra
+ * Ported from tileset_extra_rmactivity_graphic_tag()
+ */
+export function tileset_extra_rmactivity_graphic_tag(
+  extra: {
+    rmact_gfx?: string;
+    rmact_gfx_alt?: string;
+    rmact_gfx_alt2?: string;
+    name?: string;
+  } | null
+): string | null {
+  if (extra == null) {
+    console.log('No extra to return tag for.');
+    return null;
+  }
+
+  if (extra.rmact_gfx && tileset_has_tag(extra.rmact_gfx)) {
+    return extra.rmact_gfx;
+  }
+
+  if (extra.rmact_gfx_alt && tileset_has_tag(extra.rmact_gfx_alt)) {
+    return extra.rmact_gfx_alt;
+  }
+
+  if (extra.rmact_gfx_alt2 && tileset_has_tag(extra.rmact_gfx_alt2)) {
+    return extra.rmact_gfx_alt2;
+  }
+
+  console.log('No removal activity graphic for extra ' + extra.name);
+  return null;
+}
+
+/**
+ * Returns the tag name of the graphic showing that a unit is removing the Extra specified by ID
+ * Ported from tileset_extra_id_rmactivity_graphic_tag()
+ */
+export function tileset_extra_id_rmactivity_graphic_tag(
+  extra_id: number
+): string | null {
+  return tileset_extra_rmactivity_graphic_tag(extras[extra_id]);
+}
+
+/**
+ * Returns the tileset name for a direction (used for sprites like roads, rivers)
+ * Ported from dir_get_tileset_name()
+ */
+export function dir_get_tileset_name(dir: number): string {
+  switch (dir) {
+    case DIR8_NORTH:
+      return 'n';
+    case DIR8_NORTHEAST:
+      return 'ne';
+    case DIR8_EAST:
+      return 'e';
+    case DIR8_SOUTHEAST:
+      return 'se';
+    case DIR8_SOUTH:
+      return 's';
+    case DIR8_SOUTHWEST:
+      return 'sw';
+    case DIR8_WEST:
+      return 'w';
+    case DIR8_NORTHWEST:
+      return 'nw';
+  }
+
+  return '';
+}
+
 // Helper functions referenced by fill_sprite_array - need to be ported
 // These are placeholder stubs that need to be implemented
 
@@ -366,10 +587,7 @@ function tile_has_extra(ptile: Tile, extra_id: number): boolean {
   return false;
 }
 
-function tileset_extra_id_graphic_tag(extra_id: number): string {
-  // TODO: Port from original tilespec.js
-  return '';
-}
+// tileset_extra_id_graphic_tag is now implemented above - removed duplicate stub
 
 function fill_layer1_sprite_array(
   ptile: Tile,
@@ -494,6 +712,12 @@ declare const unit_offset_x: number;
 declare const unit_offset_y: number;
 declare const show_citybar: boolean;
 declare const game_info: { granularity: number };
+
+// Global variables for tileset functions
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const extras: any[]; // Array of extra definitions
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare function unit_type(punit: Unit): any; // Function to get unit type from unit
 
 // Constants referenced in the function
 const EXTRA_MINE = 1;
