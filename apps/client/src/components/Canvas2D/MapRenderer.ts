@@ -192,12 +192,11 @@ export class MapRenderer {
           const offsetX = spriteInfo.offset_x || 0;
           const offsetY = spriteInfo.offset_y || 0;
 
+          // Copy freeciv-web logic exactly: pcanvas.drawImage(sprites[tag], canvas_x, canvas_y);
           this.ctx.drawImage(
             sprite,
             screenPos.x + offsetX * viewport.zoom,
-            screenPos.y + offsetY * viewport.zoom,
-            this.tileWidth * viewport.zoom,
-            this.tileHeight * viewport.zoom
+            screenPos.y + offsetY * viewport.zoom
           );
         } else {
           // Try fallback sprites for water terrains
@@ -207,13 +206,7 @@ export class MapRenderer {
             const fallbackKey = `t.l${layer}.${mappedTerrain}_cell_u_w_w_w`;
             const fallbackSprite = this.tilesetLoader.getSprite(fallbackKey);
             if (fallbackSprite) {
-              this.ctx.drawImage(
-                fallbackSprite,
-                screenPos.x,
-                screenPos.y,
-                this.tileWidth * viewport.zoom,
-                this.tileHeight * viewport.zoom
-              );
+              this.ctx.drawImage(fallbackSprite, screenPos.x, screenPos.y);
             } else {
               // Debug: log missing sprites
               if (import.meta.env.DEV && Math.random() < 0.02) {
@@ -389,7 +382,7 @@ export class MapRenderer {
         break;
 
       case CELL_CORNER: {
-        // Implement CELL_CORNER logic for water tiles - simplified for now
+        // Full CELL_CORNER implementation copied from freeciv-web
         const W = this.tileWidth;
         const H = this.tileHeight;
         const iso_offsets = [
@@ -398,36 +391,128 @@ export class MapRenderer {
           [W / 2, H / 4],
           [0, H / 4],
         ];
-        // const _this_match_index =
-        //   tile_types_setup['l' + l + '.' + pterrain['graphic_str']] &&
-        //   tile_types_setup['l' + l + '.' + pterrain['graphic_str']][
-        //     'match_index'
-        //   ]
-        //     ? tile_types_setup['l' + l + '.' + pterrain['graphic_str']][
-        //         'match_index'
-        //       ][0]
-        //     : -1;
+
         const result_sprites: Array<{
           key: string;
           offset_x?: number;
           offset_y?: number;
         }> = [];
 
-        // Put corner cells - simplified implementation
+        // Direction helper functions from freeciv-web
+        const dir_cw = (dir: number): number => {
+          switch (dir) {
+            case 0:
+              return 1; // NORTH to NORTHEAST
+            case 1:
+              return 2; // NORTHEAST to EAST
+            case 2:
+              return 3; // EAST to SOUTHEAST
+            case 3:
+              return 4; // SOUTHEAST to SOUTH
+            case 4:
+              return 5; // SOUTH to SOUTHWEST
+            case 5:
+              return 6; // SOUTHWEST to WEST
+            case 6:
+              return 7; // WEST to NORTHWEST
+            case 7:
+              return 0; // NORTHWEST to NORTH
+          }
+          return -1;
+        };
+
+        const dir_ccw = (dir: number): number => {
+          switch (dir) {
+            case 0:
+              return 7; // NORTH to NORTHWEST
+            case 1:
+              return 0; // NORTHEAST to NORTH
+            case 2:
+              return 1; // EAST to NORTHEAST
+            case 3:
+              return 2; // SOUTHEAST to EAST
+            case 4:
+              return 3; // SOUTH to SOUTHEAST
+            case 5:
+              return 4; // SOUTHWEST to SOUTH
+            case 6:
+              return 5; // WEST to SOUTHWEST
+            case 7:
+              return 6; // NORTHWEST to WEST
+          }
+          return -1;
+        };
+
+        // Put corner cells - complete implementation from freeciv-web
         for (let i = 0; i < NUM_CORNER_DIRS; i++) {
+          const count = dlp['match_indices'] || 1;
           let array_index = 0;
+          const dir = dir_ccw(DIR4_TO_DIR8[i]);
           const x = iso_offsets[i][0];
           const y = iso_offsets[i][1];
 
-          // For now, use simplified matching
-          if (dlp['match_style'] == MATCH_SAME) {
-            // Simplified corner matching - would need proper neighbor calculation
-            array_index = 0; // Default to first sprite
+          // Get match types for the three neighboring terrain tiles for this corner
+          // Use ts_tiles match_type instead of tile_types_setup match_index (freeciv-web approach)
+          const ts_tiles = (window as any).ts_tiles || {};
+          const this_match_type =
+            ts_tiles[pterrain['graphic_str']] &&
+            ts_tiles[pterrain['graphic_str']]['layer' + l + '_match_type'];
+
+          const m = [
+            // Counter-clockwise neighbor
+            ts_tiles[tterrain_near[dir_ccw(dir)]['graphic_str']] &&
+              ts_tiles[tterrain_near[dir_ccw(dir)]['graphic_str']][
+                'layer' + l + '_match_type'
+              ],
+            // Direct neighbor
+            ts_tiles[tterrain_near[dir]['graphic_str']] &&
+              ts_tiles[tterrain_near[dir]['graphic_str']][
+                'layer' + l + '_match_type'
+              ],
+            // Clockwise neighbor
+            ts_tiles[tterrain_near[dir_cw(dir)]['graphic_str']] &&
+              ts_tiles[tterrain_near[dir_cw(dir)]['graphic_str']][
+                'layer' + l + '_match_type'
+              ],
+          ];
+
+          // Calculate array_index based on match style
+          switch (dlp['match_style']) {
+            case MATCH_NONE:
+              // No matching needed
+              break;
+            case MATCH_SAME: {
+              // Binary encoding based on whether neighbors match this terrain's match_type
+              const b1 = m[2] != this_match_type ? 1 : 0;
+              const b2 = m[1] != this_match_type ? 1 : 0;
+              const b3 = m[0] != this_match_type ? 1 : 0;
+              array_index = array_index * 2 + b1;
+              array_index = array_index * 2 + b2;
+              array_index = array_index * 2 + b3;
+              break;
+            }
+            case (window as any).MATCH_FULL: {
+              // Full match implementation
+              const n = [];
+              for (let j = 0; j < 3; j++) {
+                for (let k = 0; k < count; k++) {
+                  n[j] = k; // default to last entry
+                  if (m[j] == dlp['match_index'][k]) {
+                    break;
+                  }
+                }
+              }
+              array_index = array_index * count + n[2];
+              array_index = array_index * count + n[1];
+              array_index = array_index * count + n[0];
+              break;
+            }
           }
 
           array_index = array_index * NUM_CORNER_DIRS + i;
           const sprite_key =
             cellgroup_map[pterrain['graphic_str'] + '.' + array_index];
+
           if (sprite_key) {
             result_sprites.push({
               key: sprite_key + '.' + i,
@@ -445,6 +530,7 @@ export class MapRenderer {
   }
 
   // Get neighboring tiles from global tiles array
+  // Returns 8 neighbors in DIR8 order: N, NE, E, SE, S, SW, W, NW
   private getNeighboringTerrains(tile: Tile): any[] {
     const globalTiles = (window as any).tiles;
     const globalMap = (window as any).map;
@@ -454,12 +540,16 @@ export class MapRenderer {
     }
 
     const neighbors = [];
-    // Cardinal directions: North, East, South, West
+    // 8-directional neighbors: N, NE, E, SE, S, SW, W, NW (DIR8 order)
     const directions = [
-      { dx: 0, dy: -1 }, // North
-      { dx: 1, dy: 0 }, // East
-      { dx: 0, dy: 1 }, // South
-      { dx: -1, dy: 0 }, // West
+      { dx: 0, dy: -1 }, // 0: North
+      { dx: 1, dy: -1 }, // 1: Northeast
+      { dx: 1, dy: 0 }, // 2: East
+      { dx: 1, dy: 1 }, // 3: Southeast
+      { dx: 0, dy: 1 }, // 4: South
+      { dx: -1, dy: 1 }, // 5: Southwest
+      { dx: -1, dy: 0 }, // 6: West
+      { dx: -1, dy: -1 }, // 7: Northwest
     ];
 
     for (const dir of directions) {
@@ -494,7 +584,7 @@ export class MapRenderer {
       // Water terrains
       ocean: 'floor', // deep ocean uses "floor" graphic
       coast: 'coast', // shallow ocean/coast uses "coast" graphic
-      lake: 'lake',
+      lake: 'lake', // lakes use "lake" graphic
 
       // Land terrains - these match their graphic names
       grassland: 'grassland',
@@ -801,6 +891,13 @@ export class MapRenderer {
           elevation: tile.elevation || 0,
           resource: tile.resource || undefined,
         });
+
+        // Debug: show terrain distribution
+        if (import.meta.env.DEV && Math.random() < 0.005) {
+          console.log(
+            `Tile at ${tile.x},${tile.y}: terrain=${tile.terrain}, known=${tile.known}, seen=${tile.seen}`
+          );
+        }
       }
     }
 
