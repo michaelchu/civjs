@@ -888,12 +888,6 @@ export class MapRenderer {
           resource: tile.resource || undefined,
         });
 
-        // Debug: show terrain distribution
-        if (import.meta.env.DEV && Math.random() < 0.005) {
-          console.log(
-            `Tile at ${tile.x},${tile.y}: terrain=${tile.terrain}, known=${tile.known}, seen=${tile.seen}`
-          );
-        }
       }
     }
 
