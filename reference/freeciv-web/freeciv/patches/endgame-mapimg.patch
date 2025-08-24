@@ -1,0 +1,34 @@
+diff -Nurd freeciv/common/mapimg.c freeciv/common/mapimg.c
+--- freeciv/common/mapimg.c	2024-03-17 11:10:03.414047235 +0200
++++ freeciv/common/mapimg.c	2024-03-17 11:11:22.498437035 +0200
+@@ -1379,13 +1379,11 @@
+   case SHOW_NONE:    /* no player one the map */
+   case SHOW_ALL:     /* show all players in one map */
+   case SHOW_PLRBV:   /* display player(s) given by bitvector */
+-    generate_save_name(savename, mapimgfile, sizeof(mapimgfile),
+-                       mapimg_generate_name(pmapdef));
+ 
+     pimg = img_new(pmapdef, CURRENT_TOPOLOGY, CURRENT_WRAP,
+                    MAP_NATIVE_WIDTH, MAP_NATIVE_HEIGHT);
+     img_createmap(pimg);
+-    if (!img_save(pimg, mapimgfile, path)) {
++    if (!img_save(pimg, savename, path)) {
+       ret = FALSE;
+     }
+     img_destroy(pimg);
+diff -Nurd freeciv/server/srv_main.c freeciv/server/srv_main.c
+--- freeciv/server/srv_main.c	2024-03-17 11:10:03.746048919 +0200
++++ freeciv/server/srv_main.c	2024-03-17 11:10:12.330092302 +0200
+@@ -3857,7 +3857,11 @@
+     struct mapdef *pmapdef = mapimg_isvalid(i);
+ 
+     if (pmapdef != NULL) {
+-      mapimg_create(pmapdef, FALSE, game.server.save_name,
++      char imgfilename[128];
++
++      fc_snprintf(imgfilename, sizeof(imgfilename), "map-%d", srvarg.port);
++
++      mapimg_create(pmapdef, FALSE, imgfilename,
+                     srvarg.saves_pathname);
+     } else {
+       log_error("%s", mapimg_error());

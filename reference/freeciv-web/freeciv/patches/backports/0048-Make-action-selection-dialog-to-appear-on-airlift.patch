@@ -1,0 +1,53 @@
+From ebfe8b397bea164ea772432304d819f1285afe35 Mon Sep 17 00:00:00 2001
+From: Marko Lindqvist <cazfi74@gmail.com>
+Date: Tue, 29 Oct 2024 04:57:49 +0200
+Subject: [PATCH 48/52] Make action selection dialog to appear on airlift
+
+Reported by Helge
+
+See RM #1028
+
+Signed-off-by: Marko Lindqvist <cazfi74@gmail.com>
+---
+ server/unittools.c | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/server/unittools.c b/server/unittools.c
+index a7977f05e1..768e11353a 100644
+--- a/server/unittools.c
++++ b/server/unittools.c
+@@ -4142,15 +4142,6 @@ bool unit_move(struct unit *punit, struct tile *pdesttile, int move_cost,
+   punit->action_decision_tile = NULL;
+   punit->action_decision_want = ACT_DEC_NOTHING;
+ 
+-  if (!adj && action_tgt_city(punit, pdesttile, FALSE)) {
+-    /* The unit can perform an action to the city at the destination tile.
+-     * A long distance move (like an airlift) doesn't ask what action to
+-     * perform before moving. Ask now. */
+-
+-    punit->action_decision_want = ACT_DEC_PASSIVE;
+-    punit->action_decision_tile = pdesttile;
+-  }
+-
+   /* Claim ownership of fortress? */
+   if (conquer_extras_allowed
+       && tile_has_claimable_base(pdesttile, unit_type_get(punit))) {
+@@ -4187,6 +4178,15 @@ bool unit_move(struct unit *punit, struct tile *pdesttile, int move_cost,
+     }
+   }
+ 
++  if (!adj && action_tgt_city(punit, pdesttile, FALSE)) {
++    /* The unit can perform an action to the city at the destination tile.
++     * A long distance move (like an airlift) doesn't ask what action to
++     * perform before moving. Ask now. */
++
++    punit->action_decision_want = ACT_DEC_PASSIVE;
++    punit->action_decision_tile = pdesttile;
++  }
++
+   /* Notifications of the move to the clients. */
+   if (adj) {
+     /* Special case: 'punit' is moving to adjacent position. Then we show
+-- 
+2.45.2
+

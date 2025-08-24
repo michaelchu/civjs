@@ -1,0 +1,42 @@
+From 384543aee1c82ad874ded6da78e632d514ad58f9 Mon Sep 17 00:00:00 2001
+From: Marko Lindqvist <cazfi74@gmail.com>
+Date: Mon, 11 Nov 2024 05:09:02 +0200
+Subject: [PATCH 45/78] unit_server_side_agent_set(): Send unit info only if
+ ssa_agent really changed
+
+Saves some CPU cycles. More importantly for now mitigates
+a problem that when a unit with an activity is selected on
+the client side, it won't stay on focus if server sends
+this unit info packet before the activity has been cleared
+to be ACTIVITY_IDLE.
+
+Focus problems reported by bard and Helge
+
+See RM #1104
+
+Signed-off-by: Marko Lindqvist <cazfi74@gmail.com>
+---
+ server/unithand.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/server/unithand.c b/server/unithand.c
+index a449223d83..87e51052d7 100644
+--- a/server/unithand.c
++++ b/server/unithand.c
+@@ -6585,9 +6585,10 @@ bool unit_server_side_agent_set(struct player *pplayer,
+     break;
+   }
+ 
+-  punit->ssa_controller = agent;
+-
+-  send_unit_info(NULL, punit);
++  if (punit->ssa_controller != agent) {
++    punit->ssa_controller = agent;
++    send_unit_info(NULL, punit);
++  }
+ 
+   return TRUE;
+ }
+-- 
+2.45.2
+

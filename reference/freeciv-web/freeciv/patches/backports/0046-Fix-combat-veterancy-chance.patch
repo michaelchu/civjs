@@ -1,0 +1,35 @@
+From b739562d61054e143e901c16b2e61037f1c44c59 Mon Sep 17 00:00:00 2001
+From: Marko Lindqvist <cazfi74@gmail.com>
+Date: Sat, 19 Oct 2024 02:33:02 +0300
+Subject: [PATCH 46/46] Fix combat veterancy chance
+
+It was always zero (integer math for 0.00 - 0.99) when
+it was supposed to be scaled to how challenging the combat was.
+
+Reported by Moke
+
+See RM #983
+
+Signed-off-by: Marko Lindqvist <cazfi74@gmail.com>
+---
+ server/unittools.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/server/unittools.c b/server/unittools.c
+index 6ba61bceda..eab53957fe 100644
+--- a/server/unittools.c
++++ b/server/unittools.c
+@@ -321,8 +321,8 @@ bool unit_versus_unit(struct unit *attacker, struct unit *defender,
+   /* In a combat between equal strength units the values are 50% / 50%.
+    * -> scaling that to 100% by doubling, to match scale of chances
+    *    in existing rulesets, and in !combat_odds_scaled_veterancy case. */
+-  *att_vet = def_strength * 2 / (att_strength + def_strength);
+-  *def_vet = att_strength * 2 / (att_strength + def_strength);
++  *att_vet = 100 * def_strength * 2 / (att_strength + def_strength);
++  *def_vet = 100 * att_strength * 2 / (att_strength + def_strength);
+ 
+   if (attackpower == 0) {
+     *att_hp = 0; 
+-- 
+2.45.2
+

@@ -1,0 +1,431 @@
+/***********************************************************************
+    Freeciv-web - the web version of Freeciv. https://www.freeciv.org/
+    Copyright (C) 2009-2015  The Freeciv-web project
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+***********************************************************************/
+
+var TRUE = true;
+var FALSE = false;
+
+var TRI_NO = 0;
+var TRI_YES = 1;
+var TRI_MAYBE = 2;
+
+var MAX_NUM_ITEMS = 200;
+var MAX_NUM_ADVANCES = 250;
+var MAX_NUM_UNITS = 250;
+var MAX_NUM_BUILDINGS = 200;
+var MAX_EXTRA_TYPES = 250;
+var MAX_LEN_NAME = 48;
+var MAX_LEN_CITYNAME = 50;
+
+var FC_INFINITY = (1000 * 1000 * 1000);
+
+var ACTIVITY_IDLE = 0;
+var ACTIVITY_CULTIVATE = 1;
+var ACTIVITY_MINE = 2;
+var ACTIVITY_IRRIGATE = 3;
+var ACTIVITY_FORTIFIED = 4;
+var ACTIVITY_SENTRY = 5;
+var ACTIVITY_PILLAGE = 6;
+var ACTIVITY_GOTO = 7;
+var ACTIVITY_EXPLORE = 8;
+var ACTIVITY_TRANSFORM = 9;
+var ACTIVITY_FORTIFYING = 10;
+var ACTIVITY_CLEAN = 11;
+var ACTIVITY_BASE = 12;        /* Building base */
+var ACTIVITY_GEN_ROAD = 13;
+var ACTIVITY_CONVERT = 14;
+var ACTIVITY_PLANT = 15;
+var ACTIVITY_LAST = 16;        /* Leave this one last */
+
+/* enum action_result */
+var ACTRES_ESTABLISH_EMBASSY = 0;
+var ACTRES_SPY_INVESTIGATE_CITY = 1;
+var ACTRES_SPY_POISON = 2;
+var ACTRES_SPY_STEAL_GOLD = 3;
+var ACTRES_SPY_SABOTAGE_CITY = 4;
+var ACTRES_SPY_TARGETED_SABOTAGE_CITY = 5;
+var ACTRES_SPY_SABOTAGE_CITY_PRODUCTION = 6;
+var ACTRES_SPY_STEAL_TECH = 7;
+var ACTRES_SPY_TARGETED_STEAL_TECH = 8;
+var ACTRES_SPY_INCITE_CITY = 9;
+var ACTRES_TRADE_ROUTE = 10;
+var ACTRES_MARKETPLACE = 11;
+var ACTRES_HELP_WONDER = 12;
+var ACTRES_SPY_BRIBE_UNIT = 13;
+var ACTRES_SPY_SABOTAGE_UNIT = 14;
+var ACTRES_CAPTURE_UNITS = 15;
+var ACTRES_FOUND_CITY = 16;
+var ACTRES_JOIN_CITY = 17;
+var ACTRES_STEAL_MAPS = 18;
+var ACTRES_BOMBARD = 19;
+var ACTRES_SPY_NUKE = 20;
+var ACTRES_NUKE = 21;
+var ACTRES_NUKE_UNITS = 22;
+var ACTRES_DESTROY_CITY = 23;
+var ACTRES_EXPEL_UNIT = 24;
+var ACTRES_RECYCLE_UNIT = 25;
+var ACTRES_DISBAND_UNIT = 26;
+var ACTRES_HOME_CITY = 27;
+var ACTRES_UPGRADE_UNIT = 28;
+var ACTRES_PARADROP = 29;
+var ACTRES_AIRLIFT = 30;
+var ACTRES_ATTACK = 31;
+var ACTRES_STRIKE_BUILDING = 32;
+var ACTRES_STRIKE_PRODUCTION = 33;
+var ACTRES_CONQUER_CITY = 34;
+var ACTRES_HEAL_UNIT = 35;
+var ACTRES_TRANSFORM_TERRAIN = 36;
+var ACTRES_CULTIVATE = 37;
+var ACTRES_PLANT = 38;
+var ACTRES_PILLAGE = 39;
+var ACTRES_FORTIFY = 40;
+var ACTRES_ROAD = 41;
+var ACTRES_CONVERT = 42;
+var ACTRES_BASE = 43;
+var ACTRES_MINE = 44;
+var ACTRES_IRRIGATE = 45;
+var ACTRES_UNUSED_1 = 46;
+var ACTRES_UNUSED_2 = 47;
+var ACTRES_TRANSPORT_DEBOARD = 48;
+var ACTRES_TRANSPORT_UNLOAD = 49;
+var ACTRES_TRANSPORT_DISEMBARK = 50;
+var ACTRES_TRANSPORT_BOARD = 51;
+var ACTRES_TRANSPORT_EMBARK = 52;
+var ACTRES_SPY_SPREAD_PLAGUE = 53;
+var ACTRES_SPY_ATTACK = 54;
+var ACTRES_CONQUER_EXTRAS = 55;
+var ACTRES_HUT_ENTER = 56;
+var ACTRES_HUT_FRIGHTEN = 57;
+var ACTRES_UNIT_MOVE = 58;
+var ACTRES_PARADROP_CONQUER = 59;
+var ACTRES_HOMELESS = 60;
+var ACTRES_WIPE_UNITS = 61;
+var ACTRES_SPY_ESCAPE = 62;
+var ACTRES_TRANSPORT_LOAD = 63;
+var ACTRES_CLEAN = 64;
+var ACTRES_TELEPORT = 65;
+var ACTRES_ENABLER_CHECK = 66;
+var ACTRES_NONE = 67;
+
+/* enum action_sub_result */
+var ACT_SUB_RES_HUT_ENTER = 0;
+var ACT_SUB_RES_HUT_FRIGHTEN = 1;
+var ACT_SUB_RES_MAY_EMBARK = 2;
+var ACT_SUB_RES_NON_LETHAL = 3;
+var ACT_SUB_RES_COUNT = 4;
+
+var IDENTITY_NUMBER_ZERO = 0;
+
+/* Corresponds to the enum action_target_kind */
+var ATK_CITY  = 0;
+var ATK_UNIT  = 1;
+var ATK_UNITS = 2;
+var ATK_TILE  = 3;
+var ATK_EXTRAS = 4;
+var ATK_SELF  = 5;
+var ATK_COUNT = 6;
+
+/* Corresponds to the enum action_sub_target_kind */
+var ASTK_NONE = 0;
+var ASTK_BUILDING = 1;
+var ASTK_TECH = 2;
+var ASTK_EXTRA = 3;
+var ASTK_EXTRA_NOT_THERE = 4;
+var ASTK_COUNT = 5;
+
+/* Actions */
+var ACTION_ESTABLISH_EMBASSY = 0;
+var ACTION_ESTABLISH_EMBASSY_STAY = 1;
+var ACTION_SPY_INVESTIGATE_CITY = 2;
+var ACTION_INV_CITY_SPEND = 3;
+var ACTION_SPY_POISON = 4;
+var ACTION_SPY_POISON_ESC = 5;
+var ACTION_SPY_STEAL_GOLD = 6;
+var ACTION_SPY_STEAL_GOLD_ESC = 7;
+var ACTION_SPY_SABOTAGE_CITY = 8;
+var ACTION_SPY_SABOTAGE_CITY_ESC = 9;
+var ACTION_SPY_TARGETED_SABOTAGE_CITY = 10;
+var ACTION_SPY_TARGETED_SABOTAGE_CITY_ESC = 11;
+var ACTION_SPY_SABOTAGE_CITY_PRODUCTION = 12;
+var ACTION_SPY_SABOTAGE_CITY_PRODUCTION_ESC = 13;
+var ACTION_SPY_STEAL_TECH = 14;
+var ACTION_SPY_STEAL_TECH_ESC = 15;
+var ACTION_SPY_TARGETED_STEAL_TECH = 16;
+var ACTION_SPY_TARGETED_STEAL_TECH_ESC = 17;
+var ACTION_SPY_INCITE_CITY = 18;
+var ACTION_SPY_INCITE_CITY_ESC = 19;
+var ACTION_TRADE_ROUTE = 20;
+var ACTION_MARKETPLACE = 21;
+var ACTION_HELP_WONDER = 22;
+var ACTION_SPY_BRIBE_UNIT = 23;
+var ACTION_CAPTURE_UNITS = 24;
+var ACTION_SPY_SABOTAGE_UNIT = 25;
+var ACTION_SPY_SABOTAGE_UNIT_ESC = 26;
+var ACTION_FOUND_CITY = 27;
+var ACTION_JOIN_CITY = 28;
+var ACTION_STEAL_MAPS = 29;
+var ACTION_STEAL_MAPS_ESC = 30;
+var ACTION_SPY_NUKE = 31;
+var ACTION_SPY_NUKE_ESC = 32;
+var ACTION_NUKE = 33;
+var ACTION_NUKE_CITY = 34;
+var ACTION_NUKE_UNITS = 35;
+var ACTION_DESTROY_CITY = 36;
+var ACTION_EXPEL_UNIT = 37;
+var ACTION_DISBAND_UNIT_RECOVER = 38;
+var ACTION_DISBAND_UNIT = 39;
+var ACTION_HOME_CITY = 40;
+var ACTION_HOMELESS = 41;
+var ACTION_UPGRADE_UNIT = 42;
+var ACTION_CONVERT = 43;
+var ACTION_AIRLIFT = 44;
+var ACTION_ATTACK = 45;
+var ACTION_ATTACK2 = 46;
+var ACTION_SUICIDE_ATTACK = 47;
+var ACTION_SUICIDE_ATTACK2 = 48;
+var ACTION_STRIKE_BUILDING = 49;
+var ACTION_STRIKE_PRODUCTION = 50;
+var ACTION_CONQUER_CITY = 51;
+var ACTION_CONQUER_CITY2 = 52;
+var ACTION_CONQUER_CITY3 = 53;
+var ACTION_CONQUER_CITY4 = 54;
+var ACTION_BOMBARD = 55;
+var ACTION_BOMBARD2 = 56;
+var ACTION_BOMBARD3 = 57;
+var ACTION_BOMBARD4 = 58;
+var ACTION_BOMBARD_LETHAL = 59;
+var ACTION_BOMBARD_LETHAL2 = 60;
+var ACTION_ROAD = 61;
+var ACTION_ROAD2 = 62;
+var ACTION_IRRIGATE = 63;
+var ACTION_IRRIGATE2 = 64;
+var ACTION_MINE = 65;
+var ACTION_MINE2 = 66;
+var ACTION_BASE = 67;
+var ACTION_BASE2 = 68;
+var ACTION_PILLAGE = 69;
+var ACTION_PILLAGE2 = 70;
+var ACTION_TRANSPORT_BOARD = 71;
+var ACTION_TRANSPORT_BOARD2 = 72;
+var ACTION_TRANSPORT_BOARD3 = 73;
+var ACTION_TRANSPORT_DEBOARD = 74;
+var ACTION_TRANSPORT_EMBARK = 75;
+var ACTION_TRANSPORT_EMBARK2 = 76;
+var ACTION_TRANSPORT_EMBARK3 = 77;
+var ACTION_TRANSPORT_EMBARK4 = 78;
+var ACTION_TRANSPORT_DISEMBARK1 = 79;
+var ACTION_TRANSPORT_DISEMBARK2 = 80;
+var ACTION_TRANSPORT_DISEMBARK3 = 81;
+var ACTION_TRANSPORT_DISEMBARK4 = 82;
+var ACTION_TRANSPORT_LOAD = 83;
+var ACTION_TRANSPORT_LOAD2 = 84;
+var ACTION_TRANSPORT_LOAD3 = 85;
+var ACTION_TRANSPORT_UNLOAD = 86;
+var ACTION_SPY_SPREAD_PLAGUE = 87;
+var ACTION_SPY_ATTACK = 88;
+var ACTION_CONQUER_EXTRAS = 89;
+var ACTION_CONQUER_EXTRAS2 = 90;
+var ACTION_CONQUER_EXTRAS3 = 91;
+var ACTION_CONQUER_EXTRAS4 = 92;
+var ACTION_HUT_ENTER = 93;
+var ACTION_HUT_ENTER2 = 94;
+var ACTION_HUT_ENTER3 = 95;
+var ACTION_HUT_ENTER4 = 96;
+var ACTION_HUT_FRIGHTEN = 97;
+var ACTION_HUT_FRIGHTEN2 = 98;
+var ACTION_HUT_FRIGHTEN3 = 99;
+var ACTION_HUT_FRIGHTEN4 = 100;
+var ACTION_HEAL_UNIT = 101;
+var ACTION_HEAL_UNIT2 = 102;
+var ACTION_PARADROP = 103;
+var ACTION_PARADROP_CONQUER = 104;
+var ACTION_PARADROP_FRIGHTEN = 105;
+var ACTION_PARADROP_FRIGHTEN_CONQUER = 106;
+var ACTION_PARADROP_ENTER = 107;
+var ACTION_PARADROP_ENTER_CONQUER = 108;
+var ACTION_WIPE_UNITS = 109;
+var ACTION_SPY_ESCAPE = 110;
+var ACTION_UNIT_MOVE = 111;
+var ACTION_UNIT_MOVE2 = 112;
+var ACTION_UNIT_MOVE3 = 113;
+var ACTION_TELEPORT = 114;
+var ACTION_TELEPORT2 = 115;
+var ACTION_TELEPORT3 = 116;
+var ACTION_TELEPORT_CONQUER = 117;
+var ACTION_TELEPORT_FRIGHTEN = 118;
+var ACTION_TELEPORT_FRIGHTEN_CONQUER = 119;
+var ACTION_TELEPORT_ENTER = 120;
+var ACTION_TELEPORT_ENTER_CONQUER = 121;
+var ACTION_CLEAN = 122;
+var ACTION_CLEAN2 = 123;
+var ACTION_COLLECT_RANSOM = 124;
+var ACTION_FORTIFY = 125;
+var ACTION_FORTIFY2 = 126;
+var ACTION_CULTIVATE = 127;
+var ACTION_CULTIVATE2 = 128;
+var ACTION_PLANT = 129;
+var ACTION_PLANT2 = 130;
+var ACTION_TRANSFORM_TERRAIN = 131;
+var ACTION_TRANSFORM_TERRAIN2 = 132;
+
+var ACTION_GAIN_VETERANCY = 133;
+var ACTION_ESCAPE = 134;
+var ACTION_USER_ACTION1 = 135;
+var ACTION_USER_ACTION2 = 136;
+var ACTION_USER_ACTION3 = 137;
+var ACTION_USER_ACTION4 = 138;
+var ACTION_COUNT = 139;
+
+/* The action_decision enum */
+/* Doesn't need the player to decide what action to take. */
+var ACT_DEC_NOTHING = 0;
+/* Wants a decision because of something done to the actor. */
+var ACT_DEC_PASSIVE = 1;
+/* Wants a decision because of something the actor did. */
+var ACT_DEC_ACTIVE = 2;
+
+/* The kind of universals_u (value_union_type was req_source_type).
+ * Used in the network protocol. */
+var VUT_NONE = 0;
+var VUT_ACHIEVEMENT = 1;
+var VUT_ACTION = 2;
+var VUT_ACTIVITY = 3;
+var VUT_ADVANCE = 4;
+var VUT_AGE = 5;
+var VUT_AI_LEVEL = 6;
+var VUT_CITYSTATUS = 7;
+var VUT_CITYTILE = 8;
+var VUT_COUNTER = 9;
+var VUT_DIPLREL = 10;
+var VUT_DIPLREL_TILE = 11;
+var VUT_DIPLREL_TILE_O = 12;
+var VUT_DIPLREL_UNITANY = 13;
+var VUT_DIPLREL_UNITANY_O = 14;
+var VUT_EXTRA = 15;
+var VUT_EXTRAFLAG = 16;
+var VUT_FORM_AGE = 17;
+var VUT_GOOD = 18;
+var VUT_GOVERNMENT = 19;
+var VUT_IMPROVEMENT = 20;
+var VUT_IMPR_FLAG = 21;
+var VUT_IMPR_GENUS = 22;
+var VUT_MAXLATITUDE = 23;
+var VUT_MAXTILEUNITS = 24;
+var VUT_MAX_DISTANCE_SQ = 25;
+var VUT_MAX_REGION_TILES = 26;
+var VUT_MINCALFRAG = 27;
+var VUT_MINCITIES = 28;
+var VUT_MINCULTURE = 29;
+var VUT_MINFOREIGNPCT = 30;
+var VUT_MINHP = 31;
+var VUT_MINLATITUDE = 32;
+var VUT_MINMOVES = 33;
+var VUT_MINSIZE = 34;
+var VUT_MINTECHS = 35;
+var VUT_MINVETERAN = 36;
+var VUT_MINYEAR = 37;
+var VUT_NATION = 38;
+var VUT_NATIONALITY = 39;
+var VUT_NATIONGROUP = 40;
+var VUT_ORIGINAL_OWNER = 41;
+var VUT_OTYPE = 42;
+var VUT_PLAYER_FLAG = 43;
+var VUT_PLAYER_STATE = 44;
+var VUT_ROADFLAG = 45;
+var VUT_SERVERSETTING = 46;
+var VUT_SITE = 47;
+var VUT_SPECIALIST = 48;
+var VUT_STYLE = 49;
+var VUT_TECHFLAG = 50;
+var VUT_TERRAIN = 51;
+var VUT_TERRAINALTER = 52;
+var VUT_TERRAINCLASS = 53;
+var VUT_TERRFLAG = 54;
+var VUT_TILE_REL = 55;
+var VUT_TOPO = 56;
+var VUT_UCFLAG = 57;
+var VUT_UCLASS = 58;
+var VUT_UNITSTATE = 59;
+var VUT_UTFLAG = 60;
+var VUT_UTYPE = 61;
+var VUT_WRAP = 62;
+var VUT_COUNT = 63;             /* Keep this last. */
+
+/* Freeciv's gui_type enum */
+/* GUI_STUB used for options which do not belong to any gui. */
+var GUI_STUB    = 0;
+var GUI_GTK2    = 1;
+var GUI_GTK3    = 2;
+var GUI_GTK3_22 = 3;
+var GUI_QT      = 4;
+/* GUI_SDL remains for now for keeping client options alive until
+ * user has migrated them to sdl2-client */
+var GUI_SDL     = 5;
+var GUI_SDL2    = 6;
+var GUI_SDL3    = 7;
+var GUI_WEB     = 8;
+var GUI_GTK4    = 9;
+var GUI_GTK5    = 10;
+
+/* Sometimes we don't know (or don't care) if some requirements for effect
+ * are currently fulfilled or not. This enum tells lower level functions
+ * how to handle uncertain requirements.
+ */
+var RPT_POSSIBLE = 0; /* We want to know if it is possible that effect is active */
+var RPT_CERTAIN = 1;  /* We want to know if it is certain that effect is active  */
+
+var O_FOOD = 0;
+var O_SHIELD = 1;
+var O_TRADE = 2;
+var O_GOLD = 3;
+var O_LUXURY = 4;
+var O_SCIENCE = 5;
+
+/* vision_layer enum */
+var V_MAIN = 0;
+var V_INVIS = 1;
+var V_SUBSURFACE = 2;
+var V_COUNT = 3;
+
+/* Causes for extra */
+var EC_IRRIGATION = 0;
+var EC_MINE = 1;
+var EC_ROAD = 2;
+var EC_BASE = 3;
+var EC_POLLUTION = 4;
+var EC_FALLOUT = 5;
+var EC_HUT = 6;
+var EC_APPEARANCE = 7;
+var EC_RESOURCE = 8;
+
+/* Causes for extra removal */
+var ERM_PILLAGE = 0;
+var ERM_CLEAN = 1;
+var ERM_DISAPPEARANCE = 2;
+var ERM_ENTER = 3;
+
+/* Barbarian types */
+var NOT_A_BARBARIAN = 0;
+var LAND_BARBARIAN = 1;
+var SEA_BARBARIAN = 2;
+var ANIMAL_BARBARIAN = 3;
+var LAND_AND_SEA_BARBARIAN = 4;
+
+var CAPITAL_NOT = 0;
+var CAPITAL_SECONDARY = 1;
+var CAPITAL_PRIMARY = 2;

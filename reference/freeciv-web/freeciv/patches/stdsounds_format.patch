@@ -1,0 +1,14 @@
+diff --git a/data/stdsounds.soundspec b/data/stdsounds.soundspec
+index b806500621..445587bc8f 100644
+--- a/data/stdsounds.soundspec
++++ b/data/stdsounds.soundspec
+@@ -11,8 +11,7 @@ artists = "\
+  Eskapada - eskapada@o2.pl (Public Domain) [jt]\
+  Spring Spring - https://opengameart.org/users/spring-spring [spring]\
+  Trex0n - https://opengameart.org/users/trex0n [trex0n]\
+- StumpyStrust - https://opengameart.org/users/stumpystrust [stumpy]\
+-"
++ StumpyStrust - https://opengameart.org/users/stumpystrust [stumpy]"
+ 
+ ; For a list of tags used see README.sound, buildings.ruleset and
+ ; units.ruleset.

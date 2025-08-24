@@ -1,0 +1,47 @@
+diff -Nurd freeciv/server/maphand.c freeciv/server/maphand.c
+--- freeciv/server/maphand.c	2024-05-24 15:42:36.510417770 +0300
++++ freeciv/server/maphand.c	2024-05-24 15:42:50.142582021 +0300
+@@ -464,7 +464,7 @@
+       conn_list_do_buffer(dest);
+     }
+ 
+-    send_tile_info(dest, ptile, FALSE);
++    send_tile_info(dest, ptile, TRUE);
+   } whole_map_iterate_end;
+ 
+   conn_list_do_unbuffer(dest);
+@@ -615,20 +615,32 @@
+       info.altitude = ptile->altitude;
+ 
+       send_packet_tile_info(pconn, &info);
+-    } else if (send_unknown) {
++    } else {
+       info.known = TILE_UNKNOWN;
+       info.continent = 0;
+       info.owner = MAP_TILE_OWNER_NULL;
+       info.extras_owner = MAP_TILE_OWNER_NULL;
+       info.worked = IDENTITY_NUMBER_ZERO;
+ 
+-      info.terrain = terrain_count();
++      info.terrain = (tile_terrain(ptile) != nullptr)
++                      ? terrain_number(tile_terrain(ptile))
++                      : terrain_count();
+       info.resource = MAX_EXTRA_TYPES;
+       info.placing = -1;
+       info.place_turn = 0;
+ 
+       BV_CLR_ALL(info.extras);
+ 
++      /* WebGL client needs to know which tiles are rivers on game start. */
++      extra_type_by_cause_iterate(EC_ROAD, priver) {
++        struct road_type *proad = extra_road_get(priver);
++
++        if (road_has_flag(proad, RF_RIVER)
++            && tile_has_road(ptile, proad)) {
++          BV_SET(info.extras, extra_number(priver));
++        }
++      } extra_type_by_cause_iterate_end;
++
+       info.label[0] = '\0';
+ 
+       info.altitude = 0;
