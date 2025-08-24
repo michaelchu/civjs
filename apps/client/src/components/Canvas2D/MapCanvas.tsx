@@ -23,27 +23,26 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       if (!ctx) return;
 
       rendererRef.current = new MapRenderer(ctx);
-      
+
       try {
         // Initialize with server URL from config
         const { SERVER_URL } = await import('../../config');
         await rendererRef.current.initialize(SERVER_URL);
         const gameState = useGameStore.getState();
-        
+
         if (rendererRef.current) {
           rendererRef.current.render({
             viewport,
             map: gameState.map,
             units: gameState.units,
-            cities: gameState.cities
+            cities: gameState.cities,
           });
         }
-        
       } catch (error) {
         console.error('Failed to initialize MapRenderer:', error);
       }
     };
-    
+
     initRenderer();
 
     return () => {
@@ -75,37 +74,31 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   }, [viewport, map, units, cities]);
 
   // Handle mouse events
-  const handleMouseDown = useCallback(
-    () => {
-      if (!rendererRef.current) return;
+  const handleMouseDown = useCallback(() => {
+    if (!rendererRef.current) return;
 
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-      // const rect = canvas.getBoundingClientRect();
-      // const canvasX = event.clientX - rect.left;
-      // const canvasY = event.clientY - rect.top;
+    // const rect = canvas.getBoundingClientRect();
+    // const canvasX = event.clientX - rect.left;
+    // const canvasY = event.clientY - rect.top;
 
-      // Convert canvas coordinates to map coordinates
-      // const mapCoords = rendererRef.current.canvasToMap(
-      //   canvasX,
-      //   canvasY,
-      //   viewport
-      // );
+    // Convert canvas coordinates to map coordinates
+    // const mapCoords = rendererRef.current.canvasToMap(
+    //   canvasX,
+    //   canvasY,
+    //   viewport
+    // );
 
-      // Handle tile selection, unit selection, etc.
-      // This will be expanded later
-    },
-    [viewport]
-  );
+    // Handle tile selection, unit selection, etc.
+    // This will be expanded later
+  }, [viewport]);
 
-  const handleMouseMove = useCallback(
-    () => {
-      // Handle mouse move for hover effects, drag operations, etc.
-      // This will be implemented later
-    },
-    []
-  );
+  const handleMouseMove = useCallback(() => {
+    // Handle mouse move for hover effects, drag operations, etc.
+    // This will be implemented later
+  }, []);
 
   const handleWheel = useCallback(
     (event: React.WheelEvent<HTMLCanvasElement>) => {

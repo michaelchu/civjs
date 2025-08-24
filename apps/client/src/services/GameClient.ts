@@ -73,17 +73,16 @@ class GameClient {
         },
       });
     });
-    
+
     // Handle map-info packet exactly like freeciv-web
     this.socket.on('map-info', data => {
-      
       // Store in global map variable exactly like freeciv-web: map = packet;
       (window as any).map = data;
-      
-      // Initialize empty tiles array 
+
+      // Initialize empty tiles array
       const totalTiles = data.xsize * data.ysize;
       (window as any).tiles = new Array(totalTiles);
-      
+
       // Initialize tiles with empty objects like freeciv-web does
       for (let i = 0; i < totalTiles; i++) {
         (window as any).tiles[i] = {
@@ -94,22 +93,19 @@ class GameClient {
           seen: 0,
         };
       }
-      
     });
 
     // Handle tile-info packets exactly like freeciv-web
     this.socket.on('tile-info', data => {
-      
       // Update tiles array exactly like freeciv-web: tiles[packet['tile']] = $.extend(tiles[packet['tile']], packet);
       if ((window as any).tiles && data.tile !== undefined) {
         const tiles = (window as any).tiles;
         tiles[data.tile] = Object.assign(tiles[data.tile] || {}, data);
-        
-        
+
         // Update our game store for compatibility (convert to object format)
         const tileKey = `${data.x},${data.y}`;
         const currentMap = useGameStore.getState().map;
-        
+
         const updatedTiles = {
           ...currentMap.tiles,
           [tileKey]: {
@@ -122,7 +118,7 @@ class GameClient {
             city: undefined,
           },
         };
-        
+
         useGameStore.getState().updateGameState({
           map: {
             width: (window as any).map?.xsize || 80,
@@ -134,32 +130,34 @@ class GameClient {
             wrap_id: (window as any).map?.wrap_id || 0,
           },
         });
-        
+
         // Center viewport on first received tile
         if (Object.keys(updatedTiles).length === 1) {
           useGameStore.getState().setViewport({
             x: 0,
-            y: 0, 
+            y: 0,
             zoom: 1,
           });
         }
       }
     });
-    
+
     // OPTIMIZED: Handle batch tile updates for better performance
     this.socket.on('tile-info-batch', data => {
-      
       if (!(window as any).tiles || !data.tiles) return;
-      
+
       const tiles = (window as any).tiles;
       const currentMap = useGameStore.getState().map;
       const updatedTiles = { ...currentMap.tiles };
-      
+
       // Process all tiles in the batch
       for (const tileData of data.tiles) {
         // Update global tiles array
-        tiles[tileData.tile] = Object.assign(tiles[tileData.tile] || {}, tileData);
-        
+        tiles[tileData.tile] = Object.assign(
+          tiles[tileData.tile] || {},
+          tileData
+        );
+
         // Update game store tiles
         const tileKey = `${tileData.x},${tileData.y}`;
         updatedTiles[tileKey] = {
@@ -173,7 +171,7 @@ class GameClient {
           resource: tileData.resource,
         };
       }
-      
+
       // Update the store once with all tiles
       useGameStore.getState().updateGameState({
         map: {
@@ -186,7 +184,7 @@ class GameClient {
           wrap_id: (window as any).map?.wrap_id || 0,
         },
       });
-      
+
       // Log progress
       if (data.endIndex === data.total) {
         // All tiles received - batch processing complete
