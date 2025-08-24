@@ -38,6 +38,9 @@ export class TilesetLoader {
       this.cacheSprites();
 
       this.isLoaded = true;
+
+      // Make terrain configuration available globally for MapRenderer
+      this.exposeTilesetGlobals();
     } catch (error) {
       console.error('Failed to load tileset:', error);
       throw error;
@@ -184,6 +187,37 @@ export class TilesetLoader {
     return Object.keys(this.sprites).filter(key =>
       key.toLowerCase().includes(pattern.toLowerCase())
     );
+  }
+
+  private exposeTilesetGlobals(): void {
+    // Expose terrain configuration data globally so MapRenderer can access it
+    // This makes ts_tiles, tile_types_setup, and other config available
+    const win = window as any;
+
+    // The config script already sets these globals when loaded, but ensure they're accessible
+    if (win.ts_tiles) {
+      console.log(
+        'Terrain configuration loaded:',
+        Object.keys(win.ts_tiles).length,
+        'terrain types'
+      );
+    }
+
+    if (win.tile_types_setup) {
+      console.log(
+        'Tile type setup loaded:',
+        Object.keys(win.tile_types_setup).length,
+        'layer configs'
+      );
+    }
+
+    if (win.cellgroup_map) {
+      console.log(
+        'Cellgroup mapping loaded:',
+        Object.keys(win.cellgroup_map).length,
+        'sprite mappings'
+      );
+    }
   }
 
   cleanup(): void {

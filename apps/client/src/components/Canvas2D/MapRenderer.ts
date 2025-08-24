@@ -191,14 +191,12 @@ export class MapRenderer {
             screenPos.y + offsetY
           );
         } else {
-          // Try fallback sprites for water terrains
-          if (tile.terrain === 'ocean' || tile.terrain === 'coast') {
-            const mappedTerrain = this.mapTerrainName(tile.terrain);
-            // Try the simplest CELL_CORNER sprite for water
-            const fallbackKey = `t.l${layer}.${mappedTerrain}_cell_u_w_w_w`;
-            const fallbackSprite = this.tilesetLoader.getSprite(fallbackKey);
-            if (fallbackSprite) {
-              this.ctx.drawImage(fallbackSprite, screenPos.x, screenPos.y);
+          // For coastal tiles, try a simple fallback coastal sprite
+          if (tile.terrain === 'coast') {
+            const simpleCoastSprite =
+              this.tilesetLoader.getSprite('t.blend.coast');
+            if (simpleCoastSprite) {
+              this.ctx.drawImage(simpleCoastSprite, screenPos.x, screenPos.y);
               hasAnySprites = true;
             }
           }
@@ -243,15 +241,13 @@ export class MapRenderer {
     const tile_types_setup = (window as any).tile_types_setup || {};
     const tileset = (window as any).tileset || {};
     const ts_tiles = (window as any).ts_tiles || {};
-    const cellgroup_map = (window as any).cellgroup_map || {};
 
     // Constants from freeciv-web tilespec.js - use the global window constants
     const CELL_WHOLE = (window as any).CELL_WHOLE;
     const CELL_CORNER = (window as any).CELL_CORNER;
     const MATCH_NONE = (window as any).MATCH_NONE;
     const MATCH_SAME = (window as any).MATCH_SAME;
-    // const MATCH_PAIR = (window as any).MATCH_PAIR;
-    // const MATCH_FULL = (window as any).MATCH_FULL;
+    const MATCH_FULL = (window as any).MATCH_FULL;
     const num_cardinal_tileset_dirs = 4;
     const NUM_CORNER_DIRS = 4;
     const DIR4_TO_DIR8 = [0, 2, 4, 6]; // Convert from DIR4 to DIR8
@@ -350,6 +346,7 @@ export class MapRenderer {
 
       case CELL_CORNER: {
         // Full CELL_CORNER implementation copied from freeciv-web
+
         const W = this.tileWidth;
         const H = this.tileHeight;
         const iso_offsets = [
@@ -418,29 +415,34 @@ export class MapRenderer {
           const x = iso_offsets[i][0];
           const y = iso_offsets[i][1];
 
-          // Get match types for the three neighboring terrain tiles for this corner
-          // Use ts_tiles match_type instead of tile_types_setup match_index (freeciv-web approach)
-          const ts_tiles = (window as any).ts_tiles || {};
-          const this_match_type =
-            ts_tiles[pterrain['graphic_str']] &&
-            ts_tiles[pterrain['graphic_str']]['layer' + l + '_match_type'];
+          // Copy exact logic from reference tilespec.js line 579
+          const this_match_index =
+            'l' + l + '.' + pterrain['graphic_str'] in tile_types_setup
+              ? tile_types_setup['l' + l + '.' + pterrain['graphic_str']][
+                  'match_index'
+                ][0]
+              : -1;
 
+          // Copy exact logic from reference tilespec.js line 591-593
           const m = [
-            // Counter-clockwise neighbor
-            ts_tiles[tterrain_near[dir_ccw(dir)]['graphic_str']] &&
-              ts_tiles[tterrain_near[dir_ccw(dir)]['graphic_str']][
-                'layer' + l + '_match_type'
-              ],
-            // Direct neighbor
-            ts_tiles[tterrain_near[dir]['graphic_str']] &&
-              ts_tiles[tterrain_near[dir]['graphic_str']][
-                'layer' + l + '_match_type'
-              ],
-            // Clockwise neighbor
-            ts_tiles[tterrain_near[dir_cw(dir)]['graphic_str']] &&
-              ts_tiles[tterrain_near[dir_cw(dir)]['graphic_str']][
-                'layer' + l + '_match_type'
-              ],
+            'l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str'] in
+            tile_types_setup
+              ? tile_types_setup[
+                  'l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str']
+                ]['match_index'][0]
+              : -1,
+            'l' + l + '.' + tterrain_near[dir]['graphic_str'] in
+            tile_types_setup
+              ? tile_types_setup[
+                  'l' + l + '.' + tterrain_near[dir]['graphic_str']
+                ]['match_index'][0]
+              : -1,
+            'l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str'] in
+            tile_types_setup
+              ? tile_types_setup[
+                  'l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str']
+                ]['match_index'][0]
+              : -1,
           ];
 
           // Calculate array_index based on match style
@@ -449,16 +451,16 @@ export class MapRenderer {
               // No matching needed
               break;
             case MATCH_SAME: {
-              // Binary encoding based on whether neighbors match this terrain's match_type
-              const b1 = m[2] != this_match_type ? 1 : 0;
-              const b2 = m[1] != this_match_type ? 1 : 0;
-              const b3 = m[0] != this_match_type ? 1 : 0;
+              // Binary encoding based on whether neighbors match this terrain's match_index
+              const b1 = m[2] != this_match_index ? 1 : 0;
+              const b2 = m[1] != this_match_index ? 1 : 0;
+              const b3 = m[0] != this_match_index ? 1 : 0;
               array_index = array_index * 2 + b1;
               array_index = array_index * 2 + b2;
               array_index = array_index * 2 + b3;
               break;
             }
-            case (window as any).MATCH_FULL: {
+            case MATCH_FULL: {
               // Full match implementation
               const n = [];
               for (let j = 0; j < 3; j++) {
@@ -477,12 +479,15 @@ export class MapRenderer {
           }
 
           array_index = array_index * NUM_CORNER_DIRS + i;
+          const cellgroup_map = (window as any).cellgroup_map;
           const sprite_key =
+            cellgroup_map &&
             cellgroup_map[pterrain['graphic_str'] + '.' + array_index];
 
           if (sprite_key) {
+            const final_key = sprite_key + '.' + i;
             result_sprites.push({
-              key: sprite_key + '.' + i,
+              key: final_key,
               offset_x: x,
               offset_y: y,
             });
@@ -545,18 +550,45 @@ export class MapRenderer {
       let neighborTerrain = null;
 
       if (neighborTile && neighborTile.terrain) {
+        // Create terrain object matching freeciv-web structure
         neighborTerrain = {
+          id: this.getTerrainId(neighborTile.terrain),
+          name: neighborTile.terrain,
           graphic_str: this.mapTerrainName(neighborTile.terrain),
         };
       } else {
         // If no neighbor found, assume same terrain as current tile
-        neighborTerrain = { graphic_str: this.mapTerrainName(tile.terrain) };
+        neighborTerrain = {
+          id: this.getTerrainId(tile.terrain),
+          name: tile.terrain,
+          graphic_str: this.mapTerrainName(tile.terrain),
+        };
       }
 
       neighbors.push(neighborTerrain);
     }
 
     return neighbors;
+  }
+
+  // Get terrain match index for coastal blending - must match tileset expectations
+  private getTerrainId(terrain: string): number {
+    const terrainIds: Record<string, number> = {
+      // Match indices based on tileset_config_amplio2.js match_index arrays
+      ocean: 0, // floor terrain uses match index 0
+      coast: 1, // coast terrain uses match index 1
+      grassland: 2, // land terrains use match index 2
+      plains: 2,
+      desert: 2,
+      tundra: 2,
+      forest: 2,
+      jungle: 2,
+      hills: 2,
+      mountains: 2,
+      swamp: 2,
+      lake: 2,
+    };
+    return terrainIds[terrain] || 2;
   }
 
   // Map terrain names to freeciv graphics names (from terrain.ruleset)
@@ -598,7 +630,11 @@ export class MapRenderer {
     }
 
     const mappedTerrain = this.mapTerrainName(tile.terrain);
-    const pterrain = { graphic_str: mappedTerrain };
+    const pterrain = {
+      id: this.getTerrainId(tile.terrain),
+      name: tile.terrain,
+      graphic_str: mappedTerrain,
+    };
     const ptile = tile;
     const tterrain_near = this.getNeighboringTerrains(tile);
 
