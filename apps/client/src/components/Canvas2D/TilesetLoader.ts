@@ -28,17 +28,13 @@ export class TilesetLoader {
 
   async loadTileset(serverUrl: string): Promise<void> {
     try {
-      // Load configuration and specification from server (like freeciv-web lines 51-65)
       await this.loadConfig(
         `${serverUrl}/js/2dcanvas/tileset_config_amplio2.js`
       );
 
       await this.loadSpec(`${serverUrl}/js/2dcanvas/tileset_spec_amplio2.js`);
-
-      // Load sprite sheets from server (like freeciv-web lines 139-140)
       await this.loadSpriteSheets(serverUrl);
 
-      // Cache individual sprites (like freeciv-web lines 174-210)
       this.cacheSprites();
 
       this.isLoaded = true;
@@ -77,7 +73,6 @@ export class TilesetLoader {
       const script = document.createElement('script');
       script.src = url;
       script.onload = () => {
-        // Extract the tileset spec from global variable
         this.spec = (window as any).tileset || null;
         if (!this.spec) {
           reject(new Error('Tileset spec not found in loaded script'));
@@ -108,7 +103,6 @@ export class TilesetLoader {
         img.onerror = () =>
           reject(new Error(`Failed to load sprite sheet ${i}`));
 
-        // Load from tilesets directory (note: plural)
         img.src = `${serverUrl}/tilesets/freeciv-web-tileset-${this.config!.tileset_name}-${i}.png`;
         this.spriteSheets[i] = img;
       });
@@ -119,7 +113,6 @@ export class TilesetLoader {
     await Promise.all(loadPromises);
   }
 
-  // Port of freeciv-web's init_cache_sprites() - Lines 174-210
   private cacheSprites(): void {
     if (!this.spec) {
       throw new Error('Tileset spec not loaded');
@@ -129,7 +122,6 @@ export class TilesetLoader {
       try {
         const [x, y, w, h, sheetIndex] = this.spec[tileTag];
 
-        // Create individual sprite canvas (exactly like freeciv-web)
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
@@ -140,7 +132,6 @@ export class TilesetLoader {
           continue;
         }
 
-        // Extract sprite from sheet
         if (this.spriteSheets[sheetIndex]) {
           ctx.drawImage(this.spriteSheets[sheetIndex], x, y, w, h, 0, 0, w, h);
           this.sprites[tileTag] = canvas;

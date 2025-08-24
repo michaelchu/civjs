@@ -11,7 +11,6 @@ interface RenderState {
 
 export class MapRenderer {
   private ctx: CanvasRenderingContext2D;
-  // Amplio2 tileset dimensions (from freeciv-web tileset_config_amplio2.js)
   private tileWidth = 96;
   private tileHeight = 48;
 
@@ -29,7 +28,6 @@ export class MapRenderer {
     try {
       await this.tilesetLoader.loadTileset(serverUrl);
 
-      // Update tile dimensions from loaded tileset
       const tileSize = this.tilesetLoader.getTileSize();
       this.tileWidth = tileSize.width;
       this.tileHeight = tileSize.height;
@@ -43,10 +41,7 @@ export class MapRenderer {
   }
 
   private setupCanvas() {
-    // Disable image smoothing for pixel-perfect rendering
     this.ctx.imageSmoothingEnabled = false;
-
-    // Set font for text rendering
     this.ctx.font = '14px Arial, sans-serif';
   }
 
@@ -72,33 +67,28 @@ export class MapRenderer {
       return;
     }
 
-    // Calculate visible tile range using freeciv-web globals
     const visibleTiles = this.getVisibleTilesFromGlobal(
       state.viewport,
       globalMap,
       globalTiles
     );
 
-    // Render tiles
     for (const tile of visibleTiles) {
       this.renderTile(tile, state.viewport);
     }
 
-    // Render units
     Object.values(state.units).forEach(unit => {
       if (this.isInViewport(unit.x, unit.y, state.viewport)) {
         this.renderUnit(unit, state.viewport);
       }
     });
 
-    // Render cities
     Object.values(state.cities).forEach(city => {
       if (this.isInViewport(city.x, city.y, state.viewport)) {
         this.renderCity(city, state.viewport);
       }
     });
 
-    // Debug grid overlay in development
     if (import.meta.env.DEV && this.isInitialized) {
       // Uncomment to see the diamond grid overlay
       // this.debugRenderGrid(state.viewport, true);
@@ -108,13 +98,11 @@ export class MapRenderer {
   private clearCanvas() {
     this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
-    // Fill with ocean color as background
     this.ctx.fillStyle = '#4682B4';
     this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
   }
 
   private renderEmptyMap() {
-    // Render placeholder grid for development
     this.ctx.strokeStyle = '#336699';
     this.ctx.lineWidth = 1;
 
@@ -133,7 +121,6 @@ export class MapRenderer {
       this.ctx.stroke();
     }
 
-    // Draw "No Map Data" message
     this.ctx.fillStyle = 'white';
     this.ctx.font = '24px Arial';
     this.ctx.textAlign = 'center';
@@ -158,11 +145,9 @@ export class MapRenderer {
   private renderTile(tile: Tile, viewport: MapViewport) {
     const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
 
-    // Try to get the terrain sprite first
     const terrainSprite = this.getTerrainSprite(tile.terrain);
 
     if (terrainSprite) {
-      // Render actual freeciv sprite
       this.ctx.drawImage(
         terrainSprite,
         screenPos.x,
@@ -171,7 +156,6 @@ export class MapRenderer {
         this.tileHeight * viewport.zoom
       );
     } else {
-      // Fallback to colored rectangle if sprite not found
       const color = this.getTerrainColor(tile.terrain);
       this.ctx.fillStyle = color;
       this.ctx.fillRect(
@@ -198,7 +182,6 @@ export class MapRenderer {
   private renderUnit(unit: Unit, viewport: MapViewport) {
     const screenPos = this.mapToScreen(unit.x, unit.y, viewport);
 
-    // Render unit as colored circle for now
     this.ctx.fillStyle = this.getPlayerColor(unit.playerId);
     this.ctx.beginPath();
     this.ctx.arc(
@@ -210,7 +193,6 @@ export class MapRenderer {
     );
     this.ctx.fill();
 
-    // Add unit type indicator
     this.ctx.fillStyle = 'white';
     this.ctx.font = `${12 * viewport.zoom}px Arial`;
     this.ctx.textAlign = 'center';
@@ -224,7 +206,6 @@ export class MapRenderer {
   private renderCity(city: City, viewport: MapViewport) {
     const screenPos = this.mapToScreen(city.x, city.y, viewport);
 
-    // Render city as square
     this.ctx.fillStyle = this.getPlayerColor(city.playerId);
     this.ctx.fillRect(
       screenPos.x + 5,
@@ -233,7 +214,6 @@ export class MapRenderer {
       (this.tileHeight - 10) * viewport.zoom
     );
 
-    // City name
     this.ctx.fillStyle = 'white';
     this.ctx.font = `${10 * viewport.zoom}px Arial`;
     this.ctx.textAlign = 'center';
@@ -243,7 +223,6 @@ export class MapRenderer {
       screenPos.y - 5
     );
 
-    // City size
     this.ctx.fillText(
       city.size.toString(),
       screenPos.x + (this.tileWidth * viewport.zoom) / 2,
@@ -251,7 +230,6 @@ export class MapRenderer {
     );
   }
 
-  // Port of freeciv-web's map_to_gui_vector() - isometric transformation
   private mapToGuiVector(
     mapDx: number,
     mapDy: number
@@ -261,7 +239,6 @@ export class MapRenderer {
     return { guiDx, guiDy };
   }
 
-  // Port of freeciv-web's gui_to_map_pos() - reverse isometric transformation
   private guiToMapPos(
     guiX: number,
     guiY: number
@@ -269,13 +246,8 @@ export class MapRenderer {
     const W = this.tileWidth;
     const H = this.tileHeight;
 
-    console.log(`guiToMapPos input: gui(${guiX}, ${guiY}), tile(${W}, ${H})`);
-
-    // Critical half-tile offset for isometric projection
     guiX -= W >> 1;
-    console.log(`After half-tile offset: gui(${guiX}, ${guiY})`);
 
-    // Isometric coordinate math using freeciv's DIVIDE function
     const numeratorX = guiX * H + guiY * W;
     const numeratorY = guiY * W - guiX * H;
     const denominator = W * H;
@@ -287,16 +259,13 @@ export class MapRenderer {
     const mapX = this.divide(numeratorX, denominator);
     const mapY = this.divide(numeratorY, denominator);
 
-    console.log(`Final result: map(${mapX}, ${mapY})`);
     return { mapX, mapY };
   }
 
-  // Port of freeciv-web's DIVIDE function - handles negative numbers correctly
   private divide(n: number, d: number): number {
-    if (d === 0) return 0; // Prevent division by zero
+    if (d === 0) return 0;
 
     const result = Math.floor(n / d);
-    console.log(`DIVIDE(${n}, ${d}) = ${result}`);
     return result;
   }
 
@@ -309,14 +278,9 @@ export class MapRenderer {
   }
 
   canvasToMap(canvasX: number, canvasY: number, viewport: MapViewport) {
-    console.log(
-      `canvasToMap input: canvas(${canvasX}, ${canvasY}), viewport(${viewport.x}, ${viewport.y}), zoom(${viewport.zoom})`
-    );
     const guiX = canvasX / viewport.zoom + viewport.x;
     const guiY = canvasY / viewport.zoom + viewport.y;
-    console.log(`Converted to gui: (${guiX}, ${guiY})`);
     const result = this.guiToMapPos(guiX, guiY);
-    console.log(`canvasToMap final result:`, result);
     return result;
   }
 
@@ -352,7 +316,6 @@ export class MapRenderer {
   }
 
   private getPlayerColor(playerId: string): string {
-    // Simple color mapping - this should come from player data
     const colors = [
       '#FF0000',
       '#0000FF',
@@ -402,7 +365,6 @@ export class MapRenderer {
     return null;
   }
 
-  // Debug method to test coordinate accuracy
   debugCoordinateAccuracy(): void {
     if (!this.isInitialized) return;
 
