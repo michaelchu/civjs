@@ -35,8 +35,8 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER || 'testuser' }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'testpass' }}
+          POSTGRES_USER: ci_test_user
+          POSTGRES_PASSWORD: ${{ vars.CI_POSTGRES_PASSWORD || 'ci_test_password_123' }}
           POSTGRES_DB: civjs_test
         options: >-
           --health-cmd pg_isready
@@ -57,7 +57,7 @@ jobs:
           - 6379:6379
 
     env:
-      DATABASE_URL: postgresql://${{ secrets.POSTGRES_USER || 'testuser' }}:${{ secrets.POSTGRES_PASSWORD || 'testpass' }}@localhost:5432/civjs_test
+      DATABASE_URL: postgresql://ci_test_user:${{ vars.CI_POSTGRES_PASSWORD || 'ci_test_password_123' }}@localhost:5432/civjs_test
       REDIS_URL: redis://localhost:6379
       NODE_ENV: test
 
