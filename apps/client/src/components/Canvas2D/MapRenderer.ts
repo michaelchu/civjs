@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { GameState, MapViewport, Tile, Unit, City } from '../../types';
 import { TilesetLoader } from './TilesetLoader';
-import { CELL_WHOLE, CELL_CORNER, MATCH_NONE, MATCH_SAME, MATCH_FULL } from '../../constants/tileset';
 
 declare global {
   interface Window {
@@ -246,8 +245,13 @@ export class MapRenderer {
     const ts_tiles = (window as any).ts_tiles || {};
     const cellgroup_map = (window as any).cellgroup_map || {};
 
-    // Constants from freeciv-web tilespec.js - now imported from constants module
-    // Import is at the top of the file
+    // Constants from freeciv-web tilespec.js - use the global window constants
+    const CELL_WHOLE = (window as any).CELL_WHOLE;
+    const CELL_CORNER = (window as any).CELL_CORNER;
+    const MATCH_NONE = (window as any).MATCH_NONE;
+    const MATCH_SAME = (window as any).MATCH_SAME;
+    // const MATCH_PAIR = (window as any).MATCH_PAIR;
+    // const MATCH_FULL = (window as any).MATCH_FULL;
     const num_cardinal_tileset_dirs = 4;
     const NUM_CORNER_DIRS = 4;
     const DIR4_TO_DIR8 = [0, 2, 4, 6]; // Convert from DIR4 to DIR8
@@ -454,7 +458,7 @@ export class MapRenderer {
               array_index = array_index * 2 + b3;
               break;
             }
-            case MATCH_FULL: {
+            case (window as any).MATCH_FULL: {
               // Full match implementation
               const n = [];
               for (let j = 0; j < 3; j++) {

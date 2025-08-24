@@ -5,6 +5,17 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CivJS - Civilization Game Client</title>
+    <!-- Load freeciv constants BEFORE React starts -->
+    <script>
+      // Freeciv constants - must be available before tileset scripts
+      window.MATCH_NONE = 0;
+      window.MATCH_SAME = 1;
+      window.MATCH_PAIR = 2;
+      window.MATCH_FULL = 3;
+      window.CELL_WHOLE = 0;
+      window.CELL_CORNER = 1;
+      console.log('Freeciv constants defined inline:', window.MATCH_PAIR);
+    </script>
   </head>
   <body>
     <div id="root"></div>
