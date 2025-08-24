@@ -18,21 +18,43 @@
 ***********************************************************************/
 
 // Canvas management and sprite loading system ported from freeciv-web mapview.js
-import type { SpriteDefinition } from './types';
 
-// Canvas contexts and elements
-const mapview_canvas_ctx: CanvasRenderingContext2D | null = null;
-const mapview_canvas: HTMLCanvasElement | null = null;
-const buffer_canvas_ctx: CanvasRenderingContext2D | null = null;
-const buffer_canvas: HTMLCanvasElement | null = null;
-const city_canvas_ctx: CanvasRenderingContext2D | null = null;
-const city_canvas: HTMLCanvasElement | null = null;
+// Canvas contexts and elements - these will be assigned during initialization
+// eslint-disable-next-line prefer-const
+let mapview_canvas_ctx: CanvasRenderingContext2D | null = null;
+// eslint-disable-next-line prefer-const
+let mapview_canvas: HTMLCanvasElement | null = null;
+// eslint-disable-next-line prefer-const
+let buffer_canvas_ctx: CanvasRenderingContext2D | null = null;
+// eslint-disable-next-line prefer-const
+let buffer_canvas: HTMLCanvasElement | null = null;
+// eslint-disable-next-line prefer-const
+let city_canvas_ctx: CanvasRenderingContext2D | null = null;
+// eslint-disable-next-line prefer-const
+let city_canvas: HTMLCanvasElement | null = null;
 
 // Sprite loading state
 const tileset_images: HTMLImageElement[] = [];
-const sprites: { [key: string]: SpriteDefinition } = {};
-const loaded_images = 0;
-const sprites_init = false;
+const sprites: { [key: string]: HTMLCanvasElement } = {};
+let loaded_images = 0;
+let sprites_init = false;
+
+// Global variables referenced by sprite loading functions
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const $: any; // jQuery
+declare const tileset_image_count: number;
+declare const tileset_name: string;
+declare const ts: number;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const tileset: any;
+declare const renderer: number;
+declare const RENDERER_WEBGL: number;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const swal: any;
+
+// Functions referenced by sprite loading functions
+declare function get_tileset_file_extention(): string;
+declare function webgl_preload(): void;
 
 // Rendering configuration - these will be used once mapview functions are ported
 // const canvas_text_font = "16px Georgia, serif";
@@ -53,36 +75,122 @@ export function init_mapview(): void {
 
 /**
  * Initialize sprites and load tileset images
+ * Ported from mapview.js init_sprites()
  */
-export async function init_sprites(): Promise<void> {
-  // TODO: Port complete sprite initialization from original mapview.js
-  console.log('Initializing sprites...');
+export function init_sprites(): void {
+  $.blockUI({
+    message:
+      '<h1>Freeciv-web is loading. Please wait...' +
+      "<br><center><img src='/images/loading.gif'></center></h1>",
+  });
+
+  if (loaded_images != tileset_image_count) {
+    for (let i = 0; i < tileset_image_count; i++) {
+      const tileset_image = new Image();
+      tileset_image.onload = preload_check;
+      tileset_image.src =
+        '/tileset/freeciv-web-tileset-' +
+        tileset_name +
+        '-' +
+        i +
+        get_tileset_file_extention() +
+        '?ts=' +
+        ts;
+      tileset_images[i] = tileset_image;
+    }
+  } else {
+    // already loaded
+    if (renderer == RENDERER_WEBGL) {
+      webgl_preload();
+    } else {
+      $.unblockUI();
+    }
+  }
+}
+
+/**
+ * Determines when the whole tileset has been preloaded
+ * Ported from mapview.js preload_check()
+ */
+function preload_check(): void {
+  loaded_images += 1;
+
+  if (loaded_images == tileset_image_count) {
+    init_cache_sprites();
+    if (renderer == RENDERER_WEBGL) {
+      webgl_preload();
+    } else {
+      $.unblockUI();
+    }
+  }
+}
+
+/**
+ * Cache sprites by cropping them from tileset sheets
+ * Ported from mapview.js init_cache_sprites()
+ */
+function init_cache_sprites(): void {
+  try {
+    if (typeof tileset === 'undefined') {
+      swal(
+        'Tileset not generated correctly. Run sync.sh in ' +
+          'freeciv-img-extract and recompile.'
+      );
+      return;
+    }
+
+    for (const tile_tag in tileset) {
+      const x = tileset[tile_tag][0];
+      const y = tileset[tile_tag][1];
+      const w = tileset[tile_tag][2];
+      const h = tileset[tile_tag][3];
+      const i = tileset[tile_tag][4];
+
+      const newCanvas = document.createElement('canvas');
+      newCanvas.height = h;
+      newCanvas.width = w;
+      const newCtx = newCanvas.getContext('2d')!;
+
+      newCtx.drawImage(tileset_images[i], x, y, w, h, 0, 0, w, h);
+      sprites[tile_tag] = newCanvas;
+    }
+
+    sprites_init = true;
+    // Clear image references to free memory
+    tileset_images.length = 0;
+  } catch (e) {
+    console.log('Problem caching sprites:', e);
+  }
 }
 
 /**
  * Check if all sprites have been preloaded
  */
-export function preload_check(): boolean {
-  // TODO: Port preload checking logic
+export function is_sprites_loaded(): boolean {
   return sprites_init;
 }
 
 /**
  * Put a tile sprite on the canvas at the specified coordinates
+ * Ported from mapview.js mapview_put_tile()
  */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 export function mapview_put_tile(
-  pcanvas: HTMLCanvasElement,
+  pcanvas: CanvasRenderingContext2D,
   tag: string,
   canvas_x: number,
   canvas_y: number
 ): void {
-  // TODO: Port tile drawing logic from original mapview.js
+  if (sprites[tag] == null) {
+    //console.log("Missing sprite " + tag);
+    return;
+  }
+
+  pcanvas.drawImage(sprites[tag], canvas_x, canvas_y);
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */
 
 /**
- * Draw a rectangle on the canvas
+ * Draw a filled-in colored rectangle onto the canvas
+ * Ported from mapview.js canvas_put_rectangle()
  */
 export function canvas_put_rectangle(
   canvas_context: CanvasRenderingContext2D,
