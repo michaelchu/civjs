@@ -188,6 +188,7 @@ class GameClient {
       
       // Log progress
       if (data.endIndex === data.total) {
+        // All tiles received - batch processing complete
       }
     });
 

@@ -76,7 +76,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   // Handle mouse events
   const handleMouseDown = useCallback(
-    (_event: React.MouseEvent<HTMLCanvasElement>) => {
+    () => {
       if (!rendererRef.current) return;
 
       const canvas = canvasRef.current;
@@ -100,7 +100,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   );
 
   const handleMouseMove = useCallback(
-    (_event: React.MouseEvent<HTMLCanvasElement>) => {
+    () => {
       // Handle mouse move for hover effects, drag operations, etc.
       // This will be implemented later
     },
