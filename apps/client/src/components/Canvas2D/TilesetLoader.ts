@@ -166,6 +166,13 @@ export class TilesetLoader {
     return Object.keys(this.sprites);
   }
 
+  // Debug method to find sprites by pattern
+  findSprites(pattern: string): string[] {
+    return Object.keys(this.sprites).filter(key => 
+      key.toLowerCase().includes(pattern.toLowerCase())
+    );
+  }
+
   cleanup(): void {
     this.sprites = {};
     this.spriteSheets = [];
