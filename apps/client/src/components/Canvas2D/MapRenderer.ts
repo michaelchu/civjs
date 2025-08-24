@@ -398,15 +398,15 @@ export class MapRenderer {
           [W / 2, H / 4],
           [0, H / 4],
         ];
-        const _this_match_index =
-          tile_types_setup['l' + l + '.' + pterrain['graphic_str']] &&
-          tile_types_setup['l' + l + '.' + pterrain['graphic_str']][
-            'match_index'
-          ]
-            ? tile_types_setup['l' + l + '.' + pterrain['graphic_str']][
-                'match_index'
-              ][0]
-            : -1;
+        // const _this_match_index =
+        //   tile_types_setup['l' + l + '.' + pterrain['graphic_str']] &&
+        //   tile_types_setup['l' + l + '.' + pterrain['graphic_str']][
+        //     'match_index'
+        //   ]
+        //     ? tile_types_setup['l' + l + '.' + pterrain['graphic_str']][
+        //         'match_index'
+        //       ][0]
+        //     : -1;
         const result_sprites: Array<{
           key: string;
           offset_x?: number;
