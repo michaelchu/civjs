@@ -76,6 +76,11 @@ export interface GameState {
   units: Record<string, Unit>;
   cities: Record<string, City>;
   technologies: Record<string, Technology>;
+  // Freeciv-web compatible data structures
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mapInfo?: any; // Map metadata from server
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tilesArray?: any[]; // Tiles array for freeciv-web rendering compatibility
   mapData?: {
     width: number;
     height: number;

@@ -74,18 +74,17 @@ class GameClient {
       });
     });
 
-    // Handle map-info packet exactly like freeciv-web
+    // Handle map-info packet with modern approach
     this.socket.on('map-info', data => {
-      // Store in global map variable exactly like freeciv-web: map = packet;
-      (window as any).map = data;
+      console.log('Received map-info:', data);
 
       // Initialize empty tiles array
       const totalTiles = data.xsize * data.ysize;
-      (window as any).tiles = new Array(totalTiles);
+      const tiles: any[] = new Array(totalTiles);
 
       // Initialize tiles with empty objects like freeciv-web does
       for (let i = 0; i < totalTiles; i++) {
-        (window as any).tiles[i] = {
+        tiles[i] = {
           index: i,
           x: i % data.xsize,
           y: Math.floor(i / data.xsize),
@@ -93,19 +92,38 @@ class GameClient {
           seen: 0,
         };
       }
+
+      // Store in game store with freeciv-web compatible structure
+      useGameStore.getState().updateGameState({
+        mapInfo: data, // Store map metadata
+        tilesArray: tiles, // Store freeciv-web style tiles array
+        map: {
+          width: data.xsize,
+          height: data.ysize,
+          tiles: {}, // Keep this for compatibility
+          xsize: data.xsize,
+          ysize: data.ysize,
+          wrap_id: data.wrap_id || 0,
+        },
+      });
     });
 
-    // Handle tile-info packets exactly like freeciv-web
+    // Handle tile-info packets with modern approach
     this.socket.on('tile-info', data => {
-      // Update tiles array exactly like freeciv-web: tiles[packet['tile']] = $.extend(tiles[packet['tile']], packet);
-      if ((window as any).tiles && data.tile !== undefined) {
-        const tiles = (window as any).tiles;
-        tiles[data.tile] = Object.assign(tiles[data.tile] || {}, data);
+      const currentState = useGameStore.getState();
+      const currentTilesArray = currentState.tilesArray;
+      const currentMap = currentState.map;
 
-        // Update our game store for compatibility (convert to object format)
+      if (currentTilesArray && data.tile !== undefined) {
+        // Update tiles array like freeciv-web does
+        const updatedTilesArray = [...currentTilesArray];
+        updatedTilesArray[data.tile] = Object.assign(
+          updatedTilesArray[data.tile] || {},
+          data
+        );
+
+        // Update game store with both formats
         const tileKey = `${data.x},${data.y}`;
-        const currentMap = useGameStore.getState().map;
-
         const updatedTiles = {
           ...currentMap.tiles,
           [tileKey]: {
@@ -120,14 +138,10 @@ class GameClient {
         };
 
         useGameStore.getState().updateGameState({
+          tilesArray: updatedTilesArray,
           map: {
-            width: (window as any).map?.xsize || 80,
-            height: (window as any).map?.ysize || 50,
+            ...currentMap,
             tiles: updatedTiles,
-            // Store freeciv-web references
-            xsize: (window as any).map?.xsize || 80,
-            ysize: (window as any).map?.ysize || 50,
-            wrap_id: (window as any).map?.wrap_id || 0,
           },
         });
 

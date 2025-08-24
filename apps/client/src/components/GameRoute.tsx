@@ -62,7 +62,7 @@ export const GameRoute: React.FC = () => {
 
     // Store the current game ID - use direct store property instead
     useGameStore.setState({ currentGameId: gameId });
-  }, [gameId]);
+  }, [gameId, setClientState]);
 
   const handleNameSubmit = (e: React.FormEvent) => {
     e.preventDefault();

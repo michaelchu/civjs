@@ -32,7 +32,7 @@ import type { City, Nation, Player, SpriteDefinition } from './types';
 
 // Canvas contexts and elements - these will be assigned during initialization
 let mapview_canvas_ctx: CanvasRenderingContext2D | null = null;
-const mapview_canvas: HTMLCanvasElement | null = null;
+let mapview_canvas: HTMLCanvasElement | null = null;
 const buffer_canvas_ctx: CanvasRenderingContext2D | null = null;
 const buffer_canvas: HTMLCanvasElement | null = null;
 let city_canvas_ctx: CanvasRenderingContext2D | null = null;
@@ -139,6 +139,32 @@ export function getLoadingState(): LoadingState {
 // const GOTO_DIR_DX = [0, 1, 2, -1, 1, -2, -1, 0];
 // const GOTO_DIR_DY = [-2, -1, 0, -1, 1, 0, 1, 2];
 // let dashedSupport = false;
+
+/**
+ * Set the canvas context for rendering (called by React component)
+ */
+export function setCanvasContext(canvas: HTMLCanvasElement): void {
+  mapview_canvas = canvas;
+  mapview_canvas_ctx = canvas.getContext('2d');
+  console.log('Canvas context set:', !!mapview_canvas_ctx);
+}
+
+/**
+ * Get a tile from the tiles array (freeciv-web compatible access)
+ * This replaces the global tiles array access pattern
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getTile(index: number, tilesArray: any[]): any | null {
+  return tilesArray && tilesArray[index] ? tilesArray[index] : null;
+}
+
+/**
+ * Get tiles array length (freeciv-web compatible)
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getTilesLength(tilesArray: any[]): number {
+  return tilesArray ? tilesArray.length : 0;
+}
 
 /**
  * Initialize the map view canvas system
@@ -308,16 +334,28 @@ export function is_sprites_loaded(): boolean {
  */
 export function mapview_put_tile(
   pcanvas: CanvasRenderingContext2D,
-  tag: string,
+  sprite: SpriteDefinition | string,
   canvas_x: number,
   canvas_y: number
 ): void {
-  if (sprites[tag] == null) {
-    //console.log("Missing sprite " + tag);
-    return;
+  // Handle both string tags (legacy) and SpriteDefinition objects
+  if (typeof sprite === 'string') {
+    const tag = sprite;
+    if (sprites[tag] == null) {
+      //console.log("Missing sprite " + tag);
+      return;
+    }
+    pcanvas.drawImage(sprites[tag], canvas_x, canvas_y);
+  } else {
+    // Handle SpriteDefinition object
+    const tag = sprite.tag || sprite.key;
+    const spriteCanvas = sprites[tag];
+    if (spriteCanvas == null) {
+      //console.log("Missing sprite " + tag);
+      return;
+    }
+    pcanvas.drawImage(spriteCanvas, canvas_x, canvas_y);
   }
-
-  pcanvas.drawImage(sprites[tag], canvas_x, canvas_y);
 }
 
 /**

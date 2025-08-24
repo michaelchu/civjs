@@ -57,6 +57,9 @@ export const useGameStore = create<GameStore>()(
     units: {},
     cities: {},
     technologies: {},
+    // Freeciv-web compatible data structures
+    mapInfo: undefined,
+    tilesArray: undefined,
 
     // Initial client state
     clientState: 'initial',
