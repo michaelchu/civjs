@@ -254,9 +254,9 @@ export class MapRenderer {
     const MATCH_FULL = (window as any).MATCH_FULL;
     const num_cardinal_tileset_dirs = 4;
     const NUM_CORNER_DIRS = 4;
-    const DIR4_TO_DIR8 = [0, 2, 4, 6]; // Convert from DIR4 to DIR8
-    const dither_offset_x = [48, 0, 48, 0]; // normal_tile_width/2, 0, normal_tile_width/2, 0
-    const dither_offset_y = [0, 24, 24, 0]; // 0, normal_tile_height/2, normal_tile_height/2, 0
+    const DIR4_TO_DIR8 = [0, 4, 2, 6]; // N, S, E, W - correct DIR4 to DIR8 mapping from freeciv-web
+    const dither_offset_x = [48, 48, 0, 0]; // Dither offsets for N, S, E, W (half tile width for N/S)
+    const dither_offset_y = [0, 24, 24, 0]; // Dither offsets for N, S, E, W (half tile height for S/E)
     const tileset_tile_height = this.tileHeight;
 
     if (!tile_types_setup['l' + l + '.' + pterrain['graphic_str']]) {
