@@ -61,6 +61,91 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     setViewport({ width, height });
   }, [width, height, setViewport]);
 
+  // Center the viewport on user's starting position when data becomes available
+  useEffect(() => {
+    const globalMap = (window as { map?: { xsize: number; ysize: number } })
+      .map;
+    if (
+      rendererRef.current &&
+      globalMap &&
+      globalMap.xsize &&
+      globalMap.ysize &&
+      viewport.x === 0 &&
+      viewport.y === 0
+    ) {
+      // Try to find user's starting position - look for user's units or cities
+      let startTile = null;
+
+      // First, try to find user's first unit
+      const userUnits = Object.values(units);
+      if (userUnits.length > 0) {
+        const firstUnit = userUnits[0] as { x: number; y: number };
+        startTile = { x: firstUnit.x, y: firstUnit.y };
+        console.log('Found user unit at:', startTile);
+      } else {
+        // Try to find user's first city
+        const userCities = Object.values(cities);
+        if (userCities.length > 0) {
+          const firstCity = userCities[0] as { x: number; y: number };
+          startTile = { x: firstCity.x, y: firstCity.y };
+          console.log('Found user city at:', startTile);
+        } else {
+          // Fallback: try to find any visible tile from global tiles
+          const globalTiles = (
+            window as {
+              tiles?: Array<{
+                x: number;
+                y: number;
+                known: number;
+                seen: number;
+              }>;
+            }
+          ).tiles;
+          if (globalTiles) {
+            for (const tile of globalTiles) {
+              if (tile && (tile.known > 0 || tile.seen > 0)) {
+                startTile = { x: tile.x, y: tile.y };
+                console.log('Found first visible tile at:', startTile);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (startTile && rendererRef.current) {
+        // Center on the starting tile (like freeciv-web's center_tile_mapcanvas)
+        const tileGui = rendererRef.current.mapToGuiVector(
+          startTile.x,
+          startTile.y
+        );
+        const centeredX = tileGui.guiDx - viewport.width / 2;
+        const centeredY = tileGui.guiDy - viewport.height / 2;
+
+        console.log('Centering viewport on start position:', {
+          tile: startTile,
+          tileGui,
+          centeredPos: { x: centeredX, y: centeredY },
+        });
+
+        setViewport({
+          ...viewport,
+          x: centeredX,
+          y: centeredY,
+        });
+      }
+    }
+  }, [
+    map,
+    units,
+    cities,
+    viewport.x,
+    viewport.y,
+    viewport.width,
+    viewport.height,
+    setViewport,
+  ]);
+
   // Render game state
   useEffect(() => {
     if (!rendererRef.current || !canvasRef.current) return;
@@ -75,15 +160,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   // Handle mouse events - copied from freeciv-web 2D canvas behavior
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [currentViewport, setCurrentViewport] = useState(viewport);
-
-  // Sync local viewport with prop changes when not dragging
-  useEffect(() => {
-    if (!isDragging) {
-      setCurrentViewport(viewport);
-    }
-  }, [viewport, isDragging]);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const dragStartViewport = useRef(viewport);
+  const currentRenderViewport = useRef(viewport);
 
   const handleMouseDown = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -98,8 +177,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
       // Start dragging - copy freeciv-web logic
       setIsDragging(true);
-      setDragStart({ x: canvasX, y: canvasY });
-      setCurrentViewport(viewport);
+      dragStart.current = { x: canvasX, y: canvasY };
+      dragStartViewport.current = viewport;
+      currentRenderViewport.current = viewport;
 
       // Change cursor to indicate dragging
       canvas.style.cursor = 'move';
@@ -118,54 +198,87 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       const canvasX = event.clientX - rect.left;
       const canvasY = event.clientY - rect.top;
 
-      // Copy freeciv-web panning logic exactly
-      const diff_x = (dragStart.x - canvasX) * 2;
-      const diff_y = (dragStart.y - canvasY) * 2;
+      // Calculate total movement from drag start (like freeciv-web)
+      const totalDiffX = (dragStart.current.x - canvasX) * 2;
+      const totalDiffY = (dragStart.current.y - canvasY) * 2;
 
-      // Update viewport position directly in renderer (like freeciv-web mapview['gui_x0'])
-      // This avoids triggering React re-renders on every mouse move
+      // Calculate new viewport position from original position
       const newViewport = {
-        ...currentViewport,
-        x: currentViewport.x + diff_x,
-        y: currentViewport.y + diff_y,
+        ...dragStartViewport.current,
+        x: dragStartViewport.current.x + totalDiffX,
+        y: dragStartViewport.current.y + totalDiffY,
       };
 
-      // Update local viewport state
-      setCurrentViewport(newViewport);
+      // Store current render viewport
+      currentRenderViewport.current = newViewport;
 
-      // Directly render with new viewport without updating React state
-      rendererRef.current.render({
-        viewport: newViewport,
-        map: useGameStore.getState().map,
-        units: useGameStore.getState().units,
-        cities: useGameStore.getState().cities,
+      // Directly render without any state updates during drag - use requestAnimationFrame for smoothness
+      requestAnimationFrame(() => {
+        if (rendererRef.current) {
+          rendererRef.current.render({
+            viewport: newViewport,
+            map: useGameStore.getState().map,
+            units: useGameStore.getState().units,
+            cities: useGameStore.getState().cities,
+          });
+        }
       });
-
-      // Update drag start position for next move
-      setDragStart({ x: canvasX, y: canvasY });
     },
-    [isDragging, dragStart, currentViewport]
+    [isDragging]
   );
 
   const handleMouseUp = useCallback(() => {
-    if (!isDragging) return;
+    if (!isDragging || !rendererRef.current) return;
 
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.style.cursor = 'crosshair';
     }
 
-    // Update React state with final viewport position (like freeciv-web does)
-    setViewport(currentViewport);
+    // Apply boundary constraints to the final viewport position
+    const constrainedPosition = rendererRef.current.setMapviewOrigin(
+      currentRenderViewport.current.x,
+      currentRenderViewport.current.y,
+      currentRenderViewport.current.width,
+      currentRenderViewport.current.height
+    );
 
+    const finalViewport = {
+      ...currentRenderViewport.current,
+      x: constrainedPosition.x,
+      y: constrainedPosition.y,
+    };
+
+    // Update state with the constrained final position
+    setViewport(finalViewport);
     setIsDragging(false);
-  }, [isDragging, currentViewport, setViewport]);
+  }, [isDragging, setViewport]);
 
   // Global mouse up handler to catch mouse up events outside the canvas
   useEffect(() => {
     const handleGlobalMouseUp = () => {
-      if (isDragging) {
-        handleMouseUp();
+      if (isDragging && rendererRef.current) {
+        const canvas = canvasRef.current;
+        if (canvas) {
+          canvas.style.cursor = 'crosshair';
+        }
+
+        // Apply boundary constraints to the final viewport position
+        const constrainedPosition = rendererRef.current.setMapviewOrigin(
+          currentRenderViewport.current.x,
+          currentRenderViewport.current.y,
+          currentRenderViewport.current.width,
+          currentRenderViewport.current.height
+        );
+
+        const finalViewport = {
+          ...currentRenderViewport.current,
+          x: constrainedPosition.x,
+          y: constrainedPosition.y,
+        };
+
+        setViewport(finalViewport);
+        setIsDragging(false);
       }
     };
 
