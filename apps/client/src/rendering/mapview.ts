@@ -388,7 +388,6 @@ export function mapview_put_city_bar(
   const text = decodeURIComponent(city['name']).toUpperCase();
   const size = city['size'];
   const owner = city_owner(city);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const color = owner
     ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (nations as any)[(owner as any)['nation']]?.['color'] || '#FFFFFF'

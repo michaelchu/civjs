@@ -44,6 +44,9 @@ import {
   LAYER_CITYBAR,
   LAYER_GOTO,
   MATCH_NONE,
+  MATCH_SAME,
+  CELL_WHOLE,
+  CELL_CORNER,
   LAYER_COUNT,
   DIR8_NORTH,
   DIR8_NORTHEAST,
@@ -536,119 +539,636 @@ export function dir_get_tileset_name(dir: number): string {
 // These are placeholder stubs that need to be implemented
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
-function tile_terrain_near(ptile: Tile): unknown {
-  // TODO: Port from original tilespec.js
-  return null;
+/**
+ * Returns neighboring terrain information for terrain matching
+ * Ported from original tilespec.js tile_terrain_near()
+ */
+function tile_terrain_near(ptile: Tile): { [dir: number]: Terrain | null } {
+  const tterrain_near: { [dir: number]: Terrain | null } = {};
+
+  // For each cardinal direction, get the neighboring tile's terrain
+  for (let i = 0; i < num_cardinal_tileset_dirs; i++) {
+    const dir = cardinal_tileset_dirs[i];
+    const neighbor_tile = map_get_tile_from_dir(ptile, dir);
+    if (neighbor_tile != null) {
+      tterrain_near[dir] = tile_terrain(neighbor_tile);
+    } else {
+      // Edge of map or unknown neighbor - use current tile's terrain
+      tterrain_near[dir] = tile_terrain(ptile);
+    }
+  }
+
+  return tterrain_near;
 }
 
+/**
+ * Returns the terrain type of the given tile
+ * Ported from original tilespec.js tile_terrain()
+ */
 function tile_terrain(ptile: Tile): Terrain | null {
-  // TODO: Port from original tilespec.js
-  return null;
+  if (ptile == null || ptile.terrain == null) {
+    return null;
+  }
+  return ptile.terrain;
 }
 
+/**
+ * Fill sprite array for terrain layer
+ * Ported from original tilespec.js fill_terrain_sprite_layer()
+ */
 function fill_terrain_sprite_layer(
-  layer: number,
+  layer_num: number,
   ptile: Tile,
   pterrain: Terrain | null,
-  tterrain_near: unknown
+  tterrain_near: { [dir: number]: Terrain | null }
 ): SpriteDefinition[] {
-  // TODO: Port from original tilespec.js
+  if (pterrain == null) {
+    return [];
+  }
+
+  // FIXME: handle blending and darkness
+  return fill_terrain_sprite_array(layer_num, ptile, pterrain, tterrain_near);
+}
+
+/**
+ * Helper function for fill_terrain_sprite_layer
+ * Ported from original tilespec.js fill_terrain_sprite_array()
+ */
+function fill_terrain_sprite_array(
+  layer_num: number,
+  ptile: Tile,
+  pterrain: Terrain,
+  tterrain_near: { [dir: number]: Terrain | null }
+): SpriteDefinition[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const graphic_str = (pterrain as any).graphic_str || pterrain.graphic;
+  const layer_key = `l${layer_num}.${graphic_str}`;
+
+  if (tile_types_setup[layer_key] == null) {
+    // console.log("missing " + layer_key);
+    return [];
+  }
+
+  const dlp = tile_types_setup[layer_key];
+
+  switch (dlp.sprite_type) {
+    case CELL_WHOLE: {
+      switch (dlp.match_style) {
+        case MATCH_NONE: {
+          const result_sprites: SpriteDefinition[] = [];
+          if (dlp.dither === true) {
+            for (let i = 0; i < num_cardinal_tileset_dirs; i++) {
+              const dir = cardinal_tileset_dirs[i];
+              const neighbor_terrain = tterrain_near[dir];
+              if (neighbor_terrain == null) continue;
+
+              const neighbor_graphic =
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (neighbor_terrain as any).graphic_str ||
+                neighbor_terrain.graphic;
+              if (ts_tiles[neighbor_graphic] == null) continue;
+
+              const near_dlp =
+                tile_types_setup[`l${layer_num}.${neighbor_graphic}`];
+              const terrain_near =
+                near_dlp?.dither === true ? neighbor_graphic : graphic_str;
+              const dither_tile = `${i}${graphic_str}_${terrain_near}`;
+              const x = dither_offset_x[i];
+              const y = dither_offset_y[i];
+
+              result_sprites.push({
+                key: dither_tile,
+                offset_x: x,
+                offset_y: y,
+              });
+            }
+            return result_sprites;
+          } else {
+            return [{ key: `t.l${layer_num}.${graphic_str}1` }];
+          }
+        }
+
+        case MATCH_SAME: {
+          let tileno = 0;
+          const this_match_type =
+            ts_tiles[graphic_str]?.[`layer${layer_num}_match_type`];
+
+          for (let i = 0; i < num_cardinal_tileset_dirs; i++) {
+            const dir = cardinal_tileset_dirs[i];
+            const neighbor_terrain = tterrain_near[dir];
+            if (neighbor_terrain == null) continue;
+
+            const neighbor_graphic =
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (neighbor_terrain as any).graphic_str || neighbor_terrain.graphic;
+            if (ts_tiles[neighbor_graphic] == null) continue;
+
+            const that =
+              ts_tiles[neighbor_graphic]?.[`layer${layer_num}_match_type`];
+            if (that == this_match_type) {
+              tileno |= 1 << i;
+            }
+          }
+
+          const gfx_key = `t.l${layer_num}.${graphic_str}_${cardinal_index_str(tileno)}`;
+          const sprite_info = tileset[gfx_key];
+          if (sprite_info) {
+            const y = tileset_tile_height - sprite_info[3];
+            return [{ key: gfx_key, offset_x: 0, offset_y: y }];
+          }
+          return [];
+        }
+      }
+      break;
+    }
+
+    case CELL_CORNER: {
+      // Corner-based terrain matching - more complex algorithm
+      // This is used for more sophisticated terrain blending
+      const W = normal_tile_width;
+      const H = normal_tile_height;
+      const iso_offsets = [
+        [W / 4, 0],
+        [W / 4, H / 2],
+        [W / 2, H / 4],
+        [0, H / 4],
+      ];
+
+      const layer_config = tile_types_setup[layer_key];
+      const this_match_index = layer_config?.match_index?.[0] ?? -1;
+      const result_sprites: SpriteDefinition[] = [];
+
+      // For corner-based matching, we need to process each corner of the tile
+      // This is a simplified version - the full algorithm is quite complex
+      for (let dir = 0; dir < 4; dir++) {
+        const corner_key = `t.l${layer_num}.${graphic_str}_cell_${dir}_0_0_0`;
+        if (tileset[corner_key]) {
+          result_sprites.push({
+            key: corner_key,
+            offset_x: iso_offsets[dir][0],
+            offset_y: iso_offsets[dir][1],
+          });
+        }
+      }
+
+      return result_sprites;
+    }
+  }
+
   return [];
 }
 
+/**
+ * Fill sprite array for irrigation and farmland
+ * Ported from original tilespec.js fill_irrigation_sprite_array()
+ */
 function fill_irrigation_sprite_array(
   ptile: Tile,
   pcity: City | null
 ): SpriteDefinition[] {
-  // TODO: Port from original tilespec.js
-  return [];
+  const result_sprites: SpriteDefinition[] = [];
+
+  // We don't draw the irrigation if there's a city (it just gets overdrawn
+  // anyway, and ends up looking bad).
+  if (tile_has_extra(ptile, EXTRA_IRRIGATION) && pcity == null) {
+    if (tile_has_extra(ptile, EXTRA_FARMLAND)) {
+      const tag = tileset_extra_id_graphic_tag(EXTRA_FARMLAND);
+      if (tag) {
+        result_sprites.push({ key: tag });
+      }
+    } else {
+      const tag = tileset_extra_id_graphic_tag(EXTRA_IRRIGATION);
+      if (tag) {
+        result_sprites.push({ key: tag });
+      }
+    }
+  }
+
+  return result_sprites;
 }
 
+/**
+ * Fill sprite array for roads, rails, and maglev paths
+ * Ported from original tilespec.js fill_path_sprite_array()
+ */
 function fill_path_sprite_array(
   ptile: Tile,
   pcity: City | null
 ): SpriteDefinition[] {
-  // TODO: Port from original tilespec.js
-  return [];
+  const rs_maglev = typeof EXTRA_MAGLEV !== 'undefined';
+  const road = tile_has_extra(ptile, EXTRA_ROAD);
+  const rail = tile_has_extra(ptile, EXTRA_RAIL);
+  const maglev = rs_maglev && tile_has_extra(ptile, EXTRA_MAGLEV);
+  const road_near: boolean[] = [];
+  const rail_near: boolean[] = [];
+  const maglev_near: boolean[] = [];
+  const draw_rail: boolean[] = [];
+  const draw_road: boolean[] = [];
+  const draw_maglev: boolean[] = [];
+  const result_sprites: SpriteDefinition[] = [];
+  let draw_single_road: boolean;
+  let draw_single_rail: boolean;
+  let draw_single_maglev: boolean;
+
+  if (pcity != null) {
+    draw_single_road = draw_single_rail = draw_single_maglev = false;
+  } else if (maglev) {
+    draw_single_road = draw_single_rail = false;
+    draw_single_maglev = maglev;
+  } else {
+    draw_single_road = road && rail === false;
+    draw_single_rail = rail;
+    draw_single_maglev = false;
+  }
+
+  for (let dir = 0; dir < 8; dir++) {
+    // Check if there is adjacent road/rail/maglev
+    const tile1 = mapstep(ptile, dir);
+    if (tile1 != null && tile_get_known(tile1) !== TILE_UNKNOWN) {
+      road_near[dir] = tile_has_extra(tile1, EXTRA_ROAD);
+      rail_near[dir] = tile_has_extra(tile1, EXTRA_RAIL);
+      maglev_near[dir] = rs_maglev && tile_has_extra(tile1, EXTRA_MAGLEV);
+
+      // Draw path if there is a connection from this tile to the
+      // adjacent tile. But don't draw path if there is also an extra
+      // hiding it.
+      draw_maglev[dir] = maglev && maglev_near[dir];
+      draw_rail[dir] = rail && rail_near[dir] && !draw_maglev[dir];
+      draw_road[dir] =
+        road && road_near[dir] && !draw_rail[dir] && !draw_maglev[dir];
+
+      // Don't draw an isolated road/rail/maglev if there's any connection.
+      if (draw_maglev[dir]) {
+        draw_single_maglev = draw_single_rail = draw_single_road = false;
+      } else {
+        draw_single_rail = draw_single_rail && !draw_rail[dir];
+        draw_single_road =
+          draw_single_road && !draw_rail[dir] && !draw_road[dir];
+      }
+    }
+  }
+
+  // First raw roads under rails
+  if (road) {
+    for (let i = 0; i < 8; i++) {
+      if (draw_road[i]) {
+        result_sprites.push({ key: 'road.road_' + dir_get_tileset_name(i) });
+      }
+    }
+  }
+
+  // Then draw rails over roads
+  if (rail) {
+    for (let i = 0; i < 8; i++) {
+      if (draw_rail[i]) {
+        result_sprites.push({ key: 'road.rail_' + dir_get_tileset_name(i) });
+      }
+    }
+  }
+
+  // Then draw maglevs over rails
+  if (maglev) {
+    for (let i = 0; i < 8; i++) {
+      if (draw_maglev[i]) {
+        result_sprites.push({ key: 'road.maglev_' + dir_get_tileset_name(i) });
+      }
+    }
+  }
+
+  // Draw isolated path separately
+  if (draw_single_maglev) {
+    result_sprites.push({ key: 'road.maglev_isolated' });
+  } else if (draw_single_rail) {
+    result_sprites.push({ key: 'road.rail_isolated' });
+  } else if (draw_single_road) {
+    result_sprites.push({ key: 'road.road_isolated' });
+  }
+
+  return result_sprites;
 }
 
+/**
+ * Get river sprite for a tile based on neighboring rivers and coasts
+ * Ported from original tilespec.js get_tile_river_sprite()
+ */
 function get_tile_river_sprite(ptile: Tile): SpriteDefinition | null {
-  // TODO: Port from original tilespec.js
+  if (ptile == null) {
+    return null;
+  }
+
+  if (tile_has_extra(ptile, EXTRA_RIVER)) {
+    let river_str = '';
+    for (let i = 0; i < num_cardinal_tileset_dirs; i++) {
+      const dir = cardinal_tileset_dirs[i];
+      const checktile = mapstep(ptile, dir);
+      if (
+        checktile &&
+        (tile_has_extra(checktile, EXTRA_RIVER) || is_ocean_tile(checktile))
+      ) {
+        river_str = river_str + dir_get_tileset_name(dir) + '1';
+      } else {
+        river_str = river_str + dir_get_tileset_name(dir) + '0';
+      }
+    }
+    return { key: 'road.river_s_' + river_str };
+  }
+
+  const pterrain = tile_terrain(ptile);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (pterrain && (pterrain as any).graphic_str === 'coast') {
+    for (let i = 0; i < num_cardinal_tileset_dirs; i++) {
+      const dir = cardinal_tileset_dirs[i];
+      const checktile = mapstep(ptile, dir);
+      if (checktile != null && tile_has_extra(checktile, EXTRA_RIVER)) {
+        return { key: 'road.river_outlet_' + dir_get_tileset_name(dir) };
+      }
+    }
+  }
+
   return null;
 }
 
+/**
+ * Get special resource sprite for a tile
+ * Ported from original tilespec.js get_tile_specials_sprite()
+ */
 function get_tile_specials_sprite(ptile: Tile): SpriteDefinition | null {
-  // TODO: Port from original tilespec.js
+  const extra_id = tile_resource(ptile);
+
+  if (extra_id !== null) {
+    const extra = extras[extra_id];
+    if (extra != null) {
+      return { key: extra['graphic_str'] };
+    }
+  }
   return null;
 }
 
+/**
+ * Check if tile has a specific extra (improvement, resource, etc.)
+ * Ported from original tilespec.js tile_has_extra()
+ */
 function tile_has_extra(ptile: Tile, extra_id: number): boolean {
-  // TODO: Port from original tilespec.js
-  return false;
+  if (ptile == null || ptile.extras == null) {
+    return false;
+  }
+
+  // Check if any of the tile's extras matches the requested extra_id
+  return ptile.extras.some(extra => extra.id === extra_id);
 }
 
 // tileset_extra_id_graphic_tag is now implemented above - removed duplicate stub
 
+/**
+ * Fill sprite array for layer 1 (bases, improvements)
+ * Simplified implementation - full version needs porting from original
+ */
 function fill_layer1_sprite_array(
   ptile: Tile,
   pcity: City | null
 ): SpriteDefinition[] {
-  // TODO: Port from original tilespec.js
-  return [];
+  const result_sprites: SpriteDefinition[] = [];
+
+  // We don't draw the bases if there's a city
+  if (pcity == null) {
+    if (tile_has_extra(ptile, EXTRA_FORTRESS)) {
+      result_sprites.push({
+        key: 'base.fortress_bg',
+        offset_y: -normal_tile_height / 2,
+      });
+    }
+  }
+
+  return result_sprites;
 }
 
+/**
+ * Get border line sprites for national boundaries
+ * Simplified implementation - full version needs complex boundary logic
+ */
 function get_border_line_sprites(ptile: Tile): SpriteDefinition[] {
-  // TODO: Port from original tilespec.js
-  return [];
+  const result_sprites: SpriteDefinition[] = [];
+
+  // This would need complex logic to determine border lines
+  // For now, return empty array
+  // TODO: Implement full border detection logic
+  void ptile;
+
+  return result_sprites;
 }
 
+/**
+ * Get the appropriate city sprite based on size and style
+ * Ported from original tilespec.js get_city_sprite()
+ */
 function get_city_sprite(pcity: City): SpriteDefinition {
-  // TODO: Port from original tilespec.js
-  return { key: 'city.generic' };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let style_id = (pcity as any).style || 0;
+  if (style_id === -1) style_id = 0; // Sometimes a player has no city_style
+  const city_rule = city_rules[style_id];
+
+  let size = 0;
+  if (pcity.size >= 4 && pcity.size <= 7) {
+    size = 1;
+  } else if (pcity.size >= 8 && pcity.size <= 11) {
+    size = 2;
+  } else if (pcity.size >= 12 && pcity.size <= 15) {
+    size = 3;
+  } else if (pcity.size >= 16) {
+    size = 4;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const city_walls = (pcity as any).walls ? 'wall' : 'city';
+
+  let tag = city_rule.graphic + '_' + city_walls + '_' + size;
+  if (tileset_has_tag(tag) === false) {
+    tag = city_rule.graphic_alt + '_' + city_walls + '_' + size;
+  }
+
+  return { key: tag, offset_x: 0, offset_y: -unit_offset_y };
 }
 
+/**
+ * Fill sprite array for layer 2 (more bases and improvements)
+ * Simplified implementation - full version needs porting from original
+ */
 function fill_layer2_sprite_array(
   ptile: Tile,
   pcity: City | null
 ): SpriteDefinition[] {
-  // TODO: Port from original tilespec.js
-  return [];
+  const result_sprites: SpriteDefinition[] = [];
+
+  // We don't draw the bases if there's a city
+  if (pcity == null) {
+    if (tile_has_extra(ptile, EXTRA_AIRBASE)) {
+      result_sprites.push({
+        key: 'base.airbase_mg',
+        offset_y: -normal_tile_height / 2,
+      });
+    }
+    if (tile_has_extra(ptile, EXTRA_RUINS)) {
+      result_sprites.push({
+        key: 'extra.ruins_mg',
+        offset_y: -normal_tile_height / 2,
+      });
+    }
+  }
+
+  return result_sprites;
 }
 
+/**
+ * Check if unit is currently in focus/selected
+ * This function is likely defined in the game client
+ */
 function unit_is_in_focus(punit: Unit): boolean {
-  // TODO: Port from original tilespec.js
-  return false;
+  // This is typically managed by the game state
+  // For now, return false as a placeholder
+  return get_focus_unit()?.id === punit.id;
 }
 
+/**
+ * Get animated selection sprite for focused units
+ * Ported from original tilespec.js get_select_sprite()
+ */
 function get_select_sprite(): SpriteDefinition {
-  // TODO: Port from original tilespec.js
-  return { key: 'unit.select0' };
+  // Update selected unit sprite 6 times a second
+  const current_select_sprite =
+    Math.floor((new Date().getTime() * 6) / 1000) % max_select_sprite;
+  return { key: 'unit.select' + current_select_sprite };
 }
 
+/**
+ * Fill sprite array for unit rendering with all unit elements
+ * Ported from original tilespec.js fill_unit_sprite_array()
+ */
 function fill_unit_sprite_array(
   punit: Unit,
   stacked: boolean,
   backdrop: boolean
 ): SpriteDefinition[] {
-  // TODO: Port from original tilespec.js
-  return [];
+  // Suppress unused parameter warning
+  void backdrop;
+
+  const unit_offset = get_unit_anim_offset(punit);
+  const result: SpriteDefinition[] = [
+    get_unit_nation_flag_sprite(punit),
+    {
+      key: tileset_unit_graphic_tag(punit) || 'unit.fallback',
+      offset_x: unit_offset.x + unit_offset_x,
+      offset_y: unit_offset.y - unit_offset_y,
+    },
+  ];
+
+  const activities = get_unit_activity_sprite(punit);
+  if (activities != null) {
+    activities.offset_x = (activities.offset_x || 0) + unit_offset.x;
+    activities.offset_y = (activities.offset_y || 0) + unit_offset.y;
+    result.push(activities);
+  }
+
+  const agent = get_unit_agent_sprite(punit);
+  if (agent != null) {
+    agent.offset_x = (agent.offset_x || 0) + unit_offset.x;
+    agent.offset_y = (agent.offset_y || 0) + unit_offset.y;
+    result.push(agent);
+  }
+
+  if (should_ask_server_for_actions(punit)) {
+    result.push({
+      key: 'unit.action_decision_want',
+      offset_x: unit_activity_offset_x + unit_offset.x,
+      offset_y: -unit_activity_offset_y + unit_offset.y,
+    });
+  }
+
+  const hp_sprite = get_unit_hp_sprite(punit);
+  if (hp_sprite) result.push(hp_sprite);
+
+  if (stacked) {
+    const stack_sprite = get_unit_stack_sprite();
+    if (stack_sprite) result.push(stack_sprite);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((punit as any).veteran > 0) {
+    const veteran_sprite = get_unit_veteran_sprite(punit);
+    if (veteran_sprite) result.push(veteran_sprite);
+  }
+
+  return result;
 }
 
+/**
+ * Fill sprite array for fog of war rendering
+ * Ported from original tilespec.js fill_fog_sprite_array()
+ */
 function fill_fog_sprite_array(
   ptile: Tile | null,
   pedge: Edge | null,
   pcorner: Corner | null
 ): SpriteDefinition[] {
-  // TODO: Port from original tilespec.js
-  return [];
+  // Suppress unused parameter warnings
+  void ptile;
+  void pedge;
+
+  let tileno = 0;
+
+  if (pcorner == null) return [];
+
+  for (let i = 3; i >= 0; i--) {
+    const unknown = 0;
+    const fogged = 1;
+    const known = 2;
+    let value = -1;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((pcorner as any).tile[i] == null) {
+      value = unknown;
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      switch (tile_get_known((pcorner as any).tile[i])) {
+        case TILE_KNOWN_SEEN:
+          value = known;
+          break;
+        case TILE_KNOWN_UNSEEN:
+          value = fogged;
+          break;
+        case TILE_UNKNOWN:
+          value = unknown;
+          break;
+      }
+    }
+    tileno = tileno * 3 + value;
+  }
+
+  if (tileno >= 80) return [];
+
+  return [{ key: fullfog[tileno] }];
 }
 
+/**
+ * Fill sprite array for layer 3 (foreground elements)
+ * Simplified implementation - full version needs porting from original
+ */
 function fill_layer3_sprite_array(
   ptile: Tile,
   pcity: City | null
 ): SpriteDefinition[] {
-  // TODO: Port from original tilespec.js
-  return [];
+  const result_sprites: SpriteDefinition[] = [];
+
+  // We don't draw the bases if there's a city
+  if (pcity == null) {
+    if (tile_has_extra(ptile, EXTRA_FORTRESS)) {
+      result_sprites.push({
+        key: 'base.fortress_fg',
+        offset_y: -normal_tile_height / 2,
+      });
+    }
+  }
+
+  return result_sprites;
 }
 
 function get_tile_label_text(ptile: Tile): SpriteDefinition {
@@ -661,14 +1181,25 @@ function get_city_info_text(pcity: City): SpriteDefinition {
   return { key: 'cityinfo', text: pcity.name };
 }
 
+/**
+ * Get the tile that the city is located on
+ * This function is likely defined in the game logic
+ */
 function city_tile(pcity: City): Tile {
-  // TODO: Port from original tilespec.js
-  return {} as Tile;
+  // This should return the actual tile the city is on
+  // For now, return a stub that gets the tile by city.tile ID
+  return tiles[pcity.tile] as Tile;
 }
 
+/**
+ * Calculate the distance vector between two tiles
+ * This function is likely defined in the map logic
+ */
 function map_distance_vector(tile1: Tile, tile2: Tile): [number, number] {
-  // TODO: Port from original tilespec.js
-  return [0, 0];
+  // Simple Euclidean distance calculation
+  const dx = tile2.x - tile1.x;
+  const dy = tile2.y - tile1.y;
+  return [dx, dy];
 }
 
 function get_city_dxy_to_index(dx: number, dy: number, pcity: City): number {
@@ -698,9 +1229,22 @@ function get_city_invalid_worked_sprite(): SpriteDefinition {
   return { key: 'city.invalid_worked' };
 }
 
+/**
+ * Fill sprite array for goto path lines
+ * Simplified implementation - shows path direction
+ */
 function fill_goto_line_sprite_array(ptile: Tile): SpriteDefinition[] {
-  // TODO: Port from original tilespec.js
-  return [];
+  const result_sprites: SpriteDefinition[] = [];
+
+  if (ptile.goto_dir != null) {
+    result_sprites.push({
+      key: 'goto.path_' + dir_get_tileset_name(ptile.goto_dir),
+      offset_x: 0,
+      offset_y: 0,
+    });
+  }
+
+  return result_sprites;
 }
 /* eslint-enable @typescript-eslint/no-unused-vars */
 
@@ -719,12 +1263,81 @@ declare const extras: any[]; // Array of extra definitions
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare function unit_type(punit: Unit): any; // Function to get unit type from unit
 
+// Terrain matching variables
+const num_cardinal_tileset_dirs = 4;
+const cardinal_tileset_dirs = [DIR8_NORTH, DIR8_EAST, DIR8_SOUTH, DIR8_WEST];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const tile_types_setup: any; // Tileset terrain configuration
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const ts_tiles: any; // Terrain sprite definitions
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const tileset: any; // Main tileset configuration
+declare const dither_offset_x: number[];
+declare const dither_offset_y: number[];
+declare const normal_tile_width: number;
+declare const normal_tile_height: number;
+
+// Helper functions for terrain matching
+declare function map_get_tile_from_dir(ptile: Tile, dir: number): Tile | null;
+declare function cardinal_index_str(tileno: number): string;
+declare function mapstep(ptile: Tile, dir: number): Tile | null;
+declare function is_ocean_tile(ptile: Tile): boolean;
+declare function tile_resource(ptile: Tile): number | null;
+declare function tile_get_known(ptile: Tile): number;
+declare const TILE_UNKNOWN: number;
+
+// Unit selection variables
+const max_select_sprite = 4;
+
+// Unit rendering helper functions
+declare function get_focus_unit(): Unit | null;
+declare function get_unit_anim_offset(punit: Unit): { x: number; y: number };
+declare function get_unit_nation_flag_sprite(punit: Unit): SpriteDefinition;
+declare function get_unit_activity_sprite(punit: Unit): SpriteDefinition | null;
+declare function get_unit_agent_sprite(punit: Unit): SpriteDefinition | null;
+declare function should_ask_server_for_actions(punit: Unit): boolean;
+declare function get_unit_hp_sprite(punit: Unit): SpriteDefinition | null;
+declare function get_unit_stack_sprite(): SpriteDefinition | null;
+declare function get_unit_veteran_sprite(punit: Unit): SpriteDefinition | null;
+
+// Unit rendering offset constants
+declare const unit_activity_offset_x: number;
+declare const unit_activity_offset_y: number;
+
+// Fog of war constants and variables
+declare const TILE_KNOWN_SEEN: number;
+declare const TILE_KNOWN_UNSEEN: number;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const fullfog: any[];
+
+// City rendering variables
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const city_rules: any[];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const tiles: any; // Tile lookup by ID
+
 // Constants referenced in the function
 const EXTRA_MINE = 1;
 const EXTRA_OIL_WELL = 2;
 const EXTRA_HUT = 3;
 const EXTRA_POLLUTION = 4;
 const EXTRA_FALLOUT = 5;
+const EXTRA_RIVER = 6;
+const EXTRA_ROAD = 7;
+const EXTRA_RAIL = 8;
+const EXTRA_IRRIGATION = 9;
+const EXTRA_FARMLAND = 10;
+const EXTRA_FORTRESS = 11;
+const EXTRA_AIRBASE = 12;
+const EXTRA_BUOY = 13; // eslint-disable-line @typescript-eslint/no-unused-vars
+const EXTRA_RUINS = 14;
+const EXTRA_MAGLEV = 15;
+
+// Terrain sprite constants are imported from constants.ts
+
+// Additional tileset constants
+declare const tileset_tile_width: number; // eslint-disable-line @typescript-eslint/no-unused-vars
+declare const tileset_tile_height: number;
 
 // Export placeholder for now - will be populated with all ported functions
 export { LAYER_COUNT, terrain_match };
