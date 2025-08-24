@@ -69,15 +69,6 @@ export class MapRenderer {
     // Calculate visible tile range using freeciv-web globals
     const visibleTiles = this.getVisibleTilesFromGlobal(state.viewport, globalMap, globalTiles);
     
-    // Debug: Log what we're trying to render
-    const totalTiles = globalTiles.length;
-    console.log(`🎨 Rendering: ${visibleTiles.length}/${totalTiles} tiles visible, viewport:`, state.viewport);
-    console.log(`🌍 Using freeciv-web globals: map=${globalMap.xsize}x${globalMap.ysize}, tiles=${globalTiles.length}`);
-    
-    if (visibleTiles.length === 0 && totalTiles > 0) {
-      console.log('⚠️ No visible tiles found! Map bounds:', globalMap.xsize, 'x', globalMap.ysize);
-      console.log('📍 Sample tiles:', globalTiles.slice(0, 5).map((t: any) => `(${t.x},${t.y}):`+t.terrain).join(', '));
-    }
 
     // Render tiles
     for (const tile of visibleTiles) {
@@ -162,7 +153,6 @@ export class MapRenderer {
     map: GameState['map']
   ): Tile[] {
     // Always use simple method for debugging
-    console.log(`🔧 Using simple tile visibility calculation (initialized: ${this.isInitialized})`);
     return this.getVisibleTilesSimple(viewport, map);
     
     if (!this.isInitialized) {
@@ -234,11 +224,6 @@ export class MapRenderer {
   ): Tile[] {
     const tiles: Tile[] = [];
     
-    console.log(`🔍 Using EXACT freeciv-web isometric tile iteration`);
-    console.log(`🔍 Viewport: ${viewport.x},${viewport.y} size: ${viewport.width}x${viewport.height}`);
-    console.log(`🔍 Tile size: ${this.tileWidth}x${this.tileHeight}`);
-    console.log(`🔍 Map: ${map.width}x${map.height}, tiles count: ${Object.keys(map.tiles).length}`);
-    
     // Exact copy from freeciv-web gui_rect_iterate logic
     const gui_x0 = viewport.x;
     const gui_y0 = viewport.y;
@@ -274,7 +259,6 @@ export class MapRenderer {
       const ptile_y1 = Math.floor(((gui_y_0 + gui_y_h) * ptile_r2 + ptile_h - 1) / ptile_h - ((((gui_y_0 + gui_y_h) * ptile_r2 + ptile_h - 1) < 0 && ((gui_y_0 + gui_y_h) * ptile_r2 + ptile_h - 1) % ptile_h < 0) ? 1 : 0)) + ptile_r1;
       const ptile_count = (ptile_x1 - ptile_x0) * (ptile_y1 - ptile_y0);
       
-      console.log(`🔍 Exact bounds: x[${ptile_x0}-${ptile_x1}] y[${ptile_y0}-${ptile_y1}] count=${ptile_count}`);
       
       for (let ptile_index = 0; ptile_index < ptile_count; ptile_index++) {
         const ptile_xi = ptile_x0 + (ptile_index % (ptile_x1 - ptile_x0));
@@ -308,10 +292,6 @@ export class MapRenderer {
               mapY += 1;
             }
             
-            // Debug first few tiles
-            if (tiles.length < 5) {
-              console.log(`🔍 Tile ${tiles.length}: ptile(${ptile_xi},${ptile_yi}) -> si=${ptile_si} di=${ptile_di} -> map(${Math.floor((ptile_si / 4) - 1)},${Math.floor(ptile_di / 4)}) -> final(${mapX},${mapY})`);
-            }
             
             // Use freeciv-web tile array access: tiles[x + y * map['xsize']]
             const mapXSize = (map as any).xsize || map.width;
@@ -339,27 +319,11 @@ export class MapRenderer {
               
               if (tile) {
                 tiles.push(tile);
-              } else if (tiles.length < 3) {
-                console.log(`❌ No tile at (${mapX},${mapY}) - checked array index ${arrayIndex}`);
               }
             }
           }
         }
       }
-    }
-    
-    console.log(`🔍 Found ${tiles.length} visible tiles using EXACT freeciv-web logic`);
-    if (tiles.length === 0) {
-      console.log(`🔍 Available tiles: ${Object.keys(map.tiles).slice(0, 10)}`);
-      console.log(`🔍 Map bounds: ${map.width}x${map.height}`);
-      console.log(`🔍 Viewport: (${viewport.x}, ${viewport.y}) zoom=${viewport.zoom}`);
-      
-      // Show what coordinates we calculated vs what's available
-      console.log('🔍 First few calculated coordinates vs available:');
-      Object.keys(map.tiles).slice(0, 3).forEach(key => {
-        const [x, y] = key.split(',').map(Number);
-        console.log(`  Available: (${x},${y}) vs calculated range pending...`);
-      });
     }
     return tiles;
   }
@@ -686,10 +650,6 @@ export class MapRenderer {
   ): Tile[] {
     const tiles: Tile[] = [];
     
-    console.log(`🔍 Using freeciv-web global tiles array`);
-    console.log(`🔍 Viewport: ${viewport.x},${viewport.y} size: ${viewport.width}x${viewport.height}`);
-    console.log(`🔍 Global map: ${globalMap.xsize}x${globalMap.ysize}, tiles: ${globalTiles.length}`);
-    
     // For now, let's do a simple approach - get all tiles that have data
     // Later we can add the complex isometric culling logic
     for (let i = 0; i < globalTiles.length; i++) {
@@ -710,7 +670,6 @@ export class MapRenderer {
       }
     }
     
-    console.log(`🔍 Found ${tiles.length} tiles with terrain data`);
     return tiles;
   }
 }

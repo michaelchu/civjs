@@ -63,8 +63,6 @@ class GameClient {
 
     // Map data events - handle both formats
     this.socket.on('map-data', data => {
-      console.log('🗺️ Received map data from server:', data);
-      console.log('🗺️ Map dimensions:', data.width, 'x', data.height);
       useGameStore.getState().updateGameState({
         mapData: data,
         map: {
@@ -77,7 +75,6 @@ class GameClient {
     
     // Handle map-info packet exactly like freeciv-web
     this.socket.on('map-info', data => {
-      console.log('🗺️ Received map-info packet:', data);
       
       // Store in global map variable exactly like freeciv-web: map = packet;
       (window as any).map = data;
@@ -97,19 +94,16 @@ class GameClient {
         };
       }
       
-      console.log('🗺️ Map initialized:', data.xsize, 'x', data.ysize, 'with', totalTiles, 'tiles');
     });
 
     // Handle tile-info packets exactly like freeciv-web
     this.socket.on('tile-info', data => {
-      console.log('🗺️ Received tile-info packet:', data);
       
       // Update tiles array exactly like freeciv-web: tiles[packet['tile']] = $.extend(tiles[packet['tile']], packet);
       if ((window as any).tiles && data.tile !== undefined) {
         const tiles = (window as any).tiles;
         tiles[data.tile] = Object.assign(tiles[data.tile] || {}, data);
         
-        console.log(`🗺️ Updated tile ${data.tile} at (${data.x}, ${data.y})`);
         
         // Update our game store for compatibility (convert to object format)
         const tileKey = `${data.x},${data.y}`;
@@ -142,7 +136,6 @@ class GameClient {
         
         // Center viewport on first received tile
         if (Object.keys(updatedTiles).length === 1) {
-          console.log(`🎯 Centering viewport on first tile (${data.x}, ${data.y})`);
           useGameStore.getState().setViewport({
             x: 0,
             y: 0, 
@@ -154,7 +147,6 @@ class GameClient {
     
     // OPTIMIZED: Handle batch tile updates for better performance
     this.socket.on('tile-info-batch', data => {
-      console.log(`🗺️ Received tile batch: ${data.startIndex}-${data.endIndex} of ${data.total}`);
       
       if (!(window as any).tiles || !data.tiles) return;
       
@@ -196,7 +188,6 @@ class GameClient {
       
       // Log progress
       if (data.endIndex === data.total) {
-        console.log(`✅ All ${data.total} tiles received and processed`);
       }
     });
 

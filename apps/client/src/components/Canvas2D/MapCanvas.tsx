@@ -28,7 +28,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         // Initialize with server URL from config
         const { SERVER_URL } = await import('../../config');
         await rendererRef.current.initialize(SERVER_URL);
-        console.log('🗺️ Map renderer initialized, waiting for server map data...');
         const gameState = useGameStore.getState();
         
         if (rendererRef.current) {

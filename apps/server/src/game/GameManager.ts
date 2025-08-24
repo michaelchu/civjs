@@ -104,7 +104,6 @@ export class GameManager {
   }
 
   public async joinGame(gameId: string, userId: string, civilization?: string): Promise<string> {
-    logger.info('🚀 JOINAME METHOD CALLED WITH DEBUG 🚀', { gameId, userId, civilization });
     
     // Get game from database
     const game = await db.query.games.findFirst({
@@ -184,9 +183,8 @@ export class GameManager {
       logger.info('Auto-starting game', { gameId, playerCount: updatedGame.players.length });
       try {
         // Small delay to ensure socket room joins have completed
-        logger.info('⏰ Waiting 200ms before auto-start...');
+        // Small delay to ensure socket room joins are complete
         await new Promise(resolve => setTimeout(resolve, 200));
-        logger.info('⏰ Auto-start delay complete, starting game now...');
         await this.startGame(gameId, updatedGame.hostId);
       } catch (error) {
         logger.error('Failed to auto-start game:', error);
@@ -333,9 +331,8 @@ export class GameManager {
     this.games.set(gameId, gameInstance);
 
     // Send initial map data to all players (with delay to ensure socket room joins are complete)
-    logger.info('🕒 Setting up 300ms timeout for map broadcasting...');
+    // Delay map broadcasting to ensure socket room joins are complete
     setTimeout(() => {
-      logger.info('🕒 300ms timeout fired, broadcasting map data now...');
       this.broadcastMapData(gameId, mapData);
     }, 300);
   }
@@ -354,11 +351,8 @@ export class GameManager {
     this.broadcastToGame(gameId, 'map-data', mapDataPacket);
 
     // Send data in EXACT freeciv-web format
-    console.log('🐛 About to send freeciv-web format data');
     const gameInstance = this.games.get(gameId);
-    console.log('🐛 GameInstance found:', !!gameInstance);
     if (gameInstance) {
-      console.log('🐛 Entering freeciv-web packet sending logic');
       // Send map info in EXACT freeciv-web format (gets assigned to global map variable)
       const mapInfoPacket = {
         xsize: mapData.width,
@@ -367,11 +361,9 @@ export class GameManager {
         topology_id: 0,
       };
       
-      console.log('🗺️ Broadcasting map-info packet:', mapInfoPacket);
       this.broadcastToGame(gameId, 'map-info', mapInfoPacket);
 
       // OPTIMIZED: Send tiles in batches to improve performance
-      console.log(`🗺️ Preparing ${mapData.width * mapData.height} tiles for batch sending`);
       
       // Collect all tiles into an array
       const allTiles = [];
@@ -414,7 +406,7 @@ export class GameManager {
         });
       }
       
-      console.log(`🗺️ Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches`);
+      logger.debug(`Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches`);
     }
   }
 
