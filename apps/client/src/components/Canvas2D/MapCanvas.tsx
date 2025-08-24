@@ -100,18 +100,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     // This will be implemented later
   }, []);
 
-  const handleWheel = useCallback(
-    (event: React.WheelEvent<HTMLCanvasElement>) => {
-      event.preventDefault();
-
-      // Zoom in/out
-      const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
-      const newZoom = Math.max(0.5, Math.min(3.0, viewport.zoom * zoomFactor));
-
-      setViewport({ zoom: newZoom });
-    },
-    [viewport.zoom, setViewport]
-  );
+  // Removed zoom functionality to match freeciv-web 2D canvas behavior
+  // Freeciv-web's 2D renderer does not support zoom - only the WebGL renderer does
 
   return (
     <div className="relative overflow-hidden bg-blue-900">
@@ -121,7 +111,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         height={height}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
-        onWheel={handleWheel}
         className="cursor-crosshair"
         style={{ imageRendering: 'pixelated' }}
       />

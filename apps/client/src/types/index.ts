@@ -119,7 +119,7 @@ export interface MapViewport {
   y: number;
   width: number;
   height: number;
-  zoom: number;
+  // Removed zoom - freeciv-web 2D canvas does not support zoom
 }
 
 export type GameTab =

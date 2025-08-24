@@ -67,7 +67,6 @@ export const useGameStore = create<GameStore>()(
       y: 0,
       width: 800,
       height: 600,
-      zoom: 1,
     },
     selectedUnitId: null,
     selectedCityId: null,

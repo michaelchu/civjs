@@ -174,14 +174,10 @@ export class MapRenderer {
     const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
 
     // Render multi-layer terrain like freeciv-web does
-    this.renderTerrainLayers(tile, screenPos, viewport);
+    this.renderTerrainLayers(tile, screenPos);
   }
 
-  private renderTerrainLayers(
-    tile: Tile,
-    screenPos: { x: number; y: number },
-    viewport: MapViewport
-  ) {
+  private renderTerrainLayers(tile: Tile, screenPos: { x: number; y: number }) {
     // Render all layers (0, 1, 2) like freeciv-web does
     for (let layer = 0; layer <= 2; layer++) {
       const sprites = this.fillTerrainSpriteArraySimple(layer, tile);
@@ -195,8 +191,8 @@ export class MapRenderer {
           // Copy freeciv-web logic exactly: pcanvas.drawImage(sprites[tag], canvas_x, canvas_y);
           this.ctx.drawImage(
             sprite,
-            screenPos.x + offsetX * viewport.zoom,
-            screenPos.y + offsetY * viewport.zoom
+            screenPos.x + offsetX,
+            screenPos.y + offsetY
           );
         } else {
           // Try fallback sprites for water terrains
@@ -246,8 +242,8 @@ export class MapRenderer {
       this.ctx.fillRect(
         screenPos.x,
         screenPos.y,
-        this.tileWidth * viewport.zoom,
-        this.tileHeight * viewport.zoom
+        this.tileWidth,
+        this.tileHeight
       );
     }
   }
@@ -638,21 +634,21 @@ export class MapRenderer {
     this.ctx.fillStyle = this.getPlayerColor(unit.playerId);
     this.ctx.beginPath();
     this.ctx.arc(
-      screenPos.x + (this.tileWidth * viewport.zoom) / 2,
-      screenPos.y + (this.tileHeight * viewport.zoom) / 2,
-      8 * viewport.zoom,
+      screenPos.x + this.tileWidth / 2,
+      screenPos.y + this.tileHeight / 2,
+      8,
       0,
       2 * Math.PI
     );
     this.ctx.fill();
 
     this.ctx.fillStyle = 'white';
-    this.ctx.font = `${12 * viewport.zoom}px Arial`;
+    this.ctx.font = '12px Arial';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(
       unit.type.charAt(0).toUpperCase(),
-      screenPos.x + (this.tileWidth * viewport.zoom) / 2,
-      screenPos.y + (this.tileHeight * viewport.zoom) / 2 + 4
+      screenPos.x + this.tileWidth / 2,
+      screenPos.y + this.tileHeight / 2 + 4
     );
   }
 
@@ -663,23 +659,23 @@ export class MapRenderer {
     this.ctx.fillRect(
       screenPos.x + 5,
       screenPos.y + 5,
-      (this.tileWidth - 10) * viewport.zoom,
-      (this.tileHeight - 10) * viewport.zoom
+      this.tileWidth - 10,
+      this.tileHeight - 10
     );
 
     this.ctx.fillStyle = 'white';
-    this.ctx.font = `${10 * viewport.zoom}px Arial`;
+    this.ctx.font = '10px Arial';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(
       city.name,
-      screenPos.x + (this.tileWidth * viewport.zoom) / 2,
+      screenPos.x + this.tileWidth / 2,
       screenPos.y - 5
     );
 
     this.ctx.fillText(
       city.size.toString(),
-      screenPos.x + (this.tileWidth * viewport.zoom) / 2,
-      screenPos.y + (this.tileHeight * viewport.zoom) / 2
+      screenPos.x + this.tileWidth / 2,
+      screenPos.y + this.tileHeight / 2
     );
   }
 
@@ -725,14 +721,14 @@ export class MapRenderer {
   private mapToScreen(mapX: number, mapY: number, viewport: MapViewport) {
     const guiVector = this.mapToGuiVector(mapX, mapY);
     return {
-      x: (guiVector.guiDx - viewport.x) * viewport.zoom,
-      y: (guiVector.guiDy - viewport.y) * viewport.zoom,
+      x: guiVector.guiDx - viewport.x,
+      y: guiVector.guiDy - viewport.y,
     };
   }
 
   canvasToMap(canvasX: number, canvasY: number, viewport: MapViewport) {
-    const guiX = canvasX / viewport.zoom + viewport.x;
-    const guiY = canvasY / viewport.zoom + viewport.y;
+    const guiX = canvasX + viewport.x;
+    const guiY = canvasY + viewport.y;
     const result = this.guiToMapPos(guiX, guiY);
     return result;
   }
@@ -744,9 +740,9 @@ export class MapRenderer {
   ): boolean {
     const screenPos = this.mapToScreen(mapX, mapY, viewport);
     return (
-      screenPos.x + this.tileWidth * viewport.zoom >= 0 &&
+      screenPos.x + this.tileWidth >= 0 &&
       screenPos.x <= viewport.width &&
-      screenPos.y + this.tileHeight * viewport.zoom >= 0 &&
+      screenPos.y + this.tileHeight >= 0 &&
       screenPos.y <= viewport.height
     );
   }
@@ -825,18 +821,18 @@ export class MapRenderer {
 
         // Draw diamond shape
         this.drawDiamond(
-          screenPos.x + (this.tileWidth * viewport.zoom) / 2,
-          screenPos.y + (this.tileHeight * viewport.zoom) / 2,
-          (this.tileWidth * viewport.zoom) / 2,
-          (this.tileHeight * viewport.zoom) / 2
+          screenPos.x + this.tileWidth / 2,
+          screenPos.y + this.tileHeight / 2,
+          this.tileWidth / 2,
+          this.tileHeight / 2
         );
 
         // Optionally draw tile coordinates
-        if (showTileNumbers && viewport.zoom > 0.5) {
+        if (showTileNumbers) {
           this.ctx.fillText(
             `${x},${y}`,
-            screenPos.x + (this.tileWidth * viewport.zoom) / 2,
-            screenPos.y + (this.tileHeight * viewport.zoom) / 2
+            screenPos.x + this.tileWidth / 2,
+            screenPos.y + this.tileHeight / 2
           );
         }
       }
