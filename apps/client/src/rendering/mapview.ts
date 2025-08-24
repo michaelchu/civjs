@@ -344,9 +344,266 @@ export function canvas_put_select_rectangle(
   canvas_context.stroke();
 }
 
-// TODO: Port remaining ~25 functions from original mapview.js including:
-// - mapview_put_city_bar
-// - mapview_put_tile_label
+/**************************************************************************
+  Draw city text onto the canvas.
+**************************************************************************/
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function mapview_put_city_bar(
+  pcanvas: CanvasRenderingContext2D,
+  city: any,
+  canvas_x: number,
+  canvas_y: number
+): void {
+  const text = decodeURIComponent(city['name']).toUpperCase();
+  const size = city['size'];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const color = (nations as any)[city_owner(city)['nation']]['color'];
+  const prod_type = get_city_production_type(city);
+
+  const txt_measure = pcanvas.measureText(text);
+  const size_measure = pcanvas.measureText(size);
+  pcanvas.globalAlpha = 0.7;
+  pcanvas.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  pcanvas.fillRect(
+    canvas_x - Math.floor(txt_measure.width / 2) - 14,
+    canvas_y - 17,
+    txt_measure.width + 20,
+    20
+  );
+
+  pcanvas.fillStyle = color;
+  pcanvas.fillRect(
+    canvas_x + Math.floor(txt_measure.width / 2) + 5,
+    canvas_y - 19,
+    prod_type != null ? size_measure.width + 35 : size_measure.width + 8,
+    24
+  );
+
+  const city_flag = get_city_flag_sprite(city);
+  pcanvas.drawImage(
+    sprites[city_flag['key']],
+    canvas_x - Math.floor(txt_measure.width / 2) - 45,
+    canvas_y - 17
+  );
+
+  pcanvas.drawImage(
+    sprites[get_city_occupied_sprite(city)],
+    canvas_x - Math.floor(txt_measure.width / 2) - 12,
+    canvas_y - 16
+  );
+
+  pcanvas.strokeStyle = color;
+  pcanvas.lineWidth = 1.5;
+  pcanvas.beginPath();
+  pcanvas.moveTo(
+    canvas_x - Math.floor(txt_measure.width / 2) - 46,
+    canvas_y - 18
+  );
+  pcanvas.lineTo(
+    canvas_x + Math.floor(txt_measure.width / 2) + size_measure.width + 13,
+    canvas_y - 18
+  );
+  pcanvas.moveTo(
+    canvas_x + Math.floor(txt_measure.width / 2) + size_measure.width + 13,
+    canvas_y + 4
+  );
+  pcanvas.lineTo(
+    canvas_x - Math.floor(txt_measure.width / 2) - 46,
+    canvas_y + 4
+  );
+  pcanvas.lineTo(
+    canvas_x - Math.floor(txt_measure.width / 2) - 46,
+    canvas_y - 18
+  );
+  pcanvas.moveTo(
+    canvas_x - Math.floor(txt_measure.width / 2) - 15,
+    canvas_y - 17
+  );
+  pcanvas.lineTo(
+    canvas_x - Math.floor(txt_measure.width / 2) - 15,
+    canvas_y + 3
+  );
+  pcanvas.stroke();
+
+  pcanvas.globalAlpha = 1.0;
+
+  if (prod_type != null) {
+    let tag;
+    if (city['production_kind'] == VUT_UTYPE) {
+      tag = tileset_unit_type_graphic_tag(prod_type);
+    } else {
+      tag = tileset_ruleset_entity_tag_str_or_alt(prod_type, 'building');
+    }
+
+    if (tag == null) {
+      return;
+    }
+
+    pcanvas.drawImage(
+      sprites[tag],
+      canvas_x + Math.floor(txt_measure.width / 2) + size_measure.width + 13,
+      canvas_y - 19,
+      28,
+      24
+    );
+  }
+
+  pcanvas.fillStyle = 'rgba(0, 0, 0, 1)';
+  pcanvas.fillText(
+    size,
+    canvas_x + Math.floor(txt_measure.width / 2) + 10,
+    canvas_y + 1
+  );
+
+  pcanvas.fillStyle = 'rgba(255, 255, 255, 1)';
+  pcanvas.fillText(
+    text,
+    canvas_x - Math.floor(txt_measure.width / 2) - 2,
+    canvas_y - 1
+  );
+  pcanvas.fillText(
+    size,
+    canvas_x + Math.floor(txt_measure.width / 2) + 8,
+    canvas_y - 1
+  );
+}
+
+/**************************************************************************
+  Draw tile label onto the canvas.
+**************************************************************************/
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function mapview_put_tile_label(
+  pcanvas: CanvasRenderingContext2D,
+  tile: any,
+  canvas_x: number,
+  canvas_y: number
+): void {
+  const text = tile['label'];
+  if (text != null && text.length > 0) {
+    const txt_measure = pcanvas.measureText(text);
+
+    pcanvas.fillStyle = 'rgba(255, 255, 255, 1)';
+    pcanvas.fillText(
+      text,
+      canvas_x + normal_tile_width / 2 - Math.floor(txt_measure.width / 2),
+      canvas_y - 1
+    );
+  }
+}
+
+/**************************************************************************
+  Renders the national border lines onto the canvas.
+**************************************************************************/
+export function mapview_put_border_line(
+  pcanvas: CanvasRenderingContext2D,
+  dir: number,
+  color: string,
+  canvas_x: number,
+  canvas_y: number
+): void {
+  const x = canvas_x + 47;
+  const y = canvas_y + 3;
+  pcanvas.strokeStyle = color;
+  pcanvas.beginPath();
+
+  if (dir == DIR8_NORTH) {
+    pcanvas.moveTo(x, y - 2);
+    pcanvas.lineTo(x + tileset_tile_width / 2, y + tileset_tile_height / 2 - 2);
+  } else if (dir == DIR8_EAST) {
+    pcanvas.moveTo(x - 3, y + tileset_tile_height - 3);
+    pcanvas.lineTo(
+      x + tileset_tile_width / 2 - 3,
+      y + tileset_tile_height / 2 - 3
+    );
+  } else if (dir == DIR8_SOUTH) {
+    pcanvas.moveTo(
+      x - tileset_tile_width / 2 + 3,
+      y + tileset_tile_height / 2 - 3
+    );
+    pcanvas.lineTo(x + 3, y + tileset_tile_height - 3);
+  } else if (dir == DIR8_WEST) {
+    pcanvas.moveTo(
+      x - tileset_tile_width / 2 + 3,
+      y + tileset_tile_height / 2 - 3
+    );
+    pcanvas.lineTo(x + 3, y - 3);
+  }
+  pcanvas.closePath();
+  pcanvas.stroke();
+}
+
+/**************************************************************************
+  ...
+**************************************************************************/
+export function mapview_put_goto_line(
+  pcanvas: CanvasRenderingContext2D,
+  dir: number,
+  canvas_x: number,
+  canvas_y: number
+): void {
+  const x0 = canvas_x + tileset_tile_width / 2;
+  const y0 = canvas_y + tileset_tile_height / 2;
+  const x1 = x0 + GOTO_DIR_DX[dir] * (tileset_tile_width / 2);
+  const y1 = y0 + GOTO_DIR_DY[dir] * (tileset_tile_height / 2);
+
+  pcanvas.strokeStyle = 'rgba(0,168,255,0.9)';
+  pcanvas.lineWidth = 10;
+  pcanvas.lineCap = 'round';
+  pcanvas.beginPath();
+  pcanvas.moveTo(x0, y0);
+  pcanvas.lineTo(x1, y1);
+  pcanvas.stroke();
+}
+
+/**************************************************************************
+  ...
+**************************************************************************/
+export function set_city_mapview_active(): void {
+  const city_canvas_element = document.getElementById(
+    'city_canvas'
+  ) as HTMLCanvasElement;
+  if (city_canvas_element == null) return;
+  city_canvas_ctx = city_canvas_element.getContext('2d')!;
+  city_canvas_ctx.font = canvas_text_font;
+
+  mapview_canvas_ctx = city_canvas_element.getContext('2d')!;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (mapview as any)['width'] = citydlg_map_width;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (mapview as any)['height'] = citydlg_map_height;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (mapview as any)['store_width'] = citydlg_map_width;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (mapview as any)['store_height'] = citydlg_map_height;
+
+  set_default_mapview_inactive();
+}
+
+/**************************************************************************
+  ...
+**************************************************************************/
+export function set_default_mapview_inactive(): void {
+  if (overview_active) {
+    const overviewPanel = document.getElementById(
+      'game_overview_panel'
+    )?.parentElement;
+    if (overviewPanel) overviewPanel.style.display = 'none';
+  }
+  const unitPanel = document.getElementById('game_unit_panel')?.parentElement;
+  if (unitPanel) unitPanel.style.display = 'none';
+
+  if (chatbox_active) {
+    const chatboxPanel =
+      document.getElementById('game_chatbox_panel')?.parentElement;
+    if (chatboxPanel) chatboxPanel.style.display = 'none';
+  }
+}
+
+// TODO: Port remaining functions from original mapview.js including:
+// - enable_mapview_slide
+// - mapview_window_resized
+// - And other canvas management functions
 // - init_cache_sprites
 // - And all other canvas management functions
 
