@@ -84,9 +84,12 @@ const mockSocket = {
 
 const mockIo = {
   emit: jest.fn(),
-  to: jest.fn().mockReturnThis(),
+  to: jest.fn().mockReturnValue({ emit: jest.fn() }),
   sockets: {
     sockets: new Map([['test-socket-id', mockSocket]]),
+    adapter: {
+      rooms: new Map(),
+    },
   },
 } as any;
 

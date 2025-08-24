@@ -334,6 +334,11 @@ export class GameManager {
     // Store the game instance
     this.games.set(gameId, gameInstance);
 
+    // Initialize research for all players
+    for (const player of players.values()) {
+      await researchManager.initializePlayerResearch(player.id);
+    }
+
     // Send initial map data to all players (with delay to ensure socket room joins are complete)
     // Delay map broadcasting to ensure socket room joins are complete
     setTimeout(() => {
@@ -423,6 +428,18 @@ export class GameManager {
 
   public async getGame(gameId: string): Promise<any | null> {
     return await this.getGameById(gameId);
+  }
+
+  public getGameInstance(gameId: string): GameInstance | null {
+    return this.games.get(gameId) || null;
+  }
+
+  public getAllGameInstances(): GameInstance[] {
+    return Array.from(this.games.values());
+  }
+
+  public getActiveGameInstances(): GameInstance[] {
+    return Array.from(this.games.values()).filter(game => game.state === 'active');
   }
 
   public async getGameByPlayerId(playerId: string): Promise<any | null> {

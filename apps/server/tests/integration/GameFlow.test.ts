@@ -11,6 +11,11 @@ describe('Game Integration Flow', () => {
 
   beforeEach(() => {
     (GameManager as any).instance = null;
+    
+    // Ensure mockIo has the proper structure
+    mockIo.to = jest.fn().mockReturnValue({ emit: jest.fn() });
+    mockIo.sockets.adapter = { rooms: new Map() };
+    
     gameManager = GameManager.getInstance(mockIo);
 
     // Setup database mocks for integration tests
@@ -18,6 +23,28 @@ describe('Game Integration Flow', () => {
     let playerCounter = 0;
     let cityCounter = 0;
     let unitCounter = 0;
+
+    // Track mock state
+    let mockGameData = {
+      id: 'game-1',
+      name: 'Test Game',
+      hostId: 'host-user-id',
+      maxPlayers: 2,
+      mapWidth: 20,
+      mapHeight: 20,
+      status: 'waiting',
+      players: [] as any[],
+    };
+
+    // Mock the query API
+    mockDb.query = {
+      games: {
+        findFirst: jest.fn().mockImplementation(() => {
+          // Return the dynamic mock game data
+          return Promise.resolve(mockGameData);
+        }),
+      },
+    };
 
     mockDb.insert = jest.fn().mockReturnThis();
     mockDb.values = jest.fn().mockReturnThis();
@@ -27,24 +54,39 @@ describe('Game Integration Flow', () => {
 
       if (query && query.hostId) {
         // Game insertion
-        return Promise.resolve([
-          {
-            id: `game-${++gameCounter}`,
-            name: query.name,
-            hostId: query.hostId,
-          },
-        ]);
+        const newGame = {
+          id: `game-${++gameCounter}`,
+          name: query.name,
+          hostId: query.hostId,
+        };
+        
+        // Update mock game data with new game info
+        mockGameData = {
+          ...mockGameData,
+          id: newGame.id,
+          name: newGame.name,
+          hostId: newGame.hostId,
+          maxPlayers: query.maxPlayers || 2,
+          mapWidth: query.mapWidth || 20,
+          mapHeight: query.mapHeight || 20,
+          players: [], // Reset players for new game
+        };
+        
+        return Promise.resolve([newGame]);
       } else if (query && query.userId) {
         // Player insertion
-        return Promise.resolve([
-          {
-            id: `player-${++playerCounter}`,
-            gameId: query.gameId,
-            userId: query.userId,
-            playerNumber: query.playerNumber,
-            civilization: query.civilization,
-          },
-        ]);
+        const newPlayer = {
+          id: `player-${++playerCounter}`,
+          gameId: query.gameId,
+          userId: query.userId,
+          playerNumber: query.playerNumber,
+          civilization: query.civilization,
+        };
+        
+        // Update mock game data
+        mockGameData.players.push(newPlayer);
+        
+        return Promise.resolve([newPlayer]);
       } else if (query && query.name && query.x !== undefined) {
         // City insertion
         return Promise.resolve([
@@ -107,7 +149,7 @@ describe('Game Integration Flow', () => {
       // Start game
       await gameManager.startGame(gameId, 'host-user-id');
 
-      const game = gameManager.getGame(gameId);
+      const game = gameManager.getGameInstance(gameId);
       expect(game!.state).toBe('active');
       expect(game!.players.size).toBe(2);
 
@@ -163,7 +205,7 @@ describe('Game Integration Flow', () => {
       const cityId = await gameManager.foundCity(gameId, playerId, 'Capital', 5, 5);
       const unitId = await gameManager.createUnit(gameId, playerId, 'warrior', 5, 5);
 
-      const game = gameManager.getGame(gameId)!;
+      const game = gameManager.getGameInstance(gameId)!;
 
       // Verify city manager has the city
       const city = game.cityManager.getCity(cityId);

@@ -321,7 +321,7 @@ describe('GameManager', () => {
     });
 
     it('should get game by ID', () => {
-      const game = gameManager.getGame(gameId);
+      const game = gameManager.getGameInstance(gameId);
 
       expect(game).toBeDefined();
       expect(game!.id).toBe(gameId);
@@ -329,22 +329,22 @@ describe('GameManager', () => {
     });
 
     it('should return undefined for non-existent game', () => {
-      const game = gameManager.getGame('non-existent');
-      expect(game).toBeUndefined();
+      const game = gameManager.getGameInstance('non-existent');
+      expect(game).toBeNull();
     });
 
     it('should get all games', () => {
-      const allGames = gameManager.getAllGames();
+      const allGames = gameManager.getAllGameInstances();
 
       expect(allGames).toHaveLength(1);
       expect(allGames[0].id).toBe(gameId);
     });
 
     it('should get active games only', () => {
-      const activeGames = gameManager.getActiveGames();
+      const activeGames = gameManager.getActiveGameInstances();
 
       expect(activeGames).toHaveLength(1);
-      expect(activeGames[0].state).toBe('waiting'); // waiting is considered active
+      expect(activeGames[0].state).toBe('active'); // games are active when started
     });
 
     it('should filter out ended games from active games', () => {
