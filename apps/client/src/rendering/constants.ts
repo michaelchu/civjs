@@ -142,3 +142,9 @@ export const NUM_CARDINAL_TILESET_DIRS = 4;
 
 // Direction mapping from 4-directional to 8-directional
 export const DIR4_TO_DIR8 = [DIR8_NORTH, DIR8_SOUTH, DIR8_EAST, DIR8_WEST];
+
+// Goto line direction offsets for rendering goto paths
+export const GOTO_DIR_DX = [0, 1, 0, -1, 1, 1, -1, -1];
+export const GOTO_DIR_DY = [-1, 0, 1, 0, -1, 1, 1, -1];
+
+// Tileset dimensions will be imported from tileset-config.ts

@@ -19,19 +19,24 @@
 
 // Canvas management and sprite loading system ported from freeciv-web mapview.js
 
+import {
+  DIR8_NORTH,
+  DIR8_EAST,
+  DIR8_SOUTH,
+  DIR8_WEST,
+  GOTO_DIR_DX,
+  GOTO_DIR_DY,
+} from './constants';
+import { tileset_tile_width, tileset_tile_height } from './tileset-config';
+import type { City, Nation, Player, SpriteDefinition } from './types';
+
 // Canvas contexts and elements - these will be assigned during initialization
-// eslint-disable-next-line prefer-const
 let mapview_canvas_ctx: CanvasRenderingContext2D | null = null;
-// eslint-disable-next-line prefer-const
-let mapview_canvas: HTMLCanvasElement | null = null;
-// eslint-disable-next-line prefer-const
-let buffer_canvas_ctx: CanvasRenderingContext2D | null = null;
-// eslint-disable-next-line prefer-const
-let buffer_canvas: HTMLCanvasElement | null = null;
-// eslint-disable-next-line prefer-const
+const mapview_canvas: HTMLCanvasElement | null = null;
+const buffer_canvas_ctx: CanvasRenderingContext2D | null = null;
+const buffer_canvas: HTMLCanvasElement | null = null;
 let city_canvas_ctx: CanvasRenderingContext2D | null = null;
-// eslint-disable-next-line prefer-const
-let city_canvas: HTMLCanvasElement | null = null;
+const city_canvas: HTMLCanvasElement | null = null;
 
 // Sprite loading state
 const tileset_images: HTMLImageElement[] = [];
@@ -68,6 +73,32 @@ const loadingStateCallbacks: LoadingStateCallback[] = [];
 // Functions referenced by sprite loading functions
 declare function get_tileset_file_extention(): string;
 declare function webgl_preload(): void;
+
+// Game data access functions - these will be implemented elsewhere
+declare const nations: Nation[];
+declare function city_owner(city: City): Player | null;
+declare function get_city_production_type(city: City): { kind: number };
+declare function get_city_flag_sprite(city: City): SpriteDefinition | null;
+declare function city_production_type_sprite_name(prodtype: {
+  kind: number;
+}): string;
+
+// Additional missing function declarations
+declare function get_city_occupied_sprite(): SpriteDefinition | null;
+declare const VUT_UTYPE: number;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare function tileset_unit_type_graphic_tag(utype: any): string;
+declare function tileset_ruleset_entity_tag_str_or_alt(
+  tag: string,
+  alt: string
+): string;
+declare const normal_tile_width: number;
+declare const canvas_text_font: string;
+declare const mapview: { width: number; height: number };
+declare const citydlg_map_width: number;
+declare const citydlg_map_height: number;
+declare let overview_active: boolean;
+declare let chatbox_active: boolean;
 
 /**
  * Register a callback for loading state changes (for React components)
@@ -347,17 +378,21 @@ export function canvas_put_select_rectangle(
 /**************************************************************************
   Draw city text onto the canvas.
 **************************************************************************/
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mapview_put_city_bar(
   pcanvas: CanvasRenderingContext2D,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   city: any,
   canvas_x: number,
   canvas_y: number
 ): void {
   const text = decodeURIComponent(city['name']).toUpperCase();
   const size = city['size'];
+  const owner = city_owner(city);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const color = (nations as any)[city_owner(city)['nation']]['color'];
+  const color = owner
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (nations as any)[(owner as any)['nation']]?.['color'] || '#FFFFFF'
+    : '#FFFFFF';
   const prod_type = get_city_production_type(city);
 
   const txt_measure = pcanvas.measureText(text);
@@ -380,17 +415,22 @@ export function mapview_put_city_bar(
   );
 
   const city_flag = get_city_flag_sprite(city);
-  pcanvas.drawImage(
-    sprites[city_flag['key']],
-    canvas_x - Math.floor(txt_measure.width / 2) - 45,
-    canvas_y - 17
-  );
+  if (city_flag) {
+    pcanvas.drawImage(
+      sprites[city_flag['key']],
+      canvas_x - Math.floor(txt_measure.width / 2) - 45,
+      canvas_y - 17
+    );
+  }
 
-  pcanvas.drawImage(
-    sprites[get_city_occupied_sprite(city)],
-    canvas_x - Math.floor(txt_measure.width / 2) - 12,
-    canvas_y - 16
-  );
+  const occupied_sprite = get_city_occupied_sprite();
+  if (occupied_sprite) {
+    pcanvas.drawImage(
+      sprites[occupied_sprite['key']],
+      canvas_x - Math.floor(txt_measure.width / 2) - 12,
+      canvas_y - 16
+    );
+  }
 
   pcanvas.strokeStyle = color;
   pcanvas.lineWidth = 1.5;
@@ -432,7 +472,10 @@ export function mapview_put_city_bar(
     if (city['production_kind'] == VUT_UTYPE) {
       tag = tileset_unit_type_graphic_tag(prod_type);
     } else {
-      tag = tileset_ruleset_entity_tag_str_or_alt(prod_type, 'building');
+      tag = tileset_ruleset_entity_tag_str_or_alt(
+        city_production_type_sprite_name(prod_type),
+        'building'
+      );
     }
 
     if (tag == null) {
@@ -471,9 +514,9 @@ export function mapview_put_city_bar(
 /**************************************************************************
   Draw tile label onto the canvas.
 **************************************************************************/
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mapview_put_tile_label(
   pcanvas: CanvasRenderingContext2D,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tile: any,
   canvas_x: number,
   canvas_y: number
@@ -583,7 +626,7 @@ export function set_city_mapview_active(): void {
 /**************************************************************************
   ...
 **************************************************************************/
-export function set_default_mapview_inactive(): void {
+function set_default_mapview_inactive(): void {
   if (overview_active) {
     const overviewPanel = document.getElementById(
       'game_overview_panel'
