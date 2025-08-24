@@ -712,7 +712,14 @@ export class MapRenderer {
     );
   }
 
-  private mapToGuiVector(
+  /**
+   * Convert map coordinates to GUI (isometric) coordinates.
+   * This handles the coordinate transformation for isometric diamond-shaped tile layout.
+   * @param mapDx - Map X coordinate difference
+   * @param mapDy - Map Y coordinate difference
+   * @returns GUI coordinates object with guiDx and guiDy
+   */
+  mapToGuiVector(
     mapDx: number,
     mapDy: number
   ): { guiDx: number; guiDy: number } {
@@ -841,54 +848,129 @@ export class MapRenderer {
    * @param viewport - The current viewport for coordinate calculations
    * @param globalMap - The global map object containing xsize and ysize bounds
    */
+  /**
+   * Render ocean tiles beyond map boundaries using freeciv-web's gui_rect_iterate logic.
+   *
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:305-380
+   *   This implements the exact same viewport tile iteration logic as freeciv-web to ensure
+   *   complete coverage of all visible areas, including corners and edges in isometric view.
+   */
   private renderOceanPadding(viewport: MapViewport, globalMap: any) {
-    // Calculate expanded area to fill with ocean tiles - ensures full coverage at viewport edges
-    const tileMargin = 5; // Render extra tiles beyond visible area to ensure full coverage
+    // Copy freeciv-web's gui_rect_iterate logic exactly for proper viewport coverage
+    const gui_x0 = viewport.x;
+    const gui_y0 = viewport.y;
+    const width = viewport.width;
+    const height = viewport.height;
 
-    // Convert expanded viewport bounds to map coordinates
-    // This determines the range of tiles we might need to render (including out-of-bounds)
-    const startMapCoords = this.canvasToMap(
-      -this.tileWidth * tileMargin,
-      -this.tileHeight * tileMargin,
-      viewport
-    );
-    const endMapCoords = this.canvasToMap(
-      viewport.width + this.tileWidth * tileMargin,
-      viewport.height + this.tileHeight * tileMargin,
-      viewport
-    );
+    // gui_rect_iterate begin - copied from freeciv-web
+    let gui_x_0 = gui_x0;
+    let gui_y_0 = gui_y0;
+    let gui_x_w = width + (this.tileWidth >> 1);
+    let gui_y_h = height + (this.tileHeight >> 1);
 
-    // Determine tile coordinate range that might be visible (with padding for isometric overlap)
-    const minX = Math.floor(startMapCoords.mapX) - tileMargin;
-    const maxX = Math.ceil(endMapCoords.mapX) + tileMargin;
-    const minY = Math.floor(startMapCoords.mapY) - tileMargin;
-    const maxY = Math.ceil(endMapCoords.mapY) + tileMargin;
+    if (gui_x_w < 0) {
+      gui_x_0 += gui_x_w;
+      gui_x_w = -gui_x_w;
+    }
 
-    // Iterate through all potentially visible tile positions
-    for (let x = minX; x <= maxX; x++) {
-      for (let y = minY; y <= maxY; y++) {
-        // Skip tiles that are within actual map bounds - these will be rendered normally
-        // This is the inverse of freeciv-web's out-of-bounds check
-        if (x >= 0 && x < globalMap.xsize && y >= 0 && y < globalMap.ysize) {
+    if (gui_y_h < 0) {
+      gui_y_0 += gui_y_h;
+      gui_y_h = -gui_y_h;
+    }
+
+    if (gui_x_w > 0 && gui_y_h > 0) {
+      const ptile_r1 = 2;
+      const ptile_r2 = ptile_r1 * 2;
+      const ptile_w = this.tileWidth;
+      const ptile_h = this.tileHeight;
+
+      const ptile_x0 = Math.floor(
+        (gui_x_0 * ptile_r2) / ptile_w -
+          (gui_x_0 * ptile_r2 < 0 && (gui_x_0 * ptile_r2) % ptile_w < 0
+            ? 1
+            : 0) -
+          ptile_r1 / 2
+      );
+      const ptile_y0 = Math.floor(
+        (gui_y_0 * ptile_r2) / ptile_h -
+          (gui_y_0 * ptile_r2 < 0 && (gui_y_0 * ptile_r2) % ptile_h < 0
+            ? 1
+            : 0) -
+          ptile_r1 / 2
+      );
+      const ptile_x1 = Math.floor(
+        ((gui_x_0 + gui_x_w) * ptile_r2 + ptile_w - 1) / ptile_w -
+          ((gui_x_0 + gui_x_w) * ptile_r2 + ptile_w - 1 < 0 &&
+          ((gui_x_0 + gui_x_w) * ptile_r2 + ptile_w - 1) % ptile_w < 0
+            ? 1
+            : 0) +
+          ptile_r1
+      );
+      const ptile_y1 = Math.floor(
+        ((gui_y_0 + gui_y_h) * ptile_r2 + ptile_h - 1) / ptile_h -
+          ((gui_y_0 + gui_y_h) * ptile_r2 + ptile_h - 1 < 0 &&
+          ((gui_y_0 + gui_y_h) * ptile_r2 + ptile_h - 1) % ptile_h < 0
+            ? 1
+            : 0) +
+          ptile_r1
+      );
+      const ptile_count = (ptile_x1 - ptile_x0) * (ptile_y1 - ptile_y0);
+
+      for (let ptile_index = 0; ptile_index < ptile_count; ptile_index++) {
+        const ptile_xi = ptile_x0 + (ptile_index % (ptile_x1 - ptile_x0));
+        const ptile_yi = Math.floor(
+          ptile_y0 + ptile_index / (ptile_x1 - ptile_x0)
+        );
+        const ptile_si = ptile_xi + ptile_yi;
+        const ptile_di = ptile_yi - ptile_xi;
+
+        if ((ptile_xi + ptile_yi) % 2 != 0) {
           continue;
         }
 
-        // Create synthetic ocean tile for out-of-bounds position
-        // This implements the "pretend terrain continued past the edge" concept
-        const oceanTile: Tile = {
-          x: x,
-          y: y,
-          terrain: 'ocean', // Always use ocean for consistency (could be made configurable)
-          visible: true,
-          known: true,
-          units: [], // No units beyond map edges
-          city: undefined, // No cities beyond map edges
-          elevation: 0,
-          resource: undefined,
-        };
+        // Check if this is a tile position (not a corner)
+        if (ptile_xi % 2 == 0 && ptile_yi % 2 == 0) {
+          if ((ptile_xi + ptile_yi) % 4 == 0) {
+            // Calculate map coordinates for this tile position
+            const map_x = ptile_si / 4 - 1;
+            const map_y = ptile_di / 4;
 
-        // Render the synthetic ocean tile using normal tile rendering pipeline
-        this.renderTile(oceanTile, viewport);
+            // Only render ocean tiles for out-of-bounds positions
+            if (
+              map_x < 0 ||
+              map_x >= globalMap.xsize ||
+              map_y < 0 ||
+              map_y >= globalMap.ysize
+            ) {
+              // Calculate screen position for this tile
+              const gui_x = Math.floor(
+                (ptile_xi * ptile_w) / ptile_r2 - ptile_w / 2
+              );
+              const gui_y = Math.floor(
+                (ptile_yi * ptile_h) / ptile_r2 - ptile_h / 2
+              );
+              const cx = gui_x - gui_x0;
+              const cy = gui_y - gui_y0;
+
+              // Create synthetic ocean tile for out-of-bounds position
+              const oceanTile: Tile = {
+                x: map_x,
+                y: map_y,
+                terrain: 'ocean',
+                visible: true,
+                known: true,
+                units: [],
+                city: undefined,
+                elevation: 0,
+                resource: undefined,
+              };
+
+              // Render the synthetic ocean tile at the calculated screen position
+              const screenPos = { x: cx, y: cy };
+              this.renderTerrainLayers(oceanTile, screenPos);
+            }
+          }
+        }
       }
     }
   }
@@ -1002,6 +1084,245 @@ export class MapRenderer {
     this.ctx.lineTo(centerX - halfWidth, centerY); // Left
     this.ctx.closePath();
     this.ctx.stroke();
+  }
+
+  // Helper functions copied from freeciv-web for map wrapping and boundaries
+
+  /**
+   * Map wrapping flags from freeciv-web map.js
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:35-36
+   */
+  private static readonly WRAP_X = 1;
+  private static readonly WRAP_Y = 2;
+
+  /**
+   * Check if the map has a specific wrapping flag enabled.
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:77-80
+   * @param flag - The wrapping flag to check (WRAP_X or WRAP_Y)
+   * @returns true if the map has this wrapping enabled
+   */
+  private wrapHasFlag(flag: number): boolean {
+    const globalMap = (window as any).map;
+    return globalMap && (globalMap.wrap_id & flag) !== 0;
+  }
+
+  /**
+   * Freeciv coordinate wrapping function for handling map boundaries.
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/utility.js FC_WRAP function
+   * @param value - The coordinate value to wrap
+   * @param range - The range size (map dimension)
+   * @returns The wrapped coordinate value
+   */
+  private fcWrap(value: number, range: number): number {
+    return value < 0
+      ? value % range !== 0
+        ? (value % range) + range
+        : 0
+      : value >= range
+        ? value % range
+        : value;
+  }
+
+  /**
+   * Convert map coordinates to native coordinates for wrapping calculations.
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:243-248
+   * @param mapX - Map X coordinate
+   * @param mapY - Map Y coordinate
+   * @returns Native coordinates object with natX and natY
+   */
+  private mapToNativePos(
+    mapX: number,
+    mapY: number
+  ): { natX: number; natY: number } {
+    const globalMap = (window as any).map;
+    const natY = Math.floor(mapX + mapY - globalMap.xsize);
+    const natX = Math.floor((2 * mapX - natY - (natY & 1)) / 2);
+    return { natX, natY };
+  }
+
+  /**
+   * Convert native coordinates back to map coordinates after wrapping.
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:233-238
+   * @param natX - Native X coordinate
+   * @param natY - Native Y coordinate
+   * @returns Map coordinates object with mapX and mapY
+   */
+  private nativeToMapPos(
+    natX: number,
+    natY: number
+  ): { mapX: number; mapY: number } {
+    const globalMap = (window as any).map;
+    const mapX = Math.floor((natY + (natY & 1)) / 2 + natX);
+    const mapY = Math.floor(natY - mapX + globalMap.xsize);
+    return { mapX, mapY };
+  }
+
+  /**
+   * Normalize (wrap) the GUI position for map boundary handling.
+   * This is equivalent to map wrapping but in GUI coordinates to preserve pixel accuracy.
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:136-183
+   * @param guiX - GUI X coordinate to normalize
+   * @param guiY - GUI Y coordinate to normalize
+   * @returns Normalized GUI coordinates that respect map wrapping
+   */
+  private normalizeGuiPos(
+    guiX: number,
+    guiY: number
+  ): { guiX: number; guiY: number } {
+    const globalMap = (window as any).map;
+    if (!globalMap) return { guiX, guiY };
+
+    // Convert the (gui_x, gui_y) into a (map_x, map_y) plus a GUI offset from this tile
+    const mapPos = this.guiToMapPos(guiX, guiY);
+    let { mapX, mapY } = mapPos;
+
+    const guiPos = this.mapToGuiVector(mapX, mapY);
+    const guiX0 = guiPos.guiDx;
+    const guiY0 = guiPos.guiDy;
+
+    const diffX = guiX - guiX0;
+    const diffY = guiY - guiY0;
+
+    // Perform wrapping without any realness check. It's important that
+    // we wrap even if the map position is unreal, which normalize_map_pos doesn't necessarily do.
+    const nativePos = this.mapToNativePos(mapX, mapY);
+    let { natX, natY } = nativePos;
+
+    if (this.wrapHasFlag(MapRenderer.WRAP_X)) {
+      natX = this.fcWrap(natX, globalMap.xsize);
+    }
+    if (this.wrapHasFlag(MapRenderer.WRAP_Y)) {
+      natY = this.fcWrap(natY, globalMap.ysize);
+    }
+
+    const wrappedMapPos = this.nativeToMapPos(natX, natY);
+    mapX = wrappedMapPos.mapX;
+    mapY = wrappedMapPos.mapY;
+
+    // Now convert the wrapped map position back to a GUI position and add the offset back on
+    const wrappedGuiPos = this.mapToGuiVector(mapX, mapY);
+    const finalGuiX = wrappedGuiPos.guiDx + diffX;
+    const finalGuiY = wrappedGuiPos.guiDy + diffY;
+
+    return { guiX: finalGuiX, guiY: finalGuiY };
+  }
+
+  /**
+   * Calculate the centered starting position for the viewport.
+   * Centers the viewport on the middle tile of the map for optimal initial view.
+   * @param viewportWidth - Width of the viewport in pixels
+   * @param viewportHeight - Height of the viewport in pixels
+   * @returns GUI coordinates for centering the viewport on the map
+   */
+  getCenteredViewportPosition(
+    viewportWidth: number,
+    viewportHeight: number
+  ): { x: number; y: number } {
+    const globalMap = (window as any).map;
+
+    if (!globalMap || !globalMap.xsize || !globalMap.ysize) {
+      return { x: 0, y: 0 };
+    }
+
+    const mapWidthGui = globalMap.xsize * this.tileWidth;
+    const mapHeightGui = globalMap.ysize * this.tileHeight;
+
+    console.log('Debug centering calculation:', {
+      mapSize: { width: globalMap.xsize, height: globalMap.ysize },
+      mapGuiSize: { width: mapWidthGui, height: mapHeightGui },
+      viewportSize: { width: viewportWidth, height: viewportHeight },
+      tileSize: { width: this.tileWidth, height: this.tileHeight },
+    });
+
+    // For isometric maps, we need to center based on the actual center tile of the map
+    // Let's use freeciv-web's approach: center on the middle tile
+    const centerTileX = Math.floor(globalMap.xsize / 2);
+    const centerTileY = Math.floor(globalMap.ysize / 2);
+
+    // Convert center tile to GUI coordinates
+    const centerTileGui = this.mapToGuiVector(centerTileX, centerTileY);
+
+    // Position viewport so center tile is in center of screen
+    const centerX = centerTileGui.guiDx - viewportWidth / 2;
+    const centerY = centerTileGui.guiDy - viewportHeight / 2;
+
+    console.log('Calculated center:', {
+      centerTile: { x: centerTileX, y: centerTileY },
+      centerTileGui: centerTileGui,
+      finalCenter: { x: centerX, y: centerY },
+    });
+
+    return { x: centerX, y: centerY };
+  }
+
+  /**
+   * Change the mapview origin, clip it, and apply boundary constraints.
+   * This is the main function for handling viewport movement and boundary enforcement.
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:103-111
+   * @param guiX0 - Proposed GUI X coordinate for viewport origin
+   * @param guiY0 - Proposed GUI Y coordinate for viewport origin
+   * @param viewportWidth - Width of the viewport in pixels (default: 800)
+   * @param viewportHeight - Height of the viewport in pixels (default: 600)
+   * @returns Constrained GUI coordinates that respect map boundaries
+   */
+  setMapviewOrigin(
+    guiX0: number,
+    guiY0: number,
+    viewportWidth: number = 800,
+    viewportHeight: number = 600
+  ): { x: number; y: number } {
+    const globalMap = (window as any).map;
+
+    // If no map data, apply simple bounds instead of infinite panning
+    if (!globalMap || !globalMap.xsize || !globalMap.ysize) {
+      console.warn('No map data available, applying fallback bounds');
+      // Apply simple rectangular bounds as fallback (prevent infinite panning)
+      const maxX = 1000;
+      const maxY = 1000;
+      const minX = -500;
+      const minY = -500;
+
+      const constrainedX = Math.max(minX, Math.min(maxX, guiX0));
+      const constrainedY = Math.max(minY, Math.min(maxY, guiY0));
+
+      return { x: constrainedX, y: constrainedY };
+    }
+
+    // For non-wrapping maps, apply very generous boundary constraints
+    // Allow panning to see the entire map with reasonable padding
+    if (globalMap.wrap_id === 0) {
+      const mapWidthGui = globalMap.xsize * this.tileWidth;
+      const mapHeightGui = globalMap.ysize * this.tileHeight;
+
+      // Very generous bounds - allow seeing entire map plus lots of padding
+      // This matches freeciv-web's behavior which is quite permissive
+      const padding = Math.max(viewportWidth, viewportHeight); // Full viewport as padding
+
+      const minX = -(mapWidthGui + padding);
+      const maxX = padding;
+      const minY = -(mapHeightGui + padding);
+      const maxY = padding;
+
+      const constrainedX = Math.max(minX, Math.min(maxX, guiX0));
+      const constrainedY = Math.max(minY, Math.min(maxY, guiY0));
+
+      if (import.meta.env.DEV) {
+        console.log('Applied generous bounds:', {
+          original: { guiX0, guiY0 },
+          constrained: { x: constrainedX, y: constrainedY },
+          bounds: { minX, maxX, minY, maxY },
+          mapSize: { mapWidthGui, mapHeightGui },
+          viewport: { viewportWidth, viewportHeight },
+          padding,
+        });
+      }
+
+      return { x: constrainedX, y: constrainedY };
+    }
+
+    // For wrapping maps, use the full normalize_gui_pos logic
+    const normalized = this.normalizeGuiPos(guiX0, guiY0);
+    return { x: normalized.guiX, y: normalized.guiY };
   }
 
   cleanup() {
