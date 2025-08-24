@@ -189,6 +189,28 @@ export function mapview_put_tile(
 }
 
 /**
+ * Draw a path with 4 points (typically used for tile borders)
+ * Ported from mapview.js drawPath()
+ */
+export function drawPath(
+  ctx: CanvasRenderingContext2D,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  x3: number,
+  y3: number,
+  x4: number,
+  y4: number
+): void {
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.lineTo(x3, y3);
+  ctx.lineTo(x4, y4);
+  ctx.lineTo(x1, y1);
+}
+
+/**
  * Draw a filled-in colored rectangle onto the canvas
  * Ported from mapview.js canvas_put_rectangle()
  */
@@ -202,6 +224,23 @@ export function canvas_put_rectangle(
 ): void {
   canvas_context.fillStyle = pcolor;
   canvas_context.fillRect(canvas_x, canvas_y, width, height);
+}
+
+/**
+ * Draw a red selection rectangle outline onto the canvas
+ * Ported from mapview.js canvas_put_select_rectangle()
+ */
+export function canvas_put_select_rectangle(
+  canvas_context: CanvasRenderingContext2D,
+  canvas_x: number,
+  canvas_y: number,
+  width: number,
+  height: number
+): void {
+  canvas_context.beginPath();
+  canvas_context.strokeStyle = 'rgb(255,0,0)';
+  canvas_context.rect(canvas_x, canvas_y, width, height);
+  canvas_context.stroke();
 }
 
 // TODO: Port remaining ~25 functions from original mapview.js including:
