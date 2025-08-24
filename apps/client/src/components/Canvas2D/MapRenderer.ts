@@ -95,16 +95,25 @@ export class MapRenderer {
       return;
     }
 
-    // Copy freeciv-web boundary logic from mapview_common.js:282-291
+    /**
+     * Implement freeciv-web's map boundary handling to fix diamond-shaped map edges.
+     *
+     * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:282-291
+     *   The original boundary detection and background filling logic that prevents
+     *   diamond-shaped map edges by filling out-of-bounds areas with background color.
+     */
     const viewportExceedsMapBounds = this.checkViewportBounds(state.viewport);
 
     if (viewportExceedsMapBounds) {
-      // Clear canvas without background (freeciv-web uses black, we'll render ocean tiles)
+      // Clear canvas without background fill (freeciv-web uses rgb(0,0,0) black)
+      // We improve on this by rendering actual ocean tiles instead of solid color
       this.clearCanvas(false);
-      // Fill with ocean tiles beyond map boundaries (like freeciv-web terrain extension)
+
+      // Render ocean tiles in out-of-bounds areas (enhancement over freeciv-web's black fill)
+      // This creates a more seamless infinite world appearance
       this.renderOceanPadding(state.viewport, globalMap);
     } else {
-      // Normal ocean background when viewport is within map bounds
+      // Normal ocean background when viewport is entirely within map bounds
       this.clearCanvas(true, '#4682B4');
     }
 
@@ -753,22 +762,46 @@ export class MapRenderer {
     return result;
   }
 
-  // Check if viewport extends beyond map boundaries (like freeciv-web mapview_common.js:282-291)
+  /**
+   * Check if viewport extends beyond map boundaries to determine if ocean padding is needed.
+   *
+   * This implements the boundary detection logic from freeciv-web to fix the diamond-shaped
+   * map edges issue. When the viewport extends beyond map bounds, we need to render ocean
+   * tiles in the out-of-bounds areas to create a rectangular world appearance.
+   *
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:282-291
+   *   Original logic that checks viewport corners against map bounds:
+   *   ```javascript
+   *   var r = base_canvas_to_map_pos(0, 0);
+   *   var s = base_canvas_to_map_pos(mapview['width'], 0);
+   *   var t = base_canvas_to_map_pos(0, mapview['height']);
+   *   var u = base_canvas_to_map_pos(mapview['width'], mapview['height']);
+   *   if (r['map_x'] < 0 || r['map_x'] > map['xsize'] || r['map_y'] < 0 || r['map_y'] > map['ysize']
+   *    || s['map_x'] < 0 || s['map_x'] > map['xsize'] || s['map_y'] < 0 || s['map_y'] > map['ysize']
+   *    || t['map_x'] < 0 || t['map_x'] > map['xsize'] || t['map_y'] < 0 || t['map_y'] > map['ysize']
+   *    || u['map_x'] < 0 || u['map_x'] > map['xsize'] || u['map_y'] < 0 || u['map_y'] > map['ysize']) {
+   *      canvas_put_rectangle(mapview_canvas_ctx, "rgb(0,0,0)", canvas_x, canvas_y, width, height);
+   *   }
+   *   ```
+   *
+   * @param viewport - The current viewport containing x, y, width, height
+   * @returns true if any part of the viewport extends beyond map boundaries
+   */
   private checkViewportBounds(viewport: MapViewport): boolean {
     const globalMap = (window as any).map;
     if (!globalMap || !globalMap.xsize || !globalMap.ysize) {
       return false; // No map data available
     }
 
-    // Convert viewport corners to map coordinates (like freeciv-web base_canvas_to_map_pos)
+    // Convert viewport corners to map coordinates using canvasToMap (equivalent to base_canvas_to_map_pos)
     const corners = [
-      this.canvasToMap(0, 0, viewport), // Top-left corner
-      this.canvasToMap(viewport.width, 0, viewport), // Top-right corner
-      this.canvasToMap(0, viewport.height, viewport), // Bottom-left corner
-      this.canvasToMap(viewport.width, viewport.height, viewport), // Bottom-right corner
+      this.canvasToMap(0, 0, viewport), // Top-left corner (r in freeciv-web)
+      this.canvasToMap(viewport.width, 0, viewport), // Top-right corner (s in freeciv-web)
+      this.canvasToMap(0, viewport.height, viewport), // Bottom-left corner (t in freeciv-web)
+      this.canvasToMap(viewport.width, viewport.height, viewport), // Bottom-right corner (u in freeciv-web)
     ];
 
-    // Check if any corner is outside map bounds
+    // Check if any corner is outside map bounds (same logic as freeciv-web conditional)
     return corners.some(
       corner =>
         corner.mapX < 0 ||
@@ -778,12 +811,42 @@ export class MapRenderer {
     );
   }
 
-  // Render ocean tiles beyond map boundaries (like freeciv-web terrain extension logic)
+  /**
+   * Render ocean tiles beyond map boundaries to create seamless infinite world appearance.
+   *
+   * This implements freeciv-web's terrain extension logic where areas beyond the actual
+   * map bounds are filled with ocean tiles. This prevents the diamond-shaped map edges
+   * from being visible and creates the illusion of a rectangular world that extends
+   * infinitely in all directions.
+   *
+   * The logic is based on freeciv-web's approach of "pretending the same terrain continued
+   * past the edge of the map" but simplified to always use ocean tiles for out-of-bounds areas.
+   *
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/terrain.js:59-61
+   *   Original terrain extension logic:
+   *   ```javascript
+   *   // At the edges of the (known) map, pretend the same terrain continued
+   *   // past the edge of the map.
+   *   tterrain_near[dir] = tile_terrain(ptile);
+   *   ```
+   *
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:347-349
+   *   Out-of-bounds tile handling:
+   *   ```javascript
+   *   if (map['wrap_id'] == 0 && (ptile_si <= 0 || ((ptile_si / 4)) > map['xsize'])) {
+   *     continue;  // Skip if flat earth without wrapping.
+   *   }
+   *   ```
+   *
+   * @param viewport - The current viewport for coordinate calculations
+   * @param globalMap - The global map object containing xsize and ysize bounds
+   */
   private renderOceanPadding(viewport: MapViewport, globalMap: any) {
-    // Calculate expanded area to fill with ocean tiles
+    // Calculate expanded area to fill with ocean tiles - ensures full coverage at viewport edges
     const tileMargin = 5; // Render extra tiles beyond visible area to ensure full coverage
 
-    // Convert expanded viewport to map coordinates
+    // Convert expanded viewport bounds to map coordinates
+    // This determines the range of tiles we might need to render (including out-of-bounds)
     const startMapCoords = this.canvasToMap(
       -this.tileWidth * tileMargin,
       -this.tileHeight * tileMargin,
@@ -795,33 +858,36 @@ export class MapRenderer {
       viewport
     );
 
-    // Determine tile range that might be visible (with padding)
+    // Determine tile coordinate range that might be visible (with padding for isometric overlap)
     const minX = Math.floor(startMapCoords.mapX) - tileMargin;
     const maxX = Math.ceil(endMapCoords.mapX) + tileMargin;
     const minY = Math.floor(startMapCoords.mapY) - tileMargin;
     const maxY = Math.ceil(endMapCoords.mapY) + tileMargin;
 
-    // Render ocean tiles for out-of-bounds positions
+    // Iterate through all potentially visible tile positions
     for (let x = minX; x <= maxX; x++) {
       for (let y = minY; y <= maxY; y++) {
-        // Skip tiles that are within actual map bounds
+        // Skip tiles that are within actual map bounds - these will be rendered normally
+        // This is the inverse of freeciv-web's out-of-bounds check
         if (x >= 0 && x < globalMap.xsize && y >= 0 && y < globalMap.ysize) {
           continue;
         }
 
-        // Create ocean tile at out-of-bounds position (like freeciv-web terrain extension)
+        // Create synthetic ocean tile for out-of-bounds position
+        // This implements the "pretend terrain continued past the edge" concept
         const oceanTile: Tile = {
           x: x,
           y: y,
-          terrain: 'ocean', // Default to ocean beyond map edges
+          terrain: 'ocean', // Always use ocean for consistency (could be made configurable)
           visible: true,
           known: true,
-          units: [],
-          city: undefined,
+          units: [], // No units beyond map edges
+          city: undefined, // No cities beyond map edges
           elevation: 0,
           resource: undefined,
         };
 
+        // Render the synthetic ocean tile using normal tile rendering pipeline
         this.renderTile(oceanTile, viewport);
       }
     }
