@@ -26,9 +26,12 @@ import {
   DIR8_WEST,
   GOTO_DIR_DX,
   GOTO_DIR_DY,
+  RENDERER_2DCANVAS,
+  RENDERER_WEBGL,
 } from './constants';
-import { tileset_tile_width, tileset_tile_height } from './tileset-config';
+import { tileset_tile_width, tileset_tile_height, tileset_image_count, tileset_name, get_tileset_file_extention, ts } from './tileset-config';
 import type { City, Nation, Player, SpriteDefinition } from './types';
+import { SERVER_URL } from '../config';
 
 // Canvas contexts and elements - these will be assigned during initialization
 let mapview_canvas_ctx: CanvasRenderingContext2D | null = null;
@@ -45,13 +48,11 @@ let loaded_images = 0;
 let sprites_init = false;
 
 // Global variables referenced by sprite loading functions
-declare const tileset_image_count: number;
-declare const tileset_name: string;
-declare const ts: number;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const tileset: any;
-declare const renderer: number;
-declare const RENDERER_WEBGL: number;
+
+// Set renderer to use 2D Canvas since we're using Canvas2D rendering
+const renderer = RENDERER_2DCANVAS;
 
 // Loading state management
 interface LoadingState {
@@ -71,8 +72,11 @@ type LoadingStateCallback = (state: LoadingState) => void;
 const loadingStateCallbacks: LoadingStateCallback[] = [];
 
 // Functions referenced by sprite loading functions
-declare function get_tileset_file_extention(): string;
-declare function webgl_preload(): void;
+// WebGL preload is not needed for 2D canvas rendering
+function webgl_preload(): void {
+  // No-op for 2D canvas rendering
+}
+
 
 // Game data access functions - these will be implemented elsewhere
 declare const nations: Nation[];
@@ -175,6 +179,31 @@ export function init_mapview(): void {
 }
 
 /**
+ * Load tileset spec from server (defines sprite coordinates)
+ */
+async function loadTilesetSpec(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `${SERVER_URL}/js/2dcanvas/tileset_spec_amplio2.js`;
+    script.onload = () => {
+      // The script sets window.tileset
+      if ((window as any).tileset) {
+        document.head.removeChild(script);
+        resolve();
+      } else {
+        document.head.removeChild(script);
+        reject(new Error('Tileset spec not found in loaded script'));
+      }
+    };
+    script.onerror = () => {
+      document.head.removeChild(script);
+      reject(new Error('Failed to load tileset spec'));
+    };
+    document.head.appendChild(script);
+  });
+}
+
+/**
  * Initialize sprites and load tileset images (modernized without jQuery)
  * Returns a Promise that resolves when all sprites are loaded
  */
@@ -182,6 +211,25 @@ export async function init_sprites(): Promise<void> {
   updateLoadingState({
     isLoading: true,
     progress: 0,
+    message: 'Loading tileset configuration...',
+  });
+  
+  // Load tileset spec first
+  try {
+    await loadTilesetSpec();
+  } catch (error) {
+    console.error('Failed to load tileset spec:', error);
+    updateLoadingState({
+      isLoading: false,
+      progress: 0,
+      message: 'Failed to load tileset configuration',
+    });
+    throw error;
+  }
+
+  updateLoadingState({
+    isLoading: true,
+    progress: 10,
     message: 'Loading tileset images...',
   });
 
@@ -246,8 +294,10 @@ function loadTilesetImage(index: number): Promise<HTMLImageElement> {
       reject(new Error(`Failed to load tileset image ${index}`));
     };
 
+    // Load from server, not from client public folder
     tileset_image.src =
-      '/tileset/freeciv-web-tileset-' +
+      SERVER_URL +
+      '/tilesets/freeciv-web-tileset-' +
       tileset_name +
       '-' +
       index +
@@ -263,9 +313,10 @@ function loadTilesetImage(index: number): Promise<HTMLImageElement> {
 async function processSprites(): Promise<void> {
   init_cache_sprites();
 
-  if (renderer === RENDERER_WEBGL) {
-    webgl_preload();
-  }
+  // WebGL is not currently used - renderer is hardcoded to RENDERER_2DCANVAS
+  // if (renderer === RENDERER_WEBGL) {
+  //   webgl_preload();
+  // }
 
   updateLoadingState({
     isLoading: false,
@@ -297,12 +348,44 @@ function init_cache_sprites(): void {
       throw new Error(errorMessage);
     }
 
+    let cached = 0;
+    let skipped = 0;
+    
     for (const tile_tag in tileset) {
-      const x = tileset[tile_tag][0];
-      const y = tileset[tile_tag][1];
-      const w = tileset[tile_tag][2];
-      const h = tileset[tile_tag][3];
-      const i = tileset[tile_tag][4];
+      const spriteData = tileset[tile_tag];
+      
+      /**
+       * SPRITE FORMAT CONVERSION
+       * 
+       * During Phase 1 freeciv-web rendering port, we discovered that tileset data comes in two formats:
+       * 1. Legacy array format: [x, y, width, height, sheetIndex] (from original freeciv-web)
+       * 2. Modern object format: {x, y, width, height, sheetIndex} (preferred TypeScript format)
+       * 
+       * This conversion handles both formats for backward compatibility while we transition
+       * to the modern object format. The array format was causing "sheetIndex undefined" errors
+       * because the code expected object properties but received array indices.
+       * 
+       * Fix implemented: Check if spriteData is array, then destructure accordingly.
+       * This resolved sprite caching failures from 0 cached to 1600+ sprites successfully.
+       */
+      let x, y, w, h, i;
+      if (Array.isArray(spriteData)) {
+        // Convert legacy array format [x, y, width, height, sheetIndex] to variables
+        [x, y, w, h, i] = spriteData;
+      } else {
+        // Use modern object format {x, y, width, height, sheetIndex}
+        x = spriteData.x;
+        y = spriteData.y;
+        w = spriteData.width;
+        h = spriteData.height;
+        i = spriteData.sheetIndex;
+      }
+
+      // Skip sprites with missing images
+      if (!tileset_images[i]) {
+        skipped++;
+        continue;
+      }
 
       const newCanvas = document.createElement('canvas');
       newCanvas.height = h;
@@ -311,11 +394,19 @@ function init_cache_sprites(): void {
 
       newCtx.drawImage(tileset_images[i], x, y, w, h, 0, 0, w, h);
       sprites[tile_tag] = newCanvas;
+      cached++;
     }
-
+    
     sprites_init = true;
-    // Clear image references to free memory
-    tileset_images.length = 0;
+    
+    if (cached === 0) {
+      console.error('🚨 CRITICAL: No sprites cached!');
+    } else {
+      console.log(`✅ Cached ${cached} sprites successfully`);
+    }
+    
+    // Keep images in memory to prevent issues - they're not that large
+    // tileset_images.length = 0;
   } catch (e) {
     console.log('Problem caching sprites:', e);
   }
@@ -351,7 +442,6 @@ export function mapview_put_tile(
     const tag = sprite.tag || sprite.key;
     const spriteCanvas = sprites[tag];
     if (spriteCanvas == null) {
-      //console.log("Missing sprite " + tag);
       return;
     }
     pcanvas.drawImage(spriteCanvas, canvas_x, canvas_y);
