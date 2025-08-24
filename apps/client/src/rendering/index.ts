@@ -5,3 +5,4 @@ export * from './tileset-config';
 export * from './tileset-spec';
 export * from './tilespec';
 export * from './mapview';
+export * from './hooks';

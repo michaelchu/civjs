@@ -40,8 +40,6 @@ let loaded_images = 0;
 let sprites_init = false;
 
 // Global variables referenced by sprite loading functions
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const $: any; // jQuery
 declare const tileset_image_count: number;
 declare const tileset_name: string;
 declare const ts: number;
@@ -49,12 +47,58 @@ declare const ts: number;
 declare const tileset: any;
 declare const renderer: number;
 declare const RENDERER_WEBGL: number;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const swal: any;
+
+// Loading state management
+interface LoadingState {
+  isLoading: boolean;
+  progress: number;
+  message: string;
+}
+
+let loadingState: LoadingState = {
+  isLoading: false,
+  progress: 0,
+  message: '',
+};
+
+// Loading state callbacks for React components
+type LoadingStateCallback = (state: LoadingState) => void;
+const loadingStateCallbacks: LoadingStateCallback[] = [];
 
 // Functions referenced by sprite loading functions
 declare function get_tileset_file_extention(): string;
 declare function webgl_preload(): void;
+
+/**
+ * Register a callback for loading state changes (for React components)
+ */
+export function onLoadingStateChange(
+  callback: LoadingStateCallback
+): () => void {
+  loadingStateCallbacks.push(callback);
+  // Return unsubscribe function
+  return () => {
+    const index = loadingStateCallbacks.indexOf(callback);
+    if (index > -1) {
+      loadingStateCallbacks.splice(index, 1);
+    }
+  };
+}
+
+/**
+ * Update loading state and notify React components
+ */
+function updateLoadingState(updates: Partial<LoadingState>): void {
+  loadingState = { ...loadingState, ...updates };
+  loadingStateCallbacks.forEach(callback => callback(loadingState));
+}
+
+/**
+ * Get current loading state
+ */
+export function getLoadingState(): LoadingState {
+  return { ...loadingState };
+}
 
 // Rendering configuration - these will be used once mapview functions are ported
 // const canvas_text_font = "16px Georgia, serif";
@@ -74,56 +118,109 @@ export function init_mapview(): void {
 }
 
 /**
- * Initialize sprites and load tileset images
- * Ported from mapview.js init_sprites()
+ * Initialize sprites and load tileset images (modernized without jQuery)
+ * Returns a Promise that resolves when all sprites are loaded
  */
-export function init_sprites(): void {
-  $.blockUI({
-    message:
-      '<h1>Freeciv-web is loading. Please wait...' +
-      "<br><center><img src='/images/loading.gif'></center></h1>",
+export async function init_sprites(): Promise<void> {
+  updateLoadingState({
+    isLoading: true,
+    progress: 0,
+    message: 'Loading tileset images...',
   });
 
-  if (loaded_images != tileset_image_count) {
+  if (loaded_images !== tileset_image_count) {
+    const imagePromises: Promise<HTMLImageElement>[] = [];
+
     for (let i = 0; i < tileset_image_count; i++) {
-      const tileset_image = new Image();
-      tileset_image.onload = preload_check;
-      tileset_image.src =
-        '/tileset/freeciv-web-tileset-' +
-        tileset_name +
-        '-' +
-        i +
-        get_tileset_file_extention() +
-        '?ts=' +
-        ts;
-      tileset_images[i] = tileset_image;
+      const imagePromise = loadTilesetImage(i);
+      imagePromises.push(imagePromise);
+    }
+
+    try {
+      const loadedImages = await Promise.all(imagePromises);
+
+      // Store loaded images
+      loadedImages.forEach((img, index) => {
+        tileset_images[index] = img;
+      });
+
+      loaded_images = tileset_image_count;
+
+      updateLoadingState({
+        progress: 100,
+        message: 'Processing sprites...',
+      });
+
+      // Process sprites after all images are loaded
+      await processSprites();
+    } catch (error) {
+      console.error('Failed to load tileset images:', error);
+      updateLoadingState({
+        isLoading: false,
+        progress: 0,
+        message: 'Failed to load sprites',
+      });
+      throw error;
     }
   } else {
-    // already loaded
-    if (renderer == RENDERER_WEBGL) {
-      webgl_preload();
-    } else {
-      $.unblockUI();
-    }
+    // Already loaded
+    await processSprites();
   }
 }
 
 /**
- * Determines when the whole tileset has been preloaded
- * Ported from mapview.js preload_check()
+ * Load a single tileset image with Promise-based approach
  */
-function preload_check(): void {
-  loaded_images += 1;
+function loadTilesetImage(index: number): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const tileset_image = new Image();
 
-  if (loaded_images == tileset_image_count) {
-    init_cache_sprites();
-    if (renderer == RENDERER_WEBGL) {
-      webgl_preload();
-    } else {
-      $.unblockUI();
-    }
-  }
+    tileset_image.onload = () => {
+      loaded_images++;
+      const progress = Math.floor((loaded_images / tileset_image_count) * 80); // 80% for loading
+      updateLoadingState({
+        progress,
+        message: `Loading tileset images... (${loaded_images}/${tileset_image_count})`,
+      });
+      resolve(tileset_image);
+    };
+
+    tileset_image.onerror = () => {
+      reject(new Error(`Failed to load tileset image ${index}`));
+    };
+
+    tileset_image.src =
+      '/tileset/freeciv-web-tileset-' +
+      tileset_name +
+      '-' +
+      index +
+      get_tileset_file_extention() +
+      '?ts=' +
+      ts;
+  });
 }
+
+/**
+ * Process sprites after images are loaded
+ */
+async function processSprites(): Promise<void> {
+  init_cache_sprites();
+
+  if (renderer === RENDERER_WEBGL) {
+    webgl_preload();
+  }
+
+  updateLoadingState({
+    isLoading: false,
+    progress: 100,
+    message: 'Sprites loaded successfully',
+  });
+}
+
+/**
+ * Legacy preload_check function - no longer needed with Promise-based loading
+ * Removed to clean up code - all loading is now Promise-based
+ */
 
 /**
  * Cache sprites by cropping them from tileset sheets
@@ -132,11 +229,15 @@ function preload_check(): void {
 function init_cache_sprites(): void {
   try {
     if (typeof tileset === 'undefined') {
-      swal(
-        'Tileset not generated correctly. Run sync.sh in ' +
-          'freeciv-img-extract and recompile.'
-      );
-      return;
+      const errorMessage =
+        'Tileset not generated correctly. Run sync.sh in freeciv-img-extract and recompile.';
+      console.error(errorMessage);
+      updateLoadingState({
+        isLoading: false,
+        progress: 0,
+        message: 'Tileset configuration error',
+      });
+      throw new Error(errorMessage);
     }
 
     for (const tile_tag in tileset) {
