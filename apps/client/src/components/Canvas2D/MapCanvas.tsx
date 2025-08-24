@@ -28,32 +28,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         // Initialize with server URL from config
         const { SERVER_URL } = await import('../../config');
         await rendererRef.current.initialize(SERVER_URL);
-        // Add dummy map data AFTER tileset is loaded
-        const dummyTiles: Record<string, any> = {};
-        for (let x = 0; x < 20; x++) {
-          for (let y = 0; y < 15; y++) {
-            const terrains = ['grassland', 'plains', 'desert', 'forest', 'hills', 'mountains', 'ocean'];
-            const terrain = terrains[Math.floor(Math.random() * terrains.length)];
-            dummyTiles[`${x},${y}`] = {
-              x, y, terrain,
-              visible: true,
-              known: true,
-              units: [],
-              city: undefined
-            };
-          }
-        }
-        
-        // Update the game store with dummy map data
-        const { updateGameState } = useGameStore.getState();
-        updateGameState({
-          map: {
-            width: 20,
-            height: 15,
-            tiles: dummyTiles
-          }
-        });
-        // Force a render with the new dummy data
+        console.log('🗺️ Map renderer initialized, waiting for server map data...');
         const gameState = useGameStore.getState();
         
         if (rendererRef.current) {

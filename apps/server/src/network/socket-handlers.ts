@@ -57,6 +57,7 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
     }
 
     try {
+      logger.info('🚀 About to call gameManager.createGame...');
       const gameId = await gameManager.createGame({
         name: gameData.gameName,
         hostId: connection.userId,
@@ -65,12 +66,19 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
         mapHeight: gameData.mapSize === 'small' ? 25 : gameData.mapSize === 'large' ? 75 : 50,
         ruleset: 'classic',
       });
+      logger.info('🔥 Game creation completed, proceeding to join logic...', { gameId });
 
       // Automatically join the creator as a player
-      const playerId = await gameManager.joinGame(gameId, connection.userId, 'random');
-
+      // Join the socket room BEFORE joining the game so we receive broadcasts
       connection.gameId = gameId;
+      logger.info(`🔌 Socket ${socket.id} attempting to join room: game:${gameId}`);
       socket.join(`game:${gameId}`);
+      
+      // Verify the join worked immediately
+      const roomSize = io.sockets.adapter.rooms.get(`game:${gameId}`)?.size || 0;
+      logger.info(`🔌 After join attempt, room game:${gameId} size: ${roomSize}`);
+      
+      const playerId = await gameManager.joinGame(gameId, connection.userId, 'random');
       await gameManager.updatePlayerConnection(playerId, true);
 
       // Emit game created event to the creator
@@ -196,8 +204,10 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       // Update game manager about disconnection
       if (connection.gameId) {
         const game = await gameManager.getGame(connection.gameId);
-        if (game) {
-          const player = Array.from(game.players.values()).find(
+        if (game && game.players) {
+          // Handle both Map (from gameInstance) and array (from database) formats
+          const playersArray = game.players instanceof Map ? Array.from(game.players.values()) : game.players;
+          const player = playersArray.find(
             (p: any) => p.userId === connection.userId
           ) as any;
           if (player) {

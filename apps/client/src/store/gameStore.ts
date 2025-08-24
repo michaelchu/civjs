@@ -49,32 +49,11 @@ export const useGameStore = create<GameStore>()(
     phase: 'movement',
     players: {},
     currentPlayerId: '',
-    map: (() => {
-      // Create dummy map data for testing isometric rendering
-      const dummyTiles: Record<string, any> = {};
-      const terrains = ['grassland', 'plains', 'desert', 'forest', 'hills', 'mountains', 'ocean'];
-      
-      for (let x = 0; x < 20; x++) {
-        for (let y = 0; y < 15; y++) {
-          const terrain = terrains[Math.floor(Math.random() * terrains.length)];
-          dummyTiles[`${x},${y}`] = {
-            x, y, terrain,
-            visible: true,
-            known: true,
-            units: [],
-            city: undefined
-          };
-        }
-      }
-      
-      console.log('🎯 DUMMY MAP INITIALIZED:', Object.keys(dummyTiles).length, 'tiles');
-      
-      return {
-        width: 20,
-        height: 15,
-        tiles: dummyTiles,
-      };
-    })(),
+    map: {
+      width: 0,
+      height: 0,
+      tiles: {},
+    },
     units: {},
     cities: {},
     technologies: {},

@@ -57,13 +57,27 @@ export class MapRenderer {
       return;
     }
 
-    if (!state.map.tiles || Object.keys(state.map.tiles).length === 0) {
+    // Check for freeciv-web global tiles array instead of state.map.tiles
+    const globalTiles = (window as any).tiles;
+    const globalMap = (window as any).map;
+    
+    if (!globalTiles || !globalMap || !Array.isArray(globalTiles) || globalTiles.length === 0) {
       this.renderEmptyMap();
       return;
     }
 
-    // Calculate visible tile range
-    const visibleTiles = this.getVisibleTiles(state.viewport, state.map);
+    // Calculate visible tile range using freeciv-web globals
+    const visibleTiles = this.getVisibleTilesFromGlobal(state.viewport, globalMap, globalTiles);
+    
+    // Debug: Log what we're trying to render
+    const totalTiles = globalTiles.length;
+    console.log(`🎨 Rendering: ${visibleTiles.length}/${totalTiles} tiles visible, viewport:`, state.viewport);
+    console.log(`🌍 Using freeciv-web globals: map=${globalMap.xsize}x${globalMap.ysize}, tiles=${globalTiles.length}`);
+    
+    if (visibleTiles.length === 0 && totalTiles > 0) {
+      console.log('⚠️ No visible tiles found! Map bounds:', globalMap.xsize, 'x', globalMap.ysize);
+      console.log('📍 Sample tiles:', globalTiles.slice(0, 5).map((t: any) => `(${t.x},${t.y}):`+t.terrain).join(', '));
+    }
 
     // Render tiles
     for (const tile of visibleTiles) {
@@ -147,6 +161,10 @@ export class MapRenderer {
     viewport: MapViewport,
     map: GameState['map']
   ): Tile[] {
+    // Always use simple method for debugging
+    console.log(`🔧 Using simple tile visibility calculation (initialized: ${this.isInitialized})`);
+    return this.getVisibleTilesSimple(viewport, map);
+    
     if (!this.isInitialized) {
       return this.getVisibleTilesSimple(viewport, map);
     }
@@ -209,35 +227,140 @@ export class MapRenderer {
     return tiles;
   }
   
-  // Fallback simple iteration for when tileset isn't loaded
+  // EXACT freeciv-web tile iteration (copied from mapview_common.js lines 306-379)
   private getVisibleTilesSimple(
     viewport: MapViewport,
     map: GameState['map']
   ): Tile[] {
     const tiles: Tile[] = [];
     
-    // Calculate visible tile bounds (with some padding)
-    const startX = Math.max(0, Math.floor(viewport.x / this.tileWidth) - 2);
-    const endX = Math.min(
-      map.width,
-      Math.ceil((viewport.x + viewport.width) / this.tileWidth) + 2
-    );
-    const startY = Math.max(0, Math.floor(viewport.y / this.tileHeight) - 2);
-    const endY = Math.min(
-      map.height,
-      Math.ceil((viewport.y + viewport.height) / this.tileHeight) + 2
-    );
-
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
-        const tileKey = `${x},${y}`;
-        const tile = map.tiles[tileKey];
-        if (tile) {
-          tiles.push(tile);
+    console.log(`🔍 Using EXACT freeciv-web isometric tile iteration`);
+    console.log(`🔍 Viewport: ${viewport.x},${viewport.y} size: ${viewport.width}x${viewport.height}`);
+    console.log(`🔍 Tile size: ${this.tileWidth}x${this.tileHeight}`);
+    console.log(`🔍 Map: ${map.width}x${map.height}, tiles count: ${Object.keys(map.tiles).length}`);
+    
+    // Exact copy from freeciv-web gui_rect_iterate logic
+    const gui_x0 = viewport.x;
+    const gui_y0 = viewport.y;
+    const width = viewport.width || 800;
+    const height = viewport.height || 600;
+    
+    //gui_rect_iterate begin
+    let gui_x_0 = gui_x0;
+    let gui_y_0 = gui_y0;
+    let gui_x_w = width + (this.tileWidth >> 1);  // tileset_tile_width
+    let gui_y_h = height + (this.tileHeight >> 1); // tileset_tile_height
+    
+    if (gui_x_w < 0) {
+      gui_x_0 += gui_x_w;
+      gui_x_w = -gui_x_w;
+    }
+    
+    if (gui_y_h < 0) {
+      gui_y_0 += gui_y_h;
+      gui_y_h = -gui_y_h;
+    }
+    
+    if (gui_x_w > 0 && gui_y_h > 0) {
+      const ptile_r1 = 2;
+      const ptile_r2 = ptile_r1 * 2;
+      const ptile_w = this.tileWidth;  // tileset_tile_width
+      const ptile_h = this.tileHeight; // tileset_tile_height
+      
+      // Exact freeciv-web complex coordinate calculations with all edge case handling
+      const ptile_x0 = Math.floor(((gui_x_0 * ptile_r2) / ptile_w - (((gui_x_0 * ptile_r2) < 0 && (gui_x_0 * ptile_r2) % ptile_w < 0) ? 1 : 0)) - ptile_r1 / 2);
+      const ptile_y0 = Math.floor(((gui_y_0 * ptile_r2) / ptile_h - (((gui_y_0 * ptile_r2) < 0 && (gui_y_0 * ptile_r2) % ptile_h < 0) ? 1 : 0)) - ptile_r1 / 2);
+      const ptile_x1 = Math.floor(((gui_x_0 + gui_x_w) * ptile_r2 + ptile_w - 1) / ptile_w - ((((gui_x_0 + gui_x_w) * ptile_r2 + ptile_w - 1) < 0 && ((gui_x_0 + gui_x_w) * ptile_r2 + ptile_w - 1) % ptile_w < 0) ? 1 : 0)) + ptile_r1;
+      const ptile_y1 = Math.floor(((gui_y_0 + gui_y_h) * ptile_r2 + ptile_h - 1) / ptile_h - ((((gui_y_0 + gui_y_h) * ptile_r2 + ptile_h - 1) < 0 && ((gui_y_0 + gui_y_h) * ptile_r2 + ptile_h - 1) % ptile_h < 0) ? 1 : 0)) + ptile_r1;
+      const ptile_count = (ptile_x1 - ptile_x0) * (ptile_y1 - ptile_y0);
+      
+      console.log(`🔍 Exact bounds: x[${ptile_x0}-${ptile_x1}] y[${ptile_y0}-${ptile_y1}] count=${ptile_count}`);
+      
+      for (let ptile_index = 0; ptile_index < ptile_count; ptile_index++) {
+        const ptile_xi = ptile_x0 + (ptile_index % (ptile_x1 - ptile_x0));
+        const ptile_yi = Math.floor(ptile_y0 + (ptile_index / (ptile_x1 - ptile_x0)));
+        const ptile_si = ptile_xi + ptile_yi;
+        const ptile_di = ptile_yi - ptile_xi;
+        
+        // Exact freeciv-web conditions
+        if ((ptile_xi + ptile_yi) % 2 !== 0) {
+          continue;
+        }
+        
+        // Skip wrapping check for now (flat earth logic: map['wrap_id'] == 0)
+        const mapXSize = (map as any).xsize || map.width;
+        const mapWrapId = (map as any).wrap_id || 0;
+        if (mapWrapId === 0 && (ptile_si <= 0 || ((ptile_si / 4)) > mapXSize)) {
+          continue;  // Skip if flat earth without wrapping.
+        }
+        
+        if (ptile_xi % 2 === 0 && ptile_yi % 2 === 0) {
+          if ((ptile_xi + ptile_yi) % 4 === 0) {
+            /* Tile */ 
+            // Exact freeciv-web map_pos_to_tile conversion: map_pos_to_tile((ptile_si / 4) - 1, (ptile_di / 4))
+            let mapX = Math.floor((ptile_si / 4) - 1);
+            let mapY = Math.floor(ptile_di / 4);
+            
+            // Apply freeciv-web map_pos_to_tile wrapping logic
+            if (mapX >= map.width) {
+              mapY -= 1;
+            } else if (mapX < 0) {
+              mapY += 1;
+            }
+            
+            // Debug first few tiles
+            if (tiles.length < 5) {
+              console.log(`🔍 Tile ${tiles.length}: ptile(${ptile_xi},${ptile_yi}) -> si=${ptile_si} di=${ptile_di} -> map(${Math.floor((ptile_si / 4) - 1)},${Math.floor(ptile_di / 4)}) -> final(${mapX},${mapY})`);
+            }
+            
+            // Use freeciv-web tile array access: tiles[x + y * map['xsize']]
+            const mapXSize = (map as any).xsize || map.width;
+            const mapYSize = (map as any).ysize || map.height;
+            if (mapX >= 0 && mapX < mapXSize && mapY >= 0 && mapY < mapYSize) {
+              let tile = null;
+              
+              // Try freeciv-web array format first (most compatible)
+              const arrayIndex = mapX + mapY * mapXSize;
+              
+              if ((map as any).tilesArray) {
+                tile = (map as any).tilesArray[arrayIndex];
+              }
+              
+              // Also try global tiles variable (exact freeciv-web compatibility)
+              if (!tile && (window as any).tiles) {
+                tile = (window as any).tiles[arrayIndex];
+              }
+              
+              // Fallback to our object format  
+              if (!tile) {
+                const tileKey = `${mapX},${mapY}`;
+                tile = map.tiles[tileKey];
+              }
+              
+              if (tile) {
+                tiles.push(tile);
+              } else if (tiles.length < 3) {
+                console.log(`❌ No tile at (${mapX},${mapY}) - checked array index ${arrayIndex}`);
+              }
+            }
+          }
         }
       }
     }
-
+    
+    console.log(`🔍 Found ${tiles.length} visible tiles using EXACT freeciv-web logic`);
+    if (tiles.length === 0) {
+      console.log(`🔍 Available tiles: ${Object.keys(map.tiles).slice(0, 10)}`);
+      console.log(`🔍 Map bounds: ${map.width}x${map.height}`);
+      console.log(`🔍 Viewport: (${viewport.x}, ${viewport.y}) zoom=${viewport.zoom}`);
+      
+      // Show what coordinates we calculated vs what's available
+      console.log('🔍 First few calculated coordinates vs available:');
+      Object.keys(map.tiles).slice(0, 3).forEach(key => {
+        const [x, y] = key.split(',').map(Number);
+        console.log(`  Available: (${x},${y}) vs calculated range pending...`);
+      });
+    }
     return tiles;
   }
   
@@ -554,5 +677,40 @@ export class MapRenderer {
   cleanup() {
     this.tilesetLoader.cleanup();
     this.isInitialized = false;
+  }
+
+  private getVisibleTilesFromGlobal(
+    viewport: MapViewport,
+    globalMap: any,
+    globalTiles: any[]
+  ): Tile[] {
+    const tiles: Tile[] = [];
+    
+    console.log(`🔍 Using freeciv-web global tiles array`);
+    console.log(`🔍 Viewport: ${viewport.x},${viewport.y} size: ${viewport.width}x${viewport.height}`);
+    console.log(`🔍 Global map: ${globalMap.xsize}x${globalMap.ysize}, tiles: ${globalTiles.length}`);
+    
+    // For now, let's do a simple approach - get all tiles that have data
+    // Later we can add the complex isometric culling logic
+    for (let i = 0; i < globalTiles.length; i++) {
+      const tile = globalTiles[i];
+      if (tile && tile.terrain && (tile.known > 0 || tile.seen > 0)) {
+        // Convert to our expected format
+        tiles.push({
+          x: tile.x,
+          y: tile.y,
+          terrain: tile.terrain,
+          visible: tile.known > 0,
+          known: tile.seen > 0,
+          units: [],
+          city: undefined,
+          elevation: tile.elevation || 0,
+          resource: tile.resource || undefined
+        });
+      }
+    }
+    
+    console.log(`🔍 Found ${tiles.length} tiles with terrain data`);
+    return tiles;
   }
 }

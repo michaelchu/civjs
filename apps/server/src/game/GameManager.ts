@@ -3,6 +3,7 @@ import { db } from '../database';
 import { gameState } from '../database/redis';
 import { games, players } from '../database/schema';
 import { eq } from 'drizzle-orm';
+import config from '../config';
 import { TurnManager } from './TurnManager';
 import { MapManager } from './MapManager';
 import { UnitManager } from './UnitManager';
@@ -96,13 +97,8 @@ export class GameManager {
 
     logger.info('Game created successfully', { gameId: newGame.id });
     
-    // Automatically join the creator to the game
-    logger.info('Auto-joining game creator', { gameId: newGame.id, hostId: config.hostId });
-    try {
-      await this.joinGame(newGame.id, config.hostId, 'random');
-    } catch (error) {
-      logger.error('Failed to auto-join creator to game:', error);
-    }
+    // Note: The Socket.IO handler will handle joining the creator to the game
+    // This ensures proper socket room management
     
     return newGame.id;
   }
@@ -122,18 +118,18 @@ export class GameManager {
       throw new Error('Game not found');
     }
 
+    // Check if user is already in the game first
+    const existingPlayer = game.players.find(p => p.userId === userId);
+    if (existingPlayer) {
+      return existingPlayer.id; // Already joined
+    }
+
     if (game.status !== 'waiting') {
       throw new Error('Game is not accepting new players');
     }
 
     if (game.players.length >= game.maxPlayers) {
       throw new Error('Game is full');
-    }
-
-    // Check if user is already in the game
-    const existingPlayer = game.players.find(p => p.userId === userId);
-    if (existingPlayer) {
-      return existingPlayer.id; // Already joined
     }
 
     // Create player in database
@@ -184,10 +180,14 @@ export class GameManager {
       playerCount: updatedGame?.players.length 
     });
     
-    if (updatedGame && updatedGame.status === 'waiting' && updatedGame.players.length >= 1) {
+    if (updatedGame && updatedGame.status === 'waiting' && updatedGame.players.length >= config.game.minPlayersToStart) {
       logger.info('Auto-starting game', { gameId, playerCount: updatedGame.players.length });
       try {
-        await this.startGame(gameId, newPlayer.id);
+        // Small delay to ensure socket room joins have completed
+        logger.info('⏰ Waiting 200ms before auto-start...');
+        await new Promise(resolve => setTimeout(resolve, 200));
+        logger.info('⏰ Auto-start delay complete, starting game now...');
+        await this.startGame(gameId, updatedGame.hostId);
       } catch (error) {
         logger.error('Failed to auto-start game:', error);
       }
@@ -220,8 +220,8 @@ export class GameManager {
       throw new Error('Only the host can start the game');
     }
 
-    if (game.players.length < 2) {
-      throw new Error('Need at least 2 players to start');
+    if (game.players.length < config.game.minPlayersToStart) {
+      throw new Error(`Need at least ${config.game.minPlayersToStart} players to start`);
     }
 
     if (game.status !== 'waiting') {
@@ -332,45 +332,74 @@ export class GameManager {
     // Store the game instance
     this.games.set(gameId, gameInstance);
 
-    // Send initial map data to all players
-    this.broadcastMapData(gameId, mapData);
+    // Send initial map data to all players (with delay to ensure socket room joins are complete)
+    logger.info('🕒 Setting up 300ms timeout for map broadcasting...');
+    setTimeout(() => {
+      logger.info('🕒 300ms timeout fired, broadcasting map data now...');
+      this.broadcastMapData(gameId, mapData);
+    }, 300);
   }
 
   private broadcastMapData(gameId: string, mapData: any): void {
-    this.broadcastToGame(gameId, 'map-data', {
+    const mapDataPacket = {
       gameId,
       width: mapData.width,
       height: mapData.height,
       startingPositions: mapData.startingPositions,
       seed: mapData.seed,
       generatedAt: mapData.generatedAt,
-    });
+    };
+    
+    logger.info('Broadcasting map data', { gameId, width: mapData.width, height: mapData.height, playerCount: this.io.sockets.adapter.rooms.get(`game:${gameId}`)?.size });
+    this.broadcastToGame(gameId, 'map-data', mapDataPacket);
 
-    // Send visible tiles to each player based on their starting position
+    // Send data in EXACT freeciv-web format
+    console.log('🐛 About to send freeciv-web format data');
     const gameInstance = this.games.get(gameId);
+    console.log('🐛 GameInstance found:', !!gameInstance);
     if (gameInstance) {
-      for (const startPos of mapData.startingPositions) {
-        const visibleTiles = gameInstance.mapManager.getVisibleTiles(
-          startPos.x,
-          startPos.y,
-          2 // Initial sight radius
-        );
+      console.log('🐛 Entering freeciv-web packet sending logic');
+      // Send map info in EXACT freeciv-web format (gets assigned to global map variable)
+      const mapInfoPacket = {
+        xsize: mapData.width,
+        ysize: mapData.height,
+        wrap_id: 0, // Flat earth
+        topology_id: 0,
+      };
+      
+      console.log('🗺️ Broadcasting map-info packet:', mapInfoPacket);
+      this.broadcastToGame(gameId, 'map-info', mapInfoPacket);
 
-        // Send individual tile-info packets (like freeciv-web) for each visible tile
-        visibleTiles.forEach(tile => {
-          const tileId = tile.x * 1000 + tile.y; // Simple tile ID calculation
-          this.emitToPlayer(gameId, startPos.playerId, 'tile-info', {
-            tile: tileId,
-            x: tile.x,
-            y: tile.y,
-            terrain: tile.terrain,
-            resource: tile.resource,
-            elevation: tile.elevation,
-            riverMask: tile.riverMask,
-            isExplored: true,
-            isVisible: true,
-          });
-        });
+      // Send tile-info packets exactly like freeciv-web
+      for (let y = 0; y < mapData.height; y++) {
+        for (let x = 0; x < mapData.width; x++) {
+          const index = x + y * mapData.width;
+          const serverTile = mapData.tiles.find((t: any) => t.x === x && t.y === y);
+          
+          if (serverTile) {
+            // Send tile-info packet in exact freeciv-web format
+            const tileInfoPacket = {
+              tile: index,  // This is the key - tile index used by freeciv-web
+              x: x,
+              y: y,
+              terrain: serverTile.terrain,
+              resource: serverTile.resource,
+              elevation: serverTile.elevation || 0,
+              riverMask: serverTile.riverMask || 0,
+              known: 1, // TILE_KNOWN
+              seen: 1,
+              player: null,
+              worked: null,
+              extras: 0, // BitVector for extras
+            };
+            
+            // Broadcast tile info to all players (freeciv-web broadcasts all tiles)
+            if (x < 2 && y < 2) {
+              console.log(`🗺️ Broadcasting tile-info for tile (${x},${y}):`, tileInfoPacket);
+            }
+            this.broadcastToGame(gameId, 'tile-info', tileInfoPacket);
+          }
+        }
       }
     }
   }
@@ -1052,21 +1081,13 @@ export class GameManager {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) return;
 
+    const roomSize = this.io.sockets.adapter.rooms.get(`game:${gameId}`)?.size || 0;
+    logger.info('Broadcasting event to game room', { gameId, event, roomSize });
+
     // Broadcast to all sockets in the specific game room
     this.io.to(`game:${gameId}`).emit(event, data);
   }
 
-  private emitToPlayer(gameId: string, playerId: string, event: string, data: any): void {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) return;
-
-    const player = gameInstance.players.get(playerId);
-    if (!player || !player.isConnected) return;
-
-    // Emit to player-specific room using their userId
-    // Sockets should join player-specific rooms when they connect
-    this.io.to(`player:${player.userId}`).emit(event, data);
-  }
 
   public async cleanupInactiveGames(): Promise<void> {
     const now = new Date();
