@@ -67,8 +67,6 @@ export class MapRenderer {
   }
 
   render(state: RenderState) {
-    this.clearCanvas();
-
     // Reset tile map cache if tiles data has changed
     const currentGlobalTiles = (window as any).tiles;
     if (currentGlobalTiles && currentGlobalTiles !== this.lastGlobalTiles) {
@@ -77,6 +75,7 @@ export class MapRenderer {
     }
 
     if (!this.isInitialized) {
+      this.clearCanvas();
       this.renderLoadingMessage();
       return;
     }
@@ -91,8 +90,22 @@ export class MapRenderer {
       !Array.isArray(globalTiles) ||
       globalTiles.length === 0
     ) {
+      this.clearCanvas();
       this.renderEmptyMap();
       return;
+    }
+
+    // Copy freeciv-web boundary logic from mapview_common.js:282-291
+    const viewportExceedsMapBounds = this.checkViewportBounds(state.viewport);
+    
+    if (viewportExceedsMapBounds) {
+      // Clear canvas without background (freeciv-web uses black, we'll render ocean tiles)
+      this.clearCanvas(false);
+      // Fill with ocean tiles beyond map boundaries (like freeciv-web terrain extension)
+      this.renderOceanPadding(state.viewport, globalMap);
+    } else {
+      // Normal ocean background when viewport is within map bounds
+      this.clearCanvas(true, '#4682B4');
     }
 
     const visibleTiles = this.getVisibleTilesFromGlobal(
@@ -123,11 +136,13 @@ export class MapRenderer {
     }
   }
 
-  private clearCanvas() {
+  private clearCanvas(fillBackground = true, backgroundColor = '#4682B4') {
     this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
-    this.ctx.fillStyle = '#4682B4';
-    this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+    if (fillBackground) {
+      this.ctx.fillStyle = backgroundColor;
+      this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+    }
   }
 
   private renderEmptyMap() {
@@ -736,6 +751,73 @@ export class MapRenderer {
     const guiY = canvasY + viewport.y;
     const result = this.guiToMapPos(guiX, guiY);
     return result;
+  }
+
+  // Check if viewport extends beyond map boundaries (like freeciv-web mapview_common.js:282-291)
+  private checkViewportBounds(viewport: MapViewport): boolean {
+    const globalMap = (window as any).map;
+    if (!globalMap || !globalMap.xsize || !globalMap.ysize) {
+      return false; // No map data available
+    }
+
+    // Convert viewport corners to map coordinates (like freeciv-web base_canvas_to_map_pos)
+    const corners = [
+      this.canvasToMap(0, 0, viewport),                           // Top-left corner
+      this.canvasToMap(viewport.width, 0, viewport),              // Top-right corner  
+      this.canvasToMap(0, viewport.height, viewport),             // Bottom-left corner
+      this.canvasToMap(viewport.width, viewport.height, viewport) // Bottom-right corner
+    ];
+
+    // Check if any corner is outside map bounds
+    return corners.some(corner => 
+      corner.mapX < 0 || corner.mapX > globalMap.xsize ||
+      corner.mapY < 0 || corner.mapY > globalMap.ysize
+    );
+  }
+
+  // Render ocean tiles beyond map boundaries (like freeciv-web terrain extension logic)
+  private renderOceanPadding(viewport: MapViewport, globalMap: any) {
+    // Calculate expanded area to fill with ocean tiles
+    const tileMargin = 5; // Render extra tiles beyond visible area to ensure full coverage
+    
+    // Convert expanded viewport to map coordinates
+    const startMapCoords = this.canvasToMap(-this.tileWidth * tileMargin, -this.tileHeight * tileMargin, viewport);
+    const endMapCoords = this.canvasToMap(
+      viewport.width + this.tileWidth * tileMargin, 
+      viewport.height + this.tileHeight * tileMargin, 
+      viewport
+    );
+
+    // Determine tile range that might be visible (with padding)
+    const minX = Math.floor(startMapCoords.mapX) - tileMargin;
+    const maxX = Math.ceil(endMapCoords.mapX) + tileMargin;
+    const minY = Math.floor(startMapCoords.mapY) - tileMargin;  
+    const maxY = Math.ceil(endMapCoords.mapY) + tileMargin;
+
+    // Render ocean tiles for out-of-bounds positions
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+        // Skip tiles that are within actual map bounds
+        if (x >= 0 && x < globalMap.xsize && y >= 0 && y < globalMap.ysize) {
+          continue;
+        }
+
+        // Create ocean tile at out-of-bounds position (like freeciv-web terrain extension)
+        const oceanTile: Tile = {
+          x: x,
+          y: y,
+          terrain: 'ocean', // Default to ocean beyond map edges
+          visible: true,
+          known: true,
+          units: [],
+          city: undefined,
+          elevation: 0,
+          resource: undefined,
+        };
+
+        this.renderTile(oceanTile, viewport);
+      }
+    }
   }
 
   private isInViewport(
