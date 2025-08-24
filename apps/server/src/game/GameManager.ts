@@ -370,15 +370,20 @@ export class GameManager {
       console.log('🗺️ Broadcasting map-info packet:', mapInfoPacket);
       this.broadcastToGame(gameId, 'map-info', mapInfoPacket);
 
-      // Send tile-info packets exactly like freeciv-web
+      // OPTIMIZED: Send tiles in batches to improve performance
+      console.log(`🗺️ Preparing ${mapData.width * mapData.height} tiles for batch sending`);
+      
+      // Collect all tiles into an array
+      const allTiles = [];
       for (let y = 0; y < mapData.height; y++) {
         for (let x = 0; x < mapData.width; x++) {
           const index = x + y * mapData.width;
-          const serverTile = mapData.tiles.find((t: any) => t.x === x && t.y === y);
+          // Handle column-based tile array structure: mapData.tiles[x][y]
+          const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
           
           if (serverTile) {
-            // Send tile-info packet in exact freeciv-web format
-            const tileInfoPacket = {
+            // Format tile in exact freeciv-web format
+            const tileInfo = {
               tile: index,  // This is the key - tile index used by freeciv-web
               x: x,
               y: y,
@@ -392,15 +397,24 @@ export class GameManager {
               worked: null,
               extras: 0, // BitVector for extras
             };
-            
-            // Broadcast tile info to all players (freeciv-web broadcasts all tiles)
-            if (x < 2 && y < 2) {
-              console.log(`🗺️ Broadcasting tile-info for tile (${x},${y}):`, tileInfoPacket);
-            }
-            this.broadcastToGame(gameId, 'tile-info', tileInfoPacket);
+            allTiles.push(tileInfo);
           }
         }
       }
+      
+      // Send tiles in batches of 100 to avoid overwhelming the client
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < allTiles.length; i += BATCH_SIZE) {
+        const batch = allTiles.slice(i, i + BATCH_SIZE);
+        this.broadcastToGame(gameId, 'tile-info-batch', {
+          tiles: batch,
+          startIndex: i,
+          endIndex: Math.min(i + BATCH_SIZE, allTiles.length),
+          total: allTiles.length
+        });
+      }
+      
+      console.log(`🗺️ Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches`);
     }
   }
 

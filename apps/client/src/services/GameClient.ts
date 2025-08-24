@@ -151,6 +151,54 @@ class GameClient {
         }
       }
     });
+    
+    // OPTIMIZED: Handle batch tile updates for better performance
+    this.socket.on('tile-info-batch', data => {
+      console.log(`🗺️ Received tile batch: ${data.startIndex}-${data.endIndex} of ${data.total}`);
+      
+      if (!(window as any).tiles || !data.tiles) return;
+      
+      const tiles = (window as any).tiles;
+      const currentMap = useGameStore.getState().map;
+      const updatedTiles = { ...currentMap.tiles };
+      
+      // Process all tiles in the batch
+      for (const tileData of data.tiles) {
+        // Update global tiles array
+        tiles[tileData.tile] = Object.assign(tiles[tileData.tile] || {}, tileData);
+        
+        // Update game store tiles
+        const tileKey = `${tileData.x},${tileData.y}`;
+        updatedTiles[tileKey] = {
+          x: tileData.x,
+          y: tileData.y,
+          terrain: tileData.terrain,
+          visible: tileData.known > 0,
+          known: tileData.seen > 0,
+          units: [],
+          city: undefined,
+          resource: tileData.resource,
+        };
+      }
+      
+      // Update the store once with all tiles
+      useGameStore.getState().updateGameState({
+        map: {
+          width: (window as any).map?.xsize || 80,
+          height: (window as any).map?.ysize || 50,
+          tiles: updatedTiles,
+          // Store freeciv-web references
+          xsize: (window as any).map?.xsize || 80,
+          ysize: (window as any).map?.ysize || 50,
+          wrap_id: (window as any).map?.wrap_id || 0,
+        },
+      });
+      
+      // Log progress
+      if (data.endIndex === data.total) {
+        console.log(`✅ All ${data.total} tiles received and processed`);
+      }
+    });
 
     // Game created successfully (when you create a game)
     this.socket.on('game_created', data => {

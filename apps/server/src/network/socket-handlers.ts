@@ -49,54 +49,6 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   });
 
   // Add new Socket.IO event handlers for the lobby system
-  socket.on('create_game', async (gameData, callback) => {
-    const connection = activeConnections.get(socket.id);
-    if (!connection?.userId) {
-      callback({ success: false, error: 'Not authenticated' });
-      return;
-    }
-
-    try {
-      logger.info('🚀 About to call gameManager.createGame...');
-      const gameId = await gameManager.createGame({
-        name: gameData.gameName,
-        hostId: connection.userId,
-        maxPlayers: gameData.maxPlayers,
-        mapWidth: gameData.mapSize === 'small' ? 40 : gameData.mapSize === 'large' ? 120 : 80,
-        mapHeight: gameData.mapSize === 'small' ? 25 : gameData.mapSize === 'large' ? 75 : 50,
-        ruleset: 'classic',
-      });
-      logger.info('🔥 Game creation completed, proceeding to join logic...', { gameId });
-
-      // Automatically join the creator as a player
-      // Join the socket room BEFORE joining the game so we receive broadcasts
-      connection.gameId = gameId;
-      logger.info(`🔌 Socket ${socket.id} attempting to join room: game:${gameId}`);
-      socket.join(`game:${gameId}`);
-      
-      // Verify the join worked immediately
-      const roomSize = io.sockets.adapter.rooms.get(`game:${gameId}`)?.size || 0;
-      logger.info(`🔌 After join attempt, room game:${gameId} size: ${roomSize}`);
-      
-      const playerId = await gameManager.joinGame(gameId, connection.userId, 'random');
-      await gameManager.updatePlayerConnection(playerId, true);
-
-      // Emit game created event to the creator
-      socket.emit('game_created', {
-        gameId,
-        maxPlayers: gameData.maxPlayers,
-      });
-
-      callback({ success: true, gameId });
-      logger.info(`Game created: ${gameData.gameName} by ${connection.username}`, { gameId });
-    } catch (error) {
-      logger.error('Error creating game:', error);
-      callback({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to create game',
-      });
-    }
-  });
 
   socket.on('join_game', async (data, callback) => {
     const connection = activeConnections.get(socket.id);
@@ -382,6 +334,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
     }
 
     try {
+      logger.info('🚀 About to call gameManager.createGame...');
       const gameId = await gameManager.createGame({
         name: data.name,
         hostId: connection.userId,
@@ -391,6 +344,26 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
         ruleset: data.ruleset,
         turnTimeLimit: data.turnTimeLimit,
         victoryConditions: data.victoryConditions,
+      });
+      logger.info('🔥 Game creation completed, proceeding to join logic...', { gameId });
+
+      // Automatically join the creator as a player
+      // Join the socket room BEFORE joining the game so we receive broadcasts
+      connection.gameId = gameId;
+      logger.info(`🔌 Socket ${socket.id} attempting to join room: game:${gameId}`);
+      socket.join(`game:${gameId}`);
+      
+      // Verify the join worked immediately
+      const roomSize = io.sockets.adapter.rooms.get(`game:${gameId}`)?.size || 0;
+      logger.info(`🔌 After join attempt, room game:${gameId} size: ${roomSize}`);
+      
+      const playerId = await gameManager.joinGame(gameId, connection.userId, 'random');
+      await gameManager.updatePlayerConnection(playerId, true);
+
+      // Emit game created event to the creator
+      socket.emit('game_created', {
+        gameId,
+        maxPlayers: data.maxPlayers,
       });
 
       handler.send(socket, PacketType.GAME_CREATE_REPLY, {
