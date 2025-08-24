@@ -254,9 +254,10 @@ export class MapRenderer {
     const MATCH_FULL = (window as any).MATCH_FULL;
     const num_cardinal_tileset_dirs = 4;
     const NUM_CORNER_DIRS = 4;
-    const DIR4_TO_DIR8 = [0, 4, 2, 6]; // N, S, E, W - correct DIR4 to DIR8 mapping from freeciv-web
-    const dither_offset_x = [48, 48, 0, 0]; // Dither offsets for N, S, E, W (half tile width for N/S)
-    const dither_offset_y = [0, 24, 24, 0]; // Dither offsets for N, S, E, W (half tile height for S/E)
+    const DIR4_TO_DIR8 = [0, 4, 2, 6]; // N, S, E, W - for CELL_CORNER sprite mapping
+    const cardinal_tileset_dirs = [0, 2, 4, 6]; // N, E, S, W - for MATCH_SAME and dithering
+    const dither_offset_x = [48, 0, 48, 0]; // Dither offsets for N, E, S, W (half tile width for N/S)
+    const dither_offset_y = [0, 24, 24, 0]; // Dither offsets for N, E, S, W (half tile height for E/S)
     const tileset_tile_height = this.tileHeight;
 
     if (!tile_types_setup['l' + l + '.' + pterrain['graphic_str']]) {
@@ -279,8 +280,8 @@ export class MapRenderer {
                 for (let i = 0; i < num_cardinal_tileset_dirs; i++) {
                   if (
                     !tterrain_near ||
-                    !tterrain_near[DIR4_TO_DIR8[i]] ||
-                    !ts_tiles[tterrain_near[DIR4_TO_DIR8[i]]['graphic_str']]
+                    !tterrain_near[cardinal_tileset_dirs[i]] ||
+                    !ts_tiles[tterrain_near[cardinal_tileset_dirs[i]]['graphic_str']]
                   )
                     continue;
                   const near_dlp =
@@ -288,11 +289,11 @@ export class MapRenderer {
                       'l' +
                         l +
                         '.' +
-                        tterrain_near[DIR4_TO_DIR8[i]]['graphic_str']
+                        tterrain_near[cardinal_tileset_dirs[i]]['graphic_str']
                     ];
                   const terrain_near =
                     near_dlp && near_dlp['dither'] == true
-                      ? tterrain_near[DIR4_TO_DIR8[i]]['graphic_str']
+                      ? tterrain_near[cardinal_tileset_dirs[i]]['graphic_str']
                       : pterrain['graphic_str'];
                   const dither_tile =
                     i + pterrain['graphic_str'] + '_' + terrain_near;
@@ -320,9 +321,10 @@ export class MapRenderer {
 
               if (this_match_type && tterrain_near) {
                 for (let i = 0; i < num_cardinal_tileset_dirs; i++) {
-                  if (!ts_tiles[tterrain_near[i]['graphic_str']]) continue;
+                  const dir = cardinal_tileset_dirs[i];
+                  if (!ts_tiles[tterrain_near[dir]['graphic_str']]) continue;
                   const that =
-                    ts_tiles[tterrain_near[i]['graphic_str']][
+                    ts_tiles[tterrain_near[dir]['graphic_str']][
                       'layer' + l + '_match_type'
                     ];
                   if (that == this_match_type) {
