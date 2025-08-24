@@ -52,6 +52,8 @@ export const GameTabs: React.FC = () => {
               : 'bg-gray-700 text-gray-300'
           )}
           title={`${tab.label} (${tab.shortcut})`}
+          data-testid={`${tab.id}-tab`}
+          aria-pressed={activeTab === tab.id}
         >
           <span className="text-lg">{tab.icon}</span>
           <span className="font-medium">{tab.label}</span>

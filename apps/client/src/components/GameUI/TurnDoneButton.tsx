@@ -45,6 +45,7 @@ export const TurnDoneButton: React.FC = () => {
           ? 'You cannot end your turn right now'
           : 'End your turn (Shift+Enter)'
       }
+      data-testid="turn-done-button"
     >
       {getButtonText()}
     </button>

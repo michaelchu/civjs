@@ -14,7 +14,7 @@ export const StatusPanel: React.FC = () => {
   }
 
   return (
-    <div className="flex items-center space-x-6 text-sm">
+    <div className="flex items-center space-x-6 text-sm" data-testid="status-panel">
       {/* Turn counter */}
       <div className="flex items-center space-x-1">
         <span className="text-gray-400">Turn:</span>
