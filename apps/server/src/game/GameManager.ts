@@ -356,12 +356,6 @@ export class GameManager {
       generatedAt: mapData.generatedAt,
     };
 
-    logger.info('Broadcasting map data', {
-      gameId,
-      width: mapData.width,
-      height: mapData.height,
-      playerCount: this.io.sockets.adapter.rooms.get(`game:${gameId}`)?.size,
-    });
     this.broadcastToGame(gameId, 'map-data', mapDataPacket);
 
     // Send data in EXACT freeciv-web format
@@ -1114,9 +1108,6 @@ export class GameManager {
   private broadcastToGame(gameId: string, event: string, data: any): void {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) return;
-
-    const roomSize = this.io.sockets.adapter.rooms.get(`game:${gameId}`)?.size || 0;
-    logger.info('Broadcasting event to game room', { gameId, event, roomSize });
 
     // Broadcast to all sockets in the specific game room
     this.io.to(`game:${gameId}`).emit(event, data);
