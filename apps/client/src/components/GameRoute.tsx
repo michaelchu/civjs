@@ -49,8 +49,16 @@ export const GameRoute: React.FC = () => {
       return;
     }
 
-    // Always show name prompt now - no auto-join from URL
-    setIsLoading(false);
+    // Check if we're already connected to this game
+    if (gameClient.isConnected() && gameClient.getCurrentGameId() === gameId) {
+      // Already connected to this game, skip name prompt
+      setShowNamePrompt(false);
+      setClientState('running');
+      setIsLoading(false);
+    } else {
+      // Show name prompt for new connections
+      setIsLoading(false);
+    }
 
     // Store the current game ID - use direct store property instead
     useGameStore.setState({ currentGameId: gameId });

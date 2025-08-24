@@ -19,14 +19,18 @@
     "test:server": "npm run test --workspace=apps/server",
     "lint": "npm run lint --workspaces",
     "lint:fix": "npm run lint:fix --workspaces",
+    "format": "npm run format --workspaces",
+    "format:check": "npm run format:check --workspaces",
     "typecheck": "npm run type-check --workspaces",
     "clean": "npm run clean --workspaces && rm -rf node_modules",
     "docker:up": "docker-compose up",
     "docker:build": "docker-compose up --build",
-    "docker:down": "docker-compose down"
+    "docker:down": "docker-compose down",
+    "prepare": "husky"
   },
   "devDependencies": {
     "concurrently": "^9.0.1",
+    "husky": "^9.1.7",
     "typescript": "^5.6.3"
   },
   "engines": {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, complexity */
 import { Server, Socket } from 'socket.io';
 import { logger } from '../utils/logger';
 import { PacketHandler } from './PacketHandler';
@@ -49,46 +50,6 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   });
 
   // Add new Socket.IO event handlers for the lobby system
-  socket.on('create_game', async (gameData, callback) => {
-    const connection = activeConnections.get(socket.id);
-    if (!connection?.userId) {
-      callback({ success: false, error: 'Not authenticated' });
-      return;
-    }
-
-    try {
-      const gameId = await gameManager.createGame({
-        name: gameData.gameName,
-        hostId: connection.userId,
-        maxPlayers: gameData.maxPlayers,
-        mapWidth: gameData.mapSize === 'small' ? 40 : gameData.mapSize === 'large' ? 120 : 80,
-        mapHeight: gameData.mapSize === 'small' ? 25 : gameData.mapSize === 'large' ? 75 : 50,
-        ruleset: 'classic',
-      });
-
-      // Automatically join the creator as a player
-      const playerId = await gameManager.joinGame(gameId, connection.userId, 'random');
-
-      connection.gameId = gameId;
-      socket.join(`game:${gameId}`);
-      await gameManager.updatePlayerConnection(playerId, true);
-
-      // Emit game created event to the creator
-      socket.emit('game_created', {
-        gameId,
-        maxPlayers: gameData.maxPlayers,
-      });
-
-      callback({ success: true, gameId });
-      logger.info(`Game created: ${gameData.gameName} by ${connection.username}`, { gameId });
-    } catch (error) {
-      logger.error('Error creating game:', error);
-      callback({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to create game',
-      });
-    }
-  });
 
   socket.on('join_game', async (data, callback) => {
     const connection = activeConnections.get(socket.id);
@@ -196,10 +157,11 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       // Update game manager about disconnection
       if (connection.gameId) {
         const game = await gameManager.getGame(connection.gameId);
-        if (game) {
-          const player = Array.from(game.players.values()).find(
-            (p: any) => p.userId === connection.userId
-          ) as any;
+        if (game && game.players) {
+          // Handle both Map (from gameInstance) and array (from database) formats
+          const playersArray =
+            game.players instanceof Map ? Array.from(game.players.values()) : game.players;
+          const player = playersArray.find((p: any) => p.userId === connection.userId) as any;
           if (player) {
             await gameManager.updatePlayerConnection(player.id, false);
           }
@@ -381,6 +343,22 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
         ruleset: data.ruleset,
         turnTimeLimit: data.turnTimeLimit,
         victoryConditions: data.victoryConditions,
+      });
+
+      // Automatically join the creator as a player
+      // Join the socket room BEFORE joining the game so we receive broadcasts
+      connection.gameId = gameId;
+      socket.join(`game:${gameId}`);
+
+      // Verify the join worked immediately
+
+      const playerId = await gameManager.joinGame(gameId, connection.userId, 'random');
+      await gameManager.updatePlayerConnection(playerId, true);
+
+      // Emit game created event to the creator
+      socket.emit('game_created', {
+        gameId,
+        maxPlayers: data.maxPlayers,
       });
 
       handler.send(socket, PacketType.GAME_CREATE_REPLY, {

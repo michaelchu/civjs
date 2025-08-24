@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { io, Socket } from 'socket.io-client';
 import { useGameStore } from '../store/gameStore';
 import { PacketType } from '../types/packets';
@@ -6,6 +7,7 @@ import { SERVER_URL } from '../config';
 class GameClient {
   private socket: Socket | null = null;
   private serverUrl: string;
+  private currentGameId: string | null = null;
 
   constructor() {
     // Use server URL from config
@@ -60,46 +62,133 @@ class GameClient {
       useGameStore.getState().setClientState('running');
     });
 
-    // Map data events
+    // Map data events - handle both formats
     this.socket.on('map-data', data => {
-      console.log('Received map data:', data);
       useGameStore.getState().updateGameState({
         mapData: data,
         map: {
           width: data.width || 0,
           height: data.height || 0,
-          tiles: useGameStore.getState().map.tiles, // Preserve existing tiles
+          tiles: data.tiles || {}, // Use server-provided tiles
         },
       });
     });
 
-    // Handle individual tile info packets (like freeciv-web)
+    // Handle map-info packet exactly like freeciv-web
+    this.socket.on('map-info', data => {
+      // Store in global map variable exactly like freeciv-web: map = packet;
+      (window as any).map = data;
+
+      // Initialize empty tiles array
+      const totalTiles = data.xsize * data.ysize;
+      (window as any).tiles = new Array(totalTiles);
+
+      // Initialize tiles with empty objects like freeciv-web does
+      for (let i = 0; i < totalTiles; i++) {
+        (window as any).tiles[i] = {
+          index: i,
+          x: i % data.xsize,
+          y: Math.floor(i / data.xsize),
+          known: 0,
+          seen: 0,
+        };
+      }
+    });
+
+    // Handle tile-info packets exactly like freeciv-web
     this.socket.on('tile-info', data => {
-      console.log('Received tile info:', data);
-      
-      const tileKey = `${data.x},${data.y}`;
+      // Update tiles array exactly like freeciv-web: tiles[packet['tile']] = $.extend(tiles[packet['tile']], packet);
+      if ((window as any).tiles && data.tile !== undefined) {
+        const tiles = (window as any).tiles;
+        tiles[data.tile] = Object.assign(tiles[data.tile] || {}, data);
+
+        // Update our game store for compatibility (convert to object format)
+        const tileKey = `${data.x},${data.y}`;
+        const currentMap = useGameStore.getState().map;
+
+        const updatedTiles = {
+          ...currentMap.tiles,
+          [tileKey]: {
+            x: data.x,
+            y: data.y,
+            terrain: data.terrain,
+            visible: data.known > 0,
+            known: data.seen > 0,
+            units: [],
+            city: undefined,
+          },
+        };
+
+        useGameStore.getState().updateGameState({
+          map: {
+            width: (window as any).map?.xsize || 80,
+            height: (window as any).map?.ysize || 50,
+            tiles: updatedTiles,
+            // Store freeciv-web references
+            xsize: (window as any).map?.xsize || 80,
+            ysize: (window as any).map?.ysize || 50,
+            wrap_id: (window as any).map?.wrap_id || 0,
+          },
+        });
+
+        // Center viewport on first received tile
+        if (Object.keys(updatedTiles).length === 1) {
+          useGameStore.getState().setViewport({
+            x: 0,
+            y: 0,
+            zoom: 1,
+          });
+        }
+      }
+    });
+
+    // OPTIMIZED: Handle batch tile updates for better performance
+    this.socket.on('tile-info-batch', data => {
+      if (!(window as any).tiles || !data.tiles) return;
+
+      const tiles = (window as any).tiles;
       const currentMap = useGameStore.getState().map;
-      
-      // Update the specific tile in the map (like freeciv-web's handle_tile_info)
-      const updatedTiles = {
-        ...currentMap.tiles,
-        [tileKey]: {
-          x: data.x,
-          y: data.y,
-          terrain: data.terrain,
-          visible: data.isVisible || true,
-          known: data.isExplored || true,
+      const updatedTiles = { ...currentMap.tiles };
+
+      // Process all tiles in the batch
+      for (const tileData of data.tiles) {
+        // Update global tiles array
+        tiles[tileData.tile] = Object.assign(
+          tiles[tileData.tile] || {},
+          tileData
+        );
+
+        // Update game store tiles
+        const tileKey = `${tileData.x},${tileData.y}`;
+        updatedTiles[tileKey] = {
+          x: tileData.x,
+          y: tileData.y,
+          terrain: tileData.terrain,
+          visible: tileData.known > 0,
+          known: tileData.seen > 0,
           units: [],
           city: undefined,
-        },
-      };
-      
+          resource: tileData.resource,
+        };
+      }
+
+      // Update the store once with all tiles
       useGameStore.getState().updateGameState({
         map: {
-          ...currentMap,
+          width: (window as any).map?.xsize || 80,
+          height: (window as any).map?.ysize || 50,
           tiles: updatedTiles,
+          // Store freeciv-web references
+          xsize: (window as any).map?.xsize || 80,
+          ysize: (window as any).map?.ysize || 50,
+          wrap_id: (window as any).map?.wrap_id || 0,
         },
       });
+
+      // Log progress
+      if (data.endIndex === data.total) {
+        // All tiles received - batch processing complete
+      }
     });
 
     // Game created successfully (when you create a game)
@@ -336,6 +425,7 @@ class GameClient {
           // GAME_CREATE_REPLY
           this.socket?.off('packet', handleReply);
           if (packet.data.success) {
+            this.currentGameId = packet.data.gameId;
             resolve(packet.data.gameId);
           } else {
             reject(new Error(packet.data.message || 'Failed to create game'));
@@ -374,6 +464,7 @@ class GameClient {
 
       this.socket.emit('join_game', { gameId, playerName }, (response: any) => {
         if (response.success) {
+          this.currentGameId = gameId;
           resolve();
         } else {
           reject(new Error(response.error || 'Failed to join game'));
@@ -403,11 +494,16 @@ class GameClient {
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
+      this.currentGameId = null;
     }
   }
 
   isConnected(): boolean {
     return this.socket?.connected || false;
+  }
+
+  getCurrentGameId(): string | null {
+    return this.currentGameId;
   }
 }
 

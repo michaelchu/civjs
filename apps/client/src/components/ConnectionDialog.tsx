@@ -96,10 +96,7 @@ export const ConnectionDialog: React.FC = () => {
 
         <div className="mt-6 pt-6 border-t border-gray-700">
           <div className="text-xs text-gray-400 text-center">
-            <p>
-              Server:{' '}
-              {SERVER_URL}
-            </p>
+            <p>Server: {SERVER_URL}</p>
             <p className="mt-1">
               Make sure the server is running before connecting
             </p>

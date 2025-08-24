@@ -72,10 +72,7 @@ export const HomePage: React.FC = () => {
 
         <div className="mt-8 pt-6 border-t border-gray-700">
           <div className="text-xs text-gray-400 text-center">
-            <p>
-              Server:{' '}
-              {SERVER_URL}
-            </p>
+            <p>Server: {SERVER_URL}</p>
             <p className="mt-1">Welcome to the world of civilization!</p>
           </div>
         </div>

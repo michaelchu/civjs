@@ -1,5 +1,6 @@
 import { GameManager } from '../../src/game/GameManager';
 import { mockIo } from '../setup';
+import { createDatabaseMocks } from '../fixtures/databaseMocks';
 
 // Get the mock from setup
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
@@ -8,72 +9,25 @@ const { db: mockDb } = require('../../src/database');
 // Integration test to verify full game flow
 describe('Game Integration Flow', () => {
   let gameManager: GameManager;
+  let dbMocks: ReturnType<typeof createDatabaseMocks>;
 
   beforeEach(() => {
     (GameManager as any).instance = null;
+    
+    // Ensure mockIo has the proper structure
+    mockIo.to = jest.fn().mockReturnValue({ emit: jest.fn() });
+    mockIo.sockets.adapter = { rooms: new Map() };
+    
     gameManager = GameManager.getInstance(mockIo);
 
-    // Setup database mocks for integration tests
-    let gameCounter = 0;
-    let playerCounter = 0;
-    let cityCounter = 0;
-    let unitCounter = 0;
-
-    mockDb.insert = jest.fn().mockReturnThis();
-    mockDb.values = jest.fn().mockReturnThis();
-    mockDb.returning = jest.fn().mockImplementation(() => {
-      // Different return values based on what's being inserted
-      const query = mockDb.values.mock.calls[mockDb.values.mock.calls.length - 1]?.[0];
-
-      if (query && query.hostId) {
-        // Game insertion
-        return Promise.resolve([
-          {
-            id: `game-${++gameCounter}`,
-            name: query.name,
-            hostId: query.hostId,
-          },
-        ]);
-      } else if (query && query.userId) {
-        // Player insertion
-        return Promise.resolve([
-          {
-            id: `player-${++playerCounter}`,
-            gameId: query.gameId,
-            userId: query.userId,
-            playerNumber: query.playerNumber,
-            civilization: query.civilization,
-          },
-        ]);
-      } else if (query && query.name && query.x !== undefined) {
-        // City insertion
-        return Promise.resolve([
-          {
-            id: `city-${++cityCounter}`,
-            ...query,
-          },
-        ]);
-      } else if (query && query.unitType) {
-        // Unit insertion
-        return Promise.resolve([
-          {
-            id: `unit-${++unitCounter}`,
-            ...query,
-          },
-        ]);
-      }
-
-      // Default fallback
-      return Promise.resolve([{ id: `default-${Date.now()}` }]);
-    });
-
-    mockDb.update = jest.fn().mockReturnThis();
-    mockDb.set = jest.fn().mockReturnThis();
-    mockDb.where = jest.fn().mockResolvedValue([]); // Return empty arrays for load operations
-    mockDb.select = jest.fn().mockReturnThis();
-    mockDb.from = jest.fn().mockReturnThis();
-
-    jest.clearAllMocks();
+    // Setup database mocks using shared fixture
+    dbMocks = createDatabaseMocks();
+    
+    // Apply the mocks to our mock database
+    Object.assign(mockDb, dbMocks.mockDb);
+    
+    // Reset all mocks
+    dbMocks.resetMocks();
   });
 
   afterEach(() => {
@@ -107,7 +61,7 @@ describe('Game Integration Flow', () => {
       // Start game
       await gameManager.startGame(gameId, 'host-user-id');
 
-      const game = gameManager.getGame(gameId);
+      const game = gameManager.getGameInstance(gameId);
       expect(game!.state).toBe('active');
       expect(game!.players.size).toBe(2);
 
@@ -163,7 +117,7 @@ describe('Game Integration Flow', () => {
       const cityId = await gameManager.foundCity(gameId, playerId, 'Capital', 5, 5);
       const unitId = await gameManager.createUnit(gameId, playerId, 'warrior', 5, 5);
 
-      const game = gameManager.getGame(gameId)!;
+      const game = gameManager.getGameInstance(gameId)!;
 
       // Verify city manager has the city
       const city = game.cityManager.getCity(cityId);

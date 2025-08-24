@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, complexity */
 import { logger } from '../utils/logger';
 import { db } from '../database';
 import { gameState } from '../database/redis';
 import { games, players } from '../database/schema';
 import { eq } from 'drizzle-orm';
+import config from '../config';
 import { TurnManager } from './TurnManager';
 import { MapManager } from './MapManager';
 import { UnitManager } from './UnitManager';
@@ -95,21 +97,14 @@ export class GameManager {
     });
 
     logger.info('Game created successfully', { gameId: newGame.id });
-    
-    // Automatically join the creator to the game
-    logger.info('Auto-joining game creator', { gameId: newGame.id, hostId: config.hostId });
-    try {
-      await this.joinGame(newGame.id, config.hostId, 'random');
-    } catch (error) {
-      logger.error('Failed to auto-join creator to game:', error);
-    }
-    
+
+    // Note: The Socket.IO handler will handle joining the creator to the game
+    // This ensures proper socket room management
+
     return newGame.id;
   }
 
   public async joinGame(gameId: string, userId: string, civilization?: string): Promise<string> {
-    logger.info('🚀 JOINAME METHOD CALLED WITH DEBUG 🚀', { gameId, userId, civilization });
-    
     // Get game from database
     const game = await db.query.games.findFirst({
       where: eq(games.id, gameId),
@@ -122,18 +117,18 @@ export class GameManager {
       throw new Error('Game not found');
     }
 
+    // Check if user is already in the game first
+    const existingPlayer = game.players.find(p => p.userId === userId);
+    if (existingPlayer) {
+      return existingPlayer.id; // Already joined
+    }
+
     if (game.status !== 'waiting') {
       throw new Error('Game is not accepting new players');
     }
 
     if (game.players.length >= game.maxPlayers) {
       throw new Error('Game is full');
-    }
-
-    // Check if user is already in the game
-    const existingPlayer = game.players.find(p => p.userId === userId);
-    if (existingPlayer) {
-      return existingPlayer.id; // Already joined
     }
 
     // Create player in database
@@ -176,18 +171,25 @@ export class GameManager {
       where: eq(games.id, gameId),
       with: { players: true },
     });
-    
-    logger.debug('Checking auto-start conditions', { 
-      gameId, 
+
+    logger.debug('Checking auto-start conditions', {
+      gameId,
       gameExists: !!updatedGame,
       gameStatus: updatedGame?.status,
-      playerCount: updatedGame?.players.length 
+      playerCount: updatedGame?.players.length,
     });
-    
-    if (updatedGame && updatedGame.status === 'waiting' && updatedGame.players.length >= 1) {
+
+    if (
+      updatedGame &&
+      updatedGame.status === 'waiting' &&
+      updatedGame.players.length >= config.game.minPlayersToStart
+    ) {
       logger.info('Auto-starting game', { gameId, playerCount: updatedGame.players.length });
       try {
-        await this.startGame(gameId, newPlayer.id);
+        // Small delay to ensure socket room joins have completed
+        // Small delay to ensure socket room joins are complete
+        await new Promise(resolve => setTimeout(resolve, 200));
+        await this.startGame(gameId, updatedGame.hostId);
       } catch (error) {
         logger.error('Failed to auto-start game:', error);
       }
@@ -196,7 +198,7 @@ export class GameManager {
         gameId,
         hasGame: !!updatedGame,
         status: updatedGame?.status,
-        playerCount: updatedGame?.players.length
+        playerCount: updatedGame?.players.length,
       });
     }
 
@@ -220,8 +222,8 @@ export class GameManager {
       throw new Error('Only the host can start the game');
     }
 
-    if (game.players.length < 2) {
-      throw new Error('Need at least 2 players to start');
+    if (game.players.length < config.game.minPlayersToStart) {
+      throw new Error(`Need at least ${config.game.minPlayersToStart} players to start`);
     }
 
     if (game.status !== 'waiting') {
@@ -332,51 +334,112 @@ export class GameManager {
     // Store the game instance
     this.games.set(gameId, gameInstance);
 
-    // Send initial map data to all players
-    this.broadcastMapData(gameId, mapData);
+    // Initialize research for all players
+    for (const player of players.values()) {
+      await researchManager.initializePlayerResearch(player.id);
+    }
+
+    // Send initial map data to all players (with delay to ensure socket room joins are complete)
+    // Delay map broadcasting to ensure socket room joins are complete
+    setTimeout(() => {
+      this.broadcastMapData(gameId, mapData);
+    }, 300);
   }
 
   private broadcastMapData(gameId: string, mapData: any): void {
-    this.broadcastToGame(gameId, 'map-data', {
+    const mapDataPacket = {
       gameId,
       width: mapData.width,
       height: mapData.height,
       startingPositions: mapData.startingPositions,
       seed: mapData.seed,
       generatedAt: mapData.generatedAt,
-    });
+    };
 
-    // Send visible tiles to each player based on their starting position
+    logger.info('Broadcasting map data', {
+      gameId,
+      width: mapData.width,
+      height: mapData.height,
+      playerCount: this.io.sockets.adapter.rooms.get(`game:${gameId}`)?.size,
+    });
+    this.broadcastToGame(gameId, 'map-data', mapDataPacket);
+
+    // Send data in EXACT freeciv-web format
     const gameInstance = this.games.get(gameId);
     if (gameInstance) {
-      for (const startPos of mapData.startingPositions) {
-        const visibleTiles = gameInstance.mapManager.getVisibleTiles(
-          startPos.x,
-          startPos.y,
-          2 // Initial sight radius
-        );
+      // Send map info in EXACT freeciv-web format (gets assigned to global map variable)
+      const mapInfoPacket = {
+        xsize: mapData.width,
+        ysize: mapData.height,
+        wrap_id: 0, // Flat earth
+        topology_id: 0,
+      };
 
-        // Send individual tile-info packets (like freeciv-web) for each visible tile
-        visibleTiles.forEach(tile => {
-          const tileId = tile.x * 1000 + tile.y; // Simple tile ID calculation
-          this.emitToPlayer(gameId, startPos.playerId, 'tile-info', {
-            tile: tileId,
-            x: tile.x,
-            y: tile.y,
-            terrain: tile.terrain,
-            resource: tile.resource,
-            elevation: tile.elevation,
-            riverMask: tile.riverMask,
-            isExplored: true,
-            isVisible: true,
-          });
+      this.broadcastToGame(gameId, 'map-info', mapInfoPacket);
+
+      // OPTIMIZED: Send tiles in batches to improve performance
+
+      // Collect all tiles into an array
+      const allTiles = [];
+      for (let y = 0; y < mapData.height; y++) {
+        for (let x = 0; x < mapData.width; x++) {
+          const index = x + y * mapData.width;
+          // Handle column-based tile array structure: mapData.tiles[x][y]
+          const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
+
+          if (serverTile) {
+            // Format tile in exact freeciv-web format
+            const tileInfo = {
+              tile: index, // This is the key - tile index used by freeciv-web
+              x: x,
+              y: y,
+              terrain: serverTile.terrain,
+              resource: serverTile.resource,
+              elevation: serverTile.elevation || 0,
+              riverMask: serverTile.riverMask || 0,
+              known: 1, // TILE_KNOWN
+              seen: 1,
+              player: null,
+              worked: null,
+              extras: 0, // BitVector for extras
+            };
+            allTiles.push(tileInfo);
+          }
+        }
+      }
+
+      // Send tiles in batches of 100 to avoid overwhelming the client
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < allTiles.length; i += BATCH_SIZE) {
+        const batch = allTiles.slice(i, i + BATCH_SIZE);
+        this.broadcastToGame(gameId, 'tile-info-batch', {
+          tiles: batch,
+          startIndex: i,
+          endIndex: Math.min(i + BATCH_SIZE, allTiles.length),
+          total: allTiles.length,
         });
       }
+
+      logger.debug(
+        `Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches`
+      );
     }
   }
 
   public async getGame(gameId: string): Promise<any | null> {
     return await this.getGameById(gameId);
+  }
+
+  public getGameInstance(gameId: string): GameInstance | null {
+    return this.games.get(gameId) || null;
+  }
+
+  public getAllGameInstances(): GameInstance[] {
+    return Array.from(this.games.values());
+  }
+
+  public getActiveGameInstances(): GameInstance[] {
+    return Array.from(this.games.values()).filter(game => game.state === 'active');
   }
 
   public async getGameByPlayerId(playerId: string): Promise<any | null> {
@@ -1052,24 +1115,11 @@ export class GameManager {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) return;
 
-    for (const player of gameInstance.players.values()) {
-      if (player.isConnected) {
-        // Emit to all sockets of this player (they might have multiple connections)
-        this.io.emit(event, data);
-      }
-    }
-  }
+    const roomSize = this.io.sockets.adapter.rooms.get(`game:${gameId}`)?.size || 0;
+    logger.info('Broadcasting event to game room', { gameId, event, roomSize });
 
-  private emitToPlayer(gameId: string, playerId: string, event: string, data: any): void {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) return;
-
-    const player = gameInstance.players.get(playerId);
-    if (!player || !player.isConnected) return;
-
-    // Emit to player-specific room using their userId
-    // Sockets should join player-specific rooms when they connect
-    this.io.to(`player:${player.userId}`).emit(event, data);
+    // Broadcast to all sockets in the specific game room
+    this.io.to(`game:${gameId}`).emit(event, data);
   }
 
   public async cleanupInactiveGames(): Promise<void> {

@@ -23,53 +23,26 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       if (!ctx) return;
 
       rendererRef.current = new MapRenderer(ctx);
-      
+
       try {
         // Initialize with server URL from config
         const { SERVER_URL } = await import('../../config');
         await rendererRef.current.initialize(SERVER_URL);
-        // Add dummy map data AFTER tileset is loaded
-        const dummyTiles: Record<string, any> = {};
-        for (let x = 0; x < 20; x++) {
-          for (let y = 0; y < 15; y++) {
-            const terrains = ['grassland', 'plains', 'desert', 'forest', 'hills', 'mountains', 'ocean'];
-            const terrain = terrains[Math.floor(Math.random() * terrains.length)];
-            dummyTiles[`${x},${y}`] = {
-              x, y, terrain,
-              visible: true,
-              known: true,
-              units: [],
-              city: undefined
-            };
-          }
-        }
-        
-        // Update the game store with dummy map data
-        const { updateGameState } = useGameStore.getState();
-        updateGameState({
-          map: {
-            width: 20,
-            height: 15,
-            tiles: dummyTiles
-          }
-        });
-        // Force a render with the new dummy data
         const gameState = useGameStore.getState();
-        
+
         if (rendererRef.current) {
           rendererRef.current.render({
             viewport,
             map: gameState.map,
             units: gameState.units,
-            cities: gameState.cities
+            cities: gameState.cities,
           });
         }
-        
       } catch (error) {
         console.error('Failed to initialize MapRenderer:', error);
       }
     };
-    
+
     initRenderer();
 
     return () => {
@@ -101,37 +74,31 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   }, [viewport, map, units, cities]);
 
   // Handle mouse events
-  const handleMouseDown = useCallback(
-    (_event: React.MouseEvent<HTMLCanvasElement>) => {
-      if (!rendererRef.current) return;
+  const handleMouseDown = useCallback(() => {
+    if (!rendererRef.current) return;
 
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-      // const rect = canvas.getBoundingClientRect();
-      // const canvasX = event.clientX - rect.left;
-      // const canvasY = event.clientY - rect.top;
+    // const rect = canvas.getBoundingClientRect();
+    // const canvasX = event.clientX - rect.left;
+    // const canvasY = event.clientY - rect.top;
 
-      // Convert canvas coordinates to map coordinates
-      // const mapCoords = rendererRef.current.canvasToMap(
-      //   canvasX,
-      //   canvasY,
-      //   viewport
-      // );
+    // Convert canvas coordinates to map coordinates
+    // const mapCoords = rendererRef.current.canvasToMap(
+    //   canvasX,
+    //   canvasY,
+    //   viewport
+    // );
 
-      // Handle tile selection, unit selection, etc.
-      // This will be expanded later
-    },
-    [viewport]
-  );
+    // Handle tile selection, unit selection, etc.
+    // This will be expanded later
+  }, [viewport]);
 
-  const handleMouseMove = useCallback(
-    (_event: React.MouseEvent<HTMLCanvasElement>) => {
-      // Handle mouse move for hover effects, drag operations, etc.
-      // This will be implemented later
-    },
-    []
-  );
+  const handleMouseMove = useCallback(() => {
+    // Handle mouse move for hover effects, drag operations, etc.
+    // This will be implemented later
+  }, []);
 
   const handleWheel = useCallback(
     (event: React.WheelEvent<HTMLCanvasElement>) => {

@@ -7,6 +7,8 @@ export interface Tile {
   city?: City;
   visible: boolean;
   known: boolean;
+  resource?: string;
+  elevation?: number;
 }
 
 export interface Unit {
@@ -67,6 +69,9 @@ export interface GameState {
     width: number;
     height: number;
     tiles: Record<string, Tile>;
+    xsize?: number;
+    ysize?: number;
+    wrap_id?: number;
   };
   units: Record<string, Unit>;
   cities: Record<string, City>;

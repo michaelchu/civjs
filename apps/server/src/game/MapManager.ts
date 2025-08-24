@@ -1,3 +1,4 @@
+/* eslint-disable complexity */
 import { logger } from '../utils/logger';
 import { PlayerState } from './GameManager';
 

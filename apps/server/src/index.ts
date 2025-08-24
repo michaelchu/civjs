@@ -41,7 +41,7 @@ app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static assets 
+// Serve static assets
 app.use('/tilesets', express.static('public/tilesets'));
 app.use('/js', express.static('public/js'));
 app.use('/sprites', express.static('public/sprites'));
@@ -69,7 +69,7 @@ app.get('/api/info', (_req, res) => {
 if (config.server.env === 'production') {
   const clientPath = path.join(__dirname, '..', 'public');
   app.use(express.static(clientPath));
-  
+
   // Catch-all route for client-side routing (Express v5 requires named wildcard)
   app.get('*catchAll', (_req, res) => {
     res.sendFile(path.join(clientPath, 'index.html'));

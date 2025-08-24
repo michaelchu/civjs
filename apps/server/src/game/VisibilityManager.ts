@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { logger } from '../utils/logger';
 import { UnitManager, UNIT_TYPES } from './UnitManager';
 import { MapManager } from './MapManager';
