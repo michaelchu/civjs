@@ -2,6 +2,12 @@
 import type { GameState, MapViewport, Tile, Unit, City } from '../../types';
 import { TilesetLoader } from './TilesetLoader';
 
+declare global {
+  interface Window {
+    spritesLogged?: boolean;
+  }
+}
+
 interface RenderState {
   viewport: MapViewport;
   map: GameState['map'];
@@ -33,7 +39,6 @@ export class MapRenderer {
       this.tileHeight = tileSize.height;
 
       this.isInitialized = true;
-      console.log('MapRenderer initialized with tileset');
     } catch (error) {
       console.error('Failed to initialize MapRenderer:', error);
       throw error;
@@ -41,12 +46,25 @@ export class MapRenderer {
   }
 
   private setupCanvas() {
+    // Disable image smoothing for pixel-perfect sprite rendering
     this.ctx.imageSmoothingEnabled = false;
+    // Also disable webkitImageSmoothingEnabled for older browsers
+    (this.ctx as any).webkitImageSmoothingEnabled = false;
+    (this.ctx as any).mozImageSmoothingEnabled = false;
+    (this.ctx as any).msImageSmoothingEnabled = false;
+
     this.ctx.font = '14px Arial, sans-serif';
   }
 
   render(state: RenderState) {
     this.clearCanvas();
+
+    // Reset tile map cache if tiles data has changed
+    const currentGlobalTiles = (window as any).tiles;
+    if (currentGlobalTiles && currentGlobalTiles !== this.lastGlobalTiles) {
+      this.tileMapBuilt = false;
+      this.lastGlobalTiles = currentGlobalTiles;
+    }
 
     if (!this.isInitialized) {
       this.renderLoadingMessage();
@@ -145,37 +163,453 @@ export class MapRenderer {
   private renderTile(tile: Tile, viewport: MapViewport) {
     const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
 
-    const terrainSprite = this.getTerrainSprite(tile.terrain);
+    // Render multi-layer terrain like freeciv-web does
+    this.renderTerrainLayers(tile, screenPos);
+  }
 
-    if (terrainSprite) {
-      this.ctx.drawImage(
-        terrainSprite,
-        screenPos.x,
-        screenPos.y,
-        this.tileWidth * viewport.zoom,
-        this.tileHeight * viewport.zoom
-      );
-    } else {
+  private renderTerrainLayers(tile: Tile, screenPos: { x: number; y: number }) {
+    let hasAnySprites = false;
+
+    // Render all layers (0, 1, 2) like freeciv-web does
+    for (let layer = 0; layer <= 2; layer++) {
+      const sprites = this.fillTerrainSpriteArraySimple(layer, tile);
+
+      if (sprites.length > 0) {
+        hasAnySprites = true;
+      }
+
+      for (const spriteInfo of sprites) {
+        const sprite = this.tilesetLoader.getSprite(spriteInfo.key);
+        if (sprite) {
+          const offsetX = spriteInfo.offset_x || 0;
+          const offsetY = spriteInfo.offset_y || 0;
+
+          // Copy freeciv-web logic exactly: pcanvas.drawImage(sprites[tag], canvas_x, canvas_y);
+          this.ctx.drawImage(
+            sprite,
+            screenPos.x + offsetX,
+            screenPos.y + offsetY
+          );
+        } else {
+          // Try fallback sprites for water terrains
+          if (tile.terrain === 'ocean' || tile.terrain === 'coast') {
+            const mappedTerrain = this.mapTerrainName(tile.terrain);
+            // Try the simplest CELL_CORNER sprite for water
+            const fallbackKey = `t.l${layer}.${mappedTerrain}_cell_u_w_w_w`;
+            const fallbackSprite = this.tilesetLoader.getSprite(fallbackKey);
+            if (fallbackSprite) {
+              this.ctx.drawImage(fallbackSprite, screenPos.x, screenPos.y);
+              hasAnySprites = true;
+            }
+          }
+        }
+      }
+    }
+
+    // Fallback: if no sprites rendered, show solid color
+    if (!hasAnySprites) {
       const color = this.getTerrainColor(tile.terrain);
       this.ctx.fillStyle = color;
       this.ctx.fillRect(
         screenPos.x,
         screenPos.y,
-        this.tileWidth * viewport.zoom,
-        this.tileHeight * viewport.zoom
+        this.tileWidth,
+        this.tileHeight
       );
     }
+  }
 
-    // Draw tile borders in development mode for debugging
-    if (import.meta.env.DEV) {
-      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-      this.ctx.lineWidth = 1;
-      this.ctx.strokeRect(
-        screenPos.x,
-        screenPos.y,
-        this.tileWidth * viewport.zoom,
-        this.tileHeight * viewport.zoom
+  // Helper function to generate directional strings like "n0e0s0w0"
+  private cardinalIndexStr(idx: number): string {
+    const dirNames = ['n', 'e', 's', 'w']; // north, east, south, west
+    let result = '';
+
+    for (let i = 0; i < 4; i++) {
+      const value = (idx >> i) & 1;
+      result += dirNames[i] + value;
+    }
+
+    return result;
+  }
+
+  // Direct port of freeciv-web's fill_terrain_sprite_array function
+  private fillTerrainSpriteArray(
+    l: number,
+    _ptile: any,
+    pterrain: any,
+    tterrain_near: any
+  ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
+    // Get globals from window - these are loaded by the tileset scripts
+    const tile_types_setup = (window as any).tile_types_setup || {};
+    const tileset = (window as any).tileset || {};
+    const ts_tiles = (window as any).ts_tiles || {};
+    const cellgroup_map = (window as any).cellgroup_map || {};
+
+    // Constants from freeciv-web tilespec.js - use the global window constants
+    const CELL_WHOLE = (window as any).CELL_WHOLE;
+    const CELL_CORNER = (window as any).CELL_CORNER;
+    const MATCH_NONE = (window as any).MATCH_NONE;
+    const MATCH_SAME = (window as any).MATCH_SAME;
+    // const MATCH_PAIR = (window as any).MATCH_PAIR;
+    // const MATCH_FULL = (window as any).MATCH_FULL;
+    const num_cardinal_tileset_dirs = 4;
+    const NUM_CORNER_DIRS = 4;
+    const DIR4_TO_DIR8 = [0, 2, 4, 6]; // Convert from DIR4 to DIR8
+    const dither_offset_x = [48, 0, 48, 0]; // normal_tile_width/2, 0, normal_tile_width/2, 0
+    const dither_offset_y = [0, 24, 24, 0]; // 0, normal_tile_height/2, normal_tile_height/2, 0
+    const tileset_tile_height = this.tileHeight;
+
+    if (!tile_types_setup['l' + l + '.' + pterrain['graphic_str']]) {
+      return [];
+    }
+
+    const dlp = tile_types_setup['l' + l + '.' + pterrain['graphic_str']];
+
+    switch (dlp['sprite_type']) {
+      case CELL_WHOLE:
+        {
+          switch (dlp['match_style']) {
+            case MATCH_NONE: {
+              const result_sprites: Array<{
+                key: string;
+                offset_x?: number;
+                offset_y?: number;
+              }> = [];
+              if (dlp['dither'] == true) {
+                for (let i = 0; i < num_cardinal_tileset_dirs; i++) {
+                  if (
+                    !tterrain_near ||
+                    !tterrain_near[DIR4_TO_DIR8[i]] ||
+                    !ts_tiles[tterrain_near[DIR4_TO_DIR8[i]]['graphic_str']]
+                  )
+                    continue;
+                  const near_dlp =
+                    tile_types_setup[
+                      'l' +
+                        l +
+                        '.' +
+                        tterrain_near[DIR4_TO_DIR8[i]]['graphic_str']
+                    ];
+                  const terrain_near =
+                    near_dlp && near_dlp['dither'] == true
+                      ? tterrain_near[DIR4_TO_DIR8[i]]['graphic_str']
+                      : pterrain['graphic_str'];
+                  const dither_tile =
+                    i + pterrain['graphic_str'] + '_' + terrain_near;
+                  const x = dither_offset_x[i];
+                  const y = dither_offset_y[i];
+                  result_sprites.push({
+                    key: dither_tile,
+                    offset_x: x,
+                    offset_y: y,
+                  });
+                }
+                return result_sprites;
+              } else {
+                return [
+                  { key: 't.l' + l + '.' + pterrain['graphic_str'] + '1' },
+                ];
+              }
+            }
+
+            case MATCH_SAME: {
+              let tileno = 0;
+              const this_match_type =
+                ts_tiles[pterrain['graphic_str']] &&
+                ts_tiles[pterrain['graphic_str']]['layer' + l + '_match_type'];
+
+              if (this_match_type && tterrain_near) {
+                for (let i = 0; i < num_cardinal_tileset_dirs; i++) {
+                  if (!ts_tiles[tterrain_near[i]['graphic_str']]) continue;
+                  const that =
+                    ts_tiles[tterrain_near[i]['graphic_str']][
+                      'layer' + l + '_match_type'
+                    ];
+                  if (that == this_match_type) {
+                    tileno |= 1 << i;
+                  }
+                }
+              }
+
+              const gfx_key =
+                't.l' +
+                l +
+                '.' +
+                pterrain['graphic_str'] +
+                '_' +
+                this.cardinalIndexStr(tileno);
+              const y = tileset[gfx_key]
+                ? tileset_tile_height - tileset[gfx_key][3]
+                : 0;
+
+              return [{ key: gfx_key, offset_x: 0, offset_y: y }];
+            }
+          }
+        }
+        break;
+
+      case CELL_CORNER: {
+        // Full CELL_CORNER implementation copied from freeciv-web
+        const W = this.tileWidth;
+        const H = this.tileHeight;
+        const iso_offsets = [
+          [W / 4, 0],
+          [W / 4, H / 2],
+          [W / 2, H / 4],
+          [0, H / 4],
+        ];
+
+        const result_sprites: Array<{
+          key: string;
+          offset_x?: number;
+          offset_y?: number;
+        }> = [];
+
+        // Direction helper functions from freeciv-web
+        const dir_cw = (dir: number): number => {
+          switch (dir) {
+            case 0:
+              return 1; // NORTH to NORTHEAST
+            case 1:
+              return 2; // NORTHEAST to EAST
+            case 2:
+              return 3; // EAST to SOUTHEAST
+            case 3:
+              return 4; // SOUTHEAST to SOUTH
+            case 4:
+              return 5; // SOUTH to SOUTHWEST
+            case 5:
+              return 6; // SOUTHWEST to WEST
+            case 6:
+              return 7; // WEST to NORTHWEST
+            case 7:
+              return 0; // NORTHWEST to NORTH
+          }
+          return -1;
+        };
+
+        const dir_ccw = (dir: number): number => {
+          switch (dir) {
+            case 0:
+              return 7; // NORTH to NORTHWEST
+            case 1:
+              return 0; // NORTHEAST to NORTH
+            case 2:
+              return 1; // EAST to NORTHEAST
+            case 3:
+              return 2; // SOUTHEAST to EAST
+            case 4:
+              return 3; // SOUTH to SOUTHEAST
+            case 5:
+              return 4; // SOUTHWEST to SOUTH
+            case 6:
+              return 5; // WEST to SOUTHWEST
+            case 7:
+              return 6; // NORTHWEST to WEST
+          }
+          return -1;
+        };
+
+        // Put corner cells - complete implementation from freeciv-web
+        for (let i = 0; i < NUM_CORNER_DIRS; i++) {
+          const count = dlp['match_indices'] || 1;
+          let array_index = 0;
+          const dir = dir_ccw(DIR4_TO_DIR8[i]);
+          const x = iso_offsets[i][0];
+          const y = iso_offsets[i][1];
+
+          // Get match types for the three neighboring terrain tiles for this corner
+          // Use ts_tiles match_type instead of tile_types_setup match_index (freeciv-web approach)
+          const ts_tiles = (window as any).ts_tiles || {};
+          const this_match_type =
+            ts_tiles[pterrain['graphic_str']] &&
+            ts_tiles[pterrain['graphic_str']]['layer' + l + '_match_type'];
+
+          const m = [
+            // Counter-clockwise neighbor
+            ts_tiles[tterrain_near[dir_ccw(dir)]['graphic_str']] &&
+              ts_tiles[tterrain_near[dir_ccw(dir)]['graphic_str']][
+                'layer' + l + '_match_type'
+              ],
+            // Direct neighbor
+            ts_tiles[tterrain_near[dir]['graphic_str']] &&
+              ts_tiles[tterrain_near[dir]['graphic_str']][
+                'layer' + l + '_match_type'
+              ],
+            // Clockwise neighbor
+            ts_tiles[tterrain_near[dir_cw(dir)]['graphic_str']] &&
+              ts_tiles[tterrain_near[dir_cw(dir)]['graphic_str']][
+                'layer' + l + '_match_type'
+              ],
+          ];
+
+          // Calculate array_index based on match style
+          switch (dlp['match_style']) {
+            case MATCH_NONE:
+              // No matching needed
+              break;
+            case MATCH_SAME: {
+              // Binary encoding based on whether neighbors match this terrain's match_type
+              const b1 = m[2] != this_match_type ? 1 : 0;
+              const b2 = m[1] != this_match_type ? 1 : 0;
+              const b3 = m[0] != this_match_type ? 1 : 0;
+              array_index = array_index * 2 + b1;
+              array_index = array_index * 2 + b2;
+              array_index = array_index * 2 + b3;
+              break;
+            }
+            case (window as any).MATCH_FULL: {
+              // Full match implementation
+              const n = [];
+              for (let j = 0; j < 3; j++) {
+                for (let k = 0; k < count; k++) {
+                  n[j] = k; // default to last entry
+                  if (m[j] == dlp['match_index'][k]) {
+                    break;
+                  }
+                }
+              }
+              array_index = array_index * count + n[2];
+              array_index = array_index * count + n[1];
+              array_index = array_index * count + n[0];
+              break;
+            }
+          }
+
+          array_index = array_index * NUM_CORNER_DIRS + i;
+          const sprite_key =
+            cellgroup_map[pterrain['graphic_str'] + '.' + array_index];
+
+          if (sprite_key) {
+            result_sprites.push({
+              key: sprite_key + '.' + i,
+              offset_x: x,
+              offset_y: y,
+            });
+          }
+        }
+
+        return result_sprites;
+      }
+    }
+
+    return [];
+  }
+
+  // Cached tile lookup for performance
+  private tileMap: Map<string, any> = new Map();
+  private tileMapBuilt = false;
+  private lastGlobalTiles: any = null;
+
+  private buildTileMap() {
+    if (this.tileMapBuilt) return;
+
+    const globalTiles = (window as any).tiles;
+    if (!globalTiles) return;
+
+    this.tileMap.clear();
+    for (const tile of globalTiles) {
+      if (tile) {
+        const key = `${tile.x},${tile.y}`;
+        this.tileMap.set(key, tile);
+      }
+    }
+    this.tileMapBuilt = true;
+  }
+
+  // Get neighboring tiles from global tiles array
+  // Returns 8 neighbors in DIR8 order: N, NE, E, SE, S, SW, W, NW
+  private getNeighboringTerrains(tile: Tile): any[] {
+    this.buildTileMap();
+
+    const neighbors = [];
+    // 8-directional neighbors: N, NE, E, SE, S, SW, W, NW (DIR8 order)
+    const directions = [
+      { dx: 0, dy: -1 }, // 0: North
+      { dx: 1, dy: -1 }, // 1: Northeast
+      { dx: 1, dy: 0 }, // 2: East
+      { dx: 1, dy: 1 }, // 3: Southeast
+      { dx: 0, dy: 1 }, // 4: South
+      { dx: -1, dy: 1 }, // 5: Southwest
+      { dx: -1, dy: 0 }, // 6: West
+      { dx: -1, dy: -1 }, // 7: Northwest
+    ];
+
+    for (const dir of directions) {
+      const nx = tile.x + dir.dx;
+      const ny = tile.y + dir.dy;
+      const key = `${nx},${ny}`;
+
+      // Fast O(1) lookup instead of O(n) search
+      const neighborTile = this.tileMap.get(key);
+      let neighborTerrain = null;
+
+      if (neighborTile && neighborTile.terrain) {
+        neighborTerrain = {
+          graphic_str: this.mapTerrainName(neighborTile.terrain),
+        };
+      } else {
+        // If no neighbor found, assume same terrain as current tile
+        neighborTerrain = { graphic_str: this.mapTerrainName(tile.terrain) };
+      }
+
+      neighbors.push(neighborTerrain);
+    }
+
+    return neighbors;
+  }
+
+  // Map terrain names to freeciv graphics names (from terrain.ruleset)
+  private mapTerrainName(terrain: string): string {
+    const terrainMap: Record<string, string> = {
+      // Water terrains
+      ocean: 'floor', // deep ocean uses "floor" graphic
+      coast: 'coast', // shallow ocean/coast uses "coast" graphic
+      lake: 'lake', // lakes use "lake" graphic
+
+      // Land terrains - these match their graphic names
+      grassland: 'grassland',
+      plains: 'plains',
+      desert: 'desert',
+      forest: 'forest',
+      hills: 'hills',
+      mountains: 'mountains',
+      tundra: 'tundra',
+      swamp: 'swamp',
+      jungle: 'jungle',
+
+      // Special terrains
+      snow: 'arctic', // snow terrain uses "arctic" graphic
+      arctic: 'arctic',
+      glacier: 'arctic',
+      inaccessible: 'inaccessible',
+    };
+
+    return terrainMap[terrain] || terrain;
+  }
+
+  // Simplified wrapper that calls the original logic
+  private fillTerrainSpriteArraySimple(
+    layer: number,
+    tile: Tile
+  ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
+    if (!tile || !tile.terrain) {
+      return [];
+    }
+
+    const mappedTerrain = this.mapTerrainName(tile.terrain);
+    const pterrain = { graphic_str: mappedTerrain };
+    const ptile = tile;
+    const tterrain_near = this.getNeighboringTerrains(tile);
+
+    try {
+      return this.fillTerrainSpriteArray(layer, ptile, pterrain, tterrain_near);
+    } catch (error) {
+      console.warn(
+        `Error in fillTerrainSpriteArray for ${tile.terrain} layer ${layer}:`,
+        error
       );
+      return [];
     }
   }
 
@@ -185,21 +619,21 @@ export class MapRenderer {
     this.ctx.fillStyle = this.getPlayerColor(unit.playerId);
     this.ctx.beginPath();
     this.ctx.arc(
-      screenPos.x + (this.tileWidth * viewport.zoom) / 2,
-      screenPos.y + (this.tileHeight * viewport.zoom) / 2,
-      8 * viewport.zoom,
+      screenPos.x + this.tileWidth / 2,
+      screenPos.y + this.tileHeight / 2,
+      8,
       0,
       2 * Math.PI
     );
     this.ctx.fill();
 
     this.ctx.fillStyle = 'white';
-    this.ctx.font = `${12 * viewport.zoom}px Arial`;
+    this.ctx.font = '12px Arial';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(
       unit.type.charAt(0).toUpperCase(),
-      screenPos.x + (this.tileWidth * viewport.zoom) / 2,
-      screenPos.y + (this.tileHeight * viewport.zoom) / 2 + 4
+      screenPos.x + this.tileWidth / 2,
+      screenPos.y + this.tileHeight / 2 + 4
     );
   }
 
@@ -210,23 +644,23 @@ export class MapRenderer {
     this.ctx.fillRect(
       screenPos.x + 5,
       screenPos.y + 5,
-      (this.tileWidth - 10) * viewport.zoom,
-      (this.tileHeight - 10) * viewport.zoom
+      this.tileWidth - 10,
+      this.tileHeight - 10
     );
 
     this.ctx.fillStyle = 'white';
-    this.ctx.font = `${10 * viewport.zoom}px Arial`;
+    this.ctx.font = '10px Arial';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(
       city.name,
-      screenPos.x + (this.tileWidth * viewport.zoom) / 2,
+      screenPos.x + this.tileWidth / 2,
       screenPos.y - 5
     );
 
     this.ctx.fillText(
       city.size.toString(),
-      screenPos.x + (this.tileWidth * viewport.zoom) / 2,
-      screenPos.y + (this.tileHeight * viewport.zoom) / 2
+      screenPos.x + this.tileWidth / 2,
+      screenPos.y + this.tileHeight / 2
     );
   }
 
@@ -252,10 +686,6 @@ export class MapRenderer {
     const numeratorY = guiY * W - guiX * H;
     const denominator = W * H;
 
-    console.log(
-      `Numerators: X=${numeratorX}, Y=${numeratorY}, denominator=${denominator}`
-    );
-
     const mapX = this.divide(numeratorX, denominator);
     const mapY = this.divide(numeratorY, denominator);
 
@@ -272,14 +702,14 @@ export class MapRenderer {
   private mapToScreen(mapX: number, mapY: number, viewport: MapViewport) {
     const guiVector = this.mapToGuiVector(mapX, mapY);
     return {
-      x: (guiVector.guiDx - viewport.x) * viewport.zoom,
-      y: (guiVector.guiDy - viewport.y) * viewport.zoom,
+      x: guiVector.guiDx - viewport.x,
+      y: guiVector.guiDy - viewport.y,
     };
   }
 
   canvasToMap(canvasX: number, canvasY: number, viewport: MapViewport) {
-    const guiX = canvasX / viewport.zoom + viewport.x;
-    const guiY = canvasY / viewport.zoom + viewport.y;
+    const guiX = canvasX + viewport.x;
+    const guiY = canvasY + viewport.y;
     const result = this.guiToMapPos(guiX, guiY);
     return result;
   }
@@ -291,9 +721,9 @@ export class MapRenderer {
   ): boolean {
     const screenPos = this.mapToScreen(mapX, mapY, viewport);
     return (
-      screenPos.x + this.tileWidth * viewport.zoom >= 0 &&
+      screenPos.x + this.tileWidth >= 0 &&
       screenPos.x <= viewport.width &&
-      screenPos.y + this.tileHeight * viewport.zoom >= 0 &&
+      screenPos.y + this.tileHeight >= 0 &&
       screenPos.y <= viewport.height
     );
   }
@@ -328,57 +758,8 @@ export class MapRenderer {
     return colors[index];
   }
 
-  private getTerrainSprite(terrain: string): HTMLCanvasElement | null {
-    if (!this.isInitialized) return null;
-
-    // Use proper terrain-specific sprites based on freeciv tileset
-    const terrainSprites: Record<string, string> = {
-      grassland: '0grassland_grassland', // Use grassland terrain sprite
-      plains: '0plains_plains', // Use plains terrain sprite
-      desert: '0desert_desert', // Use desert terrain sprite (confirmed available)
-      ocean: '0ocean_ocean', // Use ocean terrain sprite
-      forest: 't.l1.forest_n1e1s1w1', // Layer 1 forest (confirmed working)
-      hills: 't.l1.hills_n1e1s1w1', // Layer 1 hills (confirmed working)
-      mountains: 't.l1.mountains_n1e1s1w1', // Layer 1 mountains (confirmed working)
-      jungle: 't.l1.jungle_n1e1s1w1', // Layer 1 jungle (should work)
-      tundra: '0tundra_tundra', // Use tundra terrain sprite
-      swamp: '0swamp_swamp', // Use swamp terrain sprite
-    };
-
-    const spriteTag = terrainSprites[terrain];
-    if (spriteTag) {
-      const sprite = this.tilesetLoader.getSprite(spriteTag);
-      if (sprite) {
-        return sprite;
-      }
-    }
-
-    // Ultimate fallback - just use any available t.l0 sprite for isometric shape
-    const availableSprites = this.tilesetLoader.getAvailableSprites();
-    const anyTL0Sprite = availableSprites.find(s =>
-      s.startsWith('t.l0.cellgroup')
-    );
-    if (anyTL0Sprite) {
-      return this.tilesetLoader.getSprite(anyTL0Sprite);
-    }
-
-    return null;
-  }
-
   debugCoordinateAccuracy(): void {
     if (!this.isInitialized) return;
-
-    console.log('=== NEW COORDINATE DEBUG TEST v2 ===');
-    console.log('Tile dimensions:', this.tileWidth, 'x', this.tileHeight);
-
-    // Test simple case first
-    console.log('Testing direct guiToMapPos with (0,0)');
-    const result1 = this.guiToMapPos(0, 0);
-    console.log('Result:', result1);
-
-    console.log('Testing direct guiToMapPos with (48,24)');
-    const result2 = this.guiToMapPos(48, 24);
-    console.log('Result:', result2);
   }
 
   // Debug method to render diamond grid overlay
@@ -409,18 +790,18 @@ export class MapRenderer {
 
         // Draw diamond shape
         this.drawDiamond(
-          screenPos.x + (this.tileWidth * viewport.zoom) / 2,
-          screenPos.y + (this.tileHeight * viewport.zoom) / 2,
-          (this.tileWidth * viewport.zoom) / 2,
-          (this.tileHeight * viewport.zoom) / 2
+          screenPos.x + this.tileWidth / 2,
+          screenPos.y + this.tileHeight / 2,
+          this.tileWidth / 2,
+          this.tileHeight / 2
         );
 
         // Optionally draw tile coordinates
-        if (showTileNumbers && viewport.zoom > 0.5) {
+        if (showTileNumbers) {
           this.ctx.fillText(
             `${x},${y}`,
-            screenPos.x + (this.tileWidth * viewport.zoom) / 2,
-            screenPos.y + (this.tileHeight * viewport.zoom) / 2
+            screenPos.x + this.tileWidth / 2,
+            screenPos.y + this.tileHeight / 2
           );
         }
       }

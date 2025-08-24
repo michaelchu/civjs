@@ -103,7 +103,9 @@ export class TilesetLoader {
         img.onerror = () =>
           reject(new Error(`Failed to load sprite sheet ${i}`));
 
-        img.src = `${serverUrl}/tilesets/freeciv-web-tileset-${this.config!.tileset_name}-${i}.png`;
+        img.src = `${serverUrl}/tilesets/freeciv-web-tileset-${
+          this.config!.tileset_name
+        }-${i}.png`;
         this.spriteSheets[i] = img;
       });
 
@@ -111,6 +113,12 @@ export class TilesetLoader {
     }
 
     await Promise.all(loadPromises);
+    console.log(
+      `Loaded ${this.config.tileset_image_count} sprite sheets:`,
+      this.spriteSheets.map(
+        (img, i) => `Sheet ${i}: ${img.width}x${img.height}`
+      )
+    );
   }
 
   private cacheSprites(): void {
@@ -118,9 +126,11 @@ export class TilesetLoader {
       throw new Error('Tileset spec not loaded');
     }
 
+    const sheetUsage: Record<number, number> = {};
     for (const tileTag in this.spec) {
       try {
         const [x, y, w, h, sheetIndex] = this.spec[tileTag];
+        sheetUsage[sheetIndex] = (sheetUsage[sheetIndex] || 0) + 1;
 
         const canvas = document.createElement('canvas');
         canvas.width = w;
@@ -144,6 +154,9 @@ export class TilesetLoader {
         console.warn(`Problem caching sprite: ${tileTag}`, error);
       }
     }
+
+    console.log('Sprite sheet usage distribution:', sheetUsage);
+    console.log(`Total sprites cached: ${Object.keys(this.sprites).length}`);
   }
 
   getSprite(tag: string): HTMLCanvasElement | null {
@@ -164,6 +177,13 @@ export class TilesetLoader {
   // Debug method to list available sprites
   getAvailableSprites(): string[] {
     return Object.keys(this.sprites);
+  }
+
+  // Debug method to find sprites by pattern
+  findSprites(pattern: string): string[] {
+    return Object.keys(this.sprites).filter(key =>
+      key.toLowerCase().includes(pattern.toLowerCase())
+    );
   }
 
   cleanup(): void {

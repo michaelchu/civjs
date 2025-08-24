@@ -3,7 +3,7 @@ import { useGameStore } from '../../store/gameStore';
 import { MapCanvas } from '../Canvas2D/MapCanvas';
 import { GameTabs } from './GameTabs';
 import { StatusPanel } from './StatusPanel';
-import { ChatBox } from './ChatBox';
+// import { ChatBox } from './ChatBox'; // Commented out while ChatBox is disabled
 import { TurnDoneButton } from './TurnDoneButton';
 
 export const GameLayout: React.FC = () => {
@@ -77,20 +77,20 @@ export const GameLayout: React.FC = () => {
             <div className="h-full relative">
               <MapCanvas width={canvasSize.width} height={canvasSize.height} />
 
-              {/* Overlay UI elements */}
-              <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end pointer-events-none">
+              {/* Overlay UI elements - COMMENTED OUT */}
+              {/* <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end pointer-events-none">
                 {/* Chat box */}
-                <div className="w-80 pointer-events-auto">
+              {/* <div className="w-80 pointer-events-auto">
                   <ChatBox />
-                </div>
+                </div> */}
 
-                {/* Overview mini-map would go here */}
-                <div className="w-48 h-32 bg-gray-900 bg-opacity-80 border border-gray-600 rounded pointer-events-auto">
+              {/* Overview mini-map would go here */}
+              {/* <div className="w-48 h-32 bg-gray-900 bg-opacity-80 border border-gray-600 rounded pointer-events-auto">
                   <div className="p-2 text-sm text-gray-300">
                     Mini-map placeholder
                   </div>
-                </div>
-              </div>
+                </div> */}
+              {/* </div> */}
             </div>
           )}
 

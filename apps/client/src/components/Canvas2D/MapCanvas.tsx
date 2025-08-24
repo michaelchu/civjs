@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { MapRenderer } from './MapRenderer';
 
@@ -73,45 +73,110 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     });
   }, [viewport, map, units, cities]);
 
-  // Handle mouse events
-  const handleMouseDown = useCallback(() => {
-    if (!rendererRef.current) return;
+  // Handle mouse events - copied from freeciv-web 2D canvas behavior
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [currentViewport, setCurrentViewport] = useState(viewport);
+
+  // Sync local viewport with prop changes when not dragging
+  useEffect(() => {
+    if (!isDragging) {
+      setCurrentViewport(viewport);
+    }
+  }, [viewport, isDragging]);
+
+  const handleMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (event.button !== 0) return; // Only handle left mouse button
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const canvasX = event.clientX - rect.left;
+      const canvasY = event.clientY - rect.top;
+
+      // Start dragging - copy freeciv-web logic
+      setIsDragging(true);
+      setDragStart({ x: canvasX, y: canvasY });
+      setCurrentViewport(viewport);
+
+      // Change cursor to indicate dragging
+      canvas.style.cursor = 'move';
+    },
+    [viewport]
+  );
+
+  const handleMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!isDragging || !rendererRef.current) return;
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const canvasX = event.clientX - rect.left;
+      const canvasY = event.clientY - rect.top;
+
+      // Copy freeciv-web panning logic exactly
+      const diff_x = (dragStart.x - canvasX) * 2;
+      const diff_y = (dragStart.y - canvasY) * 2;
+
+      // Update viewport position directly in renderer (like freeciv-web mapview['gui_x0'])
+      // This avoids triggering React re-renders on every mouse move
+      const newViewport = {
+        ...currentViewport,
+        x: currentViewport.x + diff_x,
+        y: currentViewport.y + diff_y,
+      };
+
+      // Update local viewport state
+      setCurrentViewport(newViewport);
+
+      // Directly render with new viewport without updating React state
+      rendererRef.current.render({
+        viewport: newViewport,
+        map: useGameStore.getState().map,
+        units: useGameStore.getState().units,
+        cities: useGameStore.getState().cities,
+      });
+
+      // Update drag start position for next move
+      setDragStart({ x: canvasX, y: canvasY });
+    },
+    [isDragging, dragStart, currentViewport]
+  );
+
+  const handleMouseUp = useCallback(() => {
+    if (!isDragging) return;
 
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (canvas) {
+      canvas.style.cursor = 'crosshair';
+    }
 
-    // const rect = canvas.getBoundingClientRect();
-    // const canvasX = event.clientX - rect.left;
-    // const canvasY = event.clientY - rect.top;
+    // Update React state with final viewport position (like freeciv-web does)
+    setViewport(currentViewport);
 
-    // Convert canvas coordinates to map coordinates
-    // const mapCoords = rendererRef.current.canvasToMap(
-    //   canvasX,
-    //   canvasY,
-    //   viewport
-    // );
+    setIsDragging(false);
+  }, [isDragging, currentViewport, setViewport]);
 
-    // Handle tile selection, unit selection, etc.
-    // This will be expanded later
-  }, [viewport]);
+  // Global mouse up handler to catch mouse up events outside the canvas
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      if (isDragging) {
+        handleMouseUp();
+      }
+    };
 
-  const handleMouseMove = useCallback(() => {
-    // Handle mouse move for hover effects, drag operations, etc.
-    // This will be implemented later
-  }, []);
+    if (isDragging) {
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+      return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
+    }
+  }, [isDragging, handleMouseUp]);
 
-  const handleWheel = useCallback(
-    (event: React.WheelEvent<HTMLCanvasElement>) => {
-      event.preventDefault();
-
-      // Zoom in/out
-      const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
-      const newZoom = Math.max(0.5, Math.min(3.0, viewport.zoom * zoomFactor));
-
-      setViewport({ zoom: newZoom });
-    },
-    [viewport.zoom, setViewport]
-  );
+  // Removed zoom functionality to match freeciv-web 2D canvas behavior
+  // Freeciv-web's 2D renderer does not support zoom - only the WebGL renderer does
 
   return (
     <div className="relative overflow-hidden bg-blue-900">
@@ -121,7 +186,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         height={height}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
-        onWheel={handleWheel}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
         className="cursor-crosshair"
         style={{ imageRendering: 'pixelated' }}
       />
