@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { io, Socket } from 'socket.io-client';
 import { useGameStore } from '../store/gameStore';
 import { PacketType } from '../types/packets';

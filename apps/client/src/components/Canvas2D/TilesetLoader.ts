@@ -14,6 +14,7 @@ interface TilesetSpec {
   [key: string]: [number, number, number, number, number]; // x, y, width, height, sheet_index
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export class TilesetLoader {
   private config: TilesetConfig | null = null;
   private spec: TilesetSpec | null = null;

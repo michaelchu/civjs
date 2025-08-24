@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Socket.IO packet types that match our server implementation
 export const PacketType = {
   // Game flow

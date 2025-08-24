@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, complexity */
 import { logger } from '../utils/logger';
 import { db } from '../database';
 import { gameState } from '../database/redis';

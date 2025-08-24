@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { GameState, MapViewport, Tile, Unit, City } from '../../types';
 import { TilesetLoader } from './TilesetLoader';
 

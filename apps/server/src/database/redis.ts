@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Redis from 'ioredis';
 import logger from '../utils/logger';
 

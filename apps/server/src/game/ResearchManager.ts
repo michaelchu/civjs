@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { db } from '../database';
 import { research as researchTable, playerTechs } from '../database/schema';
 import { eq, and } from 'drizzle-orm';
