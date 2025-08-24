@@ -148,3 +148,7 @@ export const GOTO_DIR_DX = [0, 1, 0, -1, 1, 1, -1, -1];
 export const GOTO_DIR_DY = [-1, 0, 1, 0, -1, 1, 1, -1];
 
 // Tileset dimensions will be imported from tileset-config.ts
+
+// Renderer types
+export const RENDERER_2DCANVAS = 1; // default HTML5 Canvas
+export const RENDERER_WEBGL = 2; // WebGL + Three.js

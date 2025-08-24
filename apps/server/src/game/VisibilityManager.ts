@@ -39,8 +39,31 @@ export class VisibilityManager {
       lastUpdated: new Date(),
     };
 
+    // Reveal starting area around player's starting position
+    const mapData = this.mapManager.getMapData();
+    if (mapData) {
+      const startingPos = mapData.startingPositions.find(pos => pos.playerId === playerId);
+      if (startingPos) {
+        // Reveal tiles around starting position (like freeciv-web does)
+        const revealRadius = 2; // Standard starting sight radius
+        const startingTiles = this.calculateTileVisibility(
+          startingPos.x,
+          startingPos.y,
+          revealRadius
+        );
+
+        for (const tileKey of startingTiles) {
+          visibility.visibleTiles.add(tileKey);
+          visibility.exploredTiles.add(tileKey);
+        }
+
+        logger.debug(
+          `Initialized visibility for player ${playerId} with ${startingTiles.size} starting tiles revealed`
+        );
+      }
+    }
+
     this.playerVisibility.set(playerId, visibility);
-    logger.debug(`Initialized visibility for player ${playerId}`);
   }
 
   /**
@@ -53,24 +76,27 @@ export class VisibilityManager {
       return;
     }
 
-    // Clear current visibility
-    visibility.visibleTiles.clear();
-
     // Get all player units
     const playerUnits = this.unitManager.getPlayerUnits(playerId);
 
-    // Calculate visibility from each unit
-    for (const unit of playerUnits) {
-      const unitType = UNIT_TYPES[unit.unitTypeId];
-      if (!unitType) continue;
+    // If player has units, clear visibility and recalculate from units
+    if (playerUnits.length > 0) {
+      visibility.visibleTiles.clear();
 
-      const visibleTiles = this.calculateTileVisibility(unit.x, unit.y, unitType.sight);
+      // Calculate visibility from each unit
+      for (const unit of playerUnits) {
+        const unitType = UNIT_TYPES[unit.unitTypeId];
+        if (!unitType) continue;
 
-      for (const tileKey of visibleTiles) {
-        visibility.visibleTiles.add(tileKey);
-        visibility.exploredTiles.add(tileKey);
+        const visibleTiles = this.calculateTileVisibility(unit.x, unit.y, unitType.sight);
+
+        for (const tileKey of visibleTiles) {
+          visibility.visibleTiles.add(tileKey);
+          visibility.exploredTiles.add(tileKey);
+        }
       }
     }
+    // If no units, preserve starting area visibility (don't clear visibleTiles)
 
     visibility.lastUpdated = new Date();
     logger.debug(
@@ -113,7 +139,9 @@ export class VisibilityManager {
     const visibility = this.playerVisibility.get(playerId);
     if (!visibility) {
       this.initializePlayerVisibility(playerId);
-      return new Set();
+      // Return the newly initialized visible tiles instead of empty set
+      const newVisibility = this.playerVisibility.get(playerId);
+      return new Set(newVisibility?.visibleTiles || []);
     }
 
     return new Set(visibility.visibleTiles);
@@ -126,7 +154,9 @@ export class VisibilityManager {
     const visibility = this.playerVisibility.get(playerId);
     if (!visibility) {
       this.initializePlayerVisibility(playerId);
-      return new Set();
+      // Return the newly initialized explored tiles instead of empty set
+      const newVisibility = this.playerVisibility.get(playerId);
+      return new Set(newVisibility?.exploredTiles || []);
     }
 
     return new Set(visibility.exploredTiles);

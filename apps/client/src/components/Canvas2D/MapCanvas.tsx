@@ -20,6 +20,7 @@ import {
   LAYER_UNIT,
   LAYER_CITY1,
 } from '../../rendering/constants';
+import { mapview, update_map_canvas, center_tile_mapcanvas_2d } from '../../rendering/mapview-common';
 
 interface MapCanvasProps {
   width: number;
@@ -33,7 +34,7 @@ interface LoadingState {
 
 export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { clientState } = useGameStore();
+  const { clientState, units } = useGameStore();
   const [loadingState, setLoadingState] = React.useState<LoadingState>({
     progress: 0,
     message: 'Initializing...',
@@ -66,6 +67,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     };
   }, []);
 
+  // Get game state with proper React subscription
+  const tilesArray = useGameStore(state => state.tilesArray);
+  const mapInfo = useGameStore(state => state.mapInfo);
+
   // Render map tiles
   const renderMap = useCallback(() => {
     const canvas = canvasRef.current;
@@ -77,29 +82,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Get current game state
-    const { tilesArray, mapInfo } = useGameStore.getState();
-
     // If we have no tiles data, show a placeholder
     if (!tilesArray || !mapInfo) {
       ctx.fillStyle = '#2d5016'; // Dark green background
       ctx.fillRect(0, 0, width, height);
 
-      // Draw grid pattern for testing
-      ctx.strokeStyle = '#3d6026';
-      ctx.lineWidth = 1;
-      for (let x = 0; x < width; x += 96) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-      }
-      for (let y = 0; y < height; y += 48) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-      }
+      // No grid pattern - tiles should be rendered as isometric diamonds
 
       // Show placeholder text
       ctx.fillStyle = '#ffffff';
@@ -115,75 +103,80 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       return;
     }
 
-    // Render actual map tiles using freeciv-web data
-    const tileWidth = 96;
-    const tileHeight = 48;
-    const mapWidth = mapInfo.xsize;
-    const mapHeight = mapInfo.ysize;
-
-    // Calculate visible area (simple viewport for now)
-    const tilesX = Math.min(Math.ceil(width / tileWidth), mapWidth);
-    const tilesY = Math.min(Math.ceil(height / tileHeight), mapHeight);
-
-    console.log(
-      `Rendering ${tilesX}x${tilesY} tiles from map ${mapWidth}x${mapHeight}, tiles array length: ${tilesArray.length}`
-    );
-
-    // Render tiles layer by layer like freeciv-web
-    const layers = [
-      LAYER_TERRAIN1,
-      LAYER_TERRAIN2,
-      LAYER_TERRAIN3,
-      LAYER_ROADS,
-      LAYER_SPECIAL1,
-      LAYER_CITY1,
-      LAYER_UNIT,
-      LAYER_SPECIAL2,
-      LAYER_FOG,
-    ];
-
-    for (const layer of layers) {
-      for (let y = 0; y < tilesY; y++) {
-        for (let x = 0; x < tilesX; x++) {
-          const tileIndex = y * mapWidth + x;
-          const tile = tilesArray[tileIndex];
-
-          if (tile && tile.known > 0) {
-            // Only render known tiles
-            try {
-              // Use the rendering system to get sprites for this tile and layer
-              const sprites = fill_sprite_array(layer, tile);
-
-              // Draw each sprite
-              sprites.forEach(sprite => {
-                if (typeof sprite === 'string') {
-                  mapview_put_tile(ctx, sprite, x * tileWidth, y * tileHeight);
-                } else if (sprite.tag) {
-                  mapview_put_tile(
-                    ctx,
-                    sprite.tag,
-                    x * tileWidth,
-                    y * tileHeight
-                  );
-                }
-              });
-            } catch {
-              // Only show fallback for terrain layers
-              if (layer === LAYER_TERRAIN1) {
-                ctx.fillStyle = getTerrainColor(tile.terrain || 'grassland');
-                ctx.fillRect(
-                  x * tileWidth,
-                  y * tileHeight,
-                  tileWidth,
-                  tileHeight
-                );
-              }
+    // Initialize mapview state for isometric rendering
+    mapview['width'] = width;
+    mapview['height'] = height;
+    
+    // Initialize viewport origin if not set - center the map using freeciv-web approach
+    // Reference: client_main.js line 68 calls center_on_any_city() and control.js line 3356-3363
+    if (mapview['gui_x0'] === undefined || mapview['gui_y0'] === undefined) {
+      let centerTile = null;
+      
+      // First try to center on player's first unit (like advance_unit_focus in reference)
+      // Reference: control.js center_on_any_city logic but for units
+      const unitIds = Object.keys(units);
+      if (unitIds.length > 0) {
+        const firstUnit = units[unitIds[0]];
+        if (firstUnit && firstUnit.x !== undefined && firstUnit.y !== undefined) {
+          centerTile = {
+            x: firstUnit.x,
+            y: firstUnit.y
+          };
+          console.log(`🎯 Centering map on player's first unit at tile(${firstUnit.x},${firstUnit.y})`);
+        }
+      }
+      
+      // Fallback: try to find a visible tile instead of just map center
+      if (!centerTile) {
+        // Look for first visible tile (where known > 0)
+        let visibleTile = null;
+        if (tilesArray) {
+          for (let i = 0; i < Math.min(100, tilesArray.length); i++) {
+            const tile = tilesArray[i];
+            if (tile && tile.known > 0) {
+              visibleTile = { x: tile.x, y: tile.y };
+              console.log(`🎯 Found visible tile at (${tile.x},${tile.y}) with known=${tile.known}`);
+              break;
             }
           }
         }
+        
+        if (visibleTile) {
+          centerTile = visibleTile;
+        } else {
+          // Final fallback to map center
+          const centerTileX = Math.floor(mapInfo.xsize / 2);
+          const centerTileY = Math.floor(mapInfo.ysize / 2);
+          centerTile = {
+            x: centerTileX,
+            y: centerTileY
+          };
+          console.log(`🎯 No units or visible tiles found, centering map on tile(${centerTileX},${centerTileY})`);
+        }
       }
+      
+      // Reference: mapview_common.js line 49-59 center_tile_mapcanvas_2d implementation
+      center_tile_mapcanvas_2d(centerTile);
     }
-  }, [width, height, clientState]);
+
+    // Use the proper isometric rendering function from freeciv-web
+    try {
+      update_map_canvas(0, 0, width, height, ctx, mapInfo, tilesArray);
+    } catch (error) {
+      console.error('Error in isometric rendering:', error);
+      
+      // Fallback: show that we have tile data but isometric rendering needs work
+      ctx.fillStyle = '#2d5016'; // Dark green background
+      ctx.fillRect(0, 0, width, height);
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '18px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Isometric Rendering Active', width / 2, height / 2 - 20);
+      ctx.fillText(`Map: ${mapInfo.xsize}x${mapInfo.ysize} (${tilesArray.length} tiles)`, width / 2, height / 2);
+      ctx.fillText('Check console for detailed rendering logs', width / 2, height / 2 + 20);
+    }
+  }, [width, height, clientState, tilesArray, mapInfo]);
 
   // Re-render when sprites are loaded or game state changes
   useEffect(() => {

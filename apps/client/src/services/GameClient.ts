@@ -8,6 +8,7 @@ class GameClient {
   private socket: Socket | null = null;
   private serverUrl: string;
   private currentGameId: string | null = null;
+  private playerId: string | null = null;
 
   constructor() {
     // Use server URL from config
@@ -78,7 +79,7 @@ class GameClient {
     this.socket.on('map-info', data => {
       console.log('Received map-info:', data);
 
-      // Initialize empty tiles array
+      // Initialize empty tiles array for modern state management
       const totalTiles = data.xsize * data.ysize;
       const tiles: any[] = new Array(totalTiles);
 
@@ -157,21 +158,33 @@ class GameClient {
 
     // OPTIMIZED: Handle batch tile updates for better performance
     this.socket.on('tile-info-batch', data => {
-      if (!(window as any).tiles || !data.tiles) return;
+      if (!data.tiles) {
+        return;
+      }
 
-      const tiles = (window as any).tiles;
-      const currentMap = useGameStore.getState().map;
+      // TEMPORARY: Disable player ID filtering for testing
+      // TODO: Fix player ID management in create game flow
+      // if (data.playerId && data.playerId !== this.playerId) {
+      //   return; // Ignore tiles meant for other players
+      // }
+
+      // Update modern state management instead of legacy global tiles
+      const currentState = useGameStore.getState();
+      const currentTilesArray = [...(currentState.tilesArray || [])];
+      const currentMap = currentState.map;
       const updatedTiles = { ...currentMap.tiles };
 
       // Process all tiles in the batch
       for (const tileData of data.tiles) {
-        // Update global tiles array
-        tiles[tileData.tile] = Object.assign(
-          tiles[tileData.tile] || {},
-          tileData
-        );
+        // Update modern tiles array
+        if (currentTilesArray[tileData.tile]) {
+          currentTilesArray[tileData.tile] = Object.assign(
+            currentTilesArray[tileData.tile] || {},
+            tileData
+          );
+        }
 
-        // Update game store tiles
+        // Update game store tiles for compatibility
         const tileKey = `${tileData.x},${tileData.y}`;
         updatedTiles[tileKey] = {
           x: tileData.x,
@@ -187,14 +200,10 @@ class GameClient {
 
       // Update the store once with all tiles
       useGameStore.getState().updateGameState({
+        tilesArray: currentTilesArray, // Update the modern tiles array
         map: {
-          width: (window as any).map?.xsize || 80,
-          height: (window as any).map?.ysize || 50,
+          ...currentMap,
           tiles: updatedTiles,
-          // Store freeciv-web references
-          xsize: (window as any).map?.xsize || 80,
-          ysize: (window as any).map?.ysize || 50,
-          wrap_id: (window as any).map?.wrap_id || 0,
         },
       });
 
@@ -439,6 +448,7 @@ class GameClient {
           this.socket?.off('packet', handleReply);
           if (packet.data.success) {
             this.currentGameId = packet.data.gameId;
+            console.log('🎮 Game created, but NO playerId received in create response');
             resolve(packet.data.gameId);
           } else {
             reject(new Error(packet.data.message || 'Failed to create game'));
@@ -460,7 +470,14 @@ class GameClient {
   joinGame(playerName: string): void {
     if (!this.socket) return;
 
-    this.socket.emit('join_game', { playerName });
+    this.socket.emit('join_game', { playerName }, (response: any) => {
+      if (response.success && response.playerId) {
+        this.playerId = response.playerId;
+        console.log('🆔 Player joined with ID:', this.playerId);
+      } else {
+        console.log('🚨 joinGame response:', response);
+      }
+    });
   }
 
   // Join specific game method (used by GameLobby)
@@ -478,6 +495,8 @@ class GameClient {
       this.socket.emit('join_game', { gameId, playerName }, (response: any) => {
         if (response.success) {
           this.currentGameId = gameId;
+          this.playerId = response.playerId; // Store the player ID from server response
+          console.log('Player joined game with ID:', this.playerId);
           resolve();
         } else {
           reject(new Error(response.error || 'Failed to join game'));
@@ -508,6 +527,7 @@ class GameClient {
       this.socket.disconnect();
       this.socket = null;
       this.currentGameId = null;
+      this.playerId = null;
     }
   }
 

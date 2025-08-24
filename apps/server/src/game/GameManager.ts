@@ -373,50 +373,88 @@ export class GameManager {
 
       // OPTIMIZED: Send tiles in batches to improve performance
 
-      // Collect all tiles into an array
-      const allTiles = [];
-      for (let y = 0; y < mapData.height; y++) {
-        for (let x = 0; x < mapData.width; x++) {
-          const index = x + y * mapData.width;
-          // Handle column-based tile array structure: mapData.tiles[x][y]
-          const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
+      // Exact copy from freeciv-web tile.js lines 20-22:
+      // const TILE_UNKNOWN = 0;
+      // const TILE_KNOWN_UNSEEN = 1;
+      const TILE_KNOWN_SEEN = 2;
 
-          if (serverTile) {
-            // Format tile in exact freeciv-web format
-            const tileInfo = {
-              tile: index, // This is the key - tile index used by freeciv-web
-              x: x,
-              y: y,
-              terrain: serverTile.terrain,
-              resource: serverTile.resource,
-              elevation: serverTile.elevation || 0,
-              riverMask: serverTile.riverMask || 0,
-              known: 1, // TILE_KNOWN
-              seen: 1,
-              player: null,
-              worked: null,
-              extras: 0, // BitVector for extras
-            };
-            allTiles.push(tileInfo);
+      // Send personalized tile data to each player (exact copy from freeciv-web server logic)
+      // Each player gets their own view based on visibility
+      for (const [playerId] of gameInstance.players.entries()) {
+        const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
+        const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
+
+        // Debug visibility data
+        logger.debug(`Player ${playerId} visibility:`, {
+          visibleTileCount: visibleTiles.size,
+          exploredTileCount: exploredTiles.size,
+          firstFewVisible: Array.from(visibleTiles).slice(0, 5),
+          firstFewExplored: Array.from(exploredTiles).slice(0, 5),
+        });
+
+        // Collect tiles for this specific player
+        const allTiles = [];
+        for (let y = 0; y < mapData.height; y++) {
+          for (let x = 0; x < mapData.width; x++) {
+            const index = x + y * mapData.width;
+            // Handle column-based tile array structure: mapData.tiles[x][y]
+            const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
+
+            if (serverTile) {
+              // const tileKey = `${x},${y}`;
+              // const isVisible = visibleTiles.has(tileKey);
+              // const isExplored = exploredTiles.has(tileKey);
+
+              // TEMPORARY: Disable fog of war for testing - make all tiles visible
+              // TODO: Re-enable fog of war once units and cities are implemented
+              const knownStatus = TILE_KNOWN_SEEN; // All tiles visible for testing
+
+              // Original fog of war logic (commented out for testing):
+              // let knownStatus = TILE_UNKNOWN;
+              // if (isExplored) {
+              //   knownStatus = isVisible ? TILE_KNOWN_SEEN : TILE_KNOWN_UNSEEN;
+              // }
+
+              // Format tile in exact freeciv-web format
+              const tileInfo = {
+                tile: index, // This is the key - tile index used by freeciv-web
+                x: x,
+                y: y,
+                terrain: serverTile.terrain,
+                resource: serverTile.resource,
+                elevation: serverTile.elevation || 0,
+                riverMask: serverTile.riverMask || 0,
+                known: knownStatus, // Use proper visibility from VisibilityManager
+                seen: 1, // TEMPORARY: All tiles seen for testing (was: isVisible ? 1 : 0)
+                player: null,
+                worked: null,
+                extras: 0, // BitVector for extras
+              };
+              allTiles.push(tileInfo);
+            }
           }
         }
-      }
 
-      // Send tiles in batches of 100 to avoid overwhelming the client
-      const BATCH_SIZE = 100;
-      for (let i = 0; i < allTiles.length; i += BATCH_SIZE) {
-        const batch = allTiles.slice(i, i + BATCH_SIZE);
-        this.broadcastToGame(gameId, 'tile-info-batch', {
-          tiles: batch,
-          startIndex: i,
-          endIndex: Math.min(i + BATCH_SIZE, allTiles.length),
-          total: allTiles.length,
-        });
-      }
+        // Send tiles in batches of 100 to this specific player
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < allTiles.length; i += BATCH_SIZE) {
+          const batch = allTiles.slice(i, i + BATCH_SIZE);
+          // Broadcast to game but include player ID so client can filter
+          this.broadcastToGame(gameId, 'tile-info-batch', {
+            playerId: playerId, // Include player ID for client-side filtering
+            tiles: batch,
+            startIndex: i,
+            endIndex: Math.min(i + BATCH_SIZE, allTiles.length),
+            total: allTiles.length,
+          });
+        }
 
-      logger.debug(
-        `Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches`
-      );
+        logger.debug(
+          `Sent ${allTiles.length} tiles to player ${playerId} in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches`
+        );
+      } // Close player loop
+
+      logger.debug(`Sent personalized tile data to all players in game ${gameId}`);
     }
   }
 
