@@ -26,14 +26,24 @@ export const LAYER_CITYBAR = 11;
 export const LAYER_GOTO = 12;
 
 export const ALL_LAYERS = [
-  LAYER_TERRAIN1, LAYER_TERRAIN2, LAYER_TERRAIN3, LAYER_ROADS,
-  LAYER_SPECIAL1, LAYER_CITY1, LAYER_SPECIAL2, LAYER_UNIT,
-  LAYER_FOG, LAYER_SPECIAL3, LAYER_TILELABEL, LAYER_CITYBAR, LAYER_GOTO
+  LAYER_TERRAIN1,
+  LAYER_TERRAIN2,
+  LAYER_TERRAIN3,
+  LAYER_ROADS,
+  LAYER_SPECIAL1,
+  LAYER_CITY1,
+  LAYER_SPECIAL2,
+  LAYER_UNIT,
+  LAYER_FOG,
+  LAYER_SPECIAL3,
+  LAYER_TILELABEL,
+  LAYER_CITYBAR,
+  LAYER_GOTO,
 ];
 
 // Fog styles
 export const FOG_AUTO = 0;
-export const FOG_SPRITE = 1; 
+export const FOG_SPRITE = 1;
 export const FOG_DARKNESS = 2;
 
 // Visibility states for fog of war
@@ -71,9 +81,9 @@ export const ACTIVITY_PATROL_UNUSED = 15;
 
 // Terrain layer match types (from tileset config)
 export const TERRAIN_MATCH_TYPES = {
-  layer0: ["shallow", "deep", "land"],
-  layer1: ["forest", "hills", "mountains", "water", "ice", "jungle"],
-  layer2: ["water", "ice"]
+  layer0: ['shallow', 'deep', 'land'],
+  layer1: ['forest', 'hills', 'mountains', 'water', 'ice', 'jungle'],
+  layer2: ['water', 'ice'],
 };
 
 // Corner sprite indices for 81-sprite corner matching system
@@ -83,11 +93,11 @@ export const CORNER_SPRITE_COUNT = 81;
 export const MAX_SPRITE_SHEETS = 10;
 
 // Sprite tag prefixes
-export const SPRITE_PREFIX_TERRAIN = "t.";
-export const SPRITE_PREFIX_UNIT = "u.";
-export const SPRITE_PREFIX_CITY = "city.";
-export const SPRITE_PREFIX_BUILDING = "b.";
-export const SPRITE_PREFIX_FLAG = "f.";
+export const SPRITE_PREFIX_TERRAIN = 't.';
+export const SPRITE_PREFIX_UNIT = 'u.';
+export const SPRITE_PREFIX_CITY = 'city.';
+export const SPRITE_PREFIX_BUILDING = 'b.';
+export const SPRITE_PREFIX_FLAG = 'f.';
 
 // Default sprite dimensions (fallback values)
 export const DEFAULT_SPRITE_WIDTH = 96;
@@ -99,17 +109,17 @@ export const NUM_CORNER_DIRS = 4;
 
 // Edge types for border matching
 export const EDGE_NS = 0; // North and south
-export const EDGE_WE = 1; // West and east  
+export const EDGE_WE = 1; // West and east
 export const EDGE_UD = 2; // Up and down (nw/se), for hex_width tilesets
 export const EDGE_LR = 3; // Left and right (ne/sw), for hex_height tilesets
 export const EDGE_COUNT = 4;
 
 // Darkness styles - don't reorder this enum since tilesets depend on it
-export const DARKNESS_NONE = 0;        // No darkness sprites are drawn
-export const DARKNESS_ISORECT = 1;     // 1 sprite split into 4 parts, iso-view only
+export const DARKNESS_NONE = 0; // No darkness sprites are drawn
+export const DARKNESS_ISORECT = 1; // 1 sprite split into 4 parts, iso-view only
 export const DARKNESS_CARD_SINGLE = 2; // 4 sprites, one per direction
-export const DARKNESS_CARD_FULL = 3;   // 15=2^4-1 sprites based on cardinal directions
-export const DARKNESS_CORNER = 4;      // Corner darkness & fog, 3^4 = 81 sprites
+export const DARKNESS_CARD_FULL = 3; // 15=2^4-1 sprites based on cardinal directions
+export const DARKNESS_CORNER = 4; // Corner darkness & fog, 3^4 = 81 sprites
 
 // Direction constants (8-directional)
 export const DIR8_NORTH = 0;
@@ -122,7 +132,12 @@ export const DIR8_SOUTHWEST = 6;
 export const DIR8_NORTHWEST = 7;
 
 // Cardinal directions array
-export const CARDINAL_TILESET_DIRS = [DIR8_NORTH, DIR8_EAST, DIR8_SOUTH, DIR8_WEST];
+export const CARDINAL_TILESET_DIRS = [
+  DIR8_NORTH,
+  DIR8_EAST,
+  DIR8_SOUTH,
+  DIR8_WEST,
+];
 export const NUM_CARDINAL_TILESET_DIRS = 4;
 
 // Direction mapping from 4-directional to 8-directional

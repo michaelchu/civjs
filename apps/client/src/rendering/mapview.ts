@@ -18,30 +18,30 @@
 ***********************************************************************/
 
 // Canvas management and sprite loading system ported from freeciv-web mapview.js
-import { SpriteDefinition } from './types';
+import type { SpriteDefinition } from './types';
 
 // Canvas contexts and elements
-let mapview_canvas_ctx: CanvasRenderingContext2D | null = null;
-let mapview_canvas: HTMLCanvasElement | null = null;
-let buffer_canvas_ctx: CanvasRenderingContext2D | null = null;
-let buffer_canvas: HTMLCanvasElement | null = null;
-let city_canvas_ctx: CanvasRenderingContext2D | null = null;
-let city_canvas: HTMLCanvasElement | null = null;
+const mapview_canvas_ctx: CanvasRenderingContext2D | null = null;
+const mapview_canvas: HTMLCanvasElement | null = null;
+const buffer_canvas_ctx: CanvasRenderingContext2D | null = null;
+const buffer_canvas: HTMLCanvasElement | null = null;
+const city_canvas_ctx: CanvasRenderingContext2D | null = null;
+const city_canvas: HTMLCanvasElement | null = null;
 
 // Sprite loading state
 const tileset_images: HTMLImageElement[] = [];
 const sprites: { [key: string]: SpriteDefinition } = {};
-let loaded_images = 0;
-let sprites_init = false;
+const loaded_images = 0;
+const sprites_init = false;
 
-// Rendering configuration
-const canvas_text_font = "16px Georgia, serif";
-const fullfog: any[] = [];
+// Rendering configuration - these will be used once mapview functions are ported
+// const canvas_text_font = "16px Georgia, serif";
+// const fullfog: any[] = [];
 
-// Path rendering constants
-const GOTO_DIR_DX = [0, 1, 2, -1, 1, -2, -1, 0];
-const GOTO_DIR_DY = [-2, -1, 0, -1, 1, 0, 1, 2];
-let dashedSupport = false;
+// Path rendering constants - these will be used once mapview functions are ported
+// const GOTO_DIR_DX = [0, 1, 2, -1, 1, -2, -1, 0];
+// const GOTO_DIR_DY = [-2, -1, 0, -1, 1, 0, 1, 2];
+// let dashedSupport = false;
 
 /**
  * Initialize the map view canvas system
@@ -70,24 +70,26 @@ export function preload_check(): boolean {
 /**
  * Put a tile sprite on the canvas at the specified coordinates
  */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 export function mapview_put_tile(
-  pcanvas: HTMLCanvasElement, 
-  tag: string, 
-  canvas_x: number, 
+  pcanvas: HTMLCanvasElement,
+  tag: string,
+  canvas_x: number,
   canvas_y: number
 ): void {
   // TODO: Port tile drawing logic from original mapview.js
 }
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 /**
  * Draw a rectangle on the canvas
  */
 export function canvas_put_rectangle(
-  canvas_context: CanvasRenderingContext2D, 
-  pcolor: string, 
-  canvas_x: number, 
-  canvas_y: number, 
-  width: number, 
+  canvas_context: CanvasRenderingContext2D,
+  pcolor: string,
+  canvas_x: number,
+  canvas_y: number,
+  width: number,
   height: number
 ): void {
   canvas_context.fillStyle = pcolor;
@@ -96,19 +98,19 @@ export function canvas_put_rectangle(
 
 // TODO: Port remaining ~25 functions from original mapview.js including:
 // - mapview_put_city_bar
-// - mapview_put_tile_label  
+// - mapview_put_tile_label
 // - init_cache_sprites
 // - And all other canvas management functions
 
 export {
   mapview_canvas_ctx,
   mapview_canvas,
-  buffer_canvas_ctx, 
+  buffer_canvas_ctx,
   buffer_canvas,
   city_canvas_ctx,
   city_canvas,
   tileset_images,
   sprites,
   loaded_images,
-  sprites_init
+  sprites_init,
 };

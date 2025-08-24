@@ -19,20 +19,24 @@
 
 /* Amplio.tilespec ported to TypeScript. */
 
-import { 
-  MATCH_PAIR, MATCH_FULL, MATCH_NONE, MATCH_SAME, 
-  CELL_CORNER, CELL_WHOLE,
-  FOG_DARKNESS
+import {
+  MATCH_PAIR,
+  MATCH_FULL,
+  MATCH_NONE,
+  MATCH_SAME,
+  CELL_CORNER,
+  CELL_WHOLE,
+  FOG_DARKNESS,
 } from './constants';
 
 // Basic tileset dimensions and properties
 export const tileset_tile_width = 96;
 export const tileset_tile_height = 48;
 
-export const tileset_options = "+tilespec4+2007.Oct.26";
+export const tileset_options = '+tilespec4+2007.Oct.26';
 
 // A simple name for the tileset specified by this file:
-export const tileset_name = "amplio2";
+export const tileset_name = 'amplio2';
 export const priority = 20;
 
 export const tileset_image_count = 3;
@@ -82,8 +86,18 @@ export const citybar_offset_x = 45;
 export const tilelabel_offset_y = 15;
 export const tilelabel_offset_x = 0;
 
-export const dither_offset_x = [normal_tile_width/2, 0, normal_tile_width/2, 0];
-export const dither_offset_y = [0, normal_tile_height/2, normal_tile_height/2, 0];
+export const dither_offset_x = [
+  normal_tile_width / 2,
+  0,
+  normal_tile_width / 2,
+  0,
+];
+export const dither_offset_y = [
+  0,
+  normal_tile_height / 2,
+  normal_tile_height / 2,
+  0,
+];
 
 // Layer configuration
 interface LayerConfig {
@@ -94,17 +108,17 @@ export const ts_layer: LayerConfig[] = [];
 
 //[layer0]
 ts_layer[0] = {
-  match_types: ["shallow", "deep", "land"]
+  match_types: ['shallow', 'deep', 'land'],
 };
 
 //[layer1]
 ts_layer[1] = {
-  match_types: ["forest", "hills", "mountains", "water", "ice", "jungle"]
+  match_types: ['forest', 'hills', 'mountains', 'water', 'ice', 'jungle'],
 };
 
 //[layer2]
 ts_layer[2] = {
-  match_types: ["water", "ice"]
+  match_types: ['water', 'ice'],
 };
 
 // Terrain tile configuration interface
@@ -127,31 +141,31 @@ export const ts_tiles: { [key: string]: TerrainTileConfig } = {};
 ts_tiles['lake'] = {
   is_blended: 0,
   num_layers: 1,
-  layer0_match_type: "shallow",
-  layer0_match_with: ["land"],
-  layer0_sprite_type: "corner"
+  layer0_match_type: 'shallow',
+  layer0_match_with: ['land'],
+  layer0_sprite_type: 'corner',
 };
 
 ts_tiles['coast'] = {
   is_blended: 1,
   num_layers: 2,
-  layer0_match_type: "shallow",
-  layer0_match_with: ["deep", "land"],
-  layer0_sprite_type: "corner",
-  layer1_match_type: "water",
-  layer1_match_with: ["ice"],
-  layer1_sprite_type: "corner"
+  layer0_match_type: 'shallow',
+  layer0_match_with: ['deep', 'land'],
+  layer0_sprite_type: 'corner',
+  layer1_match_type: 'water',
+  layer1_match_with: ['ice'],
+  layer1_sprite_type: 'corner',
 };
 
 ts_tiles['floor'] = {
   is_blended: 0,
   num_layers: 2,
-  layer0_match_type: "deep",
-  layer0_match_with: ["shallow", "land"],
-  layer0_sprite_type: "corner",
-  layer1_match_type: "water",
-  layer1_match_with: ["ice"],
-  layer1_sprite_type: "corner"
+  layer0_match_type: 'deep',
+  layer0_match_with: ['shallow', 'land'],
+  layer0_sprite_type: 'corner',
+  layer1_match_type: 'water',
+  layer1_match_with: ['ice'],
+  layer1_sprite_type: 'corner',
 };
 
 // Land graphics referenced by terrain.ruleset
@@ -159,81 +173,81 @@ ts_tiles['floor'] = {
 ts_tiles['arctic'] = {
   is_blended: 0,
   num_layers: 3,
-  layer0_match_type: "shallow",
-  layer1_match_type: "ice",
-  layer2_match_type: "ice",
-  mine_sprite: "tx.oil_mine"
+  layer0_match_type: 'shallow',
+  layer1_match_type: 'ice',
+  layer2_match_type: 'ice',
+  mine_sprite: 'tx.oil_mine',
 };
 
 ts_tiles['desert'] = {
   is_blended: 1,
   num_layers: 1,
-  layer0_match_type: "land",
-  mine_sprite: "tx.oil_mine"
+  layer0_match_type: 'land',
+  mine_sprite: 'tx.oil_mine',
 };
 
 ts_tiles['forest'] = {
   is_blended: 1,
   num_layers: 2,
-  layer0_match_type: "land",
-  layer1_match_type: "forest",
-  layer1_match_with: ["forest"]
+  layer0_match_type: 'land',
+  layer1_match_type: 'forest',
+  layer1_match_with: ['forest'],
 };
 
 ts_tiles['grassland'] = {
   is_blended: 1,
   num_layers: 1,
-  layer0_match_type: "land"
+  layer0_match_type: 'land',
 };
 
 ts_tiles['hills'] = {
   is_blended: 1,
   num_layers: 2,
-  layer0_match_type: "land",
-  layer1_match_type: "hills",
-  layer1_match_with: ["hills"],
-  mine_sprite: "tx.mine"
+  layer0_match_type: 'land',
+  layer1_match_type: 'hills',
+  layer1_match_with: ['hills'],
+  mine_sprite: 'tx.mine',
 };
 
 ts_tiles['jungle'] = {
   is_blended: 1,
   num_layers: 2,
-  layer0_match_type: "land",
-  layer1_match_type: "jungle",
-  layer1_match_with: ["jungle"]
+  layer0_match_type: 'land',
+  layer1_match_type: 'jungle',
+  layer1_match_with: ['jungle'],
 };
 
 ts_tiles['mountains'] = {
   is_blended: 1,
   num_layers: 2,
-  layer0_match_type: "land",
-  layer1_match_type: "mountains",
-  layer1_match_with: ["mountains"],
-  mine_sprite: "tx.mine"
+  layer0_match_type: 'land',
+  layer1_match_type: 'mountains',
+  layer1_match_with: ['mountains'],
+  mine_sprite: 'tx.mine',
 };
 
 ts_tiles['plains'] = {
   is_blended: 1,
   num_layers: 1,
-  layer0_match_type: "land"
+  layer0_match_type: 'land',
 };
 
 ts_tiles['swamp'] = {
   is_blended: 1,
   num_layers: 1,
-  layer0_match_type: "land"
+  layer0_match_type: 'land',
 };
 
 ts_tiles['tundra'] = {
   is_blended: 1,
   num_layers: 1,
-  layer0_match_type: "land"
+  layer0_match_type: 'land',
 };
 
 ts_tiles['inaccessible'] = {
   is_blended: 0,
   num_layers: 1,
-  layer0_match_type: "land"
+  layer0_match_type: 'land',
 };
 
 // Tile type setup configuration
@@ -247,36 +261,176 @@ interface TileTypeSetup {
 }
 
 export const tile_types_setup: { [key: string]: TileTypeSetup } = {
-  "l0.lake": {match_style: MATCH_PAIR, sprite_type: CELL_CORNER, mine_tag: "(null)", match_indices: 2, match_index: [0,2], dither: false},
-  "l0.coast": {match_style: MATCH_FULL, sprite_type: CELL_CORNER, mine_tag: "(null)", match_indices: 3, match_index: [0,1,2], dither: false},
-  "l1.coast": {match_style: MATCH_PAIR, sprite_type: CELL_CORNER, mine_tag: "(null)", match_indices: 2, match_index: [3,4], dither: false},
-  "l0.floor": {match_style: MATCH_FULL, sprite_type: CELL_CORNER, mine_tag: "(null)", match_indices: 3, match_index: [1,0,2], dither: false},
-  "l1.floor": {match_style: MATCH_PAIR, sprite_type: CELL_CORNER, mine_tag: "(null)", match_indices: 2, match_index: [3,4], dither: false},
-  "l0.arctic": {match_style: MATCH_NONE, sprite_type: CELL_WHOLE, mine_tag: "tx.oil_mine", match_indices: 1, match_index: [0], dither: false},
-  "l0.desert": {match_style: MATCH_NONE, sprite_type: CELL_WHOLE, mine_tag: "tx.oil_mine", match_indices: 1, match_index: [2], dither: true},
-  "l0.forest": {match_style: MATCH_NONE, sprite_type: CELL_WHOLE, mine_tag: "(null)", match_indices: 1, match_index: [2], dither: true},
-  "l1.forest": {match_style: MATCH_SAME, sprite_type: CELL_WHOLE, mine_tag: "(null)", match_indices: 2, match_index: [0,0], dither: false},
-  "l0.grassland": {match_style: MATCH_NONE, sprite_type: CELL_WHOLE, mine_tag: "(null)", match_indices: 1, match_index: [2], dither: true},
-  "l0.hills": {match_style: MATCH_NONE, sprite_type: CELL_WHOLE, mine_tag: "tx.mine", match_indices: 1, match_index: [2], dither: true},
-  "l1.hills": {match_style: MATCH_SAME, sprite_type: CELL_WHOLE, mine_tag: "tx.mine", match_indices: 2, match_index: [1,1], dither: false},
-  "l0.jungle": {match_style: MATCH_NONE, sprite_type: CELL_WHOLE, mine_tag: "(null)", match_indices: 1, match_index: [5], dither: true},
-  "l1.jungle": {match_style: MATCH_SAME, sprite_type: CELL_WHOLE, mine_tag: "(null)", match_indices: 2, match_index: [5,5], dither: false},
-  "l0.mountains": {match_style: MATCH_NONE, sprite_type: CELL_WHOLE, mine_tag: "tx.mine", match_indices: 1, match_index: [2], dither: true},
-  "l1.mountains": {match_style: MATCH_SAME, sprite_type: CELL_WHOLE, mine_tag: "tx.mine", match_indices: 2, match_index: [2,2], dither: false},
-  "l0.plains": {match_style: MATCH_NONE, sprite_type: CELL_WHOLE, mine_tag: "(null)", match_indices: 1, match_index: [2], dither: true},
-  "l0.swamp": {match_style: MATCH_NONE, sprite_type: CELL_WHOLE, mine_tag: "(null)", match_indices: 1, match_index: [2], dither: true},
-  "l0.tundra": {match_style: MATCH_NONE, sprite_type: CELL_WHOLE, mine_tag: "(null)", match_indices: 1, match_index: [2], dither: true},
-  "l0.inaccessible": {match_style: MATCH_NONE, sprite_type: CELL_WHOLE, mine_tag: "(null)", match_indices: 1, match_index: [2], dither: false}
+  'l0.lake': {
+    match_style: MATCH_PAIR,
+    sprite_type: CELL_CORNER,
+    mine_tag: '(null)',
+    match_indices: 2,
+    match_index: [0, 2],
+    dither: false,
+  },
+  'l0.coast': {
+    match_style: MATCH_FULL,
+    sprite_type: CELL_CORNER,
+    mine_tag: '(null)',
+    match_indices: 3,
+    match_index: [0, 1, 2],
+    dither: false,
+  },
+  'l1.coast': {
+    match_style: MATCH_PAIR,
+    sprite_type: CELL_CORNER,
+    mine_tag: '(null)',
+    match_indices: 2,
+    match_index: [3, 4],
+    dither: false,
+  },
+  'l0.floor': {
+    match_style: MATCH_FULL,
+    sprite_type: CELL_CORNER,
+    mine_tag: '(null)',
+    match_indices: 3,
+    match_index: [1, 0, 2],
+    dither: false,
+  },
+  'l1.floor': {
+    match_style: MATCH_PAIR,
+    sprite_type: CELL_CORNER,
+    mine_tag: '(null)',
+    match_indices: 2,
+    match_index: [3, 4],
+    dither: false,
+  },
+  'l0.arctic': {
+    match_style: MATCH_NONE,
+    sprite_type: CELL_WHOLE,
+    mine_tag: 'tx.oil_mine',
+    match_indices: 1,
+    match_index: [0],
+    dither: false,
+  },
+  'l0.desert': {
+    match_style: MATCH_NONE,
+    sprite_type: CELL_WHOLE,
+    mine_tag: 'tx.oil_mine',
+    match_indices: 1,
+    match_index: [2],
+    dither: true,
+  },
+  'l0.forest': {
+    match_style: MATCH_NONE,
+    sprite_type: CELL_WHOLE,
+    mine_tag: '(null)',
+    match_indices: 1,
+    match_index: [2],
+    dither: true,
+  },
+  'l1.forest': {
+    match_style: MATCH_SAME,
+    sprite_type: CELL_WHOLE,
+    mine_tag: '(null)',
+    match_indices: 2,
+    match_index: [0, 0],
+    dither: false,
+  },
+  'l0.grassland': {
+    match_style: MATCH_NONE,
+    sprite_type: CELL_WHOLE,
+    mine_tag: '(null)',
+    match_indices: 1,
+    match_index: [2],
+    dither: true,
+  },
+  'l0.hills': {
+    match_style: MATCH_NONE,
+    sprite_type: CELL_WHOLE,
+    mine_tag: 'tx.mine',
+    match_indices: 1,
+    match_index: [2],
+    dither: true,
+  },
+  'l1.hills': {
+    match_style: MATCH_SAME,
+    sprite_type: CELL_WHOLE,
+    mine_tag: 'tx.mine',
+    match_indices: 2,
+    match_index: [1, 1],
+    dither: false,
+  },
+  'l0.jungle': {
+    match_style: MATCH_NONE,
+    sprite_type: CELL_WHOLE,
+    mine_tag: '(null)',
+    match_indices: 1,
+    match_index: [5],
+    dither: true,
+  },
+  'l1.jungle': {
+    match_style: MATCH_SAME,
+    sprite_type: CELL_WHOLE,
+    mine_tag: '(null)',
+    match_indices: 2,
+    match_index: [5, 5],
+    dither: false,
+  },
+  'l0.mountains': {
+    match_style: MATCH_NONE,
+    sprite_type: CELL_WHOLE,
+    mine_tag: 'tx.mine',
+    match_indices: 1,
+    match_index: [2],
+    dither: true,
+  },
+  'l1.mountains': {
+    match_style: MATCH_SAME,
+    sprite_type: CELL_WHOLE,
+    mine_tag: 'tx.mine',
+    match_indices: 2,
+    match_index: [2, 2],
+    dither: false,
+  },
+  'l0.plains': {
+    match_style: MATCH_NONE,
+    sprite_type: CELL_WHOLE,
+    mine_tag: '(null)',
+    match_indices: 1,
+    match_index: [2],
+    dither: true,
+  },
+  'l0.swamp': {
+    match_style: MATCH_NONE,
+    sprite_type: CELL_WHOLE,
+    mine_tag: '(null)',
+    match_indices: 1,
+    match_index: [2],
+    dither: true,
+  },
+  'l0.tundra': {
+    match_style: MATCH_NONE,
+    sprite_type: CELL_WHOLE,
+    mine_tag: '(null)',
+    match_indices: 1,
+    match_index: [2],
+    dither: true,
+  },
+  'l0.inaccessible': {
+    match_style: MATCH_NONE,
+    sprite_type: CELL_WHOLE,
+    mine_tag: '(null)',
+    match_indices: 1,
+    match_index: [2],
+    dither: false,
+  },
 };
 
 // Cell group mapping for corner matching system (truncated for brevity - full mapping available)
 export const cellgroup_map: { [key: string]: string } = {
-  "coast.0": "t.l0.cellgroup_s_s_s_s",
-  "coast.1": "t.l0.cellgroup_s_s_s_s",
-  "coast.2": "t.l0.cellgroup_s_s_s_s",
-  "coast.3": "t.l0.cellgroup_s_s_s_s",
+  'coast.0': 't.l0.cellgroup_s_s_s_s',
+  'coast.1': 't.l0.cellgroup_s_s_s_s',
+  'coast.2': 't.l0.cellgroup_s_s_s_s',
+  'coast.3': 't.l0.cellgroup_s_s_s_s',
   // ... (complete mapping contains 216 entries)
-  "floor.0": "t.l0.cellgroup_d_d_d_d",
-  "floor.1": "t.l0.cellgroup_d_d_d_d",
+  'floor.0': 't.l0.cellgroup_d_d_d_d',
+  'floor.1': 't.l0.cellgroup_d_d_d_d',
   // ... (additional floor mappings)
 };

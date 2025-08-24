@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/gameStore';
-import { MapCanvas } from '../Canvas2D/MapCanvas';
+// import { MapCanvas } from '../Canvas2D/MapCanvas'; // Temporarily disabled during rendering port
 import { GameTabs } from './GameTabs';
 import { StatusPanel } from './StatusPanel';
 // import { ChatBox } from './ChatBox'; // Commented out while ChatBox is disabled
@@ -27,6 +27,8 @@ export const GameLayout: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Temporarily disabled during rendering port
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const calculateCanvasSize = () => {
     const headerHeight = 60; // Tab header height
     const statusHeight = 40; // Status bar height
@@ -41,7 +43,7 @@ export const GameLayout: React.FC = () => {
     };
   };
 
-  const canvasSize = calculateCanvasSize();
+  // const canvasSize = calculateCanvasSize(); // Temporarily disabled during rendering port
 
   if (clientState === 'initial' || clientState === 'connecting') {
     return (
@@ -75,7 +77,10 @@ export const GameLayout: React.FC = () => {
         <div className="flex-1 relative">
           {activeTab === 'map' && (
             <div className="h-full relative">
-              <MapCanvas width={canvasSize.width} height={canvasSize.height} />
+              {/* <MapCanvas width={canvasSize.width} height={canvasSize.height} /> */}
+              <div>
+                Map rendering in progress - rendering module being ported
+              </div>
 
               {/* Overlay UI elements - COMMENTED OUT */}
               {/* <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end pointer-events-none">
