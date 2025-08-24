@@ -96,15 +96,14 @@ export class GameManager {
     });
 
     logger.info('Game created successfully', { gameId: newGame.id });
-    
+
     // Note: The Socket.IO handler will handle joining the creator to the game
     // This ensures proper socket room management
-    
+
     return newGame.id;
   }
 
   public async joinGame(gameId: string, userId: string, civilization?: string): Promise<string> {
-    
     // Get game from database
     const game = await db.query.games.findFirst({
       where: eq(games.id, gameId),
@@ -171,15 +170,19 @@ export class GameManager {
       where: eq(games.id, gameId),
       with: { players: true },
     });
-    
-    logger.debug('Checking auto-start conditions', { 
-      gameId, 
+
+    logger.debug('Checking auto-start conditions', {
+      gameId,
       gameExists: !!updatedGame,
       gameStatus: updatedGame?.status,
-      playerCount: updatedGame?.players.length 
+      playerCount: updatedGame?.players.length,
     });
-    
-    if (updatedGame && updatedGame.status === 'waiting' && updatedGame.players.length >= config.game.minPlayersToStart) {
+
+    if (
+      updatedGame &&
+      updatedGame.status === 'waiting' &&
+      updatedGame.players.length >= config.game.minPlayersToStart
+    ) {
       logger.info('Auto-starting game', { gameId, playerCount: updatedGame.players.length });
       try {
         // Small delay to ensure socket room joins have completed
@@ -194,7 +197,7 @@ export class GameManager {
         gameId,
         hasGame: !!updatedGame,
         status: updatedGame?.status,
-        playerCount: updatedGame?.players.length
+        playerCount: updatedGame?.players.length,
       });
     }
 
@@ -346,8 +349,13 @@ export class GameManager {
       seed: mapData.seed,
       generatedAt: mapData.generatedAt,
     };
-    
-    logger.info('Broadcasting map data', { gameId, width: mapData.width, height: mapData.height, playerCount: this.io.sockets.adapter.rooms.get(`game:${gameId}`)?.size });
+
+    logger.info('Broadcasting map data', {
+      gameId,
+      width: mapData.width,
+      height: mapData.height,
+      playerCount: this.io.sockets.adapter.rooms.get(`game:${gameId}`)?.size,
+    });
     this.broadcastToGame(gameId, 'map-data', mapDataPacket);
 
     // Send data in EXACT freeciv-web format
@@ -360,11 +368,11 @@ export class GameManager {
         wrap_id: 0, // Flat earth
         topology_id: 0,
       };
-      
+
       this.broadcastToGame(gameId, 'map-info', mapInfoPacket);
 
       // OPTIMIZED: Send tiles in batches to improve performance
-      
+
       // Collect all tiles into an array
       const allTiles = [];
       for (let y = 0; y < mapData.height; y++) {
@@ -372,11 +380,11 @@ export class GameManager {
           const index = x + y * mapData.width;
           // Handle column-based tile array structure: mapData.tiles[x][y]
           const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
-          
+
           if (serverTile) {
             // Format tile in exact freeciv-web format
             const tileInfo = {
-              tile: index,  // This is the key - tile index used by freeciv-web
+              tile: index, // This is the key - tile index used by freeciv-web
               x: x,
               y: y,
               terrain: serverTile.terrain,
@@ -393,7 +401,7 @@ export class GameManager {
           }
         }
       }
-      
+
       // Send tiles in batches of 100 to avoid overwhelming the client
       const BATCH_SIZE = 100;
       for (let i = 0; i < allTiles.length; i += BATCH_SIZE) {
@@ -402,11 +410,13 @@ export class GameManager {
           tiles: batch,
           startIndex: i,
           endIndex: Math.min(i + BATCH_SIZE, allTiles.length),
-          total: allTiles.length
+          total: allTiles.length,
         });
       }
-      
-      logger.debug(`Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches`);
+
+      logger.debug(
+        `Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches`
+      );
     }
   }
 
@@ -1093,7 +1103,6 @@ export class GameManager {
     // Broadcast to all sockets in the specific game room
     this.io.to(`game:${gameId}`).emit(event, data);
   }
-
 
   public async cleanupInactiveGames(): Promise<void> {
     const now = new Date();

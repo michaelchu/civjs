@@ -282,7 +282,7 @@ export class MapRenderer {
           if ((ptile_xi + ptile_yi) % 4 === 0) {
             /* Tile */ 
             // Exact freeciv-web map_pos_to_tile conversion: map_pos_to_tile((ptile_si / 4) - 1, (ptile_di / 4))
-            let mapX = Math.floor((ptile_si / 4) - 1);
+            const mapX = Math.floor((ptile_si / 4) - 1);
             let mapY = Math.floor(ptile_di / 4);
             
             // Apply freeciv-web map_pos_to_tile wrapping logic

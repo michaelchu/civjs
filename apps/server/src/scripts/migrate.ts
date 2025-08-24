@@ -7,9 +7,9 @@ dotenv.config();
 
 async function runMigrations() {
   console.log('Migration started ⌛');
-  
+
   const dbUrl = process.env.DATABASE_URL;
-  
+
   if (!dbUrl) {
     throw new Error('DATABASE_URL environment variable is required');
   }
@@ -18,11 +18,11 @@ async function runMigrations() {
   const client = postgres(dbUrl, {
     max: 1,
     // SSL must be 'require' for Railway's self-signed certificates
-    ssl: process.env.NODE_ENV === 'production' ? 'require' : undefined
+    ssl: process.env.NODE_ENV === 'production' ? 'require' : undefined,
   });
 
   const db = drizzle(client);
-  
+
   try {
     console.log('Running migrations...');
     await migrate(db, { migrationsFolder: './drizzle' });
@@ -35,7 +35,7 @@ async function runMigrations() {
   }
 }
 
-runMigrations().catch((err) => {
+runMigrations().catch(err => {
   console.error('Migration script failed:', err);
   process.exit(1);
 });

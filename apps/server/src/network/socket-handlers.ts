@@ -158,10 +158,9 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
         const game = await gameManager.getGame(connection.gameId);
         if (game && game.players) {
           // Handle both Map (from gameInstance) and array (from database) formats
-          const playersArray = game.players instanceof Map ? Array.from(game.players.values()) : game.players;
-          const player = playersArray.find(
-            (p: any) => p.userId === connection.userId
-          ) as any;
+          const playersArray =
+            game.players instanceof Map ? Array.from(game.players.values()) : game.players;
+          const player = playersArray.find((p: any) => p.userId === connection.userId) as any;
           if (player) {
             await gameManager.updatePlayerConnection(player.id, false);
           }
@@ -349,9 +348,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       // Join the socket room BEFORE joining the game so we receive broadcasts
       connection.gameId = gameId;
       socket.join(`game:${gameId}`);
-      
+
       // Verify the join worked immediately
-      
+
       const playerId = await gameManager.joinGame(gameId, connection.userId, 'random');
       await gameManager.updatePlayerConnection(playerId, true);
 
