@@ -250,8 +250,8 @@ export class MapRenderer {
     const CELL_CORNER = (window as any).CELL_CORNER;
     const MATCH_NONE = (window as any).MATCH_NONE;
     const MATCH_SAME = (window as any).MATCH_SAME;
-    // const MATCH_PAIR = (window as any).MATCH_PAIR;
-    // const MATCH_FULL = (window as any).MATCH_FULL;
+    const MATCH_PAIR = (window as any).MATCH_PAIR;
+    const MATCH_FULL = (window as any).MATCH_FULL;
     const num_cardinal_tileset_dirs = 4;
     const NUM_CORNER_DIRS = 4;
     const DIR4_TO_DIR8 = [0, 2, 4, 6]; // Convert from DIR4 to DIR8
@@ -359,6 +359,11 @@ export class MapRenderer {
           [0, H / 4],
         ];
 
+        // Get this terrain's match_index[0] from tile_types_setup
+        const this_match_index = 
+          tile_types_setup['l' + l + '.' + pterrain['graphic_str']] ? 
+          tile_types_setup['l' + l + '.' + pterrain['graphic_str']]['match_index'][0] : -1;
+
         const result_sprites: Array<{
           key: string;
           offset_x?: number;
@@ -418,29 +423,18 @@ export class MapRenderer {
           const x = iso_offsets[i][0];
           const y = iso_offsets[i][1];
 
-          // Get match types for the three neighboring terrain tiles for this corner
-          // Use ts_tiles match_type instead of tile_types_setup match_index (freeciv-web approach)
-          const ts_tiles = (window as any).ts_tiles || {};
-          const this_match_type =
-            ts_tiles[pterrain['graphic_str']] &&
-            ts_tiles[pterrain['graphic_str']]['layer' + l + '_match_type'];
-
+          // Get match_index[0] for the three neighboring terrain tiles for this corner
+          // This matches the original freeciv-web implementation exactly
           const m = [
             // Counter-clockwise neighbor
-            ts_tiles[tterrain_near[dir_ccw(dir)]['graphic_str']] &&
-              ts_tiles[tterrain_near[dir_ccw(dir)]['graphic_str']][
-                'layer' + l + '_match_type'
-              ],
+            tile_types_setup['l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str']] ?
+              tile_types_setup['l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str']]['match_index'][0] : -1,
             // Direct neighbor
-            ts_tiles[tterrain_near[dir]['graphic_str']] &&
-              ts_tiles[tterrain_near[dir]['graphic_str']][
-                'layer' + l + '_match_type'
-              ],
+            tile_types_setup['l' + l + '.' + tterrain_near[dir]['graphic_str']] ?
+              tile_types_setup['l' + l + '.' + tterrain_near[dir]['graphic_str']]['match_index'][0] : -1,
             // Clockwise neighbor
-            ts_tiles[tterrain_near[dir_cw(dir)]['graphic_str']] &&
-              ts_tiles[tterrain_near[dir_cw(dir)]['graphic_str']][
-                'layer' + l + '_match_type'
-              ],
+            tile_types_setup['l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str']] ?
+              tile_types_setup['l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str']]['match_index'][0] : -1,
           ];
 
           // Calculate array_index based on match style
@@ -449,22 +443,28 @@ export class MapRenderer {
               // No matching needed
               break;
             case MATCH_SAME: {
-              // Binary encoding based on whether neighbors match this terrain's match_type
-              const b1 = m[2] != this_match_type ? 1 : 0;
-              const b2 = m[1] != this_match_type ? 1 : 0;
-              const b3 = m[0] != this_match_type ? 1 : 0;
+              // Binary encoding based on whether neighbors match this terrain's match_index
+              const b1 = m[2] != this_match_index ? 1 : 0;
+              const b2 = m[1] != this_match_index ? 1 : 0;
+              const b3 = m[0] != this_match_index ? 1 : 0;
               array_index = array_index * 2 + b1;
               array_index = array_index * 2 + b2;
               array_index = array_index * 2 + b3;
               break;
             }
-            case (window as any).MATCH_FULL: {
+            case MATCH_PAIR: {
+              // MATCH_PAIR doesn't work in freeciv-web either (returns empty array)
+              // Skip this corner entirely
+              continue;
+            }
+            case MATCH_FULL: {
               // Full match implementation
               const n = [];
               for (let j = 0; j < 3; j++) {
+                n[j] = count - 1; // default to last entry
                 for (let k = 0; k < count; k++) {
-                  n[j] = k; // default to last entry
                   if (m[j] == dlp['match_index'][k]) {
+                    n[j] = k;
                     break;
                   }
                 }
