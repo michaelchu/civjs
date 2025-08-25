@@ -262,6 +262,7 @@ export class GameManager {
     logger.info('Game started successfully', { gameId });
   }
 
+
   private async initializeGameInstance(gameId: string, game: any): Promise<void> {
     logger.info('Initializing game instance', { gameId });
 
@@ -838,7 +839,7 @@ export class GameManager {
   public getMapData(gameId: string) {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) {
-      throw new Error('Game not found');
+      throw new Error('Game not found in memory - the game may need to be restarted');
     }
 
     const mapData = gameInstance.mapManager.getMapData();

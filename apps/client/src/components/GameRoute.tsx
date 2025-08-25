@@ -9,15 +9,13 @@ export const GameRoute: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [playerName, setPlayerName] = useState('');
-
-  const [showNamePrompt, setShowNamePrompt] = useState(true);
 
   const { clientState, setClientState } = useGameStore();
 
-  const handleJoinGame = async (name: string) => {
-    if (!gameId || !name.trim()) {
-      setError('Please enter a valid player name');
+  const loadGame = async () => {
+    if (!gameId) {
+      setError('Invalid game ID');
+      setIsLoading(false);
       return;
     }
 
@@ -26,19 +24,36 @@ export const GameRoute: React.FC = () => {
 
     try {
       await gameClient.connect();
-      await gameClient.joinSpecificGame(gameId, name.trim());
-
-      setShowNamePrompt(false);
       setClientState('connecting');
+      
+      // Generate a default player name or use stored one
+      const defaultPlayerName = `Player_${Date.now().toString(36)}`;
+      
+      // First try to join as a player
+      let joinedAsPlayer = false;
+      try {
+        await gameClient.joinSpecificGame(gameId, defaultPlayerName);
+        joinedAsPlayer = true;
+      } catch (joinError) {
+        console.log('Could not join as player, trying observer mode:', joinError);
+        
+        // If joining as player fails, try to observe the game
+        try {
+          await gameClient.observeGame(gameId);
+          console.log('Joined as observer');
+        } catch (observeError) {
+          throw new Error(`Cannot access game: ${joinError instanceof Error ? joinError.message : 'Unknown error'}`);
+        }
+      }
 
-      // Listen for game state updates
-      setTimeout(() => {
-        setClientState('running');
-        setIsLoading(false);
-      }, 1000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to join game');
+      // Set to running state after successful join/observe
+      // Map data will be received via socket events (map-info, tile-info)
+      setClientState('running');
       setIsLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load game');
+      setIsLoading(false);
+      setClientState('initial');
     }
   };
 
@@ -51,112 +66,61 @@ export const GameRoute: React.FC = () => {
 
     // Check if we're already connected to this game
     if (gameClient.isConnected() && gameClient.getCurrentGameId() === gameId) {
-      // Already connected to this game, skip name prompt
-      setShowNamePrompt(false);
       setClientState('running');
       setIsLoading(false);
     } else {
-      // Show name prompt for new connections
-      setIsLoading(false);
+      // Auto-load the game
+      loadGame();
     }
 
-    // Store the current game ID - use direct store property instead
+    // Store the current game ID
     useGameStore.setState({ currentGameId: gameId });
   }, [gameId]);
-
-  const handleNameSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    handleJoinGame(playerName);
-  };
 
   // Redirect if no game ID
   if (!gameId) {
     return <Navigate to="/" replace />;
   }
 
-  // Show game if already connected and running
-  if (clientState === 'running' && !showNamePrompt) {
+  // Show game if connected and running
+  if (clientState === 'running') {
     return <GameLayout />;
   }
 
   // Show connection status if connecting
-  if (clientState === 'connecting' && !showNamePrompt) {
-    return <ConnectionDialog />;
+  if (clientState === 'connecting') {
+    return <ConnectionDialog showForm={false} />;
   }
 
-  // Show player name prompt
-  if (showNamePrompt) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800 flex items-center justify-center">
-        <div className="bg-gray-800 p-8 rounded-lg shadow-2xl w-96 border border-gray-700">
-          <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold text-white mb-2">Join Game</h1>
-            <p className="text-gray-300 text-sm">
-              Game ID: {gameId.slice(0, 8)}...
-            </p>
-          </div>
-
-          <form onSubmit={handleNameSubmit} className="space-y-4">
-            <div>
-              <label
-                htmlFor="playerName"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                Enter Your Name
-              </label>
-              <input
-                id="playerName"
-                type="text"
-                value={playerName}
-                onChange={e => setPlayerName(e.target.value)}
-                placeholder="Your player name"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={isLoading}
-                maxLength={32}
-                autoFocus
-              />
-            </div>
-
-            {error && (
-              <div className="p-3 bg-red-900 border border-red-700 rounded-md text-red-200 text-sm">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoading || !playerName.trim()}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:text-gray-400 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
-            >
-              {isLoading ? (
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin w-5 h-5 border-2 border-blue-300 border-t-transparent rounded-full mr-2"></div>
-                  Joining Game...
-                </div>
-              ) : (
-                'Join Game'
-              )}
-            </button>
-          </form>
-
-          <div className="mt-4 text-center">
-            <a
-              href="/"
-              className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              ← Back to Home
-            </a>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // Show loading or error state
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800 flex items-center justify-center">
       <div className="text-center text-white">
-        <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
-        <p>Loading game...</p>
+        {error ? (
+          <div className="bg-red-900 border border-red-700 rounded-lg p-6 max-w-md mx-auto">
+            <h2 className="text-xl font-bold mb-2">Failed to Load Game</h2>
+            <p className="text-red-200 mb-4">{error}</p>
+            <button
+              onClick={loadGame}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+            >
+              Retry
+            </button>
+            <div className="mt-4">
+              <a
+                href="/"
+                className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                ← Back to Home
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p>Loading game...</p>
+          </div>
+        )}
       </div>
     </div>
   );

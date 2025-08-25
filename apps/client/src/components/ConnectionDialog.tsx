@@ -3,7 +3,13 @@ import { gameClient } from '../services/GameClient';
 import { useGameStore } from '../store/gameStore';
 import { SERVER_URL } from '../config';
 
-export const ConnectionDialog: React.FC = () => {
+interface ConnectionDialogProps {
+  showForm?: boolean;
+}
+
+export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({ 
+  showForm = true 
+}) => {
   const [playerName, setPlayerName] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState('');
@@ -33,6 +39,22 @@ export const ConnectionDialog: React.FC = () => {
       setIsConnecting(false);
     }
   };
+
+  // If showForm is false, just show a loading spinner without the form
+  if (!showForm) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800 flex items-center justify-center">
+        <div className="text-center text-white">
+          <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-lg">
+            {clientState === 'connecting' && 'Connecting to game...'}
+            {clientState === 'waiting_for_players' && 'Waiting for other players...'}
+            {clientState === 'joining_game' && 'Joining game...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800 flex items-center justify-center">

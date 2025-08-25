@@ -184,9 +184,26 @@ class GameClient {
         },
       });
 
-      // Log progress
+      // Log progress  
       if (data.endIndex === data.total) {
         // All tiles received - batch processing complete
+        console.log('All tile batches loaded - simulating manual resize fix');
+        
+        // Replicate what manual window resize does to fix the display
+        setTimeout(() => {
+          // Create and dispatch actual resize events like a real window resize
+          const resizeEvent = new Event('resize', { bubbles: true });
+          window.dispatchEvent(resizeEvent);
+          
+          // Also try triggering it multiple times to ensure it takes
+          setTimeout(() => {
+            window.dispatchEvent(new Event('resize', { bubbles: true }));
+          }, 50);
+          
+          setTimeout(() => {
+            window.dispatchEvent(new Event('resize', { bubbles: true }));
+          }, 150);
+        }, 200);
       }
     });
 
@@ -467,6 +484,26 @@ class GameClient {
           resolve();
         } else {
           reject(new Error(response.error || 'Failed to join game'));
+        }
+      });
+    });
+  }
+
+  // Observe game method for when joining as player fails
+  async observeGame(gameId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      // Try to observe/spectate the game instead of joining as a player
+      this.socket.emit('observe_game', { gameId }, (response: any) => {
+        if (response.success) {
+          this.currentGameId = gameId;
+          resolve();
+        } else {
+          reject(new Error(response.error || 'Failed to observe game'));
         }
       });
     });

@@ -65,6 +65,48 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       socket.join(`game:${data.gameId}`);
       await gameManager.updatePlayerConnection(playerId, true);
 
+      // Send map data to the player if the game has started
+      try {
+        const playerMapView = gameManager.getPlayerMapView(data.gameId, playerId);
+        if (playerMapView) {
+          // Send map-info packet (freeciv-web format)
+          const mapInfoPacket = {
+            xsize: playerMapView.width,
+            ysize: playerMapView.height,
+            topology: 0,
+            wrap_id: 0, // Non-wrapping map
+            startpos: [],
+          };
+          socket.emit('map-info', mapInfoPacket);
+
+          // Send visible tiles to player
+          let tileCount = 0;
+          for (let x = 0; x < playerMapView.width; x++) {
+            for (let y = 0; y < playerMapView.height; y++) {
+              const tile = playerMapView.tiles[x][y];
+              if (tile && (tile.isVisible || tile.isExplored)) {
+                const tileIndex = y * playerMapView.width + x;
+                
+                const tileInfoPacket = {
+                  tile: tileIndex,
+                  x: x,
+                  y: y,
+                  terrain: tile.terrain,
+                  known: tile.isExplored ? 1 : 0,
+                  seen: tile.isVisible ? 1 : 0,
+                  resource: tile.resource,
+                };
+                socket.emit('tile-info', tileInfoPacket);
+                tileCount++;
+              }
+            }
+          }
+          logger.debug(`Sent ${tileCount} visible tiles to player`);
+        }
+      } catch (mapError) {
+        logger.warn('Could not send map data to player:', mapError);
+      }
+
       callback({ success: true, playerId });
       logger.info(`${connection?.username || 'Unknown'} joined game ${data.gameId}`, { playerId });
     } catch (error) {
@@ -72,6 +114,105 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       callback({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to join game',
+      });
+    }
+  });
+
+  socket.on('observe_game', async (data, callback) => {
+    const connection = activeConnections.get(socket.id);
+    if (!connection?.userId) {
+      callback({ success: false, error: 'Not authenticated' });
+      return;
+    }
+
+    try {
+      // Check if game exists
+      const game = await gameManager.getGame(data.gameId);
+      if (!game) {
+        callback({ success: false, error: 'Game not found' });
+        return;
+      }
+
+      // Allow observing any game regardless of status or player count
+      connection.gameId = data.gameId;
+      socket.join(`game:${data.gameId}`);
+
+      // Send map data to observer using EXACT same batching system as new games
+      try {
+        const gameInstance = gameManager.getGameInstance(data.gameId);
+        if (gameInstance) {
+          const mapData = gameInstance.mapManager.getMapData();
+          if (mapData) {
+            // Send map-info packet first
+            const centerX = Math.floor(mapData.width / 2);
+            const centerY = Math.floor(mapData.height / 2);
+            const mapInfoPacket = {
+              xsize: mapData.width,
+              ysize: mapData.height,
+              topology: 0,
+              wrap_id: 0,
+              startpos: [{ x: centerX, y: centerY }], // Center observer viewport
+            };
+            socket.emit('map-info', mapInfoPacket);
+
+            // Use EXACT same batching logic from GameManager.broadcastMapData()
+            // Collect all tiles into an array
+            const allTiles = [];
+            for (let y = 0; y < mapData.height; y++) {
+              for (let x = 0; x < mapData.width; x++) {
+                const index = x + y * mapData.width;
+                // Handle column-based tile array structure: mapData.tiles[x][y]
+                const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
+
+                if (serverTile) {
+                  // Format tile in exact freeciv-web format (copied from GameManager)
+                  const tileInfo = {
+                    tile: index, // This is the key - tile index used by freeciv-web
+                    x: x,
+                    y: y,
+                    terrain: serverTile.terrain,
+                    resource: serverTile.resource,
+                    elevation: serverTile.elevation || 0,
+                    riverMask: serverTile.riverMask || 0,
+                    known: 1, // TILE_KNOWN
+                    seen: 1,
+                    player: null,
+                    worked: null,
+                    extras: 0, // BitVector for extras
+                  };
+                  allTiles.push(tileInfo);
+                }
+              }
+            }
+
+            // Send tiles in batches of 100 to avoid overwhelming the client (copied from GameManager)
+            const BATCH_SIZE = 100;
+            for (let i = 0; i < allTiles.length; i += BATCH_SIZE) {
+              const batch = allTiles.slice(i, i + BATCH_SIZE);
+              socket.emit('tile-info-batch', {
+                tiles: batch,
+                startIndex: i,
+                endIndex: Math.min(i + BATCH_SIZE, allTiles.length),
+                total: allTiles.length,
+              });
+            }
+
+            logger.debug(
+              `Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches to observer`
+            );
+          }
+        }
+      } catch (mapError) {
+        logger.warn('Could not send map data to observer:', mapError);
+      }
+
+      callback({ success: true });
+      logger.info(`${connection?.username || 'Unknown'} is now observing game ${data.gameId}`);
+    } catch (error) {
+      logger.error('Error observing game:', error);
+      callback({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to observe game',
       });
     }
   });
