@@ -38,18 +38,13 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   const packetHandler = new PacketHandler();
   const gameManager = GameManager.getInstance(io);
 
-  // Store connection info
   activeConnections.set(socket.id, {});
 
-  // Register packet handlers
   registerHandlers(packetHandler, io, socket);
 
-  // Handle incoming packets
   socket.on('packet', async packet => {
     await packetHandler.process(socket, packet);
   });
-
-  // Add new Socket.IO event handlers for the lobby system
 
   socket.on('join_game', async (data, callback) => {
     const connection = activeConnections.get(socket.id);
@@ -67,42 +62,7 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
 
       // Send map data to the player if the game has started
       try {
-        const playerMapView = gameManager.getPlayerMapView(data.gameId, playerId);
-        if (playerMapView) {
-          // Send map-info packet (freeciv-web format)
-          const mapInfoPacket = {
-            xsize: playerMapView.width,
-            ysize: playerMapView.height,
-            topology: 0,
-            wrap_id: 0, // Non-wrapping map
-            startpos: [],
-          };
-          socket.emit('map-info', mapInfoPacket);
-
-          // Send visible tiles to player
-          let tileCount = 0;
-          for (let x = 0; x < playerMapView.width; x++) {
-            for (let y = 0; y < playerMapView.height; y++) {
-              const tile = playerMapView.tiles[x][y];
-              if (tile && (tile.isVisible || tile.isExplored)) {
-                const tileIndex = y * playerMapView.width + x;
-
-                const tileInfoPacket = {
-                  tile: tileIndex,
-                  x: x,
-                  y: y,
-                  terrain: tile.terrain,
-                  known: tile.isExplored ? 1 : 0,
-                  seen: tile.isVisible ? 1 : 0,
-                  resource: tile.resource,
-                };
-                socket.emit('tile-info', tileInfoPacket);
-                tileCount++;
-              }
-            }
-          }
-          logger.debug(`Sent ${tileCount} visible tiles to player`);
-        }
+        await sendPlayerMapData(gameManager, data.gameId, playerId, socket);
       } catch (mapError) {
         logger.warn('Could not send map data to player:', mapError);
       }
@@ -126,85 +86,16 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
     }
 
     try {
-      // Check if game exists
       const game = await gameManager.getGame(data.gameId);
       if (!game) {
         callback({ success: false, error: 'Game not found' });
         return;
       }
 
-      // Allow observing any game regardless of status or player count
       connection.gameId = data.gameId;
       socket.join(`game:${data.gameId}`);
 
-      // Send map data to observer using EXACT same batching system as new games
-      try {
-        const gameInstance = gameManager.getGameInstance(data.gameId);
-        if (gameInstance) {
-          const mapData = gameInstance.mapManager.getMapData();
-          if (mapData) {
-            // Send map-info packet first
-            const centerX = Math.floor(mapData.width / 2);
-            const centerY = Math.floor(mapData.height / 2);
-            const mapInfoPacket = {
-              xsize: mapData.width,
-              ysize: mapData.height,
-              topology: 0,
-              wrap_id: 0,
-              startpos: [{ x: centerX, y: centerY }], // Center observer viewport
-            };
-            socket.emit('map-info', mapInfoPacket);
-
-            // Use EXACT same batching logic from GameManager.broadcastMapData()
-            // Collect all tiles into an array
-            const allTiles = [];
-            for (let y = 0; y < mapData.height; y++) {
-              for (let x = 0; x < mapData.width; x++) {
-                const index = x + y * mapData.width;
-                // Handle column-based tile array structure: mapData.tiles[x][y]
-                const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
-
-                if (serverTile) {
-                  // Format tile in exact freeciv-web format (copied from GameManager)
-                  const tileInfo = {
-                    tile: index, // This is the key - tile index used by freeciv-web
-                    x: x,
-                    y: y,
-                    terrain: serverTile.terrain,
-                    resource: serverTile.resource,
-                    elevation: serverTile.elevation || 0,
-                    riverMask: serverTile.riverMask || 0,
-                    known: 1, // TILE_KNOWN
-                    seen: 1,
-                    player: null,
-                    worked: null,
-                    extras: 0, // BitVector for extras
-                  };
-                  allTiles.push(tileInfo);
-                }
-              }
-            }
-
-            // Send tiles in batches of 100 to avoid overwhelming the client (copied from GameManager)
-            const BATCH_SIZE = 100;
-            for (let i = 0; i < allTiles.length; i += BATCH_SIZE) {
-              const batch = allTiles.slice(i, i + BATCH_SIZE);
-              socket.emit('tile-info-batch', {
-                tiles: batch,
-                startIndex: i,
-                endIndex: Math.min(i + BATCH_SIZE, allTiles.length),
-                total: allTiles.length,
-              });
-            }
-
-            logger.debug(
-              `Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches to observer`
-            );
-          }
-        }
-      } catch (mapError) {
-        logger.warn('Could not send map data to observer:', mapError);
-      }
+      await sendObserverMapData(gameManager, data.gameId, socket);
 
       callback({ success: true });
       logger.info(`${connection?.username || 'Unknown'} is now observing game ${data.gameId}`);
@@ -227,7 +118,6 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
     }
   });
 
-  // Map data handlers
   socket.on('get_map_data', async (_data, callback) => {
     const connection = activeConnections.get(socket.id);
     if (!connection?.gameId) {
@@ -255,7 +145,6 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
     }
 
     try {
-      // Get game from database to find player
       const game = await db.query.games.findFirst({
         where: eq(games.id, connection.gameId),
         with: {
@@ -268,7 +157,6 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
         return;
       }
 
-      // Find player by userId
       const player = game.players.find(p => p.userId === connection.userId);
       if (!player) {
         callback({ success: false, error: 'Player not found in game' });
@@ -286,16 +174,13 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
     }
   });
 
-  // Handle disconnect
   socket.on('disconnect', async () => {
     logger.info(`Client disconnected: ${socket.id}`);
 
     const connection = activeConnections.get(socket.id);
     if (connection?.userId) {
-      // Update user last seen
       await db.update(users).set({ lastSeen: new Date() }).where(eq(users.id, connection.userId));
 
-      // Update game manager about disconnection
       if (connection.gameId) {
         const game = await gameManager.getGame(connection.gameId);
         if (game && game.players) {
@@ -308,7 +193,6 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
           }
         }
 
-        // Notify others in the game
         socket.to(`game:${connection.gameId}`).emit('packet', {
           type: PacketType.CONNECT_MSG,
           data: {
@@ -319,12 +203,10 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       }
     }
 
-    // Clean up
     activeConnections.delete(socket.id);
     packetHandler.cleanup(socket.id);
   });
 
-  // Handle errors
   socket.on('error', error => {
     logger.error(`Socket error for ${socket.id}:`, error);
   });
@@ -332,14 +214,12 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
 
 function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
   const gameManager = GameManager.getInstance(io);
-  // Connection management
   handler.register(
     PacketType.SERVER_JOIN_REQ,
     async (_socket, data) => {
       try {
         const { username } = data;
 
-        // Check if username is already taken (for guests)
         const existingUser = await db.query.users.findFirst({
           where: eq(users.username, username),
         });
@@ -349,10 +229,8 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
 
         if (existingUser) {
           userId = existingUser.id;
-          // Update last seen
           await db.update(users).set({ lastSeen: new Date() }).where(eq(users.id, userId));
         } else {
-          // Create guest user
           const [newUser] = await db
             .insert(users)
             .values({
@@ -364,20 +242,16 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
           isNewUser = true;
         }
 
-        // Store connection info
         const connection = activeConnections.get(socket.id);
         if (connection) {
           connection.userId = userId;
           connection.username = username;
         }
 
-        // Create session
         await sessionCache.setSession(socket.id, userId);
 
-        // Join player-specific room for targeted emissions
         socket.join(`player:${userId}`);
 
-        // Send success response
         handler.send(socket, PacketType.SERVER_JOIN_REPLY, {
           accepted: true,
           playerId: userId,
@@ -397,7 +271,6 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
     ServerJoinReqSchema
   );
 
-  // Chat messages
   handler.register(
     PacketType.CHAT_MSG_REQ,
     async (socket, data) => {
@@ -413,22 +286,18 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
         timestamp: Date.now(),
       };
 
-      // Broadcast based on channel
       if (data.channel === 'all' && connection.gameId) {
-        // Game chat
         io.to(`game:${connection.gameId}`).emit('packet', {
           type: PacketType.CHAT_MSG,
           data: chatPacket,
         });
       } else if (data.channel === 'private' && data.recipient) {
-        // Private message
         const recipientSocket = findSocketByUsername(data.recipient);
         if (recipientSocket) {
           handler.send(recipientSocket, PacketType.CHAT_MSG, chatPacket);
           handler.send(socket, PacketType.CHAT_MSG, chatPacket); // Echo to sender
         }
       } else {
-        // Global chat
         io.emit('packet', {
           type: PacketType.CHAT_MSG,
           data: chatPacket,
@@ -438,7 +307,6 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
     ChatMsgSchema
   );
 
-  // Game listing
   handler.register(PacketType.GAME_LIST, async socket => {
     try {
       const games = await gameManager.getGameListForLobby();
@@ -451,7 +319,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
         maxPlayers: game.maxPlayers,
         currentTurn: game.currentTurn,
         mapSize: game.mapSize,
-        ruleset: 'classic', // Default ruleset, could be enhanced
+        ruleset: 'classic',
       }));
 
       socket.emit('packet', {
@@ -463,7 +331,6 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
     }
   });
 
-  // Game creation
   handler.register(PacketType.GAME_CREATE, async (socket, data) => {
     const connection = activeConnections.get(socket.id);
     if (!connection?.userId) {
@@ -491,12 +358,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       connection.gameId = gameId;
       socket.join(`game:${gameId}`);
 
-      // Verify the join worked immediately
-
       const playerId = await gameManager.joinGame(gameId, connection.userId, 'random');
       await gameManager.updatePlayerConnection(playerId, true);
 
-      // Emit game created event to the creator
       socket.emit('game_created', {
         gameId,
         maxPlayers: data.maxPlayers,
@@ -518,7 +382,6 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
     }
   });
 
-  // Game join
   handler.register(PacketType.GAME_JOIN, async (socket, data) => {
     const connection = activeConnections.get(socket.id);
     if (!connection?.userId) {
@@ -536,13 +399,10 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
         data.civilization
       );
 
-      // Update connection info
       connection.gameId = data.gameId;
 
-      // Join socket room for game
       socket.join(`game:${data.gameId}`);
 
-      // Update player connection status
       await gameManager.updatePlayerConnection(playerId, true);
 
       handler.send(socket, PacketType.GAME_JOIN_REPLY, {
@@ -561,7 +421,6 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
     }
   });
 
-  // Game start
   handler.register(PacketType.GAME_START, async (socket, _data) => {
     const connection = activeConnections.get(socket.id);
     if (!connection?.userId || !connection?.gameId) {
@@ -580,7 +439,6 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
     }
   });
 
-  // Turn end
   handler.register(PacketType.END_TURN, async socket => {
     const connection = activeConnections.get(socket.id);
     if (!connection?.userId || !connection?.gameId) {
@@ -588,7 +446,6 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
     }
 
     try {
-      // Find player by userId instead of playerId
       let playerId: string | null = null;
       for (const game of await gameManager.getAllGames()) {
         const player = Array.from(game.players.values()).find(
@@ -1328,6 +1185,117 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
     },
     ResearchProgressSchema
   );
+}
+
+// Helper functions to reduce nesting and complexity
+async function sendObserverMapData(
+  gameManager: GameManager,
+  gameId: string,
+  socket: Socket
+): Promise<void> {
+  const gameInstance = gameManager.getGameInstance(gameId);
+  if (!gameInstance) return;
+
+  const mapData = gameInstance.mapManager.getMapData();
+  if (!mapData) return;
+
+  // Send map-info packet
+  const centerX = Math.floor(mapData.width / 2);
+  const centerY = Math.floor(mapData.height / 2);
+  const mapInfoPacket = {
+    xsize: mapData.width,
+    ysize: mapData.height,
+    topology: 0,
+    wrap_id: 0,
+    startpos: [{ x: centerX, y: centerY }],
+  };
+  socket.emit('map-info', mapInfoPacket);
+
+  // Collect and send tiles in batches
+  const allTiles = [];
+  for (let y = 0; y < mapData.height; y++) {
+    for (let x = 0; x < mapData.width; x++) {
+      const index = x + y * mapData.width;
+      const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
+
+      if (serverTile) {
+        const tileInfo = {
+          tile: index,
+          x: x,
+          y: y,
+          terrain: serverTile.terrain,
+          resource: serverTile.resource,
+          elevation: serverTile.elevation || 0,
+          riverMask: serverTile.riverMask || 0,
+          known: 1,
+          seen: 1,
+          player: null,
+          worked: null,
+          extras: 0,
+        };
+        allTiles.push(tileInfo);
+      }
+    }
+  }
+
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < allTiles.length; i += BATCH_SIZE) {
+    const batch = allTiles.slice(i, i + BATCH_SIZE);
+    socket.emit('tile-info-batch', {
+      tiles: batch,
+      startIndex: i,
+      endIndex: Math.min(i + BATCH_SIZE, allTiles.length),
+      total: allTiles.length,
+    });
+  }
+
+  logger.debug(
+    `Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches to observer`
+  );
+}
+
+async function sendPlayerMapData(
+  gameManager: GameManager,
+  gameId: string,
+  playerId: string,
+  socket: Socket
+): Promise<void> {
+  const playerMapView = gameManager.getPlayerMapView(gameId, playerId);
+  if (!playerMapView) return;
+
+  // Send map-info packet (freeciv-web format)
+  const mapInfoPacket = {
+    xsize: playerMapView.width,
+    ysize: playerMapView.height,
+    topology: 0,
+    wrap_id: 0,
+    startpos: [],
+  };
+  socket.emit('map-info', mapInfoPacket);
+
+  // Send visible tiles to player
+  let tileCount = 0;
+  for (let x = 0; x < playerMapView.width; x++) {
+    for (let y = 0; y < playerMapView.height; y++) {
+      const tile = playerMapView.tiles[x][y];
+      if (tile && (tile.isVisible || tile.isExplored)) {
+        const tileIndex = y * playerMapView.width + x;
+
+        const tileInfoPacket = {
+          tile: tileIndex,
+          x: x,
+          y: y,
+          terrain: tile.terrain,
+          known: tile.isExplored ? 1 : 0,
+          seen: tile.isVisible ? 1 : 0,
+          resource: tile.resource,
+        };
+        socket.emit('tile-info', tileInfoPacket);
+        tileCount++;
+      }
+    }
+  }
+  logger.debug(`Sent ${tileCount} visible tiles to player`);
 }
 
 function findSocketByUsername(username: string): Socket | null {

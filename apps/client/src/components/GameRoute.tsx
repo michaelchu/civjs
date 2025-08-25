@@ -23,10 +23,8 @@ export const GameRoute: React.FC = () => {
       await gameClient.connect();
       setClientState('connecting');
 
-      // Generate a default player name or use stored one
       const defaultPlayerName = `Player_${Date.now().toString(36)}`;
 
-      // First try to join as a player
       try {
         await gameClient.joinSpecificGame(gameId, defaultPlayerName);
       } catch (joinError) {
@@ -35,7 +33,6 @@ export const GameRoute: React.FC = () => {
           joinError
         );
 
-        // If joining as player fails, try to observe the game
         try {
           await gameClient.observeGame(gameId);
           console.log('Joined as observer');
@@ -46,8 +43,6 @@ export const GameRoute: React.FC = () => {
         }
       }
 
-      // Set to running state after successful join/observe
-      // Map data will be received via socket events (map-info, tile-info)
       setClientState('running');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load game');
@@ -61,24 +56,19 @@ export const GameRoute: React.FC = () => {
       return;
     }
 
-    // Check if we're already connected to this game
     if (gameClient.isConnected() && gameClient.getCurrentGameId() === gameId) {
       setClientState('running');
     } else {
-      // Auto-load the game
       loadGame();
     }
 
-    // Store the current game ID
     useGameStore.setState({ currentGameId: gameId });
   }, [gameId]);
 
-  // Redirect if no game ID
   if (!gameId) {
     return <Navigate to="/" replace />;
   }
 
-  // Show game if connected and running
   if (clientState === 'running') {
     return <GameLayout />;
   }
@@ -88,7 +78,6 @@ export const GameRoute: React.FC = () => {
     return <ConnectionDialog showForm={false} />;
   }
 
-  // Show loading or error state
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800 flex items-center justify-center">
       <div className="text-center text-white">

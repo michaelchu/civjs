@@ -40,7 +40,6 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
     }
   };
 
-  // If showForm is false, just show a loading spinner without the form
   if (!showForm) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800 flex items-center justify-center">
