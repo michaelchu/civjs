@@ -330,8 +330,8 @@ describe('MapManager', () => {
     it('should generate tiles with correct terrain types from freeciv sprites', async () => {
       const mapData = mapManager.getMapData()!;
       const validTerrainTypes: TerrainType[] = [
-        'ocean', 'coast', 'grassland', 'plains', 'desert', 
-        'tundra', 'snow', 'forest', 'jungle', 'hills', 'mountains'
+        'ocean', 'coast', 'deep_ocean', 'lake', 'grassland', 'plains', 'desert', 
+        'tundra', 'snow', 'glacier', 'forest', 'jungle', 'swamp', 'hills', 'mountains'
       ];
       
       let landTileCount = 0;
@@ -344,7 +344,8 @@ describe('MapManager', () => {
           // All terrain types should be valid for frontend sprite mapping
           expect(validTerrainTypes).toContain(tile.terrain);
           
-          if (tile.terrain === 'ocean' || tile.terrain === 'coast') {
+          if (tile.terrain === 'ocean' || tile.terrain === 'coast' || 
+              tile.terrain === 'deep_ocean' || tile.terrain === 'lake') {
             oceanTileCount++;
           } else {
             landTileCount++;
