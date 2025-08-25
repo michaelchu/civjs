@@ -172,21 +172,40 @@ const TERRAIN_PROPERTY_MAP: Record<TerrainType, TerrainProperties> = {
   },
 };
 
-// Climate constants (from freeciv reference - temperature_map.h and mapgen_topology.h)
-const MAX_COLATITUDE = 1000; // Normalized maximum colatitude
-const ICE_BASE_LEVEL = 200; // Base level for polar ice formation
-const DEFAULT_TEMPERATURE = 50; // Default temperature parameter (0-100)
+/**
+ * Climate constants ported from freeciv reference
+ * @reference freeciv/server/generator/temperature_map.h and mapgen_topology.h
+ */
+const MAX_COLATITUDE = 1000; // Normalized maximum colatitude (freeciv: MAP_MAX_LATITUDE)
+const ICE_BASE_LEVEL = 200; // Base level for polar ice formation (freeciv: ice_base_colatitude)
+const DEFAULT_TEMPERATURE = 50; // Default temperature parameter 0-100 (freeciv: wld.map.server.temperature)
 
-// Calculate climate levels based on temperature parameter
+/**
+ * Calculate cold temperature threshold based on temperature parameter
+ * @reference freeciv/server/generator/mapgen_topology.h:50-51
+ * Original: #define COLD_LEVEL (MAX(0, MAX_COLATITUDE * (60*7 - wld.map.server.temperature * 6 ) / 700))
+ */
 function getColdLevel(temperature: number = DEFAULT_TEMPERATURE): number {
   return Math.max(0, (MAX_COLATITUDE * (60 * 7 - temperature * 6)) / 700);
 }
 
+/**
+ * Calculate tropical temperature threshold based on temperature parameter
+ * @reference freeciv/server/generator/mapgen_topology.h:52-54
+ * Original: #define TROPICAL_LEVEL (MIN(MAX_COLATITUDE * 9 /10, MAX_COLATITUDE * (143*7 - wld.map.server.temperature * 10) / 700))
+ */
 function getTropicalLevel(temperature: number = DEFAULT_TEMPERATURE): number {
   return Math.min((MAX_COLATITUDE * 9) / 10, (MAX_COLATITUDE * (143 * 7 - temperature * 10)) / 700);
 }
 
-// Enhanced TemperatureMap class (from freeciv temperature_map.c)
+/**
+ * Enhanced TemperatureMap class - Sophisticated climate generation system
+ * @reference freeciv/server/generator/temperature_map.c
+ * Ported from freeciv's temperature map generation algorithms including:
+ * - create_tmap() function (lines 119-179)
+ * - Temperature distribution adjustment logic
+ * - Climate-aware terrain placement
+ */
 class TemperatureMap {
   private temperatureMap: number[];
   private width: number;
@@ -200,13 +219,21 @@ class TemperatureMap {
     this.temperatureMap = new Array(width * height);
   }
 
-  // Calculate colatitude for a tile (0 = equator, MAX_COLATITUDE = pole)
+  /**
+   * Calculate colatitude for a tile (0 = equator, MAX_COLATITUDE = pole)
+   * @reference freeciv/server/generator/mapgen_topology.c:map_colatitude()
+   * Simplified latitude calculation for rectangular maps
+   */
   private mapColatitude(_x: number, y: number): number {
     const latitudeFactor = Math.abs(y - this.height / 2) / (this.height / 2);
     return Math.floor(latitudeFactor * MAX_COLATITUDE);
   }
 
-  // Count ocean tiles around a position (simplified version of count_terrain_class_near_tile)
+  /**
+   * Count ocean tiles around a position (simplified version of count_terrain_class_near_tile)
+   * @reference freeciv/common/terrain.c:637-660 count_terrain_class_near_tile()
+   * Used for ocean proximity temperature moderation effects
+   */
   private countOceanNearTile(tiles: MapTile[][], x: number, y: number): number {
     let oceanCount = 0;
     const radius = 2;
@@ -235,7 +262,16 @@ class TemperatureMap {
     return totalCount > 0 ? Math.floor((oceanCount * 100) / totalCount) : 0;
   }
 
-  // Create sophisticated temperature map (from freeciv create_tmap function)
+  /**
+   * Create sophisticated temperature map based on freeciv's create_tmap function
+   * @reference freeciv/server/generator/temperature_map.c:119-179 create_tmap()
+   * Implements:
+   * - Latitude-based base temperature (line 131)
+   * - Elevation cooling effects (lines 137-138)
+   * - Ocean proximity temperature moderation (lines 139-144)
+   * - Temperature distribution adjustment (lines 150-157)
+   * - Discrete temperature type conversion (lines 160-172)
+   */
   public createTemperatureMap(tiles: MapTile[][], heightMap: number[], real: boolean = true): void {
     const maxHeight = Math.max(...heightMap);
     const shoreLevel = maxHeight * 0.3; // Approximate shore level
@@ -275,7 +311,12 @@ class TemperatureMap {
     this.convertToTemperatureTypes();
   }
 
-  // Adjust temperature distribution for better balance
+  /**
+   * Adjust temperature distribution for better balance
+   * @reference freeciv/server/generator/temperature_map.c:154-157
+   * Original: adjust_int_map(temperature_map, MIN_REAL_COLATITUDE, MAX_REAL_COLATITUDE)
+   * Simplified implementation for even temperature distribution
+   */
   private adjustTemperatureDistribution(): void {
     const minTemp = Math.min(...this.temperatureMap);
     const maxTemp = Math.max(...this.temperatureMap);
@@ -293,7 +334,11 @@ class TemperatureMap {
     }
   }
 
-  // Convert continuous temperatures to discrete types (TT_FROZEN, TT_COLD, etc.)
+  /**
+   * Convert continuous temperatures to discrete types (TT_FROZEN, TT_COLD, etc.)
+   * @reference freeciv/server/generator/temperature_map.c:160-172
+   * Original temperature type assignment logic with TROPICAL_LEVEL, COLD_LEVEL thresholds
+   */
   private convertToTemperatureTypes(): void {
     const coldLevel = getColdLevel(this.temperatureParam);
     const tropicalLevel = getTropicalLevel(this.temperatureParam);
@@ -322,13 +367,21 @@ class TemperatureMap {
     return this.temperatureMap[index];
   }
 
-  // Check if tile has specific temperature type (like tmap_is function)
+  /**
+   * Check if tile has specific temperature type (like tmap_is function)
+   * @reference freeciv/server/generator/temperature_map.c:85-88 tmap_is()
+   * Original: return BOOL_VAL(tmap(ptile) & (tt))
+   */
   public hasTemperatureType(x: number, y: number, tempType: TemperatureType): boolean {
     const tileTemp = this.getTemperature(x, y);
     return (tileTemp & tempType) !== 0;
   }
 
-  // Check if any neighbor has specific temperature type
+  /**
+   * Check if any neighbor has specific temperature type
+   * @reference freeciv/server/generator/temperature_map.c:93-102 is_temperature_type_near()
+   * Original: adjc_iterate checking for temperature type in adjacent tiles
+   */
   public hasTemperatureTypeNear(x: number, y: number, tempType: TemperatureType): boolean {
     const neighbors = [
       { x: x - 1, y },
@@ -469,7 +522,14 @@ class TerrainSelectionEngine {
     this.random = random;
   }
 
-  // Enhanced terrain selection using sophisticated climate-based algorithms
+  /**
+   * Enhanced terrain selection using sophisticated climate-based algorithms
+   * @reference freeciv/server/generator/mapgen.c:pickTerrain logic and terrain placement algorithms
+   * Combines multiple freeciv approaches:
+   * - Climate-based terrain selection (mapgen.c terrain placement)
+   * - Property-based terrain fitness scoring
+   * - Elevation and climate synergy bonuses
+   */
   public pickTerrain(
     tileTemp: TemperatureType,
     tileWetness: number,
@@ -728,7 +788,12 @@ export class MapManager {
     this.applyBiomeTransitions(tiles, random);
   }
 
-  // Apply biome transition logic for natural climate boundaries (Phase 3)
+  /**
+   * Apply biome transition logic for natural climate boundaries (Phase 3)
+   * @reference freeciv approach to terrain smoothing and climate transitions
+   * Inspired by freeciv's terrain placement smoothing algorithms in mapgen.c
+   * Creates natural borders between different climate zones and terrain types
+   */
   private applyBiomeTransitions(tiles: MapTile[][], random: () => number): void {
     const transitionRules: Array<{
       from: TerrainType[];
@@ -786,7 +851,10 @@ export class MapManager {
     this.smoothTerrainPatches(tiles);
   }
 
-  // Apply transition rule to a single tile (extracted to reduce complexity)
+  /**
+   * Apply transition rule to a single tile (extracted to reduce complexity)
+   * Helper function for applyBiomeTransitions to reduce nesting depth
+   */
   private applyTransitionRuleToTile(
     tiles: MapTile[][],
     x: number,
@@ -819,7 +887,11 @@ export class MapManager {
     }
   }
 
-  // Remove small isolated terrain patches for more coherent biomes
+  /**
+   * Remove small isolated terrain patches for more coherent biomes
+   * @reference Inspired by freeciv's terrain smoothing approaches
+   * Eliminates terrain fragmentation for more realistic biome formation
+   */
   private smoothTerrainPatches(tiles: MapTile[][]): void {
     const minPatchSize = 3; // Minimum size for terrain patches
 
@@ -830,7 +902,10 @@ export class MapManager {
     }
   }
 
-  // Smooth a single isolated tile (extracted to reduce complexity)
+  /**
+   * Smooth a single isolated tile (extracted to reduce complexity)
+   * Helper function for smoothTerrainPatches to reduce nesting depth
+   */
   private smoothIsolatedTile(tiles: MapTile[][], x: number, y: number, minPatchSize: number): void {
     const tile = tiles[x][y];
     if (!this.isLandTile(tile)) return;
@@ -850,7 +925,10 @@ export class MapManager {
     }
   }
 
-  // Find the most common terrain type among neighbors
+  /**
+   * Find the most common terrain type among neighbors
+   * Helper function for terrain patch smoothing
+   */
   private findMostCommonNeighborTerrain(neighbors: MapTile[], fallback: TerrainType): TerrainType {
     const terrainCounts = new Map<TerrainType, number>();
 
@@ -873,7 +951,11 @@ export class MapManager {
     return mostCommonTerrain;
   }
 
-  // Check if terrain change makes climatic sense
+  /**
+   * Check if terrain change makes climatic sense
+   * @reference Based on freeciv's climate-terrain compatibility logic
+   * Prevents unrealistic terrain combinations (e.g., tropical terrain in frozen zones)
+   */
   private isClimaticallyCompatible(tile: MapTile, newTerrain: TerrainType): boolean {
     const currentClimate = tile.temperature;
     const newProperties = TERRAIN_PROPERTY_MAP[newTerrain];
@@ -1234,7 +1316,12 @@ export class MapManager {
     return ['grassland', 'plains', 'forest', 'hills'].includes(terrain);
   }
 
-  // Enhanced climate-aware starting position evaluation (Phase 3)
+  /**
+   * Enhanced climate-aware starting position evaluation (Phase 3)
+   * @reference freeciv/server/generator/startpos.c starting position evaluation algorithms
+   * Enhanced with climate diversity bonuses and temperature-terrain synergies
+   * Based on freeciv's approach but adds climate variety as a strategic factor
+   */
   private evaluateStartingPosition(tiles: MapTile[][], x: number, y: number): number {
     let score = 0;
     const radius = 3;
@@ -1444,7 +1531,11 @@ export class MapManager {
     }
   }
 
-  // Climate zone mapping functions (Phase 3)
+  /**
+   * Climate zone mapping functions (Phase 3)
+   * @reference Based on freeciv temperature type system
+   * Maps temperature types to human-readable climate zone names
+   */
   public getClimateZone(x: number, y: number): string {
     const tile = this.getTile(x, y);
     if (!tile) return 'temperate';
@@ -1477,7 +1568,11 @@ export class MapManager {
     }
   }
 
-  // Enhanced climate-aware terrain evaluation
+  /**
+   * Enhanced climate-aware terrain evaluation
+   * @reference Based on freeciv's starting position evaluation with climate considerations
+   * Evaluates climate suitability for settlements and strategic gameplay
+   */
   public getClimateScore(x: number, y: number): number {
     const tile = this.getTile(x, y);
     if (!tile) return 0;
