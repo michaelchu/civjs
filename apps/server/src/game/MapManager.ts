@@ -183,8 +183,10 @@ export class MapManager {
           else if (randomFactor < 0.6) tile.terrain = 'plains';
           else if (randomFactor < 0.75) tile.terrain = 'forest';
           else if (randomFactor < 0.85) tile.terrain = 'jungle';
-          else if (!isNearEdge && elevation < 40) tile.terrain = 'swamp'; // Inland swamps in very low areas
-          else if (!isNearEdge && randomFactor < 0.95) tile.terrain = 'lake'; // Occasional inland lakes
+          else if (!isNearEdge && elevation < 40)
+            tile.terrain = 'swamp'; // Inland swamps in very low areas
+          else if (!isNearEdge && randomFactor < 0.95)
+            tile.terrain = 'lake'; // Occasional inland lakes
           else tile.terrain = 'grassland';
         } else if (elevation < 150) {
           // Medium elevation
@@ -498,10 +500,14 @@ export class MapManager {
           hills: 4,
           coast: 3,
           jungle: 2,
+          swamp: 2,
           desert: 1,
           tundra: 1,
+          glacier: 0,
           snow: 0,
           mountains: 0,
+          lake: -2,
+          deep_ocean: -5,
           ocean: -5,
         };
 
@@ -542,8 +548,12 @@ export class MapManager {
   }
 
   private isLandTile(tile: MapTile): boolean {
-    return tile.terrain !== 'ocean' && tile.terrain !== 'coast' && 
-           tile.terrain !== 'deep_ocean' && tile.terrain !== 'lake';
+    return (
+      tile.terrain !== 'ocean' &&
+      tile.terrain !== 'coast' &&
+      tile.terrain !== 'deep_ocean' &&
+      tile.terrain !== 'lake'
+    );
   }
 
   private isValidCoord(x: number, y: number): boolean {
