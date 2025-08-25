@@ -179,14 +179,11 @@ const DEFAULT_TEMPERATURE = 50; // Default temperature parameter (0-100)
 
 // Calculate climate levels based on temperature parameter
 function getColdLevel(temperature: number = DEFAULT_TEMPERATURE): number {
-  return Math.max(0, MAX_COLATITUDE * (60 * 7 - temperature * 6) / 700);
+  return Math.max(0, (MAX_COLATITUDE * (60 * 7 - temperature * 6)) / 700);
 }
 
 function getTropicalLevel(temperature: number = DEFAULT_TEMPERATURE): number {
-  return Math.min(
-    MAX_COLATITUDE * 9 / 10,
-    MAX_COLATITUDE * (143 * 7 - temperature * 10) / 700
-  );
+  return Math.min((MAX_COLATITUDE * 9) / 10, (MAX_COLATITUDE * (143 * 7 - temperature * 10)) / 700);
 }
 
 // Enhanced TemperatureMap class (from freeciv temperature_map.c)
@@ -204,7 +201,7 @@ class TemperatureMap {
   }
 
   // Calculate colatitude for a tile (0 = equator, MAX_COLATITUDE = pole)
-  private mapColatitude(x: number, y: number): number {
+  private mapColatitude(_x: number, y: number): number {
     const latitudeFactor = Math.abs(y - this.height / 2) / (this.height / 2);
     return Math.floor(latitudeFactor * MAX_COLATITUDE);
   }
@@ -219,12 +216,16 @@ class TemperatureMap {
       for (let dy = -radius; dy <= radius; dy++) {
         const nx = x + dx;
         const ny = y + dy;
-        
+
         if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
           totalCount++;
           const tile = tiles[nx][ny];
-          if (tile.terrain === 'ocean' || tile.terrain === 'coast' || 
-              tile.terrain === 'deep_ocean' || tile.terrain === 'lake') {
+          if (
+            tile.terrain === 'ocean' ||
+            tile.terrain === 'coast' ||
+            tile.terrain === 'deep_ocean' ||
+            tile.terrain === 'lake'
+          ) {
             oceanCount++;
           }
         }
@@ -249,14 +250,21 @@ class TemperatureMap {
         this.temperatureMap[i] = baseTemp;
       } else {
         // High land can be 30% cooler
-        const heightFactor = -0.3 * Math.max(0, heightMap[i] - shoreLevel) / (maxHeight - shoreLevel);
+        const heightFactor =
+          (-0.3 * Math.max(0, heightMap[i] - shoreLevel)) / (maxHeight - shoreLevel);
 
         // Near ocean temperature can be 15% more "temperate"
         const oceanCount = this.countOceanNearTile(tiles, x, y);
-        const temperateFactor = (0.15 * (this.temperatureParam / 100 - baseTemp / MAX_COLATITUDE) 
-                                * 2 * Math.min(50, oceanCount) / 100);
+        const temperateFactor =
+          (0.15 *
+            (this.temperatureParam / 100 - baseTemp / MAX_COLATITUDE) *
+            2 *
+            Math.min(50, oceanCount)) /
+          100;
 
-        this.temperatureMap[i] = Math.floor(baseTemp * (1.0 + temperateFactor) * (1.0 + heightFactor));
+        this.temperatureMap[i] = Math.floor(
+          baseTemp * (1.0 + temperateFactor) * (1.0 + heightFactor)
+        );
       }
     }
 
@@ -271,9 +279,9 @@ class TemperatureMap {
   private adjustTemperatureDistribution(): void {
     const minTemp = Math.min(...this.temperatureMap);
     const maxTemp = Math.max(...this.temperatureMap);
-    
+
     if (maxTemp <= minTemp) return;
-    
+
     const range = maxTemp - minTemp;
     const targetMin = MAX_COLATITUDE * 0.1;
     const targetMax = MAX_COLATITUDE * 0.9;
@@ -292,7 +300,7 @@ class TemperatureMap {
 
     for (let i = 0; i < this.temperatureMap.length; i++) {
       const temp = this.temperatureMap[i];
-      
+
       if (temp >= tropicalLevel) {
         this.temperatureMap[i] = TemperatureType.TROPICAL;
       } else if (temp >= coldLevel) {
@@ -323,13 +331,19 @@ class TemperatureMap {
   // Check if any neighbor has specific temperature type
   public hasTemperatureTypeNear(x: number, y: number, tempType: TemperatureType): boolean {
     const neighbors = [
-      { x: x - 1, y }, { x: x + 1, y },
-      { x, y: y - 1 }, { x, y: y + 1 }
+      { x: x - 1, y },
+      { x: x + 1, y },
+      { x, y: y - 1 },
+      { x, y: y + 1 },
     ];
 
     for (const neighbor of neighbors) {
-      if (neighbor.x >= 0 && neighbor.x < this.width && 
-          neighbor.y >= 0 && neighbor.y < this.height) {
+      if (
+        neighbor.x >= 0 &&
+        neighbor.x < this.width &&
+        neighbor.y >= 0 &&
+        neighbor.y < this.height
+      ) {
         if (this.hasTemperatureType(neighbor.x, neighbor.y, tempType)) {
           return true;
         }
@@ -469,7 +483,7 @@ class TerrainSelectionEngine {
     // Enhanced inland water placement with climate consideration
     if (elevation < 50 && tileWetness > 80) {
       // Higher chance of lakes in temperate zones
-      const lakeChance = (tileTemp & TemperatureType.TEMPERATE) ? 0.08 : 0.05;
+      const lakeChance = tileTemp & TemperatureType.TEMPERATE ? 0.08 : 0.05;
       if (this.random() < lakeChance) {
         return 'lake';
       }
@@ -530,8 +544,10 @@ class TerrainSelectionEngine {
       }
 
       // Tropical wetness synergy
-      if ((tileTemp & TemperatureType.TROPICAL) && 
-          (selector.terrain === 'jungle' || selector.terrain === 'swamp')) {
+      if (
+        tileTemp & TemperatureType.TROPICAL &&
+        (selector.terrain === 'jungle' || selector.terrain === 'swamp')
+      ) {
         if (tileWetness > 60) {
           score *= 1.4; // Strong synergy bonus
         }
@@ -544,7 +560,7 @@ class TerrainSelectionEngine {
 
       // Forest placement enhancement
       if (selector.terrain === 'forest') {
-        if ((tileTemp & TemperatureType.TEMPERATE) && tileWetness > 40 && tileWetness < 80) {
+        if (tileTemp & TemperatureType.TEMPERATE && tileWetness > 40 && tileWetness < 80) {
           score *= 1.25; // Optimal forest conditions
         }
       }
@@ -725,60 +741,43 @@ export class MapManager {
         from: ['forest'],
         to: 'grassland',
         transitionTerrain: 'plains',
-        chance: 0.4
+        chance: 0.4,
       },
-      // Desert to grassland transitions  
+      // Desert to grassland transitions
       {
         from: ['desert'],
         to: 'grassland',
         transitionTerrain: 'plains',
-        chance: 0.5
+        chance: 0.5,
       },
       // Snow to tundra transitions
       {
         from: ['snow', 'glacier'],
         to: 'tundra',
         transitionTerrain: 'tundra',
-        chance: 0.6
+        chance: 0.6,
       },
       // Tundra to forest transitions
       {
         from: ['tundra'],
         to: 'forest',
         transitionTerrain: 'plains',
-        chance: 0.3
+        chance: 0.3,
       },
       // Jungle to grassland transitions
       {
         from: ['jungle'],
         to: 'grassland',
         transitionTerrain: 'forest',
-        chance: 0.3
-      }
+        chance: 0.3,
+      },
     ];
 
     // Apply transitions in multiple passes for gradual effect
     for (let pass = 0; pass < 2; pass++) {
       for (let x = 1; x < this.width - 1; x++) {
         for (let y = 1; y < this.height - 1; y++) {
-          const tile = tiles[x][y];
-          if (!this.isLandTile(tile)) continue;
-
-          const neighbors = this.getNeighbors(tiles, x, y).filter(n => this.isLandTile(n));
-          
-          for (const rule of transitionRules) {
-            if (rule.from.includes(tile.terrain)) {
-              // Check if we're adjacent to the target terrain
-              const hasTargetNeighbor = neighbors.some(n => n.terrain === rule.to);
-              
-              if (hasTargetNeighbor && random() < rule.chance) {
-                // Apply transition
-                tile.terrain = rule.transitionTerrain;
-                tile.properties = { ...TERRAIN_PROPERTY_MAP[rule.transitionTerrain] };
-                break; // Only apply one transition per tile
-              }
-            }
-          }
+          this.applyTransitionRuleToTile(tiles, x, y, transitionRules, random);
         }
       }
     }
@@ -787,71 +786,117 @@ export class MapManager {
     this.smoothTerrainPatches(tiles);
   }
 
-  // Remove small isolated terrain patches for more coherent biomes
-  private smoothTerrainPatches(tiles: MapTile[][]): void {
-    const minPatchSize = 3; // Minimum size for terrain patches
-    
-    for (let x = 1; x < this.width - 1; x++) {
-      for (let y = 1; y < this.height - 1; y++) {
-        const tile = tiles[x][y];
-        if (!this.isLandTile(tile)) continue;
+  // Apply transition rule to a single tile (extracted to reduce complexity)
+  private applyTransitionRuleToTile(
+    tiles: MapTile[][],
+    x: number,
+    y: number,
+    transitionRules: Array<{
+      from: TerrainType[];
+      to: TerrainType;
+      transitionTerrain: TerrainType;
+      chance: number;
+    }>,
+    random: () => number
+  ): void {
+    const tile = tiles[x][y];
+    if (!this.isLandTile(tile)) return;
 
-        const neighbors = this.getNeighbors(tiles, x, y).filter(n => this.isLandTile(n));
-        const sameTerrainNeighbors = neighbors.filter(n => n.terrain === tile.terrain).length;
-        
-        // If isolated or very small patch, convert to most common neighbor terrain
-        if (sameTerrainNeighbors < minPatchSize) {
-          const terrainCounts = new Map<TerrainType, number>();
-          
-          for (const neighbor of neighbors) {
-            const count = terrainCounts.get(neighbor.terrain) || 0;
-            terrainCounts.set(neighbor.terrain, count + 1);
-          }
-          
-          // Find most common neighbor terrain
-          let mostCommonTerrain = tile.terrain;
-          let maxCount = 0;
-          
-          for (const [terrain, count] of terrainCounts) {
-            if (count > maxCount) {
-              maxCount = count;
-              mostCommonTerrain = terrain;
-            }
-          }
-          
-          // Apply the change if it makes sense climatically
-          if (this.isClimaticallyCompatible(tile, mostCommonTerrain)) {
-            tile.terrain = mostCommonTerrain;
-            tile.properties = { ...TERRAIN_PROPERTY_MAP[mostCommonTerrain] };
-          }
+    const neighbors = this.getNeighbors(tiles, x, y).filter(n => this.isLandTile(n));
+
+    for (const rule of transitionRules) {
+      if (rule.from.includes(tile.terrain)) {
+        // Check if we're adjacent to the target terrain
+        const hasTargetNeighbor = neighbors.some(n => n.terrain === rule.to);
+
+        if (hasTargetNeighbor && random() < rule.chance) {
+          // Apply transition
+          tile.terrain = rule.transitionTerrain;
+          tile.properties = { ...TERRAIN_PROPERTY_MAP[rule.transitionTerrain] };
+          break; // Only apply one transition per tile
         }
       }
     }
+  }
+
+  // Remove small isolated terrain patches for more coherent biomes
+  private smoothTerrainPatches(tiles: MapTile[][]): void {
+    const minPatchSize = 3; // Minimum size for terrain patches
+
+    for (let x = 1; x < this.width - 1; x++) {
+      for (let y = 1; y < this.height - 1; y++) {
+        this.smoothIsolatedTile(tiles, x, y, minPatchSize);
+      }
+    }
+  }
+
+  // Smooth a single isolated tile (extracted to reduce complexity)
+  private smoothIsolatedTile(tiles: MapTile[][], x: number, y: number, minPatchSize: number): void {
+    const tile = tiles[x][y];
+    if (!this.isLandTile(tile)) return;
+
+    const neighbors = this.getNeighbors(tiles, x, y).filter(n => this.isLandTile(n));
+    const sameTerrainNeighbors = neighbors.filter(n => n.terrain === tile.terrain).length;
+
+    // If isolated or very small patch, convert to most common neighbor terrain
+    if (sameTerrainNeighbors < minPatchSize) {
+      const mostCommonTerrain = this.findMostCommonNeighborTerrain(neighbors, tile.terrain);
+
+      // Apply the change if it makes sense climatically
+      if (this.isClimaticallyCompatible(tile, mostCommonTerrain)) {
+        tile.terrain = mostCommonTerrain;
+        tile.properties = { ...TERRAIN_PROPERTY_MAP[mostCommonTerrain] };
+      }
+    }
+  }
+
+  // Find the most common terrain type among neighbors
+  private findMostCommonNeighborTerrain(neighbors: MapTile[], fallback: TerrainType): TerrainType {
+    const terrainCounts = new Map<TerrainType, number>();
+
+    for (const neighbor of neighbors) {
+      const count = terrainCounts.get(neighbor.terrain) || 0;
+      terrainCounts.set(neighbor.terrain, count + 1);
+    }
+
+    // Find most common neighbor terrain
+    let mostCommonTerrain = fallback;
+    let maxCount = 0;
+
+    for (const [terrain, count] of terrainCounts) {
+      if (count > maxCount) {
+        maxCount = count;
+        mostCommonTerrain = terrain;
+      }
+    }
+
+    return mostCommonTerrain;
   }
 
   // Check if terrain change makes climatic sense
   private isClimaticallyCompatible(tile: MapTile, newTerrain: TerrainType): boolean {
     const currentClimate = tile.temperature;
     const newProperties = TERRAIN_PROPERTY_MAP[newTerrain];
-    
+
     // Don't place tropical terrain in frozen zones
-    if ((currentClimate & TemperatureType.FROZEN) && newProperties[TerrainProperty.TROPICAL]) {
+    if (currentClimate & TemperatureType.FROZEN && newProperties[TerrainProperty.TROPICAL]) {
       return false;
     }
-    
+
     // Don't place frozen terrain in tropical zones
-    if ((currentClimate & TemperatureType.TROPICAL) && newProperties[TerrainProperty.FROZEN]) {
+    if (currentClimate & TemperatureType.TROPICAL && newProperties[TerrainProperty.FROZEN]) {
       return false;
     }
-    
+
     // Check wetness compatibility
     const isDryClimate = tile.wetness < 30;
-    const isWetTerrain = newProperties[TerrainProperty.WET] && newProperties[TerrainProperty.WET] > 50;
-    
+    const isWetTerrain =
+      newProperties[TerrainProperty.WET] && newProperties[TerrainProperty.WET] > 50;
+
     if (isDryClimate && isWetTerrain) {
       return false; // Don't place wet terrain in dry areas
     }
-    
+
     return true;
   }
 
@@ -1212,7 +1257,7 @@ export class MapManager {
 
         // Enhanced terrain scoring with climate consideration
         let terrainScore = this.getTerrainStartingScore(tile);
-        
+
         // Climate synergy bonuses
         if (tile.temperature & TemperatureType.TEMPERATE) {
           terrainScore *= 1.2; // Temperate zones are ideal
@@ -1229,14 +1274,14 @@ export class MapManager {
         // Enhanced resource bonus with climate consideration
         if (tile.resource) {
           let resourceScore = 15;
-          
+
           // Some resources are better in certain climates
-          if (tile.resource === 'wheat' && (tile.temperature & TemperatureType.TEMPERATE)) {
+          if (tile.resource === 'wheat' && tile.temperature & TemperatureType.TEMPERATE) {
             resourceScore *= 1.3; // Wheat thrives in temperate zones
-          } else if (tile.resource === 'spices' && (tile.temperature & TemperatureType.TROPICAL)) {
+          } else if (tile.resource === 'spices' && tile.temperature & TemperatureType.TROPICAL) {
             resourceScore *= 1.3; // Spices from tropical regions
           }
-          
+
           score += resourceScore * weight;
         }
 
@@ -1278,19 +1323,19 @@ export class MapManager {
 
   private getTerrainStartingScore(tile: MapTile): number {
     const terrainScores: Record<TerrainType, number> = {
-      grassland: 12,  // Increased - excellent for starting
-      plains: 10,     // Increased - very good base terrain  
-      forest: 8,      // Good for production
-      hills: 6,       // Good for mining/defense
-      coast: 4,       // Decent for fishing/trade
-      jungle: 3,      // Can be cleared for good land
-      swamp: 2,       // Poor but can be improved
-      tundra: 2,      // Cold but manageable
-      desert: 1,      // Harsh conditions
-      mountains: 1,   // Very poor for starting cities
-      glacier: 0,     // Extremely harsh
-      snow: 0,        // Extremely harsh
-      lake: -1,       // Water tile
+      grassland: 12, // Increased - excellent for starting
+      plains: 10, // Increased - very good base terrain
+      forest: 8, // Good for production
+      hills: 6, // Good for mining/defense
+      coast: 4, // Decent for fishing/trade
+      jungle: 3, // Can be cleared for good land
+      swamp: 2, // Poor but can be improved
+      tundra: 2, // Cold but manageable
+      desert: 1, // Harsh conditions
+      mountains: 1, // Very poor for starting cities
+      glacier: 0, // Extremely harsh
+      snow: 0, // Extremely harsh
+      lake: -1, // Water tile
       deep_ocean: -5,
       ocean: -5,
     };
@@ -1421,10 +1466,14 @@ export class MapManager {
 
   private getTemperatureTypeFromZone(zone: string): TemperatureType {
     switch (zone) {
-      case 'frozen': return TemperatureType.FROZEN;
-      case 'cold': return TemperatureType.COLD;
-      case 'tropical': return TemperatureType.TROPICAL;
-      default: return TemperatureType.TEMPERATE;
+      case 'frozen':
+        return TemperatureType.FROZEN;
+      case 'cold':
+        return TemperatureType.COLD;
+      case 'tropical':
+        return TemperatureType.TROPICAL;
+      default:
+        return TemperatureType.TEMPERATE;
     }
   }
 
@@ -1465,13 +1514,19 @@ export class MapManager {
   private hasClimateVariety(x: number, y: number): boolean {
     const centerTemp = this.temperatureMap.getTemperature(x, y);
     const neighbors = [
-      { x: x - 1, y }, { x: x + 1, y },
-      { x, y: y - 1 }, { x, y: y + 1 }
+      { x: x - 1, y },
+      { x: x + 1, y },
+      { x, y: y - 1 },
+      { x, y: y + 1 },
     ];
 
     for (const neighbor of neighbors) {
-      if (neighbor.x >= 0 && neighbor.x < this.width && 
-          neighbor.y >= 0 && neighbor.y < this.height) {
+      if (
+        neighbor.x >= 0 &&
+        neighbor.x < this.width &&
+        neighbor.y >= 0 &&
+        neighbor.y < this.height
+      ) {
         const neighborTemp = this.temperatureMap.getTemperature(neighbor.x, neighbor.y);
         if (neighborTemp !== centerTemp) {
           return true; // Found climate variety
