@@ -838,7 +838,7 @@ export class GameManager {
   public getMapData(gameId: string) {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) {
-      throw new Error('Game not found');
+      throw new Error('Game not found in memory - the game may need to be restarted');
     }
 
     const mapData = gameInstance.mapManager.getMapData();
