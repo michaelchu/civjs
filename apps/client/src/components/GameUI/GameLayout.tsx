@@ -14,7 +14,6 @@ export const GameLayout: React.FC = () => {
 
   const { activeTab, clientState } = useGameStore();
 
-
   // Handle window resize
   useEffect(() => {
     const handleResize = () => {

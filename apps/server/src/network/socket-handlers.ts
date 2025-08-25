@@ -86,7 +86,7 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
               const tile = playerMapView.tiles[x][y];
               if (tile && (tile.isVisible || tile.isExplored)) {
                 const tileIndex = y * playerMapView.width + x;
-                
+
                 const tileInfoPacket = {
                   tile: tileIndex,
                   x: x,

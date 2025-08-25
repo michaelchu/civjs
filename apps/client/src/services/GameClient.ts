@@ -184,22 +184,22 @@ class GameClient {
         },
       });
 
-      // Log progress  
+      // Log progress
       if (data.endIndex === data.total) {
         // All tiles received - batch processing complete
         console.log('All tile batches loaded - simulating manual resize fix');
-        
+
         // Replicate what manual window resize does to fix the display
         setTimeout(() => {
           // Create and dispatch actual resize events like a real window resize
           const resizeEvent = new Event('resize', { bubbles: true });
           window.dispatchEvent(resizeEvent);
-          
+
           // Also try triggering it multiple times to ensure it takes
           setTimeout(() => {
             window.dispatchEvent(new Event('resize', { bubbles: true }));
           }, 50);
-          
+
           setTimeout(() => {
             window.dispatchEvent(new Event('resize', { bubbles: true }));
           }, 150);

@@ -262,7 +262,6 @@ export class GameManager {
     logger.info('Game started successfully', { gameId });
   }
 
-
   private async initializeGameInstance(gameId: string, game: any): Promise<void> {
     logger.info('Initializing game instance', { gameId });
 

@@ -7,7 +7,6 @@ import { GameLayout } from './GameUI/GameLayout';
 
 export const GameRoute: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
   const { clientState, setClientState } = useGameStore();
@@ -15,44 +14,43 @@ export const GameRoute: React.FC = () => {
   const loadGame = async () => {
     if (!gameId) {
       setError('Invalid game ID');
-      setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
     setError('');
 
     try {
       await gameClient.connect();
       setClientState('connecting');
-      
+
       // Generate a default player name or use stored one
       const defaultPlayerName = `Player_${Date.now().toString(36)}`;
-      
+
       // First try to join as a player
-      let joinedAsPlayer = false;
       try {
         await gameClient.joinSpecificGame(gameId, defaultPlayerName);
-        joinedAsPlayer = true;
       } catch (joinError) {
-        console.log('Could not join as player, trying observer mode:', joinError);
-        
+        console.log(
+          'Could not join as player, trying observer mode:',
+          joinError
+        );
+
         // If joining as player fails, try to observe the game
         try {
           await gameClient.observeGame(gameId);
           console.log('Joined as observer');
-        } catch (observeError) {
-          throw new Error(`Cannot access game: ${joinError instanceof Error ? joinError.message : 'Unknown error'}`);
+        } catch {
+          throw new Error(
+            `Cannot access game: ${joinError instanceof Error ? joinError.message : 'Unknown error'}`
+          );
         }
       }
 
       // Set to running state after successful join/observe
       // Map data will be received via socket events (map-info, tile-info)
       setClientState('running');
-      setIsLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load game');
-      setIsLoading(false);
       setClientState('initial');
     }
   };
@@ -67,7 +65,6 @@ export const GameRoute: React.FC = () => {
     // Check if we're already connected to this game
     if (gameClient.isConnected() && gameClient.getCurrentGameId() === gameId) {
       setClientState('running');
-      setIsLoading(false);
     } else {
       // Auto-load the game
       loadGame();

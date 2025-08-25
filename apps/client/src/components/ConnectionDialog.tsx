@@ -7,8 +7,8 @@ interface ConnectionDialogProps {
   showForm?: boolean;
 }
 
-export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({ 
-  showForm = true 
+export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
+  showForm = true,
 }) => {
   const [playerName, setPlayerName] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -48,7 +48,8 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
           <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-lg">
             {clientState === 'connecting' && 'Connecting to game...'}
-            {clientState === 'waiting_for_players' && 'Waiting for other players...'}
+            {clientState === 'waiting_for_players' &&
+              'Waiting for other players...'}
             {clientState === 'joining_game' && 'Joining game...'}
           </p>
         </div>
