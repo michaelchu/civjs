@@ -5,13 +5,17 @@ import { PlayerState } from './GameManager';
 export type TerrainType =
   | 'ocean'
   | 'coast'
+  | 'deep_ocean'
+  | 'lake'
   | 'grassland'
   | 'plains'
   | 'desert'
   | 'tundra'
   | 'snow'
+  | 'glacier'
   | 'forest'
   | 'jungle'
+  | 'swamp'
   | 'hills'
   | 'mountains';
 export type ResourceType =
@@ -166,16 +170,22 @@ export class MapManager {
         const elevation = tile.elevation;
         const randomFactor = random();
 
-        if (elevation < 20) {
+        if (elevation < 10) {
+          tile.terrain = 'deep_ocean';
+        } else if (elevation < 20) {
           tile.terrain = 'ocean';
         } else if (elevation < 30) {
           tile.terrain = 'coast';
         } else if (elevation < 80) {
           // Low elevation - fertile areas
-          if (randomFactor < 0.4) tile.terrain = 'grassland';
-          else if (randomFactor < 0.7) tile.terrain = 'plains';
-          else if (randomFactor < 0.85) tile.terrain = 'forest';
-          else tile.terrain = 'jungle';
+          const isNearEdge = x < 5 || y < 5 || x > this.width - 6 || y > this.height - 6;
+          if (randomFactor < 0.35) tile.terrain = 'grassland';
+          else if (randomFactor < 0.6) tile.terrain = 'plains';
+          else if (randomFactor < 0.75) tile.terrain = 'forest';
+          else if (randomFactor < 0.85) tile.terrain = 'jungle';
+          else if (!isNearEdge && elevation < 40) tile.terrain = 'swamp'; // Inland swamps in very low areas
+          else if (!isNearEdge && randomFactor < 0.95) tile.terrain = 'lake'; // Occasional inland lakes
+          else tile.terrain = 'grassland';
         } else if (elevation < 150) {
           // Medium elevation
           if (randomFactor < 0.3) tile.terrain = 'plains';
@@ -184,13 +194,17 @@ export class MapManager {
           else tile.terrain = 'forest';
         } else if (elevation < 200) {
           // High elevation
-          if (randomFactor < 0.5) tile.terrain = 'hills';
+          const isNearPole = y < 10 || y > this.height - 11; // Simple pole approximation
+          if (isNearPole && randomFactor < 0.3) tile.terrain = 'glacier';
+          else if (randomFactor < 0.5) tile.terrain = 'hills';
           else if (randomFactor < 0.7) tile.terrain = 'mountains';
           else if (randomFactor < 0.9) tile.terrain = 'tundra';
           else tile.terrain = 'snow';
         } else {
           // Very high elevation
-          if (randomFactor < 0.7) tile.terrain = 'mountains';
+          const isNearPole = y < 10 || y > this.height - 11; // Simple pole approximation
+          if (isNearPole && randomFactor < 0.4) tile.terrain = 'glacier';
+          else if (randomFactor < 0.7) tile.terrain = 'mountains';
           else if (randomFactor < 0.9) tile.terrain = 'tundra';
           else tile.terrain = 'snow';
         }
@@ -353,13 +367,17 @@ export class MapManager {
     const resourceMap: Record<TerrainType, ResourceType[]> = {
       ocean: ['fish'],
       coast: ['fish'],
+      deep_ocean: ['fish'],
+      lake: ['fish'],
       grassland: ['wheat', 'cattle', 'horses'],
       plains: ['horses', 'wheat', 'cattle'],
       desert: ['gold', 'gems', 'oil'],
       tundra: ['horses', 'iron', 'oil', 'uranium'],
       snow: ['oil', 'uranium'],
+      glacier: ['oil', 'uranium'],
       forest: ['spices', 'silk'],
       jungle: ['spices', 'gems', 'gold'],
+      swamp: ['spices', 'oil'],
       hills: ['iron', 'copper', 'gold', 'gems', 'horses'],
       mountains: ['iron', 'copper', 'gold', 'gems', 'uranium'],
     };
@@ -454,7 +472,7 @@ export class MapManager {
   }
 
   private isStartingSuitableTerrain(terrain: TerrainType): boolean {
-    return ['grassland', 'plains', 'forest'].includes(terrain);
+    return ['grassland', 'plains', 'forest', 'hills'].includes(terrain);
   }
 
   private evaluateStartingPosition(tiles: MapTile[][], x: number, y: number): number {
@@ -524,7 +542,8 @@ export class MapManager {
   }
 
   private isLandTile(tile: MapTile): boolean {
-    return tile.terrain !== 'ocean' && tile.terrain !== 'coast';
+    return tile.terrain !== 'ocean' && tile.terrain !== 'coast' && 
+           tile.terrain !== 'deep_ocean' && tile.terrain !== 'lake';
   }
 
   private isValidCoord(x: number, y: number): boolean {
