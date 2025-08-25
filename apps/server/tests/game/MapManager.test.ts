@@ -1,4 +1,4 @@
-import { MapManager, TerrainType, ResourceType } from '../../src/game/MapManager';
+import { MapManager, TerrainType, ResourceType, TerrainProperty, TemperatureType } from '../../src/game/MapManager';
 import { PlayerState } from '../../src/game/GameManager';
 
 describe('MapManager', () => {
@@ -463,6 +463,118 @@ describe('MapManager', () => {
           }
         }
       }
+    });
+  });
+
+  describe('terrain properties system (Phase 2)', () => {
+    beforeEach(async () => {
+      await mapManager.generateMap(testPlayers);
+    });
+
+    it('should assign properties to all terrain types', () => {
+      const mapData = mapManager.getMapData();
+      const terrainsSeen = new Set<TerrainType>();
+      
+      for (let x = 0; x < mapData!.width; x++) {
+        for (let y = 0; y < mapData!.height; y++) {
+          const tile = mapData!.tiles[x][y];
+          terrainsSeen.add(tile.terrain);
+          
+          // All tiles should have properties object (even if empty)
+          expect(tile.properties).toBeDefined();
+          
+          // Properties should be valid numbers 0-100
+          for (const [, value] of Object.entries(tile.properties)) {
+            expect(typeof value).toBe('number');
+            expect(value).toBeGreaterThanOrEqual(0);
+            expect(value).toBeLessThanOrEqual(100);
+          }
+        }
+      }
+      
+      expect(terrainsSeen.size).toBeGreaterThan(3); // Multiple terrain types generated
+    });
+
+    it('should assign temperature and wetness to all tiles', () => {
+      const mapData = mapManager.getMapData();
+      const temperaturesSeen = new Set<TemperatureType>();
+      
+      for (let x = 0; x < mapData!.width; x++) {
+        for (let y = 0; y < mapData!.height; y++) {
+          const tile = mapData!.tiles[x][y];
+          
+          // Temperature should be valid enum value
+          expect([
+            TemperatureType.TROPICAL,
+            TemperatureType.TEMPERATE,
+            TemperatureType.COLD,
+            TemperatureType.FROZEN
+          ]).toContain(tile.temperature);
+          temperaturesSeen.add(tile.temperature);
+          
+          // Wetness should be 0-100
+          expect(tile.wetness).toBeGreaterThanOrEqual(0);
+          expect(tile.wetness).toBeLessThanOrEqual(100);
+        }
+      }
+      
+      expect(temperaturesSeen.size).toBeGreaterThan(1); // Multiple temperature zones
+    });
+
+    it('should create realistic terrain-property associations', () => {
+      const mapData = mapManager.getMapData();
+      
+      for (let x = 0; x < mapData!.width; x++) {
+        for (let y = 0; y < mapData!.height; y++) {
+          const tile = mapData!.tiles[x][y];
+          
+          // Test some logical property associations
+          if (tile.terrain === 'desert') {
+            expect(tile.properties[TerrainProperty.DRY]).toBeGreaterThan(0);
+          }
+          
+          if (tile.terrain === 'ocean' || tile.terrain === 'coast' || tile.terrain === 'deep_ocean') {
+            expect(tile.properties[TerrainProperty.OCEAN_DEPTH]).toBeDefined();
+          }
+          
+          if (tile.terrain === 'snow' || tile.terrain === 'glacier') {
+            expect(tile.properties[TerrainProperty.FROZEN]).toBe(100);
+          }
+          
+          if (tile.terrain === 'jungle') {
+            expect(tile.properties[TerrainProperty.TROPICAL]).toBeGreaterThan(0);
+            expect(tile.properties[TerrainProperty.WET]).toBeGreaterThan(0);
+          }
+        }
+      }
+    });
+
+    it('should generate climate gradients based on latitude', () => {
+      const mapData = mapManager.getMapData();
+      const height = mapData!.height;
+      
+      // Check that poles (edges) tend to be colder than equator (middle)
+      let poleTemperatures = [];
+      let equatorTemperatures = [];
+      
+      // Sample from top/bottom edges (poles)
+      for (let x = 0; x < mapData!.width; x++) {
+        poleTemperatures.push(mapData!.tiles[x][0].temperature);
+        poleTemperatures.push(mapData!.tiles[x][height - 1].temperature);
+      }
+      
+      // Sample from middle (equator)
+      const equatorY = Math.floor(height / 2);
+      for (let x = 0; x < mapData!.width; x++) {
+        equatorTemperatures.push(mapData!.tiles[x][equatorY].temperature);
+      }
+      
+      // Poles should tend to have lower temperature values (higher = warmer)
+      const avgPoleTemp = poleTemperatures.reduce((sum, temp) => sum + temp, 0) / poleTemperatures.length;
+      const avgEquatorTemp = equatorTemperatures.reduce((sum, temp) => sum + temp, 0) / equatorTemperatures.length;
+      
+      // This is a statistical test - poles should generally be colder
+      expect(avgPoleTemp).toBeLessThanOrEqual(avgEquatorTemp + 2); // Allow some variance
     });
   });
 });

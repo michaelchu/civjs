@@ -2,6 +2,51 @@
 import { logger } from '../utils/logger';
 import { PlayerState } from './GameManager';
 
+// Terrain properties from freeciv reference (gen_headers/enums/terrain_enums.def)
+export enum TerrainProperty {
+  COLD = 'cold',
+  DRY = 'dry',
+  FOLIAGE = 'foliage',
+  FROZEN = 'frozen',
+  GREEN = 'green',
+  MOUNTAINOUS = 'mountainous',
+  OCEAN_DEPTH = 'ocean_depth',
+  TEMPERATE = 'temperate',
+  TROPICAL = 'tropical',
+  WET = 'wet',
+}
+
+// Temperature types for climate-based terrain selection
+export enum TemperatureType {
+  FROZEN = 1,
+  COLD = 2,
+  TEMPERATE = 4,
+  TROPICAL = 8,
+}
+
+// Wetness conditions for terrain selection
+export enum WetnessCondition {
+  DRY = 'dry',
+  NDRY = 'not_dry', // not dry
+  ALL = 'all',
+}
+
+// Terrain property values (0-100) for each terrain type
+export type TerrainProperties = {
+  [key in TerrainProperty]?: number;
+};
+
+// Terrain selection criteria for weighted selection
+export interface TerrainSelector {
+  terrain: TerrainType;
+  weight: number;
+  target: TerrainProperty;
+  prefer: TerrainProperty;
+  avoid: TerrainProperty;
+  tempCondition: TemperatureType;
+  wetCondition: WetnessCondition;
+}
+
 export type TerrainType =
   | 'ocean'
   | 'coast'
@@ -47,6 +92,10 @@ export interface MapTile {
   improvements: string[];
   cityId?: string;
   unitIds: string[];
+  // Phase 2: Terrain properties framework
+  properties: TerrainProperties;
+  temperature: TemperatureType;
+  wetness: number; // 0-100, higher = more wet
 }
 
 export interface MapData {
@@ -56,6 +105,268 @@ export interface MapData {
   startingPositions: Array<{ x: number; y: number; playerId: string }>;
   seed: string;
   generatedAt: Date;
+}
+
+// Terrain property mappings from freeciv classic ruleset
+// Each terrain has property values from 0-100 representing how much of that property it has
+const TERRAIN_PROPERTY_MAP: Record<TerrainType, TerrainProperties> = {
+  // Water terrains
+  ocean: {
+    [TerrainProperty.OCEAN_DEPTH]: 0,
+  },
+  coast: {
+    [TerrainProperty.OCEAN_DEPTH]: 32,
+  },
+  deep_ocean: {
+    [TerrainProperty.OCEAN_DEPTH]: 87,
+  },
+  lake: {
+    [TerrainProperty.WET]: 100,
+  },
+  // Land terrains
+  desert: {
+    [TerrainProperty.DRY]: 100,
+    [TerrainProperty.TROPICAL]: 50,
+    [TerrainProperty.TEMPERATE]: 20,
+  },
+  plains: {
+    [TerrainProperty.COLD]: 20,
+    [TerrainProperty.WET]: 20,
+    [TerrainProperty.FOLIAGE]: 50,
+    [TerrainProperty.TEMPERATE]: 50,
+  },
+  grassland: {
+    [TerrainProperty.GREEN]: 50,
+    [TerrainProperty.TEMPERATE]: 50,
+  },
+  forest: {
+    [TerrainProperty.GREEN]: 50,
+    [TerrainProperty.MOUNTAINOUS]: 30,
+  },
+  jungle: {
+    [TerrainProperty.FOLIAGE]: 50,
+    [TerrainProperty.TROPICAL]: 50,
+    [TerrainProperty.WET]: 50,
+  },
+  hills: {
+    [TerrainProperty.MOUNTAINOUS]: 70,
+  },
+  mountains: {
+    [TerrainProperty.GREEN]: 50,
+    [TerrainProperty.TEMPERATE]: 50,
+  },
+  swamp: {
+    [TerrainProperty.WET]: 100,
+    [TerrainProperty.TROPICAL]: 10,
+    [TerrainProperty.TEMPERATE]: 10,
+    [TerrainProperty.COLD]: 10,
+  },
+  tundra: {
+    [TerrainProperty.COLD]: 50,
+  },
+  snow: {
+    [TerrainProperty.FROZEN]: 100,
+  },
+  glacier: {
+    [TerrainProperty.FROZEN]: 100,
+  },
+};
+
+// Terrain selection lists for different terrain categories (from freeciv reference)
+const TERRAIN_SELECTORS: TerrainSelector[] = [
+  // Forest terrains
+  {
+    terrain: 'forest',
+    weight: 50,
+    target: TerrainProperty.GREEN,
+    prefer: TerrainProperty.FOLIAGE,
+    avoid: TerrainProperty.DRY,
+    tempCondition: TemperatureType.TEMPERATE,
+    wetCondition: WetnessCondition.ALL,
+  },
+  {
+    terrain: 'jungle',
+    weight: 40,
+    target: TerrainProperty.TROPICAL,
+    prefer: TerrainProperty.WET,
+    avoid: TerrainProperty.COLD,
+    tempCondition: TemperatureType.TROPICAL,
+    wetCondition: WetnessCondition.NDRY,
+  },
+  // Desert terrains
+  {
+    terrain: 'desert',
+    weight: 60,
+    target: TerrainProperty.DRY,
+    prefer: TerrainProperty.TROPICAL,
+    avoid: TerrainProperty.WET,
+    tempCondition: TemperatureType.TROPICAL,
+    wetCondition: WetnessCondition.DRY,
+  },
+  // Mountain terrains
+  {
+    terrain: 'mountains',
+    weight: 30,
+    target: TerrainProperty.MOUNTAINOUS,
+    prefer: TerrainProperty.GREEN,
+    avoid: TerrainProperty.WET,
+    tempCondition: TemperatureType.TEMPERATE,
+    wetCondition: WetnessCondition.ALL,
+  },
+  {
+    terrain: 'hills',
+    weight: 40,
+    target: TerrainProperty.MOUNTAINOUS,
+    prefer: TerrainProperty.GREEN,
+    avoid: TerrainProperty.FROZEN,
+    tempCondition: TemperatureType.TEMPERATE,
+    wetCondition: WetnessCondition.ALL,
+  },
+  // Swamp terrains
+  {
+    terrain: 'swamp',
+    weight: 25,
+    target: TerrainProperty.WET,
+    prefer: TerrainProperty.TROPICAL,
+    avoid: TerrainProperty.FROZEN,
+    tempCondition: TemperatureType.TROPICAL,
+    wetCondition: WetnessCondition.NDRY,
+  },
+  // Grassland/plains
+  {
+    terrain: 'grassland',
+    weight: 50,
+    target: TerrainProperty.GREEN,
+    prefer: TerrainProperty.TEMPERATE,
+    avoid: TerrainProperty.DRY,
+    tempCondition: TemperatureType.TEMPERATE,
+    wetCondition: WetnessCondition.NDRY,
+  },
+  {
+    terrain: 'plains',
+    weight: 45,
+    target: TerrainProperty.TEMPERATE,
+    prefer: TerrainProperty.FOLIAGE,
+    avoid: TerrainProperty.FROZEN,
+    tempCondition: TemperatureType.TEMPERATE,
+    wetCondition: WetnessCondition.ALL,
+  },
+  // Cold terrains
+  {
+    terrain: 'tundra',
+    weight: 40,
+    target: TerrainProperty.COLD,
+    prefer: TerrainProperty.GREEN,
+    avoid: TerrainProperty.TROPICAL,
+    tempCondition: TemperatureType.COLD,
+    wetCondition: WetnessCondition.ALL,
+  },
+  {
+    terrain: 'snow',
+    weight: 35,
+    target: TerrainProperty.FROZEN,
+    prefer: TerrainProperty.COLD,
+    avoid: TerrainProperty.GREEN,
+    tempCondition: TemperatureType.FROZEN,
+    wetCondition: WetnessCondition.ALL,
+  },
+  {
+    terrain: 'glacier',
+    weight: 30,
+    target: TerrainProperty.FROZEN,
+    prefer: TerrainProperty.COLD,
+    avoid: TerrainProperty.TROPICAL,
+    tempCondition: TemperatureType.FROZEN,
+    wetCondition: WetnessCondition.ALL,
+  },
+];
+
+class TerrainSelectionEngine {
+  private random: () => number;
+
+  constructor(random: () => number) {
+    this.random = random;
+  }
+
+  // Select terrain based on tile properties, temperature, and wetness
+  public pickTerrain(
+    tileTemp: TemperatureType,
+    tileWetness: number,
+    elevation: number
+  ): TerrainType {
+    // Water terrains based on elevation (like phase 1 but with properties)
+    if (elevation < 10) return 'deep_ocean';
+    if (elevation < 20) return 'ocean';
+    if (elevation < 30) return 'coast';
+
+    // Occasional inland lakes in low wet areas
+    if (elevation < 50 && tileWetness > 80 && this.random() < 0.05) {
+      return 'lake';
+    }
+
+    // Find matching terrain selectors
+    const candidates: Array<{ terrain: TerrainType; score: number }> = [];
+
+    for (const selector of TERRAIN_SELECTORS) {
+      // Check temperature condition match
+      if (!(tileTemp & selector.tempCondition)) {
+        continue;
+      }
+
+      // Check wetness condition
+      const isDry = tileWetness < 30;
+      if (selector.wetCondition === WetnessCondition.DRY && !isDry) continue;
+      if (selector.wetCondition === WetnessCondition.NDRY && isDry) continue;
+
+      // Calculate terrain fitness score
+      const properties = TERRAIN_PROPERTY_MAP[selector.terrain];
+      let score = selector.weight;
+
+      // Target property bonus
+      const targetValue = properties[selector.target] || 0;
+      score += targetValue * 0.5;
+
+      // Prefer property bonus
+      const preferValue = properties[selector.prefer] || 0;
+      score += preferValue * 0.3;
+
+      // Avoid property penalty
+      const avoidValue = properties[selector.avoid] || 0;
+      score -= avoidValue * 0.4;
+
+      // Elevation modifiers
+      if (selector.terrain === 'mountains' || selector.terrain === 'hills') {
+        score += Math.max(0, elevation - 100) * 0.2;
+      }
+
+      if (score > 0) {
+        candidates.push({ terrain: selector.terrain, score });
+      }
+    }
+
+    // Weighted random selection
+    if (candidates.length === 0) {
+      // Fallback to simple terrain based on temperature and wetness
+      if (tileTemp === TemperatureType.FROZEN) return 'snow';
+      if (tileTemp === TemperatureType.COLD) return 'tundra';
+      if (tileWetness > 70) return 'grassland';
+      if (tileWetness < 30) return 'desert';
+      return 'plains';
+    }
+
+    const totalScore = candidates.reduce((sum, c) => sum + c.score, 0);
+    let randomValue = this.random() * totalScore;
+
+    for (const candidate of candidates) {
+      randomValue -= candidate.score;
+      if (randomValue <= 0) {
+        return candidate.terrain;
+      }
+    }
+
+    // Fallback
+    return candidates[0].terrain;
+  }
 }
 
 export class MapManager {
@@ -130,14 +441,19 @@ export class MapManager {
       hasRailroad: false,
       improvements: [],
       unitIds: [],
+      // Phase 2: Initialize property system
+      properties: {},
+      temperature: TemperatureType.TEMPERATE,
+      wetness: 50,
     };
   }
 
   private async generateTerrain(tiles: MapTile[][]): Promise<void> {
-    // Simple terrain generation using elevation-based rules
-    // In a real implementation, you'd use Perlin noise or similar
-
     const random = this.createSeededRandom();
+    const terrainSelector = new TerrainSelectionEngine(random);
+
+    // Phase 2: Generate climate data first
+    this.generateClimateData(tiles, random);
 
     // Generate elevation map
     for (let x = 0; x < this.width; x++) {
@@ -163,52 +479,64 @@ export class MapManager {
       }
     }
 
-    // Assign terrain based on elevation
+    // Phase 2: Assign terrain using property-based selection
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
-        const elevation = tile.elevation;
-        const randomFactor = random();
+        const selectedTerrain = terrainSelector.pickTerrain(
+          tile.temperature,
+          tile.wetness,
+          tile.elevation
+        );
 
-        if (elevation < 10) {
-          tile.terrain = 'deep_ocean';
-        } else if (elevation < 20) {
-          tile.terrain = 'ocean';
-        } else if (elevation < 30) {
-          tile.terrain = 'coast';
-        } else if (elevation < 80) {
-          // Low elevation - fertile areas
-          const isNearEdge = x < 5 || y < 5 || x > this.width - 6 || y > this.height - 6;
-          if (randomFactor < 0.35) tile.terrain = 'grassland';
-          else if (randomFactor < 0.6) tile.terrain = 'plains';
-          else if (randomFactor < 0.75) tile.terrain = 'forest';
-          else if (randomFactor < 0.85) tile.terrain = 'jungle';
-          else if (!isNearEdge && elevation < 40)
-            tile.terrain = 'swamp'; // Inland swamps in very low areas
-          else if (!isNearEdge && randomFactor < 0.95)
-            tile.terrain = 'lake'; // Occasional inland lakes
-          else tile.terrain = 'grassland';
-        } else if (elevation < 150) {
-          // Medium elevation
-          if (randomFactor < 0.3) tile.terrain = 'plains';
-          else if (randomFactor < 0.5) tile.terrain = 'hills';
-          else if (randomFactor < 0.7) tile.terrain = 'desert';
-          else tile.terrain = 'forest';
-        } else if (elevation < 200) {
-          // High elevation
-          const isNearPole = y < 10 || y > this.height - 11; // Simple pole approximation
-          if (isNearPole && randomFactor < 0.3) tile.terrain = 'glacier';
-          else if (randomFactor < 0.5) tile.terrain = 'hills';
-          else if (randomFactor < 0.7) tile.terrain = 'mountains';
-          else if (randomFactor < 0.9) tile.terrain = 'tundra';
-          else tile.terrain = 'snow';
+        tile.terrain = selectedTerrain;
+
+        // Set terrain properties based on selected terrain
+        tile.properties = { ...TERRAIN_PROPERTY_MAP[selectedTerrain] };
+      }
+    }
+  }
+
+  private generateClimateData(tiles: MapTile[][], random: () => number): void {
+    // Generate temperature map based on latitude (y position)
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const tile = tiles[x][y];
+
+        // Calculate latitude factor (0 = equator, 1 = poles)
+        const latitudeFactor = Math.abs(y - this.height / 2) / (this.height / 2);
+
+        // Base temperature zones with some randomness
+        const tempNoise = (random() - 0.5) * 0.3;
+        const adjustedLatitude = Math.max(0, Math.min(1, latitudeFactor + tempNoise));
+
+        if (adjustedLatitude < 0.2) {
+          tile.temperature = TemperatureType.TROPICAL;
+        } else if (adjustedLatitude < 0.5) {
+          tile.temperature = TemperatureType.TEMPERATE;
+        } else if (adjustedLatitude < 0.8) {
+          tile.temperature = TemperatureType.COLD;
         } else {
-          // Very high elevation
-          const isNearPole = y < 10 || y > this.height - 11; // Simple pole approximation
-          if (isNearPole && randomFactor < 0.4) tile.terrain = 'glacier';
-          else if (randomFactor < 0.7) tile.terrain = 'mountains';
-          else if (randomFactor < 0.9) tile.terrain = 'tundra';
-          else tile.terrain = 'snow';
+          tile.temperature = TemperatureType.FROZEN;
+        }
+
+        // Generate wetness map with some continental effects
+        const distanceFromEdge = Math.min(x, y, this.width - x - 1, this.height - y - 1);
+        const continentalEffect = Math.max(0, (distanceFromEdge - 10) * 2); // Drier inland
+        const baseWetness = 50 + (random() - 0.5) * 60; // 20-80 base range
+        tile.wetness = Math.max(0, Math.min(100, baseWetness - continentalEffect));
+      }
+    }
+
+    // Smooth wetness for more realistic patterns
+    for (let pass = 0; pass < 2; pass++) {
+      for (let x = 1; x < this.width - 1; x++) {
+        for (let y = 1; y < this.height - 1; y++) {
+          const neighbors = this.getNeighbors(tiles, x, y);
+          const avgWetness =
+            neighbors.reduce((sum, tile) => sum + tile.wetness, tiles[x][y].wetness) /
+            (neighbors.length + 1);
+          tiles[x][y].wetness = Math.round(avgWetness);
         }
       }
     }
