@@ -58,7 +58,6 @@ export const GameRoute: React.FC = () => {
   useEffect(() => {
     if (!gameId) {
       setError('Invalid game ID');
-      setIsLoading(false);
       return;
     }
 
