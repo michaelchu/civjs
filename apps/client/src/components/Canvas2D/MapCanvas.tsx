@@ -299,7 +299,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   // Freeciv-web's 2D renderer does not support zoom - only the WebGL renderer does
 
   return (
-    <div className="relative overflow-hidden bg-blue-900">
+    <div className="relative overflow-hidden bg-blue-900 w-full h-full">
       <canvas
         ref={canvasRef}
         width={width}
@@ -308,7 +308,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        className="cursor-crosshair"
+        className="cursor-crosshair w-full h-full"
         style={{ imageRendering: 'pixelated' }}
       />
     </div>
