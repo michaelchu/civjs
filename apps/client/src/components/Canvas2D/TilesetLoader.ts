@@ -113,12 +113,6 @@ export class TilesetLoader {
     }
 
     await Promise.all(loadPromises);
-    console.log(
-      `Loaded ${this.config.tileset_image_count} sprite sheets:`,
-      this.spriteSheets.map(
-        (img, i) => `Sheet ${i}: ${img.width}x${img.height}`
-      )
-    );
   }
 
   private cacheSprites(): void {
@@ -154,9 +148,6 @@ export class TilesetLoader {
         console.warn(`Problem caching sprite: ${tileTag}`, error);
       }
     }
-
-    console.log('Sprite sheet usage distribution:', sheetUsage);
-    console.log(`Total sprites cached: ${Object.keys(this.sprites).length}`);
   }
 
   getSprite(tag: string): HTMLCanvasElement | null {

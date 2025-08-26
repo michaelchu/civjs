@@ -1228,13 +1228,6 @@ export class MapRenderer {
     const mapWidthGui = globalMap.xsize * this.tileWidth;
     const mapHeightGui = globalMap.ysize * this.tileHeight;
 
-    console.log('Debug centering calculation:', {
-      mapSize: { width: globalMap.xsize, height: globalMap.ysize },
-      mapGuiSize: { width: mapWidthGui, height: mapHeightGui },
-      viewportSize: { width: viewportWidth, height: viewportHeight },
-      tileSize: { width: this.tileWidth, height: this.tileHeight },
-    });
-
     // For isometric maps, we need to center based on the actual center tile of the map
     // Let's use freeciv-web's approach: center on the middle tile
     const centerTileX = Math.floor(globalMap.xsize / 2);
@@ -1246,12 +1239,6 @@ export class MapRenderer {
     // Position viewport so center tile is in center of screen
     const centerX = centerTileGui.guiDx - viewportWidth / 2;
     const centerY = centerTileGui.guiDy - viewportHeight / 2;
-
-    console.log('Calculated center:', {
-      centerTile: { x: centerTileX, y: centerTileY },
-      centerTileGui: centerTileGui,
-      finalCenter: { x: centerX, y: centerY },
-    });
 
     return { x: centerX, y: centerY };
   }
@@ -1306,17 +1293,6 @@ export class MapRenderer {
 
       const constrainedX = Math.max(minX, Math.min(maxX, guiX0));
       const constrainedY = Math.max(minY, Math.min(maxY, guiY0));
-
-      if (import.meta.env.DEV) {
-        console.log('Applied generous bounds:', {
-          original: { guiX0, guiY0 },
-          constrained: { x: constrainedX, y: constrainedY },
-          bounds: { minX, maxX, minY, maxY },
-          mapSize: { mapWidthGui, mapHeightGui },
-          viewport: { viewportWidth, viewportHeight },
-          padding,
-        });
-      }
 
       return { x: constrainedX, y: constrainedY };
     }

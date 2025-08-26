@@ -116,7 +116,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
               for (const tile of globalTiles) {
                 if (tile && (tile.known > 0 || tile.seen > 0)) {
                   startTile = { x: tile.x, y: tile.y };
-                  console.log('Found first visible tile at:', startTile);
                   break;
                 }
               }
@@ -133,12 +132,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         );
         const centeredX = tileGui.guiDx - viewport.width / 2;
         const centeredY = tileGui.guiDy - viewport.height / 2;
-
-        console.log('Centering viewport on start position:', {
-          tile: startTile,
-          tileGui,
-          centeredPos: { x: centeredX, y: centeredY },
-        });
 
         setViewport({
           ...viewport,
