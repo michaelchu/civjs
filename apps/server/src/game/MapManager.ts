@@ -457,10 +457,13 @@ export class MapManager {
       }
     }
 
-    // Apply changes
+    // Apply changes and update properties
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
-        tiles[x][y].terrain = newTerrain[x][y].terrain;
+        if (tiles[x][y].terrain !== newTerrain[x][y].terrain) {
+          tiles[x][y].terrain = newTerrain[x][y].terrain;
+          this.setTerrainProperties(tiles[x][y]);
+        }
       }
     }
   }

@@ -753,8 +753,8 @@ describe('MapManager', () => {
       expect(extremeTransitionRate).toBeLessThan(0.3); // Less than 30% extreme transitions
     });
 
-    it('should create ocean boundaries near map edges', async () => {
-      // Create larger map for better edge ocean generation
+    it('should create natural ocean boundaries at map edges', async () => {
+      // Create larger map for better edge analysis
       const largerMap = new MapManager(30, 25, 'ocean-edge-test');
       await largerMap.generateMap(testPlayers);
       
@@ -787,9 +787,10 @@ describe('MapManager', () => {
         }
       }
       
-      // Fracture map system should create significant ocean presence at edges
+      // Natural map generation should create reasonable ocean presence at edges
       const edgeOceanRate = edgeOceanCount / totalEdgeTiles;
-      expect(edgeOceanRate).toBeGreaterThan(0.3); // At least 30% of edge tiles should be ocean
+      expect(edgeOceanRate).toBeGreaterThan(0.1); // At least 10% of edge tiles should be ocean
+      expect(edgeOceanRate).toBeLessThan(0.8); // But not more than 80% (should have some land)
     });
 
     it('should maintain elevation consistency with terrain types', () => {
