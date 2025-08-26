@@ -589,4 +589,277 @@ describe('MapManager', () => {
       expect(avgPoleTemp).toBeLessThanOrEqual(avgEquatorTemp + 2); // Allow some variance
     });
   });
+
+  describe('fractal height generation system (Phase 4)', () => {
+    beforeEach(async () => {
+      await mapManager.generateMap(testPlayers);
+    });
+
+    it('should generate sophisticated height maps using fractal algorithms', () => {
+      const mapData = mapManager.getMapData()!;
+      let elevationVariety = new Set<number>();
+      let oceanTiles = 0;
+      let landTiles = 0;
+      let mountainTiles = 0;
+
+      for (let x = 0; x < mapData.width; x++) {
+        for (let y = 0; y < mapData.height; y++) {
+          const tile = mapData.tiles[x][y];
+          
+          // Elevations should be in valid range
+          expect(tile.elevation >= 0).toBe(true);
+          expect(tile.elevation <= 255).toBe(true);
+          elevationVariety.add(tile.elevation);
+
+          // Count terrain types for realistic distribution
+          if (tile.terrain === 'ocean' || tile.terrain === 'coast' || tile.terrain === 'deep_ocean') {
+            oceanTiles++;
+          } else if (tile.terrain === 'mountains' || tile.terrain === 'hills') {
+            mountainTiles++;
+          } else {
+            landTiles++;
+          }
+        }
+      }
+
+      // Fractal generation should create varied elevations
+      expect(elevationVariety.size).toBeGreaterThan(5);
+      
+      // Should have realistic terrain distribution
+      expect(oceanTiles + landTiles + mountainTiles).toBeGreaterThan(0);
+    });
+
+    it('should apply pole flattening for realistic world geometry', async () => {
+      // Create larger map for better pole flattening effects
+      const largerMap = new MapManager(40, 30, 'pole-test');
+      await largerMap.generateMap(testPlayers);
+      
+      const mapData = largerMap.getMapData()!;
+      const height = mapData.height;
+      
+      // Check that poles (map edges) tend to have lower elevations
+      let poleElevations: number[] = [];
+      let centerElevations: number[] = [];
+      
+      // Sample from top/bottom rows (poles)
+      for (let x = 0; x < mapData.width; x++) {
+        poleElevations.push(mapData.tiles[x][0].elevation);
+        poleElevations.push(mapData.tiles[x][height - 1].elevation);
+      }
+      
+      // Sample from center rows
+      const centerY = Math.floor(height / 2);
+      for (let x = 0; x < mapData.width; x++) {
+        centerElevations.push(mapData.tiles[x][centerY].elevation);
+      }
+      
+      // Poles should tend to have lower average elevation due to flattening
+      const avgPoleElevation = poleElevations.reduce((sum, elev) => sum + elev, 0) / poleElevations.length;
+      const avgCenterElevation = centerElevations.reduce((sum, elev) => sum + elev, 0) / centerElevations.length;
+      
+      // Pole flattening should make poles generally lower elevation
+      expect(avgPoleElevation).toBeLessThanOrEqual(avgCenterElevation + 30); // Allow some variance
+    });
+
+    it('should create landmass shapes using fracture map system', async () => {
+      // Create larger map for better landmass generation
+      const largerMap = new MapManager(50, 40, 'landmass-test');
+      await largerMap.generateMap(testPlayers);
+      
+      const mapData = largerMap.getMapData()!;
+      let continentCounts = new Map<number, number>();
+      
+      // Count tiles per continent
+      for (let x = 0; x < mapData.width; x++) {
+        for (let y = 0; y < mapData.height; y++) {
+          const continentId = mapData.tiles[x][y].continentId;
+          continentCounts.set(continentId, (continentCounts.get(continentId) || 0) + 1);
+        }
+      }
+      
+      // Should have multiple continents/landmasses
+      expect(continentCounts.size).toBeGreaterThan(1);
+      
+      // Should have some variety in continent sizes
+      const continentSizes = Array.from(continentCounts.values());
+      const maxSize = Math.max(...continentSizes);
+      const minSize = Math.min(...continentSizes);
+      
+      expect(maxSize).toBeGreaterThan(minSize);
+    });
+
+    it('should generate realistic height distributions using diamond-square algorithm', () => {
+      const mapData = mapManager.getMapData()!;
+      let elevationCounts = new Array(256).fill(0);
+      
+      // Count elevation frequencies
+      for (let x = 0; x < mapData.width; x++) {
+        for (let y = 0; y < mapData.height; y++) {
+          const elevation = mapData.tiles[x][y].elevation;
+          elevationCounts[elevation]++;
+        }
+      }
+      
+      // Should have a reasonable distribution of elevations (not all same height)
+      const nonZeroCounts = elevationCounts.filter(count => count > 0);
+      expect(nonZeroCounts.length).toBeGreaterThan(3);
+      
+      // Should not have extreme concentration in any single elevation
+      const totalTiles = mapData.width * mapData.height;
+      const maxConcentration = Math.max(...elevationCounts) / totalTiles;
+      expect(maxConcentration).toBeLessThan(0.8); // No single elevation should dominate
+    });
+
+    it('should apply proper smoothing to height maps for natural terrain transitions', async () => {
+      // Create map and check for smooth elevation transitions
+      const mapData = mapManager.getMapData()!;
+      let extremeTransitionCount = 0;
+      const totalComparisons = (mapData.width - 1) * (mapData.height - 1) * 2; // Each tile compared to right and down neighbors
+      
+      for (let x = 0; x < mapData.width - 1; x++) {
+        for (let y = 0; y < mapData.height - 1; y++) {
+          const currentElevation = mapData.tiles[x][y].elevation;
+          const rightElevation = mapData.tiles[x + 1][y].elevation;
+          const downElevation = mapData.tiles[x][y + 1].elevation;
+          
+          // Check for extreme elevation differences between adjacent tiles
+          if (Math.abs(currentElevation - rightElevation) > 100) {
+            extremeTransitionCount++;
+          }
+          if (Math.abs(currentElevation - downElevation) > 100) {
+            extremeTransitionCount++;
+          }
+        }
+      }
+      
+      // Smoothing should reduce extreme transitions
+      const extremeTransitionRate = extremeTransitionCount / totalComparisons;
+      expect(extremeTransitionRate).toBeLessThan(0.3); // Less than 30% extreme transitions
+    });
+
+    it('should create ocean boundaries near map edges', async () => {
+      // Create larger map for better edge ocean generation
+      const largerMap = new MapManager(30, 25, 'ocean-edge-test');
+      await largerMap.generateMap(testPlayers);
+      
+      const mapData = largerMap.getMapData()!;
+      let edgeOceanCount = 0;
+      let totalEdgeTiles = 0;
+      
+      // Check map edges for ocean tiles
+      for (let x = 0; x < mapData.width; x++) {
+        // Top and bottom edges
+        totalEdgeTiles += 2;
+        if (mapData.tiles[x][0].terrain === 'ocean' || mapData.tiles[x][0].terrain === 'deep_ocean') {
+          edgeOceanCount++;
+        }
+        if (mapData.tiles[x][mapData.height - 1].terrain === 'ocean' || 
+            mapData.tiles[x][mapData.height - 1].terrain === 'deep_ocean') {
+          edgeOceanCount++;
+        }
+      }
+      
+      for (let y = 1; y < mapData.height - 1; y++) {
+        // Left and right edges (excluding corners already counted)
+        totalEdgeTiles += 2;
+        if (mapData.tiles[0][y].terrain === 'ocean' || mapData.tiles[0][y].terrain === 'deep_ocean') {
+          edgeOceanCount++;
+        }
+        if (mapData.tiles[mapData.width - 1][y].terrain === 'ocean' || 
+            mapData.tiles[mapData.width - 1][y].terrain === 'deep_ocean') {
+          edgeOceanCount++;
+        }
+      }
+      
+      // Fracture map system should create significant ocean presence at edges
+      const edgeOceanRate = edgeOceanCount / totalEdgeTiles;
+      expect(edgeOceanRate).toBeGreaterThan(0.3); // At least 30% of edge tiles should be ocean
+    });
+
+    it('should maintain elevation consistency with terrain types', () => {
+      const mapData = mapManager.getMapData()!;
+      let oceanElevations: number[] = [];
+      let mountainElevations: number[] = [];
+      let landElevations: number[] = [];
+      
+      for (let x = 0; x < mapData.width; x++) {
+        for (let y = 0; y < mapData.height; y++) {
+          const tile = mapData.tiles[x][y];
+          
+          if (tile.terrain === 'ocean' || tile.terrain === 'deep_ocean' || tile.terrain === 'coast') {
+            oceanElevations.push(tile.elevation);
+          } else if (tile.terrain === 'mountains') {
+            mountainElevations.push(tile.elevation);
+          } else {
+            landElevations.push(tile.elevation);
+          }
+        }
+      }
+      
+      if (oceanElevations.length > 0 && mountainElevations.length > 0) {
+        const avgOceanElevation = oceanElevations.reduce((sum, e) => sum + e, 0) / oceanElevations.length;
+        const avgMountainElevation = mountainElevations.reduce((sum, e) => sum + e, 0) / mountainElevations.length;
+        
+        // Mountains should generally be higher than oceans
+        expect(avgMountainElevation).toBeGreaterThan(avgOceanElevation);
+      }
+    });
+
+    it('should generate reproducible height maps with same seed', async () => {
+      const map1 = new MapManager(15, 12, 'height-repro-test');
+      const map2 = new MapManager(15, 12, 'height-repro-test');
+      
+      await map1.generateMap(testPlayers);
+      await map2.generateMap(testPlayers);
+      
+      const data1 = map1.getMapData()!;
+      const data2 = map2.getMapData()!;
+      
+      // Compare elevations - should be identical with same seed
+      let identicalElevations = 0;
+      let totalTiles = 0;
+      
+      for (let x = 0; x < data1.width; x++) {
+        for (let y = 0; y < data1.height; y++) {
+          totalTiles++;
+          if (data1.tiles[x][y].elevation === data2.tiles[x][y].elevation) {
+            identicalElevations++;
+          }
+        }
+      }
+      
+      // With fractal generation and same seed, elevations should be highly consistent
+      const matchRate = identicalElevations / totalTiles;
+      expect(matchRate).toBeGreaterThan(0.95); // 95% of elevations should match
+    });
+
+    it('should handle different map sizes with fractal algorithms', async () => {
+      const smallMap = new MapManager(10, 8, 'small-fractal');
+      const largeMap = new MapManager(60, 45, 'large-fractal');
+      
+      await smallMap.generateMap(testPlayers);
+      await largeMap.generateMap(testPlayers);
+      
+      const smallData = smallMap.getMapData()!;
+      const largeData = largeMap.getMapData()!;
+      
+      // Both maps should have valid elevation ranges
+      for (const mapData of [smallData, largeData]) {
+        let minElevation = 255;
+        let maxElevation = 0;
+        
+        for (let x = 0; x < mapData.width; x++) {
+          for (let y = 0; y < mapData.height; y++) {
+            const elevation = mapData.tiles[x][y].elevation;
+            minElevation = Math.min(minElevation, elevation);
+            maxElevation = Math.max(maxElevation, elevation);
+          }
+        }
+        
+        // Should have reasonable elevation range
+        expect(maxElevation > minElevation).toBe(true);
+        expect(maxElevation).toBeGreaterThan(50); // Some significant height variation
+      }
+    });
+  });
 });
