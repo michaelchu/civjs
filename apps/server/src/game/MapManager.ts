@@ -1062,6 +1062,213 @@ class TerrainSelectionEngine {
   }
 }
 
+// Phase 5: Advanced Terrain Placement - Island Generation System
+// Port from freeciv/server/generator/mapgen.c:2094-2500
+
+// Generator state tracking for island-based generation
+interface IslandGeneratorState {
+  isleIndex: number;
+  totalMass: number;
+  n: number; // North boundary
+  s: number; // South boundary
+  e: number; // East boundary
+  w: number; // West boundary
+  heightMap: number[][];
+  placedMap: boolean[][]; // Tracks which tiles have been placed
+}
+
+// Terrain percentage configuration (matches freeciv defaults)
+interface TerrainPercentages {
+  river: number;
+  mountain: number;
+  desert: number;
+  forest: number;
+  swamp: number;
+}
+
+// Bucket state for terrain distribution (replaces static variables)
+interface BucketState {
+  balance: number;
+  lastPlaced: number;
+  riverBucket: number;
+  mountainBucket: number;
+  desertBucket: number;
+  forestBucket: number;
+  swampBucket: number;
+  tileFactor: number;
+}
+
+// Bucket-based terrain distribution system (for future use)
+// interface TerrainBucket {
+//   value: number;
+//   terrain: TerrainType[];
+//   weight: number[];
+//   coastChance: number; // Percentage chance to place near coast
+// }
+
+// Island terrain selection lists (port from island_terrain_init())
+class IslandTerrainLists {
+  forest: TerrainSelector[];
+  desert: TerrainSelector[];
+  mountain: TerrainSelector[];
+  swamp: TerrainSelector[];
+  initialized: boolean = false;
+
+  constructor() {
+    this.forest = [];
+    this.desert = [];
+    this.mountain = [];
+    this.swamp = [];
+  }
+
+  initialize(): void {
+    if (this.initialized) return;
+
+    // Forest terrain selection (from freeciv mapgen.c:2018-2030)
+    this.forest = [
+      {
+        terrain: 'forest',
+        weight: 50,
+        target: TerrainProperty.GREEN,
+        prefer: TerrainProperty.FOLIAGE,
+        avoid: TerrainProperty.DRY,
+        tempCondition: TemperatureType.TEMPERATE,
+        wetCondition: WetnessCondition.NDRY,
+      },
+      {
+        terrain: 'jungle',
+        weight: 60,
+        target: TerrainProperty.FOLIAGE,
+        prefer: TerrainProperty.TROPICAL,
+        avoid: TerrainProperty.COLD,
+        tempCondition: TemperatureType.TROPICAL,
+        wetCondition: WetnessCondition.ALL,
+      },
+      {
+        terrain: 'plains',
+        weight: 30,
+        target: TerrainProperty.GREEN,
+        prefer: TerrainProperty.TEMPERATE,
+        avoid: TerrainProperty.MOUNTAINOUS,
+        tempCondition: TemperatureType.TEMPERATE,
+        wetCondition: WetnessCondition.ALL,
+      },
+      {
+        terrain: 'grassland',
+        weight: 40,
+        target: TerrainProperty.GREEN,
+        prefer: TerrainProperty.WET,
+        avoid: TerrainProperty.DRY,
+        tempCondition: TemperatureType.TEMPERATE,
+        wetCondition: WetnessCondition.NDRY,
+      },
+    ];
+
+    // Desert terrain selection (from freeciv mapgen.c:2033-2045)
+    this.desert = [
+      {
+        terrain: 'desert',
+        weight: 80,
+        target: TerrainProperty.DRY,
+        prefer: TerrainProperty.TROPICAL,
+        avoid: TerrainProperty.WET,
+        tempCondition: TemperatureType.TROPICAL,
+        wetCondition: WetnessCondition.DRY,
+      },
+      {
+        terrain: 'tundra',
+        weight: 60,
+        target: TerrainProperty.COLD,
+        prefer: TerrainProperty.DRY,
+        avoid: TerrainProperty.TROPICAL,
+        tempCondition: TemperatureType.COLD,
+        wetCondition: WetnessCondition.ALL,
+      },
+      {
+        terrain: 'plains',
+        weight: 20,
+        target: TerrainProperty.DRY,
+        prefer: TerrainProperty.TEMPERATE,
+        avoid: TerrainProperty.WET,
+        tempCondition: TemperatureType.TEMPERATE,
+        wetCondition: WetnessCondition.DRY,
+      },
+      {
+        terrain: 'hills',
+        weight: 30,
+        target: TerrainProperty.DRY,
+        prefer: TerrainProperty.MOUNTAINOUS,
+        avoid: TerrainProperty.WET,
+        tempCondition: TemperatureType.TEMPERATE,
+        wetCondition: WetnessCondition.DRY,
+      },
+    ];
+
+    // Mountain terrain selection (from freeciv mapgen.c:2048-2054)
+    this.mountain = [
+      {
+        terrain: 'mountains',
+        weight: 70,
+        target: TerrainProperty.MOUNTAINOUS,
+        prefer: TerrainProperty.COLD,
+        avoid: TerrainProperty.OCEAN_DEPTH,
+        tempCondition: TemperatureType.COLD,
+        wetCondition: WetnessCondition.ALL,
+      },
+      {
+        terrain: 'hills',
+        weight: 60,
+        target: TerrainProperty.MOUNTAINOUS,
+        prefer: TerrainProperty.TEMPERATE,
+        avoid: TerrainProperty.OCEAN_DEPTH,
+        tempCondition: TemperatureType.TEMPERATE,
+        wetCondition: WetnessCondition.ALL,
+      },
+    ];
+
+    // Swamp terrain selection (from freeciv mapgen.c:2057-2066)
+    this.swamp = [
+      {
+        terrain: 'swamp',
+        weight: 80,
+        target: TerrainProperty.WET,
+        prefer: TerrainProperty.TROPICAL,
+        avoid: TerrainProperty.MOUNTAINOUS,
+        tempCondition: TemperatureType.TROPICAL,
+        wetCondition: WetnessCondition.NDRY,
+      },
+      {
+        terrain: 'jungle',
+        weight: 50,
+        target: TerrainProperty.WET,
+        prefer: TerrainProperty.FOLIAGE,
+        avoid: TerrainProperty.DRY,
+        tempCondition: TemperatureType.TROPICAL,
+        wetCondition: WetnessCondition.NDRY,
+      },
+      {
+        terrain: 'grassland',
+        weight: 30,
+        target: TerrainProperty.WET,
+        prefer: TerrainProperty.GREEN,
+        avoid: TerrainProperty.DRY,
+        tempCondition: TemperatureType.TEMPERATE,
+        wetCondition: WetnessCondition.NDRY,
+      },
+    ];
+
+    this.initialized = true;
+  }
+
+  cleanup(): void {
+    this.forest = [];
+    this.desert = [];
+    this.mountain = [];
+    this.swamp = [];
+    this.initialized = false;
+  }
+}
+
 export class MapManager {
   private width: number;
   private height: number;
@@ -1069,11 +1276,31 @@ export class MapManager {
   private seed: string;
   private temperatureMap: TemperatureMap;
 
+  // Phase 5: Island generation system
+  private islandTerrainLists: IslandTerrainLists;
+  private terrainPercentages: TerrainPercentages;
+  private random: () => number;
+  private bucketState?: BucketState;
+
   constructor(width: number, height: number, seed?: string) {
     this.width = width;
     this.height = height;
     this.seed = seed || this.generateSeed();
     this.temperatureMap = new TemperatureMap(width, height);
+    this.random = this.createSeededRandom(this.seed);
+
+    // Initialize island generation system
+    this.islandTerrainLists = new IslandTerrainLists();
+
+    // Default terrain percentages (from freeciv mapgen.c:1498-1512)
+    // These will be calculated based on map settings in production
+    this.terrainPercentages = {
+      river: 15, // Base 15% river coverage
+      mountain: 25, // 25% mountainous terrain
+      desert: 20, // 20% arid terrain
+      forest: 30, // 30% forested areas
+      swamp: 10, // 10% wetlands
+    };
   }
 
   public async generateMap(players: Map<string, PlayerState>): Promise<void> {
@@ -1144,7 +1371,7 @@ export class MapManager {
   }
 
   private async generateTerrain(tiles: MapTile[][]): Promise<void> {
-    const random = this.createSeededRandom();
+    const random = this.createSeededRandom(this.seed);
     const terrainSelector = new TerrainSelectionEngine(random);
 
     // Phase 2: Generate climate data first
@@ -1518,7 +1745,7 @@ export class MapManager {
   }
 
   private async generateRivers(tiles: MapTile[][]): Promise<void> {
-    const random = this.createSeededRandom();
+    const random = this.createSeededRandom(this.seed);
     const riverCount = Math.floor((this.width * this.height) / 800); // About 1 river per 800 tiles
 
     for (let i = 0; i < riverCount; i++) {
@@ -1589,7 +1816,7 @@ export class MapManager {
   }
 
   private async generateResources(tiles: MapTile[][]): Promise<void> {
-    const random = this.createSeededRandom();
+    const random = this.createSeededRandom(this.seed);
 
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
@@ -1868,30 +2095,25 @@ export class MapManager {
     return x >= 0 && x < this.width && y >= 0 && y < this.height;
   }
 
-  private createSeededRandom(): () => number {
-    // Simple seeded random number generator
-    let seed = this.stringToSeed(this.seed);
-
-    return function () {
-      seed = (seed * 9301 + 49297) % 233280;
-      return seed / 233280;
-    };
-  }
-
-  private stringToSeed(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash);
-  }
-
   private generateSeed(): string {
     return (
       Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
     );
+  }
+
+  private createSeededRandom(seed: string): () => number {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      const char = seed.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+
+    // Linear congruential generator
+    return () => {
+      hash = (hash * 1664525 + 1013904223) & 0x7fffffff;
+      return hash / 0x80000000;
+    };
   }
 
   public getMapData(): MapData | null {
@@ -2035,5 +2257,605 @@ export class MapManager {
       }
     }
     return false;
+  }
+
+  // Phase 5: Island Generation System Implementation
+  // Port from freeciv/server/generator/mapgen.c:2094-2500
+
+  /**
+   * Generate map using island-based algorithm (Phase 5 entry point)
+   */
+  public async generateMapWithIslands(players: Map<string, PlayerState>): Promise<void> {
+    logger.info('Generating map with island system', {
+      width: this.width,
+      height: this.height,
+      seed: this.seed,
+    });
+
+    const startTime = Date.now();
+
+    // Initialize map structure
+    const tiles: MapTile[][] = [];
+    for (let x = 0; x < this.width; x++) {
+      tiles[x] = [];
+      for (let y = 0; y < this.height; y++) {
+        tiles[x][y] = this.createBaseTile(x, y);
+      }
+    }
+
+    // Initialize climate and height data first (from Phase 4)
+    this.generateClimateData(tiles, this.random);
+    this.generateWetnessMap(tiles, this.random);
+
+    // Initialize world for island generation
+    const state = this.initializeWorldForIslands(tiles);
+
+    // Initialize bucket system
+    this.makeIsland(0, 0, state, tiles, 0);
+
+    // Generate islands based on player count and map size
+    const numMajorIslands = Math.max(2, Math.min(8, players.size + 2));
+    const majorIslandSize = Math.floor(state.totalMass / numMajorIslands);
+
+    logger.info(`Generating ${numMajorIslands} major islands, size: ${majorIslandSize} each`);
+
+    // Create major islands
+    for (let i = 0; i < numMajorIslands; i++) {
+      const starters = i < players.size ? 1 : 0; // First N islands get starters
+
+      if (!this.makeIsland(majorIslandSize, starters, state, tiles)) {
+        logger.warn(`Failed to create major island ${i + 1}`);
+      }
+    }
+
+    // Create smaller islands with remaining landmass
+    const remainingMass = state.totalMass - numMajorIslands * majorIslandSize;
+    const numSmallIslands = Math.floor(remainingMass / 100);
+
+    for (let i = 0; i < numSmallIslands; i++) {
+      const smallSize = Math.floor(this.random() * 200) + 50;
+      this.makeIsland(smallSize, 0, state, tiles);
+    }
+
+    // Cleanup terrain lists
+    this.islandTerrainLists.cleanup();
+
+    // Apply final terrain improvements
+    this.applyBiomeTransitions(tiles, this.random);
+
+    // Generate resources
+    await this.generateResources(tiles);
+
+    // Find suitable starting positions
+    const startingPositions = await this.generateStartingPositions(tiles, players);
+
+    this.mapData = {
+      width: this.width,
+      height: this.height,
+      tiles,
+      startingPositions,
+      seed: this.seed,
+      generatedAt: new Date(),
+    };
+
+    const endTime = Date.now();
+    logger.info(`Island-based map generation completed in ${endTime - startTime}ms`);
+  }
+
+  /**
+   * Initialize the world for island-based generation (port from initworld())
+   */
+  private initializeWorldForIslands(tiles: MapTile[][]): IslandGeneratorState {
+    // Fill all tiles with deep ocean initially
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        tiles[x][y].terrain = 'deep_ocean';
+        tiles[x][y].continentId = 0;
+      }
+    }
+
+    // Initialize state
+    const state: IslandGeneratorState = {
+      isleIndex: 1,
+      totalMass: Math.floor((this.width * this.height * 30) / 100), // 30% land coverage
+      n: 0,
+      s: this.height,
+      e: this.width,
+      w: 0,
+      heightMap: Array(this.width)
+        .fill(null)
+        .map(() => Array(this.height).fill(0)),
+      placedMap: Array(this.width)
+        .fill(null)
+        .map(() => Array(this.height).fill(false)),
+    };
+
+    // Initialize terrain selection lists
+    this.islandTerrainLists.initialize();
+
+    return state;
+  }
+
+  /**
+   * Core make_island function (port from freeciv mapgen.c:2094-2202)
+   */
+  private makeIsland(
+    islandMass: number,
+    _starters: number,
+    state: IslandGeneratorState,
+    tiles: MapTile[][],
+    minSpecificIslandSize: number = 10
+  ): boolean {
+    // Static buckets for terrain distribution (like freeciv's bucket system)
+    // Convert to instance variables for TypeScript compatibility
+    if (!this.bucketState) {
+      this.bucketState = {
+        balance: 0,
+        lastPlaced: 0,
+        riverBucket: 0,
+        mountainBucket: 0,
+        desertBucket: 0,
+        forestBucket: 0,
+        swampBucket: 0,
+        tileFactor: 0,
+      };
+    }
+
+    const buckets = this.bucketState;
+
+    if (islandMass === 0) {
+      // Initialization call (islemass == 0 case from freeciv)
+      buckets.balance = 0;
+      state.isleIndex = 1; // Start with continent 1
+
+      if (state.totalMass > 3000) {
+        logger.info('High landmass - this may take a few seconds.');
+      }
+
+      // Calculate terrain distribution factor
+      const totalPercent =
+        this.terrainPercentages.river +
+        this.terrainPercentages.mountain +
+        this.terrainPercentages.desert +
+        this.terrainPercentages.forest +
+        this.terrainPercentages.swamp;
+
+      const normalizedPercent = totalPercent <= 90 ? 100 : (totalPercent * 11) / 10;
+      buckets.tileFactor = Math.floor(state.totalMass / normalizedPercent);
+
+      // Initialize buckets with random offsets (like freeciv)
+      buckets.riverBucket = -Math.floor(this.random() * state.totalMass);
+      buckets.mountainBucket = -Math.floor(this.random() * state.totalMass);
+      buckets.desertBucket = -Math.floor(this.random() * state.totalMass);
+      buckets.forestBucket = -Math.floor(this.random() * state.totalMass);
+      buckets.swampBucket = -Math.floor(this.random() * state.totalMass);
+      buckets.lastPlaced = state.totalMass;
+
+      return true;
+    }
+
+    // Actual island creation
+    islandMass = Math.max(0, islandMass - buckets.balance);
+
+    // Don't create islands we can't place
+    if (islandMass > buckets.lastPlaced + 1 + Math.floor(buckets.lastPlaced / 50)) {
+      islandMass = buckets.lastPlaced + 1 + Math.floor(buckets.lastPlaced / 50);
+    }
+
+    // Size limits based on map dimensions
+    const maxHeight = Math.pow(this.height - 6, 2);
+    const maxWidth = Math.pow(this.width - 2, 2);
+
+    if (islandMass > maxHeight) {
+      islandMass = maxHeight;
+    }
+    if (islandMass > maxWidth) {
+      islandMass = maxWidth;
+    }
+
+    let currentSize = islandMass;
+    if (currentSize <= 0) {
+      return false;
+    }
+
+    logger.debug(`Creating island ${state.isleIndex}`);
+
+    // Try to place the island with decreasing size until successful
+    while (!this.createIsland(currentSize, state, tiles)) {
+      if (currentSize < (islandMass * minSpecificIslandSize) / 100) {
+        return false;
+      }
+      currentSize--;
+    }
+
+    currentSize++;
+    buckets.lastPlaced = currentSize;
+
+    // Update balance
+    if (currentSize * 10 > islandMass) {
+      buckets.balance = currentSize - islandMass;
+    } else {
+      buckets.balance = 0;
+    }
+
+    logger.debug(
+      `Island ${state.isleIndex}: planned=${islandMass}, placed=${currentSize}, balance=${buckets.balance}`
+    );
+
+    // Distribute terrain using bucket system
+    const terrainFactor = currentSize * buckets.tileFactor;
+
+    // Rivers first
+    buckets.riverBucket += this.terrainPercentages.river * terrainFactor;
+    this.fillIslandRivers(1, buckets.riverBucket, state, tiles);
+
+    // Forest terrain
+    buckets.forestBucket += this.terrainPercentages.forest * terrainFactor;
+    this.fillIsland(60, buckets.forestBucket, this.islandTerrainLists.forest, state, tiles);
+
+    // Desert terrain
+    buckets.desertBucket += this.terrainPercentages.desert * terrainFactor;
+    this.fillIsland(40, buckets.desertBucket, this.islandTerrainLists.desert, state, tiles);
+
+    // Mountain terrain
+    buckets.mountainBucket += this.terrainPercentages.mountain * terrainFactor;
+    this.fillIsland(20, buckets.mountainBucket, this.islandTerrainLists.mountain, state, tiles);
+
+    // Swamp terrain
+    buckets.swampBucket += this.terrainPercentages.swamp * terrainFactor;
+    this.fillIsland(80, buckets.swampBucket, this.islandTerrainLists.swamp, state, tiles);
+
+    state.isleIndex++;
+    return true;
+  }
+
+  /**
+   * Create island shape using height map (port from create_island())
+   */
+  private createIsland(
+    islandMass: number,
+    state: IslandGeneratorState,
+    tiles: MapTile[][]
+  ): boolean {
+    const tries = islandMass * (2 + Math.floor(islandMass / 20)) + 99;
+    let remainingMass = islandMass - 1;
+
+    // Clear height map
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        state.heightMap[x][y] = 0;
+      }
+    }
+
+    // Start from center
+    const centerX = Math.floor(this.width / 2);
+    const centerY = Math.floor(this.height / 2);
+    state.heightMap[centerX][centerY] = 1;
+
+    // Initialize bounds
+    state.n = centerY - 1;
+    state.s = centerY + 2;
+    state.w = centerX - 1;
+    state.e = centerX + 2;
+
+    let attempts = tries;
+    while (remainingMass > 0 && attempts > 0) {
+      // Pick random position within current bounds
+      const x = Math.floor(this.random() * (state.e - state.w)) + state.w;
+      const y = Math.floor(this.random() * (state.s - state.n)) + state.n;
+
+      if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+        if (state.heightMap[x][y] === 0 && this.countAdjacentElevatedTiles(x, y, state) > 0) {
+          state.heightMap[x][y] = 1;
+          remainingMass--;
+
+          // Expand bounds if necessary
+          if (y >= state.s - 1 && state.s < this.height - 2) state.s++;
+          if (x >= state.e - 1 && state.e < this.width - 2) state.e++;
+          if (y <= state.n && state.n > 2) state.n--;
+          if (x <= state.w && state.w > 2) state.w--;
+        }
+      }
+
+      // Fill holes when getting close to completion
+      if (remainingMass < Math.floor(islandMass / 10)) {
+        remainingMass = this.fillIslandHoles(remainingMass, state);
+      }
+
+      attempts--;
+    }
+
+    if (attempts <= 0) {
+      logger.warn(`create_island ended early with ${remainingMass}/${islandMass} remaining`);
+    }
+
+    // Apply height map to actual terrain
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        if (state.heightMap[x][y] > 0) {
+          tiles[x][y].terrain = 'grassland'; // Default land terrain
+          tiles[x][y].continentId = state.isleIndex;
+          state.placedMap[x][y] = false; // Mark as land but not terrain-placed yet
+        }
+      }
+    }
+
+    return remainingMass <= Math.floor(islandMass / 4); // Success if we placed at least 75%
+  }
+
+  private countAdjacentElevatedTiles(x: number, y: number, state: IslandGeneratorState): number {
+    let count = 0;
+    const neighbors = [
+      [x - 1, y],
+      [x + 1, y],
+      [x, y - 1],
+      [x, y + 1],
+    ];
+
+    for (const [nx, ny] of neighbors) {
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (state.heightMap[nx][ny] > 0) count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Fill island with specific terrain type (port from fill_island())
+   */
+  private fillIsland(
+    coastChance: number,
+    bucket: number,
+    terrainSelectors: TerrainSelector[],
+    state: IslandGeneratorState,
+    tiles: MapTile[][]
+  ): void {
+    if (bucket <= 0 || terrainSelectors.length === 0) {
+      return;
+    }
+
+    const capacity = state.totalMass;
+    let tilesToPlace = Math.floor(bucket / capacity) + 1;
+    bucket -= tilesToPlace * capacity;
+
+    const originalTiles = tilesToPlace;
+    const maxAttempts = tilesToPlace * (state.s - state.n) * (state.e - state.w);
+
+    // Calculate total weight for weighted selection
+    const totalWeight = terrainSelectors.reduce((sum, sel) => sum + sel.weight, 0);
+    if (totalWeight <= 0) return;
+
+    let attempts = Math.abs(maxAttempts);
+    while (tilesToPlace > 0 && attempts > 0) {
+      // Pick random position within island bounds
+      const x = Math.floor(this.random() * (state.e - state.w)) + state.w;
+      const y = Math.floor(this.random() * (state.s - state.n)) + state.n;
+
+      if (
+        x >= 0 &&
+        x < this.width &&
+        y >= 0 &&
+        y < this.height &&
+        tiles[x][y].continentId === state.isleIndex &&
+        !state.placedMap[x][y]
+      ) {
+        // Weighted terrain selection
+        const selector = this.selectTerrainFromList(terrainSelectors, totalWeight);
+        if (!selector) {
+          attempts--;
+          continue;
+        }
+
+        // Check climate conditions
+        const tile = tiles[x][y];
+        if (
+          !this.testTemperatureCondition(tile.temperature, selector.tempCondition) ||
+          !this.testWetnessCondition(tile.wetness, selector.wetCondition)
+        ) {
+          attempts--;
+          continue;
+        }
+
+        // Get terrain using property-based selection
+        const terrain = this.selectTerrainByProperties(
+          tile,
+          selector.target,
+          selector.prefer,
+          selector.avoid
+        );
+
+        // Apply placement rules (contiguity and coast distance)
+        const shouldPlace =
+          (tilesToPlace * 3 > originalTiles * 2 || // Place more aggressively when quota is high
+            this.random() < 0.5 || // 50% random chance
+            this.isTerrainNearby(x, y, terrain, tiles)) && // Encourage contiguous placement
+          (!this.isCoastNearby(x, y, tiles) || this.random() * 100 < coastChance); // Coast distance rule
+
+        if (shouldPlace) {
+          tiles[x][y].terrain = terrain;
+          state.placedMap[x][y] = true;
+          tilesToPlace--;
+
+          logger.debug(`[fill_island] placed terrain '${terrain}' at (${x}, ${y})`);
+        }
+      }
+
+      attempts--;
+    }
+  }
+
+  private fillIslandRivers(
+    _coastChance: number,
+    bucket: number,
+    state: IslandGeneratorState,
+    tiles: MapTile[][]
+  ): void {
+    if (bucket <= 0) return;
+
+    const capacity = state.totalMass;
+    let tilesToPlace = Math.floor(bucket / capacity) + 1;
+
+    let attempts = tilesToPlace * 10;
+    while (tilesToPlace > 0 && attempts > 0) {
+      const x = Math.floor(this.random() * (state.e - state.w)) + state.w;
+      const y = Math.floor(this.random() * (state.s - state.n)) + state.n;
+
+      if (
+        x >= 0 &&
+        x < this.width &&
+        y >= 0 &&
+        y < this.height &&
+        tiles[x][y].continentId === state.isleIndex &&
+        tiles[x][y].riverMask === 0
+      ) {
+        // Simple river placement - could be enhanced with flow algorithms
+        tiles[x][y].riverMask = this.generateRiverMask(x, y, tiles);
+        tilesToPlace--;
+      }
+      attempts--;
+    }
+  }
+
+  private selectTerrainFromList(
+    terrainSelectors: TerrainSelector[],
+    totalWeight: number
+  ): TerrainSelector | null {
+    let randomValue = this.random() * totalWeight;
+
+    for (const selector of terrainSelectors) {
+      randomValue -= selector.weight;
+      if (randomValue <= 0) {
+        return selector;
+      }
+    }
+    return terrainSelectors[0]; // Fallback
+  }
+
+  private testTemperatureCondition(tileTemp: TemperatureType, condition: TemperatureType): boolean {
+    return (tileTemp & condition) !== 0;
+  }
+
+  private testWetnessCondition(wetness: number, condition: WetnessCondition): boolean {
+    switch (condition) {
+      case WetnessCondition.DRY:
+        return wetness < 30;
+      case WetnessCondition.NDRY:
+        return wetness >= 30;
+      case WetnessCondition.ALL:
+      default:
+        return true;
+    }
+  }
+
+  private selectTerrainByProperties(
+    _tile: MapTile,
+    target: TerrainProperty,
+    prefer: TerrainProperty,
+    avoid: TerrainProperty
+  ): TerrainType {
+    // Use existing terrain selection logic with property weights
+    const candidates: Array<{ terrain: TerrainType; score: number }> = [];
+
+    for (const terrain of Object.keys(TERRAIN_PROPERTY_MAP) as TerrainType[]) {
+      const properties = TERRAIN_PROPERTY_MAP[terrain];
+
+      let score = properties[target] || 0;
+      score += (properties[prefer] || 0) * 0.5;
+      score -= (properties[avoid] || 0) * 0.8;
+
+      if (score > 0) {
+        candidates.push({ terrain, score });
+      }
+    }
+
+    if (candidates.length === 0) {
+      return 'grassland'; // Safe fallback
+    }
+
+    // Weighted selection
+    const totalScore = candidates.reduce((sum, c) => sum + c.score, 0);
+    let randomValue = this.random() * totalScore;
+
+    for (const candidate of candidates) {
+      randomValue -= candidate.score;
+      if (randomValue <= 0) {
+        return candidate.terrain;
+      }
+    }
+
+    return candidates[0].terrain;
+  }
+
+  private isTerrainNearby(x: number, y: number, terrain: TerrainType, tiles: MapTile[][]): boolean {
+    const neighbors = [
+      [x - 1, y],
+      [x + 1, y],
+      [x, y - 1],
+      [x, y + 1],
+    ];
+
+    for (const [nx, ny] of neighbors) {
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (tiles[nx][ny].terrain === terrain) return true;
+      }
+    }
+    return false;
+  }
+
+  private isCoastNearby(x: number, y: number, tiles: MapTile[][]): boolean {
+    const neighbors = [
+      [x - 1, y],
+      [x + 1, y],
+      [x, y - 1],
+      [x, y + 1],
+    ];
+
+    for (const [nx, ny] of neighbors) {
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const terrain = tiles[nx][ny].terrain;
+        if (terrain === 'ocean' || terrain === 'coast' || terrain === 'deep_ocean') {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private fillIslandHoles(remainingMass: number, state: IslandGeneratorState): number {
+    for (let y = state.n; y < state.s; y++) {
+      for (let x = state.w; x < state.e; x++) {
+        if (
+          state.heightMap[x][y] === 0 &&
+          remainingMass > 0 &&
+          this.countAdjacentElevatedTiles(x, y, state) === 4
+        ) {
+          state.heightMap[x][y] = 1;
+          remainingMass--;
+        }
+      }
+    }
+    return remainingMass;
+  }
+
+  private generateRiverMask(x: number, y: number, _tiles: MapTile[][]): number {
+    // Simple river mask generation - could be enhanced
+    let mask = 0;
+    const neighbors = [
+      [x, y - 1, 1], // North = 1
+      [x + 1, y, 2], // East = 2
+      [x, y + 1, 4], // South = 4
+      [x - 1, y, 8], // West = 8
+    ];
+
+    for (const [nx, ny, bit] of neighbors) {
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (this.random() < 0.3) {
+          // 30% chance for river connection
+          mask |= bit;
+        }
+      }
+    }
+
+    return mask;
   }
 }
