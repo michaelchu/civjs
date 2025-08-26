@@ -229,6 +229,7 @@ lake: ['fish'],                  // Based on freeciv reference
 ### Reference Files
 - `reference/freeciv/server/generator/mapgen.c:555-1150` - Core river generation algorithms
 - `reference/freeciv/server/generator/mapgen.c:1731-1823` - Island river placement system
+- `doc/freeciv-references-phase6.md` - Complete Phase 6 function references and documentation
 
 ---
 
@@ -475,6 +476,7 @@ ocean.png: ocean depth layers (coast/shelf/deep)
 - **Documentation**: `/root/repo/doc/`
 - **Phase 4 Function References**: `/root/repo/doc/freeciv-references-phase4.md`
 - **Phase 5 Function References**: `/root/repo/doc/freeciv-references-phase5.md`
+- **Phase 6 Function References**: `/root/repo/doc/freeciv-references-phase6.md`
 
 ## Project Status: 🚧 **IN PROGRESS** - Phase 1 ✅ Complete, Phase 2 ✅ Complete, Phase 3 ✅ Complete, Phase 4 ✅ Complete, Phase 5 ✅ Complete (with simplified fair islands), Phase 6 ✅ Complete, Ready for Phase 7. **Phase 8 planned** to address complete fair islands multiplayer algorithm.
 
