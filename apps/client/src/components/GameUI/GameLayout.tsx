@@ -33,10 +33,7 @@ export const GameLayout: React.FC = () => {
 
     return {
       width: Math.max(800, dimensions.width - padding),
-      height: Math.max(
-        600,
-        dimensions.height - headerHeight - padding
-      ),
+      height: Math.max(600, dimensions.height - headerHeight - padding),
     };
   };
 
