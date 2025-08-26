@@ -569,9 +569,15 @@ export class MapManager {
   }
 
   private generateSeed(): string {
-    return (
-      Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+    // Use timestamp + random values + performance counter for better uniqueness
+    const timestamp = Date.now().toString(36);
+    const random1 = Math.random().toString(36).substring(2, 15);
+    const random2 = Math.random().toString(36).substring(2, 15);
+    const performanceNow = (typeof performance !== 'undefined' ? performance.now() : 0).toString(
+      36
     );
+
+    return `${timestamp}-${random1}-${random2}-${performanceNow}`.replace(/\./g, '');
   }
 
   private createSeededRandom(seed: string): () => number {
