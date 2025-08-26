@@ -28,15 +28,14 @@ export const GameLayout: React.FC = () => {
   }, []);
 
   const calculateCanvasSize = () => {
-    const headerHeight = 60; // Tab header height
-    const statusHeight = 40; // Status bar height
-    const padding = 20;
+    const headerHeight = 60; // Combined tab header and status bar height
+    const padding = 0; // Remove padding to use full space
 
     return {
       width: Math.max(800, dimensions.width - padding),
       height: Math.max(
         600,
-        dimensions.height - headerHeight - statusHeight - padding
+        dimensions.height - headerHeight - padding
       ),
     };
   };
