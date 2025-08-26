@@ -52,7 +52,14 @@ export class MapManager {
     this.random = this.createSeededRandom(this.seed);
 
     // Initialize sub-generators with generator type
-    this.heightGenerator = new FractalHeightGenerator(width, height, this.random, 30, 100, this.generator);
+    this.heightGenerator = new FractalHeightGenerator(
+      width,
+      height,
+      this.random,
+      30,
+      100,
+      this.generator
+    );
     this.temperatureMap = new TemperatureMap(width, height);
     this.islandGenerator = new IslandGenerator(width, height, this.random);
     this.riverGenerator = new RiverGenerator(width, height, this.random);

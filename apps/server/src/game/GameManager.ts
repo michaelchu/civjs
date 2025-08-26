@@ -285,7 +285,11 @@ export class GameManager {
     logger.info('Game started successfully', { gameId });
   }
 
-  private async initializeGameInstance(gameId: string, game: any, terrainSettings?: TerrainSettings): Promise<void> {
+  private async initializeGameInstance(
+    gameId: string,
+    game: any,
+    terrainSettings?: TerrainSettings
+  ): Promise<void> {
     logger.info('Initializing game instance', { gameId });
 
     // Create player state map
