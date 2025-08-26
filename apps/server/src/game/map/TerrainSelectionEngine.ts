@@ -182,9 +182,13 @@ const TERRAIN_SELECTORS: TerrainSelector[] = [
 
 export class TerrainSelectionEngine {
   private random: () => number;
+  private shoreLevel: number;
+  private mountainLevel: number;
 
-  constructor(random: () => number) {
+  constructor(random: () => number, shoreLevel: number = 64, mountainLevel: number = 191) {
     this.random = random;
+    this.shoreLevel = shoreLevel;
+    this.mountainLevel = mountainLevel;
   }
 
   /**
@@ -200,14 +204,13 @@ export class TerrainSelectionEngine {
     tileWetness: number,
     elevation: number
   ): TerrainType {
-    // Water terrains based on elevation and climate (Phase 3 enhancement)
-    // Height is normalized to 0-255, so adjust thresholds accordingly
-    if (elevation < 40) return 'deep_ocean';
-    if (elevation < 80) return 'ocean';
-    if (elevation < 100) return 'coast';
+    // Water terrains based on elevation using freeciv reference shore levels
+    if (elevation < this.shoreLevel * 0.5) return 'deep_ocean';
+    if (elevation < this.shoreLevel * 0.8) return 'ocean';
+    if (elevation < this.shoreLevel) return 'coast';
 
     // Enhanced inland water placement with climate consideration
-    if (elevation < 120 && tileWetness > 80) {
+    if (elevation < this.shoreLevel * 1.2 && tileWetness > 80) {
       // Higher chance of lakes in temperate zones
       const lakeChance = tileTemp & TemperatureType.TEMPERATE ? 0.08 : 0.05;
       if (this.random() < lakeChance) {
@@ -260,9 +263,9 @@ export class TerrainSelectionEngine {
       const avoidValue = properties[selector.avoid] || 0;
       score -= avoidValue * 0.5; // Stronger penalty
 
-      // Climate-elevation synergy bonuses
+      // Climate-elevation synergy bonuses using freeciv reference mountain level
       if (selector.terrain === 'mountains' || selector.terrain === 'hills') {
-        score += Math.max(0, elevation - 100) * 0.25;
+        score += Math.max(0, elevation - this.mountainLevel) * 0.25;
         // Cold mountains get extra bonus
         if (tileTemp & (TemperatureType.COLD | TemperatureType.FROZEN)) {
           score *= 1.2;

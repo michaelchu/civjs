@@ -29,7 +29,6 @@ export class MapManager {
   // Sub-generators
   private heightGenerator: FractalHeightGenerator;
   private temperatureMap: TemperatureMap;
-  private terrainEngine: TerrainSelectionEngine;
   private islandGenerator: IslandGenerator;
   private riverGenerator: RiverGenerator;
   private resourceGenerator: ResourceGenerator;
@@ -53,7 +52,6 @@ export class MapManager {
     // Initialize sub-generators
     this.heightGenerator = new FractalHeightGenerator(width, height, this.random);
     this.temperatureMap = new TemperatureMap(width, height);
-    this.terrainEngine = new TerrainSelectionEngine(this.random);
     this.islandGenerator = new IslandGenerator(width, height, this.random);
     this.riverGenerator = new RiverGenerator(width, height, this.random);
     this.resourceGenerator = new ResourceGenerator(width, height, this.random);
@@ -237,55 +235,53 @@ export class MapManager {
   }
 
   private async generateTerrain(tiles: MapTile[][]): Promise<void> {
+    // Phase 4: Generate sophisticated height map using fractal algorithms (following freeciv reference)
+    logger.info('Generating fractal height map with diamond-square and fracture algorithms');
+
+    // Generate sophisticated height map
+    this.heightGenerator.generateHeightMap();
+
+    // Apply smoothing passes for natural terrain transitions
+    this.heightGenerator.applySmoothingPasses(2);
+
+    // Get generated height map and apply to tiles
+    const generatedHeights = this.heightGenerator.getHeightMap();
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        tiles[x][y].elevation = generatedHeights[y * this.width + x];
+      }
+    }
+
+    const shoreLevel = this.heightGenerator.getShoreLevel();
+    const mountainLevel = this.heightGenerator.getMountainLevel();
+
+    logger.info('Fractal height generation completed', {
+      shoreLevel,
+      mountainLevel,
+    });
+
+    // Create terrain engine with proper freeciv reference levels
+    const terrainEngine = new TerrainSelectionEngine(this.random, shoreLevel, mountainLevel);
+
+    // Phase 2: Assign terrain using property-based selection (following freeciv reference)
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
-        const terrain = this.terrainEngine.pickTerrain(
+        const selectedTerrain = terrainEngine.pickTerrain(
           tile.temperature,
           tile.wetness,
           tile.elevation
         );
-        tile.terrain = terrain;
 
-        // Adjust elevation to match terrain expectations for frontend
-        this.adjustElevationForTerrain(tile);
+        tile.terrain = selectedTerrain;
 
-        // Set terrain properties
+        // Set terrain properties based on selected terrain
         this.setTerrainProperties(tile);
       }
     }
-  }
 
-  private adjustElevationForTerrain(tile: MapTile): void {
-    // Adjust elevation to match frontend expectations
-    switch (tile.terrain) {
-      case 'deep_ocean':
-        tile.elevation = Math.floor(this.random() * 10); // 0-9
-        break;
-      case 'ocean':
-        tile.elevation = Math.floor(10 + this.random() * 15); // 10-24
-        break;
-      case 'coast':
-        tile.elevation = Math.floor(25 + this.random() * 20); // 25-44
-        break;
-      case 'lake':
-        tile.elevation = Math.floor(5 + this.random() * 15); // 5-19
-        break;
-      case 'mountains':
-        tile.elevation = Math.floor(200 + this.random() * 55); // 200-254
-        break;
-      case 'hills':
-        tile.elevation = Math.floor(120 + this.random() * 60); // 120-179
-        break;
-      case 'glacier':
-        tile.elevation = Math.floor(180 + this.random() * 75); // 180-254
-        break;
-      default:
-        // Keep existing elevation for other land terrains, but ensure reasonable range
-        if (tile.elevation < 45) tile.elevation = 45;
-        if (tile.elevation > 180) tile.elevation = 180;
-        break;
-    }
+    // Phase 3: Apply biome transition logic for more natural borders
+    this.applyBiomeTransitions(tiles, this.random);
   }
 
   private setTerrainProperties(tile: MapTile): void {
