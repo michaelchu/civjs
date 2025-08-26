@@ -24,7 +24,7 @@ export const TerrainSettingsDialog: React.FC = () => {
   const location = useLocation();
 
   const [terrainSettings, setTerrainSettings] = useState<TerrainSettings>({
-    generator: 'fractal',
+    generator: 'random',
     landmass: 'normal',
     huts: 15,
     temperature: 50,
@@ -74,6 +74,11 @@ export const TerrainSettingsDialog: React.FC = () => {
   };
 
   const generatorOptions = [
+    {
+      value: 'random',
+      label: 'Random',
+      description: 'Standard random terrain (freeciv default)',
+    },
     {
       value: 'fractal',
       label: 'Fractal',
