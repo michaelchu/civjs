@@ -334,12 +334,12 @@ export class GameManager {
         await mapManager.generateMap(players);
         break;
       case 'island':
-        // Many small islands (freeciv mapgenerator4)
-        await mapManager.generateMapWithIslands(players, 4);
+        // Continental + islands (freeciv mapGenerator2 - 70% big continent, 20% medium, 10% small)
+        await mapManager.generateMapWithIslands(players, 2);
         break;
       case 'fair':
-        // Fair islands algorithm (freeciv map_generate_fair_islands)
-        await mapManager.generateMapFairIslands(players);
+        // Fair islands algorithm (freeciv mapGenerator4 - balanced distribution)
+        await mapManager.generateMapWithIslands(players, 4);
         break;
       case 'fracture':
         // Fracture map generation (freeciv make_fracture_map)
