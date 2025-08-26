@@ -76,7 +76,7 @@ export const TerrainSettingsDialog: React.FC = () => {
   const generatorOptions = [
     {
       value: 'random',
-      label: 'Random',
+      label: 'Default Random',
       description: 'Standard random terrain generation',
     },
     {
@@ -84,20 +84,20 @@ export const TerrainSettingsDialog: React.FC = () => {
       label: 'Fractal',
       description: 'Realistic continent shapes using height maps',
     },
-    { 
-      value: 'fair', 
-      label: 'Continent', 
-      description: 'Large continent with fair starting positions' 
+    {
+      value: 'island',
+      label: 'Islands',
+      description: 'Many small islands and varied landmasses',
     },
-    { 
-      value: 'scenario', 
-      label: 'Large Islands', 
-      description: 'Several large islands for balanced gameplay' 
+    {
+      value: 'fair',
+      label: 'Fair islands',
+      description: 'Large continent with fair starting positions',
     },
-    { 
-      value: 'island', 
-      label: 'Archipelago', 
-      description: 'Many small islands and varied landmasses' 
+    {
+      value: 'fracture',
+      label: 'Fracture',
+      description: 'Fractured landmasses with complex coastlines',
     },
   ];
 

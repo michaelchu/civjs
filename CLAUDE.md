@@ -123,3 +123,4 @@ The `reference/` folder contains the original source repositories we are porting
 When implementing features or fixing issues, consult these reference repositories to understand the original implementation and ensure compatibility with established game mechanics.
 - Always copy and reference original code when generating ports. Cite the source (file/path/lines). Only if reuse is impossible, explain why and stop. Do not write new code until the user explicitly approves.
 - always run linter, formatter and tests before committing and pushing to remote
+- Always check typescript before asking user to test

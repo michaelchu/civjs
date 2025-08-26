@@ -178,9 +178,27 @@ export class MapManager {
       }
     }
 
-    // Initialize climate and height data first
-    this.convertTemperatureToEnum(tiles);
-    this.generateWetnessMap(tiles, this.random);
+    // Generate elevation and temperature maps for proper climate-based terrain selection
+    this.heightGenerator.generateHeightMap();
+    const heightMap = this.heightGenerator.getHeightMap();
+
+    // Apply height data to tiles
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const index = y * this.width + x;
+        tiles[x][y].elevation = heightMap[index];
+      }
+    }
+
+    // Generate temperature map
+    this.temperatureMap.createTemperatureMap(tiles, heightMap);
+
+    // Apply temperature data to tiles
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        tiles[x][y].temperature = this.temperatureMap.getTemperature(x, y);
+      }
+    }
 
     // Initialize world for island generation
     const state = this.islandGenerator.initializeWorldForIslands(tiles);
@@ -210,6 +228,13 @@ export class MapManager {
     // Smooth ocean depths based on distance from land (like freeciv smooth_water_depth())
     this.smoothWaterDepth(tiles);
 
+    // Generate climate data now that islands exist
+    this.convertTemperatureToEnum(tiles);
+    this.generateWetnessMap(tiles, this.random);
+
+    // Fill remaining unplaced tiles with plains/grassland/tundra (like freeciv make_plains())
+    this.makePlains(tiles);
+
     // Apply final terrain improvements
     this.applyBiomeTransitions(tiles, this.random);
 
@@ -235,6 +260,395 @@ export class MapManager {
     logger.info(`Island-based map generation completed in ${endTime - startTime}ms`);
   }
 
+  /**
+   * Generate map using pure random height generation (freeciv MAPGEN_RANDOM)
+   * @reference freeciv/server/generator/height_map.c make_random_hmap()
+   */
+  public async generateMapRandom(players: Map<string, PlayerState>): Promise<void> {
+    logger.info('Generating map with pure random algorithm', {
+      width: this.width,
+      height: this.height,
+      seed: this.seed,
+    });
+
+    const startTime = Date.now();
+
+    // Initialize map structure
+    const tiles: MapTile[][] = [];
+    for (let x = 0; x < this.width; x++) {
+      tiles[x] = [];
+      for (let y = 0; y < this.height; y++) {
+        tiles[x][y] = this.createBaseTile(x, y);
+      }
+    }
+
+    // Generate pure random height map (like freeciv make_random_hmap)
+    const smooth = Math.max(
+      1,
+      1 + Math.floor(Math.sqrt(this.width * this.height) / 10) - Math.floor(players.size / 4)
+    );
+    const heightMap: number[] = [];
+
+    // Initialize with random values (INITIALIZE_ARRAY equivalent)
+    for (let i = 0; i < this.width * this.height; i++) {
+      heightMap[i] = Math.floor(this.random() * 1000 * smooth);
+    }
+
+    // Apply smoothing passes
+    for (let s = 0; s < smooth; s++) {
+      this.smoothHeightMap(heightMap);
+    }
+
+    // Normalize height map to 0-hmap_max_level range
+    this.adjustHeightMap(heightMap, 0, 1000);
+
+    // Apply height data to tiles
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const index = y * this.width + x;
+        tiles[x][y].elevation = heightMap[index];
+      }
+    }
+
+    // Generate temperature map
+    this.temperatureMap.createTemperatureMap(tiles, heightMap);
+
+    // Apply temperature data to tiles
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        tiles[x][y].temperature = this.temperatureMap.getTemperature(x, y);
+      }
+    }
+
+    // Convert height map to basic land/ocean (like freeciv make_land())
+    this.makeLand(tiles);
+
+    // Smooth ocean depths based on distance from land
+    this.smoothWaterDepth(tiles);
+
+    // Generate terrain using terrain engine
+    await this.generateTerrain(tiles);
+
+    // Generate continents
+    await this.generateContinents(tiles);
+
+    // Remove tiny islands
+    this.removeTinyIslands(tiles);
+
+    // Convert temperature and generate wetness
+    this.convertTemperatureToEnum(tiles);
+    this.generateWetnessMap(tiles, this.random);
+
+    // Generate rivers
+    await this.riverGenerator.generateAdvancedRivers(tiles);
+
+    // Generate resources
+    await this.resourceGenerator.generateResources(tiles);
+
+    // Find suitable starting positions
+    const startingPositions = await this.startingPositionGenerator.generateStartingPositions(
+      tiles,
+      players
+    );
+
+    this.mapData = {
+      width: this.width,
+      height: this.height,
+      tiles,
+      startingPositions,
+      seed: this.seed,
+      generatedAt: new Date(),
+    };
+
+    const generationTime = Date.now() - startTime;
+    logger.info('Pure random map generation completed', {
+      width: this.width,
+      height: this.height,
+      generationTime,
+    });
+  }
+
+  /**
+   * Generate map using fair islands algorithm (freeciv map_generate_fair_islands)
+   * @reference freeciv/server/generator/mapgen.c map_generate_fair_islands()
+   */
+  public async generateMapFairIslands(players: Map<string, PlayerState>): Promise<void> {
+    logger.info('Generating map with fair islands algorithm', {
+      width: this.width,
+      height: this.height,
+      seed: this.seed,
+      playerCount: players.size,
+    });
+
+    // Fair islands is a complex algorithm that tries to create one large continent
+    // with fair starting positions for all players. If it fails, it falls back to regular islands.
+    // For now, we'll implement a simplified version that creates a large central landmass
+    // with balanced starting positions.
+
+    const startTime = Date.now();
+
+    // Try to generate fair islands, with fallback to regular island generation
+    try {
+      // Initialize map structure
+      const tiles: MapTile[][] = [];
+      for (let x = 0; x < this.width; x++) {
+        tiles[x] = [];
+        for (let y = 0; y < this.height; y++) {
+          tiles[x][y] = this.createBaseTile(x, y);
+        }
+      }
+
+      // Create a large central continent using modified island generation
+      // Generate elevation and temperature maps for proper climate-based terrain selection
+      this.heightGenerator.generateHeightMap();
+      const heightMap = this.heightGenerator.getHeightMap();
+
+      // Apply height data to tiles
+      for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < this.height; y++) {
+          const index = y * this.width + x;
+          tiles[x][y].elevation = heightMap[index];
+        }
+      }
+
+      // Generate temperature map
+      this.temperatureMap.createTemperatureMap(tiles, heightMap);
+
+      // Apply temperature data to tiles
+      for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < this.height; y++) {
+          tiles[x][y].temperature = this.temperatureMap.getTemperature(x, y);
+        }
+      }
+
+      // Initialize world for island generation
+      const state = this.islandGenerator.initializeWorldForIslands(tiles);
+
+      // Create one large central continent suitable for all players
+      const largeContinentMass = Math.floor(state.totalMass * 0.7); // 70% of total land mass
+      await this.islandGenerator.makeIsland(
+        largeContinentMass,
+        players.size,
+        state,
+        tiles,
+        this.terrainPercentages,
+        95 // Require at least 95% of requested size
+      );
+
+      // Add some smaller supplementary islands
+      const smallIslandMass = Math.floor(state.totalMass * 0.1);
+      for (let i = 0; i < Math.min(players.size, 3); i++) {
+        await this.islandGenerator.makeIsland(
+          smallIslandMass,
+          0,
+          state,
+          tiles,
+          this.terrainPercentages
+        );
+      }
+
+      // Cleanup
+      this.islandGenerator.cleanup();
+
+      // Complete the generation process
+      this.smoothWaterDepth(tiles);
+      this.convertTemperatureToEnum(tiles);
+      this.generateWetnessMap(tiles, this.random);
+      this.makePlains(tiles);
+      this.applyBiomeTransitions(tiles, this.random);
+
+      await this.resourceGenerator.generateResources(tiles);
+
+      const startingPositions = await this.startingPositionGenerator.generateStartingPositions(
+        tiles,
+        players
+      );
+
+      this.mapData = {
+        width: this.width,
+        height: this.height,
+        tiles,
+        startingPositions,
+        seed: this.seed,
+        generatedAt: new Date(),
+      };
+
+      const generationTime = Date.now() - startTime;
+      logger.info('Fair islands map generation completed', {
+        width: this.width,
+        height: this.height,
+        generationTime,
+      });
+    } catch (error) {
+      logger.warn('Fair islands generation failed, falling back to regular islands', { error });
+      // Fallback to regular island generation
+      await this.generateMapWithIslands(players, 4);
+    }
+  }
+
+  /**
+   * Generate map using fracture algorithm (freeciv make_fracture_map)
+   * @reference freeciv/server/generator/fracture_map.c make_fracture_map()
+   */
+  public async generateMapFracture(players: Map<string, PlayerState>): Promise<void> {
+    logger.info('Generating map with fracture algorithm', {
+      width: this.width,
+      height: this.height,
+      seed: this.seed,
+    });
+
+    const startTime = Date.now();
+
+    // Initialize map structure
+    const tiles: MapTile[][] = [];
+    for (let x = 0; x < this.width; x++) {
+      tiles[x] = [];
+      for (let y = 0; y < this.height; y++) {
+        tiles[x][y] = this.createBaseTile(x, y);
+      }
+    }
+
+    // Implement fracture map algorithm based on freeciv make_fracture_map()
+    const numLandmass = 20 + 15 * Math.floor(Math.sqrt(this.width * this.height) / 10);
+    const fracturePoints: Array<{ x: number; y: number }> = [];
+    const landmasses: Array<{
+      minX: number;
+      minY: number;
+      maxX: number;
+      maxY: number;
+      elevation: number;
+    }> = [];
+
+    // Setup landmasses along the borders (these will be sunken to create ocean)
+    let nn = 0;
+    for (let x = 3; x < this.width; x += 5) {
+      fracturePoints.push({ x, y: 3 });
+      fracturePoints.push({ x, y: this.height - 3 });
+      nn += 2;
+    }
+    for (let y = 3; y < this.height; y += 5) {
+      fracturePoints.push({ x: 3, y });
+      fracturePoints.push({ x: this.width - 3, y });
+      nn += 2;
+    }
+
+    const borderPoints = nn;
+
+    // Add random interior fracture points
+    for (let i = 0; i < numLandmass; i++) {
+      fracturePoints.push({
+        x: Math.floor(this.random() * (this.width - 6)) + 3,
+        y: Math.floor(this.random() * (this.height - 6)) + 3,
+      });
+    }
+
+    // Initialize landmasses
+    for (let i = 0; i < fracturePoints.length; i++) {
+      landmasses.push({
+        minX: this.width - 1,
+        minY: this.height - 1,
+        maxX: 0,
+        maxY: 0,
+        elevation: i < borderPoints ? 0 : Math.floor(this.random() * 1000), // Sink border masses
+      });
+    }
+
+    // Assign cells to landmasses using expanding circles (Bresenham algorithm)
+    const continentMap: number[][] = Array(this.width)
+      .fill(null)
+      .map(() => Array(this.height).fill(0));
+
+    for (let radius = 1; radius < Math.floor(this.width / 2); radius++) {
+      for (let i = 0; i < fracturePoints.length; i++) {
+        this.assignFractureCircle(
+          continentMap,
+          fracturePoints[i].x,
+          fracturePoints[i].y,
+          radius,
+          i + 1,
+          landmasses[i]
+        );
+      }
+    }
+
+    // Create height map from fracture assignment
+    const heightMap: number[] = [];
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        const continentId = continentMap[x][y];
+        let elevation = continentId > 0 ? landmasses[continentId - 1].elevation : 0;
+
+        // Add random fuzz
+        if (elevation > 200) {
+          // Shore level equivalent
+          elevation += Math.floor(this.random() * 4) - 2;
+        }
+        if (elevation <= 200) {
+          elevation = 201; // Ensure land stays above shore level
+        }
+
+        heightMap.push(elevation);
+      }
+    }
+
+    // Normalize height map
+    this.adjustHeightMap(heightMap, 0, 1000);
+
+    // Apply height data to tiles
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const index = y * this.width + x;
+        tiles[x][y].elevation = heightMap[index];
+        tiles[x][y].continentId = continentMap[x][y];
+      }
+    }
+
+    // Generate temperature map
+    this.temperatureMap.createTemperatureMap(tiles, heightMap);
+
+    // Apply temperature data to tiles
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        tiles[x][y].temperature = this.temperatureMap.getTemperature(x, y);
+      }
+    }
+
+    // Convert height map to basic land/ocean
+    this.makeLand(tiles);
+
+    // Complete the generation process
+    this.smoothWaterDepth(tiles);
+    await this.generateTerrain(tiles);
+    await this.generateContinents(tiles);
+    this.removeTinyIslands(tiles);
+    this.convertTemperatureToEnum(tiles);
+    this.generateWetnessMap(tiles, this.random);
+
+    await this.riverGenerator.generateAdvancedRivers(tiles);
+    await this.resourceGenerator.generateResources(tiles);
+
+    const startingPositions = await this.startingPositionGenerator.generateStartingPositions(
+      tiles,
+      players
+    );
+
+    this.mapData = {
+      width: this.width,
+      height: this.height,
+      tiles,
+      startingPositions,
+      seed: this.seed,
+      generatedAt: new Date(),
+    };
+
+    const generationTime = Date.now() - startTime;
+    logger.info('Fracture map generation completed', {
+      width: this.width,
+      height: this.height,
+      generationTime,
+    });
+  }
+
   private createBaseTile(x: number, y: number): MapTile {
     return {
       x,
@@ -255,7 +669,39 @@ export class MapManager {
     };
   }
 
-  private async generateTerrain(tiles: MapTile[][]): Promise<void> {
+  /**
+   * Fill remaining unplaced tiles with plains/grassland/tundra based on climate
+   * @reference freeciv/server/generator/mapgen.c make_plains() and make_plain()
+   */
+  private makePlains(tiles: MapTile[][]): void {
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const tile = tiles[x][y];
+
+        // Only fill tiles that haven't been placed yet (still have default terrain)
+        if (tile.terrain === 'grassland') {
+          // Fill based on temperature like freeciv make_plain()
+          if (tile.temperature === TemperatureType.FROZEN) {
+            // Frozen: pick_terrain(MG_FROZEN, MG_UNUSED, MG_MOUNTAINOUS)
+            tile.terrain = this.random() < 0.5 ? 'glacier' : 'snow';
+          } else if (tile.temperature === TemperatureType.COLD) {
+            // Cold: pick_terrain(MG_COLD, MG_UNUSED, MG_MOUNTAINOUS)
+            tile.terrain = this.random() < 0.7 ? 'tundra' : 'plains';
+          } else {
+            // Temperate/Tropical: pick_terrain(MG_TEMPERATE, MG_GREEN, MG_MOUNTAINOUS)
+            tile.terrain = this.random() < 0.6 ? 'grassland' : 'plains';
+          }
+
+          this.setTerrainProperties(tile);
+        }
+      }
+    }
+  }
+
+  private async generateTerrain(
+    tiles: MapTile[][],
+    preserveSpecializedTerrain: boolean = false
+  ): Promise<void> {
     // Apply smoothing passes for natural terrain transitions
     this.heightGenerator.applySmoothingPasses(2);
 
@@ -278,14 +724,17 @@ export class MapManager {
         const tile = tiles[x][y];
 
         // Only modify land tiles, leave ocean tiles as-is
+        // If preserveSpecializedTerrain is true, only modify 'grassland' tiles
         if (!this.isOceanTerrain(tile.terrain)) {
-          const selectedTerrain = terrainEngine.pickTerrain(
-            tile.temperature,
-            tile.wetness,
-            tile.elevation
-          );
+          if (!preserveSpecializedTerrain || tile.terrain === 'grassland') {
+            const selectedTerrain = terrainEngine.pickTerrain(
+              tile.temperature,
+              tile.wetness,
+              tile.elevation
+            );
 
-          tile.terrain = selectedTerrain;
+            tile.terrain = selectedTerrain;
+          }
         }
 
         // Set terrain properties based on selected terrain
@@ -778,16 +1227,19 @@ export class MapManager {
   }
 
   private generateWetnessMap(tiles: MapTile[][], random: () => number): void {
+    // Use default wetness base for better terrain variety
+    const baseWetness = 50;
+
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
-        // Base wetness on proximity to water
-        let wetness = 30; // Base dryness
+        // Start with user's wetness setting
+        let wetness = baseWetness;
 
-        // Check nearby for water
-        wetness += this.calculateWetnessFromNearbyWater(tiles, x, y);
+        // Reduce water influence for better terrain variety
+        wetness += this.calculateWetnessFromNearbyWater(tiles, x, y) * 0.3;
 
-        // Add randomness
-        wetness += (random() - 0.5) * 30;
+        // Add randomness for variety
+        wetness += (random() - 0.5) * 40;
 
         tiles[x][y].wetness = Math.max(0, Math.min(100, wetness));
       }
@@ -1054,6 +1506,153 @@ export class MapManager {
       hash = (hash * 1664525 + 1013904223) & 0x7fffffff;
       return hash / 0x80000000;
     };
+  }
+
+  /**
+   * Smooth a height map using freeciv's smooth_int_map algorithm
+   * @reference freeciv/server/generator/mapgen_utils.c smooth_int_map()
+   */
+  private smoothHeightMap(heightMap: number[]): void {
+    const smoothed = [...heightMap];
+
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const index = y * this.width + x;
+        let sum = 0;
+        let count = 0;
+
+        // Check all adjacent cells (8-directional)
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            const nx = x + dx;
+            const ny = y + dy;
+
+            if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+              const nindex = ny * this.width + nx;
+              sum += heightMap[nindex];
+              count++;
+            }
+          }
+        }
+
+        smoothed[index] = Math.floor(sum / count);
+      }
+    }
+
+    // Copy smoothed values back
+    for (let i = 0; i < heightMap.length; i++) {
+      heightMap[i] = smoothed[i];
+    }
+  }
+
+  /**
+   * Adjust height map to specified range (freeciv adjust_int_map)
+   * @reference freeciv/server/generator/mapgen_utils.c adjust_int_map()
+   */
+  private adjustHeightMap(heightMap: number[], minVal: number, maxVal: number): void {
+    let currentMin = Math.min(...heightMap);
+    let currentMax = Math.max(...heightMap);
+
+    if (currentMin === currentMax) {
+      // Avoid division by zero
+      for (let i = 0; i < heightMap.length; i++) {
+        heightMap[i] = minVal;
+      }
+      return;
+    }
+
+    const scale = (maxVal - minVal) / (currentMax - currentMin);
+
+    for (let i = 0; i < heightMap.length; i++) {
+      heightMap[i] = Math.floor((heightMap[i] - currentMin) * scale + minVal);
+    }
+  }
+
+  /**
+   * Assign fracture circle using Bresenham circle algorithm
+   * @reference freeciv/server/generator/fracture_map.c circle_bresenham() and fmfill()
+   */
+  private assignFractureCircle(
+    continentMap: number[][],
+    centerX: number,
+    centerY: number,
+    radius: number,
+    continentId: number,
+    landmass: { minX: number; minY: number; maxX: number; maxY: number; elevation: number }
+  ): void {
+    if (radius === 0) return;
+
+    let x = 0;
+    let y = radius;
+    let p = 3 - 2 * radius;
+
+    while (y >= x) {
+      // Fill 8 octants of the circle
+      this.fillFractureArea(continentMap, centerX - x, centerY - y, continentId, landmass);
+      this.fillFractureArea(continentMap, centerX - y, centerY - x, continentId, landmass);
+      this.fillFractureArea(continentMap, centerX + y, centerY - x, continentId, landmass);
+      this.fillFractureArea(continentMap, centerX + x, centerY - y, continentId, landmass);
+      this.fillFractureArea(continentMap, centerX - x, centerY + y, continentId, landmass);
+      this.fillFractureArea(continentMap, centerX - y, centerY + x, continentId, landmass);
+      this.fillFractureArea(continentMap, centerX + y, centerY + x, continentId, landmass);
+      this.fillFractureArea(continentMap, centerX + x, centerY + y, continentId, landmass);
+
+      if (p < 0) {
+        p += 4 * x++ + 6;
+      } else {
+        p += 4 * (x++ - y--) + 10;
+      }
+    }
+  }
+
+  /**
+   * Fill fracture area in 3x3 pattern to avoid holes
+   * @reference freeciv/server/generator/fracture_map.c fmfill()
+   */
+  private fillFractureArea(
+    continentMap: number[][],
+    x: number,
+    y: number,
+    continentId: number,
+    landmass: { minX: number; minY: number; maxX: number; maxY: number; elevation: number }
+  ): void {
+    // Handle wrapping for x coordinate
+    if (x < 0) {
+      x = this.width + x;
+    } else if (x >= this.width) {
+      x = x - this.width;
+    }
+
+    // Fill 3x3 area around the point
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        let nx = x + dx;
+        let ny = y + dy;
+
+        // Handle x wrapping
+        if (nx < 0) {
+          nx = this.width + nx;
+        } else if (nx >= this.width) {
+          nx = nx - this.width;
+        }
+
+        // Clamp y coordinate
+        if (ny < 0 || ny >= this.height) {
+          continue;
+        }
+
+        // Only assign if not already assigned or if this landmass has higher elevation
+        if (continentMap[nx][ny] === 0 || (continentMap[nx][ny] > 0 && landmass.elevation > 0)) {
+          continentMap[nx][ny] = continentId;
+
+          // Update landmass bounds
+          landmass.minX = Math.min(landmass.minX, nx);
+          landmass.maxX = Math.max(landmass.maxX, nx);
+          landmass.minY = Math.min(landmass.minY, ny);
+          landmass.maxY = Math.max(landmass.maxY, ny);
+        }
+      }
+    }
   }
 
   // Public API methods

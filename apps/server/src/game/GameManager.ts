@@ -324,16 +324,31 @@ export class GameManager {
     console.log('DEBUG: terrainSettings =', terrainSettings);
     console.log('DEBUG: generator =', generator);
 
-    if (generator === 'island' || generator === 'fair' || generator === 'scenario') {
-      // Map frontend options to freeciv generator types:
-      // 'fair' -> generator 2 (one large continent, fair for all players)
-      // 'scenario' -> generator 3 (several large islands)
-      // 'island' -> generator 4 (many small islands, archipelago style)
-      const generatorType = generator === 'fair' ? 2 : generator === 'scenario' ? 3 : 4;
-      await mapManager.generateMapWithIslands(players, generatorType);
-    } else {
-      // Use traditional fractal generator for 'fractal', 'random'
-      await mapManager.generateMap(players);
+    switch (generator) {
+      case 'random':
+        // Pure random height generation (like freeciv MAPGEN_RANDOM)
+        await mapManager.generateMapRandom(players);
+        break;
+      case 'fractal':
+        // Fractal height generation (like freeciv MAPGEN_FRACTAL)
+        await mapManager.generateMap(players);
+        break;
+      case 'island':
+        // Many small islands (freeciv mapgenerator4)
+        await mapManager.generateMapWithIslands(players, 4);
+        break;
+      case 'fair':
+        // Fair islands algorithm (freeciv map_generate_fair_islands)
+        await mapManager.generateMapFairIslands(players);
+        break;
+      case 'fracture':
+        // Fracture map generation (freeciv make_fracture_map)
+        await mapManager.generateMapFracture(players);
+        break;
+      default:
+        // Fallback to fractal
+        await mapManager.generateMap(players);
+        break;
     }
 
     const mapData = mapManager.getMapData();
