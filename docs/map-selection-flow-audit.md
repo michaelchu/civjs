@@ -193,6 +193,124 @@ if (MAPGEN_FRACTAL == wld.map.server.generator) {
 2. **Missing Startpos Routing**: We use player count; freeciv uses startpos enum
 3. **No Terrain Init**: Missing `island_terrain_init()/free()` calls
 
+### 🔴 Critical Architecture Deviations - Detailed Analysis
+
+#### 1. Missing Generator Fallback Chain Logic
+
+**Freeciv Implementation (mapgen.c:1315-1318):**
+```c
+if (MAPGEN_FAIR == wld.map.server.generator
+    && !map_generate_fair_islands()) {
+  wld.map.server.generator = MAPGEN_ISLAND;
+}
+```
+
+**What This Means:**
+- Freeciv attempts to generate fair islands using complex team balancing algorithms
+- If `map_generate_fair_islands()` fails (returns false), it automatically falls back to MAPGEN_ISLAND
+- This fallback ensures map generation never completely fails, providing graceful degradation
+
+**Our Current Implementation (GameManager.ts:340-343):**
+```typescript
+case 'fair':
+  // Fair islands algorithm (freeciv mapGenerator4 - balanced distribution)  
+  await mapManager.generateMapWithIslands(players, 4);
+  break;
+```
+
+**🔴 Problem:** 
+- We directly call `generateMapWithIslands(players, 4)` without any failure detection
+- No fallback mechanism if fair island generation encounters issues
+- Could result in broken maps or generation failures with no recovery path
+
+**Impact:** High - Users could experience game creation failures when fair islands can't be properly balanced
+
+---
+
+#### 2. Missing Startpos Parameter for Island Routing
+
+**Freeciv Implementation (mapgen.c:1325-1337):**
+```c
+if (MAPSTARTPOS_2or3 == wld.map.server.startpos
+    || MAPSTARTPOS_ALL == wld.map.server.startpos) {
+  mapgenerator4();  // Multiple players per continent
+}
+if (MAPSTARTPOS_DEFAULT == wld.map.server.startpos
+    || MAPSTARTPOS_SINGLE == wld.map.server.startpos) {
+  mapgenerator3();  // Single player per continent
+}
+if (MAPSTARTPOS_VARIABLE == wld.map.server.startpos) {
+  mapgenerator2();  // Variable based on continent size
+}
+```
+
+**Freeciv Startpos Enum (map_types.h:55-61):**
+```c
+enum map_startpos {
+  MAPSTARTPOS_DEFAULT = 0,    // Generator's choice
+  MAPSTARTPOS_SINGLE,         // One player per continent  
+  MAPSTARTPOS_2or3,          // Two or three players per continent
+  MAPSTARTPOS_ALL,           // All players on single continent
+  MAPSTARTPOS_VARIABLE,      // Depends on continent sizes
+};
+```
+
+**Our Current Implementation:**
+```typescript
+case 'island':
+  await mapManager.generateMapWithIslands(players, 2);
+  break;
+case 'fair':  
+  await mapManager.generateMapWithIslands(players, 4);
+  break;
+```
+
+**🔴 Problems:**
+- We hardcode generator selection (2 vs 4) instead of using startpos logic
+- Missing startpos parameter entirely in our terrain settings
+- No way for users to specify desired player distribution per continent
+- Always uses the same island arrangement regardless of player preferences
+
+**Impact:** Medium - Reduced strategic options for multiplayer game setup, less authentic freeciv experience
+
+---
+
+#### 3. Missing Island Terrain Initialization System
+
+**Freeciv Implementation (mapgen.c:1322 & 1340):**
+```c
+if (MAPGEN_ISLAND == wld.map.server.generator) {
+  island_terrain_init();    // Initialize terrain selection lists
+  
+  // ... call appropriate mapgenerator function ...
+  
+  island_terrain_free();    // Free terrain selection lists  
+}
+```
+
+**What `island_terrain_init()` Does (mapgen.c:2013-2039):**
+- Creates specialized terrain selection lists for island generation
+- Sets up terrain probability tables for different climate zones:
+  - **Forest terrains**: Tropical, temperate, frozen variants with specific weights
+  - **Desert terrains**: Hot/temperate desert placement rules  
+  - **Mountain/hill terrains**: Elevation-based terrain selection
+  - **Grassland/plains**: Base terrain probability matrices
+- Initializes terrain selection based on temperature/wetness parameters
+- Creates weighted lists that `make_island()` uses for realistic terrain placement
+
+**Our Current Implementation:**
+- No terrain initialization phase
+- Direct calls to `generateMapWithIslands()` without terrain prep
+- Terrain assignment happens during generation without pre-computed selection lists
+
+**🔴 Problems:**
+- Less sophisticated terrain variety on islands
+- No climate-zone based terrain selection
+- Missing weighted terrain probability systems that make freeciv islands realistic
+- Terrain placement may be less balanced/authentic
+
+**Impact:** Medium - Islands may have less realistic terrain distributions, reducing gameplay authenticity
+
 ---
 
 ## 📊 Compliance Score by Component
@@ -209,14 +327,78 @@ if (MAPGEN_FRACTAL == wld.map.server.generator) {
 
 ---
 
-## 🎯 Recommendations
+## 🎯 Priority Implementation Checklist
 
-### HIGH PRIORITY:
+### 🚨 HIGH PRIORITY TASKS
 
-1. **Add MAPGEN_SCENARIO Support**: Implement scenario loading capability
-2. **Implement Startpos Parameter**: Add map_startpos enum support for proper island routing
-3. **Add Generator Fallbacks**: Implement FAIR → ISLAND fallback logic
-4. **Parameter Mapping**: Map landmass values to freeciv landpercent ranges
+#### 1. Generator Fallback System Implementation
+- [ ] **Create Fair Islands Validation Logic**
+  - [ ] Port `map_generate_fair_islands()` team balancing algorithm from `mapgen.c:3389`  
+  - [ ] Add failure detection when fair distribution isn't possible
+  - [ ] Test with various player counts and team configurations
+- [ ] **Implement Fallback Chain**
+  - [ ] Add FAIR → ISLAND fallback logic to `GameManager.ts:340-343`
+  - [ ] Update generator dispatch switch statement with try/catch
+  - [ ] Log fallback events for debugging
+- [ ] **Add Error Recovery**
+  - [ ] Prevent game creation failures from generator issues
+  - [ ] Implement graceful degradation messaging to users
+
+#### 2. Startpos Parameter Integration  
+- [ ] **Backend Implementation**
+  - [ ] Add `map_startpos` enum to TypeScript types matching `map_types.h:55-61`
+  - [ ] Update `terrainSettings` interface to include `startpos` parameter
+  - [ ] Modify `GameManager.createGame()` to accept startpos routing
+- [ ] **Island Generator Routing Logic**
+  - [ ] Replace hardcoded generator selection in island/fair cases
+  - [ ] Implement startpos-based routing:
+    - [ ] `MAPSTARTPOS_2or3/ALL` → `mapgenerator4()` 
+    - [ ] `MAPSTARTPOS_DEFAULT/SINGLE` → `mapgenerator3()`
+    - [ ] `MAPSTARTPOS_VARIABLE` → `mapgenerator2()`
+- [ ] **Frontend UI Updates**  
+  - [ ] Add startpos dropdown to `TerrainSettingsDialog.tsx`
+  - [ ] Update form validation and submission logic
+  - [ ] Add tooltips explaining startpos options
+
+#### 3. Island Terrain Initialization System
+- [ ] **Port Terrain Selection Logic**
+  - [ ] Create `island_terrain_init()` equivalent in `TerrainUtils.ts`
+  - [ ] Port terrain probability tables from `mapgen.c:2013-2039`
+  - [ ] Implement climate-based terrain selection lists
+- [ ] **Integrate with Map Generation**
+  - [ ] Call terrain init before island generator functions
+  - [ ] Update `generateMapWithIslands()` to use selection lists
+  - [ ] Add `island_terrain_free()` cleanup after generation
+- [ ] **Climate Parameters Integration**
+  - [ ] Connect temperature/wetness settings to terrain selection
+  - [ ] Test terrain variety with different climate configurations
+
+#### 4. MAPGEN_SCENARIO Support
+- [ ] **Scenario Loading Infrastructure**
+  - [ ] Add scenario file format support (.sav files)
+  - [ ] Create scenario parser for freeciv-compatible scenarios
+  - [ ] Add scenario selection to UI generator options
+- [ ] **Generator Integration**
+  - [ ] Add `MAPGEN_SCENARIO` case to generator dispatch
+  - [ ] Implement scenario loading and map reconstruction
+  - [ ] Add validation for scenario compatibility
+
+### ⚠️ MEDIUM PRIORITY TASKS
+
+#### Parameter Standardization
+- [ ] **Numeric Generator IDs**: Consider using freeciv's numeric enum values instead of strings
+- [ ] **Settings Validation**: Add client and server-side parameter validation  
+- [ ] **Landmass Mapping**: Map landmass values to freeciv landpercent ranges
+- [ ] **Documentation**: Add parameter interaction explanations
+
+#### Advanced Features
+- [ ] **Preview Generation**: Add map preview capability before game creation
+- [ ] **Save/Load Settings**: Allow users to save favorite terrain configurations  
+- [ ] **Advanced Freeciv Parameters**: Add poles, tinyisles, steepness settings
+
+---
+
+## 🎯 Original Recommendations
 
 ### MEDIUM PRIORITY:
 
