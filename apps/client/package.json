@@ -16,6 +16,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.1.12",
     "@types/react-router-dom": "^5.3.3",
     "clsx": "^2.1.1",
     "react": "^19.1.1",
