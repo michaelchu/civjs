@@ -3059,7 +3059,35 @@ export class MapManager {
 
   /**
    * Test if a tile is blocked for river placement
+   *
+   * This function checks if a tile has been marked as blocked for river placement,
+   * or if all cardinal neighbors are blocked, preventing river continuation.
+   *
    * @reference freeciv/server/generator/mapgen.c:557-573
+   * @param riverMap State tracking blocked and valid river tiles
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param _tiles Map tiles array (unused in this test)
+   * @returns 1 if blocked (fatal), 0 if not blocked
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_blocked(struct river_map *privermap,
+   *                               struct tile *ptile,
+   *                               struct extra_type *priver)
+   * {
+   *   if (dbv_isset(&privermap->blocked, tile_index(ptile))) {
+   *     return 1;
+   *   }
+   *   // Any un-blocked?
+   *   cardinal_adjc_iterate(&(wld.map), ptile, ptile1) {
+   *     if (!dbv_isset(&privermap->blocked, tile_index(ptile1))) {
+   *       return 0;
+   *     }
+   *   } cardinal_adjc_iterate_end;
+   *   return 1; // None non-blocked |- all blocked
+   * }
+   * ```
    */
   private riverTestBlocked = (
     riverMap: RiverMapState,
@@ -3095,10 +3123,31 @@ export class MapManager {
 
   /**
    * Test river grid to avoid too many river connections
+   *
+   * Prevents rivers from creating too dense a grid by checking if a tile
+   * already has more than one river connection. This maintains natural
+   * river spacing and prevents unrealistic river networks.
+   *
    * @reference freeciv/server/generator/mapgen.c:578-584
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check existing rivers
+   * @returns 1 if too many river connections (fatal), 0 if acceptable
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_rivergrid(struct river_map *privermap,
+   *                                 struct tile *ptile,
+   *                                 struct extra_type *priver)
+   * {
+   *   return (count_river_type_tile_card(&(wld.map), ptile, priver, FALSE) > 1)
+   *     ? 1 : 0;
+   * }
+   * ```
    */
   private riverTestRiverGrid = (
-    __riverMap: RiverMapState,
+    _riverMap: RiverMapState,
     x: number,
     y: number,
     tiles: MapTile[][]
@@ -3126,10 +3175,30 @@ export class MapManager {
 
   /**
    * Test highland suitability based on mountainous terrain property
+   *
+   * Rivers prefer to start and flow through mountainous terrain as it provides
+   * natural elevation for water flow. This function returns the mountainous
+   * property value of a tile, where higher values indicate better suitability.
+   *
    * @reference freeciv/server/generator/mapgen.c:589-594
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check terrain properties
+   * @returns Mountainous property value (0-100, higher = more mountainous)
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_highlands(struct river_map *privermap,
+   *                                 struct tile *ptile,
+   *                                 struct extra_type *priver)
+   * {
+   *   return tile_terrain(ptile)->property[MG_MOUNTAINOUS];
+   * }
+   * ```
    */
   private riverTestHighlands = (
-    __riverMap: RiverMapState,
+    _riverMap: RiverMapState,
     x: number,
     y: number,
     tiles: MapTile[][]
@@ -3140,7 +3209,28 @@ export class MapManager {
 
   /**
    * Test distance from ocean - rivers avoid ocean tiles
+   *
+   * Rivers should avoid flowing directly through ocean areas. This function
+   * calculates the inverse of ocean density in surrounding tiles, returning
+   * higher scores for areas with fewer ocean tiles nearby.
+   *
    * @reference freeciv/server/generator/mapgen.c:599-605
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check terrain types
+   * @returns Inverse ocean density score (100 - ocean percentage)
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_adjacent_ocean(struct river_map *privermap,
+   *                                      struct tile *ptile,
+   *                                      struct extra_type *priver)
+   * {
+   *   return 100 - count_terrain_class_near_tile(&(wld.map), ptile,
+   *                                              TRUE, TRUE, TC_OCEAN);
+   * }
+   * ```
    */
   private riverTestAdjacentOcean = (
     _riverMap: RiverMapState,
@@ -3176,7 +3266,26 @@ export class MapManager {
 
   /**
    * Test adjacent river density
+   *
+   * Rivers should avoid areas that already have many rivers nearby to prevent
+   * overcrowding. Returns higher scores for areas with fewer adjacent rivers.
+   *
    * @reference freeciv/server/generator/mapgen.c:610-615
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check existing rivers
+   * @returns Inverse river density score (100 - river count * 25)
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_adjacent_river(struct river_map *privermap,
+   *                                      struct tile *ptile,
+   *                                      struct extra_type *priver)
+   * {
+   *   return 100 - count_river_type_tile_card(&(wld.map), ptile, priver, TRUE);
+   * }
+   * ```
    */
   private riverTestAdjacentRiver = (
     _riverMap: RiverMapState,
@@ -3207,7 +3316,31 @@ export class MapManager {
 
   /**
    * Test adjacent highland suitability
+   *
+   * Rivers prefer areas with mountainous terrain nearby as this provides
+   * natural drainage patterns. Calculates the sum of mountainous properties
+   * of all adjacent tiles (including diagonals).
+   *
    * @reference freeciv/server/generator/mapgen.c:620-630
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check terrain properties
+   * @returns Sum of adjacent mountainous property values
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_adjacent_highlands(struct river_map *privermap,
+   *                                          struct tile *ptile,
+   *                                          struct extra_type *priver)
+   * {
+   *   int sum = 0;
+   *   adjc_iterate(&(wld.map), ptile, ptile2) {
+   *     sum += tile_terrain(ptile2)->property[MG_MOUNTAINOUS];
+   *   } adjc_iterate_end;
+   *   return sum;
+   * }
+   * ```
    */
   private riverTestAdjacentHighlands = (
     _riverMap: RiverMapState,
@@ -3241,7 +3374,27 @@ export class MapManager {
 
   /**
    * Test swamp suitability (avoid wet terrain)
+   *
+   * Rivers should generally avoid swampy/wet areas as they would create
+   * unnatural flow patterns. Returns inverse wetness score where lower
+   * wetness is preferred for river placement.
+   *
    * @reference freeciv/server/generator/mapgen.c:636-641
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check terrain properties
+   * @returns Inverse wetness score (1000 - wetness property)
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_swamp(struct river_map *privermap,
+   *                             struct tile *ptile,
+   *                             struct extra_type *priver)
+   * {
+   *   return FC_INFINITY - tile_terrain(ptile)->property[MG_WET];
+   * }
+   * ```
    */
   private riverTestSwamp = (
     _riverMap: RiverMapState,
@@ -3256,7 +3409,31 @@ export class MapManager {
 
   /**
    * Test adjacent swamp density
+   *
+   * Similar to swamp test but considers wetness of all adjacent tiles.
+   * Rivers avoid areas surrounded by wet terrain to maintain natural
+   * drainage patterns.
+   *
    * @reference freeciv/server/generator/mapgen.c:646-656
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check terrain properties
+   * @returns Inverse adjacent wetness score (1000 - sum of adjacent wetness)
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_adjacent_swamp(struct river_map *privermap,
+   *                                      struct tile *ptile,
+   *                                      struct extra_type *priver)
+   * {
+   *   int sum = 0;
+   *   adjc_iterate(&(wld.map), ptile, ptile2) {
+   *     sum += tile_terrain(ptile2)->property[MG_WET];
+   *   } adjc_iterate_end;
+   *   return FC_INFINITY - sum;
+   * }
+   * ```
    */
   private riverTestAdjacentSwamp = (
     _riverMap: RiverMapState,
@@ -3290,7 +3467,27 @@ export class MapManager {
 
   /**
    * Test elevation for river flow (rivers flow downhill)
+   *
+   * Rivers naturally flow from high elevation to low elevation. This function
+   * returns the elevation value directly, where higher elevations are preferred
+   * for river sources and lower elevations for destinations.
+   *
    * @reference freeciv/server/generator/mapgen.c:662-667
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to get elevation data
+   * @returns Elevation value of the tile (0-255)
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_height_map(struct river_map *privermap,
+   *                                  struct tile *ptile,
+   *                                  struct extra_type *priver)
+   * {
+   *   return hmap(ptile);
+   * }
+   * ```
    */
   private riverTestHeightMap = (
     _riverMap: RiverMapState,
@@ -3303,7 +3500,28 @@ export class MapManager {
 
   /**
    * Mark tile and adjacent tiles as blocked for river placement
+   *
+   * When a river passes through a tile, this function blocks that tile
+   * and its cardinal neighbors from future river placement to prevent
+   * rivers from running too close together.
+   *
    * @reference freeciv/server/generator/mapgen.c:672-682
+   * @param riverMap State tracking blocked and valid river tiles
+   * @param x X coordinate of tile to block
+   * @param y Y coordinate of tile to block
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static void river_blockmark(struct river_map *privermap,
+   *                             struct tile *ptile)
+   * {
+   *   log_debug("Blockmarking (%d, %d) and adjacent tiles.", TILE_XY(ptile));
+   *   dbv_set(&privermap->blocked, tile_index(ptile));
+   *   cardinal_adjc_iterate(&(wld.map), ptile, ptile1) {
+   *     dbv_set(&privermap->blocked, tile_index(ptile1));
+   *   } cardinal_adjc_iterate_end;
+   * }
+   * ```
    */
   private riverBlockMark(riverMap: RiverMapState, x: number, y: number): void {
     const tileIndex = y * this.width + x;
@@ -3328,7 +3546,28 @@ export class MapManager {
 
   /**
    * River test functions array matching freeciv's sophisticated selection
+   *
+   * This array defines the complete pipeline of river evaluation functions
+   * that determine the suitability of each direction for river flow. Functions
+   * marked as 'fatal' will immediately reject a direction if they return > 0.
+   *
    * @reference freeciv/server/generator/mapgen.c:690-700
+   *
+   * Original freeciv implementation:
+   * ```c
+   * #define NUM_TEST_FUNCTIONS 9
+   * static struct test_func test_funcs[NUM_TEST_FUNCTIONS] = {
+   *   {river_test_blocked,            TRUE},
+   *   {river_test_rivergrid,          TRUE},
+   *   {river_test_highlands,          FALSE},
+   *   {river_test_adjacent_ocean,     FALSE},
+   *   {river_test_adjacent_river,     FALSE},
+   *   {river_test_adjacent_highlands, FALSE},
+   *   {river_test_swamp,              FALSE},
+   *   {river_test_adjacent_swamp,     FALSE},
+   *   {river_test_height_map,         FALSE}
+   * };
+   * ```
    */
   private readonly riverTestFunctions: RiverTestFunction[] = [
     { func: this.riverTestBlocked, fatal: true },
@@ -3344,7 +3583,26 @@ export class MapManager {
 
   /**
    * Generate a single sophisticated river using freeciv's proven algorithm
+   *
+   * This is the core river generation function that creates a single river
+   * from a starting position by evaluating each possible direction using
+   * the complete set of river test functions. The river continues until it
+   * reaches a termination condition (ocean, existing river, or polar region).
+   *
    * @reference freeciv/server/generator/mapgen.c:792-906
+   * @param riverMap State tracking blocked and valid river tiles
+   * @param startX Starting X coordinate for the river
+   * @param startY Starting Y coordinate for the river
+   * @param tiles Map tiles array to modify
+   * @returns true if river was successfully generated, false if failed
+   *
+   * Original freeciv algorithm:
+   * 1. Mark current tile as river
+   * 2. Check termination conditions (ocean, existing river, polar)
+   * 3. Evaluate all cardinal directions using test functions
+   * 4. Filter out directions that fail fatal tests
+   * 5. Choose best scoring direction (lowest score wins)
+   * 6. Move to selected direction and repeat
    */
   private makeRiver(
     riverMap: RiverMapState,
@@ -3434,6 +3692,17 @@ export class MapManager {
 
   /**
    * Evaluate river direction scores for pathfinding
+   *
+   * Helper function that evaluates all cardinal directions from a given position
+   * to determine the best path for river continuation. Uses the complete set of
+   * river test functions to score each direction.
+   *
+   * @param currentX Current X position of the river
+   * @param currentY Current Y position of the river
+   * @param cardinalDirs Array of cardinal direction vectors [[dx, dy], ...]
+   * @param riverMap State tracking blocked and valid river tiles
+   * @param tiles Map tiles array to evaluate
+   * @returns Array of direction options with scores and validity flags
    */
   private evaluateRiverDirections(
     currentX: number,
@@ -3459,6 +3728,15 @@ export class MapManager {
 
   /**
    * Evaluate a single tile for river placement using test functions
+   *
+   * Runs all river test functions against a single tile to determine its
+   * suitability for river placement. Returns early if any fatal test fails.
+   *
+   * @param riverMap State tracking blocked and valid river tiles
+   * @param x X coordinate of tile to evaluate
+   * @param y Y coordinate of tile to evaluate
+   * @param tiles Map tiles array to test
+   * @returns Object with validity flag and cumulative score
    */
   private evaluateRiverTile(
     riverMap: RiverMapState,
@@ -3484,6 +3762,16 @@ export class MapManager {
 
   /**
    * Check if a position is valid for starting a river
+   *
+   * Validates a potential river starting position by checking terrain type,
+   * existing rivers, highland preference, and nearby river density. This
+   * prevents rivers from starting in unsuitable locations.
+   *
+   * @param startX X coordinate of potential start position
+   * @param startY Y coordinate of potential start position
+   * @param tiles Map tiles array to check
+   * @param riverMap State tracking blocked tiles
+   * @returns true if position is suitable for river start, false otherwise
    */
   private isValidRiverStartPosition(
     startX: number,
@@ -3515,6 +3803,15 @@ export class MapManager {
 
   /**
    * Check nearby river and ocean density for river starting positions
+   *
+   * Analyzes a 2-tile radius around a position to ensure there aren't too
+   * many existing rivers or ocean tiles nearby. This prevents river overcrowding
+   * and ensures rivers start in appropriate inland locations.
+   *
+   * @param startX X coordinate of position to check
+   * @param startY Y coordinate of position to check
+   * @param tiles Map tiles array to analyze
+   * @returns true if density is acceptable, false if too crowded
    */
   private checkNearbyRiverDensity(startX: number, startY: number, tiles: MapTile[][]): boolean {
     let nearbyRiverCount = 0;
@@ -3543,6 +3840,12 @@ export class MapManager {
 
   /**
    * Convert terrain to support rivers if needed
+   *
+   * Some terrain types (desert, glacier, snow) don't naturally support rivers.
+   * This function converts them to appropriate river-supporting terrain based
+   * on the tile's temperature zone.
+   *
+   * @param tile Map tile to potentially convert
    */
   private convertTerrainForRiver(tile: MapTile): void {
     if (tile.terrain === 'desert' || tile.terrain === 'glacier' || tile.terrain === 'snow') {
