@@ -377,6 +377,7 @@ ocean.png: ocean depth layers (coast/shelf/deep)
   - ✅ TypeScript compilation successful with full type safety
   - ✅ Seeded random generation ensures reproducible island layouts
 - **Result**: **Sophisticated island-based map generation with realistic terrain distribution, climate-aware placement, and bucket-based percentage control matching freeciv's proven algorithms**
+- **Documentation**: Added comprehensive freeciv references for all ported functions (see `doc/freeciv-references-phase5.md`)
 
 ---
 
@@ -388,6 +389,7 @@ ocean.png: ocean depth layers (coast/shelf/deep)
 - **Sprite Assets**: `/root/repo/apps/server/public/sprites/amplio2/`
 - **Documentation**: `/root/repo/doc/`
 - **Phase 4 Function References**: `/root/repo/doc/freeciv-references-phase4.md`
+- **Phase 5 Function References**: `/root/repo/doc/freeciv-references-phase5.md`
 
 ## Project Status: 🚧 **IN PROGRESS** - Phase 1 ✅ Complete, Phase 2 ✅ Complete, Phase 3 ✅ Complete, Phase 4 ✅ Complete, Phase 5 ✅ Complete, Ready for Phase 6
 
