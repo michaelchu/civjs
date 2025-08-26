@@ -388,7 +388,9 @@ class FractalHeightGenerator {
 
   /**
    * Generate fracture map with landmass points
+   * Ported from freeciv's make_fracture_map() function
    * @reference freeciv/server/generator/fracture_map.c:55-150
+   * @reference Original algorithm creates strategic landmass points with border ocean generation
    */
   public generateFractureMap(): void {
     // Calculate number of landmasses based on map size
