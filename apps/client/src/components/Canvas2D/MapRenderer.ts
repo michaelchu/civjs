@@ -953,11 +953,11 @@ export class MapRenderer {
               const cx = gui_x - gui_x0;
               const cy = gui_y - gui_y0;
 
-              // Create synthetic ocean tile for out-of-bounds position
+              // Create synthetic deep ocean tile for out-of-bounds position
               const oceanTile: Tile = {
                 x: map_x,
                 y: map_y,
-                terrain: 'ocean',
+                terrain: 'deep_ocean',
                 visible: true,
                 known: true,
                 units: [],
