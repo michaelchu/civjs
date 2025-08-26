@@ -345,20 +345,20 @@ if (MAPGEN_ISLAND == wld.map.server.generator) {
   - [ ] Implement graceful degradation messaging to users
 
 #### 2. Startpos Parameter Integration  
-- [ ] **Backend Implementation**
-  - [ ] Add `map_startpos` enum to TypeScript types matching `map_types.h:55-61`
-  - [ ] Update `terrainSettings` interface to include `startpos` parameter
-  - [ ] Modify `GameManager.createGame()` to accept startpos routing
-- [ ] **Island Generator Routing Logic**
-  - [ ] Replace hardcoded generator selection in island/fair cases
-  - [ ] Implement startpos-based routing:
-    - [ ] `MAPSTARTPOS_2or3/ALL` → `mapgenerator4()` 
-    - [ ] `MAPSTARTPOS_DEFAULT/SINGLE` → `mapgenerator3()`
-    - [ ] `MAPSTARTPOS_VARIABLE` → `mapgenerator2()`
-- [ ] **Frontend UI Updates**  
-  - [ ] Add startpos dropdown to `TerrainSettingsDialog.tsx`
-  - [ ] Update form validation and submission logic
-  - [ ] Add tooltips explaining startpos options
+- [x] **Backend Implementation**
+  - [x] Add `map_startpos` enum to TypeScript types matching `map_types.h:55-61`
+  - [x] Update `terrainSettings` interface to include `startpos` parameter
+  - [x] Modify `GameManager.createGame()` to accept startpos routing
+- [x] **Island Generator Routing Logic**
+  - [x] Replace hardcoded generator selection in island/fair cases
+  - [x] Implement startpos-based routing:
+    - [x] `MAPSTARTPOS_2or3/ALL` → `mapgenerator4()` 
+    - [x] `MAPSTARTPOS_DEFAULT/SINGLE` → `mapgenerator3()`
+    - [x] `MAPSTARTPOS_VARIABLE` → `mapgenerator2()`
+- [x] **Frontend UI Updates**  
+  - [x] Add startpos dropdown to `TerrainSettingsDialog.tsx`
+  - [x] Update form validation and submission logic
+  - [x] Add tooltips explaining startpos options
 
 #### 3. Island Terrain Initialization System
 - [ ] **Port Terrain Selection Logic**
