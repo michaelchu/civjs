@@ -581,15 +581,28 @@ export class MapManager {
   }
 
   private generateSeed(): string {
-    // Use timestamp + random values + performance counter for better uniqueness
+    // Use multiple entropy sources for maximum uniqueness
     const timestamp = Date.now().toString(36);
     const random1 = Math.random().toString(36).substring(2, 15);
     const random2 = Math.random().toString(36).substring(2, 15);
-    const performanceNow = (typeof performance !== 'undefined' ? performance.now() : 0).toString(
-      36
-    );
+    
+    // Use different entropy sources depending on environment
+    let entropy: string;
+    if (typeof performance !== 'undefined' && performance.now) {
+      // Browser environment - use performance.now()
+      entropy = performance.now().toString(36);
+    } else if (typeof process !== 'undefined' && process.hrtime && process.hrtime.bigint) {
+      // Node.js environment - use high-resolution time
+      entropy = process.hrtime.bigint().toString(36);
+    } else if (typeof process !== 'undefined' && process.pid) {
+      // Node.js fallback - use process ID + additional randomness
+      entropy = `${process.pid}-${Math.random().toString(36).substring(2)}`.replace(/\./g, '');
+    } else {
+      // Final fallback - use additional random values
+      entropy = `${Math.random().toString(36)}-${Math.random().toString(36)}`.replace(/\./g, '');
+    }
 
-    return `${timestamp}-${random1}-${random2}-${performanceNow}`.replace(/\./g, '');
+    return `${timestamp}-${random1}-${random2}-${entropy}`.replace(/\./g, '');
   }
 
   private createSeededRandom(seed: string): () => number {
