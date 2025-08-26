@@ -1225,9 +1225,6 @@ export class MapRenderer {
       return { x: 0, y: 0 };
     }
 
-    const mapWidthGui = globalMap.xsize * this.tileWidth;
-    const mapHeightGui = globalMap.ysize * this.tileHeight;
-
     // For isometric maps, we need to center based on the actual center tile of the map
     // Let's use freeciv-web's approach: center on the middle tile
     const centerTileX = Math.floor(globalMap.xsize / 2);
