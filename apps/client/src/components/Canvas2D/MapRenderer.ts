@@ -611,7 +611,7 @@ export class MapRenderer {
   private mapTerrainName(terrain: string): string {
     const terrainMap: Record<string, string> = {
       // Water terrains
-      ocean: 'coast', // shallow ocean uses "coast" graphic  
+      ocean: 'coast', // shallow ocean uses "coast" graphic
       deep_ocean: 'floor', // deep ocean uses "floor" graphic
       coast: 'coast', // coastal areas use "coast" graphic
       lake: 'lake', // lakes use "lake" graphic
