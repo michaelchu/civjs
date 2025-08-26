@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { gameClient } from '../services/GameClient';
 
 export const GameCreationDialog: React.FC = () => {
   const [playerName, setPlayerName] = useState('');
   const [gameName, setGameName] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [mapSize, setMapSize] = useState('standard');
-  const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
 
   const navigate = useNavigate();
@@ -16,7 +14,7 @@ export const GameCreationDialog: React.FC = () => {
     navigate('/');
   };
 
-  const handleCreateGame = async (e: React.FormEvent) => {
+  const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!playerName.trim()) {
@@ -29,28 +27,15 @@ export const GameCreationDialog: React.FC = () => {
       return;
     }
 
-    setIsCreating(true);
-    setError('');
-
-    try {
-      await gameClient.connect();
-
-      // Create the game (server will handle authentication)
-      const gameId = await gameClient.createGame({
-        gameName: gameName.trim(),
+    // Navigate to terrain settings with game parameters
+    navigate('/terrain-settings', {
+      state: {
         playerName: playerName.trim(),
+        gameName: gameName.trim(),
         maxPlayers,
         mapSize,
-      });
-
-      // Navigate to the game URL
-      navigate(`/game/${gameId}`);
-    } catch (err) {
-      console.error('Game creation error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create game');
-    } finally {
-      setIsCreating(false);
-    }
+      },
+    });
   };
 
   const mapSizeOptions = [
@@ -91,7 +76,7 @@ export const GameCreationDialog: React.FC = () => {
           </div>
         </div>
 
-        <form onSubmit={handleCreateGame} className="space-y-6">
+        <form onSubmit={handleNext} className="space-y-6">
           <div>
             <label
               htmlFor="playerName"
@@ -106,7 +91,6 @@ export const GameCreationDialog: React.FC = () => {
               onChange={e => setPlayerName(e.target.value)}
               placeholder="Enter your player name"
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              disabled={isCreating}
               maxLength={32}
             />
           </div>
@@ -125,7 +109,6 @@ export const GameCreationDialog: React.FC = () => {
               onChange={e => setGameName(e.target.value)}
               placeholder="Enter game name"
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              disabled={isCreating}
               maxLength={50}
             />
           </div>
@@ -143,7 +126,6 @@ export const GameCreationDialog: React.FC = () => {
                 value={maxPlayers}
                 onChange={e => setMaxPlayers(Number(e.target.value))}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                disabled={isCreating}
               >
                 <option value={2}>2 Players</option>
                 <option value={3}>3 Players</option>
@@ -165,7 +147,6 @@ export const GameCreationDialog: React.FC = () => {
                 value={mapSize}
                 onChange={e => setMapSize(e.target.value)}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                disabled={isCreating}
               >
                 {mapSizeOptions.map(option => (
                   <option key={option.value} value={option.value}>
@@ -202,23 +183,15 @@ export const GameCreationDialog: React.FC = () => {
               type="button"
               onClick={handleBack}
               className="flex-1 py-3 px-4 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800"
-              disabled={isCreating}
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={isCreating || !playerName.trim() || !gameName.trim()}
+              disabled={!playerName.trim() || !gameName.trim()}
               className="flex-1 py-3 px-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:text-gray-400 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800"
             >
-              {isCreating ? (
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin w-5 h-5 border-2 border-green-300 border-t-transparent rounded-full mr-2"></div>
-                  Creating...
-                </div>
-              ) : (
-                'Create Game'
-              )}
+              Next
             </button>
           </div>
         </form>

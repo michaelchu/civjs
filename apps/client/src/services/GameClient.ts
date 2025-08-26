@@ -360,6 +360,15 @@ class GameClient {
     playerName: string;
     maxPlayers: number;
     mapSize: string;
+    terrainSettings?: {
+      generator: string;
+      landmass: string;
+      huts: number;
+      temperature: number;
+      wetness: number;
+      rivers: number;
+      resources: string;
+    };
   }): Promise<string> {
     await this.authenticatePlayer(gameData.playerName);
 
@@ -387,6 +396,15 @@ class GameClient {
           ruleset: 'classic',
           victoryConditions: [],
           turnTimeLimit: 120,
+          terrainSettings: gameData.terrainSettings || {
+            generator: 'fractal',
+            landmass: 'normal',
+            huts: 15,
+            temperature: 50,
+            wetness: 50,
+            rivers: 50,
+            resources: 'normal',
+          },
         },
       });
 
