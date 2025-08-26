@@ -201,12 +201,13 @@ export class TerrainSelectionEngine {
     elevation: number
   ): TerrainType {
     // Water terrains based on elevation and climate (Phase 3 enhancement)
-    if (elevation < 10) return 'deep_ocean';
-    if (elevation < 20) return 'ocean';
-    if (elevation < 30) return 'coast';
+    // Height is normalized to 0-255, so adjust thresholds accordingly
+    if (elevation < 40) return 'deep_ocean';
+    if (elevation < 80) return 'ocean';
+    if (elevation < 100) return 'coast';
 
     // Enhanced inland water placement with climate consideration
-    if (elevation < 50 && tileWetness > 80) {
+    if (elevation < 120 && tileWetness > 80) {
       // Higher chance of lakes in temperate zones
       const lakeChance = tileTemp & TemperatureType.TEMPERATE ? 0.08 : 0.05;
       if (this.random() < lakeChance) {

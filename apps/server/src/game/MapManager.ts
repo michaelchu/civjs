@@ -9,6 +9,16 @@ import { RiverGenerator } from './map/RiverGenerator';
 import { ResourceGenerator } from './map/ResourceGenerator';
 import { StartingPositionGenerator } from './map/StartingPositionGenerator';
 
+// Re-export commonly used types for backward compatibility
+export {
+  MapData,
+  MapTile,
+  TerrainType,
+  TemperatureType,
+  TerrainProperty,
+  ResourceType,
+} from './map/MapTypes';
+
 export class MapManager {
   private width: number;
   private height: number;
@@ -237,9 +247,44 @@ export class MapManager {
         );
         tile.terrain = terrain;
 
+        // Adjust elevation to match terrain expectations for frontend
+        this.adjustElevationForTerrain(tile);
+
         // Set terrain properties
         this.setTerrainProperties(tile);
       }
+    }
+  }
+
+  private adjustElevationForTerrain(tile: MapTile): void {
+    // Adjust elevation to match frontend expectations
+    switch (tile.terrain) {
+      case 'deep_ocean':
+        tile.elevation = Math.floor(this.random() * 10); // 0-9
+        break;
+      case 'ocean':
+        tile.elevation = Math.floor(10 + this.random() * 15); // 10-24
+        break;
+      case 'coast':
+        tile.elevation = Math.floor(25 + this.random() * 20); // 25-44
+        break;
+      case 'lake':
+        tile.elevation = Math.floor(5 + this.random() * 15); // 5-19
+        break;
+      case 'mountains':
+        tile.elevation = Math.floor(200 + this.random() * 55); // 200-254
+        break;
+      case 'hills':
+        tile.elevation = Math.floor(120 + this.random() * 60); // 120-179
+        break;
+      case 'glacier':
+        tile.elevation = Math.floor(180 + this.random() * 75); // 180-254
+        break;
+      default:
+        // Keep existing elevation for other land terrains, but ensure reasonable range
+        if (tile.elevation < 45) tile.elevation = 45;
+        if (tile.elevation > 180) tile.elevation = 180;
+        break;
     }
   }
 
