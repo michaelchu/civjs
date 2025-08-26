@@ -24,6 +24,7 @@ export enum TemperatureType {
 export enum WetnessCondition {
   DRY = 'dry',
   NDRY = 'not_dry', // not dry
+  WET = 'wet',
   ALL = 'all',
 }
 

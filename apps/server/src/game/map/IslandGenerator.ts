@@ -55,6 +55,14 @@ export class IslandTerrainLists {
     this.swamp = [];
   }
 
+  cleanup(): void {
+    this.forest = [];
+    this.desert = [];
+    this.mountain = [];
+    this.swamp = [];
+    this.initialized = false;
+  }
+
   initialize(): void {
     if (this.initialized) return;
 
@@ -192,14 +200,6 @@ export class IslandTerrainLists {
     ];
 
     this.initialized = true;
-  }
-
-  cleanup(): void {
-    this.forest = [];
-    this.desert = [];
-    this.mountain = [];
-    this.swamp = [];
-    this.initialized = false;
   }
 }
 
@@ -362,19 +362,43 @@ export class IslandGenerator {
 
     // Forest terrain
     buckets.forestBucket += terrainPercentages.forest * terrainFactor;
-    this.fillIsland(60, buckets.forestBucket, this.terrainLists.forest, state, tiles);
+    buckets.forestBucket = this.fillIsland(
+      60,
+      buckets.forestBucket,
+      this.terrainLists.forest,
+      state,
+      tiles
+    );
 
     // Desert terrain
     buckets.desertBucket += terrainPercentages.desert * terrainFactor;
-    this.fillIsland(40, buckets.desertBucket, this.terrainLists.desert, state, tiles);
+    buckets.desertBucket = this.fillIsland(
+      40,
+      buckets.desertBucket,
+      this.terrainLists.desert,
+      state,
+      tiles
+    );
 
     // Mountain terrain
     buckets.mountainBucket += terrainPercentages.mountain * terrainFactor;
-    this.fillIsland(20, buckets.mountainBucket, this.terrainLists.mountain, state, tiles);
+    buckets.mountainBucket = this.fillIsland(
+      20,
+      buckets.mountainBucket,
+      this.terrainLists.mountain,
+      state,
+      tiles
+    );
 
     // Swamp terrain
     buckets.swampBucket += terrainPercentages.swamp * terrainFactor;
-    this.fillIsland(80, buckets.swampBucket, this.terrainLists.swamp, state, tiles);
+    buckets.swampBucket = this.fillIsland(
+      80,
+      buckets.swampBucket,
+      this.terrainLists.swamp,
+      state,
+      tiles
+    );
 
     state.isleIndex++;
     return true;
@@ -497,7 +521,7 @@ export class IslandGenerator {
   }
 
   /**
-   * Fill island with specific terrain types
+   * Fill island with specific terrain types (port from freeciv fill_island)
    */
   private fillIsland(
     coastDistance: number,
@@ -505,40 +529,159 @@ export class IslandGenerator {
     terrainList: TerrainSelector[],
     state: IslandGeneratorState,
     tiles: MapTile[][]
-  ): void {
-    if (bucket <= 0 || terrainList.length === 0) return;
+  ): number {
+    if (bucket <= 0 || terrainList.length === 0) return bucket;
 
-    const tilesToPlace = Math.floor(bucket);
-    let placed = 0;
+    const capac = state.totalMass;
+    let tilesToPlace = Math.floor(bucket / capac);
+    tilesToPlace++;
+    const remainingBucket = bucket - tilesToPlace * capac;
 
-    for (let attempt = 0; attempt < tilesToPlace * 3 && placed < tilesToPlace; attempt++) {
-      const x = Math.floor(this.random() * this.width);
-      const y = Math.floor(this.random() * this.height);
+    // Calculate total weight of terrain selections
+    let totalWeight = 0;
+    for (const selector of terrainList) {
+      totalWeight += selector.weight;
+    }
 
-      if (state.heightMap[x][y] > 0 && !state.placedMap[x][y]) {
-        // Check distance from coast
-        if (this.isCoastNearby(x, y, tiles)) {
-          if (this.random() * 100 < coastDistance) {
-            continue; // Skip if too close to coast
+    let i = tilesToPlace;
+    const failsafe = i * (state.s - state.n) * (state.e - state.w);
+    let attempts = 0;
+
+    while (i > 0 && attempts < failsafe) {
+      // Get random position from island bounds
+      const x = Math.floor(this.random() * (state.e - state.w)) + state.w;
+      const y = Math.floor(this.random() * (state.s - state.n)) + state.n;
+
+      if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+        // Check if this is a land tile on our current continent
+        if (tiles[x][y].continentId === state.isleIndex && !state.placedMap[x][y]) {
+          // Select terrain based on weighted probability
+          const selector = this.selectTerrainByWeight(terrainList, totalWeight);
+          if (!selector) {
+            attempts++;
+            continue;
+          }
+
+          // Check environmental conditions (temperature, wetness)
+          if (!this.checkTerrainConditions(tiles[x][y], selector)) {
+            attempts++;
+            continue;
+          }
+
+          // Check coastal proximity rules
+          const isNearCoast = this.isCoastNearby(x, y, tiles);
+          const shouldPlace = !isNearCoast || this.random() * 100 < coastDistance;
+
+          // Additional placement logic for terrain contiguity
+          const hasNeighborTerrain = this.hasNeighborWithTerrain(x, y, tiles, selector.terrain);
+          const shouldPlaceContiguous =
+            i * 3 > tilesToPlace * 2 || this.random() * 100 < 50 || hasNeighborTerrain;
+
+          if (shouldPlace && shouldPlaceContiguous) {
+            tiles[x][y].terrain = selector.terrain;
+            state.placedMap[x][y] = true;
+            i--;
           }
         }
+      }
 
-        // Select terrain from list
-        const selector = terrainList[Math.floor(this.random() * terrainList.length)];
-        tiles[x][y].terrain = selector.terrain;
-        state.placedMap[x][y] = true;
-        placed++;
+      attempts++;
+    }
+
+    return remainingBucket;
+  }
+
+  /**
+   * Select terrain based on weighted probability
+   */
+  private selectTerrainByWeight(
+    terrainList: TerrainSelector[],
+    totalWeight: number
+  ): TerrainSelector | null {
+    if (totalWeight === 0) return null;
+
+    const randomValue = this.random() * totalWeight;
+    let currentWeight = 0;
+
+    for (const selector of terrainList) {
+      currentWeight += selector.weight;
+      if (randomValue <= currentWeight) {
+        return selector;
       }
     }
+
+    // Fallback to last item
+    return terrainList[terrainList.length - 1];
+  }
+
+  /**
+   * Check if terrain conditions are met (temperature, wetness)
+   */
+  private checkTerrainConditions(tile: MapTile, selector: TerrainSelector): boolean {
+    // Check temperature condition
+    if (selector.tempCondition !== undefined) {
+      if (tile.temperature !== selector.tempCondition) {
+        return false;
+      }
+    }
+
+    // Check wetness condition
+    if (selector.wetCondition !== undefined) {
+      switch (selector.wetCondition) {
+        case WetnessCondition.DRY:
+          if (tile.wetness > 33) return false;
+          break;
+        case WetnessCondition.NDRY:
+          if (tile.wetness <= 33) return false;
+          break;
+        case WetnessCondition.WET:
+          if (tile.wetness < 66) return false;
+          break;
+        case WetnessCondition.ALL:
+          // Any wetness is acceptable
+          break;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Check if there's a neighboring tile with the same terrain
+   */
+  private hasNeighborWithTerrain(
+    x: number,
+    y: number,
+    tiles: MapTile[][],
+    terrain: string
+  ): boolean {
+    const neighbors = [
+      [x - 1, y],
+      [x + 1, y],
+      [x, y - 1],
+      [x, y + 1],
+    ];
+
+    for (const [nx, ny] of neighbors) {
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (tiles[nx][ny].terrain === terrain) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   /**
    * Check if coast is nearby
    */
   private isCoastNearby(x: number, y: number, tiles: MapTile[][]): boolean {
-    const radius = 2;
+    const radius = 1; // Adjacent tiles only for coastal check
     for (let dx = -radius; dx <= radius; dx++) {
       for (let dy = -radius; dy <= radius; dy++) {
+        if (dx === 0 && dy === 0) continue;
+
         const nx = x + dx;
         const ny = y + dy;
         if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {

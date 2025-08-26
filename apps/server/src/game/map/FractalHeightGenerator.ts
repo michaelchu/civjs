@@ -6,7 +6,7 @@
 
 // Height map constants from freeciv reference
 const HMAP_MAX_LEVEL = 1000; // Maximum height value (freeciv: hmap_max_level)
-const HMAP_SHORE_LEVEL = 250; // Sea level threshold (freeciv: hmap_shore_level)
+// Shore level is now calculated dynamically based on land percentage
 const DEFAULT_STEEPNESS = 30; // Terrain steepness parameter 0-100 (freeciv: wld.map.server.steepness)
 const DEFAULT_FLATPOLES = 100; // Pole flattening parameter 0-100 (freeciv: wld.map.server.flatpoles)
 
@@ -29,7 +29,7 @@ export class FractalHeightGenerator {
   private heightMap: number[];
   private random: () => number;
   private generator: string;
-  private shoreLevel: number = HMAP_SHORE_LEVEL;
+  private shoreLevel: number;
   private mountainLevel: number;
   private readonly steepness: number; // Used for mountain level calculation
   private flatpoles: number;
@@ -50,6 +50,10 @@ export class FractalHeightGenerator {
     this.steepness = steepness;
     this.flatpoles = flatpoles;
 
+    // Calculate shore level based on land percentage (like freeciv make_land())
+    const landPercent = 30; // MAP_DEFAULT_LANDMASS from freeciv reference
+    this.shoreLevel = Math.floor((HMAP_MAX_LEVEL * (100 - landPercent)) / 100);
+    
     // Calculate mountain level based on steepness parameter
     // Higher steepness = more mountains (lower mountain threshold)
     this.mountainLevel = Math.floor(
@@ -197,13 +201,54 @@ export class FractalHeightGenerator {
    * @reference freeciv/server/generator/height_map.c make_random_hmap()
    */
   public generateRandomHeightMap(): void {
-    // Initialize all tiles with random heights
+    // Test with minimal smoothing to preserve more height variation
+    const smooth = 1; // Start with minimal smoothing
+
+    console.log('DEBUG: generateRandomHeightMap - starting with smooth =', smooth);
+    console.log('DEBUG: heightMap.length =', this.heightMap.length);
+    console.log('DEBUG: shoreLevel =', this.shoreLevel, 'mountainLevel =', this.mountainLevel);
+
+    // CRITICAL: Initialize each tile with a DIFFERENT random value (like freeciv INITIALIZE_ARRAY)
+    // The freeciv macro evaluates fc_rand(1000 * smooth) for EACH array element
     for (let i = 0; i < this.heightMap.length; i++) {
-      this.heightMap[i] = Math.floor(this.random() * HMAP_MAX_LEVEL);
+      this.heightMap[i] = Math.floor(this.random() * (1000 * smooth));
     }
 
-    // Apply multiple smoothing passes to create more natural terrain
-    this.applySmoothingPasses(3);
+    console.log('DEBUG: After initialization - min/max heights:');
+    const minInit = Math.min(...this.heightMap);
+    const maxInit = Math.max(...this.heightMap);
+    console.log('  min =', minInit, 'max =', maxInit, 'range =', maxInit - minInit);
+
+    // Apply multiple smoothing passes to create natural terrain variation
+    this.applySmoothingPasses(smooth);
+
+    console.log('DEBUG: After smoothing - min/max heights:');
+    const minSmooth = Math.min(...this.heightMap);
+    const maxSmooth = Math.max(...this.heightMap);
+    console.log('  min =', minSmooth, 'max =', maxSmooth, 'range =', maxSmooth - minSmooth);
+
+    // Adjust to proper height range (like freeciv adjust_int_map)
+    this.normalizeHeightMap();
+
+    console.log('DEBUG: After normalization - min/max heights:');
+    const minNorm = Math.min(...this.heightMap);
+    const maxNorm = Math.max(...this.heightMap);
+    console.log('  min =', minNorm, 'max =', maxNorm, 'range =', maxNorm - minNorm);
+
+    // Adaptively set shore level to achieve target land percentage
+    this.adjustShoreLevel();
+
+    // Count land vs ocean tiles with new shore level
+    let landCount = 0;
+    const normalizedShoreLevel = (this.shoreLevel / HMAP_MAX_LEVEL) * 255;
+    for (const height of this.heightMap) {
+      if (height >= normalizedShoreLevel) landCount++;
+    }
+    const landPercent = (landCount / this.heightMap.length) * 100;
+    console.log('DEBUG: Final land analysis after shore level adjustment:');
+    console.log('  normalizedShoreLevel =', normalizedShoreLevel);
+    console.log('  landCount =', landCount, '/', this.heightMap.length);
+    console.log('  landPercent =', landPercent.toFixed(1) + '%');
   }
 
   /**
@@ -211,8 +256,8 @@ export class FractalHeightGenerator {
    * @reference freeciv/server/generator/height_map.c make_pseudofractal1_hmap()
    */
   public generatePseudoFractalHeightMap(): void {
-    // Initialize with base random values
-    this.generateRandomHeightMap();
+    // CRITICAL: Initialize to ZEROS first (like freeciv does)
+    this.heightMap.fill(0);
 
     // Create grid of seed points for fractal generation
     const xdiv = 5;
@@ -224,14 +269,23 @@ export class FractalHeightGenerator {
         const px = Math.floor((x * this.width) / xdiv);
         const py = Math.floor((y * this.height) / ydiv);
 
-        // Create varied elevations for seed points
-        const seedHeight = Math.floor(this.random() * HMAP_MAX_LEVEL);
+        // Create varied elevations for seed points (use step-based range like freeciv)
+        const step = this.width + this.height;
+        let seedHeight = Math.floor(this.random() * (2 * step)) - step;
+
+        // Avoid edges (reduce land near map edges)
+        if (this.isNearMapEdge(px, py)) {
+          const landPercent = 30;
+          const avoidedge = ((100 - landPercent) * step) / 100 + Math.floor(step / 3);
+          seedHeight -= avoidedge;
+        }
+
         this.setHeight(px, py, seedHeight);
       }
     }
 
     // Apply fractal subdivision to each grid cell
-    const initialStep = Math.floor(HMAP_MAX_LEVEL / 4);
+    const step = this.width + this.height; // Use freeciv step calculation
     for (let x = 0; x < xdiv; x++) {
       for (let y = 0; y < ydiv; y++) {
         const x1 = Math.floor((x * this.width) / xdiv);
@@ -239,7 +293,7 @@ export class FractalHeightGenerator {
         const x2 = Math.floor(((x + 1) * this.width) / xdiv);
         const y2 = Math.floor(((y + 1) * this.height) / ydiv);
 
-        this.diamondSquareRecursive(initialStep, x1, y1, x2, y2);
+        this.diamondSquareRecursive(step, x1, y1, x2, y2);
       }
     }
   }
@@ -253,10 +307,12 @@ export class FractalHeightGenerator {
     switch (this.generator) {
       case 'random':
         // MAPGEN_RANDOM approach: fully random heights with smoothing
+        console.log('Using RANDOM height generation algorithm');
         this.generateRandomHeightMap();
         break;
       case 'fractal':
         // MAPGEN_FRACTAL approach: pseudofractal with grid-based seeds
+        console.log('Using FRACTAL height generation algorithm');
         this.generatePseudoFractalHeightMap();
         break;
       case 'island':
@@ -266,6 +322,7 @@ export class FractalHeightGenerator {
         break;
       default:
         // Default to random (freeciv default)
+        console.log('Using DEFAULT (random) height generation algorithm for generator:', this.generator);
         this.generateRandomHeightMap();
         break;
     }
@@ -326,32 +383,59 @@ export class FractalHeightGenerator {
   }
 
   /**
-   * Apply smoothing passes to height map
+   * Apply Gaussian smoothing passes like freeciv smooth_int_map
+   * @reference freeciv/server/generator/mapgen_utils.c smooth_int_map()
    */
   public applySmoothingPasses(passes: number = 2): void {
+    // Gaussian weights from freeciv: center=0.37, adjacent=0.19, edge=0.13
+    const weights = [0.13, 0.19, 0.37, 0.19, 0.13];
+    
+    console.log('DEBUG: Applying', passes, 'Gaussian smoothing passes');
+
     for (let pass = 0; pass < passes; pass++) {
-      const newHeightMap = [...this.heightMap];
-
-      for (let x = 1; x < this.width - 1; x++) {
-        for (let y = 1; y < this.height - 1; y++) {
-          const neighbors = [
-            this.getHeight(x - 1, y - 1),
-            this.getHeight(x, y - 1),
-            this.getHeight(x + 1, y - 1),
-            this.getHeight(x - 1, y),
-            this.getHeight(x, y),
-            this.getHeight(x + 1, y),
-            this.getHeight(x - 1, y + 1),
-            this.getHeight(x, y + 1),
-            this.getHeight(x + 1, y + 1),
-          ];
-
-          const avgHeight = neighbors.reduce((sum, h) => sum + h, 0) / neighbors.length;
-          newHeightMap[y * this.width + x] = Math.floor(avgHeight);
+      // Horizontal pass
+      let tempMap = [...this.heightMap];
+      for (let y = 0; y < this.height; y++) {
+        for (let x = 0; x < this.width; x++) {
+          let weightedSum = 0;
+          let totalWeight = 0;
+          
+          for (let i = -2; i <= 2; i++) {
+            const nx = x + i;
+            if (nx >= 0 && nx < this.width) {
+              weightedSum += this.getHeight(nx, y) * weights[i + 2];
+              totalWeight += weights[i + 2];
+            }
+          }
+          
+          if (totalWeight > 0) {
+            tempMap[y * this.width + x] = Math.floor(weightedSum / totalWeight);
+          }
         }
       }
 
-      this.heightMap = newHeightMap;
+      // Vertical pass
+      this.heightMap = [...tempMap];
+      for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < this.height; y++) {
+          let weightedSum = 0;
+          let totalWeight = 0;
+          
+          for (let i = -2; i <= 2; i++) {
+            const ny = y + i;
+            if (ny >= 0 && ny < this.height) {
+              weightedSum += tempMap[ny * this.width + x] * weights[i + 2];
+              totalWeight += weights[i + 2];
+            }
+          }
+          
+          if (totalWeight > 0) {
+            this.heightMap[y * this.width + x] = Math.floor(weightedSum / totalWeight);
+          }
+        }
+      }
+      
+      console.log('DEBUG: Smoothing pass', pass + 1, 'completed');
     }
   }
 
@@ -360,6 +444,29 @@ export class FractalHeightGenerator {
    */
   public getHeightMap(): number[] {
     return [...this.heightMap];
+  }
+
+  /**
+   * Adaptively adjust shore level to achieve target land percentage
+   * This compensates for the range compression caused by smoothing
+   */
+  private adjustShoreLevel(): void {
+    const targetLandPercent = 30; // MAP_DEFAULT_LANDMASS
+    const sortedHeights = [...this.heightMap].sort((a, b) => b - a); // Sort descending
+    
+    // Find the height that gives us the closest to 30% land
+    const targetLandTiles = Math.floor((this.heightMap.length * targetLandPercent) / 100);
+    
+    if (targetLandTiles > 0 && targetLandTiles < sortedHeights.length) {
+      // Set shore level so that the top targetLandPercent of tiles become land
+      const newShoreHeightNormalized = sortedHeights[targetLandTiles - 1];
+      
+      // Convert back to HMAP_MAX_LEVEL scale
+      this.shoreLevel = Math.floor((newShoreHeightNormalized / 255) * HMAP_MAX_LEVEL);
+      
+      console.log('DEBUG: Adjusted shore level from', Math.floor((700 / HMAP_MAX_LEVEL) * 255), 
+                  'to', newShoreHeightNormalized, 'to achieve', targetLandPercent + '% land');
+    }
   }
 
   /**

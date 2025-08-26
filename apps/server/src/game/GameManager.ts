@@ -311,16 +311,30 @@ export class GameManager {
     }
 
     // Initialize managers with terrain settings
-    const generator = terrainSettings?.generator || 'random';
-    const mapManager = new MapManager(game.mapWidth, game.mapHeight, undefined, generator);
+    const mapGenerator = terrainSettings?.generator || 'random';
+    const mapManager = new MapManager(game.mapWidth, game.mapHeight, undefined, mapGenerator);
     const turnManager = new TurnManager(gameId, this.io);
     const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
     const cityManager = new CityManager(gameId);
     const researchManager = new ResearchManager(gameId);
 
-    // Generate the map with starting positions
-    await mapManager.generateMap(players);
+    // Generate the map with starting positions based on terrain settings
+    const generator = terrainSettings?.generator || 'random';
+    console.log('DEBUG: terrainSettings =', terrainSettings);
+    console.log('DEBUG: generator =', generator);
+
+    if (generator === 'island' || generator === 'fair' || generator === 'scenario') {
+      // Map frontend options to freeciv generator types:
+      // 'fair' -> generator 2 (one large continent, fair for all players)
+      // 'scenario' -> generator 3 (several large islands)
+      // 'island' -> generator 4 (many small islands, archipelago style)
+      const generatorType = generator === 'fair' ? 2 : generator === 'scenario' ? 3 : 4;
+      await mapManager.generateMapWithIslands(players, generatorType);
+    } else {
+      // Use traditional fractal generator for 'fractal', 'random'
+      await mapManager.generateMap(players);
+    }
 
     const mapData = mapManager.getMapData();
     if (!mapData) {

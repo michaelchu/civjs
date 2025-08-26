@@ -77,16 +77,28 @@ export const TerrainSettingsDialog: React.FC = () => {
     {
       value: 'random',
       label: 'Random',
-      description: 'Standard random terrain (freeciv default)',
+      description: 'Standard random terrain generation',
     },
     {
       value: 'fractal',
       label: 'Fractal',
-      description: 'Realistic continent shapes',
+      description: 'Realistic continent shapes using height maps',
     },
-    { value: 'island', label: 'Island', description: 'Island-based map' },
-    { value: 'fair', label: 'Fair', description: 'Balanced for all players' },
-    { value: 'scenario', label: 'Scenario', description: 'Pre-designed map' },
+    { 
+      value: 'fair', 
+      label: 'Continent', 
+      description: 'Large continent with fair starting positions' 
+    },
+    { 
+      value: 'scenario', 
+      label: 'Large Islands', 
+      description: 'Several large islands for balanced gameplay' 
+    },
+    { 
+      value: 'island', 
+      label: 'Archipelago', 
+      description: 'Many small islands and varied landmasses' 
+    },
   ];
 
   const landmassOptions = [
