@@ -136,8 +136,8 @@ export const TerrainSettingsDialog: React.FC = () => {
     },
     {
       value: 2,
-      label: 'Two or Three per Continent',
-      description: 'Allow 2-3 players per continent',
+      label: 'Two on Three per Continent',
+      description: 'Two on three players per continent',
     },
     {
       value: 3,
