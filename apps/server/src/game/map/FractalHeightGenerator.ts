@@ -17,11 +17,7 @@ const DEFAULT_FLATPOLES = 100; // Pole flattening parameter 0-100 (freeciv: wld.
 const MAX_COLATITUDE = 1000; // Normalized maximum colatitude (freeciv: MAP_MAX_LATITUDE)
 const ICE_BASE_LEVEL = 200; // Base level for polar ice formation (freeciv: ice_base_colatitude)
 
-// Landmass and fracture generation parameters
-interface LandmassPoint {
-  x: number;
-  y: number;
-}
+// Constants for height generation
 
 /**
  * Advanced height map generator using fractal algorithms
@@ -194,131 +190,80 @@ export class FractalHeightGenerator {
   }
 
   /**
-   * Generate fracture map with landmass points
-   * Ported from freeciv's make_fracture_map() function
-   * @reference freeciv/server/generator/fracture_map.c:55-150
-   * @reference Original algorithm creates strategic landmass points with border ocean generation
+   * Generate initial random height map (similar to MAPGEN_RANDOM approach)
+   * @reference freeciv/server/generator/height_map.c make_random_hmap()
    */
-  public generateFractureMap(): void {
-    // Calculate number of landmasses based on map size
-    const mapSize = Math.sqrt(this.width * this.height);
-    const numLandmass = Math.floor(20 + 15 * (mapSize / 50));
-
-    const fracturePoints: LandmassPoint[] = [];
-
-    // Place landmass points along map borders for ocean creation
-    const borderSpacing = 5;
-
-    // Top and bottom borders
-    for (let x = 3; x < this.width; x += borderSpacing) {
-      fracturePoints.push({ x, y: 3 });
-      fracturePoints.push({ x, y: this.height - 4 });
+  public generateRandomHeightMap(): void {
+    // Initialize all tiles with random heights
+    for (let i = 0; i < this.heightMap.length; i++) {
+      this.heightMap[i] = Math.floor(this.random() * HMAP_MAX_LEVEL);
     }
 
-    // Left and right borders
-    for (let y = 3; y < this.height; y += borderSpacing) {
-      fracturePoints.push({ x: 3, y });
-      fracturePoints.push({ x: this.width - 4, y });
-    }
-
-    // Add random interior landmass points
-    const borderPoints = fracturePoints.length;
-    for (let i = 0; i < numLandmass; i++) {
-      fracturePoints.push({
-        x: Math.floor(this.random() * (this.width - 6)) + 3,
-        y: Math.floor(this.random() * (this.height - 6)) + 3,
-      });
-    }
-
-    // Create landmass regions around fracture points
-    for (let i = 0; i < fracturePoints.length; i++) {
-      const point = fracturePoints[i];
-      const isBorderPoint = i < borderPoints;
-
-      // Border points create ocean (low elevation), interior points create land
-      const baseElevation = isBorderPoint ? 0 : Math.floor(this.random() * HMAP_MAX_LEVEL);
-      const radius = Math.floor(8 + this.random() * 12);
-
-      this.createCircularLandmass(point.x, point.y, radius, baseElevation);
-    }
+    // Apply multiple smoothing passes to create more natural terrain
+    this.applySmoothingPasses(3);
   }
 
   /**
-   * Create circular landmass region using Bresenham circle algorithm
+   * Generate fractal height map using proper grid-based approach
+   * @reference freeciv/server/generator/height_map.c make_pseudofractal1_hmap()
    */
-  private createCircularLandmass(
-    centerX: number,
-    centerY: number,
-    radius: number,
-    elevation: number
-  ): void {
-    // Fill circular area with specified elevation
-    for (let x = centerX - radius; x <= centerX + radius; x++) {
-      for (let y = centerY - radius; y <= centerY + radius; y++) {
-        const distance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+  public generatePseudoFractalHeightMap(): void {
+    // Initialize with base random values
+    this.generateRandomHeightMap();
 
-        if (distance <= radius) {
-          // Smooth falloff from center to edge
-          const falloff = 1 - distance / radius;
-          const adjustedElevation = Math.floor(elevation * falloff * falloff);
+    // Create grid of seed points for fractal generation
+    const xdiv = 5;
+    const ydiv = 5;
 
-          if (this.getHeight(x, y) < adjustedElevation) {
-            this.setHeight(x, y, adjustedElevation);
-          }
-        }
+    // Set initial seed points in a grid pattern
+    for (let x = 0; x < xdiv + 1; x++) {
+      for (let y = 0; y < ydiv + 1; y++) {
+        const px = Math.floor((x * this.width) / xdiv);
+        const py = Math.floor((y * this.height) / ydiv);
+
+        // Create varied elevations for seed points
+        const seedHeight = Math.floor(this.random() * HMAP_MAX_LEVEL);
+        this.setHeight(px, py, seedHeight);
+      }
+    }
+
+    // Apply fractal subdivision to each grid cell
+    const initialStep = Math.floor(HMAP_MAX_LEVEL / 4);
+    for (let x = 0; x < xdiv; x++) {
+      for (let y = 0; y < ydiv; y++) {
+        const x1 = Math.floor((x * this.width) / xdiv);
+        const y1 = Math.floor((y * this.height) / ydiv);
+        const x2 = Math.floor(((x + 1) * this.width) / xdiv);
+        const y2 = Math.floor(((y + 1) * this.height) / ydiv);
+
+        this.diamondSquareRecursive(initialStep, x1, y1, x2, y2);
       }
     }
   }
 
   /**
-   * Generate sophisticated height map using diamond-square and fracture algorithms
+   * Generate sophisticated height map using proper fractal algorithms
+   * Following freeciv MAPGEN_FRACTAL approach instead of MAPGEN_FRACTURE
    */
   public generateHeightMap(): void {
-    // Step 1: Initialize with fracture map for landmass shapes
-    this.generateFractureMap();
+    // Step 1: Generate base fractal height map (no forced border ocean)
+    this.generatePseudoFractalHeightMap();
 
-    // Step 2: Apply diamond-square algorithm for fractal detail
-    const initialStep = Math.floor(HMAP_MAX_LEVEL / 4);
-    const divisions = 4; // Number of initial blocks
-
-    // Set up initial corner values for diamond-square
-    for (let x = 0; x < divisions; x++) {
-      for (let y = 0; y < divisions; y++) {
-        const blockX = Math.floor((x * this.width) / divisions);
-        const blockY = Math.floor((y * this.height) / divisions);
-        const cornerValue = Math.floor(this.random() * HMAP_MAX_LEVEL);
-
-        this.setHeight(blockX, blockY, cornerValue);
-      }
-    }
-
-    // Apply diamond-square recursively on each block
-    for (let x = 0; x < divisions; x++) {
-      for (let y = 0; y < divisions; y++) {
-        const xl = Math.floor((x * this.width) / divisions);
-        const yt = Math.floor((y * this.height) / divisions);
-        const xr = Math.floor(((x + 1) * this.width) / divisions);
-        const yb = Math.floor(((y + 1) * this.height) / divisions);
-
-        this.diamondSquareRecursive(initialStep, xl, yt, xr, yb);
-      }
-    }
-
-    // Step 3: Apply pole flattening for realistic world geometry
+    // Step 2: Apply gentle pole flattening (without forcing edges to ocean)
     this.normalizeHeightMapPoles();
 
-    // Step 4: Add final random variation
+    // Step 3: Add final random variation for natural detail
     for (let i = 0; i < this.heightMap.length; i++) {
       const fuzz = Math.floor(this.random() * 8) - 4;
-      this.heightMap[i] = Math.max(0, Math.min(HMAP_MAX_LEVEL, 8 * this.heightMap[i] + fuzz));
+      this.heightMap[i] = Math.max(0, Math.min(HMAP_MAX_LEVEL, this.heightMap[i] + fuzz));
     }
 
-    // Step 5: Normalize to final height range
+    // Step 4: Normalize to final height range
     this.normalizeHeightMap();
   }
 
   /**
-   * Apply pole flattening for realistic world geometry
+   * Apply subtle pole flattening for realistic world geometry
    * @reference freeciv/server/generator/height_map.c:65-75
    */
   private normalizeHeightMapPoles(): void {
@@ -326,13 +271,12 @@ export class FractalHeightGenerator {
       for (let y = 0; y < this.height; y++) {
         const colatitude = this.getColatitude(x, y);
 
-        if (colatitude <= 2.5 * ICE_BASE_LEVEL) {
+        // Apply gentle pole flattening only in extreme polar regions
+        if (colatitude > 2.2 * ICE_BASE_LEVEL) {
           const poleFactor = this.getPoleFactor(x, y);
           const currentHeight = this.getHeight(x, y);
-          this.setHeight(x, y, currentHeight * poleFactor);
-        } else if (this.isNearMapEdge(x, y)) {
-          // Near map edge but not near pole - set to ocean
-          this.setHeight(x, y, 0);
+          // Very gentle reduction, not elimination
+          this.setHeight(x, y, currentHeight * Math.max(0.7, poleFactor));
         }
       }
     }
