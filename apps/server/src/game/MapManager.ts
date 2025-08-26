@@ -107,6 +107,24 @@ export interface MapData {
   generatedAt: Date;
 }
 
+/**
+ * River map state tracking for sophisticated river generation
+ * @reference freeciv/server/generator/mapgen.c:115-118
+ */
+interface RiverMapState {
+  blocked: Set<number>; // Tiles marked as blocked for river placement
+  ok: Set<number>; // Tiles marked as valid river tiles
+}
+
+/**
+ * River test function definition
+ * @reference freeciv/server/generator/mapgen.c:684-687
+ */
+interface RiverTestFunction {
+  func: (riverMap: RiverMapState, x: number, y: number, tiles: MapTile[][]) => number;
+  fatal: boolean; // If true, non-zero result aborts river generation
+}
+
 // Terrain property mappings from freeciv classic ruleset
 // Each terrain has property values from 0-100 representing how much of that property it has
 const TERRAIN_PROPERTY_MAP: Record<TerrainType, TerrainProperties> = {
@@ -1323,8 +1341,8 @@ export class MapManager {
     // Generate continents
     await this.generateContinents(tiles);
 
-    // Place rivers
-    await this.generateRivers(tiles);
+    // Place rivers (Phase 6: Enhanced river system)
+    await this.generateAdvancedRivers(tiles);
 
     // Place resources
     await this.generateResources(tiles);
@@ -1744,7 +1762,8 @@ export class MapManager {
     }
   }
 
-  private async generateRivers(tiles: MapTile[][]): Promise<void> {
+  // Legacy river generation - replaced by Phase 6 advanced river system
+  /* private async generateRivers(tiles: MapTile[][]): Promise<void> {
     const random = this.createSeededRandom(this.seed);
     const riverCount = Math.floor((this.width * this.height) / 800); // About 1 river per 800 tiles
 
@@ -1766,9 +1785,9 @@ export class MapManager {
         this.generateRiverPath(tiles, startX, startY, random);
       }
     }
-  }
+  } */
 
-  private generateRiverPath(
+  /* private generateRiverPath(
     tiles: MapTile[][],
     startX: number,
     startY: number,
@@ -1813,7 +1832,7 @@ export class MapManager {
       y = next.y;
       length++;
     }
-  }
+  } */
 
   private async generateResources(tiles: MapTile[][]): Promise<void> {
     const random = this.createSeededRandom(this.seed);
@@ -2286,21 +2305,21 @@ export class MapManager {
     const state = this.initializeWorldForIslands(tiles);
 
     // Initialize bucket system
-    this.makeIsland(0, 0, state, tiles, 0);
+    await this.makeIsland(0, 0, state, tiles, 0);
 
     logger.info(`Using map generator ${generatorType} for ${players.size} players`);
 
     // Generate islands using specified generator algorithm
     switch (generatorType) {
       case 2:
-        this.mapGenerator2(state, tiles, players.size);
+        await this.mapGenerator2(state, tiles, players.size);
         break;
       case 3:
-        this.mapGenerator3(state, tiles, players.size);
+        await this.mapGenerator3(state, tiles, players.size);
         break;
       case 4:
       default:
-        this.mapGenerator4(state, tiles, players.size);
+        await this.mapGenerator4(state, tiles, players.size);
         break;
     }
 
@@ -2366,13 +2385,13 @@ export class MapManager {
   /**
    * Core make_island function (port from freeciv mapgen.c:2094-2202)
    */
-  private makeIsland(
+  private async makeIsland(
     islandMass: number,
     _starters: number,
     state: IslandGeneratorState,
     tiles: MapTile[][],
     minSpecificIslandSize: number = 10
-  ): boolean {
+  ): Promise<boolean> {
     // Static buckets for terrain distribution (like freeciv's bucket system)
     // Convert to instance variables for TypeScript compatibility
     if (!this.bucketState) {
@@ -2472,9 +2491,9 @@ export class MapManager {
     // Distribute terrain using bucket system
     const terrainFactor = currentSize * buckets.tileFactor;
 
-    // Rivers first
+    // Rivers first (Phase 6: Enhanced river system integration)
     buckets.riverBucket += this.terrainPercentages.river * terrainFactor;
-    this.fillIslandRivers(1, buckets.riverBucket, state, tiles);
+    await this.fillIslandRiversAdvanced(1, buckets.riverBucket, state, tiles);
 
     // Forest terrain
     buckets.forestBucket += this.terrainPercentages.forest * terrainFactor;
@@ -2590,13 +2609,13 @@ export class MapManager {
   /**
    * Fill island with specific terrain type (port from fill_island())
    */
-  private fillIsland(
+  private async fillIsland(
     coastChance: number,
     bucket: number,
     terrainSelectors: TerrainSelector[],
     state: IslandGeneratorState,
     tiles: MapTile[][]
-  ): void {
+  ): Promise<void> {
     if (bucket <= 0 || terrainSelectors.length === 0) {
       return;
     }
@@ -2671,7 +2690,8 @@ export class MapManager {
     }
   }
 
-  private fillIslandRivers(
+  // Legacy island river generation - replaced by Phase 6 advanced system
+  /* private fillIslandRivers(
     _coastChance: number,
     bucket: number,
     state: IslandGeneratorState,
@@ -2701,6 +2721,193 @@ export class MapManager {
       }
       attempts--;
     }
+  } */
+
+  /**
+   * Advanced river placement for island generation with sophisticated flow logic
+   * @reference freeciv/server/generator/mapgen.c:1731-1823
+   */
+  private async fillIslandRiversAdvanced(
+    _coastChance: number,
+    bucket: number,
+    state: IslandGeneratorState,
+    tiles: MapTile[][]
+  ): Promise<void> {
+    if (bucket <= 0) return;
+
+    const capacity = state.totalMass;
+    const tilesToPlace = Math.floor(bucket / capacity) + 1;
+
+    // Create localized river map for this island
+    const riverMap: RiverMapState = {
+      blocked: new Set<number>(),
+      ok: new Set<number>(),
+    };
+
+    let placedRivers = 0;
+    let attempts = tilesToPlace * 15; // More attempts for sophisticated placement
+
+    while (placedRivers < tilesToPlace && attempts > 0) {
+      const x = Math.floor(this.random() * (state.e - state.w)) + state.w;
+      const y = Math.floor(this.random() * (state.s - state.n)) + state.n;
+
+      if (
+        x >= 0 &&
+        x < this.width &&
+        y >= 0 &&
+        y < this.height &&
+        tiles[x][y].continentId === state.isleIndex &&
+        tiles[x][y].riverMask === 0 &&
+        this.isLandTile(tiles[x][y].terrain)
+      ) {
+        // Check river mouth suitability (for rivers ending at ocean)
+        if (this.isRiverMouthSuitable(x, y, tiles)) {
+          tiles[x][y].riverMask = this.generateAdvancedRiverMask(x, y, tiles, riverMap);
+          placedRivers++;
+        }
+        // Or check inland river suitability
+        else if (this.isIslandRiverSuitable(x, y, tiles)) {
+          tiles[x][y].riverMask = this.generateAdvancedRiverMask(x, y, tiles, riverMap);
+          placedRivers++;
+        }
+      }
+      attempts--;
+    }
+
+    logger.debug(
+      `Placed ${placedRivers}/${tilesToPlace} advanced island rivers in ${tilesToPlace * 15 - attempts} attempts`
+    );
+  }
+
+  /**
+   * Test river mouth suitability for island generation
+   * @reference freeciv/server/generator/mapgen.c:1731-1750
+   */
+  private isRiverMouthSuitable(x: number, y: number, tiles: MapTile[][]): boolean {
+    let cardinalOceanCount = 0;
+    let adjacentOceanPercent = 0;
+    let adjacentRiverCount = 0;
+
+    // Check cardinal directions for ocean
+    const cardinalDirs = [
+      [0, -1],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+    ];
+    for (const [dx, dy] of cardinalDirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const terrain = tiles[nx][ny].terrain;
+        if (terrain === 'ocean' || terrain === 'coast' || terrain === 'deep_ocean') {
+          cardinalOceanCount++;
+        }
+        if (tiles[nx][ny].riverMask > 0) {
+          adjacentRiverCount++;
+        }
+      }
+    }
+
+    // Check all adjacent tiles for ocean percentage
+    const allDirs = [
+      [-1, -1],
+      [0, -1],
+      [1, -1],
+      [-1, 0],
+      [1, 0],
+      [-1, 1],
+      [0, 1],
+      [1, 1],
+    ];
+    let oceanCount = 0;
+    for (const [dx, dy] of allDirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const terrain = tiles[nx][ny].terrain;
+        if (terrain === 'ocean' || terrain === 'coast' || terrain === 'deep_ocean') {
+          oceanCount++;
+        }
+      }
+    }
+    adjacentOceanPercent = (oceanCount / allDirs.length) * 100;
+
+    return cardinalOceanCount === 1 && adjacentOceanPercent <= 35 && adjacentRiverCount === 0;
+  }
+
+  /**
+   * Test island river suitability for inland placement
+   * @reference freeciv/server/generator/mapgen.c:1752-1771
+   */
+  private isIslandRiverSuitable(x: number, y: number, tiles: MapTile[][]): boolean {
+    let cardinalRiverCount = 0;
+    let cardinalOceanCount = 0;
+    let adjacentRiverPercent = 0;
+    let adjacentOceanPercent = 0;
+
+    // Check cardinal directions
+    const cardinalDirs = [
+      [0, -1],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+    ];
+    for (const [dx, dy] of cardinalDirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (tiles[nx][ny].riverMask > 0) {
+          cardinalRiverCount++;
+        }
+        const terrain = tiles[nx][ny].terrain;
+        if (terrain === 'ocean' || terrain === 'coast' || terrain === 'deep_ocean') {
+          cardinalOceanCount++;
+        }
+      }
+    }
+
+    // Check all adjacent tiles
+    const allDirs = [
+      [-1, -1],
+      [0, -1],
+      [1, -1],
+      [-1, 0],
+      [1, 0],
+      [-1, 1],
+      [0, 1],
+      [1, 1],
+    ];
+    let adjacentRiverCount = 0;
+    let adjacentOceanCount = 0;
+    for (const [dx, dy] of allDirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (tiles[nx][ny].riverMask > 0) {
+          adjacentRiverCount++;
+        }
+        const terrain = tiles[nx][ny].terrain;
+        if (terrain === 'ocean' || terrain === 'coast' || terrain === 'deep_ocean') {
+          adjacentOceanCount++;
+        }
+      }
+    }
+    adjacentRiverPercent = (adjacentRiverCount / allDirs.length) * 100;
+    adjacentOceanPercent = (adjacentOceanCount / allDirs.length) * 100;
+
+    // Enhanced suitability check
+    const tile = tiles[x][y];
+    const isDry = (tile.properties[TerrainProperty.DRY] || 0) > 50;
+    const randomFactor = isDry && this.random() < 0.5;
+
+    return (
+      (cardinalRiverCount === 1 &&
+        cardinalOceanCount === 0 &&
+        adjacentRiverPercent < 50 &&
+        adjacentRiverPercent + adjacentOceanPercent * 2 < this.random() * 25 + 25) ||
+      randomFactor
+    );
   }
 
   private selectTerrainFromList(
@@ -2824,7 +3031,8 @@ export class MapManager {
     return remainingMass;
   }
 
-  private generateRiverMask(x: number, y: number, _tiles: MapTile[][]): number {
+  // Legacy river mask generation - replaced by Phase 6 advanced system
+  /* private generateRiverMask(x: number, y: number, _tiles: MapTile[][]): number {
     // Simple river mask generation - could be enhanced
     let mask = 0;
     const neighbors = [
@@ -2844,6 +3052,929 @@ export class MapManager {
     }
 
     return mask;
+  } */
+
+  // Phase 6: Enhanced River System Implementation
+  // Port from freeciv/server/generator/mapgen.c:555-1150
+
+  /**
+   * Test if a tile is blocked for river placement
+   *
+   * This function checks if a tile has been marked as blocked for river placement,
+   * or if all cardinal neighbors are blocked, preventing river continuation.
+   *
+   * @reference freeciv/server/generator/mapgen.c:557-573
+   * @param riverMap State tracking blocked and valid river tiles
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param _tiles Map tiles array (unused in this test)
+   * @returns 1 if blocked (fatal), 0 if not blocked
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_blocked(struct river_map *privermap,
+   *                               struct tile *ptile,
+   *                               struct extra_type *priver)
+   * {
+   *   if (dbv_isset(&privermap->blocked, tile_index(ptile))) {
+   *     return 1;
+   *   }
+   *   // Any un-blocked?
+   *   cardinal_adjc_iterate(&(wld.map), ptile, ptile1) {
+   *     if (!dbv_isset(&privermap->blocked, tile_index(ptile1))) {
+   *       return 0;
+   *     }
+   *   } cardinal_adjc_iterate_end;
+   *   return 1; // None non-blocked |- all blocked
+   * }
+   * ```
+   */
+  private riverTestBlocked = (
+    riverMap: RiverMapState,
+    x: number,
+    y: number,
+    _tiles: MapTile[][]
+  ): number => {
+    const tileIndex = y * this.width + x;
+    if (riverMap.blocked.has(tileIndex)) {
+      return 1;
+    }
+
+    // Any un-blocked cardinal neighbors?
+    const cardinalDirs = [
+      [0, -1],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+    ];
+    for (const [dx, dy] of cardinalDirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const neighborIndex = ny * this.width + nx;
+        if (!riverMap.blocked.has(neighborIndex)) {
+          return 0;
+        }
+      }
+    }
+
+    return 1; // All neighbors blocked
+  };
+
+  /**
+   * Test river grid to avoid too many river connections
+   *
+   * Prevents rivers from creating too dense a grid by checking if a tile
+   * already has more than one river connection. This maintains natural
+   * river spacing and prevents unrealistic river networks.
+   *
+   * @reference freeciv/server/generator/mapgen.c:578-584
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check existing rivers
+   * @returns 1 if too many river connections (fatal), 0 if acceptable
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_rivergrid(struct river_map *privermap,
+   *                                 struct tile *ptile,
+   *                                 struct extra_type *priver)
+   * {
+   *   return (count_river_type_tile_card(&(wld.map), ptile, priver, FALSE) > 1)
+   *     ? 1 : 0;
+   * }
+   * ```
+   */
+  private riverTestRiverGrid = (
+    _riverMap: RiverMapState,
+    x: number,
+    y: number,
+    tiles: MapTile[][]
+  ): number => {
+    let riverCount = 0;
+    const cardinalDirs = [
+      [0, -1],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+    ];
+
+    for (const [dx, dy] of cardinalDirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (tiles[nx][ny].riverMask > 0) {
+          riverCount++;
+        }
+      }
+    }
+
+    return riverCount > 1 ? 1 : 0;
+  };
+
+  /**
+   * Test highland suitability based on mountainous terrain property
+   *
+   * Rivers prefer to start and flow through mountainous terrain as it provides
+   * natural elevation for water flow. This function returns the mountainous
+   * property value of a tile, where higher values indicate better suitability.
+   *
+   * @reference freeciv/server/generator/mapgen.c:589-594
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check terrain properties
+   * @returns Mountainous property value (0-100, higher = more mountainous)
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_highlands(struct river_map *privermap,
+   *                                 struct tile *ptile,
+   *                                 struct extra_type *priver)
+   * {
+   *   return tile_terrain(ptile)->property[MG_MOUNTAINOUS];
+   * }
+   * ```
+   */
+  private riverTestHighlands = (
+    _riverMap: RiverMapState,
+    x: number,
+    y: number,
+    tiles: MapTile[][]
+  ): number => {
+    const tile = tiles[x][y];
+    return tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
+  };
+
+  /**
+   * Test distance from ocean - rivers avoid ocean tiles
+   *
+   * Rivers should avoid flowing directly through ocean areas. This function
+   * calculates the inverse of ocean density in surrounding tiles, returning
+   * higher scores for areas with fewer ocean tiles nearby.
+   *
+   * @reference freeciv/server/generator/mapgen.c:599-605
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check terrain types
+   * @returns Inverse ocean density score (100 - ocean percentage)
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_adjacent_ocean(struct river_map *privermap,
+   *                                      struct tile *ptile,
+   *                                      struct extra_type *priver)
+   * {
+   *   return 100 - count_terrain_class_near_tile(&(wld.map), ptile,
+   *                                              TRUE, TRUE, TC_OCEAN);
+   * }
+   * ```
+   */
+  private riverTestAdjacentOcean = (
+    _riverMap: RiverMapState,
+    x: number,
+    y: number,
+    tiles: MapTile[][]
+  ): number => {
+    let oceanCount = 0;
+    const allDirs = [
+      [-1, -1],
+      [0, -1],
+      [1, -1],
+      [-1, 0],
+      [1, 0],
+      [-1, 1],
+      [0, 1],
+      [1, 1],
+    ];
+
+    for (const [dx, dy] of allDirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const terrain = tiles[nx][ny].terrain;
+        if (terrain === 'ocean' || terrain === 'coast' || terrain === 'deep_ocean') {
+          oceanCount++;
+        }
+      }
+    }
+
+    return 100 - oceanCount * 12.5; // Scale to 0-100 range
+  };
+
+  /**
+   * Test adjacent river density
+   *
+   * Rivers should avoid areas that already have many rivers nearby to prevent
+   * overcrowding. Returns higher scores for areas with fewer adjacent rivers.
+   *
+   * @reference freeciv/server/generator/mapgen.c:610-615
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check existing rivers
+   * @returns Inverse river density score (100 - river count * 25)
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_adjacent_river(struct river_map *privermap,
+   *                                      struct tile *ptile,
+   *                                      struct extra_type *priver)
+   * {
+   *   return 100 - count_river_type_tile_card(&(wld.map), ptile, priver, TRUE);
+   * }
+   * ```
+   */
+  private riverTestAdjacentRiver = (
+    _riverMap: RiverMapState,
+    x: number,
+    y: number,
+    tiles: MapTile[][]
+  ): number => {
+    let riverCount = 0;
+    const cardinalDirs = [
+      [0, -1],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+    ];
+
+    for (const [dx, dy] of cardinalDirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (tiles[nx][ny].riverMask > 0) {
+          riverCount++;
+        }
+      }
+    }
+
+    return 100 - riverCount * 25; // Prefer tiles with fewer adjacent rivers
+  };
+
+  /**
+   * Test adjacent highland suitability
+   *
+   * Rivers prefer areas with mountainous terrain nearby as this provides
+   * natural drainage patterns. Calculates the sum of mountainous properties
+   * of all adjacent tiles (including diagonals).
+   *
+   * @reference freeciv/server/generator/mapgen.c:620-630
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check terrain properties
+   * @returns Sum of adjacent mountainous property values
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_adjacent_highlands(struct river_map *privermap,
+   *                                          struct tile *ptile,
+   *                                          struct extra_type *priver)
+   * {
+   *   int sum = 0;
+   *   adjc_iterate(&(wld.map), ptile, ptile2) {
+   *     sum += tile_terrain(ptile2)->property[MG_MOUNTAINOUS];
+   *   } adjc_iterate_end;
+   *   return sum;
+   * }
+   * ```
+   */
+  private riverTestAdjacentHighlands = (
+    _riverMap: RiverMapState,
+    x: number,
+    y: number,
+    tiles: MapTile[][]
+  ): number => {
+    let highlandSum = 0;
+    const allDirs = [
+      [-1, -1],
+      [0, -1],
+      [1, -1],
+      [-1, 0],
+      [1, 0],
+      [-1, 1],
+      [0, 1],
+      [1, 1],
+    ];
+
+    for (const [dx, dy] of allDirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const tile = tiles[nx][ny];
+        highlandSum += tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
+      }
+    }
+
+    return highlandSum;
+  };
+
+  /**
+   * Test swamp suitability (avoid wet terrain)
+   *
+   * Rivers should generally avoid swampy/wet areas as they would create
+   * unnatural flow patterns. Returns inverse wetness score where lower
+   * wetness is preferred for river placement.
+   *
+   * @reference freeciv/server/generator/mapgen.c:636-641
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check terrain properties
+   * @returns Inverse wetness score (1000 - wetness property)
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_swamp(struct river_map *privermap,
+   *                             struct tile *ptile,
+   *                             struct extra_type *priver)
+   * {
+   *   return FC_INFINITY - tile_terrain(ptile)->property[MG_WET];
+   * }
+   * ```
+   */
+  private riverTestSwamp = (
+    _riverMap: RiverMapState,
+    x: number,
+    y: number,
+    tiles: MapTile[][]
+  ): number => {
+    const tile = tiles[x][y];
+    const wetProperty = tile.properties[TerrainProperty.WET] || 0;
+    return 1000 - wetProperty; // Lower is better, avoid wet areas
+  };
+
+  /**
+   * Test adjacent swamp density
+   *
+   * Similar to swamp test but considers wetness of all adjacent tiles.
+   * Rivers avoid areas surrounded by wet terrain to maintain natural
+   * drainage patterns.
+   *
+   * @reference freeciv/server/generator/mapgen.c:646-656
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to check terrain properties
+   * @returns Inverse adjacent wetness score (1000 - sum of adjacent wetness)
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_adjacent_swamp(struct river_map *privermap,
+   *                                      struct tile *ptile,
+   *                                      struct extra_type *priver)
+   * {
+   *   int sum = 0;
+   *   adjc_iterate(&(wld.map), ptile, ptile2) {
+   *     sum += tile_terrain(ptile2)->property[MG_WET];
+   *   } adjc_iterate_end;
+   *   return FC_INFINITY - sum;
+   * }
+   * ```
+   */
+  private riverTestAdjacentSwamp = (
+    _riverMap: RiverMapState,
+    x: number,
+    y: number,
+    tiles: MapTile[][]
+  ): number => {
+    let wetSum = 0;
+    const allDirs = [
+      [-1, -1],
+      [0, -1],
+      [1, -1],
+      [-1, 0],
+      [1, 0],
+      [-1, 1],
+      [0, 1],
+      [1, 1],
+    ];
+
+    for (const [dx, dy] of allDirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const tile = tiles[nx][ny];
+        wetSum += tile.properties[TerrainProperty.WET] || 0;
+      }
+    }
+
+    return 1000 - wetSum; // Avoid areas with high adjacent wetness
+  };
+
+  /**
+   * Test elevation for river flow (rivers flow downhill)
+   *
+   * Rivers naturally flow from high elevation to low elevation. This function
+   * returns the elevation value directly, where higher elevations are preferred
+   * for river sources and lower elevations for destinations.
+   *
+   * @reference freeciv/server/generator/mapgen.c:662-667
+   * @param _riverMap State tracking (unused in this test)
+   * @param x X coordinate of tile to test
+   * @param y Y coordinate of tile to test
+   * @param tiles Map tiles array to get elevation data
+   * @returns Elevation value of the tile (0-255)
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static int river_test_height_map(struct river_map *privermap,
+   *                                  struct tile *ptile,
+   *                                  struct extra_type *priver)
+   * {
+   *   return hmap(ptile);
+   * }
+   * ```
+   */
+  private riverTestHeightMap = (
+    _riverMap: RiverMapState,
+    x: number,
+    y: number,
+    tiles: MapTile[][]
+  ): number => {
+    return tiles[x][y].elevation;
+  };
+
+  /**
+   * Mark tile and adjacent tiles as blocked for river placement
+   *
+   * When a river passes through a tile, this function blocks that tile
+   * and its cardinal neighbors from future river placement to prevent
+   * rivers from running too close together.
+   *
+   * @reference freeciv/server/generator/mapgen.c:672-682
+   * @param riverMap State tracking blocked and valid river tiles
+   * @param x X coordinate of tile to block
+   * @param y Y coordinate of tile to block
+   *
+   * Original freeciv implementation:
+   * ```c
+   * static void river_blockmark(struct river_map *privermap,
+   *                             struct tile *ptile)
+   * {
+   *   log_debug("Blockmarking (%d, %d) and adjacent tiles.", TILE_XY(ptile));
+   *   dbv_set(&privermap->blocked, tile_index(ptile));
+   *   cardinal_adjc_iterate(&(wld.map), ptile, ptile1) {
+   *     dbv_set(&privermap->blocked, tile_index(ptile1));
+   *   } cardinal_adjc_iterate_end;
+   * }
+   * ```
+   */
+  private riverBlockMark(riverMap: RiverMapState, x: number, y: number): void {
+    const tileIndex = y * this.width + x;
+    riverMap.blocked.add(tileIndex);
+
+    // Block cardinal neighbors
+    const cardinalDirs = [
+      [0, -1],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+    ];
+    for (const [dx, dy] of cardinalDirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const neighborIndex = ny * this.width + nx;
+        riverMap.blocked.add(neighborIndex);
+      }
+    }
+  }
+
+  /**
+   * River test functions array matching freeciv's sophisticated selection
+   *
+   * This array defines the complete pipeline of river evaluation functions
+   * that determine the suitability of each direction for river flow. Functions
+   * marked as 'fatal' will immediately reject a direction if they return > 0.
+   *
+   * @reference freeciv/server/generator/mapgen.c:690-700
+   *
+   * Original freeciv implementation:
+   * ```c
+   * #define NUM_TEST_FUNCTIONS 9
+   * static struct test_func test_funcs[NUM_TEST_FUNCTIONS] = {
+   *   {river_test_blocked,            TRUE},
+   *   {river_test_rivergrid,          TRUE},
+   *   {river_test_highlands,          FALSE},
+   *   {river_test_adjacent_ocean,     FALSE},
+   *   {river_test_adjacent_river,     FALSE},
+   *   {river_test_adjacent_highlands, FALSE},
+   *   {river_test_swamp,              FALSE},
+   *   {river_test_adjacent_swamp,     FALSE},
+   *   {river_test_height_map,         FALSE}
+   * };
+   * ```
+   */
+  private readonly riverTestFunctions: RiverTestFunction[] = [
+    { func: this.riverTestBlocked, fatal: true },
+    { func: this.riverTestRiverGrid, fatal: true },
+    { func: this.riverTestHighlands, fatal: false },
+    { func: this.riverTestAdjacentOcean, fatal: false },
+    { func: this.riverTestAdjacentRiver, fatal: false },
+    { func: this.riverTestAdjacentHighlands, fatal: false },
+    { func: this.riverTestSwamp, fatal: false },
+    { func: this.riverTestAdjacentSwamp, fatal: false },
+    { func: this.riverTestHeightMap, fatal: false },
+  ];
+
+  /**
+   * Generate a single sophisticated river using freeciv's proven algorithm
+   *
+   * This is the core river generation function that creates a single river
+   * from a starting position by evaluating each possible direction using
+   * the complete set of river test functions. The river continues until it
+   * reaches a termination condition (ocean, existing river, or polar region).
+   *
+   * @reference freeciv/server/generator/mapgen.c:792-906
+   * @param riverMap State tracking blocked and valid river tiles
+   * @param startX Starting X coordinate for the river
+   * @param startY Starting Y coordinate for the river
+   * @param tiles Map tiles array to modify
+   * @returns true if river was successfully generated, false if failed
+   *
+   * Original freeciv algorithm:
+   * 1. Mark current tile as river
+   * 2. Check termination conditions (ocean, existing river, polar)
+   * 3. Evaluate all cardinal directions using test functions
+   * 4. Filter out directions that fail fatal tests
+   * 5. Choose best scoring direction (lowest score wins)
+   * 6. Move to selected direction and repeat
+   */
+  private makeRiver(
+    riverMap: RiverMapState,
+    startX: number,
+    startY: number,
+    tiles: MapTile[][]
+  ): boolean {
+    let currentX = startX;
+    let currentY = startY;
+
+    while (true) {
+      // Mark current tile as river
+      const tileIndex = currentY * this.width + currentX;
+      riverMap.ok.add(tileIndex);
+
+      // Check if river should end
+      const tile = tiles[currentX][currentY];
+
+      // End conditions: near ocean, existing river, or frozen polar regions
+      let nearOcean = false;
+      let nearRiver = false;
+      const cardinalDirs = [
+        [0, -1],
+        [1, 0],
+        [0, 1],
+        [-1, 0],
+      ];
+
+      for (const [dx, dy] of cardinalDirs) {
+        const nx = currentX + dx;
+        const ny = currentY + dy;
+        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+          const neighborTerrain = tiles[nx][ny].terrain;
+          if (
+            neighborTerrain === 'ocean' ||
+            neighborTerrain === 'coast' ||
+            neighborTerrain === 'deep_ocean'
+          ) {
+            nearOcean = true;
+          }
+          if (tiles[nx][ny].riverMask > 0) {
+            nearRiver = true;
+          }
+        }
+      }
+
+      // Check polar regions using climate data
+      const frozen = (tile.properties[TerrainProperty.FROZEN] || 0) > 0;
+      const latitudeFactor = Math.abs(currentY - this.height / 2) / (this.height / 2);
+      const colatitude = latitudeFactor * MAX_COLATITUDE;
+      const coldLevel = getColdLevel();
+      const inPolarRegion = frozen && colatitude < 0.8 * coldLevel;
+
+      if (nearOcean || nearRiver || inPolarRegion) {
+        return true; // River successfully completed
+      }
+
+      // Evaluate all cardinal directions for continuing the river
+      const directionScores = this.evaluateRiverDirections(
+        currentX,
+        currentY,
+        cardinalDirs,
+        riverMap,
+        tiles
+      );
+
+      // Filter to valid directions
+      const validDirections = directionScores.filter(d => d.valid);
+
+      if (validDirections.length === 0) {
+        return false; // River failed - no valid directions
+      }
+
+      // Find best score (lowest is best for most functions)
+      const bestScore = Math.min(...validDirections.map(d => d.score));
+      const bestDirections = validDirections.filter(d => d.score === bestScore);
+
+      // Randomly select among best directions
+      const selectedDirection = bestDirections[Math.floor(this.random() * bestDirections.length)];
+
+      // Mark current position as blocked and move to next tile
+      this.riverBlockMark(riverMap, currentX, currentY);
+      currentX = selectedDirection.x;
+      currentY = selectedDirection.y;
+    }
+  }
+
+  /**
+   * Evaluate river direction scores for pathfinding
+   *
+   * Helper function that evaluates all cardinal directions from a given position
+   * to determine the best path for river continuation. Uses the complete set of
+   * river test functions to score each direction.
+   *
+   * @param currentX Current X position of the river
+   * @param currentY Current Y position of the river
+   * @param cardinalDirs Array of cardinal direction vectors [[dx, dy], ...]
+   * @param riverMap State tracking blocked and valid river tiles
+   * @param tiles Map tiles array to evaluate
+   * @returns Array of direction options with scores and validity flags
+   */
+  private evaluateRiverDirections(
+    currentX: number,
+    currentY: number,
+    cardinalDirs: number[][],
+    riverMap: RiverMapState,
+    tiles: MapTile[][]
+  ): Array<{ x: number; y: number; score: number; valid: boolean }> {
+    const directionScores: Array<{ x: number; y: number; score: number; valid: boolean }> = [];
+
+    for (const [dx, dy] of cardinalDirs) {
+      const nx = currentX + dx;
+      const ny = currentY + dy;
+
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const evaluation = this.evaluateRiverTile(riverMap, nx, ny, tiles);
+        directionScores.push({ x: nx, y: ny, score: evaluation.score, valid: evaluation.valid });
+      }
+    }
+
+    return directionScores;
+  }
+
+  /**
+   * Evaluate a single tile for river placement using test functions
+   *
+   * Runs all river test functions against a single tile to determine its
+   * suitability for river placement. Returns early if any fatal test fails.
+   *
+   * @param riverMap State tracking blocked and valid river tiles
+   * @param x X coordinate of tile to evaluate
+   * @param y Y coordinate of tile to evaluate
+   * @param tiles Map tiles array to test
+   * @returns Object with validity flag and cumulative score
+   */
+  private evaluateRiverTile(
+    riverMap: RiverMapState,
+    x: number,
+    y: number,
+    tiles: MapTile[][]
+  ): { valid: boolean; score: number } {
+    const valid = true;
+    let totalScore = 0;
+
+    for (const testFunc of this.riverTestFunctions) {
+      const score = testFunc.func(riverMap, x, y, tiles);
+
+      if (testFunc.fatal && score > 0) {
+        return { valid: false, score: 0 };
+      }
+
+      totalScore += score;
+    }
+
+    return { valid, score: totalScore };
+  }
+
+  /**
+   * Check if a position is valid for starting a river
+   *
+   * Validates a potential river starting position by checking terrain type,
+   * existing rivers, highland preference, and nearby river density. This
+   * prevents rivers from starting in unsuitable locations.
+   *
+   * @param startX X coordinate of potential start position
+   * @param startY Y coordinate of potential start position
+   * @param tiles Map tiles array to check
+   * @param riverMap State tracking blocked tiles
+   * @returns true if position is suitable for river start, false otherwise
+   */
+  private isValidRiverStartPosition(
+    startX: number,
+    startY: number,
+    tiles: MapTile[][],
+    riverMap: RiverMapState
+  ): boolean {
+    const startTile = tiles[startX][startY];
+    const startIndex = startY * this.width + startX;
+
+    // Must be land tile without existing river
+    if (
+      !this.isLandTile(startTile.terrain) ||
+      startTile.riverMask > 0 ||
+      riverMap.blocked.has(startIndex)
+    ) {
+      return false;
+    }
+
+    // Prefer highland starting positions
+    const mountainous = startTile.properties[TerrainProperty.MOUNTAINOUS] || 0;
+    if (mountainous < 30 && this.random() < 0.7) {
+      return false; // 70% chance to skip non-mountainous starts
+    }
+
+    // Check nearby river density
+    return this.checkNearbyRiverDensity(startX, startY, tiles);
+  }
+
+  /**
+   * Check nearby river and ocean density for river starting positions
+   *
+   * Analyzes a 2-tile radius around a position to ensure there aren't too
+   * many existing rivers or ocean tiles nearby. This prevents river overcrowding
+   * and ensures rivers start in appropriate inland locations.
+   *
+   * @param startX X coordinate of position to check
+   * @param startY Y coordinate of position to check
+   * @param tiles Map tiles array to analyze
+   * @returns true if density is acceptable, false if too crowded
+   */
+  private checkNearbyRiverDensity(startX: number, startY: number, tiles: MapTile[][]): boolean {
+    let nearbyRiverCount = 0;
+    let nearbyOceanCount = 0;
+    const checkRadius = 2;
+
+    for (let dx = -checkRadius; dx <= checkRadius; dx++) {
+      for (let dy = -checkRadius; dy <= checkRadius; dy++) {
+        const nx = startX + dx;
+        const ny = startY + dy;
+        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+          if (tiles[nx][ny].riverMask > 0) {
+            nearbyRiverCount++;
+          }
+          const terrain = tiles[nx][ny].terrain;
+          if (terrain === 'ocean' || terrain === 'coast' || terrain === 'deep_ocean') {
+            nearbyOceanCount++;
+          }
+        }
+      }
+    }
+
+    // Skip if too many nearby rivers or too close to ocean
+    return nearbyRiverCount <= 1 && nearbyOceanCount <= checkRadius * checkRadius * 2;
+  }
+
+  /**
+   * Convert terrain to support rivers if needed
+   *
+   * Some terrain types (desert, glacier, snow) don't naturally support rivers.
+   * This function converts them to appropriate river-supporting terrain based
+   * on the tile's temperature zone.
+   *
+   * @param tile Map tile to potentially convert
+   */
+  private convertTerrainForRiver(tile: MapTile): void {
+    if (tile.terrain === 'desert' || tile.terrain === 'glacier' || tile.terrain === 'snow') {
+      // Change terrain to support rivers
+      if (tile.temperature === TemperatureType.TROPICAL) {
+        tile.terrain = 'grassland';
+      } else if (tile.temperature === TemperatureType.TEMPERATE) {
+        tile.terrain = 'plains';
+      } else {
+        tile.terrain = 'tundra';
+      }
+    }
+  }
+
+  /**
+   * Generate sophisticated river network using freeciv algorithm
+   * @reference freeciv/server/generator/mapgen.c:906-1150
+   */
+  private async generateAdvancedRivers(tiles: MapTile[][]): Promise<void> {
+    const riverMap: RiverMapState = {
+      blocked: new Set<number>(),
+      ok: new Set<number>(),
+    };
+
+    // Calculate desired river coverage based on map wetness and size
+    const wetness = 50; // Default wetness parameter
+    const polar = 0; // Polar percentage
+    const riverPercent = ((100 - polar) * (3 + wetness / 12)) / 100;
+
+    const landTileCount = tiles.flat().filter(tile => this.isLandTile(tile.terrain)).length;
+    const desiredRiverLength = Math.floor((riverPercent * landTileCount) / 100);
+    const riverCount = Math.max(1, Math.floor(desiredRiverLength / 15)); // Average 15 tiles per river
+
+    logger.info(`Generating ${riverCount} advanced rivers with ${riverPercent}% coverage`);
+
+    let successfulRivers = 0;
+    let attempts = 0;
+    const maxAttempts = riverCount * 10; // Allow multiple attempts per river
+
+    while (successfulRivers < riverCount && attempts < maxAttempts) {
+      attempts++;
+
+      // Find suitable starting position for river
+      const startX = Math.floor(this.random() * this.width);
+      const startY = Math.floor(this.random() * this.height);
+
+      if (!this.isValidRiverStartPosition(startX, startY, tiles, riverMap)) {
+        continue;
+      }
+
+      // Attempt to generate river
+      const riverStartTime = performance.now();
+      const riverSuccess = this.makeRiver(riverMap, startX, startY, tiles);
+
+      if (riverSuccess) {
+        // Apply river to map tiles
+        for (const tileIndex of riverMap.ok) {
+          const y = Math.floor(tileIndex / this.width);
+          const x = tileIndex % this.width;
+          const tile = tiles[x][y];
+
+          // Ensure terrain can support rivers
+          this.convertTerrainForRiver(tile);
+
+          // Generate sophisticated river mask based on flow direction
+          tile.riverMask = this.generateAdvancedRiverMask(x, y, tiles, riverMap);
+        }
+
+        successfulRivers++;
+        const riverTime = performance.now() - riverStartTime;
+        logger.debug(
+          `River ${successfulRivers} generated successfully in ${riverTime.toFixed(2)}ms with ${riverMap.ok.size} tiles`
+        );
+
+        // Clear riverMap.ok for next river but keep blocked tiles
+        riverMap.ok.clear();
+      }
+    }
+
+    logger.info(`Generated ${successfulRivers}/${riverCount} rivers in ${attempts} attempts`);
+  }
+
+  /**
+   * Generate sophisticated river mask based on flow patterns
+   */
+  private generateAdvancedRiverMask(
+    x: number,
+    y: number,
+    tiles: MapTile[][],
+    riverMap: RiverMapState
+  ): number {
+    let mask = 0;
+    const cardinalDirs = [
+      [0, -1, 1], // North = 1
+      [1, 0, 2], // East = 2
+      [0, 1, 4], // South = 4
+      [-1, 0, 8], // West = 8
+    ];
+
+    const currentElevation = tiles[x][y].elevation;
+
+    for (const [dx, dy, bit] of cardinalDirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const neighborIndex = ny * this.width + nx;
+
+        // Connect if neighbor is also a river tile
+        if (riverMap.ok.has(neighborIndex)) {
+          mask |= bit;
+        }
+        // Or connect if flowing downhill to ocean/lake
+        else {
+          const neighborTile = tiles[nx][ny];
+          const neighborElevation = neighborTile.elevation;
+          const isWater =
+            neighborTile.terrain === 'ocean' ||
+            neighborTile.terrain === 'coast' ||
+            neighborTile.terrain === 'lake';
+
+          if (isWater && neighborElevation < currentElevation) {
+            mask |= bit; // River flows to water downhill
+          }
+        }
+      }
+    }
+
+    return mask || 1; // Ensure at least one connection
   }
 
   // Phase 5: Generator Algorithm Implementations
@@ -2853,11 +3984,11 @@ export class MapManager {
    * Map Generator 2: Fair Islands (from freeciv mapgenerator2())
    * Creates one large island per player with fair distribution
    */
-  private mapGenerator2(
+  private async mapGenerator2(
     state: IslandGeneratorState,
     tiles: MapTile[][],
     playerCount: number
-  ): void {
+  ): Promise<void> {
     const totalWeight = 100 * playerCount;
     let bigFrac = 70; // 70% big islands
     const midFrac = 20; // 20% medium islands
@@ -2877,7 +4008,7 @@ export class MapManager {
       // Create one big island for each player
       for (let i = playerCount; i > 0; i--) {
         const islandSize = Math.floor((bigFrac * state.totalMass) / totalWeight);
-        if (!this.makeIsland(islandSize, 1, state, tiles, 95)) {
+        if (!(await this.makeIsland(islandSize, 1, state, tiles, 95))) {
           // Couldn't make island 95% of desired size, reduce big islands
           bigFrac -= 10;
           done = false;
@@ -2891,14 +4022,14 @@ export class MapManager {
     const mediumCount = Math.floor(playerCount / 2);
     for (let i = 0; i < mediumCount; i++) {
       const islandSize = Math.floor((midFrac * state.totalMass) / totalWeight);
-      this.makeIsland(islandSize, 0, state, tiles, 50);
+      await this.makeIsland(islandSize, 0, state, tiles, 50);
     }
 
     // Create small islands
     const smallCount = playerCount;
     for (let i = 0; i < smallCount; i++) {
       const islandSize = Math.floor((smallFrac * state.totalMass) / totalWeight);
-      this.makeIsland(islandSize, 0, state, tiles, 25);
+      await this.makeIsland(islandSize, 0, state, tiles, 25);
     }
   }
 
@@ -2906,22 +4037,22 @@ export class MapManager {
    * Map Generator 3: Archipelago (from freeciv mapgenerator3())
    * Creates archipelago-style maps with varied island sizes
    */
-  private mapGenerator3(
+  private async mapGenerator3(
     state: IslandGeneratorState,
     tiles: MapTile[][],
     playerCount: number
-  ): void {
+  ): Promise<void> {
     logger.info('Generator 3: Archipelago - creating varied island sizes');
 
     // Fall back for extreme cases
     if ((this.width * this.height * 30) / 100 > (this.width * this.height * 80) / 100) {
       logger.warn('Generator 3: High land percentage, using fallback');
-      return this.mapGenerator4(state, tiles, playerCount);
+      return await this.mapGenerator4(state, tiles, playerCount);
     }
 
     if (this.width < 40 || this.height < 40) {
       logger.warn('Generator 3: Map too small, using fallback');
-      return this.mapGenerator4(state, tiles, playerCount);
+      return await this.mapGenerator4(state, tiles, playerCount);
     }
 
     const bigIslands = playerCount;
@@ -2951,7 +4082,7 @@ export class MapManager {
 
     // Create big islands for players
     for (let i = 0; i < bigIslands; i++) {
-      if (!this.makeIsland(islandMass, 1, state, tiles, 85)) {
+      if (!(await this.makeIsland(islandMass, 1, state, tiles, 85))) {
         logger.warn(`Generator 3: Failed to create big island ${i + 1}`);
       }
     }
@@ -2962,7 +4093,7 @@ export class MapManager {
 
     for (let i = 0; i < smallIslandCount; i++) {
       const smallSize = Math.floor(remainingLandmass / smallIslandCount);
-      this.makeIsland(smallSize, 0, state, tiles, 30);
+      await this.makeIsland(smallSize, 0, state, tiles, 30);
     }
   }
 
@@ -2970,11 +4101,11 @@ export class MapManager {
    * Map Generator 4: Teams (from freeciv mapgenerator4())
    * Creates team-oriented maps with shared large islands
    */
-  private mapGenerator4(
+  private async mapGenerator4(
     state: IslandGeneratorState,
     tiles: MapTile[][],
     playerCount: number
-  ): void {
+  ): Promise<void> {
     logger.info('Generator 4: Teams - creating team-oriented island layout');
 
     // Fall back for single player or high land percentage
@@ -2989,7 +4120,7 @@ export class MapManager {
 
       for (let i = 0; i < numIslands; i++) {
         const starters = i < playerCount ? 1 : 0;
-        this.makeIsland(islandSize, starters, state, tiles);
+        await this.makeIsland(islandSize, starters, state, tiles);
       }
       return;
     }
@@ -3016,7 +4147,7 @@ export class MapManager {
     if (playerCount % 2 === 1) {
       // Odd number of players - create one 3-player island
       const tripleIslandSize = Math.floor((bigWeight * 3 * state.totalMass) / totalWeight);
-      this.makeIsland(tripleIslandSize, 3, state, tiles);
+      await this.makeIsland(tripleIslandSize, 3, state, tiles);
     } else {
       teamIslands++;
     }
@@ -3024,19 +4155,19 @@ export class MapManager {
     // Create pair islands
     while (--teamIslands > 0) {
       const pairIslandSize = Math.floor((bigWeight * 2 * state.totalMass) / totalWeight);
-      this.makeIsland(pairIslandSize, 2, state, tiles);
+      await this.makeIsland(pairIslandSize, 2, state, tiles);
     }
 
     // Create medium solo islands
     for (let i = playerCount; i > 0; i--) {
       const soloIslandSize = Math.floor((20 * state.totalMass) / totalWeight);
-      this.makeIsland(soloIslandSize, 0, state, tiles);
+      await this.makeIsland(soloIslandSize, 0, state, tiles);
     }
 
     // Create small additional islands
     for (let i = playerCount; i > 0; i--) {
       const smallIslandSize = Math.floor((10 * state.totalMass) / totalWeight);
-      this.makeIsland(smallIslandSize, 0, state, tiles);
+      await this.makeIsland(smallIslandSize, 0, state, tiles);
     }
   }
 
@@ -3071,7 +4202,7 @@ export class MapManager {
     const state = this.initializeWorldForIslands(tiles);
 
     // Initialize bucket system
-    this.makeIsland(0, 0, state, tiles, 0);
+    await this.makeIsland(0, 0, state, tiles, 0);
 
     // Fair island generation logic
     const playersPerIsland = this.calculatePlayersPerIsland(players.size);
@@ -3086,7 +4217,7 @@ export class MapManager {
     for (let i = 0; i < numMainIslands; i++) {
       const playersOnThisIsland = Math.min(playersPerIsland, players.size - i * playersPerIsland);
 
-      if (!this.makeIsland(mainIslandSize, playersOnThisIsland, state, tiles, 90)) {
+      if (!(await this.makeIsland(mainIslandSize, playersOnThisIsland, state, tiles, 90))) {
         logger.warn(`Fair Islands: Failed to create main island ${i + 1}`);
       }
     }
@@ -3097,7 +4228,7 @@ export class MapManager {
 
     for (let i = 0; i < numSecondaryIslands; i++) {
       const secondarySize = Math.floor(remainingMass / numSecondaryIslands);
-      this.makeIsland(secondarySize, 0, state, tiles, 50);
+      await this.makeIsland(secondarySize, 0, state, tiles, 50);
     }
 
     // Cleanup terrain lists
