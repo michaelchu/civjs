@@ -24,6 +24,7 @@ export class MapManager {
   private height: number;
   private mapData: MapData | null = null;
   private seed: string;
+  private generator: string;
   private random: () => number;
 
   // Sub-generators
@@ -43,14 +44,15 @@ export class MapManager {
     swamp: 10, // 10% wetlands
   };
 
-  constructor(width: number, height: number, seed?: string) {
+  constructor(width: number, height: number, seed?: string, generator: string = 'random') {
     this.width = width;
     this.height = height;
     this.seed = seed || this.generateSeed();
+    this.generator = generator;
     this.random = this.createSeededRandom(this.seed);
 
-    // Initialize sub-generators
-    this.heightGenerator = new FractalHeightGenerator(width, height, this.random);
+    // Initialize sub-generators with generator type
+    this.heightGenerator = new FractalHeightGenerator(width, height, this.random, 30, 100, this.generator);
     this.temperatureMap = new TemperatureMap(width, height);
     this.islandGenerator = new IslandGenerator(width, height, this.random);
     this.riverGenerator = new RiverGenerator(width, height, this.random);

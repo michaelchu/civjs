@@ -28,6 +28,7 @@ export class FractalHeightGenerator {
   private height: number;
   private heightMap: number[];
   private random: () => number;
+  private generator: string;
   private shoreLevel: number = HMAP_SHORE_LEVEL;
   private mountainLevel: number;
   private readonly steepness: number; // Used for mountain level calculation
@@ -38,12 +39,14 @@ export class FractalHeightGenerator {
     height: number,
     random: () => number,
     steepness: number = DEFAULT_STEEPNESS,
-    flatpoles: number = DEFAULT_FLATPOLES
+    flatpoles: number = DEFAULT_FLATPOLES,
+    generator: string = 'random'
   ) {
     this.width = width;
     this.height = height;
     this.heightMap = new Array(width * height).fill(0);
     this.random = random;
+    this.generator = generator;
     this.steepness = steepness;
     this.flatpoles = flatpoles;
 
@@ -242,23 +245,41 @@ export class FractalHeightGenerator {
   }
 
   /**
-   * Generate sophisticated height map using proper fractal algorithms
-   * Following freeciv MAPGEN_FRACTAL approach instead of MAPGEN_FRACTURE
+   * Generate height map using different algorithms based on generator type
+   * Following freeciv reference implementation choices
    */
   public generateHeightMap(): void {
-    // Step 1: Generate base fractal height map (no forced border ocean)
-    this.generatePseudoFractalHeightMap();
+    // Choose generation algorithm based on generator type
+    switch (this.generator) {
+      case 'random':
+        // MAPGEN_RANDOM approach: fully random heights with smoothing
+        this.generateRandomHeightMap();
+        break;
+      case 'fractal':
+        // MAPGEN_FRACTAL approach: pseudofractal with grid-based seeds
+        this.generatePseudoFractalHeightMap();
+        break;
+      case 'island':
+      case 'fair':
+        // For now, use fractal as fallback - these would need island-specific logic
+        this.generatePseudoFractalHeightMap();
+        break;
+      default:
+        // Default to random (freeciv default)
+        this.generateRandomHeightMap();
+        break;
+    }
 
-    // Step 2: Apply gentle pole flattening (without forcing edges to ocean)
+    // Apply common post-processing steps
     this.normalizeHeightMapPoles();
 
-    // Step 3: Add final random variation for natural detail
+    // Add final random variation for natural detail
     for (let i = 0; i < this.heightMap.length; i++) {
       const fuzz = Math.floor(this.random() * 8) - 4;
       this.heightMap[i] = Math.max(0, Math.min(HMAP_MAX_LEVEL, this.heightMap[i] + fuzz));
     }
 
-    // Step 4: Normalize to final height range
+    // Normalize to final height range
     this.normalizeHeightMap();
   }
 

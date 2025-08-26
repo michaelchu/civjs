@@ -4,7 +4,7 @@ import { db } from '../database';
 import { gameState } from '../database/redis';
 import { games, players } from '../database/schema';
 import { eq } from 'drizzle-orm';
-import config from '../config';
+import serverConfig from '../config';
 import { TurnManager } from './TurnManager';
 import { MapManager } from './MapManager';
 import { UnitManager } from './UnitManager';
@@ -16,6 +16,16 @@ import { Server as SocketServer } from 'socket.io';
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
 
+export interface TerrainSettings {
+  generator: string;
+  landmass: string;
+  huts: number;
+  temperature: number;
+  wetness: number;
+  rivers: number;
+  resources: string;
+}
+
 export interface GameConfig {
   name: string;
   hostId: string;
@@ -25,6 +35,7 @@ export interface GameConfig {
   ruleset?: string;
   turnTimeLimit?: number;
   victoryConditions?: string[];
+  terrainSettings?: TerrainSettings;
 }
 
 export interface GameInstance {
@@ -71,19 +82,30 @@ export class GameManager {
     return GameManager.instance;
   }
 
-  public async createGame(config: GameConfig): Promise<string> {
-    logger.info('Creating new game', { name: config.name, hostId: config.hostId });
+  public async createGame(gameConfig: GameConfig): Promise<string> {
+    logger.info('Creating new game', { name: gameConfig.name, hostId: gameConfig.hostId });
 
     // Create game in database
     const gameData = {
-      name: config.name,
-      hostId: config.hostId,
-      maxPlayers: config.maxPlayers || 8,
-      mapWidth: config.mapWidth || 80,
-      mapHeight: config.mapHeight || 50,
-      ruleset: config.ruleset || 'classic',
-      turnTimeLimit: config.turnTimeLimit,
-      victoryConditions: config.victoryConditions || ['conquest', 'science', 'culture'],
+      name: gameConfig.name,
+      hostId: gameConfig.hostId,
+      maxPlayers: gameConfig.maxPlayers || 8,
+      mapWidth: gameConfig.mapWidth || 80,
+      mapHeight: gameConfig.mapHeight || 50,
+      ruleset: gameConfig.ruleset || 'classic',
+      turnTimeLimit: gameConfig.turnTimeLimit,
+      victoryConditions: gameConfig.victoryConditions || ['conquest', 'science', 'culture'],
+      gameState: {
+        terrainSettings: gameConfig.terrainSettings || {
+          generator: 'random',
+          landmass: 'normal',
+          huts: 15,
+          temperature: 50,
+          wetness: 50,
+          rivers: 50,
+          resources: 'normal',
+        },
+      },
     };
 
     const [newGame] = await db.insert(games).values(gameData).returning();
@@ -182,7 +204,7 @@ export class GameManager {
     if (
       updatedGame &&
       updatedGame.status === 'waiting' &&
-      updatedGame.players.length >= config.game.minPlayersToStart
+      updatedGame.players.length >= serverConfig.game.minPlayersToStart
     ) {
       logger.info('Auto-starting game', { gameId, playerCount: updatedGame.players.length });
       try {
@@ -222,8 +244,8 @@ export class GameManager {
       throw new Error('Only the host can start the game');
     }
 
-    if (game.players.length < config.game.minPlayersToStart) {
-      throw new Error(`Need at least ${config.game.minPlayersToStart} players to start`);
+    if (game.players.length < serverConfig.game.minPlayersToStart) {
+      throw new Error(`Need at least ${serverConfig.game.minPlayersToStart} players to start`);
     }
 
     if (game.status !== 'waiting') {
@@ -251,7 +273,8 @@ export class GameManager {
     });
 
     // Initialize the in-memory game instance with map generation
-    await this.initializeGameInstance(gameId, game);
+    const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
+    await this.initializeGameInstance(gameId, game, storedTerrainSettings);
 
     // Notify all players that the game has started
     this.broadcastToGame(gameId, 'game-started', {
@@ -262,7 +285,7 @@ export class GameManager {
     logger.info('Game started successfully', { gameId });
   }
 
-  private async initializeGameInstance(gameId: string, game: any): Promise<void> {
+  private async initializeGameInstance(gameId: string, game: any, terrainSettings?: TerrainSettings): Promise<void> {
     logger.info('Initializing game instance', { gameId });
 
     // Create player state map
@@ -283,8 +306,9 @@ export class GameManager {
       this.playerToGame.set(dbPlayer.id, gameId);
     }
 
-    // Initialize managers
-    const mapManager = new MapManager(game.mapWidth, game.mapHeight);
+    // Initialize managers with terrain settings
+    const generator = terrainSettings?.generator || 'random';
+    const mapManager = new MapManager(game.mapWidth, game.mapHeight, undefined, generator);
     const turnManager = new TurnManager(gameId, this.io);
     const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
