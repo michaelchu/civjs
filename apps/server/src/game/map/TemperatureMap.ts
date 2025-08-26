@@ -57,17 +57,17 @@ export class TemperatureMap {
     const centerY = this.height / 2;
     const distanceFromEquator = Math.abs(y - centerY);
     const maxDistance = this.height / 2;
-    
+
     // Linear progression from equator (0) to poles (MAX_COLATITUDE)
     let latitudeFactor = distanceFromEquator / maxDistance;
-    
+
     // Add minimal longitudinal variation to prevent perfect stripes
     const longitudinalVariation = Math.sin((x / this.width) * Math.PI * 6) * 0.05;
     latitudeFactor += longitudinalVariation * (1 - latitudeFactor);
-    
-    // Clamp to valid range  
+
+    // Clamp to valid range
     latitudeFactor = Math.max(0, Math.min(1, latitudeFactor));
-    
+
     return Math.floor(latitudeFactor * MAX_COLATITUDE);
   }
 
@@ -190,7 +190,10 @@ export class TemperatureMap {
     console.log('  coldLevel:', coldLevel, 'tropicalLevel:', tropicalLevel);
     console.log('  ICE_BASE_LEVEL:', ICE_BASE_LEVEL, '2*ICE_BASE_LEVEL:', 2 * ICE_BASE_LEVEL);
 
-    let frozenCount = 0, coldCount = 0, temperateCount = 0, tropicalCount = 0;
+    let frozenCount = 0,
+      coldCount = 0,
+      temperateCount = 0,
+      tropicalCount = 0;
 
     for (let i = 0; i < this.temperatureMap.length; i++) {
       const temp = this.temperatureMap[i];
@@ -213,15 +216,25 @@ export class TemperatureMap {
 
       // Sample some edge and center tiles for debugging
       if (y === 0 || y === this.height - 1 || y === Math.floor(this.height / 2)) {
-        console.log(`DEBUG: Tile (${x},${y}) temp=${temp} type=${this.temperatureMap[i]} (${this.temperatureMap[i] === TemperatureType.FROZEN ? 'FROZEN' : this.temperatureMap[i] === TemperatureType.COLD ? 'COLD' : this.temperatureMap[i] === TemperatureType.TEMPERATE ? 'TEMPERATE' : 'TROPICAL'})`);
+        console.log(
+          `DEBUG: Tile (${x},${y}) temp=${temp} type=${this.temperatureMap[i]} (${this.temperatureMap[i] === TemperatureType.FROZEN ? 'FROZEN' : this.temperatureMap[i] === TemperatureType.COLD ? 'COLD' : this.temperatureMap[i] === TemperatureType.TEMPERATE ? 'TEMPERATE' : 'TROPICAL'})`
+        );
       }
     }
 
     console.log('DEBUG: Temperature distribution:');
-    console.log(`  FROZEN: ${frozenCount} (${(frozenCount/this.temperatureMap.length*100).toFixed(1)}%)`);
-    console.log(`  COLD: ${coldCount} (${(coldCount/this.temperatureMap.length*100).toFixed(1)}%)`);
-    console.log(`  TEMPERATE: ${temperateCount} (${(temperateCount/this.temperatureMap.length*100).toFixed(1)}%)`);
-    console.log(`  TROPICAL: ${tropicalCount} (${(tropicalCount/this.temperatureMap.length*100).toFixed(1)}%)`);
+    console.log(
+      `  FROZEN: ${frozenCount} (${((frozenCount / this.temperatureMap.length) * 100).toFixed(1)}%)`
+    );
+    console.log(
+      `  COLD: ${coldCount} (${((coldCount / this.temperatureMap.length) * 100).toFixed(1)}%)`
+    );
+    console.log(
+      `  TEMPERATE: ${temperateCount} (${((temperateCount / this.temperatureMap.length) * 100).toFixed(1)}%)`
+    );
+    console.log(
+      `  TROPICAL: ${tropicalCount} (${((tropicalCount / this.temperatureMap.length) * 100).toFixed(1)}%)`
+    );
   }
 
   // Get temperature type for a tile
