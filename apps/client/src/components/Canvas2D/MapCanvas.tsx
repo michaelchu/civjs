@@ -12,6 +12,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const rendererRef = useRef<MapRenderer | null>(null);
 
   const { viewport, map, units, cities, setViewport } = useGameStore();
+  const gameState = useGameStore();
 
   // Initialize renderer and load tileset
   useEffect(() => {
@@ -73,40 +74,51 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       viewport.x === 0 &&
       viewport.y === 0
     ) {
-      // Try to find user's starting position - look for user's units or cities
+      // Try to find user's starting position - prioritize mapData starting positions
       let startTile = null;
 
-      // First, try to find user's first unit
-      const userUnits = Object.values(units);
-      if (userUnits.length > 0) {
-        const firstUnit = userUnits[0] as { x: number; y: number };
-        startTile = { x: firstUnit.x, y: firstUnit.y };
-        console.log('Found user unit at:', startTile);
+      // FIRST: Try to find player's assigned starting position from map generation
+      const currentPlayerId = gameState.currentPlayerId;
+      const playerStartPos = gameState.mapData?.startingPositions?.find(
+        pos => pos.playerId === currentPlayerId
+      );
+
+      if (playerStartPos) {
+        startTile = { x: playerStartPos.x, y: playerStartPos.y };
+        console.log('Found player starting position at:', startTile);
       } else {
-        // Try to find user's first city
-        const userCities = Object.values(cities);
-        if (userCities.length > 0) {
-          const firstCity = userCities[0] as { x: number; y: number };
-          startTile = { x: firstCity.x, y: firstCity.y };
-          console.log('Found user city at:', startTile);
+        // FALLBACK 1: Try to find user's first unit
+        const userUnits = Object.values(units);
+        if (userUnits.length > 0) {
+          const firstUnit = userUnits[0] as { x: number; y: number };
+          startTile = { x: firstUnit.x, y: firstUnit.y };
+          console.log('Found user unit at:', startTile);
         } else {
-          // Fallback: try to find any visible tile from global tiles
-          const globalTiles = (
-            window as {
-              tiles?: Array<{
-                x: number;
-                y: number;
-                known: number;
-                seen: number;
-              }>;
-            }
-          ).tiles;
-          if (globalTiles) {
-            for (const tile of globalTiles) {
-              if (tile && (tile.known > 0 || tile.seen > 0)) {
-                startTile = { x: tile.x, y: tile.y };
-                console.log('Found first visible tile at:', startTile);
-                break;
+          // FALLBACK 2: Try to find user's first city
+          const userCities = Object.values(cities);
+          if (userCities.length > 0) {
+            const firstCity = userCities[0] as { x: number; y: number };
+            startTile = { x: firstCity.x, y: firstCity.y };
+            console.log('Found user city at:', startTile);
+          } else {
+            // FALLBACK 3: Try to find any visible tile from global tiles
+            const globalTiles = (
+              window as {
+                tiles?: Array<{
+                  x: number;
+                  y: number;
+                  known: number;
+                  seen: number;
+                }>;
+              }
+            ).tiles;
+            if (globalTiles) {
+              for (const tile of globalTiles) {
+                if (tile && (tile.known > 0 || tile.seen > 0)) {
+                  startTile = { x: tile.x, y: tile.y };
+                  console.log('Found first visible tile at:', startTile);
+                  break;
+                }
               }
             }
           }
@@ -139,6 +151,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     map,
     units,
     cities,
+    gameState.mapData,
+    gameState.currentPlayerId,
     viewport.x,
     viewport.y,
     viewport.width,
