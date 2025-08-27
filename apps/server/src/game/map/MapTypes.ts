@@ -10,6 +10,7 @@ export enum TerrainProperty {
   TEMPERATE = 'temperate',
   TROPICAL = 'tropical',
   WET = 'wet',
+  UNUSED = 'unused', // MG_UNUSED from freeciv
 }
 
 // Temperature types for climate-based terrain selection
