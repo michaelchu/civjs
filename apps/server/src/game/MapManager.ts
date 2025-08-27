@@ -276,7 +276,7 @@ export class MapManager {
     );
 
     // Phase 1 fix: pole renormalization, temperature map creation, continent assignment, and rivers now handled inside makeLand()
-    
+
     // Copy height map to tiles (like freeciv height_map_to_map())
     this.assignHeightToTiles(tiles, heightMap);
 
@@ -934,7 +934,7 @@ export class MapManager {
     );
 
     // Phase 1 fix: pole renormalization, temperature map creation, continent assignment, and rivers now handled inside makeLand()
-    
+
     // Copy height map to tiles (like freeciv height_map_to_map())
     this.assignHeightToTiles(tiles, heightMap);
 
@@ -1129,7 +1129,7 @@ export class MapManager {
     );
 
     // Phase 1 fix: temperature map creation, continent assignment, and rivers now handled inside makeLand()
-    
+
     // Apply height data and continent data to tiles after processing
     this.assignHeightToTiles(tiles, heightMap);
     for (let x = 0; x < this.width; x++) {
@@ -1824,19 +1824,19 @@ export class MapManager {
    * @reference freeciv/server/generator/height_map.c:300-307 height_map_to_map()
    * @reference freeciv/common/tile.h:65 altitude stored as int in freeciv
    * Note: CivJS uses 0-255 range for web optimization while maintaining freeciv height processing
-   * @param tiles Map tiles to update elevation values  
+   * @param tiles Map tiles to update elevation values
    * @param heightMap Freeciv height map in 0-1000 range
    */
   private assignHeightToTiles(tiles: MapTile[][], heightMap: number[]): void {
     // Find height range for proper normalization (like freeciv processing)
     let minHeight = 1000;
     let maxHeight = 0;
-    
+
     for (const height of heightMap) {
       minHeight = Math.min(minHeight, height);
       maxHeight = Math.max(maxHeight, height);
     }
-    
+
     // Convert freeciv's 0-1000 range to CivJS's 0-255 range
     const range = maxHeight - minHeight;
     if (range > 0) {

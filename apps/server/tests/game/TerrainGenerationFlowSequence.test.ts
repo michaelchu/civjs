@@ -74,7 +74,7 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
 
       for (const genType of generatorTypes) {
         const testMap = new MapManager(20, 15, `temp-test-${genType}-${Math.random()}`);
-        
+
         switch (genType) {
           case 'fractal':
             await testMap.generateMapFractal(testPlayers);
