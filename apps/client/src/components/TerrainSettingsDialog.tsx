@@ -152,12 +152,12 @@ export const TerrainSettingsDialog: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800 flex items-center justify-center">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-2xl w-[600px] border border-gray-700">
+    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-yellow-100 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-gradient-to-b from-amber-50 to-yellow-50 p-6 md:p-8 rounded-lg shadow-2xl w-full max-w-2xl mx-auto border border-amber-200 shadow-amber-200/20 max-h-screen overflow-y-auto">
         <div className="flex items-center mb-6">
           <button
             onClick={handleBack}
-            className="mr-4 p-2 text-gray-400 hover:text-white transition-colors"
+            className="mr-3 p-2 text-amber-700 hover:text-amber-900 transition-colors"
           >
             <svg
               className="w-5 h-5"
@@ -174,19 +174,21 @@ export const TerrainSettingsDialog: React.FC = () => {
             </svg>
           </button>
           <div>
-            <h2 className="text-2xl font-bold text-white">Terrain Settings</h2>
-            <p className="text-gray-300">
+            <h2 className="text-xl md:text-2xl font-bold text-amber-900">
+              Terrain Settings
+            </h2>
+            <p className="text-amber-700 text-sm md:text-base">
               Configure map generation for "{gameData.gameName}"
             </p>
           </div>
         </div>
 
-        <form onSubmit={handleCreateGame} className="space-y-6">
-          <div className="grid grid-cols-2 gap-6">
+        <form onSubmit={handleCreateGame} className="space-y-4 md:space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div>
               <label
                 htmlFor="generator"
-                className="block text-sm font-medium text-gray-300 mb-2"
+                className="block text-sm font-medium text-amber-800 mb-2"
               >
                 Map Generator
               </label>
@@ -199,7 +201,7 @@ export const TerrainSettingsDialog: React.FC = () => {
                     generator: e.target.value,
                   }))
                 }
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
               >
                 {generatorOptions.map(option => (
                   <option key={option.value} value={option.value}>
@@ -207,7 +209,7 @@ export const TerrainSettingsDialog: React.FC = () => {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-amber-600 mt-1">
                 {
                   generatorOptions.find(
                     opt => opt.value === terrainSettings.generator
@@ -219,7 +221,7 @@ export const TerrainSettingsDialog: React.FC = () => {
             <div>
               <label
                 htmlFor="landmass"
-                className="block text-sm font-medium text-gray-300 mb-2"
+                className="block text-sm font-medium text-amber-800 mb-2"
               >
                 Landmass
               </label>
@@ -232,7 +234,7 @@ export const TerrainSettingsDialog: React.FC = () => {
                     landmass: e.target.value,
                   }))
                 }
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
               >
                 {landmassOptions.map(option => (
                   <option key={option.value} value={option.value}>
@@ -240,7 +242,7 @@ export const TerrainSettingsDialog: React.FC = () => {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-amber-600 mt-1">
                 {
                   landmassOptions.find(
                     opt => opt.value === terrainSettings.landmass
@@ -251,7 +253,7 @@ export const TerrainSettingsDialog: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-amber-800 mb-2">
               Temperature: {terrainSettings.temperature}% (Cooler ← → Warmer)
             </label>
             <input
@@ -265,9 +267,9 @@ export const TerrainSettingsDialog: React.FC = () => {
                   temperature: parseInt(e.target.value),
                 }))
               }
-              className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-green-500"
+              className="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-600"
             />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
+            <div className="flex justify-between text-xs text-amber-600 mt-1">
               <span>Arctic</span>
               <span>Temperate</span>
               <span>Tropical</span>
@@ -275,7 +277,7 @@ export const TerrainSettingsDialog: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-amber-800 mb-2">
               Wetness: {terrainSettings.wetness}% (Drier ← → Wetter)
             </label>
             <input
@@ -289,9 +291,9 @@ export const TerrainSettingsDialog: React.FC = () => {
                   wetness: parseInt(e.target.value),
                 }))
               }
-              className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-green-500"
+              className="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-600"
             />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
+            <div className="flex justify-between text-xs text-amber-600 mt-1">
               <span>Desert</span>
               <span>Normal</span>
               <span>Jungle</span>
@@ -299,7 +301,7 @@ export const TerrainSettingsDialog: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-amber-800 mb-2">
               Rivers: {terrainSettings.rivers}%
             </label>
             <input
@@ -313,19 +315,19 @@ export const TerrainSettingsDialog: React.FC = () => {
                   rivers: parseInt(e.target.value),
                 }))
               }
-              className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-green-500"
+              className="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-600"
             />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
+            <div className="flex justify-between text-xs text-amber-600 mt-1">
               <span>Few Rivers</span>
               <span>Many Rivers</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div>
               <label
                 htmlFor="huts"
-                className="block text-sm font-medium text-gray-300 mb-2"
+                className="block text-sm font-medium text-amber-800 mb-2"
               >
                 Huts (Villages)
               </label>
@@ -341,9 +343,9 @@ export const TerrainSettingsDialog: React.FC = () => {
                     huts: parseInt(e.target.value),
                   }))
                 }
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-amber-600 mt-1">
                 Number of tribal villages on map
               </p>
             </div>
@@ -351,7 +353,7 @@ export const TerrainSettingsDialog: React.FC = () => {
             <div>
               <label
                 htmlFor="resources"
-                className="block text-sm font-medium text-gray-300 mb-2"
+                className="block text-sm font-medium text-amber-800 mb-2"
               >
                 Resources
               </label>
@@ -364,7 +366,7 @@ export const TerrainSettingsDialog: React.FC = () => {
                     resources: e.target.value,
                   }))
                 }
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
               >
                 {resourceOptions.map(option => (
                   <option key={option.value} value={option.value}>
@@ -372,7 +374,7 @@ export const TerrainSettingsDialog: React.FC = () => {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-amber-600 mt-1">
                 {
                   resourceOptions.find(
                     opt => opt.value === terrainSettings.resources
@@ -388,7 +390,7 @@ export const TerrainSettingsDialog: React.FC = () => {
             <div>
               <label
                 htmlFor="startpos"
-                className="block text-sm font-medium text-gray-300 mb-2"
+                className="block text-sm font-medium text-amber-800 mb-2"
               >
                 Starting Positions
               </label>
@@ -401,7 +403,7 @@ export const TerrainSettingsDialog: React.FC = () => {
                     startpos: parseInt(e.target.value),
                   }))
                 }
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
               >
                 {startposOptions.map(option => (
                   <option key={option.value} value={option.value}>
@@ -409,7 +411,7 @@ export const TerrainSettingsDialog: React.FC = () => {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-amber-600 mt-1">
                 {
                   startposOptions.find(
                     opt => opt.value === terrainSettings.startpos
@@ -420,27 +422,27 @@ export const TerrainSettingsDialog: React.FC = () => {
           )}
 
           {error && (
-            <div className="p-3 bg-red-900 border border-red-700 rounded-md text-red-200 text-sm">
+            <div className="p-3 bg-red-50 border border-red-300 rounded-md text-red-800 text-sm">
               {error}
             </div>
           )}
 
-          <div className="flex space-x-4">
+          <div className="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-4">
             <button
               type="button"
               onClick={handleBack}
-              className="flex-1 py-3 px-4 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+              className="flex-1 py-3 px-4 bg-amber-200 hover:bg-amber-300 text-amber-800 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-amber-50 shadow-sm"
             >
               Back
             </button>
             <button
               type="submit"
               disabled={isCreating}
-              className="flex-1 py-3 px-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:text-gray-400 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+              className="flex-1 py-3 px-4 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 disabled:text-amber-500 text-amber-50 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-amber-50 shadow-sm"
             >
               {isCreating ? (
                 <div className="flex items-center justify-center">
-                  <div className="animate-spin w-5 h-5 border-2 border-green-300 border-t-transparent rounded-full mr-2"></div>
+                  <div className="animate-spin w-5 h-5 border-2 border-amber-200 border-t-transparent rounded-full mr-2"></div>
                   Creating...
                 </div>
               ) : (
