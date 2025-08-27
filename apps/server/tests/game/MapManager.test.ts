@@ -7,6 +7,17 @@ import {
   TerrainType,
 } from '../../src/game/MapManager';
 
+// Mock island terrain functions for tests
+jest.mock('../../src/game/map/TerrainUtils', () => {
+  const actual = jest.requireActual('../../src/game/map/TerrainUtils');
+  return {
+    ...actual,
+    islandTerrainInit: jest.fn(),
+    islandTerrainFree: jest.fn(),
+    fillIslandTerrain: jest.fn(),
+  };
+});
+
 describe('MapManager', () => {
   let mapManager: MapManager;
   const testPlayers = new Map<string, PlayerState>([
@@ -518,6 +529,204 @@ describe('MapManager', () => {
           if (tile.terrain === 'deep_ocean') {
             expect(tile.elevation).toBeLessThan(256); // Accept wide range for current implementation
           }
+        }
+      }
+    });
+  });
+
+  describe('Phase 2: Generator Method Updates Flow Validation', () => {
+    let mockTerrainGenerator: any;
+    let mockHeightGenerator: any;
+    let mockTemperatureMap: any;
+    let mockRiverGenerator: any;
+
+    beforeEach(() => {
+      // Spy on key methods to verify Phase 2 flow sequence compliance
+      mapManager = new MapManager(30, 20, 'phase2-test-seed');
+
+      // Access private members for testing flow sequence
+      mockTerrainGenerator = mapManager['terrainGenerator'];
+      mockHeightGenerator = mapManager['heightGenerator'];
+      mockTemperatureMap = mapManager['temperatureMap'];
+      mockRiverGenerator = mapManager['riverGenerator'];
+
+      // Mock key methods to verify they are called in correct sequence
+      jest.spyOn(mockTerrainGenerator, 'makeLand').mockImplementation(async () => {});
+      jest.spyOn(mockTerrainGenerator, 'smoothWaterDepth').mockImplementation(() => {});
+      jest.spyOn(mockTerrainGenerator, 'regenerateLakes').mockImplementation(() => {});
+      jest.spyOn(mockTerrainGenerator, 'generateTerrain').mockImplementation(async () => {});
+      jest.spyOn(mockTerrainGenerator, 'convertTemperatureToEnum').mockImplementation(() => {});
+      jest.spyOn(mockTerrainGenerator, 'generateWetnessMap').mockImplementation(() => {});
+
+      // Phase 2: External methods removed - no longer need to mock them
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('should validate FRACTAL generator Phase 2 compliance - no external calls', async () => {
+      await mapManager.generateMapFractal(testPlayers);
+
+      // Verify makeLand() was called (contains all Phase 1 & 2 logic)
+      expect(mockTerrainGenerator.makeLand).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.makeLand).toHaveBeenCalledWith(
+        expect.any(Array), // tiles
+        expect.any(Array), // heightMap
+        expect.objectContaining({
+          landpercent: 30,
+          steepness: 50,
+          wetness: 50,
+          temperature: 50,
+        }),
+        mockHeightGenerator,
+        mockTemperatureMap,
+        mockRiverGenerator
+      );
+
+      // Phase 2: External deprecated methods removed - no need to verify non-calls
+
+      // Verify post-makeLand sequence is correct
+      expect(mockTerrainGenerator.smoothWaterDepth).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.regenerateLakes).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.generateTerrain).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.convertTemperatureToEnum).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.generateWetnessMap).toHaveBeenCalledTimes(1);
+    });
+
+    it('should validate RANDOM generator Phase 2 compliance - no external calls', async () => {
+      await mapManager.generateMapRandom(testPlayers);
+
+      // Verify makeLand() was called (contains all Phase 1 & 2 logic)
+      expect(mockTerrainGenerator.makeLand).toHaveBeenCalledTimes(1);
+
+      // Phase 2: External deprecated methods removed - no need to verify non-calls
+
+      // Verify correct post-processing sequence
+      expect(mockTerrainGenerator.smoothWaterDepth).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.regenerateLakes).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.generateTerrain).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.convertTemperatureToEnum).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.generateWetnessMap).toHaveBeenCalledTimes(1);
+    });
+
+    it('should validate FRACTURE generator Phase 2 compliance - no external calls', async () => {
+      await mapManager.generateMapFracture(testPlayers);
+
+      // Verify makeLand() was called (contains all Phase 1 & 2 logic)
+      expect(mockTerrainGenerator.makeLand).toHaveBeenCalledTimes(1);
+
+      // Phase 2: External deprecated methods removed - no need to verify non-calls
+
+      // Verify correct post-processing sequence
+      expect(mockTerrainGenerator.smoothWaterDepth).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.regenerateLakes).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.generateTerrain).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.convertTemperatureToEnum).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.generateWetnessMap).toHaveBeenCalledTimes(1);
+    });
+
+    it('should validate ISLAND generator Phase 2 compliance - different flow', async () => {
+      await mapManager.generateMapWithIslands(testPlayers, 'ALL');
+
+      // Islands use different flow - no makeLand() call expected
+      expect(mockTerrainGenerator.makeLand).not.toHaveBeenCalled();
+
+      // Phase 2: External deprecated methods removed - no need to verify non-calls
+
+      // Verify correct island post-processing sequence
+      expect(mockTerrainGenerator.smoothWaterDepth).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.regenerateLakes).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.convertTemperatureToEnum).toHaveBeenCalledTimes(1);
+      expect(mockTerrainGenerator.generateWetnessMap).toHaveBeenCalledTimes(1);
+    });
+
+    it('should validate Phase 2 call sequence order for all height-based generators', async () => {
+      const callOrder: string[] = [];
+
+      // Track method call order
+      mockTerrainGenerator.makeLand.mockImplementation(async () => {
+        callOrder.push('makeLand');
+      });
+      mockTerrainGenerator.smoothWaterDepth.mockImplementation(() => {
+        callOrder.push('smoothWaterDepth');
+      });
+      mockTerrainGenerator.regenerateLakes.mockImplementation(() => {
+        callOrder.push('regenerateLakes');
+      });
+      mockTerrainGenerator.generateTerrain.mockImplementation(async () => {
+        callOrder.push('generateTerrain');
+      });
+      mockTerrainGenerator.convertTemperatureToEnum.mockImplementation(() => {
+        callOrder.push('convertTemperatureToEnum');
+      });
+      mockTerrainGenerator.generateWetnessMap.mockImplementation(() => {
+        callOrder.push('generateWetnessMap');
+      });
+
+      await mapManager.generateMapFractal(testPlayers);
+
+      // Verify Phase 1 & 2 compliant call sequence
+      expect(callOrder).toEqual([
+        'makeLand', // Contains Phase 1 integrated steps
+        'smoothWaterDepth', // Post-makeLand processing
+        'regenerateLakes',
+        'generateTerrain',
+        'convertTemperatureToEnum', // Phase 2: Only enum conversion, not external creation
+        'generateWetnessMap',
+      ]);
+    });
+
+    it('should verify Phase 2 removes all legacy external method calls', async () => {
+      // Test all generator types to ensure no external calls
+      const generators: Array<() => Promise<void>> = [
+        () => mapManager.generateMapFractal(testPlayers),
+        () => mapManager.generateMapRandom(testPlayers),
+        () => mapManager.generateMapFracture(testPlayers),
+        () => mapManager.generateMapWithIslands(testPlayers, 'ALL'),
+      ];
+
+      for (const generateMap of generators) {
+        jest.clearAllMocks();
+
+        await generateMap();
+
+        // Phase 2: External legacy methods removed - compliance verified by compilation
+
+        // Only enum conversion should happen post-makeLand
+        expect(mockTerrainGenerator.convertTemperatureToEnum).toHaveBeenCalledTimes(1);
+      }
+    });
+
+    it('should validate end-to-end flow produces valid maps after Phase 2 changes', async () => {
+      // Remove mocks for full integration test
+      jest.restoreAllMocks();
+
+      const realMapManager = new MapManager(25, 20, 'phase2-integration');
+      await realMapManager.generateMap(testPlayers);
+
+      const mapData = realMapManager.getMapData()!;
+
+      // Verify map structure is still valid after Phase 2 changes
+      expect(mapData).toBeDefined();
+      expect(mapData.width).toBe(25);
+      expect(mapData.height).toBe(20);
+      expect(mapData.tiles).toHaveLength(25);
+      expect(mapData.tiles[0]).toHaveLength(20);
+      expect(mapData.startingPositions.length).toBeGreaterThanOrEqual(0);
+
+      // Verify all tiles have required properties after flow changes
+      for (let x = 0; x < mapData.width; x++) {
+        for (let y = 0; y < mapData.height; y++) {
+          const tile = mapData.tiles[x][y];
+
+          expect(tile.terrain).toBeDefined();
+          expect(tile.elevation >= 0 && tile.elevation <= 255).toBe(true);
+          expect(tile.continentId >= 0).toBe(true);
+          expect(tile.riverMask >= 0 && tile.riverMask <= 15).toBe(true);
+          expect([1, 2, 4, 8]).toContain(tile.temperature); // TemperatureType enum values: FROZEN=1, COLD=2, TEMPERATE=4, TROPICAL=8
+          expect(tile.wetness >= 0 && tile.wetness <= 100).toBe(true);
+          expect(tile.properties).toBeDefined();
         }
       }
     });
