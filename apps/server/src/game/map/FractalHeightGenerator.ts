@@ -203,9 +203,11 @@ export class FractalHeightGenerator {
    * Generate initial random height map (similar to MAPGEN_RANDOM approach)
    * @reference freeciv/server/generator/height_map.c make_random_hmap()
    */
-  public generateRandomHeightMap(): void {
-    // Test with minimal smoothing to preserve more height variation
-    const smooth = 1; // Start with minimal smoothing
+  public generateRandomHeightMap(playerCount: number = 4): void {
+    // Calculate smooth parameter like freeciv: MAX(1, 1 + get_sqsize() - player_count() / 4)
+    // get_sqsize() ≈ sqrt(map_area) / 10 in freeciv
+    const sqSize = Math.floor(Math.sqrt(this.width * this.height) / 10);
+    const smooth = Math.max(1, 1 + sqSize - Math.floor(playerCount / 4));
 
     // CRITICAL: Initialize each tile with a DIFFERENT random value (like freeciv INITIALIZE_ARRAY)
     // The freeciv macro evaluates fc_rand(1000 * smooth) for EACH array element
@@ -216,13 +218,16 @@ export class FractalHeightGenerator {
     // Apply advanced smoothing passes to create natural terrain variation
     this.applyAdvancedSmoothing(smooth);
 
+    // CRITICAL FIX: Set shore level BEFORE normalization using original height distribution
+    this.setShoreLevel();
+
     // Adjust to proper height range (like freeciv adjust_int_map)
     this.normalizeHeightMap();
 
-    // Adaptively set shore level to achieve target land percentage
-    this.adjustShoreLevel();
-
-    // Shore level has been adjusted to achieve target land percentage
+    // DEBUG: Log random height generation parameters
+    console.log(
+      `DEBUG: Random height generation - smooth=${smooth}, sqSize=${sqSize}, playerCount=${playerCount}, shoreLevel=${this.shoreLevel}, finalShoreLevel=${this.getShoreLevel()}`
+    );
   }
 
   /**
@@ -667,10 +672,11 @@ export class FractalHeightGenerator {
   }
 
   /**
-   * Adaptively adjust shore level to achieve target land percentage
-   * This compensates for the range compression caused by smoothing
+   * Set shore level to achieve target land percentage using original height distribution
+   * This must be called BEFORE normalizeHeightMap() to work with the original scale
+   * @reference freeciv/server/generator/mapgen.c adjust_hmap_landmass()
    */
-  private adjustShoreLevel(): void {
+  private setShoreLevel(): void {
     const targetLandPercent = 30; // MAP_DEFAULT_LANDMASS
     const sortedHeights = [...this.heightMap].sort((a, b) => b - a); // Sort descending
 
@@ -679,10 +685,14 @@ export class FractalHeightGenerator {
 
     if (targetLandTiles > 0 && targetLandTiles < sortedHeights.length) {
       // Set shore level so that the top targetLandPercent of tiles become land
-      const newShoreHeightNormalized = sortedHeights[targetLandTiles - 1];
+      // Use the actual height value from the original distribution
+      const targetHeight = sortedHeights[targetLandTiles - 1];
 
-      // Convert back to HMAP_MAX_LEVEL scale
-      this.shoreLevel = Math.floor((newShoreHeightNormalized / 255) * HMAP_MAX_LEVEL);
+      // Store in HMAP_MAX_LEVEL scale for consistency
+      this.shoreLevel = Math.min(HMAP_MAX_LEVEL - 1, Math.max(0, targetHeight));
+    } else {
+      // Fallback to default calculation
+      this.shoreLevel = Math.floor((HMAP_MAX_LEVEL * (100 - targetLandPercent)) / 100);
     }
   }
 

@@ -541,7 +541,8 @@ export function isTinyIsland(
   y: number,
   width: number,
   height: number,
-  random: () => number
+  random: () => number,
+  isRandomMode: boolean = false
 ): boolean {
   const tile = tiles[x][y];
 
@@ -569,8 +570,11 @@ export function isTinyIsland(
   }
 
   // If very few land tiles nearby, it's a tiny island
-  // Add some randomness to avoid perfect patterns
-  const threshold = 3 + Math.floor(random() * 3); // 3-5 tiles
+  // CALIBRATION FIX: Be much less aggressive for Random mode to preserve scattered land
+  const threshold = isRandomMode
+    ? Math.max(1, Math.floor(random() * 2)) // Random mode: only remove truly isolated single tiles (1-2 tiles)
+    : 3 + Math.floor(random() * 3); // Other modes: remove small clusters (3-5 tiles)
+
   return landCount <= threshold;
 }
 

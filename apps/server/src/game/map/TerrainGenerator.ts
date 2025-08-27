@@ -127,7 +127,6 @@ export class TerrainGenerator {
     this.riverGenerator = riverGenerator;
     // Constants from freeciv
     const TERRAIN_OCEAN_DEPTH_MAXIMUM = 100; // From freeciv
-    const hmap_max_level = 1000; // Max height value
 
     // Step 1: HAS_POLES - normalize height map at poles to prevent excessive land
     // @reference freeciv/server/generator/mapgen.c:899-901 normalize_hmap_poles()
@@ -139,18 +138,33 @@ export class TerrainGenerator {
     const land_fill = 'grassland'; // Simple default - in freeciv this searches terrain types
 
     // Step 3: Set shore level based on landpercent
-    // hmap_shore_level = (hmap_max_level * (100 - wld.map.server.landpercent)) / 100;
-    const hmap_shore_level = (hmap_max_level * (100 - params.landpercent)) / 100;
+    // CRITICAL FIX: Use shore level from height generator (already in correct 0-255 scale)
+    // instead of calculating in 0-1000 scale which doesn't match normalized heights
+    const hmap_shore_level =
+      heightGenerator?.getShoreLevel?.() || Math.floor((255 * (100 - params.landpercent)) / 100);
+
+    // DEBUG: Log shore level fix
+    console.log(
+      `DEBUG: makeLand() using corrected shore level: ${hmap_shore_level} (was using 700 before fix)`
+    );
+
+    // DEBUG: Compare first few height values to verify they match analysis
+    console.log(
+      `DEBUG: makeLand() heightMap sample - [0]=${heightMap[0]}, [1]=${heightMap[1]}, [2]=${heightMap[2]}, [100]=${heightMap[100]}`
+    );
 
     // Step 4: ini_hmap_low_level() - calculate low level for swamps
     // hmap_low_level = (4 * swamp_pct * (hmap_max_level - hmap_shore_level)) / 100 + hmap_shore_level;
     // const hmap_low_level = (4 * terrainParams.swamp_pct * (hmap_max_level - hmap_shore_level)) / 100 + hmap_shore_level;
 
     // Step 5: Main iteration - set terrain based on height
+    let landTilesAssigned = 0;
+    let oceanTilesAssigned = 0;
+
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
-        const index = y * this.width + x;
-        const tileHeight = heightMap[index];
+        // CRITICAL FIX: Use tile elevation instead of potentially corrupted heightMap
+        const tileHeight = tiles[x][y].elevation;
 
         // Set as unknown first (freeciv: tile_set_terrain(ptile, T_UNKNOWN))
         tiles[x][y].terrain = 'ocean'; // We'll use ocean as default
@@ -168,8 +182,8 @@ export class TerrainGenerator {
               const nx = x + dx;
               const ny = y + dy;
               if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-                const nindex = ny * this.width + nx;
-                if (heightMap[nindex] < hmap_shore_level) {
+                // CRITICAL FIX: Use tile elevation instead of potentially corrupted heightMap
+                if (tiles[nx][ny].elevation < hmap_shore_level) {
                   ocean++;
                 } else {
                   land++;
@@ -190,12 +204,19 @@ export class TerrainGenerator {
           } else {
             tiles[x][y].terrain = 'ocean';
           }
+          oceanTilesAssigned++;
         } else {
           // This tile should be land - set to land_fill temporarily
           tiles[x][y].terrain = land_fill;
+          landTilesAssigned++;
         }
       }
     }
+
+    // DEBUG: Log initial terrain assignment counts
+    console.log(
+      `DEBUG: makeLand() initial assignment - Land: ${landTilesAssigned}, Ocean: ${oceanTilesAssigned}, Total: ${landTilesAssigned + oceanTilesAssigned}, Shore level: ${hmap_shore_level}`
+    );
 
     // Step 6: HAS_POLES - renormalize height map and create polar land
     // @reference freeciv/server/generator/mapgen.c:928-932
@@ -235,7 +256,9 @@ export class TerrainGenerator {
     // Step 10.5: Continent assignment in correct order (Phase 1 fix)
     // @reference freeciv/server/generator/mapgen.c:1370-1377 sequence
     // First remove tiny islands, then assign continent numbers
-    this.removeTinyIslands(tiles);
+    // CALIBRATION FIX: Make tiny island removal less aggressive for Random mode
+    const isRandomMode = this.generator === 'random';
+    this.removeTinyIslands(tiles, isRandomMode);
     this.generateContinents(tiles);
 
     // Step 11: destroy_placed_map() - cleanup
@@ -2109,10 +2132,10 @@ export class TerrainGenerator {
    * @reference freeciv/server/generator/mapgen.c remove_tiny_islands()
    * Uses isTinyIsland() for detection and converts to ocean
    */
-  public removeTinyIslands(tiles: MapTile[][]): void {
+  public removeTinyIslands(tiles: MapTile[][], isRandomMode: boolean = false): void {
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
-        if (isTinyIsland(tiles, x, y, this.width, this.height, this.random)) {
+        if (isTinyIsland(tiles, x, y, this.width, this.height, this.random, isRandomMode)) {
           // Convert tiny island to shallow ocean
           tiles[x][y].terrain = 'ocean';
           tiles[x][y].continentId = 0; // Ocean continent ID
