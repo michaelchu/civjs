@@ -11,6 +11,7 @@ import {
   isLandTile,
   setTerrainGameProperties,
   isTinyIsland,
+  PlacementMap,
 } from './TerrainUtils';
 
 export interface TerrainParams {
@@ -27,12 +28,14 @@ export class TerrainGenerator {
   private height: number;
   private random: () => number;
   private generator: string;
+  private placementMap: PlacementMap;
 
   constructor(width: number, height: number, random: () => number, generator: string) {
     this.width = width;
     this.height = height;
     this.random = random;
     this.generator = generator;
+    this.placementMap = new PlacementMap(width, height);
   }
 
   /**
@@ -184,7 +187,9 @@ export class TerrainGenerator {
     // destroy_tmap(); create_tmap(TRUE); - we handle this elsewhere
 
     // Step 8: Create placed_map and set ocean tiles as placed
-    // create_placed_map(); set_all_ocean_tiles_placed(); - we'll handle this in make_terrains
+    // @reference freeciv/server/generator/mapgen.c:939 create_placed_map()
+    this.placementMap.createPlacedMap();
+    this.placementMap.setAllOceanTilesPlaced(tiles);
 
     // Get terrain parameters using freeciv algorithm
     const terrainParams = this.adjustTerrainParam(
@@ -207,7 +212,8 @@ export class TerrainGenerator {
     this.makeTerrains(tiles, terrainParams);
 
     // Step 11: destroy_placed_map() - cleanup
-    // Not needed in our implementation
+    // @reference freeciv/server/generator/mapgen.c:1045 destroy_placed_map()
+    this.placementMap.destroyPlacedMap();
 
     // Step 12: make_rivers() - this is handled separately in our implementation
   }
@@ -218,13 +224,14 @@ export class TerrainGenerator {
    *
    */
   public makeTerrains(tiles: MapTile[][], terrainParams: TerrainParams): void {
-    // Count total unplaced tiles (not ocean, not mountains/hills)
+    // Count total unplaced tiles using placement tracking
+    // @reference freeciv/server/generator/mapgen.c:491 make_terrains()
     let total = 0;
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
         // In freeciv: not_placed(ptile) - tiles that aren't ocean and haven't been assigned terrain yet
-        if (!isOceanTerrain(tile.terrain) && tile.terrain === 'grassland') {
+        if (this.placementMap.notPlaced(x, y) && !isOceanTerrain(tile.terrain)) {
           total++;
         }
       }
@@ -252,10 +259,12 @@ export class TerrainGenerator {
     do {
       // PLACE_ONE_TYPE(forests_count, plains_count, pick_terrain(MG_FOLIAGE, MG_TEMPERATE, MG_TROPICAL), WC_ALL, TT_NFROZEN, MC_NONE, 60);
       if (forests_count > 0) {
-        const tile = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_NFROZEN', 'MC_NONE');
-        if (tile) {
+        const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_NFROZEN', 'MC_NONE');
+        if (candidate) {
           this.placeTerrain(
-            tile,
+            candidate.tile,
+            candidate.x,
+            candidate.y,
             60,
             'forest',
             forests_count,
@@ -273,10 +282,12 @@ export class TerrainGenerator {
 
       // PLACE_ONE_TYPE(jungles_count, forests_count, pick_terrain(MG_FOLIAGE, MG_TROPICAL, MG_COLD), WC_ALL, TT_TROPICAL, MC_NONE, 50);
       if (jungles_count > 0) {
-        const tile = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_TROPICAL', 'MC_NONE');
-        if (tile) {
+        const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_TROPICAL', 'MC_NONE');
+        if (candidate) {
           this.placeTerrain(
-            tile,
+            candidate.tile,
+            candidate.x,
+            candidate.y,
             50,
             'jungle',
             jungles_count,
@@ -294,10 +305,12 @@ export class TerrainGenerator {
 
       // PLACE_ONE_TYPE(swamps_count, forests_count, pick_terrain(MG_WET, MG_UNUSED, MG_FOLIAGE), WC_NDRY, TT_HOT, MC_LOW, 50);
       if (swamps_count > 0) {
-        const tile = this.randMapPosCharacteristic(tiles, 'WC_NDRY', 'TT_HOT', 'MC_LOW');
-        if (tile) {
+        const candidate = this.randMapPosCharacteristic(tiles, 'WC_NDRY', 'TT_HOT', 'MC_LOW');
+        if (candidate) {
           this.placeTerrain(
-            tile,
+            candidate.tile,
+            candidate.x,
+            candidate.y,
             50,
             'swamp',
             swamps_count,
@@ -315,10 +328,12 @@ export class TerrainGenerator {
 
       // PLACE_ONE_TYPE(deserts_count, alt_deserts_count, pick_terrain(MG_DRY, MG_TROPICAL, MG_COLD), WC_DRY, TT_NFROZEN, MC_NLOW, 80);
       if (deserts_count > 0) {
-        const tile = this.randMapPosCharacteristic(tiles, 'WC_DRY', 'TT_NFROZEN', 'MC_NLOW');
-        if (tile) {
+        const candidate = this.randMapPosCharacteristic(tiles, 'WC_DRY', 'TT_NFROZEN', 'MC_NLOW');
+        if (candidate) {
           this.placeTerrain(
-            tile,
+            candidate.tile,
+            candidate.x,
+            candidate.y,
             80,
             'desert',
             deserts_count,
@@ -336,10 +351,12 @@ export class TerrainGenerator {
 
       // PLACE_ONE_TYPE(alt_deserts_count, plains_count, pick_terrain(MG_DRY, MG_TROPICAL, MG_WET), WC_ALL, TT_NFROZEN, MC_NLOW, 40);
       if (alt_deserts_count > 0) {
-        const tile = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_NFROZEN', 'MC_NLOW');
-        if (tile) {
+        const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_NFROZEN', 'MC_NLOW');
+        if (candidate) {
           this.placeTerrain(
-            tile,
+            candidate.tile,
+            candidate.x,
+            candidate.y,
             40,
             'desert',
             alt_deserts_count,
@@ -357,9 +374,9 @@ export class TerrainGenerator {
 
       // Make the plains and tundras
       if (plains_count > 0) {
-        const tile = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_ALL', 'MC_NONE');
-        if (tile) {
-          this.makePlain(tile);
+        const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_ALL', 'MC_NONE');
+        if (candidate) {
+          this.makePlain(candidate.tile, candidate.x, candidate.y);
           plains_count--;
         } else {
           plains_count = 0;
@@ -378,21 +395,23 @@ export class TerrainGenerator {
   /**
    * Supporting function for make_terrains - equivalent to freeciv's rand_map_pos_characteristic
    * @reference freeciv/server/generator/mapgen.c rand_map_pos_characteristic()
+   * Uses placement tracking to find valid tiles for terrain placement
    */
   private randMapPosCharacteristic(
     tiles: MapTile[][],
     wetness_condition: string,
     temp_condition: string,
     mount_condition: string
-  ): MapTile | null {
-    const candidates: MapTile[] = [];
+  ): { tile: MapTile; x: number; y: number } | null {
+    const candidates: { tile: MapTile; x: number; y: number }[] = [];
 
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
 
-        // Only consider unplaced land tiles
-        if (isOceanTerrain(tile.terrain) || tile.terrain !== 'grassland') continue;
+        // Only consider unplaced land tiles using placement tracking
+        // @reference freeciv/server/generator/mapgen.c:262 not yet placed on pmap
+        if (!this.placementMap.notPlaced(x, y) || isOceanTerrain(tile.terrain)) continue;
 
         // Check wetness condition
         if (!this.checkWetnessCondition(tile, wetness_condition)) continue;
@@ -403,7 +422,7 @@ export class TerrainGenerator {
         // Check mountain condition
         if (!this.checkMountainCondition(tile, mount_condition)) continue;
 
-        candidates.push(tile);
+        candidates.push({ tile, x, y });
       }
     }
 
@@ -414,9 +433,12 @@ export class TerrainGenerator {
   /**
    * Supporting function - place terrain with weight/spread logic
    * @reference freeciv/server/generator/mapgen.c place_terrain()
+   * Marks placed tiles using placement tracking system
    */
   private placeTerrain(
     tile: MapTile,
+    x: number,
+    y: number,
     _weight: number,
     terrain: string,
     _count: number,
@@ -425,16 +447,22 @@ export class TerrainGenerator {
     _tc: string,
     _mc: string
   ): void {
-    // Simplified terrain placement - in freeciv this has complex spreading logic
+    // Set terrain type
     tile.terrain = terrain as TerrainType;
+
+    // Mark tile as placed in placement map
+    // @reference freeciv/server/generator/mapgen_utils.c:79 map_set_placed()
+    this.placementMap.setPlaced(x, y);
+
     this.setTerrainProperties(tile);
   }
 
   /**
    * Supporting function - make plains/tundra based on temperature
    * @reference freeciv/server/generator/mapgen.c make_plain()
+   * Uses placement tracking to mark placed tiles
    */
-  private makePlain(tile: MapTile): void {
+  private makePlain(tile: MapTile, x: number, y: number): void {
     // Choose terrain based on temperature like freeciv make_plain()
     if (tile.temperature === TemperatureType.FROZEN) {
       tile.terrain = this.random() < 0.5 ? 'glacier' : 'snow';
@@ -443,6 +471,11 @@ export class TerrainGenerator {
     } else {
       tile.terrain = this.random() < 0.6 ? 'grassland' : 'plains';
     }
+
+    // Mark tile as placed
+    // @reference freeciv/server/generator/mapgen_utils.c:79 map_set_placed()
+    this.placementMap.setPlaced(x, y);
+
     this.setTerrainProperties(tile);
   }
 
@@ -494,8 +527,9 @@ export class TerrainGenerator {
   }
 
   /**
-   * Make relief - creates mountains and hills
+   * Make relief - creates mountains and hills with placement tracking
    * @reference freeciv/server/generator/mapgen.c make_relief()
+   * Uses placement tracking to mark specialized terrain as placed
    */
   private makeRelief(
     tiles: MapTile[][],
@@ -503,7 +537,7 @@ export class TerrainGenerator {
     shore_level: number,
     _mountain_pct: number
   ): void {
-    // Simplified mountain/hill placement
+    // Mountain/hill placement with placement tracking
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
@@ -512,10 +546,15 @@ export class TerrainGenerator {
           const height = heightMap[index];
 
           // Place mountains/hills based on height and percentage
-          if (height > shore_level + (1000 - shore_level) * 0.8) {
-            tile.terrain = 'hills'; // High areas become hills
-          } else if (height > shore_level + (1000 - shore_level) * 0.9) {
+          if (height > shore_level + (1000 - shore_level) * 0.9) {
             tile.terrain = 'mountains'; // Highest areas become mountains
+            // Mark as placed to prevent overwrite during terrain assignment
+            // @reference freeciv/server/generator/mapgen_utils.c:79 map_set_placed()
+            this.placementMap.setPlaced(x, y);
+          } else if (height > shore_level + (1000 - shore_level) * 0.8) {
+            tile.terrain = 'hills'; // High areas become hills
+            // Mark as placed to prevent overwrite during terrain assignment
+            this.placementMap.setPlaced(x, y);
           }
         }
       }
@@ -523,12 +562,14 @@ export class TerrainGenerator {
   }
 
   /**
-   * Make fracture relief - special relief for fracture maps
+   * Make fracture relief - special relief for fracture maps with placement tracking
    * @reference freeciv/server/generator/mapgen.c make_fracture_relief()
+   * Uses placement tracking for specialized terrain
    */
   private makeFractureRelief(tiles: MapTile[][], heightMap: number[], shore_level: number): void {
-    // Simplified fracture relief - similar to regular relief for now
-    this.makeRelief(tiles, heightMap, shore_level, 15); // Fracture maps typically have more mountains
+    // Fracture relief uses the same relief system with different parameters
+    // Fracture maps typically have more mountains (15% instead of default)
+    this.makeRelief(tiles, heightMap, shore_level, 15);
   }
 
   // Utility functions
