@@ -24,7 +24,11 @@ export enum TemperatureType {
 // @reference freeciv/server/generator/temperature_map.h:31-34
 export const TemperatureFlags = {
   TT_NFROZEN: TemperatureType.COLD | TemperatureType.TEMPERATE | TemperatureType.TROPICAL, // 14 (2|4|8)
-  TT_ALL: TemperatureType.FROZEN | TemperatureType.COLD | TemperatureType.TEMPERATE | TemperatureType.TROPICAL, // 15 (1|2|4|8)
+  TT_ALL:
+    TemperatureType.FROZEN |
+    TemperatureType.COLD |
+    TemperatureType.TEMPERATE |
+    TemperatureType.TROPICAL, // 15 (1|2|4|8)
   TT_NHOT: TemperatureType.FROZEN | TemperatureType.COLD, // 3 (1|2) - not hot
   TT_HOT: TemperatureType.TEMPERATE | TemperatureType.TROPICAL, // 12 (4|8) - hot regions
 } as const;

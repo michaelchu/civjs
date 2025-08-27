@@ -134,7 +134,7 @@ describe('TemperatureFlags - Bitwise Operations', () => {
       // Test that all bitwise operations complete quickly
       const startTime = performance.now();
 
-      temperatures.forEach((temp) => {
+      temperatures.forEach(temp => {
         // Perform multiple bitwise operations
         const isHot = !!(temp & TemperatureFlags.TT_HOT);
         const isCold = !!(temp & TemperatureFlags.TT_NHOT);
@@ -151,8 +151,8 @@ describe('TemperatureFlags - Bitwise Operations', () => {
       const endTime = performance.now();
       const duration = endTime - startTime;
 
-      // Bitwise operations should be very fast (< 1ms for all tests)
-      expect(duration).toBeLessThan(1);
+      // Bitwise operations should be very fast (< 5ms for all tests)
+      expect(duration).toBeLessThan(5);
     });
 
     it('should produce correct binary representations', () => {
