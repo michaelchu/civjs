@@ -321,34 +321,111 @@ export class GameManager {
 
     // Generate the map with starting positions based on terrain settings
     const generator = terrainSettings?.generator || 'random';
-    console.log('DEBUG: terrainSettings =', terrainSettings);
-    console.log('DEBUG: generator =', generator);
+    logger.debug('Map generation starting', { terrainSettings, generator });
 
-    switch (generator) {
-      case 'random':
-        // Pure random height generation (like freeciv MAPGEN_RANDOM)
+    // Map generator selection and fallback logic
+    // @reference freeciv/server/generator/mapgen.c:1315-1341
+    // Follows exact freeciv sequential logic, not switch-based dispatch
+    let currentGenerator = generator;
+    let generationAttempted = false;
+    let lastError: Error | null = null;
+
+    try {
+      // STEP 1: Handle FAIR islands with fallback (freeciv mapgen.c:1315-1318)
+      if (currentGenerator === 'fair') {
+        logger.info('Attempting MAPGEN_FAIR (fair islands generation)');
+        const fairSuccess = await mapManager.attemptFairIslandsGeneration(players);
+
+        if (!fairSuccess) {
+          // Exact freeciv behavior: change generator type and continue to island logic
+          logger.warn(
+            'map_generate_fair_islands() returned FALSE, changing generator to MAPGEN_ISLAND',
+            {
+              reference: 'freeciv/server/generator/mapgen.c:1315-1318',
+            }
+          );
+          currentGenerator = 'island';
+        } else {
+          generationAttempted = true;
+        }
+      }
+
+      // STEP 2: Handle ISLAND generation (freeciv mapgen.c:1320-1341)
+      if (currentGenerator === 'island' && !generationAttempted) {
+        logger.info('Executing MAPGEN_ISLAND generation');
+        // Note: island_terrain_init() would be called here in freeciv (line 1322)
+        // We're using simplified routing for now - should use startpos logic
+        await mapManager.generateMapWithIslands(players, 2); // Default to mapgenerator2
+        // Note: island_terrain_free() would be called here in freeciv (line 1340)
+        generationAttempted = true;
+      }
+
+      // STEP 3: Handle FRACTAL generation (freeciv mapgen.c:1343+)
+      if (currentGenerator === 'fractal' && !generationAttempted) {
+        logger.info('Executing MAPGEN_FRACTAL generation');
+        await mapManager.generateMap(players);
+        generationAttempted = true;
+      }
+
+      // STEP 4: Handle RANDOM generation (freeciv MAPGEN_RANDOM)
+      if (currentGenerator === 'random' && !generationAttempted) {
+        logger.info('Executing MAPGEN_RANDOM generation');
         await mapManager.generateMapRandom(players);
-        break;
-      case 'fractal':
-        // Fractal height generation (like freeciv MAPGEN_FRACTAL)
-        await mapManager.generateMap(players);
-        break;
-      case 'island':
-        // Continental + islands (freeciv mapGenerator2 - 70% big continent, 20% medium, 10% small)
-        await mapManager.generateMapWithIslands(players, 2);
-        break;
-      case 'fair':
-        // Fair islands algorithm (freeciv mapGenerator4 - balanced distribution)
-        await mapManager.generateMapWithIslands(players, 4);
-        break;
-      case 'fracture':
-        // Fracture map generation (freeciv make_fracture_map)
+        generationAttempted = true;
+      }
+
+      // STEP 5: Handle FRACTURE generation (freeciv make_fracture_map)
+      if (currentGenerator === 'fracture' && !generationAttempted) {
+        logger.info('Executing MAPGEN_FRACTURE generation');
         await mapManager.generateMapFracture(players);
-        break;
-      default:
-        // Fallback to fractal
+        generationAttempted = true;
+      }
+
+      // STEP 6: Default fallback to fractal (not in freeciv, but defensive)
+      if (!generationAttempted) {
+        logger.warn('Unknown generator, falling back to MAPGEN_FRACTAL', {
+          requestedGenerator: generator,
+          currentGenerator,
+        });
         await mapManager.generateMap(players);
-        break;
+        generationAttempted = true;
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      logger.error('Map generation failed, attempting emergency recovery', {
+        generator: currentGenerator,
+        error: lastError.message,
+      });
+    }
+
+    // Emergency fallback sequence (defensive addition, not in freeciv)
+    if (!generationAttempted || !mapManager.getMapData()) {
+      logger.warn('Initiating emergency fallback sequence (defensive extension)');
+
+      try {
+        logger.info('Emergency fallback: MAPGEN_FRACTAL');
+        await mapManager.generateMap(players);
+        generationAttempted = true;
+      } catch (error) {
+        logger.error('Emergency fractal failed, trying final MAPGEN_RANDOM fallback', {
+          error: error instanceof Error ? error.message : error,
+        });
+
+        try {
+          logger.info('Final emergency fallback: MAPGEN_RANDOM');
+          await mapManager.generateMapRandom(players);
+          generationAttempted = true;
+        } catch (error) {
+          const finalError = error instanceof Error ? error : new Error(String(error));
+          logger.error('All generation methods exhausted', {
+            originalError: lastError?.message,
+            finalError: finalError.message,
+          });
+          throw new Error(
+            `Complete map generation failure. Original: ${lastError?.message || 'unknown'}, Final: ${finalError.message}`
+          );
+        }
+      }
     }
 
     const mapData = mapManager.getMapData();
