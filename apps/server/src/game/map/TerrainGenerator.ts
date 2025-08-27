@@ -229,9 +229,9 @@ export class TerrainGenerator {
   }
 
   /**
-   * Make relief (mountains and hills) based on height map
+   * Make relief (mountains and hills) based on height map with generator-specific characteristics
    * @reference freeciv/server/generator/mapgen.c:298-327 make_relief()
-   * Exact implementation of freeciv relief generation algorithm
+   * Enhanced for Task 10: Generator-specific terrain characteristics
    */
   private makeRelief(
     tiles: MapTile[][],
@@ -240,11 +240,13 @@ export class TerrainGenerator {
     mountain_pct: number
   ): void {
     // Calculate mountain level based on steepness
-    // @reference freeciv/server/generator/mapgen.c:300-304
     const hmap_max_level = 1000;
-    const steepness = 100 - mountain_pct; // Simplified from wld.map.server.steepness
+    const steepness = 100 - mountain_pct;
     const hmap_mountain_level =
       ((hmap_max_level - hmap_shore_level) * (100 - steepness)) / 100 + hmap_shore_level;
+
+    // Generator-specific adjustments for terrain characteristics
+    const generatorAdjustments = this.getGeneratorSpecificAdjustments();
 
     // Iterate through all tiles to place mountains and hills
     for (let x = 0; x < this.width; x++) {
@@ -258,9 +260,8 @@ export class TerrainGenerator {
           continue;
         }
 
-        // Check if tile should be mountain/hill
-        // @reference freeciv/server/generator/mapgen.c:307-312
-        const shouldPlaceRelief =
+        // Enhanced terrain placement logic with generator-specific characteristics
+        let shouldPlaceRelief =
           (hmap_mountain_level < tileHeight &&
             (this.random() * 10 > 5 ||
               !this.terrainIsTooHigh(tiles, x, y, hmap_mountain_level, tileHeight))) ||
@@ -274,32 +275,21 @@ export class TerrainGenerator {
             hmap_shore_level
           );
 
+        // Apply generator-specific modifications
+        shouldPlaceRelief = this.applyGeneratorSpecificReliefLogic(
+          shouldPlaceRelief,
+          tiles,
+          x,
+          y,
+          tileHeight,
+          hmap_shore_level,
+          generatorAdjustments
+        );
+
         if (shouldPlaceRelief) {
-          // Determine terrain type based on temperature using bitwise operations
-          // @reference freeciv/server/generator/mapgen.c:313-323
-          // @reference freeciv/server/generator/temperature_map.h:34 TT_HOT
-          if (tile.temperature & TemperatureFlags.TT_HOT) {
-            // Prefer hills to mountains in hot regions (TT_HOT = TEMPERATE | TROPICAL)
-            // @reference freeciv/server/generator/mapgen.c:316-317 fc_rand(10) < 4
-            const preferHills = this.random() * 10 < 4; // 40% chance for hills
-            tile.terrain = pickTerrain(
-              MapgenTerrainProperty.MOUNTAINOUS,
-              preferHills ? MapgenTerrainProperty.UNUSED : MapgenTerrainProperty.GREEN,
-              MapgenTerrainProperty.UNUSED,
-              this.random
-            );
-          } else {
-            // Prefer mountains to hills in cold regions (FROZEN | COLD)
-            // @reference freeciv/server/generator/mapgen.c:321-322 fc_rand(10) < 8
-            const preferMountains = this.random() * 10 < 8; // 80% chance for mountains
-            tile.terrain = pickTerrain(
-              MapgenTerrainProperty.MOUNTAINOUS,
-              MapgenTerrainProperty.UNUSED,
-              preferMountains ? MapgenTerrainProperty.GREEN : MapgenTerrainProperty.UNUSED,
-              this.random
-            );
-          }
-          // Mark as placed
+          // Enhanced terrain selection with generator-specific preferences
+          const terrainChoice = this.selectReliefTerrain(tile, generatorAdjustments);
+          tile.terrain = terrainChoice as TerrainType;
           this.placementMap.setPlaced(x, y);
           this.setTerrainProperties(tile);
         }
@@ -308,9 +298,170 @@ export class TerrainGenerator {
   }
 
   /**
-   * Special relief generation for fracture maps
+   * Get generator-specific terrain adjustments for relief generation
+   * @reference Task 10: Generator-specific terrain characteristics
+   */
+  private getGeneratorSpecificAdjustments() {
+    switch (this.generator.toLowerCase()) {
+      case 'island':
+        return {
+          coastalTerrainEmphasis: true,
+          coastalDistance: 3, // Emphasize terrain within 3 tiles of coast
+          mountainReduction: 0.7, // Fewer mountains on islands
+          hillIncrease: 1.3, // More hills for gentle island topology
+          forestBonus: 1.2, // Islands tend to be more forested
+          type: 'island',
+        };
+
+      case 'random':
+        return {
+          balancedDistribution: true,
+          varietyBonus: 1.1, // Slightly more variety in random maps
+          clusteringReduction: 0.8, // Less clustering for more random feel
+          type: 'random',
+        };
+
+      case 'fracture':
+      default:
+        return {
+          continentalRelief: true,
+          mountainIncrease: 1.3, // Already implemented in makeFractureRelief
+          clustering: true,
+          type: 'fracture',
+        };
+    }
+  }
+
+  /**
+   * Apply generator-specific logic to relief placement decisions
+   * @reference Task 10: Enhanced realism per generator type
+   */
+  private applyGeneratorSpecificReliefLogic(
+    baseDecision: boolean,
+    tiles: MapTile[][],
+    x: number,
+    y: number,
+    _tileHeight: number,
+    _hmap_shore_level: number,
+    adjustments: any
+  ): boolean {
+    if (adjustments.type === 'island') {
+      // Island maps: Emphasize coastal terrain, reduce inland mountains
+      const distanceToCoast = this.calculateDistanceToCoast(tiles, x, y);
+      const isCoastal = distanceToCoast <= adjustments.coastalDistance;
+
+      if (isCoastal && adjustments.coastalTerrainEmphasis) {
+        // Coastal emphasis: prefer hills over mountains, but still allow some relief
+        return baseDecision && this.random() < 0.8;
+      } else if (distanceToCoast > adjustments.coastalDistance) {
+        // Inland areas: reduce mountain placement for island character
+        return baseDecision && this.random() < adjustments.mountainReduction;
+      }
+    }
+
+    if (adjustments.type === 'random') {
+      // Random maps: Balanced distribution with slight variety bonus
+      const varietyFactor = adjustments.balancedDistribution
+        ? this.random() < 0.5
+          ? adjustments.varietyBonus
+          : 1 / adjustments.varietyBonus
+        : 1;
+      return baseDecision && this.random() < varietyFactor;
+    }
+
+    // Default (fracture) behavior or fallback
+    return baseDecision;
+  }
+
+  /**
+   * Select appropriate relief terrain based on generator characteristics
+   * @reference Task 10: Generator-specific terrain selection
+   */
+  private selectReliefTerrain(tile: MapTile, adjustments: any): string {
+    const isHotRegion = tile.temperature & TemperatureFlags.TT_HOT;
+
+    if (adjustments.type === 'island') {
+      // Islands prefer hills over mountains for gentler topology
+      if (isHotRegion) {
+        const preferHills = this.random() * 10 < 6; // Increased from 4 (60% vs 40%)
+        return pickTerrain(
+          MapgenTerrainProperty.MOUNTAINOUS,
+          preferHills ? MapgenTerrainProperty.UNUSED : MapgenTerrainProperty.GREEN,
+          MapgenTerrainProperty.UNUSED,
+          this.random
+        );
+      } else {
+        const preferMountains = this.random() * 10 < 6; // Decreased from 8 (60% vs 80%)
+        return pickTerrain(
+          MapgenTerrainProperty.MOUNTAINOUS,
+          MapgenTerrainProperty.UNUSED,
+          preferMountains ? MapgenTerrainProperty.GREEN : MapgenTerrainProperty.UNUSED,
+          this.random
+        );
+      }
+    }
+
+    if (adjustments.type === 'random') {
+      // Random maps: Balanced mountain/hill distribution
+      const balanced = this.random() < 0.5;
+      return pickTerrain(
+        MapgenTerrainProperty.MOUNTAINOUS,
+        balanced ? MapgenTerrainProperty.GREEN : MapgenTerrainProperty.UNUSED,
+        balanced ? MapgenTerrainProperty.UNUSED : MapgenTerrainProperty.GREEN,
+        this.random
+      );
+    }
+
+    // Default fracture behavior: original freeciv logic
+    if (isHotRegion) {
+      const preferHills = this.random() * 10 < 4;
+      return pickTerrain(
+        MapgenTerrainProperty.MOUNTAINOUS,
+        preferHills ? MapgenTerrainProperty.UNUSED : MapgenTerrainProperty.GREEN,
+        MapgenTerrainProperty.UNUSED,
+        this.random
+      );
+    } else {
+      const preferMountains = this.random() * 10 < 8;
+      return pickTerrain(
+        MapgenTerrainProperty.MOUNTAINOUS,
+        MapgenTerrainProperty.UNUSED,
+        preferMountains ? MapgenTerrainProperty.GREEN : MapgenTerrainProperty.UNUSED,
+        this.random
+      );
+    }
+  }
+
+  /**
+   * Calculate distance to nearest coast for island generator
+   * @reference Task 10: Island maps emphasize coastal terrain
+   */
+  private calculateDistanceToCoast(tiles: MapTile[][], x: number, y: number): number {
+    // Simple implementation: check in expanding squares until ocean is found
+    for (let radius = 1; radius <= 5; radius++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dy = -radius; dy <= radius; dy++) {
+          // Only check the border of the current radius square
+          if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+            if (isOceanTerrain(tiles[nx][ny].terrain)) {
+              return radius;
+            }
+          }
+        }
+      }
+    }
+    return 5; // Max distance checked
+  }
+
+  /**
+   * Special relief generation for fracture maps - enhanced continental characteristics
    * @reference freeciv/server/generator/fracture_map.c:294-366 make_fracture_relief()
-   * Port of fracture map relief generation with local elevation analysis
+   * Enhanced for Task 10: Generator-specific terrain characteristics
+   * Fracture maps emphasize continental relief with enhanced mountain ranges
    */
   private makeFractureRelief(
     tiles: MapTile[][],
@@ -328,12 +479,15 @@ export class TerrainGenerator {
       }
     }
 
-    // First iteration: Place mountains and hills based on local elevation
-    // @reference freeciv/server/generator/fracture_map.c:313-338
-    let total_mtns = 0;
+    // Enhanced for fracture generator: increase mountain percentage for continental character
+    // @reference Task 10: Fracture maps should have enhanced continental relief
+    const fracture_mountain_bonus = 1.3; // 30% more mountains than normal
     const hmap_max_level = 1000;
-    const hmap_mountain_level = (hmap_max_level + hmap_shore_level) / 2; // Simplified
+    const hmap_mountain_level = (hmap_max_level + hmap_shore_level) / 2;
 
+    // First iteration: Place mountains and hills based on local elevation
+    // Enhanced thresholds for more dramatic continental relief
+    let total_mtns = 0;
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
@@ -348,10 +502,10 @@ export class TerrainGenerator {
         // Calculate local average elevation
         const localAvg = this.localAveElevation(heightMap, x, y);
 
-        // Determine if tile should be mountain or hill
-        // @reference freeciv/server/generator/fracture_map.c:317-321
+        // Enhanced mountain placement for fracture generator
+        // Lower thresholds create more dramatic continental relief
         const choose_mountain =
-          tileHeight > localAvg * 1.2 ||
+          tileHeight > localAvg * 1.15 || // Reduced from 1.2 for more mountains
           (this.areaIsTooFlat(
             tiles,
             heightMap,
@@ -361,10 +515,10 @@ export class TerrainGenerator {
             tileHeight,
             hmap_shore_level
           ) &&
-            this.random() < 0.4);
+            this.random() < 0.5); // Increased from 0.4
 
         const choose_hill =
-          tileHeight > localAvg * 1.1 ||
+          tileHeight > localAvg * 1.05 || // Reduced from 1.1 for more hills
           (this.areaIsTooFlat(
             tiles,
             heightMap,
@@ -374,15 +528,25 @@ export class TerrainGenerator {
             tileHeight,
             hmap_shore_level
           ) &&
-            this.random() < 0.4);
+            this.random() < 0.5); // Increased from 0.4
 
-        // Avoid hills and mountains directly along the coast
-        // @reference freeciv/server/generator/fracture_map.c:323-326
-        if (this.hasOceanNeighbor(tiles, x, y)) {
+        // Allow some coastal mountains for continental character (reduced restriction)
+        const coastalMountainChance = this.hasOceanNeighbor(tiles, x, y) ? 0.2 : 1.0;
+        if (this.random() > coastalMountainChance) {
           continue;
         }
 
-        if (choose_mountain) {
+        // Enhanced mountain range formation using terrain clustering
+        const hasNearbyMountain = this.hasTerrainClusterNearby(
+          tiles,
+          x,
+          y,
+          ['mountains', 'hills'],
+          2
+        );
+        const clusterBonus = hasNearbyMountain ? 0.3 : 0;
+
+        if (choose_mountain && this.random() + clusterBonus > 0.4) {
           total_mtns++;
           tile.terrain = pickTerrain(
             MapgenTerrainProperty.MOUNTAINOUS,
@@ -392,7 +556,7 @@ export class TerrainGenerator {
           );
           this.placementMap.setPlaced(x, y);
           this.setTerrainProperties(tile);
-        } else if (choose_hill) {
+        } else if (choose_hill && this.random() + clusterBonus > 0.3) {
           total_mtns++;
           tile.terrain = pickTerrain(
             MapgenTerrainProperty.MOUNTAINOUS,
@@ -406,37 +570,45 @@ export class TerrainGenerator {
       }
     }
 
-    // Second iteration: Ensure minimum mountain percentage
-    // @reference freeciv/server/generator/fracture_map.c:340-366
-    const min_mountain_percent = 10; // Simplified from server settings
-    const min_mountains = (landarea * min_mountain_percent) / 100;
+    // Second iteration: Ensure enhanced mountain percentage for fracture generator
+    const enhanced_mountain_percent = Math.floor(15 * fracture_mountain_bonus); // Enhanced from base 10%
+    const min_mountains = (landarea * enhanced_mountain_percent) / 100;
 
     if (total_mtns < min_mountains) {
-      // Add more mountains if needed (simplified implementation)
       const needed = min_mountains - total_mtns;
       let added = 0;
 
-      for (let x = 0; x < this.width && added < needed; x++) {
-        for (let y = 0; y < this.height && added < needed; y++) {
-          const tile = tiles[x][y];
-          const index = y * this.width + x;
-          const tileHeight = heightMap[index];
+      // Multiple passes to create mountain range clustering
+      for (let pass = 0; pass < 3 && added < needed; pass++) {
+        for (let x = 0; x < this.width && added < needed; x++) {
+          for (let y = 0; y < this.height && added < needed; y++) {
+            const tile = tiles[x][y];
+            const index = y * this.width + x;
+            const tileHeight = heightMap[index];
 
-          if (
-            this.placementMap.notPlaced(x, y) &&
-            tileHeight > hmap_shore_level &&
-            !this.hasOceanNeighbor(tiles, x, y) &&
-            this.random() < 0.3
-          ) {
-            tile.terrain = pickTerrain(
-              MapgenTerrainProperty.MOUNTAINOUS,
-              MapgenTerrainProperty.UNUSED,
-              MapgenTerrainProperty.UNUSED,
-              this.random
-            );
-            this.placementMap.setPlaced(x, y);
-            this.setTerrainProperties(tile);
-            added++;
+            if (this.placementMap.notPlaced(x, y) && tileHeight > hmap_shore_level) {
+              // Prefer locations near existing mountains for clustering
+              const hasNearbyMountain = this.hasTerrainClusterNearby(
+                tiles,
+                x,
+                y,
+                ['mountains', 'hills'],
+                1
+              );
+              const placementChance = hasNearbyMountain ? 0.6 : 0.2;
+
+              if (this.random() < placementChance) {
+                tile.terrain = pickTerrain(
+                  MapgenTerrainProperty.MOUNTAINOUS,
+                  MapgenTerrainProperty.UNUSED,
+                  MapgenTerrainProperty.UNUSED,
+                  this.random
+                );
+                this.placementMap.setPlaced(x, y);
+                this.setTerrainProperties(tile);
+                added++;
+              }
+            }
           }
         }
       }
@@ -574,6 +746,33 @@ export class TerrainGenerator {
         const ny = y + dy;
         if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
           if (isOceanTerrain(tiles[nx][ny].terrain)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Check for terrain clustering for natural terrain formation
+   * @reference Task 10: Terrain clustering algorithms for natural transitions
+   * Used by all generators to create more realistic terrain distribution
+   */
+  private hasTerrainClusterNearby(
+    tiles: MapTile[][],
+    x: number,
+    y: number,
+    terrainTypes: string[],
+    radius: number = 1
+  ): boolean {
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+          if (terrainTypes.includes(tiles[nx][ny].terrain)) {
             return true;
           }
         }
@@ -1027,47 +1226,430 @@ export class TerrainGenerator {
   }
 
   /**
-   * Apply biome transitions for smoother terrain
+   * Apply biome transitions with enhanced terrain clustering algorithms
+   * @reference Task 10: Biome-based terrain grouping and natural transitions
+   * Enhanced with generator-specific characteristics and regional climate consistency
    */
   public applyBiomeTransitions(tiles: MapTile[][]): void {
-    // Simple biome transition smoothing
+    const generatorAdjustments = this.getGeneratorSpecificAdjustments();
     const newTerrain = tiles.map(col => col.map(tile => ({ ...tile })));
+
+    // Phase 1: Biome-based terrain grouping
+    this.applyBiomeBasedGrouping(tiles, newTerrain, generatorAdjustments);
+
+    // Phase 2: Natural terrain transitions
+    this.applyNaturalTerrainTransitions(tiles, newTerrain, generatorAdjustments);
+
+    // Phase 3: Regional climate consistency
+    this.enforceRegionalClimateConsistency(tiles, newTerrain, generatorAdjustments);
+
+    // Apply changes and update properties
+    this.applyTerrainChanges(tiles, newTerrain);
+  }
+
+  /**
+   * Apply biome-based terrain grouping for natural clustering
+   * @reference Task 10: Biome-based terrain grouping
+   */
+  private applyBiomeBasedGrouping(
+    tiles: MapTile[][],
+    newTerrain: MapTile[][],
+    adjustments: any
+  ): void {
+    const clusteringStrength =
+      adjustments.type === 'random' ? adjustments.clusteringReduction : 1.0;
 
     for (let x = 1; x < this.width - 1; x++) {
       for (let y = 1; y < this.height - 1; y++) {
         const tile = tiles[x][y];
         if (!isLandTile(tile.terrain)) continue;
 
-        // Check neighbors for terrain consistency
-        const neighbors = this.getNeighbors(tiles, x, y);
-        const landNeighbors = neighbors.filter(n => isLandTile(n.terrain));
+        // Identify biome type based on temperature and wetness
+        const biomeType = this.identifyBiomeType(tile);
 
-        if (landNeighbors.length > 0 && this.random() < 0.1) {
-          // 10% chance to blend with neighbors
-          const randomNeighbor = landNeighbors[Math.floor(this.random() * landNeighbors.length)];
-          if (this.isClimateCompatible(tile, randomNeighbor)) {
-            newTerrain[x][y].terrain = randomNeighbor.terrain;
+        // Find similar biome neighbors
+        const similarBiomeNeighbors = this.findSimilarBiomeNeighbors(tiles, x, y, biomeType);
+
+        if (similarBiomeNeighbors.length >= 3 && this.random() < 0.15 * clusteringStrength) {
+          // Strong biome clustering: adopt dominant neighbor terrain
+          const dominantTerrain = this.findDominantTerrainInBiome(similarBiomeNeighbors, biomeType);
+          if (dominantTerrain && this.isBiomeCompatible(tile.terrain, dominantTerrain, biomeType)) {
+            newTerrain[x][y].terrain = dominantTerrain as TerrainType;
           }
-        }
-      }
-    }
-
-    // Apply changes and update properties
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        if (tiles[x][y].terrain !== newTerrain[x][y].terrain) {
-          tiles[x][y].terrain = newTerrain[x][y].terrain;
-          this.setTerrainProperties(tiles[x][y]);
         }
       }
     }
   }
 
   /**
-   * Check if two tiles have compatible climates
+   * Apply natural terrain transitions based on elevation and climate gradients
+   * @reference Task 10: Natural terrain transitions
    */
-  private isClimateCompatible(tile1: MapTile, tile2: MapTile): boolean {
-    return tile1.temperature === tile2.temperature || Math.abs(tile1.wetness - tile2.wetness) < 30;
+  private applyNaturalTerrainTransitions(
+    tiles: MapTile[][],
+    newTerrain: MapTile[][],
+    adjustments: any
+  ): void {
+    const transitionStrength = adjustments.type === 'island' ? 1.2 : 1.0;
+
+    for (let x = 1; x < this.width - 1; x++) {
+      for (let y = 1; y < this.height - 1; y++) {
+        const tile = tiles[x][y];
+        if (!isLandTile(tile.terrain)) continue;
+
+        // Calculate terrain transition gradients
+        const elevationGradient = this.calculateElevationGradient(tiles, x, y);
+        const temperatureGradient = this.calculateTemperatureGradient(tiles, x, y);
+        const wetnessGradient = this.calculateWetnessGradient(tiles, x, y);
+
+        // Apply elevation-based transitions (mountains -> hills -> plains)
+        if (elevationGradient > 100 && this.random() < 0.1 * transitionStrength) {
+          const transitionTerrain = this.getElevationTransitionTerrain(tile, elevationGradient);
+          if (transitionTerrain) {
+            newTerrain[x][y].terrain = transitionTerrain as TerrainType;
+          }
+        }
+
+        // Apply climate-based transitions
+        if (
+          (Math.abs(temperatureGradient) > 200 || Math.abs(wetnessGradient) > 20) &&
+          this.random() < 0.08 * transitionStrength
+        ) {
+          const transitionTerrain = this.getClimateTransitionTerrain(
+            tile,
+            temperatureGradient,
+            wetnessGradient
+          );
+          if (transitionTerrain) {
+            newTerrain[x][y].terrain = transitionTerrain as TerrainType;
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Enforce regional climate consistency across larger areas
+   * @reference Task 10: Regional climate consistency
+   */
+  private enforceRegionalClimateConsistency(
+    tiles: MapTile[][],
+    newTerrain: MapTile[][],
+    adjustments: any
+  ): void {
+    const regionSize = adjustments.type === 'fracture' ? 5 : 3; // Larger regions for continental maps
+    const consistencyStrength = 0.12;
+
+    for (let x = regionSize; x < this.width - regionSize; x += regionSize) {
+      for (let y = regionSize; y < this.height - regionSize; y += regionSize) {
+        if (this.random() < consistencyStrength) {
+          this.enforceRegionalConsistency(tiles, newTerrain, x, y, regionSize);
+        }
+      }
+    }
+  }
+
+  /**
+   * Identify biome type based on temperature and wetness
+   */
+  private identifyBiomeType(tile: MapTile): string {
+    const temp = tile.temperature as number;
+    const wet = tile.wetness;
+
+    if (temp >= 800) {
+      return wet > 60 ? 'tropical_wet' : 'tropical_dry';
+    } else if (temp >= 500) {
+      return wet > 70 ? 'temperate_wet' : wet > 30 ? 'temperate' : 'temperate_dry';
+    } else if (temp >= 300) {
+      return wet > 50 ? 'cold_wet' : 'cold_dry';
+    } else {
+      return 'frozen';
+    }
+  }
+
+  /**
+   * Find neighbors with similar biome characteristics
+   */
+  private findSimilarBiomeNeighbors(
+    tiles: MapTile[][],
+    x: number,
+    y: number,
+    biomeType: string
+  ): MapTile[] {
+    const neighbors = this.getNeighbors(tiles, x, y);
+    return neighbors.filter(neighbor => {
+      return isLandTile(neighbor.terrain) && this.identifyBiomeType(neighbor) === biomeType;
+    });
+  }
+
+  /**
+   * Find the dominant terrain type within a biome group
+   */
+  private findDominantTerrainInBiome(neighbors: MapTile[], biomeType: string): string | null {
+    const terrainCounts: Record<string, number> = {};
+
+    for (const neighbor of neighbors) {
+      if (this.isValidTerrainForBiome(neighbor.terrain, biomeType)) {
+        terrainCounts[neighbor.terrain] = (terrainCounts[neighbor.terrain] || 0) + 1;
+      }
+    }
+
+    let maxCount = 0;
+    let dominantTerrain: string | null = null;
+    for (const [terrain, count] of Object.entries(terrainCounts)) {
+      if (count > maxCount) {
+        maxCount = count;
+        dominantTerrain = terrain;
+      }
+    }
+
+    return maxCount >= 2 ? dominantTerrain : null; // Require at least 2 neighbors
+  }
+
+  /**
+   * Check if terrain is valid for the given biome
+   */
+  private isValidTerrainForBiome(terrain: string, biomeType: string): boolean {
+    const biomeTerrains: Record<string, string[]> = {
+      tropical_wet: ['jungle', 'forest', 'swamp'],
+      tropical_dry: ['desert', 'plains', 'grassland'],
+      temperate_wet: ['forest', 'grassland', 'swamp'],
+      temperate: ['grassland', 'plains', 'forest'],
+      temperate_dry: ['plains', 'desert', 'grassland'],
+      cold_wet: ['forest', 'tundra', 'swamp'],
+      cold_dry: ['tundra', 'plains'],
+      frozen: ['glacier', 'snow', 'tundra'],
+    };
+
+    return biomeTerrains[biomeType]?.includes(terrain) || false;
+  }
+
+  /**
+   * Check if two terrains are compatible within the same biome
+   */
+  private isBiomeCompatible(terrain1: string, terrain2: string, biomeType: string): boolean {
+    return (
+      this.isValidTerrainForBiome(terrain1, biomeType) &&
+      this.isValidTerrainForBiome(terrain2, biomeType)
+    );
+  }
+
+  /**
+   * Calculate elevation gradient in the local area
+   */
+  private calculateElevationGradient(tiles: MapTile[][], x: number, y: number): number {
+    const centerElevation = tiles[x][y].elevation || 0;
+    let totalDifference = 0;
+    let count = 0;
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+          const neighborElevation = tiles[nx][ny].elevation || 0;
+          totalDifference += Math.abs(centerElevation - neighborElevation);
+          count++;
+        }
+      }
+    }
+
+    return count > 0 ? totalDifference / count : 0;
+  }
+
+  /**
+   * Calculate temperature gradient in the local area
+   */
+  private calculateTemperatureGradient(tiles: MapTile[][], x: number, y: number): number {
+    const centerTemp = (tiles[x][y].temperature as number) || 0;
+    let totalDifference = 0;
+    let count = 0;
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+          const neighborTemp = (tiles[nx][ny].temperature as number) || 0;
+          totalDifference += Math.abs(centerTemp - neighborTemp);
+          count++;
+        }
+      }
+    }
+
+    return count > 0 ? totalDifference / count : 0;
+  }
+
+  /**
+   * Calculate wetness gradient in the local area
+   */
+  private calculateWetnessGradient(tiles: MapTile[][], x: number, y: number): number {
+    const centerWetness = tiles[x][y].wetness || 0;
+    let totalDifference = 0;
+    let count = 0;
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+          const neighborWetness = tiles[nx][ny].wetness || 0;
+          totalDifference += Math.abs(centerWetness - neighborWetness);
+          count++;
+        }
+      }
+    }
+
+    return count > 0 ? totalDifference / count : 0;
+  }
+
+  /**
+   * Get appropriate transition terrain based on elevation gradient
+   */
+  private getElevationTransitionTerrain(tile: MapTile, gradient: number): string | null {
+    const currentTerrain = tile.terrain;
+
+    if (currentTerrain === 'mountains' && gradient > 150) {
+      return 'hills';
+    } else if (currentTerrain === 'hills' && gradient > 120) {
+      return (tile.temperature as number) > 500 ? 'grassland' : 'tundra';
+    }
+
+    return null;
+  }
+
+  /**
+   * Get appropriate transition terrain based on climate gradients
+   */
+  private getClimateTransitionTerrain(
+    tile: MapTile,
+    tempGradient: number,
+    wetnessGradient: number
+  ): string | null {
+    const currentTerrain = tile.terrain;
+
+    // Wetness-based transitions
+    if (wetnessGradient > 25) {
+      if (currentTerrain === 'desert' && tile.wetness > 40) {
+        return 'plains';
+      } else if (currentTerrain === 'forest' && tile.wetness < 30) {
+        return 'grassland';
+      } else if (currentTerrain === 'jungle' && tile.wetness < 50) {
+        return 'forest';
+      }
+    }
+
+    // Temperature-based transitions
+    if (tempGradient > 200) {
+      const temp = tile.temperature as number;
+      if (temp < 400 && ['grassland', 'plains'].includes(currentTerrain)) {
+        return 'tundra';
+      } else if (temp > 700 && currentTerrain === 'forest') {
+        return tile.wetness > 60 ? 'jungle' : 'grassland';
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Enforce consistency within a regional area
+   */
+  private enforceRegionalConsistency(
+    tiles: MapTile[][],
+    newTerrain: MapTile[][],
+    centerX: number,
+    centerY: number,
+    regionSize: number
+  ): void {
+    const regionTiles: Array<{ x: number; y: number; tile: MapTile }> = [];
+
+    // Collect all tiles in the region
+    for (let dx = -regionSize; dx <= regionSize; dx++) {
+      for (let dy = -regionSize; dy <= regionSize; dy++) {
+        const x = centerX + dx;
+        const y = centerY + dy;
+        if (
+          x >= 0 &&
+          x < this.width &&
+          y >= 0 &&
+          y < this.height &&
+          isLandTile(tiles[x][y].terrain)
+        ) {
+          regionTiles.push({ x, y, tile: tiles[x][y] });
+        }
+      }
+    }
+
+    if (regionTiles.length < 5) return; // Too small region
+
+    // Calculate regional averages
+    const avgTemp =
+      regionTiles.reduce((sum, t) => sum + ((t.tile.temperature as number) || 0), 0) /
+      regionTiles.length;
+    const avgWetness =
+      regionTiles.reduce((sum, t) => sum + (t.tile.wetness || 0), 0) / regionTiles.length;
+    const dominantBiome = this.identifyBiomeType({
+      temperature: avgTemp,
+      wetness: avgWetness,
+    } as MapTile);
+
+    // Apply regional consistency
+    for (const { x, y, tile } of regionTiles) {
+      if (!this.isValidTerrainForBiome(tile.terrain, dominantBiome) && this.random() < 0.3) {
+        const suitableTerrains = this.getValidTerrainsForBiome(dominantBiome);
+        if (suitableTerrains.length > 0) {
+          newTerrain[x][y].terrain = suitableTerrains[
+            Math.floor(this.random() * suitableTerrains.length)
+          ] as TerrainType;
+        }
+      }
+    }
+  }
+
+  /**
+   * Get valid terrains for a specific biome
+   */
+  private getValidTerrainsForBiome(biomeType: string): string[] {
+    const biomeTerrains: Record<string, string[]> = {
+      tropical_wet: ['jungle', 'forest', 'swamp'],
+      tropical_dry: ['desert', 'plains', 'grassland'],
+      temperate_wet: ['forest', 'grassland', 'swamp'],
+      temperate: ['grassland', 'plains', 'forest'],
+      temperate_dry: ['plains', 'desert', 'grassland'],
+      cold_wet: ['forest', 'tundra', 'swamp'],
+      cold_dry: ['tundra', 'plains'],
+      frozen: ['glacier', 'snow', 'tundra'],
+    };
+
+    return biomeTerrains[biomeType] || ['grassland'];
+  }
+
+  /**
+   * Apply all terrain changes and update properties
+   */
+  private applyTerrainChanges(tiles: MapTile[][], newTerrain: MapTile[][]): void {
+    let changesApplied = 0;
+
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        if (tiles[x][y].terrain !== newTerrain[x][y].terrain) {
+          tiles[x][y].terrain = newTerrain[x][y].terrain;
+          this.setTerrainProperties(tiles[x][y]);
+          changesApplied++;
+        }
+      }
+    }
+
+    // Log the improvements made
+    if (changesApplied > 0) {
+      console.log(
+        `Applied ${changesApplied} biome transition improvements for ${this.generator} generator`
+      );
+    }
   }
 
   /**
