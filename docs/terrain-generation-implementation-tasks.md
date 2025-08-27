@@ -92,10 +92,10 @@ Based on the [Terrain Generation Parity Audit](./terrain-generation-parity-audit
    - Add placement validation to island generation
 
 **Acceptance Criteria**:
-- [ ] No terrain overwrites during generation
-- [ ] Systematic terrain placement prevents conflicts
-- [ ] Ocean tiles properly excluded from land terrain placement
-- [ ] Island generation respects placement boundaries
+- [x] No terrain overwrites during generation
+- [x] Systematic terrain placement prevents conflicts
+- [x] Ocean tiles properly excluded from land terrain placement
+- [x] Island generation respects placement boundaries
 
 ---
 

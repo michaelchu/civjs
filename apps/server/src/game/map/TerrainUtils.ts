@@ -716,3 +716,158 @@ export function fillIslandTerrain(
     }
   }
 }
+
+/**
+ * Placement tracking system for terrain generation
+ * @reference freeciv/server/generator/mapgen_utils.c placement functions
+ * Exact port of freeciv's placement map system for preventing terrain overwrites
+ */
+export class PlacementMap {
+  private placedMap: boolean[][];
+  private width: number;
+  private height: number;
+  private isInitialized: boolean = false;
+
+  constructor(width: number, height: number) {
+    this.width = width;
+    this.height = height;
+    this.placedMap = [];
+  }
+
+  /**
+   * Create placement map - equivalent to create_placed_map()
+   * @reference freeciv/server/generator/mapgen_utils.c:48 create_placed_map()
+   * Allocates and initializes the placement map to FALSE
+   */
+  public createPlacedMap(): void {
+    if (this.isInitialized) {
+      throw new Error('Placement map already initialized');
+    }
+
+    // Initialize 2D array with all false values
+    this.placedMap = Array(this.width)
+      .fill(null)
+      .map(() => Array(this.height).fill(false));
+
+    this.isInitialized = true;
+  }
+
+  /**
+   * Destroy placement map - equivalent to destroy_placed_map()
+   * @reference freeciv/server/generator/mapgen_utils.c:58 destroy_placed_map()
+   * Frees the placement map memory
+   */
+  public destroyPlacedMap(): void {
+    if (!this.isInitialized) {
+      throw new Error('Placement map not initialized');
+    }
+
+    this.placedMap = [];
+    this.isInitialized = false;
+  }
+
+  /**
+   * Check if tile is not yet placed - equivalent to not_placed()
+   * @reference freeciv/server/generator/mapgen_utils.c:71 not_placed()
+   * Returns true if land has not yet been placed on pmap at (x, y)
+   */
+  public isPlaced(x: number, y: number): boolean {
+    if (!this.isInitialized) {
+      throw new Error('Placement map not initialized');
+    }
+
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+      return true; // Out of bounds considered as placed
+    }
+
+    return this.placedMap[x][y];
+  }
+
+  /**
+   * Check if tile is not yet placed
+   * @reference freeciv/server/generator/mapgen_utils.c:71 not_placed()
+   */
+  public notPlaced(x: number, y: number): boolean {
+    return !this.isPlaced(x, y);
+  }
+
+  /**
+   * Mark tile terrain as placed - equivalent to map_set_placed()
+   * @reference freeciv/server/generator/mapgen_utils.c:79 map_set_placed()
+   * Mark tile terrain as placed
+   */
+  public setPlaced(x: number, y: number): void {
+    if (!this.isInitialized) {
+      throw new Error('Placement map not initialized');
+    }
+
+    if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+      this.placedMap[x][y] = true;
+    }
+  }
+
+  /**
+   * Mark tile terrain as not placed - equivalent to map_unset_placed()
+   * @reference freeciv/server/generator/mapgen_utils.c:87 map_unset_placed()
+   * Mark tile terrain as not placed
+   */
+  public unsetPlaced(x: number, y: number): void {
+    if (!this.isInitialized) {
+      throw new Error('Placement map not initialized');
+    }
+
+    if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+      this.placedMap[x][y] = false;
+    }
+  }
+
+  /**
+   * Check if placement map is initialized
+   * @reference freeciv/server/generator/mapgen_utils.c:40 placed_map_is_initialized()
+   */
+  public isPlacedMapInitialized(): boolean {
+    return this.isInitialized;
+  }
+
+  /**
+   * Set all oceanic tiles as placed - equivalent to set_all_ocean_tiles_placed()
+   * @reference freeciv/server/generator/mapgen_utils.c:95 set_all_ocean_tiles_placed()
+   * Set all oceanics tiles in placed_map
+   */
+  public setAllOceanTilesPlaced(tiles: MapTile[][]): void {
+    if (!this.isInitialized) {
+      throw new Error('Placement map not initialized');
+    }
+
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        if (isOceanTerrain(tiles[x][y].terrain)) {
+          this.setPlaced(x, y);
+        }
+      }
+    }
+  }
+
+  /**
+   * Set all nearby tiles as placed - equivalent to set_placed_near_pos()
+   * @reference freeciv/server/generator/mapgen_utils.c:107 set_placed_near_pos()
+   * Set all nearby tiles as placed on pmap within distance
+   */
+  public setPlacedNearPos(x: number, y: number, distance: number): void {
+    if (!this.isInitialized) {
+      throw new Error('Placement map not initialized');
+    }
+
+    // Iterate over square area around position (freeciv uses square_iterate)
+    for (let dx = -distance; dx <= distance; dx++) {
+      for (let dy = -distance; dy <= distance; dy++) {
+        const nx = x + dx;
+        const ny = y + dy;
+
+        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+          this.setPlaced(nx, ny);
+        }
+      }
+    }
+  }
+}
