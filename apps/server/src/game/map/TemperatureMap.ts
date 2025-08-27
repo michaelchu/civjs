@@ -52,7 +52,7 @@ export class TemperatureMap {
    * @reference freeciv/server/generator/mapgen_topology.c:map_colatitude()
    * Simplified latitude calculation for rectangular maps
    */
-  private mapColatitude(x: number, y: number): number {
+  public mapColatitude(x: number, y: number): number {
     // Simple linear latitude calculation - equator at center, poles at edges
     const centerY = this.height / 2;
     const distanceFromEquator = Math.abs(y - centerY);

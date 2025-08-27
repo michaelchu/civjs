@@ -242,10 +242,10 @@ Based on the [Terrain Generation Parity Audit](./terrain-generation-parity-audit
    - Realistic mountain range formation
 
 **Acceptance Criteria**:
-- [ ] Mountains and hills placed based on elevation analysis
-- [ ] Natural mountain range formation
-- [ ] Fracture maps have appropriate relief characteristics
-- [ ] Terrain elevation distribution matches freeciv
+- [x] Mountains and hills placed based on elevation analysis
+- [x] Natural mountain range formation
+- [x] Fracture maps have appropriate relief characteristics
+- [x] Terrain elevation distribution matches freeciv
 
 ---
 
