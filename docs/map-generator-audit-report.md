@@ -365,6 +365,202 @@ if (MAPGEN_ISLAND == wld.map.server.generator) {
 
 ---
 
+## ✅ Implementation Checklist
+
+### 🔴 **CRITICAL PRIORITY - Task 1: Restructure Main Generation Flow**
+
+**File:** `apps/server/src/game/MapManager.ts:84-177`
+
+#### **Subtask 1.1: Add Generator Type Parameter**
+- [ ] Modify `generateMap()` method signature to accept `generatorType?: string` parameter
+- [ ] Add generator type enum/union type: `'FRACTAL' | 'ISLAND' | 'RANDOM' | 'FAIR'`
+- [ ] Update constructor to store generator type preference
+- [ ] Default to current behavior if no generator type specified
+
+#### **Subtask 1.2: Implement Generator Routing Logic**
+- [ ] Add routing switch statement at beginning of `generateMap()`:
+  ```typescript
+  switch (generatorType) {
+    case 'FAIR':
+      if (await this.attemptFairIslandsGeneration(players)) return;
+      // Fallback to ISLAND if fair generation fails
+    case 'ISLAND':
+      return this.generateMapWithIslands(players);
+    case 'RANDOM':
+      return this.generateMapRandom(players);
+    case 'FRACTAL':
+    default:
+      return this.generateMapFractal(players);
+  }
+  ```
+- [ ] Create new `generateMapFractal()` method by moving current `generateMap()` logic
+- [ ] Update all generator methods to be consistent in signature and flow
+
+#### **Subtask 1.3: Clean Up Main Method**
+- [ ] Remove hardcoded fractal logic from main `generateMap()` method
+- [ ] Move height map generation into generator-specific methods
+- [ ] Ensure proper delegation to specific generators
+- [ ] Add logging for generator type selection and fallbacks
+
+### 🔴 **CRITICAL PRIORITY - Task 4: Add Missing Lake Regeneration**
+
+**File:** `apps/server/src/game/MapManager.ts` and `apps/server/src/game/map/TerrainGenerator.ts`
+
+#### **Subtask 4.1: Create Lake Regeneration Method**
+- [ ] Create `regenerateLakes()` method in TerrainGenerator
+- [ ] Implement small ocean detection (1-2 tile bodies of water)
+- [ ] Add logic to convert small oceans to lakes
+- [ ] Reference freeciv mapgen.c:1400-1410 for exact algorithm
+- [ ] Include proper adjacency checks for ocean conversion
+
+#### **Subtask 4.2: Integrate Lake Regeneration**
+- [ ] Call `regenerateLakes()` after `smoothWaterDepth()` in all generators
+- [ ] Add before `generateResources()` call in generation sequence
+- [ ] Apply to: `generateMap()`, `generateMapRandom()`, `generateMapFracture()`
+- [ ] Ensure island generators also get lake regeneration
+- [ ] Add logging for lake conversion statistics
+
+#### **Subtask 4.3: Add Lake Terrain Support**
+- [ ] Verify `lake` terrain type exists in MapTypes
+- [ ] Update terrain selection logic to handle lakes properly
+- [ ] Ensure lakes don't get converted by other terrain generators
+- [ ] Add lake-specific resource generation rules
+
+### 🟡 **MEDIUM PRIORITY - Task 3: Complete Generator Fallback Validations**
+
+**File:** `apps/server/src/game/MapManager.ts:758-902` (mapGenerator2/3/4)
+
+#### **Subtask 3.1: Add Landpercent Validations**
+- [ ] Add landpercent > 85% check in `mapGenerator2()`:
+  ```typescript
+  if (this.getLandPercent() > 85) {
+    logger.warn('Landpercent too high for island generator, falling back to random');
+    return this.generateMapRandom(players);
+  }
+  ```
+- [ ] Add similar validations to `mapGenerator3()` and `mapGenerator4()`
+- [ ] Create helper method `getLandPercent()` to calculate current land percentage
+
+#### **Subtask 3.2: Add Size Validations**
+- [ ] Add minimum 40x40 size validation for `mapGenerator3()`:
+  ```typescript
+  if (this.width < 40 || this.height < 40) {
+    logger.warn('Map too small for mapGenerator3, using mapGenerator4');
+    return this.mapGenerator4(state, tiles, playerCount);
+  }
+  ```
+- [ ] Add appropriate size fallbacks for other generators
+- [ ] Document minimum size requirements in method comments
+
+#### **Subtask 3.3: Add Retry Mechanisms**
+- [ ] Implement retry logic with size reduction for failed island generation
+- [ ] Add iteration limits to prevent infinite loops
+- [ ] Log retry attempts and fallback decisions
+- [ ] Match freeciv's retry patterns from mapgen.c:2274-2342
+
+### 🟡 **MEDIUM PRIORITY - Task 6: Complete Startpos Mode Routing**
+
+**File:** `apps/server/src/game/MapManager.ts:184-294`
+
+#### **Subtask 6.1: Add Startpos Mode Parameter**
+- [ ] Add `startPosMode` parameter to `generateMapWithIslands()` method
+- [ ] Define startpos mode enum: `'DEFAULT' | 'SINGLE' | 'VARIABLE' | '2or3' | 'ALL'`
+- [ ] Update method signature and calling code
+
+#### **Subtask 6.2: Implement Proper Generator Selection**
+- [ ] Replace player count logic with startpos mode logic:
+  ```typescript
+  switch (startPosMode) {
+    case 'VARIABLE':
+      await this.mapGenerator2(state, tiles, players.size);
+      break;
+    case 'DEFAULT':
+    case 'SINGLE':
+      await this.mapGenerator3(state, tiles, players.size);
+      break;
+    case '2or3':
+    case 'ALL':
+    default:
+      await this.mapGenerator4(state, tiles, players.size);
+      break;
+  }
+  ```
+- [ ] Update calling code to pass appropriate startpos mode
+- [ ] Add startpos mode to MapManager constructor options
+
+#### **Subtask 6.3: Update Fair Islands Logic**
+- [ ] Modify `validateFairIslands()` to use startpos mode instead of player count logic
+- [ ] Update team counting logic when startpos modes are implemented
+- [ ] Ensure consistent startpos handling across all generators
+
+### 🟡 **MEDIUM PRIORITY - Task 8: Fix Temperature Map Timing**
+
+**File:** `apps/server/src/game/MapManager.ts:111,508`
+
+#### **Subtask 8.1: Make Temperature Map Generation Conditional**
+- [ ] Remove early temperature map generation from `generateMap()` (line 111)
+- [ ] Remove early temperature map generation from `generateMapRandom()` (line 508)
+- [ ] Only generate temperature map when actually needed for terrain selection
+
+#### **Subtask 8.2: Add Lazy Temperature Map Creation**
+- [ ] Create `ensureTemperatureMap()` method that generates only if not exists
+- [ ] Call `ensureTemperatureMap()` before terrain generation that needs climate data
+- [ ] Update dependent methods to use lazy temperature map creation
+- [ ] Ensure temperature map is available when terrain selection needs it
+
+#### **Subtask 8.3: Update All Generators**
+- [ ] Move temperature map generation to after basic terrain placement in all generators
+- [ ] Ensure island generators still get proper temperature maps for terrain variety
+- [ ] Test that climate-based terrain selection still works correctly
+- [ ] Verify performance improvement from conditional generation
+
+### 🔧 **IMPLEMENTATION SUPPORT TASKS**
+
+#### **Testing Tasks**
+- [ ] Create unit tests for new generator routing logic
+- [ ] Add integration tests for lake regeneration
+- [ ] Test fallback validations with edge cases (small maps, high landpercent)
+- [ ] Create visual tests for generated map quality
+- [ ] Add performance benchmarks for all generator types
+- [ ] Test startpos mode routing with different player configurations
+
+#### **Documentation Tasks**
+- [ ] Update method documentation with new parameters and behavior
+- [ ] Add usage examples for different generator types
+- [ ] Document fallback logic and validation rules
+- [ ] Create developer guide for adding new generator types
+- [ ] Update CLAUDE.md with new generation commands/options
+
+#### **Code Quality Tasks**
+- [ ] Run linter and fix any issues introduced by changes
+- [ ] Add TypeScript strict type checking for new parameters
+- [ ] Ensure consistent error handling across all generators
+- [ ] Add proper logging for debugging generation issues
+- [ ] Review and optimize any performance bottlenecks
+
+### 📊 **Success Criteria**
+
+**Task 1 Complete:**
+- [ ] Main `generateMap()` method properly routes to specific generators
+- [ ] All generator types (FRACTAL, ISLAND, RANDOM, FAIR) work correctly
+- [ ] Fallback from FAIR to ISLAND works as expected
+- [ ] No hardcoded generation logic in main method
+
+**Task 4 Complete:**
+- [ ] Small ocean bodies (1-2 tiles) are converted to lakes
+- [ ] Lake regeneration runs in correct sequence (after smoothWaterDepth)
+- [ ] Generated maps have realistic lake distribution
+- [ ] No performance regression from lake processing
+
+**All Tasks Complete:**
+- [ ] Compliance score reaches 95%+ 
+- [ ] All freeciv generator patterns properly implemented
+- [ ] Generated maps visually match freeciv quality
+- [ ] Performance meets or exceeds original implementation
+- [ ] Full test suite passes with new implementations
+
+---
+
 ## 🔍 Reference File Locations
 
 ### Freeciv Reference Files Analyzed:
