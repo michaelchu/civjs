@@ -339,7 +339,7 @@ function fillFractureArea(
  * Global island terrain selection state
  * @reference freeciv/server/generator/mapgen.c island_terrain
  */
-let islandTerrain: IslandTerrain = {
+const islandTerrain: IslandTerrain = {
   init: false,
   forest: [],
   desert: [],
