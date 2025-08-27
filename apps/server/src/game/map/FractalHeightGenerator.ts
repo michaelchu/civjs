@@ -550,7 +550,7 @@ export class FractalHeightGenerator {
 
         const index = y * this.width + x;
         let value = intMap[index];
-        
+
         // Convert fractional values to integers (freeciv expects integers)
         if (!Number.isInteger(value)) {
           value = Math.floor(value);

@@ -157,7 +157,7 @@ describe('Advanced Smoothing System', () => {
       const maxResult = Math.max(...intMap);
       expect(minResult).toBeGreaterThanOrEqual(minValue);
       expect(maxResult).toBeLessThanOrEqual(maxValue);
-      
+
       // Should use significant portion of the range
       const spread = maxResult - minResult;
       expect(spread).toBeGreaterThan((maxValue - minValue) * 0.5);
