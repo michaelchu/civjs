@@ -100,37 +100,44 @@ export class MapManager {
   ): Promise<void> {
     // Use provided generator type or fall back to instance default (matches freeciv behavior)
     const generator = generatorType || this.defaultGeneratorType;
-    
-    logger.info('Generating map', { 
-      width: this.width, 
-      height: this.height, 
-      seed: this.seed, 
+
+    logger.info('Generating map', {
+      width: this.width,
+      height: this.height,
+      seed: this.seed,
       generator,
-      reference: 'freeciv/server/generator/mapgen.c:1268-1427'
+      reference: 'freeciv/server/generator/mapgen.c:1268-1427',
     });
 
     // Implement freeciv's map_fractal_generate() routing logic
     // @reference freeciv/server/generator/mapgen.c:1315-1358
+    // Handle FAIR generator with explicit fallback logic (matches freeciv behavior)
+    if (generator === 'FAIR') {
+      // Attempt fair islands generation, fallback to ISLAND if failed
+      if (await this.attemptFairIslandsGeneration(players)) {
+        return;
+      }
+      logger.info('Fair islands generation failed, falling back to ISLAND generator');
+      // Explicit fallback to ISLAND (matches freeciv mapgen.c:1315-1318)
+      return this.generateMapWithIslands(players);
+    }
+
+    // Handle other generators with standard routing
     switch (generator) {
-      case 'FAIR':
-        // Attempt fair islands generation, fallback to ISLAND if failed
-        if (await this.attemptFairIslandsGeneration(players)) {
-          return;
-        }
-        logger.info('Fair islands generation failed, falling back to ISLAND generator');
-        // Fallthrough to ISLAND
       case 'ISLAND':
         return this.generateMapWithIslands(players);
-      
+
       case 'RANDOM':
         return this.generateMapRandom(players);
-      
+
       case 'FRACTURE':
         return this.generateMapFracture(players);
-      
+
       case 'SCENARIO':
-        throw new Error('SCENARIO generator not implemented - scenarios should be loaded from file');
-      
+        throw new Error(
+          'SCENARIO generator not implemented - scenarios should be loaded from file'
+        );
+
       case 'FRACTAL':
       default:
         return this.generateMapFractal(players);
@@ -147,7 +154,7 @@ export class MapManager {
       width: this.width,
       height: this.height,
       seed: this.seed,
-      reference: 'freeciv/server/generator/mapgen.c:1343-1348'
+      reference: 'freeciv/server/generator/mapgen.c:1343-1348',
     });
 
     const startTime = Date.now();
@@ -195,6 +202,10 @@ export class MapManager {
     // Smooth ocean depths based on distance from land (like freeciv smooth_water_depth())
     this.terrainGenerator.smoothWaterDepth(tiles);
 
+    // Turn small oceans into lakes (like freeciv regenerate_lakes())
+    // @reference freeciv/server/generator/mapgen.c:1381
+    this.terrainGenerator.regenerateLakes(tiles);
+
     // Generate terrain using terrain engine (only for land variety)
     await this.terrainGenerator.generateTerrain(
       tiles,
@@ -239,7 +250,7 @@ export class MapManager {
       width: this.width,
       height: this.height,
       generationTime,
-      reference: 'freeciv/server/generator/mapgen.c:1343-1348'
+      reference: 'freeciv/server/generator/mapgen.c:1343-1348',
     });
   }
 
@@ -324,6 +335,10 @@ export class MapManager {
 
     // Smooth ocean depths based on distance from land (like freeciv smooth_water_depth())
     this.terrainGenerator.smoothWaterDepth(tiles);
+
+    // Turn small oceans into lakes (like freeciv regenerate_lakes())
+    // @reference freeciv/server/generator/mapgen.c:1381
+    this.terrainGenerator.regenerateLakes(tiles);
 
     // Generate climate data now that islands exist
     this.terrainGenerator.convertTemperatureToEnum(tiles);
@@ -593,6 +608,10 @@ export class MapManager {
     // Smooth ocean depths based on distance from land
     this.terrainGenerator.smoothWaterDepth(tiles);
 
+    // Turn small oceans into lakes (like freeciv regenerate_lakes())
+    // @reference freeciv/server/generator/mapgen.c:1381
+    this.terrainGenerator.regenerateLakes(tiles);
+
     // Generate terrain using terrain engine
     await this.terrainGenerator.generateTerrain(
       tiles,
@@ -781,6 +800,11 @@ export class MapManager {
 
     // Complete the generation process
     this.terrainGenerator.smoothWaterDepth(tiles);
+
+    // Turn small oceans into lakes (like freeciv regenerate_lakes())
+    // @reference freeciv/server/generator/mapgen.c:1381
+    this.terrainGenerator.regenerateLakes(tiles);
+
     await this.terrainGenerator.generateTerrain(
       tiles,
       this.heightGenerator,

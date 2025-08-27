@@ -1084,4 +1084,136 @@ export class TerrainGenerator {
       }
     }
   }
+
+  /**
+   * Regenerate all oceanic tiles for small water bodies as lakes
+   * @reference freeciv/server/generator/mapgen_utils.c:356 regenerate_lakes()
+   * Converts small ocean bodies (1-2 tiles) to freshwater lakes
+   * Assumes continent numbers have already been assigned
+   */
+  public regenerateLakes(tiles: MapTile[][]): void {
+    // Configuration matching freeciv defaults
+    const LAKE_MAX_SIZE = 2; // terrain_control.lake_max_size equivalent - small water bodies only
+
+    console.log('DEBUG: Starting regenerate_lakes()');
+
+    // Step 1: Identify all ocean bodies and their sizes
+    const oceanBodies = this.identifyOceanBodies(tiles);
+
+    console.log(`DEBUG: Found ${oceanBodies.length} ocean bodies`);
+
+    // Step 2: Convert small ocean bodies to lakes
+    let lakesCreated = 0;
+    let totalTilesConverted = 0;
+
+    for (const oceanBody of oceanBodies) {
+      if (oceanBody.tiles.length <= LAKE_MAX_SIZE) {
+        // Small ocean body - convert to lake
+        console.log(`DEBUG: Converting ocean body of size ${oceanBody.tiles.length} to lake`);
+
+        for (const tile of oceanBody.tiles) {
+          const currentTerrain = tile.terrain;
+
+          // Determine appropriate lake type based on original terrain
+          // @reference freeciv/server/generator/mapgen_utils.c:416
+          // Preserve frozen status: frozen ocean → frozen lake, regular ocean → regular lake
+          if (isFrozenTerrain(currentTerrain)) {
+            // In our terrain system, we don't have separate frozen lake types
+            // For simplicity, frozen oceans become regular lakes (could be extended later)
+            tile.terrain = 'lake';
+          } else {
+            tile.terrain = 'lake';
+          }
+
+          // Keep the same continent ID to maintain connectivity information
+          // In freeciv, lakes retain the ocean's negative continent ID
+          // For our implementation, we'll keep the existing continentId
+
+          totalTilesConverted++;
+        }
+        lakesCreated++;
+      }
+    }
+
+    console.log(
+      `DEBUG: Lake regeneration complete - created ${lakesCreated} lakes from ${totalTilesConverted} ocean tiles`
+    );
+  }
+
+  /**
+   * Identify distinct ocean bodies using flood-fill algorithm
+   * @reference freeciv/server/generator/mapgen_utils.c assign_continent_numbers()
+   * Finds connected components of ocean tiles
+   */
+  private identifyOceanBodies(tiles: MapTile[][]): Array<{ tiles: MapTile[]; id: number }> {
+    const visited = new Set<string>();
+    const oceanBodies: Array<{ tiles: MapTile[]; id: number }> = [];
+    let oceanBodyId = 1;
+
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const key = `${x},${y}`;
+
+        if (visited.has(key)) continue;
+
+        const tile = tiles[x][y];
+
+        // Only process ocean/coastal waters, not land or lakes
+        if (!isOceanTerrain(tile.terrain)) continue;
+
+        // Found unvisited ocean tile - start flood fill
+        const oceanTiles: MapTile[] = [];
+        this.floodFillOceanBody(tiles, x, y, visited, oceanTiles);
+
+        if (oceanTiles.length > 0) {
+          oceanBodies.push({
+            tiles: oceanTiles,
+            id: oceanBodyId++,
+          });
+        }
+      }
+    }
+
+    return oceanBodies;
+  }
+
+  /**
+   * Flood fill algorithm to identify connected ocean tiles
+   * @reference freeciv/server/generator/mapgen_utils.c assign_continent_numbers()
+   * Modified to work with our tile system
+   */
+  private floodFillOceanBody(
+    tiles: MapTile[][],
+    startX: number,
+    startY: number,
+    visited: Set<string>,
+    oceanTiles: MapTile[]
+  ): void {
+    const stack: Array<[number, number]> = [[startX, startY]];
+
+    while (stack.length > 0) {
+      const [x, y] = stack.pop()!;
+      const key = `${x},${y}`;
+
+      // Check bounds and visited status
+      if (x < 0 || x >= this.width || y < 0 || y >= this.height || visited.has(key)) {
+        continue;
+      }
+
+      const tile = tiles[x][y];
+
+      // Only include ocean terrain in the ocean body
+      if (!isOceanTerrain(tile.terrain)) {
+        continue;
+      }
+
+      // Mark as visited and add to ocean body
+      visited.add(key);
+      oceanTiles.push(tile);
+
+      // Add adjacent tiles to search (4-directional connectivity like freeciv)
+      // @reference freeciv uses adjc_iterate for adjacent tile iteration
+      stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+    }
+  }
 }
