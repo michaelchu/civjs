@@ -18,10 +18,10 @@ This document provides proof of implementation for **Task 6: Align Temperature M
    - Implemented fallback `ensureTemperatureMap()` for edge cases
 
 2. **Updated Generation Flow Sequence**
-   - **Fractal Generation**: Temperature map now created after `renormalizeHeightMapPoles()` at `MapManager.ts:276`
-   - **Island Generation**: Temperature map created after island placement at `MapManager.ts:420`
-   - **Random Generation**: Temperature map created after `renormalizeHeightMapPoles()` at `MapManager.ts:723`  
-   - **Fracture Generation**: Temperature map created after terrain assignment at `MapManager.ts:917`
+   - **Fractal Generation**: Temperature map now created after `renormalizeHeightMapPoles()` at `MapManager.ts:278`
+   - **Island Generation**: Temperature map created after island placement at `MapManager.ts:422`
+   - **Random Generation**: Temperature map created after `renormalizeHeightMapPoles()` at `MapManager.ts:725`  
+   - **Fracture Generation**: Temperature map created after terrain assignment at `MapManager.ts:919`
 
 3. **Memory Optimization Features**
    - Added optional `cleanupTemperatureMapAfterUse` constructor parameter
@@ -78,10 +78,10 @@ constructor(
 
 | Generator Type | Freeciv Reference | Our Implementation | Status |
 |---|---|---|---|
-| **Fractal** | `mapgen.c:1133` after height/ocean generation | `MapManager.ts:276` after `renormalizeHeightMapPoles()` | ✅ Aligned |
-| **Island** | `mapgen.c:1313` early creation, `mapgen.c:1388-1391` fallback | `MapManager.ts:420` after island placement + fallback | ✅ Aligned |
-| **Random** | `mapgen.c:1133` after height/ocean generation | `MapManager.ts:723` after `renormalizeHeightMapPoles()` | ✅ Aligned |
-| **Fracture** | `mapgen.c:1133` after height/ocean generation | `MapManager.ts:917` after terrain assignment | ✅ Aligned |
+| **Fractal** | `mapgen.c:1133` after height/ocean generation | `MapManager.ts:278` after `renormalizeHeightMapPoles()` | ✅ Aligned |
+| **Island** | `mapgen.c:1313` early creation, `mapgen.c:1388-1391` fallback | `MapManager.ts:422` after island placement + fallback | ✅ Aligned |
+| **Random** | `mapgen.c:1133` after height/ocean generation | `MapManager.ts:725` after `renormalizeHeightMapPoles()` | ✅ Aligned |
+| **Fracture** | `mapgen.c:1133` after height/ocean generation | `MapManager.ts:919` after terrain assignment | ✅ Aligned |
 
 ### Sequence Compliance
 
@@ -132,9 +132,9 @@ All implementations pass required quality checks:
 
 | Subtask | Status | Code Reference |
 |---|---|---|
-| **Move temperature map generation to standard timing** | ✅ Complete | `MapManager.ts:110-127, 276, 420, 723, 917` |
+| **Move temperature map generation to standard timing** | ✅ Complete | `MapManager.ts:115-137, 278, 422, 725, 919` |
 | **Update generation flow** | ✅ Complete | All generator methods updated |
-| **Optimize memory usage** | ✅ Complete | `MapManager.ts:129-140, 314, 450, 761, 946` |
+| **Optimize memory usage** | ✅ Complete | `MapManager.ts:143-152, 316, 451, 763, 947` |
 
 ## Acceptance Criteria Verification
 
