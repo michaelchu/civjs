@@ -297,6 +297,18 @@ export const GameCreateSchema = z.object({
   ruleset: z.string().optional(),
   turnTimeLimit: z.number().optional(),
   victoryConditions: z.array(z.string()).optional(),
+  terrainSettings: z
+    .object({
+      generator: z.string(),
+      landmass: z.string(),
+      huts: z.number(),
+      temperature: z.number(),
+      wetness: z.number(),
+      rivers: z.number(),
+      resources: z.string(),
+      startpos: z.number().optional(),
+    })
+    .optional(),
 });
 
 export const GameCreateReplySchema = z.object({

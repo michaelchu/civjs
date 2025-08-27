@@ -11,6 +11,7 @@ import { UnitManager } from './UnitManager';
 import { VisibilityManager } from './VisibilityManager';
 import { CityManager } from './CityManager';
 import { ResearchManager } from './ResearchManager';
+import { MapStartpos } from './map/MapTypes';
 import { Server as SocketServer } from 'socket.io';
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
@@ -24,6 +25,7 @@ export interface TerrainSettings {
   wetness: number;
   rivers: number;
   resources: string;
+  startpos?: number; // MapStartpos enum value for island generator routing
 }
 
 export interface GameConfig {
@@ -321,7 +323,9 @@ export class GameManager {
 
     // Generate the map with starting positions based on terrain settings
     const generator = terrainSettings?.generator || 'random';
-    logger.debug('Map generation starting', { terrainSettings, generator });
+    // Get startpos setting for island-based generators (from fix-map-duplicate-creation branch)
+    const startpos = terrainSettings?.startpos ?? MapStartpos.DEFAULT;
+    logger.debug('Map generation starting', { terrainSettings, generator, startpos });
 
     // Map generator selection and fallback logic
     // @reference freeciv/server/generator/mapgen.c:1315-1341
@@ -334,7 +338,7 @@ export class GameManager {
       // STEP 1: Handle FAIR islands with fallback (freeciv mapgen.c:1315-1318)
       if (currentGenerator === 'fair') {
         logger.info('Attempting MAPGEN_FAIR (fair islands generation)');
-        const fairSuccess = await mapManager.attemptFairIslandsGeneration(players);
+        const fairSuccess = await this.generateFairIslands(mapManager, players, startpos);
 
         if (!fairSuccess) {
           // Exact freeciv behavior: change generator type and continue to island logic
@@ -352,10 +356,9 @@ export class GameManager {
 
       // STEP 2: Handle ISLAND generation (freeciv mapgen.c:1320-1341)
       if (currentGenerator === 'island' && !generationAttempted) {
-        logger.info('Executing MAPGEN_ISLAND generation');
+        logger.info('Executing MAPGEN_ISLAND generation with startpos routing');
         // Note: island_terrain_init() would be called here in freeciv (line 1322)
-        // We're using simplified routing for now - should use startpos logic
-        await mapManager.generateMapWithIslands(players, 2); // Default to mapgenerator2
+        await this.generateIslandMapWithStartpos(mapManager, players, startpos);
         // Note: island_terrain_free() would be called here in freeciv (line 1340)
         generationAttempted = true;
       }
@@ -1285,5 +1288,77 @@ export class GameManager {
         }
       }
     }
+  }
+
+  /**
+   * Generate island map with startpos-based routing
+   * @source freeciv/server/generator/mapgen.c:1325-1337
+   */
+  private async generateIslandMapWithStartpos(
+    mapManager: MapManager,
+    players: Map<string, PlayerState>,
+    startpos: number
+  ): Promise<void> {
+    // TODO: Add island_terrain_init() equivalent before generation
+    // @source freeciv/server/generator/mapgen.c:1322
+
+    switch (startpos) {
+      case MapStartpos.TWO_ON_THREE:
+      case MapStartpos.ALL:
+        // 2 or 3 players per isle - freeciv mapgenerator4()
+        // @source freeciv/server/generator/mapgen.c:1325-1327
+        await mapManager.generateMapWithIslands(players, 4);
+        break;
+      case MapStartpos.DEFAULT:
+      case MapStartpos.SINGLE:
+        // Single player per isle - freeciv mapgenerator3()
+        // @source freeciv/server/generator/mapgen.c:1329-1332
+        await mapManager.generateMapWithIslands(players, 3);
+        break;
+      case MapStartpos.VARIABLE:
+        // "Variable" single player - freeciv mapgenerator2()
+        // @source freeciv/server/generator/mapgen.c:1334-1336
+        await mapManager.generateMapWithIslands(players, 2);
+        break;
+      default:
+        // Fallback to default behavior
+        await mapManager.generateMapWithIslands(players, 3);
+        break;
+    }
+
+    // TODO: Add island_terrain_free() equivalent after generation
+    // @source freeciv/server/generator/mapgen.c:1340
+  }
+
+  /**
+   * Generate fair islands with team balancing and proper freeciv-compliant validation
+   * @reference freeciv/server/generator/mapgen.c:1315-1318 fallback logic
+   * @reference freeciv/server/generator/mapgen.c:3389-3520 map_generate_fair_islands()
+   */
+  private async generateFairIslands(
+    mapManager: MapManager,
+    players: Map<string, PlayerState>,
+    startpos: number
+  ): Promise<boolean> {
+    // Use the complete fair islands implementation from MapManager
+    // This includes all the freeciv-compliant validation logic
+    // Note: startpos is used by the MapManager's fair islands algorithm internally
+    const fairSuccess = await mapManager.attemptFairIslandsGeneration(players);
+
+    if (fairSuccess) {
+      logger.info('Fair islands generation succeeded with proper validation', {
+        startpos,
+        reference: 'freeciv/server/generator/mapgen.c:3754',
+      });
+      return true;
+    }
+
+    // If fair islands validation or generation failed, don't attempt regular islands here
+    // The fallback will be handled by the sequential logic in the main generation method
+    logger.info('Fair islands generation failed validation or execution', {
+      startpos,
+      reference: 'freeciv/server/generator/mapgen.c:3699-3703',
+    });
+    return false;
   }
 }

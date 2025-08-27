@@ -17,6 +17,7 @@ interface TerrainSettings {
   wetness: number;
   rivers: number;
   resources: string;
+  startpos?: number; // MapStartpos enum value for island generator routing
 }
 
 export const TerrainSettingsDialog: React.FC = () => {
@@ -31,6 +32,7 @@ export const TerrainSettingsDialog: React.FC = () => {
     wetness: 50,
     rivers: 50,
     resources: 'normal',
+    startpos: 0, // Default = Generator's choice
   });
 
   const [isCreating, setIsCreating] = useState(false);
@@ -119,6 +121,34 @@ export const TerrainSettingsDialog: React.FC = () => {
     },
     { value: 'normal', label: 'Normal', description: 'Balanced resources' },
     { value: 'abundant', label: 'Abundant', description: 'Many resources' },
+  ];
+
+  const startposOptions = [
+    {
+      value: 0,
+      label: "Generator's Choice",
+      description: 'Let the generator decide player placement',
+    },
+    {
+      value: 1,
+      label: 'One per Continent',
+      description: 'Each player starts on their own continent',
+    },
+    {
+      value: 2,
+      label: 'Two on Three per Continent',
+      description: 'Two on three players per continent',
+    },
+    {
+      value: 3,
+      label: 'All on Single Continent',
+      description: 'All players start on the same landmass',
+    },
+    {
+      value: 4,
+      label: 'Variable Distribution',
+      description: 'Distribution depends on continent sizes',
+    },
   ];
 
   return (
@@ -351,6 +381,43 @@ export const TerrainSettingsDialog: React.FC = () => {
               </p>
             </div>
           </div>
+
+          {/* Startpos setting - only show for island-based generators */}
+          {(terrainSettings.generator === 'island' ||
+            terrainSettings.generator === 'fair') && (
+            <div>
+              <label
+                htmlFor="startpos"
+                className="block text-sm font-medium text-gray-300 mb-2"
+              >
+                Starting Positions
+              </label>
+              <select
+                id="startpos"
+                value={terrainSettings.startpos}
+                onChange={e =>
+                  setTerrainSettings(prev => ({
+                    ...prev,
+                    startpos: parseInt(e.target.value),
+                  }))
+                }
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              >
+                {startposOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                {
+                  startposOptions.find(
+                    opt => opt.value === terrainSettings.startpos
+                  )?.description
+                }
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="p-3 bg-red-900 border border-red-700 rounded-md text-red-200 text-sm">

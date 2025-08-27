@@ -44,6 +44,31 @@ export interface TerrainSelector {
   wetCondition: WetnessCondition;
 }
 
+/**
+ * Map generator types from freeciv reference
+ * @source freeciv/common/map_types.h:46-53
+ */
+export enum MapGenerator {
+  SCENARIO = 0, // MAPGEN_SCENARIO
+  RANDOM = 1, // MAPGEN_RANDOM
+  FRACTAL = 2, // MAPGEN_FRACTAL
+  ISLAND = 3, // MAPGEN_ISLAND
+  FAIR = 4, // MAPGEN_FAIR
+  FRACTURE = 5, // MAPGEN_FRACTURE
+}
+
+/**
+ * Map starting position types from freeciv reference
+ * @source freeciv/common/map_types.h:55-61
+ */
+export enum MapStartpos {
+  DEFAULT = 0, // MAPSTARTPOS_DEFAULT - Generator's choice
+  SINGLE = 1, // MAPSTARTPOS_SINGLE - One player per continent
+  TWO_ON_THREE = 2, // MAPSTARTPOS_2or3 - Two on three players per continent
+  ALL = 3, // MAPSTARTPOS_ALL - All players on a single continent
+  VARIABLE = 4, // MAPSTARTPOS_VARIABLE - Depending on size of continents
+}
+
 export type TerrainType =
   | 'ocean'
   | 'coast'
