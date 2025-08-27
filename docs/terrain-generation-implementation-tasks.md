@@ -312,9 +312,9 @@ Based on the [Terrain Generation Parity Audit](./terrain-generation-parity-audit
    - Natural terrain clustering
 
 **Acceptance Criteria**:
-- [ ] Island terrain variety matches freeciv quality
-- [ ] Proper climate-based terrain distribution
-- [ ] Balanced terrain types across all islands
+- [x] Island terrain variety matches freeciv quality
+- [x] Proper climate-based terrain distribution
+- [x] Balanced terrain types across all islands
 
 ---
 
