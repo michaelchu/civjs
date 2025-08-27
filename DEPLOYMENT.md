@@ -51,12 +51,25 @@ This guide covers deploying CivJS to Vercel with Supabase for PostgreSQL and Ups
 
 ### 2. Run Database Migrations
 
-After the server is deployed, you need to run the database migrations:
+⚠️ **Important**: Vercel Functions cannot run migrations automatically due to their stateless nature. You must run migrations manually.
 
-1. Install Vercel CLI: `npm install -g vercel`
-2. Login: `vercel login`
-3. Link to your project: `vercel link`
-4. Run migrations: `vercel env pull .env.local && npm run db:migrate:prod`
+**Recommended Approach - Manual Migrations via CLI:**
+
+1. **Install Vercel CLI**: `npm install -g vercel`
+2. **Login**: `vercel login`  
+3. **Link to your project**: `vercel link`
+4. **Pull environment variables**: `vercel env pull .env.local`
+5. **Run migrations**: `cd apps/server && npm run db:migrate:prod`
+
+**Alternative: Use Supabase CLI (if preferred):**
+```bash
+npm install -g supabase
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
+```
+
+> 📖 **Detailed Migration Strategy**: See [MIGRATION_STRATEGY.md](./MIGRATION_STRATEGY.md) for comprehensive migration options including GitHub Actions automation.
 
 ### 3. Deploy the Client
 
@@ -141,6 +154,16 @@ Redeploy the server after updating the CORS origin.
 3. **Security**: Environment variables are encrypted in Vercel
 4. **Backups**: Supabase provides automatic backups
 5. **CDN**: Vercel provides global CDN for static assets
+
+## Migration from Docker
+
+If you were previously using Docker for development:
+
+- **Local Development**: Continue using `npm run docker:up` for local PostgreSQL/Redis
+- **Production**: No longer need Docker containers - Vercel handles hosting
+- **Database**: Replace local PostgreSQL with Supabase
+- **Redis**: Replace local Redis with Upstash
+- **Migrations**: No longer automatic on startup (see migration strategy above)
 
 ## Cost Optimization
 
