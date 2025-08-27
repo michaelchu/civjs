@@ -4,24 +4,7 @@
  * Collection of reusable terrain manipulation utilities
  */
 import { MapTile, TerrainType, TemperatureType } from './MapTypes';
-
-/**
- * Mapgen terrain properties for island generation
- * @reference freeciv/gen_headers/enums/terrain_enums.def mapgen_terrain_property
- */
-export enum MapgenTerrainProperty {
-  COLD = 'cold',
-  DRY = 'dry',
-  FOLIAGE = 'foliage',
-  FROZEN = 'frozen',
-  GREEN = 'green',
-  MOUNTAINOUS = 'mountainous',
-  OCEAN_DEPTH = 'ocean_depth',
-  TEMPERATE = 'temperate',
-  TROPICAL = 'tropical',
-  WET = 'wet',
-  UNUSED = 'unused',
-}
+import { MapgenTerrainProperty, getTerrainTransform } from './TerrainRuleset';
 
 /**
  * Temperature type conditions for terrain selection
@@ -59,6 +42,116 @@ export interface TerrainSelect {
   avoid: MapgenTerrainProperty;
   tempCondition: TemperatureCondition;
   wetCondition: WetnessCondition;
+}
+
+/**
+ * Transform terrain to warmer/wetter variant
+ * @reference freeciv/common/terrain.h:133-134 warmer_wetter_result
+ */
+export function transformTerrainWarmerWetter(terrain: TerrainType): TerrainType {
+  // Based on climate transformation rules
+  switch (terrain) {
+    case 'glacier':
+    case 'snow':
+      return 'tundra';
+    case 'tundra':
+      return 'grassland';
+    case 'desert':
+      return 'plains';
+    case 'plains':
+      return 'grassland';
+    case 'grassland':
+      return 'forest';
+    case 'forest':
+      return 'jungle';
+    case 'hills':
+      return 'forest';
+    case 'mountains':
+      return 'hills';
+    default:
+      return terrain;
+  }
+}
+
+/**
+ * Transform terrain to warmer/drier variant
+ * @reference freeciv/common/terrain.h:133-134 warmer_drier_result
+ */
+export function transformTerrainWarmerDrier(terrain: TerrainType): TerrainType {
+  // Based on climate transformation rules
+  switch (terrain) {
+    case 'glacier':
+    case 'snow':
+      return 'desert';
+    case 'tundra':
+      return 'desert';
+    case 'forest':
+      return 'plains';
+    case 'jungle':
+      return 'desert';
+    case 'grassland':
+      return 'plains';
+    case 'swamp':
+      return 'desert';
+    default:
+      return terrain;
+  }
+}
+
+/**
+ * Transform terrain to cooler/wetter variant
+ * @reference freeciv/common/terrain.h:133-134 cooler_wetter_result
+ */
+export function transformTerrainCoolerWetter(terrain: TerrainType): TerrainType {
+  // Based on climate transformation rules
+  switch (terrain) {
+    case 'desert':
+      return 'plains';
+    case 'plains':
+      return 'grassland';
+    case 'grassland':
+      return 'forest';
+    case 'forest':
+      return 'tundra';
+    case 'jungle':
+      return 'swamp';
+    case 'tundra':
+      return 'snow';
+    default:
+      return terrain;
+  }
+}
+
+/**
+ * Transform terrain to cooler/drier variant
+ * @reference freeciv/common/terrain.h:133-134 cooler_drier_result
+ */
+export function transformTerrainCoolerDrier(terrain: TerrainType): TerrainType {
+  // Based on climate transformation rules
+  switch (terrain) {
+    case 'jungle':
+      return 'desert';
+    case 'forest':
+      return 'plains';
+    case 'grassland':
+      return 'tundra';
+    case 'plains':
+      return 'tundra';
+    case 'swamp':
+      return 'tundra';
+    case 'tundra':
+      return 'glacier';
+    default:
+      return terrain;
+  }
+}
+
+/**
+ * Apply base terrain transformation
+ * @reference freeciv/common/terrain.c terrain_transform_result
+ */
+export function transformTerrain(terrain: TerrainType): TerrainType {
+  return getTerrainTransform(terrain) ?? terrain;
 }
 
 /**

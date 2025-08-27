@@ -147,10 +147,10 @@ Based on the [Terrain Generation Parity Audit](./terrain-generation-parity-audit
    - Enhance `placeTerrain()` with spreading logic
 
 **Acceptance Criteria**:
-- [ ] Terrain placement uses property-based selection like freeciv
-- [ ] No hardcoded terrain characteristics
-- [ ] Configurable terrain rulesets
-- [ ] Improved terrain variety and realism
+- [x] Terrain placement uses property-based selection like freeciv
+- [x] No hardcoded terrain characteristics
+- [x] Configurable terrain rulesets
+- [x] Improved terrain variety and realism
 
 ---
 

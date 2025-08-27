@@ -13,6 +13,7 @@ import {
   isTinyIsland,
   PlacementMap,
 } from './TerrainUtils';
+import { MapgenTerrainProperty, pickTerrain, getTerrainProperties } from './TerrainRuleset';
 
 export interface TerrainParams {
   mountain_pct: number;
@@ -261,12 +262,20 @@ export class TerrainGenerator {
       if (forests_count > 0) {
         const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_NFROZEN', 'MC_NONE');
         if (candidate) {
+          // Use pick_terrain with proper properties as in freeciv
+          // @reference freeciv/server/generator/mapgen.c:522 pick_terrain(MG_FOLIAGE, MG_TEMPERATE, MG_TROPICAL)
+          const terrain = pickTerrain(
+            MapgenTerrainProperty.FOLIAGE,
+            MapgenTerrainProperty.TEMPERATE,
+            MapgenTerrainProperty.TROPICAL,
+            this.random
+          );
           this.placeTerrain(
             candidate.tile,
             candidate.x,
             candidate.y,
             60,
-            'forest',
+            terrain,
             forests_count,
             plains_count,
             'WC_ALL',
@@ -284,12 +293,20 @@ export class TerrainGenerator {
       if (jungles_count > 0) {
         const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_TROPICAL', 'MC_NONE');
         if (candidate) {
+          // Use pick_terrain with proper properties as in freeciv
+          // @reference freeciv/server/generator/mapgen.c:540 pick_terrain(MG_FOLIAGE, MG_TROPICAL, MG_COLD)
+          const terrain = pickTerrain(
+            MapgenTerrainProperty.FOLIAGE,
+            MapgenTerrainProperty.TROPICAL,
+            MapgenTerrainProperty.COLD,
+            this.random
+          );
           this.placeTerrain(
             candidate.tile,
             candidate.x,
             candidate.y,
             50,
-            'jungle',
+            terrain,
             jungles_count,
             forests_count,
             'WC_ALL',
@@ -307,12 +324,20 @@ export class TerrainGenerator {
       if (swamps_count > 0) {
         const candidate = this.randMapPosCharacteristic(tiles, 'WC_NDRY', 'TT_HOT', 'MC_LOW');
         if (candidate) {
+          // Use pick_terrain with proper properties as in freeciv
+          // @reference freeciv/server/generator/mapgen.c:558 pick_terrain(MG_WET, MG_UNUSED, MG_FOLIAGE)
+          const terrain = pickTerrain(
+            MapgenTerrainProperty.WET,
+            MapgenTerrainProperty.UNUSED,
+            MapgenTerrainProperty.FOLIAGE,
+            this.random
+          );
           this.placeTerrain(
             candidate.tile,
             candidate.x,
             candidate.y,
             50,
-            'swamp',
+            terrain,
             swamps_count,
             forests_count,
             'WC_NDRY',
@@ -330,12 +355,20 @@ export class TerrainGenerator {
       if (deserts_count > 0) {
         const candidate = this.randMapPosCharacteristic(tiles, 'WC_DRY', 'TT_NFROZEN', 'MC_NLOW');
         if (candidate) {
+          // Use pick_terrain with proper properties as in freeciv
+          // @reference freeciv/server/generator/mapgen.c:576 pick_terrain(MG_DRY, MG_TROPICAL, MG_COLD)
+          const terrain = pickTerrain(
+            MapgenTerrainProperty.DRY,
+            MapgenTerrainProperty.TROPICAL,
+            MapgenTerrainProperty.COLD,
+            this.random
+          );
           this.placeTerrain(
             candidate.tile,
             candidate.x,
             candidate.y,
             80,
-            'desert',
+            terrain,
             deserts_count,
             alt_deserts_count,
             'WC_DRY',
@@ -353,12 +386,20 @@ export class TerrainGenerator {
       if (alt_deserts_count > 0) {
         const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_NFROZEN', 'MC_NLOW');
         if (candidate) {
+          // Use pick_terrain with proper properties as in freeciv
+          // @reference freeciv/server/generator/mapgen.c:594 pick_terrain(MG_DRY, MG_TROPICAL, MG_WET)
+          const terrain = pickTerrain(
+            MapgenTerrainProperty.DRY,
+            MapgenTerrainProperty.TROPICAL,
+            MapgenTerrainProperty.WET,
+            this.random
+          );
           this.placeTerrain(
             candidate.tile,
             candidate.x,
             candidate.y,
             40,
-            'desert',
+            terrain,
             alt_deserts_count,
             plains_count,
             'WC_ALL',
@@ -463,14 +504,36 @@ export class TerrainGenerator {
    * Uses placement tracking to mark placed tiles
    */
   private makePlain(tile: MapTile, x: number, y: number): void {
-    // Choose terrain based on temperature like freeciv make_plain()
+    // Choose terrain based on temperature using pick_terrain like freeciv
+    // @reference freeciv/server/generator/mapgen.c:437-445
+    let terrain: TerrainType;
     if (tile.temperature === TemperatureType.FROZEN) {
-      tile.terrain = this.random() < 0.5 ? 'glacier' : 'snow';
+      // tile_set_terrain(ptile, pick_terrain(MG_FROZEN, MG_UNUSED, MG_MOUNTAINOUS));
+      terrain = pickTerrain(
+        MapgenTerrainProperty.FROZEN,
+        MapgenTerrainProperty.UNUSED,
+        MapgenTerrainProperty.MOUNTAINOUS,
+        this.random
+      );
     } else if (tile.temperature === TemperatureType.COLD) {
-      tile.terrain = this.random() < 0.7 ? 'tundra' : 'plains';
+      // tile_set_terrain(ptile, pick_terrain(MG_COLD, MG_UNUSED, MG_MOUNTAINOUS));
+      terrain = pickTerrain(
+        MapgenTerrainProperty.COLD,
+        MapgenTerrainProperty.UNUSED,
+        MapgenTerrainProperty.MOUNTAINOUS,
+        this.random
+      );
     } else {
-      tile.terrain = this.random() < 0.6 ? 'grassland' : 'plains';
+      // tile_set_terrain(ptile, pick_terrain(MG_TEMPERATE, MG_GREEN, MG_MOUNTAINOUS));
+      terrain = pickTerrain(
+        MapgenTerrainProperty.TEMPERATE,
+        MapgenTerrainProperty.GREEN,
+        MapgenTerrainProperty.MOUNTAINOUS,
+        this.random
+      );
     }
+
+    tile.terrain = terrain;
 
     // Mark tile as placed
     // @reference freeciv/server/generator/mapgen_utils.c:79 map_set_placed()
@@ -545,16 +608,37 @@ export class TerrainGenerator {
           const index = y * this.width + x;
           const height = heightMap[index];
 
-          // Place mountains/hills based on height and percentage
+          // Place mountains/hills based on height using pick_terrain
+          // @reference freeciv/server/generator/mapgen.c:316-322
           if (height > shore_level + (1000 - shore_level) * 0.9) {
-            tile.terrain = 'mountains'; // Highest areas become mountains
+            // Highest areas - use pick_terrain for mountains
+            // pick_terrain(MG_MOUNTAINOUS, fc_rand(10) < 4 ? MG_UNUSED : MG_GREEN, MG_UNUSED)
+            const prefer =
+              this.random() < 0.4 ? MapgenTerrainProperty.UNUSED : MapgenTerrainProperty.GREEN;
+            tile.terrain = pickTerrain(
+              MapgenTerrainProperty.MOUNTAINOUS,
+              prefer,
+              MapgenTerrainProperty.UNUSED,
+              this.random
+            );
             // Mark as placed to prevent overwrite during terrain assignment
             // @reference freeciv/server/generator/mapgen_utils.c:79 map_set_placed()
             this.placementMap.setPlaced(x, y);
+            this.setTerrainProperties(tile);
           } else if (height > shore_level + (1000 - shore_level) * 0.8) {
-            tile.terrain = 'hills'; // High areas become hills
+            // High areas - use pick_terrain for hills/mountains
+            // pick_terrain(MG_MOUNTAINOUS, MG_UNUSED, fc_rand(10) < 8 ? MG_GREEN : MG_UNUSED)
+            const avoid =
+              this.random() < 0.8 ? MapgenTerrainProperty.GREEN : MapgenTerrainProperty.UNUSED;
+            tile.terrain = pickTerrain(
+              MapgenTerrainProperty.MOUNTAINOUS,
+              MapgenTerrainProperty.UNUSED,
+              avoid,
+              this.random
+            );
             // Mark as placed to prevent overwrite during terrain assignment
             this.placementMap.setPlaced(x, y);
+            this.setTerrainProperties(tile);
           }
         }
       }
@@ -575,11 +659,15 @@ export class TerrainGenerator {
   // Utility functions
 
   private setTerrainProperties(tile: MapTile): void {
-    // Set basic terrain properties - these would be set elsewhere in the full implementation
-    // For now, just ensure the terrain type is properly set
+    // Set terrain properties based on terrain ruleset
+    // @reference freeciv/common/terrain.h:136-147 property[MG_COUNT]
     if (!tile.properties) {
       tile.properties = {};
     }
+
+    // Copy properties from ruleset to tile
+    const properties = getTerrainProperties(tile.terrain);
+    tile.properties = { ...properties };
   }
 
   /**
