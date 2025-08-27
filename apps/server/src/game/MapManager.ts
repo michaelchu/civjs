@@ -8,6 +8,7 @@ import { RiverGenerator } from './map/RiverGenerator';
 import { ResourceGenerator } from './map/ResourceGenerator';
 import { StartingPositionGenerator } from './map/StartingPositionGenerator';
 import { TerrainGenerator } from './map/TerrainGenerator';
+import { MapValidator, ValidationResult } from './map/MapValidator';
 import {
   assignFractureCircle,
   smoothHeightMap,
@@ -53,6 +54,9 @@ export class MapManager {
   private resourceGenerator: ResourceGenerator;
   private startingPositionGenerator: StartingPositionGenerator;
   private terrainGenerator: TerrainGenerator;
+
+  // Validation system
+  private mapValidator: MapValidator;
 
   // Temperature map generation tracking
   private temperatureMapGenerated: boolean = false;
@@ -102,6 +106,9 @@ export class MapManager {
     this.resourceGenerator = new ResourceGenerator(width, height, this.random);
     this.startingPositionGenerator = new StartingPositionGenerator(width, height);
     this.terrainGenerator = new TerrainGenerator(width, height, this.random, this.generator);
+
+    // Initialize validation system
+    this.mapValidator = new MapValidator(width, height);
   }
 
   /**
@@ -331,10 +338,21 @@ export class MapManager {
     };
 
     const generationTime = Date.now() - startTime;
+
+    // Validate generated map for quality assurance
+    const validationResult = this.mapValidator.validateMap(tiles, startingPositions, players, {
+      generationTimeMs: generationTime,
+    });
+
     logger.info('Fractal map generation completed', {
       width: this.width,
       height: this.height,
       generationTime,
+      validation: {
+        passed: validationResult.passed,
+        score: validationResult.score,
+        issues: validationResult.issues.length,
+      },
       reference: 'freeciv/server/generator/mapgen.c:1343-1348',
     });
   }
@@ -467,7 +485,21 @@ export class MapManager {
     };
 
     const endTime = Date.now();
-    logger.info(`Island-based map generation completed in ${endTime - startTime}ms`);
+    const generationTime = endTime - startTime;
+
+    // Validate generated map for quality assurance
+    const validationResult = this.mapValidator.validateMap(tiles, startingPositions, players, {
+      generationTimeMs: generationTime,
+    });
+
+    logger.info('Island-based map generation completed', {
+      generationTime,
+      validation: {
+        passed: validationResult.passed,
+        score: validationResult.score,
+        issues: validationResult.issues.length,
+      },
+    });
   }
 
   /**
@@ -778,10 +810,21 @@ export class MapManager {
     };
 
     const generationTime = Date.now() - startTime;
+
+    // Validate generated map for quality assurance
+    const validationResult = this.mapValidator.validateMap(tiles, startingPositions, players, {
+      generationTimeMs: generationTime,
+    });
+
     logger.info('Pure random map generation completed', {
       width: this.width,
       height: this.height,
       generationTime,
+      validation: {
+        passed: validationResult.passed,
+        score: validationResult.score,
+        issues: validationResult.issues.length,
+      },
     });
   }
 
@@ -962,10 +1005,21 @@ export class MapManager {
     };
 
     const generationTime = Date.now() - startTime;
+
+    // Validate generated map for quality assurance
+    const validationResult = this.mapValidator.validateMap(tiles, startingPositions, players, {
+      generationTimeMs: generationTime,
+    });
+
     logger.info('Fracture map generation completed', {
       width: this.width,
       height: this.height,
       generationTime,
+      validation: {
+        passed: validationResult.passed,
+        score: validationResult.score,
+        issues: validationResult.issues.length,
+      },
     });
   }
 
@@ -1464,5 +1518,38 @@ export class MapManager {
     }
 
     return continentTiles;
+  }
+
+  /**
+   * Validate the current map data using the comprehensive validation system
+   * @param players Optional player states for enhanced validation context
+   * @returns Comprehensive validation result with metrics and issues
+   */
+  public validateCurrentMap(players?: Map<string, PlayerState>): ValidationResult | null {
+    if (!this.mapData) {
+      logger.warn('Cannot validate map: no map data available');
+      return null;
+    }
+
+    logger.debug('Validating current map data', {
+      width: this.width,
+      height: this.height,
+      startingPositions: this.mapData.startingPositions.length,
+      players: players?.size || 0,
+    });
+
+    return this.mapValidator.validateMap(
+      this.mapData.tiles,
+      this.mapData.startingPositions,
+      players
+    );
+  }
+
+  /**
+   * Get the map validator instance for advanced validation operations
+   * @returns MapValidator instance
+   */
+  public getMapValidator(): MapValidator {
+    return this.mapValidator;
   }
 }

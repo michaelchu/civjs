@@ -8,7 +8,10 @@ import {
   WetnessCondition,
 } from './MapTypes';
 import { pickTerrain, MapgenTerrainProperty } from './TerrainRuleset';
-import { testWetnessCondition, WetnessCondition as TerrainUtilsWetnessCondition } from './TerrainUtils';
+import {
+  testWetnessCondition,
+  WetnessCondition as TerrainUtilsWetnessCondition,
+} from './TerrainUtils';
 import { TemperatureMap } from './TemperatureMap';
 
 // Generator state tracking for island-based generation
@@ -220,8 +223,8 @@ export class IslandGenerator {
   private temperatureMap?: TemperatureMap;
 
   constructor(
-    width: number, 
-    height: number, 
+    width: number,
+    height: number,
     random: () => number,
     temperatureMap?: TemperatureMap
   ) {
@@ -574,7 +577,7 @@ export class IslandGenerator {
         if (tiles[x][y].continentId === state.isleIndex && !state.placedMap[x][y]) {
           // EXACT FREECIV TERRAIN SELECTION ALGORITHM
           // @ref: freeciv/server/generator/mapgen.c:1694-1703
-          
+
           // Step 1: Random selector selection (like freeciv)
           const randomSelectorIndex = Math.floor(this.random() * terrainList.length);
           const selector = terrainList[randomSelectorIndex];
@@ -624,13 +627,12 @@ export class IslandGenerator {
     return remainingBucket;
   }
 
-
   /**
    * FREECIV-COMPLIANT terrain condition checking
    * @ref: freeciv/server/generator/mapgen.c:1700-1703
    */
   private checkFreecivTerrainConditions(
-    tile: MapTile, 
+    tile: MapTile,
     selector: TerrainSelector,
     x: number,
     y: number
@@ -668,7 +670,7 @@ export class IslandGenerator {
       default:
         wetnessCondition = TerrainUtilsWetnessCondition.WC_ALL;
     }
-    
+
     if (!testWetnessCondition(tile, wetnessCondition)) {
       return false;
     }

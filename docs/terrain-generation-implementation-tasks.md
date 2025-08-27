@@ -346,9 +346,9 @@ Based on the [Terrain Generation Parity Audit](./terrain-generation-parity-audit
    - Comparison with freeciv benchmarks
 
 **Acceptance Criteria**:
-- [ ] Comprehensive map quality validation
-- [ ] Performance metrics collection
-- [ ] Automated quality regression detection
+- [x] Comprehensive map quality validation
+- [x] Performance metrics collection
+- [x] Automated quality regression detection
 
 ---
 
