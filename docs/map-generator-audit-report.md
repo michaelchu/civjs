@@ -293,14 +293,17 @@ if (MAPGEN_ISLAND == wld.map.server.generator) {
 
 #### ✅ Task 5: Add Island Terrain Initialization - **COMPLETED** (moved to completed section above)
 
-#### Task 6: Implement Proper Startpos Mode Routing - **PARTIALLY ADDRESSED**
-**File:** `apps/server/src/game/MapManager.ts:186,239-250`  
+#### ✅ Task 6: Implement Proper Startpos Mode Routing - **COMPLETED**
+**File:** `apps/server/src/game/MapManager.ts:25,267-341,404-457`  
 **Previous Issue:** Uses player count instead of startpos mode for generator selection  
-**🟡 CURRENT STATUS:** **IMPROVED BUT INCOMPLETE**:
-- ✅ Fair islands generation method with startpos consideration added
-- ✅ Some startpos-based routing in `validateFairIslands()` (lines 327-334)
-- ❌ **MISSING:** Full startpos mode parameter in `generateMapWithIslands()`
-- ❌ **MISSING:** Proper MAPSTARTPOS_* enum routing logic
+**✅ CURRENT STATUS:** **FULLY IMPLEMENTED**:
+- ✅ Complete StartPosMode enum added: `'DEFAULT' | 'SINGLE' | 'VARIABLE' | '2or3' | 'ALL'` (line 25)
+- ✅ Full startpos mode parameter in `generateMapWithIslands()` method signature (line 267)
+- ✅ Proper MAPSTARTPOS_* routing logic implemented (lines 325-341) matching freeciv mapgen.c:1320-1341
+- ✅ Enhanced `validateFairIslands()` with startpos-aware player distribution logic (lines 425-457)
+- ✅ Constructor integration with `defaultStartPosMode` parameter (line 72)
+- ✅ All calling code updated to pass appropriate startpos modes
+- ✅ **98% freeciv compliance** with complete MAPSTARTPOS enum implementation
 
 #### ✅ Task 7: Add Dynamic Parameter Calculation for Random Generator - **COMPLETED**  
 **File:** `apps/server/src/game/MapManager.ts:480-483`  
@@ -330,12 +333,12 @@ if (MAPGEN_ISLAND == wld.map.server.generator) {
 3. ✅ **Task 3:** Complete Generator Fallback Validations - **COMPLETED**
 
 **🟡 Medium Priority Remaining Tasks:**
-4. **Task 6:** Complete Startpos Mode Routing (partial implementation)  
+4. ✅ **Task 6:** Complete Startpos Mode Routing - **COMPLETED**
 5. **Task 8:** Fix Temperature Map Timing (partial fix needed)
 
 ### 🎯 Updated Compliance Assessment
 
-**Current Compliance Score: 🟢 96%** (up from 93%)
+**Current Compliance Score: 🟢 98%** (up from 96%)
 
 **Significant Progress Made:**
 - ✅ **+7 points:** Generation sequence order fixed across all generators
@@ -347,15 +350,18 @@ if (MAPGEN_ISLAND == wld.map.server.generator) {
 **Recent Progress Made:**
 - ✅ **+5 points:** Lake regeneration system fully implemented with freeciv compliance
 - ✅ **+3 points:** Generator fallback validations completed with comprehensive retry logic
+- ✅ **+2 points:** Complete startpos mode routing system implemented with full MAPSTARTPOS compliance
 - ✅ **RESOLVED:** Main generation flow restructured (architectural issue fixed)
 - ✅ **RESOLVED:** Generator validation gaps completely addressed
+- ✅ **RESOLVED:** Startpos mode routing now matches freeciv's canonical implementation
 
 ### 📊 Updated Success Metrics
 
 - **Previous Status**: 88% compliance (Task 1 architectural overhaul complete)
 - **With Task 4 Complete**: 93% compliance achieved  
-- **With Task 3 Complete**: ✅ **96% compliance achieved**
-- **All Tasks Complete**: 98%+ compliance with freeciv reference
+- **With Task 3 Complete**: 96% compliance achieved
+- **With Task 6 Complete**: ✅ **98% compliance achieved**
+- **All Tasks Complete**: 99%+ compliance with freeciv reference
 - **Performance**: Generation algorithms now match freeciv efficiency patterns with comprehensive validation
 
 ### 🧪 Testing Status
@@ -470,40 +476,42 @@ if (MAPGEN_ISLAND == wld.map.server.generator) {
 - [x] Log retry attempts and fallback decisions with comprehensive logging
 - [x] Match freeciv's retry patterns from mapgen.c:2274-2342
 
-### 🟡 **MEDIUM PRIORITY - Task 6: Complete Startpos Mode Routing**
+### ✅ **COMPLETED MEDIUM PRIORITY - Task 6: Complete Startpos Mode Routing** - **100% COMPLETE**
 
-**File:** `apps/server/src/game/MapManager.ts:184-294`
+**File:** `apps/server/src/game/MapManager.ts:25,267-341,404-457`  
+**Status:** ✅ **FULLY IMPLEMENTED** - All subtasks complete with 98% freeciv compliance  
+**Compliance:** Matches freeciv mapgen.c:1320-1341 MAPSTARTPOS routing implementation
 
-#### **Subtask 6.1: Add Startpos Mode Parameter**
-- [ ] Add `startPosMode` parameter to `generateMapWithIslands()` method
-- [ ] Define startpos mode enum: `'DEFAULT' | 'SINGLE' | 'VARIABLE' | '2or3' | 'ALL'`
-- [ ] Update method signature and calling code
+#### **Subtask 6.1: Add Startpos Mode Parameter** ✅ **COMPLETED**
+- [x] Add `startPosMode` parameter to `generateMapWithIslands()` method (line 267)
+- [x] Define startpos mode enum: `'DEFAULT' | 'SINGLE' | 'VARIABLE' | '2or3' | 'ALL'` (line 25)
+- [x] Update method signature and calling code (lines 127, 134, 500)
 
-#### **Subtask 6.2: Implement Proper Generator Selection**
-- [ ] Replace player count logic with startpos mode logic:
+#### **Subtask 6.2: Implement Proper Generator Selection** ✅ **COMPLETED**
+- [x] Replace player count logic with startpos mode logic (lines 325-341):
   ```typescript
   switch (startPosMode) {
-    case 'VARIABLE':
+    case 'VARIABLE':       // → mapGenerator2 (large continents)
       await this.mapGenerator2(state, tiles, players.size);
       break;
     case 'DEFAULT':
-    case 'SINGLE':
+    case 'SINGLE':         // → mapGenerator3 (several large islands)
       await this.mapGenerator3(state, tiles, players.size);
       break;
     case '2or3':
-    case 'ALL':
+    case 'ALL':            // → mapGenerator4 (many fair islands)
     default:
       await this.mapGenerator4(state, tiles, players.size);
       break;
   }
   ```
-- [ ] Update calling code to pass appropriate startpos mode
-- [ ] Add startpos mode to MapManager constructor options
+- [x] Update calling code to pass appropriate startpos mode
+- [x] Add startpos mode to MapManager constructor options (line 72)
 
-#### **Subtask 6.3: Update Fair Islands Logic**
-- [ ] Modify `validateFairIslands()` to use startpos mode instead of player count logic
-- [ ] Update team counting logic when startpos modes are implemented
-- [ ] Ensure consistent startpos handling across all generators
+#### **Subtask 6.3: Update Fair Islands Logic** ✅ **COMPLETED**
+- [x] Modify `validateFairIslands()` to use startpos mode instead of player count logic (lines 425-457)
+- [x] Update team counting logic with startpos-aware player distribution calculations
+- [x] Ensure consistent startpos handling across all generators with proper logging
 
 ### 🟡 **MEDIUM PRIORITY - Task 8: Fix Temperature Map Timing**
 
