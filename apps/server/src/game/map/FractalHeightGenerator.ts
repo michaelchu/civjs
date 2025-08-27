@@ -81,7 +81,7 @@ export class FractalHeightGenerator {
   }
 
   /**
-   * Calculate pole flattening factor for realistic world geometry
+   * Factor by which to lower height map near poles in normalize_hmap_poles()
    * @reference freeciv/server/generator/height_map.c:35-57
    */
   private getPoleFactor(x: number, y: number): number {
@@ -89,19 +89,22 @@ export class FractalHeightGenerator {
     let factor = 1.0;
 
     if (this.isNearMapEdge(x, y)) {
-      // Map edge near pole: clamp to flat poles percentage
+      // Map edge near pole: clamp to what linear ramp would give us at pole
+      // (maybe greater than 0)
       factor = (100 - this.flatpoles) / 100.0;
     } else if (this.flatpoles > 0) {
-      // Linear ramp down from 100% at 2.5*ICE_BASE_LEVEL to (100-flatpoles)% at poles
+      // Linear ramp down from 100% at 2.5*ICE_BASE_LEVEL to (100-flatpoles) %
+      // at the poles
       factor = 1 - ((1 - colatitude / (2.5 * ICE_BASE_LEVEL)) * this.flatpoles) / 100;
     }
 
+    // A band of low height to try to separate the pole (this function is
+    // only assumed to be called <= 2.5*ICE_BASE_LEVEL)
     if (colatitude >= 2 * ICE_BASE_LEVEL) {
-      // Band of low height to separate poles
       factor = Math.min(factor, 0.1);
     }
 
-    return Math.max(0, factor);
+    return factor;
   }
 
   /**
@@ -295,7 +298,7 @@ export class FractalHeightGenerator {
         break;
     }
 
-    // Apply common post-processing steps
+    // Apply pole normalization (must come after height generation)
     this.normalizeHeightMapPoles();
 
     // Add final random variation for natural detail
@@ -309,20 +312,51 @@ export class FractalHeightGenerator {
   }
 
   /**
-   * Apply subtle pole flattening for realistic world geometry
+   * Lower the land near the map edges and (optionally) the polar region to
+   * avoid too much land there.
+   * See also renormalize_hmap_poles()
    * @reference freeciv/server/generator/height_map.c:65-75
    */
-  private normalizeHeightMapPoles(): void {
+  public normalizeHeightMapPoles(): void {
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const colatitude = this.getColatitude(x, y);
 
-        // Apply gentle pole flattening only in extreme polar regions
-        if (colatitude > 2.2 * ICE_BASE_LEVEL) {
-          const poleFactor = this.getPoleFactor(x, y);
+        if (colatitude <= 2.5 * ICE_BASE_LEVEL) {
           const currentHeight = this.getHeight(x, y);
-          // Very gentle reduction, not elimination
-          this.setHeight(x, y, currentHeight * Math.max(0.7, poleFactor));
+          const poleFactor = this.getPoleFactor(x, y);
+          this.setHeight(x, y, currentHeight * poleFactor);
+        } else if (this.isNearMapEdge(x, y)) {
+          // Near map edge but not near pole.
+          this.setHeight(x, y, 0);
+        }
+      }
+    }
+  }
+
+  /**
+   * Invert (most of) the effects of normalize_hmap_poles() so that we have
+   * accurate heights for texturing the poles.
+   * @reference freeciv/server/generator/height_map.c:81-95
+   */
+  public renormalizeHeightMapPoles(): void {
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const currentHeight = this.getHeight(x, y);
+
+        if (currentHeight === 0) {
+          // Nothing left to restore.
+          continue;
+        }
+
+        const colatitude = this.getColatitude(x, y);
+        if (colatitude <= 2.5 * ICE_BASE_LEVEL) {
+          const poleFactor = this.getPoleFactor(x, y);
+
+          if (poleFactor > 0) {
+            // Invert the previously applied function
+            this.setHeight(x, y, currentHeight / poleFactor);
+          }
         }
       }
     }
