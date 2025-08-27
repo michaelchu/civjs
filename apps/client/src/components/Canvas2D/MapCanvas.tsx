@@ -165,7 +165,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     });
   }, [viewport, map, units, cities]);
 
-  // Handle mouse events - copied from freeciv-web 2D canvas behavior
+  // Handle mouse and touch events - copied from freeciv-web 2D canvas behavior
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const dragStartViewport = useRef(viewport);
@@ -261,6 +261,104 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     setIsDragging(false);
   }, [isDragging, setViewport]);
 
+  // Touch event handlers for mobile panning
+  const handleTouchStart = useCallback(
+    (event: React.TouchEvent<HTMLCanvasElement>) => {
+      if (event.touches.length !== 1) return; // Only handle single touch
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const touch = event.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const canvasX = touch.clientX - rect.left;
+      const canvasY = touch.clientY - rect.top;
+
+      // Start dragging - same logic as mouse
+      setIsDragging(true);
+      dragStart.current = { x: canvasX, y: canvasY };
+      dragStartViewport.current = viewport;
+      currentRenderViewport.current = viewport;
+
+      // Prevent default to avoid page scrolling
+      event.preventDefault();
+    },
+    [viewport]
+  );
+
+  const handleTouchMove = useCallback(
+    (event: React.TouchEvent<HTMLCanvasElement>) => {
+      if (!isDragging || !rendererRef.current || event.touches.length !== 1)
+        return;
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const touch = event.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const canvasX = touch.clientX - rect.left;
+      const canvasY = touch.clientY - rect.top;
+
+      // Calculate total movement from drag start (same as mouse logic)
+      const totalDiffX = (dragStart.current.x - canvasX) * 2;
+      const totalDiffY = (dragStart.current.y - canvasY) * 2;
+
+      // Calculate new viewport position from original position
+      const newViewport = {
+        ...dragStartViewport.current,
+        x: dragStartViewport.current.x + totalDiffX,
+        y: dragStartViewport.current.y + totalDiffY,
+      };
+
+      // Store current render viewport
+      currentRenderViewport.current = newViewport;
+
+      // Directly render without any state updates during drag
+      requestAnimationFrame(() => {
+        if (rendererRef.current) {
+          rendererRef.current.render({
+            viewport: newViewport,
+            map: useGameStore.getState().map,
+            units: useGameStore.getState().units,
+            cities: useGameStore.getState().cities,
+          });
+        }
+      });
+
+      // Prevent default to avoid page scrolling
+      event.preventDefault();
+    },
+    [isDragging]
+  );
+
+  const handleTouchEnd = useCallback(
+    (event: React.TouchEvent<HTMLCanvasElement>) => {
+      if (!isDragging || !rendererRef.current) return;
+
+      // Apply boundary constraints to the final viewport position
+      const constrainedPosition = rendererRef.current.setMapviewOrigin(
+        currentRenderViewport.current.x,
+        currentRenderViewport.current.y,
+        currentRenderViewport.current.width,
+        currentRenderViewport.current.height
+      );
+
+      const finalViewport = {
+        ...currentRenderViewport.current,
+        x: constrainedPosition.x,
+        y: constrainedPosition.y,
+      };
+
+      // Update state with the constrained final position
+      setViewport(finalViewport);
+      setIsDragging(false);
+
+      // Prevent default to avoid unwanted click events
+      event.preventDefault();
+    },
+    [isDragging, setViewport]
+  );
+
   // Global mouse up handler to catch mouse up events outside the canvas
   useEffect(() => {
     const handleGlobalMouseUp = () => {
@@ -308,8 +406,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         className="cursor-crosshair w-full h-full"
-        style={{ imageRendering: 'pixelated' }}
+        style={{
+          imageRendering: 'pixelated',
+          touchAction: 'none', // Prevent default touch behaviors like scrolling/zooming
+        }}
       />
     </div>
   );
