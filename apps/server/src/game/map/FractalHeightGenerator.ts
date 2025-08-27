@@ -275,6 +275,18 @@ export class FractalHeightGenerator {
         this.diamondSquareRecursive(step, x1, y1, x2, y2);
       }
     }
+
+    // CRITICAL FIX: Add missing shore level setup (like generateRandomHeightMap)
+    // Set shore level BEFORE normalization using original height distribution
+    this.setShoreLevel();
+
+    // Adjust to proper height range (like freeciv adjust_int_map)
+    this.normalizeHeightMap();
+
+    // DEBUG: Log fractal height generation parameters
+    console.log(
+      `DEBUG: Fractal height generation - shoreLevel=${this.shoreLevel}, finalShoreLevel=${this.getShoreLevel()}`
+    );
   }
 
   /**

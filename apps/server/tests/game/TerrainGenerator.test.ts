@@ -41,13 +41,13 @@ describe('TerrainGenerator - Relief Generation System', () => {
         const maxDistance = Math.sqrt(centerX ** 2 + centerY ** 2);
 
         // Create island-like height map (higher in center)
-        // Use higher base heights to account for pole normalization reducing heights
-        heightMap[index] = 800 - (distance / maxDistance) * 300 + seededRandom() * 150;
+        // FIXED: Use 0-255 scale to match corrected terrain generation system
+        heightMap[index] = 200 - (distance / maxDistance) * 75 + seededRandom() * 38;
 
         tiles[x][y] = {
           x,
           y,
-          terrain: heightMap[index] > 400 ? 'grassland' : 'ocean',
+          terrain: heightMap[index] > 127 ? 'grassland' : 'ocean', // 127 ≈ 50% shore level
           elevation: heightMap[index],
           temperature: TemperatureType.TEMPERATE,
           wetness: 50,
