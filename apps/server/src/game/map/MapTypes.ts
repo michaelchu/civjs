@@ -124,8 +124,8 @@ export interface MapTile {
   terrain: TerrainType;
   resource?: ResourceType;
   riverMask: number; // Bitfield for river connections (N, E, S, W)
-  elevation: number; // 0-255 for height
-  continentId: number;
+  elevation: number; // 0-255 CivJS range (converted from freeciv's 0-1000 internal processing)
+  continentId: number; // 0 for oceans, positive for land continents (CivJS web-optimized approach)
   isExplored: boolean;
   isVisible: boolean;
   hasRoad: boolean;

@@ -31,6 +31,9 @@ export class TerrainGenerator {
   private random: () => number;
   private generator: string;
   private placementMap: PlacementMap;
+  private heightGenerator?: any; // Will be passed for pole renormalization
+  private temperatureMap?: TemperatureMap; // Will be passed for temperature map creation
+  private riverGenerator?: any; // Will be passed for river generation
 
   constructor(width: number, height: number, random: () => number, generator: string) {
     this.width = width;
@@ -108,12 +111,20 @@ export class TerrainGenerator {
    * Convert height map to land/ocean based on landpercent threshold
    * @reference freeciv/server/generator/mapgen.c make_land()
    * Exact copy of freeciv land/ocean distribution algorithm
+   * Enhanced with Phase 1 fixes: integrated temperature map, pole renormalization, and river generation
    */
-  public makeLand(
+  public async makeLand(
     tiles: MapTile[][],
     heightMap: number[],
-    params: { landpercent: number; steepness: number; wetness: number; temperature: number }
-  ): void {
+    params: { landpercent: number; steepness: number; wetness: number; temperature: number },
+    heightGenerator?: any,
+    temperatureMap?: TemperatureMap,
+    riverGenerator?: any
+  ): Promise<void> {
+    // Store dependencies for internal use
+    this.heightGenerator = heightGenerator;
+    this.temperatureMap = temperatureMap;
+    this.riverGenerator = riverGenerator;
     // Constants from freeciv
     const TERRAIN_OCEAN_DEPTH_MAXIMUM = 100; // From freeciv
     const hmap_max_level = 1000; // Max height value
@@ -221,11 +232,60 @@ export class TerrainGenerator {
     // Step 10: make_terrains() - place forests, deserts, etc.
     this.makeTerrains(tiles, terrainParams);
 
+    // Step 10.5: Continent assignment in correct order (Phase 1 fix)
+    // @reference freeciv/server/generator/mapgen.c:1370-1377 sequence
+    // First remove tiny islands, then assign continent numbers
+    this.removeTinyIslands(tiles);
+    this.generateContinents(tiles);
+
     // Step 11: destroy_placed_map() - cleanup
     // @reference freeciv/server/generator/mapgen.c:1045 destroy_placed_map()
     this.placementMap.destroyPlacedMap();
 
-    // Step 12: make_rivers() - this is handled separately in our implementation
+    // Step 12: Final pole renormalization (freeciv line 1128 equivalent)
+    // @reference freeciv/server/generator/mapgen.c:1127-1129
+    if (this.heightGenerator) {
+      this.heightGenerator.renormalizeHeightMapPoles();
+    }
+
+    // Step 13: Temperature map creation (freeciv line 1134 equivalent)
+    // @reference freeciv/server/generator/mapgen.c:1133 create_tmap(TRUE)
+    if (this.temperatureMap) {
+      this.createTemperatureMapInternal(tiles, heightMap);
+    }
+
+    // Step 14: River generation (freeciv line 1150 equivalent)
+    // @reference freeciv/server/generator/mapgen.c:1150 make_rivers()
+    if (this.riverGenerator) {
+      await this.makeRivers(tiles);
+    }
+  }
+
+  /**
+   * Internal temperature map creation (Phase 1 fix)
+   * @reference freeciv/server/generator/mapgen.c:1133 create_tmap(TRUE)
+   */
+  private createTemperatureMapInternal(tiles: MapTile[][], heightMap: number[]): void {
+    if (!this.temperatureMap) return;
+
+    this.temperatureMap.createTemperatureMap(tiles, heightMap);
+
+    // Apply temperature data to tiles
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        tiles[x][y].temperature = this.temperatureMap.getTemperature(x, y);
+      }
+    }
+  }
+
+  /**
+   * Internal river generation wrapper (Phase 1 fix)
+   * @reference freeciv/server/generator/mapgen.c:1150 make_rivers()
+   */
+  private async makeRivers(tiles: MapTile[][]): Promise<void> {
+    if (!this.riverGenerator) return;
+
+    await this.riverGenerator.generateAdvancedRivers(tiles);
   }
 
   /**

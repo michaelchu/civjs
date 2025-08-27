@@ -259,30 +259,26 @@ export class MapManager {
     this.heightGenerator.generateHeightMap();
     const heightMap = this.heightGenerator.getHeightMap();
 
-    // Apply height data to tiles
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const index = y * this.width + x;
-        tiles[x][y].elevation = heightMap[index];
-      }
-    }
-
-    // Use exact freeciv terrain generation
+    // Use exact freeciv terrain generation with Phase 1 integration
     this.terrainGenerator.heightMapToMap(tiles, heightMap);
-    this.terrainGenerator.makeLand(tiles, heightMap, {
-      landpercent: 30,
-      steepness: 50,
-      wetness: 50,
-      temperature: 50,
-    });
+    await this.terrainGenerator.makeLand(
+      tiles,
+      heightMap,
+      {
+        landpercent: 30,
+        steepness: 50,
+        wetness: 50,
+        temperature: 50,
+      },
+      this.heightGenerator,
+      this.temperatureMap,
+      this.riverGenerator
+    );
 
-    // Restore original heights after terrain placement for accurate texturing
-    // @reference freeciv/server/generator/mapgen.c:1127-1129
-    this.heightGenerator.renormalizeHeightMapPoles();
-
-    // Create temperature map at standard timing (after height generation and ocean assignment)
-    // @reference freeciv/server/generator/mapgen.c:1133 create_tmap(TRUE)
-    this.createTemperatureMap(tiles, heightMap);
+    // Phase 1 fix: pole renormalization, temperature map creation, continent assignment, and rivers now handled inside makeLand()
+    
+    // Copy height map to tiles (like freeciv height_map_to_map())
+    this.assignHeightToTiles(tiles, heightMap);
 
     // Smooth ocean depths based on distance from land (like freeciv smooth_water_depth())
     this.terrainGenerator.smoothWaterDepth(tiles);
@@ -299,22 +295,13 @@ export class MapManager {
       this.generator
     );
 
-    // Generate continents (must come before remove tiny islands)
-    this.terrainGenerator.generateContinents(tiles);
-
-    // Remove tiny islands after continent assignment (like freeciv sequence)
-    this.terrainGenerator.removeTinyIslands(tiles);
-
-    // Temperature map should already exist from standard timing, but ensure it exists (fallback)
-    // @reference freeciv/server/generator/mapgen.c:1388-1391
+    // Phase 1 fix: Temperature map and rivers now handled inside makeLand()
+    // Only need to ensure temperature map exists and convert to enum
     this.ensureTemperatureMap(tiles, heightMap);
 
     // Convert the continuous temperature values to discrete TemperatureType enum
     this.terrainGenerator.convertTemperatureToEnum(tiles);
     this.terrainGenerator.generateWetnessMap(tiles);
-
-    // Generate rivers
-    await this.riverGenerator.generateAdvancedRivers(tiles);
 
     // Generate resources
     await this.resourceGenerator.generateResources(tiles);
@@ -435,9 +422,8 @@ export class MapManager {
     // Free island terrain selection system (like freeciv island_terrain_free())
     islandTerrainFree();
 
-    // Create temperature map at standard timing (after island placement and ocean assignment)
-    // @reference freeciv/server/generator/mapgen.c:1313 create_tmap(FALSE) / 1388-1391 fallback
-    this.createTemperatureMap(tiles, heightMap);
+    // Phase 1 fix: temperature map creation for islands happens during island generation
+    // No external temperature map creation needed for islands
 
     // Smooth ocean depths based on distance from land (like freeciv smooth_water_depth())
     this.terrainGenerator.smoothWaterDepth(tiles);
@@ -446,7 +432,7 @@ export class MapManager {
     // @reference freeciv/server/generator/mapgen.c:1381
     this.terrainGenerator.regenerateLakes(tiles);
 
-    // Temperature map should already exist, but ensure it exists (fallback)
+    // Temperature map should already exist from island generation, but ensure it exists (fallback)
     // @reference freeciv/server/generator/mapgen.c:1388-1391
     this.ensureTemperatureMap(tiles, heightMap);
 
@@ -928,33 +914,29 @@ export class MapManager {
       smoothHeightMap(heightMap, this.width, this.height);
     }
 
-    // Normalize height map to 0-hmap_max_level range
+    // Normalize height map to 0-hmap_max_level range (freeciv standard)
     adjustHeightMap(heightMap, 0, 1000);
 
-    // Apply height data to tiles
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const index = y * this.width + x;
-        tiles[x][y].elevation = heightMap[index];
-      }
-    }
-
-    // Use exact freeciv terrain generation
+    // Use exact freeciv terrain generation with Phase 1 integration
     this.terrainGenerator.heightMapToMap(tiles, heightMap);
-    this.terrainGenerator.makeLand(tiles, heightMap, {
-      landpercent: 30,
-      steepness: 50,
-      wetness: 50,
-      temperature: 50,
-    });
+    await this.terrainGenerator.makeLand(
+      tiles,
+      heightMap,
+      {
+        landpercent: 30,
+        steepness: 50,
+        wetness: 50,
+        temperature: 50,
+      },
+      this.heightGenerator,
+      this.temperatureMap,
+      this.riverGenerator
+    );
 
-    // Restore original heights after terrain placement for accurate texturing
-    // @reference freeciv/server/generator/mapgen.c:1127-1129
-    this.heightGenerator.renormalizeHeightMapPoles();
-
-    // Create temperature map at standard timing (after height generation and ocean assignment)
-    // @reference freeciv/server/generator/mapgen.c:1133 create_tmap(TRUE)
-    this.createTemperatureMap(tiles, heightMap);
+    // Phase 1 fix: pole renormalization, temperature map creation, continent assignment, and rivers now handled inside makeLand()
+    
+    // Copy height map to tiles (like freeciv height_map_to_map())
+    this.assignHeightToTiles(tiles, heightMap);
 
     // Smooth ocean depths based on distance from land
     this.terrainGenerator.smoothWaterDepth(tiles);
@@ -971,22 +953,13 @@ export class MapManager {
       this.generator
     );
 
-    // Generate continents
-    this.terrainGenerator.generateContinents(tiles);
-
-    // Remove tiny islands
-    this.terrainGenerator.removeTinyIslands(tiles);
-
-    // Temperature map should already exist from standard timing, but ensure it exists (fallback)
-    // @reference freeciv/server/generator/mapgen.c:1388-1391
+    // Phase 1 fix: Temperature map and rivers now handled inside makeLand()
+    // Only need to ensure temperature map exists and convert to enum
     this.ensureTemperatureMap(tiles, heightMap);
 
     // Convert temperature and generate wetness
     this.terrainGenerator.convertTemperatureToEnum(tiles);
     this.terrainGenerator.generateWetnessMap(tiles);
-
-    // Generate rivers
-    await this.riverGenerator.generateAdvancedRivers(tiles);
 
     // Generate resources
     await this.resourceGenerator.generateResources(tiles);
@@ -1139,27 +1112,38 @@ export class MapManager {
     // Normalize height map
     adjustHeightMap(heightMap, 0, 1000);
 
-    // Apply height data to tiles
+    // Use exact freeciv terrain generation with Phase 1 integration
+    this.terrainGenerator.heightMapToMap(tiles, heightMap);
+    await this.terrainGenerator.makeLand(
+      tiles,
+      heightMap,
+      {
+        landpercent: 30,
+        steepness: 50,
+        wetness: 50,
+        temperature: 50,
+      },
+      this.heightGenerator,
+      this.temperatureMap,
+      this.riverGenerator
+    );
+
+    // Phase 1 fix: temperature map creation, continent assignment, and rivers now handled inside makeLand()
+    
+    // Apply height data and continent data to tiles after processing
+    this.assignHeightToTiles(tiles, heightMap);
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
-        const index = y * this.width + x;
-        tiles[x][y].elevation = heightMap[index];
-        tiles[x][y].continentId = continentMap[x][y];
+        const continentId = continentMap[x][y];
+        // If assigned to a landmass with elevation 0 (ocean), use continent ID 0
+        // @reference freeciv/common/tile.c:371 ocean has negative continent ID, we use 0 for simplification
+        if (continentId > 0 && landmasses[continentId - 1].elevation === 0) {
+          tiles[x][y].continentId = 0;
+        } else {
+          tiles[x][y].continentId = continentId;
+        }
       }
     }
-
-    // Use exact freeciv terrain generation
-    this.terrainGenerator.heightMapToMap(tiles, heightMap);
-    this.terrainGenerator.makeLand(tiles, heightMap, {
-      landpercent: 30,
-      steepness: 50,
-      wetness: 50,
-      temperature: 50,
-    });
-
-    // Create temperature map at standard timing (after height generation and ocean assignment)
-    // @reference freeciv/server/generator/mapgen.c:1133 create_tmap(TRUE)
-    this.createTemperatureMap(tiles, heightMap);
 
     // Complete the generation process
     this.terrainGenerator.smoothWaterDepth(tiles);
@@ -1174,17 +1158,13 @@ export class MapManager {
       this.random,
       this.generator
     );
-    this.terrainGenerator.generateContinents(tiles);
-    this.terrainGenerator.removeTinyIslands(tiles);
 
-    // Temperature map should already exist from standard timing, but ensure it exists (fallback)
-    // @reference freeciv/server/generator/mapgen.c:1388-1391
+    // Phase 1 fix: Temperature map and rivers now handled inside makeLand()
+    // Only need to ensure temperature map exists and convert to enum
     this.ensureTemperatureMap(tiles, heightMap);
 
     this.terrainGenerator.convertTemperatureToEnum(tiles);
     this.terrainGenerator.generateWetnessMap(tiles);
-
-    await this.riverGenerator.generateAdvancedRivers(tiles);
     await this.resourceGenerator.generateResources(tiles);
 
     // Optional cleanup of temperature map to optimize memory usage
@@ -1837,6 +1817,44 @@ export class MapManager {
     }
 
     return distances;
+  }
+
+  /**
+   * Convert freeciv height map (0-1000) to CivJS tile elevation (0-255)
+   * @reference freeciv/server/generator/height_map.c:300-307 height_map_to_map()
+   * @reference freeciv/common/tile.h:65 altitude stored as int in freeciv
+   * Note: CivJS uses 0-255 range for web optimization while maintaining freeciv height processing
+   * @param tiles Map tiles to update elevation values  
+   * @param heightMap Freeciv height map in 0-1000 range
+   */
+  private assignHeightToTiles(tiles: MapTile[][], heightMap: number[]): void {
+    // Find height range for proper normalization (like freeciv processing)
+    let minHeight = 1000;
+    let maxHeight = 0;
+    
+    for (const height of heightMap) {
+      minHeight = Math.min(minHeight, height);
+      maxHeight = Math.max(maxHeight, height);
+    }
+    
+    // Convert freeciv's 0-1000 range to CivJS's 0-255 range
+    const range = maxHeight - minHeight;
+    if (range > 0) {
+      for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < this.height; y++) {
+          const index = y * this.width + x;
+          const normalizedElevation = Math.floor(((heightMap[index] - minHeight) / range) * 255);
+          tiles[x][y].elevation = Math.max(0, Math.min(255, normalizedElevation));
+        }
+      }
+    } else {
+      // All heights are the same, set to middle elevation
+      for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < this.height; y++) {
+          tiles[x][y].elevation = 128;
+        }
+      }
+    }
   }
 
   /**
