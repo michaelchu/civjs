@@ -277,10 +277,10 @@ Based on the [Terrain Generation Parity Audit](./terrain-generation-parity-audit
    - Maintain performance benefits where possible
 
 **Acceptance Criteria**:
-- [ ] Temperature map generated at same point as freeciv
-- [ ] No performance regression
-- [ ] Memory usage remains acceptable
-- [ ] Generation sequence matches reference exactly
+- [x] Temperature map generated at same point as freeciv
+- [x] No performance regression
+- [x] Memory usage remains acceptable
+- [x] Generation sequence matches reference exactly
 
 ---
 

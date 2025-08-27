@@ -166,7 +166,7 @@ describe('TerrainGenerator - Relief Generation System', () => {
         expect(coldMountains).toBeGreaterThanOrEqual(coldHills);
       }
 
-      // Hot regions (TT_HOT = TEMPERATE | TROPICAL) should have more hills than mountains  
+      // Hot regions (TT_HOT = TEMPERATE | TROPICAL) should have more hills than mountains
       if (hotMountains + hotHills > 0) {
         expect(hotHills).toBeGreaterThanOrEqual(hotMountains);
       }
