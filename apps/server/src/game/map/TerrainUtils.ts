@@ -260,7 +260,7 @@ export function setTerrainGameProperties(tile: MapTile): void {
 /**
  * Smooth height map values using 8-directional averaging
  * @reference freeciv/server/generator/mapgen_utils.c smooth_int_map()
- * Exact copy of freeciv smoothing algorithm
+ * @deprecated Use smoothIntMap() for full freeciv parity
  */
 export function smoothHeightMap(heightMap: number[], width: number, height: number): void {
   const smoothed = [...heightMap];
@@ -292,6 +292,217 @@ export function smoothHeightMap(heightMap: number[], width: number, height: numb
   // Copy smoothed values back
   for (let i = 0; i < heightMap.length; i++) {
     heightMap[i] = smoothed[i];
+  }
+}
+
+/**
+ * Advanced Gaussian smoothing with proper freeciv parity
+ * Port of smooth_int_map() with exact algorithmic implementation
+ * @reference freeciv/server/generator/mapgen_utils.c:191-232
+ */
+export function smoothIntMap(
+  intMap: number[],
+  width: number,
+  height: number,
+  zeroesAtEdges: boolean = false
+): void {
+  // Gaussian kernel weights from freeciv reference
+  const weightStandard = [0.13, 0.19, 0.37, 0.19, 0.13];
+  // const weightIsometric = [0.15, 0.21, 0.29, 0.21, 0.15]; // For future isometric support
+
+  // Use standard weights (could be configurable for isometric maps in future)
+  const weight = weightStandard;
+
+  // Create temporary map for two-pass algorithm
+  const altIntMap = new Array(width * height);
+
+  let axe = true; // true = X axis, false = Y axis
+  let targetMap = altIntMap;
+  let sourceMap = intMap;
+
+  do {
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const currentIndex = y * width + x;
+        let N = 0; // Numerator (weighted sum)
+        let D = 0; // Denominator (total weight)
+
+        // Apply 5-point kernel in current axis direction
+        for (let i = -2; i <= 2; i++) {
+          let neighborIndex = 0;
+          let inBounds = false;
+
+          if (axe) {
+            // X-axis smoothing
+            const nx = x + i;
+            if (nx >= 0 && nx < width) {
+              neighborIndex = y * width + nx;
+              inBounds = true;
+            }
+          } else {
+            // Y-axis smoothing
+            const ny = y + i;
+            if (ny >= 0 && ny < height) {
+              neighborIndex = ny * width + x;
+              inBounds = true;
+            }
+          }
+
+          if (inBounds) {
+            const kernelWeight = weight[i + 2];
+            D += kernelWeight;
+            N += kernelWeight * sourceMap[neighborIndex];
+          }
+        }
+
+        // Handle edge conditions
+        if (zeroesAtEdges) {
+          D = 1; // Normalize by 1 instead of actual weight sum
+        }
+
+        targetMap[currentIndex] = D > 0 ? N / D : 0;
+      }
+    }
+
+    // Switch axis for next pass
+    axe = !axe;
+
+    // Swap source and target maps
+    const temp = sourceMap;
+    sourceMap = targetMap;
+    targetMap = temp;
+  } while (!axe); // Continue until axe becomes false again (after Y-axis pass)
+
+  // Copy final results back to original map if needed
+  if (sourceMap === altIntMap) {
+    for (let i = 0; i < intMap.length; i++) {
+      intMap[i] = Math.floor(altIntMap[i]);
+    }
+  }
+}
+
+/**
+ * Histogram equalization for natural value distribution
+ * Port of adjust_int_map_filtered() with exact algorithmic implementation
+ * @reference freeciv/server/generator/mapgen_utils.c:123-174
+ */
+export function adjustIntMapFiltered(
+  intMap: number[],
+  width: number,
+  height: number,
+  minValue: number,
+  maxValue: number,
+  filter?: (x: number, y: number) => boolean
+): void {
+  const intMapDelta = maxValue - minValue;
+  let minVal = 0;
+  let maxVal = 0;
+  let total = 0;
+  let first = true;
+
+  // Pass 1: Determine minimum and maximum values
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (filter && !filter(x, y)) {
+        continue; // Skip tiles that don't pass the filter
+      }
+
+      const index = y * width + x;
+      let value = intMap[index];
+      
+      // Convert fractional values to integers (freeciv expects integers)
+      if (!Number.isInteger(value)) {
+        value = Math.floor(value);
+        intMap[index] = value;
+      }
+
+      if (first) {
+        minVal = value;
+        maxVal = value;
+        first = false;
+      } else {
+        maxVal = Math.max(maxVal, value);
+        minVal = Math.min(minVal, value);
+      }
+      total++;
+    }
+  }
+
+  if (total === 0) {
+    return; // No tiles to process
+  }
+
+  const size = 1 + maxVal - minVal;
+
+  // Prevent invalid array sizes (this shouldn't happen with proper integer inputs)
+  if (size < 1) {
+    return; // No range to process
+  }
+  if (size > 1000000) {
+    // This indicates fractional inputs that create huge ranges
+    // Convert to integers to match freeciv's integer-only processing
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (filter && !filter(x, y)) {
+          continue;
+        }
+        const index = y * width + x;
+        intMap[index] = Math.floor(intMap[index]);
+      }
+    }
+    // Recalculate with integer values
+    return adjustIntMapFiltered(intMap, width, height, minValue, maxValue, filter);
+  }
+
+  // Special case: if all values are the same (size == 1), handle directly
+  if (size === 1) {
+    // When all values are uniform, freeciv maps them to minValue
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (filter && !filter(x, y)) {
+          continue;
+        }
+        const index = y * width + x;
+        intMap[index] = minValue; // Set to minValue for uniform distribution
+      }
+    }
+    return;
+  }
+
+  const frequencies = new Array(size).fill(0);
+
+  // Pass 2: Translate values and build frequency histogram
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (filter && !filter(x, y)) {
+        continue;
+      }
+
+      const index = y * width + x;
+      intMap[index] -= minVal; // Translate so minimum value is 0
+      frequencies[intMap[index]]++;
+    }
+  }
+
+  // Pass 3: Create cumulative distribution function (linearize function)
+  // This exactly matches freeciv's algorithm
+  let count = 0;
+  for (let i = 0; i < size; i++) {
+    count += frequencies[i];
+    // Exact freeciv formula: int_map_min + (count * int_map_delta) / total
+    frequencies[i] = minValue + Math.floor((count * intMapDelta) / total);
+  }
+
+  // Pass 4: Apply the linearization function
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (filter && !filter(x, y)) {
+        continue;
+      }
+
+      const index = y * width + x;
+      intMap[index] = frequencies[intMap[index]];
+    }
   }
 }
 

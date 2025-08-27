@@ -213,8 +213,8 @@ export class FractalHeightGenerator {
       this.heightMap[i] = Math.floor(this.random() * (1000 * smooth));
     }
 
-    // Apply multiple smoothing passes to create natural terrain variation
-    this.applySmoothingPasses(smooth);
+    // Apply advanced smoothing passes to create natural terrain variation
+    this.applyAdvancedSmoothing(smooth);
 
     // Adjust to proper height range (like freeciv adjust_int_map)
     this.normalizeHeightMap();
@@ -387,6 +387,7 @@ export class FractalHeightGenerator {
   /**
    * Apply Gaussian smoothing passes like freeciv smooth_int_map
    * @reference freeciv/server/generator/mapgen_utils.c smooth_int_map()
+   * @deprecated Use smoothIntMap() for full freeciv parity
    */
   public applySmoothingPasses(passes: number = 2): void {
     // Gaussian weights from freeciv: center=0.37, adjacent=0.19, edge=0.13
@@ -435,6 +436,227 @@ export class FractalHeightGenerator {
         }
       }
     }
+  }
+
+  /**
+   * Advanced Gaussian smoothing with proper freeciv parity
+   * Port of smooth_int_map() with exact algorithmic implementation
+   * @reference freeciv/server/generator/mapgen_utils.c:191-232
+   */
+  public smoothIntMap(
+    intMap: number[],
+    width: number,
+    height: number,
+    zeroesAtEdges: boolean = false
+  ): void {
+    // Gaussian kernel weights from freeciv reference
+    const weightStandard = [0.13, 0.19, 0.37, 0.19, 0.13];
+    // const weightIsometric = [0.15, 0.21, 0.29, 0.21, 0.15]; // For future isometric support
+
+    // Use standard weights (could be configurable for isometric maps in future)
+    const weight = weightStandard;
+
+    // Create temporary map for two-pass algorithm
+    const altIntMap = new Array(width * height);
+
+    let axe = true; // true = X axis, false = Y axis
+    let targetMap = altIntMap;
+    let sourceMap = intMap;
+
+    do {
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const currentIndex = y * width + x;
+          let N = 0; // Numerator (weighted sum)
+          let D = 0; // Denominator (total weight)
+
+          // Apply 5-point kernel in current axis direction
+          for (let i = -2; i <= 2; i++) {
+            let neighborIndex = 0;
+            let inBounds = false;
+
+            if (axe) {
+              // X-axis smoothing
+              const nx = x + i;
+              if (nx >= 0 && nx < width) {
+                neighborIndex = y * width + nx;
+                inBounds = true;
+              }
+            } else {
+              // Y-axis smoothing
+              const ny = y + i;
+              if (ny >= 0 && ny < height) {
+                neighborIndex = ny * width + x;
+                inBounds = true;
+              }
+            }
+
+            if (inBounds) {
+              const kernelWeight = weight[i + 2];
+              D += kernelWeight;
+              N += kernelWeight * sourceMap[neighborIndex];
+            }
+          }
+
+          // Handle edge conditions
+          if (zeroesAtEdges) {
+            D = 1; // Normalize by 1 instead of actual weight sum
+          }
+
+          targetMap[currentIndex] = D > 0 ? N / D : 0;
+        }
+      }
+
+      // Switch axis for next pass
+      axe = !axe;
+
+      // Swap source and target maps
+      const temp = sourceMap;
+      sourceMap = targetMap;
+      targetMap = temp;
+    } while (!axe); // Continue until axe becomes false again (after Y-axis pass)
+
+    // Copy final results back to original map if needed
+    if (sourceMap === altIntMap) {
+      for (let i = 0; i < intMap.length; i++) {
+        intMap[i] = Math.floor(altIntMap[i]);
+      }
+    }
+  }
+
+  /**
+   * Histogram equalization for natural value distribution
+   * Port of adjust_int_map_filtered() with exact algorithmic implementation
+   * @reference freeciv/server/generator/mapgen_utils.c:123-174
+   */
+  public adjustIntMapFiltered(
+    intMap: number[],
+    minValue: number,
+    maxValue: number,
+    filter?: (x: number, y: number) => boolean
+  ): void {
+    const intMapDelta = maxValue - minValue;
+    let minVal = 0;
+    let maxVal = 0;
+    let total = 0;
+    let first = true;
+
+    // Pass 1: Determine minimum and maximum values
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (filter && !filter(x, y)) {
+          continue; // Skip tiles that don't pass the filter
+        }
+
+        const index = y * this.width + x;
+        let value = intMap[index];
+        
+        // Convert fractional values to integers (freeciv expects integers)
+        if (!Number.isInteger(value)) {
+          value = Math.floor(value);
+          intMap[index] = value;
+        }
+
+        if (first) {
+          minVal = value;
+          maxVal = value;
+          first = false;
+        } else {
+          maxVal = Math.max(maxVal, value);
+          minVal = Math.min(minVal, value);
+        }
+        total++;
+      }
+    }
+
+    if (total === 0) {
+      return; // No tiles to process
+    }
+
+    // Special case: if all values are the same, handle directly
+    if (minVal === maxVal) {
+      for (let y = 0; y < this.height; y++) {
+        for (let x = 0; x < this.width; x++) {
+          if (filter && !filter(x, y)) {
+            continue;
+          }
+          const index = y * this.width + x;
+          intMap[index] = minValue; // Set to minValue for uniform distribution
+        }
+      }
+      return;
+    }
+
+    const size = 1 + maxVal - minVal;
+
+    // Prevent invalid array sizes (this shouldn't happen with proper integer inputs)
+    if (size < 1) {
+      return; // No range to process
+    }
+    if (size > 1000000) {
+      // This indicates fractional inputs that create huge ranges
+      // Convert to integers to match freeciv's integer-only processing
+      for (let y = 0; y < this.height; y++) {
+        for (let x = 0; x < this.width; x++) {
+          if (filter && !filter(x, y)) {
+            continue;
+          }
+          const index = y * this.width + x;
+          intMap[index] = Math.floor(intMap[index]);
+        }
+      }
+      // Recalculate with integer values
+      return this.adjustIntMapFiltered(intMap, minValue, maxValue, filter);
+    }
+
+    const frequencies = new Array(size).fill(0);
+
+    // Pass 2: Translate values and build frequency histogram
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (filter && !filter(x, y)) {
+          continue;
+        }
+
+        const index = y * this.width + x;
+        intMap[index] -= minVal; // Translate so minimum value is 0
+        frequencies[intMap[index]]++;
+      }
+    }
+
+    // Pass 3: Create cumulative distribution function (linearize function)
+    let count = 0;
+    for (let i = 0; i < size; i++) {
+      count += frequencies[i];
+      frequencies[i] = minValue + Math.floor((count * intMapDelta) / total);
+    }
+
+    // Pass 4: Apply the linearization function
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (filter && !filter(x, y)) {
+          continue;
+        }
+
+        const index = y * this.width + x;
+        intMap[index] = frequencies[intMap[index]];
+      }
+    }
+  }
+
+  /**
+   * Apply advanced smoothing to height map using freeciv algorithms
+   * Replaces basic smoothing with Gaussian filter and histogram equalization
+   * @reference freeciv/server/generator/height_map.c make_random_hmap()
+   */
+  public applyAdvancedSmoothing(smoothPasses: number = 1): void {
+    // Apply Gaussian smoothing passes
+    for (let i = 0; i < smoothPasses; i++) {
+      this.smoothIntMap(this.heightMap, this.width, this.height, true);
+    }
+
+    // Apply histogram equalization for natural distribution
+    this.adjustIntMapFiltered(this.heightMap, 0, HMAP_MAX_LEVEL);
   }
 
   /**
