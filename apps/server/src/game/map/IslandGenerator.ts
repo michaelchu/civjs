@@ -530,13 +530,7 @@ export class IslandGenerator {
     state: IslandGeneratorState,
     tiles: MapTile[][]
   ): number {
-    console.log(
-      `DEBUG: fillIsland called - coastDistance=${coastDistance}, bucket=${bucket}, terrainList.length=${terrainList.length}`
-    );
     if (bucket <= 0 || terrainList.length === 0) {
-      console.log(
-        `DEBUG: fillIsland early return - bucket=${bucket}, terrainList.length=${terrainList.length}`
-      );
       return bucket;
     }
 
@@ -544,9 +538,6 @@ export class IslandGenerator {
     let tilesToPlace = Math.floor(bucket / capac);
     tilesToPlace++;
     const remainingBucket = bucket - tilesToPlace * capac;
-    console.log(
-      `DEBUG: fillIsland - capac=${capac}, tilesToPlace=${tilesToPlace}, remainingBucket=${remainingBucket}`
-    );
 
     // Calculate total weight of terrain selections
     let totalWeight = 0;
@@ -575,12 +566,6 @@ export class IslandGenerator {
 
           // Check environmental conditions (temperature, wetness)
           if (!this.checkTerrainConditions(tiles[x][y], selector)) {
-            if (attempts < 10) {
-              // Only log first few attempts to avoid spam
-              console.log(
-                `DEBUG: Terrain ${selector.terrain} rejected at (${x},${y}) - tile temp=${tiles[x][y].temperature} vs required=${selector.tempCondition}, tile wetness=${tiles[x][y].wetness} vs required=${selector.wetCondition}`
-              );
-            }
             attempts++;
             continue;
           }
@@ -595,7 +580,6 @@ export class IslandGenerator {
             i * 3 > tilesToPlace * 2 || this.random() * 100 < 50 || hasNeighborTerrain;
 
           if (shouldPlace && shouldPlaceContiguous) {
-            console.log(`DEBUG: Placing terrain ${selector.terrain} at (${x},${y})`);
             tiles[x][y].terrain = selector.terrain;
             state.placedMap[x][y] = true;
             i--;
@@ -606,7 +590,6 @@ export class IslandGenerator {
       attempts++;
     }
 
-    console.log(`DEBUG: fillIsland completed - placed ${tilesToPlace - i} tiles, remaining=${i}`);
     return remainingBucket;
   }
 

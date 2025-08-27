@@ -694,8 +694,6 @@ export class TerrainGenerator {
     const OCEAN_DEPTH_STEP = 25; // Distance step for ocean depth calculation (not used with custom depths)
     const OCEAN_DIST_MAX = Math.floor(TERRAIN_OCEAN_DEPTH_MAXIMUM / OCEAN_DEPTH_STEP); // = 4
 
-    console.log('DEBUG: Starting smooth_water_depth()');
-
     // Debug: Count terrain types before processing
     const beforeCounts = { coast: 0, ocean: 0, deep_ocean: 0, land: 0 };
     const distanceDistribution: Record<number, number> = {};
@@ -708,7 +706,6 @@ export class TerrainGenerator {
         else beforeCounts.land++;
       }
     }
-    console.log('DEBUG: Before smoothWaterDepth:', beforeCounts);
 
     // First pass: Set ocean depths based on distance from land
     for (let x = 0; x < this.width; x++) {
@@ -726,10 +723,6 @@ export class TerrainGenerator {
         // Track distance distribution
         distanceDistribution[distToLand] = (distanceDistribution[distToLand] || 0) + 1;
 
-        // DEBUG: Sample a few tiles to understand distance calculation
-        if ((x === 10 && y === 10) || (x === 40 && y === 25)) {
-          console.log(`DEBUG: Tile (${x},${y}) terrain=${tile.terrain} distToLand=${distToLand}`);
-        }
 
         let depth: number;
         if (distToLand <= OCEAN_DIST_MAX) {
@@ -747,20 +740,12 @@ export class TerrainGenerator {
         const newOceanType = this.pickOcean(depth, isFrozen);
 
         if (newOceanType && newOceanType !== tile.terrain) {
-          if (x < 3 && y < 3) {
-            console.log(`DEBUG: Tile (${x},${y}) changing from ${tile.terrain} to ${newOceanType}`);
-          }
           tile.terrain = newOceanType as TerrainType;
         }
       }
     }
 
     // Debug: Show distance distribution and expected depth ranges
-    console.log('DEBUG: Distance distribution:', distanceDistribution);
-    console.log('DEBUG: Expected depths by distance:');
-    console.log('  Distance 1: 25-39 → ocean (closest to 32)');
-    console.log('  Distance 2: 50-64 → ocean/deep_ocean mix');
-    console.log('  Distance 3: 75-89 → deep_ocean (closest to 87)');
 
     // Second pass: Smooth based on adjacent ocean types for continuity
     // Using exact freeciv most_adjacent_ocean_type() logic
@@ -791,17 +776,6 @@ export class TerrainGenerator {
         else afterCounts.land++;
       }
     }
-    console.log('DEBUG: After smoothWaterDepth:', afterCounts);
-    console.log(
-      'DEBUG: Changes - Coast:',
-      afterCounts.coast - beforeCounts.coast,
-      'Ocean:',
-      afterCounts.ocean - beforeCounts.ocean,
-      'Deep Ocean:',
-      afterCounts.deep_ocean - beforeCounts.deep_ocean
-    );
-
-    console.log('DEBUG: Completed smooth_water_depth()');
   }
 
   /**
@@ -1095,22 +1069,13 @@ export class TerrainGenerator {
     // Configuration matching freeciv defaults
     const LAKE_MAX_SIZE = 2; // terrain_control.lake_max_size equivalent - small water bodies only
 
-    console.log('DEBUG: Starting regenerate_lakes()');
-
     // Step 1: Identify all ocean bodies and their sizes
     const oceanBodies = this.identifyOceanBodies(tiles);
 
-    console.log(`DEBUG: Found ${oceanBodies.length} ocean bodies`);
-
     // Step 2: Convert small ocean bodies to lakes
-    let lakesCreated = 0;
-    let totalTilesConverted = 0;
-
     for (const oceanBody of oceanBodies) {
       if (oceanBody.tiles.length <= LAKE_MAX_SIZE) {
         // Small ocean body - convert to lake
-        console.log(`DEBUG: Converting ocean body of size ${oceanBody.tiles.length} to lake`);
-
         for (const tile of oceanBody.tiles) {
           const currentTerrain = tile.terrain;
 
@@ -1128,16 +1093,9 @@ export class TerrainGenerator {
           // Keep the same continent ID to maintain connectivity information
           // In freeciv, lakes retain the ocean's negative continent ID
           // For our implementation, we'll keep the existing continentId
-
-          totalTilesConverted++;
         }
-        lakesCreated++;
       }
     }
-
-    console.log(
-      `DEBUG: Lake regeneration complete - created ${lakesCreated} lakes from ${totalTilesConverted} ocean tiles`
-    );
   }
 
   /**

@@ -186,55 +186,19 @@ export class TemperatureMap {
     const coldLevel = getColdLevel(this.temperatureParam);
     const tropicalLevel = getTropicalLevel(this.temperatureParam);
 
-    console.log('DEBUG: Temperature thresholds:');
-    console.log('  coldLevel:', coldLevel, 'tropicalLevel:', tropicalLevel);
-    console.log('  ICE_BASE_LEVEL:', ICE_BASE_LEVEL, '2*ICE_BASE_LEVEL:', 2 * ICE_BASE_LEVEL);
-
-    let frozenCount = 0,
-      coldCount = 0,
-      temperateCount = 0,
-      tropicalCount = 0;
-
     for (let i = 0; i < this.temperatureMap.length; i++) {
       const temp = this.temperatureMap[i];
-      const x = i % this.width;
-      const y = Math.floor(i / this.width);
 
       if (temp >= tropicalLevel) {
         this.temperatureMap[i] = TemperatureType.TROPICAL;
-        tropicalCount++;
       } else if (temp >= coldLevel) {
         this.temperatureMap[i] = TemperatureType.TEMPERATE;
-        temperateCount++;
       } else if (temp >= 2 * ICE_BASE_LEVEL) {
         this.temperatureMap[i] = TemperatureType.COLD;
-        coldCount++;
       } else {
         this.temperatureMap[i] = TemperatureType.FROZEN;
-        frozenCount++;
-      }
-
-      // Sample some edge and center tiles for debugging
-      if (y === 0 || y === this.height - 1 || y === Math.floor(this.height / 2)) {
-        console.log(
-          `DEBUG: Tile (${x},${y}) temp=${temp} type=${this.temperatureMap[i]} (${this.temperatureMap[i] === TemperatureType.FROZEN ? 'FROZEN' : this.temperatureMap[i] === TemperatureType.COLD ? 'COLD' : this.temperatureMap[i] === TemperatureType.TEMPERATE ? 'TEMPERATE' : 'TROPICAL'})`
-        );
       }
     }
-
-    console.log('DEBUG: Temperature distribution:');
-    console.log(
-      `  FROZEN: ${frozenCount} (${((frozenCount / this.temperatureMap.length) * 100).toFixed(1)}%)`
-    );
-    console.log(
-      `  COLD: ${coldCount} (${((coldCount / this.temperatureMap.length) * 100).toFixed(1)}%)`
-    );
-    console.log(
-      `  TEMPERATE: ${temperateCount} (${((temperateCount / this.temperatureMap.length) * 100).toFixed(1)}%)`
-    );
-    console.log(
-      `  TROPICAL: ${tropicalCount} (${((tropicalCount / this.temperatureMap.length) * 100).toFixed(1)}%)`
-    );
   }
 
   // Get temperature type for a tile
