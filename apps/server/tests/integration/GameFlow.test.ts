@@ -13,19 +13,19 @@ describe('Game Integration Flow', () => {
 
   beforeEach(() => {
     (GameManager as any).instance = null;
-    
+
     // Ensure mockIo has the proper structure
     mockIo.to = jest.fn().mockReturnValue({ emit: jest.fn() });
     mockIo.sockets.adapter = { rooms: new Map() };
-    
+
     gameManager = GameManager.getInstance(mockIo);
 
     // Setup database mocks using shared fixture
     dbMocks = createDatabaseMocks();
-    
+
     // Apply the mocks to our mock database
     Object.assign(mockDb, dbMocks.mockDb);
-    
+
     // Reset all mocks
     dbMocks.resetMocks();
   });

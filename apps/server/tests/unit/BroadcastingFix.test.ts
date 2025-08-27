@@ -9,10 +9,10 @@ describe('Broadcasting Fix Verification', () => {
       // Mock Socket.IO server
       const mockEmit = jest.fn();
       const mockTo = jest.fn().mockReturnValue({ emit: mockEmit });
-      
+
       const mockIo = {
         emit: mockEmit,
-        to: mockTo
+        to: mockTo,
       };
 
       // Simulate the OLD (buggy) approach - broadcast globally to ALL sockets
@@ -27,7 +27,7 @@ describe('Broadcasting Fix Verification', () => {
 
       // Test data
       const testData = { message: 'test-data' };
-      
+
       // Reset mocks
       mockEmit.mockClear();
       mockTo.mockClear();
@@ -51,10 +51,10 @@ describe('Broadcasting Fix Verification', () => {
     it('should verify room isolation works correctly', () => {
       const mockEmit = jest.fn();
       const mockTo = jest.fn().mockReturnValue({ emit: mockEmit });
-      
+
       const mockIo = {
         emit: mockEmit,
-        to: mockTo
+        to: mockTo,
       };
 
       const broadcastToGameRoom = (gameId: string, event: string, data: any) => {
@@ -69,7 +69,7 @@ describe('Broadcasting Fix Verification', () => {
       expect(mockTo).toHaveBeenCalledWith('game:game-alpha');
       expect(mockTo).toHaveBeenCalledWith('game:game-beta');
       expect(mockTo).toHaveBeenCalledTimes(2);
-      
+
       // Verify data was sent to each room
       expect(mockEmit).toHaveBeenCalledWith('map-data', { game: 'alpha' });
       expect(mockEmit).toHaveBeenCalledWith('tile-info', { game: 'beta' });
@@ -79,10 +79,10 @@ describe('Broadcasting Fix Verification', () => {
     it('should demonstrate player-specific targeting', () => {
       const mockEmit = jest.fn();
       const mockTo = jest.fn().mockReturnValue({ emit: mockEmit });
-      
+
       const mockIo = {
         emit: mockEmit,
-        to: mockTo
+        to: mockTo,
       };
 
       const emitToPlayer = (userId: string, event: string, data: any) => {
@@ -96,7 +96,7 @@ describe('Broadcasting Fix Verification', () => {
       // Verify targeting
       expect(mockTo).toHaveBeenCalledWith('player:user-123');
       expect(mockTo).toHaveBeenCalledWith('player:user-456');
-      
+
       expect(mockEmit).toHaveBeenCalledWith('private-message', { content: 'secret' });
       expect(mockEmit).toHaveBeenCalledWith('notification', { type: 'info' });
     });
@@ -110,10 +110,10 @@ describe('Broadcasting Fix Verification', () => {
         height: 15,
         startingPositions: [
           { x: 5, y: 5, playerId: 'player1' },
-          { x: 15, y: 10, playerId: 'player2' }
+          { x: 15, y: 10, playerId: 'player2' },
         ],
         seed: 'test-seed',
-        generatedAt: new Date().toISOString()
+        generatedAt: new Date().toISOString(),
       };
 
       // Verify all required fields are present
@@ -146,7 +146,7 @@ describe('Broadcasting Fix Verification', () => {
         elevation: 125,
         riverMask: 0,
         isExplored: true,
-        isVisible: true
+        isVisible: true,
       };
 
       // Verify all required fields are present
@@ -180,8 +180,17 @@ describe('Broadcasting Fix Verification', () => {
 
     it('should verify terrain types are compatible with frontend sprite system', () => {
       const validTerrainTypes = [
-        'ocean', 'coast', 'grassland', 'plains', 'desert',
-        'tundra', 'snow', 'forest', 'jungle', 'hills', 'mountains'
+        'ocean',
+        'coast',
+        'grassland',
+        'plains',
+        'desert',
+        'tundra',
+        'snow',
+        'forest',
+        'jungle',
+        'hills',
+        'mountains',
       ];
 
       // Test each terrain type
@@ -194,7 +203,7 @@ describe('Broadcasting Fix Verification', () => {
           elevation: 100,
           riverMask: 0,
           isExplored: true,
-          isVisible: true
+          isVisible: true,
         };
 
         expect(validTerrainTypes).toContain(tilePacket.terrain);
@@ -206,10 +215,10 @@ describe('Broadcasting Fix Verification', () => {
     it('should simulate the complete game start -> map generation -> broadcasting flow', () => {
       const mockEmit = jest.fn();
       const mockTo = jest.fn().mockReturnValue({ emit: mockEmit });
-      
+
       const mockIo = {
         emit: mockEmit,
-        to: mockTo
+        to: mockTo,
       };
 
       // Simulate the fixed broadcasting method
@@ -218,7 +227,7 @@ describe('Broadcasting Fix Verification', () => {
       };
 
       const gameId = 'integration-test-game';
-      
+
       // 1. Game starts, map is generated
       const mapData = {
         gameId,
@@ -226,10 +235,10 @@ describe('Broadcasting Fix Verification', () => {
         height: 8,
         startingPositions: [
           { x: 2, y: 3, playerId: 'player1' },
-          { x: 7, y: 5, playerId: 'player2' }
+          { x: 7, y: 5, playerId: 'player2' },
         ],
         seed: 'test-seed',
-        generatedAt: new Date()
+        generatedAt: new Date(),
       };
 
       // 2. Broadcast map metadata
@@ -237,10 +246,46 @@ describe('Broadcasting Fix Verification', () => {
 
       // 3. Broadcast visible tiles for each player
       const visibleTiles = [
-        { tile: 2003, x: 2, y: 3, terrain: 'grassland', elevation: 80, riverMask: 0, isExplored: true, isVisible: true },
-        { tile: 2004, x: 2, y: 4, terrain: 'plains', elevation: 85, riverMask: 0, isExplored: true, isVisible: true },
-        { tile: 7005, x: 7, y: 5, terrain: 'forest', elevation: 120, riverMask: 0, isExplored: true, isVisible: true },
-        { tile: 7006, x: 7, y: 6, terrain: 'hills', elevation: 140, riverMask: 0, isExplored: true, isVisible: true }
+        {
+          tile: 2003,
+          x: 2,
+          y: 3,
+          terrain: 'grassland',
+          elevation: 80,
+          riverMask: 0,
+          isExplored: true,
+          isVisible: true,
+        },
+        {
+          tile: 2004,
+          x: 2,
+          y: 4,
+          terrain: 'plains',
+          elevation: 85,
+          riverMask: 0,
+          isExplored: true,
+          isVisible: true,
+        },
+        {
+          tile: 7005,
+          x: 7,
+          y: 5,
+          terrain: 'forest',
+          elevation: 120,
+          riverMask: 0,
+          isExplored: true,
+          isVisible: true,
+        },
+        {
+          tile: 7006,
+          x: 7,
+          y: 6,
+          terrain: 'hills',
+          elevation: 140,
+          riverMask: 0,
+          isExplored: true,
+          isVisible: true,
+        },
       ];
 
       visibleTiles.forEach(tile => {

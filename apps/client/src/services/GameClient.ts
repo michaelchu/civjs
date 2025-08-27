@@ -397,7 +397,7 @@ class GameClient {
           victoryConditions: [],
           turnTimeLimit: 120,
           terrainSettings: gameData.terrainSettings || {
-            generator: 'fractal',
+            generator: 'random',
             landmass: 'normal',
             huts: 15,
             temperature: 50,

@@ -51,7 +51,7 @@ jest.mock('../src/database/redis', () => ({
 // Create a comprehensive database mock
 const mockDbChain = {
   insert: jest.fn().mockReturnThis(),
-  values: jest.fn().mockReturnThis(),  
+  values: jest.fn().mockReturnThis(),
   returning: jest.fn().mockResolvedValue([{ id: 'test-id' }]),
   update: jest.fn().mockReturnThis(),
   set: jest.fn().mockReturnThis(),

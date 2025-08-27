@@ -111,9 +111,9 @@ describe('ResearchManager', () => {
     });
 
     it('should reject invalid technology', async () => {
-      await expect(researchManager.setCurrentResearch('player-123', 'invalid-tech')).rejects.toThrow(
-        'Unknown technology: invalid-tech'
-      );
+      await expect(
+        researchManager.setCurrentResearch('player-123', 'invalid-tech')
+      ).rejects.toThrow('Unknown technology: invalid-tech');
     });
 
     it('should reject already researched technology', async () => {
@@ -123,20 +123,20 @@ describe('ResearchManager', () => {
     });
 
     it('should reject technology without requirements', async () => {
-      await expect(researchManager.setCurrentResearch('player-123', 'bronze_working')).rejects.toThrow(
-        'Missing requirement: pottery for bronze_working'
-      );
+      await expect(
+        researchManager.setCurrentResearch('player-123', 'bronze_working')
+      ).rejects.toThrow('Missing requirement: pottery for bronze_working');
     });
 
     it('should allow technology with satisfied requirements', async () => {
       // Research pottery first (no requirements beyond alphabet)
       await researchManager.setCurrentResearch('player-123', 'pottery');
-      
+
       // Complete pottery research
       const research = researchManager.getPlayerResearch('player-123')!;
       research.researchedTechs.add('pottery');
       research.currentTech = undefined;
-      
+
       // Now should be able to research animal husbandry (requires pottery)
       await researchManager.setCurrentResearch('player-123', 'animal_husbandry');
       expect(research.currentTech).toBe('animal_husbandry');
@@ -199,7 +199,7 @@ describe('ResearchManager', () => {
 
     it('should auto-select next research when goal is set', async () => {
       await researchManager.setResearchGoal('player-123', 'animal_husbandry');
-      
+
       // Complete pottery
       await researchManager.addResearchPoints('player-123', 10);
 

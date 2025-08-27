@@ -351,6 +351,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
         ruleset: data.ruleset,
         turnTimeLimit: data.turnTimeLimit,
         victoryConditions: data.victoryConditions,
+        terrainSettings: data.terrainSettings,
       });
 
       // Automatically join the creator as a player

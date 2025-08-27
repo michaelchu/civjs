@@ -4,8 +4,15 @@ import {
   TerrainSelector,
   TerrainProperty,
   TemperatureType,
+  TemperatureFlags,
   WetnessCondition,
 } from './MapTypes';
+import { pickTerrain, MapgenTerrainProperty } from './TerrainRuleset';
+import {
+  testWetnessCondition,
+  WetnessCondition as TerrainUtilsWetnessCondition,
+} from './TerrainUtils';
+import { TemperatureMap } from './TemperatureMap';
 
 // Generator state tracking for island-based generation
 export interface IslandGeneratorState {
@@ -55,151 +62,155 @@ export class IslandTerrainLists {
     this.swamp = [];
   }
 
-  initialize(): void {
-    if (this.initialized) return;
-
-    // Forest terrain selection (from freeciv mapgen.c:2018-2030)
-    this.forest = [
-      {
-        terrain: 'forest',
-        weight: 50,
-        target: TerrainProperty.GREEN,
-        prefer: TerrainProperty.FOLIAGE,
-        avoid: TerrainProperty.DRY,
-        tempCondition: TemperatureType.TEMPERATE,
-        wetCondition: WetnessCondition.NDRY,
-      },
-      {
-        terrain: 'jungle',
-        weight: 60,
-        target: TerrainProperty.FOLIAGE,
-        prefer: TerrainProperty.TROPICAL,
-        avoid: TerrainProperty.COLD,
-        tempCondition: TemperatureType.TROPICAL,
-        wetCondition: WetnessCondition.ALL,
-      },
-      {
-        terrain: 'plains',
-        weight: 30,
-        target: TerrainProperty.GREEN,
-        prefer: TerrainProperty.TEMPERATE,
-        avoid: TerrainProperty.MOUNTAINOUS,
-        tempCondition: TemperatureType.TEMPERATE,
-        wetCondition: WetnessCondition.ALL,
-      },
-      {
-        terrain: 'grassland',
-        weight: 40,
-        target: TerrainProperty.GREEN,
-        prefer: TerrainProperty.WET,
-        avoid: TerrainProperty.DRY,
-        tempCondition: TemperatureType.TEMPERATE,
-        wetCondition: WetnessCondition.NDRY,
-      },
-    ];
-
-    // Desert terrain selection (from freeciv mapgen.c:2033-2045)
-    this.desert = [
-      {
-        terrain: 'desert',
-        weight: 80,
-        target: TerrainProperty.DRY,
-        prefer: TerrainProperty.TROPICAL,
-        avoid: TerrainProperty.WET,
-        tempCondition: TemperatureType.TROPICAL,
-        wetCondition: WetnessCondition.DRY,
-      },
-      {
-        terrain: 'tundra',
-        weight: 60,
-        target: TerrainProperty.COLD,
-        prefer: TerrainProperty.DRY,
-        avoid: TerrainProperty.TROPICAL,
-        tempCondition: TemperatureType.COLD,
-        wetCondition: WetnessCondition.ALL,
-      },
-      {
-        terrain: 'plains',
-        weight: 20,
-        target: TerrainProperty.DRY,
-        prefer: TerrainProperty.TEMPERATE,
-        avoid: TerrainProperty.WET,
-        tempCondition: TemperatureType.TEMPERATE,
-        wetCondition: WetnessCondition.DRY,
-      },
-      {
-        terrain: 'hills',
-        weight: 30,
-        target: TerrainProperty.DRY,
-        prefer: TerrainProperty.MOUNTAINOUS,
-        avoid: TerrainProperty.WET,
-        tempCondition: TemperatureType.TEMPERATE,
-        wetCondition: WetnessCondition.DRY,
-      },
-    ];
-
-    // Mountain terrain selection (from freeciv mapgen.c:2048-2054)
-    this.mountain = [
-      {
-        terrain: 'mountains',
-        weight: 70,
-        target: TerrainProperty.MOUNTAINOUS,
-        prefer: TerrainProperty.COLD,
-        avoid: TerrainProperty.OCEAN_DEPTH,
-        tempCondition: TemperatureType.COLD,
-        wetCondition: WetnessCondition.ALL,
-      },
-      {
-        terrain: 'hills',
-        weight: 60,
-        target: TerrainProperty.MOUNTAINOUS,
-        prefer: TerrainProperty.TEMPERATE,
-        avoid: TerrainProperty.OCEAN_DEPTH,
-        tempCondition: TemperatureType.TEMPERATE,
-        wetCondition: WetnessCondition.ALL,
-      },
-    ];
-
-    // Swamp terrain selection (from freeciv mapgen.c:2057-2066)
-    this.swamp = [
-      {
-        terrain: 'swamp',
-        weight: 80,
-        target: TerrainProperty.WET,
-        prefer: TerrainProperty.TROPICAL,
-        avoid: TerrainProperty.MOUNTAINOUS,
-        tempCondition: TemperatureType.TROPICAL,
-        wetCondition: WetnessCondition.NDRY,
-      },
-      {
-        terrain: 'jungle',
-        weight: 50,
-        target: TerrainProperty.WET,
-        prefer: TerrainProperty.FOLIAGE,
-        avoid: TerrainProperty.DRY,
-        tempCondition: TemperatureType.TROPICAL,
-        wetCondition: WetnessCondition.NDRY,
-      },
-      {
-        terrain: 'grassland',
-        weight: 30,
-        target: TerrainProperty.WET,
-        prefer: TerrainProperty.GREEN,
-        avoid: TerrainProperty.DRY,
-        tempCondition: TemperatureType.TEMPERATE,
-        wetCondition: WetnessCondition.NDRY,
-      },
-    ];
-
-    this.initialized = true;
-  }
-
   cleanup(): void {
     this.forest = [];
     this.desert = [];
     this.mountain = [];
     this.swamp = [];
     this.initialized = false;
+  }
+
+  initialize(): void {
+    if (this.initialized) return;
+
+    // Forest terrain selection - EXACT PORT from freeciv mapgen.c:2018-2030
+    // @ref: freeciv/server/generator/mapgen.c:2019-2030
+    this.forest = [
+      {
+        terrain: 'forest', // Will be determined by pickTerrain(MG_FOLIAGE, MG_TROPICAL, MG_DRY)
+        weight: 1,
+        target: TerrainProperty.FOLIAGE,
+        prefer: TerrainProperty.TROPICAL,
+        avoid: TerrainProperty.DRY,
+        tempCondition: TemperatureType.TROPICAL,
+        wetCondition: WetnessCondition.ALL,
+      },
+      {
+        terrain: 'forest', // Will be determined by pickTerrain(MG_FOLIAGE, MG_TEMPERATE, MG_UNUSED)
+        weight: 3,
+        target: TerrainProperty.FOLIAGE,
+        prefer: TerrainProperty.TEMPERATE,
+        avoid: TerrainProperty.UNUSED,
+        tempCondition: TemperatureFlags.TT_ALL,
+        wetCondition: WetnessCondition.ALL,
+      },
+      {
+        terrain: 'forest', // Will be determined by pickTerrain(MG_FOLIAGE, MG_WET, MG_FROZEN)
+        weight: 1,
+        target: TerrainProperty.FOLIAGE,
+        prefer: TerrainProperty.WET,
+        avoid: TerrainProperty.FROZEN,
+        tempCondition: TemperatureType.TROPICAL,
+        wetCondition: WetnessCondition.NDRY,
+      },
+      {
+        terrain: 'forest', // Will be determined by pickTerrain(MG_FOLIAGE, MG_COLD, MG_UNUSED)
+        weight: 1,
+        target: TerrainProperty.FOLIAGE,
+        prefer: TerrainProperty.COLD,
+        avoid: TerrainProperty.UNUSED,
+        tempCondition: TemperatureFlags.TT_NFROZEN,
+        wetCondition: WetnessCondition.ALL,
+      },
+    ];
+
+    // Desert terrain selection - EXACT PORT from freeciv mapgen.c:2033-2045
+    // @ref: freeciv/server/generator/mapgen.c:2034-2045
+    this.desert = [
+      {
+        terrain: 'desert', // Will be determined by pickTerrain(MG_DRY, MG_TROPICAL, MG_GREEN)
+        weight: 3,
+        target: TerrainProperty.DRY,
+        prefer: TerrainProperty.TROPICAL,
+        avoid: TerrainProperty.GREEN,
+        tempCondition: TemperatureFlags.TT_HOT,
+        wetCondition: WetnessCondition.DRY,
+      },
+      {
+        terrain: 'desert', // Will be determined by pickTerrain(MG_DRY, MG_TEMPERATE, MG_GREEN)
+        weight: 2,
+        target: TerrainProperty.DRY,
+        prefer: TerrainProperty.TEMPERATE,
+        avoid: TerrainProperty.GREEN,
+        tempCondition: TemperatureFlags.TT_NFROZEN,
+        wetCondition: WetnessCondition.DRY,
+      },
+      {
+        terrain: 'tundra', // Will be determined by pickTerrain(MG_COLD, MG_DRY, MG_TROPICAL)
+        weight: 1,
+        target: TerrainProperty.COLD,
+        prefer: TerrainProperty.DRY,
+        avoid: TerrainProperty.TROPICAL,
+        tempCondition: TemperatureFlags.TT_NHOT,
+        wetCondition: WetnessCondition.DRY,
+      },
+      {
+        terrain: 'tundra', // Will be determined by pickTerrain(MG_FROZEN, MG_DRY, MG_UNUSED)
+        weight: 1,
+        target: TerrainProperty.FROZEN,
+        prefer: TerrainProperty.DRY,
+        avoid: TerrainProperty.UNUSED,
+        tempCondition: TemperatureType.FROZEN,
+        wetCondition: WetnessCondition.DRY,
+      },
+    ];
+
+    // Mountain terrain selection - EXACT PORT from freeciv mapgen.c:2048-2054
+    // @ref: freeciv/server/generator/mapgen.c:2049-2054
+    this.mountain = [
+      {
+        terrain: 'mountains', // Will be determined by pickTerrain(MG_MOUNTAINOUS, MG_GREEN, MG_UNUSED)
+        weight: 2,
+        target: TerrainProperty.MOUNTAINOUS,
+        prefer: TerrainProperty.GREEN,
+        avoid: TerrainProperty.UNUSED,
+        tempCondition: TemperatureFlags.TT_ALL,
+        wetCondition: WetnessCondition.ALL,
+      },
+      {
+        terrain: 'hills', // Will be determined by pickTerrain(MG_MOUNTAINOUS, MG_UNUSED, MG_GREEN)
+        weight: 1,
+        target: TerrainProperty.MOUNTAINOUS,
+        prefer: TerrainProperty.UNUSED,
+        avoid: TerrainProperty.GREEN,
+        tempCondition: TemperatureFlags.TT_ALL,
+        wetCondition: WetnessCondition.ALL,
+      },
+    ];
+
+    // Swamp terrain selection - EXACT PORT from freeciv mapgen.c:2057-2066
+    // @ref: freeciv/server/generator/mapgen.c:2058-2066
+    this.swamp = [
+      {
+        terrain: 'swamp', // Will be determined by pickTerrain(MG_WET, MG_TROPICAL, MG_FOLIAGE)
+        weight: 1,
+        target: TerrainProperty.WET,
+        prefer: TerrainProperty.TROPICAL,
+        avoid: TerrainProperty.FOLIAGE,
+        tempCondition: TemperatureType.TROPICAL,
+        wetCondition: WetnessCondition.NDRY,
+      },
+      {
+        terrain: 'swamp', // Will be determined by pickTerrain(MG_WET, MG_TEMPERATE, MG_FOLIAGE)
+        weight: 2,
+        target: TerrainProperty.WET,
+        prefer: TerrainProperty.TEMPERATE,
+        avoid: TerrainProperty.FOLIAGE,
+        tempCondition: TemperatureFlags.TT_HOT,
+        wetCondition: WetnessCondition.NDRY,
+      },
+      {
+        terrain: 'swamp', // Will be determined by pickTerrain(MG_WET, MG_COLD, MG_FOLIAGE)
+        weight: 1,
+        target: TerrainProperty.WET,
+        prefer: TerrainProperty.COLD,
+        avoid: TerrainProperty.FOLIAGE,
+        tempCondition: TemperatureFlags.TT_NHOT,
+        wetCondition: WetnessCondition.NDRY,
+      },
+    ];
+
+    this.initialized = true;
   }
 }
 
@@ -209,12 +220,19 @@ export class IslandGenerator {
   private random: () => number;
   private terrainLists: IslandTerrainLists;
   private bucketState?: BucketState;
+  private temperatureMap?: TemperatureMap;
 
-  constructor(width: number, height: number, random: () => number) {
+  constructor(
+    width: number,
+    height: number,
+    random: () => number,
+    temperatureMap?: TemperatureMap
+  ) {
     this.width = width;
     this.height = height;
     this.random = random;
     this.terrainLists = new IslandTerrainLists();
+    this.temperatureMap = temperatureMap;
   }
 
   /**
@@ -362,19 +380,43 @@ export class IslandGenerator {
 
     // Forest terrain
     buckets.forestBucket += terrainPercentages.forest * terrainFactor;
-    this.fillIsland(60, buckets.forestBucket, this.terrainLists.forest, state, tiles);
+    buckets.forestBucket = this.fillIsland(
+      60,
+      buckets.forestBucket,
+      this.terrainLists.forest,
+      state,
+      tiles
+    );
 
     // Desert terrain
     buckets.desertBucket += terrainPercentages.desert * terrainFactor;
-    this.fillIsland(40, buckets.desertBucket, this.terrainLists.desert, state, tiles);
+    buckets.desertBucket = this.fillIsland(
+      40,
+      buckets.desertBucket,
+      this.terrainLists.desert,
+      state,
+      tiles
+    );
 
     // Mountain terrain
     buckets.mountainBucket += terrainPercentages.mountain * terrainFactor;
-    this.fillIsland(20, buckets.mountainBucket, this.terrainLists.mountain, state, tiles);
+    buckets.mountainBucket = this.fillIsland(
+      20,
+      buckets.mountainBucket,
+      this.terrainLists.mountain,
+      state,
+      tiles
+    );
 
     // Swamp terrain
     buckets.swampBucket += terrainPercentages.swamp * terrainFactor;
-    this.fillIsland(80, buckets.swampBucket, this.terrainLists.swamp, state, tiles);
+    buckets.swampBucket = this.fillIsland(
+      80,
+      buckets.swampBucket,
+      this.terrainLists.swamp,
+      state,
+      tiles
+    );
 
     state.isleIndex++;
     return true;
@@ -497,7 +539,7 @@ export class IslandGenerator {
   }
 
   /**
-   * Fill island with specific terrain types
+   * Fill island with specific terrain types (port from freeciv fill_island)
    */
   private fillIsland(
     coastDistance: number,
@@ -505,40 +547,173 @@ export class IslandGenerator {
     terrainList: TerrainSelector[],
     state: IslandGeneratorState,
     tiles: MapTile[][]
-  ): void {
-    if (bucket <= 0 || terrainList.length === 0) return;
+  ): number {
+    if (bucket <= 0 || terrainList.length === 0) {
+      return bucket;
+    }
 
-    const tilesToPlace = Math.floor(bucket);
-    let placed = 0;
+    const capac = state.totalMass;
+    let tilesToPlace = Math.floor(bucket / capac);
+    tilesToPlace++;
+    const remainingBucket = bucket - tilesToPlace * capac;
 
-    for (let attempt = 0; attempt < tilesToPlace * 3 && placed < tilesToPlace; attempt++) {
-      const x = Math.floor(this.random() * this.width);
-      const y = Math.floor(this.random() * this.height);
+    // Calculate total weight of terrain selections
+    let totalWeight = 0;
+    for (const selector of terrainList) {
+      totalWeight += selector.weight;
+    }
 
-      if (state.heightMap[x][y] > 0 && !state.placedMap[x][y]) {
-        // Check distance from coast
-        if (this.isCoastNearby(x, y, tiles)) {
-          if (this.random() * 100 < coastDistance) {
-            continue; // Skip if too close to coast
+    let i = tilesToPlace;
+    const failsafe = i * (state.s - state.n) * (state.e - state.w);
+    let attempts = 0;
+
+    while (i > 0 && attempts < failsafe) {
+      // Get random position from island bounds
+      const x = Math.floor(this.random() * (state.e - state.w)) + state.w;
+      const y = Math.floor(this.random() * (state.s - state.n)) + state.n;
+
+      if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+        // Check if this is a land tile on our current continent
+        if (tiles[x][y].continentId === state.isleIndex && !state.placedMap[x][y]) {
+          // EXACT FREECIV TERRAIN SELECTION ALGORITHM
+          // @ref: freeciv/server/generator/mapgen.c:1694-1703
+
+          // Step 1: Random selector selection (like freeciv)
+          const randomSelectorIndex = Math.floor(this.random() * terrainList.length);
+          const selector = terrainList[randomSelectorIndex];
+
+          // Step 2: Weight probability check (like freeciv)
+          if (Math.floor(this.random() * totalWeight) > selector.weight) {
+            attempts++;
+            continue;
+          }
+
+          // Step 3: Environmental condition checking (like freeciv)
+          if (!this.checkFreecivTerrainConditions(tiles[x][y], selector, x, y)) {
+            attempts++;
+            continue;
+          }
+
+          // Determine actual terrain using pickTerrain like freeciv
+          // @ref: freeciv/server/generator/mapgen.c:1705-1706
+          const actualTerrain = pickTerrain(
+            selector.target as unknown as MapgenTerrainProperty,
+            selector.prefer as unknown as MapgenTerrainProperty,
+            selector.avoid as unknown as MapgenTerrainProperty,
+            this.random
+          );
+
+          // Check coastal proximity rules (freeciv method)
+          const isNearCoast = this.isCoastNearby(x, y, tiles);
+          const shouldPlace = !isNearCoast || this.random() * 100 < coastDistance;
+
+          // Terrain contiguity logic (freeciv method)
+          // @ref: freeciv/server/generator/mapgen.c:1710-1714
+          const hasNeighborTerrain = this.hasNeighborWithTerrain(x, y, tiles, actualTerrain);
+          const shouldPlaceContiguous =
+            i * 3 > tilesToPlace * 2 || this.random() * 100 < 50 || hasNeighborTerrain;
+
+          if (shouldPlace && shouldPlaceContiguous) {
+            tiles[x][y].terrain = actualTerrain;
+            state.placedMap[x][y] = true;
+            i--;
           }
         }
+      }
 
-        // Select terrain from list
-        const selector = terrainList[Math.floor(this.random() * terrainList.length)];
-        tiles[x][y].terrain = selector.terrain;
-        state.placedMap[x][y] = true;
-        placed++;
+      attempts++;
+    }
+
+    return remainingBucket;
+  }
+
+  /**
+   * FREECIV-COMPLIANT terrain condition checking
+   * @ref: freeciv/server/generator/mapgen.c:1700-1703
+   */
+  private checkFreecivTerrainConditions(
+    tile: MapTile,
+    selector: TerrainSelector,
+    x: number,
+    y: number
+  ): boolean {
+    // Use existing TemperatureMap.hasTemperatureType for temperature checking
+    // @ref: freeciv/server/generator/temperature_map.c tmap_is
+    if (this.temperatureMap && selector.tempCondition !== undefined) {
+      if (!this.temperatureMap.hasTemperatureType(x, y, selector.tempCondition)) {
+        return false;
+      }
+    } else if (selector.tempCondition !== undefined) {
+      // Fallback to basic bitwise check if no temperature map
+      if ((tile.temperature & selector.tempCondition) === 0) {
+        return false;
       }
     }
+
+    // Use existing testWetnessCondition for wetness checking
+    // @ref: freeciv/server/generator/mapgen.c:204-217 test_wetness
+    let wetnessCondition: TerrainUtilsWetnessCondition;
+    switch (selector.wetCondition) {
+      case WetnessCondition.ALL:
+        wetnessCondition = TerrainUtilsWetnessCondition.WC_ALL;
+        break;
+      case WetnessCondition.DRY:
+        wetnessCondition = TerrainUtilsWetnessCondition.WC_DRY;
+        break;
+      case WetnessCondition.NDRY:
+        wetnessCondition = TerrainUtilsWetnessCondition.WC_NDRY;
+        break;
+      case WetnessCondition.WET:
+        // Map WET to NDRY as closest equivalent
+        wetnessCondition = TerrainUtilsWetnessCondition.WC_NDRY;
+        break;
+      default:
+        wetnessCondition = TerrainUtilsWetnessCondition.WC_ALL;
+    }
+
+    if (!testWetnessCondition(tile, wetnessCondition)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Check if there's a neighboring tile with the same terrain
+   */
+  private hasNeighborWithTerrain(
+    x: number,
+    y: number,
+    tiles: MapTile[][],
+    terrain: string
+  ): boolean {
+    const neighbors = [
+      [x - 1, y],
+      [x + 1, y],
+      [x, y - 1],
+      [x, y + 1],
+    ];
+
+    for (const [nx, ny] of neighbors) {
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (tiles[nx][ny].terrain === terrain) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   /**
    * Check if coast is nearby
    */
   private isCoastNearby(x: number, y: number, tiles: MapTile[][]): boolean {
-    const radius = 2;
+    const radius = 1; // Adjacent tiles only for coastal check
     for (let dx = -radius; dx <= radius; dx++) {
       for (let dy = -radius; dy <= radius; dy++) {
+        if (dx === 0 && dy === 0) continue;
+
         const nx = x + dx;
         const ny = y + dy;
         if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {

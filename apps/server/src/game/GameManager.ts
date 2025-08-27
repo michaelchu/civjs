@@ -4,17 +4,29 @@ import { db } from '../database';
 import { gameState } from '../database/redis';
 import { games, players } from '../database/schema';
 import { eq } from 'drizzle-orm';
-import config from '../config';
+import serverConfig from '../config';
 import { TurnManager } from './TurnManager';
-import { MapManager } from './MapManager';
+import { MapManager, MapGeneratorType } from './MapManager';
 import { UnitManager } from './UnitManager';
 import { VisibilityManager } from './VisibilityManager';
 import { CityManager } from './CityManager';
 import { ResearchManager } from './ResearchManager';
+import { MapStartpos } from './map/MapTypes';
 import { Server as SocketServer } from 'socket.io';
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
+
+export interface TerrainSettings {
+  generator: string;
+  landmass: string;
+  huts: number;
+  temperature: number;
+  wetness: number;
+  rivers: number;
+  resources: string;
+  startpos?: number; // MapStartpos enum value for island generator routing
+}
 
 export interface GameConfig {
   name: string;
@@ -25,6 +37,7 @@ export interface GameConfig {
   ruleset?: string;
   turnTimeLimit?: number;
   victoryConditions?: string[];
+  terrainSettings?: TerrainSettings;
 }
 
 export interface GameInstance {
@@ -71,19 +84,30 @@ export class GameManager {
     return GameManager.instance;
   }
 
-  public async createGame(config: GameConfig): Promise<string> {
-    logger.info('Creating new game', { name: config.name, hostId: config.hostId });
+  public async createGame(gameConfig: GameConfig): Promise<string> {
+    logger.info('Creating new game', { name: gameConfig.name, hostId: gameConfig.hostId });
 
     // Create game in database
     const gameData = {
-      name: config.name,
-      hostId: config.hostId,
-      maxPlayers: config.maxPlayers || 8,
-      mapWidth: config.mapWidth || 80,
-      mapHeight: config.mapHeight || 50,
-      ruleset: config.ruleset || 'classic',
-      turnTimeLimit: config.turnTimeLimit,
-      victoryConditions: config.victoryConditions || ['conquest', 'science', 'culture'],
+      name: gameConfig.name,
+      hostId: gameConfig.hostId,
+      maxPlayers: gameConfig.maxPlayers || 8,
+      mapWidth: gameConfig.mapWidth || 80,
+      mapHeight: gameConfig.mapHeight || 50,
+      ruleset: gameConfig.ruleset || 'classic',
+      turnTimeLimit: gameConfig.turnTimeLimit,
+      victoryConditions: gameConfig.victoryConditions || ['conquest', 'science', 'culture'],
+      gameState: {
+        terrainSettings: gameConfig.terrainSettings || {
+          generator: 'random',
+          landmass: 'normal',
+          huts: 15,
+          temperature: 50,
+          wetness: 50,
+          rivers: 50,
+          resources: 'normal',
+        },
+      },
     };
 
     const [newGame] = await db.insert(games).values(gameData).returning();
@@ -182,7 +206,7 @@ export class GameManager {
     if (
       updatedGame &&
       updatedGame.status === 'waiting' &&
-      updatedGame.players.length >= config.game.minPlayersToStart
+      updatedGame.players.length >= serverConfig.game.minPlayersToStart
     ) {
       logger.info('Auto-starting game', { gameId, playerCount: updatedGame.players.length });
       try {
@@ -222,8 +246,8 @@ export class GameManager {
       throw new Error('Only the host can start the game');
     }
 
-    if (game.players.length < config.game.minPlayersToStart) {
-      throw new Error(`Need at least ${config.game.minPlayersToStart} players to start`);
+    if (game.players.length < serverConfig.game.minPlayersToStart) {
+      throw new Error(`Need at least ${serverConfig.game.minPlayersToStart} players to start`);
     }
 
     if (game.status !== 'waiting') {
@@ -251,7 +275,8 @@ export class GameManager {
     });
 
     // Initialize the in-memory game instance with map generation
-    await this.initializeGameInstance(gameId, game);
+    const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
+    await this.initializeGameInstance(gameId, game, storedTerrainSettings);
 
     // Notify all players that the game has started
     this.broadcastToGame(gameId, 'game-started', {
@@ -262,7 +287,11 @@ export class GameManager {
     logger.info('Game started successfully', { gameId });
   }
 
-  private async initializeGameInstance(gameId: string, game: any): Promise<void> {
+  private async initializeGameInstance(
+    gameId: string,
+    game: any,
+    terrainSettings?: TerrainSettings
+  ): Promise<void> {
     logger.info('Initializing game instance', { gameId });
 
     // Create player state map
@@ -283,16 +312,75 @@ export class GameManager {
       this.playerToGame.set(dbPlayer.id, gameId);
     }
 
-    // Initialize managers
-    const mapManager = new MapManager(game.mapWidth, game.mapHeight);
+    // Initialize managers with terrain settings
+    const mapGenerator = terrainSettings?.generator || 'random';
+    const mapManager = new MapManager(game.mapWidth, game.mapHeight, undefined, mapGenerator);
     const turnManager = new TurnManager(gameId, this.io);
     const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
     const cityManager = new CityManager(gameId);
     const researchManager = new ResearchManager(gameId);
 
-    // Generate the map with starting positions
-    await mapManager.generateMap(players);
+    // Generate the map with starting positions based on terrain settings
+    const generator = terrainSettings?.generator || 'random';
+    // Get startpos setting for island-based generators (from fix-map-duplicate-creation branch)
+    const startpos = terrainSettings?.startpos ?? MapStartpos.DEFAULT;
+    logger.debug('Map generation starting', { terrainSettings, generator, startpos });
+
+    // Use restructured MapManager with proper generator routing
+    // @reference freeciv/server/generator/mapgen.c:1315-1341
+    // Delegates to MapManager's restructured generateMap() with fallback logic
+    const generatorType = this.convertGeneratorType(generator);
+    let generationAttempted = false;
+    let lastError: Error | null = null;
+
+    try {
+      logger.info('Delegating to restructured MapManager', {
+        generator,
+        generatorType,
+        reference: 'apps/server/src/game/MapManager.ts:97-138',
+      });
+
+      // Delegate to restructured MapManager system
+      await mapManager.generateMap(players, generatorType);
+      generationAttempted = true;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      logger.error('Map generation failed, attempting emergency recovery', {
+        generator: generatorType,
+        error: lastError.message,
+      });
+    }
+
+    // Emergency fallback sequence (defensive addition, not in freeciv)
+    if (!generationAttempted || !mapManager.getMapData()) {
+      logger.warn('Initiating emergency fallback sequence (defensive extension)');
+
+      try {
+        logger.info('Emergency fallback: MAPGEN_FRACTAL');
+        await mapManager.generateMap(players, 'FRACTAL');
+        generationAttempted = true;
+      } catch (error) {
+        logger.error('Emergency fractal failed, trying final MAPGEN_RANDOM fallback', {
+          error: error instanceof Error ? error.message : error,
+        });
+
+        try {
+          logger.info('Final emergency fallback: MAPGEN_RANDOM');
+          await mapManager.generateMap(players, 'RANDOM');
+          generationAttempted = true;
+        } catch (error) {
+          const finalError = error instanceof Error ? error : new Error(String(error));
+          logger.error('All generation methods exhausted', {
+            originalError: lastError?.message,
+            finalError: finalError.message,
+          });
+          throw new Error(
+            `Complete map generation failure. Original: ${lastError?.message || 'unknown'}, Final: ${finalError.message}`
+          );
+        }
+      }
+    }
 
     const mapData = mapManager.getMapData();
     if (!mapData) {
@@ -417,6 +505,31 @@ export class GameManager {
       logger.debug(
         `Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches`
       );
+    }
+  }
+
+  /**
+   * Convert string generator type to MapGeneratorType enum
+   * @param generator String generator identifier from client
+   * @returns MapGeneratorType enum value for MapManager
+   */
+  private convertGeneratorType(generator: string): MapGeneratorType {
+    switch (generator.toLowerCase()) {
+      case 'fair':
+        return 'FAIR';
+      case 'island':
+        return 'ISLAND';
+      case 'random':
+        return 'RANDOM';
+      case 'fracture':
+        return 'FRACTURE';
+      case 'fractal':
+        return 'FRACTAL';
+      case 'scenario':
+        return 'SCENARIO';
+      default:
+        logger.warn('Unknown generator type, defaulting to FRACTAL', { generator });
+        return 'FRACTAL';
     }
   }
 
