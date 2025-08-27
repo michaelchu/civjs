@@ -219,7 +219,7 @@ describe('GameManager', () => {
     it('should throw error if game not found', async () => {
       // Mock database to return null for non-existent game
       mockDb.query.games.findFirst.mockResolvedValueOnce(null);
-      
+
       await expect(gameManager.joinGame('non-existent-game', 'user-123')).rejects.toThrow(
         'Game not found'
       );

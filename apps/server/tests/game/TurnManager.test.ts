@@ -1,7 +1,6 @@
 import { TurnManager } from '../../src/game/TurnManager';
 import { mockIo } from '../setup';
 
-
 describe('TurnManager', () => {
   let turnManager: TurnManager;
   const testGameId = 'test-game-id';
@@ -9,7 +8,7 @@ describe('TurnManager', () => {
 
   beforeEach(() => {
     turnManager = new TurnManager(testGameId, mockIo);
-    
+
     // Mock database operations
     turnManager['createTurnRecord'] = jest.fn().mockResolvedValue(undefined);
     turnManager['completeTurnRecord'] = jest.fn().mockResolvedValue(undefined);
@@ -20,7 +19,7 @@ describe('TurnManager', () => {
       turnManager['turnEvents'] = [];
       turnManager['playerActions'].clear();
     });
-    
+
     jest.clearAllMocks();
   });
 
@@ -195,12 +194,15 @@ describe('TurnManager', () => {
     it('should broadcast turn start after processing', async () => {
       await turnManager.processTurn();
 
-      expect(mockIo.emit).toHaveBeenCalledWith('turn-started', expect.objectContaining({
-        gameId: testGameId,
-        turn: expect.any(Number),
-        year: expect.any(Number),
-        startTime: expect.any(Date),
-      }));
+      expect(mockIo.emit).toHaveBeenCalledWith(
+        'turn-started',
+        expect.objectContaining({
+          gameId: testGameId,
+          turn: expect.any(Number),
+          year: expect.any(Number),
+          startTime: expect.any(Date),
+        })
+      );
     });
 
     it('should handle processing errors gracefully', async () => {

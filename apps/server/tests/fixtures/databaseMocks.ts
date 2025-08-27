@@ -40,7 +40,9 @@ export function createDatabaseMocks() {
     insert: jest.fn().mockReturnThis(),
     values: jest.fn().mockReturnThis(),
     returning: jest.fn().mockImplementation((): Promise<any[]> => {
-      const query: any = (mockDb.values as any).mock.calls[(mockDb.values as any).mock.calls.length - 1]?.[0];
+      const query: any = (mockDb.values as any).mock.calls[
+        (mockDb.values as any).mock.calls.length - 1
+      ]?.[0];
 
       if (query && query.hostId) {
         // Game insertion
@@ -49,7 +51,7 @@ export function createDatabaseMocks() {
           name: query.name,
           hostId: query.hostId,
         };
-        
+
         // Update mock game data with new game info
         mockGameData = {
           ...mockGameData,
@@ -61,7 +63,7 @@ export function createDatabaseMocks() {
           mapHeight: query.mapHeight || 20,
           players: [],
         };
-        
+
         return Promise.resolve([newGame]);
       } else if (query && query.userId) {
         // Player insertion
@@ -72,10 +74,10 @@ export function createDatabaseMocks() {
           playerNumber: query.playerNumber,
           civilization: query.civilization,
         };
-        
+
         // Update mock game data
         mockGameData.players.push(newPlayer);
-        
+
         return Promise.resolve([newPlayer]);
       } else if (query && query.name && query.x !== undefined) {
         // City insertion
@@ -111,7 +113,7 @@ export function createDatabaseMocks() {
     playerCounter = 0;
     cityCounter = 0;
     unitCounter = 0;
-    
+
     mockGameData = {
       id: 'game-1',
       name: 'Test Game',

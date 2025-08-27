@@ -4,31 +4,35 @@ export function createGameManagerMocks() {
   const mockDb: any = {
     query: {
       games: {
-        findFirst: jest.fn().mockImplementation(() => Promise.resolve({
+        findFirst: jest.fn().mockImplementation(() =>
+          Promise.resolve({
+            id: 'test-game-id',
+            name: 'Test Game',
+            hostId: 'test-host-id',
+            maxPlayers: 4,
+            mapWidth: 80,
+            mapHeight: 50,
+            status: 'waiting',
+            players: [],
+          })
+        ),
+      },
+    },
+    insert: jest.fn().mockReturnThis(),
+    values: jest.fn().mockReturnThis(),
+    returning: jest.fn().mockImplementation(() =>
+      Promise.resolve([
+        {
           id: 'test-game-id',
           name: 'Test Game',
           hostId: 'test-host-id',
           maxPlayers: 4,
           mapWidth: 80,
           mapHeight: 50,
-          status: 'waiting',
-          players: [],
-        })),
-      },
-    },
-    insert: jest.fn().mockReturnThis(),
-    values: jest.fn().mockReturnThis(),
-    returning: jest.fn().mockImplementation(() => Promise.resolve([
-      {
-        id: 'test-game-id',
-        name: 'Test Game',
-        hostId: 'test-host-id',
-        maxPlayers: 4,
-        mapWidth: 80,
-        mapHeight: 50,
-        ruleset: 'classic',
-      },
-    ])),
+          ruleset: 'classic',
+        },
+      ])
+    ),
     update: jest.fn().mockReturnThis(),
     set: jest.fn().mockReturnThis(),
     where: jest.fn(() => Promise.resolve([])),
