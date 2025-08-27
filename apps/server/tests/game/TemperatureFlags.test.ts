@@ -2,8 +2,8 @@
  * Tests for Bitwise Temperature Logic
  * Verifies that bitwise temperature operations work correctly and match freeciv behavior
  */
-import { describe, it, expect } from '@jest/globals';
-import { TemperatureType, TemperatureFlags } from './MapTypes';
+import { describe, expect, it } from '@jest/globals';
+import { TemperatureFlags, TemperatureType } from '../../src/game/map/MapTypes';
 
 describe('TemperatureFlags - Bitwise Operations', () => {
   describe('Basic Flag Definitions', () => {

@@ -2,11 +2,11 @@
  * Tests for Relief Generation System
  * Validates the implementation of make_relief() and make_fracture_relief()
  */
-import { describe, it, expect, beforeEach } from '@jest/globals';
-import { TerrainGenerator } from './TerrainGenerator';
-import { MapTile, TemperatureType } from './MapTypes';
-import { isOceanTerrain } from './TerrainUtils';
-import { MapgenTerrainProperty, getTerrainProperties } from './TerrainRuleset';
+import { beforeEach, describe, expect, it } from '@jest/globals';
+import { MapTile, TemperatureType } from '../../src/game/map/MapTypes';
+import { TerrainGenerator } from '../../src/game/map/TerrainGenerator';
+import { MapgenTerrainProperty, getTerrainProperties } from '../../src/game/map/TerrainRuleset';
+import { isOceanTerrain } from '../../src/game/map/TerrainUtils';
 
 describe('TerrainGenerator - Relief Generation System', () => {
   let generator: TerrainGenerator;
