@@ -1281,7 +1281,8 @@ export class MapRenderer {
 
       // Very generous bounds - allow seeing entire map plus lots of padding
       // This matches freeciv-web's behavior which is quite permissive
-      const padding = Math.max(viewportWidth, viewportHeight); // Full viewport as padding
+      // Use consistent minimum padding to prevent snap-back on small screens
+      const padding = Math.max(viewportWidth, viewportHeight, 1200); // Minimum 1200px padding
 
       const minX = -(mapWidthGui + padding);
       const maxX = padding;
