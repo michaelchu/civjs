@@ -13,6 +13,9 @@ import {
   smoothHeightMap,
   adjustHeightMap,
   createBaseTile,
+  islandTerrainInit,
+  islandTerrainFree,
+  fillIslandTerrain,
 } from './map/TerrainUtils';
 
 // Re-export commonly used types for backward compatibility
@@ -221,6 +224,9 @@ export class MapManager {
       }
     }
 
+    // Initialize island terrain selection system (like freeciv island_terrain_init())
+    islandTerrainInit();
+
     // Initialize world for island generation
     const state = this.islandGenerator.initializeWorldForIslands(tiles);
 
@@ -246,12 +252,18 @@ export class MapManager {
     // Cleanup
     this.islandGenerator.cleanup();
 
+    // Free island terrain selection system (like freeciv island_terrain_free())
+    islandTerrainFree();
+
     // Smooth ocean depths based on distance from land (like freeciv smooth_water_depth())
     this.terrainGenerator.smoothWaterDepth(tiles);
 
     // Generate climate data now that islands exist
     this.terrainGenerator.convertTemperatureToEnum(tiles);
     this.terrainGenerator.generateWetnessMap(tiles);
+
+    // Apply climate-based terrain variety to islands using freeciv's terrain selection system
+    await this.applyIslandTerrainVariety(tiles);
 
     // Fill remaining unplaced tiles with plains/grassland/tundra (like freeciv make_plains())
     this.terrainGenerator.makePlains(tiles);
@@ -802,5 +814,103 @@ export class MapManager {
       tile.isVisible = true;
       tile.isExplored = true;
     }
+  }
+
+  /**
+   * Apply climate-based terrain variety to generated islands
+   * @reference freeciv/server/generator/mapgen.c fill_island() calls
+   * Uses freeciv's terrain selection system for realistic island terrain distribution
+   */
+  private async applyIslandTerrainVariety(tiles: MapTile[][]): Promise<void> {
+    logger.info('Applying climate-based terrain variety to islands');
+
+    // Calculate terrain counts based on total landmass and terrain percentages
+    let totalLandTiles = 0;
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const tile = tiles[x][y];
+        if (tile.terrain === 'grassland' || tile.terrain === 'plains') {
+          totalLandTiles++;
+        }
+      }
+    }
+
+    const forestCount = Math.floor((totalLandTiles * this.terrainPercentages.forest) / 100);
+    const desertCount = Math.floor((totalLandTiles * this.terrainPercentages.desert) / 100);
+    const mountainCount = Math.floor((totalLandTiles * this.terrainPercentages.mountain) / 100);
+    const swampCount = Math.floor((totalLandTiles * this.terrainPercentages.swamp) / 100);
+
+    logger.debug('Terrain variety targets', {
+      totalLandTiles,
+      forestCount,
+      desertCount,
+      mountainCount,
+      swampCount,
+    });
+
+    // Apply terrain types using freeciv's climate-based selection
+    for (let continentId = 1; continentId <= 10; continentId++) {
+      // Check if this continent exists
+      const continentTiles = this.getContinentTiles(tiles, continentId);
+      if (continentTiles.length === 0) continue;
+
+      const continentLandRatio = continentTiles.length / totalLandTiles;
+
+      // Apply terrain proportionally to continent size
+      fillIslandTerrain(
+        tiles,
+        'forest',
+        Math.floor(forestCount * continentLandRatio),
+        continentId,
+        this.random
+      );
+
+      fillIslandTerrain(
+        tiles,
+        'desert',
+        Math.floor(desertCount * continentLandRatio),
+        continentId,
+        this.random
+      );
+
+      fillIslandTerrain(
+        tiles,
+        'mountain',
+        Math.floor(mountainCount * continentLandRatio),
+        continentId,
+        this.random
+      );
+
+      fillIslandTerrain(
+        tiles,
+        'swamp',
+        Math.floor(swampCount * continentLandRatio),
+        continentId,
+        this.random
+      );
+    }
+
+    logger.info('Climate-based terrain variety applied successfully');
+  }
+
+  /**
+   * Get all land tiles belonging to a specific continent
+   */
+  private getContinentTiles(tiles: MapTile[][], continentId: number): MapTile[] {
+    const continentTiles: MapTile[] = [];
+
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const tile = tiles[x][y];
+        if (
+          tile.continentId === continentId &&
+          (tile.terrain === 'grassland' || tile.terrain === 'plains')
+        ) {
+          continentTiles.push(tile);
+        }
+      }
+    }
+
+    return continentTiles;
   }
 }
