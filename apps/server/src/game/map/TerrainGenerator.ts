@@ -723,7 +723,6 @@ export class TerrainGenerator {
         // Track distance distribution
         distanceDistribution[distToLand] = (distanceDistribution[distToLand] || 0) + 1;
 
-
         let depth: number;
         if (distToLand <= OCEAN_DIST_MAX) {
           // Near land: use EXACT freeciv formula from mapgen_utils.c

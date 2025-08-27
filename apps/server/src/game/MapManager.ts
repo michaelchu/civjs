@@ -228,6 +228,10 @@ export class MapManager {
       temperature: 50,
     });
 
+    // Restore original heights after terrain placement for accurate texturing
+    // @reference freeciv/server/generator/mapgen.c:1127-1129
+    this.heightGenerator.renormalizeHeightMapPoles();
+
     // Smooth ocean depths based on distance from land (like freeciv smooth_water_depth())
     this.terrainGenerator.smoothWaterDepth(tiles);
 
@@ -656,6 +660,10 @@ export class MapManager {
       wetness: 50,
       temperature: 50,
     });
+
+    // Restore original heights after terrain placement for accurate texturing
+    // @reference freeciv/server/generator/mapgen.c:1127-1129
+    this.heightGenerator.renormalizeHeightMapPoles();
 
     // Smooth ocean depths based on distance from land
     this.terrainGenerator.smoothWaterDepth(tiles);
