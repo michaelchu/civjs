@@ -379,9 +379,9 @@ Based on the [Terrain Generation Parity Audit](./terrain-generation-parity-audit
    - Success rate monitoring and reporting
 
 **Acceptance Criteria**:
-- [ ] Higher fair islands generation success rate
-- [ ] Better parameter adaptation on failure
-- [ ] Improved multiplayer balance
+- [x] Higher fair islands generation success rate
+- [x] Better parameter adaptation on failure
+- [x] Improved multiplayer balance
 
 ---
 

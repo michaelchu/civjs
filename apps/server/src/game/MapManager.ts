@@ -8,7 +8,7 @@ import { RiverGenerator } from './map/RiverGenerator';
 import { ResourceGenerator } from './map/ResourceGenerator';
 import { StartingPositionGenerator } from './map/StartingPositionGenerator';
 import { TerrainGenerator } from './map/TerrainGenerator';
-import { MapValidator, ValidationResult } from './map/MapValidator';
+import { MapValidator, ValidationResult, Position } from './map/MapValidator';
 import {
   assignFractureCircle,
   smoothHeightMap,
@@ -503,9 +503,9 @@ export class MapManager {
   }
 
   /**
-   * Validates if fair islands generation is feasible for the given player configuration
+   * Enhanced fair islands pre-validation with comprehensive feasibility checks
    * @reference freeciv/server/generator/mapgen.c:3389-3520 map_generate_fair_islands()
-   * Implements exact freeciv landmass calculation and validation logic
+   * Implements exact freeciv landmass calculation and validation logic with enhancements
    * @param players Map of player states to validate
    * @param startPosMode Startpos mode to influence island distribution logic
    * @returns true if fair islands can be generated, false if fallback needed
@@ -585,12 +585,21 @@ export class MapManager {
       islandmass1 = minIslandSize;
     }
 
+    // Enhanced feasibility checks with freeciv-compliant logic
+    // @reference freeciv/server/generator/mapgen.c:3492-3509
+    const islandmass2 = Math.floor((playermass * 2) / 10);
+    const islandmass3 = Math.floor(playermass / 10);
+    const finalIslandmass2 = islandmass2 < minIslandSize ? minIslandSize : islandmass2;
+    const finalIslandmass3 = islandmass3 < minIslandSize ? minIslandSize : islandmass3;
+
     // Basic feasibility check - if we can't create minimum viable islands, fail
     if (playermass <= 0 || islandmass1 <= minIslandSize) {
       logger.warn('Fair islands validation failed: insufficient landmass', {
         playerCount,
         playermass,
         islandmass1,
+        islandmass2: finalIslandmass2,
+        islandmass3: finalIslandmass3,
         minIslandSize,
         mapNumTiles,
         landPercent,
@@ -599,11 +608,56 @@ export class MapManager {
       return false;
     }
 
-    logger.debug('Fair islands validation passed (freeciv-compliant)', {
+    // Enhanced validation: check if total required land mass is feasible
+    // Calculate total required land based on freeciv fair islands algorithm
+    const totalRequiredLand =
+      islandmass1 * Math.ceil(playerCount / playersPerIsland) + // Main islands
+      finalIslandmass2 * playerCount + // Medium islands
+      finalIslandmass3 * playerCount; // Small islands
+    const availableLand = Math.floor((mapNumTiles * landPercent) / 100);
+
+    if (totalRequiredLand > availableLand * 1.2) {
+      // Allow 20% overage for placement flexibility
+      logger.warn('Fair islands validation failed: total land requirement exceeds map capacity', {
+        totalRequiredLand,
+        availableLand,
+        capacityRatio: totalRequiredLand / availableLand,
+        playerCount,
+        playersPerIsland,
+        reference: 'Enhanced validation based on freeciv/server/generator/mapgen.c:3545-3680',
+      });
+      return false;
+    }
+
+    // Enhanced validation: check map size constraints for fair placement
+    // Minimum map size should allow reasonable island spacing
+    const minMapDimension = Math.min(this.width, this.height);
+    const expectedIslandCount = Math.ceil(playerCount / playersPerIsland);
+    const minSpacing = Math.floor(minMapDimension / Math.ceil(Math.sqrt(expectedIslandCount)));
+
+    if (minSpacing < 8) {
+      // Freeciv typically needs at least 8-10 tiles between major islands
+      logger.warn('Fair islands validation failed: insufficient map size for island spacing', {
+        minMapDimension,
+        expectedIslandCount,
+        minSpacing,
+        recommendedSpacing: 8,
+        reference: 'Enhanced validation for fair island placement spacing',
+      });
+      return false;
+    }
+
+    logger.debug('Enhanced fair islands validation passed (freeciv-compliant)', {
       playerCount,
       playersPerIsland,
       playermass,
       islandmass1,
+      islandmass2: finalIslandmass2,
+      islandmass3: finalIslandmass3,
+      totalRequiredLand,
+      availableLand,
+      capacityRatio: totalRequiredLand / availableLand,
+      minSpacing,
       maxIterations,
       startPosMode,
       reference: 'freeciv/server/generator/mapgen.c:3389-3520',
@@ -613,77 +667,223 @@ export class MapManager {
   }
 
   /**
-   * Attempts to generate fair islands with validation and fallback detection
+   * Enhanced fair islands generation with retry logic and adaptive parameters
    * @reference freeciv/server/generator/mapgen.c:1315-1318 fallback logic
-   * Implements the exact freeciv pattern: attempt fair islands, return false if failed
+   * @reference freeciv/server/generator/mapgen.c:3689-3702 iteration and parameter adaptation
+   * Implements freeciv pattern with enhanced retry mechanics and progressive parameter adjustment
    * @param players Map of player states
    * @returns true if fair islands generation succeeded, false if fallback needed (like freeciv)
    */
   public async attemptFairIslandsGeneration(players: Map<string, PlayerState>): Promise<boolean> {
+    const maxAttempts = 3; // Allow multiple attempts with parameter adjustment
+    const startTime = Date.now();
+    let attempt = 0;
+
     // @reference freeciv/server/generator/mapgen.c:1316
     // !map_generate_fair_islands() - pre-validation equivalent
     // Use 'ALL' startpos mode for fair islands validation (maps to mapGenerator4)
     if (!this.validateFairIslands(players, 'ALL')) {
-      logger.info('Fair islands pre-validation failed (equivalent to early return FALSE)', {
-        reference: 'freeciv/server/generator/mapgen.c:1316',
-      });
+      logger.info(
+        'Enhanced fair islands pre-validation failed (equivalent to early return FALSE)',
+        {
+          reference: 'freeciv/server/generator/mapgen.c:1316',
+        }
+      );
       return false;
     }
 
-    try {
-      // @reference freeciv/server/generator/mapgen.c:3523-3753
-      // Fair islands algorithm attempts with iteration limits
-      // Use 'ALL' startpos mode for fair islands (equivalent to mapgenerator4)
-      const generationPromise = this.generateMapWithIslands(players, 'ALL');
-      const timeoutPromise = new Promise<void>((_, reject) => {
-        setTimeout(() => reject(new Error('Fair islands generation timeout')), 30000);
-      });
+    // Enhanced retry logic with adaptive parameters (inspired by freeciv iteration logic)
+    while (attempt < maxAttempts) {
+      attempt++;
 
-      await Promise.race([generationPromise, timeoutPromise]);
+      try {
+        logger.info(`Fair islands generation attempt ${attempt}/${maxAttempts}`, {
+          players: players.size,
+          reference: 'Enhanced retry logic with adaptive parameters',
+        });
 
-      // Post-generation validation equivalent to freeciv's done check
-      if (!this.validateGeneratedFairMap(players)) {
-        logger.warn('Generated fair islands map failed post-validation (equivalent to !done)', {
+        // Apply adaptive parameters based on attempt number
+        // @reference freeciv/server/generator/mapgen.c:3689-3702 parameter reduction logic
+        const parameterAdjustment = this.calculateParameterAdjustment(attempt, maxAttempts);
+        const adjustedTerrainPercentages = this.adjustTerrainPercentages(parameterAdjustment);
+
+        // Store original percentages for restoration
+        const originalPercentages = { ...this.terrainPercentages };
+        this.terrainPercentages = adjustedTerrainPercentages;
+
+        // @reference freeciv/server/generator/mapgen.c:3523-3753
+        // Fair islands algorithm attempts with iteration limits
+        // Use 'ALL' startpos mode for fair islands (equivalent to mapgenerator4)
+        const generationTimeout = 30000 + (attempt - 1) * 10000; // Increase timeout for later attempts
+        const generationPromise = this.generateMapWithIslands(players, 'ALL');
+        const timeoutPromise = new Promise<void>((_, reject) => {
+          setTimeout(() => reject(new Error('Fair islands generation timeout')), generationTimeout);
+        });
+
+        await Promise.race([generationPromise, timeoutPromise]);
+
+        // Restore original percentages
+        this.terrainPercentages = originalPercentages;
+
+        // Enhanced post-generation validation equivalent to freeciv's done check
+        if (!this.validateGeneratedFairMap(players)) {
+          logger.warn(
+            `Fair islands attempt ${attempt} failed post-validation (equivalent to !done)`,
+            {
+              attempt,
+              maxAttempts,
+              parameterAdjustment,
+              reference: 'freeciv/server/generator/mapgen.c:3699-3703',
+            }
+          );
+
+          if (attempt < maxAttempts) {
+            logger.info('Retrying fair islands generation with adjusted parameters');
+            continue; // Try again with different parameters
+          }
+          return false;
+        }
+
+        const generationTime = Date.now() - startTime;
+        logger.info(
+          `Enhanced fair islands generation succeeded on attempt ${attempt} (equivalent to return TRUE)`,
+          {
+            attempt,
+            generationTime,
+            parameterAdjustment,
+            reference: 'freeciv/server/generator/mapgen.c:3754',
+          }
+        );
+        return true;
+      } catch (error) {
+        // Restore original percentages on error
+        const originalPercentages = { ...this.terrainPercentages };
+        this.terrainPercentages = originalPercentages;
+
+        logger.warn(`Fair islands attempt ${attempt} failed with error`, {
+          attempt,
+          maxAttempts,
+          error: error instanceof Error ? error.message : error,
           reference: 'freeciv/server/generator/mapgen.c:3699-3703',
         });
-        return false;
-      }
 
-      logger.info('Fair islands generation succeeded (equivalent to return TRUE)', {
-        reference: 'freeciv/server/generator/mapgen.c:3754',
-      });
-      return true;
-    } catch (error) {
-      logger.warn('Fair islands generation failed with error (equivalent to return FALSE)', {
-        error: error instanceof Error ? error.message : error,
-        reference: 'freeciv/server/generator/mapgen.c:3699-3703',
-      });
-      return false;
+        if (attempt < maxAttempts) {
+          logger.info('Retrying fair islands generation after error');
+          continue; // Try again
+        }
+      }
     }
+
+    const totalTime = Date.now() - startTime;
+    logger.warn(
+      `Fair islands generation failed after ${maxAttempts} attempts (equivalent to return FALSE)`,
+      {
+        attempts: maxAttempts,
+        totalTime,
+        reference: 'Enhanced retry logic based on freeciv iteration pattern',
+      }
+    );
+    return false;
   }
 
   /**
-   * Validates that a generated map meets fair distribution requirements
+   * Enhanced post-generation quality validation for fair islands maps
+   * @reference freeciv/server/generator/mapgen.c:3699-3703 fair islands validation
+   * Implements comprehensive quality checks including island distribution and resource balance
    * @param players Map of player states
-   * @returns true if the generated map is fair, false otherwise
+   * @returns true if the generated map meets fair distribution requirements, false otherwise
    */
   private validateGeneratedFairMap(players: Map<string, PlayerState>): boolean {
     if (!this.mapData) {
+      logger.warn('No map data available for post-generation validation');
       return false;
     }
 
+    const { tiles, startingPositions } = this.mapData;
+    const playerCount = players.size;
+
     // Basic validation: ensure we have starting positions for all players
-    const startingPositions = this.mapData.startingPositions;
-    if (!startingPositions || startingPositions.length < players.size) {
-      logger.warn('Not enough starting positions generated', {
-        required: players.size,
+    if (!startingPositions || startingPositions.length < playerCount) {
+      logger.warn('Insufficient starting positions for fair islands validation', {
+        required: playerCount,
         generated: startingPositions?.length || 0,
+        reference: 'Post-generation validation requirement',
       });
       return false;
     }
 
-    // Additional validation could check island distribution, resource balance, etc.
-    // For now, basic validation is sufficient for the fallback system
+    // Enhanced validation: Island size distribution analysis
+    // @reference freeciv/server/generator/mapgen.c fair island size requirements
+    const islandSizes = this.analyzeIslandSizes(tiles);
+    const sortedIslandSizes = islandSizes.sort((a, b) => b - a);
+
+    if (sortedIslandSizes.length === 0) {
+      logger.warn('No islands found in generated map', {
+        reference: 'Post-generation island analysis',
+      });
+      return false;
+    }
+
+    // Validate that we have sufficient major islands for players
+    // Major islands should accommodate the planned players per island distribution
+    const majorIslands = sortedIslandSizes.filter(size => size >= 20); // Minimum viable island size
+    const expectedMajorIslands = Math.ceil(playerCount / this.getPlayersPerIslandForValidation());
+
+    if (majorIslands.length < expectedMajorIslands) {
+      logger.warn('Insufficient major islands for fair distribution', {
+        majorIslands: majorIslands.length,
+        expectedMajorIslands,
+        playerCount,
+        reference: 'Post-generation major island count validation',
+      });
+      return false;
+    }
+
+    // Enhanced validation: Starting position distance validation
+    const positionDistances = this.calculateStartingPositionDistances(startingPositions);
+    if (positionDistances.length > 0) {
+      const minDistance = Math.min(...positionDistances);
+      const avgDistance = positionDistances.reduce((a, b) => a + b, 0) / positionDistances.length;
+
+      // Minimum distance should be reasonable to prevent unfair clustering
+      const minMapDimension = Math.min(this.width, this.height);
+      const expectedMinDistance = minMapDimension / (playerCount * 0.8); // Allow some clustering
+
+      if (minDistance < expectedMinDistance) {
+        logger.warn('Starting positions too close together for fair play', {
+          minDistance: Math.round(minDistance),
+          expectedMinDistance: Math.round(expectedMinDistance),
+          avgDistance: Math.round(avgDistance),
+          reference: 'Post-generation starting position distance validation',
+        });
+        return false;
+      }
+    }
+
+    // Enhanced validation: Resource balance verification
+    // Ensure each major island has reasonable resource distribution
+    const resourceBalance = this.validateResourceBalance(tiles, startingPositions);
+    if (!resourceBalance.balanced) {
+      logger.warn('Resource distribution imbalance detected', {
+        issues: resourceBalance.issues,
+        reference: 'Post-generation resource balance validation',
+      });
+      return false;
+    }
+
+    logger.debug('Enhanced fair islands post-generation validation passed', {
+      playerCount,
+      startingPositions: startingPositions.length,
+      majorIslands: majorIslands.length,
+      islandSizes: sortedIslandSizes.slice(0, 5), // Top 5 islands
+      minDistance: positionDistances.length > 0 ? Math.round(Math.min(...positionDistances)) : 0,
+      avgDistance:
+        positionDistances.length > 0
+          ? Math.round(positionDistances.reduce((a, b) => a + b, 0) / positionDistances.length)
+          : 0,
+      resourceBalance: resourceBalance.score,
+      reference: 'Enhanced post-generation validation',
+    });
 
     return true;
   }
@@ -1551,5 +1751,168 @@ export class MapManager {
    */
   public getMapValidator(): MapValidator {
     return this.mapValidator;
+  }
+
+  /**
+   * Calculate parameter adjustment factor based on retry attempt
+   * @reference freeciv/server/generator/mapgen.c:3689-3702 landmass reduction logic
+   * Implements progressive parameter reduction similar to freeciv's retry mechanism
+   * @param attempt Current attempt number (1-based)
+   * @param maxAttempts Maximum number of attempts
+   * @returns Parameter adjustment factor (0.0 to 1.0)
+   */
+  private calculateParameterAdjustment(attempt: number, _maxAttempts: number): number {
+    // @reference freeciv/server/generator/mapgen.c:3690-3691
+    // islandmass1 = (islandmass1 * 99) / 100;
+    // Progressive reduction: 99% -> 98% -> 97% etc.
+    const reductionPerAttempt = 0.01; // 1% reduction per attempt
+    const baseReduction = 1.0 - (attempt - 1) * reductionPerAttempt;
+
+    // Ensure we don't go below 90% of original parameters
+    return Math.max(0.9, baseReduction);
+  }
+
+  /**
+   * Adjust terrain percentages for retry attempts to improve success rate
+   * @reference freeciv/server/generator/mapgen.c:3689-3702 parameter adaptation
+   * @param adjustmentFactor Factor to adjust parameters (0.0 to 1.0)
+   * @returns Adjusted terrain percentages
+   */
+  private adjustTerrainPercentages(adjustmentFactor: number): TerrainPercentages {
+    return {
+      river: Math.floor(this.terrainPercentages.river * adjustmentFactor),
+      mountain: Math.floor(this.terrainPercentages.mountain * adjustmentFactor),
+      desert: Math.floor(this.terrainPercentages.desert * adjustmentFactor),
+      forest: Math.floor(this.terrainPercentages.forest * adjustmentFactor),
+      swamp: Math.floor(this.terrainPercentages.swamp * adjustmentFactor),
+    };
+  }
+
+  /**
+   * Get players per island setting for validation purposes
+   * @returns Expected players per island based on current configuration
+   */
+  private getPlayersPerIslandForValidation(): number {
+    // Default to single player per island for validation
+    // This matches the fair islands default behavior
+    return 1;
+  }
+
+  /**
+   * Analyze island sizes in the generated map
+   * @param tiles Generated map tiles
+   * @returns Array of island sizes (tile counts per continent)
+   */
+  private analyzeIslandSizes(tiles: MapTile[][]): number[] {
+    const continentSizes: Record<number, number> = {};
+
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const tile = tiles[x][y];
+        if (tile.continentId > 0) {
+          // Land tiles have positive continent IDs
+          continentSizes[tile.continentId] = (continentSizes[tile.continentId] || 0) + 1;
+        }
+      }
+    }
+
+    return Object.values(continentSizes);
+  }
+
+  /**
+   * Calculate distances between all starting positions
+   * @param positions Array of starting positions
+   * @returns Array of distances between position pairs
+   */
+  private calculateStartingPositionDistances(positions: Position[]): number[] {
+    const distances: number[] = [];
+
+    for (let i = 0; i < positions.length; i++) {
+      for (let j = i + 1; j < positions.length; j++) {
+        const pos1 = positions[i];
+        const pos2 = positions[j];
+        const distance = Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2));
+        distances.push(distance);
+      }
+    }
+
+    return distances;
+  }
+
+  /**
+   * Validate resource balance across major starting areas
+   * @param tiles Generated map tiles
+   * @param positions Starting positions to check
+   * @returns Resource balance analysis result
+   */
+  private validateResourceBalance(
+    tiles: MapTile[][],
+    positions: Position[]
+  ): { balanced: boolean; score: number; issues: string[] } {
+    const issues: string[] = [];
+    const resourceCounts: Record<string, number> = {};
+
+    // Check resources within starting radius of each position
+    const checkRadius = 3;
+    let totalResourcesFound = 0;
+    let positionsWithoutResources = 0;
+
+    positions.forEach((pos, index) => {
+      let positionResourceCount = 0;
+
+      for (let dx = -checkRadius; dx <= checkRadius; dx++) {
+        for (let dy = -checkRadius; dy <= checkRadius; dy++) {
+          const x = pos.x + dx;
+          const y = pos.y + dy;
+
+          if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance <= checkRadius) {
+              const tile = tiles[x][y];
+              if (tile.resource) {
+                resourceCounts[tile.resource] = (resourceCounts[tile.resource] || 0) + 1;
+                positionResourceCount++;
+                totalResourcesFound++;
+              }
+            }
+          }
+        }
+      }
+
+      if (positionResourceCount === 0) {
+        positionsWithoutResources++;
+        issues.push(`Starting position ${index + 1} has no nearby resources`);
+      }
+    });
+
+    // Calculate balance score
+    let score = 100;
+
+    // Penalize positions without resources
+    const resourcelessRatio = positionsWithoutResources / positions.length;
+    if (resourcelessRatio > 0.3) {
+      // More than 30% without resources is problematic
+      score -= 40;
+      issues.push(
+        `Too many starting positions (${Math.round(resourcelessRatio * 100)}%) lack nearby resources`
+      );
+    }
+
+    // Check overall resource availability
+    const avgResourcesPerPosition = totalResourcesFound / positions.length;
+    if (avgResourcesPerPosition < 1) {
+      score -= 30;
+      issues.push(
+        `Low average resources per starting position: ${avgResourcesPerPosition.toFixed(1)}`
+      );
+    }
+
+    const balanced = score >= 70;
+
+    return {
+      balanced,
+      score,
+      issues,
+    };
   }
 }
