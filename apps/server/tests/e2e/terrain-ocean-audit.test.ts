@@ -15,7 +15,7 @@ const TEST_SIZES = [
   { width: 40, height: 25, name: 'Small (40x25)' },
   { width: 80, height: 50, name: 'Standard (80x50)' },
 ];
-const GENERATOR_MODES: MapGeneratorType[] = ['RANDOM', 'FRACTAL', 'ISLAND', 'FAIR'];
+const GENERATOR_MODES: MapGeneratorType[] = ['RANDOM', 'FRACTAL', 'FRACTURE', 'ISLAND', 'FAIR'];
 
 interface OceanAnalysis {
   landTiles: number;
@@ -265,6 +265,11 @@ describe('Ocean Distribution Audit', () => {
     console.log(summaryReport);
     console.log(`\nDetailed results saved to: ${outputPath}`);
   }, 120000); // 2 minute timeout
+
+  afterAll(async () => {
+    // Clean up any lingering resources
+    await new Promise(resolve => setImmediate(resolve));
+  });
 
   test('should successfully generate most maps', () => {
     const successRate = results.filter(r => r.success).length / results.length;
