@@ -196,10 +196,10 @@ Based on the [Terrain Generation Parity Audit](./terrain-generation-parity-audit
    - Add smoothing passes configuration
 
 **Acceptance Criteria**:
-- [ ] Natural terrain transitions match freeciv quality
-- [ ] Proper edge handling prevents artifacts
-- [ ] Configurable smoothing intensity
-- [ ] Performance acceptable for real-time generation
+- [x] Natural terrain transitions match freeciv quality
+- [x] Proper edge handling prevents artifacts
+- [x] Configurable smoothing intensity
+- [x] Performance acceptable for real-time generation
 
 ---
 
