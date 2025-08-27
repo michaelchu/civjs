@@ -18,6 +18,9 @@ import {
   fillIslandTerrain,
 } from './map/TerrainUtils';
 
+// Generator types based on freeciv map_generator enum
+export type MapGeneratorType = 'FRACTAL' | 'ISLAND' | 'RANDOM' | 'FAIR' | 'FRACTURE' | 'SCENARIO';
+
 // Re-export commonly used types for backward compatibility
 export {
   MapData,
@@ -34,6 +37,7 @@ export class MapManager {
   private mapData: MapData | null = null;
   private seed: string;
   private generator: string;
+  private defaultGeneratorType: MapGeneratorType;
   private random: () => number;
 
   // Sub-generators
@@ -54,11 +58,18 @@ export class MapManager {
     swamp: 10, // 10% wetlands
   };
 
-  constructor(width: number, height: number, seed?: string, generator: string = 'random') {
+  constructor(
+    width: number,
+    height: number,
+    seed?: string,
+    generator: string = 'random',
+    defaultGeneratorType?: MapGeneratorType
+  ) {
     this.width = width;
     this.height = height;
     this.seed = seed || this.generateSeed();
     this.generator = generator;
+    this.defaultGeneratorType = defaultGeneratorType || 'FRACTAL';
     this.random = this.createSeededRandom(this.seed);
 
     // Initialize sub-generators with generator type
@@ -79,10 +90,65 @@ export class MapManager {
   }
 
   /**
-   * Main map generation orchestration using fractal height generation
+   * Main map generation orchestration with generator routing
+   * @reference freeciv/server/generator/mapgen.c:1268-1427 map_fractal_generate()
+   * Routes to specific generators based on type, with fallback logic matching freeciv
    */
-  public async generateMap(players: Map<string, PlayerState>): Promise<void> {
-    logger.info('Generating map', { width: this.width, height: this.height, seed: this.seed });
+  public async generateMap(
+    players: Map<string, PlayerState>,
+    generatorType?: MapGeneratorType
+  ): Promise<void> {
+    // Use provided generator type or fall back to instance default (matches freeciv behavior)
+    const generator = generatorType || this.defaultGeneratorType;
+    
+    logger.info('Generating map', { 
+      width: this.width, 
+      height: this.height, 
+      seed: this.seed, 
+      generator,
+      reference: 'freeciv/server/generator/mapgen.c:1268-1427'
+    });
+
+    // Implement freeciv's map_fractal_generate() routing logic
+    // @reference freeciv/server/generator/mapgen.c:1315-1358
+    switch (generator) {
+      case 'FAIR':
+        // Attempt fair islands generation, fallback to ISLAND if failed
+        if (await this.attemptFairIslandsGeneration(players)) {
+          return;
+        }
+        logger.info('Fair islands generation failed, falling back to ISLAND generator');
+        // Fallthrough to ISLAND
+      case 'ISLAND':
+        return this.generateMapWithIslands(players);
+      
+      case 'RANDOM':
+        return this.generateMapRandom(players);
+      
+      case 'FRACTURE':
+        return this.generateMapFracture(players);
+      
+      case 'SCENARIO':
+        throw new Error('SCENARIO generator not implemented - scenarios should be loaded from file');
+      
+      case 'FRACTAL':
+      default:
+        return this.generateMapFractal(players);
+    }
+  }
+
+  /**
+   * Fractal height-based map generation (extracted from original generateMap)
+   * @reference freeciv/server/generator/mapgen.c:1343-1348 MAPGEN_FRACTAL case
+   * Uses pseudo-fractal height map generation with make_pseudofractal1_hmap equivalent
+   */
+  public async generateMapFractal(players: Map<string, PlayerState>): Promise<void> {
+    logger.info('Generating map with fractal algorithm', {
+      width: this.width,
+      height: this.height,
+      seed: this.seed,
+      reference: 'freeciv/server/generator/mapgen.c:1343-1348'
+    });
 
     const startTime = Date.now();
 
@@ -169,10 +235,11 @@ export class MapManager {
     };
 
     const generationTime = Date.now() - startTime;
-    logger.info('Map generation completed', {
+    logger.info('Fractal map generation completed', {
       width: this.width,
       height: this.height,
       generationTime,
+      reference: 'freeciv/server/generator/mapgen.c:1343-1348'
     });
   }
 
