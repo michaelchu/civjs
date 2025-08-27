@@ -232,6 +232,9 @@ export class MapManager {
       this.riverGenerator
     );
 
+    // Final elevation normalization to 0-255 range after makeLand() processing
+    this.normalizeElevationsToDisplayRange(tiles);
+
     // Phase 1 & 2 fix: All terrain generation steps now handled inside makeLand()
     // - Pole renormalization (Phase 1)
     // - Temperature map creation (Phase 1)
@@ -438,6 +441,44 @@ export class MapManager {
         issues: validationResult.issues.length,
       },
     });
+  }
+
+  /**
+   * Normalize all tile elevations to the 0-255 display range after terrain generation
+   * This ensures proper elevation display and prevents issues with UI rendering
+   * Called after makeLand() which may modify elevations through pole renormalization
+   */
+  private normalizeElevationsToDisplayRange(tiles: MapTile[][]): void {
+    // Find current min/max elevations
+    let minElevation = Infinity;
+    let maxElevation = -Infinity;
+
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const elevation = tiles[x][y].elevation;
+        minElevation = Math.min(minElevation, elevation);
+        maxElevation = Math.max(maxElevation, elevation);
+      }
+    }
+
+    // Avoid division by zero
+    if (minElevation === maxElevation) {
+      for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < this.height; y++) {
+          tiles[x][y].elevation = 127; // Mid-range value
+        }
+      }
+      return;
+    }
+
+    // Normalize to 0-255 range
+    const scale = 255 / (maxElevation - minElevation);
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const normalizedElevation = Math.floor((tiles[x][y].elevation - minElevation) * scale);
+        tiles[x][y].elevation = Math.max(0, Math.min(255, normalizedElevation));
+      }
+    }
   }
 
   /**
@@ -885,6 +926,9 @@ export class MapManager {
       this.riverGenerator
     );
 
+    // Final elevation normalization to 0-255 range after makeLand() processing
+    this.normalizeElevationsToDisplayRange(tiles);
+
     // Phase 1 & 2 fix: All terrain generation steps now handled inside makeLand()
     // - Pole renormalization (Phase 1)
     // - Temperature map creation (Phase 1)
@@ -1077,6 +1121,9 @@ export class MapManager {
       this.temperatureMap,
       this.riverGenerator
     );
+
+    // Final elevation normalization to 0-255 range after makeLand() processing
+    this.normalizeElevationsToDisplayRange(tiles);
 
     // Phase 1 & 2 fix: All terrain generation steps now handled inside makeLand()
     // - Temperature map creation (Phase 1)
