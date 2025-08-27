@@ -479,14 +479,13 @@ export class TerrainGenerator {
       }
     }
 
-    // Enhanced for fracture generator: increase mountain percentage for continental character
-    // @reference Task 10: Fracture maps should have enhanced continental relief
-    const fracture_mountain_bonus = 1.3; // 30% more mountains than normal
+    // Standard fracture relief parameters matching freeciv exactly
+    // @reference freeciv/server/generator/fracture_map.c:335
     const hmap_max_level = 1000;
     const hmap_mountain_level = (hmap_max_level + hmap_shore_level) / 2;
 
     // First iteration: Place mountains and hills based on local elevation
-    // Enhanced thresholds for more dramatic continental relief
+    // @reference freeciv/server/generator/fracture_map.c:313-338
     let total_mtns = 0;
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
@@ -502,10 +501,10 @@ export class TerrainGenerator {
         // Calculate local average elevation
         const localAvg = this.localAveElevation(heightMap, x, y);
 
-        // Enhanced mountain placement for fracture generator
-        // Lower thresholds create more dramatic continental relief
+        // Exact freeciv mountain placement thresholds
+        // @reference freeciv/server/generator/fracture_map.c:317-321
         const choose_mountain =
-          tileHeight > localAvg * 1.15 || // Reduced from 1.2 for more mountains
+          tileHeight > localAvg * 1.2 ||
           (this.areaIsTooFlat(
             tiles,
             heightMap,
@@ -515,10 +514,10 @@ export class TerrainGenerator {
             tileHeight,
             hmap_shore_level
           ) &&
-            this.random() < 0.5); // Increased from 0.4
+            this.random() < 0.4);
 
         const choose_hill =
-          tileHeight > localAvg * 1.05 || // Reduced from 1.1 for more hills
+          tileHeight > localAvg * 1.1 ||
           (this.areaIsTooFlat(
             tiles,
             heightMap,
@@ -528,25 +527,18 @@ export class TerrainGenerator {
             tileHeight,
             hmap_shore_level
           ) &&
-            this.random() < 0.5); // Increased from 0.4
+            this.random() < 0.4);
 
-        // Allow some coastal mountains for continental character (reduced restriction)
-        const coastalMountainChance = this.hasOceanNeighbor(tiles, x, y) ? 0.2 : 1.0;
-        if (this.random() > coastalMountainChance) {
-          continue;
+        // Exact freeciv coastal avoidance - ZERO EXCEPTIONS
+        // @reference freeciv/server/generator/fracture_map.c:322-326
+        // "The following avoids hills and mountains directly along the coast."
+        if (this.hasOceanNeighbor(tiles, x, y)) {
+          continue; // choose_mountain = FALSE; choose_hill = FALSE;
         }
 
-        // Enhanced mountain range formation using terrain clustering
-        const hasNearbyMountain = this.hasTerrainClusterNearby(
-          tiles,
-          x,
-          y,
-          ['mountains', 'hills'],
-          2
-        );
-        const clusterBonus = hasNearbyMountain ? 0.3 : 0;
-
-        if (choose_mountain && this.random() + clusterBonus > 0.4) {
+        // Exact freeciv terrain placement logic
+        // @reference freeciv/server/generator/fracture_map.c:327-337
+        if (choose_mountain) {
           total_mtns++;
           tile.terrain = pickTerrain(
             MapgenTerrainProperty.MOUNTAINOUS,
@@ -556,7 +548,7 @@ export class TerrainGenerator {
           );
           this.placementMap.setPlaced(x, y);
           this.setTerrainProperties(tile);
-        } else if (choose_hill && this.random() + clusterBonus > 0.3) {
+        } else if (choose_hill) {
           total_mtns++;
           tile.terrain = pickTerrain(
             MapgenTerrainProperty.MOUNTAINOUS,
@@ -570,46 +562,52 @@ export class TerrainGenerator {
       }
     }
 
-    // Second iteration: Ensure enhanced mountain percentage for fracture generator
-    const enhanced_mountain_percent = Math.floor(15 * fracture_mountain_bonus); // Enhanced from base 10%
-    const min_mountains = (landarea * enhanced_mountain_percent) / 100;
+    // Second iteration: Ensure minimum mountain percentage based on steepness
+    // @reference freeciv/server/generator/fracture_map.c:340-366
+    const steepness = 30; // Default steepness setting (equivalent to wld.map.server.steepness)
+    const min_mountains = (landarea * steepness) / 100;
 
-    if (total_mtns < min_mountains) {
-      const needed = min_mountains - total_mtns;
-      let added = 0;
+    for (let iter = 0; total_mtns < min_mountains && iter < 50; iter++) {
+      for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < this.height; y++) {
+          const tile = tiles[x][y];
+          const index = y * this.width + x;
+          const tileHeight = heightMap[index];
 
-      // Multiple passes to create mountain range clustering
-      for (let pass = 0; pass < 3 && added < needed; pass++) {
-        for (let x = 0; x < this.width && added < needed; x++) {
-          for (let y = 0; y < this.height && added < needed; y++) {
-            const tile = tiles[x][y];
-            const index = y * this.width + x;
-            const tileHeight = heightMap[index];
+          if (this.placementMap.notPlaced(x, y) && tileHeight > hmap_shore_level) {
+            // Exact freeciv random placement (lines 349-350)
+            const choose_mountain = this.random() * 10000 < 10;
+            const choose_hill = this.random() * 10000 < 10;
 
-            if (this.placementMap.notPlaced(x, y) && tileHeight > hmap_shore_level) {
-              // Prefer locations near existing mountains for clustering
-              const hasNearbyMountain = this.hasTerrainClusterNearby(
-                tiles,
-                x,
-                y,
-                ['mountains', 'hills'],
-                1
+            if (choose_mountain) {
+              total_mtns++;
+              tile.terrain = pickTerrain(
+                MapgenTerrainProperty.MOUNTAINOUS,
+                MapgenTerrainProperty.UNUSED,
+                MapgenTerrainProperty.GREEN,
+                this.random
               );
-              const placementChance = hasNearbyMountain ? 0.6 : 0.2;
-
-              if (this.random() < placementChance) {
-                tile.terrain = pickTerrain(
-                  MapgenTerrainProperty.MOUNTAINOUS,
-                  MapgenTerrainProperty.UNUSED,
-                  MapgenTerrainProperty.UNUSED,
-                  this.random
-                );
-                this.placementMap.setPlaced(x, y);
-                this.setTerrainProperties(tile);
-                added++;
-              }
+              this.placementMap.setPlaced(x, y);
+              this.setTerrainProperties(tile);
+            } else if (choose_hill) {
+              total_mtns++;
+              tile.terrain = pickTerrain(
+                MapgenTerrainProperty.MOUNTAINOUS,
+                MapgenTerrainProperty.GREEN,
+                MapgenTerrainProperty.UNUSED,
+                this.random
+              );
+              this.placementMap.setPlaced(x, y);
+              this.setTerrainProperties(tile);
             }
           }
+
+          if (total_mtns >= min_mountains) {
+            break;
+          }
+        }
+        if (total_mtns >= min_mountains) {
+          break;
         }
       }
     }
@@ -754,11 +752,8 @@ export class TerrainGenerator {
     return false;
   }
 
-  /**
-   * Check for terrain clustering for natural terrain formation
-   * @reference Task 10: Terrain clustering algorithms for natural transitions
-   * Used by all generators to create more realistic terrain distribution
-   */
+  // UNUSED: Legacy terrain clustering method - replaced with freeciv-compliant approach
+  /*
   private hasTerrainClusterNearby(
     tiles: MapTile[][],
     x: number,
@@ -780,6 +775,7 @@ export class TerrainGenerator {
     }
     return false;
   }
+  */
 
   /**
    * Exact copy of freeciv make_terrains() function
