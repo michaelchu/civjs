@@ -3,7 +3,75 @@
  * @reference freeciv/server/generator/ various utility functions
  * Collection of reusable terrain manipulation utilities
  */
-import { MapTile, TerrainType } from './MapTypes';
+import { MapTile, TerrainType, TemperatureType } from './MapTypes';
+
+/**
+ * Mapgen terrain properties for island generation
+ * @reference freeciv/gen_headers/enums/terrain_enums.def mapgen_terrain_property
+ */
+export enum MapgenTerrainProperty {
+  COLD = 'cold',
+  DRY = 'dry',
+  FOLIAGE = 'foliage',
+  FROZEN = 'frozen',
+  GREEN = 'green',
+  MOUNTAINOUS = 'mountainous',
+  OCEAN_DEPTH = 'ocean_depth',
+  TEMPERATE = 'temperate',
+  TROPICAL = 'tropical',
+  WET = 'wet',
+  UNUSED = 'unused',
+}
+
+/**
+ * Temperature type conditions for terrain selection
+ * @reference freeciv/server/generator/temperature_map.h TT_* constants
+ */
+export enum TemperatureCondition {
+  TT_FROZEN = 1,
+  TT_COLD = 2,
+  TT_TEMPERATE = 4,
+  TT_TROPICAL = 8,
+  TT_NFROZEN = 2 | 4 | 8, // TT_COLD | TT_TEMPERATE | TT_TROPICAL
+  TT_ALL = 1 | 2 | 4 | 8, // TT_FROZEN | TT_NFROZEN
+  TT_NHOT = 1 | 2, // TT_FROZEN | TT_COLD
+  TT_HOT = 4 | 8, // TT_TEMPERATE | TT_TROPICAL
+}
+
+/**
+ * Wetness conditions for terrain selection
+ * @reference freeciv/server/generator/mapgen.c wetness_c enum
+ */
+export enum WetnessCondition {
+  WC_ALL = 200,
+  WC_DRY = 201,
+  WC_NDRY = 202,
+}
+
+/**
+ * Terrain selection rule for island generation
+ * @reference freeciv/server/generator/mapgen.c terrain_select struct
+ */
+export interface TerrainSelect {
+  weight: number;
+  target: MapgenTerrainProperty;
+  prefer: MapgenTerrainProperty;
+  avoid: MapgenTerrainProperty;
+  tempCondition: TemperatureCondition;
+  wetCondition: WetnessCondition;
+}
+
+/**
+ * Island terrain selection lists for make_island()
+ * @reference freeciv/server/generator/mapgen.c island_terrain struct
+ */
+export interface IslandTerrain {
+  init: boolean;
+  forest: TerrainSelect[];
+  desert: TerrainSelect[];
+  mountain: TerrainSelect[];
+  swamp: TerrainSelect[];
+}
 
 /**
  * Check if terrain type is ocean/water
@@ -57,7 +125,7 @@ export function createBaseTile(x: number, y: number): MapTile {
     improvements: [],
     unitIds: [],
     properties: {},
-    temperature: 1, // TemperatureType.TEMPERATE
+    temperature: TemperatureType.TEMPERATE,
     wetness: 50,
   };
 }
@@ -263,6 +331,388 @@ function fillFractureArea(
       landmass.maxX = Math.max(landmass.maxX, x);
       landmass.minY = Math.min(landmass.minY, y);
       landmass.maxY = Math.max(landmass.maxY, y);
+    }
+  }
+}
+
+/**
+ * Global island terrain selection state
+ * @reference freeciv/server/generator/mapgen.c island_terrain
+ */
+let islandTerrain: IslandTerrain = {
+  init: false,
+  forest: [],
+  desert: [],
+  mountain: [],
+  swamp: [],
+};
+
+/**
+ * Initialize terrain selection lists for island generation
+ * @reference freeciv/server/generator/mapgen.c island_terrain_init()
+ * Exact port of freeciv's island terrain initialization
+ */
+export function islandTerrainInit(): void {
+  if (islandTerrain.init) {
+    return; // Already initialized
+  }
+
+  // Forest terrain selections
+  islandTerrain.forest = [
+    // Tropical forests in tropical/wet areas, avoid dry
+    {
+      weight: 1,
+      target: MapgenTerrainProperty.FOLIAGE,
+      prefer: MapgenTerrainProperty.TROPICAL,
+      avoid: MapgenTerrainProperty.DRY,
+      tempCondition: TemperatureCondition.TT_TROPICAL,
+      wetCondition: WetnessCondition.WC_ALL,
+    },
+    // Temperate forests (highest weight - most common)
+    {
+      weight: 3,
+      target: MapgenTerrainProperty.FOLIAGE,
+      prefer: MapgenTerrainProperty.TEMPERATE,
+      avoid: MapgenTerrainProperty.UNUSED,
+      tempCondition: TemperatureCondition.TT_ALL,
+      wetCondition: WetnessCondition.WC_ALL,
+    },
+    // Wet forests in tropical areas, avoid frozen, need non-dry
+    {
+      weight: 1,
+      target: MapgenTerrainProperty.FOLIAGE,
+      prefer: MapgenTerrainProperty.WET,
+      avoid: MapgenTerrainProperty.FROZEN,
+      tempCondition: TemperatureCondition.TT_TROPICAL,
+      wetCondition: WetnessCondition.WC_NDRY,
+    },
+    // Cold climate forests, avoid frozen areas
+    {
+      weight: 1,
+      target: MapgenTerrainProperty.FOLIAGE,
+      prefer: MapgenTerrainProperty.COLD,
+      avoid: MapgenTerrainProperty.UNUSED,
+      tempCondition: TemperatureCondition.TT_NFROZEN,
+      wetCondition: WetnessCondition.WC_ALL,
+    },
+  ];
+
+  // Desert terrain selections
+  islandTerrain.desert = [
+    // Hot tropical deserts (highest weight)
+    {
+      weight: 3,
+      target: MapgenTerrainProperty.DRY,
+      prefer: MapgenTerrainProperty.TROPICAL,
+      avoid: MapgenTerrainProperty.GREEN,
+      tempCondition: TemperatureCondition.TT_HOT,
+      wetCondition: WetnessCondition.WC_DRY,
+    },
+    // Temperate deserts
+    {
+      weight: 2,
+      target: MapgenTerrainProperty.DRY,
+      prefer: MapgenTerrainProperty.TEMPERATE,
+      avoid: MapgenTerrainProperty.GREEN,
+      tempCondition: TemperatureCondition.TT_NFROZEN,
+      wetCondition: WetnessCondition.WC_DRY,
+    },
+    // Cold dry areas, avoid tropical, not hot
+    {
+      weight: 1,
+      target: MapgenTerrainProperty.COLD,
+      prefer: MapgenTerrainProperty.DRY,
+      avoid: MapgenTerrainProperty.TROPICAL,
+      tempCondition: TemperatureCondition.TT_NHOT,
+      wetCondition: WetnessCondition.WC_DRY,
+    },
+    // Frozen deserts (tundra)
+    {
+      weight: 1,
+      target: MapgenTerrainProperty.FROZEN,
+      prefer: MapgenTerrainProperty.DRY,
+      avoid: MapgenTerrainProperty.UNUSED,
+      tempCondition: TemperatureCondition.TT_FROZEN,
+      wetCondition: WetnessCondition.WC_DRY,
+    },
+  ];
+
+  // Mountain terrain selections
+  islandTerrain.mountain = [
+    // Green mountains (hills) - higher weight
+    {
+      weight: 2,
+      target: MapgenTerrainProperty.MOUNTAINOUS,
+      prefer: MapgenTerrainProperty.GREEN,
+      avoid: MapgenTerrainProperty.UNUSED,
+      tempCondition: TemperatureCondition.TT_ALL,
+      wetCondition: WetnessCondition.WC_ALL,
+    },
+    // Mountains without green preference
+    {
+      weight: 1,
+      target: MapgenTerrainProperty.MOUNTAINOUS,
+      prefer: MapgenTerrainProperty.UNUSED,
+      avoid: MapgenTerrainProperty.GREEN,
+      tempCondition: TemperatureCondition.TT_ALL,
+      wetCondition: WetnessCondition.WC_ALL,
+    },
+  ];
+
+  // Swamp terrain selections
+  islandTerrain.swamp = [
+    // Tropical swamps
+    {
+      weight: 1,
+      target: MapgenTerrainProperty.WET,
+      prefer: MapgenTerrainProperty.TROPICAL,
+      avoid: MapgenTerrainProperty.FOLIAGE,
+      tempCondition: TemperatureCondition.TT_TROPICAL,
+      wetCondition: WetnessCondition.WC_NDRY,
+    },
+    // Temperate swamps in hot areas (highest weight)
+    {
+      weight: 2,
+      target: MapgenTerrainProperty.WET,
+      prefer: MapgenTerrainProperty.TEMPERATE,
+      avoid: MapgenTerrainProperty.FOLIAGE,
+      tempCondition: TemperatureCondition.TT_HOT,
+      wetCondition: WetnessCondition.WC_NDRY,
+    },
+    // Cold swamps, not hot
+    {
+      weight: 1,
+      target: MapgenTerrainProperty.WET,
+      prefer: MapgenTerrainProperty.COLD,
+      avoid: MapgenTerrainProperty.FOLIAGE,
+      tempCondition: TemperatureCondition.TT_NHOT,
+      wetCondition: WetnessCondition.WC_NDRY,
+    },
+  ];
+
+  islandTerrain.init = true;
+}
+
+/**
+ * Free memory allocated for terrain selection lists
+ * @reference freeciv/server/generator/mapgen.c island_terrain_free()
+ * Exact port of freeciv's island terrain cleanup
+ */
+export function islandTerrainFree(): void {
+  if (!islandTerrain.init) {
+    return;
+  }
+
+  // Clear all terrain selection arrays
+  islandTerrain.forest = [];
+  islandTerrain.desert = [];
+  islandTerrain.mountain = [];
+  islandTerrain.swamp = [];
+
+  islandTerrain.init = false;
+}
+
+/**
+ * Get terrain selection list for a specific terrain type
+ * @reference freeciv/server/generator/mapgen.c island_terrain access
+ * Provides access to initialized terrain selection lists
+ */
+export function getIslandTerrainSelections(
+  terrainType: 'forest' | 'desert' | 'mountain' | 'swamp'
+): TerrainSelect[] {
+  if (!islandTerrain.init) {
+    throw new Error('Island terrain not initialized. Call islandTerrainInit() first.');
+  }
+
+  return islandTerrain[terrainType];
+}
+
+/**
+ * Check if island terrain system is initialized
+ */
+export function isIslandTerrainInitialized(): boolean {
+  return islandTerrain.init;
+}
+
+/**
+ * Test temperature condition for a tile
+ * @reference freeciv/server/generator/temperature_map.h tmap_is()
+ * Exact port of freeciv temperature condition checking
+ */
+export function testTemperatureCondition(tile: MapTile, condition: TemperatureCondition): boolean {
+  // tile.temperature is already TemperatureType enum, convert to TemperatureCondition values
+  let tileTemp: TemperatureCondition;
+
+  // Convert TemperatureType to TemperatureCondition values for bit masking
+  switch (tile.temperature) {
+    case TemperatureType.FROZEN:
+      tileTemp = TemperatureCondition.TT_FROZEN;
+      break;
+    case TemperatureType.COLD:
+      tileTemp = TemperatureCondition.TT_COLD;
+      break;
+    case TemperatureType.TEMPERATE:
+      tileTemp = TemperatureCondition.TT_TEMPERATE;
+      break;
+    case TemperatureType.TROPICAL:
+      tileTemp = TemperatureCondition.TT_TROPICAL;
+      break;
+    default:
+      tileTemp = TemperatureCondition.TT_TEMPERATE;
+      break;
+  }
+
+  return (tileTemp & condition) !== 0;
+}
+
+/**
+ * Test wetness condition for a tile
+ * @reference freeciv/server/generator/mapgen.c test_wetness()
+ * Exact port of freeciv wetness condition checking
+ */
+export function testWetnessCondition(tile: MapTile, condition: WetnessCondition): boolean {
+  switch (condition) {
+    case WetnessCondition.WC_ALL:
+      return true;
+    case WetnessCondition.WC_DRY:
+      // Dry if wetness < 50
+      return tile.wetness < 50;
+    case WetnessCondition.WC_NDRY:
+      // Not dry if wetness >= 50
+      return tile.wetness >= 50;
+    default:
+      return true;
+  }
+}
+
+/**
+ * Select terrain based on climate-specific selection lists
+ * @reference freeciv/server/generator/mapgen.c fill_island()
+ * Port of freeciv's weighted terrain selection algorithm
+ */
+export function selectTerrainFromList(
+  terrainSelections: TerrainSelect[],
+  tile: MapTile,
+  random: () => number
+): TerrainType | null {
+  if (terrainSelections.length === 0) {
+    return null;
+  }
+
+  // Calculate total weight of valid selections
+  let totalWeight = 0;
+  const validSelections: { selection: TerrainSelect; cumulativeWeight: number }[] = [];
+
+  for (const selection of terrainSelections) {
+    // Check temperature and wetness conditions
+    if (!testTemperatureCondition(tile, selection.tempCondition)) {
+      continue;
+    }
+    if (!testWetnessCondition(tile, selection.wetCondition)) {
+      continue;
+    }
+
+    totalWeight += selection.weight;
+    validSelections.push({
+      selection,
+      cumulativeWeight: totalWeight,
+    });
+  }
+
+  if (validSelections.length === 0 || totalWeight === 0) {
+    return null;
+  }
+
+  // Select based on weighted random
+  const randomValue = Math.floor(random() * totalWeight);
+
+  for (const { selection, cumulativeWeight } of validSelections) {
+    if (randomValue < cumulativeWeight) {
+      // Convert mapgen terrain property to actual terrain type
+      return mapgenPropertyToTerrain(selection.target);
+    }
+  }
+
+  // Fallback to first valid selection
+  return mapgenPropertyToTerrain(validSelections[0].selection.target);
+}
+
+/**
+ * Convert mapgen terrain property to actual terrain type
+ * @reference freeciv/server/generator/mapgen_utils.c pick_terrain()
+ * Maps terrain properties to specific terrain types
+ */
+function mapgenPropertyToTerrain(property: MapgenTerrainProperty): TerrainType {
+  switch (property) {
+    case MapgenTerrainProperty.FOLIAGE:
+      return 'forest';
+    case MapgenTerrainProperty.DRY:
+      return 'desert';
+    case MapgenTerrainProperty.MOUNTAINOUS:
+      return 'mountains';
+    case MapgenTerrainProperty.WET:
+      return 'swamp';
+    case MapgenTerrainProperty.FROZEN:
+      return 'tundra';
+    case MapgenTerrainProperty.COLD:
+      return 'tundra';
+    case MapgenTerrainProperty.GREEN:
+      return 'grassland';
+    case MapgenTerrainProperty.TROPICAL:
+      return 'jungle';
+    case MapgenTerrainProperty.TEMPERATE:
+      return 'plains';
+    default:
+      return 'plains';
+  }
+}
+
+/**
+ * Fill island terrain using climate-based selection
+ * @reference freeciv/server/generator/mapgen.c fill_island()
+ * Port of freeciv's island terrain filling algorithm
+ */
+export function fillIslandTerrain(
+  tiles: MapTile[][],
+  terrainType: 'forest' | 'desert' | 'mountain' | 'swamp',
+  targetCount: number,
+  continentId: number,
+  random: () => number
+): void {
+  if (!islandTerrain.init) {
+    throw new Error('Island terrain not initialized. Call islandTerrainInit() first.');
+  }
+
+  const width = tiles.length;
+  const height = tiles[0].length;
+  const terrainSelections = getIslandTerrainSelections(terrainType);
+  let placedCount = 0;
+  let attempts = 0;
+  const maxAttempts = targetCount * 10; // Prevent infinite loops
+
+  while (placedCount < targetCount && attempts < maxAttempts) {
+    attempts++;
+
+    // Random tile selection
+    const x = Math.floor(random() * width);
+    const y = Math.floor(random() * height);
+    const tile = tiles[x][y];
+
+    // Only place on appropriate land tiles of the correct continent
+    if (tile.continentId !== continentId || !isLandTile(tile.terrain)) {
+      continue;
+    }
+
+    // Skip if already has specific terrain (don't overwrite)
+    if (tile.terrain !== 'plains' && tile.terrain !== 'grassland') {
+      continue;
+    }
+
+    // Use terrain selection logic
+    const selectedTerrain = selectTerrainFromList(terrainSelections, tile, random);
+    if (selectedTerrain) {
+      tile.terrain = selectedTerrain;
+      placedCount++;
     }
   }
 }
