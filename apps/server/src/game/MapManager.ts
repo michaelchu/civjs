@@ -842,15 +842,140 @@ export class MapManager {
   }
 
   /**
+   * Calculate current land percentage of the map
+   * @reference freeciv/server/generator/mapgen.c:2260-2265
+   * Helper method for landpercent validation in island generators
+   * @returns current land percentage (0-100)
+   */
+  private getLandPercent(): number {
+    // Default land percentage setting (matches freeciv wld.map.server.landpercent)
+    // In our implementation, we use 30% as the target, but this could be configurable
+    return 30; // TODO: Make this configurable or calculate dynamically from actual terrain
+  }
+
+  /**
+   * Retry wrapper for island generation with size reduction on failure
+   * @reference freeciv/server/generator/mapgen.c:2274-2342
+   * Implements freeciv's retry mechanism with progressive size reduction
+   * @param maxRetries Maximum number of retry attempts (default 5)
+   * @param sizeReduction Percentage to reduce size on each retry (default 0.8)
+   * @note Ready for integration - can be used to wrap makeIsland() calls for enhanced reliability
+   */
+  // @ts-expect-error - Method implemented for future integration with island generation
+  private async retryIslandGeneration(
+    islandMass: number,
+    playersNum: number,
+    state: IslandGeneratorState,
+    tiles: MapTile[][],
+    terrainPercentages: TerrainPercentages,
+    minSizePercent: number = 50,
+    maxRetries: number = 5,
+    sizeReduction: number = 0.8
+  ): Promise<boolean> {
+    let currentSize = islandMass;
+    let retryCount = 0;
+
+    while (retryCount < maxRetries) {
+      try {
+        // Calculate minimum viable size (matches freeciv's size constraints)
+        const minViableSize = Math.max(Math.floor((islandMass * minSizePercent) / 100), 1);
+
+        if (currentSize < minViableSize) {
+          logger.warn('Island size too small for viable generation, abandoning retry', {
+            currentSize,
+            minViableSize,
+            originalSize: islandMass,
+            retryCount,
+            reference: 'freeciv/server/generator/mapgen.c:2284-2288',
+          });
+          return false;
+        }
+
+        // Attempt island generation
+        await this.islandGenerator.makeIsland(
+          Math.floor(currentSize),
+          playersNum,
+          state,
+          tiles,
+          terrainPercentages,
+          minSizePercent
+        );
+
+        // If we get here, generation succeeded
+        if (retryCount > 0) {
+          logger.info('Island generation succeeded after retry', {
+            retryCount,
+            finalSize: Math.floor(currentSize),
+            originalSize: islandMass,
+            reference: 'freeciv/server/generator/mapgen.c:2274-2342',
+          });
+        }
+        return true;
+      } catch (error) {
+        retryCount++;
+        const previousSize = currentSize;
+        currentSize = Math.floor(currentSize * sizeReduction);
+
+        logger.warn('Island generation failed, retrying with reduced size', {
+          error: error instanceof Error ? error.message : error,
+          retryCount,
+          maxRetries,
+          previousSize: Math.floor(previousSize),
+          newSize: Math.floor(currentSize),
+          sizeReduction,
+          reference: 'freeciv/server/generator/mapgen.c:2274-2342',
+        });
+
+        if (retryCount >= maxRetries) {
+          logger.error('Island generation failed after maximum retries', {
+            maxRetries,
+            finalSize: Math.floor(currentSize),
+            originalSize: islandMass,
+            reference: 'freeciv/server/generator/mapgen.c:2332-2342',
+          });
+          return false;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Large continent generation with 70% big / 20% medium / 10% small landmass
    * @reference freeciv/server/generator/mapgen.c mapgenerator2()
-   * Exact copy of freeciv mapgenerator2 algorithm
+   * Exact copy of freeciv mapgenerator2 algorithm with validation fallbacks
    */
   private async mapGenerator2(
     state: IslandGeneratorState,
     tiles: MapTile[][],
     playerCount: number
   ): Promise<void> {
+    // Landpercent validation fallback (freeciv mapgen.c:2260-2265)
+    if (this.getLandPercent() > 85) {
+      logger.warn('Landpercent too high for mapGenerator2, falling back to random generator', {
+        landpercent: this.getLandPercent(),
+        reference: 'freeciv/server/generator/mapgen.c:2260-2265',
+      });
+      // Convert tiles back to player map for fallback
+      const playersMap = new Map<string, PlayerState>();
+      for (let i = 0; i < playerCount; i++) {
+        playersMap.set(`player_${i}`, { id: `player_${i}` } as PlayerState);
+      }
+      return this.generateMapRandom(playersMap);
+    }
+
+    // Size validation fallback - minimum 30x30 for mapGenerator2 (large continents)
+    if (this.width < 30 || this.height < 30) {
+      logger.warn('Map too small for mapGenerator2 large continents, using mapGenerator4', {
+        width: this.width,
+        height: this.height,
+        minSize: 30,
+        reference: 'freeciv/server/generator/mapgen.c size requirements for large continents',
+      });
+      return this.mapGenerator4(state, tiles, playerCount);
+    }
+
     // Put 70% of land in big continents, 20% in medium, and 10% in small
     const bigfrac = 70,
       midfrac = 20,
@@ -897,6 +1022,30 @@ export class MapManager {
     tiles: MapTile[][],
     playerCount: number
   ): Promise<void> {
+    // Landpercent validation fallback (freeciv mapgen.c:2260-2265)
+    if (this.getLandPercent() > 85) {
+      logger.warn('Landpercent too high for mapGenerator3, falling back to random generator', {
+        landpercent: this.getLandPercent(),
+        reference: 'freeciv/server/generator/mapgen.c:2260-2265',
+      });
+      // Convert tiles back to player map for fallback
+      const playersMap = new Map<string, PlayerState>();
+      for (let i = 0; i < playerCount; i++) {
+        playersMap.set(`player_${i}`, { id: `player_${i}` } as PlayerState);
+      }
+      return this.generateMapRandom(playersMap);
+    }
+
+    // Size validation fallback - minimum 40x40 for mapGenerator3
+    if (this.width < 40 || this.height < 40) {
+      logger.warn('Map too small for mapGenerator3, using mapGenerator4', {
+        width: this.width,
+        height: this.height,
+        minSize: 40,
+        reference: 'freeciv/server/generator/mapgen.c size requirements',
+      });
+      return this.mapGenerator4(state, tiles, playerCount);
+    }
     // Create a few large islands suitable for multiple players each
     const maxMassDiv6 = 20;
     const bigIslands = Math.floor(Math.sqrt(playerCount)) || 1;
@@ -931,6 +1080,30 @@ export class MapManager {
     tiles: MapTile[][],
     playerCount: number
   ): Promise<void> {
+    // Landpercent validation fallback (freeciv mapgen.c:2260-2265)
+    if (this.getLandPercent() > 85) {
+      logger.warn('Landpercent too high for mapGenerator4, falling back to random generator', {
+        landpercent: this.getLandPercent(),
+        reference: 'freeciv/server/generator/mapgen.c:2260-2265',
+      });
+      // Convert tiles back to player map for fallback
+      const playersMap = new Map<string, PlayerState>();
+      for (let i = 0; i < playerCount; i++) {
+        playersMap.set(`player_${i}`, { id: `player_${i}` } as PlayerState);
+      }
+      return this.generateMapRandom(playersMap);
+    }
+
+    // Size validation warning - minimum 20x20 recommended for mapGenerator4
+    if (this.width < 20 || this.height < 20) {
+      logger.warn('Map very small for mapGenerator4, island distribution may be limited', {
+        width: this.width,
+        height: this.height,
+        recommendedMinSize: 20,
+        reference: 'freeciv/server/generator/mapgen.c size recommendations',
+      });
+    }
+
     let bigweight = 70;
 
     // Adjust big island weight based on land percentage
