@@ -28,12 +28,14 @@ export enum WetnessCondition {
   ALL = 'all',
 }
 
-// Terrain property values (0-100) for each terrain type  
-export type TerrainProperties = {
-  [key in TerrainProperty]?: number;
-} | {
-  [key: string]: number | undefined;
-};
+// Terrain property values (0-100) for each terrain type
+export type TerrainProperties =
+  | {
+      [key in TerrainProperty]?: number;
+    }
+  | {
+      [key: string]: number | undefined;
+    };
 
 // Terrain selection criteria for weighted selection
 export interface TerrainSelector {
