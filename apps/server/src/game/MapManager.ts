@@ -54,8 +54,11 @@ export class MapManager {
   private startingPositionGenerator: StartingPositionGenerator;
   private terrainGenerator: TerrainGenerator;
 
-  // Temperature map lazy generation tracking
+  // Temperature map generation tracking
   private temperatureMapGenerated: boolean = false;
+
+  // Optional memory optimization - cleanup temperature map after use
+  private cleanupTemperatureMapAfterUse: boolean = false;
 
   // Default terrain percentages (from freeciv mapgen.c:1498-1512)
   private terrainPercentages: TerrainPercentages = {
@@ -72,7 +75,8 @@ export class MapManager {
     seed?: string,
     generator: string = 'random',
     defaultGeneratorType?: MapGeneratorType,
-    defaultStartPosMode?: StartPosMode
+    defaultStartPosMode?: StartPosMode,
+    cleanupTemperatureMapAfterUse: boolean = false
   ) {
     this.width = width;
     this.height = height;
@@ -80,6 +84,7 @@ export class MapManager {
     this.generator = generator;
     this.defaultGeneratorType = defaultGeneratorType || 'FRACTAL';
     this.defaultStartPosMode = defaultStartPosMode || 'ALL';
+    this.cleanupTemperatureMapAfterUse = cleanupTemperatureMapAfterUse;
     this.random = this.createSeededRandom(this.seed);
 
     // Initialize sub-generators with generator type
@@ -100,29 +105,65 @@ export class MapManager {
   }
 
   /**
-   * Ensure temperature map is generated (lazy generation)
+   * Create temperature map at standard timing (matches freeciv sequence)
+   * @reference freeciv/server/generator/mapgen.c:1133 create_tmap(TRUE)
    * @reference freeciv/server/generator/temperature_map.c
-   * Only generates temperature map when actually needed for terrain selection
+   * Creates temperature map after height generation and ocean assignment
+   * @param tiles Tile array to generate temperature map for
+   * @param heightMap Height map to base temperature calculations on
+   */
+  private createTemperatureMap(tiles: MapTile[][], heightMap: number[]): void {
+    if (this.temperatureMapGenerated) {
+      logger.debug('Temperature map already generated, skipping');
+      return;
+    }
+
+    logger.debug('Creating temperature map at standard timing', {
+      reference: 'freeciv/server/generator/mapgen.c:1133',
+    });
+
+    this.temperatureMap.createTemperatureMap(tiles, heightMap);
+
+    // Apply temperature data to tiles
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        tiles[x][y].temperature = this.temperatureMap.getTemperature(x, y);
+      }
+    }
+
+    this.temperatureMapGenerated = true;
+    logger.debug('Temperature map creation completed at standard timing');
+  }
+
+  /**
+   * Optional cleanup of temperature map to optimize memory usage
+   * @reference freeciv/server/generator/mapgen.c:1480 destroy_tmap()
+   * Can be called after terrain generation is complete to free memory
+   */
+  private cleanupTemperatureMap(): void {
+    if (this.cleanupTemperatureMapAfterUse && this.temperatureMapGenerated) {
+      logger.debug('Cleaning up temperature map to optimize memory usage', {
+        reference: 'freeciv/server/generator/mapgen.c:1480',
+      });
+      // Temperature map data is already applied to tiles, so we can reset the generator
+      this.temperatureMapGenerated = false;
+      // Note: The actual TemperatureMap cleanup would need to be implemented in the TemperatureMap class
+    }
+  }
+
+  /**
+   * Ensure temperature map exists (fallback creation like freeciv)
+   * @reference freeciv/server/generator/mapgen.c:1388-1391
+   * Fallback creation if temperature map wasn't created at standard timing
    * @param tiles Tile array to generate temperature map for
    * @param heightMap Height map to base temperature calculations on
    */
   private ensureTemperatureMap(tiles: MapTile[][], heightMap: number[]): void {
     if (!this.temperatureMapGenerated) {
-      logger.debug('Generating temperature map (lazy generation)', {
-        reference: 'freeciv/server/generator/temperature_map.c',
+      logger.debug('Temperature map not found, creating fallback', {
+        reference: 'freeciv/server/generator/mapgen.c:1388-1391',
       });
-
-      this.temperatureMap.createTemperatureMap(tiles, heightMap);
-
-      // Apply temperature data to tiles
-      for (let x = 0; x < this.width; x++) {
-        for (let y = 0; y < this.height; y++) {
-          tiles[x][y].temperature = this.temperatureMap.getTemperature(x, y);
-        }
-      }
-
-      this.temperatureMapGenerated = true;
-      logger.debug('Temperature map generation completed');
+      this.createTemperatureMap(tiles, heightMap);
     }
   }
 
@@ -232,6 +273,10 @@ export class MapManager {
     // @reference freeciv/server/generator/mapgen.c:1127-1129
     this.heightGenerator.renormalizeHeightMapPoles();
 
+    // Create temperature map at standard timing (after height generation and ocean assignment)
+    // @reference freeciv/server/generator/mapgen.c:1133 create_tmap(TRUE)
+    this.createTemperatureMap(tiles, heightMap);
+
     // Smooth ocean depths based on distance from land (like freeciv smooth_water_depth())
     this.terrainGenerator.smoothWaterDepth(tiles);
 
@@ -253,8 +298,8 @@ export class MapManager {
     // Remove tiny islands after continent assignment (like freeciv sequence)
     this.terrainGenerator.removeTinyIslands(tiles);
 
-    // Generate temperature map only now when needed for climate-based terrain selection
-    // @reference freeciv/server/generator/mapgen.c temperature map timing after terrain placement
+    // Temperature map should already exist from standard timing, but ensure it exists (fallback)
+    // @reference freeciv/server/generator/mapgen.c:1388-1391
     this.ensureTemperatureMap(tiles, heightMap);
 
     // Convert the continuous temperature values to discrete TemperatureType enum
@@ -266,6 +311,9 @@ export class MapManager {
 
     // Generate resources
     await this.resourceGenerator.generateResources(tiles);
+
+    // Optional cleanup of temperature map to optimize memory usage
+    this.cleanupTemperatureMap();
 
     // Find suitable starting positions
     const startingPositions = await this.startingPositionGenerator.generateStartingPositions(
@@ -369,6 +417,10 @@ export class MapManager {
     // Free island terrain selection system (like freeciv island_terrain_free())
     islandTerrainFree();
 
+    // Create temperature map at standard timing (after island placement and ocean assignment)
+    // @reference freeciv/server/generator/mapgen.c:1313 create_tmap(FALSE) / 1388-1391 fallback
+    this.createTemperatureMap(tiles, heightMap);
+
     // Smooth ocean depths based on distance from land (like freeciv smooth_water_depth())
     this.terrainGenerator.smoothWaterDepth(tiles);
 
@@ -376,8 +428,8 @@ export class MapManager {
     // @reference freeciv/server/generator/mapgen.c:1381
     this.terrainGenerator.regenerateLakes(tiles);
 
-    // Generate temperature map only now when needed for climate-based terrain variety
-    // @reference freeciv/server/generator/mapgen.c temperature map timing after island placement
+    // Temperature map should already exist, but ensure it exists (fallback)
+    // @reference freeciv/server/generator/mapgen.c:1388-1391
     this.ensureTemperatureMap(tiles, heightMap);
 
     // Generate climate data now that islands exist and temperature map is available
@@ -395,6 +447,9 @@ export class MapManager {
 
     // Generate resources
     await this.resourceGenerator.generateResources(tiles);
+
+    // Optional cleanup of temperature map to optimize memory usage
+    this.cleanupTemperatureMap();
 
     // Find suitable starting positions
     const startingPositions = await this.startingPositionGenerator.generateStartingPositions(
@@ -665,6 +720,10 @@ export class MapManager {
     // @reference freeciv/server/generator/mapgen.c:1127-1129
     this.heightGenerator.renormalizeHeightMapPoles();
 
+    // Create temperature map at standard timing (after height generation and ocean assignment)
+    // @reference freeciv/server/generator/mapgen.c:1133 create_tmap(TRUE)
+    this.createTemperatureMap(tiles, heightMap);
+
     // Smooth ocean depths based on distance from land
     this.terrainGenerator.smoothWaterDepth(tiles);
 
@@ -686,8 +745,8 @@ export class MapManager {
     // Remove tiny islands
     this.terrainGenerator.removeTinyIslands(tiles);
 
-    // Generate temperature map only now when needed for climate-based terrain selection
-    // @reference freeciv/server/generator/mapgen.c temperature map timing after terrain placement
+    // Temperature map should already exist from standard timing, but ensure it exists (fallback)
+    // @reference freeciv/server/generator/mapgen.c:1388-1391
     this.ensureTemperatureMap(tiles, heightMap);
 
     // Convert temperature and generate wetness
@@ -699,6 +758,9 @@ export class MapManager {
 
     // Generate resources
     await this.resourceGenerator.generateResources(tiles);
+
+    // Optional cleanup of temperature map to optimize memory usage
+    this.cleanupTemperatureMap();
 
     // Find suitable starting positions
     const startingPositions = await this.startingPositionGenerator.generateStartingPositions(
@@ -852,6 +914,10 @@ export class MapManager {
       temperature: 50,
     });
 
+    // Create temperature map at standard timing (after height generation and ocean assignment)
+    // @reference freeciv/server/generator/mapgen.c:1133 create_tmap(TRUE)
+    this.createTemperatureMap(tiles, heightMap);
+
     // Complete the generation process
     this.terrainGenerator.smoothWaterDepth(tiles);
 
@@ -868,8 +934,8 @@ export class MapManager {
     this.terrainGenerator.generateContinents(tiles);
     this.terrainGenerator.removeTinyIslands(tiles);
 
-    // Generate temperature map only now when needed for climate-based terrain selection
-    // @reference freeciv/server/generator/mapgen.c temperature map timing after terrain placement
+    // Temperature map should already exist from standard timing, but ensure it exists (fallback)
+    // @reference freeciv/server/generator/mapgen.c:1388-1391
     this.ensureTemperatureMap(tiles, heightMap);
 
     this.terrainGenerator.convertTemperatureToEnum(tiles);
@@ -877,6 +943,9 @@ export class MapManager {
 
     await this.riverGenerator.generateAdvancedRivers(tiles);
     await this.resourceGenerator.generateResources(tiles);
+
+    // Optional cleanup of temperature map to optimize memory usage
+    this.cleanupTemperatureMap();
 
     const startingPositions = await this.startingPositionGenerator.generateStartingPositions(
       tiles,
