@@ -225,6 +225,137 @@ if (MAPGEN_ISLAND == wld.map.server.generator) {
 
 ---
 
+## 📋 Action Items
+
+### 🔴 High Priority Tasks
+
+#### Task 1: Restructure Main Generation Flow (`generateMap()`)
+**File:** `apps/server/src/game/MapManager.ts:81-174`  
+**Issue:** Current flow doesn't match freeciv's `map_fractal_generate()` routing pattern  
+**Actions Required:**
+1. Add generator type parameter to `generateMap()` method
+2. Implement routing logic similar to mapgen.c:1315-1341:
+   ```typescript
+   switch (generatorType) {
+     case 'FRACTAL': return generateMapFractal();
+     case 'ISLAND': return generateMapWithIslands();
+     case 'RANDOM': return generateMapRandom();
+     case 'FAIR': // fallback to ISLAND if fair fails
+   }
+   ```
+3. Move height map generation inside generator-specific methods
+4. Remove hardcoded fractal flow from main method
+
+#### Task 2: Fix Generation Sequence Order
+**File:** `apps/server/src/game/MapManager.ts:137`  
+**Issue:** `generateContinents()` called before `removeTinyIslands()` - wrong order  
+**Actions Required:**
+1. Move `removeTinyIslands()` call to line 137 (before `generateContinents()`)
+2. Update `generateContinents()` to handle pre-cleaned map
+3. Test island detection after reordering
+
+#### Task 3: Implement Generator Fallback Validations
+**File:** `apps/server/src/game/MapManager.ts:569-612` (mapGenerator2/3/4)  
+**Issue:** Missing landpercent and size validation fallbacks  
+**Actions Required:**
+1. Add landpercent > 85% validation in `mapGenerator2()`:
+   ```typescript
+   if (this.landPercent > 85) {
+     console.warn('landpercent too high for island generator, falling back to random');
+     return this.generateMapRandom();
+   }
+   ```
+2. Add minimum size validation for `mapGenerator3()` (40x40 minimum)
+3. Implement retry mechanism with size reduction for failed generations
+
+#### Task 4: Add Missing Lake Regeneration
+**File:** `apps/server/src/game/MapManager.ts:174`  
+**Issue:** Missing `regenerate_lakes()` equivalent  
+**Actions Required:**
+1. Create `regenerateLakes()` method based on freeciv reference
+2. Convert small oceans (1-2 tiles) to lakes
+3. Call after `smooth_water_depth()` and before `add_resources()`
+4. Reference: `reference/freeciv/server/generator/mapgen.c:1400-1410`
+
+### 🟡 Medium Priority Tasks
+
+#### Task 5: Add Island Terrain Initialization
+**File:** `apps/server/src/game/MapManager.ts:545-567` (`generateMapWithIslands()`)  
+**Issue:** Missing `island_terrain_init()` and `island_terrain_free()` equivalents  
+**Actions Required:**
+1. Create `initializeIslandTerrain()` method to set up terrain selection lists
+2. Create `cleanupIslandTerrain()` method for resource cleanup
+3. Call at start/end of `generateMapWithIslands()`
+4. Reference: `reference/freeciv/server/generator/mapgen.c:1320-1341`
+
+#### Task 6: Implement Proper Startpos Mode Routing
+**File:** `apps/server/src/game/MapManager.ts:545-567`  
+**Issue:** Uses player count instead of startpos mode for generator selection  
+**Actions Required:**
+1. Add `startPosMode` parameter to island generation methods
+2. Implement routing logic:
+   ```typescript
+   if (startPosMode === 'VARIABLE') mapGenerator2();
+   else if (startPosMode === 'DEFAULT' || startPosMode === 'SINGLE') mapGenerator3();
+   else mapGenerator4(); // 2or3, ALL
+   ```
+3. Update calling code to pass appropriate startpos mode
+
+#### Task 7: Add Dynamic Parameter Calculation for Random Generator
+**File:** `apps/server/src/game/MapManager.ts:711-748` (`generateMapRandom()`)  
+**Issue:** Hardcoded parameters instead of freeciv's dynamic calculations  
+**Actions Required:**
+1. Replace hardcoded smoothing passes with dynamic calculation:
+   ```typescript
+   const smoothPasses = Math.max(1, 1 + Math.sqrt(mapSize) - 
+     (startPosMode !== 'DEFAULT' ? playerCount / 4 : 0));
+   ```
+2. Add player count adjustment for smoothing intensity
+3. Reference: `reference/freeciv/server/generator/mapgen.c:1350-1354`
+
+#### Task 8: Fix Temperature Map Timing
+**File:** `apps/server/src/game/MapManager.ts:95-96`  
+**Issue:** Temperature map created too early in generation flow  
+**Actions Required:**
+1. Move temperature map generation after terrain placement
+2. Make temperature map generation conditional based on generator type
+3. Only generate when actually needed for terrain selection
+4. Update dependent methods to handle lazy temperature map creation
+
+### 📝 Task Implementation Order
+
+**Phase 1 (Critical Path):**
+1. Task 1: Restructure Main Generation Flow
+2. Task 2: Fix Generation Sequence Order  
+3. Task 3: Implement Generator Fallback Validations
+
+**Phase 2 (Core Features):**
+4. Task 4: Add Missing Lake Regeneration
+5. Task 5: Add Island Terrain Initialization
+
+**Phase 3 (Enhancements):**
+6. Task 6: Implement Proper Startpos Mode Routing
+7. Task 7: Add Dynamic Parameter Calculation
+8. Task 8: Fix Temperature Map Timing
+
+### 🧪 Testing Requirements
+
+Each task should include:
+1. Unit tests for new methods
+2. Integration tests for modified generation flow
+3. Comparison tests against freeciv reference behavior
+4. Performance regression tests for generation speed
+5. Visual validation of generated maps
+
+### 📊 Success Metrics
+
+- **Task 1-3 Complete**: Compliance score increases to 80%+
+- **All High Priority Complete**: Main generation flow matches freeciv
+- **All Medium Priority Complete**: Feature parity with freeciv generators
+- **Full Implementation**: 90%+ compliance score achieved
+
+---
+
 ## 🔍 Reference File Locations
 
 ### Freeciv Reference Files Analyzed:
