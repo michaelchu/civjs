@@ -54,6 +54,9 @@ export class MapManager {
   private startingPositionGenerator: StartingPositionGenerator;
   private terrainGenerator: TerrainGenerator;
 
+  // Temperature map lazy generation tracking
+  private temperatureMapGenerated: boolean = false;
+
   // Default terrain percentages (from freeciv mapgen.c:1498-1512)
   private terrainPercentages: TerrainPercentages = {
     river: 15, // Base 15% river coverage
@@ -94,6 +97,33 @@ export class MapManager {
     this.resourceGenerator = new ResourceGenerator(width, height, this.random);
     this.startingPositionGenerator = new StartingPositionGenerator(width, height);
     this.terrainGenerator = new TerrainGenerator(width, height, this.random, this.generator);
+  }
+
+  /**
+   * Ensure temperature map is generated (lazy generation)
+   * @reference freeciv/server/generator/temperature_map.c
+   * Only generates temperature map when actually needed for terrain selection
+   * @param tiles Tile array to generate temperature map for
+   * @param heightMap Height map to base temperature calculations on
+   */
+  private ensureTemperatureMap(tiles: MapTile[][], heightMap: number[]): void {
+    if (!this.temperatureMapGenerated) {
+      logger.debug('Generating temperature map (lazy generation)', {
+        reference: 'freeciv/server/generator/temperature_map.c',
+      });
+
+      this.temperatureMap.createTemperatureMap(tiles, heightMap);
+
+      // Apply temperature data to tiles
+      for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < this.height; y++) {
+          tiles[x][y].temperature = this.temperatureMap.getTemperature(x, y);
+        }
+      }
+
+      this.temperatureMapGenerated = true;
+      logger.debug('Temperature map generation completed');
+    }
   }
 
   /**
@@ -189,16 +219,6 @@ export class MapManager {
       }
     }
 
-    // Generate temperature map
-    this.temperatureMap.createTemperatureMap(tiles, heightMap);
-
-    // Apply temperature data to tiles
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        tiles[x][y].temperature = this.temperatureMap.getTemperature(x, y);
-      }
-    }
-
     // Use exact freeciv terrain generation
     this.terrainGenerator.heightMapToMap(tiles, heightMap);
     this.terrainGenerator.makeLand(tiles, heightMap, {
@@ -228,6 +248,10 @@ export class MapManager {
 
     // Remove tiny islands after continent assignment (like freeciv sequence)
     this.terrainGenerator.removeTinyIslands(tiles);
+
+    // Generate temperature map only now when needed for climate-based terrain selection
+    // @reference freeciv/server/generator/mapgen.c temperature map timing after terrain placement
+    this.ensureTemperatureMap(tiles, heightMap);
 
     // Convert the continuous temperature values to discrete TemperatureType enum
     this.terrainGenerator.convertTemperatureToEnum(tiles);
@@ -290,7 +314,7 @@ export class MapManager {
       }
     }
 
-    // Generate elevation and temperature maps for proper climate-based terrain selection
+    // Generate elevation for height-based terrain selection
     this.heightGenerator.generateHeightMap();
     const heightMap = this.heightGenerator.getHeightMap();
 
@@ -299,16 +323,6 @@ export class MapManager {
       for (let y = 0; y < this.height; y++) {
         const index = y * this.width + x;
         tiles[x][y].elevation = heightMap[index];
-      }
-    }
-
-    // Generate temperature map
-    this.temperatureMap.createTemperatureMap(tiles, heightMap);
-
-    // Apply temperature data to tiles
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        tiles[x][y].temperature = this.temperatureMap.getTemperature(x, y);
       }
     }
 
@@ -358,7 +372,11 @@ export class MapManager {
     // @reference freeciv/server/generator/mapgen.c:1381
     this.terrainGenerator.regenerateLakes(tiles);
 
-    // Generate climate data now that islands exist
+    // Generate temperature map only now when needed for climate-based terrain variety
+    // @reference freeciv/server/generator/mapgen.c temperature map timing after island placement
+    this.ensureTemperatureMap(tiles, heightMap);
+
+    // Generate climate data now that islands exist and temperature map is available
     this.terrainGenerator.convertTemperatureToEnum(tiles);
     this.terrainGenerator.generateWetnessMap(tiles);
 
@@ -630,16 +648,6 @@ export class MapManager {
       }
     }
 
-    // Generate temperature map
-    this.temperatureMap.createTemperatureMap(tiles, heightMap);
-
-    // Apply temperature data to tiles
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        tiles[x][y].temperature = this.temperatureMap.getTemperature(x, y);
-      }
-    }
-
     // Use exact freeciv terrain generation
     this.terrainGenerator.heightMapToMap(tiles, heightMap);
     this.terrainGenerator.makeLand(tiles, heightMap, {
@@ -669,6 +677,10 @@ export class MapManager {
 
     // Remove tiny islands
     this.terrainGenerator.removeTinyIslands(tiles);
+
+    // Generate temperature map only now when needed for climate-based terrain selection
+    // @reference freeciv/server/generator/mapgen.c temperature map timing after terrain placement
+    this.ensureTemperatureMap(tiles, heightMap);
 
     // Convert temperature and generate wetness
     this.terrainGenerator.convertTemperatureToEnum(tiles);
@@ -823,16 +835,6 @@ export class MapManager {
       }
     }
 
-    // Generate temperature map
-    this.temperatureMap.createTemperatureMap(tiles, heightMap);
-
-    // Apply temperature data to tiles
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        tiles[x][y].temperature = this.temperatureMap.getTemperature(x, y);
-      }
-    }
-
     // Use exact freeciv terrain generation
     this.terrainGenerator.heightMapToMap(tiles, heightMap);
     this.terrainGenerator.makeLand(tiles, heightMap, {
@@ -857,6 +859,11 @@ export class MapManager {
     );
     this.terrainGenerator.generateContinents(tiles);
     this.terrainGenerator.removeTinyIslands(tiles);
+
+    // Generate temperature map only now when needed for climate-based terrain selection
+    // @reference freeciv/server/generator/mapgen.c temperature map timing after terrain placement
+    this.ensureTemperatureMap(tiles, heightMap);
+
     this.terrainGenerator.convertTemperatureToEnum(tiles);
     this.terrainGenerator.generateWetnessMap(tiles);
 
