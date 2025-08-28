@@ -3,23 +3,16 @@ import postgres from 'postgres';
 import * as schema from './schema';
 import logger from '../utils/logger';
 
-// Database connection string - prioritize Supabase vars from Vercel
-const connectionString = 
-  process.env.POSTGRES_URL ||
-  process.env.DATABASE_URL || 
-  'postgresql://civjs:civjs_dev@localhost:5432/civjs_dev';
-
-// Add SSL mode for production if not already present
-const finalConnectionString = process.env.NODE_ENV === 'production' && connectionString && !connectionString.includes('sslmode')
-  ? `${connectionString}?sslmode=no-verify`
-  : connectionString;
+// Database connection string - use POSTGRES_URL from Supabase
+const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL || 'postgresql://civjs:civjs_dev@localhost:5432/civjs_dev';
 
 // Create postgres connection
-const queryClient = postgres(finalConnectionString, {
-  max: 10, // Maximum number of connections
+// Disable prefetch for "Transaction" pool mode (Supabase recommendation)
+const queryClient = postgres(connectionString, {
+  prepare: false, // Required for Supabase transaction pooling
+  max: 10,
   idle_timeout: 20,
   connect_timeout: 10,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
 // Create drizzle instance
