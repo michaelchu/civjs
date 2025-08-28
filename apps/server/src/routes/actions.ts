@@ -16,12 +16,12 @@ router.post(
   authenticateUser,
   requireGameAccess,
   requirePlayerTurn,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const { unitId, toX, toY } = req.body;
 
       if (!unitId || typeof toX !== 'number' || typeof toY !== 'number') {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'unitId, toX, and toY are required',
         });
@@ -62,6 +62,7 @@ router.post(
         success: false,
         error: error instanceof Error ? error.message : 'Failed to move unit',
       });
+      return;
     }
   }
 );
@@ -74,12 +75,12 @@ router.post(
   authenticateUser,
   requireGameAccess,
   requirePlayerTurn,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const { attackerUnitId, defenderUnitId } = req.body;
 
       if (!attackerUnitId || !defenderUnitId) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'attackerUnitId and defenderUnitId are required',
         });
@@ -106,12 +107,14 @@ router.post(
         combatResult,
         message: 'Attack completed',
       });
+      return;
     } catch (error) {
       logger.error('Error processing unit attack:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to attack unit',
       });
+      return;
     }
   }
 );
@@ -124,12 +127,12 @@ router.post(
   authenticateUser,
   requireGameAccess,
   requirePlayerTurn,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const { unitId } = req.body;
 
       if (!unitId) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'unitId is required',
         });
@@ -149,12 +152,14 @@ router.post(
         unitId,
         message: 'Unit fortified successfully',
       });
+      return;
     } catch (error) {
       logger.error('Error fortifying unit:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to fortify unit',
       });
+      return;
     }
   }
 );
@@ -167,12 +172,12 @@ router.post(
   authenticateUser,
   requireGameAccess,
   requirePlayerTurn,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const { name, x, y } = req.body;
 
       if (!name || typeof x !== 'number' || typeof y !== 'number') {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'name, x, and y are required',
         });
@@ -197,12 +202,14 @@ router.post(
         y,
         message: 'City founded successfully',
       });
+      return;
     } catch (error) {
       logger.error('Error founding city:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to found city',
       });
+      return;
     }
   }
 );
@@ -215,12 +222,12 @@ router.post(
   authenticateUser,
   requireGameAccess,
   requirePlayerTurn,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const { techId } = req.body;
 
       if (!techId) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'techId is required',
         });
@@ -249,12 +256,14 @@ router.post(
         })),
         message: 'Research set successfully',
       });
+      return;
     } catch (error) {
       logger.error('Error setting research:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to set research',
       });
+      return;
     }
   }
 );
@@ -267,12 +276,12 @@ router.post(
   authenticateUser,
   requireGameAccess,
   requirePlayerTurn,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const { techId } = req.body;
 
       if (!techId) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'techId is required',
         });
@@ -292,12 +301,14 @@ router.post(
         techGoal: techId,
         message: 'Research goal set successfully',
       });
+      return;
     } catch (error) {
       logger.error('Error setting research goal:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to set research goal',
       });
+      return;
     }
   }
 );
@@ -310,7 +321,7 @@ router.post(
   authenticateUser,
   requireGameAccess,
   requirePlayerTurn,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const gameManager = GameManager.getInstance();
       const turnAdvanced = await gameManager.endTurn(req.playerId!);
@@ -342,6 +353,7 @@ router.post(
         success: false,
         error: error instanceof Error ? error.message : 'Failed to end turn',
       });
+      return;
     }
   }
 );
@@ -354,12 +366,12 @@ router.post(
   authenticateUser,
   requireGameAccess,
   requirePlayerTurn,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const { cityId, production, type } = req.body;
 
       if (!cityId || !production || !type) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'cityId, production, and type are required',
         });
@@ -383,12 +395,14 @@ router.post(
         type,
         message: 'City production changed successfully',
       });
+      return;
     } catch (error) {
       logger.error('Error changing city production:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to change production',
       });
+      return;
     }
   }
 );
@@ -401,12 +415,12 @@ router.post(
   authenticateUser,
   requireGameAccess,
   requirePlayerTurn,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const { unitType, x, y } = req.body;
 
       if (!unitType || typeof x !== 'number' || typeof y !== 'number') {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'unitType, x, and y are required',
         });
@@ -431,12 +445,14 @@ router.post(
         y,
         message: 'Unit created successfully',
       });
+      return;
     } catch (error) {
       logger.error('Error creating unit:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to create unit',
       });
+      return;
     }
   }
 );

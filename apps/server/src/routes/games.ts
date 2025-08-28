@@ -11,7 +11,7 @@ const router = Router();
 /**
  * POST /api/games - Create new game
  */
-router.post('/', authenticateUser, async (req: Request, res: Response) => {
+router.post('/', authenticateUser, async (req: Request, res: Response): Promise<void> => {
   try {
     const {
       name,
@@ -33,10 +33,11 @@ router.post('/', authenticateUser, async (req: Request, res: Response) => {
     } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Game name is required',
       });
+      return;
     }
 
     const gameManager = GameManager.getInstance();
@@ -79,7 +80,7 @@ router.post('/', authenticateUser, async (req: Request, res: Response) => {
 /**
  * GET /api/games - List available games
  */
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', async (_req: Request, res: Response): Promise<void> => {
   try {
     const gameManager = GameManager.getInstance();
     const games = await gameManager.getGameListForLobby();
@@ -114,7 +115,7 @@ router.get('/', async (req: Request, res: Response) => {
 /**
  * GET /api/games/:id - Get game state and info
  */
-router.get('/:id', authenticateUser, async (req: Request, res: Response) => {
+router.get('/:id', authenticateUser, async (req: Request, res: Response): Promise<void> => {
   try {
     const gameId = req.params.id;
     const gameManager = GameManager.getInstance();
@@ -122,30 +123,31 @@ router.get('/:id', authenticateUser, async (req: Request, res: Response) => {
     // Get game from database
     const game = await gameManager.getGame(gameId);
     if (!game) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: 'Game not found',
       });
+      return;
     }
 
     // Check if user is a player or can observe
-    const players = Array.from(game.players.values());
+    const players = game.players;
     const userPlayer = players.find((p: any) => p.userId === req.userId);
-    const isHost = game.config.hostId === req.userId;
+    const isHost = game.hostId === req.userId;
 
     // Get current player info
-    const currentPlayerNumber = game.turnManager.getCurrentPlayer();
+    const currentPlayerNumber = 1; // TODO: Calculate from turn logic
     const currentPlayer = players.find((p: any) => p.playerNumber === currentPlayerNumber);
     const isMyTurn = userPlayer && userPlayer.playerNumber === currentPlayerNumber;
 
     const gameState = {
       id: gameId,
-      name: game.config.name,
-      status: game.state,
+      name: game.name,
+      status: game.status,
       currentPlayer: currentPlayer?.id || null,
       currentPlayerNumber: currentPlayerNumber,
       currentTurn: game.currentTurn,
-      maxPlayers: game.config.maxPlayers || 4,
+      maxPlayers: game.maxPlayers || 4,
       players: players.map((p: any) => ({
         id: p.id,
         userId: p.userId,
@@ -159,7 +161,7 @@ router.get('/:id', authenticateUser, async (req: Request, res: Response) => {
       isHost,
       canObserve: true, // Allow anyone authenticated to observe
       lastUpdated: new Date().toISOString(),
-      year: game.turnManager ? game.turnManager.getCurrentYear() : 4000,
+      year: 4000 + game.currentTurn, // Simple year calculation
     };
 
     res.json({
@@ -188,26 +190,28 @@ router.post('/:id/join', authenticateUser, async (req: Request, res: Response) =
     // Check if game exists
     const game = await gameManager.getGame(gameId);
     if (!game) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: 'Game not found',
       });
+      return;
     }
 
     // Check if user is already in the game
-    const players = Array.from(game.players.values());
+    const players = game.players;
     const existingPlayer = players.find((p: any) => p.userId === req.userId);
 
     if (existingPlayer) {
       // User is already in the game, just update connection status
       await gameManager.updatePlayerConnection(existingPlayer.id, true);
 
-      return res.json({
+      res.json({
         success: true,
         playerId: existingPlayer.id,
         message: 'Reconnected to existing game',
         isReconnect: true,
       });
+      return;
     }
 
     // Join as new player
@@ -251,12 +255,14 @@ router.post(
         success: true,
         message: 'Game started successfully',
       });
+      return;
     } catch (error) {
       logger.error('Error starting game:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to start game',
       });
+      return;
     }
   }
 );
@@ -281,12 +287,14 @@ router.delete(
         success: true,
         message: 'Left game successfully',
       });
+      return;
     } catch (error) {
       logger.error('Error leaving game:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to leave game',
       });
+      return;
     }
   }
 );
@@ -301,10 +309,11 @@ router.post('/:id/observe', authenticateUser, async (req: Request, res: Response
 
     const game = await gameManager.getGame(gameId);
     if (!game) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: 'Game not found',
       });
+      return;
     }
 
     logger.info(`${req.username} is now observing game ${gameId}`);

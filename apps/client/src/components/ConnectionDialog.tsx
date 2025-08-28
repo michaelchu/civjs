@@ -29,7 +29,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
 
     try {
       await gameClient.connect();
-      gameClient.joinGame(playerName.trim());
+      gameClient.joinGame();
       setClientState('preparing');
     } catch (err) {
       setError(

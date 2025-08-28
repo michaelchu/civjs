@@ -18,7 +18,11 @@ declare module 'express-serve-static-core' {
  * Authentication middleware for HTTP routes
  * Handles session-based authentication for serverless compatibility
  */
-export async function authenticateUser(req: Request, res: Response, next: NextFunction) {
+export async function authenticateUser(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     // Check for session ID in headers or query params
     const sessionId =
@@ -27,19 +31,21 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
       req.headers.authorization?.replace('Bearer ', '');
 
     if (!sessionId) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         error: 'No session ID provided. Use x-session-id header or sessionId query param.',
       });
+      return;
     }
 
     // Get user ID from session cache
     const userId = await sessionCache.getSession(sessionId);
     if (!userId) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         error: 'Invalid or expired session. Please authenticate first.',
       });
+      return;
     }
 
     // Get user details from database
@@ -50,10 +56,11 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
     if (!user) {
       // Session exists but user doesn't - clean up session
       await sessionCache.deleteSession(sessionId);
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         error: 'User not found. Please authenticate again.',
       });
+      return;
     }
 
     // Update last seen
@@ -77,7 +84,11 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
 /**
  * Optional authentication - adds user info if session exists but doesn't require it
  */
-export async function optionalAuth(req: Request, res: Response, next: NextFunction) {
+export async function optionalAuth(
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const sessionId =
       (req.headers['x-session-id'] as string) ||
@@ -114,10 +125,11 @@ export async function loginUser(req: Request, res: Response): Promise<void> {
     const { username } = req.body;
 
     if (!username || typeof username !== 'string' || username.trim().length === 0) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Username is required',
       });
+      return;
     }
 
     const trimmedUsername = username.trim();

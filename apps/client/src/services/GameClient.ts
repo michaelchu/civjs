@@ -46,7 +46,10 @@ class GameClient {
     console.log('HTTP Game Client initialized with server:', this.baseUrl);
   }
 
-  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+  private async makeRequest(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<any> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers: any = {
       'Content-Type': 'application/json',
@@ -98,7 +101,9 @@ class GameClient {
 
       if (response.success) {
         this.sessionId = response.sessionId;
-        console.log(`Authenticated as ${playerName} with session ${this.sessionId}`);
+        console.log(
+          `Authenticated as ${playerName} with session ${this.sessionId}`
+        );
       } else {
         throw new Error(response.error || 'Authentication failed');
       }
@@ -156,7 +161,7 @@ class GameClient {
     if (response.success) {
       this.currentGameId = response.gameId;
       console.log('Game created:', response.gameId);
-      
+
       // Start polling for single player games
       if (gameData.maxPlayers === 1) {
         useGameStore.getState().setClientState('running');
@@ -165,7 +170,7 @@ class GameClient {
         useGameStore.getState().setClientState('waiting_for_players');
         this.startPolling(30000); // Poll every 30 seconds in lobby
       }
-      
+
       return response.gameId;
     } else {
       throw new Error(response.error || 'Failed to create game');
@@ -215,8 +220,10 @@ class GameClient {
     }
 
     try {
-      const response = await this.makeRequest(`/api/games/${this.currentGameId}`);
-      
+      const response = await this.makeRequest(
+        `/api/games/${this.currentGameId}`
+      );
+
       if (response.success) {
         const gameState = response.game as GameState;
         this.handleGameStateUpdate(gameState);
@@ -231,11 +238,11 @@ class GameClient {
 
   private handleGameStateUpdate(gameState: GameState): void {
     const store = useGameStore.getState();
-    
+
     // Update basic game state
     store.updateGameState({
       turn: gameState.currentTurn,
-      currentPlayerId: gameState.currentPlayer,
+      currentPlayerId: gameState.currentPlayer || undefined,
     });
 
     // Check for state changes
@@ -285,19 +292,25 @@ class GameClient {
 
     try {
       // Fetch map data
-      const mapResponse = await this.makeRequest(`/api/games/${this.currentGameId}/map`);
+      const mapResponse = await this.makeRequest(
+        `/api/games/${this.currentGameId}/map`
+      );
       if (mapResponse.success) {
         this.handleMapData(mapResponse.mapData);
       }
 
       // Fetch units
-      const unitsResponse = await this.makeRequest(`/api/games/${this.currentGameId}/units`);
+      const unitsResponse = await this.makeRequest(
+        `/api/games/${this.currentGameId}/units`
+      );
       if (unitsResponse.success) {
         this.handleUnitsData(unitsResponse.units);
       }
 
       // Fetch cities
-      const citiesResponse = await this.makeRequest(`/api/games/${this.currentGameId}/cities`);
+      const citiesResponse = await this.makeRequest(
+        `/api/games/${this.currentGameId}/cities`
+      );
       if (citiesResponse.success) {
         this.handleCitiesData(citiesResponse.cities);
       }
@@ -320,7 +333,7 @@ class GameClient {
 
     // Process tiles
     const updatedTiles: any = {};
-    
+
     if (mapData.tiles) {
       Object.keys(mapData.tiles).forEach(tileKey => {
         const tile = mapData.tiles[tileKey];
@@ -364,7 +377,7 @@ class GameClient {
 
   private handleUnitsData(units: any[]): void {
     const unitsMap: any = {};
-    
+
     units.forEach(unit => {
       unitsMap[unit.id] = unit;
     });
@@ -376,7 +389,7 @@ class GameClient {
 
   private handleCitiesData(cities: any[]): void {
     const citiesMap: any = {};
-    
+
     cities.forEach(city => {
       citiesMap[city.id] = city;
     });
@@ -389,12 +402,12 @@ class GameClient {
   startPolling(frequency: number = 5000): void {
     this.stopPolling();
     this.pollingFrequency = frequency;
-    
+
     console.log(`Starting polling every ${frequency}ms`);
     this.pollingInterval = setInterval(() => {
       this.pollGameState();
     }, frequency);
-    
+
     // Poll immediately
     this.pollGameState();
   }
@@ -408,54 +421,78 @@ class GameClient {
   }
 
   // Game Actions
-  async moveUnit(unitId: string, _fromX: number, _fromY: number, toX: number, toY: number): Promise<ActionResult> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/move`, {
-      method: 'POST',
-      body: JSON.stringify({ unitId, toX, toY }),
-    });
+  async moveUnit(
+    unitId: string,
+    _fromX: number,
+    _fromY: number,
+    toX: number,
+    toY: number
+  ): Promise<ActionResult> {
+    const response = await this.makeRequest(
+      `/api/games/${this.currentGameId}/actions/move`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ unitId, toX, toY }),
+      }
+    );
 
     // After action, resume polling to check for turn changes
     this.startPolling();
-    
+
     return response;
   }
 
   async foundCity(name: string, x: number, y: number): Promise<ActionResult> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/found-city`, {
-      method: 'POST',
-      body: JSON.stringify({ name, x, y }),
-    });
+    const response = await this.makeRequest(
+      `/api/games/${this.currentGameId}/actions/found-city`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ name, x, y }),
+      }
+    );
 
     this.startPolling();
     return response;
   }
 
   async setResearch(techId: string): Promise<ActionResult> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/research`, {
-      method: 'POST',
-      body: JSON.stringify({ techId }),
-    });
+    const response = await this.makeRequest(
+      `/api/games/${this.currentGameId}/actions/research`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ techId }),
+      }
+    );
 
     this.startPolling();
     return response;
   }
 
   async endTurn(): Promise<ActionResult> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/end-turn`, {
-      method: 'POST',
-      body: JSON.stringify({}),
-    });
+    const response = await this.makeRequest(
+      `/api/games/${this.currentGameId}/actions/end-turn`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }
+    );
 
     // After ending turn, resume polling immediately to watch for game updates
     this.startPolling();
     return response;
   }
 
-  async attackUnit(attackerUnitId: string, defenderUnitId: string): Promise<ActionResult> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/attack`, {
-      method: 'POST',
-      body: JSON.stringify({ attackerUnitId, defenderUnitId }),
-    });
+  async attackUnit(
+    attackerUnitId: string,
+    defenderUnitId: string
+  ): Promise<ActionResult> {
+    const response = await this.makeRequest(
+      `/api/games/${this.currentGameId}/actions/attack`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ attackerUnitId, defenderUnitId }),
+      }
+    );
 
     this.startPolling();
     return response;
@@ -463,29 +500,33 @@ class GameClient {
 
   // Data getters (now handled by polling, but keeping for compatibility)
   async getMapData(): Promise<any> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/map`);
+    const response = await this.makeRequest(
+      `/api/games/${this.currentGameId}/map`
+    );
     return response.mapData;
   }
 
   async getVisibleTiles(): Promise<any> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/tiles`);
+    const response = await this.makeRequest(
+      `/api/games/${this.currentGameId}/tiles`
+    );
     return response.visibleTiles;
   }
 
   disconnect(): void {
     this.stopPolling();
-    
+
     if (this.sessionId) {
       // Fire and forget logout
       this.makeRequest('/api/auth/logout', { method: 'POST' }).catch(() => {
         // Ignore logout errors
       });
     }
-    
+
     this.sessionId = null;
     this.currentGameId = null;
     console.log('Disconnected from HTTP server');
-    
+
     useGameStore.getState().setClientState('initial');
   }
 

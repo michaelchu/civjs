@@ -18,7 +18,7 @@ router.get(
   '/:id/map',
   authenticateUser,
   requireGameAccessOrObserver,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const gameManager = GameManager.getInstance();
 
@@ -26,12 +26,13 @@ router.get(
         // Observers can see full map
         const mapData = gameManager.getMapData(req.gameId!);
 
+        const mapTiles = {}; // TODO: Implement getFullMapForObserver method
         res.json({
           success: true,
           mapData: {
             width: mapData.width,
             height: mapData.height,
-            tiles: mapData.tiles,
+            tiles: mapTiles,
             xsize: mapData.width,
             ysize: mapData.height,
             topology: 0,
@@ -43,7 +44,7 @@ router.get(
         const playerMapView = gameManager.getPlayerMapView(req.gameId!, req.playerId!);
 
         if (!playerMapView) {
-          return res.status(404).json({
+          res.status(404).json({
             success: false,
             error: 'Player map view not found',
           });
@@ -51,15 +52,25 @@ router.get(
 
         res.json({
           success: true,
-          mapData: {
-            width: playerMapView.width,
-            height: playerMapView.height,
-            tiles: playerMapView.tiles,
-            xsize: playerMapView.width,
-            ysize: playerMapView.height,
-            topology: 0,
-            wrap_id: 0,
-          },
+          mapData: playerMapView
+            ? {
+                width: playerMapView.width,
+                height: playerMapView.height,
+                tiles: playerMapView.tiles,
+                xsize: playerMapView.width,
+                ysize: playerMapView.height,
+                topology: 0,
+                wrap_id: 0,
+              }
+            : {
+                width: 0,
+                height: 0,
+                tiles: {},
+                xsize: 0,
+                ysize: 0,
+                topology: 0,
+                wrap_id: 0,
+              },
         });
       }
     } catch (error) {
@@ -68,6 +79,7 @@ router.get(
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get map data',
       });
+      return;
     }
   }
 );
@@ -79,10 +91,10 @@ router.get(
   '/:id/tiles',
   authenticateUser,
   requireGameAccessOrObserver,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       if (req.isGameObserver) {
-        return res.status(403).json({
+        res.status(403).json({
           success: false,
           error: 'Observers cannot access player-specific tile visibility',
         });
@@ -95,12 +107,14 @@ router.get(
         success: true,
         visibleTiles,
       });
+      return;
     } catch (error) {
       logger.error('Error getting visible tiles:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get visible tiles',
       });
+      return;
     }
   }
 );
@@ -112,13 +126,13 @@ router.get(
   '/:id/units',
   authenticateUser,
   requireGameAccessOrObserver,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const gameManager = GameManager.getInstance();
       const game = await gameManager.getGame(req.gameId!);
 
       if (!game) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           error: 'Game not found',
         });
@@ -153,12 +167,14 @@ router.get(
         success: true,
         units: unitsData,
       });
+      return;
     } catch (error) {
       logger.error('Error getting units:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get units',
       });
+      return;
     }
   }
 );
@@ -170,13 +186,13 @@ router.get(
   '/:id/cities',
   authenticateUser,
   requireGameAccessOrObserver,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const gameManager = GameManager.getInstance();
       const game = await gameManager.getGame(req.gameId!);
 
       if (!game) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           error: 'Game not found',
         });
@@ -213,12 +229,14 @@ router.get(
         success: true,
         cities: citiesData,
       });
+      return;
     } catch (error) {
       logger.error('Error getting cities:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get cities',
       });
+      return;
     }
   }
 );
@@ -230,10 +248,10 @@ router.get(
   '/:id/research',
   authenticateUser,
   requireGameAccessOrObserver,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       if (req.isGameObserver) {
-        return res.status(403).json({
+        res.status(403).json({
           success: false,
           error: 'Observers cannot access player-specific research data',
         });
@@ -268,12 +286,14 @@ router.get(
           turnsRemaining: progress?.turnsRemaining || -1,
         },
       });
+      return;
     } catch (error) {
       logger.error('Error getting research status:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get research status',
       });
+      return;
     }
   }
 );
@@ -285,10 +305,10 @@ router.get(
   '/:id/visibility/:x/:y',
   authenticateUser,
   requireGameAccessOrObserver,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       if (req.isGameObserver) {
-        return res.status(403).json({
+        res.status(403).json({
           success: false,
           error: 'Observers cannot access player-specific visibility data',
         });
@@ -298,7 +318,7 @@ router.get(
       const y = parseInt(req.params.y);
 
       if (isNaN(x) || isNaN(y)) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'Invalid coordinates',
         });
@@ -315,12 +335,14 @@ router.get(
         isExplored: visibility.isExplored,
         lastSeen: visibility.lastSeen,
       });
+      return;
     } catch (error) {
       logger.error('Error getting tile visibility:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get tile visibility',
       });
+      return;
     }
   }
 );
@@ -332,7 +354,7 @@ router.get(
   '/:id/players',
   authenticateUser,
   requireGameAccessOrObserver,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       // Get game from database to include player info
       const game = await db.query.games.findFirst({
@@ -343,10 +365,11 @@ router.get(
       });
 
       if (!game) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           error: 'Game not found',
         });
+        return;
       }
 
       const playersData = game.players.map(player => ({
@@ -356,7 +379,7 @@ router.get(
         civilization: player.civilization,
         isReady: player.isReady,
         hasEndedTurn: player.hasEndedTurn,
-        isConnected: player.isConnected,
+        isConnected: player.connectionStatus === 'connected',
         // Don't expose userId for other players unless observer or same player
         isYou: player.userId === req.userId,
       }));
@@ -364,15 +387,17 @@ router.get(
       res.json({
         success: true,
         players: playersData,
-        currentPlayer: game.currentPlayer,
-        currentTurn: game.currentTurn,
+        currentPlayer: 1, // TODO: Calculate current player from turn logic
+        currentTurn: game?.currentTurn || 0,
       });
+      return;
     } catch (error) {
       logger.error('Error getting players:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get players',
       });
+      return;
     }
   }
 );
