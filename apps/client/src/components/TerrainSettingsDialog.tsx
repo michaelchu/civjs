@@ -155,7 +155,7 @@ export const TerrainSettingsDialog: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200 lg:flex lg:items-center lg:justify-center">
-      <div className="flex flex-col h-screen lg:h-auto lg:max-w-4xl xl:max-w-5xl lg:mx-auto">
+      <div className="flex flex-col h-screen lg:h-auto lg:max-w-4xl xl:max-w-5xl lg:mx-auto min-h-0">
         <div className="bg-transparent lg:bg-gradient-to-b lg:from-amber-100 lg:to-yellow-100 p-4 lg:p-8 lg:rounded-lg lg:shadow-2xl w-full lg:border lg:border-amber-300 lg:shadow-amber-300/20 flex-1 lg:flex-none overflow-y-auto">
           <div className="flex items-center mb-6">
             <button
@@ -462,7 +462,7 @@ export const TerrainSettingsDialog: React.FC = () => {
         </div>
 
         {/* Mobile bottom buttons */}
-        <div className="lg:hidden bg-gradient-to-t from-amber-100 to-transparent p-4 border-t border-amber-300">
+        <div className="lg:hidden bg-gradient-to-t from-amber-100 to-transparent p-4 border-t border-amber-300 mt-auto">
           <div className="flex space-x-4">
             <button
               type="button"
