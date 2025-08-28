@@ -152,282 +152,315 @@ export const TerrainSettingsDialog: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200">
-      <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-8 md:rounded-lg md:shadow-2xl w-full max-w-2xl mx-auto md:border md:border-amber-300 md:shadow-amber-300/20">
-        <div className="flex items-center mb-6">
-          <button
-            onClick={handleBack}
-            className="mr-3 p-2 text-amber-600 hover:text-amber-800 transition-colors"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+    <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200 md:flex md:items-center md:justify-center">
+      <div className="flex flex-col h-screen md:h-auto md:max-w-2xl md:mx-auto">
+        <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-8 md:rounded-lg md:shadow-2xl w-full md:border md:border-amber-300 md:shadow-amber-300/20 flex-1 md:flex-none overflow-y-auto">
+          <div className="flex items-center mb-6">
+            <button
+              onClick={handleBack}
+              className="mr-3 p-2 text-amber-600 hover:text-amber-800 transition-colors"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </button>
-          <div>
-            <h2 className="text-xl md:text-2xl font-bold text-amber-800">
-              Terrain Settings
-            </h2>
-            <p className="text-amber-600 text-sm md:text-base">
-              Configure map generation for "{gameData.gameName}"
-            </p>
-          </div>
-        </div>
-
-        <form onSubmit={handleCreateGame} className="space-y-4 md:space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
             <div>
-              <label
-                htmlFor="generator"
-                className="block text-sm font-medium text-amber-700 mb-2"
-              >
-                Map Generator
-              </label>
-              <select
-                id="generator"
-                value={terrainSettings.generator}
-                onChange={e =>
-                  setTerrainSettings(prev => ({
-                    ...prev,
-                    generator: e.target.value,
-                  }))
-                }
-                className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
-              >
-                {generatorOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-amber-500 mt-1">
-                {
-                  generatorOptions.find(
-                    opt => opt.value === terrainSettings.generator
-                  )?.description
-                }
-              </p>
-            </div>
-
-            <div>
-              <label
-                htmlFor="landmass"
-                className="block text-sm font-medium text-amber-700 mb-2"
-              >
-                Landmass
-              </label>
-              <select
-                id="landmass"
-                value={terrainSettings.landmass}
-                onChange={e =>
-                  setTerrainSettings(prev => ({
-                    ...prev,
-                    landmass: e.target.value,
-                  }))
-                }
-                className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
-              >
-                {landmassOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-amber-500 mt-1">
-                {
-                  landmassOptions.find(
-                    opt => opt.value === terrainSettings.landmass
-                  )?.description
-                }
+              <h2 className="text-xl md:text-2xl font-bold text-amber-800">
+                Terrain Settings
+              </h2>
+              <p className="text-amber-600 text-sm md:text-base">
+                Configure map generation for "{gameData.gameName}"
               </p>
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-amber-700 mb-2">
-              Temperature: {terrainSettings.temperature}% (Cooler ← → Warmer)
-            </label>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={terrainSettings.temperature}
-              onChange={e =>
-                setTerrainSettings(prev => ({
-                  ...prev,
-                  temperature: parseInt(e.target.value),
-                }))
-              }
-              className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
-            />
-            <div className="flex justify-between text-xs text-amber-500 mt-1">
-              <span>Arctic</span>
-              <span>Temperate</span>
-              <span>Tropical</span>
-            </div>
-          </div>
+          <form
+            id="terrain-settings-form"
+            onSubmit={handleCreateGame}
+            className="space-y-4 md:space-y-6"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <div>
+                <label
+                  htmlFor="generator"
+                  className="block text-sm font-medium text-amber-700 mb-2"
+                >
+                  Map Generator
+                </label>
+                <select
+                  id="generator"
+                  value={terrainSettings.generator}
+                  onChange={e =>
+                    setTerrainSettings(prev => ({
+                      ...prev,
+                      generator: e.target.value,
+                    }))
+                  }
+                  className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+                >
+                  {generatorOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-amber-500 mt-1">
+                  {
+                    generatorOptions.find(
+                      opt => opt.value === terrainSettings.generator
+                    )?.description
+                  }
+                </p>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-amber-700 mb-2">
-              Wetness: {terrainSettings.wetness}% (Drier ← → Wetter)
-            </label>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={terrainSettings.wetness}
-              onChange={e =>
-                setTerrainSettings(prev => ({
-                  ...prev,
-                  wetness: parseInt(e.target.value),
-                }))
-              }
-              className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
-            />
-            <div className="flex justify-between text-xs text-amber-500 mt-1">
-              <span>Desert</span>
-              <span>Normal</span>
-              <span>Jungle</span>
+              <div>
+                <label
+                  htmlFor="landmass"
+                  className="block text-sm font-medium text-amber-700 mb-2"
+                >
+                  Landmass
+                </label>
+                <select
+                  id="landmass"
+                  value={terrainSettings.landmass}
+                  onChange={e =>
+                    setTerrainSettings(prev => ({
+                      ...prev,
+                      landmass: e.target.value,
+                    }))
+                  }
+                  className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+                >
+                  {landmassOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-amber-500 mt-1">
+                  {
+                    landmassOptions.find(
+                      opt => opt.value === terrainSettings.landmass
+                    )?.description
+                  }
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-amber-700 mb-2">
-              Rivers: {terrainSettings.rivers}%
-            </label>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={terrainSettings.rivers}
-              onChange={e =>
-                setTerrainSettings(prev => ({
-                  ...prev,
-                  rivers: parseInt(e.target.value),
-                }))
-              }
-              className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
-            />
-            <div className="flex justify-between text-xs text-amber-500 mt-1">
-              <span>Few Rivers</span>
-              <span>Many Rivers</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div>
-              <label
-                htmlFor="huts"
-                className="block text-sm font-medium text-amber-700 mb-2"
-              >
-                Huts (Villages)
+              <label className="block text-sm font-medium text-amber-700 mb-2">
+                Temperature: {terrainSettings.temperature}% (Cooler ← → Warmer)
               </label>
               <input
-                id="huts"
-                type="number"
+                type="range"
                 min="0"
-                max="50"
-                value={terrainSettings.huts}
+                max="100"
+                value={terrainSettings.temperature}
                 onChange={e =>
                   setTerrainSettings(prev => ({
                     ...prev,
-                    huts: parseInt(e.target.value),
+                    temperature: parseInt(e.target.value),
                   }))
                 }
-                className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+                className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
               />
-              <p className="text-xs text-amber-500 mt-1">
-                Number of tribal villages on map
-              </p>
+              <div className="flex justify-between text-xs text-amber-500 mt-1">
+                <span>Arctic</span>
+                <span>Temperate</span>
+                <span>Tropical</span>
+              </div>
             </div>
 
             <div>
-              <label
-                htmlFor="resources"
-                className="block text-sm font-medium text-amber-700 mb-2"
-              >
-                Resources
+              <label className="block text-sm font-medium text-amber-700 mb-2">
+                Wetness: {terrainSettings.wetness}% (Drier ← → Wetter)
               </label>
-              <select
-                id="resources"
-                value={terrainSettings.resources}
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={terrainSettings.wetness}
                 onChange={e =>
                   setTerrainSettings(prev => ({
                     ...prev,
-                    resources: e.target.value,
+                    wetness: parseInt(e.target.value),
                   }))
                 }
-                className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
-              >
-                {resourceOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-amber-500 mt-1">
-                {
-                  resourceOptions.find(
-                    opt => opt.value === terrainSettings.resources
-                  )?.description
-                }
-              </p>
+                className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
+              />
+              <div className="flex justify-between text-xs text-amber-500 mt-1">
+                <span>Desert</span>
+                <span>Normal</span>
+                <span>Jungle</span>
+              </div>
             </div>
-          </div>
 
-          {/* Startpos setting - only show for island-based generators */}
-          {(terrainSettings.generator === 'island' ||
-            terrainSettings.generator === 'fair') && (
             <div>
-              <label
-                htmlFor="startpos"
-                className="block text-sm font-medium text-amber-700 mb-2"
-              >
-                Starting Positions
+              <label className="block text-sm font-medium text-amber-700 mb-2">
+                Rivers: {terrainSettings.rivers}%
               </label>
-              <select
-                id="startpos"
-                value={terrainSettings.startpos}
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={terrainSettings.rivers}
                 onChange={e =>
                   setTerrainSettings(prev => ({
                     ...prev,
-                    startpos: parseInt(e.target.value),
+                    rivers: parseInt(e.target.value),
                   }))
                 }
-                className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+                className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
+              />
+              <div className="flex justify-between text-xs text-amber-500 mt-1">
+                <span>Few Rivers</span>
+                <span>Many Rivers</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <div>
+                <label
+                  htmlFor="huts"
+                  className="block text-sm font-medium text-amber-700 mb-2"
+                >
+                  Huts (Villages)
+                </label>
+                <input
+                  id="huts"
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={terrainSettings.huts}
+                  onChange={e =>
+                    setTerrainSettings(prev => ({
+                      ...prev,
+                      huts: parseInt(e.target.value),
+                    }))
+                  }
+                  className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+                />
+                <p className="text-xs text-amber-500 mt-1">
+                  Number of tribal villages on map
+                </p>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="resources"
+                  className="block text-sm font-medium text-amber-700 mb-2"
+                >
+                  Resources
+                </label>
+                <select
+                  id="resources"
+                  value={terrainSettings.resources}
+                  onChange={e =>
+                    setTerrainSettings(prev => ({
+                      ...prev,
+                      resources: e.target.value,
+                    }))
+                  }
+                  className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+                >
+                  {resourceOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-amber-500 mt-1">
+                  {
+                    resourceOptions.find(
+                      opt => opt.value === terrainSettings.resources
+                    )?.description
+                  }
+                </p>
+              </div>
+            </div>
+
+            {/* Startpos setting - only show for island-based generators */}
+            {(terrainSettings.generator === 'island' ||
+              terrainSettings.generator === 'fair') && (
+              <div>
+                <label
+                  htmlFor="startpos"
+                  className="block text-sm font-medium text-amber-700 mb-2"
+                >
+                  Starting Positions
+                </label>
+                <select
+                  id="startpos"
+                  value={terrainSettings.startpos}
+                  onChange={e =>
+                    setTerrainSettings(prev => ({
+                      ...prev,
+                      startpos: parseInt(e.target.value),
+                    }))
+                  }
+                  className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+                >
+                  {startposOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-amber-500 mt-1">
+                  {
+                    startposOptions.find(
+                      opt => opt.value === terrainSettings.startpos
+                    )?.description
+                  }
+                </p>
+              </div>
+            )}
+
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-300 rounded-md text-red-800 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="hidden md:flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-4">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="flex-1 py-3 px-4 bg-amber-300 hover:bg-amber-400 text-amber-700 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 focus:ring-offset-amber-100 shadow-sm"
               >
-                {startposOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-amber-500 mt-1">
-                {
-                  startposOptions.find(
-                    opt => opt.value === terrainSettings.startpos
-                  )?.description
-                }
-              </p>
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={isCreating}
+                className="flex-1 py-3 px-4 bg-amber-700 hover:bg-amber-800 disabled:bg-amber-400 disabled:text-amber-200 text-amber-50 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 focus:ring-offset-amber-100 shadow-sm"
+              >
+                {isCreating ? (
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin w-5 h-5 border-2 border-amber-300 border-t-transparent rounded-full mr-2"></div>
+                    Creating...
+                  </div>
+                ) : (
+                  'Create Game'
+                )}
+              </button>
             </div>
-          )}
+          </form>
+        </div>
 
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-300 rounded-md text-red-800 text-sm">
-              {error}
-            </div>
-          )}
-
-          <div className="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-4">
+        {/* Mobile bottom buttons */}
+        <div className="md:hidden bg-gradient-to-t from-amber-100 to-transparent p-4 border-t border-amber-300">
+          <div className="flex space-x-4">
             <button
               type="button"
               onClick={handleBack}
@@ -437,6 +470,7 @@ export const TerrainSettingsDialog: React.FC = () => {
             </button>
             <button
               type="submit"
+              form="terrain-settings-form"
               disabled={isCreating}
               className="flex-1 py-3 px-4 bg-amber-700 hover:bg-amber-800 disabled:bg-amber-400 disabled:text-amber-200 text-amber-50 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 focus:ring-offset-amber-100 shadow-sm"
             >
@@ -450,7 +484,7 @@ export const TerrainSettingsDialog: React.FC = () => {
               )}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
