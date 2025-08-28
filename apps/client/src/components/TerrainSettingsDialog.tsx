@@ -5,6 +5,7 @@ import { gameClient } from '../services/GameClient';
 interface GameCreationState {
   playerName: string;
   gameName: string;
+  gameType: 'single' | 'multiplayer';
   maxPlayers: number;
   mapSize: string;
 }
@@ -61,6 +62,7 @@ export const TerrainSettingsDialog: React.FC = () => {
       const gameId = await gameClient.createGame({
         gameName: gameData.gameName,
         playerName: gameData.playerName,
+        gameType: gameData.gameType,
         maxPlayers: gameData.maxPlayers,
         mapSize: gameData.mapSize,
         terrainSettings,
@@ -152,9 +154,9 @@ export const TerrainSettingsDialog: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200 md:flex md:items-center md:justify-center">
-      <div className="flex flex-col h-screen md:h-auto md:max-w-2xl md:mx-auto">
-        <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-8 md:rounded-lg md:shadow-2xl w-full md:border md:border-amber-300 md:shadow-amber-300/20 flex-1 md:flex-none overflow-y-auto">
+    <div className="min-h-[100dvh] bg-gradient-to-b from-amber-100 to-yellow-200 lg:flex lg:items-center lg:justify-center">
+      <div className="flex flex-col h-[100dvh] lg:h-auto lg:max-w-4xl xl:max-w-5xl lg:mx-auto min-h-0">
+        <div className="bg-transparent lg:bg-gradient-to-b lg:from-amber-100 lg:to-yellow-100 p-4 lg:p-8 lg:rounded-lg lg:shadow-2xl w-full lg:border lg:border-amber-300 lg:shadow-amber-300/20 flex-1 lg:flex-none overflow-y-auto">
           <div className="flex items-center mb-6">
             <button
               onClick={handleBack}
@@ -257,88 +259,86 @@ export const TerrainSettingsDialog: React.FC = () => {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-amber-700 mb-2">
-                Temperature: {terrainSettings.temperature}% (Cooler ← → Warmer)
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={terrainSettings.temperature}
-                onChange={e =>
-                  setTerrainSettings(prev => ({
-                    ...prev,
-                    temperature: parseInt(e.target.value),
-                  }))
-                }
-                className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
-              />
-              <div className="flex justify-between text-xs text-amber-500 mt-1">
-                <span>Arctic</span>
-                <span>Temperate</span>
-                <span>Tropical</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-amber-700 mb-2">
-                Wetness: {terrainSettings.wetness}% (Drier ← → Wetter)
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={terrainSettings.wetness}
-                onChange={e =>
-                  setTerrainSettings(prev => ({
-                    ...prev,
-                    wetness: parseInt(e.target.value),
-                  }))
-                }
-                className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
-              />
-              <div className="flex justify-between text-xs text-amber-500 mt-1">
-                <span>Desert</span>
-                <span>Normal</span>
-                <span>Jungle</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-amber-700 mb-2">
-                Rivers: {terrainSettings.rivers}%
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={terrainSettings.rivers}
-                onChange={e =>
-                  setTerrainSettings(prev => ({
-                    ...prev,
-                    rivers: parseInt(e.target.value),
-                  }))
-                }
-                className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
-              />
-              <div className="flex justify-between text-xs text-amber-500 mt-1">
-                <span>Few Rivers</span>
-                <span>Many Rivers</span>
-              </div>
-            </div>
-
+            {/* Sliders in responsive grid layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div>
-                <label
-                  htmlFor="huts"
-                  className="block text-sm font-medium text-amber-700 mb-2"
-                >
-                  Huts (Villages)
+                <label className="block text-sm font-medium text-amber-700 mb-2">
+                  Temperature: {terrainSettings.temperature}% (Cooler ← →
+                  Warmer)
                 </label>
                 <input
-                  id="huts"
-                  type="number"
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={terrainSettings.temperature}
+                  onChange={e =>
+                    setTerrainSettings(prev => ({
+                      ...prev,
+                      temperature: parseInt(e.target.value),
+                    }))
+                  }
+                  className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
+                />
+                <div className="flex justify-between text-xs text-amber-500 mt-1">
+                  <span>Arctic</span>
+                  <span>Temperate</span>
+                  <span>Tropical</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-amber-700 mb-2">
+                  Wetness: {terrainSettings.wetness}% (Drier ← → Wetter)
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={terrainSettings.wetness}
+                  onChange={e =>
+                    setTerrainSettings(prev => ({
+                      ...prev,
+                      wetness: parseInt(e.target.value),
+                    }))
+                  }
+                  className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
+                />
+                <div className="flex justify-between text-xs text-amber-500 mt-1">
+                  <span>Desert</span>
+                  <span>Normal</span>
+                  <span>Jungle</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-amber-700 mb-2">
+                  Rivers: {terrainSettings.rivers}%
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={terrainSettings.rivers}
+                  onChange={e =>
+                    setTerrainSettings(prev => ({
+                      ...prev,
+                      rivers: parseInt(e.target.value),
+                    }))
+                  }
+                  className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
+                />
+                <div className="flex justify-between text-xs text-amber-500 mt-1">
+                  <span>Few Rivers</span>
+                  <span>Many Rivers</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-amber-700 mb-2">
+                  Huts: {terrainSettings.huts} (Villages)
+                </label>
+                <input
+                  type="range"
                   min="0"
                   max="50"
                   value={terrainSettings.huts}
@@ -348,13 +348,16 @@ export const TerrainSettingsDialog: React.FC = () => {
                       huts: parseInt(e.target.value),
                     }))
                   }
-                  className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+                  className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
                 />
-                <p className="text-xs text-amber-500 mt-1">
-                  Number of tribal villages on map
-                </p>
+                <div className="flex justify-between text-xs text-amber-500 mt-1">
+                  <span>None</span>
+                  <span>Many Villages</span>
+                </div>
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div>
                 <label
                   htmlFor="resources"
@@ -432,7 +435,7 @@ export const TerrainSettingsDialog: React.FC = () => {
               </div>
             )}
 
-            <div className="hidden md:flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-4">
+            <div className="hidden lg:flex flex-col lg:flex-row space-y-3 lg:space-y-0 lg:space-x-4">
               <button
                 type="button"
                 onClick={handleBack}
@@ -459,7 +462,7 @@ export const TerrainSettingsDialog: React.FC = () => {
         </div>
 
         {/* Mobile bottom buttons */}
-        <div className="md:hidden bg-gradient-to-t from-amber-100 to-transparent p-4 border-t border-amber-300">
+        <div className="lg:hidden bg-gradient-to-t from-amber-100 to-transparent p-4 border-t border-amber-300 mt-auto">
           <div className="flex space-x-4">
             <button
               type="button"

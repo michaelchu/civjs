@@ -15,6 +15,7 @@ router.post('/', authenticateUser, async (req: Request, res: Response): Promise<
   try {
     const {
       name,
+      gameType = 'multiplayer',
       maxPlayers = 4,
       mapWidth = 80,
       mapHeight = 50,
@@ -45,6 +46,7 @@ router.post('/', authenticateUser, async (req: Request, res: Response): Promise<
     const gameId = await gameManager.createGame({
       name: name.trim(),
       hostId: req.userId!,
+      gameType,
       maxPlayers,
       mapWidth,
       mapHeight,

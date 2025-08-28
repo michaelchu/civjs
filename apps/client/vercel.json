@@ -6,7 +6,7 @@
   "outputDirectory": "dist",
   "installCommand": "npm ci",
   "framework": "vite",
-  "ignoreCommand": "bash -c 'git diff HEAD^ HEAD --name-only | grep -E \"^(apps/client/|apps/server/)\" > /dev/null && exit 0 || exit 1'",
+  "ignoreCommand": "npx turbo-ignore",
   "env": {
     "VITE_SERVER_URL": "https://civjs-server.vercel.app"
   },

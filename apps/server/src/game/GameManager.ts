@@ -31,6 +31,7 @@ export interface TerrainSettings {
 export interface GameConfig {
   name: string;
   hostId: string;
+  gameType?: 'single' | 'multiplayer';
   maxPlayers?: number;
   mapWidth?: number;
   mapHeight?: number;
@@ -90,6 +91,7 @@ export class GameManager {
     const gameData = {
       name: gameConfig.name,
       hostId: gameConfig.hostId,
+      gameType: gameConfig.gameType || 'multiplayer',
       maxPlayers: gameConfig.maxPlayers || 8,
       mapWidth: gameConfig.mapWidth || 80,
       mapHeight: gameConfig.mapHeight || 50,
@@ -196,27 +198,34 @@ export class GameManager {
       playerCount: updatedGame?.players.length,
     });
 
-    if (
-      updatedGame &&
-      updatedGame.status === 'waiting' &&
-      updatedGame.players.length >= serverConfig.game.minPlayersToStart
-    ) {
-      logger.info('Auto-starting game', { gameId, playerCount: updatedGame.players.length });
-      try {
-        // Small delay to ensure socket room joins have completed
-        // Small delay to ensure socket room joins are complete
-        await new Promise(resolve => setTimeout(resolve, 200));
-        await this.startGame(gameId, updatedGame.hostId);
-      } catch (error) {
-        logger.error('Failed to auto-start game:', error);
+    // Auto-start logic: immediately start single-player games, or start multiplayer when enough players join
+    if (updatedGame && updatedGame.status === 'waiting') {
+      const shouldAutoStart =
+        updatedGame.gameType === 'single' || // Always start single-player games
+        updatedGame.players.length >= serverConfig.game.minPlayersToStart; // Start multiplayer when enough players
+
+      if (shouldAutoStart) {
+        logger.info('Auto-starting game', {
+          gameId,
+          gameType: updatedGame.gameType,
+          playerCount: updatedGame.players.length,
+        });
+        try {
+          // Small delay to ensure socket room joins are complete
+          await new Promise(resolve => setTimeout(resolve, 200));
+          await this.startGame(gameId, updatedGame.hostId);
+        } catch (error) {
+          logger.error('Failed to auto-start game:', error);
+        }
+      } else {
+        logger.debug('Auto-start conditions not met', {
+          gameId,
+          gameType: updatedGame.gameType,
+          hasGame: !!updatedGame,
+          status: updatedGame?.status,
+          playerCount: updatedGame?.players.length,
+        });
       }
-    } else {
-      logger.debug('Auto-start conditions not met', {
-        gameId,
-        hasGame: !!updatedGame,
-        status: updatedGame?.status,
-        playerCount: updatedGame?.players.length,
-      });
     }
 
     return newPlayer.id;
@@ -239,8 +248,10 @@ export class GameManager {
       throw new Error('Only the host can start the game');
     }
 
-    if (game.players.length < serverConfig.game.minPlayersToStart) {
-      throw new Error(`Need at least ${serverConfig.game.minPlayersToStart} players to start`);
+    // Different minimum requirements for single vs multiplayer
+    const minPlayers = game.gameType === 'single' ? 1 : serverConfig.game.minPlayersToStart;
+    if (game.players.length < minPlayers) {
+      throw new Error(`Need at least ${minPlayers} players to start`);
     }
 
     if (game.status !== 'waiting') {
