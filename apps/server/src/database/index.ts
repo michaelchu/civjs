@@ -3,9 +3,11 @@ import postgres from 'postgres';
 import * as schema from './schema';
 import logger from '../utils/logger';
 
-// Database connection string
-const connectionString =
-  process.env.DATABASE_URL || 'postgresql://civjs:civjs_dev@localhost:5432/civjs_dev';
+// Database connection string - prioritize Supabase vars from Vercel
+const connectionString = 
+  process.env.POSTGRES_URL ||
+  process.env.DATABASE_URL || 
+  'postgresql://civjs:civjs_dev@localhost:5432/civjs_dev';
 
 // Create postgres connection
 const queryClient = postgres(connectionString, {
