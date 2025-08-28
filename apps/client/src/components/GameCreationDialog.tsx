@@ -150,7 +150,7 @@ export const GameCreationDialog: React.FC = () => {
             </div>
 
             <div
-              className={`grid ${gameType === 'single' ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}
+              className={`grid ${gameType === 'single' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-2'} gap-4`}
             >
               {gameType === 'multiplayer' && (
                 <div>
