@@ -152,7 +152,7 @@ export const TerrainSettingsDialog: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200 overflow-y-auto py-4">
+    <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200">
       <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-8 md:rounded-lg md:shadow-2xl w-full max-w-2xl mx-auto md:border md:border-amber-300 md:shadow-amber-300/20">
         <div className="flex items-center mb-6">
           <button
