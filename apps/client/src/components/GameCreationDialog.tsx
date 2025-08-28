@@ -49,152 +49,181 @@ export const GameCreationDialog: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800 flex items-center justify-center">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-2xl w-[500px] border border-gray-700">
-        <div className="flex items-center mb-6">
-          <button
-            onClick={handleBack}
-            className="mr-4 p-2 text-gray-400 hover:text-white transition-colors"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+    <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200 md:flex md:items-center md:justify-center">
+      <div className="flex flex-col h-screen md:h-auto md:max-w-md md:mx-auto">
+        <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-8 md:rounded-lg md:shadow-2xl w-full md:border md:border-amber-300 md:shadow-amber-300/20 flex-1 md:flex-none overflow-y-auto">
+          <div className="flex items-center mb-6">
+            <button
+              onClick={handleBack}
+              className="mr-3 p-2 text-amber-600 hover:text-amber-800 transition-colors"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </button>
-          <div>
-            <h2 className="text-2xl font-bold text-white">Create New Game</h2>
-            <p className="text-gray-300">Set up your civilization</p>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
+            <div>
+              <h2 className="text-2xl font-bold text-amber-800">
+                Create New Game
+              </h2>
+              <p className="text-amber-600">Set up your civilization</p>
+            </div>
           </div>
+
+          <form
+            id="create-game-form"
+            onSubmit={handleNext}
+            className="space-y-6"
+          >
+            <div>
+              <label
+                htmlFor="playerName"
+                className="block text-sm font-medium text-amber-700 mb-2"
+              >
+                Your Name
+              </label>
+              <input
+                id="playerName"
+                type="text"
+                value={playerName}
+                onChange={e => setPlayerName(e.target.value)}
+                placeholder="Enter your player name"
+                className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 placeholder-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+                maxLength={32}
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="gameName"
+                className="block text-sm font-medium text-amber-700 mb-2"
+              >
+                Game Name
+              </label>
+              <input
+                id="gameName"
+                type="text"
+                value={gameName}
+                onChange={e => setGameName(e.target.value)}
+                placeholder="Enter game name"
+                className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 placeholder-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+                maxLength={50}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="maxPlayers"
+                  className="block text-sm font-medium text-amber-700 mb-2"
+                >
+                  Max Players
+                </label>
+                <select
+                  id="maxPlayers"
+                  value={maxPlayers}
+                  onChange={e => setMaxPlayers(Number(e.target.value))}
+                  className="w-full px-3 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
+                >
+                  <option value={2}>2 Players</option>
+                  <option value={3}>3 Players</option>
+                  <option value={4}>4 Players</option>
+                  <option value={6}>6 Players</option>
+                  <option value={8}>8 Players</option>
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="mapSize"
+                  className="block text-sm font-medium text-amber-700 mb-2"
+                >
+                  Map Size
+                </label>
+                <select
+                  id="mapSize"
+                  value={mapSize}
+                  onChange={e => setMapSize(e.target.value)}
+                  className="w-full px-3 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
+                >
+                  {mapSizeOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="bg-amber-200 border border-amber-300 p-4 rounded-md">
+              <h4 className="text-sm font-medium text-amber-700 mb-2">
+                Map Preview
+              </h4>
+              {mapSizeOptions.map(
+                option =>
+                  mapSize === option.value && (
+                    <div key={option.value} className="text-sm text-amber-600">
+                      <p className="font-medium">{option.label}</p>
+                      <p>{option.description}</p>
+                    </div>
+                  )
+              )}
+            </div>
+
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-300 rounded-md text-red-800 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="hidden md:flex space-x-4">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="flex-1 py-3 px-4 bg-amber-300 hover:bg-amber-400 text-amber-700 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 focus:ring-offset-amber-100 shadow-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!playerName.trim() || !gameName.trim()}
+                className="flex-1 py-3 px-4 bg-amber-700 hover:bg-amber-800 disabled:bg-amber-400 disabled:text-amber-200 text-amber-50 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 focus:ring-offset-amber-100 shadow-sm"
+              >
+                Next
+              </button>
+            </div>
+          </form>
         </div>
 
-        <form onSubmit={handleNext} className="space-y-6">
-          <div>
-            <label
-              htmlFor="playerName"
-              className="block text-sm font-medium text-gray-300 mb-2"
-            >
-              Your Name
-            </label>
-            <input
-              id="playerName"
-              type="text"
-              value={playerName}
-              onChange={e => setPlayerName(e.target.value)}
-              placeholder="Enter your player name"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              maxLength={32}
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="gameName"
-              className="block text-sm font-medium text-gray-300 mb-2"
-            >
-              Game Name
-            </label>
-            <input
-              id="gameName"
-              type="text"
-              value={gameName}
-              onChange={e => setGameName(e.target.value)}
-              placeholder="Enter game name"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              maxLength={50}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="maxPlayers"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                Max Players
-              </label>
-              <select
-                id="maxPlayers"
-                value={maxPlayers}
-                onChange={e => setMaxPlayers(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value={2}>2 Players</option>
-                <option value={3}>3 Players</option>
-                <option value={4}>4 Players</option>
-                <option value={6}>6 Players</option>
-                <option value={8}>8 Players</option>
-              </select>
-            </div>
-
-            <div>
-              <label
-                htmlFor="mapSize"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                Map Size
-              </label>
-              <select
-                id="mapSize"
-                value={mapSize}
-                onChange={e => setMapSize(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                {mapSizeOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="bg-gray-700 p-4 rounded-md">
-            <h4 className="text-sm font-medium text-gray-300 mb-2">
-              Map Preview
-            </h4>
-            {mapSizeOptions.map(
-              option =>
-                mapSize === option.value && (
-                  <div key={option.value} className="text-sm text-gray-400">
-                    <p>{option.label}</p>
-                    <p>{option.description}</p>
-                  </div>
-                )
-            )}
-          </div>
-
-          {error && (
-            <div className="p-3 bg-red-900 border border-red-700 rounded-md text-red-200 text-sm">
-              {error}
-            </div>
-          )}
-
+        {/* Mobile bottom buttons */}
+        <div className="md:hidden bg-gradient-to-t from-amber-100 to-transparent p-4 border-t border-amber-300">
           <div className="flex space-x-4">
             <button
               type="button"
               onClick={handleBack}
-              className="flex-1 py-3 px-4 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+              className="flex-1 py-3 px-4 bg-amber-300 hover:bg-amber-400 text-amber-700 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 focus:ring-offset-amber-100 shadow-sm"
             >
               Cancel
             </button>
             <button
               type="submit"
+              form="create-game-form"
               disabled={!playerName.trim() || !gameName.trim()}
-              className="flex-1 py-3 px-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:text-gray-400 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+              className="flex-1 py-3 px-4 bg-amber-700 hover:bg-amber-800 disabled:bg-amber-400 disabled:text-amber-200 text-amber-50 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 focus:ring-offset-amber-100 shadow-sm"
             >
               Next
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
