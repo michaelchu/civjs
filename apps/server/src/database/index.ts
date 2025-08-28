@@ -3,15 +3,17 @@ import postgres from 'postgres';
 import * as schema from './schema';
 import logger from '../utils/logger';
 
-// Database connection string
+// Database connection string - use POSTGRES_URL from Supabase
 const connectionString =
   process.env.POSTGRES_URL ||
   process.env.DATABASE_URL ||
   'postgresql://civjs:civjs_dev@localhost:5432/civjs_dev';
 
 // Create postgres connection
+// Disable prefetch for "Transaction" pool mode (Supabase recommendation)
 const queryClient = postgres(connectionString, {
-  max: 10, // Maximum number of connections
+  prepare: false, // Required for Supabase transaction pooling
+  max: 10,
   idle_timeout: 20,
   connect_timeout: 10,
 });

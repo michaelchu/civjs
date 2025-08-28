@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "name": "civjs-server",
+  "buildCommand": "npm run vercel-build",
+  "installCommand": "npm ci",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}

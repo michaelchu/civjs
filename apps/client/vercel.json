@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "name": "civjs-client",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm ci",
+  "framework": "vite",
+  "env": {
+    "VITE_SERVER_URL": "@civjs-server-url"
+  },
+  "build": {
+    "env": {
+      "VITE_SERVER_URL": "@civjs-server-url"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
