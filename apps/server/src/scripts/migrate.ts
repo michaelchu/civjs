@@ -15,11 +15,11 @@ async function runMigrations() {
     throw new Error('DATABASE_URL environment variable is required');
   }
 
-  // Create postgres client with Railway-specific SSL settings
+  // Create postgres client with SSL settings for production (Supabase)
   const client = postgres(dbUrl, {
     max: 1,
-    // SSL must be 'require' for Railway's self-signed certificates
-    ssl: process.env.NODE_ENV === 'production' ? 'require' : undefined,
+    // SSL configuration for Supabase and other hosted databases
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
   });
 
   const db = drizzle(client);

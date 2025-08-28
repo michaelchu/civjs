@@ -12,6 +12,7 @@ const queryClient = postgres(connectionString, {
   max: 10, // Maximum number of connections
   idle_timeout: 20,
   connect_timeout: 10,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
 // Create drizzle instance

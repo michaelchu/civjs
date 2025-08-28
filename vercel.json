@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "projects": [
+    {
+      "name": "civjs-client",
+      "source": "apps/client"
+    },
+    {
+      "name": "civjs-server", 
+      "source": "apps/server"
+    }
+  ]
+}

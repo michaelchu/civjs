@@ -15,6 +15,8 @@ export const redis = new Redis(redisUrl, {
     }
     return Math.min(times * 200, 2000);
   },
+  // Enable TLS for Upstash Redis in production
+  tls: redisUrl.startsWith('rediss://') ? {} : undefined,
 });
 
 // Redis event handlers
