@@ -1,13 +1,12 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "name": "civjs-server",
   "buildCommand": "npm run vercel-build",
   "installCommand": "npm ci",
-  "routes": [
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "/api/index.js"
+      "source": "/(.*)",
+      "destination": "/api"
     }
   ],
   "env": {
