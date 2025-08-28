@@ -1,8 +1,29 @@
 # Database Migration Strategy for Vercel Deployment
 
-## The Problem
+## ✅ Current Approach: Build-Time Migrations (Implemented)
 
-Vercel Functions are stateless and ephemeral, making automatic database migrations problematic:
+**The project is now configured to run migrations automatically during build using `drizzle-kit push`.**
+
+### Benefits:
+- **Zero Configuration**: Migrations run automatically on each deployment
+- **Safe**: Vercel's skew protection prevents compatibility issues  
+- **Fast**: No startup delays or manual steps
+- **Reliable**: Builds fail if migrations fail, preventing broken deployments
+
+### How It Works:
+1. **Build Script**: `drizzle-kit push && npm run build` applies schema changes during deployment
+2. **Skew Protection**: Existing clients stay connected to compatible backend versions
+3. **Gradual Migration**: New clients get updated schema, old clients transition safely
+
+This is the **recommended approach for small/medium projects** and requires no manual intervention.
+
+---
+
+## Alternative Solutions (Historical Reference)
+
+### The Original Problem
+
+Vercel Functions are stateless and ephemeral, making runtime database migrations problematic:
 
 - **No File System**: Can't write migration files or state
 - **Cold Starts**: Running migrations on startup causes severe latency
@@ -10,9 +31,7 @@ Vercel Functions are stateless and ephemeral, making automatic database migratio
 - **Timeouts**: Vercel functions have execution limits (10s Hobby, 30s Pro)
 - **Stateless**: Each function invocation starts fresh
 
-## Recommended Solutions
-
-### Option 1: Manual Migrations via Vercel CLI (Recommended)
+### Option 1: Manual Migrations via Vercel CLI
 
 This is the safest and most reliable approach for production deployments.
 

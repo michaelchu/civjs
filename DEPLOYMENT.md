@@ -49,27 +49,16 @@ This guide covers deploying CivJS to Vercel with Supabase for PostgreSQL and Ups
 
 4. **Deploy** and note the deployment URL (e.g., `https://civjs-server.vercel.app`)
 
-### 2. Run Database Migrations
+### 2. Database Migrations (Automated)
 
-⚠️ **Important**: Vercel Functions cannot run migrations automatically due to their stateless nature. You must run migrations manually.
+✅ **Database migrations run automatically during build!** 
 
-**Recommended Approach - Manual Migrations via CLI:**
+The server is configured with:
+- **Build Script**: `drizzle-kit push && npm run build` - applies schema changes during deployment
+- **Skew Protection**: Keeps existing clients connected to compatible backend versions during deployment  
+- **Zero Downtime**: New clients get the updated schema, existing clients stay connected safely
 
-1. **Install Vercel CLI**: `npm install -g vercel`
-2. **Login**: `vercel login`  
-3. **Link to your project**: `vercel link`
-4. **Pull environment variables**: `vercel env pull .env.local`
-5. **Run migrations**: `cd apps/server && npm run db:migrate:prod`
-
-**Alternative: Use Supabase CLI (if preferred):**
-```bash
-npm install -g supabase
-supabase login
-supabase link --project-ref YOUR_PROJECT_REF
-supabase db push
-```
-
-> 📖 **Detailed Migration Strategy**: See [MIGRATION_STRATEGY.md](./MIGRATION_STRATEGY.md) for comprehensive migration options including GitHub Actions automation.
+**No manual migration steps required!** Just deploy and your database schema will be updated automatically.
 
 ### 3. Deploy the Client
 
@@ -163,7 +152,7 @@ If you were previously using Docker for development:
 - **Production**: No longer need Docker containers - Vercel handles hosting
 - **Database**: Replace local PostgreSQL with Supabase
 - **Redis**: Replace local Redis with Upstash
-- **Migrations**: No longer automatic on startup (see migration strategy above)
+- **Migrations**: Now run automatically during Vercel build (much better than Docker approach!)
 
 ## Cost Optimization
 
