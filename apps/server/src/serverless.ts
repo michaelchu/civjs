@@ -19,10 +19,35 @@ dotenv.config();
 // Create Express app (without Socket.IO for serverless)
 const app = express();
 
+// CORS configuration to handle multiple origins including Vercel previews
+const corsOrigins = (
+  origin: string | undefined,
+  callback: (err: Error | null, allow?: boolean) => void
+) => {
+  // Allow requests with no origin (like mobile apps or curl requests)
+  if (!origin) return callback(null, true);
+
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'https://civjs-client.vercel.app',
+    config.server.corsOrigin,
+  ];
+
+  // Allow all Vercel preview deployments for civjs-client
+  const isVercelPreview = origin.match(/^https:\/\/civjs-client-.*\.vercel\.app$/);
+
+  if (allowedOrigins.indexOf(origin) !== -1 || isVercelPreview) {
+    callback(null, true);
+  } else {
+    callback(new Error('Not allowed by CORS'));
+  }
+};
+
 // Middleware
 app.use(
   cors({
-    origin: config.server.corsOrigin,
+    origin: corsOrigins,
     credentials: true,
   })
 );
