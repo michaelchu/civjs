@@ -20,7 +20,6 @@
     "lint:fix": "eslint src/**/*.ts tests/**/*.ts --fix",
     "format": "prettier --write src/**/*.{ts,js,json} tests/**/*.{ts,js,json}",
     "format:check": "prettier --check src/**/*.{ts,js,json} tests/**/*.{ts,js,json}",
-    "lint-staged": "lint-staged",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:prod": "NODE_ENV=production npx vite-node src/scripts/migrate.ts",
@@ -29,8 +28,7 @@
     "db:studio": "drizzle-kit studio",
     "docker:up": "docker-compose -f docker-compose.dev.yml up -d",
     "docker:down": "docker-compose -f docker-compose.dev.yml down",
-    "docker:logs": "docker-compose -f docker-compose.dev.yml logs -f",
-    "prepare": "test -d .git && husky || exit 0"
+    "docker:logs": "docker-compose -f docker-compose.dev.yml logs -f"
   },
   "keywords": [
     "game",
@@ -55,9 +53,7 @@
     "eslint": "^9.33.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
-    "husky": "^9.1.7",
     "jest": "^30.0.5",
-    "lint-staged": "^16.1.5",
     "nodemon": "^3.1.10",
     "prettier": "^3.6.2",
     "socket.io-client": "^4.8.1",
