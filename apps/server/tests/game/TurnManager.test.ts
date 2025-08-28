@@ -1,5 +1,4 @@
 import { TurnManager } from '../../src/game/TurnManager';
-import { mockIo } from '../setup';
 
 describe('TurnManager', () => {
   let turnManager: TurnManager;
@@ -7,7 +6,7 @@ describe('TurnManager', () => {
   const testPlayerIds = ['player1', 'player2', 'player3'];
 
   beforeEach(() => {
-    turnManager = new TurnManager(testGameId, mockIo);
+    turnManager = new TurnManager(testGameId);
 
     // Mock database operations
     turnManager['createTurnRecord'] = jest.fn().mockResolvedValue(undefined);
@@ -24,9 +23,8 @@ describe('TurnManager', () => {
   });
 
   describe('initialization', () => {
-    it('should initialize with correct game ID and IO server', () => {
+    it('should initialize with correct game ID', () => {
       expect(turnManager['gameId']).toBe(testGameId);
-      expect(turnManager['io']).toBe(mockIo);
       expect(turnManager.getCurrentTurn()).toBe(0);
       expect(turnManager.getCurrentYear()).toBe(-4000);
     });
@@ -191,18 +189,13 @@ describe('TurnManager', () => {
       expect(turnManager.getTurnEvents()).toHaveLength(0); // Events reset for new turn
     });
 
-    it('should broadcast turn start after processing', async () => {
+    // Note: Socket.IO functionality was removed from TurnManager (HTTP-only implementation)
+    // Broadcasting is now handled elsewhere in the application
+    it('should process turn without broadcasting', async () => {
       await turnManager.processTurn();
 
-      expect(mockIo.emit).toHaveBeenCalledWith(
-        'turn-started',
-        expect.objectContaining({
-          gameId: testGameId,
-          turn: expect.any(Number),
-          year: expect.any(Number),
-          startTime: expect.any(Date),
-        })
-      );
+      // Just verify that processTurn completes without throwing
+      expect(turnManager.getCurrentTurn()).toBeGreaterThan(0);
     });
 
     it('should handle processing errors gracefully', async () => {

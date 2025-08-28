@@ -1,5 +1,4 @@
 import { GameManager, GameConfig } from '../../src/game/GameManager';
-import { mockIo } from '../setup';
 
 // Get the mock from setup - Using require here because it's a mock
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
@@ -11,7 +10,7 @@ describe('GameManager', () => {
   beforeEach(() => {
     // Reset singleton for testing
     (GameManager as any).instance = null;
-    gameManager = GameManager.getInstance(mockIo);
+    gameManager = GameManager.getInstance();
 
     // Setup database query mock (needed for joinGame and other methods)
     mockDb.query = {
@@ -61,8 +60,8 @@ describe('GameManager', () => {
 
   describe('singleton pattern', () => {
     it('should return same instance on multiple calls', () => {
-      const instance1 = GameManager.getInstance(mockIo);
-      const instance2 = GameManager.getInstance(mockIo);
+      const instance1 = GameManager.getInstance();
+      const instance2 = GameManager.getInstance();
 
       expect(instance1).toBe(instance2);
       expect(instance1).toBe(gameManager);
