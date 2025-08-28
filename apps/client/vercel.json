@@ -8,11 +8,11 @@
   "framework": "vite",
   "ignoreCommand": "bash -c 'git diff HEAD^ HEAD --name-only | grep -E \"^(apps/client/|apps/server/)\" > /dev/null && exit 0 || exit 1'",
   "env": {
-    "VITE_SERVER_URL": "@civjs-server-url"
+    "VITE_SERVER_URL": "https://civjs-server.vercel.app"
   },
   "build": {
     "env": {
-      "VITE_SERVER_URL": "@civjs-server-url"
+      "VITE_SERVER_URL": "https://civjs-server.vercel.app"
     }
   },
   "rewrites": [
