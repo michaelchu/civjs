@@ -3,6 +3,7 @@
   "name": "civjs-server",
   "buildCommand": "npm run vercel-build",
   "installCommand": "npm ci",
+  "ignoreCommand": "npx turbo-ignore",
   "rewrites": [
     {
       "source": "/(.*)",
