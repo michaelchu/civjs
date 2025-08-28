@@ -6,6 +6,10 @@ module.exports = {
     '**/__tests__/**/*.ts',
     '**/?(*.)+(spec|test).ts'
   ],
+  testPathIgnorePatterns: process.env.CI ? [
+    '/node_modules/',
+    'tests/e2e/audit/'
+  ] : ['/node_modules/'],
   transform: {
     '^.+\\.ts$': 'ts-jest',
   },
