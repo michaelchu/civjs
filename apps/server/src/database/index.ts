@@ -9,8 +9,13 @@ const connectionString =
   process.env.DATABASE_URL || 
   'postgresql://civjs:civjs_dev@localhost:5432/civjs_dev';
 
+// Add SSL mode for production if not already present
+const finalConnectionString = process.env.NODE_ENV === 'production' && connectionString && !connectionString.includes('sslmode')
+  ? `${connectionString}?sslmode=no-verify`
+  : connectionString;
+
 // Create postgres connection
-const queryClient = postgres(connectionString, {
+const queryClient = postgres(finalConnectionString, {
   max: 10, // Maximum number of connections
   idle_timeout: 20,
   connect_timeout: 10,

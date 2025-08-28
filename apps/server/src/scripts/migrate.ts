@@ -10,13 +10,18 @@ async function runMigrations() {
   console.log('Migration started ⌛');
 
   const dbUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+  
+  // Add SSL mode for production if not already present
+  const finalDbUrl = process.env.NODE_ENV === 'production' && dbUrl && !dbUrl.includes('sslmode')
+    ? `${dbUrl}?sslmode=no-verify`
+    : dbUrl;
 
-  if (!dbUrl) {
+  if (!finalDbUrl) {
     throw new Error('DATABASE_URL environment variable is required');
   }
 
   // Create postgres client with SSL settings for production (Supabase)
-  const client = postgres(dbUrl, {
+  const client = postgres(finalDbUrl, {
     max: 1,
     // SSL configuration for Supabase and other hosted databases
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
