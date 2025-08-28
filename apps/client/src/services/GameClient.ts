@@ -114,6 +114,7 @@ class GameClient {
   async createGame(gameData: {
     gameName: string;
     playerName: string;
+    gameType: 'single' | 'multiplayer';
     maxPlayers: number;
     mapSize: string;
     terrainSettings?: {
@@ -141,6 +142,7 @@ class GameClient {
       method: 'POST',
       body: JSON.stringify({
         name: gameData.gameName,
+        gameType: gameData.gameType,
         maxPlayers: gameData.maxPlayers,
         mapWidth: dimensions.width,
         mapHeight: dimensions.height,
@@ -163,7 +165,7 @@ class GameClient {
       // Fetch initial game data directly
       await this.fetchGameData();
 
-      if (gameData.maxPlayers === 1) {
+      if (gameData.gameType === 'single') {
         useGameStore.getState().setClientState('running');
       } else {
         useGameStore.getState().setClientState('waiting_for_players');

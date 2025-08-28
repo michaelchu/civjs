@@ -5,6 +5,7 @@ import { gameClient } from '../services/GameClient';
 interface GameCreationState {
   playerName: string;
   gameName: string;
+  gameType: 'single' | 'multiplayer';
   maxPlayers: number;
   mapSize: string;
 }
@@ -61,6 +62,7 @@ export const TerrainSettingsDialog: React.FC = () => {
       const gameId = await gameClient.createGame({
         gameName: gameData.gameName,
         playerName: gameData.playerName,
+        gameType: gameData.gameType,
         maxPlayers: gameData.maxPlayers,
         mapSize: gameData.mapSize,
         terrainSettings,

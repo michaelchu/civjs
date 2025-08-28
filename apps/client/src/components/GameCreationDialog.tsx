@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 export const GameCreationDialog: React.FC = () => {
   const [playerName, setPlayerName] = useState('');
   const [gameName, setGameName] = useState('');
+  const [gameType, setGameType] = useState<'single' | 'multiplayer'>('single');
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [mapSize, setMapSize] = useState('standard');
   const [error, setError] = useState('');
@@ -32,7 +33,8 @@ export const GameCreationDialog: React.FC = () => {
       state: {
         playerName: playerName.trim(),
         gameName: gameName.trim(),
-        maxPlayers,
+        gameType,
+        maxPlayers: gameType === 'single' ? 1 : maxPlayers,
         mapSize,
       },
     });
@@ -120,27 +122,58 @@ export const GameCreationDialog: React.FC = () => {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label
-                  htmlFor="maxPlayers"
-                  className="block text-sm font-medium text-amber-700 mb-2"
-                >
-                  Max Players
-                </label>
-                <select
-                  id="maxPlayers"
-                  value={maxPlayers}
-                  onChange={e => setMaxPlayers(Number(e.target.value))}
-                  className="w-full px-3 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
-                >
-                  <option value={2}>2 Players</option>
-                  <option value={3}>3 Players</option>
-                  <option value={4}>4 Players</option>
-                  <option value={6}>6 Players</option>
-                  <option value={8}>8 Players</option>
-                </select>
-              </div>
+            <div>
+              <label
+                htmlFor="gameType"
+                className="block text-sm font-medium text-amber-700 mb-2"
+              >
+                Game Type
+              </label>
+              <select
+                id="gameType"
+                value={gameType}
+                onChange={e =>
+                  setGameType(e.target.value as 'single' | 'multiplayer')
+                }
+                className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+              >
+                <option value="single">Single Player</option>
+                <option value="multiplayer" disabled>
+                  Multiplayer (Coming Soon)
+                </option>
+              </select>
+              <p className="text-xs text-amber-500 mt-1">
+                {gameType === 'single'
+                  ? 'Play against AI opponents'
+                  : 'Play with other human players online'}
+              </p>
+            </div>
+
+            <div
+              className={`grid ${gameType === 'single' ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}
+            >
+              {gameType === 'multiplayer' && (
+                <div>
+                  <label
+                    htmlFor="maxPlayers"
+                    className="block text-sm font-medium text-amber-700 mb-2"
+                  >
+                    Max Players
+                  </label>
+                  <select
+                    id="maxPlayers"
+                    value={maxPlayers}
+                    onChange={e => setMaxPlayers(Number(e.target.value))}
+                    className="w-full px-3 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
+                  >
+                    <option value={2}>2 Players</option>
+                    <option value={3}>3 Players</option>
+                    <option value={4}>4 Players</option>
+                    <option value={6}>6 Players</option>
+                    <option value={8}>8 Players</option>
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label

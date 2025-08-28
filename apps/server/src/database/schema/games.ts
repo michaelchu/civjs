@@ -17,6 +17,7 @@ export const games = pgTable('games', {
   turnPhase: varchar('turn_phase', { length: 20 }).default('movement').notNull(),
 
   // Settings
+  gameType: varchar('game_type', { length: 20 }).notNull().default('multiplayer'), // single, multiplayer
   maxPlayers: integer('max_players').default(8).notNull(),
   mapWidth: integer('map_width').default(80).notNull(),
   mapHeight: integer('map_height').default(50).notNull(),
