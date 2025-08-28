@@ -64,21 +64,6 @@ export const GameLobby: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'waiting':
-        return 'text-yellow-400';
-      case 'active':
-        return 'text-green-400';
-      case 'paused':
-        return 'text-orange-400';
-      case 'finished':
-        return 'text-gray-400';
-      default:
-        return 'text-blue-400';
-    }
-  };
-
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'waiting':
@@ -97,14 +82,14 @@ export const GameLobby: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800 p-4">
+    <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200 p-4">
       <div className="max-w-6xl mx-auto">
-        <div className="bg-gray-800 p-6 rounded-lg shadow-2xl border border-gray-700">
+        <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-6 md:rounded-lg md:shadow-2xl md:border md:border-amber-300 md:shadow-amber-300/20">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
               <button
                 onClick={handleBack}
-                className="mr-4 p-2 text-gray-400 hover:text-white transition-colors"
+                className="mr-3 p-2 text-amber-600 hover:text-amber-800 transition-colors"
               >
                 <svg
                   className="w-5 h-5"
@@ -121,13 +106,17 @@ export const GameLobby: React.FC = () => {
                 </svg>
               </button>
               <div>
-                <h2 className="text-2xl font-bold text-white">Game Lobby</h2>
-                <p className="text-gray-300">Choose a game to join</p>
+                <h2 className="text-xl md:text-2xl font-bold text-amber-800">
+                  Game Lobby
+                </h2>
+                <p className="text-amber-600 text-sm md:text-base">
+                  Choose a game to join
+                </p>
               </div>
             </div>
             <button
               onClick={loadGames}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-amber-50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-amber-600 shadow-sm"
               disabled={isLoading}
             >
               <svg
@@ -148,20 +137,20 @@ export const GameLobby: React.FC = () => {
           </div>
 
           {error && (
-            <div className="mb-6 p-3 bg-red-900 border border-red-700 rounded-md text-red-200 text-sm">
+            <div className="mb-6 p-3 bg-red-50 border border-red-300 rounded-md text-red-800 text-sm">
               {error}
             </div>
           )}
 
           {isLoading ? (
             <div className="text-center py-12">
-              <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
-              <p className="text-gray-300">Loading games...</p>
+              <div className="animate-spin w-8 h-8 border-2 border-amber-700 border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p className="text-amber-600">Loading games...</p>
             </div>
           ) : games.length === 0 ? (
             <div className="text-center py-12">
               <svg
-                className="w-16 h-16 text-gray-500 mx-auto mb-4"
+                className="w-16 h-16 text-amber-500 mx-auto mb-4"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -173,57 +162,95 @@ export const GameLobby: React.FC = () => {
                   d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
                 />
               </svg>
-              <p className="text-gray-300 text-lg">No games available</p>
-              <p className="text-gray-500 text-sm">
+              <p className="text-amber-700 text-lg font-medium">
+                No games available
+              </p>
+              <p className="text-amber-500 text-sm">
                 Start a new game to begin playing!
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3 md:space-y-4">
               {games.map(game => (
                 <div
                   key={game.id}
-                  className={`p-4 border rounded-lg transition-all duration-200 ${'border-gray-600 bg-gray-700/50 hover:border-gray-500 hover:bg-gray-700'} ${!game.canJoin ? 'opacity-50' : ''}`}
+                  className={`p-4 border rounded-lg transition-all duration-200 bg-gradient-to-r from-amber-100 to-yellow-100 border-amber-400 hover:border-amber-500 hover:bg-gradient-to-r hover:from-amber-200 hover:to-yellow-200 shadow-sm ${!game.canJoin ? 'opacity-60' : ''}`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3">
-                        <h3 className="text-lg font-semibold text-white">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-0">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                        <h3 className="text-lg font-semibold text-amber-800 truncate">
                           {game.name}
                         </h3>
-                        <span
-                          className={`text-sm font-medium ${getStatusColor(game.status)}`}
-                        >
-                          {getStatusLabel(game.status)}
-                        </span>
-                        {!game.canJoin && (
-                          <span className="text-xs bg-red-600 text-white px-2 py-1 rounded">
-                            Full
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`text-sm font-medium px-2 py-1 rounded-full text-white ${
+                              game.status === 'waiting'
+                                ? 'bg-yellow-500'
+                                : game.status === 'active'
+                                  ? 'bg-green-500'
+                                  : game.status === 'paused'
+                                    ? 'bg-orange-500'
+                                    : game.status === 'finished'
+                                      ? 'bg-gray-500'
+                                      : 'bg-blue-500'
+                            }`}
+                          >
+                            {getStatusLabel(game.status)}
                           </span>
-                        )}
+                          {!game.canJoin && (
+                            <span className="text-xs bg-red-500 text-white px-2 py-1 rounded-full">
+                              Full
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-6 mt-2 text-sm text-gray-400">
-                        <span>Host: {game.hostName}</span>
-                        <span>
-                          Players: {game.currentPlayers}/{game.maxPlayers}
-                        </span>
-                        <span>Turn: {game.currentTurn}</span>
-                        <span>Map: {game.mapSize}</span>
-                        <span>
-                          Created:{' '}
-                          {new Date(game.createdAt).toLocaleDateString()}
-                        </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mt-3 text-xs md:text-sm text-amber-600">
+                        <div className="flex flex-col">
+                          <span className="text-amber-400 text-xs uppercase font-medium">
+                            Host
+                          </span>
+                          <span className="truncate">{game.hostName}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-amber-400 text-xs uppercase font-medium">
+                            Players
+                          </span>
+                          <span>
+                            {game.currentPlayers}/{game.maxPlayers}
+                          </span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-amber-400 text-xs uppercase font-medium">
+                            Turn
+                          </span>
+                          <span>{game.currentTurn}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-amber-400 text-xs uppercase font-medium">
+                            Map
+                          </span>
+                          <span className="capitalize">{game.mapSize}</span>
+                        </div>
+                        <div className="flex flex-col col-span-2 sm:col-span-1">
+                          <span className="text-amber-400 text-xs uppercase font-medium">
+                            Created
+                          </span>
+                          <span>
+                            {new Date(game.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <div className="ml-4">
+                    <div className="w-full md:w-auto md:ml-4">
                       <button
                         onClick={() => handleJoinGame(game.id)}
                         disabled={!game.canJoin || joiningGameId === game.id}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:text-gray-400 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                        className="w-full md:w-auto px-6 py-2 bg-amber-700 hover:bg-amber-800 disabled:bg-amber-400 disabled:text-amber-200 text-amber-50 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 focus:ring-offset-amber-100 shadow-sm"
                       >
                         {joiningGameId === game.id ? (
                           <div className="flex items-center">
-                            <div className="animate-spin w-4 h-4 border-2 border-green-300 border-t-transparent rounded-full mr-2"></div>
+                            <div className="animate-spin w-4 h-4 border-2 border-amber-300 border-t-transparent rounded-full mr-2"></div>
                             Joining...
                           </div>
                         ) : (

@@ -34,7 +34,7 @@ app.get('/health', async (_req, res) => {
   try {
     // Test database connection
     const dbConnected = await testConnection();
-    
+
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),

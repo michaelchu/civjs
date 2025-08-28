@@ -14,12 +14,12 @@ export const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800 flex items-center justify-center">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-2xl w-96 border border-gray-700">
+    <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200 flex items-center justify-center p-4">
+      <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-6 md:p-8 md:rounded-lg md:shadow-2xl w-full max-w-md mx-auto md:border md:border-amber-300 md:shadow-amber-300/20">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-4">CivJS</h1>
-          <p className="text-gray-300 text-lg">A modern Civilization game</p>
-          <p className="text-gray-400 text-sm mt-2">
+          <h1 className="text-4xl font-bold text-amber-800 mb-4">CivJS</h1>
+          <p className="text-amber-600 text-lg">A modern Civilization game</p>
+          <p className="text-amber-500 text-sm mt-2">
             Build your empire, research technologies, and conquer the world
           </p>
         </div>
@@ -27,7 +27,7 @@ export const HomePage: React.FC = () => {
         <div className="space-y-4">
           <button
             onClick={handleStartNewGame}
-            className="w-full py-4 px-6 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 shadow-lg"
+            className="w-full py-4 px-6 bg-amber-700 hover:bg-amber-800 text-amber-50 font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 focus:ring-offset-amber-100 shadow-lg"
           >
             <div className="flex items-center justify-center">
               <svg
@@ -49,7 +49,7 @@ export const HomePage: React.FC = () => {
 
           <button
             onClick={handleBrowseGames}
-            className="w-full py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 shadow-lg"
+            className="w-full py-4 px-6 bg-amber-800 hover:bg-amber-900 text-amber-50 font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-700 focus:ring-offset-2 focus:ring-offset-amber-100 shadow-lg"
           >
             <div className="flex items-center justify-center">
               <svg
@@ -70,8 +70,8 @@ export const HomePage: React.FC = () => {
           </button>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-gray-700">
-          <div className="text-xs text-gray-400 text-center">
+        <div className="mt-8 pt-6 border-t border-amber-400">
+          <div className="text-xs text-amber-500 text-center">
             <p>Server: {SERVER_URL}</p>
             <p className="mt-1">Welcome to the world of civilization!</p>
           </div>
