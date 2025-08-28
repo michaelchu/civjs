@@ -5,14 +5,14 @@
   "buildCommand": "npm run vercel-build",
   "installCommand": "npm ci",
   "functions": {
-    "dist/index.js": {
+    "api/index.js": {
       "runtime": "@vercel/node@3.0.7"
     }
   },
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/dist/index.js"
+      "dest": "/api/index.js"
     }
   ],
   "env": {
