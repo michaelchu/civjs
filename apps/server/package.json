@@ -30,7 +30,7 @@
     "docker:up": "docker-compose -f docker-compose.dev.yml up -d",
     "docker:down": "docker-compose -f docker-compose.dev.yml down",
     "docker:logs": "docker-compose -f docker-compose.dev.yml logs -f",
-    "prepare": "is-ci || husky"
+    "prepare": "is-ci || (command -v husky >/dev/null 2>&1 && husky)"
   },
   "keywords": [
     "game",
