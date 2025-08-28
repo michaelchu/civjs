@@ -4,11 +4,6 @@
   "name": "civjs-server",
   "buildCommand": "npm run vercel-build",
   "installCommand": "npm ci",
-  "functions": {
-    "api/index.js": {
-      "runtime": "@vercel/node@3.0.7"
-    }
-  },
   "routes": [
     {
       "src": "/(.*)",
