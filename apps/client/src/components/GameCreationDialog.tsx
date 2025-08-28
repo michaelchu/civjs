@@ -86,67 +86,69 @@ export const GameCreationDialog: React.FC = () => {
             onSubmit={handleNext}
             className="space-y-6"
           >
-            <div>
-              <label
-                htmlFor="playerName"
-                className="block text-sm font-medium text-amber-700 mb-2"
-              >
-                Your Name
-              </label>
-              <input
-                id="playerName"
-                type="text"
-                value={playerName}
-                onChange={e => setPlayerName(e.target.value)}
-                placeholder="Enter your player name"
-                className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 placeholder-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
-                maxLength={32}
-              />
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <div>
+                <label
+                  htmlFor="playerName"
+                  className="block text-sm font-medium text-amber-700 mb-2"
+                >
+                  Your Name
+                </label>
+                <input
+                  id="playerName"
+                  type="text"
+                  value={playerName}
+                  onChange={e => setPlayerName(e.target.value)}
+                  placeholder="Enter your player name"
+                  className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 placeholder-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+                  maxLength={32}
+                />
+              </div>
 
-            <div>
-              <label
-                htmlFor="gameName"
-                className="block text-sm font-medium text-amber-700 mb-2"
-              >
-                Game Name
-              </label>
-              <input
-                id="gameName"
-                type="text"
-                value={gameName}
-                onChange={e => setGameName(e.target.value)}
-                placeholder="Enter game name"
-                className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 placeholder-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
-                maxLength={50}
-              />
-            </div>
+              <div>
+                <label
+                  htmlFor="gameName"
+                  className="block text-sm font-medium text-amber-700 mb-2"
+                >
+                  Game Name
+                </label>
+                <input
+                  id="gameName"
+                  type="text"
+                  value={gameName}
+                  onChange={e => setGameName(e.target.value)}
+                  placeholder="Enter game name"
+                  className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 placeholder-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+                  maxLength={50}
+                />
+              </div>
 
-            <div>
-              <label
-                htmlFor="gameType"
-                className="block text-sm font-medium text-amber-700 mb-2"
-              >
-                Game Type
-              </label>
-              <select
-                id="gameType"
-                value={gameType}
-                onChange={e =>
-                  setGameType(e.target.value as 'single' | 'multiplayer')
-                }
-                className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
-              >
-                <option value="single">Single Player</option>
-                <option value="multiplayer" disabled>
-                  Multiplayer (Coming Soon)
-                </option>
-              </select>
-              <p className="text-xs text-amber-500 mt-1">
-                {gameType === 'single'
-                  ? 'Play against AI opponents'
-                  : 'Play with other human players online'}
-              </p>
+              <div className="md:col-span-2">
+                <label
+                  htmlFor="gameType"
+                  className="block text-sm font-medium text-amber-700 mb-2"
+                >
+                  Game Type
+                </label>
+                <select
+                  id="gameType"
+                  value={gameType}
+                  onChange={e =>
+                    setGameType(e.target.value as 'single' | 'multiplayer')
+                  }
+                  className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
+                >
+                  <option value="single">Single Player</option>
+                  <option value="multiplayer" disabled>
+                    Multiplayer (Coming Soon)
+                  </option>
+                </select>
+                <p className="text-xs text-amber-500 mt-1">
+                  {gameType === 'single'
+                    ? 'Play against AI opponents'
+                    : 'Play with other human players online'}
+                </p>
+              </div>
             </div>
 
             <div
