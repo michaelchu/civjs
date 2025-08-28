@@ -37,9 +37,7 @@ class GameClient {
   private baseUrl: string;
   private sessionId: string | null = null;
   private currentGameId: string | null = null;
-  private pollingInterval: NodeJS.Timeout | null = null;
   private lastGameState: GameState | null = null;
-  private pollingFrequency: number = 5000; // 5 seconds default
 
   constructor() {
     this.baseUrl = SERVER_URL;
@@ -162,13 +160,13 @@ class GameClient {
       this.currentGameId = response.gameId;
       console.log('Game created:', response.gameId);
 
-      // Start polling for single player games
+      // Fetch initial game data directly
+      await this.fetchGameData();
+
       if (gameData.maxPlayers === 1) {
         useGameStore.getState().setClientState('running');
-        this.startPolling();
       } else {
         useGameStore.getState().setClientState('waiting_for_players');
-        this.startPolling(30000); // Poll every 30 seconds in lobby
       }
 
       return response.gameId;
@@ -189,7 +187,8 @@ class GameClient {
     if (response.success) {
       this.currentGameId = gameId;
       console.log(`Joined game ${gameId}`);
-      this.startPolling();
+      // Fetch game data directly after joining
+      await this.fetchGameData();
     } else {
       throw new Error(response.error || 'Failed to join game');
     }
@@ -203,7 +202,8 @@ class GameClient {
     if (response.success) {
       this.currentGameId = gameId;
       console.log(`Observing game ${gameId}`);
-      this.startPolling();
+      // Fetch game data directly after observing
+      await this.fetchGameData();
     } else {
       throw new Error(response.error || 'Failed to observe game');
     }
@@ -214,25 +214,27 @@ class GameClient {
     return response.success ? response.games : [];
   }
 
-  private async pollGameState(): Promise<void> {
+  public async fetchGameData(): Promise<void> {
     if (!this.currentGameId) {
       return;
     }
 
     try {
-      const response = await this.makeRequest(
+      // Fetch game state
+      const gameResponse = await this.makeRequest(
         `/api/games/${this.currentGameId}`
       );
 
-      if (response.success) {
-        const gameState = response.game as GameState;
+      if (gameResponse.success) {
+        const gameState = gameResponse.game as GameState;
         this.handleGameStateUpdate(gameState);
         this.lastGameState = gameState;
       }
+
+      // Fetch map data
+      await this.refreshGameData();
     } catch (error) {
-      console.error('Polling error:', error);
-      // Implement exponential backoff on errors
-      this.pollingFrequency = Math.min(this.pollingFrequency * 1.5, 30000);
+      console.error('Error fetching game data:', error);
     }
   }
 
@@ -259,12 +261,8 @@ class GameClient {
         if (gameState.isMyTurn) {
           console.log('Your turn started!');
           store.setClientState('running');
-          // Stop polling during player's turn for immediate actions
-          this.stopPolling();
         } else {
           console.log('Your turn ended');
-          // Resume polling to wait for other players
-          this.startPolling();
         }
       }
 
@@ -273,10 +271,8 @@ class GameClient {
         console.log('Game status changed to:', gameState.status);
         if (gameState.status === 'playing') {
           store.setClientState('running');
-          this.pollingFrequency = 5000; // 5 seconds during gameplay
         } else if (gameState.status === 'waiting') {
           store.setClientState('waiting_for_players');
-          this.pollingFrequency = 30000; // 30 seconds in lobby
         }
       }
     }
@@ -399,27 +395,6 @@ class GameClient {
     });
   }
 
-  startPolling(frequency: number = 5000): void {
-    this.stopPolling();
-    this.pollingFrequency = frequency;
-
-    console.log(`Starting polling every ${frequency}ms`);
-    this.pollingInterval = setInterval(() => {
-      this.pollGameState();
-    }, frequency);
-
-    // Poll immediately
-    this.pollGameState();
-  }
-
-  stopPolling(): void {
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
-      this.pollingInterval = null;
-      console.log('Stopped polling');
-    }
-  }
-
   // Game Actions
   async moveUnit(
     unitId: string,
@@ -436,8 +411,8 @@ class GameClient {
       }
     );
 
-    // After action, resume polling to check for turn changes
-    this.startPolling();
+    // After action, fetch updated game data
+    await this.fetchGameData();
 
     return response;
   }
@@ -451,7 +426,7 @@ class GameClient {
       }
     );
 
-    this.startPolling();
+    await this.fetchGameData();
     return response;
   }
 
@@ -464,7 +439,7 @@ class GameClient {
       }
     );
 
-    this.startPolling();
+    await this.fetchGameData();
     return response;
   }
 
@@ -477,8 +452,8 @@ class GameClient {
       }
     );
 
-    // After ending turn, resume polling immediately to watch for game updates
-    this.startPolling();
+    // After ending turn, fetch updated game data
+    await this.fetchGameData();
     return response;
   }
 
@@ -494,11 +469,11 @@ class GameClient {
       }
     );
 
-    this.startPolling();
+    await this.fetchGameData();
     return response;
   }
 
-  // Data getters (now handled by polling, but keeping for compatibility)
+  // Data getters (legacy compatibility methods)
   async getMapData(): Promise<any> {
     const response = await this.makeRequest(
       `/api/games/${this.currentGameId}/map`
@@ -514,8 +489,6 @@ class GameClient {
   }
 
   disconnect(): void {
-    this.stopPolling();
-
     if (this.sessionId) {
       // Fire and forget logout
       this.makeRequest('/api/auth/logout', { method: 'POST' }).catch(() => {

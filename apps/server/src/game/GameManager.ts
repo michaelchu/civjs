@@ -12,7 +12,7 @@ import { VisibilityManager } from './VisibilityManager';
 import { CityManager } from './CityManager';
 import { ResearchManager } from './ResearchManager';
 import { MapStartpos } from './map/MapTypes';
-// Removed Socket.IO dependency - using pure HTTP now
+// HTTP-only implementation
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
@@ -121,7 +121,7 @@ export class GameManager {
 
     logger.info('Game created successfully', { gameId: newGame.id });
 
-    // Note: The Socket.IO handler will handle joining the creator to the game
+    // Creator will join via separate API call
     // This ensures proper socket room management
 
     return newGame.id;
@@ -181,13 +181,7 @@ export class GameManager {
 
     logger.info('Player joined game', { gameId, playerId: newPlayer.id, userId });
 
-    // Notify all players in the game
-    this.broadcastToGame(gameId, 'player-joined', {
-      playerId: newPlayer.id,
-      playerNumber,
-      civilization: playerData.civilization,
-      playerCount: game.players.length + 1,
-    });
+    // Player joined - state updated in database
 
     // Auto-start game if not already started and conditions are met
     const updatedGame = await db.query.games.findFirst({
@@ -277,11 +271,7 @@ export class GameManager {
     const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
     await this.initializeGameInstance(gameId, game, storedTerrainSettings);
 
-    // Notify all players that the game has started
-    this.broadcastToGame(gameId, 'game-started', {
-      gameId,
-      currentTurn: 1,
-    });
+    // Game started - state updated in database
 
     logger.info('Game started successfully', { gameId });
   }
@@ -421,90 +411,15 @@ export class GameManager {
     // Store the game instance
     this.games.set(gameId, gameInstance);
 
-    // Initialize research for all players
+    // Initialize research and visibility for all players
     for (const player of players.values()) {
       await researchManager.initializePlayerResearch(player.id);
+      visibilityManager.initializePlayerVisibility(player.id);
+      // Grant initial visibility around starting position
+      visibilityManager.updatePlayerVisibility(player.id);
     }
 
-    // Send initial map data to all players (with delay to ensure socket room joins are complete)
-    // Delay map broadcasting to ensure socket room joins are complete
-    setTimeout(() => {
-      this.broadcastMapData(gameId, mapData);
-    }, 300);
-  }
-
-  private broadcastMapData(gameId: string, mapData: any): void {
-    const mapDataPacket = {
-      gameId,
-      width: mapData.width,
-      height: mapData.height,
-      startingPositions: mapData.startingPositions,
-      seed: mapData.seed,
-      generatedAt: mapData.generatedAt,
-    };
-
-    this.broadcastToGame(gameId, 'map-data', mapDataPacket);
-
-    // Send data in EXACT freeciv-web format
-    const gameInstance = this.games.get(gameId);
-    if (gameInstance) {
-      // Send map info in EXACT freeciv-web format (gets assigned to global map variable)
-      const mapInfoPacket = {
-        xsize: mapData.width,
-        ysize: mapData.height,
-        wrap_id: 0, // Flat earth
-        topology_id: 0,
-      };
-
-      this.broadcastToGame(gameId, 'map-info', mapInfoPacket);
-
-      // OPTIMIZED: Send tiles in batches to improve performance
-
-      // Collect all tiles into an array
-      const allTiles = [];
-      for (let y = 0; y < mapData.height; y++) {
-        for (let x = 0; x < mapData.width; x++) {
-          const index = x + y * mapData.width;
-          // Handle column-based tile array structure: mapData.tiles[x][y]
-          const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
-
-          if (serverTile) {
-            // Format tile in exact freeciv-web format
-            const tileInfo = {
-              tile: index, // This is the key - tile index used by freeciv-web
-              x: x,
-              y: y,
-              terrain: serverTile.terrain,
-              resource: serverTile.resource,
-              elevation: serverTile.elevation || 0,
-              riverMask: serverTile.riverMask || 0,
-              known: 1, // TILE_KNOWN
-              seen: 1,
-              player: null,
-              worked: null,
-              extras: 0, // BitVector for extras
-            };
-            allTiles.push(tileInfo);
-          }
-        }
-      }
-
-      // Send tiles in batches of 100 to avoid overwhelming the client
-      const BATCH_SIZE = 100;
-      for (let i = 0; i < allTiles.length; i += BATCH_SIZE) {
-        const batch = allTiles.slice(i, i + BATCH_SIZE);
-        this.broadcastToGame(gameId, 'tile-info-batch', {
-          tiles: batch,
-          startIndex: i,
-          endIndex: Math.min(i + BATCH_SIZE, allTiles.length),
-          total: allTiles.length,
-        });
-      }
-
-      logger.debug(
-        `Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches`
-      );
-    }
+    // Map data is now available via HTTP API endpoints
   }
 
   /**
@@ -652,8 +567,10 @@ export class GameManager {
       return {
         id: game.id,
         name: game.name,
+        hostId: game.hostId,
         hostName: game.host?.username || 'Unknown',
         status: game.status,
+        players: game.players,
         currentPlayers: game.players?.length || 0,
         maxPlayers: game.maxPlayers,
         currentTurn: game.currentTurn,
@@ -775,19 +692,7 @@ export class GameManager {
     // Update visibility for the player
     gameInstance.visibilityManager.onUnitCreated(playerId);
 
-    // Broadcast unit creation to all players
-    this.broadcastToGame(gameId, 'unit_created', {
-      gameId,
-      unit: {
-        id: unit.id,
-        playerId: unit.playerId,
-        unitType: unit.unitTypeId,
-        x: unit.x,
-        y: unit.y,
-        health: unit.health,
-        movementLeft: unit.movementLeft,
-      },
-    });
+    // Unit created - state updated in database
 
     return unit.id;
   }
@@ -817,19 +722,10 @@ export class GameManager {
     const moved = await gameInstance.unitManager.moveUnit(unitId, x, y);
 
     if (moved) {
-      const updatedUnit = gameInstance.unitManager.getUnit(unitId)!;
-
       // Update visibility for the player
       gameInstance.visibilityManager.onUnitMoved(playerId);
 
-      // Broadcast unit movement to all players
-      this.broadcastToGame(gameId, 'unit_moved', {
-        gameId,
-        unitId,
-        x: updatedUnit.x,
-        y: updatedUnit.y,
-        movementLeft: updatedUnit.movementLeft,
-      });
+      // Unit moved - state updated in database
     }
 
     return moved;
@@ -870,11 +766,7 @@ export class GameManager {
       }
     }
 
-    // Broadcast combat result to all players
-    this.broadcastToGame(gameId, 'unit_combat', {
-      gameId,
-      combatResult,
-    });
+    // Combat resolved - state updated in database
 
     return combatResult;
   }
@@ -893,11 +785,7 @@ export class GameManager {
 
     await gameInstance.unitManager.fortifyUnit(unitId);
 
-    // Broadcast fortification to all players
-    this.broadcastToGame(gameId, 'unit_fortified', {
-      gameId,
-      unitId,
-    });
+    // Unit fortified - state updated in database
   }
 
   public getPlayerUnits(gameId: string, playerId: string) {
@@ -1041,18 +929,7 @@ export class GameManager {
       gameInstance.currentTurn
     );
 
-    // Broadcast city founding to all players
-    this.broadcastToGame(gameId, 'city_founded', {
-      gameId,
-      city: {
-        id: cityId,
-        playerId,
-        name,
-        x,
-        y,
-        population: 1,
-      },
-    });
+    // City founded - state updated in database
 
     return cityId;
   }
@@ -1080,13 +957,7 @@ export class GameManager {
 
     await gameInstance.cityManager.setCityProduction(cityId, production, type);
 
-    // Broadcast production change to all players
-    this.broadcastToGame(gameId, 'city_production_changed', {
-      gameId,
-      cityId,
-      production,
-      type,
-    });
+    // Production changed - state updated in database
   }
 
   public getPlayerCities(gameId: string, playerId: string) {
@@ -1121,13 +992,7 @@ export class GameManager {
 
     await gameInstance.researchManager.setCurrentResearch(playerId, techId);
 
-    // Broadcast research change to the player
-    this.broadcastToGame(gameId, 'research_changed', {
-      gameId,
-      playerId,
-      techId,
-      availableTechs: gameInstance.researchManager.getAvailableTechnologies(playerId),
-    });
+    // Research changed - state updated in database
   }
 
   public async setResearchGoal(gameId: string, playerId: string, techId: string): Promise<void> {
@@ -1143,12 +1008,7 @@ export class GameManager {
 
     await gameInstance.researchManager.setResearchGoal(playerId, techId);
 
-    // Broadcast goal change to the player
-    this.broadcastToGame(gameId, 'research_goal_changed', {
-      gameId,
-      playerId,
-      techGoal: techId,
-    });
+    // Research goal changed - state updated in database
   }
 
   public getPlayerResearch(gameId: string, playerId: string) {
@@ -1203,24 +1063,11 @@ export class GameManager {
       );
 
       if (completedTech) {
-        // Broadcast tech completion to all players
-        this.broadcastToGame(gameId, 'tech_completed', {
-          gameId,
-          playerId,
-          techId: completedTech,
-          playerName: player.civilization,
-          availableTechs: gameInstance.researchManager.getAvailableTechnologies(playerId),
-        });
+        // Tech completed - state updated in database
 
         logger.info('Technology completed', { gameId, playerId, techId: completedTech });
       }
     }
-  }
-
-  private broadcastToGame(gameId: string, event: string, data: any): void {
-    // HTTP mode: No real-time broadcasting needed
-    // Game state updates are handled via polling
-    logger.debug(`Would broadcast ${event} to game ${gameId} in Socket.IO mode`, data);
   }
 
   public async cleanupInactiveGames(): Promise<void> {

@@ -359,7 +359,7 @@ export class TurnManager {
 
   private broadcastTurnStart(): void {
     // HTTP mode: No real-time broadcasting needed
-    // Turn start notifications are handled via polling
+    // Turn start state updated in database
     logger.debug('Turn started', {
       gameId: this.gameId,
       turn: this.currentTurn,

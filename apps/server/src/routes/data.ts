@@ -48,6 +48,7 @@ router.get(
             success: false,
             error: 'Player map view not found',
           });
+          return;
         }
 
         res.json({

@@ -57,7 +57,7 @@ app.get('/api/info', (_req, res) => {
     environment: config.server.env,
     timestamp: new Date().toISOString(),
     mode: 'HTTP',
-    features: ['multiplayer_http', 'turn_based_polling'],
+    features: ['multiplayer_http'],
   });
 });
 
