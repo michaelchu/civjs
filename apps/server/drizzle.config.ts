@@ -29,21 +29,8 @@ export default {
   schema: './src/database/schema/*.ts',
   out: './drizzle',
   dialect: 'postgresql',
-  dbCredentials: process.env.NODE_ENV === 'production' && host ? {
-    host,
-    port,
-    user,
-    password,
-    database,
-    ssl: process.env.DATABASE_CA ? { 
-      ca: process.env.DATABASE_CA,
-      rejectUnauthorized: true 
-    } : { 
-      rejectUnauthorized: false 
-    },
-  } : {
+  dbCredentials: {
     url: connectionString,
-    ssl: process.env.NODE_ENV === 'production' ? 'require' : false,
   },
   verbose: true,
   strict: true,
