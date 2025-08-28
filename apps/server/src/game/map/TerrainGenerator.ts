@@ -1249,7 +1249,7 @@ export class TerrainGenerator {
    * @reference freeciv/server/generator/temperature_map.c:160-172
    * TemperatureMap.convertToTemperatureTypes() provides reference-compliant implementation
    */
-  public convertTemperatureToEnum(tiles: MapTile[][]): void {
+  public convertTemperatureToEnum(_tiles: MapTile[][]): void {
     // NO-OP: TemperatureMap already provides correct discrete temperature types
     // This function is kept for API compatibility but does nothing
     // Temperature conversion is now handled directly in TemperatureMap.convertToTemperatureTypes()
