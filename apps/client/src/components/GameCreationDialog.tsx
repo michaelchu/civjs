@@ -49,12 +49,12 @@ export const GameCreationDialog: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-yellow-100 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-gradient-to-b from-amber-50 to-yellow-50 p-6 md:p-8 rounded-lg shadow-2xl w-full max-w-md mx-auto border border-amber-200 shadow-amber-200/20">
+    <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200 flex items-center justify-center overflow-y-auto">
+      <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-8 md:rounded-lg md:shadow-2xl w-full max-w-md mx-auto md:border md:border-amber-300 md:shadow-amber-300/20">
         <div className="flex items-center mb-6">
           <button
             onClick={handleBack}
-            className="mr-3 p-2 text-amber-700 hover:text-amber-900 transition-colors"
+            className="mr-3 p-2 text-amber-600 hover:text-amber-800 transition-colors"
           >
             <svg
               className="w-5 h-5"
@@ -71,10 +71,10 @@ export const GameCreationDialog: React.FC = () => {
             </svg>
           </button>
           <div>
-            <h2 className="text-2xl font-bold text-amber-900">
+            <h2 className="text-2xl font-bold text-amber-800">
               Create New Game
             </h2>
-            <p className="text-amber-700">Set up your civilization</p>
+            <p className="text-amber-600">Set up your civilization</p>
           </div>
         </div>
 
@@ -82,7 +82,7 @@ export const GameCreationDialog: React.FC = () => {
           <div>
             <label
               htmlFor="playerName"
-              className="block text-sm font-medium text-amber-800 mb-2"
+              className="block text-sm font-medium text-amber-700 mb-2"
             >
               Your Name
             </label>
@@ -92,7 +92,7 @@ export const GameCreationDialog: React.FC = () => {
               value={playerName}
               onChange={e => setPlayerName(e.target.value)}
               placeholder="Enter your player name"
-              className="w-full px-3 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-900 placeholder-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
+              className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 placeholder-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
               maxLength={32}
             />
           </div>
@@ -100,7 +100,7 @@ export const GameCreationDialog: React.FC = () => {
           <div>
             <label
               htmlFor="gameName"
-              className="block text-sm font-medium text-amber-800 mb-2"
+              className="block text-sm font-medium text-amber-700 mb-2"
             >
               Game Name
             </label>
@@ -110,7 +110,7 @@ export const GameCreationDialog: React.FC = () => {
               value={gameName}
               onChange={e => setGameName(e.target.value)}
               placeholder="Enter game name"
-              className="w-full px-3 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-900 placeholder-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
+              className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 placeholder-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
               maxLength={50}
             />
           </div>
@@ -119,7 +119,7 @@ export const GameCreationDialog: React.FC = () => {
             <div>
               <label
                 htmlFor="maxPlayers"
-                className="block text-sm font-medium text-amber-800 mb-2"
+                className="block text-sm font-medium text-amber-700 mb-2"
               >
                 Max Players
               </label>
@@ -140,7 +140,7 @@ export const GameCreationDialog: React.FC = () => {
             <div>
               <label
                 htmlFor="mapSize"
-                className="block text-sm font-medium text-amber-800 mb-2"
+                className="block text-sm font-medium text-amber-700 mb-2"
               >
                 Map Size
               </label>
@@ -159,14 +159,14 @@ export const GameCreationDialog: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-amber-100 border border-amber-200 p-4 rounded-md">
-            <h4 className="text-sm font-medium text-amber-800 mb-2">
+          <div className="bg-amber-200 border border-amber-300 p-4 rounded-md">
+            <h4 className="text-sm font-medium text-amber-700 mb-2">
               Map Preview
             </h4>
             {mapSizeOptions.map(
               option =>
                 mapSize === option.value && (
-                  <div key={option.value} className="text-sm text-amber-700">
+                  <div key={option.value} className="text-sm text-amber-600">
                     <p className="font-medium">{option.label}</p>
                     <p>{option.description}</p>
                   </div>
@@ -184,14 +184,14 @@ export const GameCreationDialog: React.FC = () => {
             <button
               type="button"
               onClick={handleBack}
-              className="flex-1 py-3 px-4 bg-amber-200 hover:bg-amber-300 text-amber-800 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-amber-50 shadow-sm"
+              className="flex-1 py-3 px-4 bg-amber-300 hover:bg-amber-400 text-amber-700 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 focus:ring-offset-amber-100 shadow-sm"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!playerName.trim() || !gameName.trim()}
-              className="flex-1 py-3 px-4 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 disabled:text-amber-500 text-amber-50 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-amber-50 shadow-sm"
+              className="flex-1 py-3 px-4 bg-amber-700 hover:bg-amber-800 disabled:bg-amber-400 disabled:text-amber-200 text-amber-50 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 focus:ring-offset-amber-100 shadow-sm"
             >
               Next
             </button>
