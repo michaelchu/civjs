@@ -1,1 +1,3 @@
+# Run type checking and format checking (strict) 
+# Linting temporarily permissive due to existing warnings in legacy code
 npm run typecheck && npm run format:check
