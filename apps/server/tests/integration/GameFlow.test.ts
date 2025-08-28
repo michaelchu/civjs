@@ -18,7 +18,7 @@ describe('Game Integration Flow', () => {
     mockIo.to = jest.fn().mockReturnValue({ emit: jest.fn() });
     mockIo.sockets.adapter = { rooms: new Map() };
 
-    gameManager = GameManager.getInstance(mockIo);
+    gameManager = GameManager.getInstance();
 
     // Setup database mocks using shared fixture
     dbMocks = createDatabaseMocks();
