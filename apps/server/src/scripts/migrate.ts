@@ -10,6 +10,7 @@ async function runMigrations() {
   console.log('Migration started ⌛');
 
   const dbUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+
   // Add SSL mode for production if not already present
   const finalDbUrl =
     process.env.NODE_ENV === 'production' && dbUrl && !dbUrl.includes('sslmode')
