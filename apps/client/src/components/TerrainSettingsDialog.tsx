@@ -260,7 +260,7 @@ export const TerrainSettingsDialog: React.FC = () => {
             </div>
 
             {/* Sliders in responsive grid layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div>
                 <label className="block text-sm font-medium text-amber-700 mb-2">
                   Temperature: {terrainSettings.temperature}% (Cooler ← →
