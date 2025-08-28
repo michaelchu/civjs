@@ -3,7 +3,7 @@
   "name": "civjs-server",
   "buildCommand": "npm run vercel-build",
   "installCommand": "npm ci",
-  "ignoreCommand": "npx turbo-ignore",
+  "ignoreCommand": "bash -c '! git diff HEAD^ HEAD --name-only | grep -qE \"^(apps/server/|package\\.json|package-lock\\.json|turbo\\.json|.*/vercel\\.json)\"'",
   "rewrites": [
     {
       "source": "/(.*)",
