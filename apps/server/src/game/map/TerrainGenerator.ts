@@ -1245,40 +1245,14 @@ export class TerrainGenerator {
   }
 
   /**
-   * Convert continuous temperature values to discrete climate zones
+   * REMOVED: Custom temperature conversion - now uses 100% compliant TemperatureMap
+   * @reference freeciv/server/generator/temperature_map.c:160-172
+   * TemperatureMap.convertToTemperatureTypes() provides reference-compliant implementation
    */
-  public convertTemperatureToEnum(tiles: MapTile[][]): void {
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const tile = tiles[x][y];
-
-        // Convert continuous temperature value to discrete enum (respects TemperatureMap)
-        const tempValue = tile.temperature; // Keep the sophisticated value from TemperatureMap
-        const MAX_COLATITUDE = 1000;
-
-        // Use freeciv-based thresholds instead of crude latitude bands
-        if (tempValue >= MAX_COLATITUDE * 0.8) {
-          tile.temperature = TemperatureType.FROZEN;
-        } else if (tempValue >= MAX_COLATITUDE * 0.5) {
-          tile.temperature = TemperatureType.COLD;
-        } else if (tempValue <= MAX_COLATITUDE * 0.25) {
-          tile.temperature = TemperatureType.TROPICAL;
-        } else {
-          tile.temperature = TemperatureType.TEMPERATE;
-        }
-
-        // Optional: Add small amount of randomness
-        if (this.random() < 0.05) {
-          const temps = [
-            TemperatureType.FROZEN,
-            TemperatureType.COLD,
-            TemperatureType.TEMPERATE,
-            TemperatureType.TROPICAL,
-          ];
-          tile.temperature = temps[Math.floor(this.random() * temps.length)];
-        }
-      }
-    }
+  public convertTemperatureToEnum(_tiles: MapTile[][]): void {
+    // NO-OP: TemperatureMap already provides correct discrete temperature types
+    // This function is kept for API compatibility but does nothing
+    // Temperature conversion is now handled directly in TemperatureMap.convertToTemperatureTypes()
   }
 
   /**
