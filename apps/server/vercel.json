@@ -6,7 +6,7 @@
   "installCommand": "npm ci",
   "functions": {
     "dist/index.js": {
-      "runtime": "nodejs20.x"
+      "runtime": "@vercel/node@3.0.7"
     }
   },
   "routes": [
