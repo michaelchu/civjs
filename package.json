@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "CivJS - A modern civilization game built with TypeScript, React, and Node.js",
   "private": true,
+  "packageManager": "npm@10.8.2",
   "workspaces": [
     "apps/*"
   ],

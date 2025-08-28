@@ -6,7 +6,7 @@
   "outputDirectory": "dist",
   "installCommand": "npm ci",
   "framework": "vite",
-  "ignoreCommand": "bash -c 'git diff --quiet origin/master...HEAD -- apps/client/ package.json package-lock.json turbo.json \"*/vercel.json\"'",
+  "ignoreCommand": "npx turbo-ignore",
   "env": {
     "VITE_SERVER_URL": "https://civjs-server.vercel.app"
   },
