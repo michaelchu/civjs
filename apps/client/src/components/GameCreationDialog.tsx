@@ -52,7 +52,7 @@ export const GameCreationDialog: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200 md:flex md:items-center md:justify-center">
-      <div className="flex flex-col h-screen md:h-auto md:max-w-md md:mx-auto">
+      <div className="flex flex-col h-screen md:h-auto md:max-w-xl lg:max-w-2xl md:mx-auto">
         <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-8 md:rounded-lg md:shadow-2xl w-full md:border md:border-amber-300 md:shadow-amber-300/20 flex-1 md:flex-none overflow-y-auto">
           <div className="flex items-center mb-6">
             <button
