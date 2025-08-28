@@ -12,7 +12,7 @@ import { VisibilityManager } from './VisibilityManager';
 import { CityManager } from './CityManager';
 import { ResearchManager } from './ResearchManager';
 import { MapStartpos } from './map/MapTypes';
-import { Server as SocketServer } from 'socket.io';
+// Removed Socket.IO dependency - using pure HTTP now
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
@@ -69,17 +69,16 @@ export interface PlayerState {
 
 export class GameManager {
   private static instance: GameManager;
-  private io: SocketServer;
   private games = new Map<string, GameInstance>();
   private playerToGame = new Map<string, string>();
 
-  private constructor(io: SocketServer) {
-    this.io = io;
+  private constructor() {
+    // HTTP-only GameManager - no Socket.IO needed
   }
 
-  public static getInstance(io: SocketServer): GameManager {
+  public static getInstance(): GameManager {
     if (!GameManager.instance) {
-      GameManager.instance = new GameManager(io);
+      GameManager.instance = new GameManager();
     }
     return GameManager.instance;
   }
@@ -315,7 +314,7 @@ export class GameManager {
     // Initialize managers with terrain settings
     const mapGenerator = terrainSettings?.generator || 'random';
     const mapManager = new MapManager(game.mapWidth, game.mapHeight, undefined, mapGenerator);
-    const turnManager = new TurnManager(gameId, this.io);
+    const turnManager = new TurnManager(gameId);
     const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
     const cityManager = new CityManager(gameId);
@@ -1219,11 +1218,9 @@ export class GameManager {
   }
 
   private broadcastToGame(gameId: string, event: string, data: any): void {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) return;
-
-    // Broadcast to all sockets in the specific game room
-    this.io.to(`game:${gameId}`).emit(event, data);
+    // HTTP mode: No real-time broadcasting needed
+    // Game state updates are handled via polling
+    logger.debug(`Would broadcast ${event} to game ${gameId} in Socket.IO mode`, data);
   }
 
   public async cleanupInactiveGames(): Promise<void> {

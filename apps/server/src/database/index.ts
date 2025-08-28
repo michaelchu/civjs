@@ -4,7 +4,10 @@ import * as schema from './schema';
 import logger from '../utils/logger';
 
 // Database connection string - use POSTGRES_URL from Supabase
-const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL || 'postgresql://civjs:civjs_dev@localhost:5432/civjs_dev';
+const connectionString =
+  process.env.POSTGRES_URL ||
+  process.env.DATABASE_URL ||
+  'postgresql://civjs:civjs_dev@localhost:5432/civjs_dev';
 
 // Create postgres connection
 // Disable prefetch for "Transaction" pool mode (Supabase recommendation)
