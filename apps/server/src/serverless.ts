@@ -7,6 +7,12 @@ import config from './config';
 import logger from './utils/logger';
 import { testConnection } from './database';
 
+// Import HTTP routes
+import gamesRouter from './routes/games';
+import actionsRouter from './routes/actions';
+import dataRouter from './routes/data';
+import { loginUser, logoutUser } from './middleware/auth';
+
 // Load environment variables
 dotenv.config();
 
@@ -34,7 +40,7 @@ app.get('/health', async (_req, res) => {
   try {
     // Test database connection
     const dbConnected = await testConnection();
-    
+
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -50,6 +56,10 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+// Authentication endpoints
+app.post('/api/auth/login', loginUser);
+app.post('/api/auth/logout', logoutUser);
+
 // API info endpoint
 app.get('/api/info', (_req, res) => {
   res.json({
@@ -57,8 +67,15 @@ app.get('/api/info', (_req, res) => {
     version: '1.0.0',
     environment: config.server.env,
     timestamp: new Date().toISOString(),
+    mode: 'HTTP',
+    features: ['multiplayer_http'],
   });
 });
+
+// Game API routes
+app.use('/api/games', gamesRouter);
+app.use('/api/games', actionsRouter);
+app.use('/api/games', dataRouter);
 
 // Error handling
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

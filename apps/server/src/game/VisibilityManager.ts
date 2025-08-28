@@ -165,26 +165,40 @@ export class VisibilityManager {
   /**
    * Get filtered map data that only includes tiles the player can see
    */
-  public getPlayerMapView(playerId: string) {
+  public getPlayerMapView(_playerId: string) {
+    // TODO: Use playerId for visibility when units are implemented
     const mapData = this.mapManager.getMapData();
     if (!mapData) return null;
 
-    const visibleTiles = this.getVisibleTiles(playerId);
-    const exploredTiles = this.getExploredTiles(playerId);
+    // TODO: Uncomment when implementing proper visibility with units
+    // const visibleTiles = this.getVisibleTiles(playerId);
+    // const exploredTiles = this.getExploredTiles(playerId);
 
     // Filter tiles based on what player can see
-    const filteredTiles: any[][] = [];
+    // Return as object with coordinate keys for client compatibility
+    const filteredTiles: Record<string, any> = {};
     for (let x = 0; x < mapData.width; x++) {
-      filteredTiles[x] = [];
       for (let y = 0; y < mapData.height; y++) {
         const tile = mapData.tiles[x][y];
         const tileKey = `${x},${y}`;
-        const isVisible = visibleTiles.has(tileKey);
-        const isExplored = exploredTiles.has(tileKey);
+        // const isVisible = visibleTiles.has(tileKey);  // TODO: Uncomment when units are implemented
+        // const isExplored = exploredTiles.has(tileKey); // TODO: Uncomment when units are implemented
 
+        // TODO: For now, return all tiles as visible for testing
+        // This matches the original Socket.IO implementation
+        filteredTiles[tileKey] = {
+          ...tile,
+          isVisible: true,
+          isExplored: true,
+          // Match original format exactly
+          known: 1,
+          seen: 1,
+        };
+
+        /* Original visibility logic - restore when units are implemented
         if (!isExplored) {
           // Completely unknown tile
-          filteredTiles[x][y] = {
+          filteredTiles[tileKey] = {
             x,
             y,
             terrain: 'unknown',
@@ -193,7 +207,7 @@ export class VisibilityManager {
           };
         } else if (!isVisible) {
           // Previously explored but not currently visible (fog of war)
-          filteredTiles[x][y] = {
+          filteredTiles[tileKey] = {
             x,
             y,
             terrain: tile.terrain,
@@ -203,12 +217,13 @@ export class VisibilityManager {
           };
         } else {
           // Currently visible
-          filteredTiles[x][y] = {
+          filteredTiles[tileKey] = {
             ...tile,
             isVisible: true,
             isExplored: true,
           };
         }
+        */
       }
     }
 
