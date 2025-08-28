@@ -9,7 +9,8 @@ const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL ||
 // Parse URL for individual components (needed for CA certificate)
 let host, port, user, password, database;
 
-if (process.env.NODE_ENV === 'production' && connectionString.startsWith('postgresql://') && process.env.DATABASE_CA) {
+// Always parse connection string in production, regardless of CA availability
+if (process.env.NODE_ENV === 'production' && connectionString.startsWith('postgresql://')) {
   try {
     const url = new URL(connectionString);
     host = url.hostname;
@@ -17,6 +18,8 @@ if (process.env.NODE_ENV === 'production' && connectionString.startsWith('postgr
     user = url.username;
     password = url.password;
     database = url.pathname.slice(1); // remove leading slash
+    console.log('Parsed connection details:', { host, port, user, database: database ? 'present' : 'missing' });
+    console.log('DATABASE_CA available:', !!process.env.DATABASE_CA);
   } catch (error) {
     console.error('Failed to parse connection string:', error);
   }
@@ -26,13 +29,18 @@ export default {
   schema: './src/database/schema/*.ts',
   out: './drizzle',
   dialect: 'postgresql',
-  dbCredentials: process.env.NODE_ENV === 'production' && host && process.env.DATABASE_CA ? {
+  dbCredentials: process.env.NODE_ENV === 'production' && host ? {
     host,
     port,
     user,
     password,
     database,
-    ssl: { ca: process.env.DATABASE_CA },
+    ssl: process.env.DATABASE_CA ? { 
+      ca: process.env.DATABASE_CA,
+      rejectUnauthorized: true 
+    } : { 
+      rejectUnauthorized: false 
+    },
   } : {
     url: connectionString,
     ssl: process.env.NODE_ENV === 'production' ? 'require' : false,
