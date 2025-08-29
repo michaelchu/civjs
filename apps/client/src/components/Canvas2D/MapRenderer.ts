@@ -228,6 +228,12 @@ export class MapRenderer {
 
       for (const spriteInfo of sprites) {
         const sprite = this.tilesetLoader.getSprite(spriteInfo.key);
+        
+        // Debug: Always log sprite loading results for deep_ocean
+        if (tile.terrain === 'deep_ocean') {
+          console.warn(`[DEBUG] Deep ocean sprite "${spriteInfo.key}": ${sprite ? 'LOADED' : 'MISSING/NULL'}`);
+        }
+        
         if (sprite) {
           const offsetX = spriteInfo.offset_x || 0;
           const offsetY = spriteInfo.offset_y || 0;
