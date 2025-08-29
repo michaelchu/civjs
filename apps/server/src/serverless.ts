@@ -31,11 +31,12 @@ const corsOrigins = (
     'http://localhost:3000',
     'http://localhost:3001',
     'https://civjs-client.vercel.app',
+    'https://civjs.vercel.app',
     config.server.corsOrigin,
   ];
 
-  // Allow all Vercel preview deployments for civjs-client
-  const isVercelPreview = origin.match(/^https:\/\/civjs-client-.*\.vercel\.app$/);
+  // Allow all Vercel preview deployments for civjs-client or civjs
+  const isVercelPreview = origin.match(/^https:\/\/civjs(-client)?-.*\.vercel\.app$/);
 
   if (allowedOrigins.indexOf(origin) !== -1 || isVercelPreview) {
     callback(null, true);
