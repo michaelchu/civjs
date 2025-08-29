@@ -1977,7 +1977,10 @@ export class TerrainGenerator {
           // Fill based on temperature like freeciv make_plain()
           if (tile.temperature === TemperatureType.FROZEN) {
             // Frozen: pick_terrain(MG_FROZEN, MG_UNUSED, MG_MOUNTAINOUS)
-            tile.terrain = this.random() < 0.5 ? 'glacier' : 'snow';
+            const assignedTerrain = this.random() < 0.5 ? 'glacier' : 'snow';
+            tile.terrain = assignedTerrain;
+            console.log(`[TerrainGen] Assigned ${assignedTerrain} at (${x},${y}) - temp=${tile.temperature} (FROZEN)`);
+          
           } else if (tile.temperature === TemperatureType.COLD) {
             // Cold: pick_terrain(MG_COLD, MG_UNUSED, MG_MOUNTAINOUS)
             tile.terrain = this.random() < 0.7 ? 'tundra' : 'plains';

@@ -185,20 +185,39 @@ export class TemperatureMap {
   private convertToTemperatureTypes(): void {
     const coldLevel = getColdLevel(this.temperatureParam);
     const tropicalLevel = getTropicalLevel(this.temperatureParam);
+    
+    console.log(`[TemperatureMap] Temperature thresholds: coldLevel=${coldLevel}, tropicalLevel=${tropicalLevel}, iceLevel=${2 * ICE_BASE_LEVEL}, temperatureParam=${this.temperatureParam}`);
 
+    let frozenCount = 0;
+    let coldCount = 0;
+    let temperateCount = 0;
+    let tropicalCount = 0;
+    
     for (let i = 0; i < this.temperatureMap.length; i++) {
       const temp = this.temperatureMap[i];
+      const x = i % this.width;
+      const y = Math.floor(i / this.width);
 
       if (temp >= tropicalLevel) {
         this.temperatureMap[i] = TemperatureType.TROPICAL;
+        tropicalCount++;
       } else if (temp >= coldLevel) {
         this.temperatureMap[i] = TemperatureType.TEMPERATE;
+        temperateCount++;
       } else if (temp >= 2 * ICE_BASE_LEVEL) {
         this.temperatureMap[i] = TemperatureType.COLD;
+        coldCount++;
       } else {
         this.temperatureMap[i] = TemperatureType.FROZEN;
+        frozenCount++;
+        // Log first few frozen tiles to see where they're being placed
+        if (frozenCount <= 5) {
+          console.log(`[TemperatureMap] FROZEN tile at (${x},${y}) - temp=${temp}, colatitude=${this.mapColatitude(x, y)}`);
+        }
       }
     }
+    
+    console.log(`[TemperatureMap] Temperature distribution: FROZEN=${frozenCount}, COLD=${coldCount}, TEMPERATE=${temperateCount}, TROPICAL=${tropicalCount}`);
   }
 
   // Get temperature type for a tile
