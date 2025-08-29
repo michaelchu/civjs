@@ -96,8 +96,6 @@ export type TerrainType =
   | 'plains'
   | 'desert'
   | 'tundra'
-  | 'snow'
-  | 'glacier'
   | 'forest'
   | 'jungle'
   | 'swamp'

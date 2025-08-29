@@ -47,8 +47,6 @@ export class ResourceGenerator {
       plains: ['horses', 'wheat', 'cattle'],
       desert: ['gold', 'gems', 'oil'],
       tundra: ['horses', 'iron', 'oil', 'uranium'],
-      snow: ['oil', 'uranium'],
-      glacier: ['oil', 'uranium'],
       forest: ['spices', 'silk'],
       jungle: ['spices', 'gems', 'gold'],
       swamp: ['spices', 'oil'],

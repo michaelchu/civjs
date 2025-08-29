@@ -78,7 +78,8 @@ export class MapManager {
     generator: string = 'random',
     defaultGeneratorType?: MapGeneratorType,
     defaultStartPosMode?: StartPosMode,
-    cleanupTemperatureMapAfterUse: boolean = false
+    cleanupTemperatureMapAfterUse: boolean = false,
+    temperatureParam: number = 50
   ) {
     this.width = width;
     this.height = height;
@@ -98,7 +99,7 @@ export class MapManager {
       100,
       this.generator
     );
-    this.temperatureMap = new TemperatureMap(width, height);
+    this.temperatureMap = new TemperatureMap(width, height, temperatureParam);
     this.islandGenerator = new IslandGenerator(width, height, this.random);
     this.riverGenerator = new RiverGenerator(width, height, this.random);
     this.resourceGenerator = new ResourceGenerator(width, height, this.random);

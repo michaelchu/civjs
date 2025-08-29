@@ -314,7 +314,17 @@ export class GameManager {
 
     // Initialize managers with terrain settings
     const mapGenerator = terrainSettings?.generator || 'random';
-    const mapManager = new MapManager(game.mapWidth, game.mapHeight, undefined, mapGenerator);
+    const temperatureParam = terrainSettings?.temperature ?? 50;
+    const mapManager = new MapManager(
+      game.mapWidth,
+      game.mapHeight,
+      undefined,
+      mapGenerator,
+      undefined,
+      undefined,
+      false,
+      temperatureParam
+    );
     const turnManager = new TurnManager(gameId);
     const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
@@ -572,8 +582,21 @@ export class GameManager {
       const cityManager = new CityManager(gameId);
       const researchManager = new ResearchManager(gameId);
 
+      // Extract terrain settings from stored game state
+      const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
+      const temperatureParam = storedTerrainSettings?.temperature ?? 50;
+
       // Create MapManager and restore map data from database
-      const mapManager = new MapManager(game.mapWidth, game.mapHeight, undefined, 'recovered');
+      const mapManager = new MapManager(
+        game.mapWidth,
+        game.mapHeight,
+        undefined,
+        'recovered',
+        undefined,
+        undefined,
+        false,
+        temperatureParam
+      );
       await this.restoreMapDataToManager(mapManager, game.mapData as any, game.mapSeed!);
 
       const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);

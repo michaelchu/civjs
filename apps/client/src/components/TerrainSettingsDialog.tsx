@@ -251,27 +251,62 @@ export const TerrainSettingsDialog: React.FC = () => {
             {/* Sliders in responsive grid layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div>
-                <label className="block text-sm font-medium text-amber-700 mb-2">
-                  Temperature: {terrainSettings.temperature}% (Cooler ← → Warmer)
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={terrainSettings.temperature}
-                  onChange={e =>
-                    setTerrainSettings(prev => ({
-                      ...prev,
-                      temperature: parseInt(e.target.value),
-                    }))
-                  }
-                  className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
-                />
-                <div className="flex justify-between text-xs text-amber-500 mt-1">
-                  <span>Arctic</span>
-                  <span>Temperate</span>
-                  <span>Tropical</span>
+                <label className="block text-sm font-medium text-amber-700 mb-2">Temperature</label>
+                <div className="inline-flex rounded-md shadow-sm" role="group">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTerrainSettings(prev => ({
+                        ...prev,
+                        temperature: 35,
+                      }))
+                    }
+                    className={`px-4 py-2 text-sm font-medium border border-amber-400 rounded-l-md focus:z-10 focus:ring-2 focus:ring-amber-600 focus:outline-none transition-colors ${
+                      terrainSettings.temperature === 35
+                        ? 'bg-amber-700 text-amber-50 border-amber-700'
+                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                    }`}
+                  >
+                    Cold
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTerrainSettings(prev => ({
+                        ...prev,
+                        temperature: 50,
+                      }))
+                    }
+                    className={`px-4 py-2 text-sm font-medium border-t border-b border-amber-400 focus:z-10 focus:ring-2 focus:ring-amber-600 focus:outline-none transition-colors ${
+                      terrainSettings.temperature === 50
+                        ? 'bg-amber-700 text-amber-50 border-amber-700'
+                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                    }`}
+                  >
+                    Temperate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTerrainSettings(prev => ({
+                        ...prev,
+                        temperature: 75,
+                      }))
+                    }
+                    className={`px-4 py-2 text-sm font-medium border border-amber-400 rounded-r-md focus:z-10 focus:ring-2 focus:ring-amber-600 focus:outline-none transition-colors ${
+                      terrainSettings.temperature === 75
+                        ? 'bg-amber-700 text-amber-50 border-amber-700'
+                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                    }`}
+                  >
+                    Tropical
+                  </button>
                 </div>
+                <p className="text-xs text-amber-500 mt-1">
+                  {terrainSettings.temperature === 35 && 'More tundra and cold regions'}
+                  {terrainSettings.temperature === 50 && 'Balanced climate with varied terrains'}
+                  {terrainSettings.temperature === 75 && 'More jungles and tropical regions'}
+                </p>
               </div>
 
               <div>

@@ -5,16 +5,36 @@ import { MapTile, TemperatureType } from './MapTypes';
  * @reference freeciv/server/generator/temperature_map.h and mapgen_topology.h
  */
 const MAX_COLATITUDE = 1000; // Normalized maximum colatitude (freeciv: MAP_MAX_LATITUDE)
-const ICE_BASE_LEVEL = 200; // Base level for polar ice formation (freeciv: ice_base_colatitude)
 const DEFAULT_TEMPERATURE = 50; // Default temperature parameter 0-100 (freeciv: wld.map.server.temperature)
 
 /**
  * Calculate cold temperature threshold based on temperature parameter
  * @reference freeciv/server/generator/mapgen_topology.h:50-51
  * Original: #define COLD_LEVEL (MAX(0, MAX_COLATITUDE * (60*7 - wld.map.server.temperature * 6 ) / 700))
+ * MODIFIED: Made much more restrictive to create minimal tundra only at map tips
  */
 function getColdLevel(temperature: number = DEFAULT_TEMPERATURE): number {
-  return Math.max(0, (MAX_COLATITUDE * (60 * 7 - temperature * 6)) / 700);
+  // Responsive to temperature parameter: lower temp setting = more cold zones
+  // At temp 0 (coldest): significant cold zones, at temp 100 (hottest): minimal cold zones
+  const originalColdLevel = Math.max(0, (MAX_COLATITUDE * (60 * 7 - temperature * 6)) / 700);
+
+  // Scale reduction: Allow meaningful tundra blocks with smooth transitions
+  // Temperature 30 should have moderate cold zones that blend well with temperate areas
+  const reductionFactor = 0.85 + (temperature / 100) * 0.15; // 0.85x reduction at temp=0, 1.0x at temp=100
+  return Math.max(100, originalColdLevel * reductionFactor); // Moderate minimum for natural cold zones
+}
+
+/**
+ * Calculate ice base level dynamically based on temperature parameter
+ * @reference freeciv/server/generator/mapgen_topology.c:243-245
+ * Original: ice_base_colatitude = (MAX(0, 100 * COLD_LEVEL / 3 - 2 * MAX_COLATITUDE) + 2 * MAX_COLATITUDE * sqsize) / (100 * sqsize)
+ * Simplified version for web play (assuming sqsize = 40 typical for medium maps)
+ * MODIFIED: Made even more restrictive for minimal tundra generation
+ */
+function getIceBaseLevel(temperature: number = DEFAULT_TEMPERATURE): number {
+  const coldLevel = getColdLevel(temperature);
+  // Make ice zones extremely small - only the absolute tips
+  return Math.max(0, coldLevel / 10); // Ice zones are 1/10 the size of cold zones
 }
 
 /**
@@ -185,15 +205,18 @@ export class TemperatureMap {
   private convertToTemperatureTypes(): void {
     const coldLevel = getColdLevel(this.temperatureParam);
     const tropicalLevel = getTropicalLevel(this.temperatureParam);
+    const iceBaseLevel = getIceBaseLevel(this.temperatureParam);
 
     for (let i = 0; i < this.temperatureMap.length; i++) {
       const temp = this.temperatureMap[i];
 
+      // Use freeciv's exact threshold logic from temperature_map.c:163-171
+      // Higher temperature values = warmer climate
       if (temp >= tropicalLevel) {
         this.temperatureMap[i] = TemperatureType.TROPICAL;
       } else if (temp >= coldLevel) {
         this.temperatureMap[i] = TemperatureType.TEMPERATE;
-      } else if (temp >= 2 * ICE_BASE_LEVEL) {
+      } else if (temp >= 2 * iceBaseLevel) {
         this.temperatureMap[i] = TemperatureType.COLD;
       } else {
         this.temperatureMap[i] = TemperatureType.FROZEN;

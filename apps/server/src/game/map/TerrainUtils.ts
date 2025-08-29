@@ -51,9 +51,6 @@ export interface TerrainSelect {
 export function transformTerrainWarmerWetter(terrain: TerrainType): TerrainType {
   // Based on climate transformation rules
   switch (terrain) {
-    case 'glacier':
-    case 'snow':
-      return 'tundra';
     case 'tundra':
       return 'grassland';
     case 'desert':
@@ -80,9 +77,6 @@ export function transformTerrainWarmerWetter(terrain: TerrainType): TerrainType 
 export function transformTerrainWarmerDrier(terrain: TerrainType): TerrainType {
   // Based on climate transformation rules
   switch (terrain) {
-    case 'glacier':
-    case 'snow':
-      return 'desert';
     case 'tundra':
       return 'desert';
     case 'forest':
@@ -116,7 +110,7 @@ export function transformTerrainCoolerWetter(terrain: TerrainType): TerrainType 
     case 'jungle':
       return 'swamp';
     case 'tundra':
-      return 'snow';
+      return 'tundra'; // No colder than tundra
     default:
       return terrain;
   }
@@ -140,7 +134,7 @@ export function transformTerrainCoolerDrier(terrain: TerrainType): TerrainType {
     case 'swamp':
       return 'tundra';
     case 'tundra':
-      return 'glacier';
+      return 'tundra'; // No drier than tundra
     default:
       return terrain;
   }
@@ -180,8 +174,8 @@ export function isOceanTerrain(terrain: string): boolean {
  * @reference freeciv/common/terrain.c is_frozen_terrain()
  * Exact copy of freeciv frozen terrain classification
  */
-export function isFrozenTerrain(terrain: string): boolean {
-  return ['glacier', 'snow'].includes(terrain);
+export function isFrozenTerrain(_terrain: string): boolean {
+  return false; // No frozen terrain types after removing glacier
 }
 
 /**
@@ -246,7 +240,6 @@ export function setTerrainGameProperties(tile: MapTile): void {
     jungle: { moveCost: 2, defense: 125 },
     swamp: { moveCost: 2, defense: 125 },
     snow: { moveCost: 1, defense: 100 },
-    glacier: { moveCost: 1, defense: 100 },
   };
 
   const props = terrainProperties[tile.terrain];

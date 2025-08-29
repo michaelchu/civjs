@@ -386,8 +386,6 @@ describe('MapManager', () => {
         'plains',
         'desert',
         'tundra',
-        'snow',
-        'glacier',
         'forest',
         'jungle',
         'swamp',
@@ -811,7 +809,6 @@ describe('MapManager', () => {
       }
 
       // Test property associations for generated terrain types
-      let testedSnowGlacier = false;
       for (let x = 0; x < mapData!.width; x++) {
         for (let y = 0; y < mapData!.height; y++) {
           const tile = mapData!.tiles[x][y];
@@ -834,15 +831,6 @@ describe('MapManager', () => {
             tile.properties[TerrainProperty.OCEAN_DEPTH] !== undefined
           ) {
             expect(typeof tile.properties[TerrainProperty.OCEAN_DEPTH]).toBe('number');
-          }
-
-          if (
-            (tile.terrain === 'snow' || tile.terrain === 'glacier') &&
-            !testedSnowGlacier &&
-            tile.properties[TerrainProperty.FROZEN] !== undefined
-          ) {
-            expect(tile.properties[TerrainProperty.FROZEN]).toBeGreaterThanOrEqual(0);
-            testedSnowGlacier = true;
           }
 
           if (

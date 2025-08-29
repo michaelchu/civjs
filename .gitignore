@@ -119,6 +119,9 @@ logs
 tmp/
 temp/
 
+# Test results and outputs
+apps/server/tests/e2e/audit/results/
+
 # Claude AI settings
 .claude/
 

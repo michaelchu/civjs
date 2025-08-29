@@ -186,7 +186,6 @@ describe('Broadcasting Fix Verification', () => {
         'plains',
         'desert',
         'tundra',
-        'snow',
         'forest',
         'jungle',
         'hills',
