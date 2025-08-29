@@ -156,10 +156,7 @@ export const TerrainSettingsDialog: React.FC = () => {
   ];
 
   return (
-    <PageBackground
-      className="min-h-[100dvh] lg:flex lg:items-center lg:justify-center"
-      mobileBreakpoint="lg"
-    >
+    <PageBackground className="min-h-[100dvh] lg:flex lg:items-center lg:justify-center">
       <div className="flex flex-col h-[100dvh] lg:h-auto lg:max-w-4xl xl:max-w-5xl lg:mx-auto min-h-0">
         <div className="bg-transparent lg:bg-gradient-to-b lg:from-amber-100 lg:to-yellow-100 p-4 lg:p-8 lg:rounded-lg lg:shadow-2xl w-full lg:border lg:border-amber-300 lg:shadow-amber-300/20 flex-1 lg:flex-none overflow-y-auto">
           <div className="flex items-center mb-6">
@@ -256,10 +253,18 @@ export const TerrainSettingsDialog: React.FC = () => {
                 value={terrainSettings.temperature}
                 options={[
                   { value: 35, label: 'Cold', description: 'More tundra and cold regions' },
-                  { value: 50, label: 'Temperate', description: 'Balanced climate with varied terrains' },
-                  { value: 75, label: 'Tropical', description: 'More jungles and tropical regions' },
+                  {
+                    value: 50,
+                    label: 'Temperate',
+                    description: 'Balanced climate with varied terrains',
+                  },
+                  {
+                    value: 75,
+                    label: 'Tropical',
+                    description: 'More jungles and tropical regions',
+                  },
                 ]}
-                onChange={(value) =>
+                onChange={value =>
                   setTerrainSettings(prev => ({
                     ...prev,
                     temperature: value,
@@ -272,10 +277,14 @@ export const TerrainSettingsDialog: React.FC = () => {
                 value={terrainSettings.wetness}
                 options={[
                   { value: 35, label: 'Dry', description: 'More deserts and dry regions' },
-                  { value: 50, label: 'Normal', description: 'Balanced moisture with varied terrains' },
+                  {
+                    value: 50,
+                    label: 'Normal',
+                    description: 'Balanced moisture with varied terrains',
+                  },
                   { value: 75, label: 'Wet', description: 'More forests, rivers, and swamps' },
                 ]}
-                onChange={(value) =>
+                onChange={value =>
                   setTerrainSettings(prev => ({
                     ...prev,
                     wetness: value,
@@ -291,7 +300,7 @@ export const TerrainSettingsDialog: React.FC = () => {
                   { value: 50, label: 'Normal', description: 'Balanced river distribution' },
                   { value: 75, label: 'Many', description: 'More rivers and waterways' },
                 ]}
-                onChange={(value) =>
+                onChange={value =>
                   setTerrainSettings(prev => ({
                     ...prev,
                     rivers: value,
