@@ -1,0 +1,177 @@
+{
+  "testDate": "2025-08-29T23:46:43.838Z",
+  "testType": "River Generation Backend Audit",
+  "results": [
+    {
+      "size": "Small (40x25)",
+      "seed": 1,
+      "width": 40,
+      "height": 25,
+      "generationTime": 352,
+      "success": true,
+      "apiResponseIncludesRivers": true,
+      "analysis": {
+        "totalRiverTiles": 12,
+        "riverNetworks": 3,
+        "averageNetworkSize": 4,
+        "maxNetworkSize": 6,
+        "riverConnections": 29,
+        "isolatedRivers": 0,
+        "riversByMask": {
+          "1": 1,
+          "5": 1,
+          "7": 1,
+          "8": 1,
+          "9": 1,
+          "11": 3,
+          "12": 1,
+          "13": 2,
+          "14": 1
+        },
+        "riverToOceanConnections": 7,
+        "riverToRiverConnections": 22,
+        "elevationDistribution": {
+          "min": 200,
+          "max": 224,
+          "average": 211
+        },
+        "terrainDistribution": {
+          "hills": 4,
+          "grassland": 3,
+          "mountains": 1,
+          "forest": 1,
+          "plains": 3
+        },
+        "sampleRiverTiles": [
+          {
+            "x": 4,
+            "y": 16,
+            "riverMask": 11,
+            "terrain": "hills",
+            "elevation": 200,
+            "connections": [
+              "North",
+              "East",
+              "West"
+            ]
+          },
+          {
+            "x": 4,
+            "y": 18,
+            "riverMask": 8,
+            "terrain": "grassland",
+            "elevation": 210,
+            "connections": [
+              "West"
+            ]
+          },
+          {
+            "x": 5,
+            "y": 16,
+            "riverMask": 11,
+            "terrain": "grassland",
+            "elevation": 203,
+            "connections": [
+              "North",
+              "East",
+              "West"
+            ]
+          },
+          {
+            "x": 6,
+            "y": 16,
+            "riverMask": 13,
+            "terrain": "mountains",
+            "elevation": 200,
+            "connections": [
+              "North",
+              "South",
+              "West"
+            ]
+          },
+          {
+            "x": 6,
+            "y": 17,
+            "riverMask": 5,
+            "terrain": "hills",
+            "elevation": 215,
+            "connections": [
+              "North",
+              "South"
+            ]
+          },
+          {
+            "x": 6,
+            "y": 18,
+            "riverMask": 1,
+            "terrain": "hills",
+            "elevation": 217,
+            "connections": [
+              "North"
+            ]
+          },
+          {
+            "x": 7,
+            "y": 5,
+            "riverMask": 14,
+            "terrain": "forest",
+            "elevation": 208,
+            "connections": [
+              "East",
+              "South",
+              "West"
+            ]
+          },
+          {
+            "x": 7,
+            "y": 6,
+            "riverMask": 7,
+            "terrain": "plains",
+            "elevation": 210,
+            "connections": [
+              "North",
+              "East",
+              "South"
+            ]
+          },
+          {
+            "x": 7,
+            "y": 7,
+            "riverMask": 11,
+            "terrain": "grassland",
+            "elevation": 203,
+            "connections": [
+              "North",
+              "East",
+              "West"
+            ]
+          },
+          {
+            "x": 8,
+            "y": 5,
+            "riverMask": 12,
+            "terrain": "plains",
+            "elevation": 223,
+            "connections": [
+              "South",
+              "West"
+            ]
+          }
+        ]
+      },
+      "sampleApiTileWithRiver": {
+        "x": 4,
+        "y": 16,
+        "terrain": "hills",
+        "riverMask": 11,
+        "elevation": 200
+      }
+    }
+  ],
+  "summary": {
+    "totalTests": 1,
+    "successfulTests": 1,
+    "testsWithRivers": 1,
+    "testsWithApiRivers": 1
+  }
+}

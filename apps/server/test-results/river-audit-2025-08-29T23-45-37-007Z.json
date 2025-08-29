@@ -1,0 +1,161 @@
+{
+  "testDate": "2025-08-29T23:45:37.007Z",
+  "testType": "River Generation Backend Audit",
+  "results": [
+    {
+      "size": "Small (40x25)",
+      "seed": 1,
+      "width": 40,
+      "height": 25,
+      "generationTime": 341,
+      "success": true,
+      "apiResponseIncludesRivers": true,
+      "analysis": {
+        "totalRiverTiles": 9,
+        "riverNetworks": 3,
+        "averageNetworkSize": 3,
+        "maxNetworkSize": 7,
+        "riverConnections": 22,
+        "isolatedRivers": 0,
+        "riversByMask": {
+          "2": 1,
+          "7": 1,
+          "9": 3,
+          "11": 1,
+          "12": 1,
+          "13": 1,
+          "15": 1
+        },
+        "riverToOceanConnections": 8,
+        "riverToRiverConnections": 14,
+        "elevationDistribution": {
+          "min": 184,
+          "max": 222,
+          "average": 206
+        },
+        "terrainDistribution": {
+          "plains": 3,
+          "grassland": 6
+        },
+        "sampleRiverTiles": [
+          {
+            "x": 4,
+            "y": 16,
+            "riverMask": 9,
+            "terrain": "plains",
+            "elevation": 200,
+            "connections": [
+              "North",
+              "West"
+            ]
+          },
+          {
+            "x": 6,
+            "y": 6,
+            "riverMask": 13,
+            "terrain": "grassland",
+            "elevation": 184,
+            "connections": [
+              "North",
+              "South",
+              "West"
+            ]
+          },
+          {
+            "x": 6,
+            "y": 17,
+            "riverMask": 2,
+            "terrain": "grassland",
+            "elevation": 215,
+            "connections": [
+              "East"
+            ]
+          },
+          {
+            "x": 7,
+            "y": 16,
+            "riverMask": 7,
+            "terrain": "plains",
+            "elevation": 204,
+            "connections": [
+              "North",
+              "East",
+              "South"
+            ]
+          },
+          {
+            "x": 7,
+            "y": 17,
+            "riverMask": 9,
+            "terrain": "grassland",
+            "elevation": 218,
+            "connections": [
+              "North",
+              "West"
+            ]
+          },
+          {
+            "x": 8,
+            "y": 15,
+            "riverMask": 15,
+            "terrain": "grassland",
+            "elevation": 190,
+            "connections": [
+              "North",
+              "East",
+              "South",
+              "West"
+            ]
+          },
+          {
+            "x": 8,
+            "y": 16,
+            "riverMask": 11,
+            "terrain": "grassland",
+            "elevation": 211,
+            "connections": [
+              "North",
+              "East",
+              "West"
+            ]
+          },
+          {
+            "x": 9,
+            "y": 15,
+            "riverMask": 12,
+            "terrain": "grassland",
+            "elevation": 213,
+            "connections": [
+              "South",
+              "West"
+            ]
+          },
+          {
+            "x": 9,
+            "y": 16,
+            "riverMask": 9,
+            "terrain": "plains",
+            "elevation": 222,
+            "connections": [
+              "North",
+              "West"
+            ]
+          }
+        ]
+      },
+      "sampleApiTileWithRiver": {
+        "x": 4,
+        "y": 16,
+        "terrain": "plains",
+        "riverMask": 9,
+        "elevation": 200
+      }
+    }
+  ],
+  "summary": {
+    "totalTests": 1,
+    "successfulTests": 1,
+    "testsWithRivers": 1,
+    "testsWithApiRivers": 1
+  }
+}

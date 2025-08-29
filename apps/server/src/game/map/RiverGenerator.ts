@@ -172,19 +172,47 @@ export class RiverGenerator {
   private findRiverStartPosition(tiles: MapTile[][]): { x: number; y: number } | null {
     const candidates: { x: number; y: number; elevation: number }[] = [];
 
-    // Look for high elevation land tiles that could start rivers
+    // Primary strategy: Look for mountainous areas first
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
 
-        // Must be high elevation land without existing rivers
         if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 150) {
-          // Prefer mountainous areas
           const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
           if (mountainous > 20) {
             candidates.push({ x, y, elevation: tile.elevation + mountainous });
           }
         }
+      }
+    }
+
+    // Fallback: If no mountainous areas, use high elevation tiles
+    if (candidates.length === 0) {
+      for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < this.height; y++) {
+          const tile = tiles[x][y];
+
+          if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 180) {
+            candidates.push({ x, y, elevation: tile.elevation });
+            if (candidates.length >= 20) break; // Get enough candidates
+          }
+        }
+        if (candidates.length >= 20) break;
+      }
+    }
+
+    // Last resort fallback: Use any high elevation land
+    if (candidates.length === 0) {
+      for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < this.height; y++) {
+          const tile = tiles[x][y];
+
+          if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 160) {
+            candidates.push({ x, y, elevation: tile.elevation });
+            if (candidates.length >= 15) break;
+          }
+        }
+        if (candidates.length >= 15) break;
       }
     }
 
