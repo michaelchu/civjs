@@ -30,6 +30,13 @@ export interface ValidationMetrics {
     minimum: number;
     maximum: number;
   };
+  riverMetrics?: {
+    totalRiverLength: number;
+    riverPercentage: number;
+    riverNetworks: number;
+    averageNetworkSize: number;
+    averageRiverMask: number;
+  };
   performanceMetrics: {
     generationTimeMs?: number;
     memoryUsageMB?: number;
@@ -65,13 +72,20 @@ export class MapValidator {
    * @param startingPositions Array of starting positions
    * @param players Player states for validation context
    * @param performanceData Optional performance metrics from generation
+   * @param terrainParams Optional terrain parameters used for generation
    * @returns Overall validation result with aggregated score
    */
   public validateMap(
     tiles: MapTile[][],
     startingPositions?: Position[],
     players?: Map<string, PlayerState>,
-    performanceData?: { generationTimeMs: number; memoryUsageMB?: number }
+    performanceData?: { generationTimeMs: number; memoryUsageMB?: number },
+    terrainParams?: {
+      river_pct: number;
+      forest_pct: number;
+      desert_pct: number;
+      mountain_pct: number;
+    }
   ): ValidationResult {
     const issues: ValidationIssue[] = [];
     const metrics = this.calculateMetrics(tiles, startingPositions, performanceData);
@@ -91,6 +105,16 @@ export class MapValidator {
     // Run continent validation
     const continentResult = this.validateContinentSizes(tiles);
     issues.push(...continentResult.issues);
+
+    // Run river validation (Task 4.1)
+    const riverResult = this.validateRiverDistribution(tiles, terrainParams?.river_pct);
+    issues.push(...riverResult.issues);
+
+    // Run parameter compliance validation (Task 4.2)
+    if (terrainParams) {
+      const parameterResult = this.validateParameterCompliance(tiles, terrainParams);
+      issues.push(...parameterResult.issues);
+    }
 
     // Run starting position validation if positions provided
     if (startingPositions && startingPositions.length > 0) {
@@ -590,6 +614,224 @@ export class MapValidator {
   }
 
   /**
+   * Validate river distribution and connectivity for realistic water networks
+   * @reference freeciv/server/generator/mapgen.c:3000-3100 river validation
+   * @param tiles Generated map tiles
+   * @param expectedRiverPct Expected river percentage from terrain parameters
+   * @returns Validation result for river distribution
+   */
+  public validateRiverDistribution(
+    tiles: MapTile[][],
+    expectedRiverPct?: number
+  ): ValidationResult {
+    const issues: ValidationIssue[] = [];
+
+    // Count tiles with rivers (riverMask > 0)
+    const riverTiles = tiles.flat().filter(tile => tile.riverMask && tile.riverMask > 0);
+    const landTiles = tiles.flat().filter(tile => this.isLandTile(tile.terrain));
+    const totalTiles = tiles.flat().length;
+
+    logger.debug('River validation started', {
+      riverTiles: riverTiles.length,
+      landTiles: landTiles.length,
+      totalTiles,
+      expectedRiverPct,
+    });
+
+    // Validate river presence (error if no rivers found)
+    if (riverTiles.length === 0) {
+      issues.push({
+        severity: 'error',
+        category: 'terrain',
+        message: 'No rivers found on map - river generation may have failed',
+        details: { riverTiles: 0, landTiles: landTiles.length },
+      });
+    } else {
+      // Calculate actual river percentage
+      const actualRiverPct = (riverTiles.length / landTiles.length) * 100;
+
+      // Validate river density matches expected percentage (± 2%)
+      if (expectedRiverPct !== undefined) {
+        const deviation = Math.abs(actualRiverPct - expectedRiverPct);
+
+        if (deviation > 3) {
+          issues.push({
+            severity: 'error',
+            category: 'terrain',
+            message: `River percentage (${actualRiverPct.toFixed(1)}%) significantly differs from expected (${expectedRiverPct.toFixed(1)}%)`,
+            details: {
+              actualRiverPct: Number(actualRiverPct.toFixed(1)),
+              expectedRiverPct: Number(expectedRiverPct.toFixed(1)),
+              deviation: Number(deviation.toFixed(1)),
+            },
+          });
+        } else if (deviation > 2) {
+          issues.push({
+            severity: 'warning',
+            category: 'terrain',
+            message: `River percentage (${actualRiverPct.toFixed(1)}%) differs from expected (${expectedRiverPct.toFixed(1)}%)`,
+            details: {
+              actualRiverPct: Number(actualRiverPct.toFixed(1)),
+              expectedRiverPct: Number(expectedRiverPct.toFixed(1)),
+              deviation: Number(deviation.toFixed(1)),
+            },
+          });
+        }
+      }
+
+      // Validate river connectivity (rivers form networks)
+      const connectivityIssues = this.validateRiverConnectivity(tiles, riverTiles);
+      issues.push(...connectivityIssues);
+    }
+
+    // Calculate river-specific metrics
+    const riverMetrics = this.calculateRiverMetrics(tiles, riverTiles);
+
+    const score = this.calculateRiverScore(
+      riverTiles.length,
+      landTiles.length,
+      expectedRiverPct,
+      issues
+    );
+    const metrics = this.calculateMetrics(tiles);
+
+    logger.debug('River validation completed', {
+      score,
+      issuesCount: issues.length,
+      riverMetrics,
+    });
+
+    return {
+      passed: score >= 70,
+      score,
+      issues,
+      metrics,
+    };
+  }
+
+  /**
+   * Validate parameter compliance - verify calculated terrain parameters are reflected in final map
+   * @reference freeciv/server/generator/mapgen.c:2850-2950 adjust_terrain_param() validation
+   * @param tiles Generated map tiles
+   * @param terrainParams Expected terrain parameters used during generation
+   * @returns Validation result for parameter compliance
+   */
+  public validateParameterCompliance(
+    tiles: MapTile[][],
+    terrainParams: {
+      river_pct: number;
+      forest_pct: number;
+      desert_pct: number;
+      mountain_pct: number;
+    }
+  ): ValidationResult {
+    const issues: ValidationIssue[] = [];
+    const flatTiles = tiles.flat();
+    const landTiles = flatTiles.filter(tile => this.isLandTile(tile.terrain));
+
+    logger.debug('Parameter compliance validation started', terrainParams);
+
+    // Validate each terrain parameter against actual distribution
+    const actualDistribution = this.calculateActualTerrainDistribution(flatTiles, landTiles);
+
+    // Check river percentage
+    if (terrainParams.river_pct > 0) {
+      const deviation = Math.abs(actualDistribution.river_pct - terrainParams.river_pct);
+      if (deviation > 3) {
+        issues.push({
+          severity: 'error',
+          category: 'terrain',
+          message: `River parameter compliance failed: expected ${terrainParams.river_pct}%, actual ${actualDistribution.river_pct}%`,
+          details: {
+            parameter: 'river_pct',
+            expected: terrainParams.river_pct,
+            actual: actualDistribution.river_pct,
+            deviation,
+          },
+        });
+      }
+    }
+
+    // Check forest percentage
+    if (terrainParams.forest_pct > 0) {
+      const deviation = Math.abs(actualDistribution.forest_pct - terrainParams.forest_pct);
+      if (deviation > 5) {
+        // Slightly higher tolerance for forest
+        issues.push({
+          severity: 'warning',
+          category: 'terrain',
+          message: `Forest parameter compliance issue: expected ${terrainParams.forest_pct}%, actual ${actualDistribution.forest_pct}%`,
+          details: {
+            parameter: 'forest_pct',
+            expected: terrainParams.forest_pct,
+            actual: actualDistribution.forest_pct,
+            deviation,
+          },
+        });
+      }
+    }
+
+    // Check desert percentage
+    if (terrainParams.desert_pct > 0) {
+      const deviation = Math.abs(actualDistribution.desert_pct - terrainParams.desert_pct);
+      if (deviation > 5) {
+        issues.push({
+          severity: 'warning',
+          category: 'terrain',
+          message: `Desert parameter compliance issue: expected ${terrainParams.desert_pct}%, actual ${actualDistribution.desert_pct}%`,
+          details: {
+            parameter: 'desert_pct',
+            expected: terrainParams.desert_pct,
+            actual: actualDistribution.desert_pct,
+            deviation,
+          },
+        });
+      }
+    }
+
+    // Check mountain percentage
+    if (terrainParams.mountain_pct > 0) {
+      const deviation = Math.abs(actualDistribution.mountain_pct - terrainParams.mountain_pct);
+      if (deviation > 5) {
+        issues.push({
+          severity: 'warning',
+          category: 'terrain',
+          message: `Mountain parameter compliance issue: expected ${terrainParams.mountain_pct}%, actual ${actualDistribution.mountain_pct}%`,
+          details: {
+            parameter: 'mountain_pct',
+            expected: terrainParams.mountain_pct,
+            actual: actualDistribution.mountain_pct,
+            deviation,
+          },
+        });
+      }
+    }
+
+    // Check for signs of hardcoded overrides
+    const hardcodedOverrideIssues = this.detectHardcodedOverrides(
+      actualDistribution,
+      terrainParams
+    );
+    issues.push(...hardcodedOverrideIssues);
+
+    const score = this.calculateParameterComplianceScore(actualDistribution, terrainParams, issues);
+
+    logger.debug('Parameter compliance validation completed', {
+      score,
+      issuesCount: issues.length,
+      actualDistribution,
+      terrainParams,
+    });
+
+    return {
+      passed: score >= 70,
+      score,
+      issues,
+      metrics: this.calculateMetrics(tiles),
+    };
+  }
+
+  /**
    * Calculate comprehensive metrics for the generated map
    * @param tiles Generated map tiles
    * @param startingPositions Optional starting positions
@@ -650,6 +892,32 @@ export class MapValidator {
       }
     }
 
+    // Calculate river metrics
+    const flatTilesForRivers = tiles.flat();
+    const riverTiles = flatTilesForRivers.filter(tile => tile.riverMask && tile.riverMask > 0);
+    const riverMetrics =
+      riverTiles.length > 0
+        ? {
+            totalRiverLength: riverTiles.length,
+            riverPercentage:
+              landTiles > 0 ? Number(((riverTiles.length / landTiles) * 100).toFixed(1)) : 0,
+            riverNetworks: this.countRiverNetworks(tiles, riverTiles),
+            averageNetworkSize:
+              riverTiles.length > 0
+                ? Number(
+                    (
+                      riverTiles.length / Math.max(1, this.countRiverNetworks(tiles, riverTiles))
+                    ).toFixed(1)
+                  )
+                : 0,
+            averageRiverMask: Number(
+              (
+                riverTiles.reduce((sum, tile) => sum + tile.riverMask, 0) / riverTiles.length
+              ).toFixed(2)
+            ),
+          }
+        : undefined;
+
     return {
       landPercentage: (landTiles / this.totalTiles) * 100,
       oceanPercentage: (oceanTiles / this.totalTiles) * 100,
@@ -669,6 +937,7 @@ export class MapValidator {
       smallestContinentSize:
         continentSizeArray.length > 0 ? continentSizeArray[continentSizeArray.length - 1] : 0,
       startingPositionDistance,
+      riverMetrics,
       performanceMetrics: performanceData
         ? {
             generationTimeMs: performanceData.generationTimeMs,
@@ -1007,5 +1276,343 @@ export class MapValidator {
       },
       performanceMetrics: {},
     };
+  }
+
+  /**
+   * Check if a terrain type is land (not water)
+   * @param terrain Terrain type to check
+   * @returns True if terrain is land, false if water
+   */
+  private isLandTile(terrain: TerrainType): boolean {
+    return !['ocean', 'deep_ocean', 'coast', 'lake'].includes(terrain);
+  }
+
+  /**
+   * Validate river connectivity to ensure rivers form proper networks
+   * @param tiles Map tiles
+   * @param riverTiles Tiles with rivers
+   * @returns Array of connectivity issues
+   */
+  private validateRiverConnectivity(tiles: MapTile[][], riverTiles: MapTile[]): ValidationIssue[] {
+    const issues: ValidationIssue[] = [];
+    let isolatedRivers = 0;
+    let brokenConnections = 0;
+
+    riverTiles.forEach(riverTile => {
+      const neighbors = this.getNeighbors(tiles, riverTile.x, riverTile.y);
+      const riverNeighbors = neighbors.filter(n => n.riverMask && n.riverMask > 0);
+
+      // Check for isolated river segments (should connect to other rivers or water bodies)
+      if (riverNeighbors.length === 0) {
+        const hasWaterAccess = neighbors.some(n => !this.isLandTile(n.terrain));
+        if (!hasWaterAccess) {
+          isolatedRivers++;
+        }
+      }
+
+      // Validate river mask connections match neighbor rivers
+      const riverMask = riverTile.riverMask;
+      const directions = [
+        { bit: 1, dx: 0, dy: -1 }, // North
+        { bit: 2, dx: 1, dy: 0 }, // East
+        { bit: 4, dx: 0, dy: 1 }, // South
+        { bit: 8, dx: -1, dy: 0 }, // West
+      ];
+
+      directions.forEach(({ bit, dx, dy }) => {
+        if (riverMask & bit) {
+          // This direction claims to have a river connection
+          const nx = riverTile.x + dx;
+          const ny = riverTile.y + dy;
+
+          if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+            const neighborTile = tiles[nx][ny];
+
+            // Check if neighbor actually has a river or is water
+            if (!neighborTile.riverMask && this.isLandTile(neighborTile.terrain)) {
+              brokenConnections++;
+            }
+          }
+        }
+      });
+    });
+
+    if (isolatedRivers > riverTiles.length * 0.1) {
+      issues.push({
+        severity: 'warning',
+        category: 'terrain',
+        message: 'High number of isolated river segments',
+        details: { isolatedRivers, totalRivers: riverTiles.length },
+      });
+    }
+
+    if (brokenConnections > 0) {
+      issues.push({
+        severity: 'warning',
+        category: 'terrain',
+        message: 'River connectivity issues detected',
+        details: { brokenConnections },
+      });
+    }
+
+    return issues;
+  }
+
+  /**
+   * Calculate river-specific metrics
+   * @param tiles Map tiles
+   * @param riverTiles Tiles with rivers
+   * @returns River metrics
+   */
+  private calculateRiverMetrics(tiles: MapTile[][], riverTiles: MapTile[]): Record<string, number> {
+    const totalRiverLength = riverTiles.length;
+    const averageRiverMask =
+      riverTiles.length > 0
+        ? riverTiles.reduce((sum, tile) => sum + tile.riverMask, 0) / riverTiles.length
+        : 0;
+
+    // Count river networks (connected components)
+    const networks = this.countRiverNetworks(tiles, riverTiles);
+
+    return {
+      totalRiverLength,
+      averageRiverMask: Number(averageRiverMask.toFixed(2)),
+      riverNetworks: networks,
+      averageNetworkSize: networks > 0 ? Number((totalRiverLength / networks).toFixed(1)) : 0,
+    };
+  }
+
+  /**
+   * Count distinct river networks using flood fill algorithm
+   * @param tiles Map tiles
+   * @param riverTiles Tiles with rivers
+   * @returns Number of distinct river networks
+   */
+  private countRiverNetworks(tiles: MapTile[][], riverTiles: MapTile[]): number {
+    const visited = new Set<string>();
+    let networks = 0;
+
+    riverTiles.forEach(riverTile => {
+      const key = `${riverTile.x},${riverTile.y}`;
+      if (!visited.has(key)) {
+        // Start a new network exploration
+        this.exploreRiverNetwork(tiles, riverTile.x, riverTile.y, visited);
+        networks++;
+      }
+    });
+
+    return networks;
+  }
+
+  /**
+   * Explore a river network using depth-first search
+   * @param tiles Map tiles
+   * @param startX Starting X coordinate
+   * @param startY Starting Y coordinate
+   * @param visited Set of visited tile coordinates
+   */
+  private exploreRiverNetwork(
+    tiles: MapTile[][],
+    startX: number,
+    startY: number,
+    visited: Set<string>
+  ): void {
+    const stack = [{ x: startX, y: startY }];
+
+    while (stack.length > 0) {
+      const { x, y } = stack.pop()!;
+      const key = `${x},${y}`;
+
+      if (visited.has(key)) continue;
+      visited.add(key);
+
+      // Add connected river neighbors to stack
+      const neighbors = this.getNeighbors(tiles, x, y);
+      neighbors.forEach(neighbor => {
+        if (neighbor.riverMask && neighbor.riverMask > 0) {
+          const neighborKey = `${neighbor.x},${neighbor.y}`;
+          if (!visited.has(neighborKey)) {
+            stack.push({ x: neighbor.x, y: neighbor.y });
+          }
+        }
+      });
+    }
+  }
+
+  /**
+   * Calculate actual terrain distribution from map tiles
+   * @param flatTiles All tiles flattened
+   * @param landTiles Land tiles only
+   * @returns Actual distribution percentages
+   */
+  private calculateActualTerrainDistribution(
+    flatTiles: MapTile[],
+    landTiles: MapTile[]
+  ): {
+    river_pct: number;
+    forest_pct: number;
+    desert_pct: number;
+    mountain_pct: number;
+  } {
+    const riverTiles = flatTiles.filter(tile => tile.riverMask && tile.riverMask > 0);
+    const forestTiles = flatTiles.filter(
+      tile => tile.terrain === 'forest' || tile.terrain === 'jungle'
+    );
+    const desertTiles = flatTiles.filter(tile => tile.terrain === 'desert');
+    const mountainTiles = flatTiles.filter(tile => tile.terrain === 'mountains');
+
+    const landCount = landTiles.length;
+
+    return {
+      river_pct: landCount > 0 ? Number(((riverTiles.length / landCount) * 100).toFixed(1)) : 0,
+      forest_pct: landCount > 0 ? Number(((forestTiles.length / landCount) * 100).toFixed(1)) : 0,
+      desert_pct: landCount > 0 ? Number(((desertTiles.length / landCount) * 100).toFixed(1)) : 0,
+      mountain_pct:
+        landCount > 0 ? Number(((mountainTiles.length / landCount) * 100).toFixed(1)) : 0,
+    };
+  }
+
+  /**
+   * Detect signs of hardcoded parameter overrides
+   * @param actualDistribution Actual terrain distribution
+   * @param terrainParams Expected parameters
+   * @returns Array of override detection issues
+   */
+  private detectHardcodedOverrides(
+    actualDistribution: {
+      river_pct: number;
+      forest_pct: number;
+      desert_pct: number;
+      mountain_pct: number;
+    },
+    terrainParams: {
+      river_pct: number;
+      forest_pct: number;
+      desert_pct: number;
+      mountain_pct: number;
+    }
+  ): ValidationIssue[] {
+    const issues: ValidationIssue[] = [];
+
+    // Check for suspiciously round numbers that don't match parameters
+    const commonOverrides = [15, 20, 25, 30]; // Common hardcoded values
+
+    Object.entries(actualDistribution).forEach(([key, actual]) => {
+      const expected = terrainParams[key as keyof typeof terrainParams];
+      const deviation = Math.abs(actual - expected);
+
+      if (deviation > 5 && commonOverrides.some(override => Math.abs(actual - override) < 1)) {
+        issues.push({
+          severity: 'warning',
+          category: 'terrain',
+          message: `Possible hardcoded override detected for ${key}: actual ${actual}% matches common override value`,
+          details: {
+            parameter: key,
+            expected,
+            actual,
+            suspectedOverride: commonOverrides.find(override => Math.abs(actual - override) < 1),
+          },
+        });
+      }
+    });
+
+    return issues;
+  }
+
+  /**
+   * Calculate river validation score
+   * @param riverCount Number of river tiles
+   * @param landCount Number of land tiles
+   * @param expectedRiverPct Expected river percentage
+   * @param issues Array of issues found
+   * @returns Score from 0-100
+   */
+  private calculateRiverScore(
+    riverCount: number,
+    landCount: number,
+    expectedRiverPct?: number,
+    issues?: ValidationIssue[]
+  ): number {
+    let score = 100;
+
+    // Deduct points for issues
+    if (issues) {
+      issues.forEach(issue => {
+        if (issue.severity === 'error') {
+          score -= 25;
+        } else if (issue.severity === 'warning') {
+          score -= 15;
+        }
+      });
+    }
+
+    // Bonus for having rivers at all
+    if (riverCount > 0) {
+      score += 10;
+    }
+
+    // Bonus for reasonable river density
+    const actualRiverPct = landCount > 0 ? (riverCount / landCount) * 100 : 0;
+    if (actualRiverPct >= 2 && actualRiverPct <= 15) {
+      score += 5; // Reasonable river density
+    }
+
+    // Bonus for matching expected percentage
+    if (expectedRiverPct && Math.abs(actualRiverPct - expectedRiverPct) <= 2) {
+      score += 10;
+    }
+
+    return Math.max(0, Math.min(100, score));
+  }
+
+  /**
+   * Calculate parameter compliance score
+   * @param actualDistribution Actual terrain distribution
+   * @param terrainParams Expected parameters
+   * @param issues Array of issues found
+   * @returns Score from 0-100
+   */
+  private calculateParameterComplianceScore(
+    actualDistribution: {
+      river_pct: number;
+      forest_pct: number;
+      desert_pct: number;
+      mountain_pct: number;
+    },
+    terrainParams: {
+      river_pct: number;
+      forest_pct: number;
+      desert_pct: number;
+      mountain_pct: number;
+    },
+    issues: ValidationIssue[]
+  ): number {
+    let score = 100;
+
+    // Deduct points for issues
+    issues.forEach(issue => {
+      if (issue.severity === 'error') {
+        score -= 20;
+      } else if (issue.severity === 'warning') {
+        score -= 10;
+      }
+    });
+
+    // Bonus for good parameter compliance
+    let compliantParameters = 0;
+    Object.entries(terrainParams).forEach(([key, expected]) => {
+      const actual = actualDistribution[key as keyof typeof actualDistribution];
+      const deviation = Math.abs(actual - expected);
+
+      if (deviation <= 2) {
+        compliantParameters++;
+      }
+    });
+
+    // Award bonus based on number of compliant parameters
+    const complianceBonus = (compliantParameters / Object.keys(terrainParams).length) * 20;
+    score += complianceBonus;
+
+    return Math.max(0, Math.min(100, score));
   }
 }
