@@ -31,15 +31,11 @@ const getCurrentPlayer = (state: GameStore) => {
 };
 
 const getSelectedUnit = (state: GameStore) => {
-  return state.selectedUnitId
-    ? state.units[state.selectedUnitId] || null
-    : null;
+  return state.selectedUnitId ? state.units[state.selectedUnitId] || null : null;
 };
 
 const getSelectedCity = (state: GameStore) => {
-  return state.selectedCityId
-    ? state.cities[state.selectedCityId] || null
-    : null;
+  return state.selectedCityId ? state.cities[state.selectedCityId] || null : null;
 };
 
 export const useGameStore = create<GameStore>()(

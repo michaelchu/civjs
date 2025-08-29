@@ -28,9 +28,7 @@ export class TilesetLoader {
 
   async loadTileset(serverUrl: string): Promise<void> {
     try {
-      await this.loadConfig(
-        `${serverUrl}/js/2dcanvas/tileset_config_amplio2.js`
-      );
+      await this.loadConfig(`${serverUrl}/js/2dcanvas/tileset_config_amplio2.js`);
 
       await this.loadSpec(`${serverUrl}/js/2dcanvas/tileset_spec_amplio2.js`);
       await this.loadSpriteSheets(serverUrl);
@@ -100,12 +98,9 @@ export class TilesetLoader {
       const promise = new Promise<void>((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve();
-        img.onerror = () =>
-          reject(new Error(`Failed to load sprite sheet ${i}`));
+        img.onerror = () => reject(new Error(`Failed to load sprite sheet ${i}`));
 
-        img.src = `${serverUrl}/tilesets/freeciv-web-tileset-${
-          this.config!.tileset_name
-        }-${i}.png`;
+        img.src = `${serverUrl}/tilesets/freeciv-web-tileset-${this.config!.tileset_name}-${i}.png`;
         this.spriteSheets[i] = img;
       });
 
@@ -140,9 +135,7 @@ export class TilesetLoader {
           ctx.drawImage(this.spriteSheets[sheetIndex], x, y, w, h, 0, 0, w, h);
           this.sprites[tileTag] = canvas;
         } else {
-          console.warn(
-            `Sprite sheet ${sheetIndex} not found for sprite: ${tileTag}`
-          );
+          console.warn(`Sprite sheet ${sheetIndex} not found for sprite: ${tileTag}`);
         }
       } catch (error) {
         console.warn(`Problem caching sprite: ${tileTag}`, error);

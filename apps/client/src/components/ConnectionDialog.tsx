@@ -7,9 +7,7 @@ interface ConnectionDialogProps {
   showForm?: boolean;
 }
 
-export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
-  showForm = true,
-}) => {
+export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({ showForm = true }) => {
   const [playerName, setPlayerName] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState('');
@@ -32,9 +30,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
       gameClient.joinGame();
       setClientState('preparing');
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to connect to server'
-      );
+      setError(err instanceof Error ? err.message : 'Failed to connect to server');
     } finally {
       setIsConnecting(false);
     }
@@ -47,8 +43,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
           <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-lg">
             {clientState === 'connecting' && 'Connecting to game...'}
-            {clientState === 'waiting_for_players' &&
-              'Waiting for other players...'}
+            {clientState === 'waiting_for_players' && 'Waiting for other players...'}
             {clientState === 'joining_game' && 'Joining game...'}
           </p>
         </div>
@@ -63,23 +58,17 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
           <h1 className="text-3xl font-bold text-white mb-2">CivJS</h1>
           <p className="text-gray-300">
             {clientState === 'connecting' && 'Connecting to server...'}
-            {clientState === 'waiting_for_players' &&
-              'Waiting for other players...'}
+            {clientState === 'waiting_for_players' && 'Waiting for other players...'}
             {clientState === 'joining_game' && 'Joining game...'}
           </p>
           {clientState === 'waiting_for_players' && (
-            <p className="text-gray-400 text-sm mt-2">
-              Game will start once all players are ready
-            </p>
+            <p className="text-gray-400 text-sm mt-2">Game will start once all players are ready</p>
           )}
         </div>
 
         <form onSubmit={handleConnect} className="space-y-6">
           <div>
-            <label
-              htmlFor="playerName"
-              className="block text-sm font-medium text-gray-300 mb-2"
-            >
+            <label htmlFor="playerName" className="block text-sm font-medium text-gray-300 mb-2">
               Player Name
             </label>
             <input
@@ -119,9 +108,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
         <div className="mt-6 pt-6 border-t border-gray-700">
           <div className="text-xs text-gray-400 text-center">
             <p>Server: {SERVER_URL}</p>
-            <p className="mt-1">
-              Make sure the server is running before connecting
-            </p>
+            <p className="mt-1">Make sure the server is running before connecting</p>
           </div>
         </div>
       </div>

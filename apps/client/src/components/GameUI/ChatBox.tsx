@@ -86,15 +86,9 @@ export const ChatBox: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-2 space-y-1 text-xs">
         {messages.map(msg => (
           <div key={msg.id} className="flex items-start space-x-2">
-            <span className="text-gray-500 flex-shrink-0 text-xs">
-              {formatTime(msg.timestamp)}
-            </span>
+            <span className="text-gray-500 flex-shrink-0 text-xs">{formatTime(msg.timestamp)}</span>
             <div className="flex-1 min-w-0">
-              {msg.player && (
-                <span className="text-blue-400 font-medium">
-                  {msg.player}:{' '}
-                </span>
-              )}
+              {msg.player && <span className="text-blue-400 font-medium">{msg.player}: </span>}
               <span className={getMessageStyle(msg.type)}>{msg.message}</span>
             </div>
           </div>
