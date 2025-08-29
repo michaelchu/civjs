@@ -130,23 +130,27 @@ router.get(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const gameManager = GameManager.getInstance();
-      const game = await gameManager.getGame(req.gameId!);
+      const game = gameManager.getGameInstance(req.gameId!);
 
       if (!game) {
         res.status(404).json({
           success: false,
           error: 'Game not found',
         });
+        return;
       }
 
       let units: any[] = [];
 
       if (req.isGameObserver) {
-        // Observers can see all units
-        units = Array.from(game.unitManager.getAllUnits().values());
+        // Observers can see all units - get units from all players
+        for (const player of game.players.values()) {
+          const playerUnits = game.unitManager.getPlayerUnits(player.id);
+          units.push(...playerUnits);
+        }
       } else {
         // Players see only their units
-        units = Array.from(game.unitManager.getPlayerUnits(req.playerId!).values());
+        units = game.unitManager.getPlayerUnits(req.playerId!);
       }
 
       const unitsData = units.map(unit => ({
@@ -190,23 +194,27 @@ router.get(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const gameManager = GameManager.getInstance();
-      const game = await gameManager.getGame(req.gameId!);
+      const game = gameManager.getGameInstance(req.gameId!);
 
       if (!game) {
         res.status(404).json({
           success: false,
           error: 'Game not found',
         });
+        return;
       }
 
       let cities: any[] = [];
 
       if (req.isGameObserver) {
-        // Observers can see all cities
-        cities = Array.from(game.cityManager.getAllCities().values());
+        // Observers can see all cities - get cities from all players
+        for (const player of game.players.values()) {
+          const playerCities = game.cityManager.getPlayerCities(player.id);
+          cities.push(...playerCities);
+        }
       } else {
         // Players see only their cities
-        cities = Array.from(game.cityManager.getPlayerCities(req.playerId!).values());
+        cities = game.cityManager.getPlayerCities(req.playerId!);
       }
 
       const citiesData = cities.map(city => ({
