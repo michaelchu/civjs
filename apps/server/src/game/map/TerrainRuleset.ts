@@ -118,20 +118,6 @@ export const TERRAIN_RULESET: Record<TerrainType, TerrainRuleset> = {
     transformTo: 'tundra',
     transformTime: 24,
   },
-  snow: {
-    name: 'snow',
-    properties: {
-      [MapgenTerrainProperty.FROZEN]: 70,
-      [MapgenTerrainProperty.COLD]: 30,
-    },
-    moveCost: 2,
-    defense: 10,
-    food: 0,
-    shields: 1,
-    trade: 0,
-    transformTo: 'tundra',
-    canHaveRiver: true,
-  },
   tundra: {
     name: 'tundra',
     properties: {

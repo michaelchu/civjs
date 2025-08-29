@@ -63,9 +63,6 @@ const TERRAIN_PROPERTY_MAP: Record<TerrainType, TerrainProperties> = {
   tundra: {
     [TerrainProperty.COLD]: 50,
   },
-  snow: {
-    [TerrainProperty.FROZEN]: 100,
-  },
   glacier: {
     [TerrainProperty.FROZEN]: 100,
   },
@@ -161,15 +158,6 @@ const TERRAIN_SELECTORS: TerrainSelector[] = [
     wetCondition: WetnessCondition.ALL,
   },
   {
-    terrain: 'snow',
-    weight: 35,
-    target: TerrainProperty.FROZEN,
-    prefer: TerrainProperty.COLD,
-    avoid: TerrainProperty.GREEN,
-    tempCondition: TemperatureType.FROZEN,
-    wetCondition: WetnessCondition.ALL,
-  },
-  {
     terrain: 'glacier',
     weight: 30,
     target: TerrainProperty.FROZEN,
@@ -222,9 +210,9 @@ export class TerrainSelectionEngine {
     if (tileTemp & TemperatureType.FROZEN) {
       // Polar regions - prefer glacier over snow in high elevations
       if (elevation > 150) {
-        return this.random() < 0.7 ? 'glacier' : 'snow';
+        return 'glacier';
       } else {
-        return this.random() < 0.3 ? 'glacier' : 'snow';
+        return this.random() < 0.3 ? 'glacier' : 'tundra';
       }
     }
 
@@ -302,7 +290,7 @@ export class TerrainSelectionEngine {
     // Weighted random selection
     if (candidates.length === 0) {
       // Fallback to simple terrain based on temperature and wetness
-      if (tileTemp === TemperatureType.FROZEN) return 'snow';
+      if (tileTemp === TemperatureType.FROZEN) return 'glacier';
       if (tileTemp === TemperatureType.COLD) return 'tundra';
       if (tileWetness > 70) return 'grassland';
       if (tileWetness < 30) return 'desert';

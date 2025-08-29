@@ -52,7 +52,6 @@ export function transformTerrainWarmerWetter(terrain: TerrainType): TerrainType 
   // Based on climate transformation rules
   switch (terrain) {
     case 'glacier':
-    case 'snow':
       return 'tundra';
     case 'tundra':
       return 'grassland';
@@ -81,7 +80,6 @@ export function transformTerrainWarmerDrier(terrain: TerrainType): TerrainType {
   // Based on climate transformation rules
   switch (terrain) {
     case 'glacier':
-    case 'snow':
       return 'desert';
     case 'tundra':
       return 'desert';
@@ -116,7 +114,7 @@ export function transformTerrainCoolerWetter(terrain: TerrainType): TerrainType 
     case 'jungle':
       return 'swamp';
     case 'tundra':
-      return 'snow';
+      return 'glacier';
     default:
       return terrain;
   }
@@ -181,7 +179,7 @@ export function isOceanTerrain(terrain: string): boolean {
  * Exact copy of freeciv frozen terrain classification
  */
 export function isFrozenTerrain(terrain: string): boolean {
-  return ['glacier', 'snow'].includes(terrain);
+  return terrain === 'glacier';
 }
 
 /**

@@ -1471,7 +1471,7 @@ export class TerrainGenerator {
       temperate_dry: ['plains', 'desert', 'grassland'],
       cold_wet: ['forest', 'tundra', 'swamp'],
       cold_dry: ['tundra', 'plains'],
-      frozen: ['glacier', 'snow', 'tundra'],
+      frozen: ['glacier', 'tundra'],
     };
 
     return biomeTerrains[biomeType]?.includes(terrain) || false;
@@ -1675,7 +1675,7 @@ export class TerrainGenerator {
       temperate_dry: ['plains', 'desert', 'grassland'],
       cold_wet: ['forest', 'tundra', 'swamp'],
       cold_dry: ['tundra', 'plains'],
-      frozen: ['glacier', 'snow', 'tundra'],
+      frozen: ['glacier', 'tundra'],
     };
 
     return biomeTerrains[biomeType] || ['grassland'];
@@ -1977,7 +1977,7 @@ export class TerrainGenerator {
           // Fill based on temperature like freeciv make_plain()
           if (tile.temperature === TemperatureType.FROZEN) {
             // Frozen: pick_terrain(MG_FROZEN, MG_UNUSED, MG_MOUNTAINOUS)
-            tile.terrain = this.random() < 0.5 ? 'glacier' : 'snow';
+            tile.terrain = 'glacier';
           } else if (tile.temperature === TemperatureType.COLD) {
             // Cold: pick_terrain(MG_COLD, MG_UNUSED, MG_MOUNTAINOUS)
             tile.terrain = this.random() < 0.7 ? 'tundra' : 'plains';

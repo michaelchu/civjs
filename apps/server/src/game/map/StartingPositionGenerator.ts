@@ -228,7 +228,6 @@ export class StartingPositionGenerator {
       desert: 1, // Harsh conditions
       mountains: 1, // Very poor for starting cities
       glacier: 0, // Extremely harsh
-      snow: 0, // Extremely harsh
       lake: -1, // Water tile
       deep_ocean: -5,
       ocean: -5,

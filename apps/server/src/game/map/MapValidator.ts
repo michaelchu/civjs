@@ -174,7 +174,7 @@ export class MapValidator {
       'plains',
       'desert',
       'tundra',
-      'snow',
+      'glacier',
       'forest',
       'jungle',
       'swamp',
@@ -910,7 +910,7 @@ export class MapValidator {
     const tile = tiles[position.x][position.y];
 
     // Check immediate tile quality
-    if (tile.terrain === 'desert' || tile.terrain === 'tundra' || tile.terrain === 'snow') {
+    if (tile.terrain === 'desert' || tile.terrain === 'tundra') {
       score -= 20;
       issues.push(`Starting on harsh terrain: ${tile.terrain}`);
     }

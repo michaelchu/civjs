@@ -580,9 +580,8 @@ export class MapRenderer {
       jungle: 'jungle',
 
       // Special terrains
-      snow: 'arctic', // snow terrain uses "arctic" graphic
       arctic: 'arctic',
-      glacier: 'arctic', // glacier also uses "arctic" graphic
+      glacier: 'arctic', // glacier uses "arctic" graphic
       inaccessible: 'inaccessible',
     };
 

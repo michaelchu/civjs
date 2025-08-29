@@ -386,7 +386,6 @@ describe('MapManager', () => {
         'plains',
         'desert',
         'tundra',
-        'snow',
         'glacier',
         'forest',
         'jungle',
@@ -837,7 +836,7 @@ describe('MapManager', () => {
           }
 
           if (
-            (tile.terrain === 'snow' || tile.terrain === 'glacier') &&
+            tile.terrain === 'glacier' &&
             !testedSnowGlacier &&
             tile.properties[TerrainProperty.FROZEN] !== undefined
           ) {
