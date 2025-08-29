@@ -177,7 +177,7 @@ export class RiverGenerator {
         tiles,
         WetnessCondition.WC_ALL,
         TemperatureType.TT_NFROZEN,
-        MiscellaneousCondition.MC_NLOW
+        MiscellaneousCondition.MC_NONE // Allow any elevation for now - TODO: Fix terrain property calculation
       );
       if (!springTile) {
         break; // No more spring places
@@ -598,18 +598,20 @@ export class RiverGenerator {
    */
   private isRiverComplete(x: number, y: number, tiles: MapTile[][]): boolean {
     // River ends if it connects to existing river
-    if (this.countRiverNearTile(x, y, tiles) > 0) {
+    const nearbyRivers = this.countRiverNearTile(x, y, tiles);
+    if (nearbyRivers > 0) {
       return true;
     }
 
-    // River ends if it reaches ocean
-    if (this.countOceanNearTile(x, y, tiles) > 0) {
+    // River ends if it reaches ocean - but only if the current tile is actually at the coast
+    // Don't end just because ocean is nearby - rivers should be able to flow parallel to coast
+    const currentTile = tiles[x][y];
+    if (!this.isLandTile(currentTile.terrain)) {
       return true;
     }
 
     // River ends at poles (frozen terrain at high latitude - simplified)
-    const tile = tiles[x][y];
-    const frozen = tile.properties[TerrainProperty.FROZEN] || 0;
+    const frozen = currentTile.properties[TerrainProperty.FROZEN] || 0;
     if (frozen > 80) {
       return true;
     }

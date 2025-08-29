@@ -902,21 +902,6 @@ export class MapManager {
     const heightMap = this.heightGenerator.getHeightMap();
 
     // DEBUG: Check if height map was generated correctly
-    console.log(
-      `DEBUG: Generated heightMap length=${heightMap.length}, sum=${heightMap.reduce((a, b) => a + b, 0)}, min=${Math.min(...heightMap)}, max=${Math.max(...heightMap)}`
-    );
-
-    // DEBUG: Analyze height distribution BEFORE makeLand()
-    const heightStats = this.analyzeHeightDistribution(heightMap, 'BEFORE makeLand()');
-    console.log(
-      'DEBUG: Random Mode Height Statistics BEFORE makeLand()',
-      JSON.stringify(heightStats, null, 2)
-    );
-
-    // DEBUG: Compare height map samples
-    console.log(
-      `DEBUG: MapManager heightMap sample - [0]=${heightMap[0]}, [1]=${heightMap[1]}, [2]=${heightMap[2]}, [100]=${heightMap[100]}`
-    );
 
     // Use exact freeciv terrain generation with Phase 1 integration
     this.terrainGenerator.heightMapToMap(tiles, heightMap);
@@ -934,37 +919,8 @@ export class MapManager {
       this.riverGenerator
     );
 
-    // DEBUG: Analyze height distribution AFTER makeLand() but BEFORE normalization
-    const heightMapAfterMakeLand = tiles.flat().map(tile => tile.elevation);
-    const heightStatsAfterMakeLand = this.analyzeHeightDistribution(
-      heightMapAfterMakeLand,
-      'AFTER makeLand()'
-    );
-    console.log(
-      'DEBUG: Random Mode Height Statistics AFTER makeLand()',
-      JSON.stringify(heightStatsAfterMakeLand, null, 2)
-    );
-
-    // Analyze terrain distribution after makeLand()
-    const terrainCounts = this.analyzeTerrainDistribution(tiles);
-    console.log(
-      'DEBUG: Random Mode Terrain Distribution AFTER makeLand()',
-      JSON.stringify(terrainCounts, null, 2)
-    );
-
     // Final elevation normalization to 0-255 range after makeLand() processing
     this.normalizeElevationsToDisplayRange(tiles);
-
-    // DEBUG: Analyze height distribution AFTER final normalization
-    const heightMapAfterNorm = tiles.flat().map(tile => tile.elevation);
-    const heightStatsAfterNorm = this.analyzeHeightDistribution(
-      heightMapAfterNorm,
-      'AFTER normalization'
-    );
-    console.log(
-      'DEBUG: Random Mode Height Statistics AFTER normalization',
-      JSON.stringify(heightStatsAfterNorm, null, 2)
-    );
 
     // Phase 1 & 2 fix: All terrain generation steps now handled inside makeLand()
     // - Pole renormalization (Phase 1)
@@ -1929,123 +1885,6 @@ export class MapManager {
       balanced,
       score,
       issues,
-    };
-  }
-
-  /**
-   * Analyze height distribution for debugging terrain generation issues
-   * @param heightMap Height map array to analyze
-   * @param stage Stage identifier for logging context
-   * @returns Statistical analysis of height distribution
-   */
-  private analyzeHeightDistribution(
-    heightMap: number[],
-    stage: string
-  ): {
-    stage: string;
-    min: number;
-    max: number;
-    avg: number;
-    median: number;
-    landTiles: number;
-    oceanTiles: number;
-    landPercentage: number;
-    shoreLevel: number;
-    mountainLevel: number;
-    histogram: { range: string; count: number; percentage: number }[];
-  } {
-    const sortedHeights = [...heightMap].sort((a, b) => a - b);
-    const total = heightMap.length;
-
-    // Basic statistics
-    const min = sortedHeights[0];
-    const max = sortedHeights[total - 1];
-    const avg = heightMap.reduce((sum, h) => sum + h, 0) / total;
-    const median = sortedHeights[Math.floor(total / 2)];
-
-    // Get thresholds from height generator
-    const shoreLevel = this.heightGenerator.getShoreLevel();
-    const mountainLevel = this.heightGenerator.getMountainLevel();
-
-    // Count land vs ocean tiles
-    const landTiles = heightMap.filter(h => h > shoreLevel).length;
-    const oceanTiles = total - landTiles;
-    const landPercentage = (landTiles / total) * 100;
-
-    // Create histogram for distribution analysis
-    const histogramBins = 10;
-    const range = max - min;
-    const binSize = range / histogramBins;
-    const histogram: { range: string; count: number; percentage: number }[] = [];
-
-    for (let i = 0; i < histogramBins; i++) {
-      const binMin = min + i * binSize;
-      const binMax = min + (i + 1) * binSize;
-      const count = heightMap.filter(h => h >= binMin && h < binMax).length;
-      const percentage = (count / total) * 100;
-
-      histogram.push({
-        range: `${Math.round(binMin)}-${Math.round(binMax)}`,
-        count,
-        percentage: Math.round(percentage * 10) / 10,
-      });
-    }
-
-    return {
-      stage,
-      min: Math.round(min),
-      max: Math.round(max),
-      avg: Math.round(avg * 10) / 10,
-      median: Math.round(median),
-      landTiles,
-      oceanTiles,
-      landPercentage: Math.round(landPercentage * 10) / 10,
-      shoreLevel,
-      mountainLevel,
-      histogram,
-    };
-  }
-
-  /**
-   * Analyze terrain distribution for debugging terrain generation issues
-   * @param tiles Map tiles to analyze
-   * @returns Terrain type counts and percentages
-   */
-  private analyzeTerrainDistribution(tiles: MapTile[][]): {
-    total: number;
-    terrainCounts: Record<string, number>;
-    terrainPercentages: Record<string, number>;
-    oceanPercentage: number;
-    landPercentage: number;
-  } {
-    const flatTiles = tiles.flat();
-    const total = flatTiles.length;
-    const terrainCounts: Record<string, number> = {};
-
-    // Count each terrain type
-    for (const tile of flatTiles) {
-      const terrain = tile.terrain;
-      terrainCounts[terrain] = (terrainCounts[terrain] || 0) + 1;
-    }
-
-    // Calculate percentages
-    const terrainPercentages: Record<string, number> = {};
-    for (const [terrain, count] of Object.entries(terrainCounts)) {
-      terrainPercentages[terrain] = Math.round((count / total) * 1000) / 10; // 1 decimal place
-    }
-
-    // Calculate ocean vs land percentages (include all ocean types)
-    const oceanTiles = (terrainCounts['ocean'] || 0) + (terrainCounts['deep_ocean'] || 0);
-    const landTiles = total - oceanTiles;
-    const oceanPercentage = Math.round((oceanTiles / total) * 1000) / 10;
-    const landPercentage = Math.round((landTiles / total) * 1000) / 10;
-
-    return {
-      total,
-      terrainCounts,
-      terrainPercentages,
-      oceanPercentage,
-      landPercentage,
     };
   }
 }
