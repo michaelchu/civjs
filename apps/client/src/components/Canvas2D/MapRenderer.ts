@@ -298,6 +298,11 @@ export class MapRenderer {
         {
           switch (dlp['match_style']) {
             case MATCH_NONE: {
+              // Debug: Log when tundra uses MATCH_NONE path (should happen after fix)
+              if (import.meta.env.DEV && pterrain['graphic_str'] === 'tundra') {
+                console.log('[DEBUG] Tundra using MATCH_NONE path (correct)');
+              }
+
               const result_sprites: Array<{
                 key: string;
                 offset_x?: number;
@@ -343,6 +348,13 @@ export class MapRenderer {
             }
 
             case MATCH_SAME: {
+              // Debug: Log when tundra incorrectly uses MATCH_SAME path (should NOT happen after fix)
+              if (import.meta.env.DEV && pterrain['graphic_str'] === 'tundra') {
+                console.warn(
+                  '[DEBUG] Tundra using MATCH_SAME path (incorrect - should use MATCH_NONE)'
+                );
+              }
+
               let tileno = 0;
               const this_match_type =
                 ts_tiles[pterrain['graphic_str']] &&
