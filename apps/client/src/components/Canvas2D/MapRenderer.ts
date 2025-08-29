@@ -240,16 +240,31 @@ export class MapRenderer {
       }
     }
 
-    // Fallback: if no sprites rendered, show solid color
+    // Fallback: if no sprites rendered, try basic terrain sprite before solid color
     if (!hasAnySprites) {
-      const color = this.getTerrainColor(tile.terrain);
-      this.ctx.fillStyle = color;
-      this.ctx.fillRect(
-        screenPos.x,
-        screenPos.y,
-        this.tileWidth,
-        this.tileHeight
-      );
+      const mappedTerrain = this.mapTerrainName(tile.terrain);
+      const fallbackSprite = this.tilesetLoader.getSprite(`t.l0.${mappedTerrain}1`);
+      
+      if (fallbackSprite) {
+        // Use basic terrain sprite as fallback
+        this.ctx.drawImage(fallbackSprite, screenPos.x, screenPos.y);
+        if (import.meta.env.DEV) {
+          console.log(`[TERRAIN FALLBACK] Using basic sprite t.l0.${mappedTerrain}1 for ${tile.terrain}`);
+        }
+      } else {
+        // Final fallback: solid color (original behavior)
+        const color = this.getTerrainColor(tile.terrain);
+        this.ctx.fillStyle = color;
+        this.ctx.fillRect(
+          screenPos.x,
+          screenPos.y,
+          this.tileWidth,
+          this.tileHeight
+        );
+        if (import.meta.env.DEV) {
+          console.warn(`[TERRAIN FALLBACK] No sprite found for ${tile.terrain}, using solid color ${color}`);
+        }
+      }
     }
   }
 
@@ -1013,6 +1028,7 @@ export class MapRenderer {
       hills: '#8B4513',
       mountains: '#696969',
       ocean: '#4682B4',
+      deep_ocean: '#191970', // Dark blue for deep ocean
       swamp: '#556B2F',
     };
 
