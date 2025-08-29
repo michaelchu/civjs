@@ -31,8 +31,8 @@ export class RiverGenerator {
   }
 
   /**
-   * Generate advanced river system
-   * @reference freeciv/server/generator/mapgen.c:906-950 make_rivers() parameter usage
+   * Generate advanced river system using freeciv algorithm
+   * @reference freeciv/server/generator/mapgen.c:906-950 make_rivers()
    */
   public async generateAdvancedRivers(tiles: MapTile[][], riverPct: number): Promise<void> {
     logger.info(`Starting advanced river generation with ${riverPct.toFixed(1)}% target density`);
@@ -44,35 +44,183 @@ export class RiverGenerator {
       ok: new Set<number>(),
     };
 
-    // Calculate number of rivers based on map size using calculated percentage
-    const landTiles = tiles.flat().filter(tile => this.isLandTile(tile.terrain)).length;
+    // FREECIV ALGORITHM: Calculate desirable river length using exact formula
+    // @reference freeciv/server/generator/mapgen.c:915-924
+    const mapNumTiles = this.width * this.height;
+    const landPercent = this.calculateLandPercent(tiles);
+    
+    const desirableRiverLength = Math.floor(
+      (riverPct * mapNumTiles * landPercent) / 5325
+    );
 
-    const targetRivers = Math.floor(landTiles * (riverPct / 100)); // Use calculated river percentage
+    // The number of river tiles that have been set
+    let currentRiverLength = 0;
+    
+    // Iteration counter to prevent infinite loops  
+    let iterationCounter = 0;
+    const RIVERS_MAXTRIES = 32767; // @reference freeciv/server/generator/mapgen.c
 
-    let riversPlaced = 0;
-    let attempts = targetRivers * 20; // Allow many attempts
+    logger.info(`Target river length: ${desirableRiverLength} tiles (${riverPct}% of ${mapNumTiles} tiles * ${landPercent}% land / 5325)`);
 
-    while (riversPlaced < targetRivers && attempts > 0) {
-      const x = Math.floor(this.random() * this.width);
-      const y = Math.floor(this.random() * this.height);
-
-      if (this.canPlaceRiver(x, y, tiles, riverMap)) {
-        const riverMask = this.generateRiverMask(x, y, tiles, riverMap);
-        if (riverMask > 0) {
-          tiles[x][y].riverMask = riverMask;
-          this.convertTerrainForRiver(tiles[x][y]);
-          riversPlaced++;
-        }
+    // FREECIV MAIN LOOP: Generate rivers until target length reached
+    // @reference freeciv/server/generator/mapgen.c:946-947
+    while (currentRiverLength < desirableRiverLength && iterationCounter < RIVERS_MAXTRIES) {
+      
+      // Find suitable river spring location (highland preference)
+      const springLocation = this.findRiverSpring(tiles, riverMap);
+      if (!springLocation) {
+        break; // No more suitable spring places
       }
 
-      attempts--;
+      // Generate individual river from spring
+      const riverLength = await this.makeRiver(springLocation.x, springLocation.y, tiles, riverMap);
+      currentRiverLength += riverLength;
+      
+      iterationCounter++;
     }
 
     const endTime = Date.now();
-    const actualRiverPct = landTiles > 0 ? (riversPlaced / landTiles) * 100 : 0;
+    const landTiles = tiles.flat().filter(tile => this.isLandTile(tile.terrain)).length;
+    const actualRiverPct = landTiles > 0 ? (currentRiverLength / landTiles) * 100 : 0;
     logger.info(
-      `Advanced river generation completed: ${riversPlaced}/${targetRivers} rivers placed (${actualRiverPct.toFixed(1)}% density) in ${endTime - startTime}ms`
+      `Advanced river generation completed: ${currentRiverLength}/${desirableRiverLength} river tiles (${actualRiverPct.toFixed(1)}% density) in ${iterationCounter} iterations, ${endTime - startTime}ms`
     );
+  }
+
+  /**
+   * Calculate land percentage for freeciv formula
+   * @reference freeciv/server/generator/mapgen.c:920 wld.map.server.landpercent
+   */
+  private calculateLandPercent(tiles: MapTile[][]): number {
+    const totalTiles = this.width * this.height;
+    const landTiles = tiles.flat().filter(tile => this.isLandTile(tile.terrain)).length;
+    return Math.floor((landTiles / totalTiles) * 100);
+  }
+
+  /**
+   * Find suitable river spring location using freeciv criteria
+   * @reference freeciv/server/generator/mapgen.c:949-952 rand_map_pos_characteristic
+   */
+  private findRiverSpring(tiles: MapTile[][], riverMap: RiverMapState): {x: number, y: number} | null {
+    // Try to find highland locations first (prefer mountains/hills)
+    const maxAttempts = 100;
+    let bestCandidate: {x: number, y: number, score: number} | null = null;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const x = Math.floor(this.random() * this.width);
+      const y = Math.floor(this.random() * this.height);
+
+      if (!this.canPlaceRiver(x, y, tiles, riverMap)) {
+        continue;
+      }
+
+      const tile = tiles[x][y];
+      
+      // Score based on elevation/mountainous property (higher is better for river springs)
+      const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
+      const score = mountainous;
+
+      if (!bestCandidate || score > bestCandidate.score) {
+        bestCandidate = { x, y, score };
+      }
+
+      // Accept good candidates early
+      if (score > 70) {
+        return { x, y };
+      }
+    }
+
+    return bestCandidate;
+  }
+
+  /**
+   * Generate individual river from spring point
+   * @reference freeciv/server/generator/mapgen.c:991-1050 make_river()
+   */
+  private async makeRiver(startX: number, startY: number, tiles: MapTile[][], riverMap: RiverMapState): Promise<number> {
+    let riverLength = 0;
+    let currentX = startX;
+    let currentY = startY;
+    const maxRiverLength = 50; // Prevent infinite rivers
+    
+    // Mark starting tile
+    if (this.canPlaceRiver(currentX, currentY, tiles, riverMap)) {
+      const riverMask = this.generateRiverMask(currentX, currentY, tiles, riverMap);
+      if (riverMask > 0) {
+        tiles[currentX][currentY].riverMask = riverMask;
+        this.convertTerrainForRiver(tiles[currentX][currentY]);
+        riverLength++;
+      }
+    }
+
+    // Extend river towards lower elevation or water
+    while (riverLength < maxRiverLength) {
+      const nextTile = this.findNextRiverTile(currentX, currentY, tiles, riverMap);
+      if (!nextTile) {
+        break; // River reached water or no valid continuation
+      }
+
+      currentX = nextTile.x;
+      currentY = nextTile.y;
+
+      const riverMask = this.generateRiverMask(currentX, currentY, tiles, riverMap);
+      if (riverMask > 0) {
+        tiles[currentX][currentY].riverMask = riverMask;
+        this.convertTerrainForRiver(tiles[currentX][currentY]);
+        riverLength++;
+      }
+
+      // Stop if we reached water (river mouth)
+      if (!this.isLandTile(tiles[currentX][currentY].terrain)) {
+        break;
+      }
+    }
+
+    return riverLength;
+  }
+
+  /**
+   * Find next tile in river path (flow towards lower elevation/water)
+   */
+  private findNextRiverTile(x: number, y: number, tiles: MapTile[][], riverMap: RiverMapState): {x: number, y: number} | null {
+    const cardinalDirs = [
+      { dx: 0, dy: -1 }, // North  
+      { dx: 1, dy: 0 },  // East
+      { dx: 0, dy: 1 },  // South
+      { dx: -1, dy: 0 }  // West
+    ];
+
+    let bestCandidate: {x: number, y: number, priority: number} | null = null;
+
+    for (const dir of cardinalDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+
+      if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) {
+        continue;
+      }
+
+      const neighborTile = tiles[nx][ny];
+      
+      // Priority: Ocean > Coast > Land with existing rivers > Suitable land
+      let priority = 0;
+      
+      if (!this.isLandTile(neighborTile.terrain)) {
+        priority = 100; // Highest priority - river mouth
+      } else if (neighborTile.riverMask > 0) {
+        priority = 80;  // Connect to existing river
+      } else if (this.canPlaceRiver(nx, ny, tiles, riverMap)) {
+        // Lower elevation preferred (simplified - could use height map)
+        const mountainous = neighborTile.properties[TerrainProperty.MOUNTAINOUS] || 0;
+        priority = 50 - Math.floor(mountainous / 2); // Lower mountainous = higher priority
+      }
+
+      if (priority > 0 && (!bestCandidate || priority > bestCandidate.priority)) {
+        bestCandidate = { x: nx, y: ny, priority };
+      }
+    }
+
+    return bestCandidate;
   }
 
   /**
