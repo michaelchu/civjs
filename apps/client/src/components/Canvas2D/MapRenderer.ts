@@ -201,17 +201,17 @@ export class MapRenderer {
 
       for (const spriteInfo of sprites) {
         let sprite = this.tilesetLoader.getSprite(spriteInfo.key);
-        
+
         // Enhanced fallback system: try comprehensive fallbacks before giving up
         if (!sprite) {
           sprite = this.tilesetLoader.getSpriteWithFallback(spriteInfo.key);
         }
-        
+
         // Additional terrain-specific fallbacks
         if (!sprite) {
           sprite = this.tryTerrainSpriteFallbacks(tile, layer);
         }
-        
+
         if (sprite) {
           const offsetX = spriteInfo.offset_x || 0;
           const offsetY = spriteInfo.offset_y || 0;
@@ -236,7 +236,7 @@ export class MapRenderer {
         if (!sprite) {
           sprite = this.tilesetLoader.getSpriteWithFallback(riverSprite.key);
         }
-        
+
         // Try additional river-specific fallbacks
         if (!sprite) {
           sprite = this.tryRiverSpriteFallbacks(tile.riverMask);
@@ -259,10 +259,12 @@ export class MapRenderer {
       const color = this.getTerrainColor(tile.terrain);
       this.ctx.fillStyle = color;
       this.ctx.fillRect(screenPos.x, screenPos.y, this.tileWidth, this.tileHeight);
-      
+
       // Log this as a potential issue in development
       if (import.meta.env.DEV) {
-        console.warn(`Fell back to solid color for terrain: ${tile.terrain} at (${tile.x}, ${tile.y})`);
+        console.warn(
+          `Fell back to solid color for terrain: ${tile.terrain} at (${tile.x}, ${tile.y})`
+        );
       }
     }
   }
@@ -302,36 +304,36 @@ export class MapRenderer {
    */
   private tryTerrainSpriteFallbacks(tile: Tile, layer: number): HTMLCanvasElement | null {
     const mappedTerrain = this.mapTerrainName(tile.terrain);
-    
+
     // Try basic terrain sprite without match patterns
     const basicSprite = this.tilesetLoader.getSprite(`t.l${layer}.${mappedTerrain}1`);
     if (basicSprite) {
       return basicSprite;
     }
-    
+
     // Try simple match patterns
     const simpleFallbacks = [
       `t.l${layer}.${mappedTerrain}_n0e0s0w0`,
-      `t.l${layer}.${mappedTerrain}_cell_u_u_u_u`
+      `t.l${layer}.${mappedTerrain}_cell_u_u_u_u`,
     ];
-    
+
     for (const fallbackKey of simpleFallbacks) {
       const sprite = this.tilesetLoader.getSprite(fallbackKey);
       if (sprite) {
         return sprite;
       }
     }
-    
+
     // Try alternative terrain graphics for similar terrains
     const terrainAlternatives: Record<string, string[]> = {
-      'coast': ['floor', 'lake'],
-      'floor': ['coast'],
-      'lake': ['coast', 'floor'],
-      'arctic': ['tundra', 'plains'],
-      'jungle': ['forest'],
-      'swamp': ['grassland']
+      coast: ['floor', 'lake'],
+      floor: ['coast'],
+      lake: ['coast', 'floor'],
+      arctic: ['tundra', 'plains'],
+      jungle: ['forest'],
+      swamp: ['grassland'],
     };
-    
+
     if (terrainAlternatives[mappedTerrain]) {
       for (const altTerrain of terrainAlternatives[mappedTerrain]) {
         const altSprite = this.tilesetLoader.getSprite(`t.l${layer}.${altTerrain}1`);
@@ -340,10 +342,10 @@ export class MapRenderer {
         }
       }
     }
-    
+
     return null;
   }
-  
+
   /**
    * Enhanced river sprite fallback system
    * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas.js:100-150 fallback sprite handling
@@ -351,7 +353,7 @@ export class MapRenderer {
   private tryRiverSpriteFallbacks(riverMask: number): HTMLCanvasElement | null {
     // Try to find a simpler river sprite that matches some of the connections
     const directions = ['n', 'e', 's', 'w'];
-    
+
     // First try: match individual connections
     for (let i = 0; i < 4; i++) {
       if (riverMask & (1 << i)) {
@@ -366,7 +368,7 @@ export class MapRenderer {
         }
       }
     }
-    
+
     // Fallback to simplest patterns
     const fallbackPatterns = [
       'road.river_s_n0e0s0w0', // No connections (isolated river)

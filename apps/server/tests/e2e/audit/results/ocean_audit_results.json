@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-08-29T15:09:23.185Z",
+  "timestamp": "2025-08-29T15:19:35.377Z",
   "results": [
     {
       "mode": "RANDOM",
@@ -30,7 +30,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 207,
+      "generationTime": 189,
       "success": true
     },
     {
@@ -62,7 +62,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 130,
+      "generationTime": 111,
       "success": true
     },
     {
@@ -94,7 +94,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 408,
+      "generationTime": 382,
       "success": true
     },
     {
@@ -126,7 +126,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 383,
+      "generationTime": 351,
       "success": true
     },
     {
@@ -158,7 +158,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 83,
+      "generationTime": 77,
       "success": true
     },
     {
@@ -191,7 +191,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 81,
+      "generationTime": 74,
       "success": true
     },
     {
@@ -224,7 +224,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 540,
+      "generationTime": 486,
       "success": true
     },
     {
@@ -257,7 +257,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 474,
+      "generationTime": 443,
       "success": true
     },
     {
@@ -289,7 +289,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 80,
+      "generationTime": 87,
       "success": true
     },
     {
@@ -321,7 +321,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 72,
+      "generationTime": 63,
       "success": true
     },
     {
@@ -354,7 +354,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 315,
+      "generationTime": 308,
       "success": true
     },
     {
@@ -387,7 +387,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 357,
+      "generationTime": 320,
       "success": true
     },
     {
@@ -421,7 +421,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 133,
+      "generationTime": 130,
       "success": true
     },
     {
@@ -455,7 +455,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 123,
+      "generationTime": 150,
       "success": true
     },
     {
@@ -489,7 +489,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 863,
+      "generationTime": 838,
       "success": true
     },
     {
@@ -523,7 +523,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 885,
+      "generationTime": 860,
       "success": true
     },
     {
@@ -557,7 +557,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 398,
+      "generationTime": 417,
       "success": true
     },
     {
@@ -591,7 +591,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 695,
+      "generationTime": 415,
       "success": true
     },
     {
@@ -625,7 +625,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 4885,
+      "generationTime": 4684,
       "success": true
     },
     {
@@ -659,9 +659,9 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 4683,
+      "generationTime": 4710,
       "success": true
     }
   ],
-  "summary": "# Ocean Distribution Audit Summary\n\n**Date:** 2025-08-29T15:09:23.185Z\n**Total Tests:** 20\n**Successful:** 20\n**Failed:** 0\n**Unplayable Maps:** 0 (0%)\n\n## Results by Mode and Size\n\n| Mode | Size | Land % Range | Unplayable Count | Notes |\n|------|------|--------------|------------------|-------|\n| RANDOM | Small (40x25) | 30%-30% | 0/2 | Avg: 169ms |\n| RANDOM | Standard (80x50) | 30%-30% | 0/2 | Avg: 396ms |\n| FRACTAL | Small (40x25) | 51%-53% | 0/2 | Avg: 82ms |\n| FRACTAL | Standard (80x50) | 53%-58% | 0/2 | Avg: 507ms |\n| FRACTURE | Small (40x25) | 23%-23% | 0/2 | Avg: 76ms |\n| FRACTURE | Standard (80x50) | 23%-27% | 0/2 | Avg: 336ms |\n| ISLAND | Small (40x25) | 33%-34% | 0/2 | Avg: 128ms |\n| ISLAND | Standard (80x50) | 21%-22% | 0/2 | Avg: 874ms |\n| FAIR | Small (40x25) | 33%-34% | 0/2 | Avg: 547ms |\n| FAIR | Standard (80x50) | 31%-31% | 0/2 | Avg: 4784ms |\n\n## Critical Issues\n\n"
+  "summary": "# Ocean Distribution Audit Summary\n\n**Date:** 2025-08-29T15:19:35.376Z\n**Total Tests:** 20\n**Successful:** 20\n**Failed:** 0\n**Unplayable Maps:** 0 (0%)\n\n## Results by Mode and Size\n\n| Mode | Size | Land % Range | Unplayable Count | Notes |\n|------|------|--------------|------------------|-------|\n| RANDOM | Small (40x25) | 30%-30% | 0/2 | Avg: 150ms |\n| RANDOM | Standard (80x50) | 30%-30% | 0/2 | Avg: 367ms |\n| FRACTAL | Small (40x25) | 51%-53% | 0/2 | Avg: 76ms |\n| FRACTAL | Standard (80x50) | 53%-58% | 0/2 | Avg: 465ms |\n| FRACTURE | Small (40x25) | 23%-23% | 0/2 | Avg: 75ms |\n| FRACTURE | Standard (80x50) | 23%-27% | 0/2 | Avg: 314ms |\n| ISLAND | Small (40x25) | 33%-34% | 0/2 | Avg: 140ms |\n| ISLAND | Standard (80x50) | 21%-22% | 0/2 | Avg: 849ms |\n| FAIR | Small (40x25) | 33%-34% | 0/2 | Avg: 416ms |\n| FAIR | Standard (80x50) | 31%-31% | 0/2 | Avg: 4697ms |\n\n## Critical Issues\n\n"
 }
