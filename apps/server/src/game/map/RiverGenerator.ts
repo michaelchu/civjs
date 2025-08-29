@@ -32,9 +32,10 @@ export class RiverGenerator {
 
   /**
    * Generate advanced river system
+   * @reference freeciv/server/generator/mapgen.c:906-950 make_rivers() parameter usage
    */
-  public async generateAdvancedRivers(tiles: MapTile[][]): Promise<void> {
-    logger.info('Starting advanced river generation');
+  public async generateAdvancedRivers(tiles: MapTile[][], riverPct: number): Promise<void> {
+    logger.info(`Starting advanced river generation with ${riverPct.toFixed(1)}% target density`);
     const startTime = Date.now();
 
     // Create river map state
@@ -43,10 +44,10 @@ export class RiverGenerator {
       ok: new Set<number>(),
     };
 
-    // Calculate number of rivers based on map size
+    // Calculate number of rivers based on map size using calculated percentage
     const landTiles = tiles.flat().filter(tile => this.isLandTile(tile.terrain)).length;
 
-    const targetRivers = Math.floor(landTiles * 0.15); // 15% river coverage
+    const targetRivers = Math.floor(landTiles * (riverPct / 100)); // Use calculated river percentage
 
     let riversPlaced = 0;
     let attempts = targetRivers * 20; // Allow many attempts
@@ -68,8 +69,9 @@ export class RiverGenerator {
     }
 
     const endTime = Date.now();
+    const actualRiverPct = landTiles > 0 ? (riversPlaced / landTiles) * 100 : 0;
     logger.info(
-      `Advanced river generation completed: ${riversPlaced}/${targetRivers} rivers placed in ${endTime - startTime}ms`
+      `Advanced river generation completed: ${riversPlaced}/${targetRivers} rivers placed (${actualRiverPct.toFixed(1)}% density) in ${endTime - startTime}ms`
     );
   }
 

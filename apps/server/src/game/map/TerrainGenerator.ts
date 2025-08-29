@@ -280,7 +280,7 @@ export class TerrainGenerator {
     // Step 14: River generation (freeciv line 1150 equivalent)
     // @reference freeciv/server/generator/mapgen.c:1150 make_rivers()
     if (this.riverGenerator) {
-      await this.makeRivers(tiles);
+      await this.makeRivers(tiles, terrainParams);
     }
   }
 
@@ -305,10 +305,10 @@ export class TerrainGenerator {
    * Internal river generation wrapper (Phase 1 fix)
    * @reference freeciv/server/generator/mapgen.c:1150 make_rivers()
    */
-  private async makeRivers(tiles: MapTile[][]): Promise<void> {
+  private async makeRivers(tiles: MapTile[][], terrainParams: TerrainParams): Promise<void> {
     if (!this.riverGenerator) return;
 
-    await this.riverGenerator.generateAdvancedRivers(tiles);
+    await this.riverGenerator.generateAdvancedRivers(tiles, terrainParams.river_pct);
   }
 
   /**
