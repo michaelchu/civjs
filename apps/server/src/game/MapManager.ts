@@ -904,7 +904,10 @@ export class MapManager {
 
     // DEBUG: Check if height map was generated correctly
     console.log(
-      `DEBUG: Generated heightMap length=${heightMap.length}, sum=${heightMap.reduce((a, b) => a + b, 0)}, min=${Math.min(...heightMap)}, max=${Math.max(...heightMap)}`
+      `DEBUG: Generated heightMap length=${heightMap.length}, sum=${heightMap.reduce(
+        (a, b) => a + b,
+        0
+      )}, min=${Math.min(...heightMap)}, max=${Math.max(...heightMap)}`
     );
 
     // DEBUG: Analyze height distribution BEFORE makeLand()
@@ -1911,7 +1914,9 @@ export class MapManager {
       // More than 30% without resources is problematic
       score -= 40;
       issues.push(
-        `Too many starting positions (${Math.round(resourcelessRatio * 100)}%) lack nearby resources`
+        `Too many starting positions (${Math.round(
+          resourcelessRatio * 100
+        )}%) lack nearby resources`
       );
     }
 

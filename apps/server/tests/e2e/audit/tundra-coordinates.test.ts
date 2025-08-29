@@ -102,7 +102,9 @@ describe('Tundra Coordinate Distribution Audit', () => {
       console.log(`\\nTundra Distribution Audit Results:`);
       console.log(`Map size: ${mapSize.width}x${mapSize.height}`);
       console.log(
-        `Equator at y=${equatorY}, pole zones: y<${poleThreshold} or y>${mapSize.height - poleThreshold}`
+        `Equator at y=${equatorY}, pole zones: y<${poleThreshold} or y>${
+          mapSize.height - poleThreshold
+        }`
       );
       console.log(`Total tundra tiles: ${tundraCoordinates.length}`);
       console.log(`Temperature distribution:`, temperatureDistribution);

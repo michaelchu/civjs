@@ -386,7 +386,9 @@ export class GameManager {
             finalError: finalError.message,
           });
           throw new Error(
-            `Complete map generation failure. Original: ${lastError?.message || 'unknown'}, Final: ${finalError.message}`
+            `Complete map generation failure. Original: ${
+              lastError?.message || 'unknown'
+            }, Final: ${finalError.message}`
           );
         }
       }

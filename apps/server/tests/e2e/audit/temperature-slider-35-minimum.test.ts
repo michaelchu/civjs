@@ -85,7 +85,9 @@ describe('Temperature Slider Minimum Value (35)', () => {
     console.log(`  Map size: ${mapSize.width}x${mapSize.height} (${totalTiles} tiles)`);
     console.log(`  Total land: ${totalLand} tiles`);
     console.log(
-      `  Total tundra: ${totalTundra} tiles (${tundraPercentage.toFixed(1)}% of map, ${tundraLandPercentage.toFixed(1)}% of land)`
+      `  Total tundra: ${totalTundra} tiles (${tundraPercentage.toFixed(
+        1
+      )}% of map, ${tundraLandPercentage.toFixed(1)}% of land)`
     );
     console.log(`  COLD zones: ${totalColdZones}`);
     console.log(`  FROZEN zones: ${totalFrozenZones}`);
@@ -95,7 +97,9 @@ describe('Temperature Slider Minimum Value (35)', () => {
     expect(tundraLandPercentage).toBeLessThan(20.0); // But not excessive
 
     console.log(
-      `  ✅ Tundra land percentage (${tundraLandPercentage.toFixed(1)}%) is reasonable (5-20% of land)`
+      `  ✅ Tundra land percentage (${tundraLandPercentage.toFixed(
+        1
+      )}%) is reasonable (5-20% of land)`
     );
 
     // Should have some cold zones but not the majority

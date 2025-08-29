@@ -1026,8 +1026,8 @@ export class MapRenderer {
         ? (value % range) + range
         : 0
       : value >= range
-        ? value % range
-        : value;
+      ? value % range
+      : value;
   }
 
   /**

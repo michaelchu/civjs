@@ -44,7 +44,9 @@ export const GameRoute: React.FC = () => {
         // For single player games, never fall back to observer mode
         if (isSinglePlayer) {
           throw new Error(
-            `Failed to rejoin single player game: ${joinError instanceof Error ? joinError.message : 'Unknown error'}`
+            `Failed to rejoin single player game: ${
+              joinError instanceof Error ? joinError.message : 'Unknown error'
+            }`
           );
         }
 
@@ -55,7 +57,9 @@ export const GameRoute: React.FC = () => {
           console.log('Joined as observer');
         } catch {
           throw new Error(
-            `Cannot access game: ${joinError instanceof Error ? joinError.message : 'Unknown error'}`
+            `Cannot access game: ${
+              joinError instanceof Error ? joinError.message : 'Unknown error'
+            }`
           );
         }
       }

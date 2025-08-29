@@ -95,7 +95,9 @@ describe('Temperature Presets Test', () => {
 
     for (const result of results) {
       console.log(
-        `  ${result.preset} (${result.value}°): ${result.tundra} tundra tiles (${result.tundraPercentage.toFixed(1)}% of ${result.land} land)`
+        `  ${result.preset} (${result.value}°): ${
+          result.tundra
+        } tundra tiles (${result.tundraPercentage.toFixed(1)}% of ${result.land} land)`
       );
     }
 

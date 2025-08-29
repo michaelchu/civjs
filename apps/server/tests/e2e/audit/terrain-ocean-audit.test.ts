@@ -187,7 +187,9 @@ function generateSummaryReport(results: OceanTestResult[]): string {
   report += `**Total Tests:** ${results.length}\n`;
   report += `**Successful:** ${successfulResults.length}\n`;
   report += `**Failed:** ${results.length - successfulResults.length}\n`;
-  report += `**Unplayable Maps:** ${unplayableMaps.length} (${Math.round((unplayableMaps.length / successfulResults.length) * 100)}%)\n\n`;
+  report += `**Unplayable Maps:** ${unplayableMaps.length} (${Math.round(
+    (unplayableMaps.length / successfulResults.length) * 100
+  )}%)\n\n`;
 
   // Group by mode and size
   const groupedResults = new Map<string, OceanTestResult[]>();
@@ -221,7 +223,9 @@ function generateSummaryReport(results: OceanTestResult[]): string {
   if (unplayableMaps.length > 0) {
     report += `### Unplayable Maps (< 15% land)\n\n`;
     for (const map of unplayableMaps) {
-      report += `- **${map.mode} ${map.size} seed=${map.seed}:** ${map.analysis!.landPercentage}% land\n`;
+      report += `- **${map.mode} ${map.size} seed=${map.seed}:** ${
+        map.analysis!.landPercentage
+      }% land\n`;
     }
   }
 
@@ -298,7 +302,9 @@ describe('Ocean Distribution Audit', () => {
     // Document the issue rather than fail the test
     const unplayableRate = smallMapUnplayable.length / smallMapResults.length;
     console.log(
-      `Small map unplayable rate: ${Math.round(unplayableRate * 100)}% (${smallMapUnplayable.length}/${smallMapResults.length})`
+      `Small map unplayable rate: ${Math.round(unplayableRate * 100)}% (${
+        smallMapUnplayable.length
+      }/${smallMapResults.length})`
     );
 
     // This test documents the known issue

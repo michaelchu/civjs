@@ -91,7 +91,9 @@ describe('Temperature Settings Impact on Tundra', () => {
     console.log('\n📊 Temperature Settings Summary:');
     results.forEach(result => {
       console.log(
-        `  Temp ${result.temperature}: ${result.tundraCount} tundra, ${result.coldPercentage.toFixed(1)}% cold zones`
+        `  Temp ${result.temperature}: ${
+          result.tundraCount
+        } tundra, ${result.coldPercentage.toFixed(1)}% cold zones`
       );
     });
 

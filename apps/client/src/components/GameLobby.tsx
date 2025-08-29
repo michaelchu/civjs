@@ -161,7 +161,9 @@ export const GameLobby: React.FC = () => {
               {games.map(game => (
                 <div
                   key={game.id}
-                  className={`p-4 border rounded-lg transition-all duration-200 bg-gradient-to-r from-amber-100 to-yellow-100 border-amber-400 hover:border-amber-500 hover:bg-gradient-to-r hover:from-amber-200 hover:to-yellow-200 shadow-sm ${!game.canJoin ? 'opacity-60' : ''}`}
+                  className={`p-4 border rounded-lg transition-all duration-200 bg-gradient-to-r from-amber-100 to-yellow-100 border-amber-400 hover:border-amber-500 hover:bg-gradient-to-r hover:from-amber-200 hover:to-yellow-200 shadow-sm ${
+                    !game.canJoin ? 'opacity-60' : ''
+                  }`}
                 >
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-0">
                     <div className="flex-1 min-w-0">
@@ -175,12 +177,12 @@ export const GameLobby: React.FC = () => {
                               game.status === 'waiting'
                                 ? 'bg-yellow-500'
                                 : game.status === 'active'
-                                  ? 'bg-green-500'
-                                  : game.status === 'paused'
-                                    ? 'bg-orange-500'
-                                    : game.status === 'finished'
-                                      ? 'bg-gray-500'
-                                      : 'bg-blue-500'
+                                ? 'bg-green-500'
+                                : game.status === 'paused'
+                                ? 'bg-orange-500'
+                                : game.status === 'finished'
+                                ? 'bg-gray-500'
+                                : 'bg-blue-500'
                             }`}
                           >
                             {getStatusLabel(game.status)}

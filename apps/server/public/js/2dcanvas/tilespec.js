@@ -17,13 +17,12 @@
 
 ***********************************************************************/
 
-
 var num_cardinal_tileset_dirs = 4;
 var cardinal_tileset_dirs = [DIR8_NORTH, DIR8_EAST, DIR8_SOUTH, DIR8_WEST];
 
 var NUM_CORNER_DIRS = 4;
 
-var DIR4_TO_DIR8 = [ DIR8_NORTH, DIR8_SOUTH, DIR8_EAST, DIR8_WEST];
+var DIR4_TO_DIR8 = [DIR8_NORTH, DIR8_SOUTH, DIR8_EAST, DIR8_WEST];
 
 var current_select_sprite = 0;
 var max_select_sprite = 4;
@@ -63,12 +62,12 @@ var EDGE_LR = 3; /* Left and right (ne/sw), for hex_height tilesets */
 var EDGE_COUNT = 4;
 
 var MATCH_NONE = 0;
-var MATCH_SAME = 1;		/* "boolean" match */
+var MATCH_SAME = 1; /* "boolean" match */
 var MATCH_PAIR = 2;
 var MATCH_FULL = 3;
 
-var CELL_WHOLE = 0;		/* entire tile */
-var CELL_CORNER = 1;	/* corner of tile */
+var CELL_WHOLE = 0; /* entire tile */
+var CELL_CORNER = 1; /* corner of tile */
 
 /* Darkness style.  Don't reorder this enum since tilesets depend on it. */
 /* No darkness sprites are drawn. */
@@ -89,19 +88,18 @@ var DARKNESS_CARD_FULL = 3;
 /* Corner darkness & fog.  3^4 = 81 sprites. */
 var DARKNESS_CORNER = 4;
 
-var terrain_match = {"t.l0.hills1" : MATCH_NONE,
-"t.l0.mountains1" : MATCH_NONE,
-"t.l0.plains1" : MATCH_NONE,
-"t.l0.desert1" : MATCH_NONE
-
+var terrain_match = {
+  't.l0.hills1': MATCH_NONE,
+  't.l0.mountains1': MATCH_NONE,
+  't.l0.plains1': MATCH_NONE,
+  't.l0.desert1': MATCH_NONE,
 };
 
 /**************************************************************************
   Returns true iff the tileset has graphics for the specified tag.
 **************************************************************************/
-function tileset_has_tag(tagname)
-{
-  return (sprites[tagname] != null);
+function tileset_has_tag(tagname) {
+  return sprites[tagname] != null;
 }
 
 /**************************************************************************
@@ -110,10 +108,9 @@ function tileset_has_tag(tagname)
   case the tileset don't support the first tag is the 'graphic_alt' field
   and the entity name is stored in the 'name' field.
 **************************************************************************/
-function tileset_ruleset_entity_tag_str_or_alt(entity, kind_name)
-{
+function tileset_ruleset_entity_tag_str_or_alt(entity, kind_name) {
   if (entity == null) {
-    console.log("No " + kind_name + " to return tag for.");
+    console.log('No ' + kind_name + ' to return tag for.');
     return null;
   }
 
@@ -125,7 +122,7 @@ function tileset_ruleset_entity_tag_str_or_alt(entity, kind_name)
     return entity['graphic_alt'];
   }
 
-  console.log("No graphic for " + kind_name + " " + entity['name']);
+  console.log('No graphic for ' + kind_name + ' ' + entity['name']);
   return null;
 }
 
@@ -133,33 +130,30 @@ function tileset_ruleset_entity_tag_str_or_alt(entity, kind_name)
   Returns the tag name of the graphic showing the specified Extra on the
   map.
 **************************************************************************/
-function tileset_extra_graphic_tag(extra)
-{
-  return tileset_ruleset_entity_tag_str_or_alt(extra, "extra");
+function tileset_extra_graphic_tag(extra) {
+  return tileset_ruleset_entity_tag_str_or_alt(extra, 'extra');
 }
 
 /**************************************************************************
   Returns the tag name of the graphic showing the specified unit type.
 **************************************************************************/
-function tileset_unit_type_graphic_tag(utype)
-{
-  if (tileset_has_tag(utype['graphic_str'] + "_Idle")) {
-    return utype['graphic_str'] + "_Idle";
+function tileset_unit_type_graphic_tag(utype) {
+  if (tileset_has_tag(utype['graphic_str'] + '_Idle')) {
+    return utype['graphic_str'] + '_Idle';
   }
 
-  if (tileset_has_tag(utype['graphic_alt'] + "_Idle")) {
-    return utype['graphic_alt'] + "_Idle";
+  if (tileset_has_tag(utype['graphic_alt'] + '_Idle')) {
+    return utype['graphic_alt'] + '_Idle';
   }
 
-  console.log("No graphic for unit " + utype['name']);
+  console.log('No graphic for unit ' + utype['name']);
   return null;
 }
 
 /**************************************************************************
   Returns the tag name of the graphic for the unit.
 **************************************************************************/
-function tileset_unit_graphic_tag(punit)
-{
+function tileset_unit_graphic_tag(punit) {
   /* Currently always uses the default "_Idle" sprite */
   return tileset_unit_type_graphic_tag(unit_type(punit));
 }
@@ -167,25 +161,22 @@ function tileset_unit_graphic_tag(punit)
 /**************************************************************************
   Returns the tag name of the graphic showing the specified building.
 **************************************************************************/
-function tileset_building_graphic_tag(pimprovement)
-{
-  return tileset_ruleset_entity_tag_str_or_alt(pimprovement, "building");
+function tileset_building_graphic_tag(pimprovement) {
+  return tileset_ruleset_entity_tag_str_or_alt(pimprovement, 'building');
 }
 
 /**************************************************************************
   Returns the tag name of the graphic showing the specified tech.
 **************************************************************************/
-function tileset_tech_graphic_tag(ptech)
-{
-  return tileset_ruleset_entity_tag_str_or_alt(ptech, "tech");
+function tileset_tech_graphic_tag(ptech) {
+  return tileset_ruleset_entity_tag_str_or_alt(ptech, 'tech');
 }
 
 /**************************************************************************
   Returns the tag name of the graphic showing the Extra specified by ID on
   the map.
 **************************************************************************/
-function tileset_extra_id_graphic_tag(extra_id)
-{
+function tileset_extra_id_graphic_tag(extra_id) {
   return tileset_extra_graphic_tag(extras[extra_id]);
 }
 
@@ -193,10 +184,9 @@ function tileset_extra_id_graphic_tag(extra_id)
   Returns the tag name of the graphic showing that a unit is building the
   specified Extra.
 **************************************************************************/
-function tileset_extra_activity_graphic_tag(extra)
-{
+function tileset_extra_activity_graphic_tag(extra) {
   if (extra == null) {
-    console.log("No extra to return tag for.");
+    console.log('No extra to return tag for.');
     return null;
   }
 
@@ -212,7 +202,7 @@ function tileset_extra_activity_graphic_tag(extra)
     return extra['act_gfx_alt2'];
   }
 
-  console.log("No activity graphic for extra " + extra['name']);
+  console.log('No activity graphic for extra ' + extra['name']);
 
   return null;
 }
@@ -221,8 +211,7 @@ function tileset_extra_activity_graphic_tag(extra)
   Returns the tag name of the graphic showing that a unit is building the
   Extra specified by the id.
 **************************************************************************/
-function tileset_extra_id_activity_graphic_tag(extra_id)
-{
+function tileset_extra_id_activity_graphic_tag(extra_id) {
   return tileset_extra_activity_graphic_tag(extras[extra_id]);
 }
 
@@ -230,10 +219,9 @@ function tileset_extra_id_activity_graphic_tag(extra_id)
   Returns the tag name of the graphic showing that a unit is removing the
   specified Extra.
 **************************************************************************/
-function tileset_extra_rmactivity_graphic_tag(extra)
-{
+function tileset_extra_rmactivity_graphic_tag(extra) {
   if (extra == null) {
-    console.log("No extra to return tag for.");
+    console.log('No extra to return tag for.');
     return null;
   }
 
@@ -249,7 +237,7 @@ function tileset_extra_rmactivity_graphic_tag(extra)
     return extra['rmact_gfx_alt2'];
   }
 
-  console.log("No removal activity graphic for extra " + extra['name']);
+  console.log('No removal activity graphic for extra ' + extra['name']);
 
   return null;
 }
@@ -258,8 +246,7 @@ function tileset_extra_rmactivity_graphic_tag(extra)
   Returns the tag name of the graphic showing that a unit is removing the
   Extra specified by the id.
 **************************************************************************/
-function tileset_extra_id_rmactivity_graphic_tag(extra_id)
-{
+function tileset_extra_id_rmactivity_graphic_tag(extra_id) {
   return tileset_extra_rmactivity_graphic_tag(extras[extra_id]);
 }
 
@@ -279,96 +266,90 @@ function tileset_extra_id_rmactivity_graphic_tag(extra_id)
   citymode specifies whether this is part of a citydlg.  If so some drawing
   is done differently.
 ****************************************************************************/
-function fill_sprite_array(layer, ptile, pedge, pcorner, punit, pcity, citymode)
-{
+function fill_sprite_array(layer, ptile, pedge, pcorner, punit, pcity, citymode) {
   var sprite_array = [];
 
   switch (layer) {
     case LAYER_TERRAIN1:
-    if (ptile != null) {
-      var tterrain_near = tile_terrain_near(ptile);
-      var pterrain = tile_terrain(ptile);
-      sprite_array = sprite_array.concat(fill_terrain_sprite_layer(0, ptile, pterrain, tterrain_near));
-
-    }
-    break;
+      if (ptile != null) {
+        var tterrain_near = tile_terrain_near(ptile);
+        var pterrain = tile_terrain(ptile);
+        sprite_array = sprite_array.concat(
+          fill_terrain_sprite_layer(0, ptile, pterrain, tterrain_near)
+        );
+      }
+      break;
 
     case LAYER_TERRAIN2:
-    if (ptile != null) {
-      var tterrain_near = tile_terrain_near(ptile);
-      var pterrain = tile_terrain(ptile);
-      sprite_array = sprite_array.concat(fill_terrain_sprite_layer(1, ptile, pterrain, tterrain_near));
-
-    }
-    break;
+      if (ptile != null) {
+        var tterrain_near = tile_terrain_near(ptile);
+        var pterrain = tile_terrain(ptile);
+        sprite_array = sprite_array.concat(
+          fill_terrain_sprite_layer(1, ptile, pterrain, tterrain_near)
+        );
+      }
+      break;
 
     case LAYER_TERRAIN3:
       if (ptile != null) {
         var tterrain_near = tile_terrain_near(ptile);
         var pterrain = tile_terrain(ptile);
-        sprite_array = sprite_array.concat(fill_terrain_sprite_layer(2, ptile, pterrain, tterrain_near));
+        sprite_array = sprite_array.concat(
+          fill_terrain_sprite_layer(2, ptile, pterrain, tterrain_near)
+        );
 
         sprite_array = sprite_array.concat(fill_irrigation_sprite_array(ptile, pcity));
       }
-    break;
+      break;
 
     case LAYER_ROADS:
       if (ptile != null) {
         sprite_array = sprite_array.concat(fill_path_sprite_array(ptile, pcity));
       }
-    break;
+      break;
 
     case LAYER_SPECIAL1:
       if (ptile != null) {
-
         var river_sprite = get_tile_river_sprite(ptile);
         if (river_sprite != null) sprite_array.push(river_sprite);
 
         var spec_sprite = get_tile_specials_sprite(ptile);
         if (spec_sprite != null) sprite_array.push(spec_sprite);
 
-
         if (tile_has_extra(ptile, EXTRA_MINE)) {
-          sprite_array.push({"key" :
-                              tileset_extra_id_graphic_tag(EXTRA_MINE)});
+          sprite_array.push({ key: tileset_extra_id_graphic_tag(EXTRA_MINE) });
         }
         if (tile_has_extra(ptile, EXTRA_OIL_WELL)) {
-          sprite_array.push({"key" :
-                              tileset_extra_id_graphic_tag(EXTRA_OIL_WELL)});
+          sprite_array.push({ key: tileset_extra_id_graphic_tag(EXTRA_OIL_WELL) });
         }
 
         sprite_array = sprite_array.concat(fill_layer1_sprite_array(ptile, pcity));
 
         if (tile_has_extra(ptile, EXTRA_HUT)) {
-          sprite_array.push({"key" :
-                              tileset_extra_id_graphic_tag(EXTRA_HUT)});
+          sprite_array.push({ key: tileset_extra_id_graphic_tag(EXTRA_HUT) });
         }
 
         if (tile_has_extra(ptile, EXTRA_POLLUTION)) {
-          sprite_array.push({"key" :
-                              tileset_extra_id_graphic_tag(EXTRA_POLLUTION)});
+          sprite_array.push({ key: tileset_extra_id_graphic_tag(EXTRA_POLLUTION) });
         }
 
         if (tile_has_extra(ptile, EXTRA_FALLOUT)) {
-          sprite_array.push({"key" :
-                              tileset_extra_id_graphic_tag(EXTRA_FALLOUT)});
+          sprite_array.push({ key: tileset_extra_id_graphic_tag(EXTRA_FALLOUT) });
         }
 
         sprite_array = sprite_array.concat(get_border_line_sprites(ptile));
-
       }
-    break;
+      break;
 
     case LAYER_CITY1:
       if (pcity != null) {
         sprite_array.push(get_city_sprite(pcity));
-	if (pcity['unhappy']) {
-          sprite_array.push({"key" : "city.disorder"});
-	}
+        if (pcity['unhappy']) {
+          sprite_array.push({ key: 'city.disorder' });
+        }
       }
 
-
-    break;
+      break;
 
     case LAYER_SPECIAL2:
       if (ptile != null) {
@@ -377,11 +358,12 @@ function fill_sprite_array(layer, ptile, pedge, pcorner, punit, pcity, citymode)
       break;
 
     case LAYER_UNIT:
-      var do_draw_unit = (punit != null && (draw_units || ptile == null || (draw_focus_unit
-				     && unit_is_in_focus(punit))));
+      var do_draw_unit =
+        punit != null &&
+        (draw_units || ptile == null || (draw_focus_unit && unit_is_in_focus(punit)));
 
       if (do_draw_unit && active_city == null) {
-        var stacked = (ptile['units'] != null && ptile['units'].length > 1);
+        var stacked = ptile['units'] != null && ptile['units'].length > 1;
         var backdrop = false; /* !pcity;*/
 
         if (unit_is_in_focus(punit)) {
@@ -389,43 +371,50 @@ function fill_sprite_array(layer, ptile, pedge, pcorner, punit, pcity, citymode)
         }
 
         /* TODO: Special case for drawing the selection rectangle.  The blinking
-        * unit is handled separately, inside get_drawable_unit(). */
+         * unit is handled separately, inside get_drawable_unit(). */
         sprite_array = sprite_array.concat(fill_unit_sprite_array(punit, stacked, backdrop));
+      }
 
-    }
+      /* show explosion animation on current tile.*/
+      if (ptile != null && explosion_anim_map[ptile['index']] != null) {
+        var explode_step = explosion_anim_map[ptile['index']];
+        explosion_anim_map[ptile['index']] = explode_step - 1;
+        if (explode_step > 20) {
+          sprite_array.push({
+            key: 'explode.unit_0',
+            offset_x: unit_offset_x,
+            offset_y: unit_offset_y,
+          });
+        } else if (explode_step > 15) {
+          sprite_array.push({
+            key: 'explode.unit_1',
+            offset_x: unit_offset_x,
+            offset_y: unit_offset_y,
+          });
+        } else if (explode_step > 10) {
+          sprite_array.push({
+            key: 'explode.unit_2',
+            offset_x: unit_offset_x,
+            offset_y: unit_offset_y,
+          });
+        } else if (explode_step > 5) {
+          sprite_array.push({
+            key: 'explode.unit_3',
+            offset_x: unit_offset_x,
+            offset_y: unit_offset_y,
+          });
+        } else if (explode_step > 0) {
+          sprite_array.push({
+            key: 'explode.unit_4',
+            offset_x: unit_offset_x,
+            offset_y: unit_offset_y,
+          });
+        } else {
+          delete explosion_anim_map[ptile['index']];
+        }
+      }
 
-    /* show explosion animation on current tile.*/
-     if (ptile != null && explosion_anim_map[ptile['index']] != null) {
-       var explode_step = explosion_anim_map[ptile['index']];
-       explosion_anim_map[ptile['index']] =  explode_step - 1;
-       if (explode_step > 20) {
-         sprite_array.push({"key" : "explode.unit_0",
-           "offset_x" : unit_offset_x,
-           "offset_y" : unit_offset_y});
-       } else if (explode_step > 15) {
-         sprite_array.push({"key" : "explode.unit_1",
-           "offset_x" : unit_offset_x,
-           "offset_y" : unit_offset_y});
-       } else if (explode_step > 10) {
-         sprite_array.push({"key" : "explode.unit_2",
-           "offset_x" : unit_offset_x,
-           "offset_y" : unit_offset_y});
-       } else if (explode_step > 5) {
-         sprite_array.push({"key" : "explode.unit_3",
-           "offset_x" : unit_offset_x,
-           "offset_y" : unit_offset_y});
-       } else if (explode_step > 0) {
-         sprite_array.push({"key" : "explode.unit_4",
-           "offset_x" : unit_offset_x,
-           "offset_y" : unit_offset_y});
-       } else {
-         delete explosion_anim_map[ptile['index']];
-       }
-
-     }
-
-
-    break;
+      break;
 
     case LAYER_FOG:
       sprite_array = sprite_array.concat(fill_fog_sprite_array(ptile, pedge, pcorner));
@@ -449,8 +438,13 @@ function fill_sprite_array(layer, ptile, pedge, pcorner, punit, pcity, citymode)
         sprite_array.push(get_city_info_text(pcity));
       }
 
-      if (active_city != null && ptile != null && ptile['worked'] != null
-          && active_city['id'] == ptile['worked'] && active_city['output_food'] != null) {
+      if (
+        active_city != null &&
+        ptile != null &&
+        ptile['worked'] != null &&
+        active_city['id'] == ptile['worked'] &&
+        active_city['output_food'] != null
+      ) {
         var ctile = city_tile(active_city);
         var d = map_distance_vector(ctile, ptile);
         var idx = get_city_dxy_to_index(d[0], d[1], active_city);
@@ -480,71 +474,62 @@ function fill_sprite_array(layer, ptile, pedge, pcorner, punit, pcity, citymode)
 
       if (ptile != null && ptile['nuke'] > 0) {
         ptile['nuke'] = ptile['nuke'] - 1;
-        sprite_array.push({"key" : "explode.nuke",
-               "offset_x" : -45,
-               "offset_y" : -45});
+        sprite_array.push({ key: 'explode.nuke', offset_x: -45, offset_y: -45 });
       }
- 
+
       break;
   }
 
-
   return sprite_array;
-
 }
-
 
 /****************************************************************************
   Add sprites for the base tile to the sprite list.  This doesn't
   include specials or rivers.
 ****************************************************************************/
-function fill_terrain_sprite_layer(layer_num, ptile, pterrain, tterrain_near)
-{
+function fill_terrain_sprite_layer(layer_num, ptile, pterrain, tterrain_near) {
   /* FIXME: handle blending and darkness. */
 
   return fill_terrain_sprite_array(layer_num, ptile, pterrain, tterrain_near);
-
 }
 
 /****************************************************************************
   Helper function for fill_terrain_sprite_layer.
 ****************************************************************************/
-function fill_terrain_sprite_array(l, ptile, pterrain, tterrain_near)
-{
-
-  if (tile_types_setup["l" + l + "." + pterrain['graphic_str']] == null) {
+function fill_terrain_sprite_array(l, ptile, pterrain, tterrain_near) {
+  if (tile_types_setup['l' + l + '.' + pterrain['graphic_str']] == null) {
     //console.log("missing " + "l" + l + "." + pterrain['graphic_str']);
     return [];
   }
 
-  var dlp = tile_types_setup["l" + l + "." + pterrain['graphic_str']];
+  var dlp = tile_types_setup['l' + l + '.' + pterrain['graphic_str']];
 
   switch (dlp['sprite_type']) {
-    case CELL_WHOLE:
-    {
+    case CELL_WHOLE: {
       switch (dlp['match_style']) {
-        case MATCH_NONE:
-        {
+        case MATCH_NONE: {
           var result_sprites = [];
-      	   if (dlp['dither'] == true) {
-             for (var i = 0; i < num_cardinal_tileset_dirs; i++) {
-               if (ts_tiles[tterrain_near[DIR4_TO_DIR8[i]]['graphic_str']] == null) continue;
-               var near_dlp = tile_types_setup["l" + l + "." + tterrain_near[DIR4_TO_DIR8[i]]['graphic_str']];
-	           var terrain_near = (near_dlp['dither'] == true) ?  tterrain_near[DIR4_TO_DIR8[i]]['graphic_str'] : pterrain['graphic_str'];
-	           var dither_tile = i + pterrain['graphic_str'] + "_" +  terrain_near;
-               var x = dither_offset_x[i];
-               var y = dither_offset_y[i];
-	           result_sprites.push({"key": dither_tile, "offset_x" : x, "offset_y" : y});
-             }
-	        return result_sprites;
-
-	       } else {
-             return [ {"key" : "t.l" + l + "." + pterrain['graphic_str'] + 1} ];
-	       }
+          if (dlp['dither'] == true) {
+            for (var i = 0; i < num_cardinal_tileset_dirs; i++) {
+              if (ts_tiles[tterrain_near[DIR4_TO_DIR8[i]]['graphic_str']] == null) continue;
+              var near_dlp =
+                tile_types_setup['l' + l + '.' + tterrain_near[DIR4_TO_DIR8[i]]['graphic_str']];
+              var terrain_near =
+                near_dlp['dither'] == true
+                  ? tterrain_near[DIR4_TO_DIR8[i]]['graphic_str']
+                  : pterrain['graphic_str'];
+              var dither_tile = i + pterrain['graphic_str'] + '_' + terrain_near;
+              var x = dither_offset_x[i];
+              var y = dither_offset_y[i];
+              result_sprites.push({ key: dither_tile, offset_x: x, offset_y: y });
+            }
+            return result_sprites;
+          } else {
+            return [{ key: 't.l' + l + '.' + pterrain['graphic_str'] + 1 }];
+          }
         }
 
-        case MATCH_SAME:
-        {
+        case MATCH_SAME: {
           var tileno = 0;
           var this_match_type = ts_tiles[pterrain['graphic_str']]['layer' + l + '_match_type'];
 
@@ -555,16 +540,16 @@ function fill_terrain_sprite_array(l, ptile, pterrain, tterrain_near)
               tileno |= 1 << i;
             }
           }
-          var gfx_key = "t.l" + l + "." + pterrain['graphic_str'] + "_" + cardinal_index_str(tileno);
-	      var y = tileset_tile_height - tileset[gfx_key][3];
+          var gfx_key =
+            't.l' + l + '.' + pterrain['graphic_str'] + '_' + cardinal_index_str(tileno);
+          var y = tileset_tile_height - tileset[gfx_key][3];
 
-          return [ {"key" : gfx_key, "offset_x" : 0, "offset_y" : y} ];
+          return [{ key: gfx_key, offset_x: 0, offset_y: y }];
         }
       }
     }
 
-    case CELL_CORNER:
-    {
+    case CELL_CORNER: {
       /* Divide the tile up into four rectangular cells. Each of these
        * cells covers one corner, and each is adjacent to 3 different
        * tiles.  For each cell we pick a sprite based upon the adjacent
@@ -575,37 +560,57 @@ function fill_terrain_sprite_array(l, ptile, pterrain, tterrain_near)
 
       var W = normal_tile_width;
       var H = normal_tile_height;
-      var iso_offsets = [ [W / 4, 0], [W / 4, H / 2], [W / 2, H / 4], [0, H / 4]];
-      var this_match_index = ('l' + l + '.' + pterrain['graphic_str'] in tile_types_setup) ? tile_types_setup['l' + l + '.' + pterrain['graphic_str']]['match_index'][0] : -1;
+      var iso_offsets = [
+        [W / 4, 0],
+        [W / 4, H / 2],
+        [W / 2, H / 4],
+        [0, H / 4],
+      ];
+      var this_match_index =
+        'l' + l + '.' + pterrain['graphic_str'] in tile_types_setup
+          ? tile_types_setup['l' + l + '.' + pterrain['graphic_str']]['match_index'][0]
+          : -1;
       /* var that_match_index = ('l' + l + '.' + pterrain['graphic_str'] in tile_types_setup) ? tile_types_setup['l' + l + '.' + pterrain['graphic_str']]['match_index'][1] : -1; */
       var result_sprites = [];
 
       /* Put corner cells */
       for (var i = 0; i < NUM_CORNER_DIRS; i++) {
-	    var count = dlp['match_indices'];
-	    var array_index = 0;
-	    var dir = dir_ccw(DIR4_TO_DIR8[i]);
-	    var x = iso_offsets[i][0];
-	    var y = iso_offsets[i][1];
+        var count = dlp['match_indices'];
+        var array_index = 0;
+        var dir = dir_ccw(DIR4_TO_DIR8[i]);
+        var x = iso_offsets[i][0];
+        var y = iso_offsets[i][1];
 
-	    var m = [('l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str'] in tile_types_setup) ? tile_types_setup['l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str']]['match_index'][0] : -1 ,
-	             ('l' + l + '.' + tterrain_near[dir]['graphic_str'] in tile_types_setup) ? tile_types_setup['l' + l + '.' + tterrain_near[dir]['graphic_str']]['match_index'][0] : -1,
-	             ('l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str'] in tile_types_setup) ? tile_types_setup['l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str']]['match_index'][0] : -1];
+        var m = [
+          'l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str'] in tile_types_setup
+            ? tile_types_setup['l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str']][
+                'match_index'
+              ][0]
+            : -1,
+          'l' + l + '.' + tterrain_near[dir]['graphic_str'] in tile_types_setup
+            ? tile_types_setup['l' + l + '.' + tterrain_near[dir]['graphic_str']]['match_index'][0]
+            : -1,
+          'l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str'] in tile_types_setup
+            ? tile_types_setup['l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str']][
+                'match_index'
+              ][0]
+            : -1,
+        ];
 
         /* synthesize 4 dimensional array? */
-	    switch (dlp['match_style']) {
-	    case MATCH_NONE:
-	      /* We have no need for matching, just plug the piece in place. */
-	      break;
-	    case MATCH_SAME:
-	      	var b1 = (m[2] != this_match_index) ? 1 : 0;
-	      	var b2 = (m[1] != this_match_index) ? 1 : 0;
-	      	var b3 = (m[0] != this_match_index) ? 1 : 0;
-	      	array_index = array_index * 2 + b1;
-			array_index = array_index * 2 + b2;
-	  		array_index = array_index * 2 + b3;
-	      break;
-	    case MATCH_PAIR:
+        switch (dlp['match_style']) {
+          case MATCH_NONE:
+            /* We have no need for matching, just plug the piece in place. */
+            break;
+          case MATCH_SAME:
+            var b1 = m[2] != this_match_index ? 1 : 0;
+            var b2 = m[1] != this_match_index ? 1 : 0;
+            var b3 = m[0] != this_match_index ? 1 : 0;
+            array_index = array_index * 2 + b1;
+            array_index = array_index * 2 + b2;
+            array_index = array_index * 2 + b3;
+            break;
+          case MATCH_PAIR:
             // FIXME: This doesn't work!
             /*var b1 = (m[2] == that_match_index) ? 1 : 0;
             var b2 = (m[1] == that_match_index) ? 1 : 0;
@@ -616,29 +621,32 @@ function fill_terrain_sprite_array(l, ptile, pterrain, tterrain_near)
 
             return [];
 
-	      break;
-	    case MATCH_FULL:
-  	      {
-	      var n = [];
-	      var j = 0;
-	      for (; j < 3; j++) {
-	        var k = 0;
-	        for (; k < count; k++) {
-		      n[j] = k; /* default to last entry */
-		      if (m[j] == dlp['match_index'][k]) {
-		        break;
+            break;
+          case MATCH_FULL:
+            {
+              var n = [];
+              var j = 0;
+              for (; j < 3; j++) {
+                var k = 0;
+                for (; k < count; k++) {
+                  n[j] = k; /* default to last entry */
+                  if (m[j] == dlp['match_index'][k]) {
+                    break;
+                  }
+                }
               }
-	        }
-	      }
-	      array_index = array_index * count + n[2];
-	      array_index = array_index * count + n[1];
-	      array_index = array_index * count + n[0];
-	    }
-	    break;
-	  };
-	  array_index = array_index * NUM_CORNER_DIRS + i;
-	  result_sprites.push({"key" : cellgroup_map[pterrain['graphic_str'] + "." + array_index]  + "." + i, "offset_x" : x, "offset_y" : y});
-
+              array_index = array_index * count + n[2];
+              array_index = array_index * count + n[1];
+              array_index = array_index * count + n[0];
+            }
+            break;
+        }
+        array_index = array_index * NUM_CORNER_DIRS + i;
+        result_sprites.push({
+          key: cellgroup_map[pterrain['graphic_str'] + '.' + array_index] + '.' + i,
+          offset_x: x,
+          offset_y: y,
+        });
       }
 
       return result_sprites;
@@ -646,38 +654,37 @@ function fill_terrain_sprite_array(l, ptile, pterrain, tterrain_near)
   }
 
   return [];
-
 }
-
 
 /**********************************************************************
   Determine the sprite_type string.
 ***********************************************************************/
-function check_sprite_type(sprite_type)
-{
-  if (sprite_type == "corner") {
+function check_sprite_type(sprite_type) {
+  if (sprite_type == 'corner') {
     return CELL_CORNER;
   }
-  if (sprite_type == "single") {
+  if (sprite_type == 'single') {
     return CELL_WHOLE;
   }
-  if (sprite_type == "whole") {
+  if (sprite_type == 'whole') {
     return CELL_WHOLE;
   }
   return CELL_WHOLE;
 }
 
-
 /**************************************************************************
  ...
 **************************************************************************/
-function fill_unit_sprite_array(punit, stacked, backdrop)
-{
+function fill_unit_sprite_array(punit, stacked, backdrop) {
   var unit_offset = get_unit_anim_offset(punit);
-  var result = [ get_unit_nation_flag_sprite(punit),
-           {"key" : tileset_unit_graphic_tag(punit),
-            "offset_x": unit_offset['x'] + unit_offset_x,
-	    "offset_y" : unit_offset['y'] - unit_offset_y} ];
+  var result = [
+    get_unit_nation_flag_sprite(punit),
+    {
+      key: tileset_unit_graphic_tag(punit),
+      offset_x: unit_offset['x'] + unit_offset_x,
+      offset_y: unit_offset['y'] - unit_offset_y,
+    },
+  ];
   var activities = get_unit_activity_sprite(punit);
   if (activities != null) {
     activities['offset_x'] = activities['offset_x'] + unit_offset['x'];
@@ -693,9 +700,9 @@ function fill_unit_sprite_array(punit, stacked, backdrop)
 
   if (should_ask_server_for_actions(punit)) {
     result.push({
-      "key"      : "unit.action_decision_want",
-      "offset_x" : unit_activity_offset_x + unit_offset['x'],
-      "offset_y" : -unit_activity_offset_y + unit_offset['y'],
+      key: 'unit.action_decision_want',
+      offset_x: unit_activity_offset_x + unit_offset['x'],
+      offset_y: -unit_activity_offset_y + unit_offset['y'],
     });
   }
 
@@ -710,39 +717,36 @@ function fill_unit_sprite_array(punit, stacked, backdrop)
   Return the tileset name of the direction. This is similar to
   dir_get_name but you shouldn't change this or all tilesets will break.
 **************************************************************************/
-function dir_get_tileset_name(dir)
-{
+function dir_get_tileset_name(dir) {
   switch (dir) {
-  case DIR8_NORTH:
-    return "n";
-  case DIR8_NORTHEAST:
-    return "ne";
-  case DIR8_EAST:
-    return "e";
-  case DIR8_SOUTHEAST:
-    return "se";
-  case DIR8_SOUTH:
-    return "s";
-  case DIR8_SOUTHWEST:
-    return "sw";
-  case DIR8_WEST:
-    return "w";
-  case DIR8_NORTHWEST:
-    return "nw";
+    case DIR8_NORTH:
+      return 'n';
+    case DIR8_NORTHEAST:
+      return 'ne';
+    case DIR8_EAST:
+      return 'e';
+    case DIR8_SOUTHEAST:
+      return 'se';
+    case DIR8_SOUTH:
+      return 's';
+    case DIR8_SOUTHWEST:
+      return 'sw';
+    case DIR8_WEST:
+      return 'w';
+    case DIR8_NORTHWEST:
+      return 'nw';
   }
 
-  return "";
+  return '';
 }
-
 
 /****************************************************************************
   Return a directional string for the cardinal directions. Normally the
   binary value 1000 will be converted into "n1e0s0w0". This is in a
   clockwise ordering.
 ****************************************************************************/
-function cardinal_index_str(idx)
-{
-  var c = "";
+function cardinal_index_str(idx) {
+  var c = '';
 
   for (var i = 0; i < num_cardinal_tileset_dirs; i++) {
     var value = (idx >> i) & 1;
@@ -753,12 +757,10 @@ function cardinal_index_str(idx)
   return c;
 }
 
-
 /***********************************************************************
   Return the flag graphic to be used by the city.
 ***********************************************************************/
-function get_city_flag_sprite(pcity)
-{
+function get_city_flag_sprite(pcity) {
   var owner_id = pcity['owner'];
   if (owner_id == null) return {};
   var owner = players[owner_id];
@@ -767,16 +769,17 @@ function get_city_flag_sprite(pcity)
   if (nation_id == null) return {};
   var nation = nations[nation_id];
   if (nation == null) return {};
-  return {"key" : "f." + nation['graphic_str'],
-          "offset_x" : city_flag_offset_x,
-          "offset_y" : - city_flag_offset_y};
+  return {
+    key: 'f.' + nation['graphic_str'],
+    offset_x: city_flag_offset_x,
+    offset_y: -city_flag_offset_y,
+  };
 }
 
 /***********************************************************************
   Return the flag graphic to be used by the base on tile
 ***********************************************************************/
-function get_base_flag_sprite(ptile)
-{
+function get_base_flag_sprite(ptile) {
   var owner_id = ptile['extras_owner'];
   if (owner_id == null) return {};
   var owner = players[owner_id];
@@ -785,120 +788,124 @@ function get_base_flag_sprite(ptile)
   if (nation_id == null) return {};
   var nation = nations[nation_id];
   if (nation == null) return {};
-  return {"key" : "f." + nation['graphic_str'],
-          "offset_x" : city_flag_offset_x,
-          "offset_y" : - city_flag_offset_y};
+  return {
+    key: 'f.' + nation['graphic_str'],
+    offset_x: city_flag_offset_x,
+    offset_y: -city_flag_offset_y,
+  };
 }
 
 /***********************************************************************
   Returns the sprite key for the number of defending units in a city.
 ***********************************************************************/
-function get_city_occupied_sprite(pcity)
-{
+function get_city_occupied_sprite(pcity) {
   var owner_id = pcity['owner'];
   var ptile = city_tile(pcity);
   var punits = tile_units(ptile);
 
-  if (!observing && client.conn.playing != null
-      && owner_id != client.conn.playing.playerno && pcity['occupied']) {
-    return "citybar.occupied";
+  if (
+    !observing &&
+    client.conn.playing != null &&
+    owner_id != client.conn.playing.playerno &&
+    pcity['occupied']
+  ) {
+    return 'citybar.occupied';
   } else if (punits.length == 1) {
-    return "citybar.occupancy_1";
+    return 'citybar.occupancy_1';
   } else if (punits.length == 2) {
-    return "citybar.occupancy_2";
+    return 'citybar.occupancy_2';
   } else if (punits.length >= 3) {
-    return "citybar.occupancy_3";
+    return 'citybar.occupancy_3';
   } else {
-    return "citybar.occupancy_0";
+    return 'citybar.occupancy_0';
   }
 }
 
 /***********************************************************************
   ...
 ***********************************************************************/
-function get_city_food_output_sprite(num)
-{
-  return {"key" : "city.t_food_" + num,
-          "offset_x" : normal_tile_width / 4,
-          "offset_y" : -normal_tile_height / 4};
+function get_city_food_output_sprite(num) {
+  return {
+    key: 'city.t_food_' + num,
+    offset_x: normal_tile_width / 4,
+    offset_y: -normal_tile_height / 4,
+  };
 }
 
 /***********************************************************************
 ...
 ***********************************************************************/
-function get_city_shields_output_sprite(num)
-{
-  return {"key" : "city.t_shields_" + num,
-          "offset_x" : normal_tile_width / 4,
-          "offset_y" : -normal_tile_height / 4};
+function get_city_shields_output_sprite(num) {
+  return {
+    key: 'city.t_shields_' + num,
+    offset_x: normal_tile_width / 4,
+    offset_y: -normal_tile_height / 4,
+  };
 }
 
 /***********************************************************************
 ...
 ***********************************************************************/
-function get_city_trade_output_sprite(num)
-{
-  return {"key" : "city.t_trade_" + num,
-          "offset_x" : normal_tile_width / 4,
-          "offset_y" : -normal_tile_height / 4};
+function get_city_trade_output_sprite(num) {
+  return {
+    key: 'city.t_trade_' + num,
+    offset_x: normal_tile_width / 4,
+    offset_y: -normal_tile_height / 4,
+  };
 }
-
 
 /***********************************************************************
   Return the sprite for an invalid city worked tile.
 ***********************************************************************/
-function get_city_invalid_worked_sprite()
-{
-  return {"key" : "grid.unavailable",
-          "offset_x" : 0,
-          "offset_y" : 0};
-}
-
-
-/***********************************************************************
-...
-***********************************************************************/
-function fill_goto_line_sprite_array(ptile)
-{
-  return {"key" : "goto_line", "goto_dir" : ptile['goto_dir']};
+function get_city_invalid_worked_sprite() {
+  return { key: 'grid.unavailable', offset_x: 0, offset_y: 0 };
 }
 
 /***********************************************************************
 ...
 ***********************************************************************/
-function get_border_line_sprites(ptile)
-{
+function fill_goto_line_sprite_array(ptile) {
+  return { key: 'goto_line', goto_dir: ptile['goto_dir'] };
+}
+
+/***********************************************************************
+...
+***********************************************************************/
+function get_border_line_sprites(ptile) {
   var result = [];
 
   for (var i = 0; i < num_cardinal_tileset_dirs; i++) {
     var dir = cardinal_tileset_dirs[i];
     var checktile = mapstep(ptile, dir);
 
-    if (checktile != null && checktile['owner'] != null
-        && ptile['owner'] != null
-        && ptile['owner'] != checktile['owner']
-        && ptile['owner'] != 255 /* 255 is a special constant indicating that the tile is not owned by anyone. */
-        && players[ptile['owner']] != null) {
+    if (
+      checktile != null &&
+      checktile['owner'] != null &&
+      ptile['owner'] != null &&
+      ptile['owner'] != checktile['owner'] &&
+      ptile['owner'] !=
+        255 /* 255 is a special constant indicating that the tile is not owned by anyone. */ &&
+      players[ptile['owner']] != null
+    ) {
       var pnation = nations[players[ptile['owner']]['nation']];
-      result.push({"key" : "border", "dir" : dir,
-                   "color": pnation['color']});
+      result.push({ key: 'border', dir: dir, color: pnation['color'] });
     }
   }
 
   return result;
 }
 
-
 /***********************************************************************
   ...
 ***********************************************************************/
-function get_unit_nation_flag_sprite(punit)
-{
+function get_unit_nation_flag_sprite(punit) {
   var owner_id = punit['owner'];
 
-  if (unit_type(punit)['flags'].isSet(UTYF_FLAGLESS)
-      && client.conn.playing != null
-      && owner_id != client.conn.playing.playerno) {
+  if (
+    unit_type(punit)['flags'].isSet(UTYF_FLAGLESS) &&
+    client.conn.playing != null &&
+    owner_id != client.conn.playing.playerno
+  ) {
     return [];
   } else {
     var owner = players[owner_id];
@@ -906,159 +913,188 @@ function get_unit_nation_flag_sprite(punit)
     var nation = nations[nation_id];
     var unit_offset = get_unit_anim_offset(punit);
 
-    return {"key" : "f.shield." + nation['graphic_str'],
-            "offset_x" : unit_flag_offset_x + unit_offset['x'],
-            "offset_y" : - unit_flag_offset_y + unit_offset['y']};
+    return {
+      key: 'f.shield.' + nation['graphic_str'],
+      offset_x: unit_flag_offset_x + unit_offset['x'],
+      offset_y: -unit_flag_offset_y + unit_offset['y'],
+    };
   }
 }
 
 /***********************************************************************
   ...
 ***********************************************************************/
-function get_unit_nation_flag_normal_sprite(punit)
-{
+function get_unit_nation_flag_normal_sprite(punit) {
   var owner_id = punit['owner'];
   var owner = players[owner_id];
   var nation_id = owner['nation'];
   var nation = nations[nation_id];
   var unit_offset = get_unit_anim_offset(punit);
 
-  return {"key" : "f." + nation['graphic_str'],
-          "offset_x" : unit_flag_offset_x + unit_offset['x'],
-          "offset_y" : - unit_flag_offset_y + unit_offset['y']};
+  return {
+    key: 'f.' + nation['graphic_str'],
+    offset_x: unit_flag_offset_x + unit_offset['x'],
+    offset_y: -unit_flag_offset_y + unit_offset['y'],
+  };
 }
 
 /***********************************************************************
   ...
 ***********************************************************************/
-function get_unit_stack_sprite(punit)
-{
-  return {"key" : "unit.stack",
-          "offset_x" : unit_flag_offset_x + -25,
-          "offset_y" : - unit_flag_offset_y - 15};
+function get_unit_stack_sprite(punit) {
+  return {
+    key: 'unit.stack',
+    offset_x: unit_flag_offset_x + -25,
+    offset_y: -unit_flag_offset_y - 15,
+  };
 }
 
 /***********************************************************************
   ...
 ***********************************************************************/
-function get_unit_hp_sprite(punit)
-{
+function get_unit_hp_sprite(punit) {
   var hp = punit['hp'];
   var utype = unit_type(punit);
   var max_hp = utype['hp'];
   var healthpercent = 10 * Math.floor((10 * hp) / max_hp);
   var unit_offset = get_unit_anim_offset(punit);
 
-  return {"key" : "unit.hp_" + healthpercent,
-          "offset_x" : unit_flag_offset_x + -25 + unit_offset['x'],
-          "offset_y" : - unit_flag_offset_y - 15 + unit_offset['y']};
+  return {
+    key: 'unit.hp_' + healthpercent,
+    offset_x: unit_flag_offset_x + -25 + unit_offset['x'],
+    offset_y: -unit_flag_offset_y - 15 + unit_offset['y'],
+  };
 }
 
 /***********************************************************************
   ...
 ***********************************************************************/
-function get_unit_veteran_sprite(punit)
-{
-  return {"key" : "unit.vet_" + punit['veteran'],
-          "offset_x" : unit_activity_offset_x - 20,
-          "offset_y" : - unit_activity_offset_y - 10};
+function get_unit_veteran_sprite(punit) {
+  return {
+    key: 'unit.vet_' + punit['veteran'],
+    offset_x: unit_activity_offset_x - 20,
+    offset_y: -unit_activity_offset_y - 10,
+  };
 }
 
 /***********************************************************************
   ...
 ***********************************************************************/
-function get_unit_activity_sprite(punit)
-{
+function get_unit_activity_sprite(punit) {
   if (punit['ssa_controller'] == SSA_AUTOEXPLORE) {
     // FIXME: Currently can't have SSA_AUTOEXPLORE sprite with activity sprites
     return null;
   }
 
   var activity = punit['activity'];
-  var act_tgt  = punit['activity_tgt'];
+  var act_tgt = punit['activity_tgt'];
 
   switch (activity) {
     case ACTIVITY_CLEAN:
-      return {"key" : -1 == act_tgt ?
-                        "unit.pollution" :
-                        tileset_extra_id_rmactivity_graphic_tag(act_tgt),
-          "offset_x" : unit_activity_offset_x,
-          "offset_y" : - unit_activity_offset_y};
+      return {
+        key: -1 == act_tgt ? 'unit.pollution' : tileset_extra_id_rmactivity_graphic_tag(act_tgt),
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
 
     case ACTIVITY_MINE:
-      return {"key"      : -1 == act_tgt ?
-                             "unit.plant" :
-                             tileset_extra_id_activity_graphic_tag(act_tgt),
-              "offset_x" : unit_activity_offset_x,
-              "offset_y" : - unit_activity_offset_y};
+      return {
+        key: -1 == act_tgt ? 'unit.plant' : tileset_extra_id_activity_graphic_tag(act_tgt),
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
 
     case ACTIVITY_PLANT:
-      return {"key" : "unit.plant",
-          "offset_x" : unit_activity_offset_x,
-          "offset_y" : - unit_activity_offset_y};
+      return {
+        key: 'unit.plant',
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
 
     case ACTIVITY_IRRIGATE:
-      return {"key" : -1 == act_tgt ?
-                        "unit.irrigate" :
-                        tileset_extra_id_activity_graphic_tag(act_tgt),
-              "offset_x" : unit_activity_offset_x,
-              "offset_y" : - unit_activity_offset_y};
+      return {
+        key: -1 == act_tgt ? 'unit.irrigate' : tileset_extra_id_activity_graphic_tag(act_tgt),
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
 
     case ACTIVITY_CULTIVATE:
-      return {"key" : "unit.cultivate",
-          "offset_x" : unit_activity_offset_x,
-          "offset_y" : - unit_activity_offset_y};
+      return {
+        key: 'unit.cultivate',
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
 
     case ACTIVITY_FORTIFIED:
-      return {"key" : "unit.fortified",
-          "offset_x" : unit_activity_offset_x,
-          "offset_y" : - unit_activity_offset_y};
+      return {
+        key: 'unit.fortified',
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
 
     case ACTIVITY_BASE:
-      return {"key" : tileset_extra_id_activity_graphic_tag(act_tgt),
-              "offset_x" : unit_activity_offset_x,
-              "offset_y" : - unit_activity_offset_y};
+      return {
+        key: tileset_extra_id_activity_graphic_tag(act_tgt),
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
 
     case ACTIVITY_SENTRY:
-      return {"key" : "unit.sentry",
-          "offset_x" : unit_activity_offset_x,
-          "offset_y" : - unit_activity_offset_y};
+      return {
+        key: 'unit.sentry',
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
 
     case ACTIVITY_PILLAGE:
-      return {"key" : "unit.pillage",
-          "offset_x" : unit_activity_offset_x,
-          "offset_y" : - unit_activity_offset_y};
+      return {
+        key: 'unit.pillage',
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
 
     case ACTIVITY_GOTO:
-      return {"key" : "unit.goto",
-          "offset_x" : unit_activity_offset_x,
-          "offset_y" : - unit_activity_offset_y};
+      return {
+        key: 'unit.goto',
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
 
     case ACTIVITY_TRANSFORM:
-      return {"key" : "unit.transform",
-          "offset_x" : unit_activity_offset_x,
-          "offset_y" : - unit_activity_offset_y};
+      return {
+        key: 'unit.transform',
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
 
     case ACTIVITY_FORTIFYING:
-      return {"key" : "unit.fortifying",
-          "offset_x" : unit_activity_offset_x,
-          "offset_y" : - unit_activity_offset_y};
+      return {
+        key: 'unit.fortifying',
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
 
     case ACTIVITY_GEN_ROAD:
-      return {"key" : tileset_extra_id_activity_graphic_tag(act_tgt),
-              "offset_x" : unit_activity_offset_x,
-              "offset_y" : - unit_activity_offset_y};
+      return {
+        key: tileset_extra_id_activity_graphic_tag(act_tgt),
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
 
     case ACTIVITY_CONVERT:
-      return {"key" : "unit.convert",
-          "offset_x" : unit_activity_offset_x,
-          "offset_y" : - unit_activity_offset_y};
+      return {
+        key: 'unit.convert',
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
   }
 
   if (unit_has_goto(punit)) {
-      return {"key" : "unit.goto",
-          "offset_x" : unit_activity_offset_x,
-          "offset_y" : - unit_activity_offset_y};
+    return {
+      key: 'unit.goto',
+      offset_x: unit_activity_offset_x,
+      offset_y: -unit_activity_offset_y,
+    };
   }
 
   return null;
@@ -1067,20 +1103,19 @@ function get_unit_activity_sprite(punit)
 /***********************************************************************
   ...
 ***********************************************************************/
-function get_unit_agent_sprite(punit)
-{
+function get_unit_agent_sprite(punit) {
   switch (punit['ssa_controller']) {
-  case SSA_NONE:
-    break;
-  case SSA_AUTOWORKER:
-    return {"key" : "unit.auto_worker",
-          "offset_x" : 0,
-          "offset_y" : 0};
-  case SSA_AUTOEXPLORE:
-    // Treated like an activity in the tilespec format
-    return {"key" : "unit.auto_explore",
-          "offset_x" : unit_activity_offset_x,
-          "offset_y" : -unit_activity_offset_y};
+    case SSA_NONE:
+      break;
+    case SSA_AUTOWORKER:
+      return { key: 'unit.auto_worker', offset_x: 0, offset_y: 0 };
+    case SSA_AUTOEXPLORE:
+      // Treated like an activity in the tilespec format
+      return {
+        key: 'unit.auto_explore',
+        offset_x: unit_activity_offset_x,
+        offset_y: -unit_activity_offset_y,
+      };
   }
 
   return null;
@@ -1092,61 +1127,60 @@ function get_unit_agent_sprite(punit)
 
   See also load_city_sprite, free_city_sprite.
 ****************************************************************************/
-function get_city_sprite(pcity)
-{
+function get_city_sprite(pcity) {
   var style_id = pcity['style'];
-  if (style_id == -1) style_id = 0;   /* Sometimes a player has no city_style. */
+  if (style_id == -1) style_id = 0; /* Sometimes a player has no city_style. */
   var city_rule = city_rules[style_id];
 
   var size = 0;
-  if (pcity['size'] >=4 && pcity['size'] <=7) {
+  if (pcity['size'] >= 4 && pcity['size'] <= 7) {
     size = 1;
-  } else if (pcity['size'] >=8 && pcity['size'] <=11) {
+  } else if (pcity['size'] >= 8 && pcity['size'] <= 11) {
     size = 2;
-  } else if (pcity['size'] >=12 && pcity['size'] <=15) {
+  } else if (pcity['size'] >= 12 && pcity['size'] <= 15) {
     size = 3;
-  } else if (pcity['size'] >=16) {
+  } else if (pcity['size'] >= 16) {
     size = 4;
   }
 
-  var city_walls = pcity['walls'] ? "wall" : "city";
+  var city_walls = pcity['walls'] ? 'wall' : 'city';
 
-  var tag = city_rule['graphic'] + "_" + city_walls + "_" + size;
+  var tag = city_rule['graphic'] + '_' + city_walls + '_' + size;
   if (sprites[tag] == null) {
-    tag = city_rule['graphic_alt'] + "_" + city_walls + "_" + size;
+    tag = city_rule['graphic_alt'] + '_' + city_walls + '_' + size;
   }
 
-  return {"key" :  tag, "offset_x": 0, "offset_y" : -unit_offset_y};
+  return { key: tag, offset_x: 0, offset_y: -unit_offset_y };
 }
-
 
 /****************************************************************************
   Add sprites for fog (and some forms of darkness).
 ****************************************************************************/
-function fill_fog_sprite_array(ptile, pedge, pcorner)
-{
-
-  var i, tileno = 0;
+function fill_fog_sprite_array(ptile, pedge, pcorner) {
+  var i,
+    tileno = 0;
 
   if (pcorner == null) return [];
 
   for (i = 3; i >= 0; i--) {
-    var unknown = 0, fogged = 1, known = 2;
+    var unknown = 0,
+      fogged = 1,
+      known = 2;
     var value = -1;
 
     if (pcorner['tile'][i] == null) {
-	  value = unknown;
+      value = unknown;
     } else {
-	  switch (tile_get_known(pcorner['tile'][i])) {
-	    case TILE_KNOWN_SEEN:
-	      value = known;
-	      break;
-	    case TILE_KNOWN_UNSEEN:
-	      value = fogged;
-	      break;
-	    case TILE_UNKNOWN:
-	      value = unknown;
-	      break;
+      switch (tile_get_known(pcorner['tile'][i])) {
+        case TILE_KNOWN_SEEN:
+          value = known;
+          break;
+        case TILE_KNOWN_UNSEEN:
+          value = fogged;
+          break;
+        case TILE_UNKNOWN:
+          value = unknown;
+          break;
       }
     }
     tileno = tileno * 3 + value;
@@ -1154,49 +1188,47 @@ function fill_fog_sprite_array(ptile, pedge, pcorner)
 
   if (tileno >= 80) return [];
 
-  return [{"key" : fullfog[tileno]}];
-
+  return [{ key: fullfog[tileno] }];
 }
 
 /****************************************************************************
  ...
 ****************************************************************************/
-function get_select_sprite()
-{
+function get_select_sprite() {
   // update selected unit sprite 6 times a second.
-  current_select_sprite = (Math.floor(new Date().getTime() * 6 / 1000) % max_select_sprite);
-  return {"key" : "unit.select" + current_select_sprite };
+  current_select_sprite = Math.floor((new Date().getTime() * 6) / 1000) % max_select_sprite;
+  return { key: 'unit.select' + current_select_sprite };
 }
 
 /****************************************************************************
  ...
 ****************************************************************************/
-function get_city_info_text(pcity)
-{
-  return {"key" : "city_text", "city" : pcity,
-  		  "offset_x": citybar_offset_x, "offset_y" : citybar_offset_y};
+function get_city_info_text(pcity) {
+  return { key: 'city_text', city: pcity, offset_x: citybar_offset_x, offset_y: citybar_offset_y };
 }
 
 /****************************************************************************
  ...
 ****************************************************************************/
-function get_tile_label_text(ptile)
-{
-  return {"key" : "tile_label", "tile" : ptile,
-  		  "offset_x": tilelabel_offset_x, "offset_y" : tilelabel_offset_y};
+function get_tile_label_text(ptile) {
+  return {
+    key: 'tile_label',
+    tile: ptile,
+    offset_x: tilelabel_offset_x,
+    offset_y: tilelabel_offset_y,
+  };
 }
 
 /****************************************************************************
  ...
 ****************************************************************************/
-function get_tile_specials_sprite(ptile)
-{
+function get_tile_specials_sprite(ptile) {
   const extra_id = tile_resource(ptile);
 
   if (extra_id !== null) {
     const extra = extras[extra_id];
     if (extra != null) {
-      return  {"key" : extra['graphic_str']} ;
+      return { key: extra['graphic_str'] };
     }
   }
   return null;
@@ -1205,48 +1237,43 @@ function get_tile_specials_sprite(ptile)
 /****************************************************************************
  ...
 ****************************************************************************/
-function get_tile_river_sprite(ptile)
-{
+function get_tile_river_sprite(ptile) {
   if (ptile == null) {
     return null;
   }
 
   if (tile_has_extra(ptile, EXTRA_RIVER)) {
-    var river_str = "";
+    var river_str = '';
     for (var i = 0; i < num_cardinal_tileset_dirs; i++) {
       var dir = cardinal_tileset_dirs[i];
       var checktile = mapstep(ptile, dir);
-      if (checktile
-          && (tile_has_extra(checktile, EXTRA_RIVER) || is_ocean_tile(checktile))) {
-        river_str = river_str + dir_get_tileset_name(dir) + "1";
+      if (checktile && (tile_has_extra(checktile, EXTRA_RIVER) || is_ocean_tile(checktile))) {
+        river_str = river_str + dir_get_tileset_name(dir) + '1';
       } else {
-        river_str = river_str + dir_get_tileset_name(dir) + "0";
+        river_str = river_str + dir_get_tileset_name(dir) + '0';
       }
-
     }
-    return {"key" : "road.river_s_" + river_str};
+    return { key: 'road.river_s_' + river_str };
   }
 
   var pterrain = tile_terrain(ptile);
-  if (pterrain['graphic_str'] == "coast") {
+  if (pterrain['graphic_str'] == 'coast') {
     for (var i = 0; i < num_cardinal_tileset_dirs; i++) {
       var dir = cardinal_tileset_dirs[i];
       var checktile = mapstep(ptile, dir);
       if (checktile != null && tile_has_extra(checktile, EXTRA_RIVER)) {
-        return {"key" : "road.river_outlet_" + dir_get_tileset_name(dir)};
+        return { key: 'road.river_outlet_' + dir_get_tileset_name(dir) };
       }
     }
   }
 
   return null;
-
 }
 
 /****************************************************************************
  ...
 ****************************************************************************/
-function get_unit_image_sprite(punit)
-{
+function get_unit_image_sprite(punit) {
   var from_type = get_unit_type_image_sprite(unit_type(punit));
 
   /* TODO: Find out what the purpose of this is, if it is needed here and if
@@ -1255,17 +1282,15 @@ function get_unit_image_sprite(punit)
    * get_unit_image_sprite() started to use it. It was added in
    * f4a3ef358d1462d1f0ef7529982c417ddc402583 but that commit is to huge for
    * me to figure out what it does. */
-  from_type["height"] = from_type["height"] - 2;
+  from_type['height'] = from_type['height'] - 2;
 
   return from_type;
 }
 
-
 /****************************************************************************
  ...
 ****************************************************************************/
-function get_unit_type_image_sprite(punittype)
-{
+function get_unit_type_image_sprite(punittype) {
   var tag = tileset_unit_type_graphic_tag(punittype);
 
   if (tag == null) {
@@ -1277,20 +1302,27 @@ function get_unit_type_image_sprite(punittype)
   var width = tileset[tag][2];
   var height = tileset[tag][3];
   var i = tileset[tag][4];
-  return {"tag": tag,
-            "image-src" : "/tileset/freeciv-web-tileset-" + tileset_name + "-" + i + get_tileset_file_extention() + "?ts=" + ts,
-            "tileset-x" : tileset_x,
-            "tileset-y" : tileset_y,
-            "width" : width,
-            "height" : height
-            };
+  return {
+    tag: tag,
+    'image-src':
+      '/tileset/freeciv-web-tileset-' +
+      tileset_name +
+      '-' +
+      i +
+      get_tileset_file_extention() +
+      '?ts=' +
+      ts,
+    'tileset-x': tileset_x,
+    'tileset-y': tileset_y,
+    width: width,
+    height: height,
+  };
 }
 
 /****************************************************************************
  ...
 ****************************************************************************/
-function get_improvement_image_sprite(pimprovement)
-{
+function get_improvement_image_sprite(pimprovement) {
   var tag = tileset_building_graphic_tag(pimprovement);
 
   if (tag == null) {
@@ -1302,20 +1334,27 @@ function get_improvement_image_sprite(pimprovement)
   var width = tileset[tag][2];
   var height = tileset[tag][3];
   var i = tileset[tag][4];
-  return {"tag": tag,
-            "image-src" : "/tileset/freeciv-web-tileset-" + tileset_name + "-" + i + get_tileset_file_extention() + "?ts=" + ts,
-            "tileset-x" : tileset_x,
-            "tileset-y" : tileset_y,
-            "width" : width,
-            "height" : height
-            };
+  return {
+    tag: tag,
+    'image-src':
+      '/tileset/freeciv-web-tileset-' +
+      tileset_name +
+      '-' +
+      i +
+      get_tileset_file_extention() +
+      '?ts=' +
+      ts,
+    'tileset-x': tileset_x,
+    'tileset-y': tileset_y,
+    width: width,
+    height: height,
+  };
 }
 
 /****************************************************************************
  ...
 ****************************************************************************/
-function get_specialist_image_sprite(tag)
-{
+function get_specialist_image_sprite(tag) {
   if (tileset[tag] == null) return null;
 
   var tileset_x = tileset[tag][0];
@@ -1323,21 +1362,27 @@ function get_specialist_image_sprite(tag)
   var width = tileset[tag][2];
   var height = tileset[tag][3];
   var i = tileset[tag][4];
-  return {"tag": tag,
-            "image-src" : "/tileset/freeciv-web-tileset-" + tileset_name + "-" + i + get_tileset_file_extention() + "?ts=" + ts,
-            "tileset-x" : tileset_x,
-            "tileset-y" : tileset_y,
-            "width" : width,
-            "height" : height
-            };
+  return {
+    tag: tag,
+    'image-src':
+      '/tileset/freeciv-web-tileset-' +
+      tileset_name +
+      '-' +
+      i +
+      get_tileset_file_extention() +
+      '?ts=' +
+      ts,
+    'tileset-x': tileset_x,
+    'tileset-y': tileset_y,
+    width: width,
+    height: height,
+  };
 }
-
 
 /****************************************************************************
  ...
 ****************************************************************************/
-function get_technology_image_sprite(ptech)
-{
+function get_technology_image_sprite(ptech) {
   var tag = tileset_tech_graphic_tag(ptech);
 
   if (tag == null) return null;
@@ -1347,21 +1392,28 @@ function get_technology_image_sprite(ptech)
   var width = tileset[tag][2];
   var height = tileset[tag][3];
   var i = tileset[tag][4];
-  return {"tag": tag,
-            "image-src" : "/tileset/freeciv-web-tileset-" + tileset_name + "-" + i + get_tileset_file_extention() + "?ts=" + ts,
-            "tileset-x" : tileset_x,
-            "tileset-y" : tileset_y,
-            "width" : width,
-            "height" : height
-            };
+  return {
+    tag: tag,
+    'image-src':
+      '/tileset/freeciv-web-tileset-' +
+      tileset_name +
+      '-' +
+      i +
+      get_tileset_file_extention() +
+      '?ts=' +
+      ts,
+    'tileset-x': tileset_x,
+    'tileset-y': tileset_y,
+    width: width,
+    height: height,
+  };
 }
 
 /****************************************************************************
  ...
 ****************************************************************************/
-function get_nation_flag_sprite(pnation)
-{
-  var tag = "f." + pnation['graphic_str'];
+function get_nation_flag_sprite(pnation) {
+  var tag = 'f.' + pnation['graphic_str'];
 
   if (tileset[tag] == null) return null;
 
@@ -1370,57 +1422,78 @@ function get_nation_flag_sprite(pnation)
   var width = tileset[tag][2];
   var height = tileset[tag][3];
   var i = tileset[tag][4];
-  return {"tag": tag,
-            "image-src" : "/tileset/freeciv-web-tileset-" + tileset_name + "-" + i + get_tileset_file_extention() + "?ts=" + ts,
-            "tileset-x" : tileset_x,
-            "tileset-y" : tileset_y,
-            "width" : width,
-            "height" : height
-            };
+  return {
+    tag: tag,
+    'image-src':
+      '/tileset/freeciv-web-tileset-' +
+      tileset_name +
+      '-' +
+      i +
+      get_tileset_file_extention() +
+      '?ts=' +
+      ts,
+    'tileset-x': tileset_x,
+    'tileset-y': tileset_y,
+    width: width,
+    height: height,
+  };
 }
 
 /****************************************************************************
  ...
 ****************************************************************************/
-function get_treaty_agree_thumb_up()
-{
-  var tag = "treaty.agree_thumb_up";
+function get_treaty_agree_thumb_up() {
+  var tag = 'treaty.agree_thumb_up';
 
   var tileset_x = tileset[tag][0];
   var tileset_y = tileset[tag][1];
   var width = tileset[tag][2];
   var height = tileset[tag][3];
   var i = tileset[tag][4];
-  return {"tag": tag,
-            "image-src" : "/tileset/freeciv-web-tileset-" + tileset_name + "-" + i + get_tileset_file_extention() + "?ts=" + ts,
-            "tileset-x" : tileset_x,
-            "tileset-y" : tileset_y,
-            "width" : width,
-            "height" : height
-            };
+  return {
+    tag: tag,
+    'image-src':
+      '/tileset/freeciv-web-tileset-' +
+      tileset_name +
+      '-' +
+      i +
+      get_tileset_file_extention() +
+      '?ts=' +
+      ts,
+    'tileset-x': tileset_x,
+    'tileset-y': tileset_y,
+    width: width,
+    height: height,
+  };
 }
 
 /****************************************************************************
  ...
 ****************************************************************************/
-function get_treaty_disagree_thumb_down()
-{
-  var tag = "treaty.disagree_thumb_down";
+function get_treaty_disagree_thumb_down() {
+  var tag = 'treaty.disagree_thumb_down';
 
   var tileset_x = tileset[tag][0];
   var tileset_y = tileset[tag][1];
   var width = tileset[tag][2];
   var height = tileset[tag][3];
   var i = tileset[tag][4];
-  return {"tag": tag,
-            "image-src" : "/tileset/freeciv-web-tileset-" + tileset_name + "-" + i + get_tileset_file_extention() + "?ts=" + ts,
-            "tileset-x" : tileset_x,
-            "tileset-y" : tileset_y,
-            "width" : width,
-            "height" : height
-            };
+  return {
+    tag: tag,
+    'image-src':
+      '/tileset/freeciv-web-tileset-' +
+      tileset_name +
+      '-' +
+      i +
+      get_tileset_file_extention() +
+      '?ts=' +
+      ts,
+    'tileset-x': tileset_x,
+    'tileset-y': tileset_y,
+    width: width,
+    height: height,
+  };
 }
-
 
 /****************************************************************************
   Returns a list of tiles to draw to render roads, railroads, and maglevs.
@@ -1428,8 +1501,7 @@ function get_treaty_disagree_thumb_down()
     - Support generic road types
     - Properly support generic extra hiding properties
 ****************************************************************************/
-function fill_path_sprite_array(ptile, pcity)
-{
+function fill_path_sprite_array(ptile, pcity) {
   var rs_maglev = typeof EXTRA_MAGLEV !== 'undefined';
   var road = tile_has_extra(ptile, EXTRA_ROAD);
   var rail = tile_has_extra(ptile, EXTRA_RAIL);
@@ -1490,7 +1562,7 @@ function fill_path_sprite_array(ptile, pcity)
   if (road) {
     for (i = 0; i < 8; i++) {
       if (draw_road[i]) {
-        result_sprites.push({"key" : "road.road_" + dir_get_tileset_name(i)});
+        result_sprites.push({ key: 'road.road_' + dir_get_tileset_name(i) });
       }
     }
   }
@@ -1499,7 +1571,7 @@ function fill_path_sprite_array(ptile, pcity)
   if (rail) {
     for (i = 0; i < 8; i++) {
       if (draw_rail[i]) {
-        result_sprites.push({"key" : "road.rail_" + dir_get_tileset_name(i)});
+        result_sprites.push({ key: 'road.rail_' + dir_get_tileset_name(i) });
       }
     }
   }
@@ -1508,18 +1580,18 @@ function fill_path_sprite_array(ptile, pcity)
   if (maglev) {
     for (i = 0; i < 8; i++) {
       if (draw_maglev[i]) {
-        result_sprites.push({"key" : "road.maglev_" + dir_get_tileset_name(i)});
+        result_sprites.push({ key: 'road.maglev_' + dir_get_tileset_name(i) });
       }
     }
   }
 
   /* Draw isolated path separately (styles 0 and 1 only). */
   if (draw_single_maglev) {
-    result_sprites.push({"key" : "road.maglev_isolated"});
+    result_sprites.push({ key: 'road.maglev_isolated' });
   } else if (draw_single_rail) {
-    result_sprites.push({"key" : "road.rail_isolated"});
+    result_sprites.push({ key: 'road.rail_isolated' });
   } else if (draw_single_road) {
-    result_sprites.push({"key" : "road.road_isolated"});
+    result_sprites.push({ key: 'road.road_isolated' });
   }
 
   return result_sprites;
@@ -1528,19 +1600,16 @@ function fill_path_sprite_array(ptile, pcity)
 /****************************************************************************
   ...
 ****************************************************************************/
-function fill_irrigation_sprite_array(ptile, pcity)
-{
+function fill_irrigation_sprite_array(ptile, pcity) {
   var result_sprites = [];
 
   /* We don't draw the irrigation if there's a city (it just gets overdrawn
    * anyway, and ends up looking bad). */
   if (tile_has_extra(ptile, EXTRA_IRRIGATION) && pcity == null) {
     if (tile_has_extra(ptile, EXTRA_FARMLAND)) {
-      result_sprites.push({"key" :
-                            tileset_extra_id_graphic_tag(EXTRA_FARMLAND)});
+      result_sprites.push({ key: tileset_extra_id_graphic_tag(EXTRA_FARMLAND) });
     } else {
-      result_sprites.push({"key" :
-                            tileset_extra_id_graphic_tag(EXTRA_IRRIGATION)});
+      result_sprites.push({ key: tileset_extra_id_graphic_tag(EXTRA_IRRIGATION) });
     }
   }
 
@@ -1550,15 +1619,13 @@ function fill_irrigation_sprite_array(ptile, pcity)
 /****************************************************************************
   ...
 ****************************************************************************/
-function fill_layer1_sprite_array(ptile, pcity)
-{
+function fill_layer1_sprite_array(ptile, pcity) {
   var result_sprites = [];
 
   /* We don't draw the bases if there's a city */
   if (pcity == null) {
     if (tile_has_extra(ptile, EXTRA_FORTRESS)) {
-      result_sprites.push({"key" : "base.fortress_bg",
-                           "offset_y" : -normal_tile_height / 2});
+      result_sprites.push({ key: 'base.fortress_bg', offset_y: -normal_tile_height / 2 });
     }
   }
 
@@ -1568,24 +1635,20 @@ function fill_layer1_sprite_array(ptile, pcity)
 /****************************************************************************
   ...
 ****************************************************************************/
-function fill_layer2_sprite_array(ptile, pcity)
-{
+function fill_layer2_sprite_array(ptile, pcity) {
   var result_sprites = [];
 
   /* We don't draw the bases if there's a city */
   if (pcity == null) {
     if (tile_has_extra(ptile, EXTRA_AIRBASE)) {
-      result_sprites.push({"key" : "base.airbase_mg",
-                           "offset_y" : -normal_tile_height / 2});
+      result_sprites.push({ key: 'base.airbase_mg', offset_y: -normal_tile_height / 2 });
     }
     if (tile_has_extra(ptile, EXTRA_BUOY)) {
       result_sprites.push(get_base_flag_sprite(ptile));
-      result_sprites.push({"key" : "base.buoy_mg",
-                           "offset_y" : -normal_tile_height / 2});
+      result_sprites.push({ key: 'base.buoy_mg', offset_y: -normal_tile_height / 2 });
     }
     if (tile_has_extra(ptile, EXTRA_RUINS)) {
-      result_sprites.push({"key" : "extra.ruins_mg",
-                           "offset_y" : -normal_tile_height / 2});
+      result_sprites.push({ key: 'extra.ruins_mg', offset_y: -normal_tile_height / 2 });
     }
   }
 
@@ -1595,15 +1658,13 @@ function fill_layer2_sprite_array(ptile, pcity)
 /****************************************************************************
   ...
 ****************************************************************************/
-function fill_layer3_sprite_array(ptile, pcity)
-{
+function fill_layer3_sprite_array(ptile, pcity) {
   var result_sprites = [];
 
   /* We don't draw the bases if there's a city */
   if (pcity == null) {
     if (tile_has_extra(ptile, EXTRA_FORTRESS)) {
-      result_sprites.push({"key" : "base.fortress_fg",
-                           "offset_y" : -normal_tile_height / 2});
+      result_sprites.push({ key: 'base.fortress_fg', offset_y: -normal_tile_height / 2 });
     }
   }
 
@@ -1614,13 +1675,11 @@ function fill_layer3_sprite_array(ptile, pcity)
   Assigns the nation's color based on the color of the flag, currently
   the most common color in the flag is chosen.
 ****************************************************************************/
-function assign_nation_color(nation_id)
-{
-
+function assign_nation_color(nation_id) {
   var nation = nations[nation_id];
   if (nation == null || nation['color'] != null) return;
 
-  var flag_key = "f." + nation['graphic_str'];
+  var flag_key = 'f.' + nation['graphic_str'];
   var flag_sprite = sprites[flag_key];
   if (flag_sprite == null) return;
   var c = flag_sprite.getContext('2d');
@@ -1629,12 +1688,11 @@ function assign_nation_color(nation_id)
   var color_counts = {};
   /* gets the flag image data, except for the black border. */
   if (c == null) return;
-  var img_data = c.getImageData(1, 1, width-2, height-2).data;
+  var img_data = c.getImageData(1, 1, width - 2, height - 2).data;
 
   /* count the number of each pixel's color */
   for (var i = 0; i < img_data.length; i += 4) {
-    var current_color = "rgb(" + img_data[i] + "," + img_data[i+1] + ","
-                        + img_data[i+2] + ")";
+    var current_color = 'rgb(' + img_data[i] + ',' + img_data[i + 1] + ',' + img_data[i + 2] + ')';
     if (current_color in color_counts) {
       color_counts[current_color] = color_counts[current_color] + 1;
     } else {
@@ -1652,20 +1710,15 @@ function assign_nation_color(nation_id)
     }
   }
 
-
-
   nation['color'] = max_color;
   color_counts = null;
   img_data = null;
-
 }
-
 
 /****************************************************************************
 ...
 ****************************************************************************/
-function is_color_collision(color_a, color_b)
-{
+function is_color_collision(color_a, color_b) {
   var distance_threshold = 20;
 
   if (color_a == null || color_b == null) return false;
@@ -1673,18 +1726,19 @@ function is_color_collision(color_a, color_b)
   var pcolor_a = color_rbg_to_list(color_a);
   var pcolor_b = color_rbg_to_list(color_b);
 
-  var color_distance = Math.sqrt( Math.pow(pcolor_a[0] - pcolor_b[0], 2)
-		  + Math.pow(pcolor_a[1] - pcolor_b[1], 2)
-		  + Math.pow(pcolor_a[2] - pcolor_b[2], 2));
+  var color_distance = Math.sqrt(
+    Math.pow(pcolor_a[0] - pcolor_b[0], 2) +
+      Math.pow(pcolor_a[1] - pcolor_b[1], 2) +
+      Math.pow(pcolor_a[2] - pcolor_b[2], 2)
+  );
 
-  return (color_distance <= distance_threshold);
+  return color_distance <= distance_threshold;
 }
 
 /****************************************************************************
 ...
 ****************************************************************************/
-function color_rbg_to_list(pcolor)
-{
+function color_rbg_to_list(pcolor) {
   if (pcolor == null) return null;
   var color_rgb = pcolor.match(/\d+/g);
   color_rgb[0] = parseFloat(color_rgb[0]);

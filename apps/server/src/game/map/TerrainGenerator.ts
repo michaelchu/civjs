@@ -215,7 +215,9 @@ export class TerrainGenerator {
 
     // DEBUG: Log initial terrain assignment counts
     console.log(
-      `DEBUG: makeLand() initial assignment - Land: ${landTilesAssigned}, Ocean: ${oceanTilesAssigned}, Total: ${landTilesAssigned + oceanTilesAssigned}, Shore level: ${hmap_shore_level}`
+      `DEBUG: makeLand() initial assignment - Land: ${landTilesAssigned}, Ocean: ${oceanTilesAssigned}, Total: ${
+        landTilesAssigned + oceanTilesAssigned
+      }, Shore level: ${hmap_shore_level}`
     );
 
     // Step 6: HAS_POLES - renormalize height map and create polar land

@@ -495,7 +495,9 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
         expect(timePerTile).toBeLessThan(5); // 5ms per tile max
 
         console.log(
-          `${width}x${height} map generated in ${generationTime}ms (${timePerTile.toFixed(2)}ms/tile)`
+          `${width}x${height} map generated in ${generationTime}ms (${timePerTile.toFixed(
+            2
+          )}ms/tile)`
         );
       }
     });

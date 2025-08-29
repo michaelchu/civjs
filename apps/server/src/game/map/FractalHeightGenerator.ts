@@ -226,7 +226,9 @@ export class FractalHeightGenerator {
 
     // DEBUG: Log random height generation parameters
     console.log(
-      `DEBUG: Random height generation - smooth=${smooth}, sqSize=${sqSize}, playerCount=${playerCount}, shoreLevel=${this.shoreLevel}, finalShoreLevel=${this.getShoreLevel()}`
+      `DEBUG: Random height generation - smooth=${smooth}, sqSize=${sqSize}, playerCount=${playerCount}, shoreLevel=${
+        this.shoreLevel
+      }, finalShoreLevel=${this.getShoreLevel()}`
     );
   }
 
@@ -285,7 +287,9 @@ export class FractalHeightGenerator {
 
     // DEBUG: Log fractal height generation parameters
     console.log(
-      `DEBUG: Fractal height generation - shoreLevel=${this.shoreLevel}, finalShoreLevel=${this.getShoreLevel()}`
+      `DEBUG: Fractal height generation - shoreLevel=${
+        this.shoreLevel
+      }, finalShoreLevel=${this.getShoreLevel()}`
     );
   }
 

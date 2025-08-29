@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-export default {
+const config: Config = {
   schema: './src/database/schema/*.ts',
   out: './drizzle',
   dialect: 'postgresql',
@@ -12,4 +12,6 @@ export default {
   },
   verbose: true,
   strict: true,
-} satisfies Config;
+};
+
+export default config;
