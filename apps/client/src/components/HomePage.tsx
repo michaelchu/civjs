@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SERVER_URL } from '../config';
+import { PageBackground } from './shared/PageBackground';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ export const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200 md:bg-[url('/img/background.png')] md:bg-cover md:bg-center md:bg-no-repeat flex items-center justify-center p-4">
+    <PageBackground className="min-h-screen flex items-center justify-center p-4">
       <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-6 md:p-8 md:rounded-lg md:shadow-2xl w-full max-w-md mx-auto md:border md:border-amber-300 md:shadow-amber-300/20">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-amber-800 mb-4">CivJS</h1>
@@ -77,6 +78,6 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+    </PageBackground>
   );
 };

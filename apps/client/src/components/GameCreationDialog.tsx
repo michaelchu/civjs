@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PageBackground } from './shared/PageBackground';
 
 export const GameCreationDialog: React.FC = () => {
   const [playerName, setPlayerName] = useState('');
@@ -51,7 +52,10 @@ export const GameCreationDialog: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-b from-amber-100 to-yellow-200 lg:bg-[url('/img/background.png')] lg:bg-cover lg:bg-center lg:bg-no-repeat lg:flex lg:items-center lg:justify-center">
+    <PageBackground 
+      className="min-h-[100dvh] lg:flex lg:items-center lg:justify-center"
+      mobileBreakpoint="lg"
+    >
       <div className="flex flex-col h-[100dvh] lg:h-auto lg:max-w-2xl xl:max-w-3xl lg:mx-auto">
         <div className="bg-transparent lg:bg-gradient-to-b lg:from-amber-100 lg:to-yellow-100 p-4 lg:p-8 lg:rounded-lg lg:shadow-2xl w-full lg:border lg:border-amber-300 lg:shadow-amber-300/20 flex-1 lg:flex-none overflow-y-auto">
           <div className="flex items-center mb-6">
@@ -260,6 +264,6 @@ export const GameCreationDialog: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+    </PageBackground>
   );
 };

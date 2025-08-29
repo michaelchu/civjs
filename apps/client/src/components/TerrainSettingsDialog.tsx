@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { gameClient } from '../services/GameClient';
+import { PageBackground } from './shared/PageBackground';
 
 interface GameCreationState {
   playerName: string;
@@ -154,7 +155,10 @@ export const TerrainSettingsDialog: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-b from-amber-100 to-yellow-200 lg:bg-[url('/img/background.png')] lg:bg-cover lg:bg-center lg:bg-no-repeat lg:flex lg:items-center lg:justify-center">
+    <PageBackground 
+      className="min-h-[100dvh] lg:flex lg:items-center lg:justify-center"
+      mobileBreakpoint="lg"
+    >
       <div className="flex flex-col h-[100dvh] lg:h-auto lg:max-w-4xl xl:max-w-5xl lg:mx-auto min-h-0">
         <div className="bg-transparent lg:bg-gradient-to-b lg:from-amber-100 lg:to-yellow-100 p-4 lg:p-8 lg:rounded-lg lg:shadow-2xl w-full lg:border lg:border-amber-300 lg:shadow-amber-300/20 flex-1 lg:flex-none overflow-y-auto">
           <div className="flex items-center mb-6">
@@ -489,6 +493,6 @@ export const TerrainSettingsDialog: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+    </PageBackground>
   );
 };
