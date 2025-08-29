@@ -130,7 +130,7 @@ ts_tiles['floor']['layer1_sprite_type'] = "corner";
 
 ts_tiles['arctic'] = {};
 //; treated as water for ice cliffs
-ts_tiles['arctic']['is_blended'] = 0;
+ts_tiles['arctic']['is_blended'] = 1;
 ts_tiles['arctic']['num_layers'] = 3;
 ts_tiles['arctic']['layer0_match_type'] = "shallow";
 ts_tiles['arctic']['layer1_match_type'] = "ice";
@@ -222,6 +222,8 @@ var tile_types_setup =
 "l0.plains":	{"match_style":MATCH_NONE,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":1,"match_index":[2],"dither":true},
 "l0.swamp":	{"match_style":MATCH_NONE,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":1,"match_index":[2],"dither":true},
 "l0.tundra":	{"match_style":MATCH_NONE,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":1,"match_index":[2],"dither":true},
+"l1.ice":	{"match_style":MATCH_SAME,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":2,"match_index":[4,4],"dither":false},
+"l2.ice":	{"match_style":MATCH_SAME,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":2,"match_index":[1,1],"dither":false},
 "l0.inaccessible":{"match_style":MATCH_NONE,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":1,"match_index":[2],"dither":false}
 
 };
