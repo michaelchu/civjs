@@ -15,9 +15,8 @@ export const PageBackground: React.FC<PageBackgroundProps> = ({
   const backgroundClasses = clsx(
     'bg-gradient-to-b from-amber-100 to-yellow-200',
     {
-      // Use lower breakpoint to ensure coverage for foldable devices like Galaxy Fold5
-      "min-[480px]:bg-[url('/img/background.png')] min-[480px]:bg-cover min-[480px]:bg-center min-[480px]:bg-no-repeat":
-        showBackground,
+      // Use md breakpoint (768px) which matches Galaxy Fold5 portrait unfolded mode
+      "md:bg-[url('/img/background.png')] md:bg-cover md:bg-center md:bg-no-repeat": showBackground,
     },
     className
   );

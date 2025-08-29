@@ -157,11 +157,11 @@ export const TerrainSettingsDialog: React.FC = () => {
 
   return (
     <PageBackground
-      className="min-h-[100dvh] min-[480px]:flex min-[480px]:items-center min-[480px]:justify-center min-[480px]:p-4"
+      className="min-h-[100dvh] md:flex md:items-center md:justify-center md:p-4"
       showBackground={false}
     >
-      <div className="flex flex-col h-[100dvh] min-[480px]:h-auto min-[480px]:max-w-4xl xl:max-w-5xl min-[480px]:mx-auto min-h-0">
-        <div className="bg-transparent min-[480px]:bg-gradient-to-b min-[480px]:from-amber-100 min-[480px]:to-yellow-100 p-4 min-[480px]:p-8 min-[480px]:rounded-lg min-[480px]:shadow-2xl w-full min-[480px]:border min-[480px]:border-amber-300 min-[480px]:shadow-amber-300/20 flex-1 min-[480px]:flex-none overflow-y-auto">
+      <div className="flex flex-col h-[100dvh] md:h-auto md:max-w-4xl xl:max-w-5xl md:mx-auto min-h-0">
+        <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-8 md:rounded-lg md:shadow-2xl w-full md:border md:border-amber-300 md:shadow-amber-300/20 flex-1 md:flex-none overflow-y-auto">
           <div className="flex items-center mb-6">
             <button
               onClick={handleBack}
