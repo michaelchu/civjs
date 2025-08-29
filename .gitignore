@@ -131,21 +131,21 @@ reference/freeciv-web/docker-compose.yml
 reference/freeciv-web/Vagrantfile
 reference/freeciv-web/blender/
 reference/freeciv-web/config/
-reference/freeciv-web/doc/
+# reference/freeciv-web/doc/
 reference/freeciv-web/music/
 reference/freeciv-web/pbem/
 reference/freeciv-web/publite2/
 reference/freeciv-web/freeciv-proxy/
-reference/freeciv-web/scripts/
+# reference/freeciv-web/scripts/
 reference/freeciv-web/requirements.txt
 
 # Freeciv-web: Java server files (not needed for JS reference)  
-reference/freeciv-web/freeciv-web/src/main/java/
-reference/freeciv-web/freeciv-web/src/main/resources/
-reference/freeciv-web/freeciv-web/pom.xml
-reference/freeciv-web/freeciv-web/build.sh
-reference/freeciv-web/freeciv-web/build-js.sh
-reference/freeciv-web/freeciv-web/package-lock.json
+# reference/freeciv-web/freeciv-web/src/main/java/
+# reference/freeciv-web/freeciv-web/src/main/resources/
+# reference/freeciv-web/freeciv-web/pom.xml
+# reference/freeciv-web/freeciv-web/build.sh
+# reference/freeciv-web/freeciv-web/build-js.sh
+# reference/freeciv-web/freeciv-web/package-lock.json
 
 # Freeciv-web: 3D/WebGL files (only using 2D)
 reference/freeciv-web/freeciv-web/src/main/webapp/javascript/webgl/
@@ -170,17 +170,17 @@ reference/freeciv/client/gui-qt/
 reference/freeciv/client/gui-sdl*/
 
 # Freeciv C: Documentation and translations
-reference/freeciv/doc/
-reference/freeciv/translations/
-reference/freeciv/ABOUT-NLS
-reference/freeciv/ChangeLog*
-reference/freeciv/INSTALL*
-reference/freeciv/NEWS
-reference/freeciv/README*
+# reference/freeciv/doc/
+# reference/freeciv/translations/
+# reference/freeciv/ABOUT-NLS
+# reference/freeciv/ChangeLog*
+# reference/freeciv/INSTALL*
+# reference/freeciv/NEWS
+# reference/freeciv/README*
 
 # Large asset files (keep key tilesets only)
-reference/freeciv/data/hex*/
-reference/freeciv/data/isotrident/
-reference/freeciv/data/trident/
-reference/freeciv/data/cimpletoon/
-reference/freeciv/data/toonhex/
+# reference/freeciv/data/hex*/
+# reference/freeciv/data/isotrident/
+# reference/freeciv/data/trident/
+# reference/freeciv/data/cimpletoon/
+# reference/freeciv/data/toonhex/
