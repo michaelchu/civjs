@@ -15,7 +15,9 @@ export const PageBackground: React.FC<PageBackgroundProps> = ({
   const backgroundClasses = clsx(
     'bg-gradient-to-b from-amber-100 to-yellow-200',
     {
-      "sm:bg-[url('/img/background.png')] sm:bg-cover sm:bg-center sm:bg-no-repeat": showBackground,
+      // Use lower breakpoint to ensure coverage for foldable devices like Galaxy Fold5
+      "min-[480px]:bg-[url('/img/background.png')] min-[480px]:bg-cover min-[480px]:bg-center min-[480px]:bg-no-repeat":
+        showBackground,
     },
     className
   );

@@ -53,11 +53,11 @@ export const GameCreationDialog: React.FC = () => {
 
   return (
     <PageBackground
-      className="min-h-[100dvh] sm:flex sm:items-center sm:justify-center sm:p-4"
+      className="min-h-[100dvh] min-[480px]:flex min-[480px]:items-center min-[480px]:justify-center min-[480px]:p-4"
       showBackground={false}
     >
-      <div className="flex flex-col h-[100dvh] sm:h-auto sm:max-w-2xl xl:max-w-3xl sm:mx-auto">
-        <div className="bg-transparent sm:bg-gradient-to-b sm:from-amber-100 sm:to-yellow-100 p-4 sm:p-8 sm:rounded-lg sm:shadow-2xl w-full sm:border sm:border-amber-300 sm:shadow-amber-300/20 flex-1 sm:flex-none overflow-y-auto">
+      <div className="flex flex-col h-[100dvh] min-[480px]:h-auto min-[480px]:max-w-2xl xl:max-w-3xl min-[480px]:mx-auto">
+        <div className="bg-transparent min-[480px]:bg-gradient-to-b min-[480px]:from-amber-100 min-[480px]:to-yellow-100 p-4 min-[480px]:p-8 min-[480px]:rounded-lg min-[480px]:shadow-2xl w-full min-[480px]:border min-[480px]:border-amber-300 min-[480px]:shadow-amber-300/20 flex-1 min-[480px]:flex-none overflow-y-auto">
           <div className="flex items-center mb-6">
             <button
               onClick={handleBack}
