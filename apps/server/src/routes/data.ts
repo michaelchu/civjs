@@ -22,6 +22,23 @@ router.get(
     try {
       const gameManager = GameManager.getInstance();
 
+      // Try to get game instance, recover if not found
+      let gameInstance = gameManager.getGameInstance(req.gameId!);
+      if (!gameInstance) {
+        logger.info('Game instance not found in memory, attempting recovery', {
+          gameId: req.gameId,
+        });
+        gameInstance = await gameManager.recoverGameInstance(req.gameId!);
+
+        if (!gameInstance) {
+          res.status(404).json({
+            success: false,
+            error: 'Game not found or could not be recovered',
+          });
+          return;
+        }
+      }
+
       if (req.isGameObserver) {
         // Observers can see full map
         const mapData = gameManager.getMapData(req.gameId!);
@@ -130,23 +147,36 @@ router.get(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const gameManager = GameManager.getInstance();
-      const game = await gameManager.getGame(req.gameId!);
 
-      if (!game) {
-        res.status(404).json({
-          success: false,
-          error: 'Game not found',
+      // Try to get game instance, recover if not found
+      let gameInstance = gameManager.getGameInstance(req.gameId!);
+      if (!gameInstance) {
+        logger.info('Game instance not found in memory, attempting recovery', {
+          gameId: req.gameId,
         });
+        gameInstance = await gameManager.recoverGameInstance(req.gameId!);
+
+        if (!gameInstance) {
+          res.status(404).json({
+            success: false,
+            error: 'Game not found or could not be recovered',
+          });
+          return;
+        }
       }
 
       let units: any[] = [];
 
       if (req.isGameObserver) {
-        // Observers can see all units
-        units = Array.from(game.unitManager.getAllUnits().values());
+        // Observers can see all units - we need to get all players' units
+        const allPlayers = Array.from(gameInstance.players.keys());
+        units = [];
+        for (const playerId of allPlayers) {
+          units.push(...gameInstance.unitManager.getPlayerUnits(playerId));
+        }
       } else {
         // Players see only their units
-        units = Array.from(game.unitManager.getPlayerUnits(req.playerId!).values());
+        units = gameInstance.unitManager.getPlayerUnits(req.playerId!);
       }
 
       const unitsData = units.map(unit => ({
@@ -190,23 +220,36 @@ router.get(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const gameManager = GameManager.getInstance();
-      const game = await gameManager.getGame(req.gameId!);
 
-      if (!game) {
-        res.status(404).json({
-          success: false,
-          error: 'Game not found',
+      // Try to get game instance, recover if not found
+      let gameInstance = gameManager.getGameInstance(req.gameId!);
+      if (!gameInstance) {
+        logger.info('Game instance not found in memory, attempting recovery', {
+          gameId: req.gameId,
         });
+        gameInstance = await gameManager.recoverGameInstance(req.gameId!);
+
+        if (!gameInstance) {
+          res.status(404).json({
+            success: false,
+            error: 'Game not found or could not be recovered',
+          });
+          return;
+        }
       }
 
       let cities: any[] = [];
 
       if (req.isGameObserver) {
-        // Observers can see all cities
-        cities = Array.from(game.cityManager.getAllCities().values());
+        // Observers can see all cities - we need to get all players' cities
+        const allPlayers = Array.from(gameInstance.players.keys());
+        cities = [];
+        for (const playerId of allPlayers) {
+          cities.push(...gameInstance.cityManager.getPlayerCities(playerId));
+        }
       } else {
         // Players see only their cities
-        cities = Array.from(game.cityManager.getPlayerCities(req.playerId!).values());
+        cities = gameInstance.cityManager.getPlayerCities(req.playerId!);
       }
 
       const citiesData = cities.map(city => ({

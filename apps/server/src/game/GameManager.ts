@@ -422,6 +422,9 @@ export class GameManager {
     // Store the game instance
     this.games.set(gameId, gameInstance);
 
+    // Persist map data to database for recovery after server restarts
+    await this.persistMapDataToDatabase(gameId, mapData, terrainSettings);
+
     // Initialize research and visibility for all players
     for (const player of players.values()) {
       await researchManager.initializePlayerResearch(player.id);
@@ -431,6 +434,285 @@ export class GameManager {
     }
 
     // Map data is now available via HTTP API endpoints
+  }
+
+  /**
+   * Persist map data to database for recovery after server restarts
+   */
+  private async persistMapDataToDatabase(
+    gameId: string,
+    mapData: any,
+    terrainSettings?: TerrainSettings
+  ): Promise<void> {
+    try {
+      logger.info('Persisting map data to database', { gameId });
+
+      // Serialize map data for storage
+      const serializedMapData = {
+        width: mapData.width,
+        height: mapData.height,
+        seed: mapData.seed,
+        generatedAt: mapData.generatedAt.toISOString(),
+        startingPositions: mapData.startingPositions,
+        tiles: this.serializeMapTiles(mapData.tiles),
+      };
+
+      // Update database with map data and seed
+      await db
+        .update(games)
+        .set({
+          mapSeed: mapData.seed,
+          mapData: serializedMapData,
+          gameState: {
+            terrainSettings: terrainSettings || null,
+            mapGenerated: true,
+            generatedAt: mapData.generatedAt.toISOString(),
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(games.id, gameId));
+
+      logger.info('Map data persisted successfully', {
+        gameId,
+        mapSize: `${mapData.width}x${mapData.height}`,
+      });
+    } catch (error) {
+      logger.error('Failed to persist map data to database:', error);
+      // Don't throw error to avoid breaking game initialization
+    }
+  }
+
+  /**
+   * Serialize map tiles for database storage (compress large tile arrays)
+   */
+  private serializeMapTiles(tiles: any[][]): any {
+    // Store only essential tile data to reduce database size
+    const compressedTiles: any = {};
+
+    for (let y = 0; y < tiles.length; y++) {
+      for (let x = 0; x < tiles[y].length; x++) {
+        const tile = tiles[y][x];
+        if (tile && tile.terrain !== 'ocean') {
+          // Only store non-ocean tiles to save space
+          const key = `${x},${y}`;
+          compressedTiles[key] = {
+            terrain: tile.terrain,
+            elevation: tile.elevation,
+            resource: tile.resource,
+            riverMask: tile.riverMask,
+            continentId: tile.continentId,
+            temperature: tile.temperature,
+            wetness: tile.wetness,
+          };
+        }
+      }
+    }
+
+    return compressedTiles;
+  }
+
+  /**
+   * Recover game instance from database when not found in memory
+   * This handles cases where the server restarted and game instances were lost
+   */
+  public async recoverGameInstance(gameId: string): Promise<GameInstance | null> {
+    try {
+      logger.info('Attempting to recover game instance from database', { gameId });
+
+      // Get game from database with all related data
+      const game = await db.query.games.findFirst({
+        where: eq(games.id, gameId),
+        with: {
+          players: true,
+        },
+      });
+
+      if (!game || game.status !== 'active') {
+        logger.warn('Game not found or not active, cannot recover', {
+          gameId,
+          found: !!game,
+          status: game?.status,
+        });
+        return null;
+      }
+
+      // Check if map data exists in database
+      if (!game.mapData || !game.mapSeed) {
+        logger.warn('No map data found in database, cannot recover game instance', { gameId });
+        return null;
+      }
+
+      logger.info('Recovering game instance with map data', {
+        gameId,
+        playerCount: game.players.length,
+        mapSize: `${game.mapWidth}x${game.mapHeight}`,
+      });
+
+      // Reconstruct player state map
+      const players = new Map<string, PlayerState>();
+      for (const dbPlayer of game.players) {
+        players.set(dbPlayer.id, {
+          id: dbPlayer.id,
+          userId: dbPlayer.userId,
+          playerNumber: dbPlayer.playerNumber,
+          civilization: dbPlayer.civilization,
+          isReady: dbPlayer.isReady || false,
+          hasEndedTurn: dbPlayer.hasEndedTurn || false,
+          isConnected: dbPlayer.connectionStatus === 'connected',
+          lastSeen: new Date(),
+        });
+
+        // Track player to game mapping
+        this.playerToGame.set(dbPlayer.id, gameId);
+      }
+
+      // Initialize managers
+      const turnManager = new TurnManager(gameId);
+      const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
+      const cityManager = new CityManager(gameId);
+      const researchManager = new ResearchManager(gameId);
+
+      // Create MapManager and restore map data from database
+      const mapManager = new MapManager(game.mapWidth, game.mapHeight, undefined, 'recovered');
+      await this.restoreMapDataToManager(mapManager, game.mapData as any, game.mapSeed!);
+
+      const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
+
+      // Create recovered game instance
+      const gameInstance: GameInstance = {
+        id: gameId,
+        config: {
+          name: game.name,
+          hostId: game.hostId,
+          maxPlayers: game.maxPlayers,
+          mapWidth: game.mapWidth,
+          mapHeight: game.mapHeight,
+          ruleset: game.ruleset || 'classic',
+          turnTimeLimit: game.turnTimeLimit || undefined,
+          victoryConditions: (game.victoryConditions as string[]) || [
+            'conquest',
+            'science',
+            'culture',
+          ],
+        },
+        state: 'active',
+        currentTurn: game.currentTurn,
+        turnPhase: game.turnPhase as TurnPhase,
+        players,
+        turnManager,
+        mapManager,
+        unitManager,
+        visibilityManager,
+        cityManager,
+        researchManager,
+        lastActivity: new Date(),
+      };
+
+      // Store the recovered game instance
+      this.games.set(gameId, gameInstance);
+
+      // Initialize research and visibility for all players
+      for (const player of players.values()) {
+        await researchManager.initializePlayerResearch(player.id);
+        visibilityManager.initializePlayerVisibility(player.id);
+        // Grant initial visibility around starting position
+        visibilityManager.updatePlayerVisibility(player.id);
+      }
+
+      logger.info('Game instance recovered successfully', { gameId });
+      return gameInstance;
+    } catch (error) {
+      logger.error('Failed to recover game instance:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Restore map data from database to MapManager
+   */
+  private async restoreMapDataToManager(
+    mapManager: MapManager,
+    mapData: any,
+    mapSeed: string
+  ): Promise<void> {
+    try {
+      // Reconstruct full MapData from serialized database storage
+      const restoredMapData = {
+        width: mapData.width,
+        height: mapData.height,
+        seed: mapSeed,
+        generatedAt: new Date(mapData.generatedAt),
+        startingPositions: mapData.startingPositions || [],
+        tiles: this.deserializeMapTiles(mapData.tiles, mapData.width, mapData.height),
+      };
+
+      // Set the restored map data directly in MapManager
+      // This bypasses generation and uses the stored data
+      (mapManager as any).mapData = restoredMapData;
+
+      logger.info('Map data restored to manager', {
+        width: restoredMapData.width,
+        height: restoredMapData.height,
+        startingPositions: restoredMapData.startingPositions.length,
+      });
+    } catch (error) {
+      logger.error('Failed to restore map data to manager:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Deserialize compressed map tiles from database storage
+   */
+  private deserializeMapTiles(compressedTiles: any, width: number, height: number): any[][] {
+    // Create empty tile array filled with ocean tiles
+    const tiles: any[][] = [];
+
+    for (let y = 0; y < height; y++) {
+      tiles[y] = [];
+      for (let x = 0; x < width; x++) {
+        // Default ocean tile
+        tiles[y][x] = {
+          x,
+          y,
+          terrain: 'ocean',
+          elevation: 0,
+          riverMask: 0,
+          continentId: 0,
+          isExplored: false,
+          isVisible: false,
+          hasRoad: false,
+          hasRailroad: false,
+          improvements: [],
+          unitIds: [],
+          properties: {},
+          temperature: 4, // TEMPERATE
+          wetness: 50,
+        };
+      }
+    }
+
+    // Restore non-ocean tiles from compressed storage
+    if (compressedTiles) {
+      for (const [key, tileData] of Object.entries(compressedTiles)) {
+        const [x, y] = key.split(',').map(Number);
+        if (
+          x >= 0 &&
+          x < width &&
+          y >= 0 &&
+          y < height &&
+          tileData &&
+          typeof tileData === 'object'
+        ) {
+          tiles[y][x] = {
+            ...tiles[y][x], // Keep default values
+            ...(tileData as any), // Override with stored data
+          };
+        }
+      }
+    }
+
+    return tiles;
   }
 
   /**
