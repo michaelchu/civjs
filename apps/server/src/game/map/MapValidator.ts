@@ -174,7 +174,6 @@ export class MapValidator {
       'plains',
       'desert',
       'tundra',
-      'glacier',
       'forest',
       'jungle',
       'swamp',

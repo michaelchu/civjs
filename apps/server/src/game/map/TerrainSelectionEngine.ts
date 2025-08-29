@@ -63,9 +63,6 @@ const TERRAIN_PROPERTY_MAP: Record<TerrainType, TerrainProperties> = {
   tundra: {
     [TerrainProperty.COLD]: 50,
   },
-  glacier: {
-    [TerrainProperty.FROZEN]: 100,
-  },
 };
 
 // Terrain selection lists for different terrain categories (from freeciv reference)
@@ -158,7 +155,7 @@ const TERRAIN_SELECTORS: TerrainSelector[] = [
     wetCondition: WetnessCondition.ALL,
   },
   {
-    terrain: 'glacier',
+    terrain: 'tundra',
     weight: 30,
     target: TerrainProperty.FROZEN,
     prefer: TerrainProperty.COLD,
@@ -208,11 +205,13 @@ export class TerrainSelectionEngine {
 
     // Special climate-based terrain rules
     if (tileTemp & TemperatureType.FROZEN) {
-      // Polar regions - prefer glacier over snow in high elevations
-      if (elevation > 150) {
-        return 'glacier';
+      // Polar regions - tundra with some variation based on elevation and wetness
+      if (elevation > 150 && this.random() < 0.3) {
+        return 'hills'; // Some hills in frozen mountainous areas
+      } else if (tileWetness > 70 && this.random() < 0.2) {
+        return 'swamp'; // Frozen swamps/marshes
       } else {
-        return this.random() < 0.3 ? 'glacier' : 'tundra';
+        return 'tundra'; // Default for frozen areas
       }
     }
 
@@ -290,8 +289,11 @@ export class TerrainSelectionEngine {
     // Weighted random selection
     if (candidates.length === 0) {
       // Fallback to simple terrain based on temperature and wetness
-      if (tileTemp === TemperatureType.FROZEN) return 'glacier';
-      if (tileTemp === TemperatureType.COLD) return 'tundra';
+      if (tileTemp === TemperatureType.FROZEN) return 'tundra';
+      if (tileTemp === TemperatureType.COLD) {
+        // Cold: reasonable chance of tundra with natural variation
+        return this.random() < 0.7 ? 'tundra' : 'plains';
+      }
       if (tileWetness > 70) return 'grassland';
       if (tileWetness < 30) return 'desert';
       return 'plains';

@@ -250,7 +250,14 @@ export class TerrainGenerator {
       this.makeRelief(tiles, heightMap, hmap_shore_level, terrainParams.mountain_pct);
     }
 
-    // Step 10: make_terrains() - place forests, deserts, etc.
+    // Step 9.5: Temperature map creation BEFORE terrain selection (CRITICAL FIX)
+    // @reference freeciv/server/generator/mapgen.c:1133 create_tmap(TRUE)
+    // MOVED EARLIER: Terrain selection needs temperature data!
+    if (this.temperatureMap) {
+      this.createTemperatureMapInternal(tiles, heightMap);
+    }
+
+    // Step 10: make_terrains() - place forests, deserts, etc. (NOW WITH PROPER TEMPERATURES)
     this.makeTerrains(tiles, terrainParams);
 
     // Step 10.5: Continent assignment in correct order (Phase 1 fix)
@@ -269,12 +276,6 @@ export class TerrainGenerator {
     // @reference freeciv/server/generator/mapgen.c:1127-1129
     if (this.heightGenerator) {
       this.heightGenerator.renormalizeHeightMapPoles();
-    }
-
-    // Step 13: Temperature map creation (freeciv line 1134 equivalent)
-    // @reference freeciv/server/generator/mapgen.c:1133 create_tmap(TRUE)
-    if (this.temperatureMap) {
-      this.createTemperatureMapInternal(tiles, heightMap);
     }
 
     // Step 14: River generation (freeciv line 1150 equivalent)
@@ -1404,19 +1405,23 @@ export class TerrainGenerator {
 
   /**
    * Identify biome type based on temperature and wetness
+   * FIXED: Use temperature types instead of raw values to match aggressive tundra reduction
    */
   private identifyBiomeType(tile: MapTile): string {
-    const temp = tile.temperature as number;
+    const temp = tile.temperature as TemperatureType;
     const wet = tile.wetness;
 
-    if (temp >= 800) {
+    if (temp & TemperatureType.TROPICAL) {
       return wet > 60 ? 'tropical_wet' : 'tropical_dry';
-    } else if (temp >= 500) {
+    } else if (temp & TemperatureType.TEMPERATE) {
       return wet > 70 ? 'temperate_wet' : wet > 30 ? 'temperate' : 'temperate_dry';
-    } else if (temp >= 300) {
+    } else if (temp & TemperatureType.COLD) {
       return wet > 50 ? 'cold_wet' : 'cold_dry';
-    } else {
+    } else if (temp & TemperatureType.FROZEN) {
       return 'frozen';
+    } else {
+      // Fallback for any unrecognized temperature type
+      return 'temperate';
     }
   }
 
@@ -1469,9 +1474,9 @@ export class TerrainGenerator {
       temperate_wet: ['forest', 'grassland', 'swamp'],
       temperate: ['grassland', 'plains', 'forest'],
       temperate_dry: ['plains', 'desert', 'grassland'],
-      cold_wet: ['forest', 'tundra', 'swamp'],
-      cold_dry: ['tundra', 'plains'],
-      frozen: ['glacier', 'tundra'],
+      cold_wet: ['forest', 'tundra', 'swamp'], // Restored tundra for tips-only generation
+      cold_dry: ['tundra', 'plains'], // Restored tundra for tips-only generation
+      frozen: ['tundra'], // Restored tundra for tips-only generation
     };
 
     return biomeTerrains[biomeType]?.includes(terrain) || false;
@@ -1568,7 +1573,8 @@ export class TerrainGenerator {
     if (currentTerrain === 'mountains' && gradient > 150) {
       return 'hills';
     } else if (currentTerrain === 'hills' && gradient > 120) {
-      return (tile.temperature as number) > 500 ? 'grassland' : 'tundra';
+      // Use proper temperature types instead of raw values
+      return tile.temperature & TemperatureType.FROZEN ? 'tundra' : 'grassland';
     }
 
     return null;
@@ -1598,7 +1604,10 @@ export class TerrainGenerator {
     // Temperature-based transitions
     if (tempGradient > 200) {
       const temp = tile.temperature as number;
-      if (temp < 400 && ['grassland', 'plains'].includes(currentTerrain)) {
+      if (
+        tile.temperature & TemperatureType.FROZEN &&
+        ['grassland', 'plains'].includes(currentTerrain)
+      ) {
         return 'tundra';
       } else if (temp > 700 && currentTerrain === 'forest') {
         return tile.wetness > 60 ? 'jungle' : 'grassland';
@@ -1673,9 +1682,9 @@ export class TerrainGenerator {
       temperate_wet: ['forest', 'grassland', 'swamp'],
       temperate: ['grassland', 'plains', 'forest'],
       temperate_dry: ['plains', 'desert', 'grassland'],
-      cold_wet: ['forest', 'tundra', 'swamp'],
-      cold_dry: ['tundra', 'plains'],
-      frozen: ['glacier', 'tundra'],
+      cold_wet: ['forest', 'tundra', 'swamp'], // Restored tundra for tips-only generation
+      cold_dry: ['tundra', 'plains'], // Restored tundra for tips-only generation
+      frozen: ['tundra'], // Restored tundra for tips-only generation
     };
 
     return biomeTerrains[biomeType] || ['grassland'];
@@ -1697,12 +1706,126 @@ export class TerrainGenerator {
       }
     }
 
+    // Apply biome transition smoothing for better boundaries
+    const smoothingChanges = this.applyBiomeTransitionSmoothing(tiles);
+
     // Log the improvements made
     if (changesApplied > 0) {
       console.log(
         `Applied ${changesApplied} biome transition improvements for ${this.generator} generator`
       );
     }
+    if (smoothingChanges > 0) {
+      console.log(`Applied ${smoothingChanges} biome transition smoothing improvements`);
+    }
+  }
+
+  /**
+   * Apply biome transition smoothing to create gradual boundaries between temperature zones
+   * This softens harsh edges while preserving tundra blocks
+   */
+  private applyBiomeTransitionSmoothing(tiles: MapTile[][]): number {
+    let smoothingChanges = 0;
+
+    // Single pass to preserve tundra blocks while softening edges
+    const newTerrain = tiles.map(row => [...row]);
+
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const currentTile = tiles[x][y];
+
+        // Skip if not land
+        if (!isLandTile(currentTile.terrain)) continue;
+
+        // Use moderate radius for edge detection
+        const closeNeighbors = this.getNeighborTerrain(tiles, x, y, 1);
+        const neighbors = this.getNeighborTerrain(tiles, x, y, 2);
+
+        // Count terrain types
+        const tundraClose = closeNeighbors.filter(n => n.terrain === 'tundra').length;
+        const tundraWide = neighbors.filter(n => n.terrain === 'tundra').length;
+        const grassClose = closeNeighbors.filter(n => n.terrain === 'grassland').length;
+        const grassWide = neighbors.filter(n => n.terrain === 'grassland').length;
+
+        // GENTLE TUNDRA EDGE SOFTENING: Only convert isolated/edge tundra
+        if (currentTile.terrain === 'tundra') {
+          // Only convert tundra that's very isolated or on the very edge
+          if (tundraClose <= 1 && grassClose > 0 && this.random() < 0.3) {
+            newTerrain[x][y].terrain = 'plains';
+            this.setTerrainProperties(newTerrain[x][y]);
+            smoothingChanges++;
+          }
+        }
+
+        // GRASSLAND BUFFERING: Prevent direct grassland-tundra contact
+        else if (currentTile.terrain === 'grassland') {
+          // Only buffer grassland that's directly next to tundra
+          if (tundraClose > 0 && this.random() < 0.5) {
+            newTerrain[x][y].terrain = 'plains';
+            this.setTerrainProperties(newTerrain[x][y]);
+            smoothingChanges++;
+          }
+        }
+
+        // ADD OCCASIONAL FORESTS: Natural transition zones
+        else if (currentTile.terrain === 'plains') {
+          // Add forest if plains is between tundra and grassland
+          if (
+            tundraWide > 0 &&
+            grassWide > 0 &&
+            tundraClose === 0 &&
+            grassClose === 0 &&
+            this.random() < 0.2
+          ) {
+            newTerrain[x][y].terrain = 'forest';
+            this.setTerrainProperties(newTerrain[x][y]);
+            smoothingChanges++;
+          }
+        }
+      }
+    }
+
+    // Apply the smoothing changes
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        if (tiles[x][y].terrain !== newTerrain[x][y].terrain) {
+          tiles[x][y].terrain = newTerrain[x][y].terrain;
+        }
+      }
+    }
+
+    return smoothingChanges;
+  }
+
+  /**
+   * Get terrain info for neighbors within specified radius
+   */
+  private getNeighborTerrain(
+    tiles: MapTile[][],
+    x: number,
+    y: number,
+    radius: number
+  ): Array<{ terrain: string; distance: number }> {
+    const neighbors = [];
+
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        if (dx === 0 && dy === 0) continue; // Skip center tile
+
+        const nx = x + dx;
+        const ny = y + dy;
+
+        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          neighbors.push({
+            terrain: tiles[nx][ny].terrain,
+            distance: distance,
+          });
+        }
+      }
+    }
+
+    return neighbors;
   }
 
   /**
@@ -1976,10 +2099,10 @@ export class TerrainGenerator {
         if (tile.terrain === 'grassland') {
           // Fill based on temperature like freeciv make_plain()
           if (tile.temperature === TemperatureType.FROZEN) {
-            // Frozen: pick_terrain(MG_FROZEN, MG_UNUSED, MG_MOUNTAINOUS)
-            tile.terrain = 'glacier';
+            // Frozen: use tundra instead of glacier
+            tile.terrain = 'tundra';
           } else if (tile.temperature === TemperatureType.COLD) {
-            // Cold: pick_terrain(MG_COLD, MG_UNUSED, MG_MOUNTAINOUS)
+            // Cold: reasonable chance of tundra with natural variation
             tile.terrain = this.random() < 0.7 ? 'tundra' : 'plains';
           } else {
             // Temperate/Tropical: pick_terrain(MG_TEMPERATE, MG_GREEN, MG_MOUNTAINOUS)

@@ -581,7 +581,6 @@ export class MapRenderer {
 
       // Special terrains
       arctic: 'arctic',
-      glacier: 'arctic', // glacier uses "arctic" graphic
       inaccessible: 'inaccessible',
     };
 
