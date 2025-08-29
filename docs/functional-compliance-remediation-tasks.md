@@ -6,6 +6,43 @@
 
 ---
 
+## 📚 Reference Code Locations
+
+### **Primary Freeciv Reference Files**
+- **River Generation Algorithm**: `/root/repo/reference/freeciv/server/generator/mapgen.c:906-1050 make_rivers()`
+- **Terrain Parameter Calculation**: `/root/repo/reference/freeciv/server/generator/mapgen.c:2850-2950 adjust_terrain_param()`
+- **River Spring Selection**: `/root/repo/reference/freeciv/server/generator/mapgen.c:949-990`
+- **Individual River Generation**: `/root/repo/reference/freeciv/server/generator/mapgen.c:991-1050 make_river()`
+- **Map Validation**: `/root/repo/reference/freeciv/server/generator/mapgen.c:3000-3100`
+- **River Data Structures**: `/root/repo/reference/freeciv/common/map.h:300-350` (riverMask bit definitions)
+- **Efficient RiverMask Operations**: `/root/repo/reference/freeciv/common/map.c:1200-1300`
+- **Logging Utilities**: `/root/repo/reference/freeciv/utility/log.h`
+
+### **Primary Freeciv-Web Reference Files**
+- **River Rendering**: `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas.js:550-650 draw_segment_river()`
+- **Sprite Loading**: `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/javascript/tilesets.js:100-300`
+- **Tileset Specification**: `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/tileset/tileset_spec.js`
+- **Fallback Sprite Handling**: `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas.js:100-150`
+- **Performance Optimizations**: `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas.js:600-700`
+- **Debug Utilities**: `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/javascript/webgl_debug.js:50-100`
+
+### **Key CivJS Files to Modify**
+- **Server River Generation**: `/apps/server/src/game/map/RiverGenerator.ts`
+- **Server Terrain Generation**: `/apps/server/src/game/map/TerrainGenerator.ts`
+- **Server Map Validation**: `/apps/server/src/game/map/MapValidator.ts`
+- **Client River Rendering**: `/apps/client/src/components/Canvas2D/MapRenderer.ts`
+- **Client Sprite Loading**: `/apps/client/src/components/Canvas2D/TilesetLoader.ts`
+- **Type Definitions**: `/apps/client/src/types/index.ts`
+
+### **Reference Usage Instructions**
+1. **Always consult reference implementation** before modifying CivJS code
+2. **Copy algorithm structure and logic** from freeciv/freeciv-web when possible
+3. **Adapt data structures and APIs** to TypeScript/modern patterns while preserving core logic
+4. **Cite source file and line ranges** in code comments for future maintainers
+5. **Test against reference behavior** to ensure functional compliance
+
+---
+
 ## 🚨 CRITICAL PRIORITY TASKS
 
 ### **TASK 1: Fix River Parameter Flow** 
@@ -16,6 +53,7 @@
 
 #### **Subtask 1.1: Update RiverGenerator API**
 **File**: `/apps/server/src/game/map/RiverGenerator.ts`
+**Reference Implementation**: `/root/repo/reference/freeciv/server/generator/mapgen.c:906-950 make_rivers() parameter usage`
 **Changes**:
 ```typescript
 // Current (broken)
@@ -41,6 +79,7 @@ public async generateAdvancedRivers(
 
 #### **Subtask 1.2: Update TerrainGenerator Integration**  
 **File**: `/apps/server/src/game/map/TerrainGenerator.ts`
+**Reference Implementation**: `/root/repo/reference/freeciv/server/generator/mapgen.c:2850-2900 adjust_terrain_param()` for parameter calculation
 **Changes**:
 ```typescript
 // Current makeRivers() call
@@ -73,6 +112,7 @@ await this.riverGenerator.generateAdvancedRivers(tiles, terrainParams.river_pct,
 
 #### **Subtask 2.1: Add riverMask Rendering**
 **File**: `/apps/client/src/components/Canvas2D/MapRenderer.ts`
+**Reference Implementation**: `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas.js:550-650 draw_segment_river()` for river overlay rendering
 **Changes**:
 ```typescript
 // Add after terrain layers in renderTerrainLayers()
@@ -106,6 +146,7 @@ private renderRiverOverlay(tile: Tile, screenPos: { x: number; y: number }) {
 
 #### **Subtask 2.2: Add River Sprite Support**
 **File**: `/apps/client/src/components/Canvas2D/TilesetLoader.ts`
+**Reference Implementation**: `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/javascript/tilesets.js:200-300` for sprite loading and `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/tileset/tileset_spec.js` for sprite mapping
 **Changes**:
 - [ ] Ensure river sprites are loaded from tileset
 - [ ] Add river sprite validation during tileset loading
@@ -143,7 +184,7 @@ export interface Tile {
 
 #### **Subtask 3.1: Replace Random Placement Algorithm**
 **File**: `/apps/server/src/game/map/RiverGenerator.ts`
-**Reference**: `freeciv/server/generator/mapgen.c:906-1050 make_rivers()`
+**Reference Implementation**: `/root/repo/reference/freeciv/server/generator/mapgen.c:906-1050 make_rivers()`
 
 **Changes**:
 ```typescript
@@ -185,6 +226,7 @@ public async generateAdvancedRivers(tiles: MapTile[][], riverPct: number): Promi
 - [ ] Rivers avoid starting in inappropriate locations (ocean, existing rivers)
 
 #### **Subtask 3.2: Add River Spring Selection**
+**Reference Implementation**: `/root/repo/reference/freeciv/server/generator/mapgen.c:949-990` for spring selection criteria
 **Implementation**:
 ```typescript
 private findRiverSpring(tiles: MapTile[][]): {x: number, y: number} | null {
@@ -196,6 +238,7 @@ private findRiverSpring(tiles: MapTile[][]): {x: number, y: number} | null {
 ```
 
 #### **Subtask 3.3: Add River Network Building**
+**Reference Implementation**: `/root/repo/reference/freeciv/server/generator/mapgen.c:991-1050 make_river()` for individual river generation and `/root/repo/reference/freeciv/common/map.h:300-350` for riverMask bit definitions
 **Implementation**:
 ```typescript
 private async makeRiver(startTile: {x: number, y: number}, tiles: MapTile[][], riverMap: RiverMapState): Promise<number> {
@@ -225,6 +268,7 @@ private async makeRiver(startTile: {x: number, y: number}, tiles: MapTile[][], r
 
 #### **Subtask 4.1: Add River Validation**
 **File**: `/apps/server/src/game/map/MapValidator.ts`
+**Reference Implementation**: `/root/repo/reference/freeciv/server/generator/mapgen.c:3000-3100` for map validation criteria and expected river distribution
 **Changes**:
 ```typescript
 // Add to validateMap() method
@@ -266,6 +310,7 @@ private validateRiverDistribution(tiles: MapTile[][], expectedRiverPct: number):
 - [ ] Add river metrics to validation output
 
 #### **Subtask 4.2: Add Parameter Compliance Validation**
+**Reference Implementation**: `/root/repo/reference/freeciv/server/generator/mapgen.c:2850-2950 adjust_terrain_param()` for expected parameter ranges and validation
 **Implementation**:
 ```typescript
 private validateParameterCompliance(tiles: MapTile[][], terrainParams: TerrainParameters): ValidationResult {
@@ -290,6 +335,7 @@ private validateParameterCompliance(tiles: MapTile[][], terrainParams: TerrainPa
 
 #### **Subtask 5.1: Add Sprite Loading Validation**
 **File**: `/apps/client/src/components/Canvas2D/TilesetLoader.ts`
+**Reference Implementation**: `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/javascript/tilesets.js:100-200` for sprite loading validation and error handling
 **Changes**:
 ```typescript
 private async validateSpritecoverage(): Promise<void> {
@@ -317,6 +363,7 @@ private async validateSpritecoverage(): Promise<void> {
 
 #### **Subtask 5.2: Improve Fallback Sprite System**
 **File**: `/apps/client/src/components/Canvas2D/MapRenderer.ts`
+**Reference Implementation**: `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas.js:100-150` for fallback sprite handling and solid color alternatives
 **Changes**:
 ```typescript
 // Instead of solid color fallback
@@ -355,6 +402,7 @@ if (!sprite) {
 
 #### **Subtask 6.1: Add Parameter Flow Testing**
 **File**: `/apps/server/src/tests/integration/parameter-flow.test.ts`
+**Reference Implementation**: `/root/repo/reference/freeciv/server/generator/mapgen.c:906-950 make_rivers()` for expected parameter flow behavior
 **Implementation**:
 ```typescript
 describe('Parameter Flow Integration', () => {
@@ -376,6 +424,7 @@ describe('Parameter Flow Integration', () => {
 
 #### **Subtask 6.2: Add End-to-End Feature Testing**
 **File**: `/apps/client/src/tests/integration/river-rendering.test.ts`
+**Reference Implementation**: `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas.js:550-650 draw_segment_river()` for expected river rendering behavior
 **Implementation**:
 ```typescript
 describe('River End-to-End', () => {
@@ -402,6 +451,7 @@ describe('River End-to-End', () => {
 **User Impact**: Better debugging of functional issues  
 
 #### **Subtask 7.1: Add Parameter Flow Logging**
+**Reference Implementation**: `/root/repo/reference/freeciv/server/generator/mapgen.c:900-905` for logging river generation progress and `/root/repo/reference/freeciv/utility/log.h` for logging patterns
 **Changes Across Files**:
 ```typescript
 // TerrainGenerator.ts
@@ -421,6 +471,7 @@ public async generateAdvancedRivers(tiles: MapTile[][], riverPct: number) {
 
 #### **Subtask 7.2: Add Sprite Loading Debugging**
 **File**: `/apps/client/src/components/Canvas2D/MapRenderer.ts`
+**Reference Implementation**: `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/javascript/webgl_debug.js:50-100` for sprite debugging patterns
 **Changes**:
 ```typescript
 private renderTerrainLayers(tile: Tile, screenPos: { x: number; y: number }) {
@@ -453,12 +504,14 @@ private renderTerrainLayers(tile: Tile, screenPos: { x: number; y: number }) {
 
 #### **Subtask 8.1: Optimize River Generation Performance**
 **File**: `/apps/server/src/game/map/RiverGenerator.ts`
+**Reference Implementation**: `/root/repo/reference/freeciv/server/generator/mapgen.c:950-1000` for optimized spring selection and `/root/repo/reference/freeciv/common/map.c:1200-1300` for efficient riverMask operations
 - [ ] Cache height map lookups for river flow calculation
 - [ ] Optimize river connectivity checks
 - [ ] Batch river mask updates
 
 #### **Subtask 8.2: Optimize River Rendering Performance**  
 **File**: `/apps/client/src/components/Canvas2D/MapRenderer.ts`
+**Reference Implementation**: `/root/repo/reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas.js:600-700` for optimized river rendering techniques
 - [ ] Cache river sprites to avoid repeated lookups
 - [ ] Only render rivers in visible viewport
 - [ ] Batch river sprite rendering operations
