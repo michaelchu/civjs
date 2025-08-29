@@ -9,6 +9,7 @@ export interface Tile {
   known: boolean;
   resource?: string;
   elevation?: number;
+  riverMask?: number; // River connection bitmask: N=1, E=2, S=4, W=8
 }
 
 export interface Unit {
