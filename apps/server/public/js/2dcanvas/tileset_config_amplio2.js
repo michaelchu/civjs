@@ -189,7 +189,7 @@ ts_tiles['swamp']['num_layers'] = 1;
 ts_tiles['swamp']['layer0_match_type'] = "land";
 
 ts_tiles['tundra'] = {};
-ts_tiles['tundra']['is_blended'] = 0;
+ts_tiles['tundra']['is_blended'] = 1;
 ts_tiles['tundra']['num_layers'] = 1;
 ts_tiles['tundra']['layer0_match_type'] = "land";
 

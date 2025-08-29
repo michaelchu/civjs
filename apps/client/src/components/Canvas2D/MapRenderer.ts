@@ -298,10 +298,6 @@ export class MapRenderer {
         {
           switch (dlp['match_style']) {
             case MATCH_NONE: {
-              // Debug: Log when tundra uses MATCH_NONE path (should happen after fix)
-              if (import.meta.env.DEV && pterrain['graphic_str'] === 'tundra') {
-                console.log('[DEBUG] Tundra using MATCH_NONE path (correct)');
-              }
 
               const result_sprites: Array<{
                 key: string;
