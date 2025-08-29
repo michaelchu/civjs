@@ -4,6 +4,10 @@ import { useGameStore } from '../store/gameStore';
 import { gameClient } from '../services/GameClient';
 import { ConnectionDialog } from './ConnectionDialog';
 import { GameLayout } from './GameUI/GameLayout';
+import {
+  getStoredPlayerName,
+  isCurrentGameSinglePlayer,
+} from '../utils/gameSession';
 
 export const GameRoute: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
@@ -23,16 +27,33 @@ export const GameRoute: React.FC = () => {
       await gameClient.connect();
       setClientState('connecting');
 
-      const defaultPlayerName = `Player_${Date.now().toString(36)}`;
+      // Try to get stored player name first, fallback to default
+      const storedPlayerName = getStoredPlayerName(gameId);
+      const isSinglePlayer = isCurrentGameSinglePlayer(gameId);
+      const playerName =
+        storedPlayerName || `Player_${Date.now().toString(36)}`;
+
+      console.log('Loading game:', {
+        gameId,
+        playerName,
+        isSinglePlayer,
+        hasStoredName: !!storedPlayerName,
+      });
 
       try {
-        await gameClient.joinSpecificGame(gameId, defaultPlayerName);
+        await gameClient.joinSpecificGame(gameId, playerName);
       } catch (joinError) {
-        console.log(
-          'Could not join as player, trying observer mode:',
-          joinError
-        );
+        console.log('Could not join as player:', joinError);
 
+        // For single player games, never fall back to observer mode
+        if (isSinglePlayer) {
+          throw new Error(
+            `Failed to rejoin single player game: ${joinError instanceof Error ? joinError.message : 'Unknown error'}`
+          );
+        }
+
+        // For multiplayer games, try observer mode as fallback
+        console.log('Trying observer mode for multiplayer game');
         try {
           await gameClient.observeGame(gameId);
           console.log('Joined as observer');

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { SERVER_URL } from '../config';
 import { useGameStore } from '../store/gameStore';
+import { storeGameSession, clearGameSession } from '../utils/gameSession';
 
 interface GameState {
   id: string;
@@ -162,6 +163,13 @@ class GameClient {
       this.currentGameId = response.gameId;
       console.log('Game created:', response.gameId);
 
+      // Store game session data for persistence across refreshes
+      storeGameSession({
+        playerName: gameData.playerName,
+        gameId: response.gameId,
+        gameType: gameData.gameType,
+      });
+
       // Fetch initial game data directly
       await this.fetchGameData();
 
@@ -181,6 +189,12 @@ class GameClient {
     // First authenticate
     await this.authenticatePlayer(playerName);
 
+    // Get game info to determine game type
+    const gameInfoResponse = await this.makeRequest(`/api/games/${gameId}`);
+    const gameType = gameInfoResponse.success
+      ? gameInfoResponse.game?.gameType || 'multiplayer'
+      : 'multiplayer';
+
     const response = await this.makeRequest(`/api/games/${gameId}/join`, {
       method: 'POST',
       body: JSON.stringify({ civilization: 'random' }),
@@ -189,6 +203,14 @@ class GameClient {
     if (response.success) {
       this.currentGameId = gameId;
       console.log(`Joined game ${gameId}`);
+
+      // Store game session data for persistence across refreshes
+      storeGameSession({
+        playerName,
+        gameId,
+        gameType: gameType as 'single' | 'multiplayer',
+      });
+
       // Fetch game data directly after joining
       await this.fetchGameData();
     } else {
@@ -497,6 +519,9 @@ class GameClient {
         // Ignore logout errors
       });
     }
+
+    // Clear stored game session data
+    clearGameSession();
 
     this.sessionId = null;
     this.currentGameId = null;
