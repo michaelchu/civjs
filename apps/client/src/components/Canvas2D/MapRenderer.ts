@@ -84,7 +84,12 @@ export class MapRenderer {
     const globalTiles = (window as any).tiles;
     const globalMap = (window as any).map;
 
-    if (!globalTiles || !globalMap || !Array.isArray(globalTiles) || globalTiles.length === 0) {
+    if (
+      !globalTiles ||
+      !globalMap ||
+      !Array.isArray(globalTiles) ||
+      globalTiles.length === 0
+    ) {
       this.clearCanvas();
       this.renderEmptyMap();
       return;
@@ -112,7 +117,11 @@ export class MapRenderer {
       this.clearCanvas(true, '#4682B4');
     }
 
-    const visibleTiles = this.getVisibleTilesFromGlobal(state.viewport, globalMap, globalTiles);
+    const visibleTiles = this.getVisibleTilesFromGlobal(
+      state.viewport,
+      globalMap,
+      globalTiles
+    );
 
     for (const tile of visibleTiles) {
       this.renderTile(tile, state.viewport);
@@ -178,7 +187,11 @@ export class MapRenderer {
     this.ctx.fillStyle = 'white';
     this.ctx.font = '20px Arial';
     this.ctx.textAlign = 'center';
-    this.ctx.fillText('Loading Tileset...', this.ctx.canvas.width / 2, this.ctx.canvas.height / 2);
+    this.ctx.fillText(
+      'Loading Tileset...',
+      this.ctx.canvas.width / 2,
+      this.ctx.canvas.height / 2
+    );
   }
 
   private renderTile(tile: Tile, viewport: MapViewport) {
@@ -206,7 +219,11 @@ export class MapRenderer {
           const offsetY = spriteInfo.offset_y || 0;
 
           // Copy freeciv-web logic exactly: pcanvas.drawImage(sprites[tag], canvas_x, canvas_y);
-          this.ctx.drawImage(sprite, screenPos.x + offsetX, screenPos.y + offsetY);
+          this.ctx.drawImage(
+            sprite,
+            screenPos.x + offsetX,
+            screenPos.y + offsetY
+          );
         } else {
           // Try fallback sprites for water terrains
           if (tile.terrain === 'ocean' || tile.terrain === 'coast') {
@@ -223,11 +240,16 @@ export class MapRenderer {
       }
     }
 
-    // Fallback: if no sprites rendered, try basic terrain sprite before solid color
+    // Fallback: if no sprites rendered, show solid color
     if (!hasAnySprites) {
       const color = this.getTerrainColor(tile.terrain);
       this.ctx.fillStyle = color;
-      this.ctx.fillRect(screenPos.x, screenPos.y, this.tileWidth, this.tileHeight);
+      this.ctx.fillRect(
+        screenPos.x,
+        screenPos.y,
+        this.tileWidth,
+        this.tileHeight
+      );
     }
   }
 
@@ -276,11 +298,6 @@ export class MapRenderer {
         {
           switch (dlp['match_style']) {
             case MATCH_NONE: {
-              // Debug: Log when tundra uses MATCH_NONE path (should happen after fix)
-              if (import.meta.env.DEV && pterrain['graphic_str'] === 'tundra') {
-                console.log('[DEBUG] Tundra using MATCH_NONE path (correct)');
-              }
-
               const result_sprites: Array<{
                 key: string;
                 offset_x?: number;
@@ -291,18 +308,24 @@ export class MapRenderer {
                   if (
                     !tterrain_near ||
                     !tterrain_near[cardinal_tileset_dirs[i]] ||
-                    !ts_tiles[tterrain_near[cardinal_tileset_dirs[i]]['graphic_str']]
+                    !ts_tiles[
+                      tterrain_near[cardinal_tileset_dirs[i]]['graphic_str']
+                    ]
                   )
                     continue;
                   const near_dlp =
                     tile_types_setup[
-                      'l' + l + '.' + tterrain_near[cardinal_tileset_dirs[i]]['graphic_str']
+                      'l' +
+                        l +
+                        '.' +
+                        tterrain_near[cardinal_tileset_dirs[i]]['graphic_str']
                     ];
                   const terrain_near =
                     near_dlp && near_dlp['dither'] == true
                       ? tterrain_near[cardinal_tileset_dirs[i]]['graphic_str']
                       : pterrain['graphic_str'];
-                  const dither_tile = i + pterrain['graphic_str'] + '_' + terrain_near;
+                  const dither_tile =
+                    i + pterrain['graphic_str'] + '_' + terrain_near;
                   const x = dither_offset_x[i];
                   const y = dither_offset_y[i];
                   result_sprites.push({
@@ -313,18 +336,13 @@ export class MapRenderer {
                 }
                 return result_sprites;
               } else {
-                return [{ key: 't.l' + l + '.' + pterrain['graphic_str'] + '1' }];
+                return [
+                  { key: 't.l' + l + '.' + pterrain['graphic_str'] + '1' },
+                ];
               }
             }
 
             case MATCH_SAME: {
-              // Debug: Log when tundra incorrectly uses MATCH_SAME path (should NOT happen after fix)
-              if (import.meta.env.DEV && pterrain['graphic_str'] === 'tundra') {
-                console.warn(
-                  '[DEBUG] Tundra using MATCH_SAME path (incorrect - should use MATCH_NONE)'
-                );
-              }
-
               let tileno = 0;
               const this_match_type =
                 ts_tiles[pterrain['graphic_str']] &&
@@ -335,7 +353,9 @@ export class MapRenderer {
                   const dir = cardinal_tileset_dirs[i];
                   if (!ts_tiles[tterrain_near[dir]['graphic_str']]) continue;
                   const that =
-                    ts_tiles[tterrain_near[dir]['graphic_str']]['layer' + l + '_match_type'];
+                    ts_tiles[tterrain_near[dir]['graphic_str']][
+                      'layer' + l + '_match_type'
+                    ];
                   if (that == this_match_type) {
                     tileno |= 1 << i;
                   }
@@ -343,8 +363,15 @@ export class MapRenderer {
               }
 
               const gfx_key =
-                't.l' + l + '.' + pterrain['graphic_str'] + '_' + this.cardinalIndexStr(tileno);
-              const y = tileset[gfx_key] ? tileset_tile_height - tileset[gfx_key][3] : 0;
+                't.l' +
+                l +
+                '.' +
+                pterrain['graphic_str'] +
+                '_' +
+                this.cardinalIndexStr(tileno);
+              const y = tileset[gfx_key]
+                ? tileset_tile_height - tileset[gfx_key][3]
+                : 0;
 
               return [{ key: gfx_key, offset_x: 0, offset_y: y }];
             }
@@ -364,8 +391,12 @@ export class MapRenderer {
         ];
 
         // Get this terrain's match_index[0] from tile_types_setup
-        const this_match_index = tile_types_setup['l' + l + '.' + pterrain['graphic_str']]
-          ? tile_types_setup['l' + l + '.' + pterrain['graphic_str']]['match_index'][0]
+        const this_match_index = tile_types_setup[
+          'l' + l + '.' + pterrain['graphic_str']
+        ]
+          ? tile_types_setup['l' + l + '.' + pterrain['graphic_str']][
+              'match_index'
+            ][0]
           : -1;
 
         const result_sprites: Array<{
@@ -431,22 +462,26 @@ export class MapRenderer {
           // This matches the original freeciv-web implementation exactly
           const m = [
             // Counter-clockwise neighbor
-            tile_types_setup['l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str']]
-              ? tile_types_setup['l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str']][
-                  'match_index'
-                ][0]
+            tile_types_setup[
+              'l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str']
+            ]
+              ? tile_types_setup[
+                  'l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str']
+                ]['match_index'][0]
               : -1,
             // Direct neighbor
             tile_types_setup['l' + l + '.' + tterrain_near[dir]['graphic_str']]
-              ? tile_types_setup['l' + l + '.' + tterrain_near[dir]['graphic_str']][
-                  'match_index'
-                ][0]
+              ? tile_types_setup[
+                  'l' + l + '.' + tterrain_near[dir]['graphic_str']
+                ]['match_index'][0]
               : -1,
             // Clockwise neighbor
-            tile_types_setup['l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str']]
-              ? tile_types_setup['l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str']][
-                  'match_index'
-                ][0]
+            tile_types_setup[
+              'l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str']
+            ]
+              ? tile_types_setup[
+                  'l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str']
+                ]['match_index'][0]
               : -1,
           ];
 
@@ -490,7 +525,8 @@ export class MapRenderer {
           }
 
           array_index = array_index * NUM_CORNER_DIRS + i;
-          const sprite_key = cellgroup_map[pterrain['graphic_str'] + '.' + array_index];
+          const sprite_key =
+            cellgroup_map[pterrain['graphic_str'] + '.' + array_index];
 
           if (sprite_key) {
             result_sprites.push({
@@ -618,7 +654,10 @@ export class MapRenderer {
     try {
       return this.fillTerrainSpriteArray(layer, ptile, pterrain, tterrain_near);
     } catch (error) {
-      console.warn(`Error in fillTerrainSpriteArray for ${tile.terrain} layer ${layer}:`, error);
+      console.warn(
+        `Error in fillTerrainSpriteArray for ${tile.terrain} layer ${layer}:`,
+        error
+      );
       return [];
     }
   }
@@ -651,12 +690,21 @@ export class MapRenderer {
     const screenPos = this.mapToScreen(city.x, city.y, viewport);
 
     this.ctx.fillStyle = this.getPlayerColor(city.playerId);
-    this.ctx.fillRect(screenPos.x + 5, screenPos.y + 5, this.tileWidth - 10, this.tileHeight - 10);
+    this.ctx.fillRect(
+      screenPos.x + 5,
+      screenPos.y + 5,
+      this.tileWidth - 10,
+      this.tileHeight - 10
+    );
 
     this.ctx.fillStyle = 'white';
     this.ctx.font = '10px Arial';
     this.ctx.textAlign = 'center';
-    this.ctx.fillText(city.name, screenPos.x + this.tileWidth / 2, screenPos.y - 5);
+    this.ctx.fillText(
+      city.name,
+      screenPos.x + this.tileWidth / 2,
+      screenPos.y - 5
+    );
 
     this.ctx.fillText(
       city.size.toString(),
@@ -672,13 +720,19 @@ export class MapRenderer {
    * @param mapDy - Map Y coordinate difference
    * @returns GUI coordinates object with guiDx and guiDy
    */
-  mapToGuiVector(mapDx: number, mapDy: number): { guiDx: number; guiDy: number } {
+  mapToGuiVector(
+    mapDx: number,
+    mapDy: number
+  ): { guiDx: number; guiDy: number } {
     const guiDx = ((mapDx - mapDy) * this.tileWidth) >> 1;
     const guiDy = ((mapDx + mapDy) * this.tileHeight) >> 1;
     return { guiDx, guiDy };
   }
 
-  private guiToMapPos(guiX: number, guiY: number): { mapX: number; mapY: number } {
+  private guiToMapPos(
+    guiX: number,
+    guiY: number
+  ): { mapX: number; mapY: number } {
     const W = this.tileWidth;
     const H = this.tileHeight;
 
@@ -833,12 +887,16 @@ export class MapRenderer {
 
       const ptile_x0 = Math.floor(
         (gui_x_0 * ptile_r2) / ptile_w -
-          (gui_x_0 * ptile_r2 < 0 && (gui_x_0 * ptile_r2) % ptile_w < 0 ? 1 : 0) -
+          (gui_x_0 * ptile_r2 < 0 && (gui_x_0 * ptile_r2) % ptile_w < 0
+            ? 1
+            : 0) -
           ptile_r1 / 2
       );
       const ptile_y0 = Math.floor(
         (gui_y_0 * ptile_r2) / ptile_h -
-          (gui_y_0 * ptile_r2 < 0 && (gui_y_0 * ptile_r2) % ptile_h < 0 ? 1 : 0) -
+          (gui_y_0 * ptile_r2 < 0 && (gui_y_0 * ptile_r2) % ptile_h < 0
+            ? 1
+            : 0) -
           ptile_r1 / 2
       );
       const ptile_x1 = Math.floor(
@@ -861,7 +919,9 @@ export class MapRenderer {
 
       for (let ptile_index = 0; ptile_index < ptile_count; ptile_index++) {
         const ptile_xi = ptile_x0 + (ptile_index % (ptile_x1 - ptile_x0));
-        const ptile_yi = Math.floor(ptile_y0 + ptile_index / (ptile_x1 - ptile_x0));
+        const ptile_yi = Math.floor(
+          ptile_y0 + ptile_index / (ptile_x1 - ptile_x0)
+        );
         const ptile_si = ptile_xi + ptile_yi;
         const ptile_di = ptile_yi - ptile_xi;
 
@@ -877,10 +937,19 @@ export class MapRenderer {
             const map_y = ptile_di / 4;
 
             // Only render ocean tiles for out-of-bounds positions
-            if (map_x < 0 || map_x >= globalMap.xsize || map_y < 0 || map_y >= globalMap.ysize) {
+            if (
+              map_x < 0 ||
+              map_x >= globalMap.xsize ||
+              map_y < 0 ||
+              map_y >= globalMap.ysize
+            ) {
               // Calculate screen position for this tile
-              const gui_x = Math.floor((ptile_xi * ptile_w) / ptile_r2 - ptile_w / 2);
-              const gui_y = Math.floor((ptile_yi * ptile_h) / ptile_r2 - ptile_h / 2);
+              const gui_x = Math.floor(
+                (ptile_xi * ptile_w) / ptile_r2 - ptile_w / 2
+              );
+              const gui_y = Math.floor(
+                (ptile_yi * ptile_h) / ptile_r2 - ptile_h / 2
+              );
               const cx = gui_x - gui_x0;
               const cy = gui_y - gui_y0;
 
@@ -907,7 +976,11 @@ export class MapRenderer {
     }
   }
 
-  private isInViewport(mapX: number, mapY: number, viewport: MapViewport): boolean {
+  private isInViewport(
+    mapX: number,
+    mapY: number,
+    viewport: MapViewport
+  ): boolean {
     const screenPos = this.mapToScreen(mapX, mapY, viewport);
     return (
       screenPos.x + this.tileWidth >= 0 &&
@@ -928,7 +1001,6 @@ export class MapRenderer {
       hills: '#8B4513',
       mountains: '#696969',
       ocean: '#4682B4',
-      deep_ocean: '#191970', // Dark blue for deep ocean
       swamp: '#556B2F',
     };
 
@@ -936,7 +1008,14 @@ export class MapRenderer {
   }
 
   private getPlayerColor(playerId: string): string {
-    const colors = ['#FF0000', '#0000FF', '#00FF00', '#FFFF00', '#FF00FF', '#00FFFF'];
+    const colors = [
+      '#FF0000',
+      '#0000FF',
+      '#00FF00',
+      '#FFFF00',
+      '#FF00FF',
+      '#00FFFF',
+    ];
     const index = parseInt(playerId, 36) % colors.length;
     return colors[index];
   }
@@ -1052,7 +1131,10 @@ export class MapRenderer {
    * @param mapY - Map Y coordinate
    * @returns Native coordinates object with natX and natY
    */
-  private mapToNativePos(mapX: number, mapY: number): { natX: number; natY: number } {
+  private mapToNativePos(
+    mapX: number,
+    mapY: number
+  ): { natX: number; natY: number } {
     const globalMap = (window as any).map;
     const natY = Math.floor(mapX + mapY - globalMap.xsize);
     const natX = Math.floor((2 * mapX - natY - (natY & 1)) / 2);
@@ -1066,7 +1148,10 @@ export class MapRenderer {
    * @param natY - Native Y coordinate
    * @returns Map coordinates object with mapX and mapY
    */
-  private nativeToMapPos(natX: number, natY: number): { mapX: number; mapY: number } {
+  private nativeToMapPos(
+    natX: number,
+    natY: number
+  ): { mapX: number; mapY: number } {
     const globalMap = (window as any).map;
     const mapX = Math.floor((natY + (natY & 1)) / 2 + natX);
     const mapY = Math.floor(natY - mapX + globalMap.xsize);
@@ -1081,7 +1166,10 @@ export class MapRenderer {
    * @param guiY - GUI Y coordinate to normalize
    * @returns Normalized GUI coordinates that respect map wrapping
    */
-  private normalizeGuiPos(guiX: number, guiY: number): { guiX: number; guiY: number } {
+  private normalizeGuiPos(
+    guiX: number,
+    guiY: number
+  ): { guiX: number; guiY: number } {
     const globalMap = (window as any).map;
     if (!globalMap) return { guiX, guiY };
 
