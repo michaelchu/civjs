@@ -219,10 +219,6 @@ export class MapRenderer {
       for (const spriteInfo of sprites) {
         const sprite = this.tilesetLoader.getSprite(spriteInfo.key);
         
-        // Debug: Always log sprite loading results for deep_ocean
-        if (tile.terrain === 'deep_ocean') {
-          console.warn(`[DEBUG] Deep ocean sprite "${spriteInfo.key}": ${sprite ? 'LOADED' : 'MISSING/NULL'}`);
-        }
         
         if (sprite) {
           const offsetX = spriteInfo.offset_x || 0;
@@ -235,8 +231,6 @@ export class MapRenderer {
             screenPos.y + offsetY
           );
         } else {
-          // Debug: Log missing sprite keys to identify the issue
-          console.warn(`[DEBUG] Missing sprite: "${spriteInfo.key}" for terrain: ${tile.terrain}`);
           
           // Check if this is a dither sprite (pattern: "0tundra_grassland", "1desert_plains", etc.)
           const isDitherSprite = /^\d+[a-z_]+_[a-z_]+$/.test(spriteInfo.key);
@@ -345,9 +339,13 @@ export class MapRenderer {
                         '.' +
                         tterrain_near[cardinal_tileset_dirs[i]]['graphic_str']
                     ];
+                  // Skip dithering to arctic terrain (like water) - arctic handles blending via ice layers
+                  const nearTerrain = tterrain_near[cardinal_tileset_dirs[i]]['graphic_str'];
+                  const isArctic = nearTerrain === 'arctic';
+                  
                   const terrain_near =
-                    near_dlp && near_dlp['dither'] == true
-                      ? tterrain_near[cardinal_tileset_dirs[i]]['graphic_str']
+                    near_dlp && near_dlp['dither'] == true && !isArctic
+                      ? nearTerrain
                       : pterrain['graphic_str'];
                   const dither_tile =
                     i + pterrain['graphic_str'] + '_' + terrain_near;

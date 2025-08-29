@@ -208,7 +208,7 @@ var tile_types_setup =
 "l1.coast":	{"match_style":MATCH_PAIR,"sprite_type":CELL_CORNER,"mine_tag":"(null)","match_indices":2,"match_index":[3,4],"dither":false},
 "l0.floor":	{"match_style":MATCH_FULL,"sprite_type":CELL_CORNER,"mine_tag":"(null)","match_indices":3,"match_index":[1,0,2],"dither":false},
 "l1.floor":	{"match_style":MATCH_PAIR,"sprite_type":CELL_CORNER,"mine_tag":"(null)","match_indices":2,"match_index":[3,4],"dither":false},
-"l0.arctic":	{"match_style":MATCH_NONE,"sprite_type":CELL_WHOLE,"mine_tag":"tx.oil_mine","match_indices":1,"match_index":[0],"dither":true},
+"l0.arctic":	{"match_style":MATCH_NONE,"sprite_type":CELL_WHOLE,"mine_tag":"tx.oil_mine","match_indices":1,"match_index":[0],"dither":false},
 "l0.desert":	{"match_style":MATCH_NONE,"sprite_type":CELL_WHOLE,"mine_tag":"tx.oil_mine","match_indices":1,"match_index":[2],"dither":true},
 "l0.forest":	{"match_style":MATCH_NONE,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":1,"match_index":[2],"dither":true},
 "l1.forest":	{"match_style":MATCH_SAME,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":2,"match_index":[0,0],"dither":false},
@@ -222,6 +222,8 @@ var tile_types_setup =
 "l0.plains":	{"match_style":MATCH_NONE,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":1,"match_index":[2],"dither":true},
 "l0.swamp":	{"match_style":MATCH_NONE,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":1,"match_index":[2],"dither":true},
 "l0.tundra":	{"match_style":MATCH_NONE,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":1,"match_index":[2],"dither":true},
+"l1.ice":	{"match_style":MATCH_SAME,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":2,"match_index":[4,4],"dither":true},
+"l2.ice":	{"match_style":MATCH_SAME,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":2,"match_index":[1,1],"dither":true},
 "l0.inaccessible":{"match_style":MATCH_NONE,"sprite_type":CELL_WHOLE,"mine_tag":"(null)","match_indices":1,"match_index":[2],"dither":false}
 
 };
