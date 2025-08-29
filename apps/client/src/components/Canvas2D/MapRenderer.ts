@@ -67,13 +67,6 @@ export class MapRenderer {
   }
 
   render(state: RenderState) {
-    // Debug: Check what's happening at render entry
-    console.log('[DEBUG] MapRenderer.render called', {
-      isInitialized: this.isInitialized,
-      globalTiles: !!(window as any).tiles,
-      globalMap: !!(window as any).map,
-      tilesLength: (window as any).tiles?.length || 0
-    });
 
     // Reset tile map cache if tiles data has changed
     const currentGlobalTiles = (window as any).tiles;
@@ -213,14 +206,11 @@ export class MapRenderer {
     let hasAnySprites = false;
 
     // Debug: Always log terrain type for every tile to identify white squares
-    console.log(`[DEBUG] Rendering terrain: ${tile.terrain} at (${tile.x}, ${tile.y})`);
 
     // Render all layers (0, 1, 2) like freeciv-web does
     for (let layer = 0; layer <= 2; layer++) {
       const sprites = this.fillTerrainSpriteArraySimple(layer, tile);
       
-      // Debug: Log sprite generation results
-      console.log(`[DEBUG] Layer ${layer} sprites for ${tile.terrain}:`, sprites.map(s => s.key));
 
       if (sprites.length > 0) {
         hasAnySprites = true;
@@ -275,7 +265,6 @@ export class MapRenderer {
     // Fallback: if no sprites rendered, show solid color
     if (!hasAnySprites) {
       // Debug: Log what terrain type is showing as white squares
-      console.warn(`[DEBUG] No sprites rendered for terrain: ${tile.terrain} at (${tile.x}, ${tile.y})`);
       
       const color = this.getTerrainColor(tile.terrain);
       this.ctx.fillStyle = color;
