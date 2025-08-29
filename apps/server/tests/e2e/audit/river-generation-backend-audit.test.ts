@@ -330,7 +330,7 @@ describe('River Generation Backend Audit', () => {
 
   afterAll(() => {
     // Save detailed results for analysis
-    const outputDir = path.join(__dirname, '../../../test-results');
+    const outputDir = path.join(__dirname, 'results');
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
