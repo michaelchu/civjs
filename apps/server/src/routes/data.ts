@@ -22,6 +22,23 @@ router.get(
     try {
       const gameManager = GameManager.getInstance();
 
+      // Try to get game instance, recover if not found
+      let gameInstance = gameManager.getGameInstance(req.gameId!);
+      if (!gameInstance) {
+        logger.info('Game instance not found in memory, attempting recovery', {
+          gameId: req.gameId,
+        });
+        gameInstance = await gameManager.recoverGameInstance(req.gameId!);
+
+        if (!gameInstance) {
+          res.status(404).json({
+            success: false,
+            error: 'Game not found or could not be recovered',
+          });
+          return;
+        }
+      }
+
       if (req.isGameObserver) {
         // Observers can see full map
         const mapData = gameManager.getMapData(req.gameId!);
@@ -130,27 +147,35 @@ router.get(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const gameManager = GameManager.getInstance();
-      const game = gameManager.getGameInstance(req.gameId!);
 
-      if (!game) {
-        res.status(404).json({
-          success: false,
-          error: 'Game not found',
+      // Try to get game instance, recover if not found
+      let gameInstance = gameManager.getGameInstance(req.gameId!);
+      if (!gameInstance) {
+        logger.info('Game instance not found in memory, attempting recovery', {
+          gameId: req.gameId,
         });
-        return;
+        gameInstance = await gameManager.recoverGameInstance(req.gameId!);
+
+        if (!gameInstance) {
+          res.status(404).json({
+            success: false,
+            error: 'Game not found or could not be recovered',
+          });
+          return;
+        }
       }
 
       let units: any[] = [];
 
       if (req.isGameObserver) {
         // Observers can see all units - get units from all players
-        for (const player of game.players.values()) {
-          const playerUnits = game.unitManager.getPlayerUnits(player.id);
+        for (const player of gameInstance.players.values()) {
+          const playerUnits = gameInstance.unitManager.getPlayerUnits(player.id);
           units.push(...playerUnits);
         }
       } else {
         // Players see only their units
-        units = game.unitManager.getPlayerUnits(req.playerId!);
+        units = gameInstance.unitManager.getPlayerUnits(req.playerId!);
       }
 
       const unitsData = units.map(unit => ({
@@ -194,27 +219,35 @@ router.get(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const gameManager = GameManager.getInstance();
-      const game = gameManager.getGameInstance(req.gameId!);
 
-      if (!game) {
-        res.status(404).json({
-          success: false,
-          error: 'Game not found',
+      // Try to get game instance, recover if not found
+      let gameInstance = gameManager.getGameInstance(req.gameId!);
+      if (!gameInstance) {
+        logger.info('Game instance not found in memory, attempting recovery', {
+          gameId: req.gameId,
         });
-        return;
+        gameInstance = await gameManager.recoverGameInstance(req.gameId!);
+
+        if (!gameInstance) {
+          res.status(404).json({
+            success: false,
+            error: 'Game not found or could not be recovered',
+          });
+          return;
+        }
       }
 
       let cities: any[] = [];
 
       if (req.isGameObserver) {
         // Observers can see all cities - get cities from all players
-        for (const player of game.players.values()) {
-          const playerCities = game.cityManager.getPlayerCities(player.id);
+        for (const player of gameInstance.players.values()) {
+          const playerCities = gameInstance.cityManager.getPlayerCities(player.id);
           cities.push(...playerCities);
         }
       } else {
         // Players see only their cities
-        cities = game.cityManager.getPlayerCities(req.playerId!);
+        cities = gameInstance.cityManager.getPlayerCities(req.playerId!);
       }
 
       const citiesData = cities.map(city => ({

@@ -179,7 +179,7 @@ export class VisibilityManager {
     const filteredTiles: Record<string, any> = {};
     for (let x = 0; x < mapData.width; x++) {
       for (let y = 0; y < mapData.height; y++) {
-        const tile = mapData.tiles[x][y];
+        const tile = mapData.tiles[x][y]; // tiles array is [x][y] (column-major)
         const tileKey = `${x},${y}`;
         // const isVisible = visibleTiles.has(tileKey);  // TODO: Uncomment when units are implemented
         // const isExplored = exploredTiles.has(tileKey); // TODO: Uncomment when units are implemented
@@ -188,6 +188,8 @@ export class VisibilityManager {
         // This matches the original Socket.IO implementation
         filteredTiles[tileKey] = {
           ...tile,
+          x, // Ensure correct coordinates
+          y, // Ensure correct coordinates
           isVisible: true,
           isExplored: true,
           // Match original format exactly
