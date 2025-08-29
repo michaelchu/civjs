@@ -15,7 +15,7 @@ export const PageBackground: React.FC<PageBackgroundProps> = ({
   const backgroundClasses = clsx(
     'bg-gradient-to-b from-amber-100 to-yellow-200',
     {
-      "md:bg-[url('/img/background.png')] md:bg-cover md:bg-center md:bg-no-repeat": showBackground,
+      "sm:bg-[url('/img/background.png')] sm:bg-cover sm:bg-center sm:bg-no-repeat": showBackground,
     },
     className
   );
