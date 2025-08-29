@@ -10,15 +10,6 @@ export interface RiverMapState {
   ok: Set<number>; // Tiles marked as valid river tiles
 }
 
-/**
- * River test function definition
- * @reference freeciv/server/generator/mapgen.c:684-687
- */
-interface RiverTestFunction {
-  func: (riverMap: RiverMapState, x: number, y: number, tiles: MapTile[][]) => number;
-  fatal: boolean; // If true, non-zero result aborts river generation
-}
-
 export class RiverGenerator {
   private width: number;
   private height: number;
@@ -66,14 +57,21 @@ export class RiverGenerator {
     // @reference freeciv/server/generator/mapgen.c:946-947
     while (currentRiverLength < desirableRiverLength && iterationCounter < RIVERS_MAXTRIES) {
       // Find suitable river spring location (highland preference)
-      const springLocation = this.findRiverSpring(tiles, riverMap);
+      const springLocation = this.findRiverSpring(tiles, riverMap, iterationCounter);
       if (!springLocation) {
         break; // No more suitable spring places
       }
 
-      // Generate individual river from spring
-      const riverLength = await this.makeRiver(springLocation.x, springLocation.y, tiles, riverMap);
-      currentRiverLength += riverLength;
+      // Reset river map before making a new river (freeciv line 993-994)
+      riverMap.blocked.clear();
+      riverMap.ok.clear();
+
+      // Try to make a river. If it is OK, apply it to the map (freeciv lines 1012-1030)
+      if (this.makeRiver(springLocation.x, springLocation.y, tiles, riverMap)) {
+        // Apply all river tiles from rivermap.ok to actual map
+        const riverTilesApplied = this.applyRiverMapToTiles(tiles, riverMap);
+        currentRiverLength += riverTilesApplied;
+      }
 
       iterationCounter++;
     }
@@ -102,174 +100,334 @@ export class RiverGenerator {
    */
   private findRiverSpring(
     tiles: MapTile[][],
-    riverMap: RiverMapState
+    riverMap: RiverMapState,
+    iterationCounter: number
   ): { x: number; y: number } | null {
-    // Try to find highland locations first (prefer mountains/hills)
-    const maxAttempts = 100;
-    let bestCandidate: { x: number; y: number; score: number } | null = null;
-
+    // Try random locations to find suitable spring
+    const maxAttempts = 50;
+    
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const x = Math.floor(this.random() * this.width);
       const y = Math.floor(this.random() * this.height);
 
-      if (!this.canPlaceRiver(x, y, tiles, riverMap)) {
-        continue;
-      }
-
-      const tile = tiles[x][y];
-
-      // Score based on elevation/mountainous property (higher is better for river springs)
-      const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
-      const score = mountainous;
-
-      if (!bestCandidate || score > bestCandidate.score) {
-        bestCandidate = { x, y, score };
-      }
-
-      // Accept good candidates early
-      if (score > 70) {
+      if (this.isValidRiverSpring(x, y, tiles, riverMap, iterationCounter)) {
         return { x, y };
       }
     }
 
-    return bestCandidate;
+    return null; // No suitable spring found
   }
 
   /**
-   * Generate individual river from spring point
-   * @reference freeciv/server/generator/mapgen.c:991-1050 make_river()
+   * Check if location is valid for river spring using freeciv criteria
+   * @reference freeciv/server/generator/mapgen.c:957-990
    */
-  private async makeRiver(
-    startX: number,
-    startY: number,
-    tiles: MapTile[][],
-    riverMap: RiverMapState
-  ): Promise<number> {
-    let riverLength = 0;
-    let currentX = startX;
-    let currentY = startY;
-    const maxRiverLength = 50; // Prevent infinite rivers
+  private isValidRiverSpring(x: number, y: number, tiles: MapTile[][], _riverMap: RiverMapState, iterationCounter: number): boolean {
+    const tile = tiles[x][y];
+    const terrain = tile.terrain;
+    const RIVERS_MAXTRIES = 32767;
 
-    // Mark starting tile
-    if (this.canPlaceRiver(currentX, currentY, tiles, riverMap)) {
-      const riverMask = this.generateRiverMask(currentX, currentY, tiles, riverMap);
-      if (riverMask > 0) {
-        tiles[currentX][currentY].riverMask = riverMask;
-        this.convertTerrainForRiver(tiles[currentX][currentY]);
-        riverLength++;
-      }
+    // Don't start a river on ocean
+    if (!this.isLandTile(terrain)) {
+      return false;
     }
 
-    // Extend river towards lower elevation or water
-    while (riverLength < maxRiverLength) {
-      const nextTile = this.findNextRiverTile(currentX, currentY, tiles, riverMap);
-      if (!nextTile) {
-        break; // River reached water or no valid continuation
-      }
-
-      currentX = nextTile.x;
-      currentY = nextTile.y;
-
-      const riverMask = this.generateRiverMask(currentX, currentY, tiles, riverMap);
-      if (riverMask > 0) {
-        tiles[currentX][currentY].riverMask = riverMask;
-        this.convertTerrainForRiver(tiles[currentX][currentY]);
-        riverLength++;
-      }
-
-      // Stop if we reached water (river mouth)
-      if (!this.isLandTile(tiles[currentX][currentY].terrain)) {
-        break;
-      }
+    // Don't start a river on river (tile already has riverMask)
+    if (tile.riverMask && tile.riverMask > 0) {
+      return false;
     }
 
-    return riverLength;
+    // Count nearby rivers and ocean tiles
+    const nearbyRivers = this.countRiverNearTile(x, y, tiles);
+    const nearbyOcean = this.countOceanNearTile(x, y, tiles);
+    
+    // Don't start a river on a tile surrounded by > 1 river + ocean tile
+    if (nearbyRivers + nearbyOcean > 1) {
+      return false;
+    }
+
+    // Get terrain properties
+    const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
+    const frozen = tile.properties[TerrainProperty.FROZEN] || 0;
+    const dry = tile.properties[TerrainProperty.DRY] || 0;
+
+    // Count mountainous terrain nearby
+    const nearbyMountainous = this.countMountainousNearTile(x, y, tiles);
+
+    // Don't start a river on a tile that is surrounded by hills or mountains
+    // unless it is hard to find somewhere else to start it
+    if (nearbyMountainous >= 90 && iterationCounter < Math.floor(RIVERS_MAXTRIES / 10 * 5)) {
+      return false;
+    }
+
+    // Don't start a river on hills unless it is hard to find somewhere else
+    if (mountainous > 0 && iterationCounter < Math.floor(RIVERS_MAXTRIES / 10 * 6)) {
+      return false;
+    }
+
+    // Don't start a river on arctic unless it is hard to find somewhere else
+    if (frozen > 0 && iterationCounter < Math.floor(RIVERS_MAXTRIES / 10 * 8)) {
+      return false;
+    }
+
+    // Don't start a river on desert unless it is hard to find somewhere else
+    if (dry > 0 && iterationCounter < Math.floor(RIVERS_MAXTRIES / 10 * 9)) {
+      return false;
+    }
+
+    return true;
   }
 
   /**
-   * Find next tile in river path (flow towards lower elevation/water)
+   * Count rivers near tile (freeciv: count_river_near_tile)
    */
-  private findNextRiverTile(
-    x: number,
-    y: number,
-    tiles: MapTile[][],
-    riverMap: RiverMapState
-  ): { x: number; y: number } | null {
+  private countRiverNearTile(x: number, y: number, tiles: MapTile[][]): number {
+    let count = 0;
     const cardinalDirs = [
-      { dx: 0, dy: -1 }, // North
-      { dx: 1, dy: 0 }, // East
-      { dx: 0, dy: 1 }, // South
-      { dx: -1, dy: 0 }, // West
+      { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, 
+      { dx: 0, dy: 1 }, { dx: -1, dy: 0 }
     ];
-
-    let bestCandidate: { x: number; y: number; priority: number } | null = null;
 
     for (const dir of cardinalDirs) {
       const nx = x + dir.dx;
       const ny = y + dir.dy;
-
-      if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) {
-        continue;
-      }
-
-      const neighborTile = tiles[nx][ny];
-
-      // Priority: Ocean > Coast > Land with existing rivers > Suitable land
-      let priority = 0;
-
-      if (!this.isLandTile(neighborTile.terrain)) {
-        priority = 100; // Highest priority - river mouth
-      } else if (neighborTile.riverMask > 0) {
-        priority = 80; // Connect to existing river
-      } else if (this.canPlaceRiver(nx, ny, tiles, riverMap)) {
-        // Lower elevation preferred (simplified - could use height map)
-        const mountainous = neighborTile.properties[TerrainProperty.MOUNTAINOUS] || 0;
-        priority = 50 - Math.floor(mountainous / 2); // Lower mountainous = higher priority
-      }
-
-      if (priority > 0 && (!bestCandidate || priority > bestCandidate.priority)) {
-        bestCandidate = { x: nx, y: ny, priority };
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (tiles[nx][ny].riverMask && tiles[nx][ny].riverMask > 0) {
+          count++;
+        }
       }
     }
-
-    return bestCandidate;
+    return count;
   }
 
   /**
-   * Check if a river can be placed at the given coordinates
+   * Count ocean tiles near tile (freeciv: count_terrain_class_near_tile)
    */
-  private canPlaceRiver(
-    x: number,
-    y: number,
-    tiles: MapTile[][],
-    riverMap: RiverMapState
-  ): boolean {
-    // Check bounds
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
-      return false;
-    }
+  private countOceanNearTile(x: number, y: number, tiles: MapTile[][]): number {
+    let count = 0;
+    const cardinalDirs = [
+      { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, 
+      { dx: 0, dy: 1 }, { dx: -1, dy: 0 }
+    ];
 
-    const tile = tiles[x][y];
-
-    // Must be on land
-    if (!this.isLandTile(tile.terrain)) {
-      return false;
-    }
-
-    // Can't already have a river
-    if (tile.riverMask > 0) {
-      return false;
-    }
-
-    // Run all river tests
-    for (const test of this.riverTestFunctions) {
-      const result = test.func(riverMap, x, y, tiles);
-      if (result > 0 && test.fatal) {
-        return false;
+    for (const dir of cardinalDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (!this.isLandTile(tiles[nx][ny].terrain)) {
+          count++;
+        }
       }
     }
+    return count;
+  }
 
-    return true;
+  /**
+   * Count mountainous terrain near tile (freeciv: count_terrain_property_near_tile)
+   */
+  private countMountainousNearTile(x: number, y: number, tiles: MapTile[][]): number {
+    let totalMountainous = 0;
+    const cardinalDirs = [
+      { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, 
+      { dx: 0, dy: 1 }, { dx: -1, dy: 0 }
+    ];
+
+    for (const dir of cardinalDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const mountainous = tiles[nx][ny].properties[TerrainProperty.MOUNTAINOUS] || 0;
+        totalMountainous += mountainous;
+      }
+    }
+    return totalMountainous;
+  }
+
+  /**
+   * Apply river tiles from riverMap to actual map tiles
+   * @reference freeciv/server/generator/mapgen.c:1013-1030
+   */
+  private applyRiverMapToTiles(tiles: MapTile[][], riverMap: RiverMapState): number {
+    let tilesApplied = 0;
+    
+    // Iterate through all tiles marked as river in rivermap.ok
+    for (const tileIndex of riverMap.ok) {
+      const x = tileIndex % this.width;
+      const y = Math.floor(tileIndex / this.width);
+      
+      if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+        const tile = tiles[x][y];
+        
+        // Check if terrain can have rivers (freeciv: TER_CAN_HAVE_RIVER)
+        if (!this.terrainCanHaveRiver(tile.terrain)) {
+          // Change terrain to one that can have rivers (freeciv: pick_terrain_by_flag)
+          const newTerrain = this.pickTerrainForRiver(tile.terrain);
+          tile.terrain = newTerrain as TerrainType;
+        }
+        
+        // Add river to tile
+        const riverMask = this.generateRiverMask(x, y, tiles, riverMap);
+        tile.riverMask = riverMask;
+        
+        tilesApplied++;
+      }
+    }
+    
+    return tilesApplied;
+  }
+
+  /**
+   * Check if terrain can have rivers
+   */
+  private terrainCanHaveRiver(terrain: TerrainType): boolean {
+    // Most land terrains can have rivers, except some special cases
+    return this.isLandTile(terrain) && terrain !== 'mountains';
+  }
+
+  /**
+   * Pick suitable terrain for river placement
+   */
+  private pickTerrainForRiver(originalTerrain: TerrainType): TerrainType {
+    // Convert terrain to river-compatible type
+    if (originalTerrain === 'mountains') {
+      return 'hills';
+    }
+    if (originalTerrain === 'desert') {
+      return 'plains';
+    }
+    return originalTerrain; // Most terrains are fine
+  }
+
+  /**
+   * Generate individual river from spring point using freeciv algorithm
+   * @reference freeciv/server/generator/mapgen.c:792-851 make_river()
+   */
+  private makeRiver(startX: number, startY: number, tiles: MapTile[][], riverMap: RiverMapState): boolean {
+    let currentX = startX;
+    let currentY = startY;
+    const maxIterations = 100; // Prevent infinite loops
+    let iterations = 0;
+    
+    while (iterations < maxIterations) {
+      // Mark the current tile as river in rivermap (freeciv line 806)
+      const tileIndex = currentY * this.width + currentX;
+      riverMap.ok.add(tileIndex);
+      
+      // Test if the river is done (freeciv lines 812-820)
+      if (this.isRiverComplete(currentX, currentY, tiles)) {
+        return true; // River successfully completed
+      }
+      
+      // Find next direction to continue the river (freeciv lines 822-851)
+      const nextTile = this.findBestRiverDirection(currentX, currentY, tiles, riverMap);
+      if (!nextTile) {
+        return false; // River failed - got stuck
+      }
+      
+      currentX = nextTile.x;
+      currentY = nextTile.y;
+      iterations++;
+    }
+    
+    return false; // River failed - too many iterations
+  }
+
+  /**
+   * Check if river is complete (reached water or existing river)
+   * @reference freeciv/server/generator/mapgen.c:812-820
+   */
+  private isRiverComplete(x: number, y: number, tiles: MapTile[][]): boolean {
+    // River ends if it connects to existing river
+    if (this.countRiverNearTile(x, y, tiles) > 0) {
+      return true;
+    }
+    
+    // River ends if it reaches ocean
+    if (this.countOceanNearTile(x, y, tiles) > 0) {
+      return true;
+    }
+    
+    // River ends at poles (frozen terrain at high latitude - simplified)
+    const tile = tiles[x][y];
+    const frozen = tile.properties[TerrainProperty.FROZEN] || 0;
+    if (frozen > 80) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Find best direction for river continuation using freeciv test functions
+   * @reference freeciv/server/generator/mapgen.c:826-851
+   */
+  private findBestRiverDirection(x: number, y: number, tiles: MapTile[][], riverMap: RiverMapState): {x: number, y: number} | null {
+    const cardinalDirs = [
+      { dx: 0, dy: -1 }, // North
+      { dx: 1, dy: 0 },  // East  
+      { dx: 0, dy: 1 },  // South
+      { dx: -1, dy: 0 }  // West
+    ];
+    
+    let bestDirection: {x: number, y: number, score: number} | null = null;
+    
+    // Test each cardinal direction
+    for (const dir of cardinalDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      
+      // Check bounds
+      if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) {
+        continue;
+      }
+      
+      // Run river test functions (simplified version)
+      const score = this.calculateRiverDirectionScore(nx, ny, tiles, riverMap);
+      if (score >= 0 && (!bestDirection || score < bestDirection.score)) {
+        bestDirection = { x: nx, y: ny, score };
+      }
+    }
+    
+    return bestDirection;
+  }
+
+  /**
+   * Calculate score for river direction (lower is better)
+   * Simplified version of freeciv test_funcs
+   */
+  private calculateRiverDirectionScore(x: number, y: number, tiles: MapTile[][], riverMap: RiverMapState): number {
+    const tileIndex = y * this.width + x;
+    
+    // Blocked tiles get worst score
+    if (riverMap.blocked.has(tileIndex)) {
+      return 1000;
+    }
+    
+    // Already marked as river
+    if (riverMap.ok.has(tileIndex)) {
+      return 500;
+    }
+    
+    const tile = tiles[x][y];
+    
+    // Ocean tiles get good score (river mouth)
+    if (!this.isLandTile(tile.terrain)) {
+      return 10;
+    }
+    
+    // Prefer lower elevation (less mountainous)
+    const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
+    let score = mountainous;
+    
+    // Avoid dry terrain
+    const dry = tile.properties[TerrainProperty.DRY] || 0;
+    score += dry / 2;
+    
+    // Avoid frozen terrain  
+    const frozen = tile.properties[TerrainProperty.FROZEN] || 0;
+    score += frozen / 2;
+    
+    return score;
   }
 
   /**
@@ -369,163 +527,10 @@ export class RiverGenerator {
   }
 
   /**
-   * Convert terrain to be more suitable for rivers
-   */
-  private convertTerrainForRiver(tile: MapTile): void {
-    // Convert desert near rivers to more fertile land
-    if (tile.terrain === 'desert') {
-      tile.terrain = 'plains';
-    }
-    // Swamps can stay as swamps (natural for rivers)
-    // Mountains become hills when rivers flow through
-    else if (tile.terrain === 'mountains') {
-      if (this.random() < 0.4) {
-        tile.terrain = 'hills';
-      }
-    }
-  }
-
-  /**
    * Check if terrain type is land (not water)
    */
   private isLandTile(terrain: TerrainType): boolean {
     return !['ocean', 'coast', 'deep_ocean', 'lake'].includes(terrain);
   }
 
-  /**
-   * River test functions array
-   */
-  private get riverTestFunctions(): RiverTestFunction[] {
-    return [
-      {
-        func: this.riverTestBlocked,
-        fatal: true,
-      },
-      {
-        func: this.riverTestRiverGrid,
-        fatal: true,
-      },
-      {
-        func: this.riverTestHighlands,
-        fatal: false,
-      },
-    ];
-  }
-
-  /**
-   * Test if river placement is blocked
-   */
-  private riverTestBlocked = (
-    riverMap: RiverMapState,
-    x: number,
-    y: number,
-    _tiles: MapTile[][]
-  ): number => {
-    const tileIndex = y * this.width + x;
-    if (riverMap.blocked.has(tileIndex)) {
-      return 1;
-    }
-
-    // Check if all cardinal neighbors are blocked
-    const cardinalDirs = [
-      [0, -1],
-      [1, 0],
-      [0, 1],
-      [-1, 0],
-    ];
-
-    for (const [dx, dy] of cardinalDirs) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-        const neighborIndex = ny * this.width + nx;
-        if (!riverMap.blocked.has(neighborIndex)) {
-          return 0;
-        }
-      }
-    }
-
-    return 1; // All neighbors blocked
-  };
-
-  /**
-   * Test river grid to avoid too many river connections
-   */
-  private riverTestRiverGrid = (
-    _riverMap: RiverMapState,
-    x: number,
-    y: number,
-    tiles: MapTile[][]
-  ): number => {
-    let riverCount = 0;
-    const cardinalDirs = [
-      [0, -1],
-      [1, 0],
-      [0, 1],
-      [-1, 0],
-    ];
-
-    for (const [dx, dy] of cardinalDirs) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-        if (tiles[nx][ny].riverMask > 0) {
-          riverCount++;
-        }
-      }
-    }
-
-    return riverCount > 1 ? 1 : 0;
-  };
-
-  /**
-   * Test highland suitability for rivers
-   */
-  private riverTestHighlands = (
-    _riverMap: RiverMapState,
-    x: number,
-    y: number,
-    tiles: MapTile[][]
-  ): number => {
-    const tile = tiles[x][y];
-    const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
-
-    // Higher values indicate better suitability
-    // Return 0 for good suitability, higher values for less suitable
-    return Math.max(0, 50 - mountainous);
-  };
-
-  /**
-   * Mark river blocks for advanced placement
-   */
-  public riverBlockMark(riverMap: RiverMapState, x: number, y: number): void {
-    const tileIndex = y * this.width + x;
-    riverMap.blocked.add(tileIndex);
-  }
-
-  /**
-   * Check if river density is acceptable in area
-   */
-  public checkNearbyRiverDensity(startX: number, startY: number, tiles: MapTile[][]): boolean {
-    const radius = 5;
-    let riverCount = 0;
-    let totalCount = 0;
-
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        const x = startX + dx;
-        const y = startY + dy;
-
-        if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-          totalCount++;
-          if (tiles[x][y].riverMask > 0) {
-            riverCount++;
-          }
-        }
-      }
-    }
-
-    const density = riverCount / totalCount;
-    return density < 0.25; // Max 25% river density in local area
-  }
 }
