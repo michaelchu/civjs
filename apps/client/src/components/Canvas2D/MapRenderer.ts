@@ -344,6 +344,13 @@ export class MapRenderer {
                     offset_y: y,
                   });
                 }
+                
+                // Always add a base terrain sprite for MATCH_NONE dithered terrains
+                // This ensures something renders even if all dither sprites are missing
+                result_sprites.push({
+                  key: 't.dither_tile'
+                });
+                
                 return result_sprites;
               } else {
                 return [
