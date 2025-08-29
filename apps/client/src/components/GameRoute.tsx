@@ -4,10 +4,7 @@ import { useGameStore } from '../store/gameStore';
 import { gameClient } from '../services/GameClient';
 import { ConnectionDialog } from './ConnectionDialog';
 import { GameLayout } from './GameUI/GameLayout';
-import {
-  getStoredPlayerName,
-  isCurrentGameSinglePlayer,
-} from '../utils/gameSession';
+import { getStoredPlayerName, isCurrentGameSinglePlayer } from '../utils/gameSession';
 
 export const GameRoute: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
@@ -30,8 +27,7 @@ export const GameRoute: React.FC = () => {
       // Try to get stored player name first, fallback to default
       const storedPlayerName = getStoredPlayerName(gameId);
       const isSinglePlayer = isCurrentGameSinglePlayer(gameId);
-      const playerName =
-        storedPlayerName || `Player_${Date.now().toString(36)}`;
+      const playerName = storedPlayerName || `Player_${Date.now().toString(36)}`;
 
       console.log('Loading game:', {
         gameId,
@@ -113,10 +109,7 @@ export const GameRoute: React.FC = () => {
               Retry
             </button>
             <div className="mt-4">
-              <a
-                href="/"
-                className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-              >
+              <a href="/" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
                 ← Back to Home
               </a>
             </div>

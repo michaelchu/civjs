@@ -122,10 +122,4 @@ export interface MapViewport {
   // Removed zoom - freeciv-web 2D canvas does not support zoom
 }
 
-export type GameTab =
-  | 'map'
-  | 'government'
-  | 'research'
-  | 'nations'
-  | 'cities'
-  | 'options';
+export type GameTab = 'map' | 'government' | 'research' | 'nations' | 'cities' | 'options';

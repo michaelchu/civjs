@@ -91,12 +91,7 @@ export const GameLobby: React.FC = () => {
                 onClick={handleBack}
                 className="mr-3 p-2 text-amber-600 hover:text-amber-800 transition-colors"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -106,12 +101,8 @@ export const GameLobby: React.FC = () => {
                 </svg>
               </button>
               <div>
-                <h2 className="text-xl md:text-2xl font-bold text-amber-800">
-                  Game Lobby
-                </h2>
-                <p className="text-amber-600 text-sm md:text-base">
-                  Choose a game to join
-                </p>
+                <h2 className="text-xl md:text-2xl font-bold text-amber-800">Game Lobby</h2>
+                <p className="text-amber-600 text-sm md:text-base">Choose a game to join</p>
               </div>
             </div>
             <button
@@ -162,12 +153,8 @@ export const GameLobby: React.FC = () => {
                   d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
                 />
               </svg>
-              <p className="text-amber-700 text-lg font-medium">
-                No games available
-              </p>
-              <p className="text-amber-500 text-sm">
-                Start a new game to begin playing!
-              </p>
+              <p className="text-amber-700 text-lg font-medium">No games available</p>
+              <p className="text-amber-500 text-sm">Start a new game to begin playing!</p>
             </div>
           ) : (
             <div className="space-y-3 md:space-y-4">
@@ -207,9 +194,7 @@ export const GameLobby: React.FC = () => {
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mt-3 text-xs md:text-sm text-amber-600">
                         <div className="flex flex-col">
-                          <span className="text-amber-400 text-xs uppercase font-medium">
-                            Host
-                          </span>
+                          <span className="text-amber-400 text-xs uppercase font-medium">Host</span>
                           <span className="truncate">{game.hostName}</span>
                         </div>
                         <div className="flex flex-col">
@@ -221,24 +206,18 @@ export const GameLobby: React.FC = () => {
                           </span>
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-amber-400 text-xs uppercase font-medium">
-                            Turn
-                          </span>
+                          <span className="text-amber-400 text-xs uppercase font-medium">Turn</span>
                           <span>{game.currentTurn}</span>
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-amber-400 text-xs uppercase font-medium">
-                            Map
-                          </span>
+                          <span className="text-amber-400 text-xs uppercase font-medium">Map</span>
                           <span className="capitalize">{game.mapSize}</span>
                         </div>
                         <div className="flex flex-col col-span-2 sm:col-span-1">
                           <span className="text-amber-400 text-xs uppercase font-medium">
                             Created
                           </span>
-                          <span>
-                            {new Date(game.createdAt).toLocaleDateString()}
-                          </span>
+                          <span>{new Date(game.createdAt).toLocaleDateString()}</span>
                         </div>
                       </div>
                     </div>

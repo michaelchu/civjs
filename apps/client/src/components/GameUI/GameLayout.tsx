@@ -44,9 +44,7 @@ export const GameLayout: React.FC = () => {
       <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
         <div className="text-center">
           <div className="text-2xl mb-4">
-            {clientState === 'initial'
-              ? 'Initializing...'
-              : 'Connecting to server...'}
+            {clientState === 'initial' ? 'Initializing...' : 'Connecting to server...'}
           </div>
           <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
         </div>
@@ -93,45 +91,35 @@ export const GameLayout: React.FC = () => {
           {activeTab === 'government' && (
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-4">Government</h2>
-              <p className="text-gray-300">
-                Government options will be implemented here
-              </p>
+              <p className="text-gray-300">Government options will be implemented here</p>
             </div>
           )}
 
           {activeTab === 'research' && (
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-4">Research</h2>
-              <p className="text-gray-300">
-                Technology tree will be implemented here
-              </p>
+              <p className="text-gray-300">Technology tree will be implemented here</p>
             </div>
           )}
 
           {activeTab === 'nations' && (
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-4">Nations</h2>
-              <p className="text-gray-300">
-                Diplomacy and nation info will be implemented here
-              </p>
+              <p className="text-gray-300">Diplomacy and nation info will be implemented here</p>
             </div>
           )}
 
           {activeTab === 'cities' && (
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-4">Cities</h2>
-              <p className="text-gray-300">
-                City management will be implemented here
-              </p>
+              <p className="text-gray-300">City management will be implemented here</p>
             </div>
           )}
 
           {activeTab === 'options' && (
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-4">Options</h2>
-              <p className="text-gray-300">
-                Game options will be implemented here
-              </p>
+              <p className="text-gray-300">Game options will be implemented here</p>
             </div>
           )}
         </div>

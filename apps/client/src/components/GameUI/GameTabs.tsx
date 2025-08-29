@@ -55,9 +55,7 @@ export const GameTabs: React.FC = () => {
         >
           <span className="text-lg">{tab.icon}</span>
           <span className="font-medium">{tab.label}</span>
-          {tab.shortcut && (
-            <span className="text-xs text-gray-400 ml-1">({tab.shortcut})</span>
-          )}
+          {tab.shortcut && <span className="text-xs text-gray-400 ml-1">({tab.shortcut})</span>}
         </button>
       ))}
     </div>
