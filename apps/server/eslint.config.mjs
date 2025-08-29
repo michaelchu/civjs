@@ -15,7 +15,12 @@ export default tseslint.config(
     },
     rules: {
       // Prettier integration
-      'prettier/prettier': 'error',
+      'prettier/prettier': [
+        'error',
+        {
+          endOfLine: 'crlf',
+        },
+      ],
 
       // TypeScript specific
       '@typescript-eslint/no-unused-vars': [
