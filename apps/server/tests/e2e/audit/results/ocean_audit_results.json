@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-08-29T14:52:06.767Z",
+  "timestamp": "2025-08-29T15:09:23.185Z",
   "results": [
     {
       "mode": "RANDOM",
@@ -30,7 +30,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 298,
+      "generationTime": 207,
       "success": true
     },
     {
@@ -62,7 +62,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 441,
+      "generationTime": 130,
       "success": true
     },
     {
@@ -94,7 +94,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 755,
+      "generationTime": 408,
       "success": true
     },
     {
@@ -126,7 +126,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 475,
+      "generationTime": 383,
       "success": true
     },
     {
@@ -158,7 +158,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 134,
+      "generationTime": 83,
       "success": true
     },
     {
@@ -191,7 +191,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 134,
+      "generationTime": 81,
       "success": true
     },
     {
@@ -224,7 +224,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 744,
+      "generationTime": 540,
       "success": true
     },
     {
@@ -257,7 +257,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 544,
+      "generationTime": 474,
       "success": true
     },
     {
@@ -289,7 +289,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 95,
+      "generationTime": 80,
       "success": true
     },
     {
@@ -321,7 +321,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 76,
+      "generationTime": 72,
       "success": true
     },
     {
@@ -354,7 +354,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 391,
+      "generationTime": 315,
       "success": true
     },
     {
@@ -387,7 +387,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 331,
+      "generationTime": 357,
       "success": true
     },
     {
@@ -455,7 +455,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 133,
+      "generationTime": 123,
       "success": true
     },
     {
@@ -489,7 +489,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 889,
+      "generationTime": 863,
       "success": true
     },
     {
@@ -523,7 +523,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 919,
+      "generationTime": 885,
       "success": true
     },
     {
@@ -557,7 +557,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 441,
+      "generationTime": 398,
       "success": true
     },
     {
@@ -591,7 +591,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 424,
+      "generationTime": 695,
       "success": true
     },
     {
@@ -625,7 +625,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 4951,
+      "generationTime": 4885,
       "success": true
     },
     {
@@ -659,9 +659,9 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 4831,
+      "generationTime": 4683,
       "success": true
     }
   ],
-  "summary": "# Ocean Distribution Audit Summary\n\n**Date:** 2025-08-29T14:52:06.766Z\n**Total Tests:** 20\n**Successful:** 20\n**Failed:** 0\n**Unplayable Maps:** 0 (0%)\n\n## Results by Mode and Size\n\n| Mode | Size | Land % Range | Unplayable Count | Notes |\n|------|------|--------------|------------------|-------|\n| RANDOM | Small (40x25) | 30%-30% | 0/2 | Avg: 370ms |\n| RANDOM | Standard (80x50) | 30%-30% | 0/2 | Avg: 615ms |\n| FRACTAL | Small (40x25) | 51%-53% | 0/2 | Avg: 134ms |\n| FRACTAL | Standard (80x50) | 53%-58% | 0/2 | Avg: 644ms |\n| FRACTURE | Small (40x25) | 23%-23% | 0/2 | Avg: 86ms |\n| FRACTURE | Standard (80x50) | 23%-27% | 0/2 | Avg: 361ms |\n| ISLAND | Small (40x25) | 33%-34% | 0/2 | Avg: 133ms |\n| ISLAND | Standard (80x50) | 21%-22% | 0/2 | Avg: 904ms |\n| FAIR | Small (40x25) | 33%-34% | 0/2 | Avg: 433ms |\n| FAIR | Standard (80x50) | 31%-31% | 0/2 | Avg: 4891ms |\n\n## Critical Issues\n\n"
+  "summary": "# Ocean Distribution Audit Summary\n\n**Date:** 2025-08-29T15:09:23.185Z\n**Total Tests:** 20\n**Successful:** 20\n**Failed:** 0\n**Unplayable Maps:** 0 (0%)\n\n## Results by Mode and Size\n\n| Mode | Size | Land % Range | Unplayable Count | Notes |\n|------|------|--------------|------------------|-------|\n| RANDOM | Small (40x25) | 30%-30% | 0/2 | Avg: 169ms |\n| RANDOM | Standard (80x50) | 30%-30% | 0/2 | Avg: 396ms |\n| FRACTAL | Small (40x25) | 51%-53% | 0/2 | Avg: 82ms |\n| FRACTAL | Standard (80x50) | 53%-58% | 0/2 | Avg: 507ms |\n| FRACTURE | Small (40x25) | 23%-23% | 0/2 | Avg: 76ms |\n| FRACTURE | Standard (80x50) | 23%-27% | 0/2 | Avg: 336ms |\n| ISLAND | Small (40x25) | 33%-34% | 0/2 | Avg: 128ms |\n| ISLAND | Standard (80x50) | 21%-22% | 0/2 | Avg: 874ms |\n| FAIR | Small (40x25) | 33%-34% | 0/2 | Avg: 547ms |\n| FAIR | Standard (80x50) | 31%-31% | 0/2 | Avg: 4784ms |\n\n## Critical Issues\n\n"
 }

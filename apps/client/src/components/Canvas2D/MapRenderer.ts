@@ -200,25 +200,28 @@ export class MapRenderer {
       }
 
       for (const spriteInfo of sprites) {
-        const sprite = this.tilesetLoader.getSprite(spriteInfo.key);
+        let sprite = this.tilesetLoader.getSprite(spriteInfo.key);
+        
+        // Enhanced fallback system: try comprehensive fallbacks before giving up
+        if (!sprite) {
+          sprite = this.tilesetLoader.getSpriteWithFallback(spriteInfo.key);
+        }
+        
+        // Additional terrain-specific fallbacks
+        if (!sprite) {
+          sprite = this.tryTerrainSpriteFallbacks(tile, layer);
+        }
+        
         if (sprite) {
           const offsetX = spriteInfo.offset_x || 0;
           const offsetY = spriteInfo.offset_y || 0;
 
           // Copy freeciv-web logic exactly: pcanvas.drawImage(sprites[tag], canvas_x, canvas_y);
           this.ctx.drawImage(sprite, screenPos.x + offsetX, screenPos.y + offsetY);
-        } else {
-          // Try fallback sprites for water terrains
-          if (tile.terrain === 'ocean' || tile.terrain === 'coast') {
-            const mappedTerrain = this.mapTerrainName(tile.terrain);
-            // Try the simplest CELL_CORNER sprite for water
-            const fallbackKey = `t.l${layer}.${mappedTerrain}_cell_u_w_w_w`;
-            const fallbackSprite = this.tilesetLoader.getSprite(fallbackKey);
-            if (fallbackSprite) {
-              this.ctx.drawImage(fallbackSprite, screenPos.x, screenPos.y);
-              hasAnySprites = true;
-            }
-          }
+          hasAnySprites = true;
+        } else if (import.meta.env.DEV) {
+          // Log missing sprites in development for debugging
+          console.warn(`No sprite or fallback found for: ${spriteInfo.key}`);
         }
       }
     }
@@ -229,9 +232,14 @@ export class MapRenderer {
       if (riverSprite) {
         let sprite = this.tilesetLoader.getSprite(riverSprite.key);
 
-        // Try fallback river sprites if the specific sprite is missing
+        // Enhanced fallback system for rivers
         if (!sprite) {
-          sprite = this.tryRiverSpriteFallbacks();
+          sprite = this.tilesetLoader.getSpriteWithFallback(riverSprite.key);
+        }
+        
+        // Try additional river-specific fallbacks
+        if (!sprite) {
+          sprite = this.tryRiverSpriteFallbacks(tile.riverMask);
         }
 
         if (sprite) {
@@ -246,11 +254,16 @@ export class MapRenderer {
       }
     }
 
-    // Fallback: if no sprites rendered, show solid color
+    // Last resort: if no sprites rendered, show solid color (but this should be rare now)
     if (!hasAnySprites) {
       const color = this.getTerrainColor(tile.terrain);
       this.ctx.fillStyle = color;
       this.ctx.fillRect(screenPos.x, screenPos.y, this.tileWidth, this.tileHeight);
+      
+      // Log this as a potential issue in development
+      if (import.meta.env.DEV) {
+        console.warn(`Fell back to solid color for terrain: ${tile.terrain} at (${tile.x}, ${tile.y})`);
+      }
     }
   }
 
@@ -284,17 +297,85 @@ export class MapRenderer {
   // @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:1230-1238
 
   /**
-   * Try fallback river sprites when specific river sprite is missing
+   * Enhanced terrain sprite fallback system
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:120-126 graphic_alt fallback pattern
+   */
+  private tryTerrainSpriteFallbacks(tile: Tile, layer: number): HTMLCanvasElement | null {
+    const mappedTerrain = this.mapTerrainName(tile.terrain);
+    
+    // Try basic terrain sprite without match patterns
+    const basicSprite = this.tilesetLoader.getSprite(`t.l${layer}.${mappedTerrain}1`);
+    if (basicSprite) {
+      return basicSprite;
+    }
+    
+    // Try simple match patterns
+    const simpleFallbacks = [
+      `t.l${layer}.${mappedTerrain}_n0e0s0w0`,
+      `t.l${layer}.${mappedTerrain}_cell_u_u_u_u`
+    ];
+    
+    for (const fallbackKey of simpleFallbacks) {
+      const sprite = this.tilesetLoader.getSprite(fallbackKey);
+      if (sprite) {
+        return sprite;
+      }
+    }
+    
+    // Try alternative terrain graphics for similar terrains
+    const terrainAlternatives: Record<string, string[]> = {
+      'coast': ['floor', 'lake'],
+      'floor': ['coast'],
+      'lake': ['coast', 'floor'],
+      'arctic': ['tundra', 'plains'],
+      'jungle': ['forest'],
+      'swamp': ['grassland']
+    };
+    
+    if (terrainAlternatives[mappedTerrain]) {
+      for (const altTerrain of terrainAlternatives[mappedTerrain]) {
+        const altSprite = this.tilesetLoader.getSprite(`t.l${layer}.${altTerrain}1`);
+        if (altSprite) {
+          return altSprite;
+        }
+      }
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Enhanced river sprite fallback system
    * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas.js:100-150 fallback sprite handling
    */
-  private tryRiverSpriteFallbacks(): HTMLCanvasElement | null {
-    // Try simpler river sprite combinations
+  private tryRiverSpriteFallbacks(riverMask: number): HTMLCanvasElement | null {
+    // Try to find a simpler river sprite that matches some of the connections
+    const directions = ['n', 'e', 's', 'w'];
+    
+    // First try: match individual connections
+    for (let i = 0; i < 4; i++) {
+      if (riverMask & (1 << i)) {
+        // Try single direction river
+        let singleDirStr = '';
+        for (let j = 0; j < 4; j++) {
+          singleDirStr += directions[j] + (j === i ? '1' : '0');
+        }
+        const singleSprite = this.tilesetLoader.getSprite(`road.river_s_${singleDirStr}`);
+        if (singleSprite) {
+          return singleSprite;
+        }
+      }
+    }
+    
+    // Fallback to simplest patterns
     const fallbackPatterns = [
       'road.river_s_n0e0s0w0', // No connections (isolated river)
       'road.river_s_n1e0s0w0', // North only
       'road.river_s_n0e1s0w0', // East only
       'road.river_s_n0e0s1w0', // South only
       'road.river_s_n0e0s0w1', // West only
+      'road.river_s_n1e0s1w0', // North-South
+      'road.river_s_n0e1s0w1', // East-West
     ];
 
     for (const pattern of fallbackPatterns) {
