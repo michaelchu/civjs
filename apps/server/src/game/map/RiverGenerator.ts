@@ -48,24 +48,23 @@ export class RiverGenerator {
     // @reference freeciv/server/generator/mapgen.c:915-924
     const mapNumTiles = this.width * this.height;
     const landPercent = this.calculateLandPercent(tiles);
-    
-    const desirableRiverLength = Math.floor(
-      (riverPct * mapNumTiles * landPercent) / 5325
-    );
+
+    const desirableRiverLength = Math.floor((riverPct * mapNumTiles * landPercent) / 5325);
 
     // The number of river tiles that have been set
     let currentRiverLength = 0;
-    
-    // Iteration counter to prevent infinite loops  
+
+    // Iteration counter to prevent infinite loops
     let iterationCounter = 0;
     const RIVERS_MAXTRIES = 32767; // @reference freeciv/server/generator/mapgen.c
 
-    logger.info(`Target river length: ${desirableRiverLength} tiles (${riverPct}% of ${mapNumTiles} tiles * ${landPercent}% land / 5325)`);
+    logger.info(
+      `Target river length: ${desirableRiverLength} tiles (${riverPct}% of ${mapNumTiles} tiles * ${landPercent}% land / 5325)`
+    );
 
     // FREECIV MAIN LOOP: Generate rivers until target length reached
     // @reference freeciv/server/generator/mapgen.c:946-947
     while (currentRiverLength < desirableRiverLength && iterationCounter < RIVERS_MAXTRIES) {
-      
       // Find suitable river spring location (highland preference)
       const springLocation = this.findRiverSpring(tiles, riverMap);
       if (!springLocation) {
@@ -75,7 +74,7 @@ export class RiverGenerator {
       // Generate individual river from spring
       const riverLength = await this.makeRiver(springLocation.x, springLocation.y, tiles, riverMap);
       currentRiverLength += riverLength;
-      
+
       iterationCounter++;
     }
 
@@ -101,10 +100,13 @@ export class RiverGenerator {
    * Find suitable river spring location using freeciv criteria
    * @reference freeciv/server/generator/mapgen.c:949-952 rand_map_pos_characteristic
    */
-  private findRiverSpring(tiles: MapTile[][], riverMap: RiverMapState): {x: number, y: number} | null {
+  private findRiverSpring(
+    tiles: MapTile[][],
+    riverMap: RiverMapState
+  ): { x: number; y: number } | null {
     // Try to find highland locations first (prefer mountains/hills)
     const maxAttempts = 100;
-    let bestCandidate: {x: number, y: number, score: number} | null = null;
+    let bestCandidate: { x: number; y: number; score: number } | null = null;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const x = Math.floor(this.random() * this.width);
@@ -115,7 +117,7 @@ export class RiverGenerator {
       }
 
       const tile = tiles[x][y];
-      
+
       // Score based on elevation/mountainous property (higher is better for river springs)
       const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
       const score = mountainous;
@@ -137,12 +139,17 @@ export class RiverGenerator {
    * Generate individual river from spring point
    * @reference freeciv/server/generator/mapgen.c:991-1050 make_river()
    */
-  private async makeRiver(startX: number, startY: number, tiles: MapTile[][], riverMap: RiverMapState): Promise<number> {
+  private async makeRiver(
+    startX: number,
+    startY: number,
+    tiles: MapTile[][],
+    riverMap: RiverMapState
+  ): Promise<number> {
     let riverLength = 0;
     let currentX = startX;
     let currentY = startY;
     const maxRiverLength = 50; // Prevent infinite rivers
-    
+
     // Mark starting tile
     if (this.canPlaceRiver(currentX, currentY, tiles, riverMap)) {
       const riverMask = this.generateRiverMask(currentX, currentY, tiles, riverMap);
@@ -182,15 +189,20 @@ export class RiverGenerator {
   /**
    * Find next tile in river path (flow towards lower elevation/water)
    */
-  private findNextRiverTile(x: number, y: number, tiles: MapTile[][], riverMap: RiverMapState): {x: number, y: number} | null {
+  private findNextRiverTile(
+    x: number,
+    y: number,
+    tiles: MapTile[][],
+    riverMap: RiverMapState
+  ): { x: number; y: number } | null {
     const cardinalDirs = [
-      { dx: 0, dy: -1 }, // North  
-      { dx: 1, dy: 0 },  // East
-      { dx: 0, dy: 1 },  // South
-      { dx: -1, dy: 0 }  // West
+      { dx: 0, dy: -1 }, // North
+      { dx: 1, dy: 0 }, // East
+      { dx: 0, dy: 1 }, // South
+      { dx: -1, dy: 0 }, // West
     ];
 
-    let bestCandidate: {x: number, y: number, priority: number} | null = null;
+    let bestCandidate: { x: number; y: number; priority: number } | null = null;
 
     for (const dir of cardinalDirs) {
       const nx = x + dir.dx;
@@ -201,14 +213,14 @@ export class RiverGenerator {
       }
 
       const neighborTile = tiles[nx][ny];
-      
+
       // Priority: Ocean > Coast > Land with existing rivers > Suitable land
       let priority = 0;
-      
+
       if (!this.isLandTile(neighborTile.terrain)) {
         priority = 100; // Highest priority - river mouth
       } else if (neighborTile.riverMask > 0) {
-        priority = 80;  // Connect to existing river
+        priority = 80; // Connect to existing river
       } else if (this.canPlaceRiver(nx, ny, tiles, riverMap)) {
         // Lower elevation preferred (simplified - could use height map)
         const mountainous = neighborTile.properties[TerrainProperty.MOUNTAINOUS] || 0;
