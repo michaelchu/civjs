@@ -105,7 +105,7 @@ export class RiverGenerator {
   ): { x: number; y: number } | null {
     // Try random locations to find suitable spring
     const maxAttempts = 50;
-    
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const x = Math.floor(this.random() * this.width);
       const y = Math.floor(this.random() * this.height);
@@ -122,7 +122,13 @@ export class RiverGenerator {
    * Check if location is valid for river spring using freeciv criteria
    * @reference freeciv/server/generator/mapgen.c:957-990
    */
-  private isValidRiverSpring(x: number, y: number, tiles: MapTile[][], _riverMap: RiverMapState, iterationCounter: number): boolean {
+  private isValidRiverSpring(
+    x: number,
+    y: number,
+    tiles: MapTile[][],
+    _riverMap: RiverMapState,
+    iterationCounter: number
+  ): boolean {
     const tile = tiles[x][y];
     const terrain = tile.terrain;
     const RIVERS_MAXTRIES = 32767;
@@ -140,7 +146,7 @@ export class RiverGenerator {
     // Count nearby rivers and ocean tiles
     const nearbyRivers = this.countRiverNearTile(x, y, tiles);
     const nearbyOcean = this.countOceanNearTile(x, y, tiles);
-    
+
     // Don't start a river on a tile surrounded by > 1 river + ocean tile
     if (nearbyRivers + nearbyOcean > 1) {
       return false;
@@ -156,22 +162,22 @@ export class RiverGenerator {
 
     // Don't start a river on a tile that is surrounded by hills or mountains
     // unless it is hard to find somewhere else to start it
-    if (nearbyMountainous >= 90 && iterationCounter < Math.floor(RIVERS_MAXTRIES / 10 * 5)) {
+    if (nearbyMountainous >= 90 && iterationCounter < Math.floor((RIVERS_MAXTRIES / 10) * 5)) {
       return false;
     }
 
     // Don't start a river on hills unless it is hard to find somewhere else
-    if (mountainous > 0 && iterationCounter < Math.floor(RIVERS_MAXTRIES / 10 * 6)) {
+    if (mountainous > 0 && iterationCounter < Math.floor((RIVERS_MAXTRIES / 10) * 6)) {
       return false;
     }
 
     // Don't start a river on arctic unless it is hard to find somewhere else
-    if (frozen > 0 && iterationCounter < Math.floor(RIVERS_MAXTRIES / 10 * 8)) {
+    if (frozen > 0 && iterationCounter < Math.floor((RIVERS_MAXTRIES / 10) * 8)) {
       return false;
     }
 
     // Don't start a river on desert unless it is hard to find somewhere else
-    if (dry > 0 && iterationCounter < Math.floor(RIVERS_MAXTRIES / 10 * 9)) {
+    if (dry > 0 && iterationCounter < Math.floor((RIVERS_MAXTRIES / 10) * 9)) {
       return false;
     }
 
@@ -184,8 +190,10 @@ export class RiverGenerator {
   private countRiverNearTile(x: number, y: number, tiles: MapTile[][]): number {
     let count = 0;
     const cardinalDirs = [
-      { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, 
-      { dx: 0, dy: 1 }, { dx: -1, dy: 0 }
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
     ];
 
     for (const dir of cardinalDirs) {
@@ -206,8 +214,10 @@ export class RiverGenerator {
   private countOceanNearTile(x: number, y: number, tiles: MapTile[][]): number {
     let count = 0;
     const cardinalDirs = [
-      { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, 
-      { dx: 0, dy: 1 }, { dx: -1, dy: 0 }
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
     ];
 
     for (const dir of cardinalDirs) {
@@ -228,8 +238,10 @@ export class RiverGenerator {
   private countMountainousNearTile(x: number, y: number, tiles: MapTile[][]): number {
     let totalMountainous = 0;
     const cardinalDirs = [
-      { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, 
-      { dx: 0, dy: 1 }, { dx: -1, dy: 0 }
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
     ];
 
     for (const dir of cardinalDirs) {
@@ -249,30 +261,30 @@ export class RiverGenerator {
    */
   private applyRiverMapToTiles(tiles: MapTile[][], riverMap: RiverMapState): number {
     let tilesApplied = 0;
-    
+
     // Iterate through all tiles marked as river in rivermap.ok
     for (const tileIndex of riverMap.ok) {
       const x = tileIndex % this.width;
       const y = Math.floor(tileIndex / this.width);
-      
+
       if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
         const tile = tiles[x][y];
-        
+
         // Check if terrain can have rivers (freeciv: TER_CAN_HAVE_RIVER)
         if (!this.terrainCanHaveRiver(tile.terrain)) {
           // Change terrain to one that can have rivers (freeciv: pick_terrain_by_flag)
           const newTerrain = this.pickTerrainForRiver(tile.terrain);
           tile.terrain = newTerrain as TerrainType;
         }
-        
+
         // Add river to tile
         const riverMask = this.generateRiverMask(x, y, tiles, riverMap);
         tile.riverMask = riverMask;
-        
+
         tilesApplied++;
       }
     }
-    
+
     return tilesApplied;
   }
 
@@ -302,33 +314,38 @@ export class RiverGenerator {
    * Generate individual river from spring point using freeciv algorithm
    * @reference freeciv/server/generator/mapgen.c:792-851 make_river()
    */
-  private makeRiver(startX: number, startY: number, tiles: MapTile[][], riverMap: RiverMapState): boolean {
+  private makeRiver(
+    startX: number,
+    startY: number,
+    tiles: MapTile[][],
+    riverMap: RiverMapState
+  ): boolean {
     let currentX = startX;
     let currentY = startY;
     const maxIterations = 100; // Prevent infinite loops
     let iterations = 0;
-    
+
     while (iterations < maxIterations) {
       // Mark the current tile as river in rivermap (freeciv line 806)
       const tileIndex = currentY * this.width + currentX;
       riverMap.ok.add(tileIndex);
-      
+
       // Test if the river is done (freeciv lines 812-820)
       if (this.isRiverComplete(currentX, currentY, tiles)) {
         return true; // River successfully completed
       }
-      
+
       // Find next direction to continue the river (freeciv lines 822-851)
       const nextTile = this.findBestRiverDirection(currentX, currentY, tiles, riverMap);
       if (!nextTile) {
         return false; // River failed - got stuck
       }
-      
+
       currentX = nextTile.x;
       currentY = nextTile.y;
       iterations++;
     }
-    
+
     return false; // River failed - too many iterations
   }
 
@@ -341,19 +358,19 @@ export class RiverGenerator {
     if (this.countRiverNearTile(x, y, tiles) > 0) {
       return true;
     }
-    
+
     // River ends if it reaches ocean
     if (this.countOceanNearTile(x, y, tiles) > 0) {
       return true;
     }
-    
+
     // River ends at poles (frozen terrain at high latitude - simplified)
     const tile = tiles[x][y];
     const frozen = tile.properties[TerrainProperty.FROZEN] || 0;
     if (frozen > 80) {
       return true;
     }
-    
+
     return false;
   }
 
@@ -361,33 +378,38 @@ export class RiverGenerator {
    * Find best direction for river continuation using freeciv test functions
    * @reference freeciv/server/generator/mapgen.c:826-851
    */
-  private findBestRiverDirection(x: number, y: number, tiles: MapTile[][], riverMap: RiverMapState): {x: number, y: number} | null {
+  private findBestRiverDirection(
+    x: number,
+    y: number,
+    tiles: MapTile[][],
+    riverMap: RiverMapState
+  ): { x: number; y: number } | null {
     const cardinalDirs = [
       { dx: 0, dy: -1 }, // North
-      { dx: 1, dy: 0 },  // East  
-      { dx: 0, dy: 1 },  // South
-      { dx: -1, dy: 0 }  // West
+      { dx: 1, dy: 0 }, // East
+      { dx: 0, dy: 1 }, // South
+      { dx: -1, dy: 0 }, // West
     ];
-    
-    let bestDirection: {x: number, y: number, score: number} | null = null;
-    
+
+    let bestDirection: { x: number; y: number; score: number } | null = null;
+
     // Test each cardinal direction
     for (const dir of cardinalDirs) {
       const nx = x + dir.dx;
       const ny = y + dir.dy;
-      
+
       // Check bounds
       if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) {
         continue;
       }
-      
+
       // Run river test functions (simplified version)
       const score = this.calculateRiverDirectionScore(nx, ny, tiles, riverMap);
       if (score >= 0 && (!bestDirection || score < bestDirection.score)) {
         bestDirection = { x: nx, y: ny, score };
       }
     }
-    
+
     return bestDirection;
   }
 
@@ -395,38 +417,43 @@ export class RiverGenerator {
    * Calculate score for river direction (lower is better)
    * Simplified version of freeciv test_funcs
    */
-  private calculateRiverDirectionScore(x: number, y: number, tiles: MapTile[][], riverMap: RiverMapState): number {
+  private calculateRiverDirectionScore(
+    x: number,
+    y: number,
+    tiles: MapTile[][],
+    riverMap: RiverMapState
+  ): number {
     const tileIndex = y * this.width + x;
-    
+
     // Blocked tiles get worst score
     if (riverMap.blocked.has(tileIndex)) {
       return 1000;
     }
-    
+
     // Already marked as river
     if (riverMap.ok.has(tileIndex)) {
       return 500;
     }
-    
+
     const tile = tiles[x][y];
-    
+
     // Ocean tiles get good score (river mouth)
     if (!this.isLandTile(tile.terrain)) {
       return 10;
     }
-    
+
     // Prefer lower elevation (less mountainous)
     const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
     let score = mountainous;
-    
+
     // Avoid dry terrain
     const dry = tile.properties[TerrainProperty.DRY] || 0;
     score += dry / 2;
-    
-    // Avoid frozen terrain  
+
+    // Avoid frozen terrain
     const frozen = tile.properties[TerrainProperty.FROZEN] || 0;
     score += frozen / 2;
-    
+
     return score;
   }
 
@@ -532,5 +559,4 @@ export class RiverGenerator {
   private isLandTile(terrain: TerrainType): boolean {
     return !['ocean', 'coast', 'deep_ocean', 'lake'].includes(terrain);
   }
-
 }
