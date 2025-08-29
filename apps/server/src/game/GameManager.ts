@@ -665,14 +665,14 @@ export class GameManager {
    * Deserialize compressed map tiles from database storage
    */
   private deserializeMapTiles(compressedTiles: any, width: number, height: number): any[][] {
-    // Create empty tile array filled with ocean tiles
+    // Create empty tile array filled with ocean tiles - match generation pattern [x][y]
     const tiles: any[][] = [];
 
-    for (let y = 0; y < height; y++) {
-      tiles[y] = [];
-      for (let x = 0; x < width; x++) {
+    for (let x = 0; x < width; x++) {
+      tiles[x] = [];
+      for (let y = 0; y < height; y++) {
         // Default ocean tile
-        tiles[y][x] = {
+        tiles[x][y] = {
           x,
           y,
           terrain: 'ocean',
@@ -704,8 +704,8 @@ export class GameManager {
           tileData &&
           typeof tileData === 'object'
         ) {
-          tiles[y][x] = {
-            ...tiles[y][x], // Keep default values
+          tiles[x][y] = {
+            ...tiles[x][y], // Keep default values
             ...(tileData as any), // Override with stored data
           };
         }

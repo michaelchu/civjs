@@ -123,6 +123,9 @@ temp/
 # Claude AI settings
 .claude/
 
+# Drizzle ORM generated files
+**/drizzle/meta/
+
 # Reference repositories - ignore non-essential files
 reference/freeciv-web/Dockerfile
 reference/freeciv-web/docker-compose.yml
