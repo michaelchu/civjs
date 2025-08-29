@@ -223,12 +223,135 @@ export class MapRenderer {
       }
     }
 
+    // Render river overlay after terrain layers (like freeciv-web LAYER_SPECIAL1)
+    if (tile.riverMask && tile.riverMask > 0) {
+      const riverSprite = this.getRiverSprite(tile);
+      if (riverSprite) {
+        let sprite = this.tilesetLoader.getSprite(riverSprite.key);
+
+        // Try fallback river sprites if the specific sprite is missing
+        if (!sprite) {
+          sprite = this.tryRiverSpriteFallbacks();
+        }
+
+        if (sprite) {
+          const offsetX = riverSprite.offset_x || 0;
+          const offsetY = riverSprite.offset_y || 0;
+          this.ctx.drawImage(sprite, screenPos.x + offsetX, screenPos.y + offsetY);
+          hasAnySprites = true;
+        } else if (import.meta.env.DEV) {
+          // In development, render a simple blue line to indicate river presence
+          this.renderRiverFallback(tile, screenPos);
+        }
+      }
+    }
+
     // Fallback: if no sprites rendered, show solid color
     if (!hasAnySprites) {
       const color = this.getTerrainColor(tile.terrain);
       this.ctx.fillStyle = color;
       this.ctx.fillRect(screenPos.x, screenPos.y, this.tileWidth, this.tileHeight);
     }
+  }
+
+  /**
+   * Get river sprite based on riverMask connections (freeciv-web implementation port)
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:1208-1243 get_tile_river_sprite()
+   */
+  private getRiverSprite(tile: Tile): { key: string; offset_x?: number; offset_y?: number } | null {
+    if (!tile.riverMask || tile.riverMask === 0) {
+      return null;
+    }
+
+    // Direction mapping for riverMask bits: N=1, E=2, S=4, W=8
+    // Freeciv-web uses cardinal_tileset_dirs = [DIR8_NORTH, DIR8_EAST, DIR8_SOUTH, DIR8_WEST]
+    const directions = ['n', 'e', 's', 'w'];
+    let riverStr = '';
+
+    // Build river direction string based on riverMask bits
+    for (let i = 0; i < 4; i++) {
+      const hasConnection = (tile.riverMask & (1 << i)) !== 0;
+      riverStr += directions[i] + (hasConnection ? '1' : '0');
+    }
+
+    // Generate river sprite key following freeciv-web pattern
+    const spriteKey = `road.river_s_${riverStr}`;
+
+    return { key: spriteKey };
+  }
+
+  // TODO: Implement checkForRiverOutlet for coastal tiles with river outlets
+  // @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:1230-1238
+
+  /**
+   * Try fallback river sprites when specific river sprite is missing
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas.js:100-150 fallback sprite handling
+   */
+  private tryRiverSpriteFallbacks(): HTMLCanvasElement | null {
+    // Try simpler river sprite combinations
+    const fallbackPatterns = [
+      'road.river_s_n0e0s0w0', // No connections (isolated river)
+      'road.river_s_n1e0s0w0', // North only
+      'road.river_s_n0e1s0w0', // East only
+      'road.river_s_n0e0s1w0', // South only
+      'road.river_s_n0e0s0w1', // West only
+    ];
+
+    for (const pattern of fallbackPatterns) {
+      const sprite = this.tilesetLoader.getSprite(pattern);
+      if (sprite) {
+        return sprite;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Render a simple fallback river visualization when sprites are missing
+   */
+  private renderRiverFallback(tile: Tile, screenPos: { x: number; y: number }): void {
+    if (!tile.riverMask || tile.riverMask === 0) return;
+
+    this.ctx.save();
+    this.ctx.strokeStyle = '#4169E1'; // Royal blue for rivers
+    this.ctx.lineWidth = 3;
+    this.ctx.lineCap = 'round';
+
+    const centerX = screenPos.x + this.tileWidth / 2;
+    const centerY = screenPos.y + this.tileHeight / 2;
+
+    // Draw river connections based on riverMask bits
+    if (tile.riverMask & 1) {
+      // North
+      this.ctx.beginPath();
+      this.ctx.moveTo(centerX, centerY);
+      this.ctx.lineTo(centerX, screenPos.y);
+      this.ctx.stroke();
+    }
+    if (tile.riverMask & 2) {
+      // East
+      this.ctx.beginPath();
+      this.ctx.moveTo(centerX, centerY);
+      this.ctx.lineTo(screenPos.x + this.tileWidth, centerY);
+      this.ctx.stroke();
+    }
+    if (tile.riverMask & 4) {
+      // South
+      this.ctx.beginPath();
+      this.ctx.moveTo(centerX, centerY);
+      this.ctx.lineTo(centerX, screenPos.y + this.tileHeight);
+      this.ctx.stroke();
+    }
+    if (tile.riverMask & 8) {
+      // West
+      this.ctx.beginPath();
+      this.ctx.moveTo(centerX, centerY);
+      this.ctx.lineTo(screenPos.x, centerY);
+      this.ctx.stroke();
+    }
+
+    this.ctx.restore();
   }
 
   // Helper function to generate directional strings like "n0e0s0w0"
@@ -1229,6 +1352,7 @@ export class MapRenderer {
           city: undefined,
           elevation: tile.elevation || 0,
           resource: tile.resource || undefined,
+          riverMask: tile.riverMask || 0, // Include riverMask for river rendering
         });
       }
     }

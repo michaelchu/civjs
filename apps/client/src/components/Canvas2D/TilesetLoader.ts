@@ -35,6 +35,9 @@ export class TilesetLoader {
 
       this.cacheSprites();
 
+      // Validate river sprite coverage
+      this.logRiverSpriteValidation();
+
       this.isLoaded = true;
     } catch (error) {
       console.error('Failed to load tileset:', error);
@@ -168,6 +171,68 @@ export class TilesetLoader {
     return Object.keys(this.sprites).filter(key =>
       key.toLowerCase().includes(pattern.toLowerCase())
     );
+  }
+
+  /**
+   * Validate river sprite coverage during tileset loading
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/tilesets.js:200-300 sprite validation
+   */
+  validateRiverSprites(): { missing: string[]; available: string[] } {
+    const missing: string[] = [];
+    const available: string[] = [];
+
+    // Check for basic river sprites (16 combinations for N, E, S, W connections)
+    const directions = ['n', 'e', 's', 'w'];
+
+    for (let mask = 0; mask < 16; mask++) {
+      let riverStr = '';
+      for (let i = 0; i < 4; i++) {
+        const hasConnection = (mask & (1 << i)) !== 0;
+        riverStr += directions[i] + (hasConnection ? '1' : '0');
+      }
+
+      const spriteKey = `road.river_s_${riverStr}`;
+
+      if (this.sprites[spriteKey]) {
+        available.push(spriteKey);
+      } else {
+        missing.push(spriteKey);
+      }
+    }
+
+    // Check for river outlet sprites
+    const outletDirections = ['n', 'e', 's', 'w'];
+    for (const dir of outletDirections) {
+      const outletKey = `road.river_outlet_${dir}`;
+      if (this.sprites[outletKey]) {
+        available.push(outletKey);
+      } else {
+        missing.push(outletKey);
+      }
+    }
+
+    return { missing, available };
+  }
+
+  /**
+   * Log river sprite validation results
+   */
+  logRiverSpriteValidation(): void {
+    const validation = this.validateRiverSprites();
+
+    if (validation.available.length > 0) {
+      console.log(`River sprites available: ${validation.available.length}`);
+      if (import.meta.env.DEV) {
+        console.log('Available river sprites:', validation.available.slice(0, 5)); // Show first 5 examples
+      }
+    }
+
+    if (validation.missing.length > 0) {
+      console.warn(`River sprites missing: ${validation.missing.length}`);
+      if (import.meta.env.DEV) {
+        console.warn('Missing river sprites:', validation.missing.slice(0, 10)); // Show first 10 missing
+      }
+    }
   }
 
   cleanup(): void {

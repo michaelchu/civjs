@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-08-28T17:34:31.764Z",
+  "timestamp": "2025-08-29T14:30:27.595Z",
   "results": [
     {
       "mode": "RANDOM",
@@ -13,24 +13,24 @@
         "totalTiles": 1000,
         "landPercentage": 30,
         "terrainCounts": {
-          "deep_ocean": 681,
-          "ocean": 15,
-          "forest": 60,
-          "hills": 55,
-          "plains": 51,
-          "mountains": 22,
-          "grassland": 50,
-          "snow": 25,
-          "tundra": 18,
-          "glacier": 19,
-          "jungle": 2,
-          "swamp": 2
+          "deep_ocean": 686,
+          "ocean": 10,
+          "plains": 52,
+          "forest": 55,
+          "grassland": 66,
+          "hills": 49,
+          "mountains": 40,
+          "snow": 15,
+          "tundra": 15,
+          "swamp": 3,
+          "jungle": 3,
+          "glacier": 6
         },
         "isPlayable": true,
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 222,
+      "generationTime": 144,
       "success": true
     },
     {
@@ -45,24 +45,24 @@
         "totalTiles": 1000,
         "landPercentage": 30,
         "terrainCounts": {
-          "deep_ocean": 678,
-          "ocean": 19,
-          "plains": 58,
-          "grassland": 51,
-          "hills": 38,
-          "mountains": 31,
-          "forest": 60,
-          "jungle": 9,
-          "snow": 17,
+          "deep_ocean": 679,
+          "ocean": 18,
+          "hills": 47,
+          "plains": 48,
+          "forest": 65,
+          "grassland": 62,
+          "mountains": 34,
+          "snow": 10,
+          "glacier": 15,
           "swamp": 5,
-          "tundra": 14,
-          "glacier": 20
+          "tundra": 10,
+          "jungle": 7
         },
         "isPlayable": true,
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 137,
+      "generationTime": 110,
       "success": true
     },
     {
@@ -77,24 +77,24 @@
         "totalTiles": 4000,
         "landPercentage": 30,
         "terrainCounts": {
-          "deep_ocean": 2739,
-          "ocean": 52,
-          "plains": 207,
-          "hills": 172,
-          "snow": 85,
-          "glacier": 94,
-          "tundra": 111,
-          "grassland": 213,
-          "forest": 185,
-          "mountains": 105,
-          "jungle": 15,
-          "swamp": 22
+          "deep_ocean": 2747,
+          "ocean": 44,
+          "tundra": 81,
+          "plains": 222,
+          "forest": 199,
+          "glacier": 74,
+          "hills": 178,
+          "grassland": 256,
+          "mountains": 106,
+          "snow": 68,
+          "swamp": 15,
+          "jungle": 10
         },
         "isPlayable": true,
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 397,
+      "generationTime": 406,
       "success": true
     },
     {
@@ -109,24 +109,24 @@
         "totalTiles": 4000,
         "landPercentage": 30,
         "terrainCounts": {
-          "deep_ocean": 2753,
-          "ocean": 40,
-          "hills": 215,
-          "grassland": 230,
-          "plains": 201,
-          "forest": 236,
-          "glacier": 72,
-          "snow": 51,
-          "mountains": 111,
-          "tundra": 61,
-          "swamp": 18,
-          "jungle": 12
+          "deep_ocean": 2752,
+          "ocean": 41,
+          "forest": 242,
+          "hills": 171,
+          "mountains": 116,
+          "grassland": 244,
+          "plains": 204,
+          "swamp": 24,
+          "snow": 60,
+          "glacier": 71,
+          "tundra": 62,
+          "jungle": 13
         },
         "isPlayable": true,
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 353,
+      "generationTime": 389,
       "success": true
     },
     {
@@ -141,24 +141,24 @@
         "totalTiles": 1000,
         "landPercentage": 51,
         "terrainCounts": {
-          "deep_ocean": 477,
-          "ocean": 14,
-          "hills": 63,
-          "plains": 76,
-          "grassland": 86,
-          "swamp": 49,
-          "jungle": 60,
-          "forest": 71,
-          "mountains": 48,
-          "glacier": 23,
-          "tundra": 16,
-          "snow": 17
+          "deep_ocean": 473,
+          "ocean": 18,
+          "hills": 65,
+          "plains": 81,
+          "forest": 93,
+          "mountains": 51,
+          "grassland": 74,
+          "swamp": 57,
+          "jungle": 65,
+          "snow": 5,
+          "tundra": 8,
+          "glacier": 10
         },
         "isPlayable": true,
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 96,
+      "generationTime": 84,
       "success": true
     },
     {
@@ -173,25 +173,25 @@
         "totalTiles": 1000,
         "landPercentage": 53,
         "terrainCounts": {
-          "deep_ocean": 467,
-          "ocean": 6,
-          "hills": 69,
-          "grassland": 80,
-          "plains": 70,
-          "mountains": 49,
-          "swamp": 44,
-          "jungle": 65,
-          "tundra": 28,
-          "forest": 86,
-          "snow": 17,
-          "glacier": 18,
+          "deep_ocean": 465,
+          "ocean": 8,
+          "forest": 89,
+          "grassland": 95,
+          "plains": 74,
+          "jungle": 59,
+          "swamp": 50,
+          "mountains": 40,
+          "hills": 58,
+          "snow": 22,
+          "glacier": 17,
+          "tundra": 22,
           "coast": 1
         },
         "isPlayable": true,
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 87,
+      "generationTime": 77,
       "success": true
     },
     {
@@ -206,25 +206,25 @@
         "totalTiles": 4000,
         "landPercentage": 58,
         "terrainCounts": {
-          "deep_ocean": 1627,
-          "ocean": 40,
-          "tundra": 133,
-          "hills": 282,
-          "mountains": 172,
-          "glacier": 143,
-          "snow": 138,
-          "plains": 329,
-          "forest": 371,
-          "jungle": 210,
-          "swamp": 202,
-          "grassland": 344,
+          "deep_ocean": 1617,
+          "ocean": 50,
+          "forest": 381,
+          "hills": 284,
+          "plains": 333,
+          "jungle": 231,
+          "snow": 113,
+          "grassland": 369,
+          "mountains": 180,
+          "swamp": 206,
+          "tundra": 106,
+          "glacier": 121,
           "coast": 9
         },
         "isPlayable": true,
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 593,
+      "generationTime": 518,
       "success": true
     },
     {
@@ -241,23 +241,23 @@
         "terrainCounts": {
           "deep_ocean": 1854,
           "ocean": 25,
-          "forest": 374,
-          "glacier": 64,
-          "snow": 66,
-          "grassland": 365,
-          "hills": 294,
-          "mountains": 171,
-          "plains": 359,
-          "tundra": 57,
-          "jungle": 183,
-          "swamp": 183,
+          "forest": 340,
+          "mountains": 159,
+          "hills": 248,
+          "glacier": 114,
+          "plains": 340,
+          "grassland": 331,
+          "snow": 126,
+          "tundra": 102,
+          "swamp": 171,
+          "jungle": 185,
           "coast": 5
         },
         "isPlayable": true,
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 511,
+      "generationTime": 543,
       "success": true
     },
     {
@@ -275,21 +275,21 @@
           "deep_ocean": 693,
           "ocean": 73,
           "coast": 85,
-          "hills": 25,
-          "tundra": 1,
-          "plains": 37,
-          "grassland": 27,
+          "hills": 13,
+          "glacier": 26,
           "forest": 30,
-          "mountains": 18,
-          "jungle": 4,
-          "glacier": 4,
-          "snow": 3
+          "grassland": 26,
+          "mountains": 6,
+          "plains": 22,
+          "snow": 8,
+          "jungle": 2,
+          "tundra": 16
         },
         "isPlayable": true,
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 88,
+      "generationTime": 65,
       "success": true
     },
     {
@@ -304,25 +304,24 @@
         "totalTiles": 1000,
         "landPercentage": 23,
         "terrainCounts": {
-          "deep_ocean": 645,
-          "ocean": 127,
+          "deep_ocean": 643,
+          "ocean": 129,
           "coast": 39,
-          "forest": 34,
-          "grassland": 29,
-          "glacier": 11,
-          "snow": 12,
-          "swamp": 2,
-          "hills": 38,
-          "plains": 24,
-          "mountains": 20,
-          "jungle": 2,
-          "tundra": 17
+          "plains": 35,
+          "forest": 44,
+          "hills": 30,
+          "swamp": 3,
+          "grassland": 45,
+          "jungle": 4,
+          "mountains": 25,
+          "tundra": 1,
+          "glacier": 2
         },
         "isPlayable": true,
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 72,
+      "generationTime": 65,
       "success": true
     },
     {
@@ -337,25 +336,25 @@
         "totalTiles": 4000,
         "landPercentage": 23,
         "terrainCounts": {
-          "deep_ocean": 2400,
-          "ocean": 688,
-          "forest": 164,
-          "grassland": 138,
-          "mountains": 70,
+          "deep_ocean": 2382,
+          "ocean": 706,
+          "hills": 105,
+          "grassland": 146,
+          "mountains": 65,
           "coast": 187,
-          "snow": 26,
-          "glacier": 20,
-          "plains": 132,
-          "tundra": 31,
-          "hills": 108,
-          "jungle": 22,
+          "forest": 151,
+          "plains": 137,
+          "snow": 32,
+          "tundra": 29,
+          "glacier": 32,
+          "jungle": 14,
           "swamp": 14
         },
         "isPlayable": true,
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 350,
+      "generationTime": 318,
       "success": true
     },
     {
@@ -370,25 +369,25 @@
         "totalTiles": 4000,
         "landPercentage": 27,
         "terrainCounts": {
-          "deep_ocean": 2529,
-          "ocean": 381,
-          "plains": 131,
-          "hills": 131,
-          "grassland": 149,
-          "forest": 153,
-          "mountains": 61,
+          "deep_ocean": 2528,
+          "ocean": 382,
+          "grassland": 157,
+          "hills": 121,
+          "forest": 165,
+          "plains": 135,
+          "mountains": 66,
           "coast": 304,
-          "snow": 52,
-          "tundra": 55,
-          "glacier": 38,
-          "jungle": 8,
-          "swamp": 8
+          "snow": 48,
+          "glacier": 42,
+          "tundra": 35,
+          "jungle": 7,
+          "swamp": 10
         },
         "isPlayable": true,
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 347,
+      "generationTime": 333,
       "success": true
     },
     {
@@ -422,7 +421,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 160,
+      "generationTime": 140,
       "success": true
     },
     {
@@ -456,7 +455,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 170,
+      "generationTime": 121,
       "success": true
     },
     {
@@ -490,7 +489,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 936,
+      "generationTime": 809,
       "success": true
     },
     {
@@ -524,7 +523,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 834,
+      "generationTime": 815,
       "success": true
     },
     {
@@ -558,7 +557,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 430,
+      "generationTime": 447,
       "success": true
     },
     {
@@ -592,7 +591,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 468,
+      "generationTime": 455,
       "success": true
     },
     {
@@ -626,7 +625,7 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 4832,
+      "generationTime": 5347,
       "success": true
     },
     {
@@ -660,9 +659,9 @@
         "hasStartingPositions": true,
         "startingPositionCount": 4
       },
-      "generationTime": 4826,
+      "generationTime": 4892,
       "success": true
     }
   ],
-  "summary": "# Ocean Distribution Audit Summary\n\n**Date:** 2025-08-28T17:34:31.764Z\n**Total Tests:** 20\n**Successful:** 20\n**Failed:** 0\n**Unplayable Maps:** 0 (0%)\n\n## Results by Mode and Size\n\n| Mode | Size | Land % Range | Unplayable Count | Notes |\n|------|------|--------------|------------------|-------|\n| RANDOM | Small (40x25) | 30%-30% | 0/2 | Avg: 180ms |\n| RANDOM | Standard (80x50) | 30%-30% | 0/2 | Avg: 375ms |\n| FRACTAL | Small (40x25) | 51%-53% | 0/2 | Avg: 92ms |\n| FRACTAL | Standard (80x50) | 53%-58% | 0/2 | Avg: 552ms |\n| FRACTURE | Small (40x25) | 23%-23% | 0/2 | Avg: 80ms |\n| FRACTURE | Standard (80x50) | 23%-27% | 0/2 | Avg: 349ms |\n| ISLAND | Small (40x25) | 33%-34% | 0/2 | Avg: 165ms |\n| ISLAND | Standard (80x50) | 21%-22% | 0/2 | Avg: 885ms |\n| FAIR | Small (40x25) | 33%-34% | 0/2 | Avg: 449ms |\n| FAIR | Standard (80x50) | 31%-31% | 0/2 | Avg: 4829ms |\n\n## Critical Issues\n\n"
+  "summary": "# Ocean Distribution Audit Summary\n\n**Date:** 2025-08-29T14:30:27.595Z\n**Total Tests:** 20\n**Successful:** 20\n**Failed:** 0\n**Unplayable Maps:** 0 (0%)\n\n## Results by Mode and Size\n\n| Mode | Size | Land % Range | Unplayable Count | Notes |\n|------|------|--------------|------------------|-------|\n| RANDOM | Small (40x25) | 30%-30% | 0/2 | Avg: 127ms |\n| RANDOM | Standard (80x50) | 30%-30% | 0/2 | Avg: 398ms |\n| FRACTAL | Small (40x25) | 51%-53% | 0/2 | Avg: 81ms |\n| FRACTAL | Standard (80x50) | 53%-58% | 0/2 | Avg: 531ms |\n| FRACTURE | Small (40x25) | 23%-23% | 0/2 | Avg: 65ms |\n| FRACTURE | Standard (80x50) | 23%-27% | 0/2 | Avg: 326ms |\n| ISLAND | Small (40x25) | 33%-34% | 0/2 | Avg: 131ms |\n| ISLAND | Standard (80x50) | 21%-22% | 0/2 | Avg: 812ms |\n| FAIR | Small (40x25) | 33%-34% | 0/2 | Avg: 451ms |\n| FAIR | Standard (80x50) | 31%-31% | 0/2 | Avg: 5120ms |\n\n## Critical Issues\n\n"
 }
