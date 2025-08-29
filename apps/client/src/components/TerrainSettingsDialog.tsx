@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { gameClient } from '../services/GameClient';
 import { PageBackground } from './shared/PageBackground';
+import { ButtonGroup } from './shared/ButtonGroup';
 
 interface GameCreationState {
   playerName: string;
@@ -250,146 +251,53 @@ export const TerrainSettingsDialog: React.FC = () => {
 
             {/* Sliders in responsive grid layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <div>
-                <label className="block text-sm font-medium text-amber-700 mb-2">Temperature</label>
-                <div className="inline-flex rounded-md shadow-sm" role="group">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTerrainSettings(prev => ({
-                        ...prev,
-                        temperature: 35,
-                      }))
-                    }
-                    className={`px-4 py-2 text-sm font-medium border border-amber-400 rounded-l-md focus:z-10 focus:ring-2 focus:ring-amber-600 focus:outline-none transition-colors ${
-                      terrainSettings.temperature === 35
-                        ? 'bg-amber-700 text-amber-50 border-amber-700'
-                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                    }`}
-                  >
-                    Cold
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTerrainSettings(prev => ({
-                        ...prev,
-                        temperature: 50,
-                      }))
-                    }
-                    className={`px-4 py-2 text-sm font-medium border-t border-b border-amber-400 focus:z-10 focus:ring-2 focus:ring-amber-600 focus:outline-none transition-colors ${
-                      terrainSettings.temperature === 50
-                        ? 'bg-amber-700 text-amber-50 border-amber-700'
-                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                    }`}
-                  >
-                    Temperate
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTerrainSettings(prev => ({
-                        ...prev,
-                        temperature: 75,
-                      }))
-                    }
-                    className={`px-4 py-2 text-sm font-medium border border-amber-400 rounded-r-md focus:z-10 focus:ring-2 focus:ring-amber-600 focus:outline-none transition-colors ${
-                      terrainSettings.temperature === 75
-                        ? 'bg-amber-700 text-amber-50 border-amber-700'
-                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                    }`}
-                  >
-                    Tropical
-                  </button>
-                </div>
-                <p className="text-xs text-amber-500 mt-1">
-                  {terrainSettings.temperature === 35 && 'More tundra and cold regions'}
-                  {terrainSettings.temperature === 50 && 'Balanced climate with varied terrains'}
-                  {terrainSettings.temperature === 75 && 'More jungles and tropical regions'}
-                </p>
-              </div>
+              <ButtonGroup
+                label="Temperature"
+                value={terrainSettings.temperature}
+                options={[
+                  { value: 35, label: 'Cold', description: 'More tundra and cold regions' },
+                  { value: 50, label: 'Temperate', description: 'Balanced climate with varied terrains' },
+                  { value: 75, label: 'Tropical', description: 'More jungles and tropical regions' },
+                ]}
+                onChange={(value) =>
+                  setTerrainSettings(prev => ({
+                    ...prev,
+                    temperature: value,
+                  }))
+                }
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-amber-700 mb-2">Wetness</label>
-                <div className="inline-flex rounded-md shadow-sm" role="group">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTerrainSettings(prev => ({
-                        ...prev,
-                        wetness: 35,
-                      }))
-                    }
-                    className={`px-4 py-2 text-sm font-medium border border-amber-400 rounded-l-md focus:z-10 focus:ring-2 focus:ring-amber-600 focus:outline-none transition-colors ${
-                      terrainSettings.wetness === 35
-                        ? 'bg-amber-700 text-amber-50 border-amber-700'
-                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                    }`}
-                  >
-                    Dry
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTerrainSettings(prev => ({
-                        ...prev,
-                        wetness: 50,
-                      }))
-                    }
-                    className={`px-4 py-2 text-sm font-medium border-t border-b border-amber-400 focus:z-10 focus:ring-2 focus:ring-amber-600 focus:outline-none transition-colors ${
-                      terrainSettings.wetness === 50
-                        ? 'bg-amber-700 text-amber-50 border-amber-700'
-                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                    }`}
-                  >
-                    Normal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTerrainSettings(prev => ({
-                        ...prev,
-                        wetness: 75,
-                      }))
-                    }
-                    className={`px-4 py-2 text-sm font-medium border border-amber-400 rounded-r-md focus:z-10 focus:ring-2 focus:ring-amber-600 focus:outline-none transition-colors ${
-                      terrainSettings.wetness === 75
-                        ? 'bg-amber-700 text-amber-50 border-amber-700'
-                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                    }`}
-                  >
-                    Wet
-                  </button>
-                </div>
-                <p className="text-xs text-amber-500 mt-1">
-                  {terrainSettings.wetness === 35 && 'More deserts and dry regions'}
-                  {terrainSettings.wetness === 50 && 'Balanced moisture with varied terrains'}
-                  {terrainSettings.wetness === 75 && 'More forests, rivers, and swamps'}
-                </p>
-              </div>
+              <ButtonGroup
+                label="Wetness"
+                value={terrainSettings.wetness}
+                options={[
+                  { value: 35, label: 'Dry', description: 'More deserts and dry regions' },
+                  { value: 50, label: 'Normal', description: 'Balanced moisture with varied terrains' },
+                  { value: 75, label: 'Wet', description: 'More forests, rivers, and swamps' },
+                ]}
+                onChange={(value) =>
+                  setTerrainSettings(prev => ({
+                    ...prev,
+                    wetness: value,
+                  }))
+                }
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-amber-700 mb-2">
-                  Rivers: {terrainSettings.rivers}%
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={terrainSettings.rivers}
-                  onChange={e =>
-                    setTerrainSettings(prev => ({
-                      ...prev,
-                      rivers: parseInt(e.target.value),
-                    }))
-                  }
-                  className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
-                />
-                <div className="flex justify-between text-xs text-amber-500 mt-1">
-                  <span>Few Rivers</span>
-                  <span>Many Rivers</span>
-                </div>
-              </div>
+              <ButtonGroup
+                label="Rivers"
+                value={terrainSettings.rivers}
+                options={[
+                  { value: 35, label: 'Few', description: 'Fewer rivers and waterways' },
+                  { value: 50, label: 'Normal', description: 'Balanced river distribution' },
+                  { value: 75, label: 'Many', description: 'More rivers and waterways' },
+                ]}
+                onChange={(value) =>
+                  setTerrainSettings(prev => ({
+                    ...prev,
+                    rivers: value,
+                  }))
+                }
+              />
 
               <div>
                 <label className="block text-sm font-medium text-amber-700 mb-2">
