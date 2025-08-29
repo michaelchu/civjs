@@ -38,7 +38,7 @@ export const PacketType = {
   ERROR: 'ERROR',
 } as const;
 
-export type PacketType = typeof PacketType[keyof typeof PacketType];
+export type PacketType = (typeof PacketType)[keyof typeof PacketType];
 
 // Packet interfaces
 export interface GameStatePacket {

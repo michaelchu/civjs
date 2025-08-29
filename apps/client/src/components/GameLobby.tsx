@@ -177,12 +177,12 @@ export const GameLobby: React.FC = () => {
                               game.status === 'waiting'
                                 ? 'bg-yellow-500'
                                 : game.status === 'active'
-                                ? 'bg-green-500'
-                                : game.status === 'paused'
-                                ? 'bg-orange-500'
-                                : game.status === 'finished'
-                                ? 'bg-gray-500'
-                                : 'bg-blue-500'
+                                  ? 'bg-green-500'
+                                  : game.status === 'paused'
+                                    ? 'bg-orange-500'
+                                    : game.status === 'finished'
+                                      ? 'bg-gray-500'
+                                      : 'bg-blue-500'
                             }`}
                           >
                             {getStatusLabel(game.status)}
