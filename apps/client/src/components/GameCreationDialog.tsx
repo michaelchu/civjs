@@ -52,7 +52,7 @@ export const GameCreationDialog: React.FC = () => {
   ];
 
   return (
-    <PageBackground 
+    <PageBackground
       className="min-h-[100dvh] lg:flex lg:items-center lg:justify-center"
       mobileBreakpoint="lg"
     >
