@@ -45,10 +45,7 @@ class GameClient {
     console.log('HTTP Game Client initialized with server:', this.baseUrl);
   }
 
-  private async makeRequest(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<any> {
+  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers: any = {
       'Content-Type': 'application/json',
@@ -100,9 +97,7 @@ class GameClient {
 
       if (response.success) {
         this.sessionId = response.sessionId;
-        console.log(
-          `Authenticated as ${playerName} with session ${this.sessionId}`
-        );
+        console.log(`Authenticated as ${playerName} with session ${this.sessionId}`);
       } else {
         throw new Error(response.error || 'Authentication failed');
       }
@@ -245,9 +240,7 @@ class GameClient {
 
     try {
       // Fetch game state
-      const gameResponse = await this.makeRequest(
-        `/api/games/${this.currentGameId}`
-      );
+      const gameResponse = await this.makeRequest(`/api/games/${this.currentGameId}`);
 
       if (gameResponse.success) {
         const gameState = gameResponse.game as GameState;
@@ -312,25 +305,19 @@ class GameClient {
 
     try {
       // Fetch map data
-      const mapResponse = await this.makeRequest(
-        `/api/games/${this.currentGameId}/map`
-      );
+      const mapResponse = await this.makeRequest(`/api/games/${this.currentGameId}/map`);
       if (mapResponse.success) {
         this.handleMapData(mapResponse.mapData);
       }
 
       // Fetch units
-      const unitsResponse = await this.makeRequest(
-        `/api/games/${this.currentGameId}/units`
-      );
+      const unitsResponse = await this.makeRequest(`/api/games/${this.currentGameId}/units`);
       if (unitsResponse.success) {
         this.handleUnitsData(unitsResponse.units);
       }
 
       // Fetch cities
-      const citiesResponse = await this.makeRequest(
-        `/api/games/${this.currentGameId}/cities`
-      );
+      const citiesResponse = await this.makeRequest(`/api/games/${this.currentGameId}/cities`);
       if (citiesResponse.success) {
         this.handleCitiesData(citiesResponse.cities);
       }
@@ -427,13 +414,10 @@ class GameClient {
     toX: number,
     toY: number
   ): Promise<ActionResult> {
-    const response = await this.makeRequest(
-      `/api/games/${this.currentGameId}/actions/move`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ unitId, toX, toY }),
-      }
-    );
+    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/move`, {
+      method: 'POST',
+      body: JSON.stringify({ unitId, toX, toY }),
+    });
 
     // After action, fetch updated game data
     await this.fetchGameData();
@@ -442,56 +426,41 @@ class GameClient {
   }
 
   async foundCity(name: string, x: number, y: number): Promise<ActionResult> {
-    const response = await this.makeRequest(
-      `/api/games/${this.currentGameId}/actions/found-city`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ name, x, y }),
-      }
-    );
+    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/found-city`, {
+      method: 'POST',
+      body: JSON.stringify({ name, x, y }),
+    });
 
     await this.fetchGameData();
     return response;
   }
 
   async setResearch(techId: string): Promise<ActionResult> {
-    const response = await this.makeRequest(
-      `/api/games/${this.currentGameId}/actions/research`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ techId }),
-      }
-    );
+    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/research`, {
+      method: 'POST',
+      body: JSON.stringify({ techId }),
+    });
 
     await this.fetchGameData();
     return response;
   }
 
   async endTurn(): Promise<ActionResult> {
-    const response = await this.makeRequest(
-      `/api/games/${this.currentGameId}/actions/end-turn`,
-      {
-        method: 'POST',
-        body: JSON.stringify({}),
-      }
-    );
+    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/end-turn`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
 
     // After ending turn, fetch updated game data
     await this.fetchGameData();
     return response;
   }
 
-  async attackUnit(
-    attackerUnitId: string,
-    defenderUnitId: string
-  ): Promise<ActionResult> {
-    const response = await this.makeRequest(
-      `/api/games/${this.currentGameId}/actions/attack`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ attackerUnitId, defenderUnitId }),
-      }
-    );
+  async attackUnit(attackerUnitId: string, defenderUnitId: string): Promise<ActionResult> {
+    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/attack`, {
+      method: 'POST',
+      body: JSON.stringify({ attackerUnitId, defenderUnitId }),
+    });
 
     await this.fetchGameData();
     return response;
@@ -499,16 +468,12 @@ class GameClient {
 
   // Data getters (legacy compatibility methods)
   async getMapData(): Promise<any> {
-    const response = await this.makeRequest(
-      `/api/games/${this.currentGameId}/map`
-    );
+    const response = await this.makeRequest(`/api/games/${this.currentGameId}/map`);
     return response.mapData;
   }
 
   async getVisibleTiles(): Promise<any> {
-    const response = await this.makeRequest(
-      `/api/games/${this.currentGameId}/tiles`
-    );
+    const response = await this.makeRequest(`/api/games/${this.currentGameId}/tiles`);
     return response.visibleTiles;
   }
 

@@ -52,7 +52,7 @@ export const GameCreationDialog: React.FC = () => {
   ];
 
   return (
-    <PageBackground 
+    <PageBackground
       className="min-h-[100dvh] lg:flex lg:items-center lg:justify-center"
       mobileBreakpoint="lg"
     >
@@ -63,12 +63,7 @@ export const GameCreationDialog: React.FC = () => {
               onClick={handleBack}
               className="mr-3 p-2 text-amber-600 hover:text-amber-800 transition-colors"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -78,18 +73,12 @@ export const GameCreationDialog: React.FC = () => {
               </svg>
             </button>
             <div>
-              <h2 className="text-2xl font-bold text-amber-800">
-                Create New Game
-              </h2>
+              <h2 className="text-2xl font-bold text-amber-800">Create New Game</h2>
               <p className="text-amber-600">Set up your civilization</p>
             </div>
           </div>
 
-          <form
-            id="create-game-form"
-            onSubmit={handleNext}
-            className="space-y-6"
-          >
+          <form id="create-game-form" onSubmit={handleNext} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div>
                 <label
@@ -110,10 +99,7 @@ export const GameCreationDialog: React.FC = () => {
               </div>
 
               <div>
-                <label
-                  htmlFor="gameName"
-                  className="block text-sm font-medium text-amber-700 mb-2"
-                >
+                <label htmlFor="gameName" className="block text-sm font-medium text-amber-700 mb-2">
                   Game Name
                 </label>
                 <input
@@ -128,18 +114,13 @@ export const GameCreationDialog: React.FC = () => {
               </div>
 
               <div className="md:col-span-2">
-                <label
-                  htmlFor="gameType"
-                  className="block text-sm font-medium text-amber-700 mb-2"
-                >
+                <label htmlFor="gameType" className="block text-sm font-medium text-amber-700 mb-2">
                   Game Type
                 </label>
                 <select
                   id="gameType"
                   value={gameType}
-                  onChange={e =>
-                    setGameType(e.target.value as 'single' | 'multiplayer')
-                  }
+                  onChange={e => setGameType(e.target.value as 'single' | 'multiplayer')}
                   className="w-full px-3 py-3 bg-amber-50 border border-amber-400 rounded-md text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 shadow-sm"
                 >
                   <option value="single">Single Player</option>
@@ -182,10 +163,7 @@ export const GameCreationDialog: React.FC = () => {
               )}
 
               <div>
-                <label
-                  htmlFor="mapSize"
-                  className="block text-sm font-medium text-amber-700 mb-2"
-                >
+                <label htmlFor="mapSize" className="block text-sm font-medium text-amber-700 mb-2">
                   Map Size
                 </label>
                 <select
@@ -204,9 +182,7 @@ export const GameCreationDialog: React.FC = () => {
             </div>
 
             <div className="bg-amber-200 border border-amber-300 p-4 rounded-md">
-              <h4 className="text-sm font-medium text-amber-700 mb-2">
-                Map Preview
-              </h4>
+              <h4 className="text-sm font-medium text-amber-700 mb-2">Map Preview</h4>
               {mapSizeOptions.map(
                 option =>
                   mapSize === option.value && (

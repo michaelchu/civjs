@@ -64,8 +64,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   // Center the viewport on user's starting position when data becomes available
   useEffect(() => {
-    const globalMap = (window as { map?: { xsize: number; ysize: number } })
-      .map;
+    const globalMap = (window as { map?: { xsize: number; ysize: number } }).map;
     if (
       rendererRef.current &&
       globalMap &&
@@ -126,10 +125,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
       if (startTile && rendererRef.current) {
         // Center on the starting tile (like freeciv-web's center_tile_mapcanvas)
-        const tileGui = rendererRef.current.mapToGuiVector(
-          startTile.x,
-          startTile.y
-        );
+        const tileGui = rendererRef.current.mapToGuiVector(startTile.x, startTile.y);
         const centeredX = tileGui.guiDx - viewport.width / 2;
         const centeredY = tileGui.guiDy - viewport.height / 2;
 
@@ -288,8 +284,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   const handleTouchMove = useCallback(
     (event: React.TouchEvent<HTMLCanvasElement>) => {
-      if (!isDragging || !rendererRef.current || event.touches.length !== 1)
-        return;
+      if (!isDragging || !rendererRef.current || event.touches.length !== 1) return;
 
       const canvas = canvasRef.current;
       if (!canvas) return;

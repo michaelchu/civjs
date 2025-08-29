@@ -155,7 +155,7 @@ export const TerrainSettingsDialog: React.FC = () => {
   ];
 
   return (
-    <PageBackground 
+    <PageBackground
       className="min-h-[100dvh] lg:flex lg:items-center lg:justify-center"
       mobileBreakpoint="lg"
     >
@@ -166,12 +166,7 @@ export const TerrainSettingsDialog: React.FC = () => {
               onClick={handleBack}
               className="mr-3 p-2 text-amber-600 hover:text-amber-800 transition-colors"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -181,9 +176,7 @@ export const TerrainSettingsDialog: React.FC = () => {
               </svg>
             </button>
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-amber-800">
-                Terrain Settings
-              </h2>
+              <h2 className="text-xl md:text-2xl font-bold text-amber-800">Terrain Settings</h2>
               <p className="text-amber-600 text-sm md:text-base">
                 Configure map generation for "{gameData.gameName}"
               </p>
@@ -222,18 +215,14 @@ export const TerrainSettingsDialog: React.FC = () => {
                 </select>
                 <p className="text-xs text-amber-500 mt-1">
                   {
-                    generatorOptions.find(
-                      opt => opt.value === terrainSettings.generator
-                    )?.description
+                    generatorOptions.find(opt => opt.value === terrainSettings.generator)
+                      ?.description
                   }
                 </p>
               </div>
 
               <div>
-                <label
-                  htmlFor="landmass"
-                  className="block text-sm font-medium text-amber-700 mb-2"
-                >
+                <label htmlFor="landmass" className="block text-sm font-medium text-amber-700 mb-2">
                   Landmass
                 </label>
                 <select
@@ -254,11 +243,7 @@ export const TerrainSettingsDialog: React.FC = () => {
                   ))}
                 </select>
                 <p className="text-xs text-amber-500 mt-1">
-                  {
-                    landmassOptions.find(
-                      opt => opt.value === terrainSettings.landmass
-                    )?.description
-                  }
+                  {landmassOptions.find(opt => opt.value === terrainSettings.landmass)?.description}
                 </p>
               </div>
             </div>
@@ -267,8 +252,7 @@ export const TerrainSettingsDialog: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div>
                 <label className="block text-sm font-medium text-amber-700 mb-2">
-                  Temperature: {terrainSettings.temperature}% (Cooler ← →
-                  Warmer)
+                  Temperature: {terrainSettings.temperature}% (Cooler ← → Warmer)
                 </label>
                 <input
                   type="range"
@@ -388,22 +372,17 @@ export const TerrainSettingsDialog: React.FC = () => {
                 </select>
                 <p className="text-xs text-amber-500 mt-1">
                   {
-                    resourceOptions.find(
-                      opt => opt.value === terrainSettings.resources
-                    )?.description
+                    resourceOptions.find(opt => opt.value === terrainSettings.resources)
+                      ?.description
                   }
                 </p>
               </div>
             </div>
 
             {/* Startpos setting - only show for island-based generators */}
-            {(terrainSettings.generator === 'island' ||
-              terrainSettings.generator === 'fair') && (
+            {(terrainSettings.generator === 'island' || terrainSettings.generator === 'fair') && (
               <div>
-                <label
-                  htmlFor="startpos"
-                  className="block text-sm font-medium text-amber-700 mb-2"
-                >
+                <label htmlFor="startpos" className="block text-sm font-medium text-amber-700 mb-2">
                   Starting Positions
                 </label>
                 <select
@@ -424,11 +403,7 @@ export const TerrainSettingsDialog: React.FC = () => {
                   ))}
                 </select>
                 <p className="text-xs text-amber-500 mt-1">
-                  {
-                    startposOptions.find(
-                      opt => opt.value === terrainSettings.startpos
-                    )?.description
-                  }
+                  {startposOptions.find(opt => opt.value === terrainSettings.startpos)?.description}
                 </p>
               </div>
             )}

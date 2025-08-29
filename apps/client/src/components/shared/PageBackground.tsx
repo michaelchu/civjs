@@ -15,8 +15,8 @@ export const PageBackground: React.FC<PageBackgroundProps> = ({
   const backgroundClasses = clsx(
     'bg-gradient-to-b from-amber-100 to-yellow-200',
     {
-      'md:bg-[url(\'/img/background.png\')]': mobileBreakpoint === 'md',
-      'lg:bg-[url(\'/img/background.png\')]': mobileBreakpoint === 'lg',
+      "md:bg-[url('/img/background.png')]": mobileBreakpoint === 'md',
+      "lg:bg-[url('/img/background.png')]": mobileBreakpoint === 'lg',
     },
     {
       'md:bg-cover md:bg-center md:bg-no-repeat': mobileBreakpoint === 'md',

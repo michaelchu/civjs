@@ -80,8 +80,4 @@ export interface ResearchSetPacket {
   };
 }
 
-export type SocketPacket =
-  | GameStatePacket
-  | MoveUnitPacket
-  | FoundCityPacket
-  | ResearchSetPacket;
+export type SocketPacket = GameStatePacket | MoveUnitPacket | FoundCityPacket | ResearchSetPacket;

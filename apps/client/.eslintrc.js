@@ -22,18 +22,9 @@ module.exports = {
       jsx: true,
     },
   },
-  plugins: [
-    'react-refresh',
-    '@typescript-eslint',
-    'react',
-    'react-hooks',
-    'jsx-a11y',
-  ],
+  plugins: ['react-refresh', '@typescript-eslint', 'react', 'react-hooks', 'jsx-a11y'],
   rules: {
-    'react-refresh/only-export-components': [
-      'warn',
-      { allowConstantExport: true },
-    ],
+    'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     'react/react-in-jsx-scope': 'off',
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     'react/prop-types': 'off',
