@@ -310,27 +310,62 @@ export const TerrainSettingsDialog: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-amber-700 mb-2">
-                  Wetness: {terrainSettings.wetness}% (Drier ← → Wetter)
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={terrainSettings.wetness}
-                  onChange={e =>
-                    setTerrainSettings(prev => ({
-                      ...prev,
-                      wetness: parseInt(e.target.value),
-                    }))
-                  }
-                  className="w-full h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer accent-amber-700"
-                />
-                <div className="flex justify-between text-xs text-amber-500 mt-1">
-                  <span>Desert</span>
-                  <span>Normal</span>
-                  <span>Jungle</span>
+                <label className="block text-sm font-medium text-amber-700 mb-2">Wetness</label>
+                <div className="inline-flex rounded-md shadow-sm" role="group">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTerrainSettings(prev => ({
+                        ...prev,
+                        wetness: 35,
+                      }))
+                    }
+                    className={`px-4 py-2 text-sm font-medium border border-amber-400 rounded-l-md focus:z-10 focus:ring-2 focus:ring-amber-600 focus:outline-none transition-colors ${
+                      terrainSettings.wetness === 35
+                        ? 'bg-amber-700 text-amber-50 border-amber-700'
+                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                    }`}
+                  >
+                    Dry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTerrainSettings(prev => ({
+                        ...prev,
+                        wetness: 50,
+                      }))
+                    }
+                    className={`px-4 py-2 text-sm font-medium border-t border-b border-amber-400 focus:z-10 focus:ring-2 focus:ring-amber-600 focus:outline-none transition-colors ${
+                      terrainSettings.wetness === 50
+                        ? 'bg-amber-700 text-amber-50 border-amber-700'
+                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                    }`}
+                  >
+                    Normal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTerrainSettings(prev => ({
+                        ...prev,
+                        wetness: 75,
+                      }))
+                    }
+                    className={`px-4 py-2 text-sm font-medium border border-amber-400 rounded-r-md focus:z-10 focus:ring-2 focus:ring-amber-600 focus:outline-none transition-colors ${
+                      terrainSettings.wetness === 75
+                        ? 'bg-amber-700 text-amber-50 border-amber-700'
+                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                    }`}
+                  >
+                    Wet
+                  </button>
                 </div>
+                <p className="text-xs text-amber-500 mt-1">
+                  {terrainSettings.wetness === 35 && 'More deserts and dry regions'}
+                  {terrainSettings.wetness === 50 && 'Balanced moisture with varied terrains'}
+                  {terrainSettings.wetness === 75 && 'More forests, rivers, and swamps'}
+                </p>
               </div>
 
               <div>
