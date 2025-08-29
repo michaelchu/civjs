@@ -225,6 +225,9 @@ export class MapRenderer {
             screenPos.y + offsetY
           );
         } else {
+          // Debug: Log missing sprite keys to identify the issue
+          console.warn(`[DEBUG] Missing sprite: "${spriteInfo.key}" for terrain: ${tile.terrain}`);
+          
           // Check if this is a dither sprite (pattern: "0tundra_grassland", "1desert_plains", etc.)
           const isDitherSprite = /^\d+[a-z_]+_[a-z_]+$/.test(spriteInfo.key);
           
@@ -251,6 +254,9 @@ export class MapRenderer {
 
     // Fallback: if no sprites rendered, show solid color
     if (!hasAnySprites) {
+      // Debug: Log what terrain type is showing as white squares
+      console.warn(`[DEBUG] No sprites rendered for terrain: ${tile.terrain} at (${tile.x}, ${tile.y})`);
+      
       const color = this.getTerrainColor(tile.terrain);
       this.ctx.fillStyle = color;
       this.ctx.fillRect(
