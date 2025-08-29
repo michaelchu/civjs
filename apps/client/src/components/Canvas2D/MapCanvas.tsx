@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { MapRenderer } from './MapRenderer';
+import { TileHoverOverlay } from './TileHoverOverlay';
 
 interface MapCanvasProps {
   width: number;
@@ -163,6 +164,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   // Handle mouse and touch events - copied from freeciv-web 2D canvas behavior
   const [isDragging, setIsDragging] = useState(false);
+  const [hoveredTile, setHoveredTile] = useState<string | null>(null);
   const dragStart = useRef({ x: 0, y: 0 });
   const dragStartViewport = useRef(viewport);
   const currentRenderViewport = useRef(viewport);
@@ -192,15 +194,44 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   const handleMouseMove = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
-      if (!isDragging || !rendererRef.current) return;
-
       const canvas = canvasRef.current;
-      if (!canvas) return;
+      if (!canvas || !rendererRef.current) return;
 
       const rect = canvas.getBoundingClientRect();
       const canvasX = event.clientX - rect.left;
       const canvasY = event.clientY - rect.top;
 
+      // Handle tile hover detection when not dragging
+      if (!isDragging) {
+        const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+        const globalTiles = (window as { tiles?: Array<{ x: number; y: number; terrain: string }> })
+          .tiles;
+
+        if (globalTiles) {
+          // Find the tile at the mouse position
+          const hoveredTileData = globalTiles.find(
+            tile =>
+              tile &&
+              Math.floor(tile.x) === Math.floor(mapPos.mapX) &&
+              Math.floor(tile.y) === Math.floor(mapPos.mapY)
+          );
+
+          if (hoveredTileData && hoveredTileData.terrain) {
+            // Format terrain name to be human readable
+            const terrainName = hoveredTileData.terrain
+              .replace(/_/g, ' ')
+              .replace(/\b\w/g, (l: string) => l.toUpperCase());
+            setHoveredTile(
+              `${terrainName} (${Math.floor(mapPos.mapX)}, ${Math.floor(mapPos.mapY)})`
+            );
+          } else {
+            setHoveredTile(null);
+          }
+        }
+        return;
+      }
+
+      // Original dragging logic
       // Calculate total movement from drag start (like freeciv-web)
       const totalDiffX = (dragStart.current.x - canvasX) * 2;
       const totalDiffY = (dragStart.current.y - canvasY) * 2;
@@ -227,7 +258,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         }
       });
     },
-    [isDragging]
+    [isDragging, viewport]
   );
 
   const handleMouseUp = useCallback(() => {
@@ -411,6 +442,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           touchAction: 'none', // Prevent default touch behaviors like scrolling/zooming
         }}
       />
+      <TileHoverOverlay tileInfo={hoveredTile} />
     </div>
   );
 };
