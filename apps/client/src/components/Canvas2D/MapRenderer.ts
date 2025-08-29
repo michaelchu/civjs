@@ -225,7 +225,16 @@ export class MapRenderer {
             screenPos.y + offsetY
           );
         } else {
-          // Try fallback sprites for water terrains
+          // Check if this is a dither sprite (pattern: "0tundra_grassland", "1desert_plains", etc.)
+          const isDitherSprite = /^\d+[a-z_]+_[a-z_]+$/.test(spriteInfo.key);
+          
+          if (isDitherSprite) {
+            // For dither sprites, follow freeciv-web behavior: skip drawing when sprite doesn't exist
+            // This allows the base terrain to show through naturally, creating smooth blending
+            continue;
+          }
+          
+          // Try fallback sprites for water terrains only
           if (tile.terrain === 'ocean' || tile.terrain === 'coast') {
             const mappedTerrain = this.mapTerrainName(tile.terrain);
             // Try the simplest CELL_CORNER sprite for water
