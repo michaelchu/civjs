@@ -168,11 +168,10 @@ router.get(
       let units: any[] = [];
 
       if (req.isGameObserver) {
-        // Observers can see all units - we need to get all players' units
-        const allPlayers = Array.from(gameInstance.players.keys());
-        units = [];
-        for (const playerId of allPlayers) {
-          units.push(...gameInstance.unitManager.getPlayerUnits(playerId));
+        // Observers can see all units - get units from all players
+        for (const player of gameInstance.players.values()) {
+          const playerUnits = gameInstance.unitManager.getPlayerUnits(player.id);
+          units.push(...playerUnits);
         }
       } else {
         // Players see only their units
@@ -241,11 +240,10 @@ router.get(
       let cities: any[] = [];
 
       if (req.isGameObserver) {
-        // Observers can see all cities - we need to get all players' cities
-        const allPlayers = Array.from(gameInstance.players.keys());
-        cities = [];
-        for (const playerId of allPlayers) {
-          cities.push(...gameInstance.cityManager.getPlayerCities(playerId));
+        // Observers can see all cities - get cities from all players
+        for (const player of gameInstance.players.values()) {
+          const playerCities = gameInstance.cityManager.getPlayerCities(player.id);
+          cities.push(...playerCities);
         }
       } else {
         // Players see only their cities
