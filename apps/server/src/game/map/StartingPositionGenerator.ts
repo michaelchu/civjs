@@ -455,7 +455,7 @@ export class StartingPositionGenerator {
         }
         break;
 
-      case MapStartpos.TWO_ON_THREE:
+      case MapStartpos.TWO_ON_THREE: {
         // 2-3 players per island
         let playersLeft = playerCount;
         for (let i = 1; i < this.islands.length && playersLeft > 0; i++) {
@@ -464,6 +464,7 @@ export class StartingPositionGenerator {
           playersLeft -= playersForIsland;
         }
         break;
+      }
 
       case MapStartpos.ALL:
         // All players on best island

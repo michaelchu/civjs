@@ -239,8 +239,6 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
             minElev = Math.min(minElev, elevation);
             maxElev = Math.max(maxElev, elevation);
             expect(elevation >= 0).toBe(true);
-            if (elevation > 255) {
-            }
             expect(elevation <= 255).toBe(true);
             elevationSum += elevation;
             tileCount++;
