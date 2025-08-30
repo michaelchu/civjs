@@ -324,31 +324,54 @@ export class MapRenderer {
   private getTileResourceSprite(tile: Tile): { key: string } | null {
     if (!tile.resource) return null;
 
-    // Map resource types to sprite keys following freeciv-web patterns
+    // Map resource types to sprite keys following freeciv tileset patterns
     const resourceSpriteMap: Record<string, string> = {
       // Food resources
-      wheat: 's.wheat:0',
-      cattle: 's.cattle:0',
-      fish: 's.fish:0',
-      horses: 's.horses:0',
+      wheat: 'ts.wheat:0',
+      buffalo: 'ts.buffalo:0',
+      cattle: 'ts.buffalo:0', // Map cattle to buffalo sprite
+      fish: 'ts.fish:0',
+      fruit: 'ts.fruit:0',
+      horses: 'ts.horses:0',
+      pheasant: 'ts.pheasant:0',
 
-      // Trade/luxury resources
-      gold: 's.gold:0',
-      gems: 's.gems:0',
-      silk: 's.silk:0',
-      spices: 's.spices:0',
+      // Luxury resources
+      gold: 'ts.gold:0',
+      gems: 'ts.gems:0',
+      silk: 'ts.silk:0',
+      spice: 'ts.spice:0',
+      spices: 'ts.spice:0', // Alternative spelling
+      wine: 'ts.wine:0',
+      furs: 'ts.furs:0',
 
       // Strategic resources
-      iron: 's.iron:0',
-      oil: 's.oil:0',
-      uranium: 's.uranium:0',
+      iron: 'ts.iron:0',
+      coal: 'ts.coal:0',
+      oil: 'ts.oil:0',
+
+      // Desert resources
+      oasis: 'ts.oasis:0',
+
+      // Arctic resources
+      seals: 'ts.seals:0',
+      whales: 'ts.whales:0',
+      arctic_ivory: 'ts.arctic_ivory:0',
+      arctic_oil: 'ts.arctic_oil:0',
+
+      // Tundra resources
+      tundra_game: 'ts.tundra_game:0',
+      peat: 'ts.peat:0',
+
+      // River/grassland resources
+      grassland_resources: 'ts.grassland_resources:0',
+      river_resources: 'ts.river_resources:0',
     };
 
     const spriteKey = resourceSpriteMap[tile.resource];
 
     if (!spriteKey) {
       // Fallback: use generic resource sprite if specific mapping not found
-      const genericKey = `s.${tile.resource}:0`;
+      const genericKey = `ts.${tile.resource}:0`;
       if (import.meta.env.DEV) {
         console.warn(
           `No sprite mapping for resource '${tile.resource}', trying generic key: ${genericKey}`
