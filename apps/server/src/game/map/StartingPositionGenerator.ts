@@ -237,8 +237,9 @@ export class StartingPositionGenerator {
     }
 
     // Check minimum distance from other start positions
+    if (!tile.continentId || tile.continentId <= 0) return false; // Tile must have a valid continent ID
     const contSize = this.getContinentSize(tiles, tile.continentId);
-    const island = this.islands.find(i => i.id === tile.continentId);
+    const island = this.islands[tile.continentId]; // Direct access since islands[continentId] is the island
     if (!island) return false;
 
     for (const pos of existingPositions) {

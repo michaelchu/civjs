@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { PlayerState } from '../../../src/game/GameManager';
 import { MapGeneratorType, MapManager } from '../../../src/game/MapManager';
-import { MapData } from '../../../src/game/map/MapTypes';
+import { MapData, MapStartpos } from '../../../src/game/map/MapTypes';
 
 // Focused test configurations - targeting known problem areas
 const TEST_SEEDS = [1, 2];
@@ -123,7 +123,7 @@ async function testOceanDistribution(): Promise<OceanTestResult[]> {
             seed.toString(),
             mode.toLowerCase(),
             mode,
-            'DEFAULT'
+            MapStartpos.DEFAULT
           );
 
           const players = createMockPlayers(4);
