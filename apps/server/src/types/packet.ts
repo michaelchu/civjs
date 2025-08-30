@@ -148,6 +148,7 @@ export const TileInfoSchema = z.object({
   city: z.string().optional(),
   units: z.array(z.string()),
   improvements: z.array(z.string()),
+  riverMask: z.number(),
 });
 
 // Unit packets
