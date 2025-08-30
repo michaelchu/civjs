@@ -27,7 +27,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({ showForm = t
 
     try {
       await gameClient.connect();
-      gameClient.joinGame();
+      gameClient.joinGame(playerName.trim());
       setClientState('preparing');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect to server');

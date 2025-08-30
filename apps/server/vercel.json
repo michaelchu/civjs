@@ -3,7 +3,6 @@
   "name": "civjs-server",
   "buildCommand": "npm run vercel-build",
   "installCommand": "npm ci",
-  "ignoreCommand": "if [ \"$VERCEL_ENV\" != \"production\" ]; then exit 1; else npx turbo-ignore; fi",
   "rewrites": [
     {
       "source": "/(.*)",
