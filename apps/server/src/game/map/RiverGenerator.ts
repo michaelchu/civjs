@@ -172,47 +172,53 @@ export class RiverGenerator {
   private findRiverStartPosition(tiles: MapTile[][]): { x: number; y: number } | null {
     const candidates: { x: number; y: number; elevation: number }[] = [];
 
-    // Primary strategy: Look for mountainous areas first
+    // Create randomized tile positions to eliminate spatial bias
+    const allPositions: { x: number; y: number }[] = [];
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
-        const tile = tiles[x][y];
+        allPositions.push({ x, y });
+      }
+    }
 
-        if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 150) {
-          const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
-          if (mountainous > 20) {
-            candidates.push({ x, y, elevation: tile.elevation + mountainous });
-          }
+    // Fisher-Yates shuffle to randomize search order
+    for (let i = allPositions.length - 1; i > 0; i--) {
+      const j = Math.floor(this.random() * (i + 1));
+      [allPositions[i], allPositions[j]] = [allPositions[j], allPositions[i]];
+    }
+
+    // Primary strategy: Look for mountainous areas first (randomized order)
+    for (const pos of allPositions) {
+      const tile = tiles[pos.x][pos.y];
+
+      if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 150) {
+        const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
+        if (mountainous > 20) {
+          candidates.push({ x: pos.x, y: pos.y, elevation: tile.elevation + mountainous });
         }
       }
     }
 
-    // Fallback: If no mountainous areas, use high elevation tiles
+    // Fallback: If no mountainous areas, use high elevation tiles (randomized order)
     if (candidates.length === 0) {
-      for (let x = 0; x < this.width; x++) {
-        for (let y = 0; y < this.height; y++) {
-          const tile = tiles[x][y];
+      for (const pos of allPositions) {
+        const tile = tiles[pos.x][pos.y];
 
-          if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 180) {
-            candidates.push({ x, y, elevation: tile.elevation });
-            if (candidates.length >= 20) break; // Get enough candidates
-          }
+        if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 180) {
+          candidates.push({ x: pos.x, y: pos.y, elevation: tile.elevation });
+          if (candidates.length >= 20) break; // Get enough candidates
         }
-        if (candidates.length >= 20) break;
       }
     }
 
-    // Last resort fallback: Use any high elevation land
+    // Last resort fallback: Use any high elevation land (randomized order)
     if (candidates.length === 0) {
-      for (let x = 0; x < this.width; x++) {
-        for (let y = 0; y < this.height; y++) {
-          const tile = tiles[x][y];
+      for (const pos of allPositions) {
+        const tile = tiles[pos.x][pos.y];
 
-          if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 160) {
-            candidates.push({ x, y, elevation: tile.elevation });
-            if (candidates.length >= 15) break;
-          }
+        if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 160) {
+          candidates.push({ x: pos.x, y: pos.y, elevation: tile.elevation });
+          if (candidates.length >= 15) break;
         }
-        if (candidates.length >= 15) break;
       }
     }
 
