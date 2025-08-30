@@ -138,10 +138,7 @@ class GameClient {
       const updatedTiles = { ...currentMap.tiles };
 
       for (const tileData of data.tiles) {
-        tiles[tileData.tile] = Object.assign(
-          tiles[tileData.tile] || {},
-          tileData
-        );
+        tiles[tileData.tile] = Object.assign(tiles[tileData.tile] || {}, tileData);
 
         const tileKey = `${tileData.x},${tileData.y}`;
         updatedTiles[tileKey] = {
@@ -238,13 +235,7 @@ class GameClient {
     });
   }
 
-  moveUnit(
-    unitId: string,
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number
-  ) {
+  moveUnit(unitId: string, fromX: number, fromY: number, toX: number, toY: number) {
     if (!this.socket) return;
 
     this.socket.emit(PacketType.MOVE_UNIT, {
@@ -358,6 +349,7 @@ class GameClient {
   async createGame(gameData: {
     gameName: string;
     playerName: string;
+    gameType?: 'single' | 'multiplayer';
     maxPlayers: number;
     mapSize: string;
     terrainSettings?: {
@@ -390,6 +382,7 @@ class GameClient {
         type: 200, // GAME_CREATE
         data: {
           name: gameData.gameName,
+          gameType: gameData.gameType || 'multiplayer',
           maxPlayers: gameData.maxPlayers,
           mapWidth: dimensions.width,
           mapHeight: dimensions.height,
