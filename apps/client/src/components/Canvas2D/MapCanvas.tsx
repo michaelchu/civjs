@@ -11,7 +11,7 @@ interface MapCanvasProps {
 export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<MapRenderer | null>(null);
-  
+
   // Track initial centering to prevent multiple centering events (freeciv-web compliance)
   const [hasInitiallyCentered, setHasInitiallyCentered] = useState(false);
 
@@ -140,7 +140,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         x: centeredX,
         y: centeredY,
       });
-      
+
       // Mark as initially centered to prevent future centering
       setHasInitiallyCentered(true);
       console.log('Initial camera centering completed');

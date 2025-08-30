@@ -1,16 +1,16 @@
 /**
  * Reference-compliant Starting Position Generator
- * 
+ *
  * This implementation faithfully ports the freeciv starting position generation logic
  * from freeciv/server/generator/startpos.c to achieve strict reference compliance.
- * 
+ *
  * Key compliance features:
  * - Proper tile value calculation using city output formulas
  * - Island/continent analysis and grouping
  * - Distance constraints based on continent size
  * - TER_STARTER terrain flag filtering
  * - Temperature-based restrictions (no frozen/hot zones)
- * 
+ *
  * @reference freeciv/server/generator/startpos.c
  */
 
@@ -23,11 +23,11 @@ import { PlayerState } from '../GameManager';
  * @reference freeciv/server/generator/startpos.c:38-44
  */
 interface IslandData {
-  id: number;           // Continent ID
-  size: number;         // Number of tiles in continent
-  goodies: number;      // Total tile value score for continent
-  starters: number;     // Number of start positions to place on this continent
-  total: number;        // Total players planned for all continents
+  id: number; // Continent ID
+  size: number; // Number of tiles in continent
+  goodies: number; // Total tile value score for continent
+  starters: number; // Number of start positions to place on this continent
+  total: number; // Total players planned for all continents
 }
 
 /**
@@ -36,7 +36,7 @@ interface IslandData {
  */
 interface StartFilterData {
   min_value: number;
-  value: number[];      // Tile values by index
+  value: number[]; // Tile values by index
 }
 
 export class StartingPositionGenerator {
@@ -124,21 +124,22 @@ export class StartingPositionGenerator {
    * Simplified version of freeciv's city_tile_output calculation
    */
   private getCityTileOutput(tile: MapTile, outputType: 'food' | 'production' | 'trade'): number {
-    const terrainOutputs: Record<TerrainType, { food: number; production: number; trade: number }> = {
-      grassland: { food: 2, production: 0, trade: 0 },
-      plains: { food: 1, production: 1, trade: 0 },
-      forest: { food: 1, production: 2, trade: 0 },
-      hills: { food: 1, production: 0, trade: 0 },
-      desert: { food: 0, production: 1, trade: 0 },
-      tundra: { food: 1, production: 0, trade: 0 },
-      jungle: { food: 1, production: 0, trade: 0 },
-      swamp: { food: 1, production: 0, trade: 0 },
-      mountains: { food: 0, production: 1, trade: 0 },
-      coast: { food: 2, production: 0, trade: 2 },
-      lake: { food: 2, production: 0, trade: 2 },
-      ocean: { food: 1, production: 0, trade: 2 },
-      deep_ocean: { food: 1, production: 0, trade: 2 }
-    };
+    const terrainOutputs: Record<TerrainType, { food: number; production: number; trade: number }> =
+      {
+        grassland: { food: 2, production: 0, trade: 0 },
+        plains: { food: 1, production: 1, trade: 0 },
+        forest: { food: 1, production: 2, trade: 0 },
+        hills: { food: 1, production: 0, trade: 0 },
+        desert: { food: 0, production: 1, trade: 0 },
+        tundra: { food: 1, production: 0, trade: 0 },
+        jungle: { food: 1, production: 0, trade: 0 },
+        swamp: { food: 1, production: 0, trade: 0 },
+        mountains: { food: 0, production: 1, trade: 0 },
+        coast: { food: 2, production: 0, trade: 2 },
+        lake: { food: 2, production: 0, trade: 2 },
+        ocean: { food: 1, production: 0, trade: 2 },
+        deep_ocean: { food: 1, production: 0, trade: 2 },
+      };
 
     let output = terrainOutputs[tile.terrain]?.[outputType] || 0;
 
@@ -172,7 +173,7 @@ export class StartingPositionGenerator {
       spices: { food: 0, production: 0, trade: 3 },
       silk: { food: 0, production: 0, trade: 3 },
       oil: { food: 0, production: 3, trade: 0 },
-      uranium: { food: 0, production: 2, trade: 0 }
+      uranium: { food: 0, production: 2, trade: 0 },
     };
 
     return resourceOutputs[resource]?.[outputType] || 0;
@@ -245,13 +246,15 @@ export class StartingPositionGenerator {
       const distance = this.realMapDistance(x, y, pos.x, pos.y);
 
       // Same continent distance check with continent size scaling
-      if (tile.continentId === otherTile.continentId &&
-          (distance * 1000 / data.min_value <= Math.sqrt(contSize / island.total))) {
+      if (
+        tile.continentId === otherTile.continentId &&
+        (distance * 1000) / data.min_value <= Math.sqrt(contSize / island.total)
+      ) {
         return false;
       }
 
       // Absolute minimum distance check
-      if (distance * 1000 / data.min_value < 5) {
+      if ((distance * 1000) / data.min_value < 5) {
         return false;
       }
     }
@@ -303,7 +306,8 @@ export class StartingPositionGenerator {
       for (let y = 0; y < this.height; y++) {
         const index = y * this.width + x;
         const thisTileValue = tileValueAux[index];
-        let lcount = 0, bcount = 0;
+        let lcount = 0,
+          bcount = 0;
 
         // Check all tiles within city radius
         for (let dx = -cityRadius; dx <= cityRadius; dx++) {
@@ -311,7 +315,7 @@ export class StartingPositionGenerator {
             const nx = x + dx;
             const ny = y + dy;
 
-            if (this.isValidCoord(nx, ny) && (dx * dx + dy * dy <= cityRadius * cityRadius)) {
+            if (this.isValidCoord(nx, ny) && dx * dx + dy * dy <= cityRadius * cityRadius) {
               const nIndex = ny * this.width + nx;
               if (thisTileValue > tileValueAux[nIndex]) {
                 lcount++;
@@ -322,7 +326,7 @@ export class StartingPositionGenerator {
           }
         }
 
-        tileValue[index] = (lcount <= bcount) ? 0 : 100 * thisTileValue;
+        tileValue[index] = lcount <= bcount ? 0 : 100 * thisTileValue;
       }
     }
 
@@ -346,7 +350,7 @@ export class StartingPositionGenerator {
         size: this.getContinentSize(tiles, nr),
         goodies: 0,
         starters: 0,
-        total: 0
+        total: 0,
       };
       this.islandsIndex[nr] = nr;
     }
@@ -480,7 +484,7 @@ export class StartingPositionGenerator {
    */
   private distributeVariableMode(playerCount: number): void {
     const totalGoodies = this.islands.slice(1).reduce((sum, island) => sum + island.goodies, 0);
-    
+
     if (totalGoodies <= 0) {
       // Fallback: distribute evenly
       const playersPerIsland = Math.ceil(playerCount / (this.islands.length - 1));
@@ -521,24 +525,28 @@ export class StartingPositionGenerator {
     const positions: Array<{ x: number; y: number; playerId: string }> = [];
     const filterData: StartFilterData = {
       min_value: 200, // Minimum tile value threshold
-      value: tileValue
+      value: tileValue,
     };
 
     let playerIndex = 0;
 
     // Place players on each island according to distribution
-    for (let islandIdx = 1; islandIdx < this.islands.length && playerIndex < playerIds.length; islandIdx++) {
+    for (
+      let islandIdx = 1;
+      islandIdx < this.islands.length && playerIndex < playerIds.length;
+      islandIdx++
+    ) {
       const island = this.islands[islandIdx];
       const playersForThisIsland = island.starters;
 
       for (let p = 0; p < playersForThisIsland && playerIndex < playerIds.length; p++) {
         const position = this.findBestPositionOnIsland(tiles, filterData, positions, island.id);
-        
+
         if (position) {
           positions.push({
             x: position.x,
             y: position.y,
-            playerId: playerIds[playerIndex]
+            playerId: playerIds[playerIndex],
           });
 
           logger.debug('Assigned starting position', {
@@ -546,7 +554,7 @@ export class StartingPositionGenerator {
             x: position.x,
             y: position.y,
             continentId: island.id,
-            tileValue: tileValue[position.y * this.width + position.x]
+            tileValue: tileValue[position.y * this.width + position.x],
           });
         } else {
           logger.warn('Could not find valid position for player', playerIds[playerIndex]);
@@ -562,7 +570,7 @@ export class StartingPositionGenerator {
       positions.push({
         x: position.x,
         y: position.y,
-        playerId: playerIds[playerIndex]
+        playerId: playerIds[playerIndex],
       });
       logger.warn('Used fallback position for player', playerIds[playerIndex]);
       playerIndex++;
@@ -586,9 +594,11 @@ export class StartingPositionGenerator {
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
-        
-        if (tile.continentId === continentId &&
-            this.isValidStartPos(tiles, x, y, filterData, existingPositions)) {
+
+        if (
+          tile.continentId === continentId &&
+          this.isValidStartPos(tiles, x, y, filterData, existingPositions)
+        ) {
           const index = y * this.width + x;
           candidates.push({ x, y, value: filterData.value[index] });
         }
@@ -613,7 +623,7 @@ export class StartingPositionGenerator {
     for (let x = 5; x < this.width - 5; x++) {
       for (let y = 5; y < this.height - 5; y++) {
         const tile = tiles[x][y];
-        
+
         if (this.isStarterTerrain(tile.terrain)) {
           const tooClose = existingPositions.some(pos => {
             const distance = this.realMapDistance(x, y, pos.x, pos.y);
