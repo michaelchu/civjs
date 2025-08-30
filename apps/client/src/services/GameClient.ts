@@ -258,10 +258,29 @@ class GameClient {
   private handleGameStateUpdate(gameState: GameState): void {
     const store = useGameStore.getState();
 
+    // Map players data from server response to client format
+    const playersMap: Record<string, any> = {};
+    if (gameState.players && Array.isArray(gameState.players)) {
+      gameState.players.forEach(player => {
+        playersMap[player.id] = {
+          id: player.id,
+          name: player.civilization || `Player ${player.playerNumber}`,
+          nation: player.civilization,
+          color: '#0066cc', // Default color, should come from server
+          gold: 0, // Should come from server
+          science: 0, // Should come from server
+          isHuman: true, // Assume human for now
+          isActive: player.id === gameState.currentPlayer,
+          phase_done: player.hasEndedTurn,
+        };
+      });
+    }
+
     // Update basic game state
     store.updateGameState({
       turn: gameState.currentTurn,
       currentPlayerId: gameState.currentPlayer || undefined,
+      players: playersMap,
     });
 
     // Check for state changes

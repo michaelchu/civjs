@@ -51,6 +51,7 @@ export interface Player {
   science: number;
   isHuman: boolean;
   isActive: boolean;
+  phase_done?: boolean;
 }
 
 export interface Technology {

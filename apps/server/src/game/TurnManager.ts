@@ -46,6 +46,30 @@ export class TurnManager {
       this.playerActions.set(playerId, []);
     }
 
+    // Initialize player turn states for single-player mode
+    if (playerIds.length > 0) {
+      const firstPlayerId = playerIds[0];
+
+      // Reset all players' turn status
+      await db.update(players).set({ hasEndedTurn: false }).where(eq(players.gameId, this.gameId));
+
+      // Store current player in game state
+      const currentGameState = {
+        currentPlayer: firstPlayerId,
+        currentTurn: this.currentTurn,
+        year: this.currentYear,
+        turnStartedAt: this.turnStartTime,
+        players: playerIds,
+      };
+
+      await db.update(games).set({ gameState: currentGameState }).where(eq(games.id, this.gameId));
+
+      logger.info('Initialized player turn states', {
+        gameId: this.gameId,
+        currentPlayerId: firstPlayerId,
+      });
+    }
+
     // Create initial turn record
     await this.createTurnRecord();
 
