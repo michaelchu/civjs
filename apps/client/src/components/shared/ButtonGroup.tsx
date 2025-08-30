@@ -34,8 +34,8 @@ export const ButtonGroup: React.FC<ButtonGroupProps> = ({
               index === 0
                 ? 'rounded-l-md'
                 : index === options.length - 1
-                ? 'rounded-r-md'
-                : 'border-t border-b'
+                  ? 'rounded-r-md'
+                  : 'border-t border-b'
             } ${
               value === option.value
                 ? 'bg-amber-700 text-amber-50 border-amber-700'

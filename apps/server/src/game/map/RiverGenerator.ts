@@ -10,15 +10,6 @@ export interface RiverMapState {
   ok: Set<number>; // Tiles marked as valid river tiles
 }
 
-/**
- * River test function definition
- * @reference freeciv/server/generator/mapgen.c:684-687
- */
-interface RiverTestFunction {
-  func: (riverMap: RiverMapState, x: number, y: number, tiles: MapTile[][]) => number;
-  fatal: boolean; // If true, non-zero result aborts river generation
-}
-
 export class RiverGenerator {
   private width: number;
   private height: number;
@@ -31,7 +22,7 @@ export class RiverGenerator {
   }
 
   /**
-   * Generate advanced river system
+   * Generate advanced river system with flowing networks
    */
   public async generateAdvancedRivers(tiles: MapTile[][]): Promise<void> {
     logger.info('Starting advanced river generation');
@@ -43,127 +34,36 @@ export class RiverGenerator {
       ok: new Set<number>(),
     };
 
-    // Calculate number of rivers based on map size
-    const landTiles = tiles.flat().filter(tile => this.isLandTile(tile.terrain)).length;
+    // Calculate number of river networks based on map size (fewer networks, longer rivers)
+    const mapArea = this.width * this.height;
+    const targetNetworks = Math.max(3, Math.floor(Math.sqrt(mapArea) / 8)); // Scale with map size
 
-    const targetRivers = Math.floor(landTiles * 0.15); // 15% river coverage
+    let networksCreated = 0;
+    let totalRiverTiles = 0;
 
-    let riversPlaced = 0;
-    let attempts = targetRivers * 20; // Allow many attempts
-
-    while (riversPlaced < targetRivers && attempts > 0) {
-      const x = Math.floor(this.random() * this.width);
-      const y = Math.floor(this.random() * this.height);
-
-      if (this.canPlaceRiver(x, y, tiles, riverMap)) {
-        const riverMask = this.generateRiverMask(x, y, tiles, riverMap);
-        if (riverMask > 0) {
-          tiles[x][y].riverMask = riverMask;
-          this.convertTerrainForRiver(tiles[x][y]);
-          riversPlaced++;
+    // Generate river networks from high elevation to ocean
+    for (
+      let attempt = 0;
+      attempt < targetNetworks * 10 && networksCreated < targetNetworks;
+      attempt++
+    ) {
+      const startPos = this.findRiverStartPosition(tiles);
+      if (startPos) {
+        const networkLength = this.generateRiverNetwork(startPos.x, startPos.y, tiles, riverMap);
+        if (networkLength > 0) {
+          networksCreated++;
+          totalRiverTiles += networkLength;
         }
       }
-
-      attempts--;
     }
+
+    // After generating networks, calculate connection masks for all river tiles
+    this.calculateRiverConnections(tiles);
 
     const endTime = Date.now();
     logger.info(
-      `Advanced river generation completed: ${riversPlaced}/${targetRivers} rivers placed in ${
-        endTime - startTime
-      }ms`
+      `Advanced river generation completed: ${networksCreated} networks with ${totalRiverTiles} total river tiles in ${endTime - startTime}ms`
     );
-  }
-
-  /**
-   * Check if a river can be placed at the given coordinates
-   */
-  private canPlaceRiver(
-    x: number,
-    y: number,
-    tiles: MapTile[][],
-    riverMap: RiverMapState
-  ): boolean {
-    // Check bounds
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
-      return false;
-    }
-
-    const tile = tiles[x][y];
-
-    // Must be on land
-    if (!this.isLandTile(tile.terrain)) {
-      return false;
-    }
-
-    // Can't already have a river
-    if (tile.riverMask > 0) {
-      return false;
-    }
-
-    // Run all river tests
-    for (const test of this.riverTestFunctions) {
-      const result = test.func(riverMap, x, y, tiles);
-      if (result > 0 && test.fatal) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Generate river mask for connections
-   */
-  private generateRiverMask(
-    x: number,
-    y: number,
-    tiles: MapTile[][],
-    riverMap: RiverMapState
-  ): number {
-    let mask = 0;
-    const tileIndex = y * this.width + x;
-
-    // Mark as river tile
-    riverMap.ok.add(tileIndex);
-
-    // Check cardinal directions for connections
-    const cardinalDirs = [
-      { dx: 0, dy: -1, mask: 1 }, // North
-      { dx: 1, dy: 0, mask: 2 }, // East
-      { dx: 0, dy: 1, mask: 4 }, // South
-      { dx: -1, dy: 0, mask: 8 }, // West
-    ];
-
-    for (const dir of cardinalDirs) {
-      const nx = x + dir.dx;
-      const ny = y + dir.dy;
-
-      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-        const neighborTile = tiles[nx][ny];
-
-        // Connect to existing rivers
-        if (neighborTile.riverMask > 0) {
-          mask |= dir.mask;
-        }
-        // Connect to ocean (river mouths)
-        else if (!this.isLandTile(neighborTile.terrain)) {
-          if (this.random() < 0.3) {
-            // 30% chance to connect to ocean
-            mask |= dir.mask;
-          }
-        }
-        // Connect to suitable land tiles
-        else if (this.isRiverSuitable(nx, ny, tiles)) {
-          if (this.random() < 0.15) {
-            // 15% chance to extend
-            mask |= dir.mask;
-          }
-        }
-      }
-    }
-
-    return mask;
   }
 
   /**
@@ -233,109 +133,6 @@ export class RiverGenerator {
   }
 
   /**
-   * River test functions array
-   */
-  private get riverTestFunctions(): RiverTestFunction[] {
-    return [
-      {
-        func: this.riverTestBlocked,
-        fatal: true,
-      },
-      {
-        func: this.riverTestRiverGrid,
-        fatal: true,
-      },
-      {
-        func: this.riverTestHighlands,
-        fatal: false,
-      },
-    ];
-  }
-
-  /**
-   * Test if river placement is blocked
-   */
-  private riverTestBlocked = (
-    riverMap: RiverMapState,
-    x: number,
-    y: number,
-    _tiles: MapTile[][]
-  ): number => {
-    const tileIndex = y * this.width + x;
-    if (riverMap.blocked.has(tileIndex)) {
-      return 1;
-    }
-
-    // Check if all cardinal neighbors are blocked
-    const cardinalDirs = [
-      [0, -1],
-      [1, 0],
-      [0, 1],
-      [-1, 0],
-    ];
-
-    for (const [dx, dy] of cardinalDirs) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-        const neighborIndex = ny * this.width + nx;
-        if (!riverMap.blocked.has(neighborIndex)) {
-          return 0;
-        }
-      }
-    }
-
-    return 1; // All neighbors blocked
-  };
-
-  /**
-   * Test river grid to avoid too many river connections
-   */
-  private riverTestRiverGrid = (
-    _riverMap: RiverMapState,
-    x: number,
-    y: number,
-    tiles: MapTile[][]
-  ): number => {
-    let riverCount = 0;
-    const cardinalDirs = [
-      [0, -1],
-      [1, 0],
-      [0, 1],
-      [-1, 0],
-    ];
-
-    for (const [dx, dy] of cardinalDirs) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-        if (tiles[nx][ny].riverMask > 0) {
-          riverCount++;
-        }
-      }
-    }
-
-    return riverCount > 1 ? 1 : 0;
-  };
-
-  /**
-   * Test highland suitability for rivers
-   */
-  private riverTestHighlands = (
-    _riverMap: RiverMapState,
-    x: number,
-    y: number,
-    tiles: MapTile[][]
-  ): number => {
-    const tile = tiles[x][y];
-    const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
-
-    // Higher values indicate better suitability
-    // Return 0 for good suitability, higher values for less suitable
-    return Math.max(0, 50 - mountainous);
-  };
-
-  /**
    * Mark river blocks for advanced placement
    */
   public riverBlockMark(riverMap: RiverMapState, x: number, y: number): void {
@@ -367,5 +164,218 @@ export class RiverGenerator {
 
     const density = riverCount / totalCount;
     return density < 0.25; // Max 25% river density in local area
+  }
+
+  /**
+   * Find suitable starting position for river network (high elevation, away from existing rivers)
+   */
+  private findRiverStartPosition(tiles: MapTile[][]): { x: number; y: number } | null {
+    const candidates: { x: number; y: number; elevation: number }[] = [];
+
+    // Primary strategy: Look for mountainous areas first
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const tile = tiles[x][y];
+
+        if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 150) {
+          const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
+          if (mountainous > 20) {
+            candidates.push({ x, y, elevation: tile.elevation + mountainous });
+          }
+        }
+      }
+    }
+
+    // Fallback: If no mountainous areas, use high elevation tiles
+    if (candidates.length === 0) {
+      for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < this.height; y++) {
+          const tile = tiles[x][y];
+
+          if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 180) {
+            candidates.push({ x, y, elevation: tile.elevation });
+            if (candidates.length >= 20) break; // Get enough candidates
+          }
+        }
+        if (candidates.length >= 20) break;
+      }
+    }
+
+    // Last resort fallback: Use any high elevation land
+    if (candidates.length === 0) {
+      for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < this.height; y++) {
+          const tile = tiles[x][y];
+
+          if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 160) {
+            candidates.push({ x, y, elevation: tile.elevation });
+            if (candidates.length >= 15) break;
+          }
+        }
+        if (candidates.length >= 15) break;
+      }
+    }
+
+    if (candidates.length === 0) return null;
+
+    // Sort by elevation and pick from top candidates
+    candidates.sort((a, b) => b.elevation - a.elevation);
+    const topCandidates = candidates.slice(0, Math.min(10, candidates.length));
+    return topCandidates[Math.floor(this.random() * topCandidates.length)];
+  }
+
+  /**
+   * Generate a flowing river network from start position to ocean
+   */
+  private generateRiverNetwork(
+    startX: number,
+    startY: number,
+    tiles: MapTile[][],
+    riverMap: RiverMapState
+  ): number {
+    const riverPath: { x: number; y: number }[] = [];
+    let currentX = startX;
+    let currentY = startY;
+    let length = 0;
+    const maxLength = 30; // Prevent infinite loops
+    const visited = new Set<string>();
+
+    while (length < maxLength) {
+      const key = `${currentX},${currentY}`;
+
+      // Avoid cycles
+      if (visited.has(key)) break;
+      visited.add(key);
+
+      // Mark current tile as river
+      tiles[currentX][currentY].riverMask = 1; // Temporary value, will be recalculated
+      riverPath.push({ x: currentX, y: currentY });
+      this.convertTerrainForRiver(tiles[currentX][currentY]);
+      length++;
+
+      // Try to find next position (flow downhill toward ocean)
+      const nextPos = this.findNextRiverPosition(currentX, currentY, tiles, visited);
+      if (!nextPos) break;
+
+      currentX = nextPos.x;
+      currentY = nextPos.y;
+
+      // Stop if we reached ocean
+      if (!this.isLandTile(tiles[currentX][currentY].terrain)) {
+        break;
+      }
+    }
+
+    // Mark all positions in river map
+    for (const pos of riverPath) {
+      const tileIndex = pos.y * this.width + pos.x;
+      riverMap.ok.add(tileIndex);
+    }
+
+    return length;
+  }
+
+  /**
+   * Find next position for river to flow (prefer downhill, toward ocean)
+   */
+  private findNextRiverPosition(
+    x: number,
+    y: number,
+    tiles: MapTile[][],
+    visited: Set<string>
+  ): { x: number; y: number } | null {
+    const currentElevation = tiles[x][y].elevation;
+    const candidates: { x: number; y: number; score: number }[] = [];
+
+    const directions = [
+      { dx: 0, dy: -1 }, // North
+      { dx: 1, dy: 0 }, // East
+      { dx: 0, dy: 1 }, // South
+      { dx: -1, dy: 0 }, // West
+    ];
+
+    for (const dir of directions) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      const key = `${nx},${ny}`;
+
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height && !visited.has(key)) {
+        const neighborTile = tiles[nx][ny];
+
+        // Don't flow through existing rivers
+        if (neighborTile.riverMask > 0) continue;
+
+        let score = 0;
+
+        // Prefer flowing toward ocean
+        if (!this.isLandTile(neighborTile.terrain)) {
+          score += 1000; // High priority for reaching ocean
+        } else {
+          // Prefer flowing downhill
+          if (neighborTile.elevation < currentElevation) {
+            score += (currentElevation - neighborTile.elevation) * 2;
+          }
+
+          // Prefer suitable river terrain
+          if (this.isRiverSuitable(nx, ny, tiles)) {
+            score += 50;
+          }
+
+          // Avoid mountains unless coming from higher mountains
+          const mountainous = neighborTile.properties[TerrainProperty.MOUNTAINOUS] || 0;
+          if (mountainous > 80 && neighborTile.elevation >= currentElevation) {
+            continue; // Can't flow uphill into mountains
+          }
+        }
+
+        candidates.push({ x: nx, y: ny, score });
+      }
+    }
+
+    if (candidates.length === 0) return null;
+
+    // Pick best candidate (highest score)
+    candidates.sort((a, b) => b.score - a.score);
+
+    // Add some randomness - pick from top 3 candidates
+    const topCandidates = candidates.slice(0, Math.min(3, candidates.length));
+    return topCandidates[Math.floor(this.random() * topCandidates.length)];
+  }
+
+  /**
+   * Calculate river connection masks for all river tiles after network generation
+   */
+  private calculateRiverConnections(tiles: MapTile[][]): void {
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        if (tiles[x][y].riverMask > 0) {
+          let mask = 0;
+
+          // Check cardinal directions for river connections
+          const cardinalDirs = [
+            { dx: 0, dy: -1, mask: 1 }, // North
+            { dx: 1, dy: 0, mask: 2 }, // East
+            { dx: 0, dy: 1, mask: 4 }, // South
+            { dx: -1, dy: 0, mask: 8 }, // West
+          ];
+
+          for (const dir of cardinalDirs) {
+            const nx = x + dir.dx;
+            const ny = y + dir.dy;
+
+            if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+              const neighborTile = tiles[nx][ny];
+
+              // Connect to other rivers or ocean
+              if (neighborTile.riverMask > 0 || !this.isLandTile(neighborTile.terrain)) {
+                mask |= dir.mask;
+              }
+            }
+          }
+
+          tiles[x][y].riverMask = mask;
+        }
+      }
+    }
   }
 }

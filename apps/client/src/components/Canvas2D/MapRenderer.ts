@@ -223,6 +223,16 @@ export class MapRenderer {
       }
     }
 
+    // ADD: River rendering layer (matches freeciv-web LAYER_SPECIAL1)
+    const riverSprite = this.getTileRiverSprite(tile);
+    if (riverSprite) {
+      const sprite = this.tilesetLoader.getSprite(riverSprite.key);
+      if (sprite) {
+        this.ctx.drawImage(sprite, screenPos.x, screenPos.y);
+        hasAnySprites = true;
+      }
+    }
+
     // Fallback: if no sprites rendered, show solid color
     if (!hasAnySprites) {
       const color = this.getTerrainColor(tile.terrain);
@@ -242,6 +252,29 @@ export class MapRenderer {
     }
 
     return result;
+  }
+
+  /**
+   * Calculate river sprite for a tile based on its riverMask connections.
+   * Port of freeciv-web's get_tile_river_sprite() function.
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:get_tile_river_sprite()
+   * @param tile - The tile to calculate river sprite for
+   * @returns Sprite info with key for river rendering, or null if no river
+   */
+  private getTileRiverSprite(tile: Tile): { key: string } | null {
+    if (!tile.riverMask) return null;
+
+    // Convert riverMask bitfield to directional string like freeciv-web
+    // Our bitfield: N=1, E=2, S=4, W=8
+    // freeciv-web format: "n1e0s1w0" etc.
+    let riverStr = '';
+    riverStr += tile.riverMask & 1 ? 'n1' : 'n0'; // North
+    riverStr += tile.riverMask & 2 ? 'e1' : 'e0'; // East
+    riverStr += tile.riverMask & 4 ? 's1' : 's0'; // South
+    riverStr += tile.riverMask & 8 ? 'w1' : 'w0'; // West
+
+    // Return sprite key following freeciv-web's road.river_s_XXXX pattern
+    return { key: `road.river_s_${riverStr}` };
   }
 
   // Direct port of freeciv-web's fill_terrain_sprite_array function
@@ -1227,6 +1260,7 @@ export class MapRenderer {
           city: undefined,
           elevation: tile.elevation || 0,
           resource: tile.resource || undefined,
+          riverMask: tile.riverMask || tile.river_mask || 0, // Support both naming conventions
         });
       }
     }

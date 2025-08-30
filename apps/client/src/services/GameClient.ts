@@ -354,6 +354,8 @@ class GameClient {
             known: tile.isExplored ? 1 : 0,
             seen: tile.isVisible ? 1 : 0,
             resource: tile.resource,
+            riverMask: tile.riverMask || 0, // Add riverMask for river rendering
+            river_mask: tile.riverMask || 0, // Legacy compatibility field
           };
 
           updatedTiles[tileKey] = {
@@ -365,6 +367,7 @@ class GameClient {
             units: [],
             city: undefined,
             resource: tile.resource,
+            riverMask: tile.riverMask || 0, // Add riverMask for river rendering
           };
         }
       });
