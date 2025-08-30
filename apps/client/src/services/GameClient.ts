@@ -1,112 +1,373 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { io, Socket } from 'socket.io-client';
 import { SERVER_URL } from '../config';
 import { useGameStore } from '../store/gameStore';
+import { PacketType } from '../types/packets';
 import { storeGameSession, clearGameSession } from '../utils/gameSession';
 
-interface GameState {
-  id: string;
-  name: string;
-  status: string;
-  currentPlayer: string | null;
-  currentPlayerNumber: number;
-  currentTurn: number;
-  maxPlayers: number;
-  players: Array<{
-    id: string;
-    userId: string;
-    playerNumber: number;
-    civilization: string;
-    isReady: boolean;
-    hasEndedTurn: boolean;
-    isConnected: boolean;
-  }>;
-  isMyTurn: boolean;
-  isHost: boolean;
-  canObserve: boolean;
-  lastUpdated: string;
-  year: number;
-}
-
-interface ActionResult {
-  success: boolean;
-  error?: string;
-  message?: string;
-  [key: string]: any;
-}
-
 class GameClient {
-  private baseUrl: string;
-  private sessionId: string | null = null;
+  private socket: Socket | null = null;
+  private serverUrl: string;
   private currentGameId: string | null = null;
-  private lastGameState: GameState | null = null;
-  private pendingActions: Array<{ type: string; data: any; timestamp: string }> = [];
-  private currentTurnVersion: number = 0;
 
   constructor() {
-    this.baseUrl = SERVER_URL;
-    console.log('HTTP Game Client initialized with server:', this.baseUrl);
+    this.serverUrl = SERVER_URL;
+    console.log('WebSocket Game Client initialized for server:', this.serverUrl);
   }
 
-  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
-    const url = `${this.baseUrl}${endpoint}`;
-    const headers: any = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
+  connect(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        this.socket = io(this.serverUrl, {
+          transports: ['websocket'],
+          timeout: 10000,
+        });
 
-    if (this.sessionId) {
-      headers['x-session-id'] = this.sessionId;
-    }
+        this.socket.on('connect', () => {
+          console.log('Connected to game server');
+          useGameStore.getState().setClientState('connecting');
+          resolve();
+        });
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
+        this.socket.on('disconnect', () => {
+          console.log('Disconnected from game server');
+          useGameStore.getState().setClientState('initial');
+        });
+
+        this.socket.on('connect_error', error => {
+          console.error('Connection error:', error);
+          reject(error);
+        });
+
+        this.setupGameHandlers();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  private setupGameHandlers() {
+    if (!this.socket) return;
+
+    this.socket.on(PacketType.GAME_STATE, data => {
+      console.log('Received game state:', data);
+      useGameStore.getState().updateGameState(data);
+      useGameStore.getState().setClientState('running');
+    });
+
+    this.socket.on('game_started', data => {
+      console.log('Game started:', data);
+      useGameStore.getState().setClientState('running');
+    });
+
+    this.socket.on('map-data', data => {
+      useGameStore.getState().updateGameState({
+        mapData: data,
+        map: {
+          width: data.width || 0,
+          height: data.height || 0,
+          tiles: data.tiles || {},
+        },
       });
+    });
 
-      const data = await response.json();
+    this.socket.on('map-info', data => {
+      // Store in global map variable exactly like freeciv-web: map = packet;
+      (window as any).map = data;
 
-      if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}`);
+      const totalTiles = data.xsize * data.ysize;
+      (window as any).tiles = new Array(totalTiles);
+
+      for (let i = 0; i < totalTiles; i++) {
+        (window as any).tiles[i] = {
+          index: i,
+          x: i % data.xsize,
+          y: Math.floor(i / data.xsize),
+          known: 0,
+          seen: 0,
+        };
+      }
+    });
+
+    this.socket.on('tile-info', data => {
+      if ((window as any).tiles && data.tile !== undefined) {
+        const tiles = (window as any).tiles;
+        tiles[data.tile] = Object.assign(tiles[data.tile] || {}, data);
+
+        const tileKey = `${data.x},${data.y}`;
+        const currentMap = useGameStore.getState().map;
+
+        const updatedTiles = {
+          ...currentMap.tiles,
+          [tileKey]: {
+            x: data.x,
+            y: data.y,
+            terrain: data.terrain,
+            visible: data.known > 0,
+            known: data.seen > 0,
+            units: [],
+            city: undefined,
+          },
+        };
+
+        useGameStore.getState().updateGameState({
+          map: {
+            width: (window as any).map?.xsize || 80,
+            height: (window as any).map?.ysize || 50,
+            tiles: updatedTiles,
+            // Store freeciv-web references
+            xsize: (window as any).map?.xsize || 80,
+            ysize: (window as any).map?.ysize || 50,
+            wrap_id: (window as any).map?.wrap_id || 0,
+          },
+        });
+
+        if (Object.keys(updatedTiles).length === 1) {
+          useGameStore.getState().setViewport({
+            x: 0,
+            y: 0,
+          });
+        }
+      }
+    });
+
+    this.socket.on('tile-info-batch', data => {
+      if (!(window as any).tiles || !data.tiles) return;
+
+      const tiles = (window as any).tiles;
+      const currentMap = useGameStore.getState().map;
+      const updatedTiles = { ...currentMap.tiles };
+
+      for (const tileData of data.tiles) {
+        tiles[tileData.tile] = Object.assign(tiles[tileData.tile] || {}, tileData);
+
+        const tileKey = `${tileData.x},${tileData.y}`;
+        updatedTiles[tileKey] = {
+          x: tileData.x,
+          y: tileData.y,
+          terrain: tileData.terrain,
+          visible: tileData.known > 0,
+          known: tileData.seen > 0,
+          units: [],
+          city: undefined,
+          resource: tileData.resource,
+        };
       }
 
-      return data;
-    } catch (error) {
-      console.error(`HTTP request failed for ${endpoint}:`, error);
-      throw error;
-    }
+      useGameStore.getState().updateGameState({
+        map: {
+          width: (window as any).map?.xsize || 80,
+          height: (window as any).map?.ysize || 50,
+          tiles: updatedTiles,
+          // Store freeciv-web references
+          xsize: (window as any).map?.xsize || 80,
+          ysize: (window as any).map?.ysize || 50,
+          wrap_id: (window as any).map?.wrap_id || 0,
+        },
+      });
+
+      if (data.endIndex === data.total) {
+        setTimeout(() => {
+          const resizeEvent = new Event('resize', { bubbles: true });
+          window.dispatchEvent(resizeEvent);
+
+          setTimeout(() => {
+            window.dispatchEvent(new Event('resize', { bubbles: true }));
+          }, 50);
+
+          setTimeout(() => {
+            window.dispatchEvent(new Event('resize', { bubbles: true }));
+          }, 150);
+        }, 200);
+      }
+    });
+
+    this.socket.on('game_created', data => {
+      console.log('Game created:', data);
+      if (data.maxPlayers === 1) {
+        useGameStore.getState().setClientState('running');
+      } else {
+        useGameStore.getState().setClientState('waiting_for_players');
+      }
+    });
+
+    this.socket.on(PacketType.TURN_STARTED, data => {
+      console.log('Turn started:', data);
+      useGameStore.getState().updateGameState({ turn: data.turn });
+    });
+
+    this.socket.on(PacketType.UNIT_MOVED, data => {
+      console.log('Unit moved:', data);
+      const { units } = useGameStore.getState();
+      if (units[data.unitId]) {
+        useGameStore.getState().updateGameState({
+          units: {
+            ...units,
+            [data.unitId]: { ...units[data.unitId], x: data.x, y: data.y },
+          },
+        });
+      }
+    });
+
+    this.socket.on(PacketType.CITY_FOUNDED, data => {
+      console.log('City founded:', data);
+      const { cities } = useGameStore.getState();
+      useGameStore.getState().updateGameState({
+        cities: {
+          ...cities,
+          [data.city.id]: data.city,
+        },
+      });
+    });
+
+    this.socket.on(PacketType.RESEARCH_COMPLETED, data => {
+      console.log('Research completed:', data);
+      const { technologies } = useGameStore.getState();
+      useGameStore.getState().updateGameState({
+        technologies: {
+          ...technologies,
+          [data.techId]: { ...technologies[data.techId], discovered: true },
+        },
+      });
+    });
+
+    this.socket.on(PacketType.ERROR, error => {
+      console.error('Game error:', error);
+    });
   }
 
-  async connect(): Promise<void> {
-    // HTTP client doesn't need to "connect" like Socket.IO
-    // But we can use this to test the server connection
-    try {
-      await this.makeRequest('/health');
-      console.log('Connected to HTTP server');
-      useGameStore.getState().setClientState('connecting');
-    } catch (error) {
-      console.error('Failed to connect to HTTP server:', error);
-      throw error;
-    }
+  // Reference-style immediate actions (no queuing)
+  moveUnit(unitId: string, fromX: number, fromY: number, toX: number, toY: number): void {
+    if (!this.socket) return;
+
+    this.socket.emit(PacketType.MOVE_UNIT, {
+      unitId,
+      fromX,
+      fromY,
+      toX,
+      toY,
+    });
+  }
+
+  foundCity(name: string, x: number, y: number): void {
+    if (!this.socket) return;
+
+    this.socket.emit(PacketType.FOUND_CITY, {
+      name,
+      x,
+      y,
+    });
+  }
+
+  setResearch(techId: string): void {
+    if (!this.socket) return;
+
+    this.socket.emit(PacketType.RESEARCH_SET, {
+      techId,
+    });
+  }
+
+  attackUnit(attackerUnitId: string, defenderUnitId: string): void {
+    if (!this.socket) return;
+
+    this.socket.emit('ATTACK_UNIT', {
+      attackerUnitId,
+      defenderUnitId,
+    });
+  }
+
+  // Reference-style simple turn end
+  endTurn(): void {
+    if (!this.socket) return;
+
+    console.log('Ending turn via WebSocket packet');
+
+    // Send packet similar to freeciv-web: packet_player_phase_done
+    this.socket.emit('packet', {
+      pid: 'packet_player_phase_done',
+      turn: useGameStore.getState().turn || 1,
+    });
+  }
+
+  async getMapData(): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      this.socket.emit('get_map_data', {}, (response: any) => {
+        if (response.success) {
+          resolve(response.mapData);
+        } else {
+          reject(new Error(response.error || 'Failed to get map data'));
+        }
+      });
+
+      setTimeout(() => {
+        reject(new Error('Get map data timeout'));
+      }, 10000);
+    });
+  }
+
+  async getVisibleTiles(): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      this.socket.emit('get_visible_tiles', {}, (response: any) => {
+        if (response.success) {
+          resolve(response.visibleTiles);
+        } else {
+          reject(new Error(response.error || 'Failed to get visible tiles'));
+        }
+      });
+
+      setTimeout(() => {
+        reject(new Error('Get visible tiles timeout'));
+      }, 10000);
+    });
   }
 
   async authenticatePlayer(playerName: string): Promise<void> {
-    try {
-      const response = await this.makeRequest('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username: playerName }),
-      });
-
-      if (response.success) {
-        this.sessionId = response.sessionId;
-        console.log(`Authenticated as ${playerName} with session ${this.sessionId}`);
-      } else {
-        throw new Error(response.error || 'Authentication failed');
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
       }
-    } catch (error) {
-      console.error('Authentication error:', error);
-      throw error;
-    }
+
+      const packet = {
+        type: 4,
+        data: {
+          username: playerName,
+          version: '1.0.0',
+          capability: 'civjs-1.0',
+        },
+      };
+
+      this.socket.emit('packet', packet);
+
+      const handleReply = (packet: any) => {
+        if (packet.type === 5) {
+          this.socket?.off('packet', handleReply);
+          if (packet.data.accepted) {
+            resolve();
+          } else {
+            console.error('Authentication failed:', packet.data);
+            reject(new Error(packet.data.message || 'Authentication failed'));
+          }
+        }
+      };
+
+      this.socket.on('packet', handleReply);
+
+      setTimeout(() => {
+        this.socket?.off('packet', handleReply);
+        reject(new Error('Authentication timeout'));
+      }, 10000);
+    });
   }
 
   async createGame(gameData: {
@@ -125,562 +386,163 @@ class GameClient {
       resources: string;
     };
   }): Promise<string> {
-    // First authenticate
     await this.authenticatePlayer(gameData.playerName);
 
-    const mapSizes: Record<string, { width: number; height: number }> = {
-      small: { width: 40, height: 25 },
-      standard: { width: 80, height: 50 },
-      large: { width: 120, height: 75 },
-    };
-
-    const dimensions = mapSizes[gameData.mapSize] || mapSizes.standard;
-
-    const response = await this.makeRequest('/api/games', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: gameData.gameName,
-        gameType: gameData.gameType,
-        maxPlayers: gameData.maxPlayers,
-        mapWidth: dimensions.width,
-        mapHeight: dimensions.height,
-        terrainSettings: gameData.terrainSettings || {
-          generator: 'random',
-          landmass: 'normal',
-          huts: 15,
-          temperature: 50,
-          wetness: 50,
-          rivers: 50,
-          resources: 'normal',
-        },
-      }),
-    });
-
-    if (response.success) {
-      this.currentGameId = response.gameId;
-      console.log('Game created:', response.gameId);
-
-      // Store game session data for persistence across refreshes
-      storeGameSession({
-        playerName: gameData.playerName,
-        gameId: response.gameId,
-        gameType: gameData.gameType,
-      });
-
-      // Fetch initial game data directly
-      await this.fetchGameData();
-
-      if (gameData.gameType === 'single') {
-        useGameStore.getState().setClientState('running');
-      } else {
-        useGameStore.getState().setClientState('waiting_for_players');
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
       }
 
-      return response.gameId;
-    } else {
-      throw new Error(response.error || 'Failed to create game');
-    }
+      const mapSizes: Record<string, { width: number; height: number }> = {
+        small: { width: 40, height: 25 },
+        standard: { width: 80, height: 50 },
+        large: { width: 120, height: 75 },
+      };
+
+      const dimensions = mapSizes[gameData.mapSize] || mapSizes.standard;
+
+      this.socket.emit('packet', {
+        type: 200, // GAME_CREATE
+        data: {
+          name: gameData.gameName,
+          gameType: gameData.gameType,
+          maxPlayers: gameData.maxPlayers,
+          mapWidth: dimensions.width,
+          mapHeight: dimensions.height,
+          ruleset: 'classic',
+          victoryConditions: [],
+          turnTimeLimit: 120,
+          terrainSettings: gameData.terrainSettings || {
+            generator: 'random',
+            landmass: 'normal',
+            huts: 15,
+            temperature: 50,
+            wetness: 50,
+            rivers: 50,
+            resources: 'normal',
+          },
+        },
+      });
+
+      const handleReply = (packet: any) => {
+        if (packet.type === 201) {
+          this.socket?.off('packet', handleReply);
+          if (packet.data.success) {
+            this.currentGameId = packet.data.gameId;
+
+            // Store game session for persistence
+            storeGameSession({
+              playerName: gameData.playerName,
+              gameId: packet.data.gameId,
+              gameType: gameData.gameType,
+            });
+
+            resolve(packet.data.gameId);
+          } else {
+            reject(new Error(packet.data.message || 'Failed to create game'));
+          }
+        }
+      };
+
+      this.socket.on('packet', handleReply);
+
+      setTimeout(() => {
+        this.socket?.off('packet', handleReply);
+        reject(new Error('Game creation timeout'));
+      }, 10000);
+    });
+  }
+
+  joinGame(): void {
+    // Legacy method - kept for compatibility
+    console.warn('joinGame() called - this is now handled in createGame/joinSpecificGame');
   }
 
   async joinSpecificGame(gameId: string, playerName: string): Promise<void> {
-    // First authenticate
     await this.authenticatePlayer(playerName);
 
-    // Get game info to determine game type
-    const gameInfoResponse = await this.makeRequest(`/api/games/${gameId}`);
-    const gameType = gameInfoResponse.success
-      ? gameInfoResponse.game?.gameType || 'multiplayer'
-      : 'multiplayer';
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
 
-    const response = await this.makeRequest(`/api/games/${gameId}/join`, {
-      method: 'POST',
-      body: JSON.stringify({ civilization: 'random' }),
-    });
+      this.socket.emit('join_game', { gameId, playerName }, (response: any) => {
+        if (response.success) {
+          this.currentGameId = gameId;
 
-    if (response.success) {
-      this.currentGameId = gameId;
-      console.log(`Joined game ${gameId}`);
+          // Store game session for persistence
+          storeGameSession({
+            playerName,
+            gameId,
+            gameType: 'multiplayer', // Default for joined games
+          });
 
-      // Store game session data for persistence across refreshes
-      storeGameSession({
-        playerName,
-        gameId,
-        gameType: gameType as 'single' | 'multiplayer',
+          resolve();
+        } else {
+          reject(new Error(response.error || 'Failed to join game'));
+        }
       });
-
-      // Fetch game data directly after joining
-      await this.fetchGameData();
-    } else {
-      throw new Error(response.error || 'Failed to join game');
-    }
+    });
   }
 
   async observeGame(gameId: string): Promise<void> {
-    const response = await this.makeRequest(`/api/games/${gameId}/observe`, {
-      method: 'POST',
-    });
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
 
-    if (response.success) {
-      this.currentGameId = gameId;
-      console.log(`Observing game ${gameId}`);
-      // Fetch game data directly after observing
-      await this.fetchGameData();
-    } else {
-      throw new Error(response.error || 'Failed to observe game');
-    }
+      this.socket.emit('observe_game', { gameId }, (response: any) => {
+        if (response.success) {
+          this.currentGameId = gameId;
+          resolve();
+        } else {
+          reject(new Error(response.error || 'Failed to observe game'));
+        }
+      });
+    });
   }
 
   async getGameList(): Promise<any[]> {
-    const response = await this.makeRequest('/api/games');
-    return response.success ? response.games : [];
-  }
-
-  public async fetchGameData(): Promise<void> {
-    if (!this.currentGameId) {
-      return;
-    }
-
-    try {
-      // Fetch game state
-      const gameResponse = await this.makeRequest(`/api/games/${this.currentGameId}`);
-
-      if (gameResponse.success) {
-        const gameState = gameResponse.game as GameState;
-        this.handleGameStateUpdate(gameState);
-        this.lastGameState = gameState;
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
       }
 
-      // Fetch map data
-      await this.refreshGameData();
-    } catch (error) {
-      console.error('Error fetching game data:', error);
-    }
-  }
-
-  private handleGameStateUpdate(gameState: GameState): void {
-    const store = useGameStore.getState();
-
-    // Map players data from server response to client format
-    const playersMap: Record<string, any> = {};
-    if (gameState.players && Array.isArray(gameState.players)) {
-      gameState.players.forEach(player => {
-        playersMap[player.id] = {
-          id: player.id,
-          name: player.civilization || `Player ${player.playerNumber}`,
-          nation: player.civilization,
-          color: '#0066cc', // Default color, should come from server
-          gold: 0, // Should come from server
-          science: 0, // Should come from server
-          isHuman: true, // Assume human for now
-          isActive: player.id === gameState.currentPlayer,
-          phase_done: player.hasEndedTurn,
-        };
-      });
-    }
-
-    // Update basic game state and current turn version
-    this.currentTurnVersion = gameState.currentTurn;
-    store.updateGameState({
-      turn: gameState.currentTurn,
-      currentPlayerId: gameState.currentPlayer || undefined,
-      players: playersMap,
-    });
-
-    // Check for state changes
-    if (this.lastGameState) {
-      // Turn changed
-      if (this.lastGameState.currentTurn !== gameState.currentTurn) {
-        console.log('Turn advanced to:', gameState.currentTurn);
-        // Fetch updated game data
-        this.refreshGameData();
-      }
-
-      // My turn started/ended
-      if (this.lastGameState.isMyTurn !== gameState.isMyTurn) {
-        if (gameState.isMyTurn) {
-          console.log('Your turn started!');
-          store.setClientState('running');
+      this.socket.emit('get_game_list', {}, (response: any) => {
+        if (response.success) {
+          resolve(response.games);
         } else {
-          console.log('Your turn ended');
-        }
-      }
-
-      // Game status changed
-      if (this.lastGameState.status !== gameState.status) {
-        console.log('Game status changed to:', gameState.status);
-        if (gameState.status === 'playing') {
-          store.setClientState('running');
-        } else if (gameState.status === 'waiting') {
-          store.setClientState('waiting_for_players');
-        }
-      }
-    }
-
-    // Update client state based on game status
-    if (gameState.status === 'playing' && !gameState.isMyTurn) {
-      store.setClientState('running'); // Keep as 'running' even when waiting for turn
-    }
-  }
-
-  private async refreshGameData(): Promise<void> {
-    if (!this.currentGameId) return;
-
-    try {
-      // Fetch map data
-      const mapResponse = await this.makeRequest(`/api/games/${this.currentGameId}/map`);
-      if (mapResponse.success) {
-        this.handleMapData(mapResponse.mapData);
-      }
-
-      // Fetch units
-      const unitsResponse = await this.makeRequest(`/api/games/${this.currentGameId}/units`);
-      if (unitsResponse.success) {
-        this.handleUnitsData(unitsResponse.units);
-      }
-
-      // Fetch cities
-      const citiesResponse = await this.makeRequest(`/api/games/${this.currentGameId}/cities`);
-      if (citiesResponse.success) {
-        this.handleCitiesData(citiesResponse.cities);
-      }
-    } catch (error) {
-      console.error('Error refreshing game data:', error);
-    }
-  }
-
-  private handleMapData(mapData: any): void {
-    // Store in global map variable exactly like freeciv-web
-    (window as any).map = {
-      xsize: mapData.width,
-      ysize: mapData.height,
-      topology: mapData.topology || 0,
-      wrap_id: mapData.wrap_id || 0,
-    };
-
-    const totalTiles = mapData.width * mapData.height;
-    (window as any).tiles = new Array(totalTiles);
-
-    // Process tiles
-    const updatedTiles: any = {};
-
-    if (mapData.tiles) {
-      Object.keys(mapData.tiles).forEach(tileKey => {
-        const tile = mapData.tiles[tileKey];
-        if (tile && (tile.isVisible || tile.isExplored)) {
-          const index = tile.y * mapData.width + tile.x;
-          (window as any).tiles[index] = {
-            index,
-            x: tile.x,
-            y: tile.y,
-            terrain: tile.terrain,
-            known: tile.isExplored ? 1 : 0,
-            seen: tile.isVisible ? 1 : 0,
-            resource: tile.resource,
-            riverMask: tile.riverMask || 0, // Add riverMask for river rendering
-            river_mask: tile.riverMask || 0, // Legacy compatibility field
-          };
-
-          updatedTiles[tileKey] = {
-            x: tile.x,
-            y: tile.y,
-            terrain: tile.terrain,
-            visible: tile.isVisible,
-            known: tile.isExplored,
-            units: [],
-            city: undefined,
-            resource: tile.resource,
-            riverMask: tile.riverMask || 0, // Add riverMask for river rendering
-          };
+          reject(new Error(response.error || 'Failed to get game list'));
         }
       });
-    }
-
-    useGameStore.getState().updateGameState({
-      map: {
-        width: mapData.width,
-        height: mapData.height,
-        tiles: updatedTiles,
-        xsize: mapData.width,
-        ysize: mapData.height,
-        wrap_id: mapData.wrap_id || 0,
-      },
     });
-  }
-
-  private handleUnitsData(units: any[]): void {
-    const unitsMap: any = {};
-
-    units.forEach(unit => {
-      unitsMap[unit.id] = unit;
-    });
-
-    useGameStore.getState().updateGameState({
-      units: unitsMap,
-    });
-  }
-
-  private handleCitiesData(cities: any[]): void {
-    const citiesMap: any = {};
-
-    cities.forEach(city => {
-      citiesMap[city.id] = city;
-    });
-
-    useGameStore.getState().updateGameState({
-      cities: citiesMap,
-    });
-  }
-
-  // Helper method to queue actions for batch processing
-  private queueAction(type: string, data: any): void {
-    this.pendingActions.push({
-      type,
-      data,
-      timestamp: new Date().toISOString(),
-    });
-  }
-
-  // Clear pending actions (used after turn resolution)
-  private clearPendingActions(): void {
-    this.pendingActions = [];
-  }
-
-  // Game Actions - now queue actions instead of immediate HTTP calls
-  async moveUnit(
-    unitId: string,
-    _fromX: number,
-    _fromY: number,
-    toX: number,
-    toY: number
-  ): Promise<ActionResult> {
-    this.queueAction('unit_move', { unitId, toX, toY });
-    return { success: true, message: 'Move queued for next turn resolution' };
-  }
-
-  async foundCity(name: string, x: number, y: number): Promise<ActionResult> {
-    this.queueAction('found_city', { name, x, y });
-    return { success: true, message: 'City founding queued for next turn resolution' };
-  }
-
-  async setResearch(techId: string): Promise<ActionResult> {
-    this.queueAction('research_selection', { techId });
-    return { success: true, message: 'Research selection queued for next turn resolution' };
-  }
-
-  async attackUnit(attackerUnitId: string, defenderUnitId: string): Promise<ActionResult> {
-    this.queueAction('unit_attack', { attackerUnitId, defenderUnitId });
-    return { success: true, message: 'Attack queued for next turn resolution' };
-  }
-
-  /**
-   * End turn using synchronous resolution with SSE streaming
-   * Processes all queued actions and advances the turn
-   */
-  async endTurn(): Promise<ActionResult> {
-    if (!this.currentGameId) {
-      throw new Error('No active game');
-    }
-
-    try {
-      // Generate idempotency key to prevent duplicate requests
-      const idempotencyKey = `${this.currentGameId}_${this.currentTurnVersion}_${Date.now()}`;
-
-      // Prepare request body
-      const requestBody = {
-        turnVersion: this.currentTurnVersion,
-        playerActions: [...this.pendingActions], // Copy the array
-        idempotencyKey,
-      };
-
-      console.log('Starting turn resolution with', requestBody.playerActions.length, 'actions');
-
-      // Set up progress tracking
-      const store = useGameStore.getState();
-      store.setTurnResolving(true);
-      store.setTurnProgress(null);
-      store.setClientState('preparing'); // Show loading state
-
-      // Stream turn resolution with Server-Sent Events
-      const response = await this.streamTurnResolution(requestBody);
-
-      // Clear queued actions after successful resolution
-      this.clearPendingActions();
-
-      // Update game state with new data
-      await this.fetchGameData();
-
-      // Clear turn resolution state
-      store.setTurnResolving(false);
-      store.setTurnProgress(null);
-      store.setClientState('running');
-
-      return {
-        success: true,
-        message: 'Turn resolved successfully',
-        ...response,
-      };
-    } catch (error) {
-      console.error('Error ending turn:', error);
-
-      // Clear turn resolution state on error
-      const store = useGameStore.getState();
-      store.setTurnResolving(false);
-      store.setTurnProgress(null);
-      store.setClientState('running'); // Reset state
-
-      throw new Error(error instanceof Error ? error.message : 'Failed to end turn');
-    }
-  }
-
-  /**
-   * Stream turn resolution using Server-Sent Events
-   */
-  private async streamTurnResolution(requestBody: any): Promise<any> {
-    const url = `${this.baseUrl}/api/games/${this.currentGameId}/turns/resolve`;
-    const headers: any = {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-      'Cache-Control': 'no-cache',
-    };
-
-    if (this.sessionId) {
-      headers['x-session-id'] = this.sessionId;
-    }
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
-      if (!response.body) {
-        throw new Error('No response body for streaming');
-      }
-
-      // Process Server-Sent Events stream
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let finalResult: any = null;
-
-      while (true) {
-        const { value, done } = await reader.read();
-
-        if (done) {
-          break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-        for (const line of lines) {
-          if (line.startsWith('event:') || line.startsWith('data:')) {
-            const [prefix, ...rest] = line.split(' ');
-            const content = rest.join(' ');
-
-            if (prefix === 'data:' && content.trim()) {
-              try {
-                const eventData = JSON.parse(content);
-                this.handleTurnProgressEvent(eventData);
-
-                // Check if this is the final result
-                if (eventData.success !== undefined) {
-                  finalResult = eventData;
-                }
-              } catch {
-                console.warn('Failed to parse SSE data:', content);
-              }
-            }
-          }
-        }
-      }
-
-      if (!finalResult) {
-        throw new Error('Turn resolution completed but no final result received');
-      }
-
-      return finalResult;
-    } catch (error) {
-      console.error('Turn resolution streaming failed:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Handle progress events during turn resolution
-   */
-  private handleTurnProgressEvent(eventData: any): void {
-    console.log('Turn progress:', eventData);
-
-    const store = useGameStore.getState();
-
-    // Update store with progress information
-    if (eventData.stage && eventData.message) {
-      store.setTurnProgress({
-        stage: eventData.stage,
-        message: eventData.message,
-        progress: eventData.progress || 0,
-        actionType: eventData.actionType,
-        error: eventData.error,
-      });
-
-      console.log(
-        `${eventData.stage}: ${eventData.message} (${Math.round((eventData.progress || 0) * 100)}%)`
-      );
-    }
-
-    if (eventData.error) {
-      console.error('Turn resolution error:', eventData.error);
-    }
-  }
-
-  // Data getters (legacy compatibility methods)
-  async getMapData(): Promise<any> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/map`);
-    return response.mapData;
-  }
-
-  async getVisibleTiles(): Promise<any> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/tiles`);
-    return response.visibleTiles;
   }
 
   disconnect(): void {
-    if (this.sessionId) {
-      // Fire and forget logout
-      this.makeRequest('/api/auth/logout', { method: 'POST' }).catch(() => {
-        // Ignore logout errors
-      });
+    if (this.socket) {
+      this.socket.disconnect();
     }
 
     // Clear stored game session data
     clearGameSession();
 
-    this.sessionId = null;
+    this.socket = null;
     this.currentGameId = null;
-    console.log('Disconnected from HTTP server');
+    console.log('Disconnected from WebSocket server');
 
     useGameStore.getState().setClientState('initial');
   }
 
   isConnected(): boolean {
-    return this.sessionId !== null;
+    return this.socket !== null && this.socket.connected;
   }
 
   getCurrentGameId(): string | null {
     return this.currentGameId;
-  }
-
-  // Legacy compatibility method - no longer used
-  joinGame(): void {
-    console.warn('joinGame() is deprecated. Use joinSpecificGame() instead.');
   }
 }
 

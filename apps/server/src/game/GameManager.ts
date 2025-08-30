@@ -3,7 +3,7 @@ import { logger } from '../utils/logger';
 import { db } from '../database';
 import { gameState } from '../database/redis';
 import { games, players } from '../database/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import serverConfig from '../config';
 import { TurnManager } from './TurnManager';
 import { MapManager, MapGeneratorType } from './MapManager';
@@ -12,7 +12,7 @@ import { VisibilityManager } from './VisibilityManager';
 import { CityManager } from './CityManager';
 import { ResearchManager } from './ResearchManager';
 import { MapStartpos } from './map/MapTypes';
-// HTTP-only implementation
+import { Server as SocketServer } from 'socket.io';
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
@@ -31,7 +31,6 @@ export interface TerrainSettings {
 export interface GameConfig {
   name: string;
   hostId: string;
-  gameType?: 'single' | 'multiplayer';
   maxPlayers?: number;
   mapWidth?: number;
   mapHeight?: number;
@@ -70,16 +69,17 @@ export interface PlayerState {
 
 export class GameManager {
   private static instance: GameManager;
+  private io: SocketServer;
   private games = new Map<string, GameInstance>();
   private playerToGame = new Map<string, string>();
 
-  private constructor() {
-    // HTTP-only GameManager - no Socket.IO needed
+  private constructor(io: SocketServer) {
+    this.io = io;
   }
 
-  public static getInstance(): GameManager {
+  public static getInstance(io: SocketServer): GameManager {
     if (!GameManager.instance) {
-      GameManager.instance = new GameManager();
+      GameManager.instance = new GameManager(io);
     }
     return GameManager.instance;
   }
@@ -91,7 +91,6 @@ export class GameManager {
     const gameData = {
       name: gameConfig.name,
       hostId: gameConfig.hostId,
-      gameType: gameConfig.gameType || 'multiplayer',
       maxPlayers: gameConfig.maxPlayers || 8,
       mapWidth: gameConfig.mapWidth || 80,
       mapHeight: gameConfig.mapHeight || 50,
@@ -123,7 +122,7 @@ export class GameManager {
 
     logger.info('Game created successfully', { gameId: newGame.id });
 
-    // Creator will join via separate API call
+    // Note: The Socket.IO handler will handle joining the creator to the game
     // This ensures proper socket room management
 
     return newGame.id;
@@ -183,7 +182,13 @@ export class GameManager {
 
     logger.info('Player joined game', { gameId, playerId: newPlayer.id, userId });
 
-    // Player joined - state updated in database
+    // Notify all players in the game
+    this.broadcastToGame(gameId, 'player-joined', {
+      playerId: newPlayer.id,
+      playerNumber,
+      civilization: playerData.civilization,
+      playerCount: game.players.length + 1,
+    });
 
     // Auto-start game if not already started and conditions are met
     const updatedGame = await db.query.games.findFirst({
@@ -198,34 +203,27 @@ export class GameManager {
       playerCount: updatedGame?.players.length,
     });
 
-    // Auto-start logic: immediately start single-player games, or start multiplayer when enough players join
-    if (updatedGame && updatedGame.status === 'waiting') {
-      const shouldAutoStart =
-        updatedGame.gameType === 'single' || // Always start single-player games
-        updatedGame.players.length >= serverConfig.game.minPlayersToStart; // Start multiplayer when enough players
-
-      if (shouldAutoStart) {
-        logger.info('Auto-starting game', {
-          gameId,
-          gameType: updatedGame.gameType,
-          playerCount: updatedGame.players.length,
-        });
-        try {
-          // Small delay to ensure socket room joins are complete
-          await new Promise(resolve => setTimeout(resolve, 200));
-          await this.startGame(gameId, updatedGame.hostId);
-        } catch (error) {
-          logger.error('Failed to auto-start game:', error);
-        }
-      } else {
-        logger.debug('Auto-start conditions not met', {
-          gameId,
-          gameType: updatedGame.gameType,
-          hasGame: !!updatedGame,
-          status: updatedGame?.status,
-          playerCount: updatedGame?.players.length,
-        });
+    if (
+      updatedGame &&
+      updatedGame.status === 'waiting' &&
+      updatedGame.players.length >= serverConfig.game.minPlayersToStart
+    ) {
+      logger.info('Auto-starting game', { gameId, playerCount: updatedGame.players.length });
+      try {
+        // Small delay to ensure socket room joins have completed
+        // Small delay to ensure socket room joins are complete
+        await new Promise(resolve => setTimeout(resolve, 200));
+        await this.startGame(gameId, updatedGame.hostId);
+      } catch (error) {
+        logger.error('Failed to auto-start game:', error);
       }
+    } else {
+      logger.debug('Auto-start conditions not met', {
+        gameId,
+        hasGame: !!updatedGame,
+        status: updatedGame?.status,
+        playerCount: updatedGame?.players.length,
+      });
     }
 
     return newPlayer.id;
@@ -248,10 +246,8 @@ export class GameManager {
       throw new Error('Only the host can start the game');
     }
 
-    // Different minimum requirements for single vs multiplayer
-    const minPlayers = game.gameType === 'single' ? 1 : serverConfig.game.minPlayersToStart;
-    if (game.players.length < minPlayers) {
-      throw new Error(`Need at least ${minPlayers} players to start`);
+    if (game.players.length < serverConfig.game.minPlayersToStart) {
+      throw new Error(`Need at least ${serverConfig.game.minPlayersToStart} players to start`);
     }
 
     if (game.status !== 'waiting') {
@@ -282,7 +278,11 @@ export class GameManager {
     const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
     await this.initializeGameInstance(gameId, game, storedTerrainSettings);
 
-    // Game started - state updated in database
+    // Notify all players that the game has started
+    this.broadcastToGame(gameId, 'game-started', {
+      gameId,
+      currentTurn: 1,
+    });
 
     logger.info('Game started successfully', { gameId });
   }
@@ -314,17 +314,7 @@ export class GameManager {
 
     // Initialize managers with terrain settings
     const mapGenerator = terrainSettings?.generator || 'random';
-    const temperatureParam = terrainSettings?.temperature ?? 50;
-    const mapManager = new MapManager(
-      game.mapWidth,
-      game.mapHeight,
-      undefined,
-      mapGenerator,
-      undefined,
-      undefined,
-      false,
-      temperatureParam
-    );
+    const mapManager = new MapManager(game.mapWidth, game.mapHeight, undefined, mapGenerator);
     const turnManager = new TurnManager(gameId);
     const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
@@ -386,9 +376,7 @@ export class GameManager {
             finalError: finalError.message,
           });
           throw new Error(
-            `Complete map generation failure. Original: ${
-              lastError?.message || 'unknown'
-            }, Final: ${finalError.message}`
+            `Complete map generation failure. Original: ${lastError?.message || 'unknown'}, Final: ${finalError.message}`
           );
         }
       }
@@ -434,310 +422,90 @@ export class GameManager {
     // Store the game instance
     this.games.set(gameId, gameInstance);
 
-    // Persist map data to database for recovery after server restarts
-    await this.persistMapDataToDatabase(gameId, mapData, terrainSettings);
-
-    // Initialize research and visibility for all players
+    // Initialize research for all players
     for (const player of players.values()) {
       await researchManager.initializePlayerResearch(player.id);
-      visibilityManager.initializePlayerVisibility(player.id);
-      // Grant initial visibility around starting position
-      visibilityManager.updatePlayerVisibility(player.id);
     }
 
-    // Map data is now available via HTTP API endpoints
+    // Send initial map data to all players (with delay to ensure socket room joins are complete)
+    // Delay map broadcasting to ensure socket room joins are complete
+    setTimeout(() => {
+      this.broadcastMapData(gameId, mapData);
+    }, 300);
   }
 
-  /**
-   * Persist map data to database for recovery after server restarts
-   */
-  private async persistMapDataToDatabase(
-    gameId: string,
-    mapData: any,
-    terrainSettings?: TerrainSettings
-  ): Promise<void> {
-    try {
-      logger.info('Persisting map data to database', { gameId });
+  private broadcastMapData(gameId: string, mapData: any): void {
+    const mapDataPacket = {
+      gameId,
+      width: mapData.width,
+      height: mapData.height,
+      startingPositions: mapData.startingPositions,
+      seed: mapData.seed,
+      generatedAt: mapData.generatedAt,
+    };
 
-      // Serialize map data for storage
-      const serializedMapData = {
-        width: mapData.width,
-        height: mapData.height,
-        seed: mapData.seed,
-        generatedAt: mapData.generatedAt.toISOString(),
-        startingPositions: mapData.startingPositions,
-        tiles: this.serializeMapTiles(mapData.tiles),
+    this.broadcastToGame(gameId, 'map-data', mapDataPacket);
+
+    // Send data in EXACT freeciv-web format
+    const gameInstance = this.games.get(gameId);
+    if (gameInstance) {
+      // Send map info in EXACT freeciv-web format (gets assigned to global map variable)
+      const mapInfoPacket = {
+        xsize: mapData.width,
+        ysize: mapData.height,
+        wrap_id: 0, // Flat earth
+        topology_id: 0,
       };
 
-      // Update database with map data and seed
-      await db
-        .update(games)
-        .set({
-          mapSeed: mapData.seed,
-          mapData: serializedMapData,
-          gameState: {
-            terrainSettings: terrainSettings || null,
-            mapGenerated: true,
-            generatedAt: mapData.generatedAt.toISOString(),
-          },
-          updatedAt: new Date(),
-        })
-        .where(eq(games.id, gameId));
+      this.broadcastToGame(gameId, 'map-info', mapInfoPacket);
 
-      logger.info('Map data persisted successfully', {
-        gameId,
-        mapSize: `${mapData.width}x${mapData.height}`,
-      });
-    } catch (error) {
-      logger.error('Failed to persist map data to database:', error);
-      // Don't throw error to avoid breaking game initialization
-    }
-  }
+      // OPTIMIZED: Send tiles in batches to improve performance
 
-  /**
-   * Serialize map tiles for database storage (compress large tile arrays)
-   */
-  private serializeMapTiles(tiles: any[][]): any {
-    // Store only essential tile data to reduce database size
-    const compressedTiles: any = {};
+      // Collect all tiles into an array
+      const allTiles = [];
+      for (let y = 0; y < mapData.height; y++) {
+        for (let x = 0; x < mapData.width; x++) {
+          const index = x + y * mapData.width;
+          // Handle column-based tile array structure: mapData.tiles[x][y]
+          const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
 
-    for (let y = 0; y < tiles.length; y++) {
-      for (let x = 0; x < tiles[y].length; x++) {
-        const tile = tiles[y][x];
-        if (tile && tile.terrain !== 'ocean') {
-          // Only store non-ocean tiles to save space
-          const key = `${x},${y}`;
-          compressedTiles[key] = {
-            terrain: tile.terrain,
-            elevation: tile.elevation,
-            resource: tile.resource,
-            riverMask: tile.riverMask,
-            continentId: tile.continentId,
-            temperature: tile.temperature,
-            wetness: tile.wetness,
-          };
+          if (serverTile) {
+            // Format tile in exact freeciv-web format
+            const tileInfo = {
+              tile: index, // This is the key - tile index used by freeciv-web
+              x: x,
+              y: y,
+              terrain: serverTile.terrain,
+              resource: serverTile.resource,
+              elevation: serverTile.elevation || 0,
+              riverMask: serverTile.riverMask || 0,
+              known: 1, // TILE_KNOWN
+              seen: 1,
+              player: null,
+              worked: null,
+              extras: 0, // BitVector for extras
+            };
+            allTiles.push(tileInfo);
+          }
         }
       }
-    }
 
-    return compressedTiles;
-  }
-
-  /**
-   * Recover game instance from database when not found in memory
-   * This handles cases where the server restarted and game instances were lost
-   */
-  public async recoverGameInstance(gameId: string): Promise<GameInstance | null> {
-    try {
-      logger.info('Attempting to recover game instance from database', { gameId });
-
-      // Get game from database with all related data
-      const game = await db.query.games.findFirst({
-        where: eq(games.id, gameId),
-        with: {
-          players: true,
-        },
-      });
-
-      if (!game || game.status !== 'active') {
-        logger.warn('Game not found or not active, cannot recover', {
-          gameId,
-          found: !!game,
-          status: game?.status,
+      // Send tiles in batches of 100 to avoid overwhelming the client
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < allTiles.length; i += BATCH_SIZE) {
+        const batch = allTiles.slice(i, i + BATCH_SIZE);
+        this.broadcastToGame(gameId, 'tile-info-batch', {
+          tiles: batch,
+          startIndex: i,
+          endIndex: Math.min(i + BATCH_SIZE, allTiles.length),
+          total: allTiles.length,
         });
-        return null;
       }
 
-      // Check if map data exists in database
-      if (!game.mapData || !game.mapSeed) {
-        logger.warn('No map data found in database, cannot recover game instance', { gameId });
-        return null;
-      }
-
-      logger.info('Recovering game instance with map data', {
-        gameId,
-        playerCount: game.players.length,
-        mapSize: `${game.mapWidth}x${game.mapHeight}`,
-      });
-
-      // Reconstruct player state map
-      const players = new Map<string, PlayerState>();
-      for (const dbPlayer of game.players) {
-        players.set(dbPlayer.id, {
-          id: dbPlayer.id,
-          userId: dbPlayer.userId,
-          playerNumber: dbPlayer.playerNumber,
-          civilization: dbPlayer.civilization,
-          isReady: dbPlayer.isReady || false,
-          hasEndedTurn: dbPlayer.hasEndedTurn || false,
-          isConnected: dbPlayer.connectionStatus === 'connected',
-          lastSeen: new Date(),
-        });
-
-        // Track player to game mapping
-        this.playerToGame.set(dbPlayer.id, gameId);
-      }
-
-      // Initialize managers
-      const turnManager = new TurnManager(gameId);
-      const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
-      const cityManager = new CityManager(gameId);
-      const researchManager = new ResearchManager(gameId);
-
-      // Extract terrain settings from stored game state
-      const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
-      const temperatureParam = storedTerrainSettings?.temperature ?? 50;
-
-      // Create MapManager and restore map data from database
-      const mapManager = new MapManager(
-        game.mapWidth,
-        game.mapHeight,
-        undefined,
-        'recovered',
-        undefined,
-        undefined,
-        false,
-        temperatureParam
+      logger.debug(
+        `Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches`
       );
-      await this.restoreMapDataToManager(mapManager, game.mapData as any, game.mapSeed!);
-
-      const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
-
-      // Create recovered game instance
-      const gameInstance: GameInstance = {
-        id: gameId,
-        config: {
-          name: game.name,
-          hostId: game.hostId,
-          maxPlayers: game.maxPlayers,
-          mapWidth: game.mapWidth,
-          mapHeight: game.mapHeight,
-          ruleset: game.ruleset || 'classic',
-          turnTimeLimit: game.turnTimeLimit || undefined,
-          victoryConditions: (game.victoryConditions as string[]) || [
-            'conquest',
-            'science',
-            'culture',
-          ],
-        },
-        state: 'active',
-        currentTurn: game.currentTurn,
-        turnPhase: game.turnPhase as TurnPhase,
-        players,
-        turnManager,
-        mapManager,
-        unitManager,
-        visibilityManager,
-        cityManager,
-        researchManager,
-        lastActivity: new Date(),
-      };
-
-      // Store the recovered game instance
-      this.games.set(gameId, gameInstance);
-
-      // Initialize research and visibility for all players
-      for (const player of players.values()) {
-        await researchManager.initializePlayerResearch(player.id);
-        visibilityManager.initializePlayerVisibility(player.id);
-        // Grant initial visibility around starting position
-        visibilityManager.updatePlayerVisibility(player.id);
-      }
-
-      logger.info('Game instance recovered successfully', { gameId });
-      return gameInstance;
-    } catch (error) {
-      logger.error('Failed to recover game instance:', error);
-      return null;
     }
-  }
-
-  /**
-   * Restore map data from database to MapManager
-   */
-  private async restoreMapDataToManager(
-    mapManager: MapManager,
-    mapData: any,
-    mapSeed: string
-  ): Promise<void> {
-    try {
-      // Reconstruct full MapData from serialized database storage
-      const restoredMapData = {
-        width: mapData.width,
-        height: mapData.height,
-        seed: mapSeed,
-        generatedAt: new Date(mapData.generatedAt),
-        startingPositions: mapData.startingPositions || [],
-        tiles: this.deserializeMapTiles(mapData.tiles, mapData.width, mapData.height),
-      };
-
-      // Set the restored map data directly in MapManager
-      // This bypasses generation and uses the stored data
-      (mapManager as any).mapData = restoredMapData;
-
-      logger.info('Map data restored to manager', {
-        width: restoredMapData.width,
-        height: restoredMapData.height,
-        startingPositions: restoredMapData.startingPositions.length,
-      });
-    } catch (error) {
-      logger.error('Failed to restore map data to manager:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Deserialize compressed map tiles from database storage
-   */
-  private deserializeMapTiles(compressedTiles: any, width: number, height: number): any[][] {
-    // Create empty tile array filled with ocean tiles - match generation pattern [x][y]
-    const tiles: any[][] = [];
-
-    for (let x = 0; x < width; x++) {
-      tiles[x] = [];
-      for (let y = 0; y < height; y++) {
-        // Default ocean tile
-        tiles[x][y] = {
-          x,
-          y,
-          terrain: 'ocean',
-          elevation: 0,
-          riverMask: 0,
-          continentId: 0,
-          isExplored: false,
-          isVisible: false,
-          hasRoad: false,
-          hasRailroad: false,
-          improvements: [],
-          unitIds: [],
-          properties: {},
-          temperature: 4, // TEMPERATE
-          wetness: 50,
-        };
-      }
-    }
-
-    // Restore non-ocean tiles from compressed storage
-    if (compressedTiles) {
-      for (const [key, tileData] of Object.entries(compressedTiles)) {
-        const [x, y] = key.split(',').map(Number);
-        if (
-          x >= 0 &&
-          x < width &&
-          y >= 0 &&
-          y < height &&
-          tileData &&
-          typeof tileData === 'object'
-        ) {
-          tiles[x][y] = {
-            ...tiles[x][y], // Keep default values
-            ...(tileData as any), // Override with stored data
-          };
-        }
-      }
-    }
-
-    return tiles;
   }
 
   /**
@@ -885,10 +653,8 @@ export class GameManager {
       return {
         id: game.id,
         name: game.name,
-        hostId: game.hostId,
         hostName: game.host?.username || 'Unknown',
         status: game.status,
-        players: game.players,
         currentPlayers: game.players?.length || 0,
         maxPlayers: game.maxPlayers,
         currentTurn: game.currentTurn,
@@ -1010,7 +776,19 @@ export class GameManager {
     // Update visibility for the player
     gameInstance.visibilityManager.onUnitCreated(playerId);
 
-    // Unit created - state updated in database
+    // Broadcast unit creation to all players
+    this.broadcastToGame(gameId, 'unit_created', {
+      gameId,
+      unit: {
+        id: unit.id,
+        playerId: unit.playerId,
+        unitType: unit.unitTypeId,
+        x: unit.x,
+        y: unit.y,
+        health: unit.health,
+        movementLeft: unit.movementLeft,
+      },
+    });
 
     return unit.id;
   }
@@ -1040,10 +818,19 @@ export class GameManager {
     const moved = await gameInstance.unitManager.moveUnit(unitId, x, y);
 
     if (moved) {
+      const updatedUnit = gameInstance.unitManager.getUnit(unitId)!;
+
       // Update visibility for the player
       gameInstance.visibilityManager.onUnitMoved(playerId);
 
-      // Unit moved - state updated in database
+      // Broadcast unit movement to all players
+      this.broadcastToGame(gameId, 'unit_moved', {
+        gameId,
+        unitId,
+        x: updatedUnit.x,
+        y: updatedUnit.y,
+        movementLeft: updatedUnit.movementLeft,
+      });
     }
 
     return moved;
@@ -1084,7 +871,11 @@ export class GameManager {
       }
     }
 
-    // Combat resolved - state updated in database
+    // Broadcast combat result to all players
+    this.broadcastToGame(gameId, 'unit_combat', {
+      gameId,
+      combatResult,
+    });
 
     return combatResult;
   }
@@ -1103,7 +894,11 @@ export class GameManager {
 
     await gameInstance.unitManager.fortifyUnit(unitId);
 
-    // Unit fortified - state updated in database
+    // Broadcast fortification to all players
+    this.broadcastToGame(gameId, 'unit_fortified', {
+      gameId,
+      unitId,
+    });
   }
 
   public getPlayerUnits(gameId: string, playerId: string) {
@@ -1247,7 +1042,18 @@ export class GameManager {
       gameInstance.currentTurn
     );
 
-    // City founded - state updated in database
+    // Broadcast city founding to all players
+    this.broadcastToGame(gameId, 'city_founded', {
+      gameId,
+      city: {
+        id: cityId,
+        playerId,
+        name,
+        x,
+        y,
+        population: 1,
+      },
+    });
 
     return cityId;
   }
@@ -1275,7 +1081,13 @@ export class GameManager {
 
     await gameInstance.cityManager.setCityProduction(cityId, production, type);
 
-    // Production changed - state updated in database
+    // Broadcast production change to all players
+    this.broadcastToGame(gameId, 'city_production_changed', {
+      gameId,
+      cityId,
+      production,
+      type,
+    });
   }
 
   public getPlayerCities(gameId: string, playerId: string) {
@@ -1310,7 +1122,13 @@ export class GameManager {
 
     await gameInstance.researchManager.setCurrentResearch(playerId, techId);
 
-    // Research changed - state updated in database
+    // Broadcast research change to the player
+    this.broadcastToGame(gameId, 'research_changed', {
+      gameId,
+      playerId,
+      techId,
+      availableTechs: gameInstance.researchManager.getAvailableTechnologies(playerId),
+    });
   }
 
   public async setResearchGoal(gameId: string, playerId: string, techId: string): Promise<void> {
@@ -1326,7 +1144,12 @@ export class GameManager {
 
     await gameInstance.researchManager.setResearchGoal(playerId, techId);
 
-    // Research goal changed - state updated in database
+    // Broadcast goal change to the player
+    this.broadcastToGame(gameId, 'research_goal_changed', {
+      gameId,
+      playerId,
+      techGoal: techId,
+    });
   }
 
   public getPlayerResearch(gameId: string, playerId: string) {
@@ -1381,11 +1204,26 @@ export class GameManager {
       );
 
       if (completedTech) {
-        // Tech completed - state updated in database
+        // Broadcast tech completion to all players
+        this.broadcastToGame(gameId, 'tech_completed', {
+          gameId,
+          playerId,
+          techId: completedTech,
+          playerName: player.civilization,
+          availableTechs: gameInstance.researchManager.getAvailableTechnologies(playerId),
+        });
 
         logger.info('Technology completed', { gameId, playerId, techId: completedTech });
       }
     }
+  }
+
+  private broadcastToGame(gameId: string, event: string, data: any): void {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) return;
+
+    // Broadcast to all sockets in the specific game room
+    this.io.to(`game:${gameId}`).emit(event, data);
   }
 
   public async cleanupInactiveGames(): Promise<void> {
@@ -1425,6 +1263,64 @@ export class GameManager {
           await gameState.clearGameState(gameId);
         }
       }
+    }
+  }
+
+  // Reference-style simple turn management methods
+  public async setPlayerTurnDone(gameId: string, playerId: string, done: boolean): Promise<void> {
+    try {
+      await db
+        .update(players)
+        .set({ hasEndedTurn: done })
+        .where(and(eq(players.gameId, gameId), eq(players.userId, playerId)));
+
+      logger.debug('Player turn done status updated', { gameId, playerId, done });
+    } catch (error) {
+      logger.error('Error updating player turn done status:', error);
+      throw error;
+    }
+  }
+
+  public async processSimpleTurnEnd(gameId: string): Promise<void> {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) {
+      logger.warn('Game instance not found for turn processing', { gameId });
+      return;
+    }
+
+    try {
+      // Simple turn advancement - just increment the turn number
+      gameInstance.currentTurn++;
+
+      // Update current year (simple progression)
+      const newYear = -4000 + (gameInstance.currentTurn - 1) * 20; // 20 years per turn
+
+      // Update database
+      await db
+        .update(games)
+        .set({
+          currentTurn: gameInstance.currentTurn,
+          gameState: {
+            ...(((await db.query.games.findFirst({ where: eq(games.id, gameId) }))
+              ?.gameState as any) || {}),
+            currentTurn: gameInstance.currentTurn,
+            year: newYear,
+            turnStartedAt: new Date(),
+          },
+        })
+        .where(eq(games.id, gameId));
+
+      // Reset all players' turn done status for next turn
+      await db.update(players).set({ hasEndedTurn: false }).where(eq(players.gameId, gameId));
+
+      logger.info('Simple turn processed', {
+        gameId,
+        newTurn: gameInstance.currentTurn,
+        newYear,
+      });
+    } catch (error) {
+      logger.error('Error processing simple turn end:', error);
+      throw error;
     }
   }
 }

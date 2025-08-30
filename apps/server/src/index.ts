@@ -1,56 +1,39 @@
 import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import cors from 'cors';
 import compression from 'compression';
 import dotenv from 'dotenv';
+import path from 'path';
 
 import config from './config';
 import logger from './utils/logger';
 import { testConnection, closeConnection } from './database';
 import redis from './database/redis';
-
-// Import HTTP routes
-import gamesRouter from './routes/games';
-import actionsRouter from './routes/actions';
-import dataRouter from './routes/data';
-import turnsRouter from './routes/turns';
-import { loginUser, logoutUser } from './middleware/auth';
+import { setupSocketHandlers } from './network/socket-handlers';
 
 // Load environment variables
 dotenv.config();
 
 // Create Express app
 const app = express();
+const httpServer = createServer(app);
 
-// CORS configuration to handle multiple origins including Vercel previews
-const corsOrigins = (
-  origin: string | undefined,
-  callback: (err: Error | null, allow?: boolean) => void
-) => {
-  // Allow requests with no origin (like mobile apps or curl requests)
-  if (!origin) return callback(null, true);
-
-  const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'https://civjs-client.vercel.app',
-    'https://civjs.vercel.app',
-    config.server.corsOrigin,
-  ];
-
-  // Allow all Vercel preview deployments for civjs-client or civjs
-  const isVercelPreview = origin.match(/^https:\/\/civjs(-client)?-.*\.vercel\.app$/);
-
-  if (allowedOrigins.indexOf(origin) !== -1 || isVercelPreview) {
-    callback(null, true);
-  } else {
-    callback(new Error('Not allowed by CORS'));
-  }
-};
+// Create Socket.IO server
+const io = new Server(httpServer, {
+  cors: {
+    origin: config.server.corsOrigin,
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+});
 
 // Middleware
 app.use(
   cors({
-    origin: corsOrigins,
+    origin: config.server.corsOrigin,
     credentials: true,
   })
 );
@@ -72,27 +55,33 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// Authentication endpoints
-app.post('/api/auth/login', loginUser);
-app.post('/api/auth/logout', logoutUser);
-
 // API info endpoint
 app.get('/api/info', (_req, res) => {
   res.json({
-    name: 'CivJS Server',
+    name: 'CivJS Game Server',
     version: '1.0.0',
-    environment: config.server.env,
-    timestamp: new Date().toISOString(),
-    mode: 'HTTP',
-    features: ['multiplayer_http'],
+    maxPlayers: config.game.maxPlayersPerGame,
+    supportedRulesets: ['classic', 'civ1', 'civ2'],
+    features: ['websocket', 'real_time_multiplayer', 'turn_based'],
   });
 });
 
-// Game API routes
-app.use('/api/games', gamesRouter);
-app.use('/api/games', actionsRouter);
-app.use('/api/games', dataRouter);
-app.use('/api/games', turnsRouter);
+// Serve client build in production
+if (config.server.env === 'production') {
+  const clientPath = path.join(__dirname, '..', 'public');
+  app.use(express.static(clientPath));
+
+  // Catch-all route for client-side routing (Express v5 requires named wildcard)
+  app.get('*catchAll', (_req, res) => {
+    res.sendFile(path.join(clientPath, 'index.html'));
+  });
+}
+
+// Socket.IO connection handling
+io.on('connection', socket => {
+  logger.info(`New client connected: ${socket.id}`);
+  setupSocketHandlers(io, socket);
+});
 
 // Error handling
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -103,15 +92,17 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   });
 });
 
-// Create HTTP server
-const server = app.listen(config.server.port);
-
 // Graceful shutdown
 async function shutdown() {
   logger.info('Shutting down server...');
 
+  // Close Socket.IO connections
+  io.close(() => {
+    logger.info('Socket.IO server closed');
+  });
+
   // Close HTTP server
-  server.close(() => {
+  httpServer.close(() => {
     logger.info('HTTP server closed');
   });
 
@@ -134,10 +125,13 @@ async function start() {
       throw new Error('Failed to connect to database');
     }
 
-    // Server is already started above, just log
-    logger.info(`HTTP Server running on port ${config.server.port}`);
-    logger.info(`Environment: ${config.server.env}`);
-    logger.info(`CORS origin: ${config.server.corsOrigin}`);
+    // Start HTTP server
+    httpServer.listen(config.server.port, () => {
+      logger.info(`WebSocket Server running on port ${config.server.port}`);
+      logger.info(`Environment: ${config.server.env}`);
+      logger.info(`CORS origin: ${config.server.corsOrigin}`);
+      logger.info('Socket.IO WebSocket transport enabled');
+    });
   } catch (error) {
     logger.error('Failed to start server:', error);
     process.exit(1);
@@ -147,4 +141,4 @@ async function start() {
 // Start the server
 start();
 
-export { app, server };
+export { app, io, httpServer };

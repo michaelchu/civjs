@@ -27,7 +27,26 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({ showForm = t
 
     try {
       await gameClient.connect();
-      gameClient.joinGame();
+
+      // Create a single-player game
+      const gameId = await gameClient.createGame({
+        gameName: `${playerName}'s Game`,
+        playerName: playerName.trim(),
+        gameType: 'single',
+        maxPlayers: 1,
+        mapSize: 'standard',
+        terrainSettings: {
+          generator: 'random',
+          landmass: 'normal',
+          huts: 15,
+          temperature: 50,
+          wetness: 50,
+          rivers: 50,
+          resources: 'normal',
+        },
+      });
+
+      console.log('Game created:', gameId);
       setClientState('preparing');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect to server');
