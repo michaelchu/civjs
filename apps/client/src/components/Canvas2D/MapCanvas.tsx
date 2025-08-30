@@ -12,6 +12,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<MapRenderer | null>(null);
 
+  // Track initial centering to prevent multiple centering events (freeciv-web compliance)
+  const [hasInitiallyCentered, setHasInitiallyCentered] = useState(false);
+
   const { viewport, map, units, cities, setViewport } = useGameStore();
   const gameState = useGameStore();
 
@@ -64,89 +67,92 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   }, [width, height, setViewport]);
 
   // Center the viewport on user's starting position when data becomes available
+  // Reference-compliant: centers exactly once on startup like freeciv-web
   useEffect(() => {
+    // Skip if already centered (prevents multiple centering events)
+    if (hasInitiallyCentered) {
+      return;
+    }
+
     const globalMap = (window as { map?: { xsize: number; ysize: number } }).map;
-    if (
-      rendererRef.current &&
-      globalMap &&
-      globalMap.xsize &&
-      globalMap.ysize &&
-      viewport.x === 0 &&
-      viewport.y === 0
-    ) {
-      // Try to find user's starting position - prioritize mapData starting positions
-      let startTile = null;
+    if (!rendererRef.current || !globalMap || !globalMap.xsize || !globalMap.ysize) {
+      return;
+    }
 
-      // FIRST: Try to find player's assigned starting position from map generation
-      const currentPlayerId = gameState.currentPlayerId;
-      const playerStartPos = gameState.mapData?.startingPositions?.find(
-        pos => pos.playerId === currentPlayerId
-      );
+    // Try to find user's starting position - prioritize mapData starting positions
+    let startTile = null;
 
-      if (playerStartPos) {
-        startTile = { x: playerStartPos.x, y: playerStartPos.y };
-        console.log('Found player starting position at:', startTile);
+    // FIRST: Try to find player's assigned starting position from map generation
+    const currentPlayerId = gameState.currentPlayerId;
+    const playerStartPos = gameState.mapData?.startingPositions?.find(
+      pos => pos.playerId === currentPlayerId
+    );
+
+    if (playerStartPos) {
+      startTile = { x: playerStartPos.x, y: playerStartPos.y };
+      console.log('Found player starting position at:', startTile);
+    } else {
+      // FALLBACK 1: Try to find user's first unit (matches freeciv-web behavior)
+      const userUnits = Object.values(units);
+      if (userUnits.length > 0) {
+        const firstUnit = userUnits[0] as { x: number; y: number };
+        startTile = { x: firstUnit.x, y: firstUnit.y };
+        console.log('Found user unit at:', startTile);
       } else {
-        // FALLBACK 1: Try to find user's first unit
-        const userUnits = Object.values(units);
-        if (userUnits.length > 0) {
-          const firstUnit = userUnits[0] as { x: number; y: number };
-          startTile = { x: firstUnit.x, y: firstUnit.y };
-          console.log('Found user unit at:', startTile);
+        // FALLBACK 2: Try to find user's first city
+        const userCities = Object.values(cities);
+        if (userCities.length > 0) {
+          const firstCity = userCities[0] as { x: number; y: number };
+          startTile = { x: firstCity.x, y: firstCity.y };
+          console.log('Found user city at:', startTile);
         } else {
-          // FALLBACK 2: Try to find user's first city
-          const userCities = Object.values(cities);
-          if (userCities.length > 0) {
-            const firstCity = userCities[0] as { x: number; y: number };
-            startTile = { x: firstCity.x, y: firstCity.y };
-            console.log('Found user city at:', startTile);
-          } else {
-            // FALLBACK 3: Try to find any visible tile from global tiles
-            const globalTiles = (
-              window as {
-                tiles?: Array<{
-                  x: number;
-                  y: number;
-                  known: number;
-                  seen: number;
-                }>;
-              }
-            ).tiles;
-            if (globalTiles) {
-              for (const tile of globalTiles) {
-                if (tile && (tile.known > 0 || tile.seen > 0)) {
-                  startTile = { x: tile.x, y: tile.y };
-                  break;
-                }
+          // FALLBACK 3: Try to find any visible tile from global tiles
+          const globalTiles = (
+            window as {
+              tiles?: Array<{
+                x: number;
+                y: number;
+                known: number;
+                seen: number;
+              }>;
+            }
+          ).tiles;
+          if (globalTiles) {
+            for (const tile of globalTiles) {
+              if (tile && (tile.known > 0 || tile.seen > 0)) {
+                startTile = { x: tile.x, y: tile.y };
+                break;
               }
             }
           }
         }
       }
+    }
 
-      if (startTile && rendererRef.current) {
-        // Center on the starting tile (like freeciv-web's center_tile_mapcanvas)
-        const tileGui = rendererRef.current.mapToGuiVector(startTile.x, startTile.y);
-        const centeredX = tileGui.guiDx - viewport.width / 2;
-        const centeredY = tileGui.guiDy - viewport.height / 2;
+    if (startTile && rendererRef.current) {
+      // Center on the starting tile (like freeciv-web's center_tile_mapcanvas)
+      const tileGui = rendererRef.current.mapToGuiVector(startTile.x, startTile.y);
+      const centeredX = tileGui.guiDx - viewport.width / 2;
+      const centeredY = tileGui.guiDy - viewport.height / 2;
 
-        setViewport({
-          ...viewport,
-          x: centeredX,
-          y: centeredY,
-        });
-      }
+      setViewport({
+        ...viewport,
+        x: centeredX,
+        y: centeredY,
+      });
+
+      // Mark as initially centered to prevent future centering
+      setHasInitiallyCentered(true);
+      console.log('Initial camera centering completed');
     }
   }, [
-    map,
-    units,
-    cities,
+    // Minimal dependencies to reduce race conditions
     gameState.mapData,
     gameState.currentPlayerId,
-    viewport.x,
-    viewport.y,
-    viewport.width,
-    viewport.height,
+    hasInitiallyCentered,
+    // Only include units/cities length to avoid object reference changes
+    Object.keys(units).length,
+    Object.keys(cities).length,
     setViewport,
   ]);
 

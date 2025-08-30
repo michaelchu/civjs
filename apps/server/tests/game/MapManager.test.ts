@@ -6,6 +6,7 @@ import {
   TerrainProperty,
   TerrainType,
 } from '../../src/game/MapManager';
+import { MapStartpos } from '../../src/game/map/MapTypes';
 
 // Mock island terrain functions for tests
 jest.mock('../../src/game/map/TerrainUtils', () => {
@@ -621,7 +622,7 @@ describe('MapManager', () => {
     });
 
     it('should validate ISLAND generator Phase 2 compliance - different flow', async () => {
-      await mapManager.generateMapWithIslands(testPlayers, 'ALL');
+      await mapManager.generateMapWithIslands(testPlayers, MapStartpos.ALL);
 
       // Islands use different flow - no makeLand() call expected
       expect(mockTerrainGenerator.makeLand).not.toHaveBeenCalled();
@@ -677,7 +678,7 @@ describe('MapManager', () => {
         () => mapManager.generateMapFractal(testPlayers),
         () => mapManager.generateMapRandom(testPlayers),
         () => mapManager.generateMapFracture(testPlayers),
-        () => mapManager.generateMapWithIslands(testPlayers, 'ALL'),
+        () => mapManager.generateMapWithIslands(testPlayers, MapStartpos.ALL),
       ];
 
       for (const generateMap of generators) {

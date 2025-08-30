@@ -13,6 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import { PlayerState } from '../../../src/game/GameManager';
 import { MapGeneratorType, MapManager } from '../../../src/game/MapManager';
+import { MapStartpos } from '../../../src/game/map/MapTypes';
 import { MapData, MapTile } from '../../../src/game/map/MapTypes';
 
 // Test configurations focusing on random maps (where river issues were reported)
@@ -417,7 +418,7 @@ describe('River Generation Backend Audit', () => {
             seed.toString(),
             'random',
             'RANDOM' as MapGeneratorType,
-            'DEFAULT'
+            MapStartpos.DEFAULT
           );
 
           const players = createMockPlayers(2);
