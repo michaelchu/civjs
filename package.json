@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "CivJS - A modern civilization game built with TypeScript, React, and Node.js",
   "private": true,
-  "packageManager": "npm@10.8.2",
   "workspaces": [
     "apps/*"
   ],
@@ -32,7 +31,6 @@
   "devDependencies": {
     "concurrently": "^9.0.1",
     "husky": "^9.1.7",
-    "turbo": "^2.5.6",
     "typescript": "^5.6.3"
   },
   "engines": {

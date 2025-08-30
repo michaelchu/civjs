@@ -4,7 +4,7 @@ import { db } from '../database';
 import { gameState } from '../database/redis';
 import { gameTurns, games, players } from '../database/schema';
 import { eq } from 'drizzle-orm';
-// Removed Socket.IO dependency - using pure HTTP now
+import { Server as SocketServer } from 'socket.io';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -23,6 +23,7 @@ export interface TurnStatistics {
 
 export class TurnManager {
   private gameId: string;
+  private io: SocketServer;
   private currentTurn: number = 0;
   private currentYear: number = -4000; // Starting year like Civilization
   private turnEvents: TurnEvent[] = [];
@@ -30,8 +31,9 @@ export class TurnManager {
   private turnStartTime: Date | null = null;
   private turnTimer: NodeJS.Timeout | null = null;
 
-  constructor(gameId: string) {
+  constructor(gameId: string, io: SocketServer) {
     this.gameId = gameId;
+    this.io = io;
   }
 
   public async initializeTurn(playerIds: string[]): Promise<void> {
@@ -358,9 +360,7 @@ export class TurnManager {
   }
 
   private broadcastTurnStart(): void {
-    // HTTP mode: No real-time broadcasting needed
-    // Turn start state updated in database
-    logger.debug('Turn started', {
+    this.io.emit('turn-started', {
       gameId: this.gameId,
       turn: this.currentTurn,
       year: this.currentYear,
