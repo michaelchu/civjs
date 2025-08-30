@@ -223,13 +223,6 @@ export class FractalHeightGenerator {
 
     // Adjust to proper height range (like freeciv adjust_int_map)
     this.normalizeHeightMap();
-
-    // DEBUG: Log random height generation parameters
-    console.log(
-      `DEBUG: Random height generation - smooth=${smooth}, sqSize=${sqSize}, playerCount=${playerCount}, shoreLevel=${
-        this.shoreLevel
-      }, finalShoreLevel=${this.getShoreLevel()}`
-    );
   }
 
   /**
@@ -284,13 +277,6 @@ export class FractalHeightGenerator {
 
     // Adjust to proper height range (like freeciv adjust_int_map)
     this.normalizeHeightMap();
-
-    // DEBUG: Log fractal height generation parameters
-    console.log(
-      `DEBUG: Fractal height generation - shoreLevel=${
-        this.shoreLevel
-      }, finalShoreLevel=${this.getShoreLevel()}`
-    );
   }
 
   /**

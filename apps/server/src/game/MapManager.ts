@@ -906,7 +906,6 @@ export class MapManager {
     this.heightGenerator.generateRandomHeightMap(players.size);
     const heightMap = this.heightGenerator.getHeightMap();
 
-
     // Use exact freeciv terrain generation with Phase 1 integration
     this.terrainGenerator.heightMapToMap(tiles, heightMap);
     await this.terrainGenerator.makeLand(

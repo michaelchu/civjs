@@ -143,23 +143,11 @@ export class TerrainGenerator {
     const hmap_shore_level =
       heightGenerator?.getShoreLevel?.() || Math.floor((255 * (100 - params.landpercent)) / 100);
 
-    // DEBUG: Log shore level fix
-    console.log(
-      `DEBUG: makeLand() using corrected shore level: ${hmap_shore_level} (was using 700 before fix)`
-    );
-
-    // DEBUG: Compare first few height values to verify they match analysis
-    console.log(
-      `DEBUG: makeLand() heightMap sample - [0]=${heightMap[0]}, [1]=${heightMap[1]}, [2]=${heightMap[2]}, [100]=${heightMap[100]}`
-    );
-
     // Step 4: ini_hmap_low_level() - calculate low level for swamps
     // hmap_low_level = (4 * swamp_pct * (hmap_max_level - hmap_shore_level)) / 100 + hmap_shore_level;
     // const hmap_low_level = (4 * terrainParams.swamp_pct * (hmap_max_level - hmap_shore_level)) / 100 + hmap_shore_level;
 
     // Step 5: Main iteration - set terrain based on height
-    let landTilesAssigned = 0;
-    let oceanTilesAssigned = 0;
 
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
@@ -204,21 +192,12 @@ export class TerrainGenerator {
           } else {
             tiles[x][y].terrain = 'ocean';
           }
-          oceanTilesAssigned++;
         } else {
           // This tile should be land - set to land_fill temporarily
           tiles[x][y].terrain = land_fill;
-          landTilesAssigned++;
         }
       }
     }
-
-    // DEBUG: Log initial terrain assignment counts
-    console.log(
-      `DEBUG: makeLand() initial assignment - Land: ${landTilesAssigned}, Ocean: ${oceanTilesAssigned}, Total: ${
-        landTilesAssigned + oceanTilesAssigned
-      }, Shore level: ${hmap_shore_level}`
-    );
 
     // Step 6: HAS_POLES - renormalize height map and create polar land
     // @reference freeciv/server/generator/mapgen.c:928-932
@@ -1696,30 +1675,17 @@ export class TerrainGenerator {
    * Apply all terrain changes and update properties
    */
   private applyTerrainChanges(tiles: MapTile[][], newTerrain: MapTile[][]): void {
-    let changesApplied = 0;
-
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         if (tiles[x][y].terrain !== newTerrain[x][y].terrain) {
           tiles[x][y].terrain = newTerrain[x][y].terrain;
           this.setTerrainProperties(tiles[x][y]);
-          changesApplied++;
         }
       }
     }
 
     // Apply biome transition smoothing for better boundaries
-    const smoothingChanges = this.applyBiomeTransitionSmoothing(tiles);
-
-    // Log the improvements made
-    if (changesApplied > 0) {
-      console.log(
-        `Applied ${changesApplied} biome transition improvements for ${this.generator} generator`
-      );
-    }
-    if (smoothingChanges > 0) {
-      console.log(`Applied ${smoothingChanges} biome transition smoothing improvements`);
-    }
+    this.applyBiomeTransitionSmoothing(tiles);
   }
 
   /**
