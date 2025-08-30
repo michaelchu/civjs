@@ -230,6 +230,15 @@ export class MapRenderer {
       if (sprite) {
         this.ctx.drawImage(sprite, screenPos.x, screenPos.y);
         hasAnySprites = true;
+        if (import.meta.env.DEV) {
+          console.debug(
+            `River sprite rendered: ${riverSprite.key} at (${screenPos.x},${screenPos.y})`
+          );
+        }
+      } else {
+        if (import.meta.env.DEV) {
+          console.warn(`River sprite not found: ${riverSprite.key}`);
+        }
       }
     }
 
@@ -273,8 +282,17 @@ export class MapRenderer {
     riverStr += tile.riverMask & 4 ? 's1' : 's0'; // South
     riverStr += tile.riverMask & 8 ? 'w1' : 'w0'; // West
 
-    // Return sprite key following freeciv-web's road.river_s_XXXX pattern
-    return { key: `road.river_s_${riverStr}` };
+    const spriteKey = `road.river_s_${riverStr}:0`;
+
+    // Debug logging for river sprite generation
+    if (import.meta.env.DEV) {
+      console.debug(
+        `River sprite requested: tile(${tile.x},${tile.y}) mask=${tile.riverMask} -> ${spriteKey}`
+      );
+    }
+
+    // Return sprite key following freeciv-web's road.river_s_XXXX:0 pattern
+    return { key: spriteKey };
   }
 
   // Direct port of freeciv-web's fill_terrain_sprite_array function

@@ -55,7 +55,9 @@ export class TilesetLoader {
           tileset_image_count: (window as any).tileset_image_count || 3,
           is_isometric: (window as any).is_isometric || 1,
         };
-        document.head.removeChild(script);
+        // CRITICAL FIX: Do NOT remove the script as MapRenderer depends on the global variables
+        // (tile_types_setup, ts_tiles, cellgroup_map) that this script defines
+        // document.head.removeChild(script);
         resolve();
       };
       script.onerror = () => {
@@ -76,7 +78,9 @@ export class TilesetLoader {
           reject(new Error('Tileset spec not found in loaded script'));
           return;
         }
-        document.head.removeChild(script);
+        // CRITICAL FIX: Do NOT remove the script as it contains sprite coordinate data
+        // that MapRenderer may need for advanced sprite operations
+        // document.head.removeChild(script);
         resolve();
       };
       script.onerror = () => {
@@ -168,6 +172,30 @@ export class TilesetLoader {
     return Object.keys(this.sprites).filter(key =>
       key.toLowerCase().includes(pattern.toLowerCase())
     );
+  }
+
+  // Test river sprite availability
+  testRiverSprites(): { available: string[]; missing: string[]; globalVarsLoaded: boolean } {
+    const requiredRiverSprites = [
+      'road.river_s_n0e0s0w0',
+      'road.river_s_n1e0s0w0',
+      'road.river_s_n0e1s0w0',
+      'road.river_s_n1e1s0w0',
+      'road.river_s_n1e1s1w1',
+      'road.river_outlet_n',
+      'road.river_outlet_e',
+    ];
+
+    const available = requiredRiverSprites.filter(key => this.sprites[key + ':0']);
+    const missing = requiredRiverSprites.filter(key => !this.sprites[key + ':0']);
+
+    // Check if required global variables are loaded
+    const globalVarsLoaded =
+      !!(window as any).tile_types_setup &&
+      !!(window as any).ts_tiles &&
+      !!(window as any).cellgroup_map;
+
+    return { available, missing, globalVarsLoaded };
   }
 
   cleanup(): void {
