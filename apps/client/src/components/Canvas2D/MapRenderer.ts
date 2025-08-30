@@ -242,6 +242,25 @@ export class MapRenderer {
       }
     }
 
+    // ADD: Resource rendering layer (matches freeciv-web LAYER_SPECIAL2)
+    const resourceSprite = this.getTileResourceSprite(tile);
+    if (resourceSprite) {
+      const sprite = this.tilesetLoader.getSprite(resourceSprite.key);
+      if (sprite) {
+        this.ctx.drawImage(sprite, screenPos.x, screenPos.y);
+        hasAnySprites = true;
+        if (import.meta.env.DEV) {
+          console.debug(
+            `Resource sprite rendered: ${resourceSprite.key} at (${screenPos.x},${screenPos.y})`
+          );
+        }
+      } else {
+        if (import.meta.env.DEV) {
+          console.warn(`Resource sprite not found: ${resourceSprite.key}`);
+        }
+      }
+    }
+
     // Fallback: if no sprites rendered, show solid color
     if (!hasAnySprites) {
       const color = this.getTerrainColor(tile.terrain);
@@ -292,6 +311,83 @@ export class MapRenderer {
     }
 
     // Return sprite key following freeciv-web's road.river_s_XXXX:0 pattern
+    return { key: spriteKey };
+  }
+
+  /**
+   * Calculate resource sprite for a tile based on its resource type.
+   * Port of freeciv-web's resource rendering functionality.
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js (resource handling)
+   * @param tile - The tile to calculate resource sprite for
+   * @returns Sprite info with key for resource rendering, or null if no resource
+   */
+  private getTileResourceSprite(tile: Tile): { key: string } | null {
+    if (!tile.resource) return null;
+
+    // Map resource types to sprite keys following freeciv tileset patterns
+    const resourceSpriteMap: Record<string, string> = {
+      // Food resources
+      wheat: 'ts.wheat:0',
+      buffalo: 'ts.buffalo:0',
+      cattle: 'ts.buffalo:0', // Map cattle to buffalo sprite
+      fish: 'ts.fish:0',
+      fruit: 'ts.fruit:0',
+      horses: 'ts.horses:0',
+      pheasant: 'ts.pheasant:0',
+
+      // Luxury resources
+      gold: 'ts.gold:0',
+      gems: 'ts.gems:0',
+      silk: 'ts.silk:0',
+      spice: 'ts.spice:0',
+      spices: 'ts.spice:0', // Alternative spelling
+      wine: 'ts.wine:0',
+      furs: 'ts.furs:0',
+
+      // Strategic resources
+      iron: 'ts.iron:0',
+      coal: 'ts.coal:0',
+      oil: 'ts.oil:0',
+
+      // Desert resources
+      oasis: 'ts.oasis:0',
+
+      // Arctic resources
+      seals: 'ts.seals:0',
+      whales: 'ts.whales:0',
+      arctic_ivory: 'ts.arctic_ivory:0',
+      arctic_oil: 'ts.arctic_oil:0',
+
+      // Tundra resources
+      tundra_game: 'ts.tundra_game:0',
+      peat: 'ts.peat:0',
+
+      // River/grassland resources
+      grassland_resources: 'ts.grassland_resources:0',
+      river_resources: 'ts.river_resources:0',
+    };
+
+    const spriteKey = resourceSpriteMap[tile.resource];
+
+    if (!spriteKey) {
+      // Fallback: use generic resource sprite if specific mapping not found
+      const genericKey = `ts.${tile.resource}:0`;
+      if (import.meta.env.DEV) {
+        console.warn(
+          `No sprite mapping for resource '${tile.resource}', trying generic key: ${genericKey}`
+        );
+      }
+      return { key: genericKey };
+    }
+
+    // Debug logging for resource sprite generation
+    if (import.meta.env.DEV) {
+      console.debug(
+        `Resource sprite requested: tile(${tile.x},${tile.y}) resource=${tile.resource} -> ${spriteKey}`
+      );
+    }
+
+    // Return sprite key following freeciv-web's s.RESOURCE:0 pattern
     return { key: spriteKey };
   }
 

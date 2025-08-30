@@ -155,7 +155,6 @@ export const TileInfoSchema = z.object({
   y: z.number(),
   terrain: z.string(),
   resource: z.string().optional(),
-  special: z.number(), // special bitmask
   owner: z.string().optional(),
   city: z.string().optional(),
   units: z.array(z.string()),
