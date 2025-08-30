@@ -19,6 +19,9 @@ describe('TurnManager', () => {
       turnManager['playerActions'].clear();
     });
 
+    // Mock the initializeTurn method to avoid database calls
+    turnManager['initializeTurn'] = jest.fn().mockResolvedValue(undefined);
+
     jest.clearAllMocks();
   });
 

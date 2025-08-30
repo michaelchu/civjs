@@ -91,7 +91,7 @@ export class GameManager {
     const gameData = {
       name: gameConfig.name,
       hostId: gameConfig.hostId,
-      maxPlayers: gameConfig.maxPlayers || 8,
+      maxPlayers: gameConfig.maxPlayers || 1,
       mapWidth: gameConfig.mapWidth || 80,
       mapHeight: gameConfig.mapHeight || 50,
       ruleset: gameConfig.ruleset || 'classic',

@@ -4,13 +4,21 @@ import { GameManager, GameConfig } from '../../src/game/GameManager';
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
 const { db: mockDb } = require('../../src/database');
 
+// Mock Socket.IO server
+const mockSocketIoServer = {
+  to: jest.fn().mockReturnValue({
+    emit: jest.fn(),
+  }),
+  emit: jest.fn(),
+};
+
 describe('GameManager', () => {
   let gameManager: GameManager;
 
   beforeEach(() => {
     // Reset singleton for testing
     (GameManager as any).instance = null;
-    gameManager = GameManager.getInstance();
+    gameManager = GameManager.getInstance(mockSocketIoServer as any);
 
     // Setup database query mock (needed for joinGame and other methods)
     mockDb.query = {
@@ -60,8 +68,8 @@ describe('GameManager', () => {
 
   describe('singleton pattern', () => {
     it('should return same instance on multiple calls', () => {
-      const instance1 = GameManager.getInstance();
-      const instance2 = GameManager.getInstance();
+      const instance1 = GameManager.getInstance(mockSocketIoServer as any);
+      const instance2 = GameManager.getInstance(mockSocketIoServer as any);
 
       expect(instance1).toBe(instance2);
       expect(instance1).toBe(gameManager);
@@ -99,7 +107,7 @@ describe('GameManager', () => {
         expect.objectContaining({
           name: 'Minimal Game',
           hostId: 'host-123',
-          maxPlayers: 8, // Default applied in database layer
+          maxPlayers: 1, // Default applied in database layer
           mapWidth: 80, // Default applied in database layer
           mapHeight: 50, // Default applied in database layer
           ruleset: 'classic', // Default applied in database layer

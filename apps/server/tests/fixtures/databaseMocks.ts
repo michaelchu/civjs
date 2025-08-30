@@ -100,7 +100,11 @@ export function createDatabaseMocks() {
       // Default fallback
       return Promise.resolve([{ id: `default-${Date.now()}` }]);
     }),
-    update: jest.fn().mockReturnThis(),
+    update: jest.fn().mockReturnValue({
+      set: jest.fn().mockReturnValue({
+        where: jest.fn().mockResolvedValue([]),
+      }),
+    }),
     set: jest.fn().mockReturnThis(),
     where: jest.fn(() => Promise.resolve([])),
     select: jest.fn().mockReturnThis(),
