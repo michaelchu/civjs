@@ -144,6 +144,7 @@ export const TileInfoSchema = z.object({
   x: z.number(),
   y: z.number(),
   terrain: z.string(),
+  resource: z.string().optional(),
   owner: z.string().optional(),
   city: z.string().optional(),
   units: z.array(z.string()),
