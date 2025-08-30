@@ -12,7 +12,6 @@
 
 import { GameManager } from '../../src/game/GameManager';
 import { mockDatabase } from '../fixtures/databaseMocks';
-import type { TileInfo } from '../../src/types/packet';
 
 describe('Resource Rendering Pipeline Integration', () => {
   let gameManager: GameManager;
