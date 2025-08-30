@@ -922,8 +922,6 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
 
   describe('Phase 3 End-to-End Integration', () => {
     it('should complete full Phase 3 makeLand() restructuring without regression', async () => {
-      const startTime = Date.now();
-
       // Test all generator types
       for (const genType of ['fractal', 'random', 'fracture']) {
         const testMap = new MapManager(35, 25, `phase3-e2e-${genType}`);
@@ -1006,8 +1004,6 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
         // Performance should remain acceptable
         expect(generationTime).toBeLessThan(15000); // 15 seconds max
       }
-
-      const totalTime = Date.now() - startTime;
     });
 
     it('should maintain deterministic results with Phase 3 changes', async () => {
