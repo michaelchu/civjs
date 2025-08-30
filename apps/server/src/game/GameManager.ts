@@ -325,7 +325,17 @@ export class GameManager {
 
     // Initialize managers with terrain settings
     const mapGenerator = terrainSettings?.generator || 'random';
-    const mapManager = new MapManager(game.mapWidth, game.mapHeight, undefined, mapGenerator);
+    const temperatureParam = terrainSettings?.temperature ?? 50;
+    const mapManager = new MapManager(
+      game.mapWidth,
+      game.mapHeight,
+      undefined,
+      mapGenerator,
+      undefined,
+      undefined,
+      false,
+      temperatureParam
+    );
     const turnManager = new TurnManager(gameId, this.io);
     const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
@@ -435,9 +445,15 @@ export class GameManager {
     // Store the game instance
     this.games.set(gameId, gameInstance);
 
-    // Initialize research for all players
+    // Persist map data to database for recovery after server restarts
+    await this.persistMapDataToDatabase(gameId, mapData, terrainSettings);
+
+    // Initialize research and visibility for all players
     for (const player of players.values()) {
       await researchManager.initializePlayerResearch(player.id);
+      visibilityManager.initializePlayerVisibility(player.id);
+      // Grant initial visibility around starting position
+      visibilityManager.updatePlayerVisibility(player.id);
     }
 
     // Send initial map data to all players (with delay to ensure socket room joins are complete)
@@ -652,7 +668,7 @@ export class GameManager {
       }
 
       // Initialize managers
-      const turnManager = new TurnManager(gameId);
+      const turnManager = new TurnManager(gameId, this.io);
       const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
       const cityManager = new CityManager(gameId);
       const researchManager = new ResearchManager(gameId);
