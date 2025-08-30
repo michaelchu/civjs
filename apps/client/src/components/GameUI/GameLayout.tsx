@@ -3,6 +3,7 @@ import { useGameStore } from '../../store/gameStore';
 import { MapCanvas } from '../Canvas2D/MapCanvas';
 import { GameTabs } from './GameTabs';
 import { StatusPanel } from './StatusPanel';
+import { TurnLoadingOverlay } from './TurnLoadingOverlay';
 // import { ChatBox } from './ChatBox'; // Commented out while ChatBox is disabled
 import { TurnDoneButton } from './TurnDoneButton';
 
@@ -12,7 +13,7 @@ export const GameLayout: React.FC = () => {
     height: window.innerHeight,
   });
 
-  const { activeTab, clientState } = useGameStore();
+  const { activeTab, clientState, isTurnResolving, turnProgress } = useGameStore();
 
   // Handle window resize
   useEffect(() => {
@@ -124,6 +125,9 @@ export const GameLayout: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Turn Loading Overlay */}
+      <TurnLoadingOverlay isVisible={isTurnResolving} progress={turnProgress} />
     </div>
   );
 };

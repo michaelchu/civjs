@@ -2,6 +2,14 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import type { GameState, ClientState, GameTab, MapViewport } from '../types';
 
+interface TurnProgressEvent {
+  stage: string;
+  message: string;
+  progress: number;
+  actionType?: string;
+  error?: string;
+}
+
 interface GameStore extends GameState {
   // Client state
   clientState: ClientState;
@@ -11,6 +19,10 @@ interface GameStore extends GameState {
   selectedUnitId: string | null;
   selectedCityId: string | null;
 
+  // Turn resolution state
+  isTurnResolving: boolean;
+  turnProgress: TurnProgressEvent | null;
+
   // Actions
   setClientState: (state: ClientState) => void;
   setActiveTab: (tab: GameTab) => void;
@@ -18,6 +30,8 @@ interface GameStore extends GameState {
   setViewport: (viewport: Partial<MapViewport>) => void;
   selectUnit: (unitId: string | null) => void;
   selectCity: (cityId: string | null) => void;
+  setTurnResolving: (resolving: boolean) => void;
+  setTurnProgress: (progress: TurnProgressEvent | null) => void;
 
   // Computed getters
   getCurrentPlayer: () => ReturnType<typeof getCurrentPlayer>;
@@ -58,6 +72,10 @@ export const useGameStore = create<GameStore>()(
     clientState: 'initial',
     currentGameId: null,
     activeTab: 'map',
+
+    // Initial turn resolution state
+    isTurnResolving: false,
+    turnProgress: null,
     viewport: {
       x: 0,
       y: 0,
@@ -92,6 +110,14 @@ export const useGameStore = create<GameStore>()(
 
     selectCity: (cityId: string | null) => {
       set({ selectedCityId: cityId });
+    },
+
+    setTurnResolving: (resolving: boolean) => {
+      set({ isTurnResolving: resolving });
+    },
+
+    setTurnProgress: (progress: TurnProgressEvent | null) => {
+      set({ turnProgress: progress });
     },
 
     // Computed getters

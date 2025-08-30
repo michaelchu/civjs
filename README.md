@@ -113,6 +113,15 @@ civjs/
 - **Game Packets** - Standardized client-server communication
 - **Development Tools** - ESLint, Prettier, and testing setup
 
+## 📚 Documentation
+
+Comprehensive guides for understanding, using, and contributing to CivJS:
+
+- **[Synchronous Turn Resolution](docs/synchronous-turn-resolution.md)** - Complete technical architecture, API reference, and implementation guide for the modern turn system with Edge Functions and SSE streaming
+- **[Turn Resolution Guide](docs/turn-resolution-guide.md)** - User-friendly guide explaining how turns work, progress indicators, and troubleshooting
+
+The documentation covers the modern synchronous turn resolution system that processes all player actions in batches with real-time progress streaming, replacing the traditional individual action model for better performance and reliability.
+
 ## 🛠️ Development
 
 ### Available Scripts
