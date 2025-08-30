@@ -39,6 +39,8 @@ class GameClient {
   private sessionId: string | null = null;
   private currentGameId: string | null = null;
   private lastGameState: GameState | null = null;
+  private pendingActions: Array<{ type: string; data: any; timestamp: string }> = [];
+  private currentTurnVersion: number = 0;
 
   constructor() {
     this.baseUrl = SERVER_URL;
@@ -276,7 +278,8 @@ class GameClient {
       });
     }
 
-    // Update basic game state
+    // Update basic game state and current turn version
+    this.currentTurnVersion = gameState.currentTurn;
     store.updateGameState({
       turn: gameState.currentTurn,
       currentPlayerId: gameState.currentPlayer || undefined,
@@ -428,7 +431,21 @@ class GameClient {
     });
   }
 
-  // Game Actions
+  // Helper method to queue actions for batch processing
+  private queueAction(type: string, data: any): void {
+    this.pendingActions.push({
+      type,
+      data,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Clear pending actions (used after turn resolution)
+  private clearPendingActions(): void {
+    this.pendingActions = [];
+  }
+
+  // Game Actions - now queue actions instead of immediate HTTP calls
   async moveUnit(
     unitId: string,
     _fromX: number,
@@ -436,56 +453,192 @@ class GameClient {
     toX: number,
     toY: number
   ): Promise<ActionResult> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/move`, {
-      method: 'POST',
-      body: JSON.stringify({ unitId, toX, toY }),
-    });
-
-    // After action, fetch updated game data
-    await this.fetchGameData();
-
-    return response;
+    this.queueAction('unit_move', { unitId, toX, toY });
+    return { success: true, message: 'Move queued for next turn resolution' };
   }
 
   async foundCity(name: string, x: number, y: number): Promise<ActionResult> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/found-city`, {
-      method: 'POST',
-      body: JSON.stringify({ name, x, y }),
-    });
-
-    await this.fetchGameData();
-    return response;
+    this.queueAction('found_city', { name, x, y });
+    return { success: true, message: 'City founding queued for next turn resolution' };
   }
 
   async setResearch(techId: string): Promise<ActionResult> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/research`, {
-      method: 'POST',
-      body: JSON.stringify({ techId }),
-    });
-
-    await this.fetchGameData();
-    return response;
-  }
-
-  async endTurn(): Promise<ActionResult> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/end-turn`, {
-      method: 'POST',
-      body: JSON.stringify({}),
-    });
-
-    // After ending turn, fetch updated game data
-    await this.fetchGameData();
-    return response;
+    this.queueAction('research_selection', { techId });
+    return { success: true, message: 'Research selection queued for next turn resolution' };
   }
 
   async attackUnit(attackerUnitId: string, defenderUnitId: string): Promise<ActionResult> {
-    const response = await this.makeRequest(`/api/games/${this.currentGameId}/actions/attack`, {
-      method: 'POST',
-      body: JSON.stringify({ attackerUnitId, defenderUnitId }),
-    });
+    this.queueAction('unit_attack', { attackerUnitId, defenderUnitId });
+    return { success: true, message: 'Attack queued for next turn resolution' };
+  }
 
-    await this.fetchGameData();
-    return response;
+  /**
+   * End turn using synchronous resolution with SSE streaming
+   * Processes all queued actions and advances the turn
+   */
+  async endTurn(): Promise<ActionResult> {
+    if (!this.currentGameId) {
+      throw new Error('No active game');
+    }
+
+    try {
+      // Generate idempotency key to prevent duplicate requests
+      const idempotencyKey = `${this.currentGameId}_${this.currentTurnVersion}_${Date.now()}`;
+
+      // Prepare request body
+      const requestBody = {
+        turnVersion: this.currentTurnVersion,
+        playerActions: [...this.pendingActions], // Copy the array
+        idempotencyKey,
+      };
+
+      console.log('Starting turn resolution with', requestBody.playerActions.length, 'actions');
+
+      // Set up progress tracking
+      const store = useGameStore.getState();
+      store.setTurnResolving(true);
+      store.setTurnProgress(null);
+      store.setClientState('preparing'); // Show loading state
+
+      // Stream turn resolution with Server-Sent Events
+      const response = await this.streamTurnResolution(requestBody);
+
+      // Clear queued actions after successful resolution
+      this.clearPendingActions();
+
+      // Update game state with new data
+      await this.fetchGameData();
+
+      // Clear turn resolution state
+      store.setTurnResolving(false);
+      store.setTurnProgress(null);
+      store.setClientState('running');
+
+      return {
+        success: true,
+        message: 'Turn resolved successfully',
+        ...response,
+      };
+    } catch (error) {
+      console.error('Error ending turn:', error);
+
+      // Clear turn resolution state on error
+      const store = useGameStore.getState();
+      store.setTurnResolving(false);
+      store.setTurnProgress(null);
+      store.setClientState('running'); // Reset state
+
+      throw new Error(error instanceof Error ? error.message : 'Failed to end turn');
+    }
+  }
+
+  /**
+   * Stream turn resolution using Server-Sent Events
+   */
+  private async streamTurnResolution(requestBody: any): Promise<any> {
+    const url = `${this.baseUrl}/api/games/${this.currentGameId}/turns/resolve`;
+    const headers: any = {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      'Cache-Control': 'no-cache',
+    };
+
+    if (this.sessionId) {
+      headers['x-session-id'] = this.sessionId;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      if (!response.body) {
+        throw new Error('No response body for streaming');
+      }
+
+      // Process Server-Sent Events stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalResult: any = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.startsWith('event:') || line.startsWith('data:')) {
+            const [prefix, ...rest] = line.split(' ');
+            const content = rest.join(' ');
+
+            if (prefix === 'data:' && content.trim()) {
+              try {
+                const eventData = JSON.parse(content);
+                this.handleTurnProgressEvent(eventData);
+
+                // Check if this is the final result
+                if (eventData.success !== undefined) {
+                  finalResult = eventData;
+                }
+              } catch {
+                console.warn('Failed to parse SSE data:', content);
+              }
+            }
+          }
+        }
+      }
+
+      if (!finalResult) {
+        throw new Error('Turn resolution completed but no final result received');
+      }
+
+      return finalResult;
+    } catch (error) {
+      console.error('Turn resolution streaming failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handle progress events during turn resolution
+   */
+  private handleTurnProgressEvent(eventData: any): void {
+    console.log('Turn progress:', eventData);
+
+    const store = useGameStore.getState();
+
+    // Update store with progress information
+    if (eventData.stage && eventData.message) {
+      store.setTurnProgress({
+        stage: eventData.stage,
+        message: eventData.message,
+        progress: eventData.progress || 0,
+        actionType: eventData.actionType,
+        error: eventData.error,
+      });
+
+      console.log(
+        `${eventData.stage}: ${eventData.message} (${Math.round((eventData.progress || 0) * 100)}%)`
+      );
+    }
+
+    if (eventData.error) {
+      console.error('Turn resolution error:', eventData.error);
+    }
   }
 
   // Data getters (legacy compatibility methods)

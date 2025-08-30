@@ -12,6 +12,7 @@ import redis from './database/redis';
 import gamesRouter from './routes/games';
 import actionsRouter from './routes/actions';
 import dataRouter from './routes/data';
+import turnsRouter from './routes/turns';
 import { loginUser, logoutUser } from './middleware/auth';
 
 // Load environment variables
@@ -91,6 +92,7 @@ app.get('/api/info', (_req, res) => {
 app.use('/api/games', gamesRouter);
 app.use('/api/games', actionsRouter);
 app.use('/api/games', dataRouter);
+app.use('/api/games', turnsRouter);
 
 // Error handling
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
