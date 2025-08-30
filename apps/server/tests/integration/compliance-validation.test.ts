@@ -108,8 +108,6 @@ describe('Complete Compliance Validation', () => {
       const mapManager = new MapManager(25, 20, 'regression-test-continent-id');
 
       // This should not throw continent ID related errors
-      await expect(mapManager.generateMap(players)).resolves.toBeDefined();
-
       await mapManager.generateMap(players);
       const mapData = mapManager.getMapData();
 
