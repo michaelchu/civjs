@@ -1,6 +1,6 @@
 import { logger } from '../utils/logger';
 import { PlayerState } from './GameManager';
-import { MapData, MapTile } from './map/MapTypes';
+import { MapData, MapTile, MapStartpos } from './map/MapTypes';
 import { FractalHeightGenerator } from './map/FractalHeightGenerator';
 import { TemperatureMap } from './map/TemperatureMap';
 import { IslandGenerator, IslandGeneratorState, TerrainPercentages } from './map/IslandGenerator';
@@ -20,9 +20,11 @@ import {
 // Generator types based on freeciv map_generator enum
 export type MapGeneratorType = 'FRACTAL' | 'ISLAND' | 'RANDOM' | 'FAIR' | 'FRACTURE' | 'SCENARIO';
 
-// Startpos modes based on freeciv MAPSTARTPOS enum
-// @reference freeciv/server/generator/mapgen.c:1320-1341
-export type StartPosMode = 'DEFAULT' | 'SINGLE' | 'VARIABLE' | '2or3' | 'ALL';
+// Re-export MapStartpos from MapTypes for backward compatibility
+export { MapStartpos } from './map/MapTypes';
+
+// Legacy type alias - prefer MapStartpos
+export type StartPosMode = MapStartpos;
 
 // Re-export commonly used types for backward compatibility
 export {
@@ -41,7 +43,7 @@ export class MapManager {
   private seed: string;
   private generator: string;
   private defaultGeneratorType: MapGeneratorType;
-  private defaultStartPosMode: StartPosMode;
+  private defaultStartPosMode: MapStartpos;
   private random: () => number;
 
   // Sub-generators
@@ -77,7 +79,7 @@ export class MapManager {
     seed?: string,
     generator: string = 'random',
     defaultGeneratorType?: MapGeneratorType,
-    defaultStartPosMode?: StartPosMode,
+    defaultStartPosMode?: MapStartpos,
     cleanupTemperatureMapAfterUse: boolean = false,
     temperatureParam: number = 50
   ) {
@@ -86,7 +88,7 @@ export class MapManager {
     this.seed = seed || this.generateSeed();
     this.generator = generator;
     this.defaultGeneratorType = defaultGeneratorType || 'FRACTAL';
-    this.defaultStartPosMode = defaultStartPosMode || 'ALL';
+    this.defaultStartPosMode = defaultStartPosMode || MapStartpos.ALL;
     this.cleanupTemperatureMapAfterUse = cleanupTemperatureMapAfterUse;
     this.random = this.createSeededRandom(this.seed);
 
@@ -161,7 +163,7 @@ export class MapManager {
       logger.info('Fair islands generation failed, falling back to ISLAND generator');
       // Explicit fallback to ISLAND (matches freeciv mapgen.c:1315-1318)
       // Use 'ALL' startpos mode for fair island fallback (maps to mapGenerator4)
-      return this.generateMapWithIslands(players, 'ALL');
+      return this.generateMapWithIslands(players, MapStartpos.ALL);
     }
 
     // Handle other generators with standard routing
@@ -269,7 +271,8 @@ export class MapManager {
     // Find suitable starting positions
     const startingPositions = await this.startingPositionGenerator.generateStartingPositions(
       tiles,
-      players
+      players,
+      this.defaultStartPosMode
     );
 
     this.mapData = {
@@ -309,7 +312,7 @@ export class MapManager {
    */
   public async generateMapWithIslands(
     players: Map<string, PlayerState>,
-    startPosMode: StartPosMode = 'ALL'
+    startPosMode: StartPosMode = MapStartpos.ALL
   ): Promise<void> {
     logger.info('Generating map with island system', {
       width: this.width,
@@ -356,17 +359,17 @@ export class MapManager {
     // Generate islands using startpos-based routing (freeciv MAPSTARTPOS logic)
     // @reference freeciv/server/generator/mapgen.c:1320-1341
     switch (startPosMode) {
-      case 'VARIABLE':
+      case MapStartpos.VARIABLE:
         // MAPSTARTPOS_VARIABLE uses mapgenerator2 (70% big / 20% medium / 10% small)
         await this.mapGenerator2(state, tiles, players.size);
         break;
-      case 'DEFAULT':
-      case 'SINGLE':
+      case MapStartpos.DEFAULT:
+      case MapStartpos.SINGLE:
         // MAPSTARTPOS_DEFAULT || MAPSTARTPOS_SINGLE uses mapgenerator3 (several large islands)
         await this.mapGenerator3(state, tiles, players.size);
         break;
-      case '2or3':
-      case 'ALL':
+      case MapStartpos.TWO_ON_THREE:
+      case MapStartpos.ALL:
       default:
         // MAPSTARTPOS_2or3 || MAPSTARTPOS_ALL uses mapgenerator4 (many fair islands)
         await this.mapGenerator4(state, tiles, players.size);
@@ -413,7 +416,8 @@ export class MapManager {
     // Find suitable starting positions
     const startingPositions = await this.startingPositionGenerator.generateStartingPositions(
       tiles,
-      players
+      players,
+      this.defaultStartPosMode
     );
 
     this.mapData = {
@@ -491,7 +495,7 @@ export class MapManager {
    */
   private validateFairIslands(
     players: Map<string, PlayerState>,
-    startPosMode: StartPosMode = 'ALL'
+    startPosMode: StartPosMode = MapStartpos.ALL
   ): boolean {
     const playerCount = players.size;
 
@@ -511,7 +515,7 @@ export class MapManager {
     // @reference freeciv/server/generator/mapgen.c:3419-3444
     // Calculate players_per_island based on startpos mode (freeciv MAPSTARTPOS logic)
     switch (startPosMode) {
-      case '2or3': {
+      case MapStartpos.TWO_ON_THREE: {
         // MAPSTARTPOS_2or3: Prefer 2-3 players per island
         const maybe2 = playerCount % 2 === 0;
         const maybe3 = playerCount % 3 === 0;
@@ -523,7 +527,7 @@ export class MapManager {
         // else playersPerIsland remains 1
         break;
       }
-      case 'ALL':
+      case MapStartpos.ALL:
         // MAPSTARTPOS_ALL: Flexible island distribution, prefer larger groups
         if (playerCount >= 6 && playerCount % 3 === 0) {
           playersPerIsland = 3;
@@ -532,12 +536,12 @@ export class MapManager {
         }
         // else playersPerIsland remains 1
         break;
-      case 'VARIABLE':
+      case MapStartpos.VARIABLE:
         // MAPSTARTPOS_VARIABLE: Variable island sizes, prefer single players with some larger islands
         playersPerIsland = 1; // Primarily single-player islands
         break;
-      case 'DEFAULT':
-      case 'SINGLE':
+      case MapStartpos.DEFAULT:
+      case MapStartpos.SINGLE:
         // MAPSTARTPOS_DEFAULT/SINGLE: One player per island
         playersPerIsland = 1;
         break;
@@ -661,7 +665,7 @@ export class MapManager {
     // @reference freeciv/server/generator/mapgen.c:1316
     // !map_generate_fair_islands() - pre-validation equivalent
     // Use 'ALL' startpos mode for fair islands validation (maps to mapGenerator4)
-    if (!this.validateFairIslands(players, 'ALL')) {
+    if (!this.validateFairIslands(players, MapStartpos.ALL)) {
       logger.info(
         'Enhanced fair islands pre-validation failed (equivalent to early return FALSE)',
         {
@@ -694,7 +698,7 @@ export class MapManager {
         // Fair islands algorithm attempts with iteration limits
         // Use 'ALL' startpos mode for fair islands (equivalent to mapgenerator4)
         const generationTimeout = 30000 + (attempt - 1) * 10000; // Increase timeout for later attempts
-        const generationPromise = this.generateMapWithIslands(players, 'ALL');
+        const generationPromise = this.generateMapWithIslands(players, MapStartpos.ALL);
         const timeoutPromise = new Promise<void>((_, reject) => {
           setTimeout(() => reject(new Error('Fair islands generation timeout')), generationTimeout);
         });
@@ -1005,7 +1009,8 @@ export class MapManager {
     // Find suitable starting positions
     const startingPositions = await this.startingPositionGenerator.generateStartingPositions(
       tiles,
-      players
+      players,
+      this.defaultStartPosMode
     );
 
     this.mapData = {
@@ -1210,7 +1215,8 @@ export class MapManager {
 
     const startingPositions = await this.startingPositionGenerator.generateStartingPositions(
       tiles,
-      players
+      players,
+      this.defaultStartPosMode
     );
 
     this.mapData = {

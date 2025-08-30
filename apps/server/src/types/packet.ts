@@ -139,19 +139,54 @@ export const ChatMsgSchema = z.object({
   recipient: z.string().optional(),
 });
 
-// Map packets
+// Map packets - Reference-compliant structures based on freeciv packets.def
+export const MapInfoSchema = z.object({
+  xsize: z.number(), // XYSIZE xsize
+  ysize: z.number(), // XYSIZE ysize
+  topology_id: z.number(), // UINT8 topology_id
+  wrap_id: z.number(), // UINT8 wrap_id
+  north_latitude: z.number(), // SINT16 north_latitude
+  south_latitude: z.number(), // SINT16 south_latitude
+  altitude_info: z.boolean(), // BOOL altitude_info
+});
+
 export const TileInfoSchema = z.object({
   x: z.number(),
   y: z.number(),
   terrain: z.string(),
+  resource: z.string().optional(),
+  special: z.number(), // special bitmask
   owner: z.string().optional(),
   city: z.string().optional(),
   units: z.array(z.string()),
   improvements: z.array(z.string()),
   riverMask: z.number(),
+  continent: z.number(), // continent ID
 });
 
-// Unit packets
+// Unit packets - Reference-compliant based on freeciv PACKET_UNIT_INFO
+export const UnitInfoSchema = z.object({
+  id: z.string(), // UNIT id; key
+  owner: z.string(), // PLAYER owner
+  nationality: z.string(), // PLAYER nationality
+  x: z.number(), // TILE tile (x component)
+  y: z.number(), // TILE tile (y component)
+  facing: z.number(), // DIRECTION facing
+  homecity: z.string().optional(), // CITY homecity
+  upkeep: z.array(z.number()), // UINT8 upkeep[O_LAST]
+  veteran: z.number(), // UINT8 veteran
+  type: z.string(), // UNIT_TYPE type
+  hp: z.number(), // HP hp
+  activity: z.number(), // ACTIVITY activity
+  activity_target: z.string().optional(), // EXTRA activity_tgt
+  paradropped: z.boolean(), // BOOL paradropped
+  occupied: z.boolean(), // BOOL occupied
+  transported: z.boolean(), // BOOL transported
+  done_moving: z.boolean(), // BOOL done_moving
+  stay: z.boolean(), // BOOL stay
+  birth_turn: z.number(), // TURN birth_turn
+});
+
 export const UnitMoveSchema = z.object({
   unitId: z.string(),
   x: z.number(),
@@ -393,7 +428,9 @@ export type ServerJoinReq = z.infer<typeof ServerJoinReqSchema>;
 export type ServerJoinReply = z.infer<typeof ServerJoinReplySchema>;
 export type GameInfo = z.infer<typeof GameInfoSchema>;
 export type ChatMsg = z.infer<typeof ChatMsgSchema>;
+export type MapInfo = z.infer<typeof MapInfoSchema>;
 export type TileInfo = z.infer<typeof TileInfoSchema>;
+export type UnitInfo = z.infer<typeof UnitInfoSchema>;
 export type UnitMove = z.infer<typeof UnitMoveSchema>;
 export type UnitAttack = z.infer<typeof UnitAttackSchema>;
 export type UnitFortify = z.infer<typeof UnitFortifySchema>;
