@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1733961600000,
+      "tag": "0000_narrow_lockjaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7", 
+      "when": 1733961601000,
+      "tag": "0001_flaky_korvac",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1733961602000, 
+      "tag": "0002_nifty_toxin",
+      "breakpoints": true
+    }
+  ]
+}
