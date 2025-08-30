@@ -1,12 +1,12 @@
 /**
  * End-to-End Resource Rendering Pipeline Integration Test
- * 
+ *
  * This test validates the complete resource rendering pipeline from server
  * generation through protocol transmission to client rendering readiness.
- * 
+ *
  * Tests all phases of the resource rendering compliance fix:
  * - Phase 1: Protocol schema includes resource field
- * - Phase 2: Data flows correctly through visibility system  
+ * - Phase 2: Data flows correctly through visibility system
  * - Phase 3: Client sprite mapping works correctly
  */
 
@@ -38,31 +38,31 @@ describe('Resource Rendering Pipeline Integration', () => {
       };
 
       await gameManager['mapManager'].generateMapWithIslands(mapConfig);
-      
+
       // Step 2: Create test game and player
       const gameId = 'integration-test-game';
       const playerId = 'integration-test-player';
-      
+
       await gameManager.createGame({
         id: gameId,
         name: 'Resource Pipeline Test',
         maxPlayers: 2,
         mapWidth: mapConfig.width,
         mapHeight: mapConfig.height,
-        creatorId: 'test-creator'
+        creatorId: 'test-creator',
       });
 
       // Step 3: Add player and set up visibility
       await gameManager.addPlayerToGame(gameId, {
         id: playerId,
         name: 'Test Player',
-        isCreator: false
+        isCreator: false,
       });
 
       // Get all tiles with resources
       const allTiles = gameManager['mapManager'].getAllTiles();
       const tilesWithResources = allTiles.filter(tile => tile.resource);
-      
+
       console.log(`Generated ${tilesWithResources.length} tiles with resources`);
       expect(tilesWithResources.length).toBeGreaterThan(0);
 
@@ -102,7 +102,7 @@ describe('Resource Rendering Pipeline Integration', () => {
           position: { x: tile.x, y: tile.y },
           resource: tile.resource,
           expectedSpriteKey: `ts.${tile.resource}:0`, // Expected client-side sprite key
-          terrain: tile.terrain
+          terrain: tile.terrain,
         };
       });
 
@@ -112,16 +112,19 @@ describe('Resource Rendering Pipeline Integration', () => {
       });
 
       // Step 9: Log comprehensive audit trail
-      const resourceDistribution = visibleResourceTiles.reduce((acc, tile) => {
-        acc[tile.resource!] = (acc[tile.resource!] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
+      const resourceDistribution = visibleResourceTiles.reduce(
+        (acc, tile) => {
+          acc[tile.resource!] = (acc[tile.resource!] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>
+      );
 
       console.log('Integration test results:', {
         totalResourceTiles: tilesWithResources.length,
         visibleResourceTiles: visibleResourceTiles.length,
         resourceDistribution,
-        sampleSpriteKeys: clientSpriteMapping.slice(0, 5).map(m => m.expectedSpriteKey)
+        sampleSpriteKeys: clientSpriteMapping.slice(0, 5).map(m => m.expectedSpriteKey),
       });
 
       // Step 10: Final validation - ensure pipeline completeness
@@ -145,23 +148,23 @@ describe('Resource Rendering Pipeline Integration', () => {
       };
 
       await gameManager['mapManager'].generateMapWithIslands(minimalMapConfig);
-      
+
       const gameId = 'edge-case-test';
       const playerId = 'edge-case-player';
-      
+
       await gameManager.createGame({
         id: gameId,
         name: 'Edge Case Test',
         maxPlayers: 1,
         mapWidth: minimalMapConfig.width,
         mapHeight: minimalMapConfig.height,
-        creatorId: 'test-creator'
+        creatorId: 'test-creator',
       });
 
       await gameManager.addPlayerToGame(gameId, {
         id: playerId,
         name: 'Edge Case Player',
-        isCreator: true
+        isCreator: true,
       });
 
       // Test with player having no visibility
@@ -170,10 +173,12 @@ describe('Resource Rendering Pipeline Integration', () => {
 
       // Test resource handling on edge tiles
       const allTiles = gameManager['mapManager'].getAllTiles();
-      const edgeTiles = allTiles.filter(tile => 
-        tile.x === 0 || tile.y === 0 || 
-        tile.x === minimalMapConfig.width - 1 || 
-        tile.y === minimalMapConfig.height - 1
+      const edgeTiles = allTiles.filter(
+        tile =>
+          tile.x === 0 ||
+          tile.y === 0 ||
+          tile.x === minimalMapConfig.width - 1 ||
+          tile.y === minimalMapConfig.height - 1
       );
 
       // Make edge tiles visible and check resource handling
@@ -198,7 +203,7 @@ describe('Resource Rendering Pipeline Integration', () => {
   describe('Performance and Scalability Validation', () => {
     test('should handle large maps with many resources efficiently', async () => {
       const startTime = Date.now();
-      
+
       const largeMapConfig = {
         width: 100,
         height: 80,
@@ -212,18 +217,20 @@ describe('Resource Rendering Pipeline Integration', () => {
       };
 
       await gameManager['mapManager'].generateMapWithIslands(largeMapConfig);
-      
+
       const generationTime = Date.now() - startTime;
       console.log(`Large map generation completed in ${generationTime}ms`);
-      
+
       // Verify performance is reasonable (should complete within 30 seconds)
       expect(generationTime).toBeLessThan(30000);
-      
+
       const allTiles = gameManager['mapManager'].getAllTiles();
       const tilesWithResources = allTiles.filter(tile => tile.resource);
-      
-      console.log(`Large map stats: ${allTiles.length} total tiles, ${tilesWithResources.length} with resources`);
-      
+
+      console.log(
+        `Large map stats: ${allTiles.length} total tiles, ${tilesWithResources.length} with resources`
+      );
+
       // Verify resource generation scales appropriately
       expect(tilesWithResources.length).toBeGreaterThan(allTiles.length * 0.02); // At least 2%
       expect(tilesWithResources.length).toBeLessThan(allTiles.length * 0.4); // Not more than 40%

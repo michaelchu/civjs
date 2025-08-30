@@ -1,9 +1,9 @@
 /**
  * Resource Rendering Pipeline Audit Test
- * 
- * Automated validation of the complete resource rendering pipeline from 
+ *
+ * Automated validation of the complete resource rendering pipeline from
  * server generation through network transmission to client sprite mapping.
- * 
+ *
  * This test validates the fixes implemented in Phases 1-3 of the resource
  * rendering compliance audit.
  */
@@ -58,7 +58,7 @@ describe('Resource Rendering Pipeline Audit', () => {
 
       // Log resource distribution for audit trail
       console.log('Resource distribution by terrain:', resourcesByTerrain);
-      
+
       // Basic validation: ensure we have some common resource types
       const allResources = tilesWithResources.map(t => t.resource!);
       const uniqueResources = [...new Set(allResources)];
@@ -85,7 +85,7 @@ describe('Resource Rendering Pipeline Audit', () => {
       // Check that resources appear on expected terrain types
       const terrainResourcePairs = tilesWithResources.map(tile => ({
         terrain: tile.terrain,
-        resource: tile.resource
+        resource: tile.resource,
       }));
 
       // Validate some expected terrain-resource combinations exist
@@ -97,7 +97,7 @@ describe('Resource Rendering Pipeline Audit', () => {
       );
 
       expect(hasGrasslandResources || hasDesertResources).toBe(true);
-      
+
       // Ensure resource density is reasonable (not too sparse, not too dense)
       const resourceDensity = tilesWithResources.length / tiles.length;
       expect(resourceDensity).toBeGreaterThan(0.02); // At least 2% of tiles
@@ -121,11 +121,11 @@ describe('Resource Rendering Pipeline Audit', () => {
       };
 
       await mapManager.generateMapWithIslands(mapConfig);
-      
+
       // Create a test player and set visibility
       const playerId = 'test-player';
       const tiles = mapManager.getAllTiles();
-      
+
       // Make some tiles visible to the player
       const testTiles = tiles.slice(0, 100); // First 100 tiles
       testTiles.forEach(tile => {
@@ -135,10 +135,10 @@ describe('Resource Rendering Pipeline Audit', () => {
 
       // Get visible tiles as they would be sent to client
       const visibleTiles = visibilityManager.getVisibleTiles(playerId);
-      
+
       // Find tiles with resources
       const tilesWithResources = visibleTiles.filter(tile => tile.resource);
-      
+
       if (tilesWithResources.length > 0) {
         // Verify resource field is present and properly typed
         tilesWithResources.forEach(tile => {
@@ -146,8 +146,10 @@ describe('Resource Rendering Pipeline Audit', () => {
           expect(typeof tile.resource).toBe('string');
           expect(tile.resource!.length).toBeGreaterThan(0);
         });
-        
-        console.log(`✓ Protocol compliance: ${tilesWithResources.length} tiles with resources properly serialized`);
+
+        console.log(
+          `✓ Protocol compliance: ${tilesWithResources.length} tiles with resources properly serialized`
+        );
       } else {
         console.log('⚠ No resources found in visible tiles for protocol test');
       }
@@ -170,7 +172,7 @@ describe('Resource Rendering Pipeline Audit', () => {
       };
 
       await mapManager.generateMapWithIslands(mapConfig);
-      
+
       const playerId = 'test-player';
       const allTiles = mapManager.getAllTiles();
       const tilesWithResources = allTiles.filter(tile => tile.resource);
@@ -198,12 +200,14 @@ describe('Resource Rendering Pipeline Audit', () => {
         const originalTile = tilesWithResources.find(
           orig => orig.x === tile.x && orig.y === tile.y
         );
-        
+
         expect(originalTile).toBeDefined();
         expect(tile.resource).toBe(originalTile!.resource);
       });
 
-      console.log(`✓ Data flow integrity: ${visibleResourceTiles.length} resource tiles preserved through visibility system`);
+      console.log(
+        `✓ Data flow integrity: ${visibleResourceTiles.length} resource tiles preserved through visibility system`
+      );
     });
   });
 });
