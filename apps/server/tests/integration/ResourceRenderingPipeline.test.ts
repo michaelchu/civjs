@@ -62,7 +62,6 @@ describe('Resource Rendering Pipeline Integration', () => {
       const allTiles = gameManager['mapManager'].getAllTiles();
       const tilesWithResources = allTiles.filter(tile => tile.resource);
 
-      console.log(`Generated ${tilesWithResources.length} tiles with resources`);
       expect(tilesWithResources.length).toBeGreaterThan(0);
 
       // Step 4: Make resource tiles visible to player
@@ -76,7 +75,6 @@ describe('Resource Rendering Pipeline Integration', () => {
       const visibleTiles = gameManager['visibilityManager'].getVisibleTiles(playerId);
       const visibleResourceTiles = visibleTiles.filter(tile => tile.resource);
 
-      console.log(`${visibleResourceTiles.length} resource tiles visible to client`);
       expect(visibleResourceTiles.length).toBeGreaterThan(0);
 
       // Step 6: Validate protocol compliance (Phase 1)
@@ -111,20 +109,10 @@ describe('Resource Rendering Pipeline Integration', () => {
       });
 
       // Step 9: Log comprehensive audit trail
-      const resourceDistribution = visibleResourceTiles.reduce(
-        (acc, tile) => {
-          acc[tile.resource!] = (acc[tile.resource!] || 0) + 1;
-          return acc;
-        },
-        {} as Record<string, number>
-      );
-
-      console.log('Integration test results:', {
-        totalResourceTiles: tilesWithResources.length,
-        visibleResourceTiles: visibleResourceTiles.length,
-        resourceDistribution,
-        sampleSpriteKeys: clientSpriteMapping.slice(0, 5).map(m => m.expectedSpriteKey),
-      });
+      const resourceDistribution = visibleResourceTiles.reduce((acc, tile) => {
+        acc[tile.resource!] = (acc[tile.resource!] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
       // Step 10: Final validation - ensure pipeline completeness
       expect(tilesWithResources.length).toBeGreaterThan(10); // Adequate resource generation
@@ -218,17 +206,12 @@ describe('Resource Rendering Pipeline Integration', () => {
       await gameManager['mapManager'].generateMapWithIslands(largeMapConfig);
 
       const generationTime = Date.now() - startTime;
-      console.log(`Large map generation completed in ${generationTime}ms`);
 
       // Verify performance is reasonable (should complete within 30 seconds)
       expect(generationTime).toBeLessThan(30000);
 
       const allTiles = gameManager['mapManager'].getAllTiles();
       const tilesWithResources = allTiles.filter(tile => tile.resource);
-
-      console.log(
-        `Large map stats: ${allTiles.length} total tiles, ${tilesWithResources.length} with resources`
-      );
 
       // Verify resource generation scales appropriately
       expect(tilesWithResources.length).toBeGreaterThan(allTiles.length * 0.02); // At least 2%

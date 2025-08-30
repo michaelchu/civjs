@@ -240,7 +240,6 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
             maxElev = Math.max(maxElev, elevation);
             expect(elevation >= 0).toBe(true);
             if (elevation > 255) {
-              console.error(`${genType} generator produced elevation ${elevation} at (${x}, ${y})`);
             }
             expect(elevation <= 255).toBe(true);
             elevationSum += elevation;
@@ -395,8 +394,6 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
 
       // Generation should complete in reasonable time
       expect(generationTime).toBeLessThan(10000); // 10 seconds max
-
-      console.log(`Phase 1 compliance test completed in ${generationTime}ms`);
     });
 
     it('should maintain deterministic generation with same seed', async () => {
@@ -465,8 +462,6 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
         expect(mapData.tiles).toHaveLength(25);
         expect(mapData.tiles[0]).toHaveLength(18);
         expect(mapData.startingPositions).toHaveLength(2);
-
-        console.log(`${name} generator completed Phase 1 flow successfully`);
       }
     });
   });
@@ -493,12 +488,6 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
         // Should complete in reasonable time
         expect(generationTime).toBeLessThan(30000); // 30 seconds max
         expect(timePerTile).toBeLessThan(5); // 5ms per tile max
-
-        console.log(
-          `${width}x${height} map generated in ${generationTime}ms (${timePerTile.toFixed(
-            2
-          )}ms/tile)`
-        );
       }
     });
 
@@ -522,8 +511,6 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
 
       // Memory increase should be reasonable (less than 50MB for 5 maps)
       expect(memoryIncreaseMB).toBeLessThan(50);
-
-      console.log(`Memory increase after 5 map generations: ${memoryIncreaseMB.toFixed(2)}MB`);
     });
   });
 });
@@ -930,8 +917,6 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
         expect(complianceScore.rivers).toBe(100);
         expect(complianceScore.continents).toBe(100);
       }
-
-      console.log('Phase 3 Freeciv Compliance Results:', complianceResults);
     });
   });
 
@@ -1020,12 +1005,9 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
 
         // Performance should remain acceptable
         expect(generationTime).toBeLessThan(15000); // 15 seconds max
-
-        console.log(`${genType} generator: Phase 3 E2E test passed in ${generationTime}ms`);
       }
 
       const totalTime = Date.now() - startTime;
-      console.log(`All Phase 3 E2E tests completed in ${totalTime}ms`);
     });
 
     it('should maintain deterministic results with Phase 3 changes', async () => {
@@ -1071,14 +1053,6 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
       expect(matching.temperature / totalTiles).toBeGreaterThan(0.98);
       expect(matching.rivers / totalTiles).toBeGreaterThan(0.98);
       expect(matching.continents / totalTiles).toBeGreaterThan(0.98);
-
-      console.log('Phase 3 determinism test:', {
-        terrain: `${((matching.terrain / totalTiles) * 100).toFixed(2)}%`,
-        elevation: `${((matching.elevation / totalTiles) * 100).toFixed(2)}%`,
-        temperature: `${((matching.temperature / totalTiles) * 100).toFixed(2)}%`,
-        rivers: `${((matching.rivers / totalTiles) * 100).toFixed(2)}%`,
-        continents: `${((matching.continents / totalTiles) * 100).toFixed(2)}%`,
-      });
     });
   });
 
@@ -1175,8 +1149,6 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
         expect(generationTime).toBeLessThan(20000); // 20 seconds max
         expect(timePerTile).toBeLessThan(8); // 8ms per tile max
       }
-
-      console.log('Phase 3 Performance Results:', performanceResults);
     });
   });
 });
