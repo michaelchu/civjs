@@ -73,7 +73,7 @@ export const GameCreationDialog: React.FC = () => {
               </svg>
             </button>
             <div>
-              <h2 className="text-2xl font-bold text-amber-800">Create New Game</h2>
+              <h2 className="text-2xl font-bold text-foreground">Create New Game</h2>
               <p className="text-amber-600">Set up your civilization</p>
             </div>
           </div>

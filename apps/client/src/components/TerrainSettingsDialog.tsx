@@ -177,7 +177,7 @@ export const TerrainSettingsDialog: React.FC = () => {
               </svg>
             </button>
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-amber-800">Terrain Settings</h2>
+              <h2 className="text-2xl font-bold text-foreground">Terrain Settings</h2>
               <p className="text-amber-600 text-sm md:text-base">
                 Configure map generation for "{gameData.gameName}"
               </p>
