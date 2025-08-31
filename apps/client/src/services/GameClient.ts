@@ -231,6 +231,15 @@ class GameClient {
         }
         break;
 
+      case PacketType.GAME_CREATE_REPLY:
+        console.log('Game create reply:', packet.data);
+        if (packet.data.success) {
+          console.log('Game created successfully:', packet.data.gameId);
+        } else {
+          console.error('Game creation failed:', packet.data.message);
+        }
+        break;
+
       default:
         console.log(`Unhandled packet type: ${packetName} (${packet.type})`);
     }

@@ -1552,22 +1552,21 @@ export class GameManager {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) return;
 
-    // Get all sockets in the game room and send via PacketHandler
-    const sockets = this.io.sockets.sockets;
-    for (const socket of sockets.values()) {
-      // Check if socket is in the game room
-      if (socket.rooms.has(`game:${gameId}`)) {
-        const packetHandler = socket.data.packetHandler;
-        if (packetHandler) {
-          packetHandler.send(socket, packetType, data);
-        }
-      }
-    }
+    // Create packet structure and broadcast to game room
+    const packet = {
+      type: packetType,
+      data,
+      timestamp: Date.now(),
+    };
+
+    this.io.to(`game:${gameId}`).emit('packet', packet);
 
     logger.debug('Broadcasted structured packet to game room', {
       gameId,
       packetType: PACKET_NAMES[packetType] || packetType,
-      data,
+      data: Array.isArray(data?.tiles)
+        ? { tilesCount: data.tiles.length, ...data, tiles: '[truncated]' }
+        : data,
     });
   }
 
