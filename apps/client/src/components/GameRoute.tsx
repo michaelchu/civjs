@@ -4,7 +4,7 @@ import { useGameStore } from '../store/gameStore';
 import { gameClient } from '../services/GameClient';
 import { ConnectionDialog } from './ConnectionDialog';
 import { GameLayout } from './GameUI/GameLayout';
-import { getStoredPlayerName, isCurrentGameSinglePlayer, storePlayerNameForGame } from '../utils/gameSession';
+import { getStoredUsername, storeUsername } from '../utils/gameSession';
 
 export const GameRoute: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
