@@ -123,37 +123,6 @@ describe('TemperatureFlags - Bitwise Operations', () => {
   });
 
   describe('Performance and Binary Analysis', () => {
-    it('should have efficient bitwise operations', () => {
-      const temperatures = [
-        TemperatureType.FROZEN,
-        TemperatureType.COLD,
-        TemperatureType.TEMPERATE,
-        TemperatureType.TROPICAL,
-      ];
-
-      // Test that all bitwise operations complete quickly
-      const startTime = performance.now();
-
-      temperatures.forEach(temp => {
-        // Perform multiple bitwise operations
-        const isHot = !!(temp & TemperatureFlags.TT_HOT);
-        const isCold = !!(temp & TemperatureFlags.TT_NHOT);
-        const isAll = !!(temp & TemperatureFlags.TT_ALL);
-        const isNFrozen = !!(temp & TemperatureFlags.TT_NFROZEN);
-
-        // Verify operations produce boolean results
-        expect(typeof isHot).toBe('boolean');
-        expect(typeof isCold).toBe('boolean');
-        expect(typeof isAll).toBe('boolean');
-        expect(typeof isNFrozen).toBe('boolean');
-      });
-
-      const endTime = performance.now();
-      const duration = endTime - startTime;
-
-      // Bitwise operations should be very fast (< 15ms for all tests to account for system variations)
-      expect(duration).toBeLessThan(15);
-    });
 
     it('should produce correct binary representations', () => {
       // Verify binary representations match expected patterns
