@@ -58,8 +58,34 @@ class GameClient {
     // Keep compatibility events for game management
     this.socket.on('game_created', data => {
       console.log('Game created:', data);
+
+      // Initialize mock player state since server automatically joins creator as player
+      if (data.playerId) {
+        const mockPlayer = {
+          id: data.playerId,
+          name: 'Player', // We don't have the name here, will be updated later
+          nation: 'random',
+          color: '#0066cc',
+          gold: 50,
+          science: 0,
+          isHuman: true,
+          isActive: true, // Make player active so turn done button works
+        };
+
+        useGameStore.getState().updateGameState({
+          currentPlayerId: data.playerId,
+          players: {
+            [data.playerId]: mockPlayer,
+          },
+          turn: 1, // Initialize turn
+        });
+      }
+
       if (data.maxPlayers === 1) {
         useGameStore.getState().setClientState('running');
+        useGameStore.getState().updateGameState({
+          phase: 'movement',
+        });
       } else {
         useGameStore.getState().setClientState('waiting_for_players');
       }
@@ -68,6 +94,10 @@ class GameClient {
     this.socket.on('game_started', data => {
       console.log('Game started:', data);
       useGameStore.getState().setClientState('running');
+      // Set initial game phase to movement so turn done button works
+      useGameStore.getState().updateGameState({
+        phase: 'movement',
+      });
     });
   }
 
@@ -77,7 +107,10 @@ class GameClient {
 
     switch (packet.type) {
       case PacketType.GAME_INFO:
-        useGameStore.getState().updateGameState(packet.data);
+        useGameStore.getState().updateGameState({
+          ...packet.data,
+          phase: 'movement', // Ensure phase is set for turn system to work
+        });
         useGameStore.getState().setClientState('running');
         break;
 
@@ -85,8 +118,11 @@ class GameClient {
         console.log('Turn started:', packet.data);
         useGameStore.getState().updateGameState({
           turn: packet.data.turn,
+          phase: 'movement', // Reset phase to movement for new turn
           // TODO: Add year to GameState interface
         });
+        // Reset turn processing state for new turn
+        useGameStore.getState().resetTurnProcessing();
         break;
 
       case PacketType.UNIT_MOVE_REPLY:
@@ -184,6 +220,15 @@ class GameClient {
 
       case PacketType.PROCESSING_FINISHED:
         console.log('Server processing finished');
+        break;
+
+      case PacketType.TURN_END_REPLY:
+        console.log('Turn end reply:', packet.data);
+        if (packet.data.success) {
+          console.log('Turn ended successfully', { turnAdvanced: packet.data.turnAdvanced });
+        } else {
+          console.error('Turn end failed:', packet.data.message);
+        }
         break;
 
       default:
@@ -542,6 +587,28 @@ class GameClient {
       this.socket.emit('join_game', { gameId, playerName }, (response: any) => {
         if (response.success) {
           this.currentGameId = gameId;
+
+          // Initialize mock player state for turn system to work
+          const mockPlayer = {
+            id: response.playerId,
+            name: playerName,
+            nation: 'random',
+            color: '#0066cc',
+            gold: 50,
+            science: 0,
+            isHuman: true,
+            isActive: true, // Make player active so turn done button works
+          };
+
+          useGameStore.getState().updateGameState({
+            currentPlayerId: response.playerId,
+            players: {
+              [response.playerId]: mockPlayer,
+            },
+            phase: 'movement', // Set phase to movement
+            turn: 1, // Initialize turn
+          });
+
           resolve();
         } else {
           reject(new Error(response.error || 'Failed to join game'));
@@ -583,6 +650,19 @@ class GameClient {
         }
       });
     });
+  }
+
+  endTurn(): void {
+    if (!this.socket) return;
+
+    const packet: Packet = {
+      type: PacketType.END_TURN,
+      data: {},
+      timestamp: Date.now(),
+    };
+
+    console.log(`Sending packet: ${PACKET_NAMES[packet.type]} (${packet.type})`, packet.data);
+    this.socket.emit('packet', packet);
   }
 
   disconnect() {

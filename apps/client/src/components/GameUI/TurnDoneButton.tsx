@@ -1,14 +1,19 @@
 import React from 'react';
 import { useGameStore } from '../../store/gameStore';
+import { gameClient } from '../../services/GameClient';
 
 export const TurnDoneButton: React.FC = () => {
-  const { getCurrentPlayer, phase, clientState } = useGameStore();
+  const { getCurrentPlayer, phase, clientState, startTurnProcessing } = useGameStore();
   const currentPlayer = getCurrentPlayer();
 
   const handleTurnDone = () => {
-    // TODO: Implement turn done functionality
     console.log('Turn done clicked');
-    // gameClient.endTurn();
+
+    // Start the turn processing animation
+    startTurnProcessing();
+
+    // Send the actual end turn packet
+    gameClient.endTurn();
   };
 
   const isDisabled =
