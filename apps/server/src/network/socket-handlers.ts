@@ -113,12 +113,21 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
 
   socket.on('get_game_list', async callback => {
     try {
+      logger.info('Getting game list requested');
       const connection = activeConnections.get(socket.id);
       const userId = connection?.userId || null;
+      logger.info(`Getting game list for userId: ${userId}`);
+      
       const games = await gameManager.getGameListForLobby(userId);
+      logger.info(`Retrieved ${games.length} games from database`);
+      
       callback({ success: true, games });
     } catch (error) {
       logger.error('Error getting game list:', error);
+      logger.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       callback({ success: false, error: 'Failed to get game list' });
     }
   });
