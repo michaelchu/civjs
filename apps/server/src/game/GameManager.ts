@@ -145,33 +145,13 @@ export class GameManager {
     }
 
     // Check if user is already in the game first
-    
     const existingPlayer = game.players.find(p => p.userId === userId);
     if (existingPlayer) {
       return existingPlayer.id; // Already joined - allow rejoining at any game status
     }
 
-    
-    // Special case: If this looks like a refresh scenario (single player game with one player),
-    // and the username suggests this user should be in the game, allow them to take over the existing player
+    // Only allow new players in waiting games
     if (game.status !== 'waiting') {
-      if (game.players.length === 1 && game.status === 'active') {
-        const existingPlayer = game.players[0];
-        // Check if the username pattern suggests this user should replace the existing single player
-        // This handles cases where page refresh creates a new userId but same username pattern
-        
-        // For now, just allow the rejoin attempt to help with testing
-        // TODO: Add more sophisticated logic to verify this is the same user
-        logger.info(`Allowing potential refresh scenario: replacing player ${existingPlayer.id} with new userId ${userId}`);
-        
-        // Update the existing player's userId to match the new connection
-        await db.update(players).set({ userId }).where(eq(players.id, existingPlayer.id));
-        
-        
-        return existingPlayer.id;
-      }
-      
-      logger.debug(`Game status is '${game.status}', not accepting new players`);
       throw new Error('Game is not accepting new players');
     }
 
@@ -940,14 +920,14 @@ export class GameManager {
   }
 
   public async getAllGames(): Promise<any[]> {
-    return await this.getAllGamesFromDatabase();
+    return await this.getAllGamesFromDatabase(null);
   }
 
   public async getActiveGames(): Promise<any[]> {
-    return await this.getAllGamesFromDatabase();
+    return await this.getAllGamesFromDatabase(null);
   }
 
-  public async getAllGamesFromDatabase(): Promise<any[]> {
+  public async getAllGamesFromDatabase(userId?: string | null): Promise<any[]> {
     try {
       const dbGames = await db.query.games.findMany({
         where: (games, { inArray }) => inArray(games.status, ['waiting', 'running', 'active']),
@@ -962,28 +942,45 @@ export class GameManager {
         orderBy: (games, { desc }) => desc(games.createdAt),
       });
 
-      return dbGames.map(game => ({
-        id: game.id,
-        name: game.name,
-        hostName: game.host?.username || 'Unknown',
-        status: game.status,
-        currentPlayers: game.players?.length || 0,
-        maxPlayers: game.maxPlayers,
-        currentTurn: game.currentTurn,
-        mapSize: `${game.mapWidth}x${game.mapHeight}`,
-        createdAt: game.createdAt.toISOString(),
-        canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
-        players: game.players || [],
-      }));
+      return dbGames.map(game => {
+        // Use connected player count for running/active games, database count for waiting games
+        const isRunning = game.status === 'running' || game.status === 'active';
+        const connectedCount = isRunning ? this.getConnectedPlayerCount(game.id) : 0;
+        const currentPlayers = isRunning ? connectedCount : game.players?.length || 0;
+
+        // Check if the current user is already a player in this game
+        const isExistingPlayer = userId && game.players?.some(p => p.userId === userId);
+
+        // User can join if:
+        // 1. Game is waiting and has space, OR
+        // 2. User is already a player (can rejoin regardless of status)
+        const canJoin =
+          isExistingPlayer ||
+          (game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers);
+
+        return {
+          id: game.id,
+          name: game.name,
+          hostName: game.host?.username || 'Unknown',
+          status: game.status,
+          currentPlayers: currentPlayers,
+          maxPlayers: game.maxPlayers,
+          currentTurn: game.currentTurn,
+          mapSize: `${game.mapWidth}x${game.mapHeight}`,
+          createdAt: game.createdAt.toISOString(),
+          canJoin: canJoin,
+          players: game.players || [],
+        };
+      });
     } catch (error) {
       logger.error('Error fetching games from database:', error);
       return [];
     }
   }
 
-  public async getGameListForLobby(): Promise<any[]> {
+  public async getGameListForLobby(userId?: string | null): Promise<any[]> {
     // All games come from database now - single source of truth
-    return await this.getAllGamesFromDatabase();
+    return await this.getAllGamesFromDatabase(userId);
   }
 
   public async getGameById(gameId: string): Promise<any | null> {
@@ -1032,6 +1029,19 @@ export class GameManager {
 
     player.isConnected = isConnected;
     player.lastSeen = new Date();
+
+    // Update database connection status
+    try {
+      await db
+        .update(players)
+        .set({
+          connectionStatus: isConnected ? 'connected' : 'disconnected',
+          lastActionAt: new Date(),
+        })
+        .where(eq(players.id, playerId));
+    } catch (error) {
+      logger.error('Failed to update player connection status in database:', error);
+    }
 
     if (isConnected) {
       logger.info('Player reconnected', { gameId, playerId });
@@ -1568,6 +1578,16 @@ export class GameManager {
         logger.info('Technology completed', { gameId, playerId, techId: completedTech });
       }
     }
+  }
+
+  /**
+   * Get count of connected players for a game
+   */
+  private getConnectedPlayerCount(gameId: string): number {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) return 0;
+
+    return Array.from(gameInstance.players.values()).filter(p => p.isConnected).length;
   }
 
   private broadcastToGame(gameId: string, event: string, data: any): void {

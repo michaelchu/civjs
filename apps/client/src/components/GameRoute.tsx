@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { gameClient } from '../services/GameClient';
 import { ConnectionDialog } from './ConnectionDialog';
 import { GameLayout } from './GameUI/GameLayout';
-import { getStoredPlayerName, isCurrentGameSinglePlayer, storePlayerNameForGame } from '../utils/gameSession';
+import { getStoredUsername, storeUsername } from '../utils/gameSession';
 
 export const GameRoute: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const { clientState, setClientState } = useGameStore();
 
@@ -24,33 +25,20 @@ export const GameRoute: React.FC = () => {
       await gameClient.connect();
       setClientState('connecting');
 
-      // Try to get stored player name first, fallback to default
-      const storedPlayerName = getStoredPlayerName(gameId);
-      const isSinglePlayer = isCurrentGameSinglePlayer(gameId);
-      // Use consistent fallback name based on gameId so refreshes use the same username
-      const fallbackName = storedPlayerName || `Player_${gameId?.slice(-8) || 'default'}`;
-      const playerName = fallbackName;
-
+      // Use stored username or generate fallback name based on gameId
+      const storedUsername = getStoredUsername();
+      const playerName = storedUsername || `Player_${gameId?.slice(-8) || 'default'}`;
 
       try {
         await gameClient.joinSpecificGame(gameId, playerName);
-        
-        // Store the player name after successful join so it persists across refreshes
-        storePlayerNameForGame(gameId!, playerName, isSinglePlayer ? 'single' : 'multiplayer');
+
+        // Store the username after successful join for future login convenience
+        storeUsername(playerName);
       } catch (joinError) {
         console.log('Could not join as player:', joinError);
 
-        // For single player games, never fall back to observer mode
-        if (isSinglePlayer) {
-          throw new Error(
-            `Failed to rejoin single player game: ${
-              joinError instanceof Error ? joinError.message : 'Unknown error'
-            }`
-          );
-        }
-
-        // For multiplayer games, try observer mode as fallback
-        console.log('Trying observer mode for multiplayer game');
+        // Try observer mode as fallback
+        console.log('Trying observer mode');
         try {
           await gameClient.observeGame(gameId);
           console.log('Joined as observer');
@@ -76,6 +64,19 @@ export const GameRoute: React.FC = () => {
       return;
     }
 
+    // Check if this page load was due to a reload/refresh
+    // performance.navigation.type: 0=navigate, 1=reload, 2=back_forward
+    const wasPageReloaded =
+      window.performance &&
+      'navigation' in window.performance &&
+      (window.performance.navigation as { type: number }).type === 1;
+
+    if (wasPageReloaded) {
+      // This was a page reload, redirect to lobby
+      navigate('/browse-games');
+      return;
+    }
+
     if (gameClient.isConnected() && gameClient.getCurrentGameId() === gameId) {
       setClientState('running');
     } else {
@@ -83,7 +84,24 @@ export const GameRoute: React.FC = () => {
     }
 
     useGameStore.setState({ currentGameId: gameId });
-  }, [gameId]);
+
+    // Add beforeunload event listener for confirmation
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      // Show confirmation dialog
+      const message =
+        'Are you sure you want to leave the game? You will be redirected to the game lobby.';
+      event.preventDefault();
+      event.returnValue = message;
+      return message;
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Cleanup event listeners on component unmount
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [gameId, navigate]);
 
   if (!gameId) {
     return <Navigate to="/" replace />;
