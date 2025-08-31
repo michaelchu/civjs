@@ -56,7 +56,7 @@ export const ChatBox: React.FC = () => {
   const getMessageStyle = (type: ChatMessage['type']) => {
     switch (type) {
       case 'system':
-        return 'text-yellow-400';
+        return 'text-primary';
       case 'game':
         return 'text-green-400';
       case 'chat':

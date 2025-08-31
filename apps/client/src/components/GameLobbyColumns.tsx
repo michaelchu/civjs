@@ -51,11 +51,11 @@ const GameActions: React.FC<GameActionsProps> = ({
       <button
         onClick={() => onJoinGame(game.id)}
         disabled={!game.canJoin || joiningGameId === game.id}
-        className="px-3 py-1 bg-amber-700 hover:bg-amber-800 disabled:bg-amber-400 disabled:text-amber-200 text-amber-50 text-sm font-medium rounded transition-colors focus:outline-none focus:ring-2 focus:ring-amber-600"
+        className="px-3 py-1 bg-primary hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 text-primary-foreground text-sm font-medium rounded transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
       >
         {joiningGameId === game.id ? (
           <div className="flex items-center">
-            <div className="animate-spin w-3 h-3 border border-amber-300 border-t-transparent rounded-full mr-1"></div>
+            <div className="animate-spin w-3 h-3 border border-primary-foreground/30 border-t-transparent rounded-full mr-1"></div>
             Joining...
           </div>
         ) : (
@@ -114,7 +114,7 @@ const StatusBadge: React.FC<{ status: GameInfo['status'] }> = ({ status }) => {
     <span
       className={`text-xs font-medium px-2 py-1 rounded-full text-white ${
         status === 'waiting'
-          ? 'bg-yellow-500'
+          ? 'bg-primary'
           : status === 'active'
             ? 'bg-green-500'
             : status === 'paused'
@@ -138,7 +138,7 @@ export const createGameColumns = (
   {
     accessorKey: 'name',
     header: 'Game Name',
-    cell: ({ row }) => <div className="font-semibold text-amber-800">{row.getValue('name')}</div>,
+    cell: ({ row }) => <div className="font-semibold text-foreground">{row.getValue('name')}</div>,
   },
   {
     accessorKey: 'hostName',
