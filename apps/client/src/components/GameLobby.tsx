@@ -1,48 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gameClient } from '../services/GameClient';
-
-interface GameInfo {
-  id: string;
-  name: string;
-  hostName: string;
-  status: 'waiting' | 'starting' | 'active' | 'paused' | 'finished';
-  currentPlayers: number;
-  maxPlayers: number;
-  currentTurn: number;
-  mapSize: string;
-  createdAt: string;
-  canJoin: boolean;
-}
+import { DataTable } from './ui/DataTable';
+import { createGameColumns, type GameInfo } from './GameLobbyColumns';
 
 export const GameLobby: React.FC = () => {
   const [games, setGames] = useState<GameInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [joiningGameId, setJoiningGameId] = useState<string | null>(null);
+  const [deletingGameId, setDeletingGameId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const navigate = useNavigate();
 
   useEffect(() => {
     loadGames();
-    const interval = setInterval(loadGames, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval);
   }, []);
 
-  const loadGames = async () => {
+  const loadGames = async (isRefresh = false) => {
     try {
+      if (isRefresh) {
+        setIsRefreshing(true);
+        setError('');
+      }
+
       // Connect first if not connected
       if (!gameClient.isConnected()) {
         await gameClient.connect();
       }
+
       const gameList = await gameClient.getGameList();
       setGames(gameList);
       setError('');
     } catch (err) {
-      setError('Failed to load games');
-      console.error('Failed to load games:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load games';
+      console.error('Failed to load games:', errorMessage);
+      setError(`Failed to load games: ${errorMessage}`);
     } finally {
       setIsLoading(false);
+      if (isRefresh) {
+        setIsRefreshing(false);
+      }
     }
   };
 
@@ -64,27 +63,34 @@ export const GameLobby: React.FC = () => {
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'waiting':
-        return 'Waiting for Players';
-      case 'starting':
-        return 'Starting';
-      case 'active':
-        return 'In Progress';
-      case 'paused':
-        return 'Paused';
-      case 'finished':
-        return 'Finished';
-      default:
-        return status;
+  const handleDeleteGame = async (gameId: string) => {
+    setDeletingGameId(gameId);
+    setError('');
+
+    try {
+      await gameClient.deleteGame(gameId);
+      // Refresh the games list after successful deletion
+      await loadGames();
+    } catch (err) {
+      console.error('Game delete error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete game');
+    } finally {
+      setDeletingGameId(null);
     }
   };
 
+  // Create columns with action handlers
+  const columns = createGameColumns(
+    handleJoinGame,
+    handleDeleteGame,
+    joiningGameId,
+    deletingGameId
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200 p-4">
-      <div className="max-w-6xl mx-auto">
-        <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-6 md:rounded-lg md:shadow-2xl md:border md:border-amber-300 md:shadow-amber-300/20">
+    <div className="h-screen bg-gradient-to-b from-amber-100 to-yellow-200 p-4 flex flex-col overflow-hidden">
+      <div className="max-w-6xl mx-auto flex-1 flex flex-col w-full min-h-0">
+        <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-6 md:rounded-lg md:shadow-2xl md:border md:border-amber-300 md:shadow-amber-300/20 flex-1 flex flex-col w-full min-h-0 overflow-hidden">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
               <button
@@ -106,24 +112,33 @@ export const GameLobby: React.FC = () => {
               </div>
             </div>
             <button
-              onClick={loadGames}
-              className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-amber-50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-amber-600 shadow-sm"
-              disabled={isLoading}
+              onClick={() => loadGames(true)}
+              className="px-4 py-2 bg-amber-700 hover:bg-amber-800 disabled:bg-amber-500 text-amber-50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-amber-600 shadow-sm"
+              disabled={isRefreshing}
             >
-              <svg
-                className="w-4 h-4 inline mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              Refresh
+              {isRefreshing ? (
+                <div className="flex items-center">
+                  <div className="animate-spin w-4 h-4 border border-amber-300 border-t-transparent rounded-full mr-2"></div>
+                  Refreshing...
+                </div>
+              ) : (
+                <>
+                  <svg
+                    className="w-4 h-4 inline mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  Refresh
+                </>
+              )}
             </button>
           </div>
 
@@ -157,91 +172,8 @@ export const GameLobby: React.FC = () => {
               <p className="text-amber-500 text-sm">Start a new game to begin playing!</p>
             </div>
           ) : (
-            <div className="space-y-3 md:space-y-4">
-              {games.map(game => (
-                <div
-                  key={game.id}
-                  className={`p-4 border rounded-lg transition-all duration-200 bg-gradient-to-r from-amber-100 to-yellow-100 border-amber-400 hover:border-amber-500 hover:bg-gradient-to-r hover:from-amber-200 hover:to-yellow-200 shadow-sm ${
-                    !game.canJoin ? 'opacity-60' : ''
-                  }`}
-                >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-0">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                        <h3 className="text-lg font-semibold text-amber-800 truncate">
-                          {game.name}
-                        </h3>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className={`text-sm font-medium px-2 py-1 rounded-full text-white ${
-                              game.status === 'waiting'
-                                ? 'bg-yellow-500'
-                                : game.status === 'active'
-                                  ? 'bg-green-500'
-                                  : game.status === 'paused'
-                                    ? 'bg-orange-500'
-                                    : game.status === 'finished'
-                                      ? 'bg-gray-500'
-                                      : 'bg-blue-500'
-                            }`}
-                          >
-                            {getStatusLabel(game.status)}
-                          </span>
-                          {!game.canJoin && (
-                            <span className="text-xs bg-red-500 text-white px-2 py-1 rounded-full">
-                              Full
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mt-3 text-xs md:text-sm text-amber-600">
-                        <div className="flex flex-col">
-                          <span className="text-amber-400 text-xs uppercase font-medium">Host</span>
-                          <span className="truncate">{game.hostName}</span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-amber-400 text-xs uppercase font-medium">
-                            Players
-                          </span>
-                          <span>
-                            {game.currentPlayers}/{game.maxPlayers}
-                          </span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-amber-400 text-xs uppercase font-medium">Turn</span>
-                          <span>{game.currentTurn}</span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-amber-400 text-xs uppercase font-medium">Map</span>
-                          <span className="capitalize">{game.mapSize}</span>
-                        </div>
-                        <div className="flex flex-col col-span-2 sm:col-span-1">
-                          <span className="text-amber-400 text-xs uppercase font-medium">
-                            Created
-                          </span>
-                          <span>{new Date(game.createdAt).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="w-full md:w-auto md:ml-4">
-                      <button
-                        onClick={() => handleJoinGame(game.id)}
-                        disabled={!game.canJoin || joiningGameId === game.id}
-                        className="w-full md:w-auto px-6 py-2 bg-amber-700 hover:bg-amber-800 disabled:bg-amber-400 disabled:text-amber-200 text-amber-50 font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 focus:ring-offset-amber-100 shadow-sm"
-                      >
-                        {joiningGameId === game.id ? (
-                          <div className="flex items-center">
-                            <div className="animate-spin w-4 h-4 border-2 border-amber-300 border-t-transparent rounded-full mr-2"></div>
-                            Joining...
-                          </div>
-                        ) : (
-                          'Join Game'
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="flex-1 w-full min-h-0">
+              <DataTable columns={columns} data={games} className="h-full w-full" />
             </div>
           )}
         </div>

@@ -655,6 +655,23 @@ class GameClient {
     });
   }
 
+  async deleteGame(gameId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      this.socket.emit('delete_game', { gameId }, (response: any) => {
+        if (response && response.success) {
+          resolve();
+        } else {
+          reject(new Error(response?.error || 'Failed to delete game'));
+        }
+      });
+    });
+  }
+
   endTurn(): void {
     if (!this.socket) return;
 
