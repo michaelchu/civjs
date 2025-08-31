@@ -1324,9 +1324,10 @@ export class MapRenderer {
 
       // Implement freeciv-web's map_scroll_border constraint system
       // Reference: freeciv-web allows 8 tiles of border scrolling beyond map edge
-      const mapScrollBorder = 8; // tiles, matches freeciv-web default
-      const borderPaddingX = mapScrollBorder * this.tileWidth; // ~768px with 96px tiles
-      const borderPaddingY = mapScrollBorder * this.tileHeight; // ~384px with 48px tiles
+      // Using smaller constraint for testing (2 tiles instead of 8)
+      const mapScrollBorder = 2; // tiles, reduced from 8 for more obvious constraints
+      const borderPaddingX = mapScrollBorder * this.tileWidth; // ~192px with 96px tiles
+      const borderPaddingY = mapScrollBorder * this.tileHeight; // ~96px with 48px tiles
 
       // Calculate bounds: allow viewing map_scroll_border tiles beyond map edge
       // Account for viewport size to ensure proper constraint behavior
@@ -1335,9 +1336,23 @@ export class MapRenderer {
       const minY = -borderPaddingY;
       const maxY = mapHeightGui + borderPaddingY - viewportHeight;
 
+      // Debug logging to understand boundary behavior
+      console.log('Pan boundary debug:', {
+        input: { guiX0, guiY0, viewportWidth, viewportHeight },
+        map: { xsize: globalMap.xsize, ysize: globalMap.ysize, mapWidthGui, mapHeightGui },
+        boundaries: { minX, maxX, minY, maxY },
+        borderPadding: { borderPaddingX, borderPaddingY },
+      });
+
       // Apply constraints - prevent panning beyond scroll border
       const constrainedX = Math.max(minX, Math.min(maxX, guiX0));
       const constrainedY = Math.max(minY, Math.min(maxY, guiY0));
+
+      console.log('Pan constraint result:', {
+        original: { x: guiX0, y: guiY0 },
+        constrained: { x: constrainedX, y: constrainedY },
+        wasConstrained: constrainedX !== guiX0 || constrainedY !== guiY0,
+      });
 
       return { x: constrainedX, y: constrainedY };
     }
