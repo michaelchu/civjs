@@ -48,13 +48,18 @@ export interface CombatResult {
   defenderDestroyed: boolean;
 }
 
+// Movement system constants
+// @reference freeciv/server/ruleset/ruleload.c terrain_control
+export const SINGLE_MOVE = 3; // 1 movement point = 3 movement fragments
+export const MAX_MOVE_FRAGS = 65000; // Maximum movement fragments
+
 // Unit type definitions - these would normally be in a data file
 export const UNIT_TYPES: Record<string, UnitType> = {
   warrior: {
     id: 'warrior',
     name: 'Warrior',
     cost: 40,
-    movement: 2,
+    movement: 2 * SINGLE_MOVE, // 2 movement points = 6 fragments
     combat: 20,
     range: 1,
     sight: 2,
@@ -66,7 +71,7 @@ export const UNIT_TYPES: Record<string, UnitType> = {
     id: 'settler',
     name: 'Settler',
     cost: 80,
-    movement: 2,
+    movement: 2 * SINGLE_MOVE, // 2 movement points = 6 fragments
     combat: 0,
     range: 0,
     sight: 2,
@@ -78,7 +83,7 @@ export const UNIT_TYPES: Record<string, UnitType> = {
     id: 'scout',
     name: 'Scout',
     cost: 25,
-    movement: 3,
+    movement: 3 * SINGLE_MOVE, // 3 movement points = 9 fragments
     combat: 10,
     range: 1,
     sight: 3,
@@ -90,7 +95,7 @@ export const UNIT_TYPES: Record<string, UnitType> = {
     id: 'worker',
     name: 'Worker',
     cost: 50,
-    movement: 2,
+    movement: 2 * SINGLE_MOVE, // 2 movement points = 6 fragments
     combat: 0,
     range: 0,
     sight: 2,
@@ -102,7 +107,7 @@ export const UNIT_TYPES: Record<string, UnitType> = {
     id: 'archer',
     name: 'Archer',
     cost: 50,
-    movement: 2,
+    movement: 2 * SINGLE_MOVE, // 2 movement points = 6 fragments
     combat: 15,
     range: 2,
     sight: 2,
@@ -115,7 +120,7 @@ export const UNIT_TYPES: Record<string, UnitType> = {
     id: 'spearman',
     name: 'Spearman',
     cost: 45,
-    movement: 2,
+    movement: 2 * SINGLE_MOVE, // 2 movement points = 6 fragments
     combat: 25,
     range: 1,
     sight: 2,
@@ -131,11 +136,13 @@ export class UnitManager {
   private gameId: string;
   private mapWidth: number;
   private mapHeight: number;
+  private mapManager: any; // MapManager instance for terrain access
 
-  constructor(gameId: string, mapWidth: number, mapHeight: number) {
+  constructor(gameId: string, mapWidth: number, mapHeight: number, mapManager?: any) {
     this.gameId = gameId;
     this.mapWidth = mapWidth;
     this.mapHeight = mapHeight;
+    this.mapManager = mapManager;
   }
 
   /**
@@ -214,9 +221,9 @@ export class UnitManager {
       throw new Error(`Invalid position: ${newX}, ${newY}`);
     }
 
-    // Calculate movement cost
-    const distance = this.calculateDistance(unit.x, unit.y, newX, newY);
-    const movementCost = Math.ceil(distance); // Simplified - would consider terrain
+    // Calculate movement cost using terrain-based system
+    // @reference freeciv/common/movement.c map_move_cost_unit()
+    const movementCost = this.calculateTerrainMovementCost(unit, unit.x, unit.y, newX, newY);
 
     // Check if unit has enough movement
     if (unit.movementLeft < movementCost) {
@@ -375,14 +382,17 @@ export class UnitManager {
 
   /**
    * Reset movement for all units (called at turn start)
+   * @reference freeciv/server/unithand.c unit_restore_movepoints()
    */
   async resetMovement(playerId: string): Promise<void> {
     for (const unit of this.units.values()) {
       if (unit.playerId === playerId) {
         const unitType = UNIT_TYPES[unit.unitTypeId];
+        // Restore full movement points in fragments
         unit.movementLeft = unitType.movement;
 
         // Heal fortified units
+        // @reference freeciv/server/unithand.c unit_restore_movepoints() - heal_unit()
         if (unit.fortified && unit.health < 100) {
           unit.health = Math.min(100, unit.health + 10);
         }
@@ -478,6 +488,88 @@ export class UnitManager {
   }
 
   /**
+   * Get terrain movement cost in movement fragments
+   * @reference freeciv/common/terrain.c terrain_control
+   * @reference freeciv/data/classic/terrain.ruleset
+   */
+  private getTerrainMovementCost(terrain: string): number {
+    // Movement costs in movement fragments (1 move point = 3 fragments)
+    const terrainCosts: Record<string, number> = {
+      // Flat terrain: 1 movement point = 3 fragments
+      ocean: SINGLE_MOVE,
+      coast: SINGLE_MOVE,
+      deep_ocean: SINGLE_MOVE,
+      lake: SINGLE_MOVE,
+      plains: SINGLE_MOVE,
+      grassland: SINGLE_MOVE,
+      desert: SINGLE_MOVE,
+      tundra: SINGLE_MOVE,
+
+      // Rough terrain: 2 movement points = 6 fragments
+      hills: SINGLE_MOVE * 2,
+      forest: SINGLE_MOVE * 2,
+      jungle: SINGLE_MOVE * 2,
+      swamp: SINGLE_MOVE * 2,
+
+      // Impassable terrain: 3 movement points = 9 fragments
+      mountains: SINGLE_MOVE * 3,
+    };
+
+    return terrainCosts[terrain] || SINGLE_MOVE;
+  }
+
+  /**
+   * Get terrain at specific coordinates
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @returns terrain type string
+   */
+  private getTerrainAt(x: number, y: number): string {
+    if (!this.mapManager) {
+      return 'plains'; // Default terrain if no map manager
+    }
+
+    try {
+      const tile = this.mapManager.getTile(x, y);
+      return tile?.terrain || 'plains';
+    } catch (error) {
+      logger.warn(`Failed to get terrain at (${x}, ${y}):`, error);
+      return 'plains';
+    }
+  }
+
+  /**
+   * Calculate movement cost between two positions in movement fragments
+   * @reference freeciv/common/movement.c map_move_cost_unit()
+   */
+  private calculateTerrainMovementCost(
+    unit: Unit,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number
+  ): number {
+    const distance = this.calculateDistance(fromX, fromY, toX, toY);
+    
+    // For non-adjacent moves, calculate path cost (simplified)
+    if (distance > 1) {
+      // For now, treat as straight-line movement with destination terrain cost
+      const destinationTerrain = this.getTerrainAt(toX, toY);
+      return this.getTerrainMovementCost(destinationTerrain) * distance;
+    }
+
+    // Adjacent move - use destination terrain cost
+    const destinationTerrain = this.getTerrainAt(toX, toY);
+    let movementCost = this.getTerrainMovementCost(destinationTerrain);
+
+    // TODO: Add road/railroad bonuses
+    // TODO: Add river crossing penalties
+    // TODO: Add unit-specific terrain bonuses (e.g., alpine troops in mountains)
+
+    return movementCost;
+  }
+
+  /**
    * Check if position is valid
    */
   private isValidPosition(x: number, y: number): boolean {
@@ -498,6 +590,13 @@ export class UnitManager {
    */
   getUnit(unitId: string): Unit | undefined {
     return this.units.get(unitId);
+  }
+
+  /**
+   * Get unit type definition by ID
+   */
+  getUnitType(unitTypeId: string): UnitType | undefined {
+    return UNIT_TYPES[unitTypeId];
   }
 
   /**
