@@ -133,16 +133,11 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   });
 
   socket.on('delete_game', async (data, callback) => {
-    const connection = activeConnections.get(socket.id);
-    if (!connection?.userId) {
-      callback({ success: false, error: 'Not authenticated' });
-      return;
-    }
-
     try {
-      await gameManager.deleteGame(data.gameId, connection.userId);
+      // For single-player mode, allow anyone to delete any game
+      await gameManager.deleteGame(data.gameId);
       callback({ success: true });
-      logger.info(`Game deleted by ${connection.username}`, { gameId: data.gameId });
+      logger.info('Game deleted', { gameId: data.gameId });
     } catch (error) {
       logger.error('Error deleting game:', error);
       callback({

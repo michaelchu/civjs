@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import React from 'react';
+import React, { useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
+import { DeleteGameDialog } from './ui/DeleteGameDialog';
 
 interface GameInfo {
   id: string;
@@ -30,6 +31,21 @@ const GameActions: React.FC<GameActionsProps> = ({
   joiningGameId,
   deletingGameId,
 }) => {
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const handleDeleteClick = () => {
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    setShowDeleteDialog(false);
+    onDeleteGame(game.id);
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteDialog(false);
+  };
+
   return (
     <div className="flex justify-end gap-2">
       <button
@@ -47,7 +63,7 @@ const GameActions: React.FC<GameActionsProps> = ({
         )}
       </button>
       <button
-        onClick={() => onDeleteGame(game.id)}
+        onClick={handleDeleteClick}
         disabled={deletingGameId === game.id}
         className="px-2 py-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
         title="Delete Game"
@@ -64,6 +80,14 @@ const GameActions: React.FC<GameActionsProps> = ({
           </svg>
         )}
       </button>
+
+      <DeleteGameDialog
+        isOpen={showDeleteDialog}
+        gameName={game.name}
+        isDeleting={deletingGameId === game.id}
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
     </div>
   );
 };

@@ -21,31 +21,17 @@ export const GameLobby: React.FC = () => {
 
   const loadGames = async () => {
     try {
-      console.log('Loading games...');
-
       // Connect first if not connected
       if (!gameClient.isConnected()) {
-        console.log('Not connected, attempting to connect...');
         await gameClient.connect();
-        console.log('Connected successfully');
-      } else {
-        console.log('Already connected');
       }
 
-      console.log('Requesting game list...');
       const gameList = await gameClient.getGameList();
-      console.log('Game list received:', gameList);
-
       setGames(gameList);
       setError('');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load games';
-      console.error('Failed to load games:', err);
-      console.error('Error details:', {
-        message: errorMessage,
-        isConnected: gameClient.isConnected(),
-        error: err,
-      });
+      console.error('Failed to load games:', errorMessage);
       setError(`Failed to load games: ${errorMessage}`);
     } finally {
       setIsLoading(false);
@@ -71,10 +57,6 @@ export const GameLobby: React.FC = () => {
   };
 
   const handleDeleteGame = async (gameId: string) => {
-    if (!confirm('Are you sure you want to delete this game?')) {
-      return;
-    }
-
     setDeletingGameId(gameId);
     setError('');
 

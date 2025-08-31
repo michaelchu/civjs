@@ -1620,8 +1620,8 @@ export class GameManager {
     });
   }
 
-  public async deleteGame(gameId: string, userId: string): Promise<void> {
-    // Check if user has permission to delete the game (is the host)
+  public async deleteGame(gameId: string, userId?: string): Promise<void> {
+    // Check if game exists
     const game = await db.query.games.findFirst({
       where: eq(games.id, gameId),
       with: {
@@ -1633,11 +1633,7 @@ export class GameManager {
       throw new Error('Game not found');
     }
 
-    if (game.hostId !== userId) {
-      throw new Error('Only the game host can delete the game');
-    }
-
-    logger.info('Deleting game', { gameId, hostId: userId });
+    logger.info('Deleting game', { gameId, userId });
 
     // Remove from active games map if it exists
     const gameInstance = this.games.get(gameId);
