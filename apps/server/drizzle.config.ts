@@ -8,7 +8,7 @@ const config: Config = {
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.POSTGRES_URL || 'postgresql://civjs:civjs_dev@localhost:5432/civjs_dev',
+    url: process.env.DATABASE_URL || process.env.POSTGRES_URL || 'postgresql://civjs:civjs_dev@localhost:5432/civjs_dev',
   },
   verbose: true,
   strict: true,
