@@ -1647,10 +1647,11 @@ export class GameManager {
         this.playerToGame.delete(player.id);
       }
 
-      // Cleanup managers
+      // Cleanup managers (keep game in map until cleanup is complete)
       gameInstance.visibilityManager.cleanup();
       gameInstance.cityManager.cleanup();
 
+      // Remove from games map after all cleanup operations are complete
       this.games.delete(gameId);
     }
 
