@@ -64,6 +64,18 @@ export const GameRoute: React.FC = () => {
       return;
     }
 
+    // Check if this is a page reload by looking at session storage
+    const isPageReload = sessionStorage.getItem('gameRouteLoaded');
+    if (isPageReload && gameId) {
+      // This is a page reload, redirect to lobby
+      sessionStorage.removeItem('gameRouteLoaded');
+      navigate('/browse-games');
+      return;
+    }
+
+    // Mark that GameRoute has been loaded
+    sessionStorage.setItem('gameRouteLoaded', 'true');
+
     if (gameClient.isConnected() && gameClient.getCurrentGameId() === gameId) {
       setClientState('running');
     } else {
@@ -79,9 +91,6 @@ export const GameRoute: React.FC = () => {
         'Are you sure you want to leave the game? You will be redirected to the game lobby.';
       event.preventDefault();
       event.returnValue = message;
-
-      // Note: We can't reliably redirect in beforeunload, so the user will need to
-      // manually navigate back to the lobby after refresh. This is actually better UX.
       return message;
     };
 
@@ -90,6 +99,8 @@ export const GameRoute: React.FC = () => {
     // Cleanup event listeners on component unmount
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Clear the flag when navigating away normally (not refresh)
+      sessionStorage.removeItem('gameRouteLoaded');
     };
   }, [gameId, navigate]);
 
