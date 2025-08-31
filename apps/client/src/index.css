@@ -102,7 +102,7 @@ canvas {
   --color-amber-400: var(--muted); /* #e0d6c9 */
   --color-amber-500: var(--muted-foreground);
   --color-amber-600: var(--primary); /* #418845 */
-  --color-amber-700: var(--primary); /* #418845 */
+  --color-amber-700: var(--foreground); /* #3e2723 - brown for labels */
   --color-amber-800: var(--foreground); /* #3e2723 */
   --color-amber-900: var(--foreground); /* #3e2723 */
 
