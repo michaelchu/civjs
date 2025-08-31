@@ -128,80 +128,11 @@ export const useGameStore = create<GameStore>()(
     },
 
     startTurnProcessing: () => {
-      const initialSteps: TurnProcessingStep[] = [
-        { id: 'validate', label: 'Validating turn actions', completed: false, active: true },
-        { id: 'units', label: 'Processing unit movements', completed: false, active: false },
-        { id: 'cities', label: 'Processing city production', completed: false, active: false },
-        { id: 'research', label: 'Calculating research progress', completed: false, active: false },
-        { id: 'events', label: 'Processing random events', completed: false, active: false },
-        { id: 'advance', label: 'Advancing to next turn', completed: false, active: false },
-      ];
-
+      // Initialize processing state - server will drive the actual step updates
       set({
         turnProcessingState: 'processing',
-        turnProcessingSteps: initialSteps,
+        turnProcessingSteps: [], // Will be populated by server packets
       });
-
-      // Simulate turn processing steps with delays
-      const get = useGameStore.getState;
-      setTimeout(() => {
-        const steps = get().turnProcessingSteps.map((step, i) =>
-          i === 0
-            ? { ...step, completed: true, active: false }
-            : i === 1
-              ? { ...step, active: true }
-              : step
-        );
-        get().updateTurnProcessingSteps(steps);
-      }, 300);
-
-      setTimeout(() => {
-        const steps = get().turnProcessingSteps.map((step, i) =>
-          i <= 1
-            ? { ...step, completed: true, active: false }
-            : i === 2
-              ? { ...step, active: true }
-              : step
-        );
-        get().updateTurnProcessingSteps(steps);
-      }, 600);
-
-      setTimeout(() => {
-        const steps = get().turnProcessingSteps.map((step, i) =>
-          i <= 2
-            ? { ...step, completed: true, active: false }
-            : i === 3
-              ? { ...step, active: true }
-              : step
-        );
-        get().updateTurnProcessingSteps(steps);
-      }, 900);
-
-      setTimeout(() => {
-        const steps = get().turnProcessingSteps.map((step, i) =>
-          i <= 3
-            ? { ...step, completed: true, active: false }
-            : i === 4
-              ? { ...step, active: true }
-              : step
-        );
-        get().updateTurnProcessingSteps(steps);
-      }, 1200);
-
-      setTimeout(() => {
-        const steps = get().turnProcessingSteps.map((step, i) =>
-          i <= 4
-            ? { ...step, completed: true, active: false }
-            : i === 5
-              ? { ...step, active: true }
-              : step
-        );
-        get().updateTurnProcessingSteps(steps);
-      }, 1500);
-
-      setTimeout(() => {
-        get().completeTurnProcessing();
-      }, 1800);
     },
 
     completeTurnProcessing: () => {

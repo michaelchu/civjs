@@ -96,6 +96,7 @@ export enum PacketType {
   RESEARCH_LIST_REPLY = 224,
   RESEARCH_PROGRESS = 225,
   RESEARCH_PROGRESS_REPLY = 226,
+  TURN_PROCESSING_STEP = 227,
 }
 
 // Debug helper for development - maps numeric types to readable names
@@ -130,6 +131,7 @@ export const PACKET_NAMES: Record<number, string> = {
   [PacketType.CITY_FOUND_REPLY]: 'CITY_FOUND_REPLY',
   [PacketType.RESEARCH_SET]: 'RESEARCH_SET',
   [PacketType.RESEARCH_SET_REPLY]: 'RESEARCH_SET_REPLY',
+  [PacketType.TURN_PROCESSING_STEP]: 'TURN_PROCESSING_STEP',
 };
 
 // Base packet interface
@@ -707,6 +709,13 @@ export const TileVisibilityReplySchema = z.object({
   lastSeen: z.date().optional(),
 });
 
+export const TurnProcessingStepSchema = z.object({
+  step: z.enum(['validate', 'units', 'cities', 'research', 'events', 'advance']),
+  label: z.string(),
+  completed: z.boolean(),
+  active: z.boolean(),
+});
+
 // Type exports
 export type ServerJoinReq = z.infer<typeof ServerJoinReqSchema>;
 export type ServerJoinReply = z.infer<typeof ServerJoinReplySchema>;
@@ -732,6 +741,7 @@ export type UnitCreateReply = z.infer<typeof UnitCreateReplySchema>;
 export type TileVisibilityReq = z.infer<typeof TileVisibilityReqSchema>;
 export type MapViewReply = z.infer<typeof MapViewReplySchema>;
 export type TileVisibilityReply = z.infer<typeof TileVisibilityReplySchema>;
+export type TurnProcessingStep = z.infer<typeof TurnProcessingStepSchema>;
 export type CityFound = z.infer<typeof CityFoundSchema>;
 export type CityInfo = z.infer<typeof CityInfoSchema>;
 export type CityProductionChange = z.infer<typeof CityProductionChangeSchema>;

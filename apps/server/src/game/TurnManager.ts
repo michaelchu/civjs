@@ -5,6 +5,7 @@ import { gameState } from '../database/redis';
 import { gameTurns, games, players } from '../database/schema';
 import { eq } from 'drizzle-orm';
 import { Server as SocketServer } from 'socket.io';
+import { PacketType } from '../types/packet';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -73,29 +74,48 @@ export class TurnManager {
         this.turnTimer = null;
       }
 
-      // Process all queued actions
+      // Broadcast processing step: Player Actions
+      this.broadcastProcessingStep('player-actions', 'Processing player actions...');
       await this.processPlayerActions();
+      await this.delay(200); // Small delay to show the step
 
-      // Process city production
+      // Broadcast processing step: City Production
+      this.broadcastProcessingStep('city-production', 'Processing city production...');
       await this.processCityProduction();
+      await this.delay(200);
 
-      // Process unit movement and actions
+      // Broadcast processing step: Unit Actions
+      this.broadcastProcessingStep('unit-actions', 'Processing unit actions...');
       await this.processUnitActions();
+      await this.delay(200);
 
-      // Process research
+      // Broadcast processing step: Research
+      this.broadcastProcessingStep('research', 'Processing research...');
       await this.processResearch();
+      await this.delay(200);
 
-      // Process random events (barbarians, disasters, etc.)
+      // Broadcast processing step: Random Events
+      this.broadcastProcessingStep('random-events', 'Processing random events...');
       await this.processRandomEvents();
+      await this.delay(200);
 
-      // Calculate statistics
+      // Broadcast processing step: Statistics
+      this.broadcastProcessingStep('statistics', 'Calculating statistics...');
       const statistics = await this.calculateTurnStatistics(startTime);
+      await this.delay(200);
 
-      // Save turn to database
+      // Broadcast processing step: Database Save
+      this.broadcastProcessingStep('database-save', 'Saving turn data...');
       await this.completeTurnRecord(statistics);
+      await this.delay(200);
 
-      // Advance to next turn
+      // Broadcast processing step: Next Turn
+      this.broadcastProcessingStep('next-turn', 'Advancing to next turn...');
       await this.advanceToNextTurn();
+      await this.delay(200);
+
+      // Broadcast completion
+      this.broadcastProcessingComplete();
 
       logger.info('Turn processed successfully', {
         gameId: this.gameId,
@@ -366,6 +386,38 @@ export class TurnManager {
       year: this.currentYear,
       startTime: this.turnStartTime,
     });
+  }
+
+  private broadcastProcessingStep(stepId: string, stepLabel: string): void {
+    this.io.emit('packet', {
+      type: PacketType.TURN_PROCESSING_STEP,
+      timestamp: Date.now(),
+      data: {
+        gameId: this.gameId,
+        step: stepId,
+        label: stepLabel,
+        completed: false,
+      },
+    });
+
+  }
+
+  private broadcastProcessingComplete(): void {
+    this.io.emit('packet', {
+      type: PacketType.TURN_PROCESSING_STEP,
+      timestamp: Date.now(),
+      data: {
+        gameId: this.gameId,
+        step: 'complete',
+        label: 'Turn processing complete',
+        completed: true,
+      },
+    });
+
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   public getCurrentTurn(): number {

@@ -450,9 +450,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
     try {
       let playerId: string | null = null;
       for (const game of await gameManager.getAllGames()) {
-        const player = Array.from(game.players.values()).find(
-          (p: any) => p.userId === connection.userId
-        ) as any;
+        const player = game.players.find((p: any) => p.userId === connection.userId) as any;
         if (player) {
           playerId = player.id;
           break;
@@ -462,16 +460,39 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       if (!playerId) return;
 
       const turnAdvanced = await gameManager.endTurn(playerId);
-      const game = await gameManager.getGameByPlayerId(playerId);
 
-      if (turnAdvanced && game) {
-        // Notify all players that turn advanced
-        io.to(`game:${connection.gameId}`).emit('packet', {
-          type: PacketType.TURN_START,
-          data: {
-            turn: game.currentTurn,
-            year: game.turnManager.getCurrentYear(),
-          },
+      if (turnAdvanced && connection.gameId) {
+        // Get the updated game state from database after turn processing
+        const updatedGame = await gameManager.getGame(connection.gameId);
+        const gameInstance = gameManager.getGameInstance(connection.gameId);
+        
+        if (updatedGame && gameInstance) {
+          const turnData = {
+            turn: updatedGame.currentTurn,
+            year: gameInstance.turnManager.getCurrentYear(),
+          };
+          logger.debug('Sending TURN_START packet', {
+            gameId: connection.gameId,
+            turnData,
+            gameInstanceTurn: gameInstance.currentTurn,
+            dbTurn: updatedGame.currentTurn,
+          });
+          // Notify all players that turn advanced
+          io.to(`game:${connection.gameId}`).emit('packet', {
+            type: PacketType.TURN_START,
+            data: turnData,
+          });
+        } else {
+          logger.warn('No game found for TURN_START', {
+            gameId: connection.gameId,
+            updatedGame: !!updatedGame,
+            gameInstance: !!gameInstance,
+          });
+        }
+      } else {
+        logger.debug('Not sending TURN_START', {
+          turnAdvanced,
+          gameId: connection.gameId,
         });
       }
 
@@ -482,7 +503,6 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
 
       logger.debug(`${connection.username} ended turn`, {
         gameId: connection.gameId,
-        turn: game?.currentTurn,
         turnAdvanced,
       });
     } catch (error) {

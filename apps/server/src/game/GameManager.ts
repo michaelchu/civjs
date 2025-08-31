@@ -339,6 +339,10 @@ export class GameManager {
     );
     const turnManager = new TurnManager(gameId, this.io);
     const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
+    
+    // Initialize turn system with player IDs
+    const playerIds = Array.from(players.keys());
+    await turnManager.initializeTurn(playerIds);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
     const cityManager = new CityManager(gameId);
     const researchManager = new ResearchManager(gameId);
@@ -671,6 +675,10 @@ export class GameManager {
       // Initialize managers
       const turnManager = new TurnManager(gameId, this.io);
       const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
+      
+      // Initialize turn system with existing player IDs
+      const playerIds = Array.from(players.keys());
+      await turnManager.initializeTurn(playerIds);
       const cityManager = new CityManager(gameId);
       const researchManager = new ResearchManager(gameId);
 
@@ -944,6 +952,7 @@ export class GameManager {
         mapSize: `${game.mapWidth}x${game.mapHeight}`,
         createdAt: game.createdAt.toISOString(),
         canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
+        players: game.players || [],
       }));
     } catch (error) {
       logger.error('Error fetching games from database:', error);

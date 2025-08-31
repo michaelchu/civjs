@@ -94,6 +94,7 @@ export enum PacketType {
   RESEARCH_LIST_REPLY = 224,
   RESEARCH_PROGRESS = 225,
   RESEARCH_PROGRESS_REPLY = 226,
+  TURN_PROCESSING_STEP = 227,
 }
 
 // Debug helper for development - maps numeric types to readable names
@@ -128,6 +129,7 @@ export const PACKET_NAMES: Record<number, string> = {
   [PacketType.CITY_FOUND_REPLY]: 'CITY_FOUND_REPLY',
   [PacketType.RESEARCH_SET]: 'RESEARCH_SET',
   [PacketType.RESEARCH_SET_REPLY]: 'RESEARCH_SET_REPLY',
+  [PacketType.TURN_PROCESSING_STEP]: 'TURN_PROCESSING_STEP',
 };
 
 // Base packet interface matching server

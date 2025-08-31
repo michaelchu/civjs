@@ -116,13 +116,14 @@ class GameClient {
 
       case PacketType.TURN_START:
         console.log('Turn started:', packet.data);
+        console.log('Updating turn to:', packet.data.turn);
         useGameStore.getState().updateGameState({
           turn: packet.data.turn,
           phase: 'movement', // Reset phase to movement for new turn
           // TODO: Add year to GameState interface
         });
-        // Reset turn processing state for new turn
-        useGameStore.getState().resetTurnProcessing();
+        // Let turn processing complete naturally - don't reset immediately
+        console.log('Current game state turn after update:', useGameStore.getState().turn);
         break;
 
       case PacketType.UNIT_MOVE_REPLY:
@@ -238,6 +239,10 @@ class GameClient {
         } else {
           console.error('Game creation failed:', packet.data.message);
         }
+        break;
+
+      case PacketType.TURN_PROCESSING_STEP:
+        this.handleTurnProcessingStep(packet.data);
         break;
 
       default:
@@ -672,6 +677,72 @@ class GameClient {
 
     console.log(`Sending packet: ${PACKET_NAMES[packet.type]} (${packet.type})`, packet.data);
     this.socket.emit('packet', packet);
+  }
+
+  private handleTurnProcessingStep(data: any) {
+    const gameStore = useGameStore.getState();
+    
+    // Handle completion step
+    if (data.step === 'complete') {
+      gameStore.completeTurnProcessing();
+      return;
+    }
+    
+    // Map server step IDs to client step IDs
+    const stepMapping: Record<string, string> = {
+      'player-actions': 'validate',
+      'city-production': 'cities',
+      'unit-actions': 'units',
+      'research': 'research',
+      'random-events': 'events',
+      'statistics': 'events', // Map statistics to events step for now
+      'database-save': 'events', // Map database save to events step for now
+      'next-turn': 'advance',
+    };
+
+    const clientStepId = stepMapping[data.step] || data.step;
+    
+    // Initialize processing if steps are empty (either idle state or processing with no steps)
+    if (gameStore.turnProcessingState === 'idle' || gameStore.turnProcessingSteps.length === 0) {
+      // Set up initial steps based on server processing steps
+      const initialSteps = [
+        { id: 'validate', label: 'Processing player actions...', completed: false, active: false },
+        { id: 'units', label: 'Processing unit actions...', completed: false, active: false },
+        { id: 'cities', label: 'Processing city production...', completed: false, active: false },
+        { id: 'research', label: 'Processing research...', completed: false, active: false },
+        { id: 'events', label: 'Processing events & statistics...', completed: false, active: false },
+        { id: 'advance', label: 'Advancing to next turn...', completed: false, active: false },
+      ];
+      
+      gameStore.setTurnProcessingState('processing');
+      gameStore.updateTurnProcessingSteps(initialSteps);
+    }
+
+    // Update the specific step - get fresh state after potential initialization
+    const freshGameStore = useGameStore.getState();
+    const currentSteps = freshGameStore.turnProcessingSteps;
+    const updatedSteps = currentSteps.map(step => {
+      if (step.id === clientStepId) {
+        return {
+          ...step,
+          label: data.label,
+          active: true,
+          completed: false
+        };
+      } else {
+        // Mark previous steps as completed
+        const stepOrder = ['validate', 'units', 'cities', 'research', 'events', 'advance'];
+        const currentStepIndex = stepOrder.indexOf(clientStepId);
+        const thisStepIndex = stepOrder.indexOf(step.id);
+        
+        if (thisStepIndex < currentStepIndex) {
+          return { ...step, completed: true, active: false };
+        }
+        return { ...step, active: false };
+      }
+    });
+
+    freshGameStore.updateTurnProcessingSteps(updatedSteps);
   }
 
   disconnect() {
