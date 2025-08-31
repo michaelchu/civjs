@@ -543,14 +543,14 @@ export class UnitManager {
    * @reference freeciv/common/movement.c map_move_cost_unit()
    */
   private calculateTerrainMovementCost(
-    unit: Unit,
+    _unit: Unit,
     fromX: number,
     fromY: number,
     toX: number,
     toY: number
   ): number {
     const distance = this.calculateDistance(fromX, fromY, toX, toY);
-    
+
     // For non-adjacent moves, calculate path cost (simplified)
     if (distance > 1) {
       // For now, treat as straight-line movement with destination terrain cost
@@ -560,7 +560,7 @@ export class UnitManager {
 
     // Adjacent move - use destination terrain cost
     const destinationTerrain = this.getTerrainAt(toX, toY);
-    let movementCost = this.getTerrainMovementCost(destinationTerrain);
+    const movementCost = this.getTerrainMovementCost(destinationTerrain);
 
     // TODO: Add road/railroad bonuses
     // TODO: Add river crossing penalties

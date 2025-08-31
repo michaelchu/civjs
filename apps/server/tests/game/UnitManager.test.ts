@@ -50,7 +50,7 @@ describe('UnitManager', () => {
     it('should have valid unit type definitions', () => {
       expect(UNIT_TYPES.warrior).toBeDefined();
       expect(UNIT_TYPES.warrior.name).toBe('Warrior');
-      expect(UNIT_TYPES.warrior.movement).toBe(2);
+      expect(UNIT_TYPES.warrior.movement).toBe(6); // 2 movement points = 6 fragments
       expect(UNIT_TYPES.warrior.combat).toBe(20);
 
       expect(UNIT_TYPES.settler).toBeDefined();
@@ -71,7 +71,7 @@ describe('UnitManager', () => {
       expect(unit.x).toBe(10);
       expect(unit.y).toBe(10);
       expect(unit.health).toBe(100);
-      expect(unit.movementLeft).toBe(2); // Warrior movement
+      expect(unit.movementLeft).toBe(6); // Warrior movement in fragments
       expect(unit.veteranLevel).toBe(0);
       expect(unit.fortified).toBe(false);
 
@@ -131,7 +131,7 @@ describe('UnitManager', () => {
       const unit = unitManager.getUnit(unitId);
       expect(unit!.x).toBe(11);
       expect(unit!.y).toBe(10);
-      expect(unit!.movementLeft).toBe(1); // Used 1 movement point
+      expect(unit!.movementLeft).toBe(3); // Used 3 fragments for plains terrain
       expect(unit!.fortified).toBe(false);
 
       expect(mockDb.update).toHaveBeenCalled();
@@ -139,7 +139,7 @@ describe('UnitManager', () => {
         expect.objectContaining({
           x: 11,
           y: 10,
-          movementPoints: '1',
+          movementPoints: '3', // 3 fragments remaining after plains movement
         })
       );
     });
@@ -305,7 +305,7 @@ describe('UnitManager', () => {
       await unitManager.resetMovement('player-123');
 
       const unit = unitManager.getUnit(unitId);
-      expect(unit!.movementLeft).toBe(2); // Reset to warrior's full movement
+      expect(unit!.movementLeft).toBe(6); // Reset to warrior's full movement in fragments
     });
 
     it('should heal fortified units', async () => {

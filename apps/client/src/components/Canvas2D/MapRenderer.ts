@@ -761,7 +761,7 @@ export class MapRenderer {
 
     // Get unit animation offset for smooth movement
     // @reference freeciv-web/.../unit.js:get_unit_anim_offset()
-    const animOffset = this.getUnitAnimOffset(unit);
+    const animOffset = this.getUnitAnimOffset();
     const unitX = screenPos.x + animOffset.x;
     const unitY = screenPos.y + animOffset.y;
 
@@ -775,12 +775,8 @@ export class MapRenderer {
         if (sprite) {
           const offsetX = spriteInfo.offset_x || 0;
           const offsetY = spriteInfo.offset_y || 0;
-          
-          this.ctx.drawImage(
-            sprite,
-            unitX + offsetX,
-            unitY + offsetY
-          );
+
+          this.ctx.drawImage(sprite, unitX + offsetX, unitY + offsetY);
         } else {
           // Fallback to unit type specific sprite key
           const fallbackKey = this.getUnitTypeGraphicTag(unit.type);
@@ -801,14 +797,14 @@ export class MapRenderer {
     }
 
     // Render unit status indicators (fortified, etc.)
-    this.renderUnitStatusIndicators(unit, unitX, unitY);
+    this.renderUnitStatusIndicators();
   }
 
   /**
    * Get unit animation offset for smooth movement
    * @reference freeciv-web/.../unit.js:get_unit_anim_offset()
    */
-  private getUnitAnimOffset(unit: Unit): { x: number; y: number } {
+  private getUnitAnimOffset(): { x: number; y: number } {
     // For now, return no offset (static units)
     // TODO: Implement smooth movement animation system
     return { x: 0, y: 0 };
@@ -818,12 +814,14 @@ export class MapRenderer {
    * Fill unit sprite array based on freeciv-web implementation
    * @reference freeciv-web/.../tilespec.js:fill_unit_sprite_array()
    */
-  private fillUnitSpriteArray(unit: Unit): Array<{ key: string; offset_x?: number; offset_y?: number }> {
+  private fillUnitSpriteArray(
+    unit: Unit
+  ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
     const sprites: Array<{ key: string; offset_x?: number; offset_y?: number }> = [];
 
     // Get nation flag sprite
     // @reference freeciv-web: get_unit_nation_flag_sprite(punit)
-    const flagSprite = this.getUnitNationFlagSprite(unit);
+    const flagSprite = this.getUnitNationFlagSprite();
     if (flagSprite) {
       sprites.push(flagSprite);
     }
@@ -834,12 +832,12 @@ export class MapRenderer {
     sprites.push({
       key: unitGraphic,
       offset_x: 0,
-      offset_y: 0
+      offset_y: 0,
     });
 
     // Get activity sprite if unit has activity
     // @reference freeciv-web: get_unit_activity_sprite(punit)
-    const activitySprite = this.getUnitActivitySprite(unit);
+    const activitySprite = this.getUnitActivitySprite();
     if (activitySprite) {
       sprites.push(activitySprite);
     }
@@ -851,7 +849,7 @@ export class MapRenderer {
    * Get unit nation flag sprite
    * @reference freeciv-web: get_unit_nation_flag_sprite()
    */
-  private getUnitNationFlagSprite(unit: Unit): { key: string; offset_x?: number; offset_y?: number } | null {
+  private getUnitNationFlagSprite(): { key: string; offset_x?: number; offset_y?: number } | null {
     // For now, return null (no flag rendering)
     // TODO: Implement nation flag sprites based on player nation
     return null;
@@ -865,11 +863,11 @@ export class MapRenderer {
     // Map unit types to sprite keys based on freeciv tileset naming
     const unitSpriteMap: Record<string, string> = {
       warrior: 'u.warriors:0',
-      settler: 'u.settlers:0', 
+      settler: 'u.settlers:0',
       scout: 'u.explorers:0',
       worker: 'u.workers:0',
       archer: 'u.archers:0',
-      spearman: 'u.phalanx:0'
+      spearman: 'u.phalanx:0',
     };
 
     return unitSpriteMap[unitType] || `u.${unitType}:0`;
@@ -879,7 +877,7 @@ export class MapRenderer {
    * Get unit activity sprite
    * @reference freeciv-web: get_unit_activity_sprite()
    */
-  private getUnitActivitySprite(unit: Unit): { key: string; offset_x?: number; offset_y?: number } | null {
+  private getUnitActivitySprite(): { key: string; offset_x?: number; offset_y?: number } | null {
     // TODO: Implement activity sprites (fortified, sentry, etc.)
     return null;
   }
@@ -891,13 +889,7 @@ export class MapRenderer {
     // Use the original placeholder rendering as fallback
     this.ctx.fillStyle = this.getPlayerColor(unit.playerId);
     this.ctx.beginPath();
-    this.ctx.arc(
-      x + this.tileWidth / 2,
-      y + this.tileHeight / 2,
-      8,
-      0,
-      2 * Math.PI
-    );
+    this.ctx.arc(x + this.tileWidth / 2, y + this.tileHeight / 2, 8, 0, 2 * Math.PI);
     this.ctx.fill();
 
     this.ctx.fillStyle = 'white';
@@ -918,34 +910,44 @@ export class MapRenderer {
     const barWidth = 24;
     const barHeight = 4;
     const healthPercent = unit.hp / 100;
-    
+
     // Background (red)
     this.ctx.fillStyle = '#ff0000';
-    this.ctx.fillRect(x + this.tileWidth / 2 - barWidth / 2, y + this.tileHeight - 8, barWidth, barHeight);
-    
+    this.ctx.fillRect(
+      x + this.tileWidth / 2 - barWidth / 2,
+      y + this.tileHeight - 8,
+      barWidth,
+      barHeight
+    );
+
     // Health (green)
     this.ctx.fillStyle = '#00ff00';
     this.ctx.fillRect(
-      x + this.tileWidth / 2 - barWidth / 2, 
-      y + this.tileHeight - 8, 
-      barWidth * healthPercent, 
+      x + this.tileWidth / 2 - barWidth / 2,
+      y + this.tileHeight - 8,
+      barWidth * healthPercent,
       barHeight
     );
 
     // Border
     this.ctx.strokeStyle = '#000000';
     this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(x + this.tileWidth / 2 - barWidth / 2, y + this.tileHeight - 8, barWidth, barHeight);
+    this.ctx.strokeRect(
+      x + this.tileWidth / 2 - barWidth / 2,
+      y + this.tileHeight - 8,
+      barWidth,
+      barHeight
+    );
   }
 
   /**
    * Render unit status indicators (fortified, activity, etc.)
    * @reference freeciv-web status indicator rendering
    */
-  private renderUnitStatusIndicators(unit: Unit, x: number, y: number): void {
+  private renderUnitStatusIndicators(): void {
     // TODO: Implement status indicators
     // - Fortified indicator
-    // - Sentry indicator  
+    // - Sentry indicator
     // - Goto indicator
     // - Activity indicators
   }
