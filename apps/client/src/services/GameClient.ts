@@ -2,7 +2,7 @@
 import { io, Socket } from 'socket.io-client';
 import { SERVER_URL } from '../config';
 import { useGameStore } from '../store/gameStore';
-import { PacketType } from '../types/packets';
+import { PacketType, PACKET_NAMES, type Packet } from '../types/packets';
 
 class GameClient {
   private socket: Socket | null = null;
@@ -48,110 +48,191 @@ class GameClient {
   private setupGameHandlers() {
     if (!this.socket) return;
 
-    this.socket.on(PacketType.GAME_STATE, data => {
-      console.log('Received game state:', data);
-      useGameStore.getState().updateGameState(data);
-      useGameStore.getState().setClientState('running');
+    // Main packet handler - processes all structured packets
+    this.socket.on('packet', (packet: Packet) => {
+      this.handlePacket(packet);
+    });
+
+    // Legacy event handlers removed - now handled via structured packets
+
+    // Keep compatibility events for game management
+    this.socket.on('game_created', data => {
+      console.log('Game created:', data);
+      if (data.maxPlayers === 1) {
+        useGameStore.getState().setClientState('running');
+      } else {
+        useGameStore.getState().setClientState('waiting_for_players');
+      }
     });
 
     this.socket.on('game_started', data => {
       console.log('Game started:', data);
       useGameStore.getState().setClientState('running');
     });
+  }
 
-    this.socket.on('map-data', data => {
-      useGameStore.getState().updateGameState({
-        mapData: data,
-        map: {
-          width: data.width || 0,
-          height: data.height || 0,
-          tiles: data.tiles || {},
-        },
-      });
-    });
+  private handlePacket(packet: Packet) {
+    const packetName = PACKET_NAMES[packet.type] || `UNKNOWN_${packet.type}`;
+    console.log(`Received packet: ${packetName} (${packet.type})`, packet.data);
 
-    this.socket.on('map-info', data => {
-      // Store in global map variable exactly like freeciv-web: map = packet;
-      (window as any).map = data;
+    switch (packet.type) {
+      case PacketType.GAME_INFO:
+        useGameStore.getState().updateGameState(packet.data);
+        useGameStore.getState().setClientState('running');
+        break;
 
-      const totalTiles = data.xsize * data.ysize;
-      (window as any).tiles = new Array(totalTiles);
-
-      for (let i = 0; i < totalTiles; i++) {
-        (window as any).tiles[i] = {
-          index: i,
-          x: i % data.xsize,
-          y: Math.floor(i / data.xsize),
-          known: 0,
-          seen: 0,
-        };
-      }
-    });
-
-    this.socket.on('tile-info', data => {
-      if ((window as any).tiles && data.tile !== undefined) {
-        const tiles = (window as any).tiles;
-        tiles[data.tile] = Object.assign(tiles[data.tile] || {}, data);
-
-        const tileKey = `${data.x},${data.y}`;
-        const currentMap = useGameStore.getState().map;
-
-        const updatedTiles = {
-          ...currentMap.tiles,
-          [tileKey]: {
-            x: data.x,
-            y: data.y,
-            terrain: data.terrain,
-            visible: data.known > 0,
-            known: data.seen > 0,
-            units: [],
-            city: undefined,
-          },
-        };
-
+      case PacketType.TURN_START:
+        console.log('Turn started:', packet.data);
         useGameStore.getState().updateGameState({
-          map: {
-            width: (window as any).map?.xsize || 80,
-            height: (window as any).map?.ysize || 50,
-            tiles: updatedTiles,
-            // Store freeciv-web references
-            xsize: (window as any).map?.xsize || 80,
-            ysize: (window as any).map?.ysize || 50,
-            wrap_id: (window as any).map?.wrap_id || 0,
+          turn: packet.data.turn,
+          // TODO: Add year to GameState interface
+        });
+        break;
+
+      case PacketType.UNIT_MOVE_REPLY:
+        console.log('Unit move reply:', packet.data);
+        if (packet.data.success) {
+          const { units } = useGameStore.getState();
+          if (units[packet.data.unitId]) {
+            useGameStore.getState().updateGameState({
+              units: {
+                ...units,
+                [packet.data.unitId]: {
+                  ...units[packet.data.unitId],
+                  x: packet.data.newX,
+                  y: packet.data.newY,
+                  movementLeft: packet.data.movementLeft,
+                },
+              },
+            });
+          }
+        } else {
+          console.error('Unit move failed:', packet.data.message);
+        }
+        break;
+
+      case PacketType.CITY_FOUND_REPLY:
+        console.log('City found reply:', packet.data);
+        if (packet.data.success) {
+          // City info will come via separate CITY_INFO packet
+          console.log('City founded successfully:', packet.data.cityId);
+        } else {
+          console.error('City founding failed:', packet.data.message);
+        }
+        break;
+
+      case PacketType.CITY_INFO: {
+        console.log('City info:', packet.data);
+        const { cities } = useGameStore.getState();
+        useGameStore.getState().updateGameState({
+          cities: {
+            ...cities,
+            [packet.data.id]: packet.data,
           },
         });
-
-        if (Object.keys(updatedTiles).length === 1) {
-          useGameStore.getState().setViewport({
-            x: 0,
-            y: 0,
-          });
-        }
+        break;
       }
-    });
 
-    this.socket.on('tile-info-batch', data => {
-      if (!(window as any).tiles || !data.tiles) return;
+      case PacketType.RESEARCH_SET_REPLY:
+        console.log('Research set reply:', packet.data);
+        if (packet.data.success && packet.data.availableTechs) {
+          // TODO: Add availableTechnologies to GameState interface
+          console.log('Available technologies updated:', packet.data.availableTechs);
+        } else if (!packet.data.success) {
+          console.error('Research setting failed:', packet.data.message);
+        }
+        break;
 
+      case PacketType.SERVER_JOIN_REPLY:
+        console.log('Server join reply:', packet.data);
+        if (packet.data.accepted) {
+          console.log('Successfully joined server as:', packet.data.playerId);
+        } else {
+          console.error('Server join failed:', packet.data.message);
+        }
+        break;
+
+      case PacketType.CONNECT_MSG:
+        console.log('Connection message:', packet.data);
+        if (packet.data.type === 'error') {
+          console.error('Server error:', packet.data.message);
+        }
+        break;
+
+      case PacketType.CHAT_MSG:
+        console.log('Chat message:', packet.data);
+        // Handle chat messages
+        break;
+
+      case PacketType.MAP_INFO:
+        this.handleMapInfo(packet.data);
+        break;
+
+      case PacketType.TILE_INFO:
+        if (Array.isArray(packet.data.tiles)) {
+          // Handle batch tile info
+          this.handleTileInfoBatch(packet.data);
+        } else {
+          // Handle single tile info
+          this.handleTileInfo(packet.data);
+        }
+        break;
+
+      case PacketType.PROCESSING_STARTED:
+        console.log('Server processing started');
+        break;
+
+      case PacketType.PROCESSING_FINISHED:
+        console.log('Server processing finished');
+        break;
+
+      default:
+        console.log(`Unhandled packet type: ${packetName} (${packet.type})`);
+    }
+  }
+
+  private handleMapInfo(data: any) {
+    console.log('Map info received via structured packet:', data);
+
+    // Store in global map variable exactly like freeciv-web: map = packet;
+    (window as any).map = data;
+
+    const totalTiles = data.xsize * data.ysize;
+    (window as any).tiles = new Array(totalTiles);
+
+    for (let i = 0; i < totalTiles; i++) {
+      (window as any).tiles[i] = {
+        index: i,
+        x: i % data.xsize,
+        y: Math.floor(i / data.xsize),
+        known: 0,
+        seen: 0,
+      };
+    }
+  }
+
+  private handleTileInfo(data: any) {
+    console.log('Tile info received via structured packet:', data);
+
+    if ((window as any).tiles && data.tile !== undefined) {
       const tiles = (window as any).tiles;
+      tiles[data.tile] = Object.assign(tiles[data.tile] || {}, data);
+
+      const tileKey = `${data.x},${data.y}`;
       const currentMap = useGameStore.getState().map;
-      const updatedTiles = { ...currentMap.tiles };
 
-      for (const tileData of data.tiles) {
-        tiles[tileData.tile] = Object.assign(tiles[tileData.tile] || {}, tileData);
-
-        const tileKey = `${tileData.x},${tileData.y}`;
-        updatedTiles[tileKey] = {
-          x: tileData.x,
-          y: tileData.y,
-          terrain: tileData.terrain,
-          visible: tileData.known > 0,
-          known: tileData.seen > 0,
+      const updatedTiles = {
+        ...currentMap.tiles,
+        [tileKey]: {
+          x: data.x,
+          y: data.y,
+          terrain: data.terrain,
+          visible: data.known > 0,
+          known: data.seen > 0,
           units: [],
           city: undefined,
-          resource: tileData.resource,
-        };
-      }
+        },
+      };
 
       useGameStore.getState().updateGameState({
         map: {
@@ -165,104 +246,115 @@ class GameClient {
         },
       });
 
-      if (data.endIndex === data.total) {
-        setTimeout(() => {
-          const resizeEvent = new Event('resize', { bubbles: true });
-          window.dispatchEvent(resizeEvent);
-
-          setTimeout(() => {
-            window.dispatchEvent(new Event('resize', { bubbles: true }));
-          }, 50);
-
-          setTimeout(() => {
-            window.dispatchEvent(new Event('resize', { bubbles: true }));
-          }, 150);
-        }, 200);
-      }
-    });
-
-    this.socket.on('game_created', data => {
-      console.log('Game created:', data);
-      if (data.maxPlayers === 1) {
-        useGameStore.getState().setClientState('running');
-      } else {
-        useGameStore.getState().setClientState('waiting_for_players');
-      }
-    });
-
-    this.socket.on(PacketType.TURN_STARTED, data => {
-      console.log('Turn started:', data);
-      useGameStore.getState().updateGameState({ turn: data.turn });
-    });
-
-    this.socket.on(PacketType.UNIT_MOVED, data => {
-      console.log('Unit moved:', data);
-      const { units } = useGameStore.getState();
-      if (units[data.unitId]) {
-        useGameStore.getState().updateGameState({
-          units: {
-            ...units,
-            [data.unitId]: { ...units[data.unitId], x: data.x, y: data.y },
-          },
+      if (Object.keys(updatedTiles).length === 1) {
+        useGameStore.getState().setViewport({
+          x: 0,
+          y: 0,
         });
       }
-    });
-
-    this.socket.on(PacketType.CITY_FOUNDED, data => {
-      console.log('City founded:', data);
-      const { cities } = useGameStore.getState();
-      useGameStore.getState().updateGameState({
-        cities: {
-          ...cities,
-          [data.city.id]: data.city,
-        },
-      });
-    });
-
-    this.socket.on(PacketType.RESEARCH_COMPLETED, data => {
-      console.log('Research completed:', data);
-      const { technologies } = useGameStore.getState();
-      useGameStore.getState().updateGameState({
-        technologies: {
-          ...technologies,
-          [data.techId]: { ...technologies[data.techId], discovered: true },
-        },
-      });
-    });
-
-    this.socket.on(PacketType.ERROR, error => {
-      console.error('Game error:', error);
-    });
+    }
   }
 
-  moveUnit(unitId: string, fromX: number, fromY: number, toX: number, toY: number) {
+  private handleTileInfoBatch(data: any) {
+    console.log('Tile info batch received via structured packet:', data);
+
+    if (!(window as any).tiles || !data.tiles) return;
+
+    const tiles = (window as any).tiles;
+    const currentMap = useGameStore.getState().map;
+    const updatedTiles = { ...currentMap.tiles };
+
+    for (const tileData of data.tiles) {
+      tiles[tileData.tile] = Object.assign(tiles[tileData.tile] || {}, tileData);
+
+      const tileKey = `${tileData.x},${tileData.y}`;
+      updatedTiles[tileKey] = {
+        x: tileData.x,
+        y: tileData.y,
+        terrain: tileData.terrain,
+        visible: tileData.known > 0,
+        known: tileData.seen > 0,
+        units: [],
+        city: undefined,
+        resource: tileData.resource,
+      };
+    }
+
+    useGameStore.getState().updateGameState({
+      map: {
+        width: (window as any).map?.xsize || 80,
+        height: (window as any).map?.ysize || 50,
+        tiles: updatedTiles,
+        // Store freeciv-web references
+        xsize: (window as any).map?.xsize || 80,
+        ysize: (window as any).map?.ysize || 50,
+        wrap_id: (window as any).map?.wrap_id || 0,
+      },
+    });
+
+    if (data.endIndex === data.total) {
+      setTimeout(() => {
+        const resizeEvent = new Event('resize', { bubbles: true });
+        window.dispatchEvent(resizeEvent);
+
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize', { bubbles: true }));
+        }, 50);
+
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize', { bubbles: true }));
+        }, 150);
+      }, 200);
+    }
+  }
+
+  moveUnit(unitId: string, _fromX: number, _fromY: number, toX: number, toY: number) {
     if (!this.socket) return;
 
-    this.socket.emit(PacketType.MOVE_UNIT, {
-      unitId,
-      fromX,
-      fromY,
-      toX,
-      toY,
-    });
+    const packet: Packet = {
+      type: PacketType.UNIT_MOVE,
+      data: {
+        unitId,
+        x: toX, // Server expects x, y as destination
+        y: toY,
+      },
+      timestamp: Date.now(),
+    };
+
+    console.log(`Sending packet: ${PACKET_NAMES[packet.type]} (${packet.type})`, packet.data);
+    this.socket.emit('packet', packet);
   }
 
   foundCity(name: string, x: number, y: number) {
     if (!this.socket) return;
 
-    this.socket.emit(PacketType.FOUND_CITY, {
-      name,
-      x,
-      y,
-    });
+    const packet: Packet = {
+      type: PacketType.CITY_FOUND,
+      data: {
+        name,
+        x,
+        y,
+      },
+      timestamp: Date.now(),
+    };
+
+    console.log(`Sending packet: ${PACKET_NAMES[packet.type]} (${packet.type})`, packet.data);
+    this.socket.emit('packet', packet);
   }
 
   setResearch(techId: string) {
     if (!this.socket) return;
 
-    this.socket.emit(PacketType.RESEARCH_SET, {
-      techId,
-    });
+    const packet: Packet = {
+      type: PacketType.RESEARCH_SET,
+      data: {
+        techId,
+      },
+      timestamp: Date.now(),
+    };
+
+    console.log(`Sending packet: ${PACKET_NAMES[packet.type]} (${packet.type})`, packet.data);
+    this.socket.emit('packet', packet);
   }
 
   async getMapData(): Promise<any> {
@@ -314,25 +406,28 @@ class GameClient {
         return;
       }
 
-      const packet = {
-        type: 4,
+      const packet: Packet = {
+        type: PacketType.SERVER_JOIN_REQ,
         data: {
           username: playerName,
           version: '1.0.0',
           capability: 'civjs-1.0',
         },
+        timestamp: Date.now(),
       };
 
+      console.log(`Sending packet: ${PACKET_NAMES[packet.type]} (${packet.type})`, packet.data);
       this.socket.emit('packet', packet);
 
-      const handleReply = (packet: any) => {
-        if (packet.type === 5) {
+      const handleReply = (replyPacket: Packet) => {
+        if (replyPacket.type === PacketType.SERVER_JOIN_REPLY) {
           this.socket?.off('packet', handleReply);
-          if (packet.data.accepted) {
+          if (replyPacket.data.accepted) {
+            console.log('Authentication successful:', replyPacket.data);
             resolve();
           } else {
-            console.error('Authentication failed:', packet.data);
-            reject(new Error(packet.data.message || 'Authentication failed'));
+            console.error('Authentication failed:', replyPacket.data);
+            reject(new Error(replyPacket.data.message || 'Authentication failed'));
           }
         }
       };
@@ -378,8 +473,8 @@ class GameClient {
 
       const dimensions = mapSizes[gameData.mapSize] || mapSizes.standard;
 
-      this.socket.emit('packet', {
-        type: 200, // GAME_CREATE
+      const createPacket: Packet = {
+        type: PacketType.GAME_CREATE,
         data: {
           name: gameData.gameName,
           gameType: gameData.gameType || 'multiplayer',
@@ -399,16 +494,23 @@ class GameClient {
             resources: 'normal',
           },
         },
-      });
+        timestamp: Date.now(),
+      };
 
-      const handleReply = (packet: any) => {
-        if (packet.type === 201) {
+      console.log(
+        `Sending packet: ${PACKET_NAMES[createPacket.type]} (${createPacket.type})`,
+        createPacket.data
+      );
+      this.socket.emit('packet', createPacket);
+
+      const handleReply = (replyPacket: Packet) => {
+        if (replyPacket.type === PacketType.GAME_CREATE_REPLY) {
           this.socket?.off('packet', handleReply);
-          if (packet.data.success) {
-            this.currentGameId = packet.data.gameId;
-            resolve(packet.data.gameId);
+          if (replyPacket.data.success) {
+            this.currentGameId = replyPacket.data.gameId;
+            resolve(replyPacket.data.gameId);
           } else {
-            reject(new Error(packet.data.message || 'Failed to create game'));
+            reject(new Error(replyPacket.data.message || 'Failed to create game'));
           }
         }
       };

@@ -2,7 +2,7 @@
 import { Socket } from 'socket.io';
 import { z } from 'zod';
 import logger from '../utils/logger';
-import { Packet, PacketType } from '../types/packet';
+import { Packet, PacketType, PACKET_NAMES } from '../types/packet';
 
 export type PacketHandlerFunction = (
   socket: Socket,
@@ -27,7 +27,7 @@ export class PacketHandler {
     if (validator) {
       this.validators.set(type, validator);
     }
-    logger.debug(`Registered handler for packet type: ${PacketType[type]}`);
+    logger.debug(`Registered handler for packet type: ${PACKET_NAMES[type] || type}`);
   }
 
   /**
@@ -53,7 +53,7 @@ export class PacketHandler {
       // Get handler
       const handler = this.handlers.get(packet.type);
       if (!handler) {
-        logger.warn(`No handler for packet type: ${PacketType[packet.type] || packet.type}`);
+        logger.warn(`No handler for packet type: ${PACKET_NAMES[packet.type] || packet.type}`);
         return;
       }
 
@@ -64,8 +64,9 @@ export class PacketHandler {
           packet.data = validator.parse(packet.data);
         } catch (error) {
           if (error instanceof z.ZodError) {
-            logger.error(`Validation failed for packet ${PacketType[packet.type]}:`, error.issues);
-            this.sendError(socket, `Invalid data for ${PacketType[packet.type]}`);
+            const packetName = PACKET_NAMES[packet.type] || packet.type;
+            logger.error(`Validation failed for packet ${packetName}:`, error.issues);
+            this.sendError(socket, `Invalid data for ${packetName}`);
             return;
           }
           throw error;
@@ -75,7 +76,9 @@ export class PacketHandler {
       // Execute handler
       await handler(socket, packet.data, packet);
 
-      logger.debug(`Processed packet ${PacketType[packet.type]} from ${socket.id}`);
+      logger.debug(
+        `Processed packet ${PACKET_NAMES[packet.type] || packet.type} from ${socket.id}`
+      );
     } catch (error) {
       logger.error(`Error processing packet from ${socket.id}:`, error);
       this.sendError(socket, 'Internal server error');
@@ -93,7 +96,7 @@ export class PacketHandler {
     };
 
     socket.emit('packet', packet);
-    logger.debug(`Sent packet ${PacketType[type]} to ${socket.id}`);
+    logger.debug(`Sent packet ${PACKET_NAMES[type] || type} to ${socket.id}`);
   }
 
   /**
@@ -110,7 +113,7 @@ export class PacketHandler {
       socket.emit('packet', packet);
     });
 
-    logger.debug(`Broadcast packet ${PacketType[type]} to ${sockets.length} clients`);
+    logger.debug(`Broadcast packet ${PACKET_NAMES[type] || type} to ${sockets.length} clients`);
   }
 
   /**

@@ -13,6 +13,7 @@ import { CityManager } from './CityManager';
 import { ResearchManager } from './ResearchManager';
 import { MapStartpos } from './map/MapTypes';
 import { Server as SocketServer } from 'socket.io';
+import { PacketType, PACKET_NAMES } from '../types/packet';
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
@@ -486,7 +487,7 @@ export class GameManager {
         topology_id: 0,
       };
 
-      this.broadcastToGame(gameId, 'map-info', mapInfoPacket);
+      this.broadcastPacketToGame(gameId, PacketType.MAP_INFO, mapInfoPacket);
 
       // OPTIMIZED: Send tiles in batches to improve performance
 
@@ -523,7 +524,7 @@ export class GameManager {
       const BATCH_SIZE = 100;
       for (let i = 0; i < allTiles.length; i += BATCH_SIZE) {
         const batch = allTiles.slice(i, i + BATCH_SIZE);
-        this.broadcastToGame(gameId, 'tile-info-batch', {
+        this.broadcastPacketToGame(gameId, PacketType.TILE_INFO, {
           tiles: batch,
           startIndex: i,
           endIndex: Math.min(i + BATCH_SIZE, allTiles.length),
@@ -1545,6 +1546,29 @@ export class GameManager {
 
     // Broadcast to all sockets in the specific game room
     this.io.to(`game:${gameId}`).emit(event, data);
+  }
+
+  private broadcastPacketToGame(gameId: string, packetType: PacketType, data: any): void {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) return;
+
+    // Get all sockets in the game room and send via PacketHandler
+    const sockets = this.io.sockets.sockets;
+    for (const socket of sockets.values()) {
+      // Check if socket is in the game room
+      if (socket.rooms.has(`game:${gameId}`)) {
+        const packetHandler = socket.data.packetHandler;
+        if (packetHandler) {
+          packetHandler.send(socket, packetType, data);
+        }
+      }
+    }
+
+    logger.debug('Broadcasted structured packet to game room', {
+      gameId,
+      packetType: PACKET_NAMES[packetType] || packetType,
+      data,
+    });
   }
 
   public async cleanupInactiveGames(): Promise<void> {
