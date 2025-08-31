@@ -3,11 +3,16 @@ import { useGameStore } from '../../store/gameStore';
 import { gameClient } from '../../services/GameClient';
 
 export const TurnDoneButton: React.FC = () => {
-  const { getCurrentPlayer, phase, clientState } = useGameStore();
+  const { getCurrentPlayer, phase, clientState, startTurnProcessing } = useGameStore();
   const currentPlayer = getCurrentPlayer();
 
   const handleTurnDone = () => {
     console.log('Turn done clicked');
+
+    // Start the turn processing animation
+    startTurnProcessing();
+
+    // Send the actual end turn packet
     gameClient.endTurn();
   };
 

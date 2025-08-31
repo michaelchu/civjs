@@ -121,6 +121,8 @@ class GameClient {
           phase: 'movement', // Reset phase to movement for new turn
           // TODO: Add year to GameState interface
         });
+        // Reset turn processing state for new turn
+        useGameStore.getState().resetTurnProcessing();
         break;
 
       case PacketType.UNIT_MOVE_REPLY:
