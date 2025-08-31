@@ -103,7 +103,6 @@ class GameClient {
 
   private handlePacket(packet: Packet) {
     const packetName = PACKET_NAMES[packet.type] || `UNKNOWN_${packet.type}`;
-    console.log(`Received packet: ${packetName} (${packet.type})`, packet.data);
 
     switch (packet.type) {
       case PacketType.GAME_INFO:
@@ -251,7 +250,6 @@ class GameClient {
   }
 
   private handleMapInfo(data: any) {
-    console.log('Map info received via structured packet:', data);
 
     // Store in global map variable exactly like freeciv-web: map = packet;
     (window as any).map = data;
@@ -271,7 +269,6 @@ class GameClient {
   }
 
   private handleTileInfo(data: any) {
-    console.log('Tile info received via structured packet:', data);
 
     if ((window as any).tiles && data.tile !== undefined) {
       const tiles = (window as any).tiles;
@@ -315,7 +312,6 @@ class GameClient {
   }
 
   private handleTileInfoBatch(data: any) {
-    console.log('Tile info batch received via structured packet:', data);
 
     if (!(window as any).tiles || !data.tiles) return;
 
@@ -380,7 +376,6 @@ class GameClient {
       timestamp: Date.now(),
     };
 
-    console.log(`Sending packet: ${PACKET_NAMES[packet.type]} (${packet.type})`, packet.data);
     this.socket.emit('packet', packet);
   }
 
@@ -397,7 +392,6 @@ class GameClient {
       timestamp: Date.now(),
     };
 
-    console.log(`Sending packet: ${PACKET_NAMES[packet.type]} (${packet.type})`, packet.data);
     this.socket.emit('packet', packet);
   }
 
@@ -412,7 +406,6 @@ class GameClient {
       timestamp: Date.now(),
     };
 
-    console.log(`Sending packet: ${PACKET_NAMES[packet.type]} (${packet.type})`, packet.data);
     this.socket.emit('packet', packet);
   }
 
@@ -475,7 +468,6 @@ class GameClient {
         timestamp: Date.now(),
       };
 
-      console.log(`Sending packet: ${PACKET_NAMES[packet.type]} (${packet.type})`, packet.data);
       this.socket.emit('packet', packet);
 
       const handleReply = (replyPacket: Packet) => {
@@ -675,7 +667,6 @@ class GameClient {
       timestamp: Date.now(),
     };
 
-    console.log(`Sending packet: ${PACKET_NAMES[packet.type]} (${packet.type})`, packet.data);
     this.socket.emit('packet', packet);
   }
 

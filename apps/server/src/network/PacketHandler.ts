@@ -96,7 +96,6 @@ export class PacketHandler {
     };
 
     socket.emit('packet', packet);
-    logger.debug(`Sent packet ${PACKET_NAMES[type] || type} to ${socket.id}`);
   }
 
   /**

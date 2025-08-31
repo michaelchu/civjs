@@ -38,6 +38,9 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   const packetHandler = new PacketHandler();
   const gameManager = GameManager.getInstance(io);
 
+  // Store packet handler on socket for use in map data functions
+  socket.data.packetHandler = packetHandler;
+
   activeConnections.set(socket.id, {});
 
   registerHandlers(packetHandler, io, socket);
@@ -231,15 +234,33 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
           userId = existingUser.id;
           await db.update(users).set({ lastSeen: new Date() }).where(eq(users.id, userId));
         } else {
-          const [newUser] = await db
-            .insert(users)
-            .values({
-              username,
-              isGuest: true,
-            })
-            .returning();
-          userId = newUser.id;
-          isNewUser = true;
+          try {
+            const [newUser] = await db
+              .insert(users)
+              .values({
+                username,
+                isGuest: true,
+              })
+              .returning();
+            userId = newUser.id;
+            isNewUser = true;
+          } catch (insertError: any) {
+            // Handle race condition: username was created by another connection
+            if (insertError?.code === '23505') { // PostgreSQL unique constraint violation
+              logger.debug(`Username ${username} already exists due to race condition, fetching existing user`);
+              const existingUserRetry = await db.query.users.findFirst({
+                where: eq(users.username, username),
+              });
+              if (existingUserRetry) {
+                userId = existingUserRetry.id;
+                await db.update(users).set({ lastSeen: new Date() }).where(eq(users.id, userId));
+              } else {
+                throw new Error(`Failed to find user ${username} after constraint violation`);
+              }
+            } else {
+              throw insertError; // Re-throw if it's a different error
+            }
+          }
         }
 
         const connection = activeConnections.get(socket.id);
@@ -1287,11 +1308,28 @@ async function sendObserverMapData(
 async function sendPlayerMapData(
   gameManager: GameManager,
   gameId: string,
-  playerId: string,
+  _playerId: string,
   socket: Socket
 ): Promise<void> {
-  const playerMapView = gameManager.getPlayerMapView(gameId, playerId);
-  if (!playerMapView) return;
+  // For basic map display, get the raw map data instead of filtered player view
+  const gameInstance = gameManager.getGameInstance(gameId);
+  if (!gameInstance) {
+    logger.warn(`No game instance found for ${gameId}`);
+    return;
+  }
+  
+  const mapData = gameInstance.mapManager.getMapData();
+  if (!mapData) {
+    logger.warn(`No map data found for game ${gameId}`);
+    return;
+  }
+  
+  // Use raw map data for basic display (no visibility filtering for now)
+  const playerMapView = {
+    width: mapData.width,
+    height: mapData.height,
+    tiles: mapData.tiles
+  };
 
   // Send MAP_INFO packet via structured packet system
   const mapInfoPacketData = {
@@ -1307,12 +1345,12 @@ async function sendPlayerMapData(
     packetHandler.send(socket, PacketType.MAP_INFO, mapInfoPacketData);
   }
 
-  // Send visible tiles to player
+  // Send all tiles to player (basic map display)
   let tileCount = 0;
   for (let x = 0; x < playerMapView.width; x++) {
     for (let y = 0; y < playerMapView.height; y++) {
       const tile = playerMapView.tiles[x][y];
-      if (tile && (tile.isVisible || tile.isExplored)) {
+      if (tile) {
         const tileIndex = y * playerMapView.width + x;
 
         const tileInfoPacketData = {
@@ -1320,8 +1358,8 @@ async function sendPlayerMapData(
           x: x,
           y: y,
           terrain: tile.terrain,
-          known: tile.isExplored ? 1 : 0,
-          seen: tile.isVisible ? 1 : 0,
+          known: 1, // Mark all tiles as explored for basic display
+          seen: 1,  // Mark all tiles as visible for basic display
           resource: tile.resource,
         };
 
