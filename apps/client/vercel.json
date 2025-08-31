@@ -6,7 +6,6 @@
   "outputDirectory": "dist",
   "installCommand": "npm ci",
   "framework": "vite",
-  "ignoreCommand": "npx turbo-ignore",
   "env": {
     "VITE_SERVER_URL": "https://civjs-server.vercel.app"
   },

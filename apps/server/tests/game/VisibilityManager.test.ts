@@ -213,17 +213,17 @@ describe('VisibilityManager', () => {
       expect(mapView?.height).toBe(mapHeight);
       expect(mapView?.tiles).toBeDefined();
 
-      // Check that visible tiles have full info (tiles are stored as coordinate keys like "10,10")
-      const visibleTile = mapView?.tiles['10,10'];
+      // Check that visible tiles have full info (tiles are stored as 2D array [x][y])
+      const visibleTile = mapView?.tiles[10][10];
       expect(visibleTile.isVisible).toBe(true);
       expect(visibleTile.isExplored).toBe(true);
       expect(visibleTile.terrain).toBeDefined();
 
       // Check that unknown tiles are hidden
-      const unknownTile = mapView?.tiles['0,0'];
-      expect(unknownTile.isVisible).toBe(true); // All tiles are visible in current implementation
-      expect(unknownTile.isExplored).toBe(true);
-      expect(unknownTile.terrain).toBeDefined(); // Should be defined, not 'unknown'
+      const unknownTile = mapView?.tiles[0][0];
+      expect(unknownTile.isVisible).toBe(false); // Tile (0,0) should not be visible from unit at (10,10)
+      expect(unknownTile.isExplored).toBe(false);
+      expect(unknownTile.terrain).toBe('unknown'); // Should be 'unknown' for unexplored tiles
     });
 
     it('should handle fog of war correctly', async () => {
@@ -236,14 +236,13 @@ describe('VisibilityManager', () => {
       const mapView = visibilityManager.getPlayerMapView('player-123');
 
       // Original position should be explored but not visible (fog of war)
-      // Note: Current implementation shows all tiles as visible, so adjust expectations
-      const fogTile = mapView?.tiles['10,10'];
-      expect(fogTile.isVisible).toBe(true); // All tiles are visible in current implementation
-      expect(fogTile.isExplored).toBe(true);
-      expect(fogTile.terrain).toBeDefined();
+      const fogTile = mapView?.tiles[10][10];
+      expect(fogTile.isVisible).toBe(false); // Should not be visible after unit moved away
+      expect(fogTile.isExplored).toBe(true); // Should still be explored
+      expect(fogTile.terrain).toBeDefined(); // Terrain should be known for explored tiles
 
       // New position should be visible
-      const currentTile = mapView?.tiles['12,12'];
+      const currentTile = mapView?.tiles[12][12];
       expect(currentTile.isVisible).toBe(true);
       expect(currentTile.isExplored).toBe(true);
     });

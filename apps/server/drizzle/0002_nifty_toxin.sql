@@ -1,1 +1,0 @@
-ALTER TABLE "games" ADD COLUMN "game_type" varchar(20) DEFAULT 'multiplayer' NOT NULL;

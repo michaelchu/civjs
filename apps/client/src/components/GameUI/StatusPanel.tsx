@@ -2,7 +2,7 @@ import React from 'react';
 import { useGameStore } from '../../store/gameStore';
 
 export const StatusPanel: React.FC = () => {
-  const { turn, getCurrentPlayer, phase } = useGameStore();
+  const { turn, getCurrentPlayer } = useGameStore();
   const currentPlayer = getCurrentPlayer();
 
   if (!currentPlayer) {
@@ -19,12 +19,6 @@ export const StatusPanel: React.FC = () => {
       <div className="flex items-center space-x-1">
         <span className="text-gray-400">Turn:</span>
         <span className="font-bold text-white">{turn}</span>
-      </div>
-
-      {/* Phase indicator */}
-      <div className="flex items-center space-x-1">
-        <span className="text-gray-400">Phase:</span>
-        <span className="font-medium text-blue-400 capitalize">{phase}</span>
       </div>
 
       {/* Player info */}

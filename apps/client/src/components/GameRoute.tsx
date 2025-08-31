@@ -4,7 +4,7 @@ import { useGameStore } from '../store/gameStore';
 import { gameClient } from '../services/GameClient';
 import { ConnectionDialog } from './ConnectionDialog';
 import { GameLayout } from './GameUI/GameLayout';
-import { getStoredPlayerName, isCurrentGameSinglePlayer } from '../utils/gameSession';
+import { getStoredPlayerName, isCurrentGameSinglePlayer, storePlayerNameForGame } from '../utils/gameSession';
 
 export const GameRoute: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
@@ -27,17 +27,16 @@ export const GameRoute: React.FC = () => {
       // Try to get stored player name first, fallback to default
       const storedPlayerName = getStoredPlayerName(gameId);
       const isSinglePlayer = isCurrentGameSinglePlayer(gameId);
-      const playerName = storedPlayerName || `Player_${Date.now().toString(36)}`;
+      // Use consistent fallback name based on gameId so refreshes use the same username
+      const fallbackName = storedPlayerName || `Player_${gameId?.slice(-8) || 'default'}`;
+      const playerName = fallbackName;
 
-      console.log('Loading game:', {
-        gameId,
-        playerName,
-        isSinglePlayer,
-        hasStoredName: !!storedPlayerName,
-      });
 
       try {
         await gameClient.joinSpecificGame(gameId, playerName);
+        
+        // Store the player name after successful join so it persists across refreshes
+        storePlayerNameForGame(gameId!, playerName, isSinglePlayer ? 'single' : 'multiplayer');
       } catch (joinError) {
         console.log('Could not join as player:', joinError);
 
