@@ -1,5 +1,6 @@
+/* eslint-disable react-refresh/only-export-components */
 import React from 'react';
-import { ColumnDef } from '@tanstack/react-table';
+import { type ColumnDef } from '@tanstack/react-table';
 
 interface GameInfo {
   id: string;
