@@ -22,7 +22,7 @@ export const GameLobby: React.FC = () => {
   const loadGames = async () => {
     try {
       console.log('Loading games...');
-      
+
       // Connect first if not connected
       if (!gameClient.isConnected()) {
         console.log('Not connected, attempting to connect...');
@@ -31,11 +31,11 @@ export const GameLobby: React.FC = () => {
       } else {
         console.log('Already connected');
       }
-      
+
       console.log('Requesting game list...');
       const gameList = await gameClient.getGameList();
       console.log('Game list received:', gameList);
-      
+
       setGames(gameList);
       setError('');
     } catch (err) {
