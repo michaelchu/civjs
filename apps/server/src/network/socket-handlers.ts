@@ -117,10 +117,10 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       const connection = activeConnections.get(socket.id);
       const userId = connection?.userId || null;
       logger.info(`Getting game list for userId: ${userId}`);
-      
+
       const games = await gameManager.getGameListForLobby(userId);
       logger.info(`Retrieved ${games.length} games from database`);
-      
+
       callback({ success: true, games });
     } catch (error) {
       logger.error('Error getting game list:', error);
