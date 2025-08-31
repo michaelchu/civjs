@@ -1620,6 +1620,56 @@ export class GameManager {
     });
   }
 
+  public async deleteGame(gameId: string, userId: string): Promise<void> {
+    // Check if user has permission to delete the game (is the host)
+    const game = await db.query.games.findFirst({
+      where: eq(games.id, gameId),
+      with: {
+        players: true,
+      },
+    });
+
+    if (!game) {
+      throw new Error('Game not found');
+    }
+
+    if (game.hostId !== userId) {
+      throw new Error('Only the game host can delete the game');
+    }
+
+    logger.info('Deleting game', { gameId, hostId: userId });
+
+    // Remove from active games map if it exists
+    const gameInstance = this.games.get(gameId);
+    if (gameInstance) {
+      // Remove from player mappings
+      for (const player of gameInstance.players.values()) {
+        this.playerToGame.delete(player.id);
+      }
+
+      // Cleanup managers
+      gameInstance.visibilityManager.cleanup();
+      gameInstance.cityManager.cleanup();
+
+      this.games.delete(gameId);
+    }
+
+    // Update database to mark game as ended
+    await db
+      .update(games)
+      .set({
+        status: 'ended',
+        endedAt: new Date(),
+      })
+      .where(eq(games.id, gameId));
+
+    // Clear Redis cache
+    await gameState.clearGameState(gameId);
+
+    // Notify all players in the game room
+    this.io.to(`game:${gameId}`).emit('game_deleted', { gameId });
+  }
+
   public async cleanupInactiveGames(): Promise<void> {
     const now = new Date();
     const inactiveThreshold = 30 * 60 * 1000; // 30 minutes

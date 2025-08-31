@@ -123,6 +123,26 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
     }
   });
 
+  socket.on('delete_game', async (data, callback) => {
+    const connection = activeConnections.get(socket.id);
+    if (!connection?.userId) {
+      callback({ success: false, error: 'Not authenticated' });
+      return;
+    }
+
+    try {
+      await gameManager.deleteGame(data.gameId, connection.userId);
+      callback({ success: true });
+      logger.info(`Game deleted by ${connection.username}`, { gameId: data.gameId });
+    } catch (error) {
+      logger.error('Error deleting game:', error);
+      callback({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to delete game',
+      });
+    }
+  });
+
   socket.on('get_map_data', async (_data, callback) => {
     const connection = activeConnections.get(socket.id);
     if (!connection?.gameId) {
