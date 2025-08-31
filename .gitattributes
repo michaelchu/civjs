@@ -1,21 +1,23 @@
 # Set default behavior to automatically normalize line endings
-* text=auto eol=crlf
+* text=auto eol=lf
 
 # Explicitly declare text files you want to always be normalized and converted
-# to native line endings on checkout.
-*.ts text eol=crlf
-*.js text eol=crlf
-*.json text eol=crlf
-*.md text eol=crlf
-*.yml text eol=crlf
-*.yaml text eol=crlf
-*.html text eol=crlf
-*.css text eol=crlf
-*.scss text eol=crlf
-*.xml text eol=crlf
-*.txt text eol=crlf
+# to LF line endings for consistency with CI environment
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.xml text eol=lf
+*.txt text eol=lf
 
-# Declare files that will always have CRLF line endings on checkout
+# Keep Windows-specific files with CRLF
 *.bat text eol=crlf
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
