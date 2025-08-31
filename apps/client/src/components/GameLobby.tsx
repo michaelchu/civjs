@@ -99,9 +99,9 @@ export const GameLobby: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200 p-4">
-      <div className="max-w-6xl mx-auto">
-        <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-6 md:rounded-lg md:shadow-2xl md:border md:border-amber-300 md:shadow-amber-300/20">
+    <div className="h-screen bg-gradient-to-b from-amber-100 to-yellow-200 p-4 flex flex-col overflow-hidden">
+      <div className="max-w-6xl mx-auto flex-1 flex flex-col w-full min-h-0">
+        <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-6 md:rounded-lg md:shadow-2xl md:border md:border-amber-300 md:shadow-amber-300/20 flex-1 flex flex-col w-full min-h-0 overflow-hidden">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
               <button
@@ -174,7 +174,9 @@ export const GameLobby: React.FC = () => {
               <p className="text-amber-500 text-sm">Start a new game to begin playing!</p>
             </div>
           ) : (
-            <DataTable columns={columns} data={games} />
+            <div className="flex-1 w-full min-h-0">
+              <DataTable columns={columns} data={games} className="h-full w-full" />
+            </div>
           )}
         </div>
       </div>
