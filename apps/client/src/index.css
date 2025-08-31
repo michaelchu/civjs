@@ -49,12 +49,12 @@ canvas {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #418845;
+  background: #e4e8dd;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #52a554;
+  background: #d4d8cd;
 }
 
 @theme inline {
