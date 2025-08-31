@@ -26,10 +26,10 @@ export const DeleteGameDialog: React.FC<DeleteGameDialogProps> = ({
 }) => {
   return (
     <Dialog open={isOpen} onOpenChange={() => !isDeleting && onCancel()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-white text-gray-900 border border-gray-300">
         <DialogHeader>
-          <DialogTitle>Delete Game</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-gray-900 font-semibold">Delete Game</DialogTitle>
+          <DialogDescription className="text-gray-700">
             Are you sure you want to delete the game "{gameName}"? This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
