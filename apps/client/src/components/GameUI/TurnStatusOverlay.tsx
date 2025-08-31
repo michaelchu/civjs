@@ -9,7 +9,7 @@ export const TurnStatusOverlay: React.FC = () => {
   }
 
   return (
-    <div className="fixed top-4 left-4 z-50 bg-gray-900 bg-opacity-90 text-white rounded-lg p-4 min-w-64 shadow-lg border border-gray-600">
+    <div className="fixed top-20 left-4 z-50 bg-gray-900 bg-opacity-90 text-white rounded-lg p-4 min-w-64 shadow-lg border border-gray-600">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
         <h3 className="text-sm font-semibold">Processing Turn</h3>

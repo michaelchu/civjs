@@ -339,7 +339,7 @@ export class GameManager {
     );
     const turnManager = new TurnManager(gameId, this.io);
     const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
-    
+
     // Initialize turn system with player IDs
     const playerIds = Array.from(players.keys());
     await turnManager.initializeTurn(playerIds);
@@ -675,7 +675,7 @@ export class GameManager {
       // Initialize managers
       const turnManager = new TurnManager(gameId, this.io);
       const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
-      
+
       // Initialize turn system with existing player IDs
       const playerIds = Array.from(players.keys());
       await turnManager.initializeTurn(playerIds);

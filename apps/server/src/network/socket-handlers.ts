@@ -465,7 +465,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
         // Get the updated game state from database after turn processing
         const updatedGame = await gameManager.getGame(connection.gameId);
         const gameInstance = gameManager.getGameInstance(connection.gameId);
-        
+
         if (updatedGame && gameInstance) {
           const turnData = {
             turn: updatedGame.currentTurn,

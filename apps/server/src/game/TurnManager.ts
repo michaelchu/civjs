@@ -399,7 +399,6 @@ export class TurnManager {
         completed: false,
       },
     });
-
   }
 
   private broadcastProcessingComplete(): void {
@@ -413,7 +412,6 @@ export class TurnManager {
         completed: true,
       },
     });
-
   }
 
   private delay(ms: number): Promise<void> {
