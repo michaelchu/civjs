@@ -220,6 +220,107 @@ export interface TurnStartPacket {
   };
 }
 
+// Map & Tile packets - Enhanced for structured packet system
+export interface MapInfoPacket {
+  type: PacketType.MAP_INFO;
+  data: {
+    xsize: number;
+    ysize: number;
+    topology?: number;
+    wrap_id?: number;
+    startpos?: Array<{
+      x: number;
+      y: number;
+    }>;
+  };
+}
+
+export interface TileInfoPacket {
+  type: PacketType.TILE_INFO;
+  data: {
+    tile: number; // tile index
+    x: number;
+    y: number;
+    terrain: string;
+    resource?: string;
+    elevation?: number;
+    riverMask?: number;
+    known: number; // 0 = unknown, 1 = known
+    seen: number; // 0 = unseen, 1 = visible
+    player?: string | null;
+    worked?: string | null;
+    extras?: number;
+  };
+}
+
+export interface TileInfoBatchPacket {
+  type: PacketType.TILE_INFO; // Using TILE_INFO for batches too
+  data: {
+    tiles: Array<{
+      tile: number;
+      x: number;
+      y: number;
+      terrain: string;
+      resource?: string;
+      elevation?: number;
+      riverMask?: number;
+      known: number;
+      seen: number;
+      player?: string | null;
+      worked?: string | null;
+      extras?: number;
+    }>;
+    startIndex: number;
+    endIndex: number;
+    total: number;
+  };
+}
+
+// Processing packets
+export interface ProcessingStartedPacket {
+  type: PacketType.PROCESSING_STARTED;
+  data: Record<string, never>; // Empty object
+}
+
+export interface ProcessingFinishedPacket {
+  type: PacketType.PROCESSING_FINISHED;
+  data: Record<string, never>; // Empty object
+}
+
+// Authentication packets
+export interface AuthenticationReqPacket {
+  type: PacketType.AUTHENTICATION_REQ;
+  data: {
+    username: string;
+    password: string;
+  };
+}
+
+export interface AuthenticationReplyPacket {
+  type: PacketType.AUTHENTICATION_REPLY;
+  data: {
+    accepted: boolean;
+    message?: string;
+  };
+}
+
+// Player management packets
+export interface PlayerInfoPacket {
+  type: PacketType.PLAYER_INFO;
+  data: {
+    id: string;
+    name: string;
+    nation: string;
+    team?: string;
+    score: number;
+    gold: number;
+    science: number;
+    culture: number;
+    government: string;
+    alive: boolean;
+  };
+}
+
 export interface ServerJoinReplyPacket {
   type: PacketType.SERVER_JOIN_REPLY;
   data: {
@@ -239,4 +340,12 @@ export type SocketPacket =
   | ResearchSetPacket
   | ResearchSetReplyPacket
   | TurnStartPacket
-  | ServerJoinReplyPacket;
+  | ServerJoinReplyPacket
+  | MapInfoPacket
+  | TileInfoPacket
+  | TileInfoBatchPacket
+  | ProcessingStartedPacket
+  | ProcessingFinishedPacket
+  | AuthenticationReqPacket
+  | AuthenticationReplyPacket
+  | PlayerInfoPacket;

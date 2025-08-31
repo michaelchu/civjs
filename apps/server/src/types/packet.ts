@@ -357,6 +357,257 @@ export const ResearchProgressReplySchema = z.object({
   turnsRemaining: z.number(),
 });
 
+// Connection & Authentication packets
+export const AuthenticationReqSchema = z.object({
+  username: z.string(),
+  password: z.string(),
+});
+
+export const AuthenticationReplySchema = z.object({
+  accepted: z.boolean(),
+  message: z.string().optional(),
+});
+
+export const ServerShutdownSchema = z.object({
+  message: z.string(),
+  reason: z.string().optional(),
+});
+
+// Player Management packets
+export const NationSelectReqSchema = z.object({
+  nation: z.string(),
+});
+
+export const PlayerReadySchema = z.object({
+  ready: z.boolean(),
+});
+
+export const EndgameReportSchema = z.object({
+  winners: z.array(z.string()),
+  losers: z.array(z.string()),
+  reason: z.string(),
+  turn: z.number(),
+});
+
+export const PlayerInfoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  nation: z.string(),
+  team: z.string().optional(),
+  score: z.number(),
+  gold: z.number(),
+  science: z.number(),
+  culture: z.number(),
+  government: z.string(),
+  alive: z.boolean(),
+});
+
+export const PlayerRemoveSchema = z.object({
+  playerId: z.string(),
+  reason: z.string().optional(),
+});
+
+// Map & Tile packets - Enhanced for structured packet system
+export const MapInfoPacketSchema = z.object({
+  xsize: z.number(),
+  ysize: z.number(),
+  topology: z.number().default(0),
+  wrap_id: z.number().default(0),
+  startpos: z
+    .array(
+      z.object({
+        x: z.number(),
+        y: z.number(),
+      })
+    )
+    .optional(),
+});
+
+export const TileInfoPacketSchema = z.object({
+  tile: z.number(), // tile index
+  x: z.number(),
+  y: z.number(),
+  terrain: z.string(),
+  resource: z.string().optional(),
+  elevation: z.number().default(0),
+  riverMask: z.number().default(0),
+  known: z.number().min(0).max(1), // 0 = unknown, 1 = known
+  seen: z.number().min(0).max(1), // 0 = unseen, 1 = visible
+  player: z.string().nullable(),
+  worked: z.string().nullable(),
+  extras: z.number().default(0),
+});
+
+export const TileInfoBatchSchema = z.object({
+  tiles: z.array(TileInfoPacketSchema),
+  startIndex: z.number(),
+  endIndex: z.number(),
+  total: z.number(),
+});
+
+export const NukeTileInfoSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  fallout: z.boolean(),
+});
+
+// Chat & Messages packets
+export const EarlyChatMsgSchema = z.object({
+  sender: z.string(),
+  message: z.string(),
+  timestamp: z.number(),
+});
+
+export const ConnectMsgSchema = z.object({
+  username: z.string(),
+  message: z.string(),
+  event: z.enum(['join', 'leave', 'reconnect']),
+});
+
+export const ServerInfoSchema = z.object({
+  name: z.string(),
+  version: z.string(),
+  capability: z.string(),
+  players: z.number(),
+  maxPlayers: z.number(),
+  uptime: z.number(),
+});
+
+// City Management packets - Enhanced
+export const CityRemoveSchema = z.object({
+  cityId: z.string(),
+  reason: z.string().optional(),
+});
+
+export const CityShortInfoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  x: z.number(),
+  y: z.number(),
+  size: z.number(),
+  owner: z.string(),
+});
+
+export const CitySellSchema = z.object({
+  cityId: z.string(),
+  improvementId: z.string(),
+});
+
+export const CityBuySchema = z.object({
+  cityId: z.string(),
+  improvementId: z.string(),
+});
+
+export const CityChangeSchema = z.object({
+  cityId: z.string(),
+  changeType: z.enum(['name', 'production', 'specialist_assignment']),
+  value: z.any(), // flexible for different change types
+});
+
+export const CityWorklistSchema = z.object({
+  cityId: z.string(),
+  worklist: z.array(
+    z.object({
+      type: z.enum(['unit', 'building']),
+      id: z.string(),
+      priority: z.number(),
+    })
+  ),
+});
+
+export const CityMakeSpecialistSchema = z.object({
+  cityId: z.string(),
+  tileX: z.number(),
+  tileY: z.number(),
+  specialistType: z.string(),
+});
+
+export const CityMakeWorkerSchema = z.object({
+  cityId: z.string(),
+  specialistType: z.string(),
+  tileX: z.number(),
+  tileY: z.number(),
+});
+
+// Unit Management packets - Enhanced
+export const UnitShortInfoSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  x: z.number(),
+  y: z.number(),
+  owner: z.string(),
+  hp: z.number(),
+  moves: z.number(),
+});
+
+export const UnitBuildCitySchema = z.object({
+  unitId: z.string(),
+  cityName: z.string(),
+});
+
+export const UnitDisbandSchema = z.object({
+  unitId: z.string(),
+});
+
+export const UnitChangeHomecitySchema = z.object({
+  unitId: z.string(),
+  newHomecityId: z.string(),
+});
+
+export const UnitCombatInfoSchema = z.object({
+  attackerId: z.string(),
+  defenderId: z.string(),
+  attackerHp: z.number(),
+  defenderHp: z.number(),
+  attackerDamage: z.number(),
+  defenderDamage: z.number(),
+  attackerDestroyed: z.boolean(),
+  defenderDestroyed: z.boolean(),
+  veteran: z.boolean(),
+});
+
+export const UnitOrdersSchema = z.object({
+  unitId: z.string(),
+  orders: z.array(
+    z.object({
+      action: z.enum(['move', 'attack', 'fortify', 'sentry', 'build_city', 'goto']),
+      x: z.number().optional(),
+      y: z.number().optional(),
+      target: z.string().optional(),
+    })
+  ),
+  repeat: z.boolean().default(false),
+});
+
+// Turn Management packets - Enhanced
+export const TurnDoneSchema = z.object({
+  playerId: z.string(),
+});
+
+export const NewTurnSchema = z.object({
+  turn: z.number(),
+  year: z.number(),
+  phase: z.string(),
+});
+
+export const BeginTurnSchema = z.object({
+  turn: z.number(),
+  playerId: z.string(),
+});
+
+export const EndTurnSchema = z.object({
+  turn: z.number(),
+  playerId: z.string(),
+});
+
+export const FreezeClientSchema = z.object({
+  reason: z.string().optional(),
+});
+
+export const ThawClientSchema = z.object({
+  message: z.string().optional(),
+});
+
 //Game management packets
 export const GameCreateSchema = z.object({
   name: z.string().min(1).max(100),
@@ -494,3 +745,40 @@ export type ResearchList = z.infer<typeof ResearchListSchema>;
 export type ResearchListReply = z.infer<typeof ResearchListReplySchema>;
 export type ResearchProgress = z.infer<typeof ResearchProgressSchema>;
 export type ResearchProgressReply = z.infer<typeof ResearchProgressReplySchema>;
+
+// Additional type exports for new schemas
+export type AuthenticationReq = z.infer<typeof AuthenticationReqSchema>;
+export type AuthenticationReply = z.infer<typeof AuthenticationReplySchema>;
+export type ServerShutdown = z.infer<typeof ServerShutdownSchema>;
+export type NationSelectReq = z.infer<typeof NationSelectReqSchema>;
+export type PlayerReady = z.infer<typeof PlayerReadySchema>;
+export type EndgameReport = z.infer<typeof EndgameReportSchema>;
+export type PlayerInfo = z.infer<typeof PlayerInfoSchema>;
+export type PlayerRemove = z.infer<typeof PlayerRemoveSchema>;
+export type MapInfoPacket = z.infer<typeof MapInfoPacketSchema>;
+export type TileInfoPacket = z.infer<typeof TileInfoPacketSchema>;
+export type TileInfoBatch = z.infer<typeof TileInfoBatchSchema>;
+export type NukeTileInfo = z.infer<typeof NukeTileInfoSchema>;
+export type EarlyChatMsg = z.infer<typeof EarlyChatMsgSchema>;
+export type ConnectMsg = z.infer<typeof ConnectMsgSchema>;
+export type ServerInfo = z.infer<typeof ServerInfoSchema>;
+export type CityRemove = z.infer<typeof CityRemoveSchema>;
+export type CityShortInfo = z.infer<typeof CityShortInfoSchema>;
+export type CitySell = z.infer<typeof CitySellSchema>;
+export type CityBuy = z.infer<typeof CityBuySchema>;
+export type CityChange = z.infer<typeof CityChangeSchema>;
+export type CityWorklist = z.infer<typeof CityWorklistSchema>;
+export type CityMakeSpecialist = z.infer<typeof CityMakeSpecialistSchema>;
+export type CityMakeWorker = z.infer<typeof CityMakeWorkerSchema>;
+export type UnitShortInfo = z.infer<typeof UnitShortInfoSchema>;
+export type UnitBuildCity = z.infer<typeof UnitBuildCitySchema>;
+export type UnitDisband = z.infer<typeof UnitDisbandSchema>;
+export type UnitChangeHomecity = z.infer<typeof UnitChangeHomecitySchema>;
+export type UnitCombatInfo = z.infer<typeof UnitCombatInfoSchema>;
+export type UnitOrders = z.infer<typeof UnitOrdersSchema>;
+export type TurnDone = z.infer<typeof TurnDoneSchema>;
+export type NewTurn = z.infer<typeof NewTurnSchema>;
+export type BeginTurn = z.infer<typeof BeginTurnSchema>;
+export type EndTurn = z.infer<typeof EndTurnSchema>;
+export type FreezeClient = z.infer<typeof FreezeClientSchema>;
+export type ThawClient = z.infer<typeof ThawClientSchema>;

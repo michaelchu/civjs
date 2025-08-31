@@ -53,117 +53,7 @@ class GameClient {
       this.handlePacket(packet);
     });
 
-    // Keep direct events only for map data (freeciv-web compatibility)
-    this.socket.on('map-info', data => {
-      // Store in global map variable exactly like freeciv-web: map = packet;
-      (window as any).map = data;
-
-      const totalTiles = data.xsize * data.ysize;
-      (window as any).tiles = new Array(totalTiles);
-
-      for (let i = 0; i < totalTiles; i++) {
-        (window as any).tiles[i] = {
-          index: i,
-          x: i % data.xsize,
-          y: Math.floor(i / data.xsize),
-          known: 0,
-          seen: 0,
-        };
-      }
-    });
-
-    this.socket.on('tile-info', data => {
-      if ((window as any).tiles && data.tile !== undefined) {
-        const tiles = (window as any).tiles;
-        tiles[data.tile] = Object.assign(tiles[data.tile] || {}, data);
-
-        const tileKey = `${data.x},${data.y}`;
-        const currentMap = useGameStore.getState().map;
-
-        const updatedTiles = {
-          ...currentMap.tiles,
-          [tileKey]: {
-            x: data.x,
-            y: data.y,
-            terrain: data.terrain,
-            visible: data.known > 0,
-            known: data.seen > 0,
-            units: [],
-            city: undefined,
-          },
-        };
-
-        useGameStore.getState().updateGameState({
-          map: {
-            width: (window as any).map?.xsize || 80,
-            height: (window as any).map?.ysize || 50,
-            tiles: updatedTiles,
-            // Store freeciv-web references
-            xsize: (window as any).map?.xsize || 80,
-            ysize: (window as any).map?.ysize || 50,
-            wrap_id: (window as any).map?.wrap_id || 0,
-          },
-        });
-
-        if (Object.keys(updatedTiles).length === 1) {
-          useGameStore.getState().setViewport({
-            x: 0,
-            y: 0,
-          });
-        }
-      }
-    });
-
-    this.socket.on('tile-info-batch', data => {
-      if (!(window as any).tiles || !data.tiles) return;
-
-      const tiles = (window as any).tiles;
-      const currentMap = useGameStore.getState().map;
-      const updatedTiles = { ...currentMap.tiles };
-
-      for (const tileData of data.tiles) {
-        tiles[tileData.tile] = Object.assign(tiles[tileData.tile] || {}, tileData);
-
-        const tileKey = `${tileData.x},${tileData.y}`;
-        updatedTiles[tileKey] = {
-          x: tileData.x,
-          y: tileData.y,
-          terrain: tileData.terrain,
-          visible: tileData.known > 0,
-          known: tileData.seen > 0,
-          units: [],
-          city: undefined,
-          resource: tileData.resource,
-        };
-      }
-
-      useGameStore.getState().updateGameState({
-        map: {
-          width: (window as any).map?.xsize || 80,
-          height: (window as any).map?.ysize || 50,
-          tiles: updatedTiles,
-          // Store freeciv-web references
-          xsize: (window as any).map?.xsize || 80,
-          ysize: (window as any).map?.ysize || 50,
-          wrap_id: (window as any).map?.wrap_id || 0,
-        },
-      });
-
-      if (data.endIndex === data.total) {
-        setTimeout(() => {
-          const resizeEvent = new Event('resize', { bubbles: true });
-          window.dispatchEvent(resizeEvent);
-
-          setTimeout(() => {
-            window.dispatchEvent(new Event('resize', { bubbles: true }));
-          }, 50);
-
-          setTimeout(() => {
-            window.dispatchEvent(new Event('resize', { bubbles: true }));
-          }, 150);
-        }, 200);
-      }
-    });
+    // Legacy event handlers removed - now handled via structured packets
 
     // Keep compatibility events for game management
     this.socket.on('game_created', data => {
@@ -274,8 +164,147 @@ class GameClient {
         // Handle chat messages
         break;
 
+      case PacketType.MAP_INFO:
+        this.handleMapInfo(packet.data);
+        break;
+
+      case PacketType.TILE_INFO:
+        if (Array.isArray(packet.data.tiles)) {
+          // Handle batch tile info
+          this.handleTileInfoBatch(packet.data);
+        } else {
+          // Handle single tile info
+          this.handleTileInfo(packet.data);
+        }
+        break;
+
+      case PacketType.PROCESSING_STARTED:
+        console.log('Server processing started');
+        break;
+
+      case PacketType.PROCESSING_FINISHED:
+        console.log('Server processing finished');
+        break;
+
       default:
         console.log(`Unhandled packet type: ${packetName} (${packet.type})`);
+    }
+  }
+
+  private handleMapInfo(data: any) {
+    console.log('Map info received via structured packet:', data);
+
+    // Store in global map variable exactly like freeciv-web: map = packet;
+    (window as any).map = data;
+
+    const totalTiles = data.xsize * data.ysize;
+    (window as any).tiles = new Array(totalTiles);
+
+    for (let i = 0; i < totalTiles; i++) {
+      (window as any).tiles[i] = {
+        index: i,
+        x: i % data.xsize,
+        y: Math.floor(i / data.xsize),
+        known: 0,
+        seen: 0,
+      };
+    }
+  }
+
+  private handleTileInfo(data: any) {
+    console.log('Tile info received via structured packet:', data);
+
+    if ((window as any).tiles && data.tile !== undefined) {
+      const tiles = (window as any).tiles;
+      tiles[data.tile] = Object.assign(tiles[data.tile] || {}, data);
+
+      const tileKey = `${data.x},${data.y}`;
+      const currentMap = useGameStore.getState().map;
+
+      const updatedTiles = {
+        ...currentMap.tiles,
+        [tileKey]: {
+          x: data.x,
+          y: data.y,
+          terrain: data.terrain,
+          visible: data.known > 0,
+          known: data.seen > 0,
+          units: [],
+          city: undefined,
+        },
+      };
+
+      useGameStore.getState().updateGameState({
+        map: {
+          width: (window as any).map?.xsize || 80,
+          height: (window as any).map?.ysize || 50,
+          tiles: updatedTiles,
+          // Store freeciv-web references
+          xsize: (window as any).map?.xsize || 80,
+          ysize: (window as any).map?.ysize || 50,
+          wrap_id: (window as any).map?.wrap_id || 0,
+        },
+      });
+
+      if (Object.keys(updatedTiles).length === 1) {
+        useGameStore.getState().setViewport({
+          x: 0,
+          y: 0,
+        });
+      }
+    }
+  }
+
+  private handleTileInfoBatch(data: any) {
+    console.log('Tile info batch received via structured packet:', data);
+
+    if (!(window as any).tiles || !data.tiles) return;
+
+    const tiles = (window as any).tiles;
+    const currentMap = useGameStore.getState().map;
+    const updatedTiles = { ...currentMap.tiles };
+
+    for (const tileData of data.tiles) {
+      tiles[tileData.tile] = Object.assign(tiles[tileData.tile] || {}, tileData);
+
+      const tileKey = `${tileData.x},${tileData.y}`;
+      updatedTiles[tileKey] = {
+        x: tileData.x,
+        y: tileData.y,
+        terrain: tileData.terrain,
+        visible: tileData.known > 0,
+        known: tileData.seen > 0,
+        units: [],
+        city: undefined,
+        resource: tileData.resource,
+      };
+    }
+
+    useGameStore.getState().updateGameState({
+      map: {
+        width: (window as any).map?.xsize || 80,
+        height: (window as any).map?.ysize || 50,
+        tiles: updatedTiles,
+        // Store freeciv-web references
+        xsize: (window as any).map?.xsize || 80,
+        ysize: (window as any).map?.ysize || 50,
+        wrap_id: (window as any).map?.wrap_id || 0,
+      },
+    });
+
+    if (data.endIndex === data.total) {
+      setTimeout(() => {
+        const resizeEvent = new Event('resize', { bubbles: true });
+        window.dispatchEvent(resizeEvent);
+
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize', { bubbles: true }));
+        }, 50);
+
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize', { bubbles: true }));
+        }, 150);
+      }, 200);
     }
   }
 

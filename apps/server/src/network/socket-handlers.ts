@@ -1200,17 +1200,21 @@ async function sendObserverMapData(
   const mapData = gameInstance.mapManager.getMapData();
   if (!mapData) return;
 
-  // Send map-info packet
+  // Send MAP_INFO packet via structured packet system
   const centerX = Math.floor(mapData.width / 2);
   const centerY = Math.floor(mapData.height / 2);
-  const mapInfoPacket = {
+  const mapInfoPacketData = {
     xsize: mapData.width,
     ysize: mapData.height,
     topology: 0,
     wrap_id: 0,
     startpos: [{ x: centerX, y: centerY }],
   };
-  socket.emit('map-info', mapInfoPacket);
+
+  const packetHandler = socket.data.packetHandler;
+  if (packetHandler) {
+    packetHandler.send(socket, PacketType.MAP_INFO, mapInfoPacketData);
+  }
 
   // Collect and send tiles in batches
   const allTiles = [];
@@ -1242,12 +1246,16 @@ async function sendObserverMapData(
   const BATCH_SIZE = 100;
   for (let i = 0; i < allTiles.length; i += BATCH_SIZE) {
     const batch = allTiles.slice(i, i + BATCH_SIZE);
-    socket.emit('tile-info-batch', {
+    const tileInfoBatchData = {
       tiles: batch,
       startIndex: i,
       endIndex: Math.min(i + BATCH_SIZE, allTiles.length),
       total: allTiles.length,
-    });
+    };
+
+    if (packetHandler) {
+      packetHandler.send(socket, PacketType.TILE_INFO, tileInfoBatchData);
+    }
   }
 
   logger.debug(
@@ -1264,15 +1272,19 @@ async function sendPlayerMapData(
   const playerMapView = gameManager.getPlayerMapView(gameId, playerId);
   if (!playerMapView) return;
 
-  // Send map-info packet (freeciv-web format)
-  const mapInfoPacket = {
+  // Send MAP_INFO packet via structured packet system
+  const mapInfoPacketData = {
     xsize: playerMapView.width,
     ysize: playerMapView.height,
     topology: 0,
     wrap_id: 0,
     startpos: [],
   };
-  socket.emit('map-info', mapInfoPacket);
+
+  const packetHandler = socket.data.packetHandler;
+  if (packetHandler) {
+    packetHandler.send(socket, PacketType.MAP_INFO, mapInfoPacketData);
+  }
 
   // Send visible tiles to player
   let tileCount = 0;
@@ -1282,7 +1294,7 @@ async function sendPlayerMapData(
       if (tile && (tile.isVisible || tile.isExplored)) {
         const tileIndex = y * playerMapView.width + x;
 
-        const tileInfoPacket = {
+        const tileInfoPacketData = {
           tile: tileIndex,
           x: x,
           y: y,
@@ -1291,7 +1303,10 @@ async function sendPlayerMapData(
           seen: tile.isVisible ? 1 : 0,
           resource: tile.resource,
         };
-        socket.emit('tile-info', tileInfoPacket);
+
+        if (packetHandler) {
+          packetHandler.send(socket, PacketType.TILE_INFO, tileInfoPacketData);
+        }
         tileCount++;
       }
     }
