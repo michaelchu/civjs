@@ -250,7 +250,6 @@ class GameClient {
   }
 
   private handleMapInfo(data: any) {
-
     // Store in global map variable exactly like freeciv-web: map = packet;
     (window as any).map = data;
 
@@ -269,7 +268,6 @@ class GameClient {
   }
 
   private handleTileInfo(data: any) {
-
     if ((window as any).tiles && data.tile !== undefined) {
       const tiles = (window as any).tiles;
       tiles[data.tile] = Object.assign(tiles[data.tile] || {}, data);
@@ -312,7 +310,6 @@ class GameClient {
   }
 
   private handleTileInfoBatch(data: any) {
-
     if (!(window as any).tiles || !data.tiles) return;
 
     const tiles = (window as any).tiles;

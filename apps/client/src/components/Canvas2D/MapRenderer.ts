@@ -1317,22 +1317,25 @@ export class MapRenderer {
       return { x: constrainedX, y: constrainedY };
     }
 
-    // For non-wrapping maps, apply very generous boundary constraints
-    // Allow panning to see the entire map with reasonable padding
+    // For non-wrapping maps, apply map_scroll_border logic like freeciv-web
     if (globalMap.wrap_id === 0) {
       const mapWidthGui = globalMap.xsize * this.tileWidth;
       const mapHeightGui = globalMap.ysize * this.tileHeight;
 
-      // Very generous bounds - allow seeing entire map plus lots of padding
-      // This matches freeciv-web's behavior which is quite permissive
-      // Use consistent minimum padding to prevent snap-back on small screens
-      const padding = Math.max(viewportWidth, viewportHeight, 1200); // Minimum 1200px padding
+      // Implement freeciv-web's map_scroll_border constraint system
+      // Reference: freeciv-web allows 8 tiles of border scrolling beyond map edge
+      const mapScrollBorder = 8; // tiles, matches freeciv-web default
+      const borderPaddingX = mapScrollBorder * this.tileWidth; // ~768px with 96px tiles
+      const borderPaddingY = mapScrollBorder * this.tileHeight; // ~384px with 48px tiles
 
-      const minX = -(mapWidthGui + padding);
-      const maxX = padding;
-      const minY = -(mapHeightGui + padding);
-      const maxY = padding;
+      // Calculate bounds: allow viewing map_scroll_border tiles beyond map edge
+      // Account for viewport size to ensure proper constraint behavior
+      const minX = -borderPaddingX;
+      const maxX = mapWidthGui + borderPaddingX - viewportWidth;
+      const minY = -borderPaddingY;
+      const maxY = mapHeightGui + borderPaddingY - viewportHeight;
 
+      // Apply constraints - prevent panning beyond scroll border
       const constrainedX = Math.max(minX, Math.min(maxX, guiX0));
       const constrainedY = Math.max(minY, Math.min(maxY, guiY0));
 

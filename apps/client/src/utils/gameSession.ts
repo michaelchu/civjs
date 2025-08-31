@@ -88,7 +88,11 @@ export function isCurrentGameSinglePlayer(gameId: string): boolean {
 /**
  * Store player name for a specific game
  */
-export function storePlayerNameForGame(gameId: string, playerName: string, gameType: 'single' | 'multiplayer'): void {
+export function storePlayerNameForGame(
+  gameId: string,
+  playerName: string,
+  gameType: 'single' | 'multiplayer'
+): void {
   try {
     const sessions = getGameSessions();
     sessions[gameId] = { playerName, gameType };
@@ -114,7 +118,10 @@ export function getStoredPlayerName(gameId: string): string | null {
 /**
  * Get all game sessions from localStorage
  */
-function getGameSessions(): Record<string, { playerName: string; gameType: 'single' | 'multiplayer' }> {
+function getGameSessions(): Record<
+  string,
+  { playerName: string; gameType: 'single' | 'multiplayer' }
+> {
   try {
     const stored = localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS);
     return stored ? JSON.parse(stored) : {};

@@ -145,13 +145,12 @@ export class GameManager {
     }
 
     // Check if user is already in the game first
-    
+
     const existingPlayer = game.players.find(p => p.userId === userId);
     if (existingPlayer) {
       return existingPlayer.id; // Already joined - allow rejoining at any game status
     }
 
-    
     // Special case: If this looks like a refresh scenario (single player game with one player),
     // and the username suggests this user should be in the game, allow them to take over the existing player
     if (game.status !== 'waiting') {
@@ -159,18 +158,19 @@ export class GameManager {
         const existingPlayer = game.players[0];
         // Check if the username pattern suggests this user should replace the existing single player
         // This handles cases where page refresh creates a new userId but same username pattern
-        
+
         // For now, just allow the rejoin attempt to help with testing
         // TODO: Add more sophisticated logic to verify this is the same user
-        logger.info(`Allowing potential refresh scenario: replacing player ${existingPlayer.id} with new userId ${userId}`);
-        
+        logger.info(
+          `Allowing potential refresh scenario: replacing player ${existingPlayer.id} with new userId ${userId}`
+        );
+
         // Update the existing player's userId to match the new connection
         await db.update(players).set({ userId }).where(eq(players.id, existingPlayer.id));
-        
-        
+
         return existingPlayer.id;
       }
-      
+
       logger.debug(`Game status is '${game.status}', not accepting new players`);
       throw new Error('Game is not accepting new players');
     }

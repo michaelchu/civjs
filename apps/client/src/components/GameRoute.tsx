@@ -4,7 +4,11 @@ import { useGameStore } from '../store/gameStore';
 import { gameClient } from '../services/GameClient';
 import { ConnectionDialog } from './ConnectionDialog';
 import { GameLayout } from './GameUI/GameLayout';
-import { getStoredPlayerName, isCurrentGameSinglePlayer, storePlayerNameForGame } from '../utils/gameSession';
+import {
+  getStoredPlayerName,
+  isCurrentGameSinglePlayer,
+  storePlayerNameForGame,
+} from '../utils/gameSession';
 
 export const GameRoute: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
@@ -31,10 +35,9 @@ export const GameRoute: React.FC = () => {
       const fallbackName = storedPlayerName || `Player_${gameId?.slice(-8) || 'default'}`;
       const playerName = fallbackName;
 
-
       try {
         await gameClient.joinSpecificGame(gameId, playerName);
-        
+
         // Store the player name after successful join so it persists across refreshes
         storePlayerNameForGame(gameId!, playerName, isSinglePlayer ? 'single' : 'multiplayer');
       } catch (joinError) {
