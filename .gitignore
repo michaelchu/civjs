@@ -126,7 +126,7 @@ apps/server/tests/e2e/audit/results/
 .claude/
 
 # Drizzle ORM generated files
-**/drizzle/meta/
+# **/drizzle/meta/
 
 # Reference repositories - ignore non-essential files
 reference/freeciv-web/Dockerfile
