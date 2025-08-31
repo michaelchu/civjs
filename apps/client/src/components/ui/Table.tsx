@@ -32,17 +32,13 @@ interface TableCellProps {
 }
 
 export const Table: React.FC<TableProps> = ({ children, className }) => (
-  <div className={clsx('overflow-auto rounded-lg border border-amber-300 shadow-sm', className)}>
-    <table className="w-full border-collapse bg-gradient-to-b from-amber-50 to-yellow-50">
-      {children}
-    </table>
+  <div className={clsx('overflow-auto rounded-lg border border-border shadow-sm', className)}>
+    <table className="w-full border-collapse bg-card">{children}</table>
   </div>
 );
 
 export const TableHeader: React.FC<TableHeaderProps> = ({ children, className }) => (
-  <thead className={clsx('bg-gradient-to-r from-amber-200 to-yellow-200', className)}>
-    {children}
-  </thead>
+  <thead className={clsx('bg-muted', className)}>{children}</thead>
 );
 
 export const TableBody: React.FC<TableBodyProps> = ({ children, className }) => (
@@ -52,7 +48,7 @@ export const TableBody: React.FC<TableBodyProps> = ({ children, className }) => 
 export const TableRow: React.FC<TableRowProps> = ({ children, className }) => (
   <tr
     className={clsx(
-      'border-b border-amber-200 hover:bg-gradient-to-r hover:from-amber-100 hover:to-yellow-100 transition-colors duration-200',
+      'border-b border-border hover:bg-muted/50 transition-colors duration-200',
       className
     )}
   >
@@ -61,11 +57,11 @@ export const TableRow: React.FC<TableRowProps> = ({ children, className }) => (
 );
 
 export const TableHead: React.FC<TableHeadProps> = ({ children, className }) => (
-  <th className={clsx('px-4 py-3 text-left text-sm font-semibold text-amber-800', className)}>
+  <th className={clsx('px-4 py-3 text-left text-sm font-semibold text-foreground', className)}>
     {children}
   </th>
 );
 
 export const TableCell: React.FC<TableCellProps> = ({ children, className }) => (
-  <td className={clsx('px-4 py-3 text-sm text-amber-700', className)}>{children}</td>
+  <td className={clsx('px-4 py-3 text-sm text-foreground', className)}>{children}</td>
 );

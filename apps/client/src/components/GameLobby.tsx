@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { gameClient } from '../services/GameClient';
 import { DataTable } from './ui/DataTable';
 import { createGameColumns, type GameInfo } from './GameLobbyColumns';
+import { PageBackground } from './shared/PageBackground';
 
 export const GameLobby: React.FC = () => {
   const [games, setGames] = useState<GameInfo[]>([]);
@@ -88,43 +89,84 @@ export const GameLobby: React.FC = () => {
   );
 
   return (
-    <div className="h-screen bg-gradient-to-b from-amber-100 to-yellow-200 p-4 flex flex-col overflow-hidden">
-      <div className="max-w-6xl mx-auto flex-1 flex flex-col w-full min-h-0">
-        <div className="bg-transparent md:bg-gradient-to-b md:from-amber-100 md:to-yellow-100 p-4 md:p-6 md:rounded-lg md:shadow-2xl md:border md:border-amber-300 md:shadow-amber-300/20 flex-1 flex flex-col w-full min-h-0 overflow-hidden">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center">
-              <button
-                onClick={handleBack}
-                className="mr-3 p-2 text-amber-600 hover:text-amber-800 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 19l-7-7 7-7"
-                  />
-                </svg>
-              </button>
-              <div>
-                <h2 className="text-xl md:text-2xl font-bold text-amber-800">Game Lobby</h2>
-                <p className="text-amber-600 text-sm md:text-base">Choose a game to join</p>
+    <PageBackground
+      className="min-h-[100dvh] md:flex md:items-center md:justify-center md:p-4"
+      showBackground={false}
+    >
+      <div className="flex flex-col h-[100dvh] md:h-auto md:max-w-4xl xl:max-w-5xl md:mx-auto">
+        <div className="bg-transparent md:bg-card md:border md:border-border md:shadow-2xl p-4 md:p-8 md:rounded-lg w-full flex-1 md:flex-none overflow-y-auto">
+          {/* Header Section */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+              <div className="flex items-center">
+                <button
+                  onClick={handleBack}
+                  className="mr-3 p-2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
+                    />
+                  </svg>
+                </button>
+                <div>
+                  <h2 className="text-xl md:text-2xl font-bold text-foreground">Game Lobby</h2>
+                  <p className="text-muted-foreground text-sm md:text-base">
+                    Choose a game to join
+                  </p>
+                </div>
               </div>
+
+              {/* Desktop refresh button */}
+              <button
+                onClick={() => loadGames(true)}
+                className="hidden md:flex items-center px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-primary/50 text-primary-foreground rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring shadow-sm"
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? (
+                  <>
+                    <div className="animate-spin w-4 h-4 border border-primary-foreground/30 border-t-transparent rounded-full mr-2"></div>
+                    Refreshing...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-4 h-4 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    Refresh
+                  </>
+                )}
+              </button>
             </div>
+
+            {/* Mobile refresh button - full width below header */}
             <button
               onClick={() => loadGames(true)}
-              className="px-4 py-2 bg-amber-700 hover:bg-amber-800 disabled:bg-amber-500 text-amber-50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-amber-600 shadow-sm"
+              className="md:hidden w-full flex items-center justify-center px-4 py-3 bg-primary hover:bg-primary/90 disabled:bg-primary/50 text-primary-foreground rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring shadow-sm font-medium"
               disabled={isRefreshing}
             >
               {isRefreshing ? (
-                <div className="flex items-center">
-                  <div className="animate-spin w-4 h-4 border border-amber-300 border-t-transparent rounded-full mr-2"></div>
+                <>
+                  <div className="animate-spin w-4 h-4 border border-primary-foreground/30 border-t-transparent rounded-full mr-2"></div>
                   Refreshing...
-                </div>
+                </>
               ) : (
                 <>
                   <svg
-                    className="w-4 h-4 inline mr-2"
+                    className="w-4 h-4 mr-2"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -136,7 +178,7 @@ export const GameLobby: React.FC = () => {
                       d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                     />
                   </svg>
-                  Refresh
+                  Refresh Games
                 </>
               )}
             </button>
@@ -150,13 +192,13 @@ export const GameLobby: React.FC = () => {
 
           {isLoading ? (
             <div className="text-center py-12">
-              <div className="animate-spin w-8 h-8 border-2 border-amber-700 border-t-transparent rounded-full mx-auto mb-4"></div>
-              <p className="text-amber-600">Loading games...</p>
+              <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading games...</p>
             </div>
           ) : games.length === 0 ? (
             <div className="text-center py-12">
               <svg
-                className="w-16 h-16 text-amber-500 mx-auto mb-4"
+                className="w-16 h-16 text-muted-foreground mx-auto mb-4"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -168,8 +210,8 @@ export const GameLobby: React.FC = () => {
                   d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
                 />
               </svg>
-              <p className="text-amber-700 text-lg font-medium">No games available</p>
-              <p className="text-amber-500 text-sm">Start a new game to begin playing!</p>
+              <p className="text-foreground text-lg font-medium">No games available</p>
+              <p className="text-muted-foreground text-sm">Start a new game to begin playing!</p>
             </div>
           ) : (
             <div className="flex-1 w-full min-h-0">
@@ -178,6 +220,6 @@ export const GameLobby: React.FC = () => {
           )}
         </div>
       </div>
-    </div>
+    </PageBackground>
   );
 };
