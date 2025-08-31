@@ -365,6 +365,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       socket.emit('game_created', {
         gameId,
         maxPlayers: data.maxPlayers,
+        playerId, // Include playerId so client can initialize player state
       });
 
       handler.send(socket, PacketType.GAME_CREATE_REPLY, {
