@@ -7,6 +7,7 @@ import { createGameColumns, type GameInfo } from './GameLobbyColumns';
 export const GameLobby: React.FC = () => {
   const [games, setGames] = useState<GameInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [joiningGameId, setJoiningGameId] = useState<string | null>(null);
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -15,12 +16,15 @@ export const GameLobby: React.FC = () => {
 
   useEffect(() => {
     loadGames();
-    const interval = setInterval(loadGames, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval);
   }, []);
 
-  const loadGames = async () => {
+  const loadGames = async (isRefresh = false) => {
     try {
+      if (isRefresh) {
+        setIsRefreshing(true);
+        setError('');
+      }
+
       // Connect first if not connected
       if (!gameClient.isConnected()) {
         await gameClient.connect();
@@ -35,6 +39,9 @@ export const GameLobby: React.FC = () => {
       setError(`Failed to load games: ${errorMessage}`);
     } finally {
       setIsLoading(false);
+      if (isRefresh) {
+        setIsRefreshing(false);
+      }
     }
   };
 
@@ -105,24 +112,33 @@ export const GameLobby: React.FC = () => {
               </div>
             </div>
             <button
-              onClick={loadGames}
-              className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-amber-50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-amber-600 shadow-sm"
-              disabled={isLoading}
+              onClick={() => loadGames(true)}
+              className="px-4 py-2 bg-amber-700 hover:bg-amber-800 disabled:bg-amber-500 text-amber-50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-amber-600 shadow-sm"
+              disabled={isRefreshing}
             >
-              <svg
-                className="w-4 h-4 inline mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              Refresh
+              {isRefreshing ? (
+                <div className="flex items-center">
+                  <div className="animate-spin w-4 h-4 border border-amber-300 border-t-transparent rounded-full mr-2"></div>
+                  Refreshing...
+                </div>
+              ) : (
+                <>
+                  <svg
+                    className="w-4 h-4 inline mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  Refresh
+                </>
+              )}
             </button>
           </div>
 
