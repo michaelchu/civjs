@@ -98,6 +98,40 @@ export enum PacketType {
   RESEARCH_PROGRESS_REPLY = 226,
 }
 
+// Debug helper for development - maps numeric types to readable names
+export const PACKET_NAMES: Record<number, string> = {
+  [PacketType.PROCESSING_STARTED]: 'PROCESSING_STARTED',
+  [PacketType.PROCESSING_FINISHED]: 'PROCESSING_FINISHED',
+  [PacketType.SERVER_JOIN_REQ]: 'SERVER_JOIN_REQ',
+  [PacketType.SERVER_JOIN_REPLY]: 'SERVER_JOIN_REPLY',
+  [PacketType.TILE_INFO]: 'TILE_INFO',
+  [PacketType.GAME_INFO]: 'GAME_INFO',
+  [PacketType.MAP_INFO]: 'MAP_INFO',
+  [PacketType.CHAT_MSG]: 'CHAT_MSG',
+  [PacketType.CHAT_MSG_REQ]: 'CHAT_MSG_REQ',
+  [PacketType.CONNECT_MSG]: 'CONNECT_MSG',
+  [PacketType.CITY_INFO]: 'CITY_INFO',
+  [PacketType.UNIT_INFO]: 'UNIT_INFO',
+  [PacketType.UNIT_MOVE]: 'UNIT_MOVE',
+  [PacketType.UNIT_ATTACK]: 'UNIT_ATTACK',
+  [PacketType.UNIT_FORTIFY]: 'UNIT_FORTIFY',
+  [PacketType.UNIT_CREATE]: 'UNIT_CREATE',
+  [PacketType.TURN_START]: 'TURN_START',
+  [PacketType.END_TURN]: 'END_TURN',
+  [PacketType.GAME_CREATE]: 'GAME_CREATE',
+  [PacketType.GAME_CREATE_REPLY]: 'GAME_CREATE_REPLY',
+  [PacketType.GAME_JOIN]: 'GAME_JOIN',
+  [PacketType.GAME_JOIN_REPLY]: 'GAME_JOIN_REPLY',
+  [PacketType.UNIT_MOVE_REPLY]: 'UNIT_MOVE_REPLY',
+  [PacketType.UNIT_ATTACK_REPLY]: 'UNIT_ATTACK_REPLY',
+  [PacketType.UNIT_FORTIFY_REPLY]: 'UNIT_FORTIFY_REPLY',
+  [PacketType.UNIT_CREATE_REPLY]: 'UNIT_CREATE_REPLY',
+  [PacketType.CITY_FOUND]: 'CITY_FOUND',
+  [PacketType.CITY_FOUND_REPLY]: 'CITY_FOUND_REPLY',
+  [PacketType.RESEARCH_SET]: 'RESEARCH_SET',
+  [PacketType.RESEARCH_SET_REPLY]: 'RESEARCH_SET_REPLY',
+};
+
 // Base packet interface
 export interface Packet<T = any> {
   type: PacketType;
