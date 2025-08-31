@@ -920,14 +920,14 @@ export class GameManager {
   }
 
   public async getAllGames(): Promise<any[]> {
-    return await this.getAllGamesFromDatabase();
+    return await this.getAllGamesFromDatabase(null);
   }
 
   public async getActiveGames(): Promise<any[]> {
-    return await this.getAllGamesFromDatabase();
+    return await this.getAllGamesFromDatabase(null);
   }
 
-  public async getAllGamesFromDatabase(): Promise<any[]> {
+  public async getAllGamesFromDatabase(userId?: string | null): Promise<any[]> {
     try {
       const dbGames = await db.query.games.findMany({
         where: (games, { inArray }) => inArray(games.status, ['waiting', 'running', 'active']),
@@ -948,6 +948,16 @@ export class GameManager {
         const connectedCount = isRunning ? this.getConnectedPlayerCount(game.id) : 0;
         const currentPlayers = isRunning ? connectedCount : game.players?.length || 0;
 
+        // Check if the current user is already a player in this game
+        const isExistingPlayer = userId && game.players?.some(p => p.userId === userId);
+
+        // User can join if:
+        // 1. Game is waiting and has space, OR
+        // 2. User is already a player (can rejoin regardless of status)
+        const canJoin =
+          isExistingPlayer ||
+          (game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers);
+
         return {
           id: game.id,
           name: game.name,
@@ -958,7 +968,7 @@ export class GameManager {
           currentTurn: game.currentTurn,
           mapSize: `${game.mapWidth}x${game.mapHeight}`,
           createdAt: game.createdAt.toISOString(),
-          canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
+          canJoin: canJoin,
           players: game.players || [],
         };
       });
@@ -968,9 +978,9 @@ export class GameManager {
     }
   }
 
-  public async getGameListForLobby(): Promise<any[]> {
+  public async getGameListForLobby(userId?: string | null): Promise<any[]> {
     // All games come from database now - single source of truth
-    return await this.getAllGamesFromDatabase();
+    return await this.getAllGamesFromDatabase(userId);
   }
 
   public async getGameById(gameId: string): Promise<any | null> {

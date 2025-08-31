@@ -113,7 +113,9 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
 
   socket.on('get_game_list', async callback => {
     try {
-      const games = await gameManager.getGameListForLobby();
+      const connection = activeConnections.get(socket.id);
+      const userId = connection?.userId || null;
+      const games = await gameManager.getGameListForLobby(userId);
       callback({ success: true, games });
     } catch (error) {
       logger.error('Error getting game list:', error);
@@ -333,7 +335,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
 
   handler.register(PacketType.GAME_LIST, async socket => {
     try {
-      const games = await gameManager.getGameListForLobby();
+      const connection = activeConnections.get(socket.id);
+      const userId = connection?.userId || null;
+      const games = await gameManager.getGameListForLobby(userId);
 
       const gameList = games.map(game => ({
         gameId: game.id,

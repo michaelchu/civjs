@@ -64,17 +64,18 @@ export const GameRoute: React.FC = () => {
       return;
     }
 
-    // Check if this is a page reload by looking at session storage
-    const isPageReload = sessionStorage.getItem('gameRouteLoaded');
-    if (isPageReload && gameId) {
-      // This is a page reload, redirect to lobby
-      sessionStorage.removeItem('gameRouteLoaded');
+    // Check if this page load was due to a reload/refresh
+    // performance.navigation.type: 0=navigate, 1=reload, 2=back_forward
+    const wasPageReloaded =
+      window.performance &&
+      'navigation' in window.performance &&
+      (window.performance.navigation as { type: number }).type === 1;
+
+    if (wasPageReloaded) {
+      // This was a page reload, redirect to lobby
       navigate('/browse-games');
       return;
     }
-
-    // Mark that GameRoute has been loaded
-    sessionStorage.setItem('gameRouteLoaded', 'true');
 
     if (gameClient.isConnected() && gameClient.getCurrentGameId() === gameId) {
       setClientState('running');
@@ -84,7 +85,7 @@ export const GameRoute: React.FC = () => {
 
     useGameStore.setState({ currentGameId: gameId });
 
-    // Add beforeunload event listener for refresh confirmation
+    // Add beforeunload event listener for confirmation
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       // Show confirmation dialog
       const message =
@@ -99,8 +100,6 @@ export const GameRoute: React.FC = () => {
     // Cleanup event listeners on component unmount
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      // Clear the flag when navigating away normally (not refresh)
-      sessionStorage.removeItem('gameRouteLoaded');
     };
   }, [gameId, navigate]);
 
