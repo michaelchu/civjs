@@ -123,7 +123,6 @@ describe('TemperatureFlags - Bitwise Operations', () => {
   });
 
   describe('Performance and Binary Analysis', () => {
-
     it('should produce correct binary representations', () => {
       // Verify binary representations match expected patterns
       const binaryTests = [

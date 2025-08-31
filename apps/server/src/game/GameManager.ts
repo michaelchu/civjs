@@ -942,19 +942,26 @@ export class GameManager {
         orderBy: (games, { desc }) => desc(games.createdAt),
       });
 
-      return dbGames.map(game => ({
-        id: game.id,
-        name: game.name,
-        hostName: game.host?.username || 'Unknown',
-        status: game.status,
-        currentPlayers: game.players?.length || 0,
-        maxPlayers: game.maxPlayers,
-        currentTurn: game.currentTurn,
-        mapSize: `${game.mapWidth}x${game.mapHeight}`,
-        createdAt: game.createdAt.toISOString(),
-        canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
-        players: game.players || [],
-      }));
+      return dbGames.map(game => {
+        // Use connected player count for running/active games, database count for waiting games
+        const isRunning = game.status === 'running' || game.status === 'active';
+        const connectedCount = isRunning ? this.getConnectedPlayerCount(game.id) : 0;
+        const currentPlayers = isRunning ? connectedCount : game.players?.length || 0;
+
+        return {
+          id: game.id,
+          name: game.name,
+          hostName: game.host?.username || 'Unknown',
+          status: game.status,
+          currentPlayers: currentPlayers,
+          maxPlayers: game.maxPlayers,
+          currentTurn: game.currentTurn,
+          mapSize: `${game.mapWidth}x${game.mapHeight}`,
+          createdAt: game.createdAt.toISOString(),
+          canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
+          players: game.players || [],
+        };
+      });
     } catch (error) {
       logger.error('Error fetching games from database:', error);
       return [];
@@ -1012,6 +1019,19 @@ export class GameManager {
 
     player.isConnected = isConnected;
     player.lastSeen = new Date();
+
+    // Update database connection status
+    try {
+      await db
+        .update(players)
+        .set({
+          connectionStatus: isConnected ? 'connected' : 'disconnected',
+          lastActionAt: new Date(),
+        })
+        .where(eq(players.id, playerId));
+    } catch (error) {
+      logger.error('Failed to update player connection status in database:', error);
+    }
 
     if (isConnected) {
       logger.info('Player reconnected', { gameId, playerId });
@@ -1548,6 +1568,16 @@ export class GameManager {
         logger.info('Technology completed', { gameId, playerId, techId: completedTech });
       }
     }
+  }
+
+  /**
+   * Get count of connected players for a game
+   */
+  private getConnectedPlayerCount(gameId: string): number {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) return 0;
+
+    return Array.from(gameInstance.players.values()).filter(p => p.isConnected).length;
   }
 
   private broadcastToGame(gameId: string, event: string, data: any): void {

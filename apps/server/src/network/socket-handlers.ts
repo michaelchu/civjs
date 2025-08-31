@@ -246,8 +246,11 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
             isNewUser = true;
           } catch (insertError: any) {
             // Handle race condition: username was created by another connection
-            if (insertError?.code === '23505') { // PostgreSQL unique constraint violation
-              logger.debug(`Username ${username} already exists due to race condition, fetching existing user`);
+            if (insertError?.code === '23505') {
+              // PostgreSQL unique constraint violation
+              logger.debug(
+                `Username ${username} already exists due to race condition, fetching existing user`
+              );
               const existingUserRetry = await db.query.users.findFirst({
                 where: eq(users.username, username),
               });
@@ -1317,18 +1320,18 @@ async function sendPlayerMapData(
     logger.warn(`No game instance found for ${gameId}`);
     return;
   }
-  
+
   const mapData = gameInstance.mapManager.getMapData();
   if (!mapData) {
     logger.warn(`No map data found for game ${gameId}`);
     return;
   }
-  
+
   // Use raw map data for basic display (no visibility filtering for now)
   const playerMapView = {
     width: mapData.width,
     height: mapData.height,
-    tiles: mapData.tiles
+    tiles: mapData.tiles,
   };
 
   // Send MAP_INFO packet via structured packet system
@@ -1359,7 +1362,7 @@ async function sendPlayerMapData(
           y: y,
           terrain: tile.terrain,
           known: 1, // Mark all tiles as explored for basic display
-          seen: 1,  // Mark all tiles as visible for basic display
+          seen: 1, // Mark all tiles as visible for basic display
           resource: tile.resource,
         };
 
