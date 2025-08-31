@@ -369,6 +369,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       const gameId = await gameManager.createGame({
         name: data.name,
         hostId: connection.userId,
+        gameType: data.gameType,
         maxPlayers: data.maxPlayers,
         mapWidth: data.mapWidth,
         mapHeight: data.mapHeight,
