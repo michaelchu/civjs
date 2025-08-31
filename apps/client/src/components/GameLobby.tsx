@@ -1,20 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gameClient } from '../services/GameClient';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/Table';
-
-interface GameInfo {
-  id: string;
-  name: string;
-  hostName: string;
-  status: 'waiting' | 'starting' | 'active' | 'paused' | 'finished';
-  currentPlayers: number;
-  maxPlayers: number;
-  currentTurn: number;
-  mapSize: string;
-  createdAt: string;
-  canJoin: boolean;
-}
+import { DataTable } from './ui/DataTable';
+import { createGameColumns, type GameInfo } from './GameLobbyColumns';
 
 export const GameLobby: React.FC = () => {
   const [games, setGames] = useState<GameInfo[]>([]);
@@ -86,22 +74,13 @@ export const GameLobby: React.FC = () => {
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'waiting':
-        return 'Waiting for Players';
-      case 'starting':
-        return 'Starting';
-      case 'active':
-        return 'In Progress';
-      case 'paused':
-        return 'Paused';
-      case 'finished':
-        return 'Finished';
-      default:
-        return status;
-    }
-  };
+  // Create columns with action handlers
+  const columns = createGameColumns(
+    handleJoinGame,
+    handleDeleteGame,
+    joiningGameId,
+    deletingGameId
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-100 to-yellow-200 p-4">
@@ -179,92 +158,7 @@ export const GameLobby: React.FC = () => {
               <p className="text-amber-500 text-sm">Start a new game to begin playing!</p>
             </div>
           ) : (
-            <Table className="max-h-96">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Game Name</TableHead>
-                  <TableHead>Host</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Players</TableHead>
-                  <TableHead>Turn</TableHead>
-                  <TableHead>Map Size</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {games.map(game => (
-                  <TableRow key={game.id} className={!game.canJoin ? 'opacity-60' : ''}>
-                    <TableCell className="font-semibold text-amber-800">{game.name}</TableCell>
-                    <TableCell>{game.hostName}</TableCell>
-                    <TableCell>
-                      <span
-                        className={`text-xs font-medium px-2 py-1 rounded-full text-white ${
-                          game.status === 'waiting'
-                            ? 'bg-yellow-500'
-                            : game.status === 'active'
-                              ? 'bg-green-500'
-                              : game.status === 'paused'
-                                ? 'bg-orange-500'
-                                : game.status === 'finished'
-                                  ? 'bg-gray-500'
-                                  : 'bg-blue-500'
-                        }`}
-                      >
-                        {getStatusLabel(game.status)}
-                      </span>
-                      {!game.canJoin && (
-                        <span className="ml-1 text-xs bg-red-500 text-white px-2 py-1 rounded-full">
-                          Full
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {game.currentPlayers}/{game.maxPlayers}
-                    </TableCell>
-                    <TableCell>{game.currentTurn}</TableCell>
-                    <TableCell className="capitalize">{game.mapSize}</TableCell>
-                    <TableCell>{new Date(game.createdAt).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleJoinGame(game.id)}
-                          disabled={!game.canJoin || joiningGameId === game.id}
-                          className="px-3 py-1 bg-amber-700 hover:bg-amber-800 disabled:bg-amber-400 disabled:text-amber-200 text-amber-50 text-sm font-medium rounded transition-colors focus:outline-none focus:ring-2 focus:ring-amber-600"
-                        >
-                          {joiningGameId === game.id ? (
-                            <div className="flex items-center">
-                              <div className="animate-spin w-3 h-3 border border-amber-300 border-t-transparent rounded-full mr-1"></div>
-                              Joining...
-                            </div>
-                          ) : (
-                            'Join'
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleDeleteGame(game.id)}
-                          disabled={deletingGameId === game.id}
-                          className="px-2 py-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
-                          title="Delete Game"
-                        >
-                          {deletingGameId === game.id ? (
-                            <div className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full"></div>
-                          ) : (
-                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                              <path
-                                fillRule="evenodd"
-                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          )}
-                        </button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <DataTable columns={columns} data={games} />
           )}
         </div>
       </div>
