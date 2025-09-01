@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SERVER_URL } from '../config';
 import { PageBackground } from './shared/PageBackground';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './ui/card';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -16,16 +17,16 @@ export const HomePage: React.FC = () => {
 
   return (
     <PageBackground className="min-h-screen flex items-center justify-center p-4">
-      <div className="bg-transparent md:bg-card md:border md:border-border md:shadow-2xl p-6 md:p-8 md:rounded-lg w-full max-w-md mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-4">CivJS</h1>
-          <p className="text-muted-foreground text-lg">A modern Civilization game</p>
-          <p className="text-muted-foreground text-sm mt-2">
+      <Card className="bg-transparent md:bg-card w-full max-w-md mx-auto md:shadow-2xl">
+        <CardHeader className="text-center">
+          <CardTitle className="text-4xl font-bold">CivJS</CardTitle>
+          <CardDescription className="text-lg">A modern Civilization game</CardDescription>
+          <CardDescription className="text-sm mt-2">
             Build your empire, research technologies, and conquer the world
-          </p>
-        </div>
+          </CardDescription>
+        </CardHeader>
 
-        <div className="space-y-4">
+        <CardContent className="space-y-4">
           <button
             onClick={handleStartNewGame}
             className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-lg"
@@ -59,15 +60,15 @@ export const HomePage: React.FC = () => {
               Browse Games
             </div>
           </button>
-        </div>
+        </CardContent>
 
-        <div className="mt-8 pt-6 border-t border-border">
+        <CardFooter className="border-t border-border justify-center">
           <div className="text-xs text-muted-foreground text-center">
             <p>Server: {SERVER_URL}</p>
             <p className="mt-1">Welcome to the world of civilization!</p>
           </div>
-        </div>
-      </div>
+        </CardFooter>
+      </Card>
     </PageBackground>
   );
 };

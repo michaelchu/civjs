@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { gameClient } from '../services/GameClient';
 import { PageBackground } from './shared/PageBackground';
-import { ButtonGroup } from './shared/ButtonGroup';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './ui/card';
+import { Combobox } from './ui/combobox';
+import { Slider } from './ui/slider';
+import { Button } from './ui/button';
 
 interface GameCreationState {
   playerName: string;
@@ -80,109 +83,92 @@ export const TerrainSettingsDialog: React.FC = () => {
   };
 
   const generatorOptions = [
-    {
-      value: 'random',
-      label: 'Default Random',
-      description: 'Standard random terrain generation',
-    },
-    {
-      value: 'fractal',
-      label: 'Fractal',
-      description: 'Realistic continent shapes using height maps',
-    },
-    {
-      value: 'island',
-      label: 'Islands',
-      description: 'Many small islands and varied landmasses',
-    },
-    {
-      value: 'fair',
-      label: 'Fair islands',
-      description: 'Large continent with fair starting positions',
-    },
-    {
-      value: 'fracture',
-      label: 'Fracture',
-      description: 'Fractured landmasses with complex coastlines',
-    },
+    { value: 'random', label: 'Default Random' },
+    { value: 'fractal', label: 'Fractal' },
+    { value: 'island', label: 'Islands' },
+    { value: 'fair', label: 'Fair islands' },
+    { value: 'fracture', label: 'Fracture' },
   ];
+
+  const generatorDescriptions = {
+    random: 'Standard random terrain generation',
+    fractal: 'Realistic continent shapes using height maps',
+    island: 'Many small islands and varied landmasses',
+    fair: 'Large continent with fair starting positions',
+    fracture: 'Fractured landmasses with complex coastlines',
+  };
 
   const landmassOptions = [
-    { value: 'sparse', label: 'Sparse (30%)', description: 'Lots of water' },
-    {
-      value: 'normal',
-      label: 'Normal (50%)',
-      description: 'Balanced land/water',
-    },
-    { value: 'dense', label: 'Dense (70%)', description: 'Mostly land' },
+    { value: 'sparse', label: 'Sparse (30%)' },
+    { value: 'normal', label: 'Normal (50%)' },
+    { value: 'dense', label: 'Dense (70%)' },
   ];
+
+  const landmassDescriptions = {
+    sparse: 'Lots of water',
+    normal: 'Balanced land/water',
+    dense: 'Mostly land',
+  };
 
   const resourceOptions = [
-    {
-      value: 'sparse',
-      label: 'Sparse',
-      description: 'Few strategic resources',
-    },
-    { value: 'normal', label: 'Normal', description: 'Balanced resources' },
-    { value: 'abundant', label: 'Abundant', description: 'Many resources' },
+    { value: 'sparse', label: 'Sparse' },
+    { value: 'normal', label: 'Normal' },
+    { value: 'abundant', label: 'Abundant' },
   ];
 
+  const resourceDescriptions = {
+    sparse: 'Few strategic resources',
+    normal: 'Balanced resources',
+    abundant: 'Many resources',
+  };
+
   const startposOptions = [
-    {
-      value: 0,
-      label: "Generator's Choice",
-      description: 'Let the generator decide player placement',
-    },
-    {
-      value: 1,
-      label: 'One per Continent',
-      description: 'Each player starts on their own continent',
-    },
-    {
-      value: 2,
-      label: 'Two on Three per Continent',
-      description: 'Two on three players per continent',
-    },
-    {
-      value: 3,
-      label: 'All on Single Continent',
-      description: 'All players start on the same landmass',
-    },
-    {
-      value: 4,
-      label: 'Variable Distribution',
-      description: 'Distribution depends on continent sizes',
-    },
+    { value: '0', label: "Generator's Choice" },
+    { value: '1', label: 'One per Continent' },
+    { value: '2', label: 'Two on Three per Continent' },
+    { value: '3', label: 'All on Single Continent' },
+    { value: '4', label: 'Variable Distribution' },
   ];
+
+  const startposDescriptions = {
+    0: 'Let the generator decide player placement',
+    1: 'Each player starts on their own continent',
+    2: 'Two on three players per continent',
+    3: 'All players start on the same landmass',
+    4: 'Distribution depends on continent sizes',
+  };
 
   return (
     <PageBackground
       className="min-h-[100dvh] md:flex md:items-center md:justify-center md:p-4"
-      showBackground={false}
     >
       <div className="flex flex-col h-[100dvh] md:h-auto md:max-w-4xl xl:max-w-5xl md:mx-auto min-h-0">
-        <div className="bg-transparent md:bg-card md:border md:border-border md:shadow-2xl p-4 md:p-8 md:rounded-lg w-full flex-1 md:flex-none overflow-y-auto">
-          <div className="flex items-center mb-6">
-            <button
-              onClick={handleBack}
-              className="mr-3 p-2 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
-            <div>
-              <h2 className="text-2xl font-bold text-foreground">Terrain Settings</h2>
-              <p className="text-muted-foreground text-sm md:text-base">
-                Configure map generation for "{gameData.gameName}"
-              </p>
+        <Card className="bg-transparent md:bg-card md:shadow-2xl w-full flex-1 md:flex-none overflow-y-auto">
+          <CardHeader>
+            <div className="flex items-center">
+              <button
+                onClick={handleBack}
+                className="mr-3 p-2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+              <div>
+                <CardTitle className="text-2xl">Terrain Settings</CardTitle>
+                <CardDescription className="text-sm md:text-base">
+                  Configure map generation for "{gameData.gameName}"
+                </CardDescription>
+              </div>
             </div>
-          </div>
+          </CardHeader>
+
+          <CardContent>
 
           <form
             id="terrain-settings-form"
@@ -197,28 +183,14 @@ export const TerrainSettingsDialog: React.FC = () => {
                 >
                   Map Generator
                 </label>
-                <select
-                  id="generator"
+                <Combobox
+                  options={generatorOptions}
                   value={terrainSettings.generator}
-                  onChange={e =>
-                    setTerrainSettings(prev => ({
-                      ...prev,
-                      generator: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-3 bg-card border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring shadow-sm"
-                >
-                  {generatorOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(value) => setTerrainSettings(prev => ({ ...prev, generator: value }))}
+                  placeholder="Select map generator"
+                />
                 <p className="text-xs text-muted-foreground mt-1">
-                  {
-                    generatorOptions.find(opt => opt.value === terrainSettings.generator)
-                      ?.description
-                  }
+                  {generatorDescriptions[terrainSettings.generator as keyof typeof generatorDescriptions]}
                 </p>
               </div>
 
@@ -229,107 +201,142 @@ export const TerrainSettingsDialog: React.FC = () => {
                 >
                   Landmass
                 </label>
-                <select
-                  id="landmass"
+                <Combobox
+                  options={landmassOptions}
                   value={terrainSettings.landmass}
-                  onChange={e =>
-                    setTerrainSettings(prev => ({
-                      ...prev,
-                      landmass: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-3 bg-card border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring shadow-sm"
-                >
-                  {landmassOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(value) => setTerrainSettings(prev => ({ ...prev, landmass: value }))}
+                  placeholder="Select landmass type"
+                />
                 <p className="text-xs text-muted-foreground mt-1">
-                  {landmassOptions.find(opt => opt.value === terrainSettings.landmass)?.description}
+                  {landmassDescriptions[terrainSettings.landmass as keyof typeof landmassDescriptions]}
                 </p>
               </div>
             </div>
 
             {/* Sliders in responsive grid layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <ButtonGroup
-                label="Temperature"
-                value={terrainSettings.temperature}
-                options={[
-                  { value: 35, label: 'Cold', description: 'More tundra and cold regions' },
-                  {
-                    value: 50,
-                    label: 'Temperate',
-                    description: 'Balanced climate with varied terrains',
-                  },
-                  {
-                    value: 75,
-                    label: 'Tropical',
-                    description: 'More jungles and tropical regions',
-                  },
-                ]}
-                onChange={value =>
-                  setTerrainSettings(prev => ({
-                    ...prev,
-                    temperature: value,
-                  }))
-                }
-              />
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Temperature
+                </label>
+                <div className="inline-flex w-full -space-x-px rounded-md shadow-xs rtl:space-x-reverse">
+                  <Button
+                    type="button"
+                    variant={terrainSettings.temperature === 35 ? 'default' : 'outline'}
+                    className="flex-1 rounded-none rounded-s-md shadow-none focus-visible:z-10"
+                    onClick={() => setTerrainSettings(prev => ({ ...prev, temperature: 35 }))}
+                  >
+                    Cold
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={terrainSettings.temperature === 50 ? 'default' : 'outline'}
+                    className="flex-1 rounded-none shadow-none focus-visible:z-10"
+                    onClick={() => setTerrainSettings(prev => ({ ...prev, temperature: 50 }))}
+                  >
+                    Temperate
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={terrainSettings.temperature === 75 ? 'default' : 'outline'}
+                    className="flex-1 rounded-none rounded-e-md shadow-none focus-visible:z-10"
+                    onClick={() => setTerrainSettings(prev => ({ ...prev, temperature: 75 }))}
+                  >
+                    Tropical
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 min-h-[16px]">
+                  {terrainSettings.temperature === 35 && 'More tundra and cold regions'}
+                  {terrainSettings.temperature === 50 && 'Balanced climate with varied terrains'}
+                  {terrainSettings.temperature === 75 && 'More jungles and tropical regions'}
+                </p>
+              </div>
 
-              <ButtonGroup
-                label="Wetness"
-                value={terrainSettings.wetness}
-                options={[
-                  { value: 35, label: 'Dry', description: 'More deserts and dry regions' },
-                  {
-                    value: 50,
-                    label: 'Normal',
-                    description: 'Balanced moisture with varied terrains',
-                  },
-                  { value: 75, label: 'Wet', description: 'More forests, rivers, and swamps' },
-                ]}
-                onChange={value =>
-                  setTerrainSettings(prev => ({
-                    ...prev,
-                    wetness: value,
-                  }))
-                }
-              />
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Wetness
+                </label>
+                <div className="inline-flex w-full -space-x-px rounded-md shadow-xs rtl:space-x-reverse">
+                  <Button
+                    type="button"
+                    variant={terrainSettings.wetness === 35 ? 'default' : 'outline'}
+                    className="flex-1 rounded-none rounded-s-md shadow-none focus-visible:z-10"
+                    onClick={() => setTerrainSettings(prev => ({ ...prev, wetness: 35 }))}
+                  >
+                    Dry
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={terrainSettings.wetness === 50 ? 'default' : 'outline'}
+                    className="flex-1 rounded-none shadow-none focus-visible:z-10"
+                    onClick={() => setTerrainSettings(prev => ({ ...prev, wetness: 50 }))}
+                  >
+                    Normal
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={terrainSettings.wetness === 75 ? 'default' : 'outline'}
+                    className="flex-1 rounded-none rounded-e-md shadow-none focus-visible:z-10"
+                    onClick={() => setTerrainSettings(prev => ({ ...prev, wetness: 75 }))}
+                  >
+                    Wet
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {terrainSettings.wetness === 35 && 'More deserts and dry regions'}
+                  {terrainSettings.wetness === 50 && 'Balanced moisture with varied terrains'}
+                  {terrainSettings.wetness === 75 && 'More forests, rivers, and swamps'}
+                </p>
+              </div>
 
-              <ButtonGroup
-                label="Rivers"
-                value={terrainSettings.rivers}
-                options={[
-                  { value: 35, label: 'Few', description: 'Fewer rivers and waterways' },
-                  { value: 50, label: 'Normal', description: 'Balanced river distribution' },
-                  { value: 75, label: 'Many', description: 'More rivers and waterways' },
-                ]}
-                onChange={value =>
-                  setTerrainSettings(prev => ({
-                    ...prev,
-                    rivers: value,
-                  }))
-                }
-              />
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Rivers
+                </label>
+                <div className="inline-flex w-full -space-x-px rounded-md shadow-xs rtl:space-x-reverse">
+                  <Button
+                    type="button"
+                    variant={terrainSettings.rivers === 35 ? 'default' : 'outline'}
+                    className="flex-1 rounded-none rounded-s-md shadow-none focus-visible:z-10"
+                    onClick={() => setTerrainSettings(prev => ({ ...prev, rivers: 35 }))}
+                  >
+                    Few
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={terrainSettings.rivers === 50 ? 'default' : 'outline'}
+                    className="flex-1 rounded-none shadow-none focus-visible:z-10"
+                    onClick={() => setTerrainSettings(prev => ({ ...prev, rivers: 50 }))}
+                  >
+                    Normal
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={terrainSettings.rivers === 75 ? 'default' : 'outline'}
+                    className="flex-1 rounded-none rounded-e-md shadow-none focus-visible:z-10"
+                    onClick={() => setTerrainSettings(prev => ({ ...prev, rivers: 75 }))}
+                  >
+                    Many
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {terrainSettings.rivers === 35 && 'Fewer rivers and waterways'}
+                  {terrainSettings.rivers === 50 && 'Balanced river distribution'}
+                  {terrainSettings.rivers === 75 && 'More rivers and waterways'}
+                </p>
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Huts: {terrainSettings.huts} (Villages)
                 </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="50"
-                  value={terrainSettings.huts}
-                  onChange={e =>
-                    setTerrainSettings(prev => ({
-                      ...prev,
-                      huts: parseInt(e.target.value),
-                    }))
-                  }
-                  className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                <Slider
+                  value={[terrainSettings.huts]}
+                  onValueChange={([value]) => setTerrainSettings(prev => ({ ...prev, huts: value }))}
+                  max={50}
+                  min={0}
+                  step={1}
+                  className="w-full"
                 />
                 <div className="flex justify-between text-xs text-muted-foreground mt-1">
                   <span>None</span>
@@ -346,28 +353,14 @@ export const TerrainSettingsDialog: React.FC = () => {
                 >
                   Resources
                 </label>
-                <select
-                  id="resources"
+                <Combobox
+                  options={resourceOptions}
                   value={terrainSettings.resources}
-                  onChange={e =>
-                    setTerrainSettings(prev => ({
-                      ...prev,
-                      resources: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-3 bg-card border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring shadow-sm"
-                >
-                  {resourceOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(value) => setTerrainSettings(prev => ({ ...prev, resources: value }))}
+                  placeholder="Select resource level"
+                />
                 <p className="text-xs text-muted-foreground mt-1">
-                  {
-                    resourceOptions.find(opt => opt.value === terrainSettings.resources)
-                      ?.description
-                  }
+                  {resourceDescriptions[terrainSettings.resources as keyof typeof resourceDescriptions]}
                 </p>
               </div>
             </div>
@@ -381,25 +374,14 @@ export const TerrainSettingsDialog: React.FC = () => {
                 >
                   Starting Positions
                 </label>
-                <select
-                  id="startpos"
-                  value={terrainSettings.startpos}
-                  onChange={e =>
-                    setTerrainSettings(prev => ({
-                      ...prev,
-                      startpos: parseInt(e.target.value),
-                    }))
-                  }
-                  className="w-full px-3 py-3 bg-card border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring shadow-sm"
-                >
-                  {startposOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                <Combobox
+                  options={startposOptions}
+                  value={terrainSettings.startpos?.toString()}
+                  onValueChange={(value) => setTerrainSettings(prev => ({ ...prev, startpos: parseInt(value) }))}
+                  placeholder="Select starting positions"
+                />
                 <p className="text-xs text-muted-foreground mt-1">
-                  {startposOptions.find(opt => opt.value === terrainSettings.startpos)?.description}
+                  {startposDescriptions[terrainSettings.startpos as keyof typeof startposDescriptions]}
                 </p>
               </div>
             )}
@@ -410,7 +392,34 @@ export const TerrainSettingsDialog: React.FC = () => {
               </div>
             )}
 
-            <div className="hidden lg:flex flex-col lg:flex-row space-y-3 lg:space-y-0 lg:space-x-4">
+              <div className="hidden lg:flex flex-col lg:flex-row space-y-3 lg:space-y-0 lg:space-x-4">
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="flex-1 py-3 px-4 bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-sm"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreating}
+                  className="flex-1 py-3 px-4 bg-primary hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 text-primary-foreground font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-sm"
+                >
+                  {isCreating ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin w-5 h-5 border-2 border-primary-foreground/30 border-t-transparent rounded-full mr-2"></div>
+                      Creating...
+                    </div>
+                  ) : (
+                    'Create Game'
+                  )}
+                </button>
+              </div>
+            </form>
+          </CardContent>
+
+          <CardFooter className="lg:hidden border-t border-border mt-auto">
+            <div className="flex space-x-4 w-full">
               <button
                 type="button"
                 onClick={handleBack}
@@ -420,6 +429,7 @@ export const TerrainSettingsDialog: React.FC = () => {
               </button>
               <button
                 type="submit"
+                form="terrain-settings-form"
                 disabled={isCreating}
                 className="flex-1 py-3 px-4 bg-primary hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 text-primary-foreground font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-sm"
               >
@@ -433,36 +443,8 @@ export const TerrainSettingsDialog: React.FC = () => {
                 )}
               </button>
             </div>
-          </form>
-        </div>
-
-        {/* Mobile bottom buttons */}
-        <div className="lg:hidden bg-card/50 p-4 border-t border-border mt-auto">
-          <div className="flex space-x-4">
-            <button
-              type="button"
-              onClick={handleBack}
-              className="flex-1 py-3 px-4 bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-sm"
-            >
-              Back
-            </button>
-            <button
-              type="submit"
-              form="terrain-settings-form"
-              disabled={isCreating}
-              className="flex-1 py-3 px-4 bg-primary hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 text-primary-foreground font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-sm"
-            >
-              {isCreating ? (
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin w-5 h-5 border-2 border-primary-foreground/30 border-t-transparent rounded-full mr-2"></div>
-                  Creating...
-                </div>
-              ) : (
-                'Create Game'
-              )}
-            </button>
-          </div>
-        </div>
+          </CardFooter>
+        </Card>
       </div>
     </PageBackground>
   );
