@@ -33,30 +33,6 @@ export enum MapgenTerrainPropertyEnum {
 }
 
 /**
- * Direct synchronous access to terrain ruleset - loaded on first access
- */
-export const TERRAIN_RULESET = new Proxy({} as Record<TerrainType, TerrainRuleset>, {
-  get(_target, prop) {
-    if (typeof prop === 'string') {
-      const terrains = rulesetLoader.getTerrains('classic');
-      return terrains[prop as TerrainType];
-    }
-    return undefined;
-  },
-  ownKeys() {
-    const terrains = rulesetLoader.getTerrains('classic');
-    return Object.keys(terrains);
-  },
-  has(_target, prop) {
-    if (typeof prop === 'string') {
-      const terrains = rulesetLoader.getTerrains('classic');
-      return prop in terrains;
-    }
-    return false;
-  },
-});
-
-/**
  * Pick terrain based on weighted selection - synchronous API
  * @reference freeciv/server/generator/mapgen_utils.c:692-761 pick_terrain()
  */
