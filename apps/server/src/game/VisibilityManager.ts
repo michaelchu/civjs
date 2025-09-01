@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { logger } from '../utils/logger';
-import { UnitManager, UNIT_TYPES } from './UnitManager';
+import { UnitManager } from './UnitManager';
+import { UNIT_TYPES } from './constants/UnitConstants';
 import { MapManager } from './MapManager';
 
 export interface PlayerVisibility {

@@ -1,4 +1,5 @@
-import { UnitManager, UNIT_TYPES } from '../../src/game/UnitManager';
+import { UnitManager } from '../../src/game/UnitManager';
+import { UNIT_TYPES } from '../../src/game/constants/UnitConstants';
 
 // Get the mock from setup
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
