@@ -125,6 +125,31 @@ class GameClient {
         console.log('Current game state turn after update:', useGameStore.getState().turn);
         break;
 
+      case PacketType.UNIT_INFO:
+        console.log('Unit info:', packet.data);
+        if (packet.data.units && Array.isArray(packet.data.units)) {
+          const { units } = useGameStore.getState();
+          const updatedUnits = { ...units };
+
+          for (const unitData of packet.data.units) {
+            updatedUnits[unitData.id] = {
+              id: unitData.id,
+              playerId: unitData.playerId,
+              type: unitData.type,
+              x: unitData.x,
+              y: unitData.y,
+              hp: unitData.hp,
+              movesLeft: unitData.movesLeft,
+              veteranLevel: unitData.veteranLevel,
+            };
+          }
+
+          useGameStore.getState().updateGameState({
+            units: updatedUnits,
+          });
+        }
+        break;
+
       case PacketType.UNIT_MOVE_REPLY:
         console.log('Unit move reply:', packet.data);
         if (packet.data.success) {

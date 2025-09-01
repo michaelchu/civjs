@@ -3,7 +3,7 @@ import { logger } from '../utils/logger';
 import { db } from '../database';
 import { cities } from '../database/schema';
 import { eq } from 'drizzle-orm';
-import { UNIT_TYPES } from './UnitManager';
+import { UNIT_TYPES } from './constants/UnitConstants';
 
 // Following original Freeciv city radius logic
 export const CITY_MAP_DEFAULT_RADIUS = 2;
