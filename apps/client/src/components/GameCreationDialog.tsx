@@ -102,7 +102,7 @@ export const GameCreationDialog: React.FC = () => {
                     id="playerName"
                     type="text"
                     value={playerName}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPlayerName(e.target.value)}
+                    onChange={e => setPlayerName(e.target.value)}
                     placeholder="Enter your player name"
                     maxLength={32}
                   />
@@ -119,7 +119,7 @@ export const GameCreationDialog: React.FC = () => {
                     id="gameName"
                     type="text"
                     value={gameName}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGameName(e.target.value)}
+                    onChange={e => setGameName(e.target.value)}
                     placeholder="Enter game name"
                     maxLength={50}
                   />
