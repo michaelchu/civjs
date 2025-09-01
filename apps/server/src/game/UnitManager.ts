@@ -2,20 +2,8 @@ import { db } from '../database';
 import { units } from '../database/schema/units';
 import { eq } from 'drizzle-orm';
 import { logger } from '../utils/logger';
-
-export interface UnitType {
-  id: string;
-  name: string;
-  cost: number;
-  movement: number;
-  combat: number;
-  range: number;
-  sight: number;
-  canFoundCity: boolean;
-  canBuildImprovements: boolean;
-  unitClass: 'military' | 'civilian' | 'naval' | 'air';
-  requiredTech?: string;
-}
+import { getTerrainMovementCost } from './constants/MovementConstants';
+import { UNIT_TYPES, getUnitType, UnitType } from './constants/UnitConstants';
 
 export interface Unit {
   id: string;
@@ -48,94 +36,18 @@ export interface CombatResult {
   defenderDestroyed: boolean;
 }
 
-// Unit type definitions - these would normally be in a data file
-export const UNIT_TYPES: Record<string, UnitType> = {
-  warrior: {
-    id: 'warrior',
-    name: 'Warrior',
-    cost: 40,
-    movement: 2,
-    combat: 20,
-    range: 1,
-    sight: 2,
-    canFoundCity: false,
-    canBuildImprovements: false,
-    unitClass: 'military',
-  },
-  settler: {
-    id: 'settler',
-    name: 'Settler',
-    cost: 80,
-    movement: 2,
-    combat: 0,
-    range: 0,
-    sight: 2,
-    canFoundCity: true,
-    canBuildImprovements: false,
-    unitClass: 'civilian',
-  },
-  scout: {
-    id: 'scout',
-    name: 'Scout',
-    cost: 25,
-    movement: 3,
-    combat: 10,
-    range: 1,
-    sight: 3,
-    canFoundCity: false,
-    canBuildImprovements: false,
-    unitClass: 'military',
-  },
-  worker: {
-    id: 'worker',
-    name: 'Worker',
-    cost: 50,
-    movement: 2,
-    combat: 0,
-    range: 0,
-    sight: 2,
-    canFoundCity: false,
-    canBuildImprovements: true,
-    unitClass: 'civilian',
-  },
-  archer: {
-    id: 'archer',
-    name: 'Archer',
-    cost: 50,
-    movement: 2,
-    combat: 15,
-    range: 2,
-    sight: 2,
-    canFoundCity: false,
-    canBuildImprovements: false,
-    unitClass: 'military',
-    requiredTech: 'archery',
-  },
-  spearman: {
-    id: 'spearman',
-    name: 'Spearman',
-    cost: 45,
-    movement: 2,
-    combat: 25,
-    range: 1,
-    sight: 2,
-    canFoundCity: false,
-    canBuildImprovements: false,
-    unitClass: 'military',
-    requiredTech: 'bronzeWorking',
-  },
-};
-
 export class UnitManager {
   private units: Map<string, Unit> = new Map();
   private gameId: string;
   private mapWidth: number;
   private mapHeight: number;
+  private mapManager: any; // MapManager instance for terrain access
 
-  constructor(gameId: string, mapWidth: number, mapHeight: number) {
+  constructor(gameId: string, mapWidth: number, mapHeight: number, mapManager?: any) {
     this.gameId = gameId;
     this.mapWidth = mapWidth;
     this.mapHeight = mapHeight;
+    this.mapManager = mapManager;
   }
 
   /**
@@ -214,9 +126,9 @@ export class UnitManager {
       throw new Error(`Invalid position: ${newX}, ${newY}`);
     }
 
-    // Calculate movement cost
-    const distance = this.calculateDistance(unit.x, unit.y, newX, newY);
-    const movementCost = Math.ceil(distance); // Simplified - would consider terrain
+    // Calculate movement cost using terrain-based system
+    // @reference freeciv/common/movement.c map_move_cost_unit()
+    const movementCost = this.calculateTerrainMovementCost(unit, unit.x, unit.y, newX, newY);
 
     // Check if unit has enough movement
     if (unit.movementLeft < movementCost) {
@@ -375,14 +287,17 @@ export class UnitManager {
 
   /**
    * Reset movement for all units (called at turn start)
+   * @reference freeciv/server/unithand.c unit_restore_movepoints()
    */
   async resetMovement(playerId: string): Promise<void> {
     for (const unit of this.units.values()) {
       if (unit.playerId === playerId) {
         const unitType = UNIT_TYPES[unit.unitTypeId];
+        // Restore full movement points in fragments
         unit.movementLeft = unitType.movement;
 
         // Heal fortified units
+        // @reference freeciv/server/unithand.c unit_restore_movepoints() - heal_unit()
         if (unit.fortified && unit.health < 100) {
           unit.health = Math.min(100, unit.health + 10);
         }
@@ -478,6 +393,57 @@ export class UnitManager {
   }
 
   /**
+   * Get terrain at specific coordinates
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @returns terrain type string
+   */
+  private getTerrainAt(x: number, y: number): string {
+    if (!this.mapManager) {
+      return 'plains'; // Default terrain if no map manager
+    }
+
+    try {
+      const tile = this.mapManager.getTile(x, y);
+      return tile?.terrain || 'plains';
+    } catch (error) {
+      logger.warn(`Failed to get terrain at (${x}, ${y}):`, error);
+      return 'plains';
+    }
+  }
+
+  /**
+   * Calculate movement cost between two positions in movement fragments
+   * @reference freeciv/common/movement.c map_move_cost_unit()
+   */
+  private calculateTerrainMovementCost(
+    _unit: Unit,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number
+  ): number {
+    const distance = this.calculateDistance(fromX, fromY, toX, toY);
+
+    // For non-adjacent moves, calculate path cost (simplified)
+    if (distance > 1) {
+      // For now, treat as straight-line movement with destination terrain cost
+      const destinationTerrain = this.getTerrainAt(toX, toY);
+      return getTerrainMovementCost(destinationTerrain) * distance;
+    }
+
+    // Adjacent move - use destination terrain cost
+    const destinationTerrain = this.getTerrainAt(toX, toY);
+    const movementCost = getTerrainMovementCost(destinationTerrain);
+
+    // TODO: Add road/railroad bonuses
+    // TODO: Add river crossing penalties
+    // TODO: Add unit-specific terrain bonuses (e.g., alpine troops in mountains)
+
+    return movementCost;
+  }
+
+  /**
    * Check if position is valid
    */
   private isValidPosition(x: number, y: number): boolean {
@@ -498,6 +464,13 @@ export class UnitManager {
    */
   getUnit(unitId: string): Unit | undefined {
     return this.units.get(unitId);
+  }
+
+  /**
+   * Get unit type definition by ID
+   */
+  getUnitType(unitTypeId: string): UnitType | undefined {
+    return getUnitType(unitTypeId);
   }
 
   /**

@@ -759,15 +759,157 @@ export class MapRenderer {
   private renderUnit(unit: Unit, viewport: MapViewport) {
     const screenPos = this.mapToScreen(unit.x, unit.y, viewport);
 
+    // Get unit animation offset for smooth movement
+    // @reference freeciv-web/.../unit.js:get_unit_anim_offset()
+    const animOffset = this.getUnitAnimOffset();
+    const unitX = screenPos.x + animOffset.x;
+    const unitY = screenPos.y + animOffset.y;
+
+    // Render unit sprites using freeciv-web approach
+    // @reference freeciv-web/.../tilespec.js:fill_unit_sprite_array()
+    const unitSprites = this.fillUnitSpriteArray(unit);
+
+    for (const spriteInfo of unitSprites) {
+      if (spriteInfo.key) {
+        const sprite = this.tilesetLoader.getSprite(spriteInfo.key);
+        if (sprite) {
+          const offsetX = spriteInfo.offset_x || 0;
+          const offsetY = spriteInfo.offset_y || 0;
+
+          this.ctx.drawImage(sprite, unitX + offsetX, unitY + offsetY);
+        } else {
+          // Fallback to unit type specific sprite key
+          const fallbackKey = this.getUnitTypeGraphicTag(unit.type);
+          const fallbackSprite = this.tilesetLoader.getSprite(fallbackKey);
+          if (fallbackSprite) {
+            this.ctx.drawImage(fallbackSprite, unitX, unitY);
+          } else {
+            // Final fallback: render placeholder with unit type indication
+            this.renderUnitPlaceholder(unit, unitX, unitY);
+          }
+        }
+      }
+    }
+
+    // Render health bar if unit is damaged
+    if (unit.hp < 100) {
+      this.renderUnitHealthBar(unit, unitX, unitY);
+    }
+
+    // Render unit status indicators (fortified, etc.)
+    this.renderUnitStatusIndicators();
+  }
+
+  /**
+   * Get unit animation offset for smooth movement
+   * @reference freeciv-web/.../unit.js:get_unit_anim_offset()
+   */
+  private getUnitAnimOffset(): { x: number; y: number } {
+    // For now, return no offset (static units)
+    // TODO: Implement smooth movement animation system
+    return { x: 0, y: 0 };
+  }
+
+  /**
+   * Fill unit sprite array based on freeciv-web implementation
+   * @reference freeciv-web/.../tilespec.js:fill_unit_sprite_array()
+   */
+  private fillUnitSpriteArray(
+    unit: Unit
+  ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
+    const sprites: Array<{ key: string; offset_x?: number; offset_y?: number }> = [];
+
+    // Get nation flag sprite
+    // @reference freeciv-web: get_unit_nation_flag_sprite(punit)
+    const flagSprite = this.getUnitNationFlagSprite();
+    if (flagSprite) {
+      sprites.push(flagSprite);
+    }
+
+    // Get main unit graphic
+    // @reference freeciv-web: tileset_unit_graphic_tag(punit)
+    const unitGraphic = this.getUnitTypeGraphicTag(unit.type);
+    sprites.push({
+      key: unitGraphic,
+      offset_x: 0,
+      offset_y: 0,
+    });
+
+    // Get activity sprite if unit has activity
+    // @reference freeciv-web: get_unit_activity_sprite(punit)
+    const activitySprite = this.getUnitActivitySprite();
+    if (activitySprite) {
+      sprites.push(activitySprite);
+    }
+
+    return sprites;
+  }
+
+  /**
+   * Get unit nation flag sprite
+   * @reference freeciv-web: get_unit_nation_flag_sprite()
+   */
+  private getUnitNationFlagSprite(): { key: string; offset_x?: number; offset_y?: number } | null {
+    // For now, return null (no flag rendering)
+    // TODO: Implement nation flag sprites based on player nation
+    return null;
+  }
+
+  /**
+   * Get unit type graphic tag
+   * @reference freeciv-web: tileset_unit_graphic_tag()
+   */
+  private getUnitTypeGraphicTag(unitType: string): string {
+    // Map unit types to sprite keys based on freeciv tileset naming
+    // @reference freeciv/data/amplio2/units.spec - unit sprite definitions
+    const unitSpriteMap: Record<string, string> = {
+      warrior: 'u.warriors_Idle:0',
+      settler: 'u.settlers_Idle:0',
+      scout: 'u.explorers_Idle:0',
+      worker: 'u.workers_Idle:0',
+      archer: 'u.archers_Idle:0',
+      spearman: 'u.phalanx_Idle:0',
+      // Additional common units
+      horseman: 'u.horsemen_Idle:0',
+      knight: 'u.knights_Idle:0',
+      legion: 'u.legion_Idle:0',
+      pikeman: 'u.pikemen_Idle:0',
+      musketeers: 'u.musketeers_Idle:0',
+      riflemen: 'u.riflemen_Idle:0',
+      cavalry: 'u.cavalry_Idle:0',
+      cannon: 'u.cannon_Idle:0',
+      catapult: 'u.catapult_Idle:0',
+      trireme: 'u.trireme_Idle:0',
+      caravel: 'u.caravel_Idle:0',
+      frigate: 'u.frigate_Idle:0',
+      ironclad: 'u.ironclad_Idle:0',
+      destroyer: 'u.destroyer_Idle:0',
+      cruiser: 'u.cruiser_Idle:0',
+      battleship: 'u.battleship_Idle:0',
+      submarine: 'u.submarine_Idle:0',
+      carrier: 'u.carrier_Idle:0',
+    };
+
+    return unitSpriteMap[unitType] || `u.${unitType}_Idle:0`;
+  }
+
+  /**
+   * Get unit activity sprite
+   * @reference freeciv-web: get_unit_activity_sprite()
+   */
+  private getUnitActivitySprite(): { key: string; offset_x?: number; offset_y?: number } | null {
+    // TODO: Implement activity sprites (fortified, sentry, etc.)
+    return null;
+  }
+
+  /**
+   * Render unit placeholder when sprites are not available
+   */
+  private renderUnitPlaceholder(unit: Unit, x: number, y: number): void {
+    // Use the original placeholder rendering as fallback
     this.ctx.fillStyle = this.getPlayerColor(unit.playerId);
     this.ctx.beginPath();
-    this.ctx.arc(
-      screenPos.x + this.tileWidth / 2,
-      screenPos.y + this.tileHeight / 2,
-      8,
-      0,
-      2 * Math.PI
-    );
+    this.ctx.arc(x + this.tileWidth / 2, y + this.tileHeight / 2, 8, 0, 2 * Math.PI);
     this.ctx.fill();
 
     this.ctx.fillStyle = 'white';
@@ -775,9 +917,59 @@ export class MapRenderer {
     this.ctx.textAlign = 'center';
     this.ctx.fillText(
       unit.type.charAt(0).toUpperCase(),
-      screenPos.x + this.tileWidth / 2,
-      screenPos.y + this.tileHeight / 2 + 4
+      x + this.tileWidth / 2,
+      y + this.tileHeight / 2 + 4
     );
+  }
+
+  /**
+   * Render unit health bar
+   * @reference freeciv-web health bar rendering
+   */
+  private renderUnitHealthBar(unit: Unit, x: number, y: number): void {
+    const barWidth = 24;
+    const barHeight = 4;
+    const healthPercent = unit.hp / 100;
+
+    // Background (red)
+    this.ctx.fillStyle = '#ff0000';
+    this.ctx.fillRect(
+      x + this.tileWidth / 2 - barWidth / 2,
+      y + this.tileHeight - 8,
+      barWidth,
+      barHeight
+    );
+
+    // Health (green)
+    this.ctx.fillStyle = '#00ff00';
+    this.ctx.fillRect(
+      x + this.tileWidth / 2 - barWidth / 2,
+      y + this.tileHeight - 8,
+      barWidth * healthPercent,
+      barHeight
+    );
+
+    // Border
+    this.ctx.strokeStyle = '#000000';
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(
+      x + this.tileWidth / 2 - barWidth / 2,
+      y + this.tileHeight - 8,
+      barWidth,
+      barHeight
+    );
+  }
+
+  /**
+   * Render unit status indicators (fortified, activity, etc.)
+   * @reference freeciv-web status indicator rendering
+   */
+  private renderUnitStatusIndicators(): void {
+    // TODO: Implement status indicators
+    // - Fortified indicator
+    // - Sentry indicator
+    // - Goto indicator
+    // - Activity indicators
   }
 
   private renderCity(city: City, viewport: MapViewport) {

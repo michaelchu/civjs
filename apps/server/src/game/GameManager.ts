@@ -339,7 +339,7 @@ export class GameManager {
       temperatureParam
     );
     const turnManager = new TurnManager(gameId, this.io);
-    const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
+    const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager);
 
     // Initialize turn system with player IDs
     const playerIds = Array.from(players.keys());
@@ -459,6 +459,15 @@ export class GameManager {
       await researchManager.initializePlayerResearch(player.id);
       visibilityManager.initializePlayerVisibility(player.id);
       // Grant initial visibility around starting position
+      visibilityManager.updatePlayerVisibility(player.id);
+    }
+
+    // Create starting units for all players (settler + warrior)
+    // @reference freeciv/server/plrhand.c:player_init() - create_start_unit()
+    await this.createStartingUnits(gameId, mapData, unitManager);
+
+    // Update visibility after units are created to reveal starting positions
+    for (const player of players.values()) {
       visibilityManager.updatePlayerVisibility(player.id);
     }
 
@@ -590,6 +599,111 @@ export class GameManager {
   }
 
   /**
+   * Create starting units for all players at their starting positions
+   * @reference freeciv/server/plrhand.c:player_init() - create_start_unit()
+   * Each player starts with a settler (city founder) and a warrior (military unit)
+   */
+  private async createStartingUnits(gameId: string, mapData: any, unitManager: any): Promise<void> {
+    try {
+      logger.info('Creating starting units for all players', { gameId });
+
+      const gameInstance = this.games.get(gameId);
+      if (!gameInstance) {
+        throw new Error('Game instance not found');
+      }
+
+      // Create starting units for each player
+      for (const player of gameInstance.players.values()) {
+        const startingPos = mapData.startingPositions.find(
+          (pos: any) => pos.playerId === player.id
+        );
+
+        if (!startingPos) {
+          logger.warn(`No starting position found for player ${player.id}`);
+          continue;
+        }
+
+        try {
+          // Create settler first (city founder)
+          // @reference freeciv/server/plrhand.c - UTYF_CITYFOUNDATION flag
+          const settler = await unitManager.createUnit(
+            player.id,
+            'settler',
+            startingPos.x,
+            startingPos.y
+          );
+
+          // Create military unit (warrior) at same position
+          // @reference freeciv/server/plrhand.c - initial military unit
+          const warrior = await unitManager.createUnit(
+            player.id,
+            'warrior',
+            startingPos.x,
+            startingPos.y
+          );
+
+          logger.info(`Created starting units for player ${player.id}`, {
+            gameId,
+            playerId: player.id,
+            position: `${startingPos.x},${startingPos.y}`,
+            units: [settler.id, warrior.id],
+          });
+
+          // Broadcast unit creation to all players in the game
+          this.broadcastPacketToGame(gameId, PacketType.UNIT_INFO, {
+            units: [
+              this.formatUnitForClient(settler, unitManager),
+              this.formatUnitForClient(warrior, unitManager),
+            ],
+          });
+        } catch (error) {
+          logger.error(`Failed to create starting units for player ${player.id}:`, error);
+          // Continue with other players even if one fails
+        }
+      }
+
+      logger.info('Starting units creation completed', { gameId });
+    } catch (error) {
+      logger.error('Failed to create starting units:', error);
+      // Don't throw to avoid breaking game initialization
+    }
+  }
+
+  /**
+   * Format unit for client communication
+   * @reference freeciv-web unit packet format
+   */
+  private formatUnitForClient(unit: any, unitManager: any): any {
+    const unitType = unitManager.getUnitType(unit.unitTypeId);
+
+    return {
+      id: unit.id,
+      owner: unit.playerId,
+      type: unitType?.id || unit.unitTypeId,
+      tile: unit.x + unit.y * 100, // Convert to tile index (simplified)
+      x: unit.x,
+      y: unit.y,
+      hp: unit.health,
+      movesleft: unit.movementLeft * 3, // Convert to movement fragments
+      veteran: unit.veteranLevel,
+      transported: false,
+      paradropped: false,
+      connecting: false,
+      occupied: false,
+      done_moving: unit.movementLeft === 0,
+      battlegroup: -1,
+      has_orders: false,
+      homecity: 0, // No home city initially
+      fuel: 0,
+      goto_tile: -1,
+      activity: 0, // ACTIVITY_IDLE
+      activity_count: 0,
+      activity_target: null,
+      focus: false,
+    };
+  }
+
+  /**
    * Serialize map tiles for database storage (compress large tile arrays)
    */
   private serializeMapTiles(tiles: any[][]): any {
@@ -673,16 +787,6 @@ export class GameManager {
         this.playerToGame.set(dbPlayer.id, gameId);
       }
 
-      // Initialize managers
-      const turnManager = new TurnManager(gameId, this.io);
-      const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight);
-
-      // Initialize turn system with existing player IDs
-      const playerIds = Array.from(players.keys());
-      await turnManager.initializeTurn(playerIds);
-      const cityManager = new CityManager(gameId);
-      const researchManager = new ResearchManager(gameId);
-
       // Extract terrain settings from stored game state
       const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
       const temperatureParam = storedTerrainSettings?.temperature ?? 50;
@@ -699,6 +803,16 @@ export class GameManager {
         temperatureParam
       );
       await this.restoreMapDataToManager(mapManager, game.mapData as any, game.mapSeed!);
+
+      // Initialize managers (now that mapManager is available)
+      const turnManager = new TurnManager(gameId, this.io);
+      const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager);
+
+      // Initialize turn system with existing player IDs
+      const playerIds = Array.from(players.keys());
+      await turnManager.initializeTurn(playerIds);
+      const cityManager = new CityManager(gameId);
+      const researchManager = new ResearchManager(gameId);
 
       const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
 
