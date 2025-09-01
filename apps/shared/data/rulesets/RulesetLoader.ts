@@ -19,7 +19,19 @@ import {
   type TechnologyRuleset,
   UnitsRulesetFileSchema,
   type UnitsRulesetFile,
-  type UnitTypeRuleset
+  type UnitTypeRuleset,
+  GovernmentsRulesetFileSchema,
+  type GovernmentsRulesetFile,
+  type GovernmentRuleset,
+  NationsRulesetFileSchema,
+  type NationsRulesetFile,
+  type NationRuleset,
+  GameRulesetFileSchema,
+  type GameRulesetFile,
+  EffectsRulesetFileSchema,
+  type EffectsRulesetFile,
+  type Effect,
+  type Requirement
 } from './schemas';
 
 export class RulesetLoader {
@@ -28,6 +40,10 @@ export class RulesetLoader {
   private buildingsCache = new Map<string, BuildingsRulesetFile>();
   private techsCache = new Map<string, TechsRulesetFile>();
   private unitsCache = new Map<string, UnitsRulesetFile>();
+  private governmentsCache = new Map<string, GovernmentsRulesetFile>();
+  private nationsCache = new Map<string, NationsRulesetFile>();
+  private gameRulesCache = new Map<string, GameRulesetFile>();
+  private effectsCache = new Map<string, EffectsRulesetFile>();
   private readonly baseDir: string;
 
   constructor(baseDir?: string) {
@@ -354,6 +370,258 @@ export class RulesetLoader {
   }
 
   /**
+   * Load governments ruleset for a specific ruleset variant (e.g., 'classic', 'civ2')
+   */
+  loadGovernmentsRuleset(rulesetName: string = 'classic'): GovernmentsRulesetFile {
+    // Check cache first
+    if (this.governmentsCache.has(rulesetName)) {
+      return this.governmentsCache.get(rulesetName)!;
+    }
+
+    try {
+      const filePath = join(this.baseDir, rulesetName, 'governments.json');
+      const fileContent = readFileSync(filePath, 'utf-8');
+      const rawData = JSON.parse(fileContent);
+
+      // Validate with Zod schema
+      const validatedData = GovernmentsRulesetFileSchema.parse(rawData);
+      
+      // Cache the validated data
+      this.governmentsCache.set(rulesetName, validatedData);
+      
+      return validatedData;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to load governments ruleset '${rulesetName}': ${error.message}`);
+      }
+      throw new Error(`Failed to load governments ruleset '${rulesetName}': Unknown error`);
+    }
+  }
+
+  /**
+   * Get all government definitions for a ruleset
+   */
+  getGovernments(rulesetName: string = 'classic'): Record<string, GovernmentRuleset> {
+    const rulesetFile = this.loadGovernmentsRuleset(rulesetName);
+    return rulesetFile.governments.types;
+  }
+
+  /**
+   * Get a specific government definition
+   */
+  getGovernment(governmentId: string, rulesetName: string = 'classic'): GovernmentRuleset {
+    const governments = this.getGovernments(rulesetName);
+    const government = governments[governmentId];
+    
+    if (!government) {
+      throw new Error(`Government '${governmentId}' not found in ruleset '${rulesetName}'`);
+    }
+    
+    return government;
+  }
+
+  /**
+   * Get the revolution government name
+   */
+  getRevolutionGovernment(rulesetName: string = 'classic'): string {
+    const rulesetFile = this.loadGovernmentsRuleset(rulesetName);
+    return rulesetFile.governments.during_revolution;
+  }
+
+  /**
+   * Load nations ruleset for a specific ruleset variant (e.g., 'classic', 'civ2')
+   */
+  loadNationsRuleset(rulesetName: string = 'classic'): NationsRulesetFile {
+    // Check cache first
+    if (this.nationsCache.has(rulesetName)) {
+      return this.nationsCache.get(rulesetName)!;
+    }
+
+    try {
+      const filePath = join(this.baseDir, rulesetName, 'nations.json');
+      const fileContent = readFileSync(filePath, 'utf-8');
+      const rawData = JSON.parse(fileContent);
+
+      // Validate with Zod schema
+      const validatedData = NationsRulesetFileSchema.parse(rawData);
+      
+      // Cache the validated data
+      this.nationsCache.set(rulesetName, validatedData);
+      
+      return validatedData;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to load nations ruleset '${rulesetName}': ${error.message}`);
+      }
+      throw new Error(`Failed to load nations ruleset '${rulesetName}': Unknown error`);
+    }
+  }
+
+  /**
+   * Get all nation definitions for a ruleset
+   */
+  getNations(rulesetName: string = 'classic'): Record<string, NationRuleset> {
+    const rulesetFile = this.loadNationsRuleset(rulesetName);
+    return rulesetFile.nations;
+  }
+
+  /**
+   * Get a specific nation definition
+   */
+  getNation(nationId: string, rulesetName: string = 'classic'): NationRuleset {
+    const nations = this.getNations(rulesetName);
+    const nation = nations[nationId];
+    
+    if (!nation) {
+      throw new Error(`Nation '${nationId}' not found in ruleset '${rulesetName}'`);
+    }
+    
+    return nation;
+  }
+
+  /**
+   * Get default government for nations
+   */
+  getDefaultGovernment(rulesetName: string = 'classic'): string {
+    const rulesetFile = this.loadNationsRuleset(rulesetName);
+    return rulesetFile.compatibility.default_government;
+  }
+
+  /**
+   * Load game rules ruleset for a specific ruleset variant (e.g., 'classic', 'civ2')
+   */
+  loadGameRulesRuleset(rulesetName: string = 'classic'): GameRulesetFile {
+    // Check cache first
+    if (this.gameRulesCache.has(rulesetName)) {
+      return this.gameRulesCache.get(rulesetName)!;
+    }
+
+    try {
+      const filePath = join(this.baseDir, rulesetName, 'game.json');
+      const fileContent = readFileSync(filePath, 'utf-8');
+      const rawData = JSON.parse(fileContent);
+
+      // Validate with Zod schema
+      const validatedData = GameRulesetFileSchema.parse(rawData);
+      
+      // Cache the validated data
+      this.gameRulesCache.set(rulesetName, validatedData);
+      
+      return validatedData;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to load game rules ruleset '${rulesetName}': ${error.message}`);
+      }
+      throw new Error(`Failed to load game rules ruleset '${rulesetName}': Unknown error`);
+    }
+  }
+
+  /**
+   * Get game civstyle configuration
+   */
+  getCivStyle(rulesetName: string = 'classic') {
+    const rulesetFile = this.loadGameRulesRuleset(rulesetName);
+    return rulesetFile.civstyle;
+  }
+
+  /**
+   * Get global initialization options
+   */
+  getGlobalInitOptions(rulesetName: string = 'classic') {
+    const rulesetFile = this.loadGameRulesRuleset(rulesetName);
+    return rulesetFile.options;
+  }
+
+  /**
+   * Load effects ruleset for a specific ruleset variant (e.g., 'classic', 'civ2')
+   */
+  loadEffectsRuleset(rulesetName: string = 'classic'): EffectsRulesetFile {
+    // Check cache first
+    if (this.effectsCache.has(rulesetName)) {
+      return this.effectsCache.get(rulesetName)!;
+    }
+
+    try {
+      const filePath = join(this.baseDir, rulesetName, 'effects.json');
+      const fileContent = readFileSync(filePath, 'utf-8');
+      const rawData = JSON.parse(fileContent);
+
+      // Validate with Zod schema
+      const validatedData = EffectsRulesetFileSchema.parse(rawData);
+      
+      // Cache the validated data
+      this.effectsCache.set(rulesetName, validatedData);
+      
+      return validatedData;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to load effects ruleset '${rulesetName}': ${error.message}`);
+      }
+      throw new Error(`Failed to load effects ruleset '${rulesetName}': Unknown error`);
+    }
+  }
+
+  /**
+   * Get all effect definitions for a ruleset
+   */
+  getEffects(rulesetName: string = 'classic'): Record<string, Effect> {
+    const rulesetFile = this.loadEffectsRuleset(rulesetName);
+    return rulesetFile.effects;
+  }
+
+  /**
+   * Get a specific effect definition
+   */
+  getEffect(effectId: string, rulesetName: string = 'classic'): Effect {
+    const effects = this.getEffects(rulesetName);
+    const effect = effects[effectId];
+    
+    if (!effect) {
+      throw new Error(`Effect '${effectId}' not found in ruleset '${rulesetName}'`);
+    }
+    
+    return effect;
+  }
+
+  /**
+   * Check if requirements are met (basic implementation)
+   * @reference reference/freeciv/common/requirements.c
+   */
+  checkRequirements(requirements: Requirement[], context: any = {}): boolean {
+    if (!requirements || requirements.length === 0) {
+      return true;
+    }
+
+    return requirements.every(req => {
+      // Basic requirement checking - can be extended
+      switch (req.type) {
+        case 'Tech':
+          return context.techs?.includes(req.name) ?? false;
+        case 'Building':
+          return context.buildings?.includes(req.name) ?? false;
+        case 'Government':
+          return context.government === req.name;
+        case 'Nation':
+          return context.nation === req.name;
+        default:
+          // Unknown requirement types default to true for now
+          return true;
+      }
+    });
+  }
+
+  /**
+   * Get effects that match specific requirements
+   */
+  getActiveEffects(rulesetName: string = 'classic', context: any = {}): Effect[] {
+    const effects = this.getEffects(rulesetName);
+    
+    return Object.values(effects).filter(effect => {
+      return this.checkRequirements(effect.reqs || [], context);
+    });
+  }
+
+  /**
    * Clear all cached rulesets (useful for testing)
    */
   clearCache(): void {
@@ -361,6 +629,10 @@ export class RulesetLoader {
     this.buildingsCache.clear();
     this.techsCache.clear();
     this.unitsCache.clear();
+    this.governmentsCache.clear();
+    this.nationsCache.clear();
+    this.gameRulesCache.clear();
+    this.effectsCache.clear();
   }
 }
 
