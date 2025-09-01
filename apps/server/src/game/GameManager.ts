@@ -339,7 +339,9 @@ export class GameManager {
       temperatureParam
     );
     const turnManager = new TurnManager(gameId, this.io);
-    const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager);
+    const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager, {
+      foundCity: this.foundCity.bind(this),
+    });
 
     // Initialize turn system with player IDs
     const playerIds = Array.from(players.keys());
@@ -806,7 +808,9 @@ export class GameManager {
 
       // Initialize managers (now that mapManager is available)
       const turnManager = new TurnManager(gameId, this.io);
-      const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager);
+      const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager, {
+        foundCity: this.foundCity.bind(this),
+      });
 
       // Initialize turn system with existing player IDs
       const playerIds = Array.from(players.keys());
