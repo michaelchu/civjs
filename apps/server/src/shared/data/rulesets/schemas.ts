@@ -8,7 +8,7 @@ import { z } from 'zod';
 // Mapgen terrain properties enum schema
 export const MapgenTerrainPropertySchema = z.enum([
   'MG_COLD',
-  'MG_DRY', 
+  'MG_DRY',
   'MG_FOLIAGE',
   'MG_FROZEN',
   'MG_GREEN',
@@ -17,7 +17,7 @@ export const MapgenTerrainPropertySchema = z.enum([
   'MG_TEMPERATE',
   'MG_TROPICAL',
   'MG_WET',
-  'MG_UNUSED'
+  'MG_UNUSED',
 ]);
 
 // Terrain types enum schema
@@ -34,7 +34,7 @@ export const TerrainTypeSchema = z.enum([
   'grassland',
   'plains',
   'hills',
-  'mountains'
+  'mountains',
 ]);
 
 // Individual terrain ruleset schema
@@ -49,7 +49,7 @@ export const TerrainRulesetSchema = z.object({
   transformTo: TerrainTypeSchema.optional(),
   transformTime: z.number().positive().optional(),
   canHaveRiver: z.boolean().optional(),
-  notGenerated: z.boolean().optional()
+  notGenerated: z.boolean().optional(),
 });
 
 // Terrain ruleset file schema
@@ -57,13 +57,13 @@ export const TerrainRulesetFileSchema = z.object({
   datafile: z.object({
     description: z.string(),
     options: z.string(),
-    format_version: z.number()
+    format_version: z.number(),
   }),
   about: z.object({
     name: z.string(),
-    summary: z.string()
+    summary: z.string(),
   }),
-  terrains: z.record(TerrainTypeSchema, TerrainRulesetSchema)
+  terrains: z.record(TerrainTypeSchema, TerrainRulesetSchema),
 });
 
 // Unit schemas
@@ -80,20 +80,20 @@ export const UnitTypeRulesetSchema = z.object({
   canFoundCity: z.boolean(),
   canBuildImprovements: z.boolean(),
   unitClass: UnitClassSchema,
-  requiredTech: z.string().optional()
+  requiredTech: z.string().optional(),
 });
 
 export const UnitsRulesetFileSchema = z.object({
   datafile: z.object({
     description: z.string(),
     options: z.string(),
-    format_version: z.number()
+    format_version: z.number(),
   }),
   about: z.object({
     name: z.string(),
-    summary: z.string()
+    summary: z.string(),
   }),
-  units: z.record(z.string(), UnitTypeRulesetSchema)
+  units: z.record(z.string(), UnitTypeRulesetSchema),
 });
 
 // Building schemas
@@ -102,7 +102,7 @@ export const BuildingEffectsSchema = z.object({
   happinessBonus: z.number().optional(),
   foodBonus: z.number().optional(),
   scienceBonus: z.number().optional(),
-  goldBonus: z.number().optional()
+  goldBonus: z.number().optional(),
 });
 
 export const BuildingTypeRulesetSchema = z.object({
@@ -110,20 +110,20 @@ export const BuildingTypeRulesetSchema = z.object({
   name: z.string(),
   cost: z.number().positive(),
   upkeep: z.number().min(0),
-  effects: BuildingEffectsSchema
+  effects: BuildingEffectsSchema,
 });
 
 export const BuildingsRulesetFileSchema = z.object({
   datafile: z.object({
     description: z.string(),
     options: z.string(),
-    format_version: z.number()
+    format_version: z.number(),
   }),
   about: z.object({
     name: z.string(),
-    summary: z.string()
+    summary: z.string(),
   }),
-  buildings: z.record(z.string(), BuildingTypeRulesetSchema)
+  buildings: z.record(z.string(), BuildingTypeRulesetSchema),
 });
 
 // Technology schemas
@@ -133,20 +133,20 @@ export const TechnologyRulesetSchema = z.object({
   cost: z.number().positive(),
   requirements: z.array(z.string()),
   flags: z.array(z.string()),
-  description: z.string()
+  description: z.string(),
 });
 
 export const TechsRulesetFileSchema = z.object({
   datafile: z.object({
     description: z.string(),
     options: z.string(),
-    format_version: z.number()
+    format_version: z.number(),
   }),
   about: z.object({
     name: z.string(),
-    summary: z.string()
+    summary: z.string(),
   }),
-  techs: z.record(z.string(), TechnologyRulesetSchema)
+  techs: z.record(z.string(), TechnologyRulesetSchema),
 });
 
 // Type exports for use in TypeScript code

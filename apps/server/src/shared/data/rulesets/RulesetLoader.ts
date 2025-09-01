@@ -5,11 +5,11 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { 
-  TerrainRulesetFileSchema, 
-  type TerrainRulesetFile, 
-  type TerrainRuleset, 
-  type TerrainType, 
+import {
+  TerrainRulesetFileSchema,
+  type TerrainRulesetFile,
+  type TerrainRuleset,
+  type TerrainType,
   type MapgenTerrainProperty,
   BuildingsRulesetFileSchema,
   type BuildingsRulesetFile,
@@ -19,7 +19,7 @@ import {
   type TechnologyRuleset,
   UnitsRulesetFileSchema,
   type UnitsRulesetFile,
-  type UnitTypeRuleset
+  type UnitTypeRuleset,
 } from './schemas';
 
 export class RulesetLoader {
@@ -59,10 +59,10 @@ export class RulesetLoader {
 
       // Validate with Zod schema
       const validatedData = TerrainRulesetFileSchema.parse(rawData);
-      
+
       // Cache the validated data
       this.terrainCache.set(rulesetName, validatedData);
-      
+
       return validatedData;
     } catch (error) {
       if (error instanceof Error) {
@@ -86,11 +86,11 @@ export class RulesetLoader {
   getTerrain(terrainType: TerrainType, rulesetName: string = 'classic'): TerrainRuleset {
     const terrains = this.getTerrains(rulesetName);
     const terrain = terrains[terrainType];
-    
+
     if (!terrain) {
       throw new Error(`Terrain type '${terrainType}' not found in ruleset '${rulesetName}'`);
     }
-    
+
     return terrain;
   }
 
@@ -106,7 +106,7 @@ export class RulesetLoader {
     rulesetName: string = 'classic'
   ): TerrainType {
     const terrains = this.getTerrains(rulesetName);
-    
+
     let sum = 0;
     const validTerrains: Array<{ terrain: TerrainType; weight: number }> = [];
 
@@ -169,7 +169,7 @@ export class RulesetLoader {
    * Get terrain properties for a given terrain type
    */
   getTerrainProperties(
-    terrainType: TerrainType, 
+    terrainType: TerrainType,
     rulesetName: string = 'classic'
   ): Partial<Record<MapgenTerrainProperty, number>> {
     const terrain = this.getTerrain(terrainType, rulesetName);
@@ -180,7 +180,7 @@ export class RulesetLoader {
    * Check if a terrain has a specific property
    */
   terrainHasProperty(
-    terrainType: TerrainType, 
+    terrainType: TerrainType,
     property: MapgenTerrainProperty,
     rulesetName: string = 'classic'
   ): boolean {
@@ -216,10 +216,10 @@ export class RulesetLoader {
 
       // Validate with Zod schema
       const validatedData = BuildingsRulesetFileSchema.parse(rawData);
-      
+
       // Cache the validated data
       this.buildingsCache.set(rulesetName, validatedData);
-      
+
       return validatedData;
     } catch (error) {
       if (error instanceof Error) {
@@ -243,11 +243,11 @@ export class RulesetLoader {
   getBuilding(buildingId: string, rulesetName: string = 'classic'): BuildingTypeRuleset {
     const buildings = this.getBuildings(rulesetName);
     const building = buildings[buildingId];
-    
+
     if (!building) {
       throw new Error(`Building '${buildingId}' not found in ruleset '${rulesetName}'`);
     }
-    
+
     return building;
   }
 
@@ -267,10 +267,10 @@ export class RulesetLoader {
 
       // Validate with Zod schema
       const validatedData = TechsRulesetFileSchema.parse(rawData);
-      
+
       // Cache the validated data
       this.techsCache.set(rulesetName, validatedData);
-      
+
       return validatedData;
     } catch (error) {
       if (error instanceof Error) {
@@ -294,11 +294,11 @@ export class RulesetLoader {
   getTech(techId: string, rulesetName: string = 'classic'): TechnologyRuleset {
     const techs = this.getTechs(rulesetName);
     const tech = techs[techId];
-    
+
     if (!tech) {
       throw new Error(`Technology '${techId}' not found in ruleset '${rulesetName}'`);
     }
-    
+
     return tech;
   }
 
@@ -318,10 +318,10 @@ export class RulesetLoader {
 
       // Validate with Zod schema
       const validatedData = UnitsRulesetFileSchema.parse(rawData);
-      
+
       // Cache the validated data
       this.unitsCache.set(rulesetName, validatedData);
-      
+
       return validatedData;
     } catch (error) {
       if (error instanceof Error) {
@@ -345,11 +345,11 @@ export class RulesetLoader {
   getUnit(unitId: string, rulesetName: string = 'classic'): UnitTypeRuleset {
     const units = this.getUnits(rulesetName);
     const unit = units[unitId];
-    
+
     if (!unit) {
       throw new Error(`Unit '${unitId}' not found in ruleset '${rulesetName}'`);
     }
-    
+
     return unit;
   }
 
