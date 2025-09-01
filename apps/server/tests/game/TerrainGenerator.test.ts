@@ -2,10 +2,10 @@
  * Tests for Relief Generation System
  * Validates the implementation of make_relief() and make_fracture_relief()
  */
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { MapTile, TemperatureType } from '../../src/game/map/MapTypes';
 import { TerrainGenerator } from '../../src/game/map/TerrainGenerator';
-import { MapgenTerrainProperty, getTerrainProperties } from '../../src/game/map/TerrainRuleset';
+import { initializeTerrainRuleset, getTerrainProperties } from '../../src/game/map/TerrainRuleset';
 import { isOceanTerrain } from '../../src/game/map/TerrainUtils';
 
 describe('TerrainGenerator - Relief Generation System', () => {
@@ -14,6 +14,11 @@ describe('TerrainGenerator - Relief Generation System', () => {
   let heightMap: number[];
   const width = 40;
   const height = 40;
+
+  beforeAll(async () => {
+    // Initialize terrain ruleset before running tests
+    await initializeTerrainRuleset('classic');
+  });
 
   // Seeded random for deterministic tests
   const seededRandom = (() => {
@@ -94,7 +99,7 @@ describe('TerrainGenerator - Relief Generation System', () => {
           const terrain = tiles[x][y].terrain;
           const props = getTerrainProperties(terrain);
 
-          if (props && props[MapgenTerrainProperty.MOUNTAINOUS]) {
+          if (props && props['MG_MOUNTAINOUS']) {
             if (terrain === 'mountains') {
               mountainCount++;
             } else if (terrain === 'hills') {

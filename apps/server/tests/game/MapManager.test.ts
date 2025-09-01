@@ -1,3 +1,4 @@
+import { beforeAll } from '@jest/globals';
 import { PlayerState } from '../../src/game/GameManager';
 import {
   MapManager,
@@ -7,6 +8,7 @@ import {
   TerrainType,
 } from '../../src/game/MapManager';
 import { MapStartpos } from '../../src/game/map/MapTypes';
+import { initializeTerrainRuleset } from '../../src/game/map/TerrainRuleset';
 
 // Mock island terrain functions for tests
 jest.mock('../../src/game/map/TerrainUtils', () => {
@@ -21,6 +23,12 @@ jest.mock('../../src/game/map/TerrainUtils', () => {
 
 describe('MapManager', () => {
   let mapManager: MapManager;
+
+  beforeAll(async () => {
+    // Initialize terrain ruleset before running tests
+    await initializeTerrainRuleset('classic');
+  });
+
   const testPlayers = new Map<string, PlayerState>([
     [
       'player1',

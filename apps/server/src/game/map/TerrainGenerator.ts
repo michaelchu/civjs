@@ -14,7 +14,7 @@ import {
   isTinyIsland,
   PlacementMap,
 } from './TerrainUtils';
-import { MapgenTerrainProperty, pickTerrain, getTerrainProperties } from './TerrainRuleset';
+import { MapgenTerrainPropertyEnum, pickTerrain, getTerrainProperties } from './TerrainRuleset';
 
 export interface TerrainParams {
   mountain_pct: number;
@@ -450,17 +450,17 @@ export class TerrainGenerator {
       if (isHotRegion) {
         const preferHills = this.random() * 10 < 6; // Increased from 4 (60% vs 40%)
         return pickTerrain(
-          MapgenTerrainProperty.MOUNTAINOUS,
-          preferHills ? MapgenTerrainProperty.UNUSED : MapgenTerrainProperty.GREEN,
-          MapgenTerrainProperty.UNUSED,
+          MapgenTerrainPropertyEnum.MOUNTAINOUS,
+          preferHills ? MapgenTerrainPropertyEnum.UNUSED : MapgenTerrainPropertyEnum.GREEN,
+          MapgenTerrainPropertyEnum.UNUSED,
           this.random
         );
       } else {
         const preferMountains = this.random() * 10 < 6; // Decreased from 8 (60% vs 80%)
         return pickTerrain(
-          MapgenTerrainProperty.MOUNTAINOUS,
-          MapgenTerrainProperty.UNUSED,
-          preferMountains ? MapgenTerrainProperty.GREEN : MapgenTerrainProperty.UNUSED,
+          MapgenTerrainPropertyEnum.MOUNTAINOUS,
+          MapgenTerrainPropertyEnum.UNUSED,
+          preferMountains ? MapgenTerrainPropertyEnum.GREEN : MapgenTerrainPropertyEnum.UNUSED,
           this.random
         );
       }
@@ -470,9 +470,9 @@ export class TerrainGenerator {
       // Random maps: Balanced mountain/hill distribution
       const balanced = this.random() < 0.5;
       return pickTerrain(
-        MapgenTerrainProperty.MOUNTAINOUS,
-        balanced ? MapgenTerrainProperty.GREEN : MapgenTerrainProperty.UNUSED,
-        balanced ? MapgenTerrainProperty.UNUSED : MapgenTerrainProperty.GREEN,
+        MapgenTerrainPropertyEnum.MOUNTAINOUS,
+        balanced ? MapgenTerrainPropertyEnum.GREEN : MapgenTerrainPropertyEnum.UNUSED,
+        balanced ? MapgenTerrainPropertyEnum.UNUSED : MapgenTerrainPropertyEnum.GREEN,
         this.random
       );
     }
@@ -481,17 +481,17 @@ export class TerrainGenerator {
     if (isHotRegion) {
       const preferHills = this.random() * 10 < 4;
       return pickTerrain(
-        MapgenTerrainProperty.MOUNTAINOUS,
-        preferHills ? MapgenTerrainProperty.UNUSED : MapgenTerrainProperty.GREEN,
-        MapgenTerrainProperty.UNUSED,
+        MapgenTerrainPropertyEnum.MOUNTAINOUS,
+        preferHills ? MapgenTerrainPropertyEnum.UNUSED : MapgenTerrainPropertyEnum.GREEN,
+        MapgenTerrainPropertyEnum.UNUSED,
         this.random
       );
     } else {
       const preferMountains = this.random() * 10 < 8;
       return pickTerrain(
-        MapgenTerrainProperty.MOUNTAINOUS,
-        MapgenTerrainProperty.UNUSED,
-        preferMountains ? MapgenTerrainProperty.GREEN : MapgenTerrainProperty.UNUSED,
+        MapgenTerrainPropertyEnum.MOUNTAINOUS,
+        MapgenTerrainPropertyEnum.UNUSED,
+        preferMountains ? MapgenTerrainPropertyEnum.GREEN : MapgenTerrainPropertyEnum.UNUSED,
         this.random
       );
     }
@@ -606,9 +606,9 @@ export class TerrainGenerator {
         if (choose_mountain) {
           total_mtns++;
           tile.terrain = pickTerrain(
-            MapgenTerrainProperty.MOUNTAINOUS,
-            MapgenTerrainProperty.UNUSED,
-            MapgenTerrainProperty.GREEN,
+            MapgenTerrainPropertyEnum.MOUNTAINOUS,
+            MapgenTerrainPropertyEnum.UNUSED,
+            MapgenTerrainPropertyEnum.GREEN,
             this.random
           );
           this.placementMap.setPlaced(x, y);
@@ -616,9 +616,9 @@ export class TerrainGenerator {
         } else if (choose_hill) {
           total_mtns++;
           tile.terrain = pickTerrain(
-            MapgenTerrainProperty.MOUNTAINOUS,
-            MapgenTerrainProperty.GREEN,
-            MapgenTerrainProperty.UNUSED,
+            MapgenTerrainPropertyEnum.MOUNTAINOUS,
+            MapgenTerrainPropertyEnum.GREEN,
+            MapgenTerrainPropertyEnum.UNUSED,
             this.random
           );
           this.placementMap.setPlaced(x, y);
@@ -647,9 +647,9 @@ export class TerrainGenerator {
             if (choose_mountain) {
               total_mtns++;
               tile.terrain = pickTerrain(
-                MapgenTerrainProperty.MOUNTAINOUS,
-                MapgenTerrainProperty.UNUSED,
-                MapgenTerrainProperty.GREEN,
+                MapgenTerrainPropertyEnum.MOUNTAINOUS,
+                MapgenTerrainPropertyEnum.UNUSED,
+                MapgenTerrainPropertyEnum.GREEN,
                 this.random
               );
               this.placementMap.setPlaced(x, y);
@@ -657,9 +657,9 @@ export class TerrainGenerator {
             } else if (choose_hill) {
               total_mtns++;
               tile.terrain = pickTerrain(
-                MapgenTerrainProperty.MOUNTAINOUS,
-                MapgenTerrainProperty.GREEN,
-                MapgenTerrainProperty.UNUSED,
+                MapgenTerrainPropertyEnum.MOUNTAINOUS,
+                MapgenTerrainPropertyEnum.GREEN,
+                MapgenTerrainPropertyEnum.UNUSED,
                 this.random
               );
               this.placementMap.setPlaced(x, y);
@@ -888,9 +888,9 @@ export class TerrainGenerator {
           // Use pick_terrain with proper properties as in freeciv
           // @reference freeciv/server/generator/mapgen.c:522 pick_terrain(MG_FOLIAGE, MG_TEMPERATE, MG_TROPICAL)
           const terrain = pickTerrain(
-            MapgenTerrainProperty.FOLIAGE,
-            MapgenTerrainProperty.TEMPERATE,
-            MapgenTerrainProperty.TROPICAL,
+            MapgenTerrainPropertyEnum.FOLIAGE,
+            MapgenTerrainPropertyEnum.TEMPERATE,
+            MapgenTerrainPropertyEnum.TROPICAL,
             this.random
           );
           this.placeTerrain(
@@ -919,9 +919,9 @@ export class TerrainGenerator {
           // Use pick_terrain with proper properties as in freeciv
           // @reference freeciv/server/generator/mapgen.c:540 pick_terrain(MG_FOLIAGE, MG_TROPICAL, MG_COLD)
           const terrain = pickTerrain(
-            MapgenTerrainProperty.FOLIAGE,
-            MapgenTerrainProperty.TROPICAL,
-            MapgenTerrainProperty.COLD,
+            MapgenTerrainPropertyEnum.FOLIAGE,
+            MapgenTerrainPropertyEnum.TROPICAL,
+            MapgenTerrainPropertyEnum.COLD,
             this.random
           );
           this.placeTerrain(
@@ -950,9 +950,9 @@ export class TerrainGenerator {
           // Use pick_terrain with proper properties as in freeciv
           // @reference freeciv/server/generator/mapgen.c:558 pick_terrain(MG_WET, MG_UNUSED, MG_FOLIAGE)
           const terrain = pickTerrain(
-            MapgenTerrainProperty.WET,
-            MapgenTerrainProperty.UNUSED,
-            MapgenTerrainProperty.FOLIAGE,
+            MapgenTerrainPropertyEnum.WET,
+            MapgenTerrainPropertyEnum.UNUSED,
+            MapgenTerrainPropertyEnum.FOLIAGE,
             this.random
           );
           this.placeTerrain(
@@ -981,9 +981,9 @@ export class TerrainGenerator {
           // Use pick_terrain with proper properties as in freeciv
           // @reference freeciv/server/generator/mapgen.c:576 pick_terrain(MG_DRY, MG_TROPICAL, MG_COLD)
           const terrain = pickTerrain(
-            MapgenTerrainProperty.DRY,
-            MapgenTerrainProperty.TROPICAL,
-            MapgenTerrainProperty.COLD,
+            MapgenTerrainPropertyEnum.DRY,
+            MapgenTerrainPropertyEnum.TROPICAL,
+            MapgenTerrainPropertyEnum.COLD,
             this.random
           );
           this.placeTerrain(
@@ -1012,9 +1012,9 @@ export class TerrainGenerator {
           // Use pick_terrain with proper properties as in freeciv
           // @reference freeciv/server/generator/mapgen.c:594 pick_terrain(MG_DRY, MG_TROPICAL, MG_WET)
           const terrain = pickTerrain(
-            MapgenTerrainProperty.DRY,
-            MapgenTerrainProperty.TROPICAL,
-            MapgenTerrainProperty.WET,
+            MapgenTerrainPropertyEnum.DRY,
+            MapgenTerrainPropertyEnum.TROPICAL,
+            MapgenTerrainPropertyEnum.WET,
             this.random
           );
           this.placeTerrain(
@@ -1133,25 +1133,25 @@ export class TerrainGenerator {
     if (tile.temperature === TemperatureType.FROZEN) {
       // tile_set_terrain(ptile, pick_terrain(MG_FROZEN, MG_UNUSED, MG_MOUNTAINOUS));
       terrain = pickTerrain(
-        MapgenTerrainProperty.FROZEN,
-        MapgenTerrainProperty.UNUSED,
-        MapgenTerrainProperty.MOUNTAINOUS,
+        MapgenTerrainPropertyEnum.FROZEN,
+        MapgenTerrainPropertyEnum.UNUSED,
+        MapgenTerrainPropertyEnum.MOUNTAINOUS,
         this.random
       );
     } else if (tile.temperature === TemperatureType.COLD) {
       // tile_set_terrain(ptile, pick_terrain(MG_COLD, MG_UNUSED, MG_MOUNTAINOUS));
       terrain = pickTerrain(
-        MapgenTerrainProperty.COLD,
-        MapgenTerrainProperty.UNUSED,
-        MapgenTerrainProperty.MOUNTAINOUS,
+        MapgenTerrainPropertyEnum.COLD,
+        MapgenTerrainPropertyEnum.UNUSED,
+        MapgenTerrainPropertyEnum.MOUNTAINOUS,
         this.random
       );
     } else {
       // tile_set_terrain(ptile, pick_terrain(MG_TEMPERATE, MG_GREEN, MG_MOUNTAINOUS));
       terrain = pickTerrain(
-        MapgenTerrainProperty.TEMPERATE,
-        MapgenTerrainProperty.GREEN,
-        MapgenTerrainProperty.MOUNTAINOUS,
+        MapgenTerrainPropertyEnum.TEMPERATE,
+        MapgenTerrainPropertyEnum.GREEN,
+        MapgenTerrainPropertyEnum.MOUNTAINOUS,
         this.random
       );
     }
