@@ -74,8 +74,8 @@ export function getTerrainMovementCost(terrain: string, unitTypeId?: string): nu
   // Check movement type compatibility
   switch (movementType) {
     case MovementType.LAND:
-      // Land units cannot move on ocean/deep ocean
-      if (terrain === 'ocean' || terrain === 'deep_ocean') {
+      // Land units cannot move on water tiles (except coast which represents shallow water)
+      if (terrain === 'ocean' || terrain === 'deep_ocean' || terrain === 'lake') {
         return -1; // Impassable
       }
       return baseCost;

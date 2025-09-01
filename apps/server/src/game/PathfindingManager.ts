@@ -1,5 +1,5 @@
 import { logger } from '../utils/logger';
-import { calculateMovementCost, canUnitEnterTerrain } from './constants/MovementConstants';
+import { calculateMovementCost } from './constants/MovementConstants';
 import type { Unit } from './UnitManager';
 
 export interface PathTile {
@@ -20,7 +20,7 @@ interface AStarNode {
   x: number;
   y: number;
   gCost: number; // Cost from start
-  hCost: number; // Heuristic cost to goal  
+  hCost: number; // Heuristic cost to goal
   fCost: number; // Total cost (g + h)
   parent: AStarNode | null;
   moveCost: number; // Cost to move to this tile
@@ -45,13 +45,9 @@ export class PathfindingManager {
    * Find path from unit to target using A* algorithm
    * @reference freeciv/common/aicore/path_finding.c
    */
-  async findPath(
-    unit: Unit,
-    targetX: number,
-    targetY: number
-  ): Promise<PathfindingResult> {
+  async findPath(unit: Unit, targetX: number, targetY: number): Promise<PathfindingResult> {
     const startTime = Date.now();
-    
+
     try {
       // Validate coordinates
       if (!this.isValidCoordinate(targetX, targetY)) {
@@ -74,11 +70,7 @@ export class PathfindingManager {
       }
 
       // Run A* pathfinding
-      const path = this.aStar(
-        { x: unit.x, y: unit.y },
-        { x: targetX, y: targetY },
-        unit
-      );
+      const path = this.aStar({ x: unit.x, y: unit.y }, { x: targetX, y: targetY }, unit);
 
       if (!path || path.length === 0) {
         return {
@@ -118,7 +110,7 @@ export class PathfindingManager {
         unitId: unit.id,
         from: { x: unit.x, y: unit.y },
         to: { x: targetX, y: targetY },
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       });
 
       return {
@@ -178,24 +170,18 @@ export class PathfindingManager {
 
       // Check all neighbors
       const neighbors = this.getNeighbors(current.x, current.y);
-      
+
       for (const neighbor of neighbors) {
         const neighborKey = `${neighbor.x},${neighbor.y}`;
-        
+
         // Skip if in closed set
         if (closedSet.has(neighborKey)) {
           continue;
         }
 
         // Check if neighbor is walkable
-        const moveCost = this.getMovementCost(
-          current.x,
-          current.y,
-          neighbor.x,
-          neighbor.y,
-          unit
-        );
-        
+        const moveCost = this.getMovementCost(current.x, current.y, neighbor.x, neighbor.y, unit);
+
         if (moveCost < 0) {
           continue; // Unwalkable terrain
         }
@@ -215,7 +201,7 @@ export class PathfindingManager {
             moveCost,
           };
           neighborNode.fCost = neighborNode.gCost + neighborNode.hCost;
-          
+
           nodes.set(neighborKey, neighborNode);
           openSet.push(neighborNode);
         } else if (tentativeGCost < neighborNode.gCost) {
@@ -265,11 +251,10 @@ export class PathfindingManager {
    */
   private getLowestFCostNode(openSet: AStarNode[]): AStarNode {
     let lowest = openSet[0];
-    
+
     for (let i = 1; i < openSet.length; i++) {
       const node = openSet[i];
-      if (node.fCost < lowest.fCost || 
-          (node.fCost === lowest.fCost && node.hCost < lowest.hCost)) {
+      if (node.fCost < lowest.fCost || (node.fCost === lowest.fCost && node.hCost < lowest.hCost)) {
         lowest = node;
       }
     }
@@ -285,9 +270,14 @@ export class PathfindingManager {
 
     // 8-directional movement (includes diagonals)
     const directions = [
-      { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
-      { dx: -1, dy: 0 },                     { dx: 1, dy: 0 },
-      { dx: -1, dy: 1 },  { dx: 0, dy: 1 },  { dx: 1, dy: 1 },
+      { dx: -1, dy: -1 },
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: -1 },
+      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 1 },
+      { dx: 0, dy: 1 },
+      { dx: 1, dy: 1 },
     ];
 
     for (const dir of directions) {
@@ -329,7 +319,9 @@ export class PathfindingManager {
           return calculateMovementCost(fromX, fromY, toX, toY, tile.terrain, unit.unitTypeId);
         }
       } catch (error) {
-        logger.debug('MapManager.getTile failed, using default costs', { error: error.message });
+        logger.debug('MapManager.getTile failed, using default costs', {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -348,7 +340,7 @@ export class PathfindingManager {
   /**
    * Convert A* nodes to PathTile format with directions
    */
-  private convertToPathTiles(path: AStarNode[], unit: Unit): PathTile[] {
+  private convertToPathTiles(path: AStarNode[], _unit: Unit): PathTile[] {
     const pathTiles: PathTile[] = [];
 
     for (let i = 0; i < path.length; i++) {
@@ -362,12 +354,7 @@ export class PathfindingManager {
       // Calculate direction to next tile for rendering
       if (i < path.length - 1) {
         const nextNode = path[i + 1];
-        pathTile.direction = this.calculateDirection(
-          node.x,
-          node.y,
-          nextNode.x,
-          nextNode.y
-        );
+        pathTile.direction = this.calculateDirection(node.x, node.y, nextNode.x, nextNode.y);
       }
 
       pathTiles.push(pathTile);
@@ -385,10 +372,10 @@ export class PathfindingManager {
 
     // Freeciv directions: 0=North, 1=NE, 2=East, 3=SE, 4=South, 5=SW, 6=West, 7=NW
     if (dx === 0 && dy === -1) return 0; // North
-    if (dx === 1 && dy === -1) return 1; // NE  
-    if (dx === 1 && dy === 0) return 2;  // East
-    if (dx === 1 && dy === 1) return 3;  // SE
-    if (dx === 0 && dy === 1) return 4;  // South
+    if (dx === 1 && dy === -1) return 1; // NE
+    if (dx === 1 && dy === 0) return 2; // East
+    if (dx === 1 && dy === 1) return 3; // SE
+    if (dx === 0 && dy === 1) return 4; // South
     if (dx === -1 && dy === 1) return 5; // SW
     if (dx === -1 && dy === 0) return 6; // West
     if (dx === -1 && dy === -1) return 7; // NW
@@ -404,7 +391,7 @@ export class PathfindingManager {
     // For now, assume 3 movement points per turn for most units
     // This should be enhanced to use actual unit type data
     const movementPerTurn = unit.movementLeft || 3;
-    
+
     return Math.ceil(totalCost / movementPerTurn);
   }
 }

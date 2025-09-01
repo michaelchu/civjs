@@ -1897,7 +1897,7 @@ export class GameManager {
         unitId,
         targetX,
         targetY,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       });
 
       return { success: false, error: 'Internal server error' };

@@ -451,7 +451,7 @@ export class ActionSystem {
     // This will be enhanced with full pathfinding in the next phase
     const dx = Math.abs(targetX - unit.x);
     const dy = Math.abs(targetY - unit.y);
-    const isAdjacent = (dx <= 1 && dy <= 1) && (dx + dy > 0);
+    const isAdjacent = dx <= 1 && dy <= 1 && dx + dy > 0;
 
     if (!isAdjacent) {
       return {
@@ -461,7 +461,7 @@ export class ActionSystem {
     }
 
     // Calculate movement cost using movement fragments (like freeciv)
-    const movementCost = (dx === 1 && dy === 1) ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
+    const movementCost = dx === 1 && dy === 1 ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
 
     if (unit.movementLeft < movementCost) {
       return {
