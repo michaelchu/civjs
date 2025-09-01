@@ -41,7 +41,7 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
     const researched = new Set(['alphabet', 'pottery']); // Basic starting techs
 
     // Add some mock researched techs for testing
-    if (Object.keys(technologies).length > 0) {
+    if (technologies && Object.keys(technologies).length > 0) {
       // In real implementation, this would be currentPlayer.technologies or similar
       researched.add('currency');
       researched.add('monarchy');
@@ -52,6 +52,11 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
   }, [technologies]);
 
   const governmentOptions: GovernmentOption[] = useMemo(() => {
+    // Ensure governments is initialized before processing
+    if (!governments || Object.keys(governments).length === 0) {
+      return [];
+    }
+
     return Object.entries(governments).map(([id, government]) => {
       const isCurrent = id === currentPlayer?.government;
       let available = true;

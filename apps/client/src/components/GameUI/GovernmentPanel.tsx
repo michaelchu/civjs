@@ -9,7 +9,7 @@ export const GovernmentPanel: React.FC = () => {
   const [isRevolutionDialogOpen, setIsRevolutionDialogOpen] = useState(false);
 
   const currentPlayer = getCurrentPlayer();
-  const currentGovernment = currentPlayer ? governments[currentPlayer.government] : null;
+  const currentGovernment = currentPlayer && governments ? governments[currentPlayer.government] : null;
   const isInRevolution = currentPlayer && (currentPlayer.revolutionTurns || 0) > 0;
 
   if (!currentPlayer) {
