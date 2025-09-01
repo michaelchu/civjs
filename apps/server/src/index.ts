@@ -90,6 +90,25 @@ app.get('/api/info', (_req, res) => {
   });
 });
 
+// Root endpoint with basic info
+app.get('/', (_req, res) => {
+  res.json({
+    service: 'CivJS Game Server',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/health',
+      info: '/api/info',
+      assets: {
+        sprites: '/sprites/*',
+        tilesets: '/tilesets/*',
+        scripts: '/js/*'
+      }
+    },
+    note: 'This is the backend API server. The game client is served separately.'
+  });
+});
+
 // Backend-only server - frontend is served separately
 
 // Socket.IO connection handling
