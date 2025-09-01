@@ -861,16 +861,36 @@ export class MapRenderer {
    */
   private getUnitTypeGraphicTag(unitType: string): string {
     // Map unit types to sprite keys based on freeciv tileset naming
+    // @reference freeciv/data/amplio2/units.spec - unit sprite definitions
     const unitSpriteMap: Record<string, string> = {
-      warrior: 'u.warriors:0',
-      settler: 'u.settlers:0',
-      scout: 'u.explorers:0',
-      worker: 'u.workers:0',
-      archer: 'u.archers:0',
-      spearman: 'u.phalanx:0',
+      warrior: 'u.warriors_Idle:0',
+      settler: 'u.settlers_Idle:0',
+      scout: 'u.explorers_Idle:0',
+      worker: 'u.workers_Idle:0',
+      archer: 'u.archers_Idle:0',
+      spearman: 'u.phalanx_Idle:0',
+      // Additional common units
+      horseman: 'u.horsemen_Idle:0',
+      knight: 'u.knights_Idle:0',
+      legion: 'u.legion_Idle:0',
+      pikeman: 'u.pikemen_Idle:0',
+      musketeers: 'u.musketeers_Idle:0',
+      riflemen: 'u.riflemen_Idle:0',
+      cavalry: 'u.cavalry_Idle:0',
+      cannon: 'u.cannon_Idle:0',
+      catapult: 'u.catapult_Idle:0',
+      trireme: 'u.trireme_Idle:0',
+      caravel: 'u.caravel_Idle:0',
+      frigate: 'u.frigate_Idle:0',
+      ironclad: 'u.ironclad_Idle:0',
+      destroyer: 'u.destroyer_Idle:0',
+      cruiser: 'u.cruiser_Idle:0',
+      battleship: 'u.battleship_Idle:0',
+      submarine: 'u.submarine_Idle:0',
+      carrier: 'u.carrier_Idle:0',
     };
 
-    return unitSpriteMap[unitType] || `u.${unitType}:0`;
+    return unitSpriteMap[unitType] || `u.${unitType}_Idle:0`;
   }
 
   /**
