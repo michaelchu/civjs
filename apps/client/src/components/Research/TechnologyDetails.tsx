@@ -9,14 +9,11 @@ interface TechnologyDetailsProps {
   onClose: () => void;
 }
 
-export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({
-  techId,
-  onClose,
-}) => {
+export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, onClose }) => {
   const store = useGameStore();
   const { setCurrentResearch, setResearchGoal } = store;
   const tech = TECHNOLOGIES[techId];
-  
+
   if (!tech) {
     return null;
   }
@@ -25,10 +22,10 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({
   const isResearched = researchState?.researchedTechs.has(techId) || false;
   const isCurrent = researchState?.currentTech === techId;
   const isGoal = researchState?.techGoal === techId;
-  const canResearch = researchState?.availableTechs.has(techId) || 
-    (!isResearched && tech.requirements.every(req => 
-      researchState?.researchedTechs.has(req) || false
-    ));
+  const canResearch =
+    researchState?.availableTechs.has(techId) ||
+    (!isResearched &&
+      tech.requirements.every(req => researchState?.researchedTechs.has(req) || false));
 
   const handleSetCurrentResearch = () => {
     if (canResearch && !isResearched) {
@@ -62,8 +59,8 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({
 
     const progress = Math.round((researchState.bulbsAccumulated / tech.cost) * 100);
     const remaining = tech.cost - researchState.bulbsAccumulated;
-    const turnsRemaining = researchState.bulbsLastTurn > 0 ? 
-      Math.ceil(remaining / researchState.bulbsLastTurn) : -1;
+    const turnsRemaining =
+      researchState.bulbsLastTurn > 0 ? Math.ceil(remaining / researchState.bulbsLastTurn) : -1;
 
     return {
       progress,
@@ -118,13 +115,15 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({
               <span>{progressInfo.progress}%</span>
             </div>
             <div className="w-full bg-gray-700 rounded-full h-2">
-              <div 
+              <div
                 className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${progressInfo.progress}%` }}
               />
             </div>
             <div className="flex items-center justify-between text-xs text-gray-400">
-              <span>{researchState?.bulbsAccumulated} / {tech.cost} bulbs</span>
+              <span>
+                {researchState?.bulbsAccumulated} / {tech.cost} bulbs
+              </span>
               {progressInfo.turnsRemaining > 0 && (
                 <span className="flex items-center">
                   <Clock size={12} className="mr-1" />
@@ -155,16 +154,14 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({
               {tech.requirements.map(reqId => {
                 const isReqResearched = researchState?.researchedTechs.has(reqId) || false;
                 return (
-                  <div 
+                  <div
                     key={reqId}
                     className={cn(
-                      "text-sm px-2 py-1 rounded",
-                      isReqResearched 
-                        ? "bg-green-900 text-green-200" 
-                        : "bg-red-900 text-red-200"
+                      'text-sm px-2 py-1 rounded',
+                      isReqResearched ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'
                     )}
                   >
-                    {isReqResearched ? "✓" : "✗"} {getRequirementText(reqId)}
+                    {isReqResearched ? '✓' : '✗'} {getRequirementText(reqId)}
                   </div>
                 );
               })}
@@ -178,7 +175,7 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({
             <h4 className="text-sm font-semibold text-gray-300 mb-2">Special Properties</h4>
             <div className="space-y-1">
               {tech.flags.map(flag => (
-                <span 
+                <span
                   key={flag}
                   className="inline-block text-xs px-2 py-1 bg-yellow-900 text-yellow-200 rounded mr-2"
                 >
@@ -198,31 +195,31 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({
               onClick={handleSetCurrentResearch}
               disabled={isCurrent}
               className={cn(
-                "flex-1 px-3 py-2 text-sm font-medium rounded transition-colors",
+                'flex-1 px-3 py-2 text-sm font-medium rounded transition-colors',
                 isCurrent
-                  ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700 text-white"
+                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
               )}
             >
-              {isCurrent ? "Currently Researching" : "Research Now"}
+              {isCurrent ? 'Currently Researching' : 'Research Now'}
             </button>
           )}
-          
+
           {!isResearched && (
             <button
               onClick={handleSetResearchGoal}
               disabled={isGoal}
               className={cn(
-                "flex-1 px-3 py-2 text-sm font-medium rounded transition-colors",
+                'flex-1 px-3 py-2 text-sm font-medium rounded transition-colors',
                 isGoal
-                  ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                  : "bg-purple-600 hover:bg-purple-700 text-white"
+                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  : 'bg-purple-600 hover:bg-purple-700 text-white'
               )}
             >
-              {isGoal ? "Current Goal" : "Set as Goal"}
+              {isGoal ? 'Current Goal' : 'Set as Goal'}
             </button>
           )}
-          
+
           <button
             onClick={handleWikipediaClick}
             className="px-3 py-2 text-sm font-medium bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors"

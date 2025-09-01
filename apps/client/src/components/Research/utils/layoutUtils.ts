@@ -22,21 +22,21 @@ export function getLayoutedElements(
     rankdir: direction,
     align: 'UL',
     ranksep: 100, // Horizontal spacing between layers
-    nodesep: 60,  // Vertical spacing between nodes in same layer
+    nodesep: 60, // Vertical spacing between nodes in same layer
     marginx: 20,
     marginy: 20,
   });
 
   // Add nodes to dagre graph
-  nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { 
-      width: nodeWidth, 
-      height: nodeHeight 
+  nodes.forEach(node => {
+    dagreGraph.setNode(node.id, {
+      width: nodeWidth,
+      height: nodeHeight,
     });
   });
 
   // Add edges to dagre graph
-  edges.forEach((edge) => {
+  edges.forEach(edge => {
     dagreGraph.setEdge(edge.source, edge.target);
   });
 
@@ -44,9 +44,9 @@ export function getLayoutedElements(
   dagre.layout(dagreGraph);
 
   // Apply positions to React Flow nodes
-  const layoutedNodes: Node<TechnologyNodeData>[] = nodes.map((node) => {
+  const layoutedNodes: Node<TechnologyNodeData>[] = nodes.map(node => {
     const nodeWithPosition = dagreGraph.node(node.id);
-    
+
     // Dagre gives us the center position, we need top-left for React Flow
     const x = nodeWithPosition.x - nodeWidth / 2;
     const y = nodeWithPosition.y - nodeHeight / 2;
@@ -60,13 +60,13 @@ export function getLayoutedElements(
   });
 
   // Style edges based on their position in the hierarchy
-  const layoutedEdges: Edge[] = edges.map((edge) => {
+  const layoutedEdges: Edge[] = edges.map(edge => {
     const sourceNode = dagreGraph.node(edge.source);
     const targetNode = dagreGraph.node(edge.target);
-    
+
     // Determine if this is a long-range dependency that needs special styling
     const isLongRange = Math.abs(sourceNode.x - targetNode.x) > nodeWidth * 2;
-    
+
     return {
       ...edge,
       style: {
@@ -97,28 +97,28 @@ export function getManualLayoutedElements(
     // Layer 0 - Starting technologies
     alphabet: { x: 0, y: 0 },
     pottery: { x: 0, y: 120 },
-    
-    // Layer 1 - Basic technologies  
+
+    // Layer 1 - Basic technologies
     mysticism: { x: 250, y: 0 },
     mathematics: { x: 250, y: 80 },
     writing: { x: 250, y: 160 },
     bronze_working: { x: 250, y: 240 },
     animal_husbandry: { x: 250, y: 320 },
-    
+
     // Layer 2 - Advanced technologies
     astronomy: { x: 500, y: 40 },
     philosophy: { x: 500, y: 120 },
     literature: { x: 500, y: 200 },
     iron_working: { x: 500, y: 280 },
     currency: { x: 500, y: 360 },
-    
+
     // Layer 3 - Complex technologies
     engineering: { x: 750, y: 160 },
   };
 
-  const layoutedNodes: Node<TechnologyNodeData>[] = nodes.map((node) => {
+  const layoutedNodes: Node<TechnologyNodeData>[] = nodes.map(node => {
     const position = techPositions[node.id] || { x: 0, y: 0 };
-    
+
     return {
       ...node,
       targetPosition: Position.Left,
@@ -155,7 +155,7 @@ export function getTreeBounds(nodes: Node[]): {
 
   return {
     minX,
-    minY, 
+    minY,
     maxX,
     maxY,
     width: maxX - minX,
@@ -173,13 +173,13 @@ export function calculateFitViewOptions(
   padding: number = 50
 ) {
   const bounds = getTreeBounds(nodes);
-  
+
   const scaleX = (viewportWidth - padding * 2) / bounds.width;
   const scaleY = (viewportHeight - padding * 2) / bounds.height;
-  
+
   // Use the smaller scale to ensure everything fits
   Math.min(scaleX, scaleY, 1); // Don't zoom in beyond 100%
-  
+
   return {
     minZoom: 0.1,
     maxZoom: 1.5,

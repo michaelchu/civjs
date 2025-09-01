@@ -18,7 +18,11 @@ import { useGameStore } from '../../store/gameStore';
 import { TechnologyNode } from './TechnologyNode';
 import { TechnologyDetails } from './TechnologyDetails';
 import { ResearchDemo } from './ResearchDemo';
-import { createTechnologyGraph, getAvailableTechnologies, calculateResearchProgress } from './utils/technologyData';
+import {
+  createTechnologyGraph,
+  getAvailableTechnologies,
+  calculateResearchProgress,
+} from './utils/technologyData';
 import { getLayoutedElements } from './utils/layoutUtils';
 
 const nodeTypes: NodeTypes = {
@@ -41,32 +45,29 @@ const TechnologyTreeInner: React.FC = () => {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
+    (params: Connection) => setEdges(eds => addEdge(params, eds)),
     [setEdges]
   );
 
-  const onNodeClick = useCallback(
-    (event: React.MouseEvent, node: Node) => {
-      event.preventDefault();
-      
-      // Left click - show details panel
-      if (event.button === 0) {
-        setSelectedTech(node.id);
-      }
-    },
-    []
-  );
+  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    event.preventDefault();
+
+    // Left click - show details panel
+    if (event.button === 0) {
+      setSelectedTech(node.id);
+    }
+  }, []);
 
   const onNodeDoubleClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
       event.preventDefault();
-      
+
       if (!store.research) return;
-      
+
       const techId = node.id;
       const isResearched = store.research.researchedTechs.has(techId);
       const canResearch = store.research.availableTechs.has(techId);
-      
+
       // Double-click to set as current research (if available)
       if (!isResearched && canResearch) {
         setCurrentResearch(techId);
@@ -87,7 +88,7 @@ const TechnologyTreeInner: React.FC = () => {
   // Update available technologies when research state changes
   useEffect(() => {
     if (!store.research) return;
-    
+
     const availableTechs = getAvailableTechnologies(store.research.researchedTechs);
     updateResearchState({
       availableTechs: new Set(availableTechs),
@@ -97,23 +98,20 @@ const TechnologyTreeInner: React.FC = () => {
   // Update nodes when game state changes
   useEffect(() => {
     if (!store.research) return;
-    
-    setNodes((nds) =>
-      nds.map((node) => {
+
+    setNodes(nds =>
+      nds.map(node => {
         const techId = node.id;
         const isResearched = store.research!.researchedTechs.has(techId);
         const isCurrent = store.research!.currentTech === techId;
         const isGoal = store.research!.techGoal === techId;
         const isAvailable = store.research!.availableTechs.has(techId);
-        
+
         // Calculate progress for current research
         let progress = 0;
         if (isCurrent && store.research!.currentTech) {
           const tech = node.data;
-          progress = calculateResearchProgress(
-            store.research!.bulbsAccumulated,
-            tech.cost
-          );
+          progress = calculateResearchProgress(store.research!.bulbsAccumulated, tech.cost);
         }
 
         return {
@@ -150,9 +148,9 @@ const TechnologyTreeInner: React.FC = () => {
         elementsSelectable={true}
       >
         <Controls className="bg-gray-800 border-gray-600 [&>button]:bg-gray-700 [&>button]:border-gray-600 [&>button]:text-white" />
-        <MiniMap 
+        <MiniMap
           className="bg-gray-800 border-gray-600"
-          nodeColor={(node) => {
+          nodeColor={node => {
             // Color nodes in minimap based on research state
             if (node.data?.isResearched) return '#ffffff';
             if (node.data?.isCurrent) return '#a1c883';
@@ -164,10 +162,7 @@ const TechnologyTreeInner: React.FC = () => {
       </ReactFlow>
 
       {selectedTech && (
-        <TechnologyDetails 
-          techId={selectedTech}
-          onClose={() => setSelectedTech(null)}
-        />
+        <TechnologyDetails techId={selectedTech} onClose={() => setSelectedTech(null)} />
       )}
 
       {/* Demo controls for testing */}

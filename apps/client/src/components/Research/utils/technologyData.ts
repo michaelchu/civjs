@@ -127,7 +127,7 @@ export function createTechnologyGraph(): { nodes: Node<TechnologyNodeData>[]; ed
   const edges: Edge[] = [];
 
   // Create nodes
-  Object.values(TECHNOLOGIES).forEach((tech) => {
+  Object.values(TECHNOLOGIES).forEach(tech => {
     const node: Node<TechnologyNodeData> = {
       id: tech.id,
       type: 'technologyNode',
@@ -139,7 +139,7 @@ export function createTechnologyGraph(): { nodes: Node<TechnologyNodeData>[]; ed
         description: tech.description,
         requirements: tech.requirements,
         flags: tech.flags,
-        
+
         // Default research state - will be updated from game state
         isResearched: false,
         isCurrent: false,
@@ -152,8 +152,8 @@ export function createTechnologyGraph(): { nodes: Node<TechnologyNodeData>[]; ed
   });
 
   // Create edges for requirements
-  Object.values(TECHNOLOGIES).forEach((tech) => {
-    tech.requirements.forEach((reqId) => {
+  Object.values(TECHNOLOGIES).forEach(tech => {
+    tech.requirements.forEach(reqId => {
       const edge: Edge = {
         id: `${reqId}-${tech.id}`,
         source: reqId,
@@ -195,7 +195,7 @@ export function calculateTechnologyLayers(): Map<string, number> {
     }
 
     visited.add(techId);
-    
+
     const tech = TECHNOLOGIES[techId];
     if (!tech) {
       return 0;
@@ -232,9 +232,9 @@ export function calculateTechnologyLayers(): Map<string, number> {
  */
 export function getAvailableTechnologies(researchedTechs: Set<string>): string[] {
   return Object.values(TECHNOLOGIES)
-    .filter(tech => 
-      !researchedTechs.has(tech.id) &&
-      tech.requirements.every(req => researchedTechs.has(req))
+    .filter(
+      tech =>
+        !researchedTechs.has(tech.id) && tech.requirements.every(req => researchedTechs.has(req))
     )
     .map(tech => tech.id);
 }
@@ -242,10 +242,7 @@ export function getAvailableTechnologies(researchedTechs: Set<string>): string[]
 /**
  * Calculate research progress percentage
  */
-export function calculateResearchProgress(
-  currentBulbs: number,
-  requiredBulbs: number
-): number {
+export function calculateResearchProgress(currentBulbs: number, requiredBulbs: number): number {
   if (requiredBulbs <= 0) return 100;
   return Math.min(100, Math.round((currentBulbs / requiredBulbs) * 100));
 }
