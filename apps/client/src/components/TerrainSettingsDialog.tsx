@@ -139,9 +139,7 @@ export const TerrainSettingsDialog: React.FC = () => {
   };
 
   return (
-    <PageBackground
-      className="min-h-[100dvh] md:flex md:items-center md:justify-center md:p-4"
-    >
+    <PageBackground className="min-h-[100dvh] md:flex md:items-center md:justify-center md:p-4">
       <div className="flex flex-col h-[100dvh] md:h-auto md:max-w-4xl xl:max-w-5xl md:mx-auto min-h-0">
         <Card className="bg-transparent md:bg-card md:shadow-2xl w-full flex-1 md:flex-none overflow-y-auto">
           <CardHeader>
@@ -169,228 +167,249 @@ export const TerrainSettingsDialog: React.FC = () => {
           </CardHeader>
 
           <CardContent>
-
-          <form
-            id="terrain-settings-form"
-            onSubmit={handleCreateGame}
-            className="space-y-4 md:space-y-6"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <div>
-                <label
-                  htmlFor="generator"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
-                  Map Generator
-                </label>
-                <Combobox
-                  options={generatorOptions}
-                  value={terrainSettings.generator}
-                  onValueChange={(value) => setTerrainSettings(prev => ({ ...prev, generator: value }))}
-                  placeholder="Select map generator"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {generatorDescriptions[terrainSettings.generator as keyof typeof generatorDescriptions]}
-                </p>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="landmass"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
-                  Landmass
-                </label>
-                <Combobox
-                  options={landmassOptions}
-                  value={terrainSettings.landmass}
-                  onValueChange={(value) => setTerrainSettings(prev => ({ ...prev, landmass: value }))}
-                  placeholder="Select landmass type"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {landmassDescriptions[terrainSettings.landmass as keyof typeof landmassDescriptions]}
-                </p>
-              </div>
-            </div>
-
-            {/* Sliders in responsive grid layout */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Temperature
-                </label>
-                <div className="inline-flex w-full -space-x-px rounded-md shadow-xs rtl:space-x-reverse">
-                  <Button
-                    type="button"
-                    variant={terrainSettings.temperature === 35 ? 'default' : 'outline'}
-                    className="flex-1 rounded-none rounded-s-md shadow-none focus-visible:z-10"
-                    onClick={() => setTerrainSettings(prev => ({ ...prev, temperature: 35 }))}
+            <form
+              id="terrain-settings-form"
+              onSubmit={handleCreateGame}
+              className="space-y-4 md:space-y-6"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                <div>
+                  <label
+                    htmlFor="generator"
+                    className="block text-sm font-medium text-foreground mb-2"
                   >
-                    Cold
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={terrainSettings.temperature === 50 ? 'default' : 'outline'}
-                    className="flex-1 rounded-none shadow-none focus-visible:z-10"
-                    onClick={() => setTerrainSettings(prev => ({ ...prev, temperature: 50 }))}
-                  >
-                    Temperate
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={terrainSettings.temperature === 75 ? 'default' : 'outline'}
-                    className="flex-1 rounded-none rounded-e-md shadow-none focus-visible:z-10"
-                    onClick={() => setTerrainSettings(prev => ({ ...prev, temperature: 75 }))}
-                  >
-                    Tropical
-                  </Button>
+                    Map Generator
+                  </label>
+                  <Combobox
+                    options={generatorOptions}
+                    value={terrainSettings.generator}
+                    onValueChange={value =>
+                      setTerrainSettings(prev => ({ ...prev, generator: value }))
+                    }
+                    placeholder="Select map generator"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {
+                      generatorDescriptions[
+                        terrainSettings.generator as keyof typeof generatorDescriptions
+                      ]
+                    }
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 min-h-[16px]">
-                  {terrainSettings.temperature === 35 && 'More tundra and cold regions'}
-                  {terrainSettings.temperature === 50 && 'Balanced climate with varied terrains'}
-                  {terrainSettings.temperature === 75 && 'More jungles and tropical regions'}
-                </p>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Wetness
-                </label>
-                <div className="inline-flex w-full -space-x-px rounded-md shadow-xs rtl:space-x-reverse">
-                  <Button
-                    type="button"
-                    variant={terrainSettings.wetness === 35 ? 'default' : 'outline'}
-                    className="flex-1 rounded-none rounded-s-md shadow-none focus-visible:z-10"
-                    onClick={() => setTerrainSettings(prev => ({ ...prev, wetness: 35 }))}
+                <div>
+                  <label
+                    htmlFor="landmass"
+                    className="block text-sm font-medium text-foreground mb-2"
                   >
-                    Dry
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={terrainSettings.wetness === 50 ? 'default' : 'outline'}
-                    className="flex-1 rounded-none shadow-none focus-visible:z-10"
-                    onClick={() => setTerrainSettings(prev => ({ ...prev, wetness: 50 }))}
-                  >
-                    Normal
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={terrainSettings.wetness === 75 ? 'default' : 'outline'}
-                    className="flex-1 rounded-none rounded-e-md shadow-none focus-visible:z-10"
-                    onClick={() => setTerrainSettings(prev => ({ ...prev, wetness: 75 }))}
-                  >
-                    Wet
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {terrainSettings.wetness === 35 && 'More deserts and dry regions'}
-                  {terrainSettings.wetness === 50 && 'Balanced moisture with varied terrains'}
-                  {terrainSettings.wetness === 75 && 'More forests, rivers, and swamps'}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Rivers
-                </label>
-                <div className="inline-flex w-full -space-x-px rounded-md shadow-xs rtl:space-x-reverse">
-                  <Button
-                    type="button"
-                    variant={terrainSettings.rivers === 35 ? 'default' : 'outline'}
-                    className="flex-1 rounded-none rounded-s-md shadow-none focus-visible:z-10"
-                    onClick={() => setTerrainSettings(prev => ({ ...prev, rivers: 35 }))}
-                  >
-                    Few
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={terrainSettings.rivers === 50 ? 'default' : 'outline'}
-                    className="flex-1 rounded-none shadow-none focus-visible:z-10"
-                    onClick={() => setTerrainSettings(prev => ({ ...prev, rivers: 50 }))}
-                  >
-                    Normal
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={terrainSettings.rivers === 75 ? 'default' : 'outline'}
-                    className="flex-1 rounded-none rounded-e-md shadow-none focus-visible:z-10"
-                    onClick={() => setTerrainSettings(prev => ({ ...prev, rivers: 75 }))}
-                  >
-                    Many
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {terrainSettings.rivers === 35 && 'Fewer rivers and waterways'}
-                  {terrainSettings.rivers === 50 && 'Balanced river distribution'}
-                  {terrainSettings.rivers === 75 && 'More rivers and waterways'}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Huts: {terrainSettings.huts} (Villages)
-                </label>
-                <Slider
-                  value={[terrainSettings.huts]}
-                  onValueChange={([value]) => setTerrainSettings(prev => ({ ...prev, huts: value }))}
-                  max={50}
-                  min={0}
-                  step={1}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                  <span>None</span>
-                  <span>Many Villages</span>
+                    Landmass
+                  </label>
+                  <Combobox
+                    options={landmassOptions}
+                    value={terrainSettings.landmass}
+                    onValueChange={value =>
+                      setTerrainSettings(prev => ({ ...prev, landmass: value }))
+                    }
+                    placeholder="Select landmass type"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {
+                      landmassDescriptions[
+                        terrainSettings.landmass as keyof typeof landmassDescriptions
+                      ]
+                    }
+                  </p>
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <div>
-                <label
-                  htmlFor="resources"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
-                  Resources
-                </label>
-                <Combobox
-                  options={resourceOptions}
-                  value={terrainSettings.resources}
-                  onValueChange={(value) => setTerrainSettings(prev => ({ ...prev, resources: value }))}
-                  placeholder="Select resource level"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {resourceDescriptions[terrainSettings.resources as keyof typeof resourceDescriptions]}
-                </p>
-              </div>
-            </div>
+              {/* Sliders in responsive grid layout */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Temperature
+                  </label>
+                  <div className="inline-flex w-full -space-x-px rounded-md shadow-xs rtl:space-x-reverse">
+                    <Button
+                      type="button"
+                      variant={terrainSettings.temperature === 35 ? 'default' : 'outline'}
+                      className="flex-1 rounded-none rounded-s-md shadow-none focus-visible:z-10"
+                      onClick={() => setTerrainSettings(prev => ({ ...prev, temperature: 35 }))}
+                    >
+                      Cold
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={terrainSettings.temperature === 50 ? 'default' : 'outline'}
+                      className="flex-1 rounded-none shadow-none focus-visible:z-10"
+                      onClick={() => setTerrainSettings(prev => ({ ...prev, temperature: 50 }))}
+                    >
+                      Temperate
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={terrainSettings.temperature === 75 ? 'default' : 'outline'}
+                      className="flex-1 rounded-none rounded-e-md shadow-none focus-visible:z-10"
+                      onClick={() => setTerrainSettings(prev => ({ ...prev, temperature: 75 }))}
+                    >
+                      Tropical
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 min-h-[16px]">
+                    {terrainSettings.temperature === 35 && 'More tundra and cold regions'}
+                    {terrainSettings.temperature === 50 && 'Balanced climate with varied terrains'}
+                    {terrainSettings.temperature === 75 && 'More jungles and tropical regions'}
+                  </p>
+                </div>
 
-            {/* Startpos setting - only show for island-based generators */}
-            {(terrainSettings.generator === 'island' || terrainSettings.generator === 'fair') && (
-              <div>
-                <label
-                  htmlFor="startpos"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
-                  Starting Positions
-                </label>
-                <Combobox
-                  options={startposOptions}
-                  value={terrainSettings.startpos?.toString()}
-                  onValueChange={(value) => setTerrainSettings(prev => ({ ...prev, startpos: parseInt(value) }))}
-                  placeholder="Select starting positions"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {startposDescriptions[terrainSettings.startpos as keyof typeof startposDescriptions]}
-                </p>
-              </div>
-            )}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Wetness</label>
+                  <div className="inline-flex w-full -space-x-px rounded-md shadow-xs rtl:space-x-reverse">
+                    <Button
+                      type="button"
+                      variant={terrainSettings.wetness === 35 ? 'default' : 'outline'}
+                      className="flex-1 rounded-none rounded-s-md shadow-none focus-visible:z-10"
+                      onClick={() => setTerrainSettings(prev => ({ ...prev, wetness: 35 }))}
+                    >
+                      Dry
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={terrainSettings.wetness === 50 ? 'default' : 'outline'}
+                      className="flex-1 rounded-none shadow-none focus-visible:z-10"
+                      onClick={() => setTerrainSettings(prev => ({ ...prev, wetness: 50 }))}
+                    >
+                      Normal
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={terrainSettings.wetness === 75 ? 'default' : 'outline'}
+                      className="flex-1 rounded-none rounded-e-md shadow-none focus-visible:z-10"
+                      onClick={() => setTerrainSettings(prev => ({ ...prev, wetness: 75 }))}
+                    >
+                      Wet
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {terrainSettings.wetness === 35 && 'More deserts and dry regions'}
+                    {terrainSettings.wetness === 50 && 'Balanced moisture with varied terrains'}
+                    {terrainSettings.wetness === 75 && 'More forests, rivers, and swamps'}
+                  </p>
+                </div>
 
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-300 rounded-md text-red-800 text-sm">
-                {error}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Rivers</label>
+                  <div className="inline-flex w-full -space-x-px rounded-md shadow-xs rtl:space-x-reverse">
+                    <Button
+                      type="button"
+                      variant={terrainSettings.rivers === 35 ? 'default' : 'outline'}
+                      className="flex-1 rounded-none rounded-s-md shadow-none focus-visible:z-10"
+                      onClick={() => setTerrainSettings(prev => ({ ...prev, rivers: 35 }))}
+                    >
+                      Few
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={terrainSettings.rivers === 50 ? 'default' : 'outline'}
+                      className="flex-1 rounded-none shadow-none focus-visible:z-10"
+                      onClick={() => setTerrainSettings(prev => ({ ...prev, rivers: 50 }))}
+                    >
+                      Normal
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={terrainSettings.rivers === 75 ? 'default' : 'outline'}
+                      className="flex-1 rounded-none rounded-e-md shadow-none focus-visible:z-10"
+                      onClick={() => setTerrainSettings(prev => ({ ...prev, rivers: 75 }))}
+                    >
+                      Many
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {terrainSettings.rivers === 35 && 'Fewer rivers and waterways'}
+                    {terrainSettings.rivers === 50 && 'Balanced river distribution'}
+                    {terrainSettings.rivers === 75 && 'More rivers and waterways'}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Huts: {terrainSettings.huts} (Villages)
+                  </label>
+                  <Slider
+                    value={[terrainSettings.huts]}
+                    onValueChange={([value]) =>
+                      setTerrainSettings(prev => ({ ...prev, huts: value }))
+                    }
+                    max={50}
+                    min={0}
+                    step={1}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                    <span>None</span>
+                    <span>Many Villages</span>
+                  </div>
+                </div>
               </div>
-            )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                <div>
+                  <label
+                    htmlFor="resources"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Resources
+                  </label>
+                  <Combobox
+                    options={resourceOptions}
+                    value={terrainSettings.resources}
+                    onValueChange={value =>
+                      setTerrainSettings(prev => ({ ...prev, resources: value }))
+                    }
+                    placeholder="Select resource level"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {
+                      resourceDescriptions[
+                        terrainSettings.resources as keyof typeof resourceDescriptions
+                      ]
+                    }
+                  </p>
+                </div>
+              </div>
+
+              {/* Startpos setting - only show for island-based generators */}
+              {(terrainSettings.generator === 'island' || terrainSettings.generator === 'fair') && (
+                <div>
+                  <label
+                    htmlFor="startpos"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Starting Positions
+                  </label>
+                  <Combobox
+                    options={startposOptions}
+                    value={terrainSettings.startpos?.toString()}
+                    onValueChange={value =>
+                      setTerrainSettings(prev => ({ ...prev, startpos: parseInt(value) }))
+                    }
+                    placeholder="Select starting positions"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {
+                      startposDescriptions[
+                        terrainSettings.startpos as keyof typeof startposDescriptions
+                      ]
+                    }
+                  </p>
+                </div>
+              )}
+
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-300 rounded-md text-red-800 text-sm">
+                  {error}
+                </div>
+              )}
 
               <div className="hidden lg:flex flex-col lg:flex-row space-y-3 lg:space-y-0 lg:space-x-4">
                 <button

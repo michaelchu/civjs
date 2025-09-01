@@ -63,9 +63,7 @@ export const GameCreationDialog: React.FC = () => {
   ];
 
   return (
-    <PageBackground
-      className="min-h-[100dvh] md:flex md:items-center md:justify-center md:p-4"
-    >
+    <PageBackground className="min-h-[100dvh] md:flex md:items-center md:justify-center md:p-4">
       <div className="flex flex-col h-[100dvh] md:h-auto md:max-w-2xl xl:max-w-3xl md:mx-auto">
         <Card className="bg-transparent md:bg-card md:shadow-2xl w-full flex-1 md:flex-none overflow-y-auto">
           <CardHeader>
@@ -92,97 +90,100 @@ export const GameCreationDialog: React.FC = () => {
 
           <CardContent>
             <form id="create-game-form" onSubmit={handleNext} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <div>
-                <label
-                  htmlFor="playerName"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
-                  Your Name
-                </label>
-                <Input
-                  id="playerName"
-                  type="text"
-                  value={playerName}
-                  onChange={e => setPlayerName(e.target.value)}
-                  placeholder="Enter your player name"
-                  maxLength={32}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                <div>
+                  <label
+                    htmlFor="playerName"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Your Name
+                  </label>
+                  <Input
+                    id="playerName"
+                    type="text"
+                    value={playerName}
+                    onChange={e => setPlayerName(e.target.value)}
+                    placeholder="Enter your player name"
+                    maxLength={32}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="gameName"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Game Name
+                  </label>
+                  <Input
+                    id="gameName"
+                    type="text"
+                    value={gameName}
+                    onChange={e => setGameName(e.target.value)}
+                    placeholder="Enter game name"
+                    maxLength={50}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="gameType"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Game Type
+                  </label>
+                  <Combobox
+                    options={gameTypeOptions}
+                    value={gameType}
+                    onValueChange={value => setGameType(value as 'single' | 'multiplayer')}
+                    placeholder="Select game type"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {gameType === 'single'
+                      ? 'Play against AI opponents'
+                      : 'Play with other human players online'}
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="mapSize"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Map Size
+                  </label>
+                  <Combobox
+                    options={mapSizeOptions}
+                    value={mapSize}
+                    onValueChange={value => setMapSize(value)}
+                    placeholder="Select map size"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label
-                  htmlFor="gameName"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
-                  Game Name
-                </label>
-                <Input
-                  id="gameName"
-                  type="text"
-                  value={gameName}
-                  onChange={e => setGameName(e.target.value)}
-                  placeholder="Enter game name"
-                  maxLength={50}
-                />
-              </div>
+              {gameType === 'multiplayer' && (
+                <div>
+                  <label
+                    htmlFor="maxPlayers"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Max Players
+                  </label>
+                  <Combobox
+                    options={maxPlayersOptions}
+                    value={maxPlayers.toString()}
+                    onValueChange={value => setMaxPlayers(Number(value))}
+                    placeholder="Select max players"
+                    className="md:max-w-xs"
+                  />
+                </div>
+              )}
 
-              <div>
-                <label
-                  htmlFor="gameType"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
-                  Game Type
-                </label>
-                <Combobox
-                  options={gameTypeOptions}
-                  value={gameType}
-                  onValueChange={(value) => setGameType(value as 'single' | 'multiplayer')}
-                  placeholder="Select game type"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {gameType === 'single'
-                    ? 'Play against AI opponents'
-                    : 'Play with other human players online'}
-                </p>
-              </div>
-
-              <div>
-                <label htmlFor="mapSize" className="block text-sm font-medium text-foreground mb-2">
-                  Map Size
-                </label>
-                <Combobox
-                  options={mapSizeOptions}
-                  value={mapSize}
-                  onValueChange={(value) => setMapSize(value)}
-                  placeholder="Select map size"
-                />
-              </div>
-            </div>
-
-            {gameType === 'multiplayer' && (
-              <div>
-                <label
-                  htmlFor="maxPlayers"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
-                  Max Players
-                </label>
-                <Combobox
-                  options={maxPlayersOptions}
-                  value={maxPlayers.toString()}
-                  onValueChange={(value) => setMaxPlayers(Number(value))}
-                  placeholder="Select max players"
-                  className="md:max-w-xs"
-                />
-              </div>
-            )}
-
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-300 rounded-md text-red-800 text-sm">
-                {error}
-              </div>
-            )}
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-300 rounded-md text-red-800 text-sm">
+                  {error}
+                </div>
+              )}
 
               <div className="hidden lg:flex space-x-4">
                 <button
