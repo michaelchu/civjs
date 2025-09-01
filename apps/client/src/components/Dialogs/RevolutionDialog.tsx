@@ -33,13 +33,13 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
 }) => {
   const { governments, technologies, getCurrentPlayer, startRevolution } = useGameStore();
   const [selectedGovernment, setSelectedGovernment] = useState<string | null>(null);
-  
+
   const currentPlayer = getCurrentPlayer();
 
   // Mock researched technologies for now - in real implementation this would come from player data
   const researchedTechs = useMemo(() => {
     const researched = new Set(['alphabet', 'pottery']); // Basic starting techs
-    
+
     // Add some mock researched techs for testing
     if (Object.keys(technologies).length > 0) {
       // In real implementation, this would be currentPlayer.technologies or similar
@@ -47,7 +47,7 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
       researched.add('monarchy');
       researched.add('literature');
     }
-    
+
     return researched;
   }, [technologies]);
 
@@ -89,10 +89,10 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
 
   const getTechIdFromName = (techName: string): string | null => {
     const techNameMap: Record<string, string> = {
-      'Monarchy': 'monarchy',
+      Monarchy: 'monarchy',
       'The Republic': 'the_republic',
-      'Communism': 'communism',
-      'Democracy': 'democracy',
+      Communism: 'communism',
+      Democracy: 'democracy',
     };
     return techNameMap[techName] || null;
   };
@@ -124,24 +124,25 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="text-2xl text-white">Start a Revolution!</DialogTitle>
           <DialogDescription className="text-gray-300">
-            Current form of government: <span className="font-semibold">{currentGovernment?.name || 'Unknown'}</span>
+            Current form of government:{' '}
+            <span className="font-semibold">{currentGovernment?.name || 'Unknown'}</span>
             <br />
             To start a revolution, select the new form of government:
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
-          {governmentOptions.map((option) => (
+          {governmentOptions.map(option => (
             <Card
               key={option.id}
               className={`cursor-pointer transition-all duration-200 ${
                 option.isCurrent
                   ? 'bg-blue-900/50 border-blue-600'
                   : !option.available
-                  ? 'bg-gray-800/50 border-gray-600 opacity-60 cursor-not-allowed'
-                  : selectedGovernment === option.id
-                  ? 'bg-green-800/50 border-green-500'
-                  : 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:border-gray-600'
+                    ? 'bg-gray-800/50 border-gray-600 opacity-60 cursor-not-allowed'
+                    : selectedGovernment === option.id
+                      ? 'bg-green-800/50 border-green-500'
+                      : 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:border-gray-600'
               }`}
               onClick={() => {
                 if (option.available && !option.isCurrent) {
@@ -164,9 +165,7 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
                 )}
               </CardHeader>
               <CardContent className="pt-0">
-                <p className="text-gray-300 text-sm line-clamp-3">
-                  {option.government.helptext}
-                </p>
+                <p className="text-gray-300 text-sm line-clamp-3">{option.government.helptext}</p>
               </CardContent>
             </Card>
           ))}
@@ -178,9 +177,12 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
               {getGovernmentIcon(selectedGovernment!)} {selectedGov.name}
             </h4>
             <p className="text-gray-300 mb-3">{selectedGov.helptext}</p>
-            
+
             <div className="text-sm text-gray-400">
-              <p><strong>Ruler Title:</strong> {selectedGov.ruler_male_title.replace('%s', currentPlayer?.name || 'Leader')}</p>
+              <p>
+                <strong>Ruler Title:</strong>{' '}
+                {selectedGov.ruler_male_title.replace('%s', currentPlayer?.name || 'Leader')}
+              </p>
             </div>
           </div>
         )}

@@ -16,7 +16,8 @@ const getMockGovernments = () => ({
     sound_alt2: '-',
     ruler_male_title: 'Warlord %s',
     ruler_female_title: 'Warlady %s',
-    helptext: 'Anarchy is simply the absence of any recognizable government. Citizens are disorganized and unproductive, and will spend all income as quickly as possible, rather than paying taxes or conducting research.'
+    helptext:
+      'Anarchy is simply the absence of any recognizable government. Citizens are disorganized and unproductive, and will spend all income as quickly as possible, rather than paying taxes or conducting research.',
   },
   despotism: {
     id: 'despotism',
@@ -29,7 +30,8 @@ const getMockGovernments = () => ({
     ai_better: 'Monarchy',
     ruler_male_title: 'Chief %s',
     ruler_female_title: 'Chief %s',
-    helptext: 'Under Despotism, you are the absolute ruler of your people. Your control over your citizens is maintained largely by martial law. Despotism suffers the highest level of corruption of all forms of government.'
+    helptext:
+      'Under Despotism, you are the absolute ruler of your people. Your control over your citizens is maintained largely by martial law. Despotism suffers the highest level of corruption of all forms of government.',
   },
   monarchy: {
     id: 'monarchy',
@@ -43,7 +45,8 @@ const getMockGovernments = () => ({
     ai_better: 'Communism',
     ruler_male_title: 'King %s',
     ruler_female_title: 'Queen %s',
-    helptext: 'Under Monarchy, a king or queen serves as a hereditary figurehead for your government. Monarchy suffers the same small amount of corruption that the Republic does.'
+    helptext:
+      'Under Monarchy, a king or queen serves as a hereditary figurehead for your government. Monarchy suffers the same small amount of corruption that the Republic does.',
   },
   republic: {
     id: 'republic',
@@ -56,7 +59,8 @@ const getMockGovernments = () => ({
     sound_alt2: '-',
     ruler_male_title: 'President %s',
     ruler_female_title: 'President %s',
-    helptext: 'Under a Republican government, citizens hold an election to select a representative who will govern them; since elected leaders must remain popular to remain in control, citizens are given a greater degree of freedom.'
+    helptext:
+      'Under a Republican government, citizens hold an election to select a representative who will govern them; since elected leaders must remain popular to remain in control, citizens are given a greater degree of freedom.',
   },
   communism: {
     id: 'communism',
@@ -69,7 +73,8 @@ const getMockGovernments = () => ({
     sound_alt2: '-',
     ruler_male_title: 'Comrade %s',
     ruler_female_title: 'Comrade %s',
-    helptext: 'A Communist government is based on the ideal that all people are equal. All goods are owned by the state, rather than by private citizens.'
+    helptext:
+      'A Communist government is based on the ideal that all people are equal. All goods are owned by the state, rather than by private citizens.',
   },
   democracy: {
     id: 'democracy',
@@ -82,8 +87,9 @@ const getMockGovernments = () => ({
     sound_alt2: '-',
     ruler_male_title: 'Prime Minister %s',
     ruler_female_title: 'Prime Minister %s',
-    helptext: 'Under Democracy, citizens govern directly by voting on issues. Democracy offers the highest possible level of trade, but also offers the most potential for unhappiness.'
-  }
+    helptext:
+      'Under Democracy, citizens govern directly by voting on issues. Democracy offers the highest possible level of trade, but also offers the most potential for unhappiness.',
+  },
 });
 
 class GameClient {

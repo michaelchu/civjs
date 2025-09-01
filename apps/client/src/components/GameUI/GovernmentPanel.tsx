@@ -7,7 +7,7 @@ import { RevolutionDialog } from '../Dialogs/RevolutionDialog';
 export const GovernmentPanel: React.FC = () => {
   const { governments, getCurrentPlayer } = useGameStore();
   const [isRevolutionDialogOpen, setIsRevolutionDialogOpen] = useState(false);
-  
+
   const currentPlayer = getCurrentPlayer();
   const currentGovernment = currentPlayer ? governments[currentPlayer.government] : null;
   const isInRevolution = currentPlayer && (currentPlayer.revolutionTurns || 0) > 0;
@@ -23,7 +23,7 @@ export const GovernmentPanel: React.FC = () => {
 
   const getRulerTitle = (): string => {
     if (!currentGovernment) return currentPlayer.name;
-    
+
     // For demo purposes, assume male leader - in real game this would come from nation/leader data
     const titleTemplate = currentGovernment.ruler_male_title;
     return titleTemplate.replace('%s', currentPlayer.name);
@@ -33,15 +33,15 @@ export const GovernmentPanel: React.FC = () => {
     if (isInRevolution) {
       return `Your civilization is in a state of Anarchy! ${currentPlayer.revolutionTurns} turns remaining until your new government is established.`;
     }
-    
+
     return currentGovernment?.helptext || 'No government information available.';
   };
 
   const getGovernmentEffects = (): string[] => {
     if (!currentGovernment) return [];
-    
+
     const effects: string[] = [];
-    
+
     switch (currentGovernment.id) {
       case 'anarchy':
         effects.push('• High corruption and waste');
@@ -74,7 +74,7 @@ export const GovernmentPanel: React.FC = () => {
         effects.push('• War causes severe unhappiness');
         break;
     }
-    
+
     return effects;
   };
 
@@ -100,25 +100,17 @@ export const GovernmentPanel: React.FC = () => {
               <span className="text-2xl">🏛️</span>
               {currentGovernment?.name || 'Unknown Government'}
               {isInRevolution && (
-                <span className="text-sm bg-red-600 px-2 py-1 rounded">
-                  Revolution
-                </span>
+                <span className="text-sm bg-red-600 px-2 py-1 rounded">Revolution</span>
               )}
             </CardTitle>
-            <CardDescription className="text-gray-300">
-              {getRulerTitle()}
-            </CardDescription>
+            <CardDescription className="text-gray-300">{getRulerTitle()}</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-300 mb-4">
-              {getGovernmentDescription()}
-            </p>
-            
+            <p className="text-gray-300 mb-4">{getGovernmentDescription()}</p>
+
             {isInRevolution && (
               <div className="bg-red-900/30 border border-red-700 rounded p-3 mb-4">
-                <p className="text-red-300 font-semibold">
-                  ⚡ Revolution in Progress
-                </p>
+                <p className="text-red-300 font-semibold">⚡ Revolution in Progress</p>
                 <p className="text-red-200 text-sm">
                   {currentPlayer.revolutionTurns} turns of Anarchy remaining
                 </p>
