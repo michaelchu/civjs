@@ -1,9 +1,9 @@
 /**
  * Ruleset loader service for loading and validating JSON-based rulesets
- * Provides type-safe, validated access to ruleset data with async loading
+ * Provides type-safe, validated access to ruleset data with synchronous loading
  */
 
-import { promises as fs } from 'fs';
+import { readFileSync } from 'fs';
 import { join } from 'path';
 import { 
   TerrainRulesetFileSchema, 
@@ -46,7 +46,7 @@ export class RulesetLoader {
   /**
    * Load terrain ruleset for a specific ruleset variant (e.g., 'classic', 'civ2')
    */
-  async loadTerrainRuleset(rulesetName: string = 'classic'): Promise<TerrainRulesetFile> {
+  loadTerrainRuleset(rulesetName: string = 'classic'): TerrainRulesetFile {
     // Check cache first
     if (this.terrainCache.has(rulesetName)) {
       return this.terrainCache.get(rulesetName)!;
@@ -54,7 +54,7 @@ export class RulesetLoader {
 
     try {
       const filePath = join(this.baseDir, rulesetName, 'terrain.json');
-      const fileContent = await fs.readFile(filePath, 'utf-8');
+      const fileContent = readFileSync(filePath, 'utf-8');
       const rawData = JSON.parse(fileContent);
 
       // Validate with Zod schema
@@ -75,16 +75,16 @@ export class RulesetLoader {
   /**
    * Get all terrain definitions for a ruleset
    */
-  async getTerrains(rulesetName: string = 'classic'): Promise<Record<TerrainType, TerrainRuleset>> {
-    const rulesetFile = await this.loadTerrainRuleset(rulesetName);
+  getTerrains(rulesetName: string = 'classic'): Record<TerrainType, TerrainRuleset> {
+    const rulesetFile = this.loadTerrainRuleset(rulesetName);
     return rulesetFile.terrains;
   }
 
   /**
    * Get a specific terrain definition
    */
-  async getTerrain(terrainType: TerrainType, rulesetName: string = 'classic'): Promise<TerrainRuleset> {
-    const terrains = await this.getTerrains(rulesetName);
+  getTerrain(terrainType: TerrainType, rulesetName: string = 'classic'): TerrainRuleset {
+    const terrains = this.getTerrains(rulesetName);
     const terrain = terrains[terrainType];
     
     if (!terrain) {
@@ -95,17 +95,17 @@ export class RulesetLoader {
   }
 
   /**
-   * Pick terrain based on weighted selection - async version of original function
+   * Pick terrain based on weighted selection - synchronous version of original function
    * @reference apps/server/src/game/map/TerrainRuleset.ts:269-333
    */
-  async pickTerrain(
+  pickTerrain(
     target: MapgenTerrainProperty,
     prefer: MapgenTerrainProperty,
     avoid: MapgenTerrainProperty,
     random: () => number,
     rulesetName: string = 'classic'
-  ): Promise<TerrainType> {
-    const terrains = await this.getTerrains(rulesetName);
+  ): TerrainType {
+    const terrains = this.getTerrains(rulesetName);
     
     let sum = 0;
     const validTerrains: Array<{ terrain: TerrainType; weight: number }> = [];
@@ -168,23 +168,23 @@ export class RulesetLoader {
   /**
    * Get terrain properties for a given terrain type
    */
-  async getTerrainProperties(
+  getTerrainProperties(
     terrainType: TerrainType, 
     rulesetName: string = 'classic'
-  ): Promise<Partial<Record<MapgenTerrainProperty, number>>> {
-    const terrain = await this.getTerrain(terrainType, rulesetName);
+  ): Partial<Record<MapgenTerrainProperty, number>> {
+    const terrain = this.getTerrain(terrainType, rulesetName);
     return terrain.properties ?? {};
   }
 
   /**
    * Check if a terrain has a specific property
    */
-  async terrainHasProperty(
+  terrainHasProperty(
     terrainType: TerrainType, 
     property: MapgenTerrainProperty,
     rulesetName: string = 'classic'
-  ): Promise<boolean> {
-    const properties = await this.getTerrainProperties(terrainType, rulesetName);
+  ): boolean {
+    const properties = this.getTerrainProperties(terrainType, rulesetName);
     const value = properties[property] ?? 0;
     return value > 0;
   }
@@ -192,18 +192,18 @@ export class RulesetLoader {
   /**
    * Get terrain transform result
    */
-  async getTerrainTransform(
+  getTerrainTransform(
     terrainType: TerrainType,
     rulesetName: string = 'classic'
-  ): Promise<TerrainType | undefined> {
-    const terrain = await this.getTerrain(terrainType, rulesetName);
+  ): TerrainType | undefined {
+    const terrain = this.getTerrain(terrainType, rulesetName);
     return terrain.transformTo;
   }
 
   /**
    * Load buildings ruleset for a specific ruleset variant (e.g., 'classic', 'civ2')
    */
-  async loadBuildingsRuleset(rulesetName: string = 'classic'): Promise<BuildingsRulesetFile> {
+  loadBuildingsRuleset(rulesetName: string = 'classic'): BuildingsRulesetFile {
     // Check cache first
     if (this.buildingsCache.has(rulesetName)) {
       return this.buildingsCache.get(rulesetName)!;
@@ -211,7 +211,7 @@ export class RulesetLoader {
 
     try {
       const filePath = join(this.baseDir, rulesetName, 'buildings.json');
-      const fileContent = await fs.readFile(filePath, 'utf-8');
+      const fileContent = readFileSync(filePath, 'utf-8');
       const rawData = JSON.parse(fileContent);
 
       // Validate with Zod schema
@@ -232,16 +232,16 @@ export class RulesetLoader {
   /**
    * Get all building definitions for a ruleset
    */
-  async getBuildings(rulesetName: string = 'classic'): Promise<Record<string, BuildingTypeRuleset>> {
-    const rulesetFile = await this.loadBuildingsRuleset(rulesetName);
+  getBuildings(rulesetName: string = 'classic'): Record<string, BuildingTypeRuleset> {
+    const rulesetFile = this.loadBuildingsRuleset(rulesetName);
     return rulesetFile.buildings;
   }
 
   /**
    * Get a specific building definition
    */
-  async getBuilding(buildingId: string, rulesetName: string = 'classic'): Promise<BuildingTypeRuleset> {
-    const buildings = await this.getBuildings(rulesetName);
+  getBuilding(buildingId: string, rulesetName: string = 'classic'): BuildingTypeRuleset {
+    const buildings = this.getBuildings(rulesetName);
     const building = buildings[buildingId];
     
     if (!building) {
@@ -254,7 +254,7 @@ export class RulesetLoader {
   /**
    * Load techs ruleset for a specific ruleset variant (e.g., 'classic', 'civ2')
    */
-  async loadTechsRuleset(rulesetName: string = 'classic'): Promise<TechsRulesetFile> {
+  loadTechsRuleset(rulesetName: string = 'classic'): TechsRulesetFile {
     // Check cache first
     if (this.techsCache.has(rulesetName)) {
       return this.techsCache.get(rulesetName)!;
@@ -262,7 +262,7 @@ export class RulesetLoader {
 
     try {
       const filePath = join(this.baseDir, rulesetName, 'techs.json');
-      const fileContent = await fs.readFile(filePath, 'utf-8');
+      const fileContent = readFileSync(filePath, 'utf-8');
       const rawData = JSON.parse(fileContent);
 
       // Validate with Zod schema
@@ -283,16 +283,16 @@ export class RulesetLoader {
   /**
    * Get all technology definitions for a ruleset
    */
-  async getTechs(rulesetName: string = 'classic'): Promise<Record<string, TechnologyRuleset>> {
-    const rulesetFile = await this.loadTechsRuleset(rulesetName);
+  getTechs(rulesetName: string = 'classic'): Record<string, TechnologyRuleset> {
+    const rulesetFile = this.loadTechsRuleset(rulesetName);
     return rulesetFile.techs;
   }
 
   /**
    * Get a specific technology definition
    */
-  async getTech(techId: string, rulesetName: string = 'classic'): Promise<TechnologyRuleset> {
-    const techs = await this.getTechs(rulesetName);
+  getTech(techId: string, rulesetName: string = 'classic'): TechnologyRuleset {
+    const techs = this.getTechs(rulesetName);
     const tech = techs[techId];
     
     if (!tech) {
@@ -305,7 +305,7 @@ export class RulesetLoader {
   /**
    * Load units ruleset for a specific ruleset variant (e.g., 'classic', 'civ2')
    */
-  async loadUnitsRuleset(rulesetName: string = 'classic'): Promise<UnitsRulesetFile> {
+  loadUnitsRuleset(rulesetName: string = 'classic'): UnitsRulesetFile {
     // Check cache first
     if (this.unitsCache.has(rulesetName)) {
       return this.unitsCache.get(rulesetName)!;
@@ -313,7 +313,7 @@ export class RulesetLoader {
 
     try {
       const filePath = join(this.baseDir, rulesetName, 'units.json');
-      const fileContent = await fs.readFile(filePath, 'utf-8');
+      const fileContent = readFileSync(filePath, 'utf-8');
       const rawData = JSON.parse(fileContent);
 
       // Validate with Zod schema
@@ -334,16 +334,16 @@ export class RulesetLoader {
   /**
    * Get all unit definitions for a ruleset
    */
-  async getUnits(rulesetName: string = 'classic'): Promise<Record<string, UnitTypeRuleset>> {
-    const rulesetFile = await this.loadUnitsRuleset(rulesetName);
+  getUnits(rulesetName: string = 'classic'): Record<string, UnitTypeRuleset> {
+    const rulesetFile = this.loadUnitsRuleset(rulesetName);
     return rulesetFile.units;
   }
 
   /**
    * Get a specific unit definition
    */
-  async getUnit(unitId: string, rulesetName: string = 'classic'): Promise<UnitTypeRuleset> {
-    const units = await this.getUnits(rulesetName);
+  getUnit(unitId: string, rulesetName: string = 'classic'): UnitTypeRuleset {
+    const units = this.getUnits(rulesetName);
     const unit = units[unitId];
     
     if (!unit) {

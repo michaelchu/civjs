@@ -5,8 +5,8 @@
 import { beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { MapTile, TemperatureType } from '../../src/game/map/MapTypes';
 import { TerrainGenerator } from '../../src/game/map/TerrainGenerator';
-import { initializeTerrainRuleset, getTerrainProperties } from '../../src/game/map/TerrainRuleset';
 import { isOceanTerrain } from '../../src/game/map/TerrainUtils';
+import { getTerrainProperties } from '../../src/game/map/TerrainRuleset';
 
 describe('TerrainGenerator - Relief Generation System', () => {
   let generator: TerrainGenerator;
@@ -15,9 +15,8 @@ describe('TerrainGenerator - Relief Generation System', () => {
   const width = 40;
   const height = 40;
 
-  beforeAll(async () => {
-    // Initialize terrain ruleset before running tests
-    await initializeTerrainRuleset('classic');
+  beforeAll(() => {
+    // Terrain ruleset loaded synchronously on first access
   });
 
   // Seeded random for deterministic tests

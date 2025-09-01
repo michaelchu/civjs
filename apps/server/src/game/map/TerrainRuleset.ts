@@ -3,29 +3,94 @@
  * @reference freeciv/data/classic/terrain.ruleset
  * @reference freeciv/common/terrain.h:136-147
  *
- * This file now uses JSON-based rulesets loaded at runtime.
- * The original hardcoded data has been migrated to apps/shared/data/rulesets/classic/terrain.json
- *
- * For backward compatibility, this file re-exports the compatibility layer
- * that maintains the same synchronous API.
+ * This file provides direct access to JSON-based rulesets with synchronous API.
+ * Terrain data is loaded from apps/shared/data/rulesets/classic/terrain.json
  */
 
-// Re-export everything from the compatibility layer
-export {
+import { rulesetLoader } from '../../../../shared/data/rulesets/RulesetLoader';
+import type {
   MapgenTerrainProperty,
-  MapgenTerrainPropertyEnum,
   TerrainType,
   TerrainRuleset,
-  TERRAIN_RULESET,
-  pickTerrain,
-  getTerrainProperties,
-  terrainHasProperty,
-  getTerrainTransform,
-  initializeTerrainRuleset,
-  isTerrainRulesetInitialized,
-  resetTerrainRuleset,
-} from '../../../../shared/data/rulesets/TerrainRulesetCompat';
+} from '../../../../shared/data/rulesets/schemas';
 
-// Type compatibility between MapTypes and schema types is ensured
-// by the re-exports above. TerrainType from schemas must match
-// TerrainType from MapTypes for backward compatibility.
+// Re-export types for backward compatibility
+export { MapgenTerrainProperty, TerrainType, TerrainRuleset };
+
+// Legacy enum for backward compatibility with existing code
+export enum MapgenTerrainPropertyEnum {
+  COLD = 'MG_COLD',
+  DRY = 'MG_DRY',
+  FOLIAGE = 'MG_FOLIAGE',
+  FROZEN = 'MG_FROZEN',
+  GREEN = 'MG_GREEN',
+  MOUNTAINOUS = 'MG_MOUNTAINOUS',
+  OCEAN_DEPTH = 'MG_OCEAN_DEPTH',
+  TEMPERATE = 'MG_TEMPERATE',
+  TROPICAL = 'MG_TROPICAL',
+  WET = 'MG_WET',
+  UNUSED = 'MG_UNUSED',
+}
+
+/**
+ * Direct synchronous access to terrain ruleset - loaded on first access
+ */
+export const TERRAIN_RULESET = new Proxy({} as Record<TerrainType, TerrainRuleset>, {
+  get(_target, prop) {
+    if (typeof prop === 'string') {
+      const terrains = rulesetLoader.getTerrains('classic');
+      return terrains[prop as TerrainType];
+    }
+    return undefined;
+  },
+  ownKeys() {
+    const terrains = rulesetLoader.getTerrains('classic');
+    return Object.keys(terrains);
+  },
+  has(_target, prop) {
+    if (typeof prop === 'string') {
+      const terrains = rulesetLoader.getTerrains('classic');
+      return prop in terrains;
+    }
+    return false;
+  },
+});
+
+/**
+ * Pick terrain based on weighted selection - synchronous API
+ * @reference freeciv/server/generator/mapgen_utils.c:692-761 pick_terrain()
+ */
+export function pickTerrain(
+  target: MapgenTerrainProperty,
+  prefer: MapgenTerrainProperty,
+  avoid: MapgenTerrainProperty,
+  random: () => number
+): TerrainType {
+  return rulesetLoader.pickTerrain(target, prefer, avoid, random, 'classic');
+}
+
+/**
+ * Get terrain properties for a given terrain type
+ */
+export function getTerrainProperties(
+  terrain: TerrainType
+): Partial<Record<MapgenTerrainProperty, number>> {
+  return rulesetLoader.getTerrainProperties(terrain, 'classic');
+}
+
+/**
+ * Check if a terrain has a specific property
+ */
+export function terrainHasProperty(terrain: TerrainType, property: MapgenTerrainProperty): boolean {
+  return rulesetLoader.terrainHasProperty(terrain, property, 'classic');
+}
+
+/**
+ * Get terrain transform result
+ */
+export function getTerrainTransform(terrain: TerrainType): TerrainType | undefined {
+  return rulesetLoader.getTerrainTransform(terrain, 'classic');
+}
+
+// Re-export the rulesetLoader instance for direct access to all rulesets
+export { rulesetLoader };

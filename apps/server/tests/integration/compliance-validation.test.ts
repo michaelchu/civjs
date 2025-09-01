@@ -6,17 +6,10 @@
  * through to client-ready data structures.
  */
 
-import { beforeAll } from '@jest/globals';
 import { PlayerState } from '../../src/game/GameManager';
 import { MapManager } from '../../src/game/MapManager';
-import { initializeTerrainRuleset } from '../../src/game/map/TerrainRuleset';
 
 describe('Complete Compliance Validation', () => {
-  beforeAll(async () => {
-    // Initialize terrain ruleset before running tests
-    await initializeTerrainRuleset('classic');
-  });
-
   const createTestPlayers = (count: number): Map<string, PlayerState> => {
     const players = new Map<string, PlayerState>();
     for (let i = 0; i < count; i++) {

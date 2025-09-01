@@ -11,7 +11,6 @@ import logger from './utils/logger';
 import { testConnection, closeConnection } from './database';
 import redis from './database/redis';
 import { setupSocketHandlers } from './network/socket-handlers';
-import { initializeTerrainRuleset } from './game/map/TerrainRuleset';
 
 // Load environment variables
 dotenv.config();
@@ -151,10 +150,8 @@ async function start() {
       throw new Error('Failed to connect to database');
     }
 
-    // Initialize terrain ruleset
-    logger.info('Initializing terrain ruleset...');
-    await initializeTerrainRuleset('classic');
-    logger.info('Terrain ruleset initialized successfully');
+    // Terrain ruleset will be loaded synchronously on first use
+    logger.info('Terrain ruleset ready for synchronous loading');
 
     // Start HTTP server
     httpServer.listen(config.server.port, () => {

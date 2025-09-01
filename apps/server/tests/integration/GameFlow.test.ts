@@ -1,8 +1,6 @@
-import { beforeAll } from '@jest/globals';
 import { GameManager } from '../../src/game/GameManager';
 import { mockIo } from '../setup';
 import { createDatabaseMocks } from '../fixtures/databaseMocks';
-import { initializeTerrainRuleset } from '../../src/game/map/TerrainRuleset';
 
 // Get the mock from setup
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
@@ -12,11 +10,6 @@ const { db: mockDb } = require('../../src/database');
 describe('Game Integration Flow', () => {
   let gameManager: GameManager;
   let dbMocks: ReturnType<typeof createDatabaseMocks>;
-
-  beforeAll(async () => {
-    // Initialize terrain ruleset before running tests
-    await initializeTerrainRuleset('classic');
-  });
 
   beforeEach(() => {
     (GameManager as any).instance = null;
