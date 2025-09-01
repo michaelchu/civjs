@@ -26,13 +26,10 @@ export class TilesetLoader {
     // Constants are now defined at module load time
   }
 
-  async loadTileset(serverUrl?: string): Promise<void> {
+  async loadTileset(): Promise<void> {
     try {
       // Load tileset files from client's domain instead of server URL
       // This fixes issues with separate client/server deployments on Railway
-      // Note: serverUrl parameter kept for API compatibility but not used
-      void serverUrl; // Explicitly mark as unused
-      
       await this.loadConfig(`/js/2dcanvas/tileset_config_amplio2.js`);
 
       await this.loadSpec(`/js/2dcanvas/tileset_spec_amplio2.js`);

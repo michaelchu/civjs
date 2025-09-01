@@ -30,9 +30,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       rendererRef.current = new MapRenderer(ctx);
 
       try {
-        // Initialize with server URL from config
-        const { SERVER_URL } = await import('../../config');
-        await rendererRef.current.initialize(SERVER_URL);
+        // Initialize renderer (tileset files are now served from client domain)
+        await rendererRef.current.initialize();
         const gameState = useGameStore.getState();
 
         if (rendererRef.current) {
