@@ -1,6 +1,8 @@
+import { beforeAll } from '@jest/globals';
 import { VisibilityManager } from '../../src/game/VisibilityManager';
 import { UnitManager } from '../../src/game/UnitManager';
 import { MapManager } from '../../src/game/MapManager';
+import { initializeTerrainRuleset } from '../../src/game/map/TerrainRuleset';
 
 // Get the mock from setup
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
@@ -13,6 +15,11 @@ describe('VisibilityManager', () => {
   const gameId = 'test-game-id';
   const mapWidth = 20;
   const mapHeight = 20;
+
+  beforeAll(async () => {
+    // Initialize terrain ruleset before running tests
+    await initializeTerrainRuleset('classic');
+  });
 
   beforeEach(async () => {
     // Setup managers
