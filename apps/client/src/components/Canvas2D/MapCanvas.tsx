@@ -2,6 +2,11 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { MapRenderer } from './MapRenderer';
 import { TileHoverOverlay } from './TileHoverOverlay';
+import { UnitContextMenu } from '../GameUI/UnitContextMenu';
+import { UnitSelectionOverlay } from './UnitSelectionOverlay';
+import type { Unit } from '../../types';
+import { ActionType } from '../../../../shared/src/types/actions';
+import { gameClient } from '../../services/GameClient';
 
 interface MapCanvasProps {
   width: number;
@@ -14,6 +19,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   // Track initial centering to prevent multiple centering events (freeciv-web compliance)
   const [hasInitiallyCentered, setHasInitiallyCentered] = useState(false);
+  
+  // Unit selection and context menu state
+  const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ unit: Unit; position: { x: number; y: number } } | null>(null);
 
   const { viewport, map, units, cities, setViewport } = useGameStore();
   const gameState = useGameStore();
@@ -174,6 +183,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const dragStart = useRef({ x: 0, y: 0 });
   const dragStartViewport = useRef(viewport);
   const currentRenderViewport = useRef(viewport);
+  const dragStartTime = useRef<number>(0);
+  const DRAG_THRESHOLD = 5; // pixels
 
   const handleMouseDown = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -186,14 +197,16 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       const canvasX = event.clientX - rect.left;
       const canvasY = event.clientY - rect.top;
 
-      // Start dragging - copy freeciv-web logic
-      setIsDragging(true);
+      // Close context menu if open
+      setContextMenu(null);
+
+      // Record drag start for potential drag operation
       dragStart.current = { x: canvasX, y: canvasY };
       dragStartViewport.current = viewport;
       currentRenderViewport.current = viewport;
+      dragStartTime.current = Date.now();
 
-      // Change cursor to indicate dragging
-      canvas.style.cursor = 'move';
+      // Don't immediately set dragging - wait for actual movement
     },
     [viewport]
   );
@@ -206,6 +219,18 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       const rect = canvas.getBoundingClientRect();
       const canvasX = event.clientX - rect.left;
       const canvasY = event.clientY - rect.top;
+
+      // Check if we should start dragging
+      if (!isDragging && dragStartTime.current > 0) {
+        const dragDistance = Math.sqrt(
+          Math.pow(canvasX - dragStart.current.x, 2) + Math.pow(canvasY - dragStart.current.y, 2)
+        );
+        
+        if (dragDistance > DRAG_THRESHOLD) {
+          setIsDragging(true);
+          canvas.style.cursor = 'move';
+        }
+      }
 
       // Handle tile hover detection when not dragging
       if (!isDragging) {
@@ -267,32 +292,59 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     [isDragging, viewport]
   );
 
-  const handleMouseUp = useCallback(() => {
-    if (!isDragging || !rendererRef.current) return;
+  const handleMouseUp = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      if (!canvas || !rendererRef.current) return;
 
-    const canvas = canvasRef.current;
-    if (canvas) {
-      canvas.style.cursor = 'crosshair';
-    }
+      const rect = canvas.getBoundingClientRect();
+      const canvasX = event.clientX - rect.left;
+      const canvasY = event.clientY - rect.top;
 
-    // Apply boundary constraints to the final viewport position
-    const constrainedPosition = rendererRef.current.setMapviewOrigin(
-      currentRenderViewport.current.x,
-      currentRenderViewport.current.y,
-      currentRenderViewport.current.width,
-      currentRenderViewport.current.height
-    );
+      // If we were dragging, handle the drag end
+      if (isDragging) {
+        canvas.style.cursor = 'crosshair';
 
-    const finalViewport = {
-      ...currentRenderViewport.current,
-      x: constrainedPosition.x,
-      y: constrainedPosition.y,
-    };
+        // Apply boundary constraints to the final viewport position
+        const constrainedPosition = rendererRef.current.setMapviewOrigin(
+          currentRenderViewport.current.x,
+          currentRenderViewport.current.y,
+          currentRenderViewport.current.width,
+          currentRenderViewport.current.height
+        );
 
-    // Update state with the constrained final position
-    setViewport(finalViewport);
-    setIsDragging(false);
-  }, [isDragging, setViewport]);
+        const finalViewport = {
+          ...currentRenderViewport.current,
+          x: constrainedPosition.x,
+          y: constrainedPosition.y,
+        };
+
+        // Update state with the constrained final position
+        setViewport(finalViewport);
+        setIsDragging(false);
+      } else if (dragStartTime.current > 0) {
+        // Handle click (not drag) - check for unit selection
+        const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+        const tileX = Math.floor(mapPos.mapX);
+        const tileY = Math.floor(mapPos.mapY);
+
+        // Find unit at clicked position
+        const unitAtPosition = Object.values(units).find(
+          (unit: any) => unit.x === tileX && unit.y === tileY
+        );
+
+        if (unitAtPosition) {
+          setSelectedUnit(unitAtPosition as Unit);
+        } else {
+          setSelectedUnit(null);
+        }
+      }
+
+      // Reset drag tracking
+      dragStartTime.current = 0;
+    },
+    [isDragging, setViewport, units, viewport]
+  );
 
   // Touch event handlers for mobile panning
   const handleTouchStart = useCallback(
@@ -391,6 +443,92 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     [isDragging, setViewport]
   );
 
+  // Handle right-click context menu
+  const handleContextMenu = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      event.preventDefault(); // Prevent browser context menu
+      
+      const canvas = canvasRef.current;
+      if (!canvas || !rendererRef.current) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const canvasX = event.clientX - rect.left;
+      const canvasY = event.clientY - rect.top;
+
+      // Convert canvas coordinates to map coordinates
+      const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+      const tileX = Math.floor(mapPos.mapX);
+      const tileY = Math.floor(mapPos.mapY);
+
+      // Find unit at right-clicked position
+      const unitAtPosition = Object.values(units).find(
+        (unit: any) => unit.x === tileX && unit.y === tileY
+      );
+
+      if (unitAtPosition) {
+        // Show context menu for the unit
+        setContextMenu({
+          unit: unitAtPosition as Unit,
+          position: { x: event.clientX, y: event.clientY }
+        });
+        setSelectedUnit(unitAtPosition as Unit);
+      }
+    },
+    [units, viewport]
+  );
+
+  // Handle unit action selection
+  const handleActionSelect = useCallback(
+    async (action: ActionType, targetX?: number, targetY?: number) => {
+      if (!selectedUnit) return;
+
+      console.log(`Selected action ${action} for unit ${selectedUnit.id}`, {
+        unitId: selectedUnit.id,
+        action,
+        targetX,
+        targetY,
+      });
+
+      // Send action to server via GameClient
+      try {
+        const success = await gameClient.requestUnitAction(
+          selectedUnit.id,
+          action,
+          targetX,
+          targetY
+        );
+        
+        if (success) {
+          console.log(`Successfully requested ${action} for unit ${selectedUnit.id}`);
+          // TODO: Handle different action types for immediate UI feedback
+          switch (action) {
+            case ActionType.FORTIFY:
+              console.log('Unit fortified');
+              break;
+            case ActionType.SENTRY:
+              console.log('Unit on sentry duty');
+              break;
+            case ActionType.GOTO:
+              console.log(`Unit moving to (${targetX}, ${targetY})`);
+              break;
+            default:
+              console.log(`Action ${action} executed`);
+          }
+        } else {
+          console.error(`Failed to execute ${action} for unit ${selectedUnit.id}`);
+        }
+      } catch (error) {
+        console.error(`Error executing unit action:`, error);
+      }
+    },
+    [selectedUnit]
+  );
+
+  // Close context menu when clicking elsewhere
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
   // Global mouse up handler to catch mouse up events outside the canvas
   useEffect(() => {
     const handleGlobalMouseUp = () => {
@@ -417,13 +555,16 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         setViewport(finalViewport);
         setIsDragging(false);
       }
+      
+      // Reset drag tracking
+      dragStartTime.current = 0;
     };
 
-    if (isDragging) {
+    if (isDragging || dragStartTime.current > 0) {
       document.addEventListener('mouseup', handleGlobalMouseUp);
       return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
     }
-  }, [isDragging, handleMouseUp]);
+  }, [isDragging, setViewport]);
 
   // Removed zoom functionality to match freeciv-web 2D canvas behavior
   // Freeciv-web's 2D renderer does not support zoom - only the WebGL renderer does
@@ -438,6 +579,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onContextMenu={handleContextMenu}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -449,6 +591,19 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         }}
       />
       <TileHoverOverlay tileInfo={hoveredTile} />
+      <UnitSelectionOverlay 
+        selectedUnit={selectedUnit}
+        mapRenderer={rendererRef.current}
+        viewport={viewport}
+      />
+      {contextMenu && (
+        <UnitContextMenu
+          unit={contextMenu.unit}
+          position={contextMenu.position}
+          onClose={handleCloseContextMenu}
+          onActionSelect={handleActionSelect}
+        />
+      )}
     </div>
   );
 };

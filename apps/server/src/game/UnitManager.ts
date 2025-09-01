@@ -4,6 +4,8 @@ import { eq } from 'drizzle-orm';
 import { logger } from '../utils/logger';
 import { getTerrainMovementCost } from './constants/MovementConstants';
 import { UNIT_TYPES, getUnitType, UnitType } from './constants/UnitConstants';
+import { ActionSystem } from './ActionSystem';
+import { ActionType, ActionResult } from '../../../shared/src/types/actions';
 
 export interface Unit {
   id: string;
@@ -42,12 +44,14 @@ export class UnitManager {
   private mapWidth: number;
   private mapHeight: number;
   private mapManager: any; // MapManager instance for terrain access
+  private actionSystem: ActionSystem;
 
   constructor(gameId: string, mapWidth: number, mapHeight: number, mapManager?: any) {
     this.gameId = gameId;
     this.mapWidth = mapWidth;
     this.mapHeight = mapHeight;
     this.mapManager = mapManager;
+    this.actionSystem = new ActionSystem(gameId);
   }
 
   /**
@@ -471,6 +475,112 @@ export class UnitManager {
    */
   getUnitType(unitTypeId: string): UnitType | undefined {
     return getUnitType(unitTypeId);
+  }
+
+  /**
+   * Execute action for unit using ActionSystem
+   */
+  async executeUnitAction(
+    unitId: string,
+    actionType: ActionType,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    const unit = this.units.get(unitId);
+    if (!unit) {
+      return {
+        success: false,
+        message: `Unit not found: ${unitId}`,
+      };
+    }
+
+    // Execute action through ActionSystem
+    const result = await this.actionSystem.executeAction(unit, actionType, targetX, targetY);
+
+    // Apply result to unit state if successful
+    if (result.success) {
+      await this.applyActionResult(unit, actionType, result);
+    }
+
+    return result;
+  }
+
+  /**
+   * Check if unit can perform action
+   */
+  canUnitPerformAction(
+    unitId: string,
+    actionType: ActionType,
+    targetX?: number,
+    targetY?: number
+  ): boolean {
+    const unit = this.units.get(unitId);
+    if (!unit) return false;
+
+    return this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY);
+  }
+
+  /**
+   * Apply action result to unit state
+   */
+  private async applyActionResult(unit: Unit, actionType: ActionType, result: ActionResult): Promise<void> {
+    let updateData: any = {};
+
+    switch (actionType) {
+      case ActionType.FORTIFY:
+        unit.fortified = true;
+        unit.movementLeft = 0;
+        updateData = { isFortified: true, movementPoints: '0' };
+        break;
+
+      case ActionType.SENTRY:
+        unit.movementLeft = 0;
+        updateData = { movementPoints: '0' };
+        break;
+
+      case ActionType.WAIT:
+        // Wait preserves movement points
+        break;
+
+      case ActionType.GOTO:
+        if (result.newPosition) {
+          // For now, just move unit immediately (would be pathfinding in full implementation)
+          unit.x = result.newPosition.x;
+          unit.y = result.newPosition.y;
+          unit.movementLeft = Math.max(0, unit.movementLeft - 1);
+          updateData = {
+            x: unit.x,
+            y: unit.y,
+            movementPoints: unit.movementLeft.toString(),
+          };
+        }
+        break;
+
+      case ActionType.FOUND_CITY:
+        if (result.unitDestroyed) {
+          // Unit would be destroyed when founding city
+          await this.destroyUnit(unit.id);
+          return;
+        }
+        break;
+
+      case ActionType.BUILD_ROAD:
+        unit.movementLeft = 0;
+        updateData = { movementPoints: '0' };
+        break;
+    }
+
+    // Update database if there are changes
+    if (Object.keys(updateData).length > 0) {
+      await db.update(units).set(updateData).where(eq(units.id, unit.id));
+    }
+
+    logger.info(`Applied action result for unit ${unit.id}`, {
+      unitId: unit.id,
+      action: actionType,
+      result: result.success,
+      updateData,
+    });
   }
 
   /**
