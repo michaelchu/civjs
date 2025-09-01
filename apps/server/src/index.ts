@@ -102,10 +102,10 @@ app.get('/', (_req, res) => {
       assets: {
         sprites: '/sprites/*',
         tilesets: '/tilesets/*',
-        scripts: '/js/*'
-      }
+        scripts: '/js/*',
+      },
     },
-    note: 'This is the backend API server. The game client is served separately.'
+    note: 'This is the backend API server. The game client is served separately.',
   });
 });
 
