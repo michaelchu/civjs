@@ -286,6 +286,365 @@
         }
       ],
       "comment": "Base HP regeneration (except helicopters)"
+    },
+
+    // Government Corruption Effects - Direct port from freeciv effects.ruleset
+    "corruption_anarchy_base": {
+      "id": "corruption_anarchy_base",
+      "type": "Output_Waste",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "anarchy",
+          "range": "Player"
+        }
+      ],
+      "comment": "Anarchy base corruption: 25%"
+    },
+    "corruption_anarchy_distance": {
+      "id": "corruption_anarchy_distance",
+      "type": "Output_Waste_By_Distance",
+      "value": 200,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "anarchy",
+          "range": "Player"
+        }
+      ],
+      "comment": "Anarchy distance corruption: 200% per tile"
+    },
+    "corruption_despotism_base": {
+      "id": "corruption_despotism_base",
+      "type": "Output_Waste",
+      "value": 37,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "despotism",
+          "range": "Player"
+        }
+      ],
+      "comment": "Despotism base corruption: 37%"
+    },
+    "corruption_despotism_distance": {
+      "id": "corruption_despotism_distance",
+      "type": "Output_Waste_By_Distance",
+      "value": 400,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "despotism",
+          "range": "Player"
+        }
+      ],
+      "comment": "Despotism distance corruption: 400% per tile"
+    },
+    "corruption_monarchy_base": {
+      "id": "corruption_monarchy_base",
+      "type": "Output_Waste",
+      "value": 15,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "monarchy",
+          "range": "Player"
+        }
+      ],
+      "comment": "Monarchy base corruption: 15%"
+    },
+    "corruption_monarchy_distance": {
+      "id": "corruption_monarchy_distance",
+      "type": "Output_Waste_By_Distance",
+      "value": 200,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "monarchy",
+          "range": "Player"
+        }
+      ],
+      "comment": "Monarchy distance corruption: 200% per tile"
+    },
+    "corruption_communism_base": {
+      "id": "corruption_communism_base",
+      "type": "Output_Waste",
+      "value": 20,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "communism",
+          "range": "Player"
+        }
+      ],
+      "comment": "Communism base corruption: 20% (no distance penalty)"
+    },
+    "corruption_republic_base": {
+      "id": "corruption_republic_base",
+      "type": "Output_Waste",
+      "value": 15,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "republic",
+          "range": "Player"
+        }
+      ],
+      "comment": "Republic base corruption: 15%"
+    },
+    "corruption_republic_distance": {
+      "id": "corruption_republic_distance",
+      "type": "Output_Waste_By_Distance",
+      "value": 200,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "republic",
+          "range": "Player"
+        }
+      ],
+      "comment": "Republic distance corruption: 200% per tile"
+    },
+    
+    // Democracy has no corruption (0% base, no distance)
+
+    // Martial Law Effects - Direct port from freeciv
+    "martial_law_anarchy": {
+      "id": "martial_law_anarchy",
+      "type": "Martial_Law_By_Unit",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "anarchy",
+          "range": "Player"
+        }
+      ],
+      "comment": "Anarchy martial law: 1 happy per military unit"
+    },
+    "martial_law_max_anarchy": {
+      "id": "martial_law_max_anarchy",
+      "type": "Martial_Law_Max",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "anarchy",
+          "range": "Player"
+        }
+      ],
+      "comment": "Anarchy martial law max: 100 units"
+    },
+    "martial_law_despotism": {
+      "id": "martial_law_despotism",
+      "type": "Martial_Law_By_Unit",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "despotism",
+          "range": "Player"
+        }
+      ],
+      "comment": "Despotism martial law: 1 happy per military unit"
+    },
+    "martial_law_max_despotism": {
+      "id": "martial_law_max_despotism",
+      "type": "Martial_Law_Max",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "despotism",
+          "range": "Player"
+        }
+      ],
+      "comment": "Despotism martial law max: 100 units"
+    },
+    "martial_law_monarchy": {
+      "id": "martial_law_monarchy",
+      "type": "Martial_Law_By_Unit",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "monarchy",
+          "range": "Player"
+        }
+      ],
+      "comment": "Monarchy martial law: 1 happy per military unit"
+    },
+    "martial_law_max_monarchy": {
+      "id": "martial_law_max_monarchy",
+      "type": "Martial_Law_Max",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "monarchy",
+          "range": "Player"
+        }
+      ],
+      "comment": "Monarchy martial law max: 3 units"
+    },
+    "martial_law_communism": {
+      "id": "martial_law_communism",
+      "type": "Martial_Law_By_Unit",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "communism",
+          "range": "Player"
+        }
+      ],
+      "comment": "Communism martial law: 2 happy per military unit"
+    },
+    "martial_law_max_communism": {
+      "id": "martial_law_max_communism",
+      "type": "Martial_Law_Max",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "communism",
+          "range": "Player"
+        }
+      ],
+      "comment": "Communism martial law max: 3 units"
+    },
+
+    // Unit Support Cost Effects - Direct port from freeciv
+    "upkeep_free_anarchy": {
+      "id": "upkeep_free_anarchy",
+      "type": "Unit_Upkeep_Free_Per_City",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "anarchy",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "shield",
+          "range": "Local"
+        }
+      ],
+      "comment": "Anarchy free unit support: 3 shield units per city"
+    },
+    "upkeep_free_despotism": {
+      "id": "upkeep_free_despotism",
+      "type": "Unit_Upkeep_Free_Per_City",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "despotism",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "shield",
+          "range": "Local"
+        }
+      ],
+      "comment": "Despotism free unit support: 3 shield units per city"
+    },
+    "upkeep_free_monarchy": {
+      "id": "upkeep_free_monarchy",
+      "type": "Unit_Upkeep_Free_Per_City",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "monarchy",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "shield",
+          "range": "Local"
+        }
+      ],
+      "comment": "Monarchy free unit support: 3 shield units per city"
+    },
+    "upkeep_free_communism": {
+      "id": "upkeep_free_communism",
+      "type": "Unit_Upkeep_Free_Per_City",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "communism",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "shield",
+          "range": "Local"
+        }
+      ],
+      "comment": "Communism free unit support: 3 shield units per city"
+    },
+
+    // Republic and Democracy have no free unit support (must pay for all)
+
+    // Base unhappy citizens effects
+    "base_unhappy_anarchy": {
+      "id": "base_unhappy_anarchy", 
+      "type": "City_Unhappy_Size",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "anarchy",
+          "range": "Player"
+        }
+      ],
+      "comment": "Anarchy: 2 base unhappy citizens"
+    },
+    "base_unhappy_despotism": {
+      "id": "base_unhappy_despotism",
+      "type": "City_Unhappy_Size", 
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "despotism",
+          "range": "Player"
+        }
+      ],
+      "comment": "Despotism: 2 base unhappy citizens"
+    },
+
+    // Palace effects - Government center
+    "palace_gov_center": {
+      "id": "palace_gov_center",
+      "type": "Gov_Center",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Palace",
+          "range": "City"
+        }
+      ],
+      "comment": "Palace serves as government center"
+    },
+    "palace_corruption_immunity": {
+      "id": "palace_corruption_immunity",
+      "type": "Output_Waste_Pct", 
+      "value": 0,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Palace",
+          "range": "City"
+        }
+      ],
+      "comment": "Palace eliminates corruption in its city"
     }
   }
 }

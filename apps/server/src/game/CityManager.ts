@@ -4,6 +4,8 @@ import { db } from '../database';
 import { cities } from '../database/schema';
 import { eq } from 'drizzle-orm';
 import { UNIT_TYPES } from './constants/UnitConstants';
+import { EffectsManager, EffectType, OutputType, EffectContext } from './EffectsManager';
+import type { GovernmentManager } from './GovernmentManager';
 
 // Following original Freeciv city radius logic
 export const CITY_MAP_DEFAULT_RADIUS = 2;
@@ -139,12 +141,37 @@ export interface CityState {
   lastGrowthTurn?: number;
 }
 
+// Corruption calculation result
+export interface CorruptionResult {
+  baseWaste: number;
+  distanceWaste: number;
+  totalWaste: number;
+  wasteReduction: number;
+  finalWaste: number;
+  governmentCenter?: { cityId: string; distance: number };
+}
+
+// Happiness calculation result
+export interface HappinessResult {
+  baseHappy: number;
+  baseContent: number;
+  baseUnhappy: number;
+  martialLawBonus: number;
+  buildingBonus: number;
+  finalHappy: number;
+  finalContent: number;
+  finalUnhappy: number;
+}
+
 export class CityManager {
   private cities: Map<string, CityState> = new Map();
   private gameId: string;
+  private effectsManager: EffectsManager;
+  private governmentManager?: GovernmentManager;
 
-  constructor(gameId: string) {
+  constructor(gameId: string, effectsManager?: EffectsManager) {
     this.gameId = gameId;
+    this.effectsManager = effectsManager || new EffectsManager();
   }
 
   /**
@@ -292,6 +319,9 @@ export class CityManager {
 
     // Refresh city first
     this.refreshCity(cityId);
+
+    // Apply government effects (corruption, happiness, etc.)
+    this.refreshCityWithGovernmentEffects(cityId);
 
     // Process food (growth/starvation) following Freeciv
     city.foodStock += city.foodPerTurn;
@@ -537,6 +567,330 @@ export class CityManager {
         currentProduction: city.currentProduction,
       })),
     };
+  }
+
+  /**
+   * Set government manager for government-related calculations
+   */
+  setGovernmentManager(governmentManager: GovernmentManager): void {
+    this.governmentManager = governmentManager;
+  }
+
+  /**
+   * Calculate corruption/waste for city output
+   * Direct port of freeciv city_waste() function
+   * Reference: /reference/freeciv/common/city.c city_waste()
+   */
+  public calculateCorruption(
+    cityId: string,
+    outputType: OutputType,
+    totalOutput: number,
+    currentGovernment: string
+  ): CorruptionResult {
+    const city = this.cities.get(cityId);
+    if (!city) {
+      logger.warn(`City ${cityId} not found for corruption calculation`);
+      return {
+        baseWaste: 0,
+        distanceWaste: 0,
+        totalWaste: 0,
+        wasteReduction: 0,
+        finalWaste: 0
+      };
+    }
+
+    const context: EffectContext = {
+      playerId: city.playerId,
+      cityId: city.id,
+      government: currentGovernment,
+      outputType
+    };
+
+    // Base waste level from government
+    const baseWasteEffect = this.effectsManager.calculateEffect(EffectType.OUTPUT_WASTE, context);
+    let wasteLevel = baseWasteEffect.value;
+    let totalEffective = totalOutput;
+    let penaltySize = 0;
+
+    // Special case for trade: affected by city size restrictions
+    // TODO: Implement notradesize/fulltradesize when game settings are available
+    if (outputType === OutputType.TRADE) {
+      // For now, skip size penalties - will be added when game settings integrated
+    }
+
+    totalEffective -= penaltySize;
+    let penaltyWaste = 0;
+    let wasteAll = false;
+
+    // Distance-based waste calculation
+    if (totalEffective > 0) {
+      const distanceWasteEffect = this.effectsManager.calculateEffect(
+        EffectType.OUTPUT_WASTE_BY_DISTANCE, 
+        context
+      );
+      const relDistanceWasteEffect = this.effectsManager.calculateEffect(
+        EffectType.OUTPUT_WASTE_BY_REL_DISTANCE, 
+        context
+      );
+
+      if (distanceWasteEffect.value > 0 || relDistanceWasteEffect.value > 0) {
+        const govCenter = this.findNearestGovernmentCenter(city.playerId, city.x, city.y);
+        
+        if (!govCenter) {
+          wasteAll = true; // No government center - lose all output
+        } else {
+          const distance = govCenter.distance;
+          wasteLevel += (distanceWasteEffect.value * distance) / 100;
+
+          // Relative distance waste (scales with map size)
+          if (relDistanceWasteEffect.value > 0) {
+            // Using 50x50 as standard map size for reference
+            // TODO: Get actual map size when MapManager is integrated
+            const mapSize = Math.max(50, 50); // Placeholder
+            wasteLevel += (relDistanceWasteEffect.value * 50 * distance) / (100 * mapSize);
+          }
+        }
+      }
+    }
+
+    // Calculate final waste
+    if (wasteAll) {
+      penaltyWaste = totalEffective;
+    } else {
+      // Apply waste percentage reduction effects
+      const wasteReductionEffect = this.effectsManager.calculateEffect(
+        EffectType.OUTPUT_WASTE_PCT, 
+        context
+      );
+
+      if (wasteLevel > 0) {
+        penaltyWaste = (totalEffective * wasteLevel) / 100;
+      }
+
+      // Apply waste reduction (like from Palace)
+      const wasteReduction = (penaltyWaste * wasteReductionEffect.value) / 100;
+      penaltyWaste -= wasteReduction;
+
+      // Clip to valid range
+      penaltyWaste = Math.min(Math.max(penaltyWaste, 0), totalEffective);
+    }
+
+    const finalWaste = penaltyWaste + penaltySize;
+    const govCenter = this.findNearestGovernmentCenter(city.playerId, city.x, city.y);
+
+    return {
+      baseWaste: baseWasteEffect.value,
+      distanceWaste: wasteLevel - baseWasteEffect.value,
+      totalWaste: wasteLevel,
+      wasteReduction: 0, // TODO: Calculate actual reduction
+      finalWaste: Math.floor(finalWaste),
+      governmentCenter: govCenter
+    };
+  }
+
+  /**
+   * Calculate happiness for a city
+   * Reference: freeciv happiness calculations in common/city.c
+   */
+  public calculateHappiness(
+    cityId: string,
+    currentGovernment: string,
+    militaryUnitsInCity: number
+  ): HappinessResult {
+    const city = this.cities.get(cityId);
+    if (!city) {
+      logger.warn(`City ${cityId} not found for happiness calculation`);
+      return {
+        baseHappy: 0,
+        baseContent: city?.population || 0,
+        baseUnhappy: 0,
+        martialLawBonus: 0,
+        buildingBonus: 0,
+        finalHappy: 0,
+        finalContent: city?.population || 0,
+        finalUnhappy: 0
+      };
+    }
+
+    const context: EffectContext = {
+      playerId: city.playerId,
+      cityId: city.id,
+      government: currentGovernment
+    };
+
+    // Base unhappy citizens from city size
+    const unhappySizeEffect = this.effectsManager.calculateEffect(
+      EffectType.CITY_UNHAPPY_SIZE, 
+      context
+    );
+    const baseUnhappy = Math.max(0, city.population - unhappySizeEffect.value);
+
+    // Government-specific base unhappy citizens 
+    const revolutionUnhappyEffect = this.effectsManager.calculateEffect(
+      EffectType.REVOLUTION_UNHAPPINESS,
+      context
+    );
+    const govUnhappy = revolutionUnhappyEffect.value;
+
+    // Martial law from military units
+    const martialLawResult = this.effectsManager.calculateMartialLaw(
+      context,
+      militaryUnitsInCity
+    );
+
+    // Building happiness bonuses
+    let buildingBonus = 0;
+    for (const buildingId of city.buildings) {
+      const building = BUILDING_TYPES[buildingId];
+      if (building?.effects.happinessBonus) {
+        buildingBonus += building.effects.happinessBonus;
+      }
+    }
+
+    // Calculate final happiness distribution
+    let finalUnhappy = Math.max(0, baseUnhappy + govUnhappy - martialLawResult.happyBonus - buildingBonus);
+    let finalHappy = buildingBonus + martialLawResult.happyBonus;
+    let finalContent = Math.max(0, city.population - finalUnhappy - finalHappy);
+
+    return {
+      baseHappy: 0,
+      baseContent: city.population,
+      baseUnhappy: baseUnhappy + govUnhappy,
+      martialLawBonus: martialLawResult.happyBonus,
+      buildingBonus,
+      finalHappy,
+      finalContent,
+      finalUnhappy
+    };
+  }
+
+  /**
+   * Find nearest government center (Palace, Courthouse)
+   * Reference: freeciv nearest_gov_center() in common/city.c
+   */
+  private findNearestGovernmentCenter(
+    playerId: string,
+    cityX: number,
+    cityY: number
+  ): { cityId: string; distance: number } | null {
+    let nearest: { cityId: string; distance: number } | null = null;
+    let minDistance = Infinity;
+
+    // Find all cities with government center effect (Palace, Courthouse)
+    for (const [cityId, city] of this.cities) {
+      if (city.playerId !== playerId) {
+        continue;
+      }
+
+      // Check if city has government center building
+      const hasGovCenter = city.buildings.includes('palace') || 
+                          city.buildings.includes('courthouse');
+      
+      if (hasGovCenter) {
+        const distance = Math.abs(city.x - cityX) + Math.abs(city.y - cityY);
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearest = { cityId, distance };
+        }
+      }
+    }
+
+    return nearest;
+  }
+
+  /**
+   * Apply corruption to city production
+   * Updates city output values with corruption calculations
+   */
+  public applyCityCorruption(cityId: string, currentGovernment: string): void {
+    const city = this.cities.get(cityId);
+    if (!city) {
+      return;
+    }
+
+    // Calculate corruption for trade output
+    const tradeCorruption = this.calculateCorruption(
+      cityId,
+      OutputType.TRADE,
+      city.goldPerTurn + city.sciencePerTurn, // Total trade
+      currentGovernment
+    );
+
+    // Calculate corruption for shield output
+    const shieldCorruption = this.calculateCorruption(
+      cityId,
+      OutputType.SHIELD,
+      city.productionPerTurn,
+      currentGovernment
+    );
+
+    // Apply corruption to city output
+    const tradeAfterCorruption = Math.max(0, 
+      (city.goldPerTurn + city.sciencePerTurn) - tradeCorruption.finalWaste
+    );
+    const shieldsAfterCorruption = Math.max(0,
+      city.productionPerTurn - shieldCorruption.finalWaste
+    );
+
+    // Distribute remaining trade between gold and science (50/50 for now)
+    // TODO: Use actual tax rates when PolicyManager integration is complete
+    city.goldPerTurn = Math.floor(tradeAfterCorruption / 2);
+    city.sciencePerTurn = tradeAfterCorruption - city.goldPerTurn;
+    city.productionPerTurn = shieldsAfterCorruption;
+
+    logger.debug(`Applied corruption to city ${city.name}: trade=${tradeCorruption.finalWaste}, shields=${shieldCorruption.finalWaste}`);
+  }
+
+  /**
+   * Apply happiness calculations to city
+   * Updates city happiness level based on government and buildings
+   */
+  public applyCityHappiness(cityId: string, currentGovernment: string): void {
+    const city = this.cities.get(cityId);
+    if (!city) {
+      return;
+    }
+
+    // Count military units in city (placeholder - will be integrated with UnitManager)
+    const militaryUnitsInCity = 0; // TODO: Get from UnitManager
+
+    const happinessResult = this.calculateHappiness(
+      cityId,
+      currentGovernment,
+      militaryUnitsInCity
+    );
+
+    // Update city happiness (scale to 0-100)
+    const totalCitizens = city.population;
+    if (totalCitizens > 0) {
+      const happinessScore = (happinessResult.finalHappy * 100) / totalCitizens;
+      city.happinessLevel = Math.min(100, Math.max(0, happinessScore));
+    }
+
+    logger.debug(`Applied happiness to city ${city.name}: happy=${happinessResult.finalHappy}, content=${happinessResult.finalContent}, unhappy=${happinessResult.finalUnhappy}`);
+  }
+
+  /**
+   * Refresh city with government effects
+   * Applies corruption and happiness based on current government
+   */
+  public refreshCityWithGovernmentEffects(cityId: string): void {
+    if (!this.governmentManager) {
+      logger.warn('GovernmentManager not set, skipping government effects');
+      return;
+    }
+
+    const city = this.cities.get(cityId);
+    if (!city) {
+      return;
+    }
+
+    const playerGov = this.governmentManager.getPlayerGovernment(city.playerId);
+    const currentGovernment = playerGov?.currentGovernment || 'despotism';
+
+    // Apply corruption and happiness
+    this.applyCityCorruption(cityId, currentGovernment);
+    this.applyCityHappiness(cityId, currentGovernment);
   }
 
   /**
