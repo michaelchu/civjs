@@ -203,6 +203,89 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
     }
   });
 
+  socket.on('unit_action', async (data, callback) => {
+    const connection = activeConnections.get(socket.id);
+    if (!connection?.gameId) {
+      callback({ success: false, error: 'Not in a game' });
+      return;
+    }
+
+    try {
+      const gameInstance = gameManager.getGameInstance(connection.gameId);
+      if (!gameInstance) {
+        callback({ success: false, error: 'Game instance not found' });
+        return;
+      }
+
+      // Get player ID from user
+      let playerId: string | undefined = undefined;
+      if (connection.userId) {
+        const playerIds = Array.from(gameInstance.players.keys());
+        for (const pid of playerIds) {
+          const player = gameInstance.players.get(pid);
+          if (player && player.userId === connection.userId) {
+            playerId = pid;
+            break;
+          }
+        }
+      }
+
+      if (!playerId) {
+        callback({ success: false, error: 'Player not found' });
+        return;
+      }
+
+      // Execute the unit action
+      const result = await gameInstance.unitManager.executeUnitAction(
+        data.unitId,
+        data.actionType,
+        data.targetX,
+        data.targetY
+      );
+
+      if (result.success) {
+        // Broadcast unit state updates if needed
+        const updatedUnit = gameInstance.unitManager.getUnit(data.unitId);
+        if (updatedUnit) {
+          io.to(`game:${connection.gameId}`).emit('unit_update', {
+            gameId: connection.gameId,
+            unit: updatedUnit,
+          });
+        }
+
+        // If unit was destroyed (e.g., settler founding city), broadcast destruction
+        if (result.unitDestroyed) {
+          io.to(`game:${connection.gameId}`).emit('unit_destroyed', {
+            gameId: connection.gameId,
+            unitId: data.unitId,
+          });
+        }
+
+        // If city was founded, the GameManager already broadcasts city_founded
+        callback({ success: true, result });
+        logger.info(`Unit action executed successfully`, {
+          unitId: data.unitId,
+          actionType: data.actionType,
+          playerId,
+        });
+      } else {
+        callback({ success: false, error: result.message });
+        logger.warn(`Unit action failed`, {
+          unitId: data.unitId,
+          actionType: data.actionType,
+          error: result.message,
+          playerId,
+        });
+      }
+    } catch (error) {
+      logger.error('Error executing unit action:', error);
+      callback({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to execute unit action',
+      });
+    }
+  });
+
   socket.on('disconnect', async () => {
     logger.info(`Client disconnected: ${socket.id}`);
 

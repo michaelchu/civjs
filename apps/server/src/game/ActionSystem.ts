@@ -168,11 +168,30 @@ const ACTION_DEFINITIONS = {
 
 export class ActionSystem {
   private gameId: string;
+  private gameManagerCallback?: {
+    foundCity: (
+      gameId: string,
+      playerId: string,
+      name: string,
+      x: number,
+      y: number
+    ) => Promise<string>;
+  };
 
-  constructor(gameId: string) {
+  constructor(
+    gameId: string,
+    gameManagerCallback?: {
+      foundCity: (
+        gameId: string,
+        playerId: string,
+        name: string,
+        x: number,
+        y: number
+      ) => Promise<string>;
+    }
+  ) {
     this.gameId = gameId;
-    // Store gameId for future game state validation
-    void this.gameId; // Explicitly mark as stored for future use
+    this.gameManagerCallback = gameManagerCallback;
   }
 
   /**
@@ -220,8 +239,12 @@ export class ActionSystem {
         return targetX !== undefined && targetY !== undefined && unit.movementLeft > 0;
 
       case ActionType.FOUND_CITY:
-        // Check if settler and valid location
-        return unit.unitTypeId === 'settler';
+        // Check if settler and has movement points
+        if (unit.unitTypeId !== 'settler' || unit.movementLeft <= 0) {
+          return false;
+        }
+        // Additional validation would be done in executeFoundCity
+        return this.canFoundCityAtLocation(unit, unit.x, unit.y);
 
       case ActionType.BUILD_ROAD:
         // Check if worker
@@ -324,6 +347,23 @@ export class ActionSystem {
   }
 
   /**
+   * Check if a city can be founded at the given location
+   */
+  private canFoundCityAtLocation(_unit: Unit, _x: number, _y: number): boolean {
+    // Basic validation - more detailed checks would require access to MapManager and game state
+    // These are the rules that can be checked without external dependencies
+
+    // TODO: Add the following validation rules when we have access to MapManager:
+    // 1. Check terrain type (some terrains like ocean cannot have cities)
+    // 2. Check minimum distance from other cities (usually 2 tiles in Freeciv)
+    // 3. Check if tile is within map bounds
+    // 4. Check if tile is owned by another player
+    // 5. Check if there are hostile units on the tile
+
+    return true; // Simplified for now
+  }
+
+  /**
    * Check if requirement is satisfied
    */
   private checkRequirement(
@@ -390,11 +430,76 @@ export class ActionSystem {
   }
 
   private async executeFoundCity(unit: Unit): Promise<ActionResult> {
-    return {
-      success: true,
-      message: `${unit.unitTypeId} founded city`,
-      unitDestroyed: true,
-    };
+    if (!this.gameManagerCallback) {
+      return {
+        success: false,
+        message: 'City founding not available - game manager callback not set',
+      };
+    }
+
+    // Validate that it's a settler
+    if (unit.unitTypeId !== 'settler') {
+      return {
+        success: false,
+        message: 'Only settlers can found cities',
+      };
+    }
+
+    // Basic validation - the GameManager will do more detailed checks
+    if (unit.movementLeft <= 0) {
+      return {
+        success: false,
+        message: 'Unit has no movement points left',
+      };
+    }
+
+    // Additional basic checks
+    if (!this.canFoundCityAtLocation(unit, unit.x, unit.y)) {
+      return {
+        success: false,
+        message: 'Cannot found city at this location',
+      };
+    }
+
+    try {
+      // Generate a default city name (GameManager could override this)
+      const cityName = `New City`;
+
+      // Call GameManager to actually found the city
+      const cityId = await this.gameManagerCallback.foundCity(
+        this.gameId,
+        unit.playerId,
+        cityName,
+        unit.x,
+        unit.y
+      );
+
+      logger.info(`City founded successfully`, {
+        cityId,
+        unitId: unit.id,
+        playerId: unit.playerId,
+        position: { x: unit.x, y: unit.y },
+      });
+
+      return {
+        success: true,
+        message: `${unit.unitTypeId} founded ${cityName}`,
+        unitDestroyed: true,
+        cityId,
+      };
+    } catch (error: any) {
+      logger.error(`Failed to found city`, {
+        error: error.message,
+        unitId: unit.id,
+        playerId: unit.playerId,
+        position: { x: unit.x, y: unit.y },
+      });
+
+      return {
+        success: false,
+        message: error.message || 'Failed to found city',
+      };
+    }
   }
 
   private async executeBuildRoad(unit: Unit): Promise<ActionResult> {

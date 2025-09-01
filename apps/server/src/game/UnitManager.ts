@@ -46,12 +46,26 @@ export class UnitManager {
   private mapManager: any; // MapManager instance for terrain access
   private actionSystem: ActionSystem;
 
-  constructor(gameId: string, mapWidth: number, mapHeight: number, mapManager?: any) {
+  constructor(
+    gameId: string,
+    mapWidth: number,
+    mapHeight: number,
+    mapManager?: any,
+    gameManagerCallback?: {
+      foundCity: (
+        gameId: string,
+        playerId: string,
+        name: string,
+        x: number,
+        y: number
+      ) => Promise<string>;
+    }
+  ) {
     this.gameId = gameId;
     this.mapWidth = mapWidth;
     this.mapHeight = mapHeight;
     this.mapManager = mapManager;
-    this.actionSystem = new ActionSystem(gameId);
+    this.actionSystem = new ActionSystem(gameId, gameManagerCallback);
   }
 
   /**
