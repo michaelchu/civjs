@@ -221,9 +221,9 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     onClose();
   };
 
-  const renderMenuItem = (actionInfo: UnitMenuItem) => {
+  const renderMenuItem = (actionInfo: UnitMenuItem, index: number) => {
     if ('separator' in actionInfo && actionInfo.separator) {
-      return <DropdownMenuSeparator key="separator" />;
+      return <DropdownMenuSeparator key={`separator-${index}`} />;
     }
 
     // Type guard to ensure actionInfo is UnitActionInfo
@@ -279,7 +279,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
           zIndex: 1000,
         }}
       >
-        {availableActions.map(actionInfo => renderMenuItem(actionInfo))}
+        {availableActions.map((actionInfo, index) => renderMenuItem(actionInfo, index))}
       </DropdownMenuContent>
     </DropdownMenu>
   );

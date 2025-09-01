@@ -3,7 +3,6 @@ import { useGameStore } from '../../store/gameStore';
 import { MapRenderer } from './MapRenderer';
 import { TileHoverOverlay } from './TileHoverOverlay';
 import { UnitContextMenu } from '../GameUI/UnitContextMenu';
-import { UnitSelectionOverlay } from './UnitSelectionOverlay';
 import type { Unit } from '../../types';
 import { ActionType } from '../../types/shared/actions';
 import { gameClient } from '../../services/GameClient';
@@ -27,7 +26,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     position: { x: number; y: number };
   } | null>(null);
 
-  const { viewport, map, units, cities, setViewport } = useGameStore();
+  const { viewport, map, units, cities, setViewport, selectUnit } = useGameStore();
   const gameState = useGameStore();
 
   // Initialize renderer and load tileset
@@ -52,6 +51,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             map: gameState.map,
             units: gameState.units,
             cities: gameState.cities,
+            selectedUnitId: gameState.selectedUnitId,
           });
         }
       } catch (error) {
@@ -176,8 +176,54 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       map,
       units,
       cities,
+      selectedUnitId: useGameStore.getState().selectedUnitId,
     });
   }, [viewport, map, units, cities]);
+
+  // Optimized animation for selection pulsing - use a simple timer instead of continuous animation loop
+  useEffect(() => {
+    const currentSelectedUnitId = gameState.selectedUnitId;
+
+    if (currentSelectedUnitId && rendererRef.current) {
+      // Use setInterval with a reasonable refresh rate to avoid stuttering during scrolling
+      const intervalId = setInterval(() => {
+        if (rendererRef.current) {
+          rendererRef.current.render({
+            viewport,
+            map,
+            units,
+            cities,
+            selectedUnitId: currentSelectedUnitId,
+          });
+        }
+      }, 100); // 10fps for smooth pulsing without interfering with scrolling
+
+      return () => {
+        clearInterval(intervalId);
+        // Force a final render without selection to clear the outline
+        if (rendererRef.current) {
+          rendererRef.current.render({
+            viewport,
+            map,
+            units,
+            cities,
+            selectedUnitId: null,
+          });
+        }
+      };
+    } else {
+      // Force a render without selection to clear any lingering outline
+      if (rendererRef.current) {
+        rendererRef.current.render({
+          viewport,
+          map,
+          units,
+          cities,
+          selectedUnitId: null,
+        });
+      }
+    }
+  }, [gameState.selectedUnitId, viewport, map, units, cities]);
 
   // Handle mouse and touch events - copied from freeciv-web 2D canvas behavior
   const [isDragging, setIsDragging] = useState(false);
@@ -287,6 +333,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             map: useGameStore.getState().map,
             units: useGameStore.getState().units,
             cities: useGameStore.getState().cities,
+            selectedUnitId: useGameStore.getState().selectedUnitId,
           });
         }
       });
@@ -336,8 +383,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         );
 
         if (unitAtPosition) {
+          selectUnit(unitAtPosition.id);
           setSelectedUnit(unitAtPosition as Unit);
         } else {
+          selectUnit(null);
           setSelectedUnit(null);
         }
       }
@@ -345,7 +394,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       // Reset drag tracking
       dragStartTime.current = 0;
     },
-    [isDragging, setViewport, units, viewport]
+    [isDragging, setViewport, selectUnit, units, viewport]
   );
 
   // Touch event handlers for mobile panning
@@ -407,6 +456,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             map: useGameStore.getState().map,
             units: useGameStore.getState().units,
             cities: useGameStore.getState().cities,
+            selectedUnitId: useGameStore.getState().selectedUnitId,
           });
         }
       });
@@ -473,10 +523,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           unit: unitAtPosition as Unit,
           position: { x: event.clientX, y: event.clientY },
         });
+        selectUnit(unitAtPosition.id);
         setSelectedUnit(unitAtPosition as Unit);
       }
     },
-    [units, viewport]
+    [selectUnit, units, viewport]
   );
 
   // Handle unit action selection
@@ -593,11 +644,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         }}
       />
       <TileHoverOverlay tileInfo={hoveredTile} />
-      <UnitSelectionOverlay
-        selectedUnit={selectedUnit}
-        mapRenderer={rendererRef.current}
-        viewport={viewport}
-      />
       {contextMenu && (
         <UnitContextMenu
           unit={contextMenu.unit}
