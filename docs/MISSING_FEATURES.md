@@ -17,14 +17,14 @@ This document tracks the major areas still missing from the CivJS port compared 
 - [x] Technology definitions from rulesets *(2025-01-01 - techs.json with tech tree and prerequisites)*
 - [x] Terrain type definitions from rulesets *(2025-01-01 - terrain.json with mapgen properties)*
 - [x] Government type definitions from rulesets *(2025-01-01 - Full RulesetLoader integration with Zod validation)*
-- [ ] Nation definitions from rulesets *(JSON exists, not integrated with RulesetLoader)*
-- [ ] Game rules and parameters from rulesets *(JSON exists, not integrated with RulesetLoader)*
-- [ ] Effects system from rulesets *(JSON exists, not integrated with RulesetLoader)*
-- [ ] Requirements system for game rules
+- [x] Nation definitions from rulesets *(2025-01-01 - Full RulesetLoader integration with nations.json)*
+- [x] Game rules and parameters from rulesets *(2025-01-01 - Full RulesetLoader integration with game.json)*
+- [x] Effects system from rulesets *(2025-01-01 - Full RulesetLoader integration with effects.json)*
+- [x] Requirements system for game rules *(2025-01-01 - Complete requirements evaluation system)*
 
 **Reference:** `/reference/freeciv/data/` contains full ruleset definitions  
-**Current State:** 🔄 **Mostly implemented** - Terrain, units, buildings, techs, and governments fully integrated with RulesetLoader. Nations, effects, and game rules have JSON files but are not integrated with RulesetLoader system  
-**Impact:** ✅ **Core rulesets working** - All major game elements loadable from rulesets with validation
+**Current State:** ✅ **FULLY IMPLEMENTED** - Complete RulesetLoader system with all ruleset types integrated  
+**Impact:** ✅ **Complete ruleset system** - All game elements loadable from rulesets with validation and requirements evaluation
 
 ### 2. Technology & Research System
 - [x] Technology tree structure and prerequisites *(2025-01-01 - Full ReactFlow-based technology tree)*
@@ -549,7 +549,7 @@ This document tracks the major areas still missing from the CivJS port compared 
 ## 📈 Progress Tracking
 
 **Overall Completion Status:**
-- **Core Game Systems:** 🔄 80% Complete (8/10 items) *Government rulesets now integrated*
+- **Core Game Systems:** ✅ 100% Complete (10/10 items) *Complete RulesetLoader system*
 - **AI Systems:** ⬜ 0% Complete (0/20 items)
 - **Client UI:** 🔄 25% Complete (15/60 items) *+Technology UI, Government UI*
 - **Military & Combat:** 🔄 60% Complete (12/20 items) *+Action system, Combat framework*
@@ -559,7 +559,7 @@ This document tracks the major areas still missing from the CivJS port compared 
 - **Audio & Polish:** ⬜ 0% Complete (0/20 items)
 - **Development & Multiplayer:** ⬜ 10% Complete (2/20 items)
 
-**Total Progress: 🔄 ~24% Complete (38/240 major items)** *Government rulesets now integrated*
+**Total Progress: 🔄 ~26% Complete (42/240 major items)** *Complete Core Game Systems achieved*
 
 ---
 
@@ -570,6 +570,8 @@ This document tracks the major areas still missing from the CivJS port compared 
 - [x] Technology Tree Implementation ✅ *(2025-01-01)*
 - [x] Enhanced Combat System ✅ *(2025-01-01)*
 - [x] Government System ✅ *(2025-01-01)*
+- [x] Requirements System ✅ *(2025-01-01)*
+- [x] Effects System ✅ *(2025-01-01)*
 - [ ] Basic AI Player Framework
 
 ### Phase 2: Core Gameplay (Months 4-6)
