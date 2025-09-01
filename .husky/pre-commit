@@ -1,3 +1,3 @@
-# Auto-fix linting and formatting, then verify everything is correct
-# This ensures code is properly formatted before commit
-npm run lint:fix && npm run format && npm run format:check && npm run typecheck
+# Auto-fix linting and formatting, stage changes, then verify everything is correct
+# This ensures all fixes are included in the commit
+npm run lint:fix && npm run format && git add -A && npm run format:check && npm run typecheck
