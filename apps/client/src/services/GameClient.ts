@@ -130,7 +130,7 @@ class GameClient {
         if (packet.data.units && Array.isArray(packet.data.units)) {
           const { units } = useGameStore.getState();
           const updatedUnits = { ...units };
-          
+
           for (const unitData of packet.data.units) {
             updatedUnits[unitData.id] = {
               id: unitData.id,
@@ -143,7 +143,7 @@ class GameClient {
               veteranLevel: unitData.veteranLevel,
             };
           }
-          
+
           useGameStore.getState().updateGameState({
             units: updatedUnits,
           });
