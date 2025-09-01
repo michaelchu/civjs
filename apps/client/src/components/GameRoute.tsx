@@ -64,15 +64,13 @@ export const GameRoute: React.FC = () => {
       return;
     }
 
-    // Check if this page load was due to a reload/refresh
-    // performance.navigation.type: 0=navigate, 1=reload, 2=back_forward
-    const wasPageReloaded =
-      window.performance &&
-      'navigation' in window.performance &&
-      (window.performance.navigation as { type: number }).type === 1;
+    // Check if this page load was due to a reload/refresh using modern API
+    const navEntries = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
+    const wasPageReloaded = navEntries.length > 0 && navEntries[0].type === 'reload';
 
-    if (wasPageReloaded) {
-      // This was a page reload, redirect to lobby
+    // Only redirect to lobby on actual page refresh, not on navigation
+    if (wasPageReloaded && !gameClient.isConnected()) {
+      // This was a page reload and we're not connected, redirect to lobby
       navigate('/browse-games');
       return;
     }
