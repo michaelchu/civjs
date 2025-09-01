@@ -10,25 +10,27 @@ This document provides a comprehensive audit of the current unit implementation 
 - **Basic unit system**: ✅ Implemented with core CRUD operations
 - **Unit types**: ⚠️ Limited set (6 types vs. extensive freeciv catalog)
 - **Sprite rendering**: ❌ Placeholder/simplified rendering without actual unit sprites
-- **Movement system**: ⚠️ Simplified without terrain-based costs
+- **Movement system**: ✅ Implemented with terrain-based movement costs and fragments
 - **Combat system**: ⚠️ Basic implementation lacking combat bonuses and modifiers
 - **Unit creation at game start**: ❌ Missing initial settler/warrior placement
-- **Terrain movement costs**: ❌ Not implemented
+- **Terrain movement costs**: ✅ Implemented with proper fragment system
 - **Production bonuses**: ❌ Not implemented
+- **Client unit rendering**: ✅ UNIT_INFO packet handler added for proper unit reception
+- **Code organization**: ✅ Constants extracted to dedicated files for better maintainability
 
 ## Detailed Analysis
 
 ### 1. Unit Types and Definitions
 
-#### Current Implementation (`apps/server/src/game/UnitManager.ts:52-127`)
+#### Current Implementation (`apps/server/src/game/constants/UnitConstants.ts`)
 ```typescript
 export const UNIT_TYPES: Record<string, UnitType> = {
-  warrior: { id: 'warrior', cost: 40, movement: 2, combat: 20, ... },
-  settler: { id: 'settler', cost: 80, movement: 2, combat: 0, ... },
-  scout: { id: 'scout', cost: 25, movement: 3, combat: 10, ... },
-  worker: { id: 'worker', cost: 50, movement: 2, combat: 0, ... },
-  archer: { id: 'archer', cost: 50, movement: 2, combat: 15, ... },
-  spearman: { id: 'spearman', cost: 45, movement: 2, combat: 25, ... }
+  warrior: { id: 'warrior', name: 'Warrior', cost: 40, movement: 6, combat: 20, unitClass: 'military', ... },
+  settler: { id: 'settler', name: 'Settler', cost: 80, movement: 6, combat: 0, canFoundCity: true, unitClass: 'civilian', ... },
+  scout: { id: 'scout', name: 'Scout', cost: 25, movement: 9, combat: 10, sight: 3, unitClass: 'military', ... },
+  worker: { id: 'worker', name: 'Worker', cost: 50, movement: 6, combat: 0, canBuildImprovements: true, unitClass: 'civilian', ... },
+  archer: { id: 'archer', name: 'Archer', cost: 50, movement: 6, combat: 15, range: 2, requiredTech: 'archery', unitClass: 'military', ... },
+  spearman: { id: 'spearman', name: 'Spearman', cost: 45, movement: 6, combat: 25, requiredTech: 'bronzeWorking', unitClass: 'military', ... }
 }
 ```
 
@@ -40,9 +42,9 @@ export const UNIT_TYPES: Record<string, UnitType> = {
 
 #### Gaps Identified
 1. **Missing unit types**: No naval units, air units, or advanced military units
-2. **No unit classes**: Missing categorization system
+2. **Basic unit classes**: ✅ Implemented (military, civilian, naval, air) but limited usage
 3. **Simplified properties**: Missing attack/defense strength differentiation
-4. **No special abilities**: Units lack flags for special actions
+4. **Basic special abilities**: ✅ Partially implemented (canFoundCity, canBuildImprovements, requiredTech)
 5. **No obsolescence system**: Units don't become obsolete with technology
 
 ### 2. Sprite Rendering and Visual Representation
@@ -100,9 +102,22 @@ create_start_unit(pplayer, UTYF_CITYFOUNDATION);
 
 ### 4. Movement and Terrain Interaction
 
-#### Current Implementation (`apps/server/src/game/UnitManager.ts:218-219`)
+#### Current Implementation 
+**Movement Constants** (`apps/server/src/game/constants/MovementConstants.ts`):
 ```typescript
-const movementCost = Math.ceil(distance); // Simplified - would consider terrain
+export const SINGLE_MOVE = 3; // 1 movement point = 3 movement fragments
+export const TERRAIN_MOVEMENT_COSTS: Record<string, number> = {
+  plains: SINGLE_MOVE,     // 1 movement point
+  hills: SINGLE_MOVE * 2,  // 2 movement points
+  mountains: SINGLE_MOVE * 3, // 3 movement points
+  // ... full terrain catalog implemented
+};
+```
+
+**Movement Calculation** (`apps/server/src/game/UnitManager.ts`):
+```typescript
+const movementCost = this.calculateTerrainMovementCost(unit, unit.x, unit.y, newX, newY);
+// Uses getTerrainMovementCost() from MovementConstants
 ```
 
 #### Reference Implementation (freeciv terrain.ruleset)
@@ -112,16 +127,9 @@ terrain_control = {
 }
 ```
 
-Different terrains have different movement costs:
-- Plains: 1 movement point
-- Hills/Forest: 2 movement points  
-- Mountains: 3 movement points
-- Rivers: reduce movement cost
-- Roads: reduce movement cost
-
 #### Gaps Identified
-1. **No terrain-based movement costs**: All terrain treated equally
-2. **No fractional movement**: Using simplified integer movement
+1. **✅ Terrain-based movement costs**: Implemented with proper fragment system
+2. **✅ Fractional movement**: Using movement fragments system correctly
 3. **No road/railroad bonuses**: Infrastructure doesn't affect movement
 4. **No river crossing penalties**: Rivers don't slow movement
 5. **No ZOC (Zone of Control)**: Enemy units don't restrict movement
@@ -179,10 +187,10 @@ The UnitManager uses a simplified `Unit` interface that doesn't match the rich d
    - Implement starting position validation
    - Reference: `freeciv/server/plrhand.c:player_init()`
 
-2. **Add Terrain Movement Costs**
-   - Implement movement fragments system (1 move = 3 fragments)
-   - Add terrain-specific movement costs
-   - Reference: `apps/server/src/game/map/TerrainUtils.ts:223-251`
+2. **✅ Add Terrain Movement Costs** _(COMPLETED)_
+   - ✅ Implemented movement fragments system (1 move = 3 fragments)
+   - ✅ Added terrain-specific movement costs via MovementConstants.ts
+   - ✅ Proper integration with UnitManager movement calculation
 
 3. **Basic Unit Sprite Rendering**
    - Replace circles with actual unit sprites from tileset
@@ -272,12 +280,15 @@ private getTerrainDefenseBonus(terrain: string): number {
 
 ### Server Implementation
 - **Unit Manager**: `/root/repo/apps/server/src/game/UnitManager.ts`
+- **✅ Unit Constants**: `/root/repo/apps/server/src/game/constants/UnitConstants.ts` _(NEW)_
+- **✅ Movement Constants**: `/root/repo/apps/server/src/game/constants/MovementConstants.ts` _(NEW)_
 - **Database Schema**: `/root/repo/apps/server/src/database/schema/units.ts`
 - **Terrain Utils**: `/root/repo/apps/server/src/game/map/TerrainUtils.ts`
 - **Game Manager**: `/root/repo/apps/server/src/game/GameManager.ts`
 
 ### Client Implementation
 - **Map Renderer**: `/root/repo/apps/client/src/components/Canvas2D/MapRenderer.ts`
+- **✅ Game Client**: `/root/repo/apps/client/src/services/GameClient.ts` _(UNIT_INFO handler added)_
 - **Type Definitions**: `/root/repo/apps/client/src/types/index.ts`
 
 ### Reference Implementations
@@ -285,10 +296,36 @@ private getTerrainDefenseBonus(terrain: string): number {
 - **freeciv-web Unit Types**: `/root/repo/reference/freeciv-web/.../unittype.js`
 - **freeciv-web Sprite System**: `/root/repo/reference/freeciv-web/.../tilespec.js`
 
+## Recent Improvements (September 2025)
+
+### ✅ Completed
+1. **Code Organization Refactoring**
+   - Extracted unit constants to `/root/repo/apps/server/src/game/constants/UnitConstants.ts`
+   - Extracted movement constants to `/root/repo/apps/server/src/game/constants/MovementConstants.ts`
+   - Updated all imports across the codebase
+   - Reduced code duplication and improved maintainability
+
+2. **Terrain Movement System**
+   - Implemented proper movement fragments system (SINGLE_MOVE = 3)
+   - Added comprehensive terrain movement costs for all terrain types
+   - Integrated terrain-based movement calculation in UnitManager
+   - Added getTerrainMovementCost() utility function
+
+3. **Client Unit Reception**
+   - Added UNIT_INFO packet handler to GameClient.ts
+   - Ensures proper unit data reception from server
+   - Enables correct unit rendering on client side
+
+4. **Enhanced Unit Definitions**
+   - Added unit classes (military, civilian, naval, air)
+   - Added special abilities (canFoundCity, canBuildImprovements)
+   - Added technology requirements (requiredTech)
+   - Implemented proper movement values using fragments
+
 ## Next Steps
 
 1. **Implement starting units system** (Critical for playability)
-2. **Add terrain movement costs** (Essential for strategic depth)
+2. **✅ Add terrain movement costs** _(COMPLETED)_
 3. **Replace placeholder unit rendering** (Important for visual clarity)
 4. **Expand unit catalog** (Necessary for gameplay variety)
 5. **Implement combat bonuses** (Required for balanced gameplay)
