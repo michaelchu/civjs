@@ -1,0 +1,117 @@
+{
+  "datafile": {
+    "description": "Classic technology data for CivJS (ported from freeciv classic ruleset)",
+    "options": "+CivJS-ruleset-1.0",
+    "format_version": 1
+  },
+  "about": {
+    "name": "Classic Technologies Ruleset",
+    "summary": "Technology tree and research costs based on freeciv classic ruleset with exact value mapping"
+  },
+  "techs": {
+    "alphabet": {
+      "id": "alphabet",
+      "name": "Alphabet",
+      "cost": 10,
+      "requirements": [],
+      "flags": [],
+      "description": "Enables writing and record keeping"
+    },
+    "pottery": {
+      "id": "pottery",
+      "name": "Pottery",
+      "cost": 10,
+      "requirements": [],
+      "flags": [],
+      "description": "Enables granary construction and food storage"
+    },
+    "mysticism": {
+      "id": "mysticism",
+      "name": "Mysticism",
+      "cost": 20,
+      "requirements": ["alphabet"],
+      "flags": [],
+      "description": "Enables temples and spiritual buildings"
+    },
+    "mathematics": {
+      "id": "mathematics",
+      "name": "Mathematics",
+      "cost": 20,
+      "requirements": ["alphabet"],
+      "flags": [],
+      "description": "Foundation for advanced sciences"
+    },
+    "bronze_working": {
+      "id": "bronze_working",
+      "name": "Bronze Working",
+      "cost": 20,
+      "requirements": ["pottery"],
+      "flags": [],
+      "description": "Enables bronze tools and weapons"
+    },
+    "animal_husbandry": {
+      "id": "animal_husbandry",
+      "name": "Animal Husbandry",
+      "cost": 20,
+      "requirements": ["pottery"],
+      "flags": [],
+      "description": "Enables domestication of animals"
+    },
+    "astronomy": {
+      "id": "astronomy",
+      "name": "Astronomy",
+      "cost": 40,
+      "requirements": ["mysticism", "mathematics"],
+      "flags": [],
+      "description": "Enables navigation and calendar systems"
+    },
+    "iron_working": {
+      "id": "iron_working",
+      "name": "Iron Working",
+      "cost": 40,
+      "requirements": ["bronze_working"],
+      "flags": [],
+      "description": "Enables iron tools and advanced weapons"
+    },
+    "currency": {
+      "id": "currency",
+      "name": "Currency",
+      "cost": 40,
+      "requirements": ["bronze_working"],
+      "flags": [],
+      "description": "Enables trade and marketplace buildings"
+    },
+    "writing": {
+      "id": "writing",
+      "name": "Writing",
+      "cost": 40,
+      "requirements": ["alphabet"],
+      "flags": [],
+      "description": "Enables libraries and advanced record keeping"
+    },
+    "philosophy": {
+      "id": "philosophy",
+      "name": "Philosophy",
+      "cost": 80,
+      "requirements": ["writing", "mysticism"],
+      "flags": ["bonus_tech"],
+      "description": "First civilization to discover Philosophy gets a free technology"
+    },
+    "literature": {
+      "id": "literature",
+      "name": "Literature",
+      "cost": 80,
+      "requirements": ["writing"],
+      "flags": [],
+      "description": "Enables great works and cultural advancement"
+    },
+    "engineering": {
+      "id": "engineering",
+      "name": "Engineering",
+      "cost": 80,
+      "requirements": ["mathematics", "iron_working"],
+      "flags": ["bridge"],
+      "description": "Enables construction of bridges and aqueducts"
+    }
+  }
+}

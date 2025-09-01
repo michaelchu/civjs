@@ -4,15 +4,15 @@
  * @reference freeciv/common/terrain.h:136-147
  *
  * This file provides direct access to JSON-based rulesets with synchronous API.
- * Terrain data is loaded from apps/shared/data/rulesets/classic/terrain.json
+ * Terrain data is loaded from src/shared/data/rulesets/classic/terrain.json
  */
 
-import { rulesetLoader } from '../../../../shared/data/rulesets/RulesetLoader';
+import { rulesetLoader } from '../../shared/data/rulesets/RulesetLoader';
 import type {
   MapgenTerrainProperty,
   TerrainType,
   TerrainRuleset,
-} from '../../../../shared/data/rulesets/schemas';
+} from '../../shared/data/rulesets/schemas';
 
 // Re-export types for backward compatibility
 export { MapgenTerrainProperty, TerrainType, TerrainRuleset };
