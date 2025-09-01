@@ -49,6 +49,8 @@ export interface Player {
   color: string;
   gold: number;
   science: number;
+  government: string;
+  revolutionTurns?: number;
   isHuman: boolean;
   isActive: boolean;
 }
@@ -59,6 +61,27 @@ export interface Technology {
   cost: number;
   requirements: string[];
   discovered: boolean;
+}
+
+export interface GovernmentRequirement {
+  type: string;
+  name: string;
+  range: string;
+}
+
+export interface Government {
+  id: string;
+  name: string;
+  reqs?: GovernmentRequirement[];
+  graphic: string;
+  graphic_alt: string;
+  sound: string;
+  sound_alt: string;
+  sound_alt2: string;
+  ai_better?: string;
+  ruler_male_title: string;
+  ruler_female_title: string;
+  helptext: string;
 }
 
 export interface GameState {
@@ -77,6 +100,7 @@ export interface GameState {
   units: Record<string, Unit>;
   cities: Record<string, City>;
   technologies: Record<string, Technology>;
+  governments: Record<string, Government>;
   mapData?: {
     width: number;
     height: number;

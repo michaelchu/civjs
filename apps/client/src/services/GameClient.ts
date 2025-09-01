@@ -5,6 +5,94 @@ import { useGameStore } from '../store/gameStore';
 import { PacketType, PACKET_NAMES, type Packet } from '../types/packets';
 import { ActionType } from '../types/shared/actions';
 
+// Mock government data for development
+const getMockGovernments = () => ({
+  anarchy: {
+    id: 'anarchy',
+    name: 'Anarchy',
+    graphic: 'gov.anarchy',
+    graphic_alt: '-',
+    sound: 'g_anarchy',
+    sound_alt: '-',
+    sound_alt2: '-',
+    ruler_male_title: 'Warlord %s',
+    ruler_female_title: 'Warlady %s',
+    helptext:
+      'Anarchy is simply the absence of any recognizable government. Citizens are disorganized and unproductive, and will spend all income as quickly as possible, rather than paying taxes or conducting research.',
+  },
+  despotism: {
+    id: 'despotism',
+    name: 'Despotism',
+    graphic: 'gov.despotism',
+    graphic_alt: '-',
+    sound: 'g_despotism',
+    sound_alt: 'g_generic',
+    sound_alt2: '-',
+    ai_better: 'Monarchy',
+    ruler_male_title: 'Chief %s',
+    ruler_female_title: 'Chief %s',
+    helptext:
+      'Under Despotism, you are the absolute ruler of your people. Your control over your citizens is maintained largely by martial law. Despotism suffers the highest level of corruption of all forms of government.',
+  },
+  monarchy: {
+    id: 'monarchy',
+    name: 'Monarchy',
+    reqs: [{ type: 'tech', name: 'Monarchy', range: 'Player' }],
+    graphic: 'gov.monarchy',
+    graphic_alt: '-',
+    sound: 'g_monarchy',
+    sound_alt: 'g_generic',
+    sound_alt2: '-',
+    ai_better: 'Communism',
+    ruler_male_title: 'King %s',
+    ruler_female_title: 'Queen %s',
+    helptext:
+      'Under Monarchy, a king or queen serves as a hereditary figurehead for your government. Monarchy suffers the same small amount of corruption that the Republic does.',
+  },
+  republic: {
+    id: 'republic',
+    name: 'Republic',
+    reqs: [{ type: 'tech', name: 'The Republic', range: 'Player' }],
+    graphic: 'gov.republic',
+    graphic_alt: '-',
+    sound: 'g_republic',
+    sound_alt: 'g_generic',
+    sound_alt2: '-',
+    ruler_male_title: 'President %s',
+    ruler_female_title: 'President %s',
+    helptext:
+      'Under a Republican government, citizens hold an election to select a representative who will govern them; since elected leaders must remain popular to remain in control, citizens are given a greater degree of freedom.',
+  },
+  communism: {
+    id: 'communism',
+    name: 'Communism',
+    reqs: [{ type: 'tech', name: 'Communism', range: 'Player' }],
+    graphic: 'gov.communism',
+    graphic_alt: '-',
+    sound: 'g_communism',
+    sound_alt: 'g_generic',
+    sound_alt2: '-',
+    ruler_male_title: 'Comrade %s',
+    ruler_female_title: 'Comrade %s',
+    helptext:
+      'A Communist government is based on the ideal that all people are equal. All goods are owned by the state, rather than by private citizens.',
+  },
+  democracy: {
+    id: 'democracy',
+    name: 'Democracy',
+    reqs: [{ type: 'tech', name: 'Democracy', range: 'Player' }],
+    graphic: 'gov.democracy',
+    graphic_alt: '-',
+    sound: 'g_democracy',
+    sound_alt: 'g_generic',
+    sound_alt2: '-',
+    ruler_male_title: 'Prime Minister %s',
+    ruler_female_title: 'Prime Minister %s',
+    helptext:
+      'Under Democracy, citizens govern directly by voting on issues. Democracy offers the highest possible level of trade, but also offers the most potential for unhappiness.',
+  },
+});
+
 class GameClient {
   private socket: Socket | null = null;
   private serverUrl: string;
@@ -69,15 +157,19 @@ class GameClient {
           color: '#0066cc',
           gold: 50,
           science: 0,
+          government: 'despotism', // Default starting government
           isHuman: true,
           isActive: true, // Make player active so turn done button works
         };
+
+        const mockGovernments = getMockGovernments();
 
         useGameStore.getState().updateGameState({
           currentPlayerId: data.playerId,
           players: {
             [data.playerId]: mockPlayer,
           },
+          governments: mockGovernments,
           turn: 1, // Initialize turn
         });
       }
@@ -625,6 +717,7 @@ class GameClient {
             color: '#0066cc',
             gold: 50,
             science: 0,
+            government: 'despotism', // Default starting government
             isHuman: true,
             isActive: true, // Make player active so turn done button works
           };
@@ -634,6 +727,7 @@ class GameClient {
             players: {
               [response.playerId]: mockPlayer,
             },
+            governments: getMockGovernments(),
             phase: 'movement', // Set phase to movement
             turn: 1, // Initialize turn
           });

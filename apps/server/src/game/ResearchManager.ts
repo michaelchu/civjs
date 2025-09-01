@@ -144,6 +144,43 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     flags: ['bridge'],
     description: 'Enables construction of bridges and aqueducts',
   },
+
+  // Government technologies
+  monarchy: {
+    id: 'monarchy',
+    name: 'Monarchy',
+    cost: 60,
+    requirements: ['currency'],
+    flags: [],
+    description: 'Enables the Monarchy form of government',
+  },
+
+  the_republic: {
+    id: 'the_republic',
+    name: 'The Republic',
+    cost: 120,
+    requirements: ['literature', 'currency'],
+    flags: [],
+    description: 'Enables the Republic form of government',
+  },
+
+  communism: {
+    id: 'communism',
+    name: 'Communism',
+    cost: 240,
+    requirements: ['philosophy', 'iron_working'],
+    flags: [],
+    description: 'Enables the Communist form of government',
+  },
+
+  democracy: {
+    id: 'democracy',
+    name: 'Democracy',
+    cost: 320,
+    requirements: ['philosophy', 'literature'],
+    flags: [],
+    description: 'Enables the Democratic form of government',
+  },
 };
 
 export class ResearchManager {
