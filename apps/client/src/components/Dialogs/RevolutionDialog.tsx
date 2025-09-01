@@ -199,7 +199,9 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
           <div className="text-center text-sm text-yellow-400 bg-yellow-900/20 border border-yellow-700/50 rounded-lg p-3 mt-4">
             <div className="flex items-center justify-center gap-2">
               <span className="text-yellow-500">⚠️</span>
-              <span className="font-medium">Warning: Your civilization will enter 3 turns of Anarchy during the revolution</span>
+              <span className="font-medium">
+                Warning: Your civilization will enter 3 turns of Anarchy during the revolution
+              </span>
             </div>
           </div>
         )}
