@@ -27,7 +27,6 @@ jobs:
 
       - name: Install server dependencies
         run: cd apps/server && npm ci
-
       - name: Run linting
         run: npm run lint
 
@@ -87,7 +86,6 @@ jobs:
 
       - name: Install server dependencies
         run: cd apps/server && npm ci
-
       - name: Run tests
         run: npm run test -- --ci --coverage --maxWorkers=2
 
