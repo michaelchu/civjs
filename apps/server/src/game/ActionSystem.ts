@@ -463,7 +463,7 @@ export class ActionSystem {
 
     try {
       // Generate a default city name (GameManager could override this)
-      const cityName = `New City`;
+      const cityName = `New City (${unit.x},${unit.y})`;
 
       // Call GameManager to actually found the city
       const cityId = await this.gameManagerCallback.foundCity(

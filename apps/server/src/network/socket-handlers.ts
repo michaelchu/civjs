@@ -244,21 +244,21 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       );
 
       if (result.success) {
-        // Broadcast unit state updates if needed
-        const updatedUnit = gameInstance.unitManager.getUnit(data.unitId);
-        if (updatedUnit) {
-          io.to(`game:${connection.gameId}`).emit('unit_update', {
-            gameId: connection.gameId,
-            unit: updatedUnit,
-          });
-        }
-
         // If unit was destroyed (e.g., settler founding city), broadcast destruction
         if (result.unitDestroyed) {
           io.to(`game:${connection.gameId}`).emit('unit_destroyed', {
             gameId: connection.gameId,
             unitId: data.unitId,
           });
+        } else {
+          // Broadcast unit state updates if unit still exists
+          const updatedUnit = gameInstance.unitManager.getUnit(data.unitId);
+          if (updatedUnit) {
+            io.to(`game:${connection.gameId}`).emit('unit_update', {
+              gameId: connection.gameId,
+              unit: updatedUnit,
+            });
+          }
         }
 
         // If city was founded, the GameManager already broadcasts city_founded
