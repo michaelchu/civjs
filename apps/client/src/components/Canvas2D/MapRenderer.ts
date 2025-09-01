@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { GameState, MapViewport, Tile, Unit, City } from '../../types';
+import type { GotoPath } from '../../services/PathfindingService';
 import { TilesetLoader } from './TilesetLoader';
 import {
   MATCH_NONE,
@@ -24,6 +25,7 @@ interface RenderState {
   units: GameState['units'];
   cities: GameState['cities'];
   selectedUnitId?: string | null;
+  gotoPath?: GotoPath | null;
 }
 
 export class MapRenderer {
@@ -138,6 +140,11 @@ export class MapRenderer {
         this.renderCity(city, state.viewport);
       }
     });
+
+    // Render goto path if available (similar to freeciv-web's path rendering)
+    if (state.gotoPath && state.gotoPath.tiles.length > 1) {
+      this.renderGotoPath(state.gotoPath, state.viewport);
+    }
 
     if (import.meta.env.DEV && this.isInitialized) {
       // Uncomment to see the diamond grid overlay
@@ -1592,6 +1599,98 @@ export class MapRenderer {
     // For wrapping maps, use the full normalize_gui_pos logic
     const normalized = this.normalizeGuiPos(guiX0, guiY0);
     return { x: normalized.guiX, y: normalized.guiY };
+  }
+
+  /**
+   * Render goto path lines similar to freeciv-web's mapview_put_goto_line
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:382-397
+   */
+  private renderGotoPath(gotoPath: GotoPath, viewport: MapViewport) {
+    if (!gotoPath.tiles || gotoPath.tiles.length < 2) return;
+
+    // Use freeciv-web's goto line style
+    this.ctx.strokeStyle = gotoPath.valid ? 'rgba(0,168,255,0.9)' : 'rgba(255,68,68,0.9)'; // Blue for valid, red for invalid
+    this.ctx.lineWidth = 8;
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+
+    // Draw path segments
+    this.ctx.beginPath();
+    
+    let isFirstPoint = true;
+    for (let i = 0; i < gotoPath.tiles.length; i++) {
+      const tile = gotoPath.tiles[i];
+      
+      // Skip tiles not in viewport
+      if (!this.isInViewport(tile.x, tile.y, viewport)) {
+        continue;
+      }
+
+      // Convert tile coordinates to screen coordinates
+      const screenPos = this.mapToGuiVector(tile.x, tile.y);
+      const canvasX = screenPos.guiDx - viewport.x + (this.tileWidth / 2);
+      const canvasY = screenPos.guiDy - viewport.y + (this.tileHeight / 2);
+
+      // Check if canvas coordinates are visible
+      if (canvasX < -50 || canvasX > this.ctx.canvas.width + 50 ||
+          canvasY < -50 || canvasY > this.ctx.canvas.height + 50) {
+        continue;
+      }
+
+      if (isFirstPoint) {
+        this.ctx.moveTo(canvasX, canvasY);
+        isFirstPoint = false;
+      } else {
+        this.ctx.lineTo(canvasX, canvasY);
+      }
+    }
+
+    this.ctx.stroke();
+
+    // Draw turn indicators at waypoints for multi-turn paths
+    if (gotoPath.estimatedTurns > 1) {
+      this.renderTurnIndicators(gotoPath, viewport);
+    }
+  }
+
+  /**
+   * Render turn indicators on long paths
+   */
+  private renderTurnIndicators(gotoPath: GotoPath, viewport: MapViewport) {
+    // Find approximate points where turns end based on movement cost
+    // This is a simplified version - a full implementation would track actual movement points
+    const movementPerTurn = 3; // Assume 3 movement points per turn for most units
+    let accumulatedCost = 0;
+    let turnNumber = 1;
+
+    for (const tile of gotoPath.tiles) {
+      accumulatedCost += tile.moveCost;
+      
+      if (accumulatedCost >= movementPerTurn * turnNumber && this.isInViewport(tile.x, tile.y, viewport)) {
+        const screenPos = this.mapToGuiVector(tile.x, tile.y);
+        const canvasX = screenPos.guiDx - viewport.x + (this.tileWidth / 2);
+        const canvasY = screenPos.guiDy - viewport.y + (this.tileHeight / 2);
+
+        // Draw turn number circle
+        this.ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        this.ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+        this.ctx.lineWidth = 2;
+        
+        this.ctx.beginPath();
+        this.ctx.arc(canvasX, canvasY, 12, 0, 2 * Math.PI);
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        // Draw turn number
+        this.ctx.fillStyle = 'black';
+        this.ctx.font = '12px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(turnNumber.toString(), canvasX, canvasY);
+
+        turnNumber++;
+      }
+    }
   }
 
   cleanup() {

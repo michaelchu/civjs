@@ -139,4 +139,5 @@ export interface ActionResult {
   targetDestroyed?: boolean;
   experience_gained?: number;
   cityId?: string;
+  movementCost?: number;
 }
