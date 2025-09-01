@@ -1,0 +1,87 @@
+{
+  "datafile": {
+    "description": "Classic unit data for CivJS (ported from freeciv classic ruleset)",
+    "options": "+CivJS-ruleset-1.0",
+    "format_version": 1
+  },
+  "about": {
+    "name": "Classic Units Ruleset",
+    "summary": "Unit types and stats based on freeciv classic ruleset with exact value mapping"
+  },
+  "units": {
+    "warrior": {
+      "id": "warrior",
+      "name": "Warrior",
+      "cost": 40,
+      "movement": 2,
+      "combat": 20,
+      "range": 1,
+      "sight": 2,
+      "canFoundCity": false,
+      "canBuildImprovements": false,
+      "unitClass": "military"
+    },
+    "settler": {
+      "id": "settler",
+      "name": "Settler",
+      "cost": 80,
+      "movement": 2,
+      "combat": 0,
+      "range": 0,
+      "sight": 2,
+      "canFoundCity": true,
+      "canBuildImprovements": false,
+      "unitClass": "civilian"
+    },
+    "scout": {
+      "id": "scout",
+      "name": "Scout",
+      "cost": 25,
+      "movement": 3,
+      "combat": 10,
+      "range": 1,
+      "sight": 3,
+      "canFoundCity": false,
+      "canBuildImprovements": false,
+      "unitClass": "military"
+    },
+    "worker": {
+      "id": "worker",
+      "name": "Worker",
+      "cost": 50,
+      "movement": 2,
+      "combat": 0,
+      "range": 0,
+      "sight": 2,
+      "canFoundCity": false,
+      "canBuildImprovements": true,
+      "unitClass": "civilian"
+    },
+    "archer": {
+      "id": "archer",
+      "name": "Archer",
+      "cost": 50,
+      "movement": 2,
+      "combat": 15,
+      "range": 2,
+      "sight": 2,
+      "canFoundCity": false,
+      "canBuildImprovements": false,
+      "unitClass": "military",
+      "requiredTech": "archery"
+    },
+    "spearman": {
+      "id": "spearman",
+      "name": "Spearman",
+      "cost": 45,
+      "movement": 2,
+      "combat": 25,
+      "range": 1,
+      "sight": 2,
+      "canFoundCity": false,
+      "canBuildImprovements": false,
+      "unitClass": "military",
+      "requiredTech": "bronzeWorking"
+    }
+  }
+}

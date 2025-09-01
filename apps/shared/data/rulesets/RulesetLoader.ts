@@ -5,7 +5,13 @@
 
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { TerrainRulesetFileSchema, type TerrainRulesetFile, type TerrainRuleset, type TerrainType, type MapgenTerrainProperty } from './schemas';
+import { 
+  TerrainRulesetFileSchema, 
+  type TerrainRulesetFile, 
+  type TerrainRuleset, 
+  type TerrainType, 
+  type MapgenTerrainProperty 
+} from './schemas';
 
 export class RulesetLoader {
   private static instance: RulesetLoader;
