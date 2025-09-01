@@ -11,9 +11,11 @@ CivJS is a modern web-based civilization game port built with TypeScript. This i
 
 The project is inspired by Freeciv and freeciv-web, reimplementing the game with modern web technologies.
 
+**Note**: This project uses standalone apps (not npm workspaces) for Railway deployment compatibility. Each app in `apps/` has its own `package.json` and `package-lock.json`.
+
 ## Development Commands
 
-### Root Level (npm workspaces)
+### Root Level (standalone apps)
 ```bash
 npm run dev              # Start both client and server concurrently
 npm run dev:client       # Start only frontend (port 3000)
@@ -39,7 +41,7 @@ npm run docker:down      # Stop all containers
 
 ### Client-specific (apps/client)
 ```bash
-# Use workspace commands from root or cd to apps/client
+# Use root commands or cd to apps/client
 npm run type-check       # TypeScript type checking
 npm run format          # Format with Prettier
 npm run format:check     # Check formatting
@@ -47,7 +49,7 @@ npm run format:check     # Check formatting
 
 ### Server-specific (apps/server)
 ```bash
-# Use workspace commands from root or cd to apps/server
+# Use root commands or cd to apps/server
 npm run type-check       # TypeScript type checking
 npm run test:watch       # Jest in watch mode
 npm run test:coverage    # Test with coverage
