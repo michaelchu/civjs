@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { SERVER_URL } from '../config';
 import { useGameStore } from '../store/gameStore';
 import { PacketType, PACKET_NAMES, type Packet } from '../types/packets';
+import { ActionType } from '../types/shared/actions';
 
 class GameClient {
   private socket: Socket | null = null;
@@ -794,6 +795,68 @@ class GameClient {
 
   getCurrentGameId(): string | null {
     return this.currentGameId;
+  }
+
+  /**
+   * Request unit action from server
+   */
+  requestUnitAction(
+    unitId: string,
+    actionType: ActionType,
+    targetX?: number,
+    targetY?: number
+  ): Promise<boolean> {
+    return new Promise(resolve => {
+      if (!this.socket) {
+        console.error('Socket not connected');
+        resolve(false);
+        return;
+      }
+
+      // Send unit action request to server
+      this.socket.emit('unit_action', {
+        unitId,
+        actionType,
+        targetX,
+        targetY,
+      });
+
+      // For now, assume success (would handle proper response in full implementation)
+      console.log(`Requested ${actionType} for unit ${unitId}`, {
+        targetX,
+        targetY,
+      });
+
+      resolve(true);
+    });
+  }
+
+  /**
+   * Request unit fortify action (legacy compatibility)
+   */
+  fortifyUnit(unitId: string): Promise<boolean> {
+    return this.requestUnitAction(unitId, ActionType.FORTIFY);
+  }
+
+  /**
+   * Request unit sentry action (legacy compatibility)
+   */
+  sentryUnit(unitId: string): Promise<boolean> {
+    return this.requestUnitAction(unitId, ActionType.SENTRY);
+  }
+
+  /**
+   * Request unit goto action (legacy compatibility)
+   */
+  gotoUnit(unitId: string, targetX: number, targetY: number): Promise<boolean> {
+    return this.requestUnitAction(unitId, ActionType.GOTO, targetX, targetY);
+  }
+
+  /**
+   * Request unit found city action (legacy compatibility)
+   */
+  foundCityWithUnit(unitId: string): Promise<boolean> {
+    return this.requestUnitAction(unitId, ActionType.FOUND_CITY);
   }
 }
 

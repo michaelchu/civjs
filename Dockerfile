@@ -10,11 +10,11 @@ ENV CI=true
 # Copy all source files
 COPY . .
 
-# Clean previous installs
-RUN rm -rf node_modules apps/*/node_modules package-lock.json
+# Clean previous installs but keep package-lock.json
+RUN rm -rf node_modules apps/*/node_modules
 
-# Install dependencies
-RUN echo "Installing dependencies..." && npm install
+# Install dependencies with frozen lockfile for reproducible builds
+RUN echo "Installing dependencies..." && npm ci
 
 # Build the application
 RUN echo "Building application..." && npm run build
