@@ -23,9 +23,7 @@
     "min_city_center_shield": 1,
     "min_city_center_trade": 0
   },
-  "capabilities": [
-    "std-terrains"
-  ],
+  "capabilities": ["std-terrains"],
   "game_parameters": {
     "init_city_radius_sq": 5,
     "init_vis_radius_sq": 5,

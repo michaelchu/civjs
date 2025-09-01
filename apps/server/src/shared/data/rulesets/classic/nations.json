@@ -290,12 +290,7 @@
           "sex": "Male"
         }
       ],
-      "cities": [
-        "Village",
-        "Camp",
-        "Settlement",
-        "Outpost"
-      ],
+      "cities": ["Village", "Camp", "Settlement", "Outpost"],
       "traits": {
         "aggressive_min": 80,
         "aggressive_max": 100,

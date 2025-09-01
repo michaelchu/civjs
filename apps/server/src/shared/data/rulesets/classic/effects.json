@@ -17,7 +17,7 @@
       "comment": "Base unhappiness threshold for city size"
     },
     "barbarian_no_diplomacy": {
-      "id": "barbarian_no_diplomacy", 
+      "id": "barbarian_no_diplomacy",
       "type": "No_Diplomacy",
       "value": 1,
       "reqs": [
@@ -31,12 +31,12 @@
     },
     "barbarian_disappear": {
       "id": "barbarian_disappear",
-      "type": "Retire_Pct", 
+      "type": "Retire_Pct",
       "value": 10,
       "reqs": [
         {
           "type": "NationGroup",
-          "name": "Barbarian", 
+          "name": "Barbarian",
           "range": "Player",
           "present": true
         },
@@ -66,7 +66,7 @@
           "range": "Local"
         },
         {
-          "type": "Age", 
+          "type": "Age",
           "name": "5",
           "range": "Local"
         },
@@ -94,7 +94,7 @@
           "range": "Local"
         },
         {
-          "type": "OutputType", 
+          "type": "OutputType",
           "name": "luxury",
           "range": "Local"
         }
@@ -113,7 +113,7 @@
         },
         {
           "type": "OutputType",
-          "name": "science", 
+          "name": "science",
           "range": "Local"
         }
       ],
@@ -154,7 +154,7 @@
         },
         {
           "type": "UnitClass",
-          "name": "Land", 
+          "name": "Land",
           "range": "Local"
         }
       ],
@@ -217,7 +217,7 @@
     },
     "city_fortified_defense": {
       "id": "city_fortified_defense",
-      "type": "Fortify_Defense_Bonus", 
+      "type": "Fortify_Defense_Bonus",
       "value": 50,
       "reqs": [
         {
@@ -240,7 +240,7 @@
         },
         {
           "type": "UnitTypeFlag",
-          "name": "Cant_Fortify", 
+          "name": "Cant_Fortify",
           "range": "Local",
           "present": false
         }
@@ -274,7 +274,7 @@
       "comment": "HP regeneration when fortified"
     },
     "base_regen": {
-      "id": "base_regen", 
+      "id": "base_regen",
       "type": "HP_Regen_2",
       "value": 10,
       "reqs": [
