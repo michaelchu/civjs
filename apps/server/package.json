@@ -24,7 +24,7 @@
     "lint-staged": "lint-staged",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:migrate:prod": "NODE_ENV=production tsx src/scripts/migrate.ts",
+    "db:migrate:prod": "NODE_ENV=production npx tsx src/scripts/migrate.ts",
     "db:push": "drizzle-kit push",
     "db:push:force": "drizzle-kit push --force",
     "db:studio": "drizzle-kit studio",

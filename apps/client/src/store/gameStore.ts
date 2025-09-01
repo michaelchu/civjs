@@ -44,6 +44,10 @@ interface GameStore extends GameState {
   completeTurnProcessing: () => void;
   resetTurnProcessing: () => void;
 
+  // Government actions
+  requestGovernmentChange: (governmentId: string) => void;
+  startRevolution: (requestedGovernment: string) => void;
+
   // Computed getters
   getCurrentPlayer: () => ReturnType<typeof getCurrentPlayer>;
   getSelectedUnit: () => ReturnType<typeof getSelectedUnit>;
@@ -84,6 +88,7 @@ export const useGameStore = create<GameStore>()(
       researchedTechs: new Set(['alphabet']), // Start with alphabet
       availableTechs: new Set(),
     },
+    governments: {},
 
     // Initial client state
     clientState: 'initial',
@@ -188,6 +193,19 @@ export const useGameStore = create<GameStore>()(
         turnProcessingState: 'idle',
         turnProcessingSteps: [],
       });
+    },
+
+    // Government actions
+    requestGovernmentChange: (governmentId: string) => {
+      // This would send a packet to server
+      // For now, just a placeholder - actual networking will be handled elsewhere
+      console.log('Requesting government change to:', governmentId);
+    },
+
+    startRevolution: (requestedGovernment: string) => {
+      // This would send a revolution packet to server
+      // For now, just a placeholder - actual networking will be handled elsewhere
+      console.log('Starting revolution to:', requestedGovernment);
     },
 
     // Computed getters

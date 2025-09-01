@@ -7,6 +7,7 @@ import { StatusPanel } from './StatusPanel';
 import { TurnDoneButton } from './TurnDoneButton';
 import { TurnStatusOverlay } from './TurnStatusOverlay';
 import { TechnologyTree } from '../Research/TechnologyTree';
+import { GovernmentPanel } from './GovernmentPanel';
 
 export const GameLayout: React.FC = () => {
   const [dimensions, setDimensions] = useState({
@@ -93,12 +94,7 @@ export const GameLayout: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'government' && (
-            <div className="p-6">
-              <h2 className="text-2xl font-bold mb-4">Government</h2>
-              <p className="text-gray-300">Government options will be implemented here</p>
-            </div>
-          )}
+          {activeTab === 'government' && <GovernmentPanel />}
 
           {activeTab === 'research' && (
             <div className="h-full">

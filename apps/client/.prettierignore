@@ -33,3 +33,6 @@ pnpm-lock.yaml
 
 # Vercel
 .vercel/
+
+# Reference freeciv codebase (external)
+../../reference/

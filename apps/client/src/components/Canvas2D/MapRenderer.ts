@@ -23,6 +23,7 @@ interface RenderState {
   map: GameState['map'];
   units: GameState['units'];
   cities: GameState['cities'];
+  selectedUnitId?: string | null;
 }
 
 export class MapRenderer {
@@ -116,6 +117,14 @@ export class MapRenderer {
 
     for (const tile of visibleTiles) {
       this.renderTile(tile, state.viewport);
+    }
+
+    // Render selection outline after terrain but before units
+    if (state.selectedUnitId) {
+      const selectedUnit = state.units[state.selectedUnitId];
+      if (selectedUnit && this.isInViewport(selectedUnit.x, selectedUnit.y, state.viewport)) {
+        this.renderUnitSelection(selectedUnit, state.viewport);
+      }
     }
 
     Object.values(state.units).forEach(unit => {
@@ -970,6 +979,55 @@ export class MapRenderer {
     // - Sentry indicator
     // - Goto indicator
     // - Activity indicators
+  }
+
+  /**
+   * Render pulsating diamond selection outline for selected unit
+   * Renders on main canvas between terrain and units for proper layering
+   */
+  private renderUnitSelection(unit: Unit, viewport: MapViewport): void {
+    const screenPos = this.mapToScreen(unit.x, unit.y, viewport);
+
+    // Create pulsating effect using time-based animation
+    const time = Date.now() / 500; // Adjust speed
+    const pulse = (Math.sin(time) + 1) / 2; // 0 to 1
+    const opacity = 0.4 + pulse * 0.6; // 0.4 to 1.0
+    const lineWidth = 1 + pulse * 2; // 1 to 3
+
+    const centerX = screenPos.x + this.tileWidth / 2;
+    const centerY = screenPos.y + this.tileHeight / 2;
+    const halfWidth = this.tileWidth / 2;
+    const halfHeight = this.tileHeight / 2;
+
+    // Draw the diamond outline with pulsating yellow stroke
+    this.ctx.strokeStyle = `rgba(255, 255, 0, ${opacity})`;
+    this.ctx.lineWidth = lineWidth;
+    this.ctx.beginPath();
+    this.ctx.moveTo(centerX, centerY - halfHeight); // Top
+    this.ctx.lineTo(centerX + halfWidth, centerY); // Right
+    this.ctx.lineTo(centerX, centerY + halfHeight); // Bottom
+    this.ctx.lineTo(centerX - halfWidth, centerY); // Left
+    this.ctx.closePath();
+    this.ctx.stroke();
+
+    // Add a subtle pulsating fill
+    this.ctx.fillStyle = `rgba(255, 255, 0, ${opacity * 0.1})`;
+    this.ctx.fill();
+
+    // Add inner diamond for enhanced visibility
+    this.ctx.strokeStyle = `rgba(255, 255, 0, ${opacity * 0.7})`;
+    this.ctx.lineWidth = 1;
+    const innerScale = 0.85;
+    const innerHalfWidth = halfWidth * innerScale;
+    const innerHalfHeight = halfHeight * innerScale;
+
+    this.ctx.beginPath();
+    this.ctx.moveTo(centerX, centerY - innerHalfHeight); // Top
+    this.ctx.lineTo(centerX + innerHalfWidth, centerY); // Right
+    this.ctx.lineTo(centerX, centerY + innerHalfHeight); // Bottom
+    this.ctx.lineTo(centerX - innerHalfWidth, centerY); // Left
+    this.ctx.closePath();
+    this.ctx.stroke();
   }
 
   private renderCity(city: City, viewport: MapViewport) {

@@ -23,11 +23,14 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only (skip scripts to avoid husky)
-RUN npm ci --omit=dev --ignore-scripts
+# Install all dependencies (needed for migrations)
+RUN npm ci --ignore-scripts
 
-# Copy built application
+# Copy all necessary files from builder (including public, dist, drizzle, etc)
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/src/scripts ./src/scripts
+COPY --from=builder /app/public ./public
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -41,5 +44,5 @@ USER nodejs
 # Expose port
 EXPOSE 3001
 
-# Start the application
+# Default command (overridden by railway.toml)
 CMD ["node", "dist/index.js"]
