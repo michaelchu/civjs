@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import type { GameState, ClientState, GameTab, MapViewport } from '../types';
+import type { GameState, ClientState, GameTab, MapViewport, ResearchState } from '../types';
 
 export type TurnProcessingState = 'idle' | 'processing' | 'completed' | 'error';
 
@@ -31,6 +31,11 @@ interface GameStore extends GameState {
   setViewport: (viewport: Partial<MapViewport>) => void;
   selectUnit: (unitId: string | null) => void;
   selectCity: (cityId: string | null) => void;
+
+  // Research actions
+  updateResearchState: (researchState: Partial<ResearchState>) => void;
+  setCurrentResearch: (techId: string | undefined) => void;
+  setResearchGoal: (techId: string | undefined) => void;
 
   // Turn processing actions
   setTurnProcessingState: (state: TurnProcessingState) => void;
@@ -77,6 +82,12 @@ export const useGameStore = create<GameStore>()(
     units: {},
     cities: {},
     technologies: {},
+    research: {
+      bulbsAccumulated: 0,
+      bulbsLastTurn: 0,
+      researchedTechs: new Set(['alphabet']), // Start with alphabet
+      availableTechs: new Set(),
+    },
     governments: {},
 
     // Initial client state
@@ -121,6 +132,25 @@ export const useGameStore = create<GameStore>()(
 
     selectCity: (cityId: string | null) => {
       set({ selectedCityId: cityId });
+    },
+
+    // Research actions
+    updateResearchState: (researchState: Partial<ResearchState>) => {
+      set(state => ({
+        research: { ...state.research!, ...researchState },
+      }));
+    },
+
+    setCurrentResearch: (techId: string | undefined) => {
+      set(state => ({
+        research: { ...state.research!, currentTech: techId },
+      }));
+    },
+
+    setResearchGoal: (techId: string | undefined) => {
+      set(state => ({
+        research: { ...state.research!, techGoal: techId },
+      }));
     },
 
     // Turn processing actions

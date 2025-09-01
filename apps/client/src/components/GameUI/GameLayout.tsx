@@ -6,6 +6,7 @@ import { StatusPanel } from './StatusPanel';
 // import { ChatBox } from './ChatBox'; // Commented out while ChatBox is disabled
 import { TurnDoneButton } from './TurnDoneButton';
 import { TurnStatusOverlay } from './TurnStatusOverlay';
+import { TechnologyTree } from '../Research/TechnologyTree';
 import { GovernmentPanel } from './GovernmentPanel';
 
 export const GameLayout: React.FC = () => {
@@ -55,7 +56,7 @@ export const GameLayout: React.FC = () => {
   }
 
   return (
-    <div className="h-screen bg-gray-800 text-white overflow-hidden">
+    <div className="h-screen bg-gray-800 text-white overflow-hidden flex flex-col">
       {/* Turn Status Overlay */}
       <TurnStatusOverlay />
 
@@ -69,7 +70,7 @@ export const GameLayout: React.FC = () => {
       </div>
 
       {/* Main content area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 overflow-hidden flex flex-col">
         {/* Primary content */}
         <div className="flex-1 relative">
           {activeTab === 'map' && (
@@ -96,16 +97,24 @@ export const GameLayout: React.FC = () => {
           {activeTab === 'government' && <GovernmentPanel />}
 
           {activeTab === 'research' && (
-            <div className="p-6">
-              <h2 className="text-2xl font-bold mb-4">Research</h2>
-              <p className="text-gray-300">Technology tree will be implemented here</p>
+            <div className="h-full w-full relative">
+              <TechnologyTree />
             </div>
           )}
 
           {activeTab === 'nations' && (
-            <div className="p-6">
-              <h2 className="text-2xl font-bold mb-4">Nations</h2>
-              <p className="text-gray-300">Diplomacy and nation info will be implemented here</p>
+            <div style={{ padding: '24px', backgroundColor: '#4a5568', height: '100%' }}>
+              <h2
+                style={{
+                  color: 'white',
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  marginBottom: '16px',
+                }}
+              >
+                Nations
+              </h2>
+              <p style={{ color: '#cbd5e0' }}>Diplomacy and nation info will be implemented here</p>
             </div>
           )}
 

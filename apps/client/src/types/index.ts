@@ -61,6 +61,17 @@ export interface Technology {
   cost: number;
   requirements: string[];
   discovered: boolean;
+  flags?: string[];
+  description?: string;
+}
+
+export interface ResearchState {
+  currentTech?: string;
+  techGoal?: string;
+  bulbsAccumulated: number;
+  bulbsLastTurn: number;
+  researchedTechs: Set<string>;
+  availableTechs: Set<string>;
 }
 
 export interface GovernmentRequirement {
@@ -100,6 +111,7 @@ export interface GameState {
   units: Record<string, Unit>;
   cities: Record<string, City>;
   technologies: Record<string, Technology>;
+  research?: ResearchState;
   governments: Record<string, Government>;
   mapData?: {
     width: number;
