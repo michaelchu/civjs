@@ -1,0 +1,2171 @@
+{
+  "settlers": {
+    "name": "_(\"Settlers\")",
+    "class": "Land",
+    "obsolete_by": "None",
+    "graphic": "u.settlers",
+    "graphic_alt": "-",
+    "sound_move": "m_settlers",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_settlers",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 40,
+    "pop_cost": 1,
+    "attack": 0,
+    "defense": 1,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 0,
+    "uk_shield": 1,
+    "uk_food": 1,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "Workers",
+      "Cant_Fortify",
+      "NonMil",
+      "HasNoZOC",
+      "AddToCity",
+      "Cities"
+    ],
+    "veteran_names": "_(\"green\")",
+    "veteran_base_raise_chance": "0",
+    "veteran_work_raise_chance": "0",
+    "veteran_power_fact": "100",
+    "veteran_move_bonus": "0",
+    "roles": [
+      "CitiesStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "worker": {
+    "name": "_(\"?unit:Workers\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Pottery",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Engineers",
+    "graphic": "u.worker",
+    "graphic_alt": "u.engineers\" ; for compatibility",
+    "sound_move": "m_worker",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_worker",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 30,
+    "pop_cost": 0,
+    "attack": 0,
+    "defense": 1,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 0,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "Workers",
+      "Cant_Fortify",
+      "NonMil",
+      "HasNoZOC",
+      "Airbase"
+    ],
+    "veteran_names": "_(\"green\")",
+    "veteran_base_raise_chance": "0",
+    "veteran_work_raise_chance": "0",
+    "veteran_power_fact": "100",
+    "veteran_move_bonus": "0",
+    "roles": [
+      "Settlers",
+      "WorkerStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "engineers": {
+    "name": "_(\"Engineers\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Explosives",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.engineers",
+    "graphic_alt": "-",
+    "sound_move": "m_engineers",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_engineers",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 40,
+    "pop_cost": 0,
+    "attack": 0,
+    "defense": 2,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 2,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 0,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "Workers",
+      "Cant_Fortify",
+      "NonMil",
+      "HasNoZOC",
+      "Transform",
+      "Airbase"
+    ],
+    "veteran_names": "_(\"green\")",
+    "veteran_base_raise_chance": "0",
+    "veteran_work_raise_chance": "0",
+    "veteran_power_fact": "100",
+    "veteran_move_bonus": "0",
+    "roles": [
+      "Settlers",
+      "WorkerStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "warriors": {
+    "name": "_(\"Warriors\")",
+    "class": "Land",
+    "obsolete_by": "Pikemen",
+    "graphic": "u.warriors",
+    "graphic_alt": "-",
+    "sound_move": "m_warriors",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_warriors",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 10,
+    "pop_cost": 0,
+    "attack": 1,
+    "defense": 1,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [],
+    "roles": [
+      "DefendOk",
+      "DefendOkStartUnit",
+      "FirstBuild"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "phalanx": {
+    "name": "_(\"Phalanx\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Bronze Working",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Pikemen",
+    "graphic": "u.phalanx",
+    "graphic_alt": "-",
+    "sound_move": "m_phalanx",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_phalanx",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 20,
+    "pop_cost": 0,
+    "attack": 1,
+    "defense": 2,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [],
+    "roles": [
+      "DefendGood",
+      "DefendGoodStartUnit",
+      "FirstBuild"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "archers": {
+    "name": "_(\"Archers\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Warrior Code",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Musketeers",
+    "graphic": "u.archers",
+    "graphic_alt": "-",
+    "sound_move": "m_archers",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_archers",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 30,
+    "pop_cost": 0,
+    "attack": 3,
+    "defense": 2,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [],
+    "roles": [
+      "DefendOk",
+      "DefendOkStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "legion": {
+    "name": "_(\"Legion\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Iron Working",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Musketeers",
+    "graphic": "u.legion",
+    "graphic_alt": "-",
+    "sound_move": "m_legion",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_legion",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 40,
+    "pop_cost": 0,
+    "attack": 4,
+    "defense": 2,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [],
+    "roles": [
+      "DefendOk",
+      "Hut",
+      "BarbarianBuild",
+      "BarbarianSea"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "pikemen": {
+    "name": "_(\"Pikemen\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Feudalism",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Musketeers",
+    "graphic": "u.pikemen",
+    "graphic_alt": "-",
+    "sound_move": "m_pikemen",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_pikemen",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 20,
+    "pop_cost": 0,
+    "attack": 1,
+    "defense": 2,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "bonuses": "",
+    "flags": [],
+    "roles": [
+      "DefendGood",
+      "DefendGoodStartUnit",
+      "FirstBuild"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "musketeers": {
+    "name": "_(\"Musketeers\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Gunpowder",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Riflemen",
+    "graphic": "u.musketeers",
+    "graphic_alt": "-",
+    "sound_move": "m_musketeers",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_musketeers",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 30,
+    "pop_cost": 0,
+    "attack": 3,
+    "defense": 3,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [],
+    "roles": [
+      "DefendGood",
+      "DefendGoodStartUnit",
+      "FirstBuild",
+      "HutTech"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "partisan": {
+    "name": "_(\"Partisan\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Guerilla Warfare",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.partisan",
+    "graphic_alt": "-",
+    "sound_move": "m_partisan",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_partisan",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 50,
+    "pop_cost": 0,
+    "attack": 4,
+    "defense": 4,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "IgTer",
+      "IgZOC"
+    ],
+    "roles": [
+      "DefendGood",
+      "DefendGoodStartUnit",
+      "Partisan",
+      "BarbarianTech"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "alpine_troops": {
+    "name": "_(\"Alpine Troops\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Tactics",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.alpine_troops",
+    "graphic_alt": "-",
+    "sound_move": "m_alpine_troops",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_alpine_troops",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 50,
+    "pop_cost": 0,
+    "attack": 5,
+    "defense": 5,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "IgTer"
+    ],
+    "roles": [
+      "DefendGood",
+      "DefendGoodStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "riflemen": {
+    "name": "_(\"Riflemen\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Conscription",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.riflemen",
+    "graphic_alt": "-",
+    "sound_move": "m_riflemen",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_riflemen",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 40,
+    "pop_cost": 0,
+    "attack": 5,
+    "defense": 4,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [],
+    "roles": [
+      "DefendGood",
+      "DefendGoodStartUnit",
+      "FirstBuild"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "marines": {
+    "name": "_(\"Marines\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Amphibious Warfare",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.marines",
+    "graphic_alt": "-",
+    "sound_move": "m_marines",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_marines",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 60,
+    "pop_cost": 0,
+    "attack": 8,
+    "defense": 5,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "Marines"
+    ],
+    "roles": [
+      "DefendOk",
+      "DefendOkStartUnit",
+      "BarbarianSeaTech"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "paratroopers": {
+    "name": "_(\"Paratroopers\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Combined Arms",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.paratroopers",
+    "graphic_alt": "-",
+    "sound_move": "m_paratroopers",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_paratroopers",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 60,
+    "pop_cost": 0,
+    "attack": 6,
+    "defense": 4,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "Paratroopers"
+    ],
+    "roles": [
+      "DefendOk"
+    ],
+    "helptext": "_(\"\\",
+    "paratroopers_range": "10"
+  },
+  "mech_inf": {
+    "name": "_(\"Mech. Inf.\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Labor Union",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.mech_inf",
+    "graphic_alt": "-",
+    "sound_move": "m_mech_inf",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_mech_inf",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 50,
+    "pop_cost": 0,
+    "attack": 6,
+    "defense": 6,
+    "hitpoints": 30,
+    "firepower": 1,
+    "move_rate": 3,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [],
+    "roles": [
+      "DefendGood",
+      "DefendGoodStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "horsemen": {
+    "name": "_(\"Horsemen\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Horseback Riding",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Knights",
+    "graphic": "u.horsemen",
+    "graphic_alt": "-",
+    "sound_move": "m_horsemen",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_horsemen",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 20,
+    "pop_cost": 0,
+    "attack": 2,
+    "defense": 1,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 2,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "Horse"
+    ],
+    "roles": [
+      "AttackFastStartUnit",
+      "Hut",
+      "Barbarian",
+      "Hunter"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "chariot": {
+    "name": "_(\"Chariot\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "The Wheel",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Knights",
+    "graphic": "u.chariot",
+    "graphic_alt": "-",
+    "sound_move": "m_chariot",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_chariot",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 30,
+    "pop_cost": 0,
+    "attack": 3,
+    "defense": 1,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 2,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "Horse"
+    ],
+    "roles": [
+      "AttackFastStartUnit",
+      "Hut",
+      "Hunter"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "knights": {
+    "name": "_(\"Knights\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Chivalry",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Dragoons",
+    "graphic": "u.knights",
+    "graphic_alt": "-",
+    "sound_move": "m_knights",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_knights",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 40,
+    "pop_cost": 0,
+    "attack": 4,
+    "defense": 2,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 2,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "Horse"
+    ],
+    "roles": [
+      "AttackFastStartUnit",
+      "HutTech",
+      "BarbarianTech"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "dragoons": {
+    "name": "_(\"Dragoons\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Leadership",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Cavalry",
+    "graphic": "u.dragoons",
+    "graphic_alt": "-",
+    "sound_move": "m_dragoons",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_dragoons",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 50,
+    "pop_cost": 0,
+    "attack": 5,
+    "defense": 2,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 2,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "Horse"
+    ],
+    "roles": [
+      "AttackFastStartUnit",
+      "BarbarianBuildTech",
+      "BarbarianSeaTech"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "cavalry": {
+    "name": "_(\"Cavalry\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Tactics",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Armor",
+    "graphic": "u.cavalry",
+    "graphic_alt": "-",
+    "sound_move": "m_cavalry",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_cavalry",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 60,
+    "pop_cost": 0,
+    "attack": 8,
+    "defense": 3,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 2,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [],
+    "roles": [
+      "AttackFastStartUnit",
+      "Hunter"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "armor": {
+    "name": "_(\"Armor\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Mobile Warfare",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.armor",
+    "graphic_alt": "-",
+    "sound_move": "m_armor",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_armor",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 80,
+    "pop_cost": 0,
+    "attack": 10,
+    "defense": 5,
+    "hitpoints": 30,
+    "firepower": 1,
+    "move_rate": 3,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [],
+    "roles": [
+      "AttackFastStartUnit",
+      "Hunter"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "catapult": {
+    "name": "_(\"Catapult\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Mathematics",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Cannon",
+    "graphic": "u.catapult",
+    "graphic_alt": "-",
+    "sound_move": "m_catapult",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_catapult",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 40,
+    "pop_cost": 0,
+    "attack": 6,
+    "defense": 1,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [],
+    "roles": [
+      "AttackStrongStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "cannon": {
+    "name": "_(\"Cannon\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Metallurgy",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Artillery",
+    "graphic": "u.cannon",
+    "graphic_alt": "-",
+    "sound_move": "m_cannon",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_cannon",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 40,
+    "pop_cost": 0,
+    "attack": 8,
+    "defense": 1,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [],
+    "roles": [
+      "AttackStrongStartUnit",
+      "BarbarianTech",
+      "BarbarianBuildTech"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "artillery": {
+    "name": "_(\"Artillery\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Machine Tools",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Howitzer",
+    "graphic": "u.artillery",
+    "graphic_alt": "-",
+    "sound_move": "m_artillery",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_artillery",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 50,
+    "pop_cost": 0,
+    "attack": 10,
+    "defense": 1,
+    "hitpoints": 20,
+    "firepower": 2,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [],
+    "roles": [
+      "AttackStrongStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "howitzer": {
+    "name": "_(\"Howitzer\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Robotics",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.howitzer",
+    "graphic_alt": "-",
+    "sound_move": "m_howitzer",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_howitzer",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 70,
+    "pop_cost": 0,
+    "attack": 12,
+    "defense": 2,
+    "hitpoints": 30,
+    "firepower": 2,
+    "move_rate": 2,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [],
+    "roles": [
+      "AttackStrongStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "fighter": {
+    "name": "_(\"Fighter\")",
+    "class": "Air",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Flight",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Stealth Fighter",
+    "graphic": "u.fighter",
+    "graphic_alt": "-",
+    "sound_move": "m_fighter",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_fighter",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 60,
+    "pop_cost": 0,
+    "attack": 4,
+    "defense": 3,
+    "hitpoints": 20,
+    "firepower": 2,
+    "move_rate": 10,
+    "vision_radius_sq": 8,
+    "transport_cap": 0,
+    "fuel": 1,
+    "uk_happy": 0,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "targets": "Air\", \"Missile",
+    "bonuses": "",
+    "flags": [
+      "AirAttacker"
+    ],
+    "roles": [],
+    "helptext": "_(\"\\"
+  },
+  "bomber": {
+    "name": "_(\"Bomber\")",
+    "class": "Air",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Advanced Flight",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Stealth Bomber",
+    "graphic": "u.bomber",
+    "graphic_alt": "-",
+    "sound_move": "m_bomber",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_bomber",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 120,
+    "pop_cost": 0,
+    "attack": 12,
+    "defense": 1,
+    "hitpoints": 20,
+    "firepower": 2,
+    "move_rate": 8,
+    "vision_radius_sq": 8,
+    "transport_cap": 0,
+    "fuel": 2,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "FieldUnit",
+      "OneAttack",
+      "AirAttacker",
+      "HasNoZOC",
+      "Bomber"
+    ],
+    "roles": [],
+    "helptext": "_(\"\\"
+  },
+  "helicopter": {
+    "name": "_(\"Helicopter\")",
+    "class": "Helicopter",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Combined Arms",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.helicopter",
+    "graphic_alt": "-",
+    "sound_move": "m_helicopter",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_helicopter",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 100,
+    "pop_cost": 0,
+    "attack": 10,
+    "defense": 3,
+    "hitpoints": 20,
+    "firepower": 2,
+    "move_rate": 6,
+    "vision_radius_sq": 8,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "FieldUnit",
+      "OneAttack",
+      "Helicopter",
+      "AirAttacker"
+    ],
+    "roles": [],
+    "helptext": "_(\"\\"
+  },
+  "stealth_fighter": {
+    "name": "_(\"Stealth Fighter\")",
+    "class": "Air",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Stealth",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.stealth_fighter",
+    "graphic_alt": "-",
+    "sound_move": "m_stealth_fighter",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_stealth_fighter",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 80,
+    "pop_cost": 0,
+    "attack": 8,
+    "defense": 4,
+    "hitpoints": 20,
+    "firepower": 2,
+    "move_rate": 14,
+    "vision_radius_sq": 8,
+    "transport_cap": 0,
+    "fuel": 1,
+    "uk_happy": 0,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "targets": "Air\", \"Missile",
+    "bonuses": "",
+    "vision_layer": "Stealth",
+    "flags": [
+      "AirAttacker"
+    ],
+    "roles": [],
+    "helptext": "_(\"\\"
+  },
+  "stealth_bomber": {
+    "name": "_(\"Stealth Bomber\")",
+    "class": "Air",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Stealth",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.stealth_bomber",
+    "graphic_alt": "-",
+    "sound_move": "m_stealth_bomber",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_stealth_bomber",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 160,
+    "pop_cost": 0,
+    "attack": 18,
+    "defense": 5,
+    "hitpoints": 20,
+    "firepower": 2,
+    "move_rate": 12,
+    "vision_radius_sq": 8,
+    "transport_cap": 0,
+    "fuel": 2,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "vision_layer": "Stealth",
+    "flags": [
+      "FieldUnit",
+      "OneAttack",
+      "AirAttacker",
+      "HasNoZOC"
+    ],
+    "roles": [],
+    "helptext": "_(\"\\"
+  },
+  "trireme": {
+    "name": "_(\"Trireme\")",
+    "class": "Trireme",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Map Making",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Caravel",
+    "graphic": "u.trireme",
+    "graphic_alt": "-",
+    "sound_move": "m_trireme",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_trireme",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 40,
+    "pop_cost": 0,
+    "attack": 1,
+    "defense": 1,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 3,
+    "vision_radius_sq": 2,
+    "transport_cap": 2,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "cargo": "Land",
+    "flags": [
+      "BadCityDefender",
+      "Provoking"
+    ],
+    "roles": [
+      "Ferryboat",
+      "FerryStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "caravel": {
+    "name": "_(\"Caravel\")",
+    "class": "Sea",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Navigation",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Galleon",
+    "graphic": "u.caravel",
+    "graphic_alt": "-",
+    "sound_move": "m_caravel",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_caravel",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 40,
+    "pop_cost": 0,
+    "attack": 2,
+    "defense": 1,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 3,
+    "vision_radius_sq": 2,
+    "transport_cap": 3,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "cargo": "Land",
+    "flags": [
+      "BadCityDefender",
+      "Provoking"
+    ],
+    "roles": [
+      "Ferryboat",
+      "FerryStartUnit",
+      "BarbarianBoat"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "galleon": {
+    "name": "_(\"Galleon\")",
+    "class": "Sea",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Magnetism",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Transport",
+    "graphic": "u.galleon",
+    "graphic_alt": "-",
+    "sound_move": "m_galleon",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_galleon",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 40,
+    "pop_cost": 0,
+    "attack": 0,
+    "defense": 2,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 4,
+    "vision_radius_sq": 2,
+    "transport_cap": 4,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "cargo": "Land",
+    "flags": [
+      "BadCityDefender",
+      "Provoking"
+    ],
+    "roles": [
+      "Ferryboat",
+      "FerryStartUnit",
+      "BarbarianBoat"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "frigate": {
+    "name": "_(\"Frigate\")",
+    "class": "Sea",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Magnetism",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Ironclad",
+    "graphic": "u.frigate",
+    "graphic_alt": "-",
+    "sound_move": "m_frigate",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_frigate",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 50,
+    "pop_cost": 0,
+    "attack": 4,
+    "defense": 2,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 4,
+    "vision_radius_sq": 2,
+    "transport_cap": 2,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "cargo": "Land",
+    "flags": [
+      "BadCityDefender",
+      "Provoking"
+    ],
+    "roles": [
+      "Hunter"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "ironclad": {
+    "name": "_(\"Ironclad\")",
+    "class": "Sea",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Steam Engine",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Destroyer",
+    "graphic": "u.ironclad",
+    "graphic_alt": "-",
+    "sound_move": "m_ironclad",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_ironclad",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 60,
+    "pop_cost": 0,
+    "attack": 4,
+    "defense": 4,
+    "hitpoints": 30,
+    "firepower": 1,
+    "move_rate": 4,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "BadCityDefender"
+    ],
+    "roles": [
+      "Hunter"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "destroyer": {
+    "name": "_(\"Destroyer\")",
+    "class": "Sea",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Electricity",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.destroyer",
+    "graphic_alt": "-",
+    "sound_move": "m_destroyer",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_destroyer",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 60,
+    "pop_cost": 0,
+    "attack": 4,
+    "defense": 4,
+    "hitpoints": 30,
+    "firepower": 1,
+    "move_rate": 6,
+    "vision_radius_sq": 8,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "BadCityDefender"
+    ],
+    "roles": [
+      "Hunter"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "cruiser": {
+    "name": "_(\"Cruiser\")",
+    "class": "Sea",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Steel",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "AEGIS Cruiser",
+    "graphic": "u.cruiser",
+    "graphic_alt": "-",
+    "sound_move": "m_cruiser",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_cruiser",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 80,
+    "pop_cost": 0,
+    "attack": 6,
+    "defense": 6,
+    "hitpoints": 30,
+    "firepower": 2,
+    "move_rate": 5,
+    "vision_radius_sq": 8,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "BadCityDefender"
+    ],
+    "roles": [
+      "DefendGood",
+      "DefendGoodStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "aegis_cruiser": {
+    "name": "_(\"AEGIS Cruiser\")",
+    "class": "Sea",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Rocketry",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.aegis_cruiser",
+    "graphic_alt": "-",
+    "sound_move": "m_aegis_cruiser",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_aegis_cruiser",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 100,
+    "pop_cost": 0,
+    "attack": 8,
+    "defense": 8,
+    "hitpoints": 30,
+    "firepower": 2,
+    "move_rate": 5,
+    "vision_radius_sq": 8,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "bonuses": "",
+    "flags": [
+      "BadCityDefender"
+    ],
+    "roles": [
+      "DefendGood",
+      "DefendGoodStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "battleship": {
+    "name": "_(\"Battleship\")",
+    "class": "Sea",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Automobile",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.battleship",
+    "graphic_alt": "-",
+    "sound_move": "m_battleship",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_battleship",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 160,
+    "pop_cost": 0,
+    "attack": 12,
+    "defense": 12,
+    "hitpoints": 40,
+    "firepower": 2,
+    "move_rate": 4,
+    "vision_radius_sq": 8,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "BadCityDefender"
+    ],
+    "roles": [],
+    "helptext": "_(\"\\"
+  },
+  "submarine": {
+    "name": "_(\"Submarine\")",
+    "class": "Sea",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Combustion",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.submarine",
+    "graphic_alt": "-",
+    "sound_move": "m_submarine",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_submarine",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 50,
+    "pop_cost": 0,
+    "attack": 12,
+    "defense": 2,
+    "hitpoints": 30,
+    "firepower": 2,
+    "move_rate": 5,
+    "vision_radius_sq": 8,
+    "transport_cap": 8,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "cargo": "Missile",
+    "vision_layer": "Subsurface",
+    "flags": [
+      "BadCityDefender",
+      "Provoking"
+    ],
+    "roles": [
+      "Hunter"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "carrier": {
+    "name": "_(\"Carrier\")",
+    "class": "Sea",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Advanced Flight",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.carrier",
+    "graphic_alt": "-",
+    "sound_move": "m_carrier",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_carrier",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 160,
+    "pop_cost": 0,
+    "attack": 1,
+    "defense": 9,
+    "hitpoints": 40,
+    "firepower": 2,
+    "move_rate": 5,
+    "vision_radius_sq": 8,
+    "transport_cap": 8,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "cargo": "Air\", \"Missile\", \"Helicopter",
+    "flags": [
+      "BadCityDefender",
+      "Only_Native_Attack",
+      "Provoking"
+    ],
+    "roles": [],
+    "helptext": "_(\"\\"
+  },
+  "transport": {
+    "name": "_(\"Transport\")",
+    "class": "Sea",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Industrialization",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.transport",
+    "graphic_alt": "-",
+    "sound_move": "m_transport",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_transport",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 50,
+    "pop_cost": 0,
+    "attack": 0,
+    "defense": 3,
+    "hitpoints": 30,
+    "firepower": 1,
+    "move_rate": 5,
+    "vision_radius_sq": 8,
+    "transport_cap": 8,
+    "fuel": 0,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "cargo": "Land",
+    "flags": [
+      "BadCityDefender",
+      "Provoking"
+    ],
+    "roles": [
+      "Ferryboat",
+      "FerryStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "cruise_missile": {
+    "name": "_(\"Cruise Missile\")",
+    "class": "Missile",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Rocketry",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.cruise_missile",
+    "graphic_alt": "-",
+    "sound_move": "m_cruise_missile",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_cruise_missile",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 60,
+    "pop_cost": 0,
+    "attack": 18,
+    "defense": 0,
+    "hitpoints": 10,
+    "firepower": 3,
+    "move_rate": 12,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 1,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "FieldUnit",
+      "OneAttack",
+      "AirAttacker",
+      "HasNoZOC"
+    ],
+    "roles": [],
+    "helptext": "_(\"\\"
+  },
+  "nuclear": {
+    "name": "_(\"Nuclear\")",
+    "class": "Missile",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Rocketry",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.nuclear",
+    "graphic_alt": "-",
+    "sound_move": "m_nuclear",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_nuclear",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 160,
+    "pop_cost": 0,
+    "attack": 99,
+    "defense": 0,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 16,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 1,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "FieldUnit",
+      "OneAttack",
+      "Nuclear",
+      "HasNoZOC"
+    ],
+    "veteran_names": "_(\"green\")",
+    "veteran_base_raise_chance": "0",
+    "veteran_work_raise_chance": "0",
+    "veteran_power_fact": "100",
+    "veteran_move_bonus": "0",
+    "roles": [],
+    "helptext": "_(\"\\"
+  },
+  "diplomat": {
+    "name": "_(\"Diplomat\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Writing",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Spy",
+    "graphic": "u.diplomat",
+    "graphic_alt": "-",
+    "sound_move": "m_diplomat",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_diplomat",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 30,
+    "pop_cost": 0,
+    "attack": 0,
+    "defense": 0,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 2,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 0,
+    "uk_shield": 0,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "Diplomat",
+      "IgZOC",
+      "NonMil",
+      "HasNoZOC",
+      "Provoking"
+    ],
+    "veteran_names": "",
+    "veteran_base_raise_chance": "50, 33, 20, 0",
+    "veteran_work_raise_chance": "0, 0, 0, 0",
+    "veteran_power_fact": "100, 105, 110, 115",
+    "veteran_move_bonus": "0, 0, 0, 0",
+    "roles": [
+      "DiplomatStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "spy": {
+    "name": "_(\"Spy\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Espionage",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.spy",
+    "graphic_alt": "-",
+    "sound_move": "m_spy",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_spy",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 30,
+    "pop_cost": 0,
+    "attack": 0,
+    "defense": 0,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 3,
+    "vision_radius_sq": 8,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 0,
+    "uk_shield": 0,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "Diplomat",
+      "IgZOC",
+      "NonMil",
+      "HasNoZOC",
+      "Spy"
+    ],
+    "veteran_names": "",
+    "veteran_base_raise_chance": "50, 33, 20, 0",
+    "veteran_work_raise_chance": "0, 0, 0, 0",
+    "veteran_power_fact": "100, 105, 110, 115",
+    "veteran_move_bonus": "0, 0, 0, 0",
+    "roles": [
+      "DiplomatStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "caravan": {
+    "name": "_(\"Caravan\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Trade",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Freight",
+    "graphic": "u.caravan",
+    "graphic_alt": "-",
+    "sound_move": "m_caravan",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_caravan",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 50,
+    "pop_cost": 0,
+    "attack": 0,
+    "defense": 1,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 0,
+    "uk_shield": 0,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "TradeRoute",
+      "HelpWonder",
+      "IgZOC",
+      "NonMil",
+      "HasNoZOC"
+    ],
+    "roles": [],
+    "helptext": "_(\"\\"
+  },
+  "freight": {
+    "name": "_(\"Freight\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "The Corporation",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.freight",
+    "graphic_alt": "-",
+    "sound_move": "m_freight",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_freight",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 50,
+    "pop_cost": 0,
+    "attack": 0,
+    "defense": 1,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 2,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 0,
+    "uk_shield": 0,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "TradeRoute",
+      "HelpWonder",
+      "IgZOC",
+      "NonMil",
+      "HasNoZOC"
+    ],
+    "roles": [],
+    "helptext": "_(\"\\"
+  },
+  "explorer": {
+    "name": "_(\"Explorer\")",
+    "class": "Land",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Seafaring",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "Partisan",
+    "graphic": "u.explorer",
+    "graphic_alt": "-",
+    "sound_move": "m_explorer",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_explorer",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 30,
+    "pop_cost": 0,
+    "attack": 0,
+    "defense": 1,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 1,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 0,
+    "uk_shield": 0,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "IgTer",
+      "IgZOC",
+      "NonMil",
+      "HasNoZOC"
+    ],
+    "roles": [
+      "Explorer",
+      "ExplorerStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "leader": {
+    "name": "_(\"?unit:Leader\")",
+    "class": "Land",
+    "obsolete_by": "None",
+    "graphic": "u.leader",
+    "graphic_alt": "u.explorer",
+    "sound_move": "m_leader",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_leader",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 10,
+    "pop_cost": 0,
+    "attack": 0,
+    "defense": 2,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 2,
+    "vision_radius_sq": 8,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 0,
+    "uk_shield": 0,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "IgZOC",
+      "NonMil",
+      "HasNoZOC",
+      "NoBuild",
+      "NoHome",
+      "SuperSpy"
+    ],
+    "veteran_names": "_(\"green\")",
+    "veteran_base_raise_chance": "0",
+    "veteran_work_raise_chance": "0",
+    "veteran_power_fact": "100",
+    "veteran_move_bonus": "0",
+    "roles": [
+      "KingStartUnit"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "barbarian_leader": {
+    "name": "_(\"Barbarian Leader\")",
+    "class": "Land",
+    "obsolete_by": "None",
+    "graphic": "u.barbarian_leader",
+    "graphic_alt": "u.diplomat",
+    "sound_move": "m_barbarian_leader",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_barbarian_leader",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 40,
+    "pop_cost": 0,
+    "attack": 0,
+    "defense": 0,
+    "hitpoints": 10,
+    "firepower": 1,
+    "move_rate": 2,
+    "vision_radius_sq": 2,
+    "transport_cap": 0,
+    "fuel": 0,
+    "uk_happy": 0,
+    "uk_shield": 0,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "IgZOC",
+      "NonMil",
+      "HasNoZOC",
+      "Unbribable"
+    ],
+    "veteran_names": "_(\"green\")",
+    "veteran_base_raise_chance": "0",
+    "veteran_work_raise_chance": "0",
+    "veteran_power_fact": "100",
+    "veteran_move_bonus": "0",
+    "roles": [
+      "BarbarianLeader"
+    ],
+    "helptext": "_(\"\\"
+  },
+  "awacs": {
+    "name": "_(\"AWACS\")",
+    "class": "Air",
+    "reqs": [
+      {
+        "type": "Tech",
+        "name": "Advanced Flight",
+        "range": "Player"
+      }
+    ],
+    "obsolete_by": "None",
+    "graphic": "u.awacs",
+    "graphic_alt": "u.bomber\"  ; backwards compatibility",
+    "sound_move": "m_awacs",
+    "sound_move_alt": "m_generic",
+    "sound_fight": "f_awacs",
+    "sound_fight_alt": "f_generic",
+    "build_cost": 140,
+    "pop_cost": 0,
+    "attack": 0,
+    "defense": 1,
+    "hitpoints": 20,
+    "firepower": 1,
+    "move_rate": 16,
+    "vision_radius_sq": 26,
+    "transport_cap": 0,
+    "fuel": 2,
+    "uk_happy": 1,
+    "uk_shield": 1,
+    "uk_food": 0,
+    "uk_gold": 0,
+    "tp_defense": "Alight",
+    "flags": [
+      "HasNoZOC"
+    ],
+    "roles": [],
+    "helptext": "_(\"\\"
+  }
+}

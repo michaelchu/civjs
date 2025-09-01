@@ -66,21 +66,132 @@ export const TerrainRulesetFileSchema = z.object({
   terrains: z.record(TerrainTypeSchema, TerrainRulesetSchema),
 });
 
-// Unit schemas
-export const UnitClassSchema = z.enum(['military', 'civilian', 'naval', 'air']);
+// Unit schemas - Enhanced for full freeciv compatibility
+export const UnitClassSchema = z.enum([
+  'Land',
+  'Sea',
+  'Helicopter',
+  'Air',
+  'Missile',
+  'Nuclear',
+  'Big Land',
+  'Small Land',
+]);
+
+export const UnitRoleSchema = z.enum([
+  'FirstBuild',
+  'Explorer',
+  'Hut',
+  'HutTech',
+  'Partisan',
+  'DefendOk',
+  'DefendGood',
+  'Ferryboat',
+  'Barbarian',
+  'BarbarianTech',
+  'BarbarianBoat',
+  'BarbarianBuild',
+  'BarbarianBuildTech',
+  'BarbarianLeader',
+  'BarbarianSea',
+  'CitiesStartUnit',
+  'WorkerStartUnit',
+  'ExplorerStartUnit',
+  'BarbarianStartUnit',
+  'Diplomat',
+  'Hunter',
+]);
+
+export const UnitTypeFlagSchema = z.enum([
+  'TradeRoute',
+  'HelpWonder',
+  'IgZOC',
+  'NonMil',
+  'IgTer',
+  'OneAttack',
+  'PickTarget',
+  'Partial_Invis',
+  'Settlers',
+  'Diplomat',
+  'Trireme',
+  'Nuclear',
+  'Spy',
+  'Transform',
+  'Paratroopers',
+  'Airborne',
+  'Marines',
+  'Helicopter',
+  'Fighter',
+  'Bomber',
+  'AWACS',
+  'Stealth',
+  'Partial_Invis',
+  'Cant_Fortify',
+  'No_Land_Attack',
+  'AddToCity',
+  'Fanatic',
+  'GameLoss',
+  'Unique',
+  'Unbribable',
+  'Undisbandable',
+  'SuperSpy',
+  'NoVeteran',
+  'CityBuster',
+  'NoBuild',
+  'BadWallAttacker',
+  'BadCityDefender',
+  'BarbarianOnly',
+  'Shield2Gold',
+  'NewCityGamesOnly',
+  'NoHome',
+  'GainVeteran',
+  'Capturable',
+  'HasInitialVeteran',
+]);
 
 export const UnitTypeRulesetSchema = z.object({
   id: z.string(),
   name: z.string(),
+  internal_name: z.string().optional(),
   cost: z.number().positive(),
   movement: z.number().positive(),
-  combat: z.number().min(0),
-  range: z.number().min(0),
-  sight: z.number().positive(),
-  canFoundCity: z.boolean(),
-  canBuildImprovements: z.boolean(),
-  unitClass: UnitClassSchema,
-  requiredTech: z.string().optional(),
+  attack: z.number().min(0), // Separate attack from defense
+  defense: z.number().min(0), // Separate defense from attack
+  hitpoints: z.number().positive(), // Unit health
+  firepower: z.number().positive().optional().default(1),
+  vision_radius_sq: z.number().min(0).optional().default(1),
+  transport_cap: z.number().min(0).optional().default(0),
+  fuel: z.number().min(0).optional().default(0),
+  uk_happy: z.number().min(0).optional().default(0), // Unhappiness from unit
+  uk_shield: z.number().min(0).optional().default(1), // Shield upkeep cost
+  uk_food: z.number().min(0).optional().default(0), // Food upkeep cost
+  uk_gold: z.number().min(0).optional().default(0), // Gold upkeep cost
+  unit_class: UnitClassSchema,
+  roles: z.array(UnitRoleSchema).optional().default([]),
+  flags: z.array(UnitTypeFlagSchema).optional().default([]),
+  required_tech: z.string().optional(),
+  obsolete_by: z.string().optional(), // Technology that obsoletes this unit
+  build_cost: z.number().positive().optional(), // Alternative to cost
+  pop_cost: z.number().min(0).optional().default(0), // Population cost for settlers
+  convert_to: z.string().optional(), // Unit to convert to
+  convert_time: z.number().optional(), // Time to convert
+  veteran_levels: z.number().min(1).optional().default(1), // Number of veteran levels
+  graphic: z.string().optional(),
+  graphic_alt: z.string().optional(),
+  sound_move: z.string().optional(),
+  sound_move_alt: z.string().optional(),
+  sound_fight: z.string().optional(),
+  sound_fight_alt: z.string().optional(),
+  helptext: z.string().optional(),
+
+  // Backward compatibility fields (deprecated)
+  combat: z.number().min(0).optional(), // Keep for backward compatibility
+  range: z.number().min(0).optional().default(0), // Keep for backward compatibility
+  sight: z.number().positive().optional(), // Keep for backward compatibility
+  canFoundCity: z.boolean().optional(), // Keep for backward compatibility
+  canBuildImprovements: z.boolean().optional(), // Keep for backward compatibility
+  unitClass: UnitClassSchema.optional(), // Keep for backward compatibility
+  requiredTech: z.string().optional(), // Keep for backward compatibility
 });
 
 export const UnitsRulesetFileSchema = z.object({

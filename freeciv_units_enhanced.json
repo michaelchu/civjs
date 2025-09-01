@@ -1,0 +1,3486 @@
+{
+  "datafile": {
+    "description": "Complete Classic unit data for CivJS (ported from freeciv classic ruleset)",
+    "options": "+CivJS-ruleset-1.0-freeciv-classic-complete",
+    "format_version": 2
+  },
+  "about": {
+    "name": "Freeciv Classic Units Ruleset - Complete",
+    "summary": "All 52 unit types from freeciv classic ruleset with exact stats, classes, roles, flags, and technology requirements",
+    "source": "freeciv/data/classic/units.ruleset",
+    "total_units": 52
+  },
+  "unit_classes": {
+    "land": {
+      "name": "Land",
+      "min_speed": 1,
+      "hp_loss_pct": 0,
+      "flags": [
+        "TerrainSpeed",
+        "DamageSlows",
+        "CanOccupyCity",
+        "BuildAnywhere",
+        "CollectRansom",
+        "ZOC",
+        "CanFortify",
+        "CanPillage",
+        "TerrainDefense",
+        "KillCitizen",
+        "NonNatBombardTgt"
+      ]
+    },
+    "sea": {
+      "name": "Sea",
+      "min_speed": 2,
+      "hp_loss_pct": 0,
+      "flags": [
+        "DamageSlows",
+        "AttackNonNative",
+        "AttFromNonNative"
+      ]
+    },
+    "trireme": {
+      "name": "Trireme",
+      "min_speed": 2,
+      "hp_loss_pct": 0,
+      "flags": [
+        "DamageSlows",
+        "AttFromNonNative"
+      ]
+    },
+    "air": {
+      "name": "Air",
+      "min_speed": 1,
+      "hp_loss_pct": 0,
+      "flags": [
+        "Unreachable",
+        "DoesntOccupyTile",
+        "HutFrighten"
+      ]
+    },
+    "helicopter": {
+      "name": "Helicopter",
+      "min_speed": 1,
+      "hp_loss_pct": 10,
+      "flags": [
+        "CanOccupyCity",
+        "CollectRansom"
+      ]
+    },
+    "missile": {
+      "name": "Missile",
+      "min_speed": 1,
+      "hp_loss_pct": 0,
+      "flags": [
+        "Missile",
+        "Unreachable",
+        "DoesntOccupyTile",
+        "HutFrighten"
+      ]
+    }
+  },
+  "units": {
+    "settlers": {
+      "id": "settlers",
+      "name": "Settlers",
+      "attack": 0,
+      "defense": 1,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 40,
+      "pop_cost": 1,
+      "uk_happy": 0,
+      "uk_shield": 1,
+      "uk_food": 1,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "CitiesStartUnit"
+      ],
+      "flags": [
+        "Workers",
+        "Cant_Fortify",
+        "NonMil",
+        "HasNoZOC",
+        "AddToCity",
+        "Cities"
+      ],
+      "required_tech": null,
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.settlers",
+      "graphic_alt": "-",
+      "sound_move": "m_settlers",
+      "sound_fight": "f_settlers",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "worker": {
+      "id": "worker",
+      "name": "?unit:Workers",
+      "attack": 0,
+      "defense": 1,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 30,
+      "pop_cost": 0,
+      "uk_happy": 0,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "Settlers",
+        "WorkerStartUnit"
+      ],
+      "flags": [
+        "Workers",
+        "Cant_Fortify",
+        "NonMil",
+        "HasNoZOC",
+        "Airbase"
+      ],
+      "required_tech": "pottery",
+      "obsolete_by": "engineers",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.worker",
+      "graphic_alt": "u.engineers\" ; for compatibility",
+      "sound_move": "m_worker",
+      "sound_fight": "f_worker",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "engineers": {
+      "id": "engineers",
+      "name": "Engineers",
+      "attack": 0,
+      "defense": 2,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 2,
+      "vision_radius_sq": 2,
+      "build_cost": 40,
+      "pop_cost": 0,
+      "uk_happy": 0,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "Settlers",
+        "WorkerStartUnit"
+      ],
+      "flags": [
+        "Workers",
+        "Cant_Fortify",
+        "NonMil",
+        "HasNoZOC",
+        "Transform",
+        "Airbase"
+      ],
+      "required_tech": "explosives",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.engineers",
+      "graphic_alt": "-",
+      "sound_move": "m_engineers",
+      "sound_fight": "f_engineers",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "warriors": {
+      "id": "warriors",
+      "name": "Warriors",
+      "attack": 1,
+      "defense": 1,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 10,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DefendOk",
+        "DefendOkStartUnit",
+        "FirstBuild"
+      ],
+      "flags": [],
+      "required_tech": null,
+      "obsolete_by": "pikemen",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.warriors",
+      "graphic_alt": "-",
+      "sound_move": "m_warriors",
+      "sound_fight": "f_warriors",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "phalanx": {
+      "id": "phalanx",
+      "name": "Phalanx",
+      "attack": 1,
+      "defense": 2,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 20,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DefendGood",
+        "DefendGoodStartUnit",
+        "FirstBuild"
+      ],
+      "flags": [],
+      "required_tech": "bronze_working",
+      "obsolete_by": "pikemen",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.phalanx",
+      "graphic_alt": "-",
+      "sound_move": "m_phalanx",
+      "sound_fight": "f_phalanx",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "archers": {
+      "id": "archers",
+      "name": "Archers",
+      "attack": 3,
+      "defense": 2,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 30,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DefendOk",
+        "DefendOkStartUnit"
+      ],
+      "flags": [],
+      "required_tech": "warrior_code",
+      "obsolete_by": "musketeers",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.archers",
+      "graphic_alt": "-",
+      "sound_move": "m_archers",
+      "sound_fight": "f_archers",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "legion": {
+      "id": "legion",
+      "name": "Legion",
+      "attack": 4,
+      "defense": 2,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 40,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DefendOk",
+        "Hut",
+        "BarbarianBuild",
+        "BarbarianSea"
+      ],
+      "flags": [],
+      "required_tech": "iron_working",
+      "obsolete_by": "musketeers",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.legion",
+      "graphic_alt": "-",
+      "sound_move": "m_legion",
+      "sound_fight": "f_legion",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "pikemen": {
+      "id": "pikemen",
+      "name": "Pikemen",
+      "attack": 1,
+      "defense": 2,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 20,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DefendGood",
+        "DefendGoodStartUnit",
+        "FirstBuild"
+      ],
+      "flags": [],
+      "required_tech": "feudalism",
+      "obsolete_by": "musketeers",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.pikemen",
+      "graphic_alt": "-",
+      "sound_move": "m_pikemen",
+      "sound_fight": "f_pikemen",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "musketeers": {
+      "id": "musketeers",
+      "name": "Musketeers",
+      "attack": 3,
+      "defense": 3,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 30,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DefendGood",
+        "DefendGoodStartUnit",
+        "FirstBuild",
+        "HutTech"
+      ],
+      "flags": [],
+      "required_tech": "gunpowder",
+      "obsolete_by": "riflemen",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.musketeers",
+      "graphic_alt": "-",
+      "sound_move": "m_musketeers",
+      "sound_fight": "f_musketeers",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "partisan": {
+      "id": "partisan",
+      "name": "Partisan",
+      "attack": 4,
+      "defense": 4,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 50,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DefendGood",
+        "DefendGoodStartUnit",
+        "Partisan",
+        "BarbarianTech"
+      ],
+      "flags": [
+        "IgTer",
+        "IgZOC"
+      ],
+      "required_tech": "guerilla_warfare",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.partisan",
+      "graphic_alt": "-",
+      "sound_move": "m_partisan",
+      "sound_fight": "f_partisan",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "alpine_troops": {
+      "id": "alpine_troops",
+      "name": "Alpine Troops",
+      "attack": 5,
+      "defense": 5,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 50,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DefendGood",
+        "DefendGoodStartUnit"
+      ],
+      "flags": [
+        "IgTer"
+      ],
+      "required_tech": "tactics",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.alpine_troops",
+      "graphic_alt": "-",
+      "sound_move": "m_alpine_troops",
+      "sound_fight": "f_alpine_troops",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "riflemen": {
+      "id": "riflemen",
+      "name": "Riflemen",
+      "attack": 5,
+      "defense": 4,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 40,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DefendGood",
+        "DefendGoodStartUnit",
+        "FirstBuild"
+      ],
+      "flags": [],
+      "required_tech": "conscription",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.riflemen",
+      "graphic_alt": "-",
+      "sound_move": "m_riflemen",
+      "sound_fight": "f_riflemen",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "marines": {
+      "id": "marines",
+      "name": "Marines",
+      "attack": 8,
+      "defense": 5,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 60,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DefendOk",
+        "DefendOkStartUnit",
+        "BarbarianSeaTech"
+      ],
+      "flags": [
+        "Marines"
+      ],
+      "required_tech": "amphibious_warfare",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.marines",
+      "graphic_alt": "-",
+      "sound_move": "m_marines",
+      "sound_fight": "f_marines",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "paratroopers": {
+      "id": "paratroopers",
+      "name": "Paratroopers",
+      "attack": 6,
+      "defense": 4,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 60,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DefendOk"
+      ],
+      "flags": [
+        "Paratroopers"
+      ],
+      "required_tech": "combined_arms",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.paratroopers",
+      "graphic_alt": "-",
+      "sound_move": "m_paratroopers",
+      "sound_fight": "f_paratroopers",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "mech_inf": {
+      "id": "mech_inf",
+      "name": "Mech. Inf.",
+      "attack": 6,
+      "defense": 6,
+      "hitpoints": 30,
+      "firepower": 1,
+      "move_rate": 3,
+      "vision_radius_sq": 2,
+      "build_cost": 50,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DefendGood",
+        "DefendGoodStartUnit"
+      ],
+      "flags": [],
+      "required_tech": "labor_union",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.mech_inf",
+      "graphic_alt": "-",
+      "sound_move": "m_mech_inf",
+      "sound_fight": "f_mech_inf",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "horsemen": {
+      "id": "horsemen",
+      "name": "Horsemen",
+      "attack": 2,
+      "defense": 1,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 2,
+      "vision_radius_sq": 2,
+      "build_cost": 20,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "AttackFastStartUnit",
+        "Hut",
+        "Barbarian",
+        "Hunter"
+      ],
+      "flags": [
+        "Horse"
+      ],
+      "required_tech": "horseback_riding",
+      "obsolete_by": "knights",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.horsemen",
+      "graphic_alt": "-",
+      "sound_move": "m_horsemen",
+      "sound_fight": "f_horsemen",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "chariot": {
+      "id": "chariot",
+      "name": "Chariot",
+      "attack": 3,
+      "defense": 1,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 2,
+      "vision_radius_sq": 2,
+      "build_cost": 30,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "AttackFastStartUnit",
+        "Hut",
+        "Hunter"
+      ],
+      "flags": [
+        "Horse"
+      ],
+      "required_tech": "the_wheel",
+      "obsolete_by": "knights",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.chariot",
+      "graphic_alt": "-",
+      "sound_move": "m_chariot",
+      "sound_fight": "f_chariot",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "knights": {
+      "id": "knights",
+      "name": "Knights",
+      "attack": 4,
+      "defense": 2,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 2,
+      "vision_radius_sq": 2,
+      "build_cost": 40,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "AttackFastStartUnit",
+        "HutTech",
+        "BarbarianTech"
+      ],
+      "flags": [
+        "Horse"
+      ],
+      "required_tech": "chivalry",
+      "obsolete_by": "dragoons",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.knights",
+      "graphic_alt": "-",
+      "sound_move": "m_knights",
+      "sound_fight": "f_knights",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "dragoons": {
+      "id": "dragoons",
+      "name": "Dragoons",
+      "attack": 5,
+      "defense": 2,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 2,
+      "vision_radius_sq": 2,
+      "build_cost": 50,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "AttackFastStartUnit",
+        "BarbarianBuildTech",
+        "BarbarianSeaTech"
+      ],
+      "flags": [
+        "Horse"
+      ],
+      "required_tech": "leadership",
+      "obsolete_by": "cavalry",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.dragoons",
+      "graphic_alt": "-",
+      "sound_move": "m_dragoons",
+      "sound_fight": "f_dragoons",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "cavalry": {
+      "id": "cavalry",
+      "name": "Cavalry",
+      "attack": 8,
+      "defense": 3,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 2,
+      "vision_radius_sq": 2,
+      "build_cost": 60,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "AttackFastStartUnit",
+        "Hunter"
+      ],
+      "flags": [],
+      "required_tech": "tactics",
+      "obsolete_by": "armor",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.cavalry",
+      "graphic_alt": "-",
+      "sound_move": "m_cavalry",
+      "sound_fight": "f_cavalry",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "armor": {
+      "id": "armor",
+      "name": "Armor",
+      "attack": 10,
+      "defense": 5,
+      "hitpoints": 30,
+      "firepower": 1,
+      "move_rate": 3,
+      "vision_radius_sq": 2,
+      "build_cost": 80,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "AttackFastStartUnit",
+        "Hunter"
+      ],
+      "flags": [],
+      "required_tech": "mobile_warfare",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.armor",
+      "graphic_alt": "-",
+      "sound_move": "m_armor",
+      "sound_fight": "f_armor",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "catapult": {
+      "id": "catapult",
+      "name": "Catapult",
+      "attack": 6,
+      "defense": 1,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 40,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "AttackStrongStartUnit"
+      ],
+      "flags": [],
+      "required_tech": "mathematics",
+      "obsolete_by": "cannon",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.catapult",
+      "graphic_alt": "-",
+      "sound_move": "m_catapult",
+      "sound_fight": "f_catapult",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "cannon": {
+      "id": "cannon",
+      "name": "Cannon",
+      "attack": 8,
+      "defense": 1,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 40,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "AttackStrongStartUnit",
+        "BarbarianTech",
+        "BarbarianBuildTech"
+      ],
+      "flags": [],
+      "required_tech": "metallurgy",
+      "obsolete_by": "artillery",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.cannon",
+      "graphic_alt": "-",
+      "sound_move": "m_cannon",
+      "sound_fight": "f_cannon",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "artillery": {
+      "id": "artillery",
+      "name": "Artillery",
+      "attack": 10,
+      "defense": 1,
+      "hitpoints": 20,
+      "firepower": 2,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 50,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "AttackStrongStartUnit"
+      ],
+      "flags": [],
+      "required_tech": "machine_tools",
+      "obsolete_by": "howitzer",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.artillery",
+      "graphic_alt": "-",
+      "sound_move": "m_artillery",
+      "sound_fight": "f_artillery",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "howitzer": {
+      "id": "howitzer",
+      "name": "Howitzer",
+      "attack": 12,
+      "defense": 2,
+      "hitpoints": 30,
+      "firepower": 2,
+      "move_rate": 2,
+      "vision_radius_sq": 2,
+      "build_cost": 70,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "AttackStrongStartUnit"
+      ],
+      "flags": [],
+      "required_tech": "robotics",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.howitzer",
+      "graphic_alt": "-",
+      "sound_move": "m_howitzer",
+      "sound_fight": "f_howitzer",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "fighter": {
+      "id": "fighter",
+      "name": "Fighter",
+      "attack": 4,
+      "defense": 3,
+      "hitpoints": 20,
+      "firepower": 2,
+      "move_rate": 10,
+      "vision_radius_sq": 8,
+      "build_cost": 60,
+      "pop_cost": 0,
+      "uk_happy": 0,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 1,
+      "unit_class": "Air",
+      "roles": [],
+      "flags": [
+        "AirAttacker"
+      ],
+      "required_tech": "flight",
+      "obsolete_by": "stealth_fighter",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.fighter",
+      "graphic_alt": "-",
+      "sound_move": "m_fighter",
+      "sound_fight": "f_fighter",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "bomber": {
+      "id": "bomber",
+      "name": "Bomber",
+      "attack": 12,
+      "defense": 1,
+      "hitpoints": 20,
+      "firepower": 2,
+      "move_rate": 8,
+      "vision_radius_sq": 8,
+      "build_cost": 120,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 2,
+      "unit_class": "Air",
+      "roles": [],
+      "flags": [
+        "FieldUnit",
+        "OneAttack",
+        "AirAttacker",
+        "HasNoZOC",
+        "Bomber"
+      ],
+      "required_tech": "advanced_flight",
+      "obsolete_by": "stealth_bomber",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.bomber",
+      "graphic_alt": "-",
+      "sound_move": "m_bomber",
+      "sound_fight": "f_bomber",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "helicopter": {
+      "id": "helicopter",
+      "name": "Helicopter",
+      "attack": 10,
+      "defense": 3,
+      "hitpoints": 20,
+      "firepower": 2,
+      "move_rate": 6,
+      "vision_radius_sq": 8,
+      "build_cost": 100,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Helicopter",
+      "roles": [],
+      "flags": [
+        "FieldUnit",
+        "OneAttack",
+        "Helicopter",
+        "AirAttacker"
+      ],
+      "required_tech": "combined_arms",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.helicopter",
+      "graphic_alt": "-",
+      "sound_move": "m_helicopter",
+      "sound_fight": "f_helicopter",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "stealth_fighter": {
+      "id": "stealth_fighter",
+      "name": "Stealth Fighter",
+      "attack": 8,
+      "defense": 4,
+      "hitpoints": 20,
+      "firepower": 2,
+      "move_rate": 14,
+      "vision_radius_sq": 8,
+      "build_cost": 80,
+      "pop_cost": 0,
+      "uk_happy": 0,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 1,
+      "unit_class": "Air",
+      "roles": [],
+      "flags": [
+        "AirAttacker"
+      ],
+      "required_tech": "stealth",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.stealth_fighter",
+      "graphic_alt": "-",
+      "sound_move": "m_stealth_fighter",
+      "sound_fight": "f_stealth_fighter",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "stealth_bomber": {
+      "id": "stealth_bomber",
+      "name": "Stealth Bomber",
+      "attack": 18,
+      "defense": 5,
+      "hitpoints": 20,
+      "firepower": 2,
+      "move_rate": 12,
+      "vision_radius_sq": 8,
+      "build_cost": 160,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 2,
+      "unit_class": "Air",
+      "roles": [],
+      "flags": [
+        "FieldUnit",
+        "OneAttack",
+        "AirAttacker",
+        "HasNoZOC"
+      ],
+      "required_tech": "stealth",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.stealth_bomber",
+      "graphic_alt": "-",
+      "sound_move": "m_stealth_bomber",
+      "sound_fight": "f_stealth_bomber",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "trireme": {
+      "id": "trireme",
+      "name": "Trireme",
+      "attack": 1,
+      "defense": 1,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 3,
+      "vision_radius_sq": 2,
+      "build_cost": 40,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 2,
+      "fuel": 0,
+      "unit_class": "Trireme",
+      "roles": [
+        "Ferryboat",
+        "FerryStartUnit"
+      ],
+      "flags": [
+        "BadCityDefender",
+        "Provoking"
+      ],
+      "required_tech": "map_making",
+      "obsolete_by": "caravel",
+      "tp_defense": "Alight",
+      "cargo": [
+        "Land"
+      ],
+      "graphic": "u.trireme",
+      "graphic_alt": "-",
+      "sound_move": "m_trireme",
+      "sound_fight": "f_trireme",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "caravel": {
+      "id": "caravel",
+      "name": "Caravel",
+      "attack": 2,
+      "defense": 1,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 3,
+      "vision_radius_sq": 2,
+      "build_cost": 40,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 3,
+      "fuel": 0,
+      "unit_class": "Sea",
+      "roles": [
+        "Ferryboat",
+        "FerryStartUnit",
+        "BarbarianBoat"
+      ],
+      "flags": [
+        "BadCityDefender",
+        "Provoking"
+      ],
+      "required_tech": "navigation",
+      "obsolete_by": "galleon",
+      "tp_defense": "Alight",
+      "cargo": [
+        "Land"
+      ],
+      "graphic": "u.caravel",
+      "graphic_alt": "-",
+      "sound_move": "m_caravel",
+      "sound_fight": "f_caravel",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "galleon": {
+      "id": "galleon",
+      "name": "Galleon",
+      "attack": 0,
+      "defense": 2,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 4,
+      "vision_radius_sq": 2,
+      "build_cost": 40,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 4,
+      "fuel": 0,
+      "unit_class": "Sea",
+      "roles": [
+        "Ferryboat",
+        "FerryStartUnit",
+        "BarbarianBoat"
+      ],
+      "flags": [
+        "BadCityDefender",
+        "Provoking"
+      ],
+      "required_tech": "magnetism",
+      "obsolete_by": "transport",
+      "tp_defense": "Alight",
+      "cargo": [
+        "Land"
+      ],
+      "graphic": "u.galleon",
+      "graphic_alt": "-",
+      "sound_move": "m_galleon",
+      "sound_fight": "f_galleon",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "frigate": {
+      "id": "frigate",
+      "name": "Frigate",
+      "attack": 4,
+      "defense": 2,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 4,
+      "vision_radius_sq": 2,
+      "build_cost": 50,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 2,
+      "fuel": 0,
+      "unit_class": "Sea",
+      "roles": [
+        "Hunter"
+      ],
+      "flags": [
+        "BadCityDefender",
+        "Provoking"
+      ],
+      "required_tech": "magnetism",
+      "obsolete_by": "ironclad",
+      "tp_defense": "Alight",
+      "cargo": [
+        "Land"
+      ],
+      "graphic": "u.frigate",
+      "graphic_alt": "-",
+      "sound_move": "m_frigate",
+      "sound_fight": "f_frigate",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "ironclad": {
+      "id": "ironclad",
+      "name": "Ironclad",
+      "attack": 4,
+      "defense": 4,
+      "hitpoints": 30,
+      "firepower": 1,
+      "move_rate": 4,
+      "vision_radius_sq": 2,
+      "build_cost": 60,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Sea",
+      "roles": [
+        "Hunter"
+      ],
+      "flags": [
+        "BadCityDefender"
+      ],
+      "required_tech": "steam_engine",
+      "obsolete_by": "destroyer",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.ironclad",
+      "graphic_alt": "-",
+      "sound_move": "m_ironclad",
+      "sound_fight": "f_ironclad",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "destroyer": {
+      "id": "destroyer",
+      "name": "Destroyer",
+      "attack": 4,
+      "defense": 4,
+      "hitpoints": 30,
+      "firepower": 1,
+      "move_rate": 6,
+      "vision_radius_sq": 8,
+      "build_cost": 60,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Sea",
+      "roles": [
+        "Hunter"
+      ],
+      "flags": [
+        "BadCityDefender"
+      ],
+      "required_tech": "electricity",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.destroyer",
+      "graphic_alt": "-",
+      "sound_move": "m_destroyer",
+      "sound_fight": "f_destroyer",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "cruiser": {
+      "id": "cruiser",
+      "name": "Cruiser",
+      "attack": 6,
+      "defense": 6,
+      "hitpoints": 30,
+      "firepower": 2,
+      "move_rate": 5,
+      "vision_radius_sq": 8,
+      "build_cost": 80,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Sea",
+      "roles": [
+        "DefendGood",
+        "DefendGoodStartUnit"
+      ],
+      "flags": [
+        "BadCityDefender"
+      ],
+      "required_tech": "steel",
+      "obsolete_by": "aegis_cruiser",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.cruiser",
+      "graphic_alt": "-",
+      "sound_move": "m_cruiser",
+      "sound_fight": "f_cruiser",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "aegis_cruiser": {
+      "id": "aegis_cruiser",
+      "name": "AEGIS Cruiser",
+      "attack": 8,
+      "defense": 8,
+      "hitpoints": 30,
+      "firepower": 2,
+      "move_rate": 5,
+      "vision_radius_sq": 8,
+      "build_cost": 100,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Sea",
+      "roles": [
+        "DefendGood",
+        "DefendGoodStartUnit"
+      ],
+      "flags": [
+        "BadCityDefender"
+      ],
+      "required_tech": "rocketry",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.aegis_cruiser",
+      "graphic_alt": "-",
+      "sound_move": "m_aegis_cruiser",
+      "sound_fight": "f_aegis_cruiser",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "battleship": {
+      "id": "battleship",
+      "name": "Battleship",
+      "attack": 12,
+      "defense": 12,
+      "hitpoints": 40,
+      "firepower": 2,
+      "move_rate": 4,
+      "vision_radius_sq": 8,
+      "build_cost": 160,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Sea",
+      "roles": [],
+      "flags": [
+        "BadCityDefender"
+      ],
+      "required_tech": "automobile",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.battleship",
+      "graphic_alt": "-",
+      "sound_move": "m_battleship",
+      "sound_fight": "f_battleship",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "submarine": {
+      "id": "submarine",
+      "name": "Submarine",
+      "attack": 12,
+      "defense": 2,
+      "hitpoints": 30,
+      "firepower": 2,
+      "move_rate": 5,
+      "vision_radius_sq": 8,
+      "build_cost": 50,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 8,
+      "fuel": 0,
+      "unit_class": "Sea",
+      "roles": [
+        "Hunter"
+      ],
+      "flags": [
+        "BadCityDefender",
+        "Provoking"
+      ],
+      "required_tech": "combustion",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [
+        "Missile"
+      ],
+      "graphic": "u.submarine",
+      "graphic_alt": "-",
+      "sound_move": "m_submarine",
+      "sound_fight": "f_submarine",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "carrier": {
+      "id": "carrier",
+      "name": "Carrier",
+      "attack": 1,
+      "defense": 9,
+      "hitpoints": 40,
+      "firepower": 2,
+      "move_rate": 5,
+      "vision_radius_sq": 8,
+      "build_cost": 160,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 8,
+      "fuel": 0,
+      "unit_class": "Sea",
+      "roles": [],
+      "flags": [
+        "BadCityDefender",
+        "Only_Native_Attack",
+        "Provoking"
+      ],
+      "required_tech": "advanced_flight",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [
+        "Air\", \"Missile\", \"Helicopter"
+      ],
+      "graphic": "u.carrier",
+      "graphic_alt": "-",
+      "sound_move": "m_carrier",
+      "sound_fight": "f_carrier",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "transport": {
+      "id": "transport",
+      "name": "Transport",
+      "attack": 0,
+      "defense": 3,
+      "hitpoints": 30,
+      "firepower": 1,
+      "move_rate": 5,
+      "vision_radius_sq": 8,
+      "build_cost": 50,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 8,
+      "fuel": 0,
+      "unit_class": "Sea",
+      "roles": [
+        "Ferryboat",
+        "FerryStartUnit"
+      ],
+      "flags": [
+        "BadCityDefender",
+        "Provoking"
+      ],
+      "required_tech": "industrialization",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [
+        "Land"
+      ],
+      "graphic": "u.transport",
+      "graphic_alt": "-",
+      "sound_move": "m_transport",
+      "sound_fight": "f_transport",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "cruise_missile": {
+      "id": "cruise_missile",
+      "name": "Cruise Missile",
+      "attack": 18,
+      "defense": 0,
+      "hitpoints": 10,
+      "firepower": 3,
+      "move_rate": 12,
+      "vision_radius_sq": 2,
+      "build_cost": 60,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 1,
+      "unit_class": "Missile",
+      "roles": [],
+      "flags": [
+        "FieldUnit",
+        "OneAttack",
+        "AirAttacker",
+        "HasNoZOC"
+      ],
+      "required_tech": "rocketry",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.cruise_missile",
+      "graphic_alt": "-",
+      "sound_move": "m_cruise_missile",
+      "sound_fight": "f_cruise_missile",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "nuclear": {
+      "id": "nuclear",
+      "name": "Nuclear",
+      "attack": 99,
+      "defense": 0,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 16,
+      "vision_radius_sq": 2,
+      "build_cost": 160,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 1,
+      "unit_class": "Missile",
+      "roles": [],
+      "flags": [
+        "FieldUnit",
+        "OneAttack",
+        "Nuclear",
+        "HasNoZOC"
+      ],
+      "required_tech": "rocketry",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.nuclear",
+      "graphic_alt": "-",
+      "sound_move": "m_nuclear",
+      "sound_fight": "f_nuclear",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "diplomat": {
+      "id": "diplomat",
+      "name": "Diplomat",
+      "attack": 0,
+      "defense": 0,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 2,
+      "vision_radius_sq": 2,
+      "build_cost": 30,
+      "pop_cost": 0,
+      "uk_happy": 0,
+      "uk_shield": 0,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DiplomatStartUnit"
+      ],
+      "flags": [
+        "Diplomat",
+        "IgZOC",
+        "NonMil",
+        "HasNoZOC",
+        "Provoking"
+      ],
+      "required_tech": "writing",
+      "obsolete_by": "spy",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.diplomat",
+      "graphic_alt": "-",
+      "sound_move": "m_diplomat",
+      "sound_fight": "f_diplomat",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "spy": {
+      "id": "spy",
+      "name": "Spy",
+      "attack": 0,
+      "defense": 0,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 3,
+      "vision_radius_sq": 8,
+      "build_cost": 30,
+      "pop_cost": 0,
+      "uk_happy": 0,
+      "uk_shield": 0,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "DiplomatStartUnit"
+      ],
+      "flags": [
+        "Diplomat",
+        "IgZOC",
+        "NonMil",
+        "HasNoZOC",
+        "Spy"
+      ],
+      "required_tech": "espionage",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.spy",
+      "graphic_alt": "-",
+      "sound_move": "m_spy",
+      "sound_fight": "f_spy",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "caravan": {
+      "id": "caravan",
+      "name": "Caravan",
+      "attack": 0,
+      "defense": 1,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 50,
+      "pop_cost": 0,
+      "uk_happy": 0,
+      "uk_shield": 0,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [],
+      "flags": [
+        "TradeRoute",
+        "HelpWonder",
+        "IgZOC",
+        "NonMil",
+        "HasNoZOC"
+      ],
+      "required_tech": "trade",
+      "obsolete_by": "freight",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.caravan",
+      "graphic_alt": "-",
+      "sound_move": "m_caravan",
+      "sound_fight": "f_caravan",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "freight": {
+      "id": "freight",
+      "name": "Freight",
+      "attack": 0,
+      "defense": 1,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 2,
+      "vision_radius_sq": 2,
+      "build_cost": 50,
+      "pop_cost": 0,
+      "uk_happy": 0,
+      "uk_shield": 0,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [],
+      "flags": [
+        "TradeRoute",
+        "HelpWonder",
+        "IgZOC",
+        "NonMil",
+        "HasNoZOC"
+      ],
+      "required_tech": "the_corporation",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.freight",
+      "graphic_alt": "-",
+      "sound_move": "m_freight",
+      "sound_fight": "f_freight",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "explorer": {
+      "id": "explorer",
+      "name": "Explorer",
+      "attack": 0,
+      "defense": 1,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "build_cost": 30,
+      "pop_cost": 0,
+      "uk_happy": 0,
+      "uk_shield": 0,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "Explorer",
+        "ExplorerStartUnit"
+      ],
+      "flags": [
+        "IgTer",
+        "IgZOC",
+        "NonMil",
+        "HasNoZOC"
+      ],
+      "required_tech": "seafaring",
+      "obsolete_by": "partisan",
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.explorer",
+      "graphic_alt": "-",
+      "sound_move": "m_explorer",
+      "sound_fight": "f_explorer",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "leader": {
+      "id": "leader",
+      "name": "?unit:Leader",
+      "attack": 0,
+      "defense": 2,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 2,
+      "vision_radius_sq": 8,
+      "build_cost": 10,
+      "pop_cost": 0,
+      "uk_happy": 0,
+      "uk_shield": 0,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "KingStartUnit"
+      ],
+      "flags": [
+        "IgZOC",
+        "NonMil",
+        "HasNoZOC",
+        "NoBuild",
+        "NoHome",
+        "SuperSpy"
+      ],
+      "required_tech": null,
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.leader",
+      "graphic_alt": "u.explorer",
+      "sound_move": "m_leader",
+      "sound_fight": "f_leader",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "barbarian_leader": {
+      "id": "barbarian_leader",
+      "name": "Barbarian Leader",
+      "attack": 0,
+      "defense": 0,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 2,
+      "vision_radius_sq": 2,
+      "build_cost": 40,
+      "pop_cost": 0,
+      "uk_happy": 0,
+      "uk_shield": 0,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 0,
+      "unit_class": "Land",
+      "roles": [
+        "BarbarianLeader"
+      ],
+      "flags": [
+        "IgZOC",
+        "NonMil",
+        "HasNoZOC",
+        "Unbribable"
+      ],
+      "required_tech": null,
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.barbarian_leader",
+      "graphic_alt": "u.diplomat",
+      "sound_move": "m_barbarian_leader",
+      "sound_fight": "f_barbarian_leader",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "awacs": {
+      "id": "awacs",
+      "name": "AWACS",
+      "attack": 0,
+      "defense": 1,
+      "hitpoints": 20,
+      "firepower": 1,
+      "move_rate": 16,
+      "vision_radius_sq": 26,
+      "build_cost": 140,
+      "pop_cost": 0,
+      "uk_happy": 1,
+      "uk_shield": 1,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "transport_cap": 0,
+      "fuel": 2,
+      "unit_class": "Air",
+      "roles": [],
+      "flags": [
+        "HasNoZOC"
+      ],
+      "required_tech": "advanced_flight",
+      "obsolete_by": null,
+      "tp_defense": "Alight",
+      "cargo": [],
+      "graphic": "u.awacs",
+      "graphic_alt": "u.bomber\"  ; backwards compatibility",
+      "sound_move": "m_awacs",
+      "sound_fight": "f_awacs",
+      "veteran_levels": 4,
+      "veteran_names": [
+        "green",
+        "veteran",
+        "hardened",
+        "elite"
+      ],
+      "veteran_base_raise_chance": [
+        50,
+        33,
+        20,
+        0
+      ],
+      "veteran_work_raise_chance": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "veteran_power_fact": [
+        100,
+        150,
+        175,
+        200
+      ],
+      "veteran_move_bonus": [
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  }
+}
