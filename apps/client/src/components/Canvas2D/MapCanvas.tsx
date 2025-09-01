@@ -96,7 +96,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     // FIRST: Try to find player's assigned starting position from map generation
     const currentPlayerId = gameState.currentPlayerId;
     const playerStartPos = gameState.mapData?.startingPositions?.find(
-      pos => pos.playerId === currentPlayerId
+      (pos: { x: number; y: number; playerId: string }) => pos.playerId === currentPlayerId
     );
 
     if (playerStartPos) {
@@ -332,7 +332,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
         // Find unit at clicked position
         const unitAtPosition = Object.values(units).find(
-          unit => unit.x === tileX && unit.y === tileY
+          (unit: Unit) => unit.x === tileX && unit.y === tileY
         );
 
         if (unitAtPosition) {
@@ -464,7 +464,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
       // Find unit at right-clicked position
       const unitAtPosition = Object.values(units).find(
-        unit => unit.x === tileX && unit.y === tileY
+        (unit: Unit) => unit.x === tileX && unit.y === tileY
       );
 
       if (unitAtPosition) {
