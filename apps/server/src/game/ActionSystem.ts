@@ -1,10 +1,18 @@
 import { logger } from '../utils/logger';
-import { ActionType, ActionDefinition, ActionResult, ActionProbability, ActionCategory, ActionTargetType, ActionMovesActor } from '../../../shared/src/types/actions';
+import {
+  ActionType,
+  ActionDefinition,
+  ActionResult,
+  ActionProbability,
+  ActionCategory,
+  ActionTargetType,
+  ActionMovesActor,
+} from '../types/shared/actions';
 import { Unit } from './UnitManager';
 
 // Action definitions based on freeciv classic ruleset
 // @reference freeciv/common/actions.c
-const ACTION_DEFINITIONS: Record<ActionType, ActionDefinition> = {
+const ACTION_DEFINITIONS = {
   // Basic movement actions
   [ActionType.MOVE]: {
     id: ActionType.MOVE,
@@ -16,15 +24,13 @@ const ACTION_DEFINITIONS: Record<ActionType, ActionDefinition> = {
     consumes_actor: false,
     moves_actor: ActionMovesActor.MOVES_TO_TARGET,
   },
-  
+
   [ActionType.ATTACK]: {
     id: ActionType.ATTACK,
     name: 'Attack',
     description: 'Attack enemy unit or city',
     category: ActionCategory.MILITARY,
-    requirements: [
-      { type: 'unit_type', value: ['warrior', 'archer', 'spearman'], present: true }
-    ],
+    requirements: [{ type: 'unit_type', value: ['warrior', 'archer', 'spearman'], present: true }],
     targetType: ActionTargetType.UNIT,
     consumes_actor: false,
     moves_actor: ActionMovesActor.STAYS,
@@ -36,9 +42,7 @@ const ACTION_DEFINITIONS: Record<ActionType, ActionDefinition> = {
     description: 'Fortify unit for defensive bonus',
     hotkey: 'F',
     category: ActionCategory.BASIC,
-    requirements: [
-      { type: 'unit_type', value: ['warrior', 'archer', 'spearman'], present: true }
-    ],
+    requirements: [{ type: 'unit_type', value: ['warrior', 'archer', 'spearman'], present: true }],
     targetType: ActionTargetType.NONE,
     consumes_actor: false,
     moves_actor: ActionMovesActor.STAYS,
@@ -86,9 +90,7 @@ const ACTION_DEFINITIONS: Record<ActionType, ActionDefinition> = {
     description: 'Found a new city at this location',
     hotkey: 'B',
     category: ActionCategory.BUILD,
-    requirements: [
-      { type: 'unit_flag', value: 'canFoundCity', present: true }
-    ],
+    requirements: [{ type: 'unit_flag', value: 'canFoundCity', present: true }],
     targetType: ActionTargetType.NONE,
     consumes_actor: true,
     moves_actor: ActionMovesActor.STAYS,
@@ -100,9 +102,7 @@ const ACTION_DEFINITIONS: Record<ActionType, ActionDefinition> = {
     description: 'Build a road on this tile',
     hotkey: 'R',
     category: ActionCategory.BUILD,
-    requirements: [
-      { type: 'unit_flag', value: 'canBuildImprovements', present: true }
-    ],
+    requirements: [{ type: 'unit_flag', value: 'canBuildImprovements', present: true }],
     targetType: ActionTargetType.NONE,
     consumes_actor: false,
     moves_actor: ActionMovesActor.STAYS,
@@ -135,36 +135,44 @@ const ACTION_DEFINITIONS: Record<ActionType, ActionDefinition> = {
   // Simplified definitions for other actions (to be expanded)
   ...Object.fromEntries(
     Object.values(ActionType)
-      .filter(actionType => ![
-        ActionType.MOVE,
-        ActionType.ATTACK,
-        ActionType.FORTIFY,
-        ActionType.SENTRY,
-        ActionType.WAIT,
-        ActionType.GOTO,
-        ActionType.FOUND_CITY,
-        ActionType.BUILD_ROAD,
-        ActionType.AUTO_EXPLORE,
-        ActionType.SKIP_TURN,
-      ].includes(actionType))
-      .map(actionType => [actionType, {
-        id: actionType,
-        name: actionType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-        description: `Perform ${actionType.replace(/_/g, ' ').toLowerCase()}`,
-        category: ActionCategory.BASIC,
-        requirements: [],
-        targetType: ActionTargetType.NONE,
-        consumes_actor: false,
-        moves_actor: ActionMovesActor.STAYS,
-      }])
+      .filter(
+        actionType =>
+          ![
+            ActionType.MOVE,
+            ActionType.ATTACK,
+            ActionType.FORTIFY,
+            ActionType.SENTRY,
+            ActionType.WAIT,
+            ActionType.GOTO,
+            ActionType.FOUND_CITY,
+            ActionType.BUILD_ROAD,
+            ActionType.AUTO_EXPLORE,
+            ActionType.SKIP_TURN,
+          ].includes(actionType)
+      )
+      .map(actionType => [
+        actionType,
+        {
+          id: actionType,
+          name: actionType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          description: `Perform ${actionType.replace(/_/g, ' ').toLowerCase()}`,
+          category: ActionCategory.BASIC,
+          requirements: [],
+          targetType: ActionTargetType.NONE,
+          consumes_actor: false,
+          moves_actor: ActionMovesActor.STAYS,
+        },
+      ])
   ),
-};
+} as unknown as Record<ActionType, ActionDefinition>;
 
 export class ActionSystem {
   private gameId: string;
 
   constructor(gameId: string) {
     this.gameId = gameId;
+    // Store gameId for future game state validation
+    void this.gameId; // Explicitly mark as stored for future use
   }
 
   /**
@@ -178,7 +186,12 @@ export class ActionSystem {
    * Check if unit can perform action
    * @reference freeciv/common/actions.c action_prob()
    */
-  canUnitPerformAction(unit: Unit, actionType: ActionType, targetX?: number, targetY?: number): boolean {
+  canUnitPerformAction(
+    unit: Unit,
+    actionType: ActionType,
+    targetX?: number,
+    targetY?: number
+  ): boolean {
     const actionDef = this.getActionDefinition(actionType);
     if (!actionDef) {
       return false;
@@ -222,7 +235,12 @@ export class ActionSystem {
   /**
    * Get action probability for unit
    */
-  getActionProbability(unit: Unit, actionType: ActionType, targetX?: number, targetY?: number): ActionProbability {
+  getActionProbability(
+    unit: Unit,
+    actionType: ActionType,
+    targetX?: number,
+    targetY?: number
+  ): ActionProbability {
     if (!this.canUnitPerformAction(unit, actionType, targetX, targetY)) {
       return { min: 0, max: 0 };
     }
@@ -308,13 +326,21 @@ export class ActionSystem {
   /**
    * Check if requirement is satisfied
    */
-  private checkRequirement(unit: Unit, requirement: any, targetX?: number, targetY?: number): boolean {
+  private checkRequirement(
+    unit: Unit,
+    requirement: any,
+    _targetX?: number,
+    _targetY?: number
+  ): boolean {
     switch (requirement.type) {
-      case 'unit_type':
-        const validTypes = Array.isArray(requirement.value) ? requirement.value : [requirement.value];
-        return requirement.present 
+      case 'unit_type': {
+        const validTypes = Array.isArray(requirement.value)
+          ? requirement.value
+          : [requirement.value];
+        return requirement.present
           ? validTypes.includes(unit.unitTypeId)
           : !validTypes.includes(unit.unitTypeId);
+      }
 
       case 'unit_flag':
         // This would check unit capabilities from ruleset data

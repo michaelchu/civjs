@@ -26,12 +26,14 @@ export class TilesetLoader {
     // Constants are now defined at module load time
   }
 
-  async loadTileset(serverUrl: string): Promise<void> {
+  async loadTileset(): Promise<void> {
     try {
-      await this.loadConfig(`${serverUrl}/js/2dcanvas/tileset_config_amplio2.js`);
+      // Load tileset files from client's domain instead of server URL
+      // This fixes issues with separate client/server deployments on Railway
+      await this.loadConfig(`/js/2dcanvas/tileset_config_amplio2.js`);
 
-      await this.loadSpec(`${serverUrl}/js/2dcanvas/tileset_spec_amplio2.js`);
-      await this.loadSpriteSheets(serverUrl);
+      await this.loadSpec(`/js/2dcanvas/tileset_spec_amplio2.js`);
+      await this.loadSpriteSheets();
 
       this.cacheSprites();
 
@@ -91,7 +93,7 @@ export class TilesetLoader {
     });
   }
 
-  private async loadSpriteSheets(serverUrl: string): Promise<void> {
+  private async loadSpriteSheets(): Promise<void> {
     if (!this.config) {
       throw new Error('Tileset config not loaded');
     }
@@ -104,7 +106,7 @@ export class TilesetLoader {
         img.onload = () => resolve();
         img.onerror = () => reject(new Error(`Failed to load sprite sheet ${i}`));
 
-        img.src = `${serverUrl}/tilesets/freeciv-web-tileset-${this.config!.tileset_name}-${i}.png`;
+        img.src = `/tilesets/freeciv-web-tileset-${this.config!.tileset_name}-${i}.png`;
         this.spriteSheets[i] = img;
       });
 

@@ -1,0 +1,42 @@
+{
+  "datafile": {
+    "description": "Classic game rules for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17 web-compatible",
+    "format_version": 50
+  },
+  "about": {
+    "name": "Classic ruleset",
+    "summary": "You are playing with classic Freeciv ruleset for single player games. Note that in addition to the ruleset, also server settings affect the rules of the game. This was the default ruleset until Freeciv 2.6.",
+    "description": "Classic Freeciv rules based on Civilization 2"
+  },
+  "options": {
+    "global_init_techs": "",
+    "global_init_buildings": "Palace"
+  },
+  "civstyle": {
+    "base_pollution": -20,
+    "happy_cost": 2,
+    "food_cost": 2,
+    "granary_food_ini": 20,
+    "granary_food_inc": 10,
+    "min_city_center_food": 1,
+    "min_city_center_shield": 1,
+    "min_city_center_trade": 0
+  },
+  "capabilities": ["std-terrains"],
+  "game_parameters": {
+    "init_city_radius_sq": 5,
+    "init_vis_radius_sq": 5,
+    "base_bribe_cost": 750,
+    "ransom_gold": 100,
+    "upgrade_veteran_loss": 0,
+    "autoupgrade_veteran_loss": 0,
+    "pillage_select": true,
+    "tech_steal_allow_holes": true,
+    "tech_trade_allow_holes": true,
+    "tech_trade_loss_allow_holes": true,
+    "tech_parasite_allow_holes": true,
+    "tech_loss_allow_holes": true,
+    "gameloss_style": ""
+  }
+}

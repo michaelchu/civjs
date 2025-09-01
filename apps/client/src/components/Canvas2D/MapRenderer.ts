@@ -40,9 +40,9 @@ export class MapRenderer {
     this.setupCanvas();
   }
 
-  async initialize(serverUrl: string): Promise<void> {
+  async initialize(): Promise<void> {
     try {
-      await this.tilesetLoader.loadTileset(serverUrl);
+      await this.tilesetLoader.loadTileset();
 
       const tileSize = this.tilesetLoader.getTileSize();
       this.tileWidth = tileSize.width;

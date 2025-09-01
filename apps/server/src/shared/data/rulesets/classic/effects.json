@@ -1,0 +1,291 @@
+{
+  "datafile": {
+    "description": "Classic effects data for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17 web-compatible",
+    "format_version": 50
+  },
+  "about": {
+    "name": "Classic effects ruleset",
+    "summary": "Effects system for classic Freeciv with buildings, units, government, and terrain bonuses"
+  },
+  "user_effects": {},
+  "effects": {
+    "unhappysize": {
+      "id": "unhappysize",
+      "type": "City_Unhappy_Size",
+      "value": 4,
+      "comment": "Base unhappiness threshold for city size"
+    },
+    "barbarian_no_diplomacy": {
+      "id": "barbarian_no_diplomacy",
+      "type": "No_Diplomacy",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "NationGroup",
+          "name": "Barbarian",
+          "range": "Player"
+        }
+      ],
+      "comment": "Barbarians cannot engage in diplomacy"
+    },
+    "barbarian_disappear": {
+      "id": "barbarian_disappear",
+      "type": "Retire_Pct",
+      "value": 10,
+      "reqs": [
+        {
+          "type": "NationGroup",
+          "name": "Barbarian",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Age",
+          "name": "5",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile",
+          "present": false
+        }
+      ],
+      "comment": "Barbarian units have chance to disappear after age 5"
+    },
+    "leader_escape": {
+      "id": "leader_escape",
+      "type": "Retire_Pct",
+      "value": 31,
+      "reqs": [
+        {
+          "type": "UnitType",
+          "name": "Barbarian Leader",
+          "range": "Local"
+        },
+        {
+          "type": "Age",
+          "name": "5",
+          "range": "Local"
+        },
+        {
+          "type": "TerrainClass",
+          "name": "Oceanic",
+          "range": "Adjacent"
+        },
+        {
+          "type": "MaxUnitsOnTile",
+          "name": "1",
+          "range": "Tile"
+        }
+      ],
+      "comment": "Lone barbarian leaders might escape on coast (33% chance)"
+    },
+    "elvis_luxury": {
+      "id": "elvis_luxury",
+      "type": "Specialist_Output",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Specialist",
+          "name": "elvis",
+          "range": "Local"
+        },
+        {
+          "type": "OutputType",
+          "name": "luxury",
+          "range": "Local"
+        }
+      ],
+      "comment": "Elvis specialists produce luxury"
+    },
+    "scientist_research": {
+      "id": "scientist_research",
+      "type": "Specialist_Output",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Specialist",
+          "name": "scientist",
+          "range": "Local"
+        },
+        {
+          "type": "OutputType",
+          "name": "science",
+          "range": "Local"
+        }
+      ],
+      "comment": "Scientist specialists produce science"
+    },
+    "taxman_gold": {
+      "id": "taxman_gold",
+      "type": "Specialist_Output",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Specialist",
+          "name": "taxman",
+          "range": "Local"
+        },
+        {
+          "type": "OutputType",
+          "name": "gold",
+          "range": "Local"
+        }
+      ],
+      "comment": "Taxman specialists produce gold"
+    },
+    "fortress_vision": {
+      "id": "fortress_vision",
+      "type": "Unit_Vision_Radius_Sq",
+      "value": 8,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Fortress",
+          "range": "Tile"
+        },
+        {
+          "type": "Tech",
+          "name": "Invention",
+          "range": "Player"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Land",
+          "range": "Local"
+        }
+      ],
+      "comment": "Vision benefit from fortress watchtowers"
+    },
+    "mountains_vision": {
+      "id": "mountains_vision",
+      "type": "Unit_Vision_Radius_Sq",
+      "value": 4,
+      "reqs": [
+        {
+          "type": "Terrain",
+          "name": "Mountains",
+          "range": "Tile"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Land",
+          "range": "Local"
+        }
+      ],
+      "comment": "Vision benefit from mountains for all land units"
+    },
+    "tech_upkeep_free": {
+      "id": "tech_upkeep_free",
+      "type": "Tech_Upkeep_Free",
+      "value": 3,
+      "comment": "Basic free tech upkeep"
+    },
+    "fortress_hp_regen": {
+      "id": "fortress_hp_regen",
+      "type": "HP_Regen",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Fortress",
+          "range": "Tile"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Land",
+          "range": "Local"
+        }
+      ],
+      "comment": "Fortress HP regeneration"
+    },
+    "fortified_defense": {
+      "id": "fortified_defense",
+      "type": "Fortify_Defense_Bonus",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Activity",
+          "name": "Fortified",
+          "range": "Local"
+        }
+      ],
+      "comment": "Defense bonus when fortified"
+    },
+    "city_fortified_defense": {
+      "id": "city_fortified_defense",
+      "type": "Fortify_Defense_Bonus",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile",
+          "present": true
+        },
+        {
+          "type": "Activity",
+          "name": "Fortified",
+          "range": "Local",
+          "present": false
+        },
+        {
+          "type": "UnitClassFlag",
+          "name": "CanFortify",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "Cant_Fortify",
+          "range": "Local",
+          "present": false
+        }
+      ],
+      "comment": "City fortification defense bonus"
+    },
+    "city_min_hp": {
+      "id": "city_min_hp",
+      "type": "Min_HP_Pct",
+      "value": 33,
+      "reqs": [
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile"
+        }
+      ],
+      "comment": "Minimum HP percentage for units in cities"
+    },
+    "fortified_regen": {
+      "id": "fortified_regen",
+      "type": "HP_Regen_2",
+      "value": 10,
+      "reqs": [
+        {
+          "type": "Activity",
+          "name": "Fortified",
+          "range": "Local"
+        }
+      ],
+      "comment": "HP regeneration when fortified"
+    },
+    "base_regen": {
+      "id": "base_regen",
+      "type": "HP_Regen_2",
+      "value": 10,
+      "reqs": [
+        {
+          "type": "UnitClass",
+          "name": "Helicopter",
+          "range": "Local",
+          "present": false
+        }
+      ],
+      "comment": "Base HP regeneration (except helicopters)"
+    }
+  }
+}

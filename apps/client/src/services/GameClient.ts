@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { SERVER_URL } from '../config';
 import { useGameStore } from '../store/gameStore';
 import { PacketType, PACKET_NAMES, type Packet } from '../types/packets';
-import { ActionType } from '../../../shared/src/types/actions';
+import { ActionType } from '../types/shared/actions';
 
 class GameClient {
   private socket: Socket | null = null;

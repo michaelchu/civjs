@@ -5,7 +5,7 @@ import { logger } from '../utils/logger';
 import { getTerrainMovementCost } from './constants/MovementConstants';
 import { UNIT_TYPES, getUnitType, UnitType } from './constants/UnitConstants';
 import { ActionSystem } from './ActionSystem';
-import { ActionType, ActionResult } from '../../../shared/src/types/actions';
+import { ActionType, ActionResult } from '../types/shared/actions';
 
 export interface Unit {
   id: string;
@@ -523,7 +523,11 @@ export class UnitManager {
   /**
    * Apply action result to unit state
    */
-  private async applyActionResult(unit: Unit, actionType: ActionType, result: ActionResult): Promise<void> {
+  private async applyActionResult(
+    unit: Unit,
+    actionType: ActionType,
+    result: ActionResult
+  ): Promise<void> {
     let updateData: any = {};
 
     switch (actionType) {

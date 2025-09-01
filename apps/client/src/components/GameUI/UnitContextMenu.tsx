@@ -25,7 +25,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { Unit } from '../../types';
-import { ActionType } from '../../../../shared/src/types/actions';
+import { ActionType } from '../../types/shared/actions';
 
 interface UnitContextMenuProps {
   unit: Unit | null;

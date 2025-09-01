@@ -5,7 +5,7 @@ import { TileHoverOverlay } from './TileHoverOverlay';
 import { UnitContextMenu } from '../GameUI/UnitContextMenu';
 import { UnitSelectionOverlay } from './UnitSelectionOverlay';
 import type { Unit } from '../../types';
-import { ActionType } from '../../../../shared/src/types/actions';
+import { ActionType } from '../../types/shared/actions';
 import { gameClient } from '../../services/GameClient';
 
 interface MapCanvasProps {
@@ -42,9 +42,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       rendererRef.current = new MapRenderer(ctx);
 
       try {
-        // Initialize with server URL from config
-        const { SERVER_URL } = await import('../../config');
-        await rendererRef.current.initialize(SERVER_URL);
+        // Initialize renderer (tileset files are now served from client domain)
+        await rendererRef.current.initialize();
         const gameState = useGameStore.getState();
 
         if (rendererRef.current) {
