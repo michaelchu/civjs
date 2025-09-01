@@ -126,14 +126,29 @@ export const BuildingsRulesetFileSchema = z.object({
   buildings: z.record(z.string(), BuildingTypeRulesetSchema),
 });
 
-// Technology schemas
+// Technology schemas - Enhanced for full freeciv compatibility
 export const TechnologyRulesetSchema = z.object({
   id: z.string(),
+  freeciv_id: z.number().optional(),
   name: z.string(),
+  internal_name: z.string().optional(),
   cost: z.number().positive(),
-  requirements: z.array(z.string()),
-  flags: z.array(z.string()),
-  description: z.string(),
+  req1: z.string().optional(), // First requirement (freeciv dual system)
+  req2: z.string().optional(), // Second requirement (freeciv dual system)
+  requirements: z.array(z.string()), // Derived array from req1/req2
+  root_req: z.string().optional(), // Root requirement for advanced dependencies
+  flags: z.array(z.string()).optional().default([]),
+  graphic: z.string().optional(),
+  position: z
+    .object({
+      x: z.number(),
+      y: z.number(),
+    })
+    .optional(),
+  helptext: z.string().optional(),
+  bonus_message: z.string().optional(),
+  order: z.number().optional(),
+  description: z.string().optional(), // Keep for backward compatibility
 });
 
 export const TechsRulesetFileSchema = z.object({

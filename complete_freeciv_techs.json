@@ -1,0 +1,1982 @@
+{
+  "advanced_flight": {
+    "id": "advanced_flight",
+    "freeciv_id": 1,
+    "name": "Advanced Flight",
+    "internal_name": "Advanced Flight",
+    "cost": 51,
+    "req1": "Radio",
+    "req2": "Machine Tools",
+    "requirements": [
+      "Radio",
+      "Machine Tools"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.advanced_flight",
+    "position": {
+      "x": 3479,
+      "y": 516
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 1
+  },
+  "alphabet": {
+    "id": "alphabet",
+    "freeciv_id": 2,
+    "name": "Alphabet",
+    "internal_name": "Alphabet",
+    "cost": 10,
+    "req1": "None",
+    "req2": "None",
+    "requirements": [],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.alphabet",
+    "position": {
+      "x": 0,
+      "y": 0
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 2
+  },
+  "amphibious_warfare": {
+    "id": "amphibious_warfare",
+    "freeciv_id": 3,
+    "name": "Amphibious Warfare",
+    "internal_name": "Amphibious Warfare",
+    "cost": 51,
+    "req1": "Navigation",
+    "req2": "Tactics",
+    "requirements": [
+      "Navigation",
+      "Tactics"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.amphibious_warfare",
+    "position": {
+      "x": 2543,
+      "y": 616
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 3
+  },
+  "astronomy": {
+    "id": "astronomy",
+    "freeciv_id": 4,
+    "name": "Astronomy",
+    "internal_name": "Astronomy",
+    "cost": 51,
+    "req1": "Mysticism",
+    "req2": "Mathematics",
+    "requirements": [
+      "Mysticism",
+      "Mathematics"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.astronomy",
+    "position": {
+      "x": 667,
+      "y": 290
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 4
+  },
+  "atomic_theory": {
+    "id": "atomic_theory",
+    "freeciv_id": 5,
+    "name": "Atomic Theory",
+    "internal_name": "Atomic Theory",
+    "cost": 51,
+    "req1": "Theory of Gravity",
+    "req2": "Physics",
+    "requirements": [
+      "Theory of Gravity",
+      "Physics"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.atomic_theory",
+    "position": {
+      "x": 1753,
+      "y": 100
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 5
+  },
+  "automobile": {
+    "id": "automobile",
+    "freeciv_id": 6,
+    "name": "Automobile",
+    "internal_name": "Automobile",
+    "cost": 51,
+    "req1": "Combustion",
+    "req2": "Steel",
+    "requirements": [
+      "Combustion",
+      "Steel"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.automobile",
+    "position": {
+      "x": 2977,
+      "y": 233
+    },
+    "helptext": "Increases the population's contribution to pollution.",
+    "bonus_message": "",
+    "order": 6
+  },
+  "banking": {
+    "id": "banking",
+    "freeciv_id": 7,
+    "name": "Banking",
+    "internal_name": "Banking",
+    "cost": 51,
+    "req1": "Trade",
+    "req2": "The Republic",
+    "requirements": [
+      "Trade",
+      "The Republic"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.banking",
+    "position": {
+      "x": 1169,
+      "y": 6
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 7
+  },
+  "bridge_building": {
+    "id": "bridge_building",
+    "freeciv_id": 8,
+    "name": "Bridge Building",
+    "internal_name": "Bridge Building",
+    "cost": 51,
+    "req1": "Iron Working",
+    "req2": "Construction",
+    "requirements": [
+      "Iron Working",
+      "Construction"
+    ],
+    "root_req": null,
+    "flags": [
+      "Bridge"
+    ],
+    "graphic": "a.bridge_building",
+    "position": {
+      "x": 918,
+      "y": 658
+    },
+    "helptext": "Allows roads to be built on river tiles.",
+    "bonus_message": "",
+    "order": 8
+  },
+  "bronze_working": {
+    "id": "bronze_working",
+    "freeciv_id": 9,
+    "name": "Bronze Working",
+    "internal_name": "Bronze Working",
+    "cost": 10,
+    "req1": "None",
+    "req2": "None",
+    "requirements": [],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.bronze_working",
+    "position": {
+      "x": 0,
+      "y": 534
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 9
+  },
+  "ceremonial_burial": {
+    "id": "ceremonial_burial",
+    "freeciv_id": 10,
+    "name": "Ceremonial Burial",
+    "internal_name": "Ceremonial Burial",
+    "cost": 10,
+    "req1": "None",
+    "req2": "None",
+    "requirements": [],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.ceremonial_burial",
+    "position": {
+      "x": 0,
+      "y": 69
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 10
+  },
+  "chemistry": {
+    "id": "chemistry",
+    "freeciv_id": 11,
+    "name": "Chemistry",
+    "internal_name": "Chemistry",
+    "cost": 51,
+    "req1": "University",
+    "req2": "Medicine",
+    "requirements": [
+      "University",
+      "Medicine"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.chemistry",
+    "position": {
+      "x": 1420,
+      "y": 104
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 11
+  },
+  "chivalry": {
+    "id": "chivalry",
+    "freeciv_id": 12,
+    "name": "Chivalry",
+    "internal_name": "Chivalry",
+    "cost": 51,
+    "req1": "Feudalism",
+    "req2": "Horseback Riding",
+    "requirements": [
+      "Feudalism",
+      "Horseback Riding"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.chivalry",
+    "position": {
+      "x": 1169,
+      "y": 605
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 12
+  },
+  "code_of_laws": {
+    "id": "code_of_laws",
+    "freeciv_id": 13,
+    "name": "Code of Laws",
+    "internal_name": "Code of Laws",
+    "cost": 28,
+    "req1": "Alphabet",
+    "req2": "None",
+    "requirements": [
+      "Alphabet"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.code_of_laws",
+    "position": {
+      "x": 416,
+      "y": 79
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 13
+  },
+  "combined_arms": {
+    "id": "combined_arms",
+    "freeciv_id": 14,
+    "name": "Combined Arms",
+    "internal_name": "Combined Arms",
+    "cost": 51,
+    "req1": "Mobile Warfare",
+    "req2": "Advanced Flight",
+    "requirements": [
+      "Mobile Warfare",
+      "Advanced Flight"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.combined_arms",
+    "position": {
+      "x": 3812,
+      "y": 539
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 14
+  },
+  "combustion": {
+    "id": "combustion",
+    "freeciv_id": 15,
+    "name": "Combustion",
+    "internal_name": "Combustion",
+    "cost": 51,
+    "req1": "Refining",
+    "req2": "Explosives",
+    "requirements": [
+      "Refining",
+      "Explosives"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.combustion",
+    "position": {
+      "x": 2794,
+      "y": 185
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 15
+  },
+  "communism": {
+    "id": "communism",
+    "freeciv_id": 16,
+    "name": "Communism",
+    "internal_name": "Communism",
+    "cost": 51,
+    "req1": "Philosophy",
+    "req2": "Industrialization",
+    "requirements": [
+      "Philosophy",
+      "Industrialization"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.communism",
+    "position": {
+      "x": 2271,
+      "y": 133
+    },
+    "helptext": "Reduces the effect of Cathedrals.",
+    "bonus_message": "",
+    "order": 16
+  },
+  "computers": {
+    "id": "computers",
+    "freeciv_id": 17,
+    "name": "Computers",
+    "internal_name": "Computers",
+    "cost": 51,
+    "req1": "Mass Production",
+    "req2": "Miniaturization",
+    "requirements": [
+      "Mass Production",
+      "Miniaturization"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.computers",
+    "position": {
+      "x": 3479,
+      "y": 346
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 17
+  },
+  "conscription": {
+    "id": "conscription",
+    "freeciv_id": 18,
+    "name": "Conscription",
+    "internal_name": "Conscription",
+    "cost": 51,
+    "req1": "Democracy",
+    "req2": "Metallurgy",
+    "requirements": [
+      "Democracy",
+      "Metallurgy"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.conscription",
+    "position": {
+      "x": 1938,
+      "y": 508
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 18
+  },
+  "construction": {
+    "id": "construction",
+    "freeciv_id": 19,
+    "name": "Construction",
+    "internal_name": "Construction",
+    "cost": 51,
+    "req1": "Masonry",
+    "req2": "Currency",
+    "requirements": [
+      "Masonry",
+      "Currency"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.construction",
+    "position": {
+      "x": 667,
+      "y": 500
+    },
+    "helptext": "Allows Settlers, Workers and Engineers to build fortresses, and to build oil wells on Desert tiles.",
+    "bonus_message": "",
+    "order": 19
+  },
+  "currency": {
+    "id": "currency",
+    "freeciv_id": 20,
+    "name": "Currency",
+    "internal_name": "Currency",
+    "cost": 28,
+    "req1": "Bronze Working",
+    "req2": "None",
+    "requirements": [
+      "Bronze Working"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.currency",
+    "position": {
+      "x": 416,
+      "y": 532
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 20
+  },
+  "democracy": {
+    "id": "democracy",
+    "freeciv_id": 21,
+    "name": "Democracy",
+    "internal_name": "Democracy",
+    "cost": 51,
+    "req1": "Banking",
+    "req2": "Invention",
+    "requirements": [
+      "Banking",
+      "Invention"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.democracy",
+    "position": {
+      "x": 1420,
+      "y": 133
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 21
+  },
+  "economics": {
+    "id": "economics",
+    "freeciv_id": 22,
+    "name": "Economics",
+    "internal_name": "Economics",
+    "cost": 51,
+    "req1": "Banking",
+    "req2": "University",
+    "requirements": [
+      "Banking",
+      "University"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.economics",
+    "position": {
+      "x": 1420,
+      "y": 20
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 22
+  },
+  "electricity": {
+    "id": "electricity",
+    "freeciv_id": 23,
+    "name": "Electricity",
+    "internal_name": "Electricity",
+    "cost": 51,
+    "req1": "Metallurgy",
+    "req2": "Magnetism",
+    "requirements": [
+      "Metallurgy",
+      "Magnetism"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.electricity",
+    "position": {
+      "x": 1938,
+      "y": 429
+    },
+    "helptext": "Improves the effect of Colosseums.",
+    "bonus_message": "",
+    "order": 23
+  },
+  "electronics": {
+    "id": "electronics",
+    "freeciv_id": 24,
+    "name": "Electronics",
+    "internal_name": "Electronics",
+    "cost": 51,
+    "req1": "The Corporation",
+    "req2": "Electricity",
+    "requirements": [
+      "The Corporation",
+      "Electricity"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.electronics",
+    "position": {
+      "x": 2543,
+      "y": 352
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 24
+  },
+  "engineering": {
+    "id": "engineering",
+    "freeciv_id": 25,
+    "name": "Engineering",
+    "internal_name": "Engineering",
+    "cost": 51,
+    "req1": "The Wheel",
+    "req2": "Construction",
+    "requirements": [
+      "The Wheel",
+      "Construction"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.engineering",
+    "position": {
+      "x": 918,
+      "y": 425
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 25
+  },
+  "environmentalism": {
+    "id": "environmentalism",
+    "freeciv_id": 26,
+    "name": "Environmentalism",
+    "internal_name": "Environmentalism",
+    "cost": 51,
+    "req1": "Recycling",
+    "req2": "Space Flight",
+    "requirements": [
+      "Recycling",
+      "Space Flight"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.environmentalism",
+    "position": {
+      "x": 4479,
+      "y": 196
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 26
+  },
+  "espionage": {
+    "id": "espionage",
+    "freeciv_id": 27,
+    "name": "Espionage",
+    "internal_name": "Espionage",
+    "cost": 51,
+    "req1": "Communism",
+    "req2": "Democracy",
+    "requirements": [
+      "Communism",
+      "Democracy"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.espionage",
+    "position": {
+      "x": 2543,
+      "y": 172
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 27
+  },
+  "explosives": {
+    "id": "explosives",
+    "freeciv_id": 28,
+    "name": "Explosives",
+    "internal_name": "Explosives",
+    "cost": 51,
+    "req1": "Gunpowder",
+    "req2": "Chemistry",
+    "requirements": [
+      "Gunpowder",
+      "Chemistry"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.explosives",
+    "position": {
+      "x": 1753,
+      "y": 238
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 28
+  },
+  "feudalism": {
+    "id": "feudalism",
+    "freeciv_id": 29,
+    "name": "Feudalism",
+    "internal_name": "Feudalism",
+    "cost": 51,
+    "req1": "Warrior Code",
+    "req2": "Monarchy",
+    "requirements": [
+      "Warrior Code",
+      "Monarchy"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.feudalism",
+    "position": {
+      "x": 918,
+      "y": 504
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 29
+  },
+  "flight": {
+    "id": "flight",
+    "freeciv_id": 30,
+    "name": "Flight",
+    "internal_name": "Flight",
+    "cost": 51,
+    "req1": "Combustion",
+    "req2": "Theory of Gravity",
+    "requirements": [
+      "Combustion",
+      "Theory of Gravity"
+    ],
+    "root_req": null,
+    "flags": [
+      "Build_Airborne"
+    ],
+    "graphic": "a.flight",
+    "position": {
+      "x": 2977,
+      "y": 309
+    },
+    "helptext": "Decreases one-time revenue from new trade routes.",
+    "bonus_message": "",
+    "order": 30
+  },
+  "fusion_power": {
+    "id": "fusion_power",
+    "freeciv_id": 31,
+    "name": "Fusion Power",
+    "internal_name": "Fusion Power",
+    "cost": 51,
+    "req1": "Nuclear Power",
+    "req2": "Superconductors",
+    "requirements": [
+      "Nuclear Power",
+      "Superconductors"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.fusion_power",
+    "position": {
+      "x": 4680,
+      "y": 381
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 31
+  },
+  "genetic_engineering": {
+    "id": "genetic_engineering",
+    "freeciv_id": 32,
+    "name": "Genetic Engineering",
+    "internal_name": "Genetic Engineering",
+    "cost": 51,
+    "req1": "Medicine",
+    "req2": "The Corporation",
+    "requirements": [
+      "Medicine",
+      "The Corporation"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.genetic_engineering",
+    "position": {
+      "x": 2543,
+      "y": 2
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 32
+  },
+  "guerilla_warfare": {
+    "id": "guerilla_warfare",
+    "freeciv_id": 33,
+    "name": "Guerilla Warfare",
+    "internal_name": "Guerilla Warfare",
+    "cost": 51,
+    "req1": "Communism",
+    "req2": "Tactics",
+    "requirements": [
+      "Communism",
+      "Tactics"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.guerilla_warfare",
+    "position": {
+      "x": 2543,
+      "y": 428
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 33
+  },
+  "gunpowder": {
+    "id": "gunpowder",
+    "freeciv_id": 34,
+    "name": "Gunpowder",
+    "internal_name": "Gunpowder",
+    "cost": 51,
+    "req1": "Invention",
+    "req2": "Iron Working",
+    "requirements": [
+      "Invention",
+      "Iron Working"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.gunpowder",
+    "position": {
+      "x": 1420,
+      "y": 612
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 34
+  },
+  "horseback_riding": {
+    "id": "horseback_riding",
+    "freeciv_id": 35,
+    "name": "Horseback Riding",
+    "internal_name": "Horseback Riding",
+    "cost": 10,
+    "req1": "None",
+    "req2": "None",
+    "requirements": [],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.horseback_riding",
+    "position": {
+      "x": 0,
+      "y": 417
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 35
+  },
+  "industrialization": {
+    "id": "industrialization",
+    "freeciv_id": 36,
+    "name": "Industrialization",
+    "internal_name": "Industrialization",
+    "cost": 51,
+    "req1": "Railroad",
+    "req2": "Banking",
+    "requirements": [
+      "Railroad",
+      "Banking"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.industrialization",
+    "position": {
+      "x": 1938,
+      "y": 170
+    },
+    "helptext": "Population will start contributing to pollution.",
+    "bonus_message": "",
+    "order": 36
+  },
+  "invention": {
+    "id": "invention",
+    "freeciv_id": 37,
+    "name": "Invention",
+    "internal_name": "Invention",
+    "cost": 51,
+    "req1": "Engineering",
+    "req2": "Literacy",
+    "requirements": [
+      "Engineering",
+      "Literacy"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.invention",
+    "position": {
+      "x": 1169,
+      "y": 386
+    },
+    "helptext": "Increases units' vision when in fortresses.",
+    "bonus_message": "",
+    "order": 37
+  },
+  "iron_working": {
+    "id": "iron_working",
+    "freeciv_id": 38,
+    "name": "Iron Working",
+    "internal_name": "Iron Working",
+    "cost": 51,
+    "req1": "Bronze Working",
+    "req2": "Warrior Code",
+    "requirements": [
+      "Bronze Working",
+      "Warrior Code"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.iron_working",
+    "position": {
+      "x": 416,
+      "y": 635
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 38
+  },
+  "labor_union": {
+    "id": "labor_union",
+    "freeciv_id": 39,
+    "name": "Labor Union",
+    "internal_name": "Labor Union",
+    "cost": 51,
+    "req1": "Mass Production",
+    "req2": "Guerilla Warfare",
+    "requirements": [
+      "Mass Production",
+      "Guerilla Warfare"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.labor_union",
+    "position": {
+      "x": 3479,
+      "y": 270
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 39
+  },
+  "laser": {
+    "id": "laser",
+    "freeciv_id": 40,
+    "name": "Laser",
+    "internal_name": "Laser",
+    "cost": 51,
+    "req1": "Mass Production",
+    "req2": "Nuclear Power",
+    "requirements": [
+      "Mass Production",
+      "Nuclear Power"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.laser",
+    "position": {
+      "x": 4228,
+      "y": 378
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 40
+  },
+  "leadership": {
+    "id": "leadership",
+    "freeciv_id": 41,
+    "name": "Leadership",
+    "internal_name": "Leadership",
+    "cost": 51,
+    "req1": "Chivalry",
+    "req2": "Gunpowder",
+    "requirements": [
+      "Chivalry",
+      "Gunpowder"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.leadership",
+    "position": {
+      "x": 1753,
+      "y": 620
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 41
+  },
+  "literacy": {
+    "id": "literacy",
+    "freeciv_id": 42,
+    "name": "Literacy",
+    "internal_name": "Literacy",
+    "cost": 51,
+    "req1": "Writing",
+    "req2": "Code of Laws",
+    "requirements": [
+      "Writing",
+      "Code of Laws"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.literacy",
+    "position": {
+      "x": 667,
+      "y": 38
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 42
+  },
+  "machine_tools": {
+    "id": "machine_tools",
+    "freeciv_id": 43,
+    "name": "Machine Tools",
+    "internal_name": "Machine Tools",
+    "cost": 51,
+    "req1": "Steel",
+    "req2": "Tactics",
+    "requirements": [
+      "Steel",
+      "Tactics"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.machine_tools",
+    "position": {
+      "x": 2543,
+      "y": 504
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 43
+  },
+  "magnetism": {
+    "id": "magnetism",
+    "freeciv_id": 44,
+    "name": "Magnetism",
+    "internal_name": "Magnetism",
+    "cost": 51,
+    "req1": "Iron Working",
+    "req2": "Physics",
+    "requirements": [
+      "Iron Working",
+      "Physics"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.magnetism",
+    "position": {
+      "x": 1420,
+      "y": 458
+    },
+    "helptext": "Allows establishing one more trade route from each city.",
+    "bonus_message": "",
+    "order": 44
+  },
+  "map_making": {
+    "id": "map_making",
+    "freeciv_id": 45,
+    "name": "Map Making",
+    "internal_name": "Map Making",
+    "cost": 28,
+    "req1": "Alphabet",
+    "req2": "None",
+    "requirements": [
+      "Alphabet"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.map_making",
+    "position": {
+      "x": 416,
+      "y": 322
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 45
+  },
+  "masonry": {
+    "id": "masonry",
+    "freeciv_id": 46,
+    "name": "Masonry",
+    "internal_name": "Masonry",
+    "cost": 10,
+    "req1": "None",
+    "req2": "None",
+    "requirements": [],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.masonry",
+    "position": {
+      "x": 0,
+      "y": 300
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 46
+  },
+  "mass_production": {
+    "id": "mass_production",
+    "freeciv_id": 47,
+    "name": "Mass Production",
+    "internal_name": "Mass Production",
+    "cost": 51,
+    "req1": "Automobile",
+    "req2": "The Corporation",
+    "requirements": [
+      "Automobile",
+      "The Corporation"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.mass_production",
+    "position": {
+      "x": 3228,
+      "y": 170
+    },
+    "helptext": "Increases the population's contribution to pollution.",
+    "bonus_message": "",
+    "order": 47
+  },
+  "mathematics": {
+    "id": "mathematics",
+    "freeciv_id": 48,
+    "name": "Mathematics",
+    "internal_name": "Mathematics",
+    "cost": 51,
+    "req1": "Alphabet",
+    "req2": "Masonry",
+    "requirements": [
+      "Alphabet",
+      "Masonry"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.mathematics",
+    "position": {
+      "x": 416,
+      "y": 246
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 48
+  },
+  "medicine": {
+    "id": "medicine",
+    "freeciv_id": 49,
+    "name": "Medicine",
+    "internal_name": "Medicine",
+    "cost": 51,
+    "req1": "Philosophy",
+    "req2": "Trade",
+    "requirements": [
+      "Philosophy",
+      "Trade"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.medicine",
+    "position": {
+      "x": 1169,
+      "y": 85
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 49
+  },
+  "metallurgy": {
+    "id": "metallurgy",
+    "freeciv_id": 50,
+    "name": "Metallurgy",
+    "internal_name": "Metallurgy",
+    "cost": 51,
+    "req1": "Gunpowder",
+    "req2": "University",
+    "requirements": [
+      "Gunpowder",
+      "University"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.metallurgy",
+    "position": {
+      "x": 1753,
+      "y": 471
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 50
+  },
+  "miniaturization": {
+    "id": "miniaturization",
+    "freeciv_id": 51,
+    "name": "Miniaturization",
+    "internal_name": "Miniaturization",
+    "cost": 51,
+    "req1": "Machine Tools",
+    "req2": "Electronics",
+    "requirements": [
+      "Machine Tools",
+      "Electronics"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.miniaturization",
+    "position": {
+      "x": 2892,
+      "y": 472
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 51
+  },
+  "mobile_warfare": {
+    "id": "mobile_warfare",
+    "freeciv_id": 52,
+    "name": "Mobile Warfare",
+    "internal_name": "Mobile Warfare",
+    "cost": 51,
+    "req1": "Automobile",
+    "req2": "Tactics",
+    "requirements": [
+      "Automobile",
+      "Tactics"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.mobile_warfare",
+    "position": {
+      "x": 3228,
+      "y": 420
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 52
+  },
+  "monarchy": {
+    "id": "monarchy",
+    "freeciv_id": 53,
+    "name": "Monarchy",
+    "internal_name": "Monarchy",
+    "cost": 51,
+    "req1": "Ceremonial Burial",
+    "req2": "Code of Laws",
+    "requirements": [
+      "Ceremonial Burial",
+      "Code of Laws"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.monarchy",
+    "position": {
+      "x": 667,
+      "y": 202
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 53
+  },
+  "monotheism": {
+    "id": "monotheism",
+    "freeciv_id": 54,
+    "name": "Monotheism",
+    "internal_name": "Monotheism",
+    "cost": 51,
+    "req1": "Philosophy",
+    "req2": "Polytheism",
+    "requirements": [
+      "Philosophy",
+      "Polytheism"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.monotheism",
+    "position": {
+      "x": 1169,
+      "y": 310
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 54
+  },
+  "mysticism": {
+    "id": "mysticism",
+    "freeciv_id": 55,
+    "name": "Mysticism",
+    "internal_name": "Mysticism",
+    "cost": 28,
+    "req1": "Ceremonial Burial",
+    "req2": "None",
+    "requirements": [
+      "Ceremonial Burial"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.mysticism",
+    "position": {
+      "x": 416,
+      "y": 167
+    },
+    "helptext": "Improves the effect of Temples.",
+    "bonus_message": "",
+    "order": 55
+  },
+  "navigation": {
+    "id": "navigation",
+    "freeciv_id": 56,
+    "name": "Navigation",
+    "internal_name": "Navigation",
+    "cost": 51,
+    "req1": "Seafaring",
+    "req2": "Astronomy",
+    "requirements": [
+      "Seafaring",
+      "Astronomy"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.navigation",
+    "position": {
+      "x": 918,
+      "y": 329
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 56
+  },
+  "nuclear_fission": {
+    "id": "nuclear_fission",
+    "freeciv_id": 57,
+    "name": "Nuclear Fission",
+    "internal_name": "Nuclear Fission",
+    "cost": 51,
+    "req1": "Mass Production",
+    "req2": "Atomic Theory",
+    "requirements": [
+      "Mass Production",
+      "Atomic Theory"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.nuclear_fission",
+    "position": {
+      "x": 3479,
+      "y": 193
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 57
+  },
+  "nuclear_power": {
+    "id": "nuclear_power",
+    "freeciv_id": 58,
+    "name": "Nuclear Power",
+    "internal_name": "Nuclear Power",
+    "cost": 51,
+    "req1": "Nuclear Fission",
+    "req2": "Electronics",
+    "requirements": [
+      "Nuclear Fission",
+      "Electronics"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.nuclear_power",
+    "position": {
+      "x": 3812,
+      "y": 298
+    },
+    "helptext": "Gives sea units one extra move.",
+    "bonus_message": "",
+    "order": 58
+  },
+  "philosophy": {
+    "id": "philosophy",
+    "freeciv_id": 59,
+    "name": "Philosophy",
+    "internal_name": "Philosophy",
+    "cost": 51,
+    "req1": "Mysticism",
+    "req2": "Literacy",
+    "requirements": [
+      "Mysticism",
+      "Literacy"
+    ],
+    "root_req": null,
+    "flags": [
+      "Bonus_Tech"
+    ],
+    "graphic": "a.philosophy",
+    "position": {
+      "x": 918,
+      "y": 152
+    },
+    "helptext": "",
+    "bonus_message": "Great philosophers from all the world join your civilization: you learn %s immediately.",
+    "order": 59
+  },
+  "physics": {
+    "id": "physics",
+    "freeciv_id": 60,
+    "name": "Physics",
+    "internal_name": "Physics",
+    "cost": 51,
+    "req1": "Literacy",
+    "req2": "Navigation",
+    "requirements": [
+      "Literacy",
+      "Navigation"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.physics",
+    "position": {
+      "x": 1169,
+      "y": 249
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 60
+  },
+  "plastics": {
+    "id": "plastics",
+    "freeciv_id": 61,
+    "name": "Plastics",
+    "internal_name": "Plastics",
+    "cost": 51,
+    "req1": "Refining",
+    "req2": "Space Flight",
+    "requirements": [
+      "Refining",
+      "Space Flight"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.plastics",
+    "position": {
+      "x": 4479,
+      "y": 120
+    },
+    "helptext": "Increases the population's contribution to pollution.",
+    "bonus_message": "",
+    "order": 61
+  },
+  "polytheism": {
+    "id": "polytheism",
+    "freeciv_id": 62,
+    "name": "Polytheism",
+    "internal_name": "Polytheism",
+    "cost": 51,
+    "req1": "Horseback Riding",
+    "req2": "Ceremonial Burial",
+    "requirements": [
+      "Horseback Riding",
+      "Ceremonial Burial"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.polytheism",
+    "position": {
+      "x": 416,
+      "y": 395
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 62
+  },
+  "pottery": {
+    "id": "pottery",
+    "freeciv_id": 63,
+    "name": "Pottery",
+    "internal_name": "Pottery",
+    "cost": 10,
+    "req1": "None",
+    "req2": "None",
+    "requirements": [],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.pottery",
+    "position": {
+      "x": 0,
+      "y": 183
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 63
+  },
+  "radio": {
+    "id": "radio",
+    "freeciv_id": 64,
+    "name": "Radio",
+    "internal_name": "Radio",
+    "cost": 51,
+    "req1": "Flight",
+    "req2": "Electricity",
+    "requirements": [
+      "Flight",
+      "Electricity"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.radio",
+    "position": {
+      "x": 3228,
+      "y": 496
+    },
+    "helptext": "Allows Workers and Engineers to build airbases and buoys.",
+    "bonus_message": "",
+    "order": 64
+  },
+  "railroad": {
+    "id": "railroad",
+    "freeciv_id": 65,
+    "name": "Railroad",
+    "internal_name": "Railroad",
+    "cost": 51,
+    "req1": "Steam Engine",
+    "req2": "Bridge Building",
+    "requirements": [
+      "Steam Engine",
+      "Bridge Building"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.railroad",
+    "position": {
+      "x": 1753,
+      "y": 383
+    },
+    "helptext": "Allows Settlers, Workers and Engineers to upgrade roads to railroads.",
+    "bonus_message": "",
+    "order": 65
+  },
+  "recycling": {
+    "id": "recycling",
+    "freeciv_id": 66,
+    "name": "Recycling",
+    "internal_name": "Recycling",
+    "cost": 51,
+    "req1": "Mass Production",
+    "req2": "Democracy",
+    "requirements": [
+      "Mass Production",
+      "Democracy"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.recycling",
+    "position": {
+      "x": 3479,
+      "y": 101
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 66
+  },
+  "refining": {
+    "id": "refining",
+    "freeciv_id": 67,
+    "name": "Refining",
+    "internal_name": "Refining",
+    "cost": 51,
+    "req1": "Chemistry",
+    "req2": "The Corporation",
+    "requirements": [
+      "Chemistry",
+      "The Corporation"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.refining",
+    "position": {
+      "x": 2543,
+      "y": 93
+    },
+    "helptext": "Allows Settlers, Workers and Engineers to build oil wells on Glacier tiles.",
+    "bonus_message": "",
+    "order": 67
+  },
+  "refrigeration": {
+    "id": "refrigeration",
+    "freeciv_id": 68,
+    "name": "Refrigeration",
+    "internal_name": "Refrigeration",
+    "cost": 51,
+    "req1": "Sanitation",
+    "req2": "Electricity",
+    "requirements": [
+      "Sanitation",
+      "Electricity"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.refrigeration",
+    "position": {
+      "x": 2271,
+      "y": 491
+    },
+    "helptext": "Allows Settlers, Workers and Engineers to upgrade irrigation systems to farmland.",
+    "bonus_message": "",
+    "order": 68
+  },
+  "robotics": {
+    "id": "robotics",
+    "freeciv_id": 69,
+    "name": "Robotics",
+    "internal_name": "Robotics",
+    "cost": 51,
+    "req1": "Mobile Warfare",
+    "req2": "Computers",
+    "requirements": [
+      "Mobile Warfare",
+      "Computers"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.robotics",
+    "position": {
+      "x": 3812,
+      "y": 384
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 69
+  },
+  "rocketry": {
+    "id": "rocketry",
+    "freeciv_id": 70,
+    "name": "Rocketry",
+    "internal_name": "Rocketry",
+    "cost": 51,
+    "req1": "Advanced Flight",
+    "req2": "Electronics",
+    "requirements": [
+      "Advanced Flight",
+      "Electronics"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.rocketry",
+    "position": {
+      "x": 3812,
+      "y": 460
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 70
+  },
+  "sanitation": {
+    "id": "sanitation",
+    "freeciv_id": 71,
+    "name": "Sanitation",
+    "internal_name": "Sanitation",
+    "cost": 51,
+    "req1": "Engineering",
+    "req2": "Medicine",
+    "requirements": [
+      "Engineering",
+      "Medicine"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.sanitation",
+    "position": {
+      "x": 1420,
+      "y": 384
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 71
+  },
+  "seafaring": {
+    "id": "seafaring",
+    "freeciv_id": 72,
+    "name": "Seafaring",
+    "internal_name": "Seafaring",
+    "cost": 51,
+    "req1": "Pottery",
+    "req2": "Map Making",
+    "requirements": [
+      "Pottery",
+      "Map Making"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.seafaring",
+    "position": {
+      "x": 667,
+      "y": 369
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 72
+  },
+  "space_flight": {
+    "id": "space_flight",
+    "freeciv_id": 73,
+    "name": "Space Flight",
+    "internal_name": "Space Flight",
+    "cost": 51,
+    "req1": "Computers",
+    "req2": "Rocketry",
+    "requirements": [
+      "Computers",
+      "Rocketry"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.space_flight",
+    "position": {
+      "x": 4228,
+      "y": 287
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 73
+  },
+  "stealth": {
+    "id": "stealth",
+    "freeciv_id": 74,
+    "name": "Stealth",
+    "internal_name": "Stealth",
+    "cost": 51,
+    "req1": "Superconductors",
+    "req2": "Advanced Flight",
+    "requirements": [
+      "Superconductors",
+      "Advanced Flight"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.stealth",
+    "position": {
+      "x": 4680,
+      "y": 481
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 74
+  },
+  "steam_engine": {
+    "id": "steam_engine",
+    "freeciv_id": 75,
+    "name": "Steam Engine",
+    "internal_name": "Steam Engine",
+    "cost": 51,
+    "req1": "Physics",
+    "req2": "Invention",
+    "requirements": [
+      "Physics",
+      "Invention"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.steam_engine",
+    "position": {
+      "x": 1420,
+      "y": 307
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 75
+  },
+  "steel": {
+    "id": "steel",
+    "freeciv_id": 76,
+    "name": "Steel",
+    "internal_name": "Steel",
+    "cost": 51,
+    "req1": "Electricity",
+    "req2": "Industrialization",
+    "requirements": [
+      "Electricity",
+      "Industrialization"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.steel",
+    "position": {
+      "x": 2271,
+      "y": 300
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 76
+  },
+  "superconductors": {
+    "id": "superconductors",
+    "freeciv_id": 77,
+    "name": "Superconductors",
+    "internal_name": "Superconductors",
+    "cost": 51,
+    "req1": "Nuclear Power",
+    "req2": "Laser",
+    "requirements": [
+      "Nuclear Power",
+      "Laser"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.superconductors",
+    "position": {
+      "x": 4479,
+      "y": 378
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 77
+  },
+  "tactics": {
+    "id": "tactics",
+    "freeciv_id": 78,
+    "name": "Tactics",
+    "internal_name": "Tactics",
+    "cost": 51,
+    "req1": "Conscription",
+    "req2": "Leadership",
+    "requirements": [
+      "Conscription",
+      "Leadership"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.tactics",
+    "position": {
+      "x": 2271,
+      "y": 570
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 78
+  },
+  "the_corporation": {
+    "id": "the_corporation",
+    "freeciv_id": 79,
+    "name": "The Corporation",
+    "internal_name": "The Corporation",
+    "cost": 51,
+    "req1": "Economics",
+    "req2": "Industrialization",
+    "requirements": [
+      "Economics",
+      "Industrialization"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.the_corporation",
+    "position": {
+      "x": 2271,
+      "y": 42
+    },
+    "helptext": "Allows establishing one more trade route from each city.",
+    "bonus_message": "",
+    "order": 79
+  },
+  "the_republic": {
+    "id": "the_republic",
+    "freeciv_id": 80,
+    "name": "The Republic",
+    "internal_name": "The Republic",
+    "cost": 51,
+    "req1": "Code of Laws",
+    "req2": "Literacy",
+    "requirements": [
+      "Code of Laws",
+      "Literacy"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.the_republic",
+    "position": {
+      "x": 918,
+      "y": 29
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 80
+  },
+  "the_wheel": {
+    "id": "the_wheel",
+    "freeciv_id": 81,
+    "name": "The Wheel",
+    "internal_name": "The Wheel",
+    "cost": 28,
+    "req1": "Horseback Riding",
+    "req2": "None",
+    "requirements": [
+      "Horseback Riding"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.the_wheel",
+    "position": {
+      "x": 416,
+      "y": 456
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 81
+  },
+  "theology": {
+    "id": "theology",
+    "freeciv_id": 82,
+    "name": "Theology",
+    "internal_name": "Theology",
+    "cost": 51,
+    "req1": "Feudalism",
+    "req2": "Monotheism",
+    "requirements": [
+      "Feudalism",
+      "Monotheism"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.theology",
+    "position": {
+      "x": 1420,
+      "y": 535
+    },
+    "helptext": "Improves the effect of Cathedrals.",
+    "bonus_message": "",
+    "order": 82
+  },
+  "theory_of_gravity": {
+    "id": "theory_of_gravity",
+    "freeciv_id": 83,
+    "name": "Theory of Gravity",
+    "internal_name": "Theory of Gravity",
+    "cost": 51,
+    "req1": "Astronomy",
+    "req2": "University",
+    "requirements": [
+      "Astronomy",
+      "University"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.theory_of_gravity",
+    "position": {
+      "x": 1420,
+      "y": 210
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 83
+  },
+  "trade": {
+    "id": "trade",
+    "freeciv_id": 84,
+    "name": "Trade",
+    "internal_name": "Trade",
+    "cost": 51,
+    "req1": "Currency",
+    "req2": "Code of Laws",
+    "requirements": [
+      "Currency",
+      "Code of Laws"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.trade",
+    "position": {
+      "x": 667,
+      "y": 126
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 84
+  },
+  "university": {
+    "id": "university",
+    "freeciv_id": 85,
+    "name": "University",
+    "internal_name": "University",
+    "cost": 51,
+    "req1": "Mathematics",
+    "req2": "Philosophy",
+    "requirements": [
+      "Mathematics",
+      "Philosophy"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.university",
+    "position": {
+      "x": 1169,
+      "y": 173
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 85
+  },
+  "warrior_code": {
+    "id": "warrior_code",
+    "freeciv_id": 86,
+    "name": "Warrior Code",
+    "internal_name": "Warrior Code",
+    "cost": 10,
+    "req1": "None",
+    "req2": "None",
+    "requirements": [],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.warrior_code",
+    "position": {
+      "x": 0,
+      "y": 651
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 86
+  },
+  "writing": {
+    "id": "writing",
+    "freeciv_id": 87,
+    "name": "Writing",
+    "internal_name": "Writing",
+    "cost": 28,
+    "req1": "Alphabet",
+    "req2": "None",
+    "requirements": [
+      "Alphabet"
+    ],
+    "root_req": null,
+    "flags": [],
+    "graphic": "a.writing",
+    "position": {
+      "x": 416,
+      "y": 0
+    },
+    "helptext": "",
+    "bonus_message": "",
+    "order": 87
+  }
+}
