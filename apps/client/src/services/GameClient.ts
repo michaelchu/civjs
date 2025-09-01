@@ -806,7 +806,7 @@ class GameClient {
     targetX?: number,
     targetY?: number
   ): Promise<boolean> {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       if (!this.socket) {
         console.error('Socket not connected');
         resolve(false);
@@ -826,7 +826,7 @@ class GameClient {
         targetX,
         targetY,
       });
-      
+
       resolve(true);
     });
   }

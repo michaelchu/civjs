@@ -19,10 +19,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   // Track initial centering to prevent multiple centering events (freeciv-web compliance)
   const [hasInitiallyCentered, setHasInitiallyCentered] = useState(false);
-  
+
   // Unit selection and context menu state
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ unit: Unit; position: { x: number; y: number } } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    unit: Unit;
+    position: { x: number; y: number };
+  } | null>(null);
 
   const { viewport, map, units, cities, setViewport } = useGameStore();
   const gameState = useGameStore();
@@ -225,7 +228,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         const dragDistance = Math.sqrt(
           Math.pow(canvasX - dragStart.current.x, 2) + Math.pow(canvasY - dragStart.current.y, 2)
         );
-        
+
         if (dragDistance > DRAG_THRESHOLD) {
           setIsDragging(true);
           canvas.style.cursor = 'move';
@@ -330,7 +333,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
         // Find unit at clicked position
         const unitAtPosition = Object.values(units).find(
-          (unit: any) => unit.x === tileX && unit.y === tileY
+          unit => unit.x === tileX && unit.y === tileY
         );
 
         if (unitAtPosition) {
@@ -447,7 +450,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const handleContextMenu = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       event.preventDefault(); // Prevent browser context menu
-      
+
       const canvas = canvasRef.current;
       if (!canvas || !rendererRef.current) return;
 
@@ -462,14 +465,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
       // Find unit at right-clicked position
       const unitAtPosition = Object.values(units).find(
-        (unit: any) => unit.x === tileX && unit.y === tileY
+        unit => unit.x === tileX && unit.y === tileY
       );
 
       if (unitAtPosition) {
         // Show context menu for the unit
         setContextMenu({
           unit: unitAtPosition as Unit,
-          position: { x: event.clientX, y: event.clientY }
+          position: { x: event.clientX, y: event.clientY },
         });
         setSelectedUnit(unitAtPosition as Unit);
       }
@@ -497,7 +500,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           targetX,
           targetY
         );
-        
+
         if (success) {
           console.log(`Successfully requested ${action} for unit ${selectedUnit.id}`);
           // TODO: Handle different action types for immediate UI feedback
@@ -555,7 +558,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         setViewport(finalViewport);
         setIsDragging(false);
       }
-      
+
       // Reset drag tracking
       dragStartTime.current = 0;
     };
@@ -591,7 +594,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         }}
       />
       <TileHoverOverlay tileInfo={hoveredTile} />
-      <UnitSelectionOverlay 
+      <UnitSelectionOverlay
         selectedUnit={selectedUnit}
         mapRenderer={rendererRef.current}
         viewport={viewport}

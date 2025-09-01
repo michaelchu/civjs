@@ -40,9 +40,14 @@ interface UnitActionInfo {
   icon: React.ComponentType<{ className?: string }>;
   hotkey?: string;
   disabled?: boolean;
-  separator?: boolean;
   submenu?: UnitActionInfo[];
 }
+
+interface UnitActionSeparator {
+  separator: true;
+}
+
+type UnitMenuItem = UnitActionInfo | UnitActionSeparator;
 
 export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
   unit,
@@ -55,8 +60,8 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
   }
 
   // Determine available actions based on unit type and capabilities
-  const getAvailableActions = (unit: Unit): UnitActionInfo[] => {
-    const actions: UnitActionInfo[] = [];
+  const getAvailableActions = (unit: Unit): UnitMenuItem[] => {
+    const actions: UnitMenuItem[] = [];
 
     // Basic movement actions - available to all units
     actions.push(
@@ -81,9 +86,14 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     );
 
     // Military unit actions
-    if (unit.type === 'warrior' || unit.type === 'archer' || unit.type === 'spearman' || unit.type === 'scout') {
+    if (
+      unit.type === 'warrior' ||
+      unit.type === 'archer' ||
+      unit.type === 'spearman' ||
+      unit.type === 'scout'
+    ) {
       actions.push(
-        { separator: true } as any,
+        { separator: true },
         {
           action: ActionType.FORTIFY,
           name: 'Fortify',
@@ -112,7 +122,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     // Settler actions
     if (unit.type === 'settler') {
       actions.push(
-        { separator: true } as any,
+        { separator: true },
         {
           action: ActionType.FOUND_CITY,
           name: 'Found City',
@@ -132,7 +142,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     // Worker actions
     if (unit.type === 'worker') {
       actions.push(
-        { separator: true } as any,
+        { separator: true },
         {
           action: ActionType.AUTO_SETTLER,
           name: 'Auto Settler',
@@ -180,7 +190,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     // Scout actions
     if (unit.type === 'scout') {
       actions.push(
-        { separator: true } as any,
+        { separator: true },
         {
           action: ActionType.AUTO_EXPLORE,
           name: 'Auto Explore',
@@ -192,7 +202,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
 
     // Common unit management actions
     actions.push(
-      { separator: true } as any,
+      { separator: true },
       {
         action: ActionType.DISBAND_UNIT,
         name: 'Disband Unit',
@@ -211,20 +221,23 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     onClose();
   };
 
-  const renderMenuItem = (actionInfo: UnitActionInfo) => {
+  const renderMenuItem = (actionInfo: UnitMenuItem) => {
     if ('separator' in actionInfo && actionInfo.separator) {
       return <DropdownMenuSeparator key="separator" />;
     }
 
-    if (actionInfo.submenu) {
+    // Type guard to ensure actionInfo is UnitActionInfo
+    const action = actionInfo as UnitActionInfo;
+
+    if (action.submenu) {
       return (
-        <DropdownMenuSub key={actionInfo.action}>
-          <DropdownMenuSubTrigger disabled={actionInfo.disabled}>
-            <actionInfo.icon className="mr-2 h-4 w-4" />
-            {actionInfo.name}
+        <DropdownMenuSub key={action.action}>
+          <DropdownMenuSubTrigger disabled={action.disabled}>
+            <action.icon className="mr-2 h-4 w-4" />
+            {action.name}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
-            {actionInfo.submenu.map((subAction) => (
+            {action.submenu.map((subAction: UnitActionInfo) => (
               <DropdownMenuItem
                 key={subAction.action}
                 onClick={() => handleActionClick(subAction.action)}
@@ -244,23 +257,21 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
 
     return (
       <DropdownMenuItem
-        key={actionInfo.action}
-        onClick={() => handleActionClick(actionInfo.action)}
-        disabled={actionInfo.disabled}
+        key={action.action}
+        onClick={() => handleActionClick(action.action)}
+        disabled={action.disabled}
       >
-        <actionInfo.icon className="mr-2 h-4 w-4" />
-        {actionInfo.name}
-        {actionInfo.hotkey && (
-          <DropdownMenuShortcut>{actionInfo.hotkey}</DropdownMenuShortcut>
-        )}
+        <action.icon className="mr-2 h-4 w-4" />
+        {action.name}
+        {action.hotkey && <DropdownMenuShortcut>{action.hotkey}</DropdownMenuShortcut>}
       </DropdownMenuItem>
     );
   };
 
   return (
-    <DropdownMenu open={true} onOpenChange={(open) => !open && onClose()}>
-      <DropdownMenuContent 
-        className="w-56" 
+    <DropdownMenu open={true} onOpenChange={open => !open && onClose()}>
+      <DropdownMenuContent
+        className="w-56"
         style={{
           position: 'fixed',
           left: position.x,
@@ -268,7 +279,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
           zIndex: 1000,
         }}
       >
-        {availableActions.map((actionInfo) => renderMenuItem(actionInfo))}
+        {availableActions.map(actionInfo => renderMenuItem(actionInfo))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
