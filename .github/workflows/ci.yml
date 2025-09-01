@@ -19,8 +19,14 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install root dependencies
         run: npm ci
+
+      - name: Install client dependencies
+        run: cd apps/client && npm ci
+
+      - name: Install server dependencies
+        run: cd apps/server && npm ci
 
       - name: Run linting
         run: npm run lint
@@ -73,8 +79,14 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install root dependencies
         run: npm ci
+
+      - name: Install client dependencies
+        run: cd apps/client && npm ci
+
+      - name: Install server dependencies
+        run: cd apps/server && npm ci
 
       - name: Run tests
         run: npm run test -- --ci --coverage --maxWorkers=2
