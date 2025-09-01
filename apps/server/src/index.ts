@@ -150,6 +150,9 @@ async function start() {
       throw new Error('Failed to connect to database');
     }
 
+    // Terrain ruleset will be loaded synchronously on first use
+    logger.info('Terrain ruleset ready for synchronous loading');
+
     // Start HTTP server
     httpServer.listen(config.server.port, () => {
       logger.info(`Server running on port ${config.server.port}`);

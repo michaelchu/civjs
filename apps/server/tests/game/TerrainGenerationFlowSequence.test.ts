@@ -6,11 +6,17 @@
  * Phase 2: Generator method cleanup
  * Phase 3: Complete makeLand() restructuring with full freeciv compliance
  */
+import { beforeAll } from '@jest/globals';
 import { MapManager, TemperatureType } from '../../src/game/MapManager';
 import { PlayerState } from '../../src/game/GameManager';
 
 describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
   let mapManager: MapManager;
+
+  beforeAll(() => {
+    // Terrain ruleset loaded synchronously on first access
+  });
+
   const testPlayers = new Map<string, PlayerState>([
     [
       'player1',

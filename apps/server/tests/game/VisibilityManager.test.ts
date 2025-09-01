@@ -1,3 +1,4 @@
+import { beforeAll } from '@jest/globals';
 import { VisibilityManager } from '../../src/game/VisibilityManager';
 import { UnitManager } from '../../src/game/UnitManager';
 import { MapManager } from '../../src/game/MapManager';
@@ -13,6 +14,10 @@ describe('VisibilityManager', () => {
   const gameId = 'test-game-id';
   const mapWidth = 20;
   const mapHeight = 20;
+
+  beforeAll(() => {
+    // Terrain ruleset loaded synchronously on first access
+  });
 
   beforeEach(async () => {
     // Setup managers

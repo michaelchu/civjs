@@ -4,7 +4,7 @@
  * Collection of reusable terrain manipulation utilities
  */
 import { MapTile, TerrainType, TemperatureType } from './MapTypes';
-import { MapgenTerrainProperty, getTerrainTransform } from './TerrainRuleset';
+import { MapgenTerrainPropertyEnum, getTerrainTransform } from './TerrainRuleset';
 
 /**
  * Temperature type conditions for terrain selection
@@ -37,9 +37,9 @@ export enum WetnessCondition {
  */
 export interface TerrainSelect {
   weight: number;
-  target: MapgenTerrainProperty;
-  prefer: MapgenTerrainProperty;
-  avoid: MapgenTerrainProperty;
+  target: MapgenTerrainPropertyEnum;
+  prefer: MapgenTerrainPropertyEnum;
+  avoid: MapgenTerrainPropertyEnum;
   tempCondition: TemperatureCondition;
   wetCondition: WetnessCondition;
 }
@@ -663,36 +663,36 @@ export function islandTerrainInit(): void {
     // Tropical forests in tropical/wet areas, avoid dry
     {
       weight: 1,
-      target: MapgenTerrainProperty.FOLIAGE,
-      prefer: MapgenTerrainProperty.TROPICAL,
-      avoid: MapgenTerrainProperty.DRY,
+      target: MapgenTerrainPropertyEnum.FOLIAGE,
+      prefer: MapgenTerrainPropertyEnum.TROPICAL,
+      avoid: MapgenTerrainPropertyEnum.DRY,
       tempCondition: TemperatureCondition.TT_TROPICAL,
       wetCondition: WetnessCondition.WC_ALL,
     },
     // Temperate forests (highest weight - most common)
     {
       weight: 3,
-      target: MapgenTerrainProperty.FOLIAGE,
-      prefer: MapgenTerrainProperty.TEMPERATE,
-      avoid: MapgenTerrainProperty.UNUSED,
+      target: MapgenTerrainPropertyEnum.FOLIAGE,
+      prefer: MapgenTerrainPropertyEnum.TEMPERATE,
+      avoid: MapgenTerrainPropertyEnum.UNUSED,
       tempCondition: TemperatureCondition.TT_ALL,
       wetCondition: WetnessCondition.WC_ALL,
     },
     // Wet forests in tropical areas, avoid frozen, need non-dry
     {
       weight: 1,
-      target: MapgenTerrainProperty.FOLIAGE,
-      prefer: MapgenTerrainProperty.WET,
-      avoid: MapgenTerrainProperty.FROZEN,
+      target: MapgenTerrainPropertyEnum.FOLIAGE,
+      prefer: MapgenTerrainPropertyEnum.WET,
+      avoid: MapgenTerrainPropertyEnum.FROZEN,
       tempCondition: TemperatureCondition.TT_TROPICAL,
       wetCondition: WetnessCondition.WC_NDRY,
     },
     // Cold climate forests, avoid frozen areas
     {
       weight: 1,
-      target: MapgenTerrainProperty.FOLIAGE,
-      prefer: MapgenTerrainProperty.COLD,
-      avoid: MapgenTerrainProperty.UNUSED,
+      target: MapgenTerrainPropertyEnum.FOLIAGE,
+      prefer: MapgenTerrainPropertyEnum.COLD,
+      avoid: MapgenTerrainPropertyEnum.UNUSED,
       tempCondition: TemperatureCondition.TT_NFROZEN,
       wetCondition: WetnessCondition.WC_ALL,
     },
@@ -703,36 +703,36 @@ export function islandTerrainInit(): void {
     // Hot tropical deserts (highest weight)
     {
       weight: 3,
-      target: MapgenTerrainProperty.DRY,
-      prefer: MapgenTerrainProperty.TROPICAL,
-      avoid: MapgenTerrainProperty.GREEN,
+      target: MapgenTerrainPropertyEnum.DRY,
+      prefer: MapgenTerrainPropertyEnum.TROPICAL,
+      avoid: MapgenTerrainPropertyEnum.GREEN,
       tempCondition: TemperatureCondition.TT_HOT,
       wetCondition: WetnessCondition.WC_DRY,
     },
     // Temperate deserts
     {
       weight: 2,
-      target: MapgenTerrainProperty.DRY,
-      prefer: MapgenTerrainProperty.TEMPERATE,
-      avoid: MapgenTerrainProperty.GREEN,
+      target: MapgenTerrainPropertyEnum.DRY,
+      prefer: MapgenTerrainPropertyEnum.TEMPERATE,
+      avoid: MapgenTerrainPropertyEnum.GREEN,
       tempCondition: TemperatureCondition.TT_NFROZEN,
       wetCondition: WetnessCondition.WC_DRY,
     },
     // Cold dry areas, avoid tropical, not hot
     {
       weight: 1,
-      target: MapgenTerrainProperty.COLD,
-      prefer: MapgenTerrainProperty.DRY,
-      avoid: MapgenTerrainProperty.TROPICAL,
+      target: MapgenTerrainPropertyEnum.COLD,
+      prefer: MapgenTerrainPropertyEnum.DRY,
+      avoid: MapgenTerrainPropertyEnum.TROPICAL,
       tempCondition: TemperatureCondition.TT_NHOT,
       wetCondition: WetnessCondition.WC_DRY,
     },
     // Frozen deserts (tundra)
     {
       weight: 1,
-      target: MapgenTerrainProperty.FROZEN,
-      prefer: MapgenTerrainProperty.DRY,
-      avoid: MapgenTerrainProperty.UNUSED,
+      target: MapgenTerrainPropertyEnum.FROZEN,
+      prefer: MapgenTerrainPropertyEnum.DRY,
+      avoid: MapgenTerrainPropertyEnum.UNUSED,
       tempCondition: TemperatureCondition.TT_FROZEN,
       wetCondition: WetnessCondition.WC_DRY,
     },
@@ -743,18 +743,18 @@ export function islandTerrainInit(): void {
     // Green mountains (hills) - higher weight
     {
       weight: 2,
-      target: MapgenTerrainProperty.MOUNTAINOUS,
-      prefer: MapgenTerrainProperty.GREEN,
-      avoid: MapgenTerrainProperty.UNUSED,
+      target: MapgenTerrainPropertyEnum.MOUNTAINOUS,
+      prefer: MapgenTerrainPropertyEnum.GREEN,
+      avoid: MapgenTerrainPropertyEnum.UNUSED,
       tempCondition: TemperatureCondition.TT_ALL,
       wetCondition: WetnessCondition.WC_ALL,
     },
     // Mountains without green preference
     {
       weight: 1,
-      target: MapgenTerrainProperty.MOUNTAINOUS,
-      prefer: MapgenTerrainProperty.UNUSED,
-      avoid: MapgenTerrainProperty.GREEN,
+      target: MapgenTerrainPropertyEnum.MOUNTAINOUS,
+      prefer: MapgenTerrainPropertyEnum.UNUSED,
+      avoid: MapgenTerrainPropertyEnum.GREEN,
       tempCondition: TemperatureCondition.TT_ALL,
       wetCondition: WetnessCondition.WC_ALL,
     },
@@ -765,27 +765,27 @@ export function islandTerrainInit(): void {
     // Tropical swamps
     {
       weight: 1,
-      target: MapgenTerrainProperty.WET,
-      prefer: MapgenTerrainProperty.TROPICAL,
-      avoid: MapgenTerrainProperty.FOLIAGE,
+      target: MapgenTerrainPropertyEnum.WET,
+      prefer: MapgenTerrainPropertyEnum.TROPICAL,
+      avoid: MapgenTerrainPropertyEnum.FOLIAGE,
       tempCondition: TemperatureCondition.TT_TROPICAL,
       wetCondition: WetnessCondition.WC_NDRY,
     },
     // Temperate swamps in hot areas (highest weight)
     {
       weight: 2,
-      target: MapgenTerrainProperty.WET,
-      prefer: MapgenTerrainProperty.TEMPERATE,
-      avoid: MapgenTerrainProperty.FOLIAGE,
+      target: MapgenTerrainPropertyEnum.WET,
+      prefer: MapgenTerrainPropertyEnum.TEMPERATE,
+      avoid: MapgenTerrainPropertyEnum.FOLIAGE,
       tempCondition: TemperatureCondition.TT_HOT,
       wetCondition: WetnessCondition.WC_NDRY,
     },
     // Cold swamps, not hot
     {
       weight: 1,
-      target: MapgenTerrainProperty.WET,
-      prefer: MapgenTerrainProperty.COLD,
-      avoid: MapgenTerrainProperty.FOLIAGE,
+      target: MapgenTerrainPropertyEnum.WET,
+      prefer: MapgenTerrainPropertyEnum.COLD,
+      avoid: MapgenTerrainPropertyEnum.FOLIAGE,
       tempCondition: TemperatureCondition.TT_NHOT,
       wetCondition: WetnessCondition.WC_NDRY,
     },
@@ -943,25 +943,25 @@ export function selectTerrainFromList(
  * @reference freeciv/server/generator/mapgen_utils.c pick_terrain()
  * Maps terrain properties to specific terrain types
  */
-function mapgenPropertyToTerrain(property: MapgenTerrainProperty): TerrainType {
+function mapgenPropertyToTerrain(property: MapgenTerrainPropertyEnum): TerrainType {
   switch (property) {
-    case MapgenTerrainProperty.FOLIAGE:
+    case MapgenTerrainPropertyEnum.FOLIAGE:
       return 'forest';
-    case MapgenTerrainProperty.DRY:
+    case MapgenTerrainPropertyEnum.DRY:
       return 'desert';
-    case MapgenTerrainProperty.MOUNTAINOUS:
+    case MapgenTerrainPropertyEnum.MOUNTAINOUS:
       return 'mountains';
-    case MapgenTerrainProperty.WET:
+    case MapgenTerrainPropertyEnum.WET:
       return 'swamp';
-    case MapgenTerrainProperty.FROZEN:
+    case MapgenTerrainPropertyEnum.FROZEN:
       return 'tundra';
-    case MapgenTerrainProperty.COLD:
+    case MapgenTerrainPropertyEnum.COLD:
       return 'tundra';
-    case MapgenTerrainProperty.GREEN:
+    case MapgenTerrainPropertyEnum.GREEN:
       return 'grassland';
-    case MapgenTerrainProperty.TROPICAL:
+    case MapgenTerrainPropertyEnum.TROPICAL:
       return 'jungle';
-    case MapgenTerrainProperty.TEMPERATE:
+    case MapgenTerrainPropertyEnum.TEMPERATE:
       return 'plains';
     default:
       return 'plains';

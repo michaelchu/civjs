@@ -7,7 +7,7 @@ import {
   TemperatureFlags,
   WetnessCondition,
 } from './MapTypes';
-import { pickTerrain, MapgenTerrainProperty } from './TerrainRuleset';
+import { pickTerrain, MapgenTerrainPropertyEnum } from './TerrainRuleset';
 import {
   testWetnessCondition,
   WetnessCondition as TerrainUtilsWetnessCondition,
@@ -597,9 +597,9 @@ export class IslandGenerator {
           // Determine actual terrain using pickTerrain like freeciv
           // @ref: freeciv/server/generator/mapgen.c:1705-1706
           const actualTerrain = pickTerrain(
-            selector.target as unknown as MapgenTerrainProperty,
-            selector.prefer as unknown as MapgenTerrainProperty,
-            selector.avoid as unknown as MapgenTerrainProperty,
+            selector.target as unknown as MapgenTerrainPropertyEnum,
+            selector.prefer as unknown as MapgenTerrainPropertyEnum,
+            selector.avoid as unknown as MapgenTerrainPropertyEnum,
             this.random
           );
 

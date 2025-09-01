@@ -1,3 +1,4 @@
+import { beforeAll } from '@jest/globals';
 import { PlayerState } from '../../src/game/GameManager';
 import {
   MapManager,
@@ -21,6 +22,11 @@ jest.mock('../../src/game/map/TerrainUtils', () => {
 
 describe('MapManager', () => {
   let mapManager: MapManager;
+
+  beforeAll(() => {
+    // Terrain ruleset loaded synchronously on first access
+  });
+
   const testPlayers = new Map<string, PlayerState>([
     [
       'player1',
