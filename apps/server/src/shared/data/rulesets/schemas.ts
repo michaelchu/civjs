@@ -165,3 +165,47 @@ export type BuildingsRulesetFile = z.infer<typeof BuildingsRulesetFileSchema>;
 
 export type TechnologyRuleset = z.infer<typeof TechnologyRulesetSchema>;
 export type TechsRulesetFile = z.infer<typeof TechsRulesetFileSchema>;
+
+// Government schemas
+export const GovernmentRequirementSchema = z.object({
+  type: z.string(),
+  name: z.string(),
+  range: z.string(),
+});
+
+export const GovernmentRulesetSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  rule_name: z.string().optional(), // Internal name for savegames/rulesets
+  reqs: z.array(GovernmentRequirementSchema).optional(),
+  graphic: z.string(),
+  graphic_alt: z.string(),
+  sound: z.string(),
+  sound_alt: z.string(),
+  sound_alt2: z.string(),
+  ai_better: z.string().optional(),
+  ruler_male_title: z.string(),
+  ruler_female_title: z.string(),
+  helptext: z.string().or(z.array(z.string())), // Support both single string and array format
+  flags: z.array(z.string()).optional(), // Government behavior flags
+});
+
+export const GovernmentsRulesetFileSchema = z.object({
+  datafile: z.object({
+    description: z.string(),
+    options: z.string(),
+    format_version: z.number(),
+  }),
+  about: z.object({
+    name: z.string(),
+    summary: z.string(),
+  }),
+  governments: z.object({
+    during_revolution: z.string(),
+    types: z.record(z.string(), GovernmentRulesetSchema),
+  }),
+});
+
+export type GovernmentRequirement = z.infer<typeof GovernmentRequirementSchema>;
+export type GovernmentRuleset = z.infer<typeof GovernmentRulesetSchema>;
+export type GovernmentsRulesetFile = z.infer<typeof GovernmentsRulesetFileSchema>;

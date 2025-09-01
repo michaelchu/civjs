@@ -20,6 +20,9 @@ import {
   UnitsRulesetFileSchema,
   type UnitsRulesetFile,
   type UnitTypeRuleset,
+  GovernmentsRulesetFileSchema,
+  type GovernmentsRulesetFile,
+  type GovernmentRuleset,
 } from './schemas';
 
 export class RulesetLoader {
@@ -28,6 +31,7 @@ export class RulesetLoader {
   private buildingsCache = new Map<string, BuildingsRulesetFile>();
   private techsCache = new Map<string, TechsRulesetFile>();
   private unitsCache = new Map<string, UnitsRulesetFile>();
+  private governmentsCache = new Map<string, GovernmentsRulesetFile>();
   private readonly baseDir: string;
 
   constructor(baseDir?: string) {
@@ -354,6 +358,65 @@ export class RulesetLoader {
   }
 
   /**
+   * Load governments ruleset for a specific ruleset variant (e.g., 'classic', 'civ2')
+   */
+  loadGovernmentsRuleset(rulesetName: string = 'classic'): GovernmentsRulesetFile {
+    // Check cache first
+    const cached = this.governmentsCache.get(rulesetName);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const filePath = join(this.baseDir, rulesetName, 'governments.json');
+      const fileContent = readFileSync(filePath, 'utf8');
+      const rawData = JSON.parse(fileContent);
+
+      // Validate using Zod schema
+      const governmentsRuleset = GovernmentsRulesetFileSchema.parse(rawData);
+
+      // Cache and return
+      this.governmentsCache.set(rulesetName, governmentsRuleset);
+      return governmentsRuleset;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to load governments ruleset '${rulesetName}': ${error.message}`);
+      }
+      throw new Error(`Failed to load governments ruleset '${rulesetName}': Unknown error`);
+    }
+  }
+
+  /**
+   * Get all governments from a ruleset
+   */
+  getGovernments(rulesetName: string = 'classic'): Record<string, GovernmentRuleset> {
+    const ruleset = this.loadGovernmentsRuleset(rulesetName);
+    return ruleset.governments.types;
+  }
+
+  /**
+   * Get a specific government from a ruleset
+   */
+  getGovernment(governmentId: string, rulesetName: string = 'classic'): GovernmentRuleset {
+    const governments = this.getGovernments(rulesetName);
+    const government = governments[governmentId];
+
+    if (!government) {
+      throw new Error(`Government '${governmentId}' not found in ruleset '${rulesetName}'`);
+    }
+
+    return government;
+  }
+
+  /**
+   * Get the revolution government type from a ruleset
+   */
+  getRevolutionGovernment(rulesetName: string = 'classic'): string {
+    const ruleset = this.loadGovernmentsRuleset(rulesetName);
+    return ruleset.governments.during_revolution;
+  }
+
+  /**
    * Clear all cached rulesets (useful for testing)
    */
   clearCache(): void {
@@ -361,6 +424,7 @@ export class RulesetLoader {
     this.buildingsCache.clear();
     this.techsCache.clear();
     this.unitsCache.clear();
+    this.governmentsCache.clear();
   }
 }
 

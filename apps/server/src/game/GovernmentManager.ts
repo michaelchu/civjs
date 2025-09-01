@@ -1,29 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { db } from '../database';
 import { players as playersTable } from '../database/schema';
 import { eq, and } from 'drizzle-orm';
-import governmentData from '../shared/data/rulesets/classic/governments.json';
+import { rulesetLoader } from '../shared/data/rulesets/RulesetLoader';
+import type { GovernmentRuleset } from '../shared/data/rulesets/schemas';
 
-export interface GovernmentRequirement {
-  type: string;
-  name: string;
-  range: string;
-}
-
-export interface Government {
-  id: string;
-  name: string;
-  reqs?: GovernmentRequirement[];
-  graphic: string;
-  graphic_alt: string;
-  sound: string;
-  sound_alt: string;
-  sound_alt2: string;
-  ai_better?: string;
-  ruler_male_title: string;
-  ruler_female_title: string;
-  helptext: string;
-}
+// Re-export types from schema for backwards compatibility
+export type GovernmentRequirement = import('../shared/data/rulesets/schemas').GovernmentRequirement;
+export type Government = GovernmentRuleset;
 
 export interface PlayerGovernment {
   playerId: string;
@@ -32,8 +15,20 @@ export interface PlayerGovernment {
   requestedGovernment?: string; // Government requested after revolution
 }
 
-// Load governments from JSON ruleset
-export const GOVERNMENTS: Record<string, Government> = governmentData.governments.types as any;
+// Load governments from ruleset system
+export function getGovernments(rulesetName: string = 'classic'): Record<string, Government> {
+  return rulesetLoader.getGovernments(rulesetName);
+}
+
+// Get individual government
+export function getGovernment(governmentId: string, rulesetName: string = 'classic'): Government {
+  return rulesetLoader.getGovernment(governmentId, rulesetName);
+}
+
+// Get revolution government type
+export function getRevolutionGovernment(rulesetName: string = 'classic'): string {
+  return rulesetLoader.getRevolutionGovernment(rulesetName);
+}
 
 export class GovernmentManager {
   private playerGovernments: Map<string, PlayerGovernment> = new Map();
@@ -83,8 +78,9 @@ export class GovernmentManager {
     }
 
     // Validate requested government exists
-    const targetGov = GOVERNMENTS[requestedGovernment];
-    if (!targetGov) {
+    try {
+      getGovernment(requestedGovernment);
+    } catch {
       return { success: false, message: 'Invalid government type' };
     }
 
@@ -157,8 +153,10 @@ export class GovernmentManager {
     governmentId: string,
     playerResearchedTechs: Set<string>
   ): { allowed: boolean; reason?: string } {
-    const government = GOVERNMENTS[governmentId];
-    if (!government) {
+    let government: Government;
+    try {
+      government = getGovernment(governmentId);
+    } catch {
       return { allowed: false, reason: 'Government does not exist' };
     }
 
@@ -192,8 +190,10 @@ export class GovernmentManager {
       return playerName;
     }
 
-    const government = GOVERNMENTS[playerGov.currentGovernment];
-    if (!government) {
+    let government: Government;
+    try {
+      government = getGovernment(playerGov.currentGovernment);
+    } catch {
       return playerName;
     }
 
@@ -210,7 +210,8 @@ export class GovernmentManager {
     available: boolean;
     reason?: string;
   }[] {
-    return Object.entries(GOVERNMENTS).map(([id, government]) => {
+    const governments = getGovernments();
+    return Object.entries(governments).map(([id, government]) => {
       const check = this.canPlayerUseGovernment(id, playerResearchedTechs);
       return {
         id,
@@ -248,11 +249,15 @@ export class GovernmentManager {
   }
 
   public getAllGovernments(): Record<string, Government> {
-    return GOVERNMENTS;
+    return getGovernments();
   }
 
-  public getGovernment(governmentId: string): Government | null {
-    return GOVERNMENTS[governmentId] || null;
+  public getGovernmentById(governmentId: string): Government | null {
+    try {
+      return getGovernment(governmentId);
+    } catch {
+      return null;
+    }
   }
 
   public async loadPlayerGovernmentFromDb(playerId: string): Promise<void> {
