@@ -54,7 +54,6 @@ export const GameCreationDialog: React.FC = () => {
   return (
     <PageBackground
       className="min-h-[100dvh] md:flex md:items-center md:justify-center md:p-4"
-      showBackground={false}
     >
       <div className="flex flex-col h-[100dvh] md:h-auto md:max-w-2xl xl:max-w-3xl md:mx-auto">
         <div className="bg-transparent md:bg-card md:border md:border-border md:shadow-2xl p-4 md:p-8 md:rounded-lg w-full flex-1 md:flex-none overflow-y-auto">
