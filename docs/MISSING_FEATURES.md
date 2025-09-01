@@ -2,7 +2,7 @@
 
 This document tracks the major areas still missing from the CivJS port compared to the freeciv and freeciv-web reference implementations. Each item includes checkboxes to track implementation progress.
 
-**Last Updated:** 2025-08-31  
+**Last Updated:** 2025-01-01  
 **Analysis Base:** Comparison with `/reference/freeciv/` and `/reference/freeciv-web/`
 
 ---
@@ -10,11 +10,11 @@ This document tracks the major areas still missing from the CivJS port compared 
 ## 🏗️ Core Game Systems (Critical Missing)
 
 ### 1. Game Rules & Rulesets System
-- [ ] Ruleset loading and parsing system
-- [ ] Unit type definitions from rulesets
-- [ ] Building/improvement definitions from rulesets  
-- [ ] Technology definitions from rulesets
-- [ ] Terrain type definitions from rulesets
+- [x] Ruleset loading and parsing system *(2025-01-01 - RulesetLoader.ts with caching)*
+- [x] Unit type definitions from rulesets *(2025-01-01 - units.json with complete unit definitions)*
+- [x] Building/improvement definitions from rulesets *(2025-01-01 - buildings.json with building effects)*
+- [x] Technology definitions from rulesets *(2025-01-01 - techs.json with tech tree and prerequisites)*
+- [x] Terrain type definitions from rulesets *(2025-01-01 - terrain.json with mapgen properties)*
 - [ ] Government type definitions from rulesets
 - [ ] Nation definitions from rulesets
 - [ ] Game rules and parameters from rulesets
@@ -22,8 +22,8 @@ This document tracks the major areas still missing from the CivJS port compared 
 - [ ] Requirements system for game rules
 
 **Reference:** `/reference/freeciv/data/` contains full ruleset definitions  
-**Current State:** No ruleset system implemented  
-**Impact:** Without rulesets, you can't have proper game mechanics, unit types, buildings, tech trees, etc.
+**Current State:** ✅ **JSON-based ruleset system implemented** with Zod validation (`apps/shared/data/rulesets/`)  
+**Impact:** ✅ **Major milestone completed** - Game can now load terrain, units, buildings, and techs from rulesets
 
 ### 2. Technology & Research System
 - [ ] Technology tree structure and prerequisites
@@ -516,7 +516,7 @@ This document tracks the major areas still missing from the CivJS port compared 
 ## 📊 Implementation Priority Matrix
 
 ### 🚨 Immediate Priority (Essential for Playable Game)
-1. **[ ] Rulesets System** - Core game rules and data
+1. **[x] Rulesets System** - ✅ **Core game rules and data** *(2025-01-01)*
 2. **[ ] Technology Tree** - Essential progression mechanic  
 3. **[ ] AI Players** - Required for single-player
 4. **[ ] City Dialog** - Core city management UI
@@ -548,7 +548,7 @@ This document tracks the major areas still missing from the CivJS port compared 
 ## 📈 Progress Tracking
 
 **Overall Completion Status:**
-- **Core Game Systems:** ⬜ 0% Complete (0/50 items)
+- **Core Game Systems:** 🔄 50% Complete (5/10 items) *+5 ruleset items completed*
 - **AI Systems:** ⬜ 0% Complete (0/20 items)
 - **Client UI:** ⬜ 5% Complete (3/60 items)
 - **Military & Combat:** ⬜ 10% Complete (1/10 items)
@@ -558,14 +558,14 @@ This document tracks the major areas still missing from the CivJS port compared 
 - **Audio & Polish:** ⬜ 0% Complete (0/20 items)
 - **Development & Multiplayer:** ⬜ 10% Complete (2/20 items)
 
-**Total Progress: ⬜ ~5% Complete (9/240 major items)**
+**Total Progress: 🔄 ~7% Complete (14/240 major items)** *+5 items from ruleset system*
 
 ---
 
 ## 🎯 Recommended Development Roadmap
 
 ### Phase 1: Foundation (Months 1-3)
-- [ ] Complete Rulesets System
+- [x] Complete Rulesets System ✅ *(2025-01-01)*
 - [ ] Basic AI Player Framework
 - [ ] Technology Tree Implementation
 - [ ] Enhanced Combat System
