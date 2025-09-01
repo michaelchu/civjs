@@ -1,28 +1,28 @@
 /**
  * Diplomatic Actions Component
- * 
+ *
  * Context-sensitive action buttons for the Nations tab.
  * Based on freeciv-web select_a_nation() and button enable/disable logic.
- * 
+ *
  * Reference: reference/freeciv-web/freeciv-web/src/main/webapp/javascript/nation.js:225-311
  */
 
 import React from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { Button } from '../ui/button';
-import { 
-  Eye, 
-  MessageSquare, 
-  Handshake, 
-  Swords, 
-  Building2, 
-  BarChart3, 
-  UserCheck, 
+import {
+  Eye,
+  MessageSquare,
+  Handshake,
+  Swords,
+  Building2,
+  BarChart3,
+  UserCheck,
   Bot,
   EyeOff,
-  Crown
+  Crown,
 } from 'lucide-react';
-import type { PlayerNationInfo, DiplomaticState } from '../../../shared/src/types/nations';
+import type { PlayerNationInfo } from '@shared/types/nations';
 
 interface DiplomaticActionsProps {
   selectedPlayer: PlayerNationInfo | null;
@@ -37,12 +37,12 @@ export const DiplomaticActions: React.FC<DiplomaticActionsProps> = ({
   currentPlayer,
   isObserver,
   onViewPlayer,
-  onShowIntelligence
+  onShowIntelligence,
 }) => {
   const {
     getPlayerDiplomaticState,
-    getPlayerEmbassyStatus,
-    getPlayerSharedVisionStatus
+    // getPlayerEmbassyStatus,
+    getPlayerSharedVisionStatus,
   } = useGameStore();
 
   if (!selectedPlayer) {
@@ -57,56 +57,58 @@ export const DiplomaticActions: React.FC<DiplomaticActionsProps> = ({
   }
 
   const diplomaticState = !isObserver ? getPlayerDiplomaticState(selectedPlayer.playerId) : null;
-  const embassyStatus = !isObserver ? getPlayerEmbassyStatus(selectedPlayer.playerId) : null;
   const visionStatus = !isObserver ? getPlayerSharedVisionStatus(selectedPlayer.playerId) : null;
 
   const isSelectedMyself = currentPlayer && selectedPlayer.playerId === currentPlayer.playerId;
-  const bothAliveAndDifferent = currentPlayer && 
+  const bothAliveAndDifferent =
+    currentPlayer &&
     selectedPlayer.playerId !== currentPlayer.playerId &&
-    selectedPlayer.isAlive && 
+    selectedPlayer.isAlive &&
     currentPlayer.isAlive;
 
   // Button enable/disable logic based on freeciv-web select_a_nation()
-  const canViewPlayer = selectedPlayer.isAlive && (
-    isObserver || 
-    isSelectedMyself || 
-    (diplomaticState !== null && diplomaticState !== 'DS_NO_CONTACT')
-  );
+  const canViewPlayer =
+    selectedPlayer.isAlive &&
+    (isObserver ||
+      isSelectedMyself ||
+      (diplomaticState !== null && diplomaticState !== 'DS_NO_CONTACT'));
 
-  const canMeetPlayer = !isObserver && 
-    bothAliveAndDifferent && 
-    diplomaticState !== null && 
+  const canMeetPlayer =
+    !isObserver &&
+    bothAliveAndDifferent &&
+    diplomaticState !== null &&
     diplomaticState !== 'DS_NO_CONTACT';
 
   const canSendMessage = !selectedPlayer.isHuman || isSelectedMyself ? false : true;
 
-  const canCancelTreaty = !isObserver && 
-    bothAliveAndDifferent && 
-    currentPlayer && 
+  const canCancelTreaty =
+    !isObserver &&
+    bothAliveAndDifferent &&
+    currentPlayer &&
     selectedPlayer.team !== currentPlayer.team &&
     diplomaticState !== null &&
-    diplomaticState !== 'DS_WAR' && 
+    diplomaticState !== 'DS_WAR' &&
     diplomaticState !== 'DS_NO_CONTACT';
 
-  const canWithdrawVision = !isObserver && 
-    bothAliveAndDifferent && 
+  const canWithdrawVision =
+    !isObserver &&
+    bothAliveAndDifferent &&
     currentPlayer &&
     selectedPlayer.team !== currentPlayer.team &&
     visionStatus?.givingVision;
 
-  const canShowIntelligence = isObserver || (
-    bothAliveAndDifferent && diplomaticState !== 'DS_NO_CONTACT'
-  );
+  const canShowIntelligence =
+    isObserver || (bothAliveAndDifferent && diplomaticState !== 'DS_NO_CONTACT');
 
-  const canTakePlayer = !isObserver && 
-    isObserver && 
-    !selectedPlayer.isHuman && 
-    selectedPlayer.isAlive;
+  const canTakePlayer =
+    !isObserver && isObserver && !selectedPlayer.isHuman && selectedPlayer.isAlive;
 
   const getTreatyButtonText = () => {
-    if (diplomaticState === 'DS_CEASEFIRE' || 
-        diplomaticState === 'DS_ARMISTICE' || 
-        diplomaticState === 'DS_PEACE') {
+    if (
+      diplomaticState === 'DS_CEASEFIRE' ||
+      diplomaticState === 'DS_ARMISTICE' ||
+      diplomaticState === 'DS_PEACE'
+    ) {
       return 'Declare War';
     }
     return 'Cancel Treaty';
@@ -187,7 +189,7 @@ export const DiplomaticActions: React.FC<DiplomaticActionsProps> = ({
 
       {/* Cancel Treaty / Declare War */}
       <Button
-        variant={diplomaticState === 'DS_PEACE' ? "destructive" : "outline"}
+        variant={diplomaticState === 'DS_PEACE' ? 'destructive' : 'outline'}
         size="sm"
         disabled={!canCancelTreaty}
         onClick={handleCancelTreaty}

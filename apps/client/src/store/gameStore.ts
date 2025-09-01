@@ -1,17 +1,17 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import type { GameState, ClientState, GameTab, MapViewport } from '../types';
-import type { 
-  Nation, 
-  NationSet, 
-  NationGroupDefinition, 
+import type {
+  Nation,
+  NationSet,
+  NationGroupDefinition,
   NationCustomization,
   PlayerNationInfo,
   DiplomaticRelation,
   EmbassyStatus,
   SharedVision,
   IntelligenceReport,
-  DiplomaticState 
+  DiplomaticState,
 } from '../../../shared/src/types/nations';
 
 export type TurnProcessingState = 'idle' | 'processing' | 'completed' | 'error';
@@ -40,12 +40,12 @@ interface GameStore extends GameState {
   nations: Record<string, Nation>;
   nationSets: Record<string, NationSet>;
   nationGroups: Record<string, NationGroupDefinition>;
-  
+
   // Nation selection state
   availableNations: string[];
   selectedNationId: string | null;
   nationCustomization: NationCustomization | null;
-  
+
   // Diplomatic state (for Nations tab)
   playerNations: Record<string, PlayerNationInfo>;
   diplomaticRelations: Record<string, DiplomaticRelation[]>;
@@ -76,7 +76,7 @@ interface GameStore extends GameState {
   setAvailableNations: (nationIds: string[]) => void;
   selectNation: (nationId: string | null) => void;
   setNationCustomization: (customization: NationCustomization | null) => void;
-  
+
   // Diplomatic actions (for Nations tab)
   setPlayerNations: (playerNations: Record<string, PlayerNationInfo>) => void;
   updatePlayerNation: (playerId: string, info: Partial<PlayerNationInfo>) => void;
@@ -90,7 +90,7 @@ interface GameStore extends GameState {
   getCurrentPlayer: () => ReturnType<typeof getCurrentPlayer>;
   getSelectedUnit: () => ReturnType<typeof getSelectedUnit>;
   getSelectedCity: () => ReturnType<typeof getSelectedCity>;
-  
+
   // Nation-related getters
   getSelectedNation: () => ReturnType<typeof getSelectedNation>;
   getSelectedPlayerInfo: () => ReturnType<typeof getSelectedPlayerInfo>;
@@ -131,7 +131,7 @@ const getAvailableNationsData = (state: GameStore) => {
 const getPlayerDiplomaticState = (state: GameStore, playerId: string): DiplomaticState | null => {
   const relations = state.diplomaticRelations[state.currentPlayerId];
   if (!relations) return null;
-  
+
   const relation = relations.find(r => r.playerId === playerId);
   return relation?.state || null;
 };
@@ -139,14 +139,14 @@ const getPlayerDiplomaticState = (state: GameStore, playerId: string): Diplomati
 const getPlayerEmbassyStatus = (state: GameStore, playerId: string): EmbassyStatus | null => {
   const statuses = state.embassyStatuses[state.currentPlayerId];
   if (!statuses) return null;
-  
+
   return statuses.find(s => s.playerId === playerId) || null;
 };
 
 const getPlayerSharedVisionStatus = (state: GameStore, playerId: string): SharedVision | null => {
   const statuses = state.sharedVisionStatuses[state.currentPlayerId];
   if (!statuses) return null;
-  
+
   return statuses.find(s => s.playerId === playerId) || null;
 };
 
@@ -190,7 +190,7 @@ export const useGameStore = create<GameStore>()(
     availableNations: [],
     selectedNationId: null,
     nationCustomization: null,
-    
+
     // Diplomatic initial state
     playerNations: {},
     diplomaticRelations: {},
@@ -302,8 +302,8 @@ export const useGameStore = create<GameStore>()(
       set(state => ({
         playerNations: {
           ...state.playerNations,
-          [playerId]: { ...state.playerNations[playerId], ...info }
-        }
+          [playerId]: { ...state.playerNations[playerId], ...info },
+        },
       }));
     },
 
@@ -311,8 +311,8 @@ export const useGameStore = create<GameStore>()(
       set(state => ({
         diplomaticRelations: {
           ...state.diplomaticRelations,
-          [playerId]: relations
-        }
+          [playerId]: relations,
+        },
       }));
     },
 
@@ -320,8 +320,8 @@ export const useGameStore = create<GameStore>()(
       set(state => ({
         embassyStatuses: {
           ...state.embassyStatuses,
-          [playerId]: statuses
-        }
+          [playerId]: statuses,
+        },
       }));
     },
 
@@ -329,8 +329,8 @@ export const useGameStore = create<GameStore>()(
       set(state => ({
         sharedVisionStatuses: {
           ...state.sharedVisionStatuses,
-          [playerId]: statuses
-        }
+          [playerId]: statuses,
+        },
       }));
     },
 
@@ -338,8 +338,8 @@ export const useGameStore = create<GameStore>()(
       set(state => ({
         intelligenceReports: {
           ...state.intelligenceReports,
-          [playerId]: report
-        }
+          [playerId]: report,
+        },
       }));
     },
 
@@ -351,7 +351,7 @@ export const useGameStore = create<GameStore>()(
     getCurrentPlayer: () => getCurrentPlayer(get()),
     getSelectedUnit: () => getSelectedUnit(get()),
     getSelectedCity: () => getSelectedCity(get()),
-    
+
     // Nation-related getters
     getSelectedNation: () => getSelectedNation(get()),
     getSelectedPlayerInfo: () => getSelectedPlayerInfo(get()),

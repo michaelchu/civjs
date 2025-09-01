@@ -95,7 +95,7 @@ export enum PacketType {
   RESEARCH_PROGRESS = 225,
   RESEARCH_PROGRESS_REPLY = 226,
   TURN_PROCESSING_STEP = 227,
-  
+
   // Nation & Diplomacy (230-250)
   NATION_SELECT_REPLY = 230,
   NATION_LIST = 231,
@@ -406,15 +406,18 @@ export interface DiplomaticStatePacket {
   type: PacketType.DIPLOMATIC_STATE;
   data: {
     playerId: string;
-    relations: Record<string, {
-      state: 'war' | 'peace' | 'alliance' | 'ceasefire' | 'neutral';
-      turns_left?: number;
-      contact_turns_ago: number;
-      has_real_embassy: boolean;
-      has_embassy_with_player: boolean;
-      gives_shared_vision: boolean;
-      receives_shared_vision: boolean;
-    }>;
+    relations: Record<
+      string,
+      {
+        state: 'war' | 'peace' | 'alliance' | 'ceasefire' | 'neutral';
+        turns_left?: number;
+        contact_turns_ago: number;
+        has_real_embassy: boolean;
+        has_embassy_with_player: boolean;
+        gives_shared_vision: boolean;
+        receives_shared_vision: boolean;
+      }
+    >;
   };
 }
 
@@ -422,7 +425,12 @@ export interface DiplomaticActionPacket {
   type: PacketType.DIPLOMATIC_ACTION;
   data: {
     targetPlayerId: string;
-    action: 'declare_war' | 'offer_peace' | 'propose_alliance' | 'cancel_treaty' | 'establish_embassy';
+    action:
+      | 'declare_war'
+      | 'offer_peace'
+      | 'propose_alliance'
+      | 'cancel_treaty'
+      | 'establish_embassy';
   };
 }
 

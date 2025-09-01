@@ -1,10 +1,10 @@
 /**
  * Nations Tab Component
- * 
+ *
  * Complete diplomatic interface for CivJS, porting functionality from:
  * reference/freeciv-web/freeciv-web/src/main/webapp/javascript/nation.js
  * reference/freeciv-web/freeciv-web/src/main/webapp/webclient/nations.jsp
- * 
+ *
  * Features:
  * - Complete nations table with all diplomatic information
  * - Context-sensitive action buttons
@@ -18,21 +18,12 @@ import { useGameStore } from '../../store/gameStore';
 import { NationsTable } from './NationsTable';
 import { DiplomaticActions } from './DiplomaticActions';
 import { IntelligenceDialog } from './IntelligenceDialog';
-import { Button } from '../ui/button';
+// import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Separator } from '../ui/separator';
-import { 
-  Users, 
-  Crown, 
-  Bot, 
-  Skull, 
-  CheckCircle, 
-  Clock, 
-  Zap,
-  BarChart3 
-} from 'lucide-react';
-import type { PlayerNationInfo } from '../../../shared/src/types/nations';
+import { Users, Crown, Bot, Skull, CheckCircle, Clock, Zap, BarChart3 } from 'lucide-react';
+import type { PlayerNationInfo } from '@shared/types/nations';
 
 export const NationsTab: React.FC = () => {
   const {
@@ -40,7 +31,7 @@ export const NationsTab: React.FC = () => {
     selectedPlayerId,
     currentPlayerId,
     selectPlayer,
-    players
+    // players
   } = useGameStore();
 
   const [showIntelligence, setShowIntelligence] = useState(false);
@@ -49,7 +40,9 @@ export const NationsTab: React.FC = () => {
   const statistics = useMemo(() => {
     const playerList = Object.values(playerNations);
     const totalPlayers = playerList.length;
-    const humans = playerList.filter(p => p.isHuman && p.isAlive && (!p.turnsIdle || p.turnsIdle <= 4)).length;
+    const humans = playerList.filter(
+      p => p.isHuman && p.isAlive && (!p.turnsIdle || p.turnsIdle <= 4)
+    ).length;
     const ais = playerList.filter(p => !p.isHuman && p.isAlive).length;
     const inactive = totalPlayers - humans - ais;
 
@@ -59,7 +52,7 @@ export const NationsTab: React.FC = () => {
   // Sort players for display (matching freeciv-web table sorting)
   const sortedPlayers = useMemo(() => {
     const playerList = Object.values(playerNations);
-    
+
     return playerList.sort((a, b) => {
       // Sort by player name by default (like freeciv-web sortList: [[2,0]])
       return a.playerName.localeCompare(b.playerName);
@@ -96,7 +89,7 @@ export const NationsTab: React.FC = () => {
             <Users className="w-6 h-6 text-blue-500" />
             <h2 className="text-2xl font-bold text-foreground">Nations of the World</h2>
           </div>
-          
+
           {/* Statistics (based on freeciv-web nations_label) */}
           <div className="flex items-center space-x-4">
             <Badge variant="secondary" className="flex items-center space-x-1">
@@ -120,7 +113,7 @@ export const NationsTab: React.FC = () => {
             <CardTitle className="text-sm">Diplomatic Actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <DiplomaticActions 
+            <DiplomaticActions
               selectedPlayer={selectedPlayer}
               currentPlayer={currentPlayer}
               isObserver={isObserver}
@@ -142,7 +135,7 @@ export const NationsTab: React.FC = () => {
                 <BarChart3 className="w-4 h-4" />
                 <span>Diplomatic Overview</span>
               </CardTitle>
-              
+
               {selectedPlayer && (
                 <Badge variant="default" className="flex items-center space-x-1">
                   <span>Selected:</span>
@@ -181,7 +174,7 @@ export const NationsTab: React.FC = () => {
 };
 
 // Status indicator component for player states
-export const PlayerStatusIndicator: React.FC<{ 
+export const PlayerStatusIndicator: React.FC<{
   status: PlayerNationInfo['status'];
   isOnline?: boolean;
   className?: string;
@@ -191,7 +184,7 @@ export const PlayerStatusIndicator: React.FC<{
       return {
         icon: <Zap className="w-3 h-3" />,
         text: 'Online',
-        color: 'text-green-500 bg-green-50 border-green-200'
+        color: 'text-green-500 bg-green-50 border-green-200',
       };
     }
 
@@ -200,25 +193,25 @@ export const PlayerStatusIndicator: React.FC<{
         return {
           icon: <CheckCircle className="w-3 h-3" />,
           text: 'Done',
-          color: 'text-blue-500 bg-blue-50 border-blue-200'
+          color: 'text-blue-500 bg-blue-50 border-blue-200',
         };
       case 'Moving':
         return {
           icon: <Clock className="w-3 h-3" />,
           text: 'Moving',
-          color: 'text-amber-500 bg-amber-50 border-amber-200'
+          color: 'text-amber-500 bg-amber-50 border-amber-200',
         };
       case 'Dead':
         return {
           icon: <Skull className="w-3 h-3" />,
           text: 'Dead',
-          color: 'text-gray-500 bg-gray-50 border-gray-200'
+          color: 'text-gray-500 bg-gray-50 border-gray-200',
         };
       default:
         return {
           icon: <Clock className="w-3 h-3" />,
           text: status,
-          color: 'text-gray-500 bg-gray-50 border-gray-200'
+          color: 'text-gray-500 bg-gray-50 border-gray-200',
         };
     }
   };

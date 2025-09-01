@@ -1,10 +1,10 @@
 /**
  * Intelligence Dialog Component
- * 
+ *
  * Comprehensive intelligence report dialog with tabbed interface.
  * Based on freeciv-web intelligence system with modern design.
- * 
- * Reference: 
+ *
+ * Reference:
  * - reference/freeciv-web/freeciv-web/src/main/webapp/javascript/intel_dialog.js:67-144
  * - reference/freeciv-web/freeciv-web/src/main/webapp/webclient/intel.hbs
  */
@@ -15,21 +15,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Separator } from '../ui/separator';
-import { 
-  Building2, 
-  Users, 
-  Lightbulb, 
-  Crown, 
-  MapPin, 
-  Coins, 
+// import { Separator } from '../ui/separator';
+import {
+  Building2,
+  Users,
+  Lightbulb,
+  Crown,
+  MapPin,
+  Coins,
   TrendingUp,
   FlaskConical,
   Heart,
   Handshake,
-  Swords
+  Swords,
 } from 'lucide-react';
-import type { IntelligenceReport, DiplomaticState } from '../../../shared/src/types/nations';
+import type { DiplomaticState } from '@shared/types/nations';
 
 interface IntelligenceDialogProps {
   playerId: string;
@@ -44,14 +44,10 @@ export const IntelligenceDialog: React.FC<IntelligenceDialogProps> = ({
   playerName,
   nationName,
   open,
-  onOpenChange
+  onOpenChange,
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
-  const { 
-    intelligenceReports, 
-    getPlayerEmbassyStatus,
-    currentPlayerId 
-  } = useGameStore();
+  const { intelligenceReports, getPlayerEmbassyStatus, currentPlayerId } = useGameStore();
 
   const report = intelligenceReports[playerId];
   const embassyStatus = currentPlayerId ? getPlayerEmbassyStatus(playerId) : null;
@@ -68,18 +64,16 @@ export const IntelligenceDialog: React.FC<IntelligenceDialogProps> = ({
               <span>Intelligence Report - {nationName}</span>
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="py-6">
             <div className="text-center space-y-4">
               <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center">
                 <Building2 className="w-8 h-8 text-muted-foreground" />
               </div>
-              
+
               <div className="space-y-2">
                 <h3 className="font-semibold">Limited Intelligence</h3>
-                <p className="text-sm text-muted-foreground">
-                  Ruler: {playerName}
-                </p>
+                <p className="text-sm text-muted-foreground">Ruler: {playerName}</p>
                 <p className="text-xs text-muted-foreground mt-4">
                   Establishing an embassy will reveal detailed intelligence information.
                 </p>
@@ -108,16 +102,22 @@ export const IntelligenceDialog: React.FC<IntelligenceDialogProps> = ({
 
   const getDiplomaticStateInfo = (state: DiplomaticState) => {
     const stateMap = {
-      'DS_WAR': { text: 'War', icon: Swords, color: 'destructive' },
-      'DS_CEASEFIRE': { text: 'Ceasefire', icon: Handshake, color: 'secondary' },
-      'DS_ARMISTICE': { text: 'Armistice', icon: Handshake, color: 'secondary' },
-      'DS_PEACE': { text: 'Peace', icon: Handshake, color: 'default' },
-      'DS_ALLIANCE': { text: 'Alliance', icon: Users, color: 'default' },
-      'DS_TEAM': { text: 'Team', icon: Users, color: 'default' },
-      'DS_NO_CONTACT': { text: 'No Contact', icon: Users, color: 'outline' }
+      DS_WAR: { text: 'War', icon: Swords, color: 'destructive' },
+      DS_CEASEFIRE: { text: 'Ceasefire', icon: Handshake, color: 'secondary' },
+      DS_ARMISTICE: { text: 'Armistice', icon: Handshake, color: 'secondary' },
+      DS_PEACE: { text: 'Peace', icon: Handshake, color: 'default' },
+      DS_ALLIANCE: { text: 'Alliance', icon: Users, color: 'default' },
+      DS_TEAM: { text: 'Team', icon: Users, color: 'default' },
+      DS_NO_CONTACT: { text: 'No Contact', icon: Users, color: 'outline' },
     };
-    
-    return stateMap[state] || { text: state, icon: Users, color: 'outline' as const };
+
+    return (
+      stateMap[state as keyof typeof stateMap] || {
+        text: state,
+        icon: Users,
+        color: 'outline' as const,
+      }
+    );
   };
 
   return (
@@ -260,26 +260,37 @@ export const IntelligenceDialog: React.FC<IntelligenceDialogProps> = ({
                 ) : (
                   <div className="space-y-4">
                     {Object.entries(
-                      report.diplomaticRelations.reduce((acc, relation) => {
-                        const stateInfo = getDiplomaticStateInfo(relation.state);
-                        if (!acc[relation.state]) {
-                          acc[relation.state] = {
-                            state: stateInfo.text,
-                            icon: stateInfo.icon,
-                            color: stateInfo.color,
-                            nations: []
-                          };
-                        }
-                        acc[relation.state].nations.push(relation.playerId);
-                        return acc;
-                      }, {} as Record<string, any>)
+                      report.diplomaticRelations.reduce(
+                        (acc, relation) => {
+                          const stateInfo = getDiplomaticStateInfo(relation.state);
+                          if (!acc[relation.state]) {
+                            acc[relation.state] = {
+                              text: stateInfo.text,
+                              icon: stateInfo.icon,
+                              color: stateInfo.color,
+                              nations: [],
+                            };
+                          }
+                          acc[relation.state].nations.push(relation.playerId);
+                          return acc;
+                        },
+                        {} as Record<
+                          string,
+                          {
+                            text: string;
+                            color: string;
+                            icon: React.ElementType;
+                            nations: string[];
+                          }
+                        >
+                      )
                     ).map(([state, info]) => {
                       const Icon = info.icon;
                       return (
                         <div key={state} className="space-y-2">
                           <div className="flex items-center space-x-2">
                             <Icon className="w-4 h-4" />
-                            <Badge variant={info.color}>{info.state}</Badge>
+                            <Badge variant="outline">{info.text}</Badge>
                           </div>
                           <ul className="ml-6 space-y-1">
                             {info.nations.map((nationId: string) => (
@@ -313,15 +324,18 @@ export const IntelligenceDialog: React.FC<IntelligenceDialogProps> = ({
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {report.knownTechnologies.map((tech) => (
+                    {report.knownTechnologies.map(tech => (
                       <div key={tech.techId} className="flex items-center justify-between">
                         <span className="text-sm">{tech.name}</span>
-                        <Badge 
+                        <Badge
                           variant={tech.whoKnows === 'both' ? 'default' : 'secondary'}
                           className="text-xs"
                         >
-                          {tech.whoKnows === 'both' ? 'Both' : 
-                           tech.whoKnows === 'them' ? 'They know' : 'We know'}
+                          {tech.whoKnows === 'both'
+                            ? 'Both'
+                            : tech.whoKnows === 'them'
+                              ? 'They know'
+                              : 'We know'}
                         </Badge>
                       </div>
                     ))}

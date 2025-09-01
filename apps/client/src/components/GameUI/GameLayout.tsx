@@ -107,9 +107,7 @@ export const GameLayout: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'nations' && (
-            <NationsTab />
-          )}
+          {activeTab === 'nations' && <NationsTab />}
 
           {activeTab === 'cities' && (
             <div className="p-6">

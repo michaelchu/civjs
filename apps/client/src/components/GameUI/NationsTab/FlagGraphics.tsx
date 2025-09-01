@@ -8,23 +8,23 @@ interface FlagGraphicsProps {
 
 /**
  * FlagGraphics component for displaying nation flags
- * 
+ *
  * This component handles flag rendering for all 573+ Freeciv nations.
  * It supports fallback mechanisms for missing flag graphics.
  */
 export const FlagGraphics: React.FC<FlagGraphicsProps> = ({
   nationId,
   size = 'medium',
-  className = ''
+  className = '',
 }) => {
   const sizeMap = {
     small: { width: 24, height: 16 },
     medium: { width: 36, height: 24 },
-    large: { width: 48, height: 32 }
+    large: { width: 48, height: 32 },
   };
 
   const { width, height } = sizeMap[size];
-  
+
   const flagSrc = `/flags/${nationId}.png`;
   const fallbackSrc = `/flags/unknown.svg`;
 

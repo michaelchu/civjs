@@ -1,9 +1,9 @@
 /**
  * Nations Table Component
- * 
+ *
  * Detailed table displaying all players with diplomatic information.
  * Based on freeciv-web nation table implementation with modern design.
- * 
+ *
  * Reference: reference/freeciv-web/freeciv-web/src/main/webapp/javascript/nation.js:35-147
  */
 
@@ -11,8 +11,8 @@ import React, { useMemo } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '../ui/Table';
 import { PlayerRow } from './PlayerRow';
-import { cn } from '../../lib/utils';
-import type { PlayerNationInfo } from '../../../shared/src/types/nations';
+// import { cn } from '../../lib/utils';
+import type { PlayerNationInfo } from '@shared/types/nations';
 
 interface NationsTableProps {
   players: PlayerNationInfo[];
@@ -27,7 +27,7 @@ export const NationsTable: React.FC<NationsTableProps> = ({
   selectedPlayerId,
   currentPlayerId,
   onPlayerSelect,
-  isObserver
+  isObserver,
 }) => {
   const { nations } = useGameStore();
 
@@ -36,10 +36,10 @@ export const NationsTable: React.FC<NationsTableProps> = ({
     return players.filter(player => {
       // Skip players with invalid nations
       if (!nations[player.nationId]) return false;
-      
+
       // Skip "New Available Player" entries in longturn games
-      if (player.playerName.includes("New Available Player")) return false;
-      
+      if (player.playerName.includes('New Available Player')) return false;
+
       return true;
     });
   }, [players, nations]);
@@ -73,9 +73,7 @@ export const NationsTable: React.FC<NationsTableProps> = ({
             <TableHead className="w-8">Color</TableHead>
             <TableHead className="min-w-[120px]">Player Name</TableHead>
             <TableHead className="min-w-[100px]">Nation</TableHead>
-            {!isObserver && (
-              <TableHead className="w-20">Attitude</TableHead>
-            )}
+            {!isObserver && <TableHead className="w-20">Attitude</TableHead>}
             <TableHead className="w-16">Score</TableHead>
             <TableHead className="w-20">Type</TableHead>
             <TableHead className="w-16">Status</TableHead>
@@ -91,7 +89,7 @@ export const NationsTable: React.FC<NationsTableProps> = ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {visiblePlayers.map((player) => (
+          {visiblePlayers.map(player => (
             <PlayerRow
               key={player.playerId}
               player={player}
@@ -104,7 +102,7 @@ export const NationsTable: React.FC<NationsTableProps> = ({
           ))}
         </TableBody>
       </Table>
-      
+
       {visiblePlayers.length > 10 && (
         <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none" />
       )}
