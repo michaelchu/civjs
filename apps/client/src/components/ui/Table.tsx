@@ -19,6 +19,7 @@ interface TableBodyProps {
 interface TableRowProps {
   children: ReactNode;
   className?: string;
+  onClick?: () => void;
 }
 
 interface TableHeadProps {
@@ -45,12 +46,14 @@ export const TableBody: React.FC<TableBodyProps> = ({ children, className }) => 
   <tbody className={clsx(className)}>{children}</tbody>
 );
 
-export const TableRow: React.FC<TableRowProps> = ({ children, className }) => (
+export const TableRow: React.FC<TableRowProps> = ({ children, className, onClick }) => (
   <tr
     className={clsx(
       'border-b border-border hover:bg-muted/50 transition-colors duration-200',
+      onClick && 'cursor-pointer',
       className
     )}
+    onClick={onClick}
   >
     {children}
   </tr>

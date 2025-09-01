@@ -3,6 +3,7 @@ import { useGameStore } from '../../store/gameStore';
 import { MapCanvas } from '../Canvas2D/MapCanvas';
 import { GameTabs } from './GameTabs';
 import { StatusPanel } from './StatusPanel';
+import { NationsTab } from './NationsTab';
 // import { ChatBox } from './ChatBox'; // Commented out while ChatBox is disabled
 import { TurnDoneButton } from './TurnDoneButton';
 import { TurnStatusOverlay } from './TurnStatusOverlay';
@@ -107,10 +108,7 @@ export const GameLayout: React.FC = () => {
           )}
 
           {activeTab === 'nations' && (
-            <div className="p-6">
-              <h2 className="text-2xl font-bold mb-4">Nations</h2>
-              <p className="text-gray-300">Diplomacy and nation info will be implemented here</p>
-            </div>
+            <NationsTab />
           )}
 
           {activeTab === 'cities' && (
