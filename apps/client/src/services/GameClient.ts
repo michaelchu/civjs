@@ -908,24 +908,28 @@ class GameClient {
       }
 
       // Send unit action request to server and wait for response
-      this.socket.emit('unit_action', {
-        unitId,
-        actionType,
-        targetX,
-        targetY,
-      }, (response: { success: boolean; error?: string; result?: any }) => {
-        if (response.success) {
-          console.log(`Successfully executed ${actionType} for unit ${unitId}`, {
-            targetX,
-            targetY,
-            result: response.result
-          });
-          resolve(true);
-        } else {
-          console.error(`Failed to execute ${actionType} for unit ${unitId}:`, response.error);
-          resolve(false);
+      this.socket.emit(
+        'unit_action',
+        {
+          unitId,
+          actionType,
+          targetX,
+          targetY,
+        },
+        (response: { success: boolean; error?: string; result?: any }) => {
+          if (response.success) {
+            console.log(`Successfully executed ${actionType} for unit ${unitId}`, {
+              targetX,
+              targetY,
+              result: response.result,
+            });
+            resolve(true);
+          } else {
+            console.error(`Failed to execute ${actionType} for unit ${unitId}:`, response.error);
+            resolve(false);
+          }
         }
-      });
+      );
     });
   }
 
