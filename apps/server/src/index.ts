@@ -4,7 +4,6 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import compression from 'compression';
 import dotenv from 'dotenv';
-import path from 'path';
 
 import config from './config';
 import logger from './utils/logger';
@@ -91,16 +90,7 @@ app.get('/api/info', (_req, res) => {
   });
 });
 
-// Serve client build in production
-if (config.server.env === 'production') {
-  const clientPath = path.join(__dirname, '..', 'public');
-  app.use(express.static(clientPath));
-
-  // Catch-all route for client-side routing (Express v5 requires named wildcard)
-  app.get('*catchAll', (_req, res) => {
-    res.sendFile(path.join(clientPath, 'index.html'));
-  });
-}
+// Backend-only server - frontend is served separately
 
 // Socket.IO connection handling
 io.on('connection', socket => {

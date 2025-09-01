@@ -26,10 +26,11 @@ COPY package*.json ./
 # Install all dependencies (needed for migrations)
 RUN npm ci --ignore-scripts
 
-# Copy built application and migration files
+# Copy all necessary files from builder (including public, dist, drizzle, etc)
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/src/scripts ./src/scripts
+COPY --from=builder /app/public ./public
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
