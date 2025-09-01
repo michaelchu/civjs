@@ -17,7 +17,7 @@ import 'reactflow/dist/style.css';
 import { useGameStore } from '../../store/gameStore';
 import { TechnologyNode } from './TechnologyNode';
 import { TechnologyDetails } from './TechnologyDetails';
-import { ResearchDemo } from './ResearchDemo';
+// import { ResearchDemo } from './ResearchDemo'; // Hidden for now
 import {
   createTechnologyGraph,
   getAvailableTechnologies,
@@ -25,9 +25,10 @@ import {
 } from './utils/technologyData';
 import { getLayoutedElements } from './utils/layoutUtils';
 
+// Move nodeTypes outside component and memoize to fix React Flow warning
 const nodeTypes: NodeTypes = {
   technologyNode: TechnologyNode,
-};
+} as const;
 
 const TechnologyTreeInner: React.FC = () => {
   const store = useGameStore();
@@ -129,8 +130,17 @@ const TechnologyTreeInner: React.FC = () => {
     );
   }, [store.research, setNodes]);
 
+  // Add a check to see if nodes are being created
+  if (nodes.length === 0) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-900">
+        <div className="text-white">Loading technology tree...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full h-full relative">
+    <div className="w-full h-full bg-gray-900 relative">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -165,15 +175,15 @@ const TechnologyTreeInner: React.FC = () => {
         <TechnologyDetails techId={selectedTech} onClose={() => setSelectedTech(null)} />
       )}
 
-      {/* Demo controls for testing */}
-      <ResearchDemo />
+      {/* Demo controls for testing - hidden for now */}
+      {/* <ResearchDemo /> */}
     </div>
   );
 };
 
 export const TechnologyTree: React.FC = () => {
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full bg-gray-900">
       <ReactFlowProvider>
         <TechnologyTreeInner />
       </ReactFlowProvider>
