@@ -14,6 +14,7 @@
     "build:client": "npm run build --workspace=apps/client",
     "build:server": "npm run build --workspace=apps/server",
     "start:prod": "npm run db:migrate:prod --workspace=apps/server && node apps/server/dist/index.js",
+    "start:railway": "npm run db:migrate:prod --workspace=apps/server && node apps/server/dist/index.js",
     "test": "npm run test --workspaces",
     "test:client": "npm run test --workspace=apps/client",
     "test:server": "npm run test --workspace=apps/server",
