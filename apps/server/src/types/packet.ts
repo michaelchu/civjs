@@ -97,6 +97,17 @@ export enum PacketType {
   RESEARCH_PROGRESS = 225,
   RESEARCH_PROGRESS_REPLY = 226,
   TURN_PROCESSING_STEP = 227,
+  
+  // Nation & Diplomacy (230-250)
+  NATION_SELECT_REPLY = 230,
+  NATION_LIST = 231,
+  NATION_LIST_REPLY = 232,
+  DIPLOMATIC_STATE = 233,
+  DIPLOMATIC_STATE_REPLY = 234,
+  DIPLOMATIC_ACTION = 235,
+  DIPLOMATIC_ACTION_REPLY = 236,
+  INTELLIGENCE_REPORT = 237,
+  INTELLIGENCE_REPORT_REPLY = 238,
 }
 
 // Debug helper for development - maps numeric types to readable names
@@ -716,6 +727,105 @@ export const TurnProcessingStepSchema = z.object({
   active: z.boolean(),
 });
 
+// Nation & Diplomacy packet schemas
+export const NationSelectReplySchema = z.object({
+  success: z.boolean(),
+  nationId: z.string().optional(),
+  message: z.string().optional(),
+});
+
+export const NationListSchema = z.object({});
+
+export const NationListReplySchema = z.object({
+  nations: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      adjective: z.string(),
+      plural: z.string(),
+      flag: z.string(),
+      available: z.boolean(),
+      leader: z.object({
+        name: z.string(),
+        sex: z.enum(['Male', 'Female']),
+      }),
+      cities: z.array(z.string()),
+      groups: z.array(z.string()),
+    })
+  ),
+  groups: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      hidden: z.boolean(),
+      match: z.number(),
+    })
+  ),
+});
+
+export const DiplomaticStateSchema = z.object({
+  playerId: z.string(),
+  relations: z.record(
+    z.object({
+      state: z.enum(['war', 'peace', 'alliance', 'ceasefire', 'neutral']),
+      turns_left: z.number().optional(),
+      contact_turns_ago: z.number(),
+      has_real_embassy: z.boolean(),
+      has_embassy_with_player: z.boolean(),
+      gives_shared_vision: z.boolean(),
+      receives_shared_vision: z.boolean(),
+    })
+  ),
+});
+
+export const DiplomaticActionSchema = z.object({
+  targetPlayerId: z.string(),
+  action: z.enum(['declare_war', 'offer_peace', 'propose_alliance', 'cancel_treaty', 'establish_embassy']),
+});
+
+export const DiplomaticActionReplySchema = z.object({
+  success: z.boolean(),
+  action: z.string(),
+  targetPlayerId: z.string(),
+  message: z.string().optional(),
+});
+
+export const IntelligenceReportSchema = z.object({
+  targetPlayerId: z.string(),
+});
+
+export const IntelligenceReportReplySchema = z.object({
+  success: z.boolean(),
+  targetPlayerId: z.string(),
+  report: z
+    .object({
+      gold: z.number(),
+      tax: z.number(),
+      science: z.number(),
+      luxury: z.number(),
+      government: z.string(),
+      capital: z.string().optional(),
+      population: z.number(),
+      land_area: z.number(),
+      settled_area: z.number(),
+      literacy: z.number(),
+      spaceship: z
+        .object({
+          state: z.string(),
+          success_rate: z.number(),
+          structure: z.number(),
+          component: z.number(),
+          module: z.number(),
+        })
+        .optional(),
+      culture: z.number(),
+      techs_known: z.number(),
+      techs_total: z.number(),
+    })
+    .optional(),
+  message: z.string().optional(),
+});
+
 // Type exports
 export type ServerJoinReq = z.infer<typeof ServerJoinReqSchema>;
 export type ServerJoinReply = z.infer<typeof ServerJoinReplySchema>;
@@ -792,3 +902,11 @@ export type BeginTurn = z.infer<typeof BeginTurnSchema>;
 export type EndTurn = z.infer<typeof EndTurnSchema>;
 export type FreezeClient = z.infer<typeof FreezeClientSchema>;
 export type ThawClient = z.infer<typeof ThawClientSchema>;
+export type NationSelectReply = z.infer<typeof NationSelectReplySchema>;
+export type NationList = z.infer<typeof NationListSchema>;
+export type NationListReply = z.infer<typeof NationListReplySchema>;
+export type DiplomaticState = z.infer<typeof DiplomaticStateSchema>;
+export type DiplomaticAction = z.infer<typeof DiplomaticActionSchema>;
+export type DiplomaticActionReply = z.infer<typeof DiplomaticActionReplySchema>;
+export type IntelligenceReport = z.infer<typeof IntelligenceReportSchema>;
+export type IntelligenceReportReply = z.infer<typeof IntelligenceReportReplySchema>;

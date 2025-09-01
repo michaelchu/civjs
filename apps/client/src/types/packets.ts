@@ -95,6 +95,17 @@ export enum PacketType {
   RESEARCH_PROGRESS = 225,
   RESEARCH_PROGRESS_REPLY = 226,
   TURN_PROCESSING_STEP = 227,
+  
+  // Nation & Diplomacy (230-250)
+  NATION_SELECT_REPLY = 230,
+  NATION_LIST = 231,
+  NATION_LIST_REPLY = 232,
+  DIPLOMATIC_STATE = 233,
+  DIPLOMATIC_STATE_REPLY = 234,
+  DIPLOMATIC_ACTION = 235,
+  DIPLOMATIC_ACTION_REPLY = 236,
+  INTELLIGENCE_REPORT = 237,
+  INTELLIGENCE_REPORT_REPLY = 238,
 }
 
 // Debug helper for development - maps numeric types to readable names
@@ -130,6 +141,15 @@ export const PACKET_NAMES: Record<number, string> = {
   [PacketType.RESEARCH_SET]: 'RESEARCH_SET',
   [PacketType.RESEARCH_SET_REPLY]: 'RESEARCH_SET_REPLY',
   [PacketType.TURN_PROCESSING_STEP]: 'TURN_PROCESSING_STEP',
+  [PacketType.NATION_SELECT_REPLY]: 'NATION_SELECT_REPLY',
+  [PacketType.NATION_LIST]: 'NATION_LIST',
+  [PacketType.NATION_LIST_REPLY]: 'NATION_LIST_REPLY',
+  [PacketType.DIPLOMATIC_STATE]: 'DIPLOMATIC_STATE',
+  [PacketType.DIPLOMATIC_STATE_REPLY]: 'DIPLOMATIC_STATE_REPLY',
+  [PacketType.DIPLOMATIC_ACTION]: 'DIPLOMATIC_ACTION',
+  [PacketType.DIPLOMATIC_ACTION_REPLY]: 'DIPLOMATIC_ACTION_REPLY',
+  [PacketType.INTELLIGENCE_REPORT]: 'INTELLIGENCE_REPORT',
+  [PacketType.INTELLIGENCE_REPORT_REPLY]: 'INTELLIGENCE_REPORT_REPLY',
 };
 
 // Base packet interface matching server
@@ -333,6 +353,127 @@ export interface ServerJoinReplyPacket {
   };
 }
 
+// Nation and Diplomacy packets
+export interface NationSelectReqPacket {
+  type: PacketType.NATION_SELECT_REQ;
+  data: {
+    nationId: string;
+    playerName?: string;
+  };
+}
+
+export interface NationSelectReplyPacket {
+  type: PacketType.NATION_SELECT_REPLY;
+  data: {
+    success: boolean;
+    nationId?: string;
+    message?: string;
+  };
+}
+
+export interface NationListReqPacket {
+  type: PacketType.NATION_LIST;
+  data: Record<string, never>;
+}
+
+export interface NationListReplyPacket {
+  type: PacketType.NATION_LIST_REPLY;
+  data: {
+    nations: Array<{
+      id: string;
+      name: string;
+      adjective: string;
+      plural: string;
+      flag: string;
+      available: boolean;
+      leader: {
+        name: string;
+        sex: 'Male' | 'Female';
+      };
+      cities: string[];
+      groups: string[];
+    }>;
+    groups: Array<{
+      id: string;
+      name: string;
+      hidden: boolean;
+      match: number;
+    }>;
+  };
+}
+
+export interface DiplomaticStatePacket {
+  type: PacketType.DIPLOMATIC_STATE;
+  data: {
+    playerId: string;
+    relations: Record<string, {
+      state: 'war' | 'peace' | 'alliance' | 'ceasefire' | 'neutral';
+      turns_left?: number;
+      contact_turns_ago: number;
+      has_real_embassy: boolean;
+      has_embassy_with_player: boolean;
+      gives_shared_vision: boolean;
+      receives_shared_vision: boolean;
+    }>;
+  };
+}
+
+export interface DiplomaticActionPacket {
+  type: PacketType.DIPLOMATIC_ACTION;
+  data: {
+    targetPlayerId: string;
+    action: 'declare_war' | 'offer_peace' | 'propose_alliance' | 'cancel_treaty' | 'establish_embassy';
+  };
+}
+
+export interface DiplomaticActionReplyPacket {
+  type: PacketType.DIPLOMATIC_ACTION_REPLY;
+  data: {
+    success: boolean;
+    action: string;
+    targetPlayerId: string;
+    message?: string;
+  };
+}
+
+export interface IntelligenceReportPacket {
+  type: PacketType.INTELLIGENCE_REPORT;
+  data: {
+    targetPlayerId: string;
+  };
+}
+
+export interface IntelligenceReportReplyPacket {
+  type: PacketType.INTELLIGENCE_REPORT_REPLY;
+  data: {
+    success: boolean;
+    targetPlayerId: string;
+    report?: {
+      gold: number;
+      tax: number;
+      science: number;
+      luxury: number;
+      government: string;
+      capital?: string;
+      population: number;
+      land_area: number;
+      settled_area: number;
+      literacy: number;
+      spaceship?: {
+        state: string;
+        success_rate: number;
+        structure: number;
+        component: number;
+        module: number;
+      };
+      culture: number;
+      techs_known: number;
+      techs_total: number;
+    };
+    message?: string;
+  };
+}
+
 export type SocketPacket =
   | GameStatePacket
   | UnitMovePacket
@@ -350,4 +491,13 @@ export type SocketPacket =
   | ProcessingFinishedPacket
   | AuthenticationReqPacket
   | AuthenticationReplyPacket
-  | PlayerInfoPacket;
+  | PlayerInfoPacket
+  | NationSelectReqPacket
+  | NationSelectReplyPacket
+  | NationListReqPacket
+  | NationListReplyPacket
+  | DiplomaticStatePacket
+  | DiplomaticActionPacket
+  | DiplomaticActionReplyPacket
+  | IntelligenceReportPacket
+  | IntelligenceReportReplyPacket;

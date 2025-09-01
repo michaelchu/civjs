@@ -6,3 +6,4 @@ export * from './cities';
 export * from './units';
 export * from './game-turns';
 export * from './research';
+export * from './nations';

@@ -17,6 +17,10 @@ import {
   ResearchGoalSetSchema,
   ResearchListSchema,
   ResearchProgressSchema,
+  NationSelectReqSchema,
+  NationListSchema,
+  DiplomaticActionSchema,
+  IntelligenceReportSchema,
 } from '../types/packet';
 import { sessionCache } from '../database/redis';
 import { db } from '../database';
@@ -1259,6 +1263,263 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       }
     },
     ResearchProgressSchema
+  );
+
+  // Nation & Diplomacy handlers
+  handler.register(
+    PacketType.NATION_SELECT_REQ,
+    async (socket, data) => {
+      const connection = activeConnections.get(socket.id);
+      if (!connection?.userId || !connection?.gameId) {
+        handler.send(socket, PacketType.NATION_SELECT_REPLY, {
+          success: false,
+          message: 'Not authenticated or not in a game',
+        });
+        return;
+      }
+
+      try {
+        const game = await gameManager.getGame(connection.gameId);
+        if (!game) {
+          handler.send(socket, PacketType.NATION_SELECT_REPLY, {
+            success: false,
+            message: 'Game not found',
+          });
+          return;
+        }
+
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
+        if (!player) {
+          handler.send(socket, PacketType.NATION_SELECT_REPLY, {
+            success: false,
+            message: 'Player not found in game',
+          });
+          return;
+        }
+
+        // Use NationManager to validate and assign nation
+        const nationManager = gameManager.getNationManager();
+        const success = await nationManager.assignNationToPlayer(
+          connection.gameId,
+          player.id,
+          data.nation
+        );
+
+        if (success) {
+          handler.send(socket, PacketType.NATION_SELECT_REPLY, {
+            success: true,
+            nationId: data.nation,
+          });
+
+          logger.debug('Nation selected', {
+            gameId: connection.gameId,
+            playerId: player.id,
+            nationId: data.nation,
+          });
+        } else {
+          handler.send(socket, PacketType.NATION_SELECT_REPLY, {
+            success: false,
+            message: 'Nation not available or invalid',
+          });
+        }
+      } catch (error) {
+        logger.error('Error selecting nation:', error);
+        handler.send(socket, PacketType.NATION_SELECT_REPLY, {
+          success: false,
+          message: error instanceof Error ? error.message : 'Failed to select nation',
+        });
+      }
+    },
+    NationSelectReqSchema
+  );
+
+  handler.register(
+    PacketType.NATION_LIST,
+    async (socket, _data) => {
+      const connection = activeConnections.get(socket.id);
+      if (!connection?.userId) {
+        return;
+      }
+
+      try {
+        const nationManager = gameManager.getNationManager();
+        const { nations, groups } = await nationManager.getAllNations();
+
+        // Filter available nations if in a game
+        let availableNations = nations;
+        if (connection.gameId) {
+          availableNations = await nationManager.getAvailableNations(connection.gameId);
+        }
+
+        const nationData = availableNations.map(nation => ({
+          id: nation.id,
+          name: nation.name,
+          adjective: nation.adjective,
+          plural: nation.plural,
+          flag: nation.flag,
+          available: true,
+          leader: nation.leaders[0] || { name: 'Unknown', sex: 'Male' as const },
+          cities: nation.cities.slice(0, 5), // Send first 5 city names
+          groups: nation.groups,
+        }));
+
+        handler.send(socket, PacketType.NATION_LIST_REPLY, {
+          nations: nationData,
+          groups: groups,
+        });
+
+        logger.debug('Sent nation list', {
+          userId: connection.userId,
+          nationCount: nationData.length,
+          groupCount: groups.length,
+        });
+      } catch (error) {
+        logger.error('Error getting nation list:', error);
+      }
+    },
+    NationListSchema
+  );
+
+  handler.register(
+    PacketType.DIPLOMATIC_ACTION,
+    async (socket, data) => {
+      const connection = activeConnections.get(socket.id);
+      if (!connection?.userId || !connection?.gameId) {
+        handler.send(socket, PacketType.DIPLOMATIC_ACTION_REPLY, {
+          success: false,
+          action: data.action,
+          targetPlayerId: data.targetPlayerId,
+          message: 'Not authenticated or not in a game',
+        });
+        return;
+      }
+
+      try {
+        const game = await gameManager.getGame(connection.gameId);
+        if (!game || game.state !== 'active') {
+          handler.send(socket, PacketType.DIPLOMATIC_ACTION_REPLY, {
+            success: false,
+            action: data.action,
+            targetPlayerId: data.targetPlayerId,
+            message: 'Game is not active',
+          });
+          return;
+        }
+
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
+        if (!player) {
+          handler.send(socket, PacketType.DIPLOMATIC_ACTION_REPLY, {
+            success: false,
+            action: data.action,
+            targetPlayerId: data.targetPlayerId,
+            message: 'Player not found in game',
+          });
+          return;
+        }
+
+        // Execute diplomatic action
+        const success = await gameManager.executeDiplomaticAction(
+          connection.gameId,
+          player.id,
+          data.targetPlayerId,
+          data.action
+        );
+
+        handler.send(socket, PacketType.DIPLOMATIC_ACTION_REPLY, {
+          success,
+          action: data.action,
+          targetPlayerId: data.targetPlayerId,
+          message: success ? 'Diplomatic action completed' : 'Diplomatic action failed',
+        });
+
+        logger.debug('Diplomatic action executed', {
+          gameId: connection.gameId,
+          playerId: player.id,
+          targetPlayerId: data.targetPlayerId,
+          action: data.action,
+          success,
+        });
+      } catch (error) {
+        logger.error('Error executing diplomatic action:', error);
+        handler.send(socket, PacketType.DIPLOMATIC_ACTION_REPLY, {
+          success: false,
+          action: data.action,
+          targetPlayerId: data.targetPlayerId,
+          message: error instanceof Error ? error.message : 'Failed to execute diplomatic action',
+        });
+      }
+    },
+    DiplomaticActionSchema
+  );
+
+  handler.register(
+    PacketType.INTELLIGENCE_REPORT,
+    async (socket, data) => {
+      const connection = activeConnections.get(socket.id);
+      if (!connection?.userId || !connection?.gameId) {
+        handler.send(socket, PacketType.INTELLIGENCE_REPORT_REPLY, {
+          success: false,
+          targetPlayerId: data.targetPlayerId,
+          message: 'Not authenticated or not in a game',
+        });
+        return;
+      }
+
+      try {
+        const game = await gameManager.getGame(connection.gameId);
+        if (!game || game.state !== 'active') {
+          handler.send(socket, PacketType.INTELLIGENCE_REPORT_REPLY, {
+            success: false,
+            targetPlayerId: data.targetPlayerId,
+            message: 'Game is not active',
+          });
+          return;
+        }
+
+        const player = Array.from(game.players.values()).find(
+          (p: any) => p.userId === connection.userId
+        ) as any;
+        if (!player) {
+          handler.send(socket, PacketType.INTELLIGENCE_REPORT_REPLY, {
+            success: false,
+            targetPlayerId: data.targetPlayerId,
+            message: 'Player not found in game',
+          });
+          return;
+        }
+
+        // Get intelligence report
+        const report = await gameManager.getIntelligenceReport(
+          connection.gameId,
+          player.id,
+          data.targetPlayerId
+        );
+
+        handler.send(socket, PacketType.INTELLIGENCE_REPORT_REPLY, {
+          success: true,
+          targetPlayerId: data.targetPlayerId,
+          report,
+        });
+
+        logger.debug('Intelligence report generated', {
+          gameId: connection.gameId,
+          playerId: player.id,
+          targetPlayerId: data.targetPlayerId,
+        });
+      } catch (error) {
+        logger.error('Error generating intelligence report:', error);
+        handler.send(socket, PacketType.INTELLIGENCE_REPORT_REPLY, {
+          success: false,
+          targetPlayerId: data.targetPlayerId,
+          message: error instanceof Error ? error.message : 'Failed to generate intelligence report',
+        });
+      }
+    },
+    IntelligenceReportSchema
   );
 }
 
