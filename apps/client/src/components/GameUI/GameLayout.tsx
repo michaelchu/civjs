@@ -104,7 +104,16 @@ export const GameLayout: React.FC = () => {
 
           {activeTab === 'nations' && (
             <div style={{ padding: '24px', backgroundColor: '#4a5568', height: '100%' }}>
-              <h2 style={{ color: 'white', fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>Nations</h2>
+              <h2
+                style={{
+                  color: 'white',
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  marginBottom: '16px',
+                }}
+              >
+                Nations
+              </h2>
               <p style={{ color: '#cbd5e0' }}>Diplomacy and nation info will be implemented here</p>
             </div>
           )}
