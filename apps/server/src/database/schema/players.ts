@@ -38,6 +38,10 @@ export const players = pgTable('players', {
   currentResearch: varchar('current_research', { length: 50 }),
   researchProgress: integer('research_progress').default(0).notNull(),
 
+  // Government
+  government: varchar('government', { length: 50 }).default('despotism').notNull(),
+  revolutionTurns: integer('revolution_turns').default(0).notNull(),
+
   // Score
   score: integer('score').default(0).notNull(),
 
