@@ -44,7 +44,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const { viewport, map, units, cities, setViewport, selectUnit } = useGameStore();
   const gameState = useGameStore();
 
-  // Initialize renderer and load tileset
+  // Initialize renderer and load tileset - only once, not on viewport changes!
   useEffect(() => {
     const initRenderer = async () => {
       const canvas = canvasRef.current;
@@ -62,7 +62,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
         if (rendererRef.current) {
           rendererRef.current.render({
-            viewport,
+            viewport: gameState.viewport,
             map: gameState.map,
             units: gameState.units,
             cities: gameState.cities,
@@ -79,7 +79,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     return () => {
       rendererRef.current?.cleanup();
     };
-  }, [viewport]);
+  }, []); // Empty dependency array - initialize only once!
 
   // Update canvas size
   useEffect(() => {
