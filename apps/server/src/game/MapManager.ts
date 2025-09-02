@@ -1218,7 +1218,8 @@ export class MapManager {
    * @param sizeReduction Percentage to reduce size on each retry (default 0.8)
    * @note Ready for integration - can be used to wrap makeIsland() calls for enhanced reliability
    */
-  // @ts-expect-error - Method implemented for future integration with island generation
+  // Method implemented for future integration with island generation
+  // @ts-expect-error - Method ready for future integration with island generation
   private async retryIslandGeneration(
     islandMass: number,
     playersNum: number,
