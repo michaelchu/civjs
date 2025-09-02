@@ -12,7 +12,7 @@ import { useGameStore } from '../../store/gameStore';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '../ui/Table';
 import { PlayerRow } from './PlayerRow';
 // import { cn } from '../../lib/utils';
-import type { PlayerNationInfo } from '../../../../server/src/shared/types/nations';
+import type { PlayerNationInfo } from '@civjs/shared';
 
 interface NationsTableProps {
   players: PlayerNationInfo[];

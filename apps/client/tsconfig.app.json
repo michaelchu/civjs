@@ -19,7 +19,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@shared/*": ["../server/src/shared/*"]
+      "@civjs/shared": ["../../packages/shared/src"],
+      "@civjs/shared/*": ["../../packages/shared/src/*"]
     },
 
     /* Linting */

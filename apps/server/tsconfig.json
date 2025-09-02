@@ -22,7 +22,8 @@
     "emitDecoratorMetadata": true,
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["src/shared/*"]
+      "@civjs/shared": ["../../packages/shared/src"],
+      "@civjs/shared/*": ["../../packages/shared/src/*"]
     }
   },
   "include": ["src/**/*"],

@@ -12,7 +12,7 @@ import type {
   SharedVision,
   IntelligenceReport,
   DiplomaticState,
-} from '../../../server/src/shared/types/nations';
+} from '@civjs/shared';
 
 export type TurnProcessingState = 'idle' | 'processing' | 'completed' | 'error';
 

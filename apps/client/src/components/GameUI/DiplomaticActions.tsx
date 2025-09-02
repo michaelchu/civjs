@@ -22,7 +22,7 @@ import {
   EyeOff,
   Crown,
 } from 'lucide-react';
-import type { PlayerNationInfo } from '../../../../server/src/shared/types/nations';
+import type { PlayerNationInfo } from '@civjs/shared';
 
 interface DiplomaticActionsProps {
   selectedPlayer: PlayerNationInfo | null;

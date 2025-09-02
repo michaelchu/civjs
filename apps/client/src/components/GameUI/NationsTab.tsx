@@ -23,7 +23,7 @@ import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Separator } from '../ui/separator';
 import { Users, Crown, Bot, Skull, CheckCircle, Clock, Zap, BarChart3 } from 'lucide-react';
-import type { PlayerNationInfo } from '../../../../server/src/shared/types/nations';
+import type { PlayerNationInfo } from '@civjs/shared';
 
 export const NationsTab: React.FC = () => {
   const {

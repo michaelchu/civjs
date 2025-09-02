@@ -68,6 +68,7 @@
     "typescript-eslint": "^8.40.0"
   },
   "dependencies": {
+    "@civjs/shared": "file:../../packages/shared",
     "@prisma/client": "^6.14.0",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
