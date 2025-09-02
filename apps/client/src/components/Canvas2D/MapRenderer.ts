@@ -37,6 +37,10 @@ export class MapRenderer {
   private tilesetLoader: TilesetLoader;
   private isInitialized = false;
 
+  // Animation state for unit selection
+  private selectionAnimationStartTime: number | null = null;
+  private lastSelectedUnitId: string | null = null;
+
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
     this.tilesetLoader = new TilesetLoader();
@@ -127,6 +131,9 @@ export class MapRenderer {
       if (selectedUnit && this.isInViewport(selectedUnit.x, selectedUnit.y, state.viewport)) {
         this.renderUnitSelection(selectedUnit, state.viewport);
       }
+    } else {
+      // Reset animation state when no unit is selected
+      this.resetSelectionAnimation();
     }
 
     Object.values(state.units).forEach(unit => {
@@ -989,17 +996,50 @@ export class MapRenderer {
   }
 
   /**
+   * Reset the selection animation state
+   */
+  private resetSelectionAnimation(): void {
+    this.selectionAnimationStartTime = null;
+    this.lastSelectedUnitId = null;
+  }
+
+  /**
    * Render pulsating diamond selection outline for selected unit
    * Renders on main canvas between terrain and units for proper layering
    */
   private renderUnitSelection(unit: Unit, viewport: MapViewport): void {
     const screenPos = this.mapToScreen(unit.x, unit.y, viewport);
 
-    // Create pulsating effect using time-based animation
-    const time = Date.now() / 500; // Adjust speed
-    const pulse = (Math.sin(time) + 1) / 2; // 0 to 1
-    const opacity = 0.4 + pulse * 0.6; // 0.4 to 1.0
-    const lineWidth = 1 + pulse * 2; // 1 to 3
+    // Reset animation when unit selection changes
+    if (this.lastSelectedUnitId !== unit.id) {
+      this.selectionAnimationStartTime = Date.now();
+      this.lastSelectedUnitId = unit.id;
+      if (import.meta.env.DEV) {
+        console.log(
+          `Animation reset for unit ${unit.id} at time ${this.selectionAnimationStartTime}`
+        );
+      }
+    }
+
+    // Create pulsating effect using time-based animation that starts at brightest level
+    const currentTime = Date.now();
+    const elapsedTime = this.selectionAnimationStartTime
+      ? currentTime - this.selectionAnimationStartTime
+      : 0;
+    const time = elapsedTime / 500; // Same speed as original (500ms cycle time)
+
+    // Use cosine for natural start at maximum - but adjust frequency to match original
+    // Original: sin(time) where time = Date.now() / 500
+    // New: cos(time) where time = elapsedTime / 500 to maintain same period
+    const pulse = (Math.cos(time) + 1) / 2; // 0 to 1, starts at 1 (brightest), same speed as original
+    const opacity = 0.4 + pulse * 0.6; // 0.4 to 1.0, starts at 1.0
+    const lineWidth = 1 + pulse * 2; // 1 to 3, starts at 3
+
+    if (import.meta.env.DEV && elapsedTime < 100) {
+      console.log(
+        `Unit ${unit.id}: elapsed=${elapsedTime}ms, pulse=${pulse.toFixed(3)}, opacity=${opacity.toFixed(3)}`
+      );
+    }
 
     const centerX = screenPos.x + this.tileWidth / 2;
     const centerY = screenPos.y + this.tileHeight / 2;
