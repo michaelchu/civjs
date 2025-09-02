@@ -31,7 +31,7 @@ export const GameLayout: React.FC = () => {
   }, []);
 
   const calculateCanvasSize = () => {
-    const headerHeight = 60; // Combined tab header and status bar height
+    const headerHeight = 52; // Combined tab header and status bar height (reduced)
     const padding = 0; // Remove padding to use full space
 
     return {
@@ -61,7 +61,7 @@ export const GameLayout: React.FC = () => {
       <TurnStatusOverlay />
 
       {/* Header with tabs and status */}
-      <div className="flex items-center justify-between bg-gray-700 px-4 py-2 border-b border-gray-600">
+      <div className="flex items-center justify-between bg-gray-700 px-4 py-1 border-b border-gray-600">
         <GameTabs />
         <div className="flex items-center space-x-4">
           <StatusPanel />

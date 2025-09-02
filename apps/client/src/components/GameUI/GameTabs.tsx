@@ -45,17 +45,13 @@ export const GameTabs: React.FC = () => {
           key={tab.id}
           onClick={() => setActiveTab(tab.id)}
           className={clsx(
-            'flex items-center space-x-2 px-4 py-2 rounded-t-lg transition-colors duration-200',
-            'hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500',
-            activeTab === tab.id
-              ? 'bg-gray-800 text-white border-b-2 border-blue-500'
-              : 'bg-gray-700 text-gray-300'
+            'flex items-center justify-center px-3 py-2 rounded-t-lg transition-colors duration-200',
+            'focus:outline-none text-gray-300 hover:border-b-2 hover:border-blue-400',
+            activeTab === tab.id ? 'border-b-2 border-blue-500' : ''
           )}
-          title={`${tab.label} (${tab.shortcut})`}
+          title={tab.label}
         >
           <span className="text-lg">{tab.icon}</span>
-          <span className="font-medium">{tab.label}</span>
-          {tab.shortcut && <span className="text-xs text-gray-400 ml-1">({tab.shortcut})</span>}
         </button>
       ))}
     </div>
