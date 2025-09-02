@@ -483,10 +483,15 @@ export class ActionSystem {
       targetY
     );
 
-    if (!pathResult.success || !pathResult.path || pathResult.path.tiles.length < 2) {
+    if (
+      !pathResult ||
+      !pathResult.success ||
+      !pathResult.path ||
+      pathResult.path.tiles.length < 2
+    ) {
       return {
         success: false,
-        message: pathResult.error || 'No valid path to target',
+        message: pathResult?.error || 'No valid path to target',
       };
     }
 
