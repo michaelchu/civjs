@@ -684,7 +684,7 @@ export class CityManager {
       totalWaste: wasteLevel,
       wasteReduction: 0, // TODO: Calculate actual reduction
       finalWaste: Math.floor(finalWaste),
-      governmentCenter: govCenter
+      governmentCenter: govCenter || undefined
     };
   }
 
@@ -700,14 +700,15 @@ export class CityManager {
     const city = this.cities.get(cityId);
     if (!city) {
       logger.warn(`City ${cityId} not found for happiness calculation`);
+      const population = 0; // City not found
       return {
         baseHappy: 0,
-        baseContent: city?.population || 0,
+        baseContent: population,
         baseUnhappy: 0,
         martialLawBonus: 0,
         buildingBonus: 0,
         finalHappy: 0,
-        finalContent: city?.population || 0,
+        finalContent: population,
         finalUnhappy: 0
       };
     }

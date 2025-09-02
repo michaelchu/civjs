@@ -11,12 +11,12 @@
  * Reference: /reference/freeciv/common/multipliers.c, multipliers.h
  */
 
-import { db } from '../database';
-import { players as playersTable } from '../database/schema';
-import { eq, and } from 'drizzle-orm';
+// import { db } from '../database';
+// import { players as playersTable } from '../database/schema';
+// import { eq, and } from 'drizzle-orm';
 import { logger } from '../utils/logger';
 import type { Requirement } from '../shared/data/rulesets/schemas';
-import { EffectsManager, EffectContext } from './EffectsManager';
+// import { EffectsManager, EffectContext } from './EffectsManager';
 
 // Policy definition - direct port of freeciv struct multiplier
 export interface Policy {
@@ -53,13 +53,9 @@ export interface PlayerPolicies {
  */
 export class PolicyManager {
   private playerPolicies = new Map<string, PlayerPolicies>();
-  private gameId: string;
-  private effectsManager: EffectsManager;
   private availablePolicies: Map<string, Policy> = new Map();
 
-  constructor(gameId: string, effectsManager: EffectsManager) {
-    this.gameId = gameId;
-    this.effectsManager = effectsManager;
+  constructor(_gameId: string, _effectsManager: any) {
     this.initializePolicies();
   }
 
@@ -368,14 +364,10 @@ export class PolicyManager {
    * Reference: freeciv requirements evaluation system
    */
   private async checkPolicyRequirements(
-    playerId: string,
+    _playerId: string,
     requirements: Requirement[],
     playerResearchedTechs: Set<string>
   ): Promise<{ allowed: boolean; reason?: string }> {
-    // Create context for effects manager requirement evaluation
-    const context: EffectContext = {
-      playerId
-    };
 
     // Use effects manager to evaluate requirements
     // This ensures consistent requirement evaluation across all systems
@@ -413,4 +405,5 @@ export class PolicyManager {
   }
 }
 
-export { Policy, PlayerPolicyValue, PlayerPolicies };
+// Export types (already exported above)
+// export { Policy, PlayerPolicyValue, PlayerPolicies };

@@ -61,7 +61,7 @@ export class GovernmentIntegrationManager {
    */
   public async initializePlayerGovernment(
     playerId: string,
-    researchedTechs: Set<string>
+    _researchedTechs: Set<string>
   ): Promise<void> {
     await this.config.governmentManager.initializePlayerGovernment(playerId);
     await this.config.policyManager.initializePlayerPolicies(playerId);
@@ -72,7 +72,7 @@ export class GovernmentIntegrationManager {
   /**
    * Process government effects for all players at turn start
    */
-  public async processGovernmentTurn(currentTurn: number): Promise<void> {
+  public async processGovernmentTurn(_currentTurn: number): Promise<void> {
     // Process revolution turns for all players
     const playerGovernments = await this.getAllPlayerGovernments();
     
@@ -96,7 +96,7 @@ export class GovernmentIntegrationManager {
   public async requestGovernmentChange(
     playerId: string,
     requestedGovernment: string,
-    currentTurn: number,
+    _currentTurn: number,
     playerResearchedTechs: Set<string>
   ): Promise<{ success: boolean; message?: string }> {
     const result = await this.config.governmentManager.startRevolution(

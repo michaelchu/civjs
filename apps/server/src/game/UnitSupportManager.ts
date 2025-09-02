@@ -83,4 +83,313 @@ export class UnitSupportManager {
    * Calculate unit support costs for a city
    * Reference: freeciv city_support() function
    */
-  public calculateCityUnitSupport(\n    cityId: string,\n    playerId: string,\n    currentGovernment: string,\n    cityPopulation: number,\n    unitsSupported: UnitSupportData[]\n  ): UnitSupportResult {\n    const context: EffectContext = {\n      playerId,\n      cityId,\n      government: currentGovernment\n    };\n\n    // Initialize result\n    const result: UnitSupportResult = {\n      totalUnitsSupported: unitsSupported.length,\n      freeUnitsSupported: 0,\n      unitsRequiringUpkeep: 0,\n      upkeepCosts: { food: 0, shield: 0, gold: 0 },\n      happinessEffect: 0\n    };\n\n    // Calculate free unit support per city by government\n    const freeShieldUnits = this.effectsManager.calculateUnitSupport(\n      { ...context, outputType: OutputType.SHIELD },\n      OutputType.SHIELD,\n      unitsSupported.length\n    );\n\n    const freeFoodUnits = this.effectsManager.calculateUnitSupport(\n      { ...context, outputType: OutputType.FOOD },\n      OutputType.FOOD,\n      unitsSupported.length\n    );\n\n    const freeGoldUnits = this.effectsManager.calculateUnitSupport(\n      { ...context, outputType: OutputType.GOLD },\n      OutputType.GOLD,\n      unitsSupported.length\n    );\n\n    // Calculate upkeep costs for each unit\n    let shieldUnitsRequiringSupport = 0;\n    let foodUnitsRequiringSupport = 0;\n    let goldUnitsRequiringSupport = 0;\n    let militaryUnhappiness = 0;\n\n    for (const unit of unitsSupported) {\n      // Count units requiring shield support\n      if (unit.upkeep.shield > 0) {\n        shieldUnitsRequiringSupport++;\n      }\n\n      // Count units requiring food support\n      if (unit.upkeep.food > 0) {\n        foodUnitsRequiringSupport++;\n      }\n\n      // Count units requiring gold support (depends on upkeep style)\n      if (unit.upkeep.gold > 0 && this.shouldCityPayGoldUpkeep()) {\n        goldUnitsRequiringSupport++;\n      }\n\n      // Calculate military unhappiness from units away from home\n      if (unit.isMilitaryUnit && unit.isAwayFromHome) {\n        militaryUnhappiness += this.calculateMilitaryUnhappiness(\n          context,\n          unit.unitType\n        );\n      }\n    }\n\n    // Apply free unit support\n    const shieldUnitsNeedingSupport = Math.max(0, shieldUnitsRequiringSupport - freeShieldUnits);\n    const foodUnitsNeedingSupport = Math.max(0, foodUnitsRequiringSupport - freeFoodUnits);\n    const goldUnitsNeedingSupport = Math.max(0, goldUnitsRequiringSupport - freeGoldUnits);\n\n    // Calculate total upkeep costs\n    result.upkeepCosts.shield = shieldUnitsNeedingSupport;\n    result.upkeepCosts.food = foodUnitsNeedingSupport;\n    result.upkeepCosts.gold = goldUnitsNeedingSupport;\n\n    // Add citizen food consumption\n    result.upkeepCosts.food += cityPopulation * this.foodCostPerCitizen;\n\n    // Apply government upkeep modifiers\n    result.upkeepCosts = this.applyGovernmentUpkeepModifiers(\n      context,\n      result.upkeepCosts\n    );\n\n    // Calculate free units supported\n    result.freeUnitsSupported = Math.min(\n      unitsSupported.length,\n      Math.min(freeShieldUnits, Math.min(freeFoodUnits, freeGoldUnits))\n    );\n    result.unitsRequiringUpkeep = unitsSupported.length - result.freeUnitsSupported;\n    result.happinessEffect = militaryUnhappiness;\n\n    return result;\n  }\n\n  /**\n   * Calculate military unhappiness from units away from home\n   * Reference: freeciv city_unit_unhappiness()\n   */\n  private calculateMilitaryUnhappiness(\n    context: EffectContext,\n    unitType: string\n  ): number {\n    // Republic: 1 unhappy per military unit away from home\n    // Democracy: 2 unhappy per military unit away from home\n    // Other governments: 0 unhappy\n\n    if (context.government === 'republic') {\n      return 1;\n    } else if (context.government === 'democracy') {\n      return 2;\n    }\n    return 0;\n  }\n\n  /**\n   * Apply government-specific upkeep modifiers\n   * Reference: freeciv upkeep percentage effects\n   */\n  private applyGovernmentUpkeepModifiers(\n    context: EffectContext,\n    baseCosts: UnitUpkeep\n  ): UnitUpkeep {\n    const modifiedCosts = { ...baseCosts };\n\n    // Apply shield upkeep percentage modifier\n    const shieldUpkeepPct = this.effectsManager.calculateEffect(\n      EffectType.UPKEEP_PCT,\n      { ...context, outputType: OutputType.SHIELD }\n    );\n    if (shieldUpkeepPct.value !== 100) {\n      modifiedCosts.shield = Math.floor((modifiedCosts.shield * shieldUpkeepPct.value) / 100);\n    }\n\n    // Apply food upkeep percentage modifier\n    const foodUpkeepPct = this.effectsManager.calculateEffect(\n      EffectType.UPKEEP_PCT,\n      { ...context, outputType: OutputType.FOOD }\n    );\n    if (foodUpkeepPct.value !== 100) {\n      modifiedCosts.food = Math.floor((modifiedCosts.food * foodUpkeepPct.value) / 100);\n    }\n\n    // Apply gold upkeep percentage modifier\n    const goldUpkeepPct = this.effectsManager.calculateEffect(\n      EffectType.UPKEEP_PCT,\n      { ...context, outputType: OutputType.GOLD }\n    );\n    if (goldUpkeepPct.value !== 100) {\n      modifiedCosts.gold = Math.floor((modifiedCosts.gold * goldUpkeepPct.value) / 100);\n    }\n\n    return modifiedCosts;\n  }\n\n  /**\n   * Check if city should pay gold upkeep based on game settings\n   * Reference: freeciv gold_upkeep_style logic\n   */\n  private shouldCityPayGoldUpkeep(): boolean {\n    return this.goldUpkeepStyle === GoldUpkeepStyle.CITY ||\n           this.goldUpkeepStyle === GoldUpkeepStyle.MIXED;\n  }\n\n  /**\n   * Calculate national unit support costs\n   * Used when goldUpkeepStyle is NATION or MIXED\n   */\n  public calculateNationalUnitSupport(\n    playerId: string,\n    currentGovernment: string,\n    allPlayerUnits: UnitSupportData[]\n  ): UnitUpkeep {\n    const context: EffectContext = {\n      playerId,\n      government: currentGovernment\n    };\n\n    let nationalCosts: UnitUpkeep = { food: 0, shield: 0, gold: 0 };\n\n    // Calculate gold costs if nation pays for units\n    if (this.goldUpkeepStyle === GoldUpkeepStyle.NATION ||\n        this.goldUpkeepStyle === GoldUpkeepStyle.MIXED) {\n      \n      for (const unit of allPlayerUnits) {\n        nationalCosts.gold += unit.upkeep.gold;\n      }\n\n      // Apply national upkeep modifiers\n      const goldUpkeepPct = this.effectsManager.calculateEffect(\n        EffectType.UPKEEP_PCT,\n        { ...context, outputType: OutputType.GOLD }\n      );\n      \n      if (goldUpkeepPct.value !== 100) {\n        nationalCosts.gold = Math.floor((nationalCosts.gold * goldUpkeepPct.value) / 100);\n      }\n    }\n\n    return nationalCosts;\n  }\n\n  /**\n   * Get unit support summary for a player\n   * Useful for UI display and debugging\n   */\n  public getPlayerUnitSupportSummary(\n    playerId: string,\n    currentGovernment: string,\n    citiesData: Array<{\n      cityId: string;\n      population: number;\n      unitsSupported: UnitSupportData[];\n    }>\n  ): {\n    totalUnitsSupported: number;\n    totalCityUpkeepCosts: UnitUpkeep;\n    totalNationalUpkeepCosts: UnitUpkeep;\n    totalMilitaryUnhappiness: number;\n  } {\n    let totalUnits = 0;\n    let totalCityUpkeep: UnitUpkeep = { food: 0, shield: 0, gold: 0 };\n    let totalMilitaryUnhappiness = 0;\n    let allPlayerUnits: UnitSupportData[] = [];\n\n    // Calculate city-based support costs\n    for (const cityData of citiesData) {\n      const citySupport = this.calculateCityUnitSupport(\n        cityData.cityId,\n        playerId,\n        currentGovernment,\n        cityData.population,\n        cityData.unitsSupported\n      );\n\n      totalUnits += citySupport.totalUnitsSupported;\n      totalCityUpkeep.food += citySupport.upkeepCosts.food;\n      totalCityUpkeep.shield += citySupport.upkeepCosts.shield;\n      totalCityUpkeep.gold += citySupport.upkeepCosts.gold;\n      totalMilitaryUnhappiness += citySupport.happinessEffect;\n      \n      allPlayerUnits.push(...cityData.unitsSupported);\n    }\n\n    // Calculate national support costs\n    const nationalUpkeep = this.calculateNationalUnitSupport(\n      playerId,\n      currentGovernment,\n      allPlayerUnits\n    );\n\n    return {\n      totalUnitsSupported: totalUnits,\n      totalCityUpkeepCosts: totalCityUpkeep,\n      totalNationalUpkeepCosts: nationalUpkeep,\n      totalMilitaryUnhappiness\n    };\n  }\n\n  /**\n   * Check if player can afford unit support costs\n   */\n  public canAffordUnitSupport(\n    playerId: string,\n    currentGovernment: string,\n    availableResources: UnitUpkeep,\n    citiesData: Array<{\n      cityId: string;\n      population: number;\n      unitsSupported: UnitSupportData[];\n    }>\n  ): { canAfford: boolean; shortfall: UnitUpkeep } {\n    const summary = this.getPlayerUnitSupportSummary(\n      playerId,\n      currentGovernment,\n      citiesData\n    );\n\n    const totalRequired: UnitUpkeep = {\n      food: summary.totalCityUpkeepCosts.food,\n      shield: summary.totalCityUpkeepCosts.shield,\n      gold: summary.totalCityUpkeepCosts.gold + summary.totalNationalUpkeepCosts.gold\n    };\n\n    const shortfall: UnitUpkeep = {\n      food: Math.max(0, totalRequired.food - availableResources.food),\n      shield: Math.max(0, totalRequired.shield - availableResources.shield),\n      gold: Math.max(0, totalRequired.gold - availableResources.gold)\n    };\n\n    const canAfford = shortfall.food === 0 && shortfall.shield === 0 && shortfall.gold === 0;\n\n    return { canAfford, shortfall };\n  }\n}\n\nexport {\n  UnitUpkeep,\n  UnitSupportResult,\n  UnitSupportData,\n  GoldUpkeepStyle\n};
+  public calculateCityUnitSupport(
+    cityId: string,
+    playerId: string,
+    currentGovernment: string,
+    cityPopulation: number,
+    unitsSupported: UnitSupportData[]
+  ): UnitSupportResult {
+    const context: EffectContext = {
+      playerId,
+      cityId,
+      government: currentGovernment
+    };
+
+    // Initialize result
+    const result: UnitSupportResult = {
+      totalUnitsSupported: unitsSupported.length,
+      freeUnitsSupported: 0,
+      unitsRequiringUpkeep: 0,
+      upkeepCosts: { food: 0, shield: 0, gold: 0 },
+      happinessEffect: 0
+    };
+
+    // Calculate free unit support per city by government
+    const freeShieldUnits = this.effectsManager.calculateUnitSupport(
+      { ...context, outputType: OutputType.SHIELD },
+      OutputType.SHIELD,
+      unitsSupported.length
+    );
+
+    const freeFoodUnits = this.effectsManager.calculateUnitSupport(
+      { ...context, outputType: OutputType.FOOD },
+      OutputType.FOOD,
+      unitsSupported.length
+    );
+
+    const freeGoldUnits = this.effectsManager.calculateUnitSupport(
+      { ...context, outputType: OutputType.GOLD },
+      OutputType.GOLD,
+      unitsSupported.length
+    );
+
+    // Calculate upkeep costs for each unit
+    let shieldUnitsRequiringSupport = 0;
+    let foodUnitsRequiringSupport = 0;
+    let goldUnitsRequiringSupport = 0;
+    let militaryUnhappiness = 0;
+
+    for (const unit of unitsSupported) {
+      // Count units requiring shield support
+      if (unit.upkeep.shield > 0) {
+        shieldUnitsRequiringSupport++;
+      }
+
+      // Count units requiring food support
+      if (unit.upkeep.food > 0) {
+        foodUnitsRequiringSupport++;
+      }
+
+      // Count units requiring gold support (depends on upkeep style)
+      if (unit.upkeep.gold > 0 && this.shouldCityPayGoldUpkeep()) {
+        goldUnitsRequiringSupport++;
+      }
+
+      // Calculate military unhappiness from units away from home
+      if (unit.isMilitaryUnit && unit.isAwayFromHome) {
+        militaryUnhappiness += this.calculateMilitaryUnhappiness(
+          context,
+          unit.unitType
+        );
+      }
+    }
+
+    // Apply free unit support
+    const shieldUnitsNeedingSupport = Math.max(0, shieldUnitsRequiringSupport - freeShieldUnits);
+    const foodUnitsNeedingSupport = Math.max(0, foodUnitsRequiringSupport - freeFoodUnits);
+    const goldUnitsNeedingSupport = Math.max(0, goldUnitsRequiringSupport - freeGoldUnits);
+
+    // Calculate total upkeep costs
+    result.upkeepCosts.shield = shieldUnitsNeedingSupport;
+    result.upkeepCosts.food = foodUnitsNeedingSupport;
+    result.upkeepCosts.gold = goldUnitsNeedingSupport;
+
+    // Add citizen food consumption
+    result.upkeepCosts.food += cityPopulation * this.foodCostPerCitizen;
+
+    // Apply government upkeep modifiers
+    result.upkeepCosts = this.applyGovernmentUpkeepModifiers(
+      context,
+      result.upkeepCosts
+    );
+
+    // Calculate free units supported
+    result.freeUnitsSupported = Math.min(
+      unitsSupported.length,
+      Math.min(freeShieldUnits, Math.min(freeFoodUnits, freeGoldUnits))
+    );
+    result.unitsRequiringUpkeep = unitsSupported.length - result.freeUnitsSupported;
+    result.happinessEffect = militaryUnhappiness;
+
+    return result;
+  }
+
+  /**
+   * Calculate military unhappiness from units away from home
+   * Reference: freeciv city_unit_unhappiness()
+   */
+  private calculateMilitaryUnhappiness(
+    context: EffectContext,
+    _unitType: string
+  ): number {
+    // Republic: 1 unhappy per military unit away from home
+    // Democracy: 2 unhappy per military unit away from home
+    // Other governments: 0 unhappy
+
+    if (context.government === 'republic') {
+      return 1;
+    } else if (context.government === 'democracy') {
+      return 2;
+    }
+    return 0;
+  }
+
+  /**
+   * Apply government-specific upkeep modifiers
+   * Reference: freeciv upkeep percentage effects
+   */
+  private applyGovernmentUpkeepModifiers(
+    context: EffectContext,
+    baseCosts: UnitUpkeep
+  ): UnitUpkeep {
+    const modifiedCosts = { ...baseCosts };
+
+    // Apply shield upkeep percentage modifier
+    const shieldUpkeepPct = this.effectsManager.calculateEffect(
+      EffectType.UPKEEP_PCT,
+      { ...context, outputType: OutputType.SHIELD }
+    );
+    if (shieldUpkeepPct.value !== 100) {
+      modifiedCosts.shield = Math.floor((modifiedCosts.shield * shieldUpkeepPct.value) / 100);
+    }
+
+    // Apply food upkeep percentage modifier
+    const foodUpkeepPct = this.effectsManager.calculateEffect(
+      EffectType.UPKEEP_PCT,
+      { ...context, outputType: OutputType.FOOD }
+    );
+    if (foodUpkeepPct.value !== 100) {
+      modifiedCosts.food = Math.floor((modifiedCosts.food * foodUpkeepPct.value) / 100);
+    }
+
+    // Apply gold upkeep percentage modifier
+    const goldUpkeepPct = this.effectsManager.calculateEffect(
+      EffectType.UPKEEP_PCT,
+      { ...context, outputType: OutputType.GOLD }
+    );
+    if (goldUpkeepPct.value !== 100) {
+      modifiedCosts.gold = Math.floor((modifiedCosts.gold * goldUpkeepPct.value) / 100);
+    }
+
+    return modifiedCosts;
+  }
+
+  /**
+   * Check if city should pay gold upkeep based on game settings
+   * Reference: freeciv gold_upkeep_style logic
+   */
+  private shouldCityPayGoldUpkeep(): boolean {
+    return this.goldUpkeepStyle === GoldUpkeepStyle.CITY ||
+           this.goldUpkeepStyle === GoldUpkeepStyle.MIXED;
+  }
+
+  /**
+   * Calculate national unit support costs
+   * Used when goldUpkeepStyle is NATION or MIXED
+   */
+  public calculateNationalUnitSupport(
+    playerId: string,
+    currentGovernment: string,
+    allPlayerUnits: UnitSupportData[]
+  ): UnitUpkeep {
+    const context: EffectContext = {
+      playerId,
+      government: currentGovernment
+    };
+
+    let nationalCosts: UnitUpkeep = { food: 0, shield: 0, gold: 0 };
+
+    // Calculate gold costs if nation pays for units
+    if (this.goldUpkeepStyle === GoldUpkeepStyle.NATION ||
+        this.goldUpkeepStyle === GoldUpkeepStyle.MIXED) {
+      
+      for (const unit of allPlayerUnits) {
+        nationalCosts.gold += unit.upkeep.gold;
+      }
+
+      // Apply national upkeep modifiers
+      const goldUpkeepPct = this.effectsManager.calculateEffect(
+        EffectType.UPKEEP_PCT,
+        { ...context, outputType: OutputType.GOLD }
+      );
+      
+      if (goldUpkeepPct.value !== 100) {
+        nationalCosts.gold = Math.floor((nationalCosts.gold * goldUpkeepPct.value) / 100);
+      }
+    }
+
+    return nationalCosts;
+  }
+
+  /**
+   * Get unit support summary for a player
+   * Useful for UI display and debugging
+   */
+  public getPlayerUnitSupportSummary(
+    playerId: string,
+    currentGovernment: string,
+    citiesData: Array<{
+      cityId: string;
+      population: number;
+      unitsSupported: UnitSupportData[];
+    }>
+  ): {
+    totalUnitsSupported: number;
+    totalCityUpkeepCosts: UnitUpkeep;
+    totalNationalUpkeepCosts: UnitUpkeep;
+    totalMilitaryUnhappiness: number;
+  } {
+    let totalUnits = 0;
+    let totalCityUpkeep: UnitUpkeep = { food: 0, shield: 0, gold: 0 };
+    let totalMilitaryUnhappiness = 0;
+    let allPlayerUnits: UnitSupportData[] = [];
+
+    // Calculate city-based support costs
+    for (const cityData of citiesData) {
+      const citySupport = this.calculateCityUnitSupport(
+        cityData.cityId,
+        playerId,
+        currentGovernment,
+        cityData.population,
+        cityData.unitsSupported
+      );
+
+      totalUnits += citySupport.totalUnitsSupported;
+      totalCityUpkeep.food += citySupport.upkeepCosts.food;
+      totalCityUpkeep.shield += citySupport.upkeepCosts.shield;
+      totalCityUpkeep.gold += citySupport.upkeepCosts.gold;
+      totalMilitaryUnhappiness += citySupport.happinessEffect;
+      
+      allPlayerUnits.push(...cityData.unitsSupported);
+    }
+
+    // Calculate national support costs
+    const nationalUpkeep = this.calculateNationalUnitSupport(
+      playerId,
+      currentGovernment,
+      allPlayerUnits
+    );
+
+    return {
+      totalUnitsSupported: totalUnits,
+      totalCityUpkeepCosts: totalCityUpkeep,
+      totalNationalUpkeepCosts: nationalUpkeep,
+      totalMilitaryUnhappiness
+    };
+  }
+
+  /**
+   * Check if player can afford unit support costs
+   */
+  public canAffordUnitSupport(
+    playerId: string,
+    currentGovernment: string,
+    availableResources: UnitUpkeep,
+    citiesData: Array<{
+      cityId: string;
+      population: number;
+      unitsSupported: UnitSupportData[];
+    }>
+  ): { canAfford: boolean; shortfall: UnitUpkeep } {
+    const summary = this.getPlayerUnitSupportSummary(
+      playerId,
+      currentGovernment,
+      citiesData
+    );
+
+    const totalRequired: UnitUpkeep = {
+      food: summary.totalCityUpkeepCosts.food,
+      shield: summary.totalCityUpkeepCosts.shield,
+      gold: summary.totalCityUpkeepCosts.gold + summary.totalNationalUpkeepCosts.gold
+    };
+
+    const shortfall: UnitUpkeep = {
+      food: Math.max(0, totalRequired.food - availableResources.food),
+      shield: Math.max(0, totalRequired.shield - availableResources.shield),
+      gold: Math.max(0, totalRequired.gold - availableResources.gold)
+    };
+
+    const canAfford = shortfall.food === 0 && shortfall.shield === 0 && shortfall.gold === 0;
+
+    return { canAfford, shortfall };
+  }
+}
+
+// Export types (already exported above)
+// export {
+//   UnitUpkeep,
+//   UnitSupportResult,
+//   UnitSupportData,
+//   GoldUpkeepStyle
+// };

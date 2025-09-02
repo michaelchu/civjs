@@ -195,7 +195,7 @@ export class EffectsManager {
       wasteLevel += (distanceWaste.value * distanceToGovCenter * totalOutput) / 10000;
       
       // Relative distance waste (scales with map size)
-      const relDistanceWaste = this.calculateEffect(EffectType.OUTPUT_WASTE_BY_REL_DISTANCE, context);
+      // const relDistanceWaste = this.calculateEffect(EffectType.OUTPUT_WASTE_BY_REL_DISTANCE, context);
       // TODO: Implement relative distance calculation when map size data available
     }
 
@@ -268,7 +268,7 @@ export class EffectsManager {
     buildingId: string,
     governmentId: string,
     context: EffectContext,
-    playerTechs?: Set<string>
+    _playerTechs?: Set<string>
   ): RequirementResult {
     // Government-specific building requirements from freeciv
     const governmentBuildingReqs: Record<string, Requirement[]> = {
@@ -324,7 +324,7 @@ export class EffectsManager {
   public getBuildingGovernmentEffects(
     buildingId: string,
     governmentId: string,
-    context: EffectContext
+    _context: EffectContext
   ): Record<string, number> {
     const effects: Record<string, number> = {};
 
@@ -486,7 +486,7 @@ export class EffectsManager {
    * Get all government centers (Palace, Courthouse) for corruption calculations
    * Reference: freeciv nearest_gov_center() in common/city.c
    */
-  public getGovernmentCenters(playerContext: EffectContext): string[] {
+  public getGovernmentCenters(_playerContext: EffectContext): string[] {
     // TODO: This will be implemented when integrated with CityManager
     // Should return list of cities with Gov_Center effect
     return [];
