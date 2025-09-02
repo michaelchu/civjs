@@ -66,6 +66,7 @@ export class UnitManager {
       y: number,
       movementLeft: number
     ) => void;
+    getCityAt?: (x: number, y: number) => { playerId: string } | null;
   };
 
   constructor(
@@ -94,6 +95,7 @@ export class UnitManager {
         y: number,
         movementLeft: number
       ) => void;
+      getCityAt?: (x: number, y: number) => { playerId: string } | null;
     }
   ) {
     this.gameId = gameId;
@@ -193,6 +195,14 @@ export class UnitManager {
     const targetUnit = this.getUnitAt(newX, newY);
     if (targetUnit && targetUnit.playerId !== unit.playerId) {
       throw new Error('Cannot move to tile occupied by enemy unit');
+    }
+
+    // Check for enemy cities at destination
+    if (this.gameManagerCallback?.getCityAt) {
+      const targetCity = this.gameManagerCallback.getCityAt(newX, newY);
+      if (targetCity && targetCity.playerId !== unit.playerId) {
+        throw new Error('Cannot move to tile occupied by enemy city');
+      }
     }
 
     // Check stacking rules

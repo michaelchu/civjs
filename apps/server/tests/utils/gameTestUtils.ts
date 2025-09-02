@@ -7,13 +7,18 @@ import { clearAllTables } from './testDatabase';
  * Creates a mock Socket.IO server for tests
  */
 export function createMockSocketServer(): SocketServer {
+  const mockEmitter = { emit: jest.fn() };
   return {
     emit: jest.fn(),
-    to: jest.fn().mockReturnValue({ emit: jest.fn() }),
+    to: jest.fn().mockReturnValue(mockEmitter),
+    in: jest.fn().mockReturnValue(mockEmitter),
     sockets: {
       sockets: new Map(),
       adapter: { rooms: new Map() },
     },
+    // Add any other Socket.IO Server methods that might be used
+    on: jest.fn(),
+    use: jest.fn(),
   } as unknown as SocketServer;
 }
 

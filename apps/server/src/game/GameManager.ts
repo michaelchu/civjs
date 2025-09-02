@@ -376,6 +376,10 @@ export class GameManager {
       broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
         this.broadcastToGame(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
       },
+      getCityAt: (x: number, y: number) => {
+        const city = cityManager.getCityAt(x, y);
+        return city ? { playerId: city.playerId } : null;
+      },
     });
 
     // Initialize turn system with player IDs
@@ -853,6 +857,10 @@ export class GameManager {
         requestPath: this.requestPath.bind(this),
         broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
           this.broadcastToGame(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
+        },
+        getCityAt: (x: number, y: number) => {
+          const city = cityManager.getCityAt(x, y);
+          return city ? { playerId: city.playerId } : null;
         },
       });
 

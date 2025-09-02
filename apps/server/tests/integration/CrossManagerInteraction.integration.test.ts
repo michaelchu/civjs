@@ -229,7 +229,11 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
     it('should enable new unit types after tech research', async () => {
       const game = gameManager.getGameInstance(gameId)!;
 
-      // Set bronze working as current research and complete it
+      // First research pottery (prerequisite)
+      await game.researchManager.setCurrentResearch(playerId, 'pottery');
+      await game.researchManager.addResearchPoints(playerId, 1000);
+
+      // Now research bronze working
       await game.researchManager.setCurrentResearch(playerId, 'bronze_working');
       await game.researchManager.addResearchPoints(playerId, 1000);
 

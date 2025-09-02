@@ -117,8 +117,8 @@ export interface CityState {
   // Production (following Freeciv shield system)
   productionStock: number; // accumulated shields
   productionPerTurn: number; // shield surplus
-  currentProduction?: string; // what's being built
-  productionType?: 'unit' | 'building'; // type of production
+  currentProduction?: string | null; // what's being built
+  productionType?: 'unit' | 'building' | null; // type of production
   turnsToComplete: number;
 
   // Economy (following Freeciv trade system)
@@ -284,6 +284,7 @@ export class CityManager {
     let goldBonus = 0;
     let defenseBonus = 0;
     let happinessBonus = 0;
+    let foodBonus = 0;
 
     for (const buildingId of city.buildings) {
       const building = BUILDING_TYPES[buildingId];
@@ -292,6 +293,7 @@ export class CityManager {
         goldBonus += building.effects.goldBonus || 0;
         defenseBonus += building.effects.defenseBonus || 0;
         happinessBonus += building.effects.happinessBonus || 0;
+        foodBonus += building.effects.foodBonus || 0;
       }
     }
 
@@ -303,7 +305,7 @@ export class CityManager {
 
     // Calculate food and production surplus (following Freeciv upkeep)
     const populationUpkeep = city.population * 2; // Each citizen eats 2 food
-    city.foodPerTurn = foodOutput - populationUpkeep;
+    city.foodPerTurn = Math.floor((foodOutput * (100 + foodBonus)) / 100) - populationUpkeep;
     city.productionPerTurn = shieldOutput;
 
     logger.debug('City refreshed', {
@@ -414,8 +416,8 @@ export class CityManager {
 
     // Reset production
     city.productionStock = 0;
-    city.currentProduction = undefined;
-    city.productionType = undefined;
+    city.currentProduction = null;
+    city.productionType = null;
     city.turnsToComplete = 0;
 
     // Refresh city to apply new building effects
@@ -487,13 +489,6 @@ export class CityManager {
   }
 
   /**
-   * Get city at position
-   */
-  getCityAt(x: number, y: number): CityState | undefined {
-    return Array.from(this.cities.values()).find(city => city.x === x && city.y === y);
-  }
-
-  /**
    * Load cities from database
    */
   async loadCities(): Promise<void> {
@@ -512,7 +507,7 @@ export class CityManager {
         foodPerTurn: dbCity.foodPerTurn,
         productionStock: dbCity.production,
         productionPerTurn: dbCity.productionPerTurn,
-        currentProduction: dbCity.currentProduction || undefined,
+        currentProduction: dbCity.currentProduction || null,
         goldPerTurn: dbCity.goldPerTurn,
         sciencePerTurn: dbCity.sciencePerTurn,
         culturePerTurn: dbCity.culturePerTurn,
@@ -911,6 +906,18 @@ export class CityManager {
     // Apply corruption and happiness
     this.applyCityCorruption(cityId, currentGovernment);
     this.applyCityHappiness(cityId, currentGovernment);
+  }
+
+  /**
+   * Get city at specific coordinates
+   */
+  getCityAt(x: number, y: number): CityState | null {
+    for (const city of this.cities.values()) {
+      if (city.x === x && city.y === y) {
+        return city;
+      }
+    }
+    return null;
   }
 
   /**
