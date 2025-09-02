@@ -1,6 +1,5 @@
 // Integration test setup with real database
 import dotenv from 'dotenv';
-import { setupTestDatabase, cleanupTestDatabase } from './utils/testDatabase';
 
 // Load test environment variables
 dotenv.config({ path: '.env.test' });
@@ -20,6 +19,9 @@ jest.mock('../src/utils/logger', () => ({
   default: mockLogger,
   logger: mockLogger,
 }));
+
+// Import after mocking
+import { setupTestDatabase, cleanupTestDatabase } from './utils/testDatabase';
 
 // Mock Redis (still mock this for integration tests to avoid external dependencies)
 jest.mock('../src/database/redis', () => ({

@@ -62,13 +62,10 @@ export async function clearAllTables() {
 
   try {
     // Clear all tables in dependency order
-    await testDb.delete(schema.unitMovements);
-    await testDb.delete(schema.combatResults);
-    await testDb.delete(schema.playerTechnologies);
     await testDb.delete(schema.units);
     await testDb.delete(schema.cities);
     await testDb.delete(schema.players);
-    await testDb.delete(schema.gameSettings);
+    await testDb.delete(schema.gameTurns);
     await testDb.delete(schema.games);
     await testDb.delete(schema.users);
 
@@ -90,7 +87,7 @@ export async function seedTestData() {
         id: 'test-user-1',
         username: 'TestPlayer',
         email: 'test@example.com',
-        hashedPassword: 'test-hash',
+        passwordHash: 'test-hash',
       })
       .returning();
 
@@ -103,7 +100,6 @@ export async function seedTestData() {
         hostId: testUser.id,
         status: 'waiting',
         maxPlayers: 4,
-        currentPlayers: 1,
         mapWidth: 20,
         mapHeight: 20,
         ruleset: 'classic',
@@ -118,14 +114,16 @@ export async function seedTestData() {
         id: 'test-player-1',
         gameId: testGame.id,
         userId: testUser.id,
+        playerNumber: 0,
         nation: 'romans',
-        color: '#ff0000',
+        civilization: 'Roman',
+        leaderName: 'Caesar',
+        color: { r: 255, g: 0, b: 0 },
         isReady: true,
-        turnEnded: false,
+        hasEndedTurn: false,
         gold: 100,
         science: 10,
         culture: 5,
-        lastActiveAt: new Date(),
       })
       .returning();
 

@@ -19,13 +19,13 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         id: 'user-1',
         username: 'Player1',
         email: 'player1@test.com',
-        hashedPassword: 'hash1',
+        passwordHash: 'hash1',
       },
       {
         id: 'user-2',
         username: 'Player2',
         email: 'player2@test.com',
-        hashedPassword: 'hash2',
+        passwordHash: 'hash2',
       },
     ])
     .returning();
@@ -39,12 +39,10 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
       hostId: users[0].id,
       status: 'active',
       maxPlayers: 2,
-      currentPlayers: 2,
       mapWidth: 20,
       mapHeight: 20,
       ruleset: 'classic',
       currentTurn: 1,
-      currentYear: -4000,
       turnTimeLimit: 300,
     })
     .returning();
@@ -57,27 +55,31 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         id: 'player-1',
         gameId: game.id,
         userId: users[0].id,
+        playerNumber: 0,
         nation: 'romans',
-        color: '#ff0000',
+        civilization: 'Roman',
+        leaderName: 'Caesar',
+        color: { r: 255, g: 0, b: 0 },
         isReady: true,
-        turnEnded: false,
+        hasEndedTurn: false,
         gold: 50,
         science: 10,
         culture: 5,
-        lastActiveAt: new Date(),
       },
       {
         id: 'player-2',
         gameId: game.id,
         userId: users[1].id,
+        playerNumber: 1,
         nation: 'greeks',
-        color: '#0000ff',
+        civilization: 'Greek',
+        leaderName: 'Alexander',
+        color: { r: 0, g: 0, b: 255 },
         isReady: true,
-        turnEnded: false,
+        hasEndedTurn: false,
         gold: 50,
         science: 10,
         culture: 5,
-        lastActiveAt: new Date(),
       },
     ])
     .returning();
@@ -219,11 +221,22 @@ export async function createCombatScenario(): Promise<TestGameScenario> {
   const db = getTestDatabase();
 
   // Position units for combat (adjacent)
-  await db.update(schema.units).set({ x: 12, y: 12 }).where(schema.units.id.eq(basic.units[0].id)); // Roman warrior
+  const [updatedUnit1] = await db
+    .update(schema.units)
+    .set({ x: 12, y: 12 })
+    .where(schema.units.id.eq(basic.units[0].id))
+    .returning(); // Roman warrior
 
-  await db.update(schema.units).set({ x: 13, y: 12 }).where(schema.units.id.eq(basic.units[2].id)); // Greek warrior
+  const [updatedUnit3] = await db
+    .update(schema.units)
+    .set({ x: 13, y: 12 })
+    .where(schema.units.id.eq(basic.units[2].id))
+    .returning(); // Greek warrior
 
-  return basic;
+  return {
+    ...basic,
+    units: [updatedUnit1, basic.units[1], updatedUnit3],
+  };
 }
 
 export async function createProductionScenario(): Promise<TestGameScenario> {
