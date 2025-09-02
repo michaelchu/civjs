@@ -167,6 +167,7 @@ export class GameManager {
       gameId,
       userId,
       playerNumber,
+      nation: civilization || 'american', // Default nation ID
       civilization: civilization || `Civilization${playerNumber}`,
       leaderName: `Leader${playerNumber}`,
       color: {

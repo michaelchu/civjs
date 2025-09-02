@@ -14,20 +14,23 @@ export enum PacketType {
 
   // Player Management (10-30)
   NATION_SELECT_REQ = 10,
-  PLAYER_READY = 11,
-  ENDGAME_REPORT = 12,
-  PLAYER_INFO = 13,
-  PLAYER_REMOVE = 14,
+  NATION_SELECT_REPLY = 11,
+  PLAYER_READY = 12,
+  ENDGAME_REPORT = 13,
+  PLAYER_INFO = 14,
+  PLAYER_REMOVE = 15,
+  NATION_LIST_REQ = 16,
+  NATION_LIST_REPLY = 17,
 
-  // Map & Tile (15-40)
-  TILE_INFO = 15,
-  GAME_INFO = 16,
-  MAP_INFO = 17,
-  NUKE_TILE_INFO = 18,
-  MAP_VIEW_REQ = 19,
-  TILE_VISIBILITY_REQ = 20,
+  // Map & Tile (18-40)
+  TILE_INFO = 18,
+  GAME_INFO = 19,
+  MAP_INFO = 20,
+  NUKE_TILE_INFO = 21,
+  MAP_VIEW_REQ = 22,
+  TILE_VISIBILITY_REQ = 23,
 
-  // Chat & Messages (25-30)
+  // Chat & Messages (25-35)
   CHAT_MSG = 25,
   CHAT_MSG_REQ = 26,
   CONNECT_MSG = 27,
@@ -113,6 +116,10 @@ export const PACKET_NAMES: Record<number, string> = {
   [PacketType.PROCESSING_FINISHED]: 'PROCESSING_FINISHED',
   [PacketType.SERVER_JOIN_REQ]: 'SERVER_JOIN_REQ',
   [PacketType.SERVER_JOIN_REPLY]: 'SERVER_JOIN_REPLY',
+  [PacketType.NATION_SELECT_REQ]: 'NATION_SELECT_REQ',
+  [PacketType.NATION_SELECT_REPLY]: 'NATION_SELECT_REPLY',
+  [PacketType.NATION_LIST_REQ]: 'NATION_LIST_REQ',
+  [PacketType.NATION_LIST_REPLY]: 'NATION_LIST_REPLY',
   [PacketType.TILE_INFO]: 'TILE_INFO',
   [PacketType.GAME_INFO]: 'GAME_INFO',
   [PacketType.MAP_INFO]: 'MAP_INFO',
@@ -392,6 +399,43 @@ export const ServerShutdownSchema = z.object({
 // Player Management packets
 export const NationSelectReqSchema = z.object({
   nation: z.string(),
+});
+
+export const NationSelectReplySchema = z.object({
+  success: z.boolean(),
+  message: z.string().optional(),
+  selectedNation: z.string().optional(),
+});
+
+export const NationListReqSchema = z.object({
+  ruleset: z.string().optional().default('classic'),
+});
+
+export const NationListReplySchema = z.object({
+  success: z.boolean(),
+  nations: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        plural: z.string(),
+        adjective: z.string(),
+        class: z.string(),
+        style: z.string(),
+        init_government: z.string(),
+        leaders: z.array(
+          z.object({
+            name: z.string(),
+            sex: z.enum(['Male', 'Female']),
+          })
+        ),
+        flag: z.string(),
+        flag_alt: z.string(),
+        legend: z.string(),
+      })
+    )
+    .optional(),
+  message: z.string().optional(),
 });
 
 export const PlayerReadySchema = z.object({
@@ -775,6 +819,9 @@ export type AuthenticationReq = z.infer<typeof AuthenticationReqSchema>;
 export type AuthenticationReply = z.infer<typeof AuthenticationReplySchema>;
 export type ServerShutdown = z.infer<typeof ServerShutdownSchema>;
 export type NationSelectReq = z.infer<typeof NationSelectReqSchema>;
+export type NationSelectReply = z.infer<typeof NationSelectReplySchema>;
+export type NationListReq = z.infer<typeof NationListReqSchema>;
+export type NationListReply = z.infer<typeof NationListReplySchema>;
 export type PlayerReady = z.infer<typeof PlayerReadySchema>;
 export type EndgameReport = z.infer<typeof EndgameReportSchema>;
 export type PlayerInfo = z.infer<typeof PlayerInfoSchema>;
