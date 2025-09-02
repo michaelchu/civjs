@@ -134,10 +134,28 @@ describe('Game Integration Flow', () => {
         mapHeight: 10,
       };
 
+      // Create additional users for the players
+      const user1Id = generateTestUUID('2001');
+      const user2Id = generateTestUUID('2002');
+
+      await db.insert(schema.users).values([
+        {
+          id: user1Id,
+          username: `TestUser1_${Date.now()}`,
+          email: `testuser1_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+        {
+          id: user2Id,
+          username: `TestUser2_${Date.now()}`,
+          email: `testuser2_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+      ]);
+
       const gameId = await gameManager.createGame(gameConfig);
-      const playerId = await gameManager.joinGame(gameId, 'test-user', 'romans');
-      await gameManager.joinGame(gameId, 'test-user-2', 'greeks'); // Need 2 players to start
-      await gameManager.startGame(gameId, 'test-user');
+      const playerId = await gameManager.joinGame(gameId, user1Id, 'romans');
+      await gameManager.joinGame(gameId, user2Id, 'greeks'); // Need 2 players to start, game will auto-start
 
       // Create city and unit at same location
       const cityId = await gameManager.foundCity(gameId, playerId, 'Capital', 5, 5);

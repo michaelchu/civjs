@@ -1,5 +1,4 @@
 import { GameManager, GameConfig } from '../../src/game/GameManager';
-import { Server as SocketServer } from 'socket.io';
 import {
   getTestDatabase,
   clearAllTables,
@@ -7,18 +6,11 @@ import {
   createTestGameAndPlayer,
 } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
+import { createMockSocketServer } from '../utils/gameTestUtils';
 import * as schema from '../../src/database/schema';
 
 describe('GameManager - Integration Tests with Real Database', () => {
   let gameManager: GameManager;
-  const mockIo = {
-    emit: jest.fn(),
-    to: jest.fn().mockReturnValue({ emit: jest.fn() }),
-    sockets: {
-      sockets: new Map(),
-      adapter: { rooms: new Map() },
-    },
-  } as unknown as SocketServer;
 
   beforeEach(async () => {
     // Clear database before each test
@@ -26,6 +18,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
     // Reset singleton for testing
     (GameManager as any).instance = null;
+    const mockIo = createMockSocketServer();
     gameManager = GameManager.getInstance(mockIo);
   });
 
@@ -37,6 +30,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
   describe('singleton pattern', () => {
     it('should return same instance on multiple calls', () => {
+      const mockIo = createMockSocketServer();
       const instance1 = GameManager.getInstance(mockIo);
       const instance2 = GameManager.getInstance(mockIo);
 
@@ -381,7 +375,8 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
       // Create new GameManager instance
       (GameManager as any).instance = null;
-      const newGameManager = GameManager.getInstance(mockIo);
+      const mockIo2 = createMockSocketServer();
+      const newGameManager = GameManager.getInstance(mockIo2);
 
       // Load same game
       await newGameManager.loadGame(gameId);
