@@ -406,7 +406,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       // Perform multiple concurrent operations
       const operations = await Promise.all([
         gameManager.foundCity(gameId, playerId, 'City1', 5, 5),
-        gameManager.foundCity(gameId, playerId, 'City2', 15, 15),
+        gameManager.foundCity(gameId, playerId, 'City2', 18, 18), // Avoid conflict with Athens at 15,15
         gameManager.createUnit(gameId, playerId, 'warrior', 6, 6),
         gameManager.createUnit(gameId, playerId, 'settler', 16, 16),
         gameManager.setPlayerResearch(gameId, playerId, 'pottery'),

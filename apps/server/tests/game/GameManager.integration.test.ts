@@ -7,6 +7,7 @@ import {
   createTestGameAndPlayer,
 } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
+import * as schema from '../../src/database/schema';
 
 describe('GameManager - Integration Tests with Real Database', () => {
   let gameManager: GameManager;
@@ -68,6 +69,31 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
       expect(gameId).toBeTruthy();
 
+      // Create additional users for players
+      const testDb = getTestDatabase();
+      const user1Id = generateTestUUID('1001');
+      const user2Id = generateTestUUID('1002');
+
+      await testDb.insert(schema.users).values([
+        {
+          id: user1Id,
+          username: `Player1_${Date.now()}`,
+          email: `player1_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+        {
+          id: user2Id,
+          username: `Player2_${Date.now()}`,
+          email: `player2_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+      ]);
+
+      // Add players - game will auto-start when minimum players join
+      await gameManager.joinGame(gameId, user1Id, 'romans');
+      await gameManager.joinGame(gameId, user2Id, 'greeks');
+      // Game should auto-start after second player joins (MIN_PLAYERS_TO_START=2)
+
       // Verify game exists in memory
       const game = gameManager.getGameInstance(gameId);
       expect(game).toBeDefined();
@@ -106,7 +132,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
       expect(dbGame.name).toBe('Minimal Game');
       expect(dbGame.hostId).toBe(minimalHostData.user.id);
-      expect(dbGame.maxPlayers).toBe(4); // Default
+      expect(dbGame.maxPlayers).toBe(8); // Default (not 4)
       expect(dbGame.mapWidth).toBe(80); // Default
       expect(dbGame.mapHeight).toBe(50); // Default
       expect(dbGame.turnTimeLimit).toBe(300); // Default

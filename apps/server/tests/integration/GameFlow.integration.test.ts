@@ -36,8 +36,8 @@ describe('Game Integration Flow', () => {
         .insert(schema.users)
         .values({
           id: hostUserId,
-          username: 'HostUser',
-          email: 'host@test.com',
+          username: `HostUser_${Date.now()}`,
+          email: `host_${Date.now()}@test.com`,
           passwordHash: 'test-hash',
         })
         .returning();
@@ -46,8 +46,8 @@ describe('Game Integration Flow', () => {
         .insert(schema.users)
         .values({
           id: guestUserId,
-          username: 'GuestUser',
-          email: 'guest@test.com',
+          username: `GuestUser_${Date.now()}`,
+          email: `guest_${Date.now()}@test.com`,
           passwordHash: 'test-hash',
         })
         .returning();
@@ -112,9 +112,23 @@ describe('Game Integration Flow', () => {
     });
 
     it('should maintain data consistency across manager interactions', async () => {
+      const db = getTestDatabase();
+
+      // Create host user for consistency test
+      const hostUserId = generateTestUUID('0003');
+      const [hostUser] = await db
+        .insert(schema.users)
+        .values({
+          id: hostUserId,
+          username: `ConsistencyHost_${Date.now()}`,
+          email: `consistency_host_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        })
+        .returning();
+
       const gameConfig = {
         name: 'Consistency Test',
-        hostId: generateTestUUID('0003'),
+        hostId: hostUser.id,
         maxPlayers: 2,
         mapWidth: 10,
         mapHeight: 10,
