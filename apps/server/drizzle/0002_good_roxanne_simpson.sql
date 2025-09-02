@@ -1,0 +1,1 @@
+ALTER TABLE "players" ADD COLUMN "nation" varchar(50) NOT NULL;
