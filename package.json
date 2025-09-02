@@ -14,6 +14,8 @@
     "test": "npm run test:client && npm run test:server",
     "test:client": "cd apps/client && npm run test",
     "test:server": "cd apps/server && npm run test",
+    "test:unit": "cd apps/server && npm run test:unit",
+    "test:integration": "cd apps/server && npm run test:integration",
     "lint": "npm run lint:client && npm run lint:server",
     "lint:client": "cd apps/client && npm run lint",
     "lint:server": "cd apps/server && npm run lint",
