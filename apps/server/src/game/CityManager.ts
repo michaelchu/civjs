@@ -50,7 +50,7 @@ export const BUILDING_TYPES: Record<string, BuildingType> = {
     cost: 60,
     upkeep: 1,
     effects: {
-      foodBonus: 1, // Helps with growth
+      foodBonus: 50, // 50% food bonus (helps with growth)
     },
   },
   barracks: {

@@ -150,6 +150,24 @@ describe('GameManager - Integration Tests with Real Database', () => {
     it('should join players and persist to database', async () => {
       const userId1 = generateTestUUID('0011');
       const userId2 = generateTestUUID('0012');
+
+      // Create users first
+      const testDb = getTestDatabase();
+      await testDb.insert(schema.users).values([
+        {
+          id: userId1,
+          username: `Player1_${Date.now()}`,
+          email: `player1_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+        {
+          id: userId2,
+          username: `Player2_${Date.now()}`,
+          email: `player2_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+      ]);
+
       const playerId1 = await gameManager.joinGame(gameId, userId1, 'romans');
       const playerId2 = await gameManager.joinGame(gameId, userId2, 'greeks');
 
@@ -177,6 +195,30 @@ describe('GameManager - Integration Tests with Real Database', () => {
       const userId1 = generateTestUUID('0021');
       const userId2 = generateTestUUID('0022');
       const userId3 = generateTestUUID('0023');
+
+      // Create users first
+      const testDb = getTestDatabase();
+      await testDb.insert(schema.users).values([
+        {
+          id: userId1,
+          username: `FullGame1_${Date.now()}`,
+          email: `fullgame1_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+        {
+          id: userId2,
+          username: `FullGame2_${Date.now()}`,
+          email: `fullgame2_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+        {
+          id: userId3,
+          username: `FullGame3_${Date.now()}`,
+          email: `fullgame3_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+      ]);
+
       await gameManager.joinGame(gameId, userId1, 'romans');
       await gameManager.joinGame(gameId, userId2, 'greeks');
 
@@ -194,6 +236,24 @@ describe('GameManager - Integration Tests with Real Database', () => {
     it('should prevent duplicate nations', async () => {
       const userId1 = generateTestUUID('0031');
       const userId2 = generateTestUUID('0032');
+
+      // Create users first
+      const testDb = getTestDatabase();
+      await testDb.insert(schema.users).values([
+        {
+          id: userId1,
+          username: `DupNation1_${Date.now()}`,
+          email: `dupnation1_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+        {
+          id: userId2,
+          username: `DupNation2_${Date.now()}`,
+          email: `dupnation2_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+      ]);
+
       await gameManager.joinGame(gameId, userId1, 'romans');
 
       // Second player tries same nation

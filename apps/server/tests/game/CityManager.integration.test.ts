@@ -45,7 +45,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
       expect(BUILDING_TYPES.library.effects.scienceBonus).toBe(50);
 
       expect(BUILDING_TYPES.granary).toBeDefined();
-      expect(BUILDING_TYPES.granary.effects.foodBonus).toBe(1);
+      expect(BUILDING_TYPES.granary.effects.foodBonus).toBe(50);
     });
   });
 
@@ -146,6 +146,9 @@ describe('CityManager - Integration Tests with Real Database', () => {
     it('should handle city growth with database persistence', async () => {
       const scenario = await createCityGrowthScenario();
 
+      // Initialize cityManager with the scenario's game ID
+      cityManager = new CityManager(scenario.game.id);
+
       // Load cities from database
       await cityManager.loadCities();
 
@@ -200,6 +203,9 @@ describe('CityManager - Integration Tests with Real Database', () => {
 
     it('should complete production and create units in database', async () => {
       const scenario = await createProductionScenario();
+
+      // Initialize cityManager with the scenario's game ID
+      cityManager = new CityManager(scenario.game.id);
       await cityManager.loadCities();
 
       const cityId = scenario.cities[0].id;
@@ -215,7 +221,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
 
       // Verify production was completed
       expect(city.productionStock).toBe(0);
-      expect(city.currentProduction).toBeUndefined();
+      expect(city.currentProduction).toBeNull();
 
       // Verify changes persisted
       const db = getTestDatabase();

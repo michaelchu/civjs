@@ -29,7 +29,7 @@ export const games = pgTable('games', {
   mapData: jsonb('map_data'), // Compressed map data
 
   // Timing
-  turnTimeLimit: integer('turn_time_limit'), // in seconds
+  turnTimeLimit: integer('turn_time_limit').default(300), // in seconds
   turnStartedAt: timestamp('turn_started_at'),
   pausedAt: timestamp('paused_at'),
 
