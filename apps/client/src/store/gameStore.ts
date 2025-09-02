@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import type { GameState, ClientState, GameTab, MapViewport } from '../types';
+import type { GameState, ClientState, GameTab, MapViewport, ResearchState } from '../types';
 import type {
   Nation,
   NationSet,
@@ -62,6 +62,11 @@ interface GameStore extends GameState {
   selectUnit: (unitId: string | null) => void;
   selectCity: (cityId: string | null) => void;
 
+  // Research actions
+  updateResearchState: (researchState: Partial<ResearchState>) => void;
+  setCurrentResearch: (techId: string | undefined) => void;
+  setResearchGoal: (techId: string | undefined) => void;
+
   // Turn processing actions
   setTurnProcessingState: (state: TurnProcessingState) => void;
   updateTurnProcessingSteps: (steps: TurnProcessingStep[]) => void;
@@ -85,6 +90,10 @@ interface GameStore extends GameState {
   setSharedVisionStatuses: (playerId: string, statuses: SharedVision[]) => void;
   setIntelligenceReport: (playerId: string, report: IntelligenceReport) => void;
   selectPlayer: (playerId: string | null) => void; // For Nations tab
+
+  // Government actions
+  requestGovernmentChange: (governmentId: string) => void;
+  startRevolution: (requestedGovernment: string) => void;
 
   // Computed getters
   getCurrentPlayer: () => ReturnType<typeof getCurrentPlayer>;
@@ -165,6 +174,13 @@ export const useGameStore = create<GameStore>()(
     units: {},
     cities: {},
     technologies: {},
+    research: {
+      bulbsAccumulated: 0,
+      bulbsLastTurn: 0,
+      researchedTechs: new Set(['alphabet']), // Start with alphabet
+      availableTechs: new Set(),
+    },
+    governments: {},
 
     // Initial client state
     clientState: 'initial',
@@ -224,6 +240,25 @@ export const useGameStore = create<GameStore>()(
 
     selectCity: (cityId: string | null) => {
       set({ selectedCityId: cityId });
+    },
+
+    // Research actions
+    updateResearchState: (researchState: Partial<ResearchState>) => {
+      set(state => ({
+        research: { ...state.research!, ...researchState },
+      }));
+    },
+
+    setCurrentResearch: (techId: string | undefined) => {
+      set(state => ({
+        research: { ...state.research!, currentTech: techId },
+      }));
+    },
+
+    setResearchGoal: (techId: string | undefined) => {
+      set(state => ({
+        research: { ...state.research!, techGoal: techId },
+      }));
     },
 
     // Turn processing actions
@@ -345,6 +380,19 @@ export const useGameStore = create<GameStore>()(
 
     selectPlayer: (selectedPlayerId: string | null) => {
       set({ selectedPlayerId });
+    },
+
+    // Government actions
+    requestGovernmentChange: (governmentId: string) => {
+      // This would send a packet to server
+      // For now, just a placeholder - actual networking will be handled elsewhere
+      console.log('Requesting government change to:', governmentId);
+    },
+
+    startRevolution: (requestedGovernment: string) => {
+      // This would send a revolution packet to server
+      // For now, just a placeholder - actual networking will be handled elsewhere
+      console.log('Starting revolution to:', requestedGovernment);
     },
 
     // Computed getters

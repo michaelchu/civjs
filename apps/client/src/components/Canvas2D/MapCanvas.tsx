@@ -2,6 +2,11 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { MapRenderer } from './MapRenderer';
 import { TileHoverOverlay } from './TileHoverOverlay';
+import { UnitContextMenu } from '../GameUI/UnitContextMenu';
+import type { Unit } from '../../types';
+import { ActionType } from '../../types/shared/actions';
+import { gameClient } from '../../services/GameClient';
+import { pathfindingService, type GotoPath } from '../../services/PathfindingService';
 
 interface MapCanvasProps {
   width: number;
@@ -15,7 +20,28 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   // Track initial centering to prevent multiple centering events (freeciv-web compliance)
   const [hasInitiallyCentered, setHasInitiallyCentered] = useState(false);
 
-  const { viewport, map, units, cities, setViewport } = useGameStore();
+  // Unit selection and context menu state
+  const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    unit: Unit;
+    position: { x: number; y: number };
+  } | null>(null);
+
+  // Goto mode state (similar to freeciv-web's goto_active)
+  // @reference freeciv-web/freeciv-web/src/main/webapp/javascript/control.js - goto_active variable
+  const [gotoMode, setGotoMode] = useState<{
+    active: boolean;
+    unit: Unit | null;
+    targetTile: { x: number; y: number } | null;
+    currentPath: GotoPath | null;
+  }>({
+    active: false,
+    unit: null,
+    targetTile: null,
+    currentPath: null,
+  });
+
+  const { viewport, map, units, cities, setViewport, selectUnit } = useGameStore();
   const gameState = useGameStore();
 
   // Initialize renderer and load tileset
@@ -40,6 +66,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             map: gameState.map,
             units: gameState.units,
             cities: gameState.cities,
+            selectedUnitId: gameState.selectedUnitId,
           });
         }
       } catch (error) {
@@ -52,7 +79,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     return () => {
       rendererRef.current?.cleanup();
     };
-  }, []);
+  }, [viewport]);
 
   // Update canvas size
   useEffect(() => {
@@ -64,6 +91,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
     setViewport({ width, height });
   }, [width, height, setViewport]);
+
+  // Extract complex expressions to satisfy ESLint rule
+  const unitsCount = Object.keys(units).length;
+  const citiesCount = Object.keys(cities).length;
 
   // Center the viewport on user's starting position when data becomes available
   // Reference-compliant: centers exactly once on startup like freeciv-web
@@ -149,10 +180,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     gameState.mapData,
     gameState.currentPlayerId,
     hasInitiallyCentered,
-    // Only include units/cities length to avoid object reference changes
-    Object.keys(units).length,
-    Object.keys(cities).length,
+    // Use extracted variables instead of complex expressions
+    unitsCount,
+    citiesCount,
     setViewport,
+    cities,
+    units,
+    viewport,
   ]);
 
   // Render game state
@@ -164,8 +198,58 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       map,
       units,
       cities,
+      selectedUnitId: useGameStore.getState().selectedUnitId,
+      gotoPath: gotoMode.currentPath,
     });
-  }, [viewport, map, units, cities]);
+  }, [viewport, map, units, cities, gotoMode.currentPath]);
+
+  // Optimized animation for selection pulsing - use a simple timer instead of continuous animation loop
+  useEffect(() => {
+    const currentSelectedUnitId = gameState.selectedUnitId;
+
+    if (currentSelectedUnitId && rendererRef.current) {
+      // Use setInterval with a reasonable refresh rate to avoid stuttering during scrolling
+      const intervalId = setInterval(() => {
+        if (rendererRef.current) {
+          rendererRef.current.render({
+            viewport,
+            map,
+            units,
+            cities,
+            selectedUnitId: currentSelectedUnitId,
+            gotoPath: gotoMode.currentPath,
+          });
+        }
+      }, 100); // 10fps for smooth pulsing without interfering with scrolling
+
+      return () => {
+        clearInterval(intervalId);
+        // Force a final render without selection to clear the outline
+        if (rendererRef.current) {
+          rendererRef.current.render({
+            viewport,
+            map,
+            units,
+            cities,
+            selectedUnitId: null,
+            gotoPath: gotoMode.currentPath,
+          });
+        }
+      };
+    } else {
+      // Force a render without selection to clear any lingering outline
+      if (rendererRef.current) {
+        rendererRef.current.render({
+          viewport,
+          map,
+          units,
+          cities,
+          selectedUnitId: null,
+          gotoPath: gotoMode.currentPath,
+        });
+      }
+    }
+  }, [gameState.selectedUnitId, viewport, map, units, cities, gotoMode.currentPath]);
 
   // Handle mouse and touch events - copied from freeciv-web 2D canvas behavior
   const [isDragging, setIsDragging] = useState(false);
@@ -173,6 +257,86 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const dragStart = useRef({ x: 0, y: 0 });
   const dragStartViewport = useRef(viewport);
   const currentRenderViewport = useRef(viewport);
+  const dragStartTime = useRef<number>(0);
+  const DRAG_THRESHOLD = 5; // pixels
+
+  // Deactivate goto mode
+  const deactivateGotoMode = useCallback(() => {
+    console.log('Deactivating goto mode');
+    setGotoMode({
+      active: false,
+      unit: null,
+      targetTile: null,
+      currentPath: null,
+    });
+    // Reset cursor
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.style.cursor = 'crosshair'; // Default canvas cursor
+    }
+  }, []);
+
+  // Request path for goto mode preview (similar to freeciv-web's check_request_goto_path)
+  const requestGotoPath = useCallback(
+    async (targetX: number, targetY: number) => {
+      if (!gotoMode.unit) return;
+
+      console.log(`Requesting path for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
+
+      try {
+        const path = await pathfindingService.requestPath(gotoMode.unit.id, targetX, targetY);
+
+        if (path) {
+          setGotoMode(prev => ({
+            ...prev,
+            targetTile: { x: targetX, y: targetY },
+            currentPath: path,
+          }));
+          console.log('Path received:', path);
+        } else {
+          console.warn('No valid path found');
+          setGotoMode(prev => ({
+            ...prev,
+            targetTile: { x: targetX, y: targetY },
+            currentPath: null,
+          }));
+        }
+      } catch (error) {
+        console.error('Error requesting path:', error);
+      }
+    },
+    [gotoMode.unit]
+  );
+
+  // Execute goto action when target is selected
+  const executeGoto = useCallback(
+    async (targetX: number, targetY: number) => {
+      if (!gotoMode.unit) return;
+
+      console.log(`Executing goto for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
+
+      try {
+        const success = await gameClient.requestUnitAction(
+          gotoMode.unit.id,
+          ActionType.GOTO,
+          targetX,
+          targetY
+        );
+
+        if (success) {
+          console.log(`Unit ${gotoMode.unit.id} moving to (${targetX}, ${targetY})`);
+        } else {
+          console.error(`Failed to execute goto for unit ${gotoMode.unit.id}`);
+        }
+      } catch (error) {
+        console.error(`Error executing goto action:`, error);
+      } finally {
+        // Always deactivate goto mode after execution attempt
+        deactivateGotoMode();
+      }
+    },
+    [gotoMode.unit, deactivateGotoMode]
+  );
 
   const handleMouseDown = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -185,14 +349,16 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       const canvasX = event.clientX - rect.left;
       const canvasY = event.clientY - rect.top;
 
-      // Start dragging - copy freeciv-web logic
-      setIsDragging(true);
+      // Close context menu if open
+      setContextMenu(null);
+
+      // Record drag start for potential drag operation
       dragStart.current = { x: canvasX, y: canvasY };
       dragStartViewport.current = viewport;
       currentRenderViewport.current = viewport;
+      dragStartTime.current = Date.now();
 
-      // Change cursor to indicate dragging
-      canvas.style.cursor = 'move';
+      // Don't immediately set dragging - wait for actual movement
     },
     [viewport]
   );
@@ -206,19 +372,44 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       const canvasX = event.clientX - rect.left;
       const canvasY = event.clientY - rect.top;
 
+      // Check if we should start dragging
+      if (!isDragging && dragStartTime.current > 0) {
+        const dragDistance = Math.sqrt(
+          Math.pow(canvasX - dragStart.current.x, 2) + Math.pow(canvasY - dragStart.current.y, 2)
+        );
+
+        if (dragDistance > DRAG_THRESHOLD) {
+          setIsDragging(true);
+          canvas.style.cursor = 'move';
+        }
+      }
+
       // Handle tile hover detection when not dragging
       if (!isDragging) {
         const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+        const tileX = Math.floor(mapPos.mapX);
+        const tileY = Math.floor(mapPos.mapY);
+
+        // If in goto mode, request path for hovered tile
+        if (gotoMode.active && gotoMode.unit) {
+          // Only request path if hovering a different tile
+          if (
+            !gotoMode.targetTile ||
+            gotoMode.targetTile.x !== tileX ||
+            gotoMode.targetTile.y !== tileY
+          ) {
+            requestGotoPath(tileX, tileY);
+          }
+        }
+
+        // Standard tile hover for tooltip
         const globalTiles = (window as { tiles?: Array<{ x: number; y: number; terrain: string }> })
           .tiles;
 
         if (globalTiles) {
           // Find the tile at the mouse position
           const hoveredTileData = globalTiles.find(
-            tile =>
-              tile &&
-              Math.floor(tile.x) === Math.floor(mapPos.mapX) &&
-              Math.floor(tile.y) === Math.floor(mapPos.mapY)
+            tile => tile && Math.floor(tile.x) === tileX && Math.floor(tile.y) === tileY
           );
 
           if (hoveredTileData && hoveredTileData.terrain) {
@@ -226,9 +417,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             const terrainName = hoveredTileData.terrain
               .replace(/_/g, ' ')
               .replace(/\b\w/g, (l: string) => l.toUpperCase());
-            setHoveredTile(
-              `${terrainName} (${Math.floor(mapPos.mapX)}, ${Math.floor(mapPos.mapY)})`
-            );
+
+            // In goto mode, show path info if available
+            let hoverText = `${terrainName} (${tileX}, ${tileY})`;
+            if (gotoMode.active && gotoMode.currentPath) {
+              hoverText += ` - ${gotoMode.currentPath.estimatedTurns} turns, ${gotoMode.currentPath.totalCost} movement`;
+            }
+
+            setHoveredTile(hoverText);
           } else {
             setHoveredTile(null);
           }
@@ -259,39 +455,84 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             map: useGameStore.getState().map,
             units: useGameStore.getState().units,
             cities: useGameStore.getState().cities,
+            selectedUnitId: useGameStore.getState().selectedUnitId,
+            gotoPath: gotoMode.currentPath,
           });
         }
       });
     },
-    [isDragging, viewport]
+    [
+      isDragging,
+      viewport,
+      gotoMode.active,
+      gotoMode.unit,
+      gotoMode.targetTile,
+      requestGotoPath,
+      gotoMode.currentPath,
+    ]
   );
 
-  const handleMouseUp = useCallback(() => {
-    if (!isDragging || !rendererRef.current) return;
+  const handleMouseUp = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      if (!canvas || !rendererRef.current) return;
 
-    const canvas = canvasRef.current;
-    if (canvas) {
-      canvas.style.cursor = 'crosshair';
-    }
+      const rect = canvas.getBoundingClientRect();
+      const canvasX = event.clientX - rect.left;
+      const canvasY = event.clientY - rect.top;
 
-    // Apply boundary constraints to the final viewport position
-    const constrainedPosition = rendererRef.current.setMapviewOrigin(
-      currentRenderViewport.current.x,
-      currentRenderViewport.current.y,
-      currentRenderViewport.current.width,
-      currentRenderViewport.current.height
-    );
+      // If we were dragging, handle the drag end
+      if (isDragging) {
+        canvas.style.cursor = 'crosshair';
 
-    const finalViewport = {
-      ...currentRenderViewport.current,
-      x: constrainedPosition.x,
-      y: constrainedPosition.y,
-    };
+        // Apply boundary constraints to the final viewport position
+        const constrainedPosition = rendererRef.current.setMapviewOrigin(
+          currentRenderViewport.current.x,
+          currentRenderViewport.current.y,
+          currentRenderViewport.current.width,
+          currentRenderViewport.current.height
+        );
 
-    // Update state with the constrained final position
-    setViewport(finalViewport);
-    setIsDragging(false);
-  }, [isDragging, setViewport]);
+        const finalViewport = {
+          ...currentRenderViewport.current,
+          x: constrainedPosition.x,
+          y: constrainedPosition.y,
+        };
+
+        // Update state with the constrained final position
+        setViewport(finalViewport);
+        setIsDragging(false);
+      } else if (dragStartTime.current > 0) {
+        // Handle click (not drag)
+        const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+        const tileX = Math.floor(mapPos.mapX);
+        const tileY = Math.floor(mapPos.mapY);
+
+        // If in goto mode, execute goto to clicked tile
+        if (gotoMode.active) {
+          executeGoto(tileX, tileY);
+          return;
+        }
+
+        // Normal unit selection logic
+        const unitAtPosition = Object.values(units).find(
+          unit => unit.x === tileX && unit.y === tileY
+        );
+
+        if (unitAtPosition) {
+          selectUnit(unitAtPosition.id);
+          setSelectedUnit(unitAtPosition as Unit);
+        } else {
+          selectUnit(null);
+          setSelectedUnit(null);
+        }
+      }
+
+      // Reset drag tracking
+      dragStartTime.current = 0;
+    },
+    [isDragging, setViewport, selectUnit, units, viewport, gotoMode.active, executeGoto]
+  );
 
   // Touch event handlers for mobile panning
   const handleTouchStart = useCallback(
@@ -352,6 +593,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             map: useGameStore.getState().map,
             units: useGameStore.getState().units,
             cities: useGameStore.getState().cities,
+            selectedUnitId: useGameStore.getState().selectedUnitId,
+            gotoPath: gotoMode.currentPath,
           });
         }
       });
@@ -359,7 +602,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       // Prevent default to avoid page scrolling
       event.preventDefault();
     },
-    [isDragging]
+    [isDragging, gotoMode.currentPath]
   );
 
   const handleTouchEnd = useCallback(
@@ -390,6 +633,131 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     [isDragging, setViewport]
   );
 
+  // Handle right-click context menu
+  const handleContextMenu = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      event.preventDefault(); // Prevent browser context menu
+
+      // If in goto mode, right-click cancels it
+      if (gotoMode.active) {
+        console.log('Right-click - deactivating goto mode');
+        deactivateGotoMode();
+        return;
+      }
+
+      const canvas = canvasRef.current;
+      if (!canvas || !rendererRef.current) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const canvasX = event.clientX - rect.left;
+      const canvasY = event.clientY - rect.top;
+
+      // Convert canvas coordinates to map coordinates
+      const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+      const tileX = Math.floor(mapPos.mapX);
+      const tileY = Math.floor(mapPos.mapY);
+
+      // Find unit at right-clicked position
+      const unitAtPosition = Object.values(units).find(
+        unit => unit.x === tileX && unit.y === tileY
+      );
+
+      if (unitAtPosition) {
+        // Show context menu for the unit
+        setContextMenu({
+          unit: unitAtPosition as Unit,
+          position: { x: event.clientX, y: event.clientY },
+        });
+        selectUnit(unitAtPosition.id);
+        setSelectedUnit(unitAtPosition as Unit);
+      }
+    },
+    [selectUnit, units, viewport, gotoMode.active, deactivateGotoMode]
+  );
+
+  // Handle unit action selection
+  const handleActionSelect = useCallback(
+    async (action: ActionType, targetX?: number, targetY?: number) => {
+      if (!selectedUnit) return;
+
+      // Special handling for GOTO action - enter interactive mode
+      if (action === ActionType.GOTO) {
+        console.log(`Activating goto mode for unit ${selectedUnit.id}`);
+        setGotoMode({
+          active: true,
+          unit: selectedUnit,
+          targetTile: null,
+          currentPath: null,
+        });
+        // Change cursor to indicate goto mode is active
+        const canvas = canvasRef.current;
+        if (canvas) {
+          canvas.style.cursor = 'crosshair';
+        }
+        return;
+      }
+
+      console.log(`Selected action ${action} for unit ${selectedUnit.id}`, {
+        unitId: selectedUnit.id,
+        action,
+        targetX,
+        targetY,
+      });
+
+      // Send action to server via GameClient for immediate actions
+      try {
+        const success = await gameClient.requestUnitAction(
+          selectedUnit.id,
+          action,
+          targetX,
+          targetY
+        );
+
+        if (success) {
+          console.log(`Successfully requested ${action} for unit ${selectedUnit.id}`);
+          // Handle different action types for immediate UI feedback
+          switch (action) {
+            case ActionType.FORTIFY:
+              console.log('Unit fortified');
+              break;
+            case ActionType.SENTRY:
+              console.log('Unit on sentry duty');
+              break;
+            default:
+              console.log(`Action ${action} executed`);
+          }
+        } else {
+          console.error(`Failed to execute ${action} for unit ${selectedUnit.id}`);
+        }
+      } catch (error) {
+        console.error(`Error executing unit action:`, error);
+      }
+    },
+    [selectedUnit]
+  );
+
+  // Close context menu when clicking elsewhere
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  // Global keyboard handler for ESC key to exit goto mode
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && gotoMode.active) {
+        console.log('ESC pressed - deactivating goto mode');
+        deactivateGotoMode();
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    if (gotoMode.active) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [gotoMode.active, deactivateGotoMode]);
+
   // Global mouse up handler to catch mouse up events outside the canvas
   useEffect(() => {
     const handleGlobalMouseUp = () => {
@@ -416,13 +784,16 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         setViewport(finalViewport);
         setIsDragging(false);
       }
+
+      // Reset drag tracking
+      dragStartTime.current = 0;
     };
 
-    if (isDragging) {
+    if (isDragging || dragStartTime.current > 0) {
       document.addEventListener('mouseup', handleGlobalMouseUp);
       return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
     }
-  }, [isDragging, handleMouseUp]);
+  }, [isDragging, setViewport]);
 
   // Removed zoom functionality to match freeciv-web 2D canvas behavior
   // Freeciv-web's 2D renderer does not support zoom - only the WebGL renderer does
@@ -437,6 +808,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onContextMenu={handleContextMenu}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -448,6 +820,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         }}
       />
       <TileHoverOverlay tileInfo={hoveredTile} />
+      {contextMenu && (
+        <UnitContextMenu
+          unit={contextMenu.unit}
+          position={contextMenu.position}
+          onClose={handleCloseContextMenu}
+          onActionSelect={handleActionSelect}
+        />
+      )}
     </div>
   );
 };

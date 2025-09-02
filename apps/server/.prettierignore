@@ -29,3 +29,6 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+
+# Reference freeciv codebase (external)
+../../reference/

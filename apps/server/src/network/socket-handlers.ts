@@ -207,6 +207,152 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
     }
   });
 
+  socket.on('unit_action', async (data, callback) => {
+    const connection = activeConnections.get(socket.id);
+    if (!connection?.gameId) {
+      callback({ success: false, error: 'Not in a game' });
+      return;
+    }
+
+    try {
+      const gameInstance = gameManager.getGameInstance(connection.gameId);
+      if (!gameInstance) {
+        callback({ success: false, error: 'Game instance not found' });
+        return;
+      }
+
+      // Get player ID from user
+      let playerId: string | undefined = undefined;
+      if (connection.userId) {
+        const playerIds = Array.from(gameInstance.players.keys());
+        for (const pid of playerIds) {
+          const player = gameInstance.players.get(pid);
+          if (player && player.userId === connection.userId) {
+            playerId = pid;
+            break;
+          }
+        }
+      }
+
+      if (!playerId) {
+        callback({ success: false, error: 'Player not found' });
+        return;
+      }
+
+      // Execute the unit action
+      const result = await gameInstance.unitManager.executeUnitAction(
+        data.unitId,
+        data.actionType,
+        data.targetX,
+        data.targetY
+      );
+
+      if (result.success) {
+        // If unit was destroyed (e.g., settler founding city), broadcast destruction
+        if (result.unitDestroyed) {
+          io.to(`game:${connection.gameId}`).emit('unit_destroyed', {
+            gameId: connection.gameId,
+            unitId: data.unitId,
+          });
+        } else {
+          // Broadcast unit state updates if unit still exists
+          const updatedUnit = gameInstance.unitManager.getUnit(data.unitId);
+          if (updatedUnit) {
+            io.to(`game:${connection.gameId}`).emit('unit_update', {
+              gameId: connection.gameId,
+              unit: updatedUnit,
+            });
+          }
+        }
+
+        // If city was founded, the GameManager already broadcasts city_founded
+        callback({ success: true, result });
+        logger.info(`Unit action executed successfully`, {
+          unitId: data.unitId,
+          actionType: data.actionType,
+          playerId,
+        });
+      } else {
+        callback({ success: false, error: result.message });
+        logger.warn(`Unit action failed`, {
+          unitId: data.unitId,
+          actionType: data.actionType,
+          error: result.message,
+          playerId,
+        });
+      }
+    } catch (error) {
+      logger.error('Error executing unit action:', error);
+      callback({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to execute unit action',
+      });
+    }
+  });
+
+  // Pathfinding request handler
+  socket.on('path_request', async (data, callback) => {
+    const connection = activeConnections.get(socket.id);
+    if (!connection?.gameId || !connection?.userId) {
+      callback({ success: false, error: 'Not authenticated or not in a game' });
+      return;
+    }
+
+    try {
+      const gameInstance = gameManager.getGameInstance(connection.gameId);
+      if (!gameInstance) {
+        callback({ success: false, error: 'Game instance not found' });
+        return;
+      }
+
+      // Get player ID from user
+      let playerId: string | undefined = undefined;
+      const playerIds = Array.from(gameInstance.players.keys());
+      for (const pid of playerIds) {
+        const player = gameInstance.players.get(pid);
+        if (player && player.userId === connection.userId) {
+          playerId = pid;
+          break;
+        }
+      }
+
+      if (!playerId) {
+        callback({ success: false, error: 'Player not found' });
+        return;
+      }
+
+      // Request pathfinding from GameManager
+      const pathResult = await gameManager.requestPath(
+        playerId,
+        data.unitId,
+        data.targetX,
+        data.targetY
+      );
+
+      callback(pathResult);
+
+      // Also emit to the socket for the PathfindingService listener
+      if (pathResult.success && pathResult.path) {
+        socket.emit('path_response', pathResult.path);
+      }
+
+      logger.debug('Path request processed', {
+        gameId: connection.gameId,
+        playerId,
+        unitId: data.unitId,
+        targetX: data.targetX,
+        targetY: data.targetY,
+        success: pathResult.success,
+      });
+    } catch (error) {
+      logger.error('Error processing path request:', error);
+      callback({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to process path request',
+      });
+    }
+  });
+
   socket.on('disconnect', async () => {
     logger.info(`Client disconnected: ${socket.id}`);
 
