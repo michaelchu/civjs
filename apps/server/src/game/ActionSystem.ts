@@ -530,6 +530,9 @@ export class ActionSystem {
       };
     }
 
+    // Calculate total movement cost before updating unit
+    const totalMovementCost = unit.movementLeft - remainingMovement;
+
     // Update unit position to the furthest point we could reach
     const oldX = unit.x;
     const oldY = unit.y;
@@ -572,10 +575,10 @@ export class ActionSystem {
     return {
       success: true,
       message: reachedDestination
-        ? `${unit.unitTypeId} reached destination at (${targetX}, ${targetY})`
+        ? `${unit.unitTypeId} moved to (${targetX}, ${targetY})`
         : `${unit.unitTypeId} moved ${tilesTraversed} tiles toward (${targetX}, ${targetY}). Will continue next turn.`,
       newPosition: { x: currentX, y: currentY },
-      movementCost: unit.movementLeft - remainingMovement,
+      movementCost: totalMovementCost,
     };
   }
 

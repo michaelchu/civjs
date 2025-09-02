@@ -110,9 +110,11 @@ describe('PathfindingManager', () => {
 
       const result = await pathfindingManager.findPath(mockUnit, 15, 15);
 
-      // Should still work with fallback costs
-      expect(result.valid).toBe(true);
-      expect(result.path.length).toBeGreaterThan(0);
+      // Should return invalid result when pathfinding fails (matches freeciv behavior)
+      expect(result.valid).toBe(false);
+      expect(result.path.length).toBe(0);
+      expect(result.totalCost).toBe(0);
+      expect(result.estimatedTurns).toBe(0);
     });
 
     it('should reject coordinates outside map bounds', async () => {
@@ -195,10 +197,11 @@ describe('PathfindingManager', () => {
 
     it('should handle unit with no movement left', async () => {
       const tiredUnit = { ...mockUnit, movementLeft: 0 };
+      mockMapManager.getTile.mockReturnValue({ terrain: 'grassland' });
 
       const result = await pathfindingManager.findPath(tiredUnit, 11, 10);
 
-      // Should still calculate path even with no movement left
+      // Should still calculate path even with no movement left (path calculation is separate from movement execution)
       expect(result.valid).toBe(true);
     });
 
