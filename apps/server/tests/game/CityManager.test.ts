@@ -67,7 +67,7 @@ describe('CityManager', () => {
       expect(BUILDING_TYPES.library.effects.scienceBonus).toBe(50);
 
       expect(BUILDING_TYPES.granary).toBeDefined();
-      expect(BUILDING_TYPES.granary.effects.foodBonus).toBe(1);
+      expect(BUILDING_TYPES.granary.effects.foodBonus).toBe(50);
     });
   });
 
