@@ -55,6 +55,15 @@ npm run test:watch       # Jest in watch mode
 npm run test:coverage    # Test with coverage
 npm run test:ci          # CI test mode
 
+# Testing commands
+npm test                 # Run unit tests (mocked dependencies)
+npm run test:unit        # Run unit tests explicitly
+npm run test:integration # Run integration tests (real database)
+npm run test:integration:watch    # Integration tests in watch mode
+npm run test:integration:coverage # Integration tests with coverage
+npm run test:db:setup    # Setup test database (migrate)
+npm run test:db:reset    # Clear all test data
+
 # Database commands (Drizzle ORM)
 npm run db:generate      # Generate migrations
 npm run db:migrate       # Run migrations
@@ -126,3 +135,122 @@ When implementing features or fixing issues, consult these reference repositorie
 - Always copy and reference original code when generating ports. Cite the source (file/path/lines). Only if reuse is impossible, explain why and stop. Do not write new code until the user explicitly approves.
 - always run linter, formatter and tests before committing and pushing to remote
 - Always check typescript before asking user to test
+
+## Testing Strategy
+
+### Test Types
+
+**Unit Tests** (`*.test.ts`):
+- Test individual components in isolation
+- Use mocked dependencies (database, Redis, Socket.IO)
+- Fast execution, suitable for TDD
+- Run with: `npm test` or `npm run test:unit`
+
+**Integration Tests** (`*.integration.test.ts`):
+- Test components with real database connections
+- Verify actual database operations and persistence
+- Test cross-component interactions
+- Run with: `npm run test:integration`
+
+### Database Testing Setup
+
+Integration tests use a separate test database (`civjs_test`) to avoid conflicts with development data.
+
+**Prerequisites:**
+1. PostgreSQL running locally
+2. Test database created: `civjs_test`
+3. Test user with permissions: `civjs_test`
+4. Environment file: `.env.test` with `TEST_DATABASE_URL`
+
+### Test Structure
+
+```
+apps/server/tests/
+├── setup.ts                    # Unit test setup (mocked)
+├── setup.integration.ts        # Integration test setup (real DB)
+├── utils/
+│   ├── testDatabase.ts         # Database utilities
+│   └── gameTestUtils.ts        # Game setup utilities
+├── fixtures/
+│   └── gameFixtures.ts         # Test data factories
+└── [game|integration]/
+    ├── Component.test.ts       # Unit tests
+    └── Component.integration.test.ts # Integration tests
+```
+
+### Writing Tests
+
+**Unit Tests:**
+```typescript
+// Use mocked dependencies
+describe('ComponentName', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
+  it('should test isolated behavior', () => {
+    // Test with mocks
+  });
+});
+```
+
+**Integration Tests:**
+```typescript
+// Use real database
+import { setupGameManagerWithScenario, cleanupGameManager } from '../utils/gameTestUtils';
+
+describe('ComponentName - Integration', () => {
+  let gameManager, scenario;
+  
+  beforeEach(async () => {
+    const setup = await setupGameManagerWithScenario();
+    gameManager = setup.gameManager;
+    scenario = setup.scenario;
+  });
+  
+  afterEach(() => {
+    cleanupGameManager(gameManager);
+  });
+  
+  it('should test real database behavior', async () => {
+    // Test with real DB operations
+  });
+});
+```
+
+### Best Practices
+
+**Unit Tests:**
+- Mock external dependencies
+- Test individual component logic
+- Focus on edge cases and error conditions
+- Keep tests fast and isolated
+
+**Integration Tests:**
+- Use test fixtures for consistent data (`gameFixtures.ts`)
+- Test realistic game scenarios end-to-end
+- Verify database persistence and cross-manager interactions
+- Use `gameTestUtils.ts` for consistent setup/teardown
+- Clean up between tests with `cleanupGameManager()`
+
+**Database Testing:**
+- Always clean tables between tests
+- Use real database operations to test persistence
+- Test both happy path and error cases
+- Verify data consistency across operations
+
+### Debugging Tests
+
+```bash
+# Run specific test
+npm run test:integration -- --testNamePattern="should found a city"
+
+# Debug with verbose output  
+npm run test:integration -- --verbose
+
+# Run with longer timeout
+npm run test:integration -- --testTimeout=60000
+
+# Check test database connection
+psql -h localhost -U civjs_test -d civjs_test
+```
