@@ -252,6 +252,84 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const dragStartTime = useRef<number>(0);
   const DRAG_THRESHOLD = 5; // pixels
 
+  // Deactivate goto mode
+  const deactivateGotoMode = useCallback(() => {
+    console.log('Deactivating goto mode');
+    setGotoMode({
+      active: false,
+      unit: null,
+      targetTile: null,
+      currentPath: null,
+    });
+    // Reset cursor
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.style.cursor = 'crosshair'; // Default canvas cursor
+    }
+  }, []);
+
+  // Request path for goto mode preview (similar to freeciv-web's check_request_goto_path)
+  const requestGotoPath = useCallback(
+    async (targetX: number, targetY: number) => {
+      if (!gotoMode.unit) return;
+
+      console.log(`Requesting path for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
+      
+      try {
+        const path = await pathfindingService.requestPath(gotoMode.unit.id, targetX, targetY);
+        
+        if (path) {
+          setGotoMode(prev => ({
+            ...prev,
+            targetTile: { x: targetX, y: targetY },
+            currentPath: path,
+          }));
+          console.log('Path received:', path);
+        } else {
+          console.warn('No valid path found');
+          setGotoMode(prev => ({
+            ...prev,
+            targetTile: { x: targetX, y: targetY },
+            currentPath: null,
+          }));
+        }
+      } catch (error) {
+        console.error('Error requesting path:', error);
+      }
+    },
+    [gotoMode.unit]
+  );
+
+  // Execute goto action when target is selected
+  const executeGoto = useCallback(
+    async (targetX: number, targetY: number) => {
+      if (!gotoMode.unit) return;
+
+      console.log(`Executing goto for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
+      
+      try {
+        const success = await gameClient.requestUnitAction(
+          gotoMode.unit.id,
+          ActionType.GOTO,
+          targetX,
+          targetY
+        );
+
+        if (success) {
+          console.log(`Unit ${gotoMode.unit.id} moving to (${targetX}, ${targetY})`);
+        } else {
+          console.error(`Failed to execute goto for unit ${gotoMode.unit.id}`);
+        }
+      } catch (error) {
+        console.error(`Error executing goto action:`, error);
+      } finally {
+        // Always deactivate goto mode after execution attempt
+        deactivateGotoMode();
+      }
+    },
+    [gotoMode.unit, deactivateGotoMode]
+  );
+
   const handleMouseDown = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       if (event.button !== 0) return; // Only handle left mouse button
@@ -592,6 +670,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           active: true,
           unit: selectedUnit,
           targetTile: null,
+          currentPath: null,
         });
         // Change cursor to indicate goto mode is active
         const canvas = canvasRef.current;
@@ -638,84 +717,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       }
     },
     [selectedUnit]
-  );
-
-  // Deactivate goto mode
-  const deactivateGotoMode = useCallback(() => {
-    console.log('Deactivating goto mode');
-    setGotoMode({
-      active: false,
-      unit: null,
-      targetTile: null,
-      currentPath: null,
-    });
-    // Reset cursor
-    const canvas = canvasRef.current;
-    if (canvas) {
-      canvas.style.cursor = 'crosshair'; // Default canvas cursor
-    }
-  }, []);
-
-  // Request path for goto mode preview (similar to freeciv-web's check_request_goto_path)
-  const requestGotoPath = useCallback(
-    async (targetX: number, targetY: number) => {
-      if (!gotoMode.unit) return;
-
-      console.log(`Requesting path for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
-      
-      try {
-        const path = await pathfindingService.requestPath(gotoMode.unit.id, targetX, targetY);
-        
-        if (path) {
-          setGotoMode(prev => ({
-            ...prev,
-            targetTile: { x: targetX, y: targetY },
-            currentPath: path,
-          }));
-          console.log('Path received:', path);
-        } else {
-          console.warn('No valid path found');
-          setGotoMode(prev => ({
-            ...prev,
-            targetTile: { x: targetX, y: targetY },
-            currentPath: null,
-          }));
-        }
-      } catch (error) {
-        console.error('Error requesting path:', error);
-      }
-    },
-    [gotoMode.unit]
-  );
-
-  // Execute goto action when target is selected
-  const executeGoto = useCallback(
-    async (targetX: number, targetY: number) => {
-      if (!gotoMode.unit) return;
-
-      console.log(`Executing goto for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
-      
-      try {
-        const success = await gameClient.requestUnitAction(
-          gotoMode.unit.id,
-          ActionType.GOTO,
-          targetX,
-          targetY
-        );
-
-        if (success) {
-          console.log(`Unit ${gotoMode.unit.id} moving to (${targetX}, ${targetY})`);
-        } else {
-          console.error(`Failed to execute goto for unit ${gotoMode.unit.id}`);
-        }
-      } catch (error) {
-        console.error(`Error executing goto action:`, error);
-      } finally {
-        // Always deactivate goto mode after execution attempt
-        deactivateGotoMode();
-      }
-    },
-    [gotoMode.unit, deactivateGotoMode]
   );
 
   // Close context menu when clicking elsewhere
