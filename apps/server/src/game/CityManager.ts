@@ -595,7 +595,7 @@ export class CityManager {
         distanceWaste: 0,
         totalWaste: 0,
         wasteReduction: 0,
-        finalWaste: 0
+        finalWaste: 0,
       };
     }
 
@@ -603,14 +603,14 @@ export class CityManager {
       playerId: city.playerId,
       cityId: city.id,
       government: currentGovernment,
-      outputType
+      outputType,
     };
 
     // Base waste level from government
     const baseWasteEffect = this.effectsManager.calculateEffect(EffectType.OUTPUT_WASTE, context);
     let wasteLevel = baseWasteEffect.value;
     let totalEffective = totalOutput;
-    let penaltySize = 0;
+    const penaltySize = 0;
 
     // Special case for trade: affected by city size restrictions
     // TODO: Implement notradesize/fulltradesize when game settings are available
@@ -625,17 +625,17 @@ export class CityManager {
     // Distance-based waste calculation
     if (totalEffective > 0) {
       const distanceWasteEffect = this.effectsManager.calculateEffect(
-        EffectType.OUTPUT_WASTE_BY_DISTANCE, 
+        EffectType.OUTPUT_WASTE_BY_DISTANCE,
         context
       );
       const relDistanceWasteEffect = this.effectsManager.calculateEffect(
-        EffectType.OUTPUT_WASTE_BY_REL_DISTANCE, 
+        EffectType.OUTPUT_WASTE_BY_REL_DISTANCE,
         context
       );
 
       if (distanceWasteEffect.value > 0 || relDistanceWasteEffect.value > 0) {
         const govCenter = this.findNearestGovernmentCenter(city.playerId, city.x, city.y);
-        
+
         if (!govCenter) {
           wasteAll = true; // No government center - lose all output
         } else {
@@ -659,7 +659,7 @@ export class CityManager {
     } else {
       // Apply waste percentage reduction effects
       const wasteReductionEffect = this.effectsManager.calculateEffect(
-        EffectType.OUTPUT_WASTE_PCT, 
+        EffectType.OUTPUT_WASTE_PCT,
         context
       );
 
@@ -684,7 +684,7 @@ export class CityManager {
       totalWaste: wasteLevel,
       wasteReduction: 0, // TODO: Calculate actual reduction
       finalWaste: Math.floor(finalWaste),
-      governmentCenter: govCenter || undefined
+      governmentCenter: govCenter || undefined,
     };
   }
 
@@ -709,24 +709,24 @@ export class CityManager {
         buildingBonus: 0,
         finalHappy: 0,
         finalContent: population,
-        finalUnhappy: 0
+        finalUnhappy: 0,
       };
     }
 
     const context: EffectContext = {
       playerId: city.playerId,
       cityId: city.id,
-      government: currentGovernment
+      government: currentGovernment,
     };
 
     // Base unhappy citizens from city size
     const unhappySizeEffect = this.effectsManager.calculateEffect(
-      EffectType.CITY_UNHAPPY_SIZE, 
+      EffectType.CITY_UNHAPPY_SIZE,
       context
     );
     const baseUnhappy = Math.max(0, city.population - unhappySizeEffect.value);
 
-    // Government-specific base unhappy citizens 
+    // Government-specific base unhappy citizens
     const revolutionUnhappyEffect = this.effectsManager.calculateEffect(
       EffectType.REVOLUTION_UNHAPPINESS,
       context
@@ -734,10 +734,7 @@ export class CityManager {
     const govUnhappy = revolutionUnhappyEffect.value;
 
     // Martial law from military units
-    const martialLawResult = this.effectsManager.calculateMartialLaw(
-      context,
-      militaryUnitsInCity
-    );
+    const martialLawResult = this.effectsManager.calculateMartialLaw(context, militaryUnitsInCity);
 
     // Building happiness bonuses
     let buildingBonus = 0;
@@ -749,9 +746,12 @@ export class CityManager {
     }
 
     // Calculate final happiness distribution
-    let finalUnhappy = Math.max(0, baseUnhappy + govUnhappy - martialLawResult.happyBonus - buildingBonus);
-    let finalHappy = buildingBonus + martialLawResult.happyBonus;
-    let finalContent = Math.max(0, city.population - finalUnhappy - finalHappy);
+    const finalUnhappy = Math.max(
+      0,
+      baseUnhappy + govUnhappy - martialLawResult.happyBonus - buildingBonus
+    );
+    const finalHappy = buildingBonus + martialLawResult.happyBonus;
+    const finalContent = Math.max(0, city.population - finalUnhappy - finalHappy);
 
     return {
       baseHappy: 0,
@@ -761,7 +761,7 @@ export class CityManager {
       buildingBonus,
       finalHappy,
       finalContent,
-      finalUnhappy
+      finalUnhappy,
     };
   }
 
@@ -784,9 +784,9 @@ export class CityManager {
       }
 
       // Check if city has government center building
-      const hasGovCenter = city.buildings.includes('palace') || 
-                          city.buildings.includes('courthouse');
-      
+      const hasGovCenter =
+        city.buildings.includes('palace') || city.buildings.includes('courthouse');
+
       if (hasGovCenter) {
         const distance = Math.abs(city.x - cityX) + Math.abs(city.y - cityY);
         if (distance < minDistance) {
@@ -826,10 +826,12 @@ export class CityManager {
     );
 
     // Apply corruption to city output
-    const tradeAfterCorruption = Math.max(0, 
-      (city.goldPerTurn + city.sciencePerTurn) - tradeCorruption.finalWaste
+    const tradeAfterCorruption = Math.max(
+      0,
+      city.goldPerTurn + city.sciencePerTurn - tradeCorruption.finalWaste
     );
-    const shieldsAfterCorruption = Math.max(0,
+    const shieldsAfterCorruption = Math.max(
+      0,
       city.productionPerTurn - shieldCorruption.finalWaste
     );
 
@@ -839,7 +841,9 @@ export class CityManager {
     city.sciencePerTurn = tradeAfterCorruption - city.goldPerTurn;
     city.productionPerTurn = shieldsAfterCorruption;
 
-    logger.debug(`Applied corruption to city ${city.name}: trade=${tradeCorruption.finalWaste}, shields=${shieldCorruption.finalWaste}`);
+    logger.debug(
+      `Applied corruption to city ${city.name}: trade=${tradeCorruption.finalWaste}, shields=${shieldCorruption.finalWaste}`
+    );
   }
 
   /**
@@ -855,11 +859,7 @@ export class CityManager {
     // Count military units in city (placeholder - will be integrated with UnitManager)
     const militaryUnitsInCity = 0; // TODO: Get from UnitManager
 
-    const happinessResult = this.calculateHappiness(
-      cityId,
-      currentGovernment,
-      militaryUnitsInCity
-    );
+    const happinessResult = this.calculateHappiness(cityId, currentGovernment, militaryUnitsInCity);
 
     // Update city happiness (scale to 0-100)
     const totalCitizens = city.population;
@@ -868,7 +868,9 @@ export class CityManager {
       city.happinessLevel = Math.min(100, Math.max(0, happinessScore));
     }
 
-    logger.debug(`Applied happiness to city ${city.name}: happy=${happinessResult.finalHappy}, content=${happinessResult.finalContent}, unhappy=${happinessResult.finalUnhappy}`);
+    logger.debug(
+      `Applied happiness to city ${city.name}: happy=${happinessResult.finalHappy}, content=${happinessResult.finalContent}, unhappy=${happinessResult.finalUnhappy}`
+    );
   }
 
   /**

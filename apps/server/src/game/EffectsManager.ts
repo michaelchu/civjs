@@ -1,14 +1,14 @@
 /**
  * Effects Manager - Centralized system for calculating game effects
  * Based on freeciv common/effects.c and effects.h
- * 
+ *
  * Handles government-specific effects including:
  * - Corruption/waste calculations
  * - Happiness and martial law
  * - Unit support costs
  * - Building requirements
  * - Civic policies (multipliers)
- * 
+ *
  * Reference: /reference/freeciv/common/effects.c
  */
 
@@ -23,10 +23,10 @@ export enum EffectType {
   OUTPUT_WASTE_BY_DISTANCE = 'Output_Waste_By_Distance',
   OUTPUT_WASTE_BY_REL_DISTANCE = 'Output_Waste_By_Rel_Distance',
   OUTPUT_WASTE_PCT = 'Output_Waste_Pct',
-  
+
   // Government center effects (Palace, Courthouse)
   GOV_CENTER = 'Gov_Center',
-  
+
   // Happiness and martial law effects
   MAKE_HAPPY = 'Make_Happy',
   MAKE_CONTENT = 'Make_Content',
@@ -38,19 +38,19 @@ export enum EffectType {
   MARTIAL_LAW_MAX = 'Martial_Law_Max',
   CITY_UNHAPPY_SIZE = 'City_Unhappy_Size',
   REVOLUTION_UNHAPPINESS = 'Revolution_Unhappiness',
-  
+
   // Unit support cost effects
   UPKEEP_FREE = 'Upkeep_Free',
   UNIT_UPKEEP_FREE_PER_CITY = 'Unit_Upkeep_Free_Per_City',
   UPKEEP_PCT = 'Upkeep_Pct',
   UNHAPPY_FACTOR = 'Unhappy_Factor',
   SHIELD2GOLD_PCT = 'Shield2Gold_Pct',
-  
+
   // Building and specialist effects
   SPECIALIST_OUTPUT = 'Specialist_Output',
   OUTPUT_BONUS = 'Output_Bonus',
   OUTPUT_BONUS_2 = 'Output_Bonus_2',
-  
+
   // General effects
   ANY_GOVERNMENT = 'Any_Government',
   NO_ANARCHY = 'No_Anarchy',
@@ -60,7 +60,7 @@ export enum EffectType {
 // Output types for effect calculations
 export enum OutputType {
   FOOD = 'food',
-  SHIELD = 'shield', 
+  SHIELD = 'shield',
   TRADE = 'trade',
   GOLD = 'gold',
   SCIENCE = 'science',
@@ -119,7 +119,9 @@ export class EffectsManager {
       try {
         const effects = rulesetLoader.getEffects(this.rulesetName);
         this.effectsCache.set(this.rulesetName, effects);
-        logger.info(`Loaded ${Object.keys(effects).length} effects from ruleset '${this.rulesetName}'`);
+        logger.info(
+          `Loaded ${Object.keys(effects).length} effects from ruleset '${this.rulesetName}'`
+        );
       } catch (error) {
         logger.error(`Failed to load effects for ruleset '${this.rulesetName}':`, error);
         this.effectsCache.set(this.rulesetName, {});
@@ -140,7 +142,7 @@ export class EffectsManager {
     const effects = this.getEffects();
     const result: EffectResult = {
       value: 0,
-      effects: []
+      effects: [],
     };
 
     // Find all effects matching the type
@@ -166,7 +168,7 @@ export class EffectsManager {
         effectId,
         type: effectType,
         value: effectValue,
-        source: this.getEffectSource(effect)
+        source: this.getEffectSource(effect),
       });
     }
 
@@ -193,7 +195,7 @@ export class EffectsManager {
     if (distanceToGovCenter !== undefined && distanceToGovCenter > 0) {
       const distanceWaste = this.calculateEffect(EffectType.OUTPUT_WASTE_BY_DISTANCE, context);
       wasteLevel += (distanceWaste.value * distanceToGovCenter * totalOutput) / 10000;
-      
+
       // Relative distance waste (scales with map size)
       // const relDistanceWaste = this.calculateEffect(EffectType.OUTPUT_WASTE_BY_REL_DISTANCE, context);
       // TODO: Implement relative distance calculation when map size data available
@@ -218,16 +220,16 @@ export class EffectsManager {
   ): { happyBonus: number; maxUnits: number } {
     // Martial law effectiveness per unit
     const martialLawPerUnit = this.calculateEffect(EffectType.MARTIAL_LAW_BY_UNIT, cityContext);
-    
+
     // Maximum units that can provide martial law
     const martialLawMax = this.calculateEffect(EffectType.MARTIAL_LAW_MAX, cityContext);
-    
+
     const effectiveUnits = Math.min(militaryUnitsInCity, martialLawMax.value);
     const happyBonus = effectiveUnits * martialLawPerUnit.value;
 
     return {
       happyBonus,
-      maxUnits: martialLawMax.value
+      maxUnits: martialLawMax.value,
     };
   }
 
@@ -244,13 +246,13 @@ export class EffectsManager {
 
     // Free units per city based on government
     const freeUnits = this.calculateEffect(EffectType.UNIT_UPKEEP_FREE_PER_CITY, context);
-    
+
     // Units requiring support
     const supportedUnits = Math.max(0, unitsSupported - freeUnits.value);
-    
+
     // Base support cost (usually 1 per unit)
     let supportCost = supportedUnits;
-    
+
     // Apply upkeep percentage modifier
     const upkeepPct = this.calculateEffect(EffectType.UPKEEP_PCT, context);
     if (upkeepPct.value !== 100) {
@@ -272,29 +274,29 @@ export class EffectsManager {
   ): RequirementResult {
     // Government-specific building requirements from freeciv
     const governmentBuildingReqs: Record<string, Requirement[]> = {
-      'police_station': [
+      police_station: [
         {
           type: 'Gov',
           name: 'communism',
           range: 'Player',
-          present: false // Cannot build under communism
-        }
+          present: false, // Cannot build under communism
+        },
       ],
-      'courthouse': [
+      courthouse: [
         {
           type: 'Tech',
           name: 'Code of Laws',
-          range: 'Player'
-        }
+          range: 'Player',
+        },
       ],
-      'palace': [
+      palace: [
         {
           type: 'Gov',
           name: 'anarchy',
           range: 'Player',
-          present: false // Cannot build during anarchy
-        }
-      ]
+          present: false, // Cannot build during anarchy
+        },
+      ],
     };
 
     const requirements = governmentBuildingReqs[buildingId];
@@ -306,7 +308,7 @@ export class EffectsManager {
     for (const req of requirements) {
       const result = this.evaluateSingleRequirement(req, {
         ...context,
-        government: governmentId
+        government: governmentId,
       });
       if (!result.satisfied) {
         return result;
@@ -390,35 +392,38 @@ export class EffectsManager {
 
     switch (requirement.type) {
       case 'Gov':
-      case 'Government':
+      case 'Government': {
         const hasGovernment = context.government === requirement.name;
         if (hasGovernment !== isPresent) {
-          return { 
-            satisfied: false, 
-            reason: `Government requirement not met: ${requirement.name}` 
+          return {
+            satisfied: false,
+            reason: `Government requirement not met: ${requirement.name}`,
           };
         }
         break;
+      }
 
-      case 'OutputType':
+      case 'OutputType': {
         const hasOutputType = context.outputType === requirement.name;
         if (hasOutputType !== isPresent) {
-          return { 
-            satisfied: false, 
-            reason: `OutputType requirement not met: ${requirement.name}` 
+          return {
+            satisfied: false,
+            reason: `OutputType requirement not met: ${requirement.name}`,
           };
         }
         break;
+      }
 
-      case 'UnitType':
+      case 'UnitType': {
         const hasUnitType = context.unitType === requirement.name;
         if (hasUnitType !== isPresent) {
-          return { 
-            satisfied: false, 
-            reason: `UnitType requirement not met: ${requirement.name}` 
+          return {
+            satisfied: false,
+            reason: `UnitType requirement not met: ${requirement.name}`,
           };
         }
         break;
+      }
 
       case 'Building':
         // TODO: Check if city has building when building system is integrated
@@ -428,15 +433,16 @@ export class EffectsManager {
         // TODO: Check if player has technology when integrated with research system
         break;
 
-      case 'Player':
+      case 'Player': {
         const hasPlayer = context.playerId === requirement.name;
         if (hasPlayer !== isPresent) {
-          return { 
-            satisfied: false, 
-            reason: `Player requirement not met: ${requirement.name}` 
+          return {
+            satisfied: false,
+            reason: `Player requirement not met: ${requirement.name}`,
           };
         }
         break;
+      }
 
       // Add more requirement types as needed
       default:
@@ -466,7 +472,7 @@ export class EffectsManager {
     if (govReq) {
       return `Government: ${govReq.name}`;
     }
-    
+
     const buildingReq = effect.reqs?.find(req => req.type === 'Building');
     if (buildingReq) {
       return `Building: ${buildingReq.name}`;

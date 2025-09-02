@@ -1,13 +1,13 @@
 /**
  * Government Integration Manager - Coordinate all government-related systems
- * 
+ *
  * This manager coordinates between:
  * - GovernmentManager (government changes, revolution)
  * - EffectsManager (government effects calculation)
- * - PolicyManager (civic policies/multipliers)  
+ * - PolicyManager (civic policies/multipliers)
  * - CityManager (corruption, happiness integration)
  * - UnitSupportManager (unit support costs)
- * 
+ *
  * Ensures all government mechanics work together seamlessly.
  */
 
@@ -52,7 +52,7 @@ export class GovernmentIntegrationManager {
   private setupIntegrations(): void {
     // Connect CityManager with government systems
     this.config.cityManager.setGovernmentManager(this.config.governmentManager);
-    
+
     logger.info(`Government integration setup complete for game ${this.config.gameId}`);
   }
 
@@ -65,7 +65,7 @@ export class GovernmentIntegrationManager {
   ): Promise<void> {
     await this.config.governmentManager.initializePlayerGovernment(playerId);
     await this.config.policyManager.initializePlayerPolicies(playerId);
-    
+
     logger.info(`Initialized government systems for player ${playerId}`);
   }
 
@@ -75,15 +75,15 @@ export class GovernmentIntegrationManager {
   public async processGovernmentTurn(_currentTurn: number): Promise<void> {
     // Process revolution turns for all players
     const playerGovernments = await this.getAllPlayerGovernments();
-    
+
     for (const playerGov of playerGovernments) {
       const completedGovernment = await this.config.governmentManager.processRevolutionTurn(
         playerGov.playerId
       );
-      
+
       if (completedGovernment) {
         logger.info(`Player ${playerGov.playerId} completed revolution to ${completedGovernment}`);
-        
+
         // Apply new government effects to all player cities
         await this.applyGovernmentEffectsToPlayerCities(playerGov.playerId, completedGovernment);
       }
@@ -108,7 +108,7 @@ export class GovernmentIntegrationManager {
     if (result.success) {
       // Apply anarchy effects to all player cities
       await this.applyGovernmentEffectsToPlayerCities(playerId, 'anarchy');
-      
+
       logger.info(`Player ${playerId} started revolution to ${requestedGovernment}`);
     }
 
@@ -134,12 +134,12 @@ export class GovernmentIntegrationManager {
     );
 
     if (result.success) {
-      // Apply policy effects to all player cities  
+      // Apply policy effects to all player cities
       await this.applyGovernmentEffectsToPlayerCities(
-        playerId, 
+        playerId,
         await this.getPlayerCurrentGovernment(playerId)
       );
-      
+
       logger.info(`Player ${playerId} changed policy ${policyId} to ${newValue}`);
     }
 
@@ -154,12 +154,14 @@ export class GovernmentIntegrationManager {
     currentGovernment: string
   ): Promise<void> {
     const playerCities = this.config.cityManager.getPlayerCities(playerId);
-    
+
     for (const city of playerCities) {
       this.config.cityManager.refreshCityWithGovernmentEffects(city.id);
     }
-    
-    logger.debug(`Applied ${currentGovernment} effects to ${playerCities.length} cities for player ${playerId}`);
+
+    logger.debug(
+      `Applied ${currentGovernment} effects to ${playerCities.length} cities for player ${playerId}`
+    );
   }
 
   /**
@@ -191,7 +193,7 @@ export class GovernmentIntegrationManager {
     // Get available governments (requires tech checking)
     const playerTechs = new Set<string>(); // TODO: Get from ResearchManager
     const availableGovernments = this.config.governmentManager.getAvailableGovernments(playerTechs);
-    
+
     // Get current policies
     const currentTurn = 0; // TODO: Get current turn from GameManager
     const currentPolicies = await this.config.policyManager.getAvailablePoliciesForPlayer(
@@ -208,15 +210,15 @@ export class GovernmentIntegrationManager {
         id: gov.id,
         name: gov.government.name,
         available: gov.available,
-        reason: gov.reason
+        reason: gov.reason,
       })),
       currentPolicies: currentPolicies.map(policy => ({
         id: policy.policy.id,
         name: policy.policy.name,
         currentValue: policy.currentValue,
         canChange: policy.canChange,
-        reason: policy.reason
-      }))
+        reason: policy.reason,
+      })),
     };
   }
 
@@ -233,7 +235,7 @@ export class GovernmentIntegrationManager {
     totalMilitaryUnhappiness: number;
   } {
     const playerCities = this.config.cityManager.getPlayerCities(playerId);
-    
+
     // Group units by supporting city
     const unitsByCity = new Map<string, UnitSupportData[]>();
     for (const unit of unitsData) {
@@ -248,7 +250,7 @@ export class GovernmentIntegrationManager {
     const citiesData = playerCities.map(city => ({
       cityId: city.id,
       population: city.population,
-      unitsSupported: unitsByCity.get(city.id) || []
+      unitsSupported: unitsByCity.get(city.id) || [],
     }));
 
     return this.config.unitSupportManager.getPlayerUnitSupportSummary(
@@ -284,8 +286,8 @@ export class GovernmentIntegrationManager {
     cityId: string,
     playerTechs: Set<string>
   ): { allowed: boolean; reason?: string } {
-    const currentGovernment = this.config.governmentManager
-      .getPlayerGovernment(playerId)?.currentGovernment || 'despotism';
+    const currentGovernment =
+      this.config.governmentManager.getPlayerGovernment(playerId)?.currentGovernment || 'despotism';
 
     const result = this.config.effectsManager.canBuildWithGovernment(
       buildingId,
@@ -305,14 +307,13 @@ export class GovernmentIntegrationManager {
     buildingId: string,
     cityId: string
   ): Record<string, number> {
-    const currentGovernment = this.config.governmentManager
-      .getPlayerGovernment(playerId)?.currentGovernment || 'despotism';
+    const currentGovernment =
+      this.config.governmentManager.getPlayerGovernment(playerId)?.currentGovernment || 'despotism';
 
-    return this.config.effectsManager.getBuildingGovernmentEffects(
-      buildingId,
-      currentGovernment,
-      { playerId, cityId }
-    );
+    return this.config.effectsManager.getBuildingGovernmentEffects(buildingId, currentGovernment, {
+      playerId,
+      cityId,
+    });
   }
 
   /**

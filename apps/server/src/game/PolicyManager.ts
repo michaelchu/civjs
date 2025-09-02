@@ -1,13 +1,13 @@
 /**
  * Policy Manager - Civic Policies System (Multipliers)
  * Direct port of freeciv multipliers system from common/multipliers.c
- * 
+ *
  * In freeciv, "multipliers" represent civic policies that players can adjust
  * to affect various game mechanics. Examples include:
  * - Tax rates (luxury/science/gold)
  * - Military policies affecting unit costs
  * - Economic policies affecting trade and production
- * 
+ *
  * Reference: /reference/freeciv/common/multipliers.c, multipliers.h
  */
 
@@ -23,22 +23,22 @@ export interface Policy {
   id: string;
   name: string;
   ruleditDisabled?: boolean; // Does not really exist - hole in multipliers array
-  start: number;             // Minimum value (display units)
-  stop: number;              // Maximum value (display units) 
-  step: number;              // Step size for adjustments (display units)
-  default: number;           // Default value (display units)
-  offset: number;            // Formula: (ui_value + offset) * (factor/100) = effect_value
-  factor: number;            // Formula factor (usually 100 for 1:1 mapping)
-  minimumTurns: number;      // How often multiplier can be changed
-  reqs?: Requirement[];      // Requirements for adjusting this policy
-  helptext?: string;         // Help text description
+  start: number; // Minimum value (display units)
+  stop: number; // Maximum value (display units)
+  step: number; // Step size for adjustments (display units)
+  default: number; // Default value (display units)
+  offset: number; // Formula: (ui_value + offset) * (factor/100) = effect_value
+  factor: number; // Formula factor (usually 100 for 1:1 mapping)
+  minimumTurns: number; // How often multiplier can be changed
+  reqs?: Requirement[]; // Requirements for adjusting this policy
+  helptext?: string; // Help text description
 }
 
 // Player policy value - port of freeciv struct multiplier_value
 export interface PlayerPolicyValue {
-  value: number;           // Value currently in force
-  targetValue: number;     // Value player wants to change to
-  changedTurn: number;     // Turn when last changed (for minimum_turns check)
+  value: number; // Value currently in force
+  targetValue: number; // Value player wants to change to
+  changedTurn: number; // Turn when last changed (for minimum_turns check)
 }
 
 // Player policy state
@@ -68,7 +68,7 @@ export class PolicyManager {
     // Basic tax rate policy (luxury/science/gold split)
     // This is conceptual - in freeciv this is handled differently
     // but demonstrates the multiplier system structure
-    
+
     const taxRatePolicy: Policy = {
       id: 'tax_rates',
       name: 'Tax Allocation',
@@ -79,7 +79,7 @@ export class PolicyManager {
       offset: 0,
       factor: 100,
       minimumTurns: 1, // Can change every turn
-      helptext: 'Controls allocation of tax revenue between luxury, science, and gold'
+      helptext: 'Controls allocation of tax revenue between luxury, science, and gold',
     };
 
     // Economic focus policy
@@ -93,7 +93,7 @@ export class PolicyManager {
       offset: -100,
       factor: 100,
       minimumTurns: 3, // Must wait 3 turns between changes
-      helptext: 'Adjusts economic output vs military efficiency tradeoff'
+      helptext: 'Adjusts economic output vs military efficiency tradeoff',
     };
 
     this.availablePolicies.set(taxRatePolicy.id, taxRatePolicy);
@@ -109,7 +109,7 @@ export class PolicyManager {
   public async initializePlayerPolicies(playerId: string): Promise<void> {
     const playerPolicies: PlayerPolicies = {
       playerId,
-      policies: new Map()
+      policies: new Map(),
     };
 
     // Initialize each policy to default value
@@ -117,7 +117,7 @@ export class PolicyManager {
       playerPolicies.policies.set(policyId, {
         value: policy.default,
         targetValue: policy.default,
-        changedTurn: 0
+        changedTurn: 0,
       });
     }
 
@@ -173,7 +173,7 @@ export class PolicyManager {
     }
 
     const value = this.getPlayerPolicyValue(playerId, policyId);
-    
+
     // Formula from freeciv: (value + offset) * factor
     // Result is multiplied by 100 (caller should divide down)
     return (value + policy.offset) * policy.factor;
@@ -202,17 +202,17 @@ export class PolicyManager {
 
     // Validate new value is within range
     if (newValue < policy.start || newValue > policy.stop) {
-      return { 
-        success: false, 
-        message: `Value must be between ${policy.start} and ${policy.stop}` 
+      return {
+        success: false,
+        message: `Value must be between ${policy.start} and ${policy.stop}`,
       };
     }
 
     // Validate step size
     if ((newValue - policy.start) % policy.step !== 0) {
-      return { 
-        success: false, 
-        message: `Value must be in steps of ${policy.step}` 
+      return {
+        success: false,
+        message: `Value must be in steps of ${policy.step}`,
       };
     }
 
@@ -225,15 +225,19 @@ export class PolicyManager {
     const turnsSinceLastChange = currentTurn - currentPolicyValue.changedTurn;
     if (turnsSinceLastChange < policy.minimumTurns) {
       const turnsRemaining = policy.minimumTurns - turnsSinceLastChange;
-      return { 
-        success: false, 
-        message: `Must wait ${turnsRemaining} more turns before changing this policy` 
+      return {
+        success: false,
+        message: `Must wait ${turnsRemaining} more turns before changing this policy`,
       };
     }
 
     // Check requirements
     if (policy.reqs) {
-      const canChange = await this.checkPolicyRequirements(playerId, policy.reqs, playerResearchedTechs);
+      const canChange = await this.checkPolicyRequirements(
+        playerId,
+        policy.reqs,
+        playerResearchedTechs
+      );
       if (!canChange.allowed) {
         return { success: false, message: canChange.reason };
       }
@@ -245,11 +249,11 @@ export class PolicyManager {
     currentPolicyValue.changedTurn = currentTurn;
 
     // TODO: Persist to database
-    
+
     logger.info(`Player ${playerId} changed policy ${policyId} to ${newValue}`);
-    return { 
-      success: true, 
-      message: `Policy ${policy.name} changed to ${newValue}` 
+    return {
+      success: true,
+      message: `Policy ${policy.name} changed to ${newValue}`,
     };
   }
 
@@ -282,9 +286,9 @@ export class PolicyManager {
     const turnsSinceLastChange = currentTurn - currentPolicyValue.changedTurn;
     if (turnsSinceLastChange < policy.minimumTurns) {
       const turnsRemaining = policy.minimumTurns - turnsSinceLastChange;
-      return { 
-        allowed: false, 
-        reason: `Must wait ${turnsRemaining} more turns` 
+      return {
+        allowed: false,
+        reason: `Must wait ${turnsRemaining} more turns`,
       };
     }
 
@@ -319,22 +323,24 @@ export class PolicyManager {
     playerId: string,
     currentTurn: number,
     playerResearchedTechs: Set<string>
-  ): Promise<Array<{
-    policy: Policy;
-    currentValue: number;
-    targetValue: number;
-    canChange: boolean;
-    reason?: string;
-  }>> {
+  ): Promise<
+    Array<{
+      policy: Policy;
+      currentValue: number;
+      targetValue: number;
+      canChange: boolean;
+      reason?: string;
+    }>
+  > {
     const result = [];
-    
+
     for (const [policyId, policy] of this.availablePolicies) {
       const currentValue = this.getPlayerPolicyValue(playerId, policyId);
       const targetValue = this.getPlayerPolicyTargetValue(playerId, policyId);
       const changeCheck = await this.canChangePolicyValue(
-        playerId, 
-        policyId, 
-        currentTurn, 
+        playerId,
+        policyId,
+        currentTurn,
         playerResearchedTechs
       );
 
@@ -343,7 +349,7 @@ export class PolicyManager {
         currentValue,
         targetValue,
         canChange: changeCheck.allowed,
-        reason: changeCheck.reason
+        reason: changeCheck.reason,
       });
     }
 
@@ -368,16 +374,15 @@ export class PolicyManager {
     requirements: Requirement[],
     playerResearchedTechs: Set<string>
   ): Promise<{ allowed: boolean; reason?: string }> {
-
     // Use effects manager to evaluate requirements
     // This ensures consistent requirement evaluation across all systems
     for (const req of requirements) {
       switch (req.type) {
         case 'Tech':
           if (!playerResearchedTechs.has(req.name)) {
-            return { 
-              allowed: false, 
-              reason: `Requires technology: ${req.name}` 
+            return {
+              allowed: false,
+              reason: `Requires technology: ${req.name}`,
             };
           }
           break;

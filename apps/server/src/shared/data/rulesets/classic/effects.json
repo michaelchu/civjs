@@ -406,7 +406,7 @@
       ],
       "comment": "Republic distance corruption: 200% per tile"
     },
-    
+
     // Democracy has no corruption (0% base, no distance)
 
     // Martial Law Effects - Direct port from freeciv
@@ -593,7 +593,7 @@
 
     // Base unhappy citizens effects
     "base_unhappy_anarchy": {
-      "id": "base_unhappy_anarchy", 
+      "id": "base_unhappy_anarchy",
       "type": "City_Unhappy_Size",
       "value": 2,
       "reqs": [
@@ -607,7 +607,7 @@
     },
     "base_unhappy_despotism": {
       "id": "base_unhappy_despotism",
-      "type": "City_Unhappy_Size", 
+      "type": "City_Unhappy_Size",
       "value": 2,
       "reqs": [
         {
@@ -635,7 +635,7 @@
     },
     "palace_corruption_immunity": {
       "id": "palace_corruption_immunity",
-      "type": "Output_Waste_Pct", 
+      "type": "Output_Waste_Pct",
       "value": 0,
       "reqs": [
         {
