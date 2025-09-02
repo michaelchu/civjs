@@ -382,7 +382,10 @@ export class GameManager {
     const playerIds = Array.from(players.keys());
     await turnManager.initializeTurn(playerIds);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
-    const cityManager = new CityManager(gameId);
+    const cityManager = new CityManager(gameId, undefined, {
+      createUnit: (playerId: string, unitType: string, x: number, y: number) =>
+        this.createUnit(gameId, playerId, unitType, x, y),
+    });
     const researchManager = new ResearchManager(gameId);
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
 
@@ -856,7 +859,10 @@ export class GameManager {
       // Initialize turn system with existing player IDs
       const playerIds = Array.from(players.keys());
       await turnManager.initializeTurn(playerIds);
-      const cityManager = new CityManager(gameId);
+      const cityManager = new CityManager(gameId, undefined, {
+        createUnit: (playerId: string, unitType: string, x: number, y: number) =>
+          this.createUnit(gameId, playerId, unitType, x, y),
+      });
       const researchManager = new ResearchManager(gameId);
       const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
 

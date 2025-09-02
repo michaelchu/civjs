@@ -1,28 +1,20 @@
 import { GameManager } from '../../src/game/GameManager';
-import { Server as SocketServer } from 'socket.io';
-import { getTestDatabase, clearAllTables } from '../utils/testDatabase';
-import { createBasicGameScenario } from '../fixtures/gameFixtures';
+import { getTestDatabase } from '../utils/testDatabase';
+import { TestGameScenario } from '../fixtures/gameFixtures';
+import { setupGameManagerWithScenario, cleanupGameManager } from '../utils/gameTestUtils';
 
 describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
   let gameManager: GameManager;
-  const mockIo = {
-    emit: jest.fn(),
-    to: jest.fn().mockReturnValue({ emit: jest.fn() }),
-    sockets: {
-      sockets: new Map(),
-      adapter: { rooms: new Map() },
-    },
-  } as unknown as SocketServer;
+  let scenario: TestGameScenario;
 
   beforeEach(async () => {
-    await clearAllTables();
-    (GameManager as any).instance = null;
-    gameManager = GameManager.getInstance(mockIo);
+    const setup = await setupGameManagerWithScenario();
+    gameManager = setup.gameManager;
+    scenario = setup.scenario;
   });
 
-  afterEach(async () => {
-    gameManager['games'].clear();
-    gameManager['playerToGame'].clear();
+  afterEach(() => {
+    cleanupGameManager(gameManager);
   });
 
   describe('city production completing to create units', () => {
@@ -31,11 +23,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
     let cityId: string;
 
     beforeEach(async () => {
-      const scenario = await createBasicGameScenario();
       gameId = scenario.game.id;
       playerId = scenario.players[0].id;
-
-      await gameManager.loadGame(gameId);
 
       // Found a city for production
       cityId = await gameManager.foundCity(gameId, playerId, 'ProductionCity', 5, 5);
@@ -49,7 +38,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
 
       // Simulate production progress by setting production stock high
       const city = game.cityManager.getCity(cityId)!;
-      city.productionStock = 20; // Warrior costs 20 shields
+      city.productionStock = 40; // Warrior costs 40 shields
 
       // Process city turn - should complete warrior
       await game.cityManager.processCityTurn(cityId, 2);
@@ -127,12 +116,9 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
     let unitId: string;
 
     beforeEach(async () => {
-      const scenario = await createBasicGameScenario();
       gameId = scenario.game.id;
       playerId = scenario.players[0].id;
       enemyPlayerId = scenario.players[1].id;
-
-      await gameManager.loadGame(gameId);
 
       // Create a unit for movement
       unitId = await gameManager.createUnit(gameId, playerId, 'warrior', 8, 8);
@@ -206,11 +192,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
     let playerId: string;
 
     beforeEach(async () => {
-      const scenario = await createBasicGameScenario();
       gameId = scenario.game.id;
       playerId = scenario.players[0].id;
-
-      await gameManager.loadGame(gameId);
     });
 
     it('should unlock new technologies and enable new production options', async () => {
@@ -278,12 +261,9 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
     let playerId2: string;
 
     beforeEach(async () => {
-      const scenario = await createBasicGameScenario();
       gameId = scenario.game.id;
       playerId1 = scenario.players[0].id;
       playerId2 = scenario.players[1].id;
-
-      await gameManager.loadGame(gameId);
     });
 
     it('should process complete turn cycle with database consistency', async () => {
@@ -369,11 +349,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
     let playerId: string;
 
     beforeEach(async () => {
-      const scenario = await createBasicGameScenario();
       gameId = scenario.game.id;
       playerId = scenario.players[0].id;
-
-      await gameManager.loadGame(gameId);
     });
 
     it('should handle city growth creating new worked tiles affecting unit movement', async () => {

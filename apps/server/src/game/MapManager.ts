@@ -1567,6 +1567,10 @@ export class MapManager {
     return this.mapData;
   }
 
+  public getSeed(): string {
+    return this.seed;
+  }
+
   /**
    * Get a specific tile by coordinates
    * @param x X coordinate

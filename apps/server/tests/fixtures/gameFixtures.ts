@@ -1,12 +1,28 @@
 import { getTestDatabase, generateTestUUID } from '../utils/testDatabase';
 import { schema } from '../../src/database';
 import { eq } from 'drizzle-orm';
+import { MapManager } from '../../src/game/MapManager';
+import { PlayerState } from '../../src/game/GameManager';
 
 export interface TestGameScenario {
   game: typeof schema.games.$inferSelect;
   players: (typeof schema.players.$inferSelect)[];
   cities: (typeof schema.cities.$inferSelect)[];
   units: (typeof schema.units.$inferSelect)[];
+}
+
+async function generateMapDataForTests(
+  width: number,
+  height: number,
+  players: Map<string, PlayerState>
+): Promise<{ mapData: any; mapSeed: string }> {
+  const mapManager = new MapManager(width, height, undefined, 'test-generator');
+  await mapManager.generateMap(players);
+
+  const mapData = mapManager.getMapData();
+  const mapSeed = mapManager.getSeed();
+
+  return { mapData, mapSeed };
 }
 
 export async function createBasicGameScenario(): Promise<TestGameScenario> {
@@ -22,6 +38,39 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
   const unitId1 = generateTestUUID('5001');
   const unitId2 = generateTestUUID('5002');
   const unitId3 = generateTestUUID('5003');
+
+  // Create players map for map generation
+  const playersMap = new Map<string, PlayerState>([
+    [
+      playerId1,
+      {
+        id: playerId1,
+        userId: userId1,
+        playerNumber: 0,
+        civilization: 'Roman',
+        isReady: true,
+        hasEndedTurn: false,
+        isConnected: true,
+        lastSeen: new Date(),
+      },
+    ],
+    [
+      playerId2,
+      {
+        id: playerId2,
+        userId: userId2,
+        playerNumber: 1,
+        civilization: 'Greek',
+        isReady: true,
+        hasEndedTurn: false,
+        isConnected: true,
+        lastSeen: new Date(),
+      },
+    ],
+  ]);
+
+  // Generate map data
+  const { mapData, mapSeed } = await generateMapDataForTests(20, 20, playersMap);
 
   // Create test users
   const users = await db
@@ -42,7 +91,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
     ])
     .returning();
 
-  // Create game
+  // Create game with map data
   const [game] = await db
     .insert(schema.games)
     .values({
@@ -56,6 +105,8 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
       ruleset: 'classic',
       currentTurn: 1,
       turnTimeLimit: 300,
+      mapData: mapData,
+      mapSeed: mapSeed,
     })
     .returning();
 

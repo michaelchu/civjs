@@ -163,15 +163,21 @@ export interface HappinessResult {
   finalUnhappy: number;
 }
 
+export interface CityManagerCallbacks {
+  createUnit?: (playerId: string, unitType: string, x: number, y: number) => Promise<string>;
+}
+
 export class CityManager {
   private cities: Map<string, CityState> = new Map();
   private gameId: string;
   private effectsManager: EffectsManager;
   private governmentManager?: GovernmentManager;
+  private callbacks: CityManagerCallbacks;
 
-  constructor(gameId: string, effectsManager?: EffectsManager) {
+  constructor(gameId: string, effectsManager?: EffectsManager, callbacks?: CityManagerCallbacks) {
     this.gameId = gameId;
     this.effectsManager = effectsManager || new EffectsManager();
+    this.callbacks = callbacks || {};
   }
 
   /**
@@ -380,12 +386,23 @@ export class CityManager {
     if (!city || !city.currentProduction) return;
 
     if (city.productionType === 'unit') {
-      // Unit completed - would create unit through UnitManager
+      // Unit completed - create through callback
       logger.info('Unit production completed', {
         cityId,
         unitType: city.currentProduction,
       });
-      // Note: Integration with UnitManager would happen in GameManager
+
+      if (this.callbacks.createUnit) {
+        try {
+          await this.callbacks.createUnit(city.playerId, city.currentProduction, city.x, city.y);
+        } catch (error) {
+          logger.error('Failed to create unit from city production', {
+            cityId,
+            unitType: city.currentProduction,
+            error,
+          });
+        }
+      }
     } else if (city.productionType === 'building') {
       // Building completed
       city.buildings.push(city.currentProduction);
