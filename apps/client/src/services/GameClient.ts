@@ -4,6 +4,7 @@ import { SERVER_URL } from '../config';
 import { useGameStore } from '../store/gameStore';
 import { PacketType, PACKET_NAMES, type Packet } from '../types/packets';
 import { ActionType } from '../types/shared/actions';
+import { pathfindingService } from './PathfindingService';
 
 // Mock government data for development
 const getMockGovernments = () => ({
@@ -192,6 +193,28 @@ class GameClient {
         phase: 'movement',
       });
     });
+
+    // Handle unit movement updates
+    this.socket.on('unit_moved', data => {
+      console.log('Unit moved:', data);
+      const { units } = useGameStore.getState();
+      if (units[data.unitId]) {
+        useGameStore.getState().updateGameState({
+          units: {
+            ...units,
+            [data.unitId]: {
+              ...units[data.unitId],
+              x: data.x,
+              y: data.y,
+              movesLeft: Math.floor(data.movementLeft / 3), // Convert from fragments to moves
+            },
+          },
+        });
+
+        // Clear cached paths for this unit to prevent stale path visualization
+        pathfindingService.clearUnitPaths(data.unitId);
+      }
+    });
   }
 
   private handlePacket(packet: Packet) {
@@ -225,16 +248,24 @@ class GameClient {
           const updatedUnits = { ...units };
 
           for (const unitData of packet.data.units) {
-            updatedUnits[unitData.id] = {
+            const existingUnit = units[unitData.id];
+            const newUnit = {
               id: unitData.id,
-              playerId: unitData.playerId,
-              type: unitData.type,
+              playerId: unitData.owner, // Server sends 'owner' not 'playerId'
+              unitTypeId: unitData.type,
               x: unitData.x,
               y: unitData.y,
               hp: unitData.hp,
-              movesLeft: unitData.movesLeft,
-              veteranLevel: unitData.veteranLevel,
+              movesLeft: unitData.movesleft, // Server sends 'movesleft' not 'movesLeft'
+              veteranLevel: unitData.veteran, // Server sends 'veteran' not 'veteranLevel'
             };
+
+            // Check if unit position changed and clear cached paths if so
+            if (existingUnit && (existingUnit.x !== unitData.x || existingUnit.y !== unitData.y)) {
+              pathfindingService.clearUnitPaths(unitData.id);
+            }
+
+            updatedUnits[unitData.id] = newUnit;
           }
 
           useGameStore.getState().updateGameState({

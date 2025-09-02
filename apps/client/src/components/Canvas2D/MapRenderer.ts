@@ -143,7 +143,12 @@ export class MapRenderer {
 
     // Render goto path if available (similar to freeciv-web's path rendering)
     if (state.gotoPath && state.gotoPath.tiles.length > 1) {
+      if (import.meta.env.DEV) {
+        console.log('Rendering goto path:', state.gotoPath);
+      }
       this.renderGotoPath(state.gotoPath, state.viewport);
+    } else if (import.meta.env.DEV && state.gotoPath) {
+      console.log('Goto path available but not rendered:', state.gotoPath);
     }
 
     if (import.meta.env.DEV && this.isInitialized) {
@@ -364,6 +369,7 @@ export class MapRenderer {
       iron: 'ts.iron:0',
       coal: 'ts.coal:0',
       oil: 'ts.oil:0',
+      // Note: copper and uranium sprites not available in tileset, will be skipped
 
       // Desert resources
       oasis: 'ts.oasis:0',
@@ -386,14 +392,13 @@ export class MapRenderer {
     const spriteKey = resourceSpriteMap[tile.resource];
 
     if (!spriteKey) {
-      // Fallback: use generic resource sprite if specific mapping not found
-      const genericKey = `ts.${tile.resource}:0`;
+      // Skip rendering resources without sprite mappings (copper, uranium, etc.)
       if (import.meta.env.DEV) {
-        console.warn(
-          `No sprite mapping for resource '${tile.resource}', trying generic key: ${genericKey}`
+        console.debug(
+          `Skipping rendering for unmapped resource '${tile.resource}' at (${tile.x},${tile.y})`
         );
       }
-      return { key: genericKey };
+      return null;
     }
 
     // Debug logging for resource sprite generation
@@ -795,7 +800,7 @@ export class MapRenderer {
           this.ctx.drawImage(sprite, unitX + offsetX, unitY + offsetY);
         } else {
           // Fallback to unit type specific sprite key
-          const fallbackKey = this.getUnitTypeGraphicTag(unit.type);
+          const fallbackKey = this.getUnitTypeGraphicTag(unit.unitTypeId);
           const fallbackSprite = this.tilesetLoader.getSprite(fallbackKey);
           if (fallbackSprite) {
             this.ctx.drawImage(fallbackSprite, unitX, unitY);
@@ -844,7 +849,7 @@ export class MapRenderer {
 
     // Get main unit graphic
     // @reference freeciv-web: tileset_unit_graphic_tag(punit)
-    const unitGraphic = this.getUnitTypeGraphicTag(unit.type);
+    const unitGraphic = this.getUnitTypeGraphicTag(unit.unitTypeId);
     sprites.push({
       key: unitGraphic,
       offset_x: 0,
@@ -932,7 +937,7 @@ export class MapRenderer {
     this.ctx.font = '12px Arial';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(
-      unit.type.charAt(0).toUpperCase(),
+      unit.unitTypeId.charAt(0).toUpperCase(),
       x + this.tileWidth / 2,
       y + this.tileHeight / 2 + 4
     );
@@ -1583,7 +1588,7 @@ export class MapRenderer {
       // Very generous bounds - allow seeing entire map plus lots of padding
       // This matches freeciv-web's behavior which is quite permissive
       // Use consistent minimum padding to prevent snap-back on small screens
-      const padding = Math.max(viewportWidth, viewportHeight, 1200); // Minimum 1200px padding
+      const padding = Math.max(viewportWidth * 2, viewportHeight * 2, 2000); // Much more generous padding
 
       const minX = -(mapWidthGui + padding);
       const maxX = padding;
@@ -1592,6 +1597,16 @@ export class MapRenderer {
 
       const constrainedX = Math.max(minX, Math.min(maxX, guiX0));
       const constrainedY = Math.max(minY, Math.min(maxY, guiY0));
+
+      // Only apply constraints if we're really far out of bounds
+      // This prevents snap-back when dragging near edges
+      const tolerance = 100; // pixels of tolerance before snapping
+      if (
+        Math.abs(constrainedX - guiX0) < tolerance &&
+        Math.abs(constrainedY - guiY0) < tolerance
+      ) {
+        return { x: guiX0, y: guiY0 }; // Keep original position if close to bounds
+      }
 
       return { x: constrainedX, y: constrainedY };
     }
@@ -1602,59 +1617,58 @@ export class MapRenderer {
   }
 
   /**
-   * Render goto path lines similar to freeciv-web's mapview_put_goto_line
+   * Render goto path exactly like freeciv-web: individual directional segments from each tile
+   * Each tile draws one line segment in the direction of the next tile
    * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:382-397
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:3276 - ptile['goto_dir'] = dir
    */
   private renderGotoPath(gotoPath: GotoPath, viewport: MapViewport) {
     if (!gotoPath.tiles || gotoPath.tiles.length < 2) return;
 
-    // Use freeciv-web's goto line style
-    this.ctx.strokeStyle = gotoPath.valid ? 'rgba(0,168,255,0.9)' : 'rgba(255,68,68,0.9)'; // Blue for valid, red for invalid
-    this.ctx.lineWidth = 8;
+    // Set consistent style for all path segments (matching freeciv-web)
+    this.ctx.strokeStyle = gotoPath.valid ? 'rgba(0,168,255,0.9)' : 'rgba(255,68,68,0.9)';
+    this.ctx.lineWidth = 10; // Exact freeciv-web line width
     this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
 
-    // Draw path segments
-    this.ctx.beginPath();
+    // Draw individual directional segments connecting each tile to the next
+    for (let i = 0; i < gotoPath.tiles.length - 1; i++) {
+      const fromTile = gotoPath.tiles[i];
+      const toTile = gotoPath.tiles[i + 1];
 
-    let isFirstPoint = true;
-    for (let i = 0; i < gotoPath.tiles.length; i++) {
-      const tile = gotoPath.tiles[i];
-
-      // Skip tiles not in viewport
-      if (!this.isInViewport(tile.x, tile.y, viewport)) {
+      // Skip segments not in viewport
+      if (!this.isInViewport(fromTile.x, fromTile.y, viewport)) {
         continue;
       }
 
-      // Convert tile coordinates to screen coordinates
-      const screenPos = this.mapToGuiVector(tile.x, tile.y);
-      const canvasX = screenPos.guiDx - viewport.x + this.tileWidth / 2;
-      const canvasY = screenPos.guiDy - viewport.y + this.tileHeight / 2;
+      // Get screen positions for both tiles
+      const fromPos = this.mapToScreen(fromTile.x, fromTile.y, viewport);
+      const toPos = this.mapToScreen(toTile.x, toTile.y, viewport);
 
-      // Check if canvas coordinates are visible
-      if (
-        canvasX < -50 ||
-        canvasX > this.ctx.canvas.width + 50 ||
-        canvasY < -50 ||
-        canvasY > this.ctx.canvas.height + 50
-      ) {
-        continue;
-      }
-
-      if (isFirstPoint) {
-        this.ctx.moveTo(canvasX, canvasY);
-        isFirstPoint = false;
-      } else {
-        this.ctx.lineTo(canvasX, canvasY);
-      }
+      // Render segment connecting tile centers (like freeciv-web but with accurate positions)
+      this.renderGotoLineSegment(fromPos.x, fromPos.y, toPos.x, toPos.y);
     }
-
-    this.ctx.stroke();
 
     // Draw turn indicators at waypoints for multi-turn paths
     if (gotoPath.estimatedTurns > 1) {
       this.renderTurnIndicators(gotoPath, viewport);
     }
+  }
+
+  /**
+   * Render a goto line segment between two tile positions
+   * This ensures perfect alignment by connecting actual tile centers
+   */
+  private renderGotoLineSegment(fromX: number, fromY: number, toX: number, toY: number) {
+    // Calculate tile centers
+    const x0 = fromX + this.tileWidth / 2;
+    const y0 = fromY + this.tileHeight / 2;
+    const x1 = toX + this.tileWidth / 2;
+    const y1 = toY + this.tileHeight / 2;
+
+    this.ctx.beginPath();
+    this.ctx.moveTo(x0, y0);
+    this.ctx.lineTo(x1, y1);
+    this.ctx.stroke();
   }
 
   /**

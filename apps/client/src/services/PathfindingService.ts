@@ -41,7 +41,22 @@ export interface PathResponse {
 export class PathfindingService {
   private static instance: PathfindingService;
   private pathCache = new Map<string, GotoPath>();
-  private pendingRequests = new Set<string>();
+  private pendingRequests = new Map<
+    string,
+    { resolve: (path: GotoPath | null) => void; timeoutId: NodeJS.Timeout }
+  >();
+  private eventListenerSetup = false;
+
+  /**
+   * Generate consistent request key for caching and request tracking
+   * @param unitId Unit identifier
+   * @param targetX Target X coordinate
+   * @param targetY Target Y coordinate
+   * @returns Consistent request key string
+   */
+  private generateRequestKey(unitId: string, targetX: number, targetY: number): string {
+    return `${unitId}-${targetX}-${targetY}`;
+  }
 
   static getInstance(): PathfindingService {
     if (!PathfindingService.instance) {
@@ -55,7 +70,7 @@ export class PathfindingService {
    * Similar to freeciv-web's request_goto_path function
    */
   async requestPath(unitId: string, targetX: number, targetY: number): Promise<GotoPath | null> {
-    const requestKey = `${unitId}-${targetX}-${targetY}`;
+    const requestKey = this.generateRequestKey(unitId, targetX, targetY);
 
     // Check if we already have this path cached
     if (this.pathCache.has(requestKey)) {
@@ -75,12 +90,14 @@ export class PathfindingService {
             resolve(null); // Request failed or was cancelled
           }
         };
-        setTimeout(checkForResult, 100);
+        checkForResult(); // Start checking immediately, not after delay
       });
     }
 
-    // Mark as pending
-    this.pendingRequests.add(requestKey);
+    // Setup the single event listener if not already done
+    if (!this.eventListenerSetup) {
+      this.setupEventListener();
+    }
 
     try {
       // Send path request to server via GameClient socket
@@ -113,10 +130,15 @@ export class PathfindingService {
   }
 
   /**
-   * Clear all cached paths
+   * Clear all cached paths and pending requests
    */
   clearAllPaths(): void {
     this.pathCache.clear();
+    // Clear all pending requests and their timeouts
+    for (const [, pendingRequest] of this.pendingRequests) {
+      clearTimeout(pendingRequest.timeoutId);
+      pendingRequest.resolve(null);
+    }
     this.pendingRequests.clear();
   }
 
@@ -124,13 +146,58 @@ export class PathfindingService {
    * Get cached path if available
    */
   getCachedPath(unitId: string, targetX: number, targetY: number): GotoPath | null {
-    const requestKey = `${unitId}-${targetX}-${targetY}`;
+    const requestKey = this.generateRequestKey(unitId, targetX, targetY);
     return this.pathCache.get(requestKey) || null;
   }
 
   /**
+   * Setup single event listener for path responses
+   */
+  private setupEventListener(): void {
+    const socket = gameClient.getSocket();
+    if (!socket) {
+      console.error('No socket connection available for setting up path listener');
+      return;
+    }
+
+    socket.on('path_response', (response: PathResponse) => {
+      if (import.meta.env.DEV) {
+        console.log('Received path_response:', response);
+      }
+
+      const requestKey = this.generateRequestKey(
+        response.unitId,
+        response.targetX,
+        response.targetY
+      );
+      const pendingRequest = this.pendingRequests.get(requestKey);
+
+      if (pendingRequest) {
+        // Clear timeout and resolve the promise
+        clearTimeout(pendingRequest.timeoutId);
+        this.pendingRequests.delete(requestKey);
+
+        if (response.success && response.path) {
+          if (import.meta.env.DEV) {
+            console.log('Path request succeeded:', response.path);
+          }
+          // Cache the result
+          this.pathCache.set(requestKey, response.path as GotoPath);
+          pendingRequest.resolve(response.path as GotoPath);
+        } else {
+          console.warn('Path request failed:', response.error);
+          pendingRequest.resolve(null);
+        }
+      } else if (import.meta.env.DEV) {
+        console.log('Received path_response for unknown request:', requestKey);
+      }
+    });
+
+    this.eventListenerSetup = true;
+  }
+
+  /**
    * Send path request to server and wait for response
-   * This will be enhanced when we implement socket events for pathfinding
    */
   private async sendPathRequest(request: PathRequest): Promise<GotoPath | null> {
     return new Promise(resolve => {
@@ -141,38 +208,62 @@ export class PathfindingService {
         return;
       }
 
-      // Set up response handler
-      const responseHandler = (response: PathResponse) => {
-        if (
-          response.unitId === request.unitId &&
-          response.targetX === request.targetX &&
-          response.targetY === request.targetY
-        ) {
-          // Remove the listener to avoid memory leaks
-          socket.off('path_response', responseHandler);
+      const requestKey = this.generateRequestKey(request.unitId, request.targetX, request.targetY);
 
-          if (response.success && response.path) {
-            resolve(response.path as GotoPath);
-          } else {
-            console.warn('Path request failed:', response.error);
-            resolve(null);
-          }
+      // Set up timeout
+      const timeoutId = setTimeout(() => {
+        if (import.meta.env.DEV) {
+          console.warn('Path request timeout after 5s for:', request);
         }
-      };
+        this.pendingRequests.delete(requestKey);
+        resolve(null);
+      }, 5000);
 
-      // Listen for response
-      socket.on('path_response', responseHandler);
+      // Store the request
+      this.pendingRequests.set(requestKey, { resolve, timeoutId });
 
       // Send request
+      if (import.meta.env.DEV) {
+        console.log('Sending path_request:', request);
+      }
       socket.emit('path_request', request);
-
-      // Set timeout to avoid hanging requests
-      setTimeout(() => {
-        socket.off('path_response', responseHandler);
-        console.warn('Path request timeout for:', request);
-        resolve(null);
-      }, 5000); // 5 second timeout
     });
+  }
+
+  /**
+   * Clear cached paths for a specific unit
+   * Should be called when a unit moves to prevent stale path rendering
+   */
+  clearUnitPaths(unitId: string): void {
+    // Remove all cached paths for this unit
+    const keysToDelete: string[] = [];
+    for (const key of this.pathCache.keys()) {
+      if (key.startsWith(`${unitId}-`)) {
+        keysToDelete.push(key);
+      }
+    }
+    keysToDelete.forEach(key => this.pathCache.delete(key));
+
+    // Also clear any pending requests for this unit
+    const pendingKeysToDelete: string[] = [];
+    for (const key of this.pendingRequests.keys()) {
+      if (key.startsWith(`${unitId}-`)) {
+        pendingKeysToDelete.push(key);
+      }
+    }
+    pendingKeysToDelete.forEach(key => {
+      const request = this.pendingRequests.get(key);
+      if (request) {
+        clearTimeout(request.timeoutId);
+        this.pendingRequests.delete(key);
+      }
+    });
+
+    if (import.meta.env.DEV) {
+      console.log(
+        `Cleared ${keysToDelete.length} cached paths and ${pendingKeysToDelete.length} pending requests for unit ${unitId}`
+      );
+    }
   }
 
   /**

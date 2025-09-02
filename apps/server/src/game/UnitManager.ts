@@ -45,6 +45,28 @@ export class UnitManager {
   private mapHeight: number;
   private mapManager: any; // MapManager instance for terrain access
   private actionSystem: ActionSystem;
+  private gameManagerCallback?: {
+    foundCity: (
+      gameId: string,
+      playerId: string,
+      name: string,
+      x: number,
+      y: number
+    ) => Promise<string>;
+    requestPath: (
+      playerId: string,
+      unitId: string,
+      targetX: number,
+      targetY: number
+    ) => Promise<{ success: boolean; path?: any; error?: string }>;
+    broadcastUnitMoved: (
+      gameId: string,
+      unitId: string,
+      x: number,
+      y: number,
+      movementLeft: number
+    ) => void;
+  };
 
   constructor(
     gameId: string,
@@ -59,12 +81,26 @@ export class UnitManager {
         x: number,
         y: number
       ) => Promise<string>;
+      requestPath: (
+        playerId: string,
+        unitId: string,
+        targetX: number,
+        targetY: number
+      ) => Promise<{ success: boolean; path?: any; error?: string }>;
+      broadcastUnitMoved: (
+        gameId: string,
+        unitId: string,
+        x: number,
+        y: number,
+        movementLeft: number
+      ) => void;
     }
   ) {
     this.gameId = gameId;
     this.mapWidth = mapWidth;
     this.mapHeight = mapHeight;
     this.mapManager = mapManager;
+    this.gameManagerCallback = gameManagerCallback;
     this.actionSystem = new ActionSystem(gameId, gameManagerCallback);
   }
 
@@ -376,6 +412,7 @@ export class UnitManager {
         health: dbUnit.health,
         veteranLevel: dbUnit.veteranLevel,
         fortified: dbUnit.isFortified,
+        orders: dbUnit.orders ? JSON.parse(dbUnit.orders as string) : [],
       };
       this.units.set(unit.id, unit);
     }
@@ -571,7 +608,19 @@ export class UnitManager {
             x: unit.x,
             y: unit.y,
             movementPoints: unit.movementLeft.toString(),
+            orders: JSON.stringify(unit.orders || []), // Persist orders to database
           };
+
+          // Broadcast unit movement to all players
+          if (this.gameManagerCallback?.broadcastUnitMoved) {
+            this.gameManagerCallback.broadcastUnitMoved(
+              this.gameId,
+              unit.id,
+              unit.x,
+              unit.y,
+              unit.movementLeft
+            );
+          }
         }
         break;
 
@@ -600,6 +649,51 @@ export class UnitManager {
       result: result.success,
       updateData,
     });
+  }
+
+  /**
+   * Process pending orders for all units at the start of a turn
+   * This handles multi-turn GOTO movements and other queued actions
+   */
+  async processUnitOrders(playerId: string): Promise<void> {
+    for (const unit of this.units.values()) {
+      if (
+        unit.playerId === playerId &&
+        unit.orders &&
+        unit.orders.length > 0 &&
+        unit.movementLeft > 0
+      ) {
+        // Process the first order in the queue
+        const order = unit.orders[0];
+
+        if (order.type === 'move' && order.targetX !== undefined && order.targetY !== undefined) {
+          // Continue GOTO movement
+          const result = await this.actionSystem.executeAction(
+            unit,
+            ActionType.GOTO,
+            order.targetX,
+            order.targetY
+          );
+
+          if (result.success) {
+            await this.applyActionResult(unit, ActionType.GOTO, result);
+
+            // Check if destination was reached (this will clear orders automatically in executeGoto)
+            if (unit.x === order.targetX && unit.y === order.targetY) {
+              logger.info(`Unit ${unit.id} completed GOTO to (${order.targetX}, ${order.targetY})`);
+            } else {
+              logger.info(
+                `Unit ${unit.id} continued GOTO toward (${order.targetX}, ${order.targetY})`
+              );
+            }
+          } else {
+            logger.warn(`Failed to process GOTO order for unit ${unit.id}: ${result.message}`);
+            // Clear failed orders
+            unit.orders = [];
+          }
+        }
+      }
+    }
   }
 
   /**

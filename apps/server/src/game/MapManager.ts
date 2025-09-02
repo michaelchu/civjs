@@ -1567,6 +1567,19 @@ export class MapManager {
     return this.mapData;
   }
 
+  /**
+   * Get a specific tile by coordinates
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @returns MapTile or null if coordinates are invalid or no map data
+   */
+  public getTile(x: number, y: number): MapTile | null {
+    if (!this.mapData || x < 0 || x >= this.width || y < 0 || y >= this.height) {
+      return null;
+    }
+    return this.mapData.tiles[x][y];
+  }
+
   // Visibility methods
   public getVisibleTiles(x: number, y: number, radius: number): MapTile[] {
     if (!this.mapData) return [];

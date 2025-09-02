@@ -87,10 +87,10 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
 
     // Military unit actions
     if (
-      unit.type === 'warrior' ||
-      unit.type === 'archer' ||
-      unit.type === 'spearman' ||
-      unit.type === 'scout'
+      unit.unitTypeId === 'warrior' ||
+      unit.unitTypeId === 'archer' ||
+      unit.unitTypeId === 'spearman' ||
+      unit.unitTypeId === 'scout'
     ) {
       actions.push(
         { separator: true },
@@ -109,7 +109,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
       );
 
       // Combat actions for military units
-      if (unit.type !== 'scout') {
+      if (unit.unitTypeId !== 'scout') {
         actions.push({
           action: ActionType.PATROL,
           name: 'Patrol',
@@ -120,7 +120,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     }
 
     // Settler actions
-    if (unit.type === 'settler') {
+    if (unit.unitTypeId === 'settler') {
       actions.push(
         { separator: true },
         {
@@ -140,7 +140,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     }
 
     // Worker actions
-    if (unit.type === 'worker') {
+    if (unit.unitTypeId === 'worker') {
       actions.push(
         { separator: true },
         {
@@ -188,7 +188,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     }
 
     // Scout actions
-    if (unit.type === 'scout') {
+    if (unit.unitTypeId === 'scout') {
       actions.push(
         { separator: true },
         {

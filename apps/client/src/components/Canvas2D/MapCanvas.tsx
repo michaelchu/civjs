@@ -44,7 +44,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const { viewport, map, units, cities, setViewport, selectUnit } = useGameStore();
   const gameState = useGameStore();
 
-  // Initialize renderer and load tileset
+  // Handle mouse and touch events - copied from freeciv-web 2D canvas behavior
+  const [isDragging, setIsDragging] = useState(false);
+  const [hoveredTile, setHoveredTile] = useState<string | null>(null);
+
+  // Initialize renderer and load tileset - only once, not on viewport changes!
   useEffect(() => {
     const initRenderer = async () => {
       const canvas = canvasRef.current;
@@ -62,7 +66,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
         if (rendererRef.current) {
           rendererRef.current.render({
-            viewport,
+            viewport: gameState.viewport,
             map: gameState.map,
             units: gameState.units,
             cities: gameState.cities,
@@ -79,7 +83,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     return () => {
       rendererRef.current?.cleanup();
     };
-  }, [viewport]);
+  }, []); // Empty dependency array - initialize only once!
 
   // Update canvas size
   useEffect(() => {
@@ -207,10 +211,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   useEffect(() => {
     const currentSelectedUnitId = gameState.selectedUnitId;
 
-    if (currentSelectedUnitId && rendererRef.current) {
+    // Don't run animation while dragging to prevent conflicts
+    if (currentSelectedUnitId && rendererRef.current && !isDragging) {
       // Use setInterval with a reasonable refresh rate to avoid stuttering during scrolling
       const intervalId = setInterval(() => {
-        if (rendererRef.current) {
+        // Double-check we're still not dragging
+        if (rendererRef.current && !isDragging) {
           rendererRef.current.render({
             viewport,
             map,
@@ -236,8 +242,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           });
         }
       };
-    } else {
-      // Force a render without selection to clear any lingering outline
+    } else if (!isDragging) {
+      // Force a render without selection to clear any lingering outline (but not while dragging)
       if (rendererRef.current) {
         rendererRef.current.render({
           viewport,
@@ -249,11 +255,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         });
       }
     }
-  }, [gameState.selectedUnitId, viewport, map, units, cities, gotoMode.currentPath]);
+  }, [gameState.selectedUnitId, viewport, map, units, cities, gotoMode.currentPath, isDragging]);
 
-  // Handle mouse and touch events - copied from freeciv-web 2D canvas behavior
-  const [isDragging, setIsDragging] = useState(false);
-  const [hoveredTile, setHoveredTile] = useState<string | null>(null);
+  // Drag tracking refs
   const dragStart = useRef({ x: 0, y: 0 });
   const dragStartViewport = useRef(viewport);
   const currentRenderViewport = useRef(viewport);
@@ -333,9 +337,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       } finally {
         // Always deactivate goto mode after execution attempt
         deactivateGotoMode();
+        // Deselect the unit after goto destination is clicked
+        selectUnit(null);
+        setSelectedUnit(null);
       }
     },
-    [gotoMode.unit, deactivateGotoMode]
+    [gotoMode.unit, deactivateGotoMode, selectUnit]
   );
 
   const handleMouseDown = useCallback(
@@ -511,6 +518,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         // If in goto mode, execute goto to clicked tile
         if (gotoMode.active) {
           executeGoto(tileX, tileY);
+          // Reset drag tracking even when executing goto
+          dragStartTime.current = 0;
           return;
         }
 
