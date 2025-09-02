@@ -33,7 +33,7 @@ export interface PathResponse {
 /**
  * Service for handling pathfinding communication between client and server
  * Based on freeciv-web's goto path system with caching and request management
- * 
+ *
  * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/control.js - goto_request_map cache
  * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js - handle_web_goto_path
  * @compliance Implements client-side path request/response pattern matching freeciv-web
