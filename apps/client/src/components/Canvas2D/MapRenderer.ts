@@ -1617,59 +1617,58 @@ export class MapRenderer {
   }
 
   /**
-   * Render goto path lines similar to freeciv-web's mapview_put_goto_line
+   * Render goto path exactly like freeciv-web: individual directional segments from each tile
+   * Each tile draws one line segment in the direction of the next tile
    * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:382-397
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:3276 - ptile['goto_dir'] = dir
    */
   private renderGotoPath(gotoPath: GotoPath, viewport: MapViewport) {
     if (!gotoPath.tiles || gotoPath.tiles.length < 2) return;
 
-    // Use freeciv-web's goto line style
-    this.ctx.strokeStyle = gotoPath.valid ? 'rgba(0,168,255,0.9)' : 'rgba(255,68,68,0.9)'; // Blue for valid, red for invalid
-    this.ctx.lineWidth = 8;
+    // Set consistent style for all path segments (matching freeciv-web)
+    this.ctx.strokeStyle = gotoPath.valid ? 'rgba(0,168,255,0.9)' : 'rgba(255,68,68,0.9)';
+    this.ctx.lineWidth = 10; // Exact freeciv-web line width
     this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
 
-    // Draw path segments
-    this.ctx.beginPath();
+    // Draw individual directional segments connecting each tile to the next
+    for (let i = 0; i < gotoPath.tiles.length - 1; i++) {
+      const fromTile = gotoPath.tiles[i];
+      const toTile = gotoPath.tiles[i + 1];
 
-    let isFirstPoint = true;
-    for (let i = 0; i < gotoPath.tiles.length; i++) {
-      const tile = gotoPath.tiles[i];
-
-      // Skip tiles not in viewport
-      if (!this.isInViewport(tile.x, tile.y, viewport)) {
+      // Skip segments not in viewport
+      if (!this.isInViewport(fromTile.x, fromTile.y, viewport)) {
         continue;
       }
 
-      // Convert tile coordinates to screen coordinates
-      const screenPos = this.mapToGuiVector(tile.x, tile.y);
-      const canvasX = screenPos.guiDx - viewport.x + this.tileWidth / 2;
-      const canvasY = screenPos.guiDy - viewport.y + this.tileHeight / 2;
+      // Get screen positions for both tiles
+      const fromPos = this.mapToScreen(fromTile.x, fromTile.y, viewport);
+      const toPos = this.mapToScreen(toTile.x, toTile.y, viewport);
 
-      // Check if canvas coordinates are visible
-      if (
-        canvasX < -50 ||
-        canvasX > this.ctx.canvas.width + 50 ||
-        canvasY < -50 ||
-        canvasY > this.ctx.canvas.height + 50
-      ) {
-        continue;
-      }
-
-      if (isFirstPoint) {
-        this.ctx.moveTo(canvasX, canvasY);
-        isFirstPoint = false;
-      } else {
-        this.ctx.lineTo(canvasX, canvasY);
-      }
+      // Render segment connecting tile centers (like freeciv-web but with accurate positions)
+      this.renderGotoLineSegment(fromPos.x, fromPos.y, toPos.x, toPos.y);
     }
-
-    this.ctx.stroke();
 
     // Draw turn indicators at waypoints for multi-turn paths
     if (gotoPath.estimatedTurns > 1) {
       this.renderTurnIndicators(gotoPath, viewport);
     }
+  }
+
+  /**
+   * Render a goto line segment between two tile positions
+   * This ensures perfect alignment by connecting actual tile centers
+   */
+  private renderGotoLineSegment(fromX: number, fromY: number, toX: number, toY: number) {
+    // Calculate tile centers
+    const x0 = fromX + this.tileWidth / 2;
+    const y0 = fromY + this.tileHeight / 2;
+    const x1 = toX + this.tileWidth / 2;
+    const y1 = toY + this.tileHeight / 2;
+
+    this.ctx.beginPath();
+    this.ctx.moveTo(x0, y0);
+    this.ctx.lineTo(x1, y1);
+    this.ctx.stroke();
   }
 
   /**
