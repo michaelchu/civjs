@@ -4,8 +4,8 @@ module.exports = {
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
   testPathIgnorePatterns: process.env.CI
-    ? ['/node_modules/', 'tests/e2e/audit/', '**/*.integration.test.ts']
-    : ['/node_modules/', '**/*.integration.test.ts'],
+    ? ['/node_modules/', 'tests/e2e/audit/', '\\.integration\\.test\\.ts$']
+    : ['/node_modules/', '\\.integration\\.test\\.ts$'],
   transform: {
     '^.+\\.ts$': 'ts-jest',
   },
