@@ -12,7 +12,7 @@ export const GameCreationDialog: React.FC = () => {
   const [gameType, setGameType] = useState<'single' | 'multiplayer'>('single');
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [mapSize, setMapSize] = useState('standard');
-  const [selectedNation, setSelectedNation] = useState('');
+  const [selectedNation, setSelectedNation] = useState('random');
   const [error, setError] = useState('');
 
   // Fetch nations using our hook
@@ -74,13 +74,13 @@ export const GameCreationDialog: React.FC = () => {
   ];
 
   // Create nation options from the fetched nations
-  const nationOptions = nations.map(nation => ({
-    value: nation.id,
-    label: `${nation.name} (${nation.adjective})`,
-  }));
-
-  // Get the selected nation object for display purposes
-  const selectedNationObj = nations.find(n => n.id === selectedNation);
+  const nationOptions = [
+    { value: 'random', label: 'Random' },
+    ...nations.map(nation => ({
+      value: nation.id,
+      label: nation.name,
+    })),
+  ];
 
   return (
     <PageBackground className="min-h-[100dvh] md:flex md:items-center md:justify-center md:p-4">
@@ -159,11 +159,6 @@ export const GameCreationDialog: React.FC = () => {
                     placeholder={nationsLoading ? 'Loading nations...' : 'Select your nation'}
                     disabled={nationsLoading}
                   />
-                  {selectedNationObj && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {selectedNationObj.legend.split('.')[0]}.
-                    </p>
-                  )}
                   {nationsError && (
                     <p className="text-xs text-red-500 mt-1">
                       Failed to load nations. Please refresh the page.

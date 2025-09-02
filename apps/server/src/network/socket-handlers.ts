@@ -587,7 +587,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       connection.gameId = gameId;
       socket.join(`game:${gameId}`);
 
-      const playerId = await gameManager.joinGame(gameId, connection.userId, 'random');
+      const playerId = await gameManager.joinGame(gameId, connection.userId, data.selectedNation);
       await gameManager.updatePlayerConnection(playerId, true);
 
       socket.emit('game_created', {

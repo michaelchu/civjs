@@ -13,6 +13,7 @@ interface GameCreationState {
   gameType: 'single' | 'multiplayer';
   maxPlayers: number;
   mapSize: string;
+  selectedNation: string;
 }
 
 interface TerrainSettings {
@@ -70,6 +71,7 @@ export const TerrainSettingsDialog: React.FC = () => {
         gameType: gameData.gameType,
         maxPlayers: gameData.maxPlayers,
         mapSize: gameData.mapSize,
+        selectedNation: gameData.selectedNation,
         terrainSettings,
       });
 
