@@ -1,7 +1,7 @@
 /**
  * Movement system constants
  * Implements freeciv's movement fragment system and terrain costs
- * 
+ *
  * @reference freeciv/common/movement.h - SINGLE_MOVE, MAX_MOVE_FRAGS definitions
  * @reference freeciv/data/classic/terrain.ruleset - Terrain movement costs
  * @reference freeciv/server/ruleset/ruleload.c - Terrain control loading
@@ -38,7 +38,7 @@ export const TERRAIN_MOVEMENT_COSTS: Record<string, number> = {
 /**
  * Unit movement capabilities
  * Defines movement types for different unit classes
- * 
+ *
  * @reference freeciv/common/unittype.h - utype_move_type enum definition
  * @reference freeciv/common/movement.c - Movement type validation
  * @compliance Matches freeciv's unit movement classification system

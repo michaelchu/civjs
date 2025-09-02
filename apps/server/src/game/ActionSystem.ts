@@ -425,7 +425,7 @@ export class ActionSystem {
   /**
    * Execute goto command for a unit - moves unit along pathfinding path
    * Implements freeciv-web style goto with server-side pathfinding
-   * 
+   *
    * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:do_map_click() - Client goto execution
    * @reference freeciv-web/freeciv/patches/goto_fcweb.patch:handle_web_goto_path_req() - Server goto handling
    * @reference freeciv/server/unithand.c:handle_unit_move_query() - Unit movement validation

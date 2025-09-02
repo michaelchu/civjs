@@ -92,6 +92,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     setViewport({ width, height });
   }, [width, height, setViewport]);
 
+  // Extract complex expressions to satisfy ESLint rule
+  const unitsCount = Object.keys(units).length;
+  const citiesCount = Object.keys(cities).length;
+
   // Center the viewport on user's starting position when data becomes available
   // Reference-compliant: centers exactly once on startup like freeciv-web
   useEffect(() => {
@@ -176,9 +180,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     gameState.mapData,
     gameState.currentPlayerId,
     hasInitiallyCentered,
-    // Only include units/cities length to avoid object reference changes
-    Object.keys(units).length,
-    Object.keys(cities).length,
+    // Use extracted variables instead of complex expressions
+    unitsCount,
+    citiesCount,
     setViewport,
     cities,
     units,
