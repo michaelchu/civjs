@@ -412,7 +412,12 @@ describe('UnitManager - Integration Tests with Real Database', () => {
     let scenario: any;
 
     beforeEach(async () => {
+      // Clear previous test data
+      await clearAllTables();
+
+      // Create a fresh scenario and reinitialize the UnitManager with the correct game ID
       scenario = await createBasicGameScenario();
+      unitManager = new UnitManager(scenario.game.id, mapWidth, mapHeight);
       await unitManager.loadUnits();
     });
 

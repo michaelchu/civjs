@@ -22,16 +22,30 @@ export async function createTestGameAndPlayer(
   const playerId = generateTestUUID(playerIdSuffix);
   const userId = generateTestUUID(playerIdSuffix.replace('2', '1')); // Derive user ID from player ID
 
-  // Create test user
-  const [user] = await testDb
-    .insert(schema.users)
-    .values({
-      id: userId,
-      username: `TestUser${playerIdSuffix}`,
-      email: `test${playerIdSuffix}@example.com`,
-      passwordHash: 'test-hash',
-    })
-    .returning();
+  // Create test user (handle duplicates in CI/CD)
+  let user: typeof schema.users.$inferSelect;
+  try {
+    [user] = await testDb
+      .insert(schema.users)
+      .values({
+        id: userId,
+        username: `TestUser${playerIdSuffix}_${Date.now()}`,
+        email: `test${playerIdSuffix}_${Date.now()}@example.com`,
+        passwordHash: 'test-hash',
+      })
+      .returning();
+  } catch (error) {
+    // Try to find existing user
+    const existing = await testDb.query.users.findFirst({
+      where: (users, { eq }) => eq(users.id, userId),
+    });
+
+    if (existing) {
+      user = existing;
+    } else {
+      throw new Error(`Failed to create or find test user: ${error}`);
+    }
+  }
 
   // Create test game
   const [game] = await testDb
@@ -39,7 +53,7 @@ export async function createTestGameAndPlayer(
     .values({
       id: gameId,
       name: `Test Game ${gameIdSuffix}`,
-      hostId: userId,
+      hostId: user.id, // Use actual user.id instead of userId
       status: 'active',
       maxPlayers: 4,
       mapWidth: 80,
@@ -55,8 +69,8 @@ export async function createTestGameAndPlayer(
     .insert(schema.players)
     .values({
       id: playerId,
-      gameId: gameId,
-      userId: userId,
+      gameId: game.id, // Use actual game.id
+      userId: user.id, // Use actual user.id
       playerNumber: 0,
       nation: 'romans',
       civilization: 'Roman',
@@ -130,9 +144,11 @@ export async function clearAllTables() {
   if (!testDb) return;
 
   try {
-    // Clear all tables in dependency order
+    // Clear all tables in dependency order (child tables first, then parent tables)
     await testDb.delete(schema.units);
     await testDb.delete(schema.cities);
+    await testDb.delete(schema.playerTechs);
+    await testDb.delete(schema.research);
     await testDb.delete(schema.players);
     await testDb.delete(schema.gameTurns);
     await testDb.delete(schema.games);

@@ -7,19 +7,34 @@ import { clearAllTables } from './testDatabase';
  * Creates a mock Socket.IO server for tests
  */
 export function createMockSocketServer(): SocketServer {
-  const mockEmitter = { emit: jest.fn() };
-  return {
+  const mockEmitter = {
+    emit: jest.fn(),
+    to: jest.fn().mockReturnThis(),
+    in: jest.fn().mockReturnThis(),
+  };
+
+  const mockServer = {
     emit: jest.fn(),
     to: jest.fn().mockReturnValue(mockEmitter),
     in: jest.fn().mockReturnValue(mockEmitter),
     sockets: {
       sockets: new Map(),
       adapter: { rooms: new Map() },
+      emit: jest.fn(),
     },
     // Add any other Socket.IO Server methods that might be used
     on: jest.fn(),
     use: jest.fn(),
+    engine: {
+      generateId: jest.fn().mockReturnValue('mock-socket-id'),
+    },
+    adapter: {
+      rooms: new Map(),
+      sids: new Map(),
+    },
   } as unknown as SocketServer;
+
+  return mockServer;
 }
 
 /**
@@ -50,6 +65,11 @@ export async function setupGameManagerWithScenario(): Promise<{
   if (!gameInstance) {
     throw new Error('Failed to load game instance from test scenario');
   }
+
+  // Ensure all managers have loaded their data
+  await gameInstance.cityManager.loadCities();
+  await gameInstance.unitManager.loadUnits();
+  await gameInstance.researchManager.loadPlayerResearch();
 
   return { gameManager, scenario, mockIo };
 }

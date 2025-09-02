@@ -72,24 +72,38 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
   // Generate map data
   const { mapData, mapSeed } = await generateMapDataForTests(20, 20, playersMap);
 
-  // Create test users
-  const users = await db
-    .insert(schema.users)
-    .values([
-      {
-        id: userId1,
-        username: 'Player1',
-        email: 'player1@test.com',
-        passwordHash: 'hash1',
-      },
-      {
-        id: userId2,
-        username: 'Player2',
-        email: 'player2@test.com',
-        passwordHash: 'hash2',
-      },
-    ])
-    .returning();
+  // Create test users (ensure they exist)
+  let users: (typeof schema.users.$inferSelect)[];
+  try {
+    users = await db
+      .insert(schema.users)
+      .values([
+        {
+          id: userId1,
+          username: `Player1_${Date.now()}`, // Make unique for CI/CD
+          email: `player1_${Date.now()}@test.com`,
+          passwordHash: 'hash1',
+        },
+        {
+          id: userId2,
+          username: `Player2_${Date.now()}`,
+          email: `player2_${Date.now()}@test.com`,
+          passwordHash: 'hash2',
+        },
+      ])
+      .returning();
+  } catch (error) {
+    // If users already exist, fetch them
+    const existingUsers = await db.query.users.findMany({
+      where: (users, { inArray }) => inArray(users.id, [userId1, userId2]),
+    });
+
+    if (existingUsers.length === 2) {
+      users = existingUsers;
+    } else {
+      throw new Error(`Failed to create or find test users: ${error}`);
+    }
+  }
 
   // Create game with map data
   const [game] = await db

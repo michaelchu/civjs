@@ -44,7 +44,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       await game.cityManager.processCityTurn(cityId, 2);
 
       // Verify production was completed
-      expect(city.currentProduction).toBeUndefined();
+      expect(city.currentProduction).toBeNull();
       expect(city.productionStock).toBe(0);
 
       // Verify unit was created in UnitManager
@@ -89,7 +89,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
 
       // Verify building was added
       expect(city.buildings).toContain('granary');
-      expect(city.currentProduction).toBeUndefined();
+      expect(city.currentProduction).toBeNull();
 
       // Refresh city to apply building effects
       game.cityManager.refreshCity(cityId);
