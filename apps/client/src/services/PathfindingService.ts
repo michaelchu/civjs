@@ -47,6 +47,17 @@ export class PathfindingService {
   >();
   private eventListenerSetup = false;
 
+  /**
+   * Generate consistent request key for caching and request tracking
+   * @param unitId Unit identifier
+   * @param targetX Target X coordinate
+   * @param targetY Target Y coordinate
+   * @returns Consistent request key string
+   */
+  private generateRequestKey(unitId: string, targetX: number, targetY: number): string {
+    return `${unitId}-${targetX}-${targetY}`;
+  }
+
   static getInstance(): PathfindingService {
     if (!PathfindingService.instance) {
       PathfindingService.instance = new PathfindingService();
@@ -59,7 +70,7 @@ export class PathfindingService {
    * Similar to freeciv-web's request_goto_path function
    */
   async requestPath(unitId: string, targetX: number, targetY: number): Promise<GotoPath | null> {
-    const requestKey = `${unitId}-${targetX}-${targetY}`;
+    const requestKey = this.generateRequestKey(unitId, targetX, targetY);
 
     // Check if we already have this path cached
     if (this.pathCache.has(requestKey)) {
@@ -79,7 +90,7 @@ export class PathfindingService {
             resolve(null); // Request failed or was cancelled
           }
         };
-        setTimeout(checkForResult, 100);
+        checkForResult(); // Start checking immediately, not after delay
       });
     }
 
@@ -135,7 +146,7 @@ export class PathfindingService {
    * Get cached path if available
    */
   getCachedPath(unitId: string, targetX: number, targetY: number): GotoPath | null {
-    const requestKey = `${unitId}-${targetX}-${targetY}`;
+    const requestKey = this.generateRequestKey(unitId, targetX, targetY);
     return this.pathCache.get(requestKey) || null;
   }
 
@@ -154,7 +165,11 @@ export class PathfindingService {
         console.log('Received path_response:', response);
       }
 
-      const requestKey = `${response.unitId}-${response.targetX}-${response.targetY}`;
+      const requestKey = this.generateRequestKey(
+        response.unitId,
+        response.targetX,
+        response.targetY
+      );
       const pendingRequest = this.pendingRequests.get(requestKey);
 
       if (pendingRequest) {
@@ -193,7 +208,7 @@ export class PathfindingService {
         return;
       }
 
-      const requestKey = `${request.unitId}-${request.targetX}-${request.targetY}`;
+      const requestKey = this.generateRequestKey(request.unitId, request.targetX, request.targetY);
 
       // Set up timeout
       const timeoutId = setTimeout(() => {
