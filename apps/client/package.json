@@ -16,7 +16,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@civjs/shared": "file:../../packages/shared",
+    "@civjs/protocol": "file:../../packages/protocol",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-popover": "^1.1.15",

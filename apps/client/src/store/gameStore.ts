@@ -1,18 +1,8 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import type { GameState, ClientState, GameTab, MapViewport, ResearchState } from '../types';
-import type {
-  Nation,
-  NationSet,
-  NationGroupDefinition,
-  NationCustomization,
-  PlayerNationInfo,
-  DiplomaticRelation,
-  EmbassyStatus,
-  SharedVision,
-  IntelligenceReport,
-  DiplomaticState,
-} from '@civjs/shared';
+import type { DiplomaticState, NetworkPlayerInfo } from '@civjs/protocol';
+import type { NationDisplay, PlayerNationDisplay, NationSelection } from '../types/nations';
 
 export type TurnProcessingState = 'idle' | 'processing' | 'completed' | 'error';
 
