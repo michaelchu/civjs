@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import ReactFlow, {
   type Node,
   useNodesState,
@@ -87,14 +87,30 @@ const TechnologyTreeInner: React.FC = () => {
   }, [fitView]);
 
   // Update available technologies when research state changes
+  const prevResearchedTechsSize = useRef<number>(0);
   useEffect(() => {
     if (!store.research) return;
 
+    const currentSize = store.research.researchedTechs.size;
+    // Only run if the number of researched techs has actually changed
+    if (prevResearchedTechsSize.current === currentSize) return;
+
+    prevResearchedTechsSize.current = currentSize;
+
     const availableTechs = getAvailableTechnologies(store.research.researchedTechs);
-    updateResearchState({
-      availableTechs: new Set(availableTechs),
-    });
-  }, [store.research, store.research?.researchedTechs, updateResearchState]);
+    const currentAvailableTechs = store.research.availableTechs;
+
+    // Only update if the available techs have actually changed
+    const availableTechsSet = new Set(availableTechs);
+    if (
+      currentAvailableTechs.size !== availableTechsSet.size ||
+      !Array.from(availableTechsSet).every(tech => currentAvailableTechs.has(tech))
+    ) {
+      updateResearchState({
+        availableTechs: availableTechsSet,
+      });
+    }
+  }, [store.research, updateResearchState]);
 
   // Update nodes when game state changes
   useEffect(() => {
