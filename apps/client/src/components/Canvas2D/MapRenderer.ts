@@ -783,8 +783,14 @@ export class MapRenderer {
     // Get unit animation offset for smooth movement
     // @reference freeciv-web/.../unit.js:get_unit_anim_offset()
     const animOffset = this.getUnitAnimOffset();
-    const unitX = screenPos.x + animOffset.x;
-    const unitY = screenPos.y + animOffset.y;
+
+    // Apply freeciv-web's unit positioning offsets to properly center units on tiles
+    // @reference freeciv-web/tileset_config_amplio2.js: unit_offset_x = 19, unit_offset_y = 14
+    // @reference freeciv-web/tilespec.js fill_unit_sprite_array(): "offset_y" : unit_offset['y'] - unit_offset_y
+    const UNIT_OFFSET_X = 19;
+    const UNIT_OFFSET_Y = 14;
+    const unitX = screenPos.x + animOffset.x + UNIT_OFFSET_X;
+    const unitY = screenPos.y + animOffset.y - UNIT_OFFSET_Y; // Note: negative Y offset like freeciv-web
 
     // Render unit sprites using freeciv-web approach
     // @reference freeciv-web/.../tilespec.js:fill_unit_sprite_array()
@@ -927,7 +933,7 @@ export class MapRenderer {
    * Render unit placeholder when sprites are not available
    */
   private renderUnitPlaceholder(unit: Unit, x: number, y: number): void {
-    // Use the original placeholder rendering as fallback
+    // Position placeholder at the corrected unit position (already offset)
     this.ctx.fillStyle = this.getPlayerColor(unit.playerId);
     this.ctx.beginPath();
     this.ctx.arc(x + this.tileWidth / 2, y + this.tileHeight / 2, 8, 0, 2 * Math.PI);
@@ -952,33 +958,22 @@ export class MapRenderer {
     const barHeight = 4;
     const healthPercent = unit.hp / 100;
 
+    // Position health bar relative to the corrected unit position
+    const barX = x + this.tileWidth / 2 - barWidth / 2;
+    const barY = y + this.tileHeight - 8;
+
     // Background (red)
     this.ctx.fillStyle = '#ff0000';
-    this.ctx.fillRect(
-      x + this.tileWidth / 2 - barWidth / 2,
-      y + this.tileHeight - 8,
-      barWidth,
-      barHeight
-    );
+    this.ctx.fillRect(barX, barY, barWidth, barHeight);
 
     // Health (green)
     this.ctx.fillStyle = '#00ff00';
-    this.ctx.fillRect(
-      x + this.tileWidth / 2 - barWidth / 2,
-      y + this.tileHeight - 8,
-      barWidth * healthPercent,
-      barHeight
-    );
+    this.ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
 
     // Border
     this.ctx.strokeStyle = '#000000';
     this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(
-      x + this.tileWidth / 2 - barWidth / 2,
-      y + this.tileHeight - 8,
-      barWidth,
-      barHeight
-    );
+    this.ctx.strokeRect(barX, barY, barWidth, barHeight);
   }
 
   /**
