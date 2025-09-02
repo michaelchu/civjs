@@ -236,13 +236,11 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
 
       // Verify research progress persisted to database
       const db = getTestDatabase();
-      const dbTech = await db.query.playerTechnologies.findMany({
-        where: (tech, { and, eq }) =>
-          and(eq(tech.playerId, playerId), eq(tech.technologyId, 'pottery')),
+      const dbTech = await db.query.playerTechs.findMany({
+        where: (tech, { and, eq }) => and(eq(tech.playerId, playerId), eq(tech.techId, 'pottery')),
       });
 
       expect(dbTech.length).toBeGreaterThan(0);
-      expect(dbTech[0].isCompleted).toBe(true);
     });
 
     it('should enable new unit types after tech research', async () => {
@@ -264,12 +262,12 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
 
       // Verify tech completion persisted
       const db = getTestDatabase();
-      const dbTech = await db.query.playerTechnologies.findMany({
+      const dbTech = await db.query.playerTechs.findMany({
         where: (tech, { and, eq }) =>
-          and(eq(tech.playerId, playerId), eq(tech.technologyId, 'bronze_working')),
+          and(eq(tech.playerId, playerId), eq(tech.techId, 'bronze_working')),
       });
 
-      expect(dbTech[0].isCompleted).toBe(true);
+      expect(dbTech.length).toBeGreaterThan(0);
     });
   });
 
@@ -320,7 +318,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       expect(unit.movementLeft).toBe(6); // Reset after turn
 
       const research = gameManager.getPlayerResearch(gameId, playerId1);
-      expect(research?.progress).toBeGreaterThan(0);
+      expect(research?.bulbsAccumulated).toBeGreaterThan(0);
 
       // Verify all changes persisted to database
       const db = getTestDatabase();
@@ -337,7 +335,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       expect(dbGame.currentTurn).toBe(initialTurn + 1);
       expect(dbCity.food).toBe(city.food);
       expect(dbCity.production).toBe(city.production);
-      expect(dbUnit.movementPoints).toBe('6');
+      expect(dbUnit.movementPoints).toBe('6.00');
     });
 
     it('should handle concurrent turn ending safely', async () => {

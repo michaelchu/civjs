@@ -4,6 +4,75 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import * as schema from '../../src/database/schema';
 import { logger } from '../../src/utils/logger';
 
+// UUID generator for tests
+export function generateTestUUID(suffix: string): string {
+  const base = '550e8400-e29b-41d4-a716-44665544';
+  const paddedSuffix = suffix.padStart(4, '0');
+  return `${base}${paddedSuffix}`;
+}
+
+// Create test game and player for unit tests
+export async function createTestGameAndPlayer(
+  gameIdSuffix: string = '0001',
+  playerIdSuffix: string = '0002'
+) {
+  if (!testDb) throw new Error('Test database not initialized');
+
+  const gameId = generateTestUUID(gameIdSuffix);
+  const playerId = generateTestUUID(playerIdSuffix);
+  const userId = generateTestUUID(playerIdSuffix.replace('2', '1')); // Derive user ID from player ID
+
+  // Create test user
+  const [user] = await testDb
+    .insert(schema.users)
+    .values({
+      id: userId,
+      username: `TestUser${playerIdSuffix}`,
+      email: `test${playerIdSuffix}@example.com`,
+      passwordHash: 'test-hash',
+    })
+    .returning();
+
+  // Create test game
+  const [game] = await testDb
+    .insert(schema.games)
+    .values({
+      id: gameId,
+      name: `Test Game ${gameIdSuffix}`,
+      hostId: userId,
+      status: 'active',
+      maxPlayers: 4,
+      mapWidth: 80,
+      mapHeight: 50,
+      ruleset: 'classic',
+      currentTurn: 1,
+      turnTimeLimit: 300,
+    })
+    .returning();
+
+  // Create test player
+  const [player] = await testDb
+    .insert(schema.players)
+    .values({
+      id: playerId,
+      gameId: gameId,
+      userId: userId,
+      playerNumber: 0,
+      nation: 'romans',
+      civilization: 'Roman',
+      leaderName: 'Caesar',
+      color: { r: 255, g: 0, b: 0 },
+      isReady: true,
+      hasEndedTurn: false,
+      gold: 100,
+      science: 10,
+      culture: 5,
+    })
+    .returning();
+
+  return { game, player, user };
+}
+
 // Test database connection string
 const testConnectionString =
   process.env.TEST_DATABASE_URL || 'postgresql://civjs_test:civjs_test@localhost:5432/civjs_test';

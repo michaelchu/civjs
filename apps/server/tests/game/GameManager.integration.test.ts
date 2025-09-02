@@ -1,6 +1,6 @@
 import { GameManager, GameConfig } from '../../src/game/GameManager';
 import { Server as SocketServer } from 'socket.io';
-import { getTestDatabase, clearAllTables } from '../utils/testDatabase';
+import { getTestDatabase, clearAllTables, generateTestUUID } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
 
 describe('GameManager - Integration Tests with Real Database', () => {
@@ -40,15 +40,23 @@ describe('GameManager - Integration Tests with Real Database', () => {
   });
 
   describe('game creation with real persistence', () => {
-    const testConfig: GameConfig = {
-      name: 'Integration Test Game',
-      hostId: 'test-host-id',
-      maxPlayers: 4,
-      mapWidth: 80,
-      mapHeight: 50,
-      ruleset: 'classic',
-      victoryConditions: ['conquest', 'science'],
-    };
+    let testHostId: string;
+    let testConfig: GameConfig;
+
+    beforeEach(async () => {
+      // Create a user first for the host
+      const hostData = await createTestGameAndPlayer('9001', '9002');
+      testHostId = hostData.user.id;
+      testConfig = {
+        name: 'Integration Test Game',
+        hostId: testHostId,
+        maxPlayers: 4,
+        mapWidth: 80,
+        mapHeight: 50,
+        ruleset: 'classic',
+        victoryConditions: ['conquest', 'science'],
+      };
+    });
 
     it('should create and persist game to database', async () => {
       const gameId = await gameManager.createGame(testConfig);
@@ -69,7 +77,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
       expect(dbGames).toHaveLength(1);
       expect(dbGames[0].name).toBe('Integration Test Game');
-      expect(dbGames[0].hostId).toBe('test-host-id');
+      expect(dbGames[0].hostId).toBe(testHostId);
       expect(dbGames[0].maxPlayers).toBe(4);
       expect(dbGames[0].mapWidth).toBe(80);
       expect(dbGames[0].mapHeight).toBe(50);
@@ -77,9 +85,10 @@ describe('GameManager - Integration Tests with Real Database', () => {
     });
 
     it('should apply defaults for minimal game config', async () => {
+      const minimalHostData = await createTestGameAndPlayer('9003', '9004');
       const minimalConfig: GameConfig = {
         name: 'Minimal Game',
-        hostId: 'host-123',
+        hostId: minimalHostData.user.id,
       };
 
       const gameId = await gameManager.createGame(minimalConfig);
@@ -91,7 +100,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
       });
 
       expect(dbGame.name).toBe('Minimal Game');
-      expect(dbGame.hostId).toBe('host-123');
+      expect(dbGame.hostId).toBe(minimalHostData.user.id);
       expect(dbGame.maxPlayers).toBe(4); // Default
       expect(dbGame.mapWidth).toBe(80); // Default
       expect(dbGame.mapHeight).toBe(50); // Default
@@ -104,17 +113,20 @@ describe('GameManager - Integration Tests with Real Database', () => {
     let gameId: string;
 
     beforeEach(async () => {
+      const hostData = await createTestGameAndPlayer('9005', '9006');
       const gameConfig: GameConfig = {
         name: 'Player Test Game',
-        hostId: 'host-123',
+        hostId: hostData.user.id,
         maxPlayers: 2,
       };
       gameId = await gameManager.createGame(gameConfig);
     });
 
     it('should join players and persist to database', async () => {
-      const playerId1 = await gameManager.joinGame(gameId, 'user-1', 'romans');
-      const playerId2 = await gameManager.joinGame(gameId, 'user-2', 'greeks');
+      const userId1 = generateTestUUID('0011');
+      const userId2 = generateTestUUID('0012');
+      const playerId1 = await gameManager.joinGame(gameId, userId1, 'romans');
+      const playerId2 = await gameManager.joinGame(gameId, userId2, 'greeks');
 
       expect(playerId1).toBeTruthy();
       expect(playerId2).toBeTruthy();
@@ -137,11 +149,14 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
     it('should reject players when game is full', async () => {
       // Fill game to capacity
-      await gameManager.joinGame(gameId, 'user-1', 'romans');
-      await gameManager.joinGame(gameId, 'user-2', 'greeks');
+      const userId1 = generateTestUUID('0021');
+      const userId2 = generateTestUUID('0022');
+      const userId3 = generateTestUUID('0023');
+      await gameManager.joinGame(gameId, userId1, 'romans');
+      await gameManager.joinGame(gameId, userId2, 'greeks');
 
       // Third player should be rejected
-      await expect(gameManager.joinGame(gameId, 'user-3', 'egyptians')).rejects.toThrow();
+      await expect(gameManager.joinGame(gameId, userId3, 'egyptians')).rejects.toThrow();
 
       // Verify only 2 players in database
       const db = getTestDatabase();
@@ -152,10 +167,12 @@ describe('GameManager - Integration Tests with Real Database', () => {
     });
 
     it('should prevent duplicate nations', async () => {
-      await gameManager.joinGame(gameId, 'user-1', 'romans');
+      const userId1 = generateTestUUID('0031');
+      const userId2 = generateTestUUID('0032');
+      await gameManager.joinGame(gameId, userId1, 'romans');
 
       // Second player tries same nation
-      await expect(gameManager.joinGame(gameId, 'user-2', 'romans')).rejects.toThrow();
+      await expect(gameManager.joinGame(gameId, userId2, 'romans')).rejects.toThrow();
 
       // Verify only one player in database
       const db = getTestDatabase();
@@ -170,21 +187,24 @@ describe('GameManager - Integration Tests with Real Database', () => {
     let gameId: string;
 
     beforeEach(async () => {
+      const hostData = await createTestGameAndPlayer('9007', '9008');
+      const user2Data = await createTestGameAndPlayer('9009', '9010');
       const gameConfig: GameConfig = {
         name: 'Lifecycle Test Game',
-        hostId: 'host-123',
+        hostId: hostData.user.id,
         maxPlayers: 2,
         mapWidth: 20,
         mapHeight: 20,
       };
 
       gameId = await gameManager.createGame(gameConfig);
-      await gameManager.joinGame(gameId, 'host-123', 'romans');
-      await gameManager.joinGame(gameId, 'user-2', 'greeks');
+      await gameManager.joinGame(gameId, hostData.user.id, 'romans');
+      await gameManager.joinGame(gameId, user2Data.user.id, 'greeks');
     });
 
     it('should start game and initialize all managers', async () => {
-      await gameManager.startGame(gameId, 'host-123');
+      const hostData = await createTestGameAndPlayer('9007', '9008');
+      await gameManager.startGame(gameId, hostData.user.id);
 
       const game = gameManager.getGameInstance(gameId);
       expect(game!.state).toBe('active');
@@ -204,7 +224,8 @@ describe('GameManager - Integration Tests with Real Database', () => {
     });
 
     it('should prevent non-host from starting game', async () => {
-      await expect(gameManager.startGame(gameId, 'user-2')).rejects.toThrow();
+      const user2Data = await createTestGameAndPlayer('9009', '9010');
+      await expect(gameManager.startGame(gameId, user2Data.user.id)).rejects.toThrow();
 
       // Game should still be waiting
       const db = getTestDatabase();
@@ -278,11 +299,11 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
       const research = gameManager.getPlayerResearch(gameId, playerId);
       expect(research?.currentTech).toBe('pottery');
-      expect(research?.progress).toBeGreaterThanOrEqual(0);
+      expect(research?.bulbsAccumulated).toBeGreaterThanOrEqual(0);
 
       // Verify research persisted to database
       const db = getTestDatabase();
-      const dbResearch = await db.query.playerTechnologies.findMany({
+      const dbResearch = await db.query.playerTechs.findMany({
         where: (tech, { eq }) => eq(tech.playerId, playerId),
       });
       expect(dbResearch.length).toBeGreaterThan(0);
@@ -300,7 +321,8 @@ describe('GameManager - Integration Tests with Real Database', () => {
       expect(turnAdvanced1).toBe(false); // Other player hasn't ended turn
 
       // End turn for second player
-      const turnAdvanced2 = await gameManager.endTurn(game!.players.values().next().value.id);
+      const player2 = Array.from(game!.players.values())[1];
+      const turnAdvanced2 = await gameManager.endTurn(player2.id);
       expect(turnAdvanced2).toBe(true); // Turn should advance
 
       expect(game!.turnManager.getCurrentTurn()).toBe(initialTurn + 1);

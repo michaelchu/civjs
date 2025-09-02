@@ -1,4 +1,4 @@
-import { getTestDatabase } from '../utils/testDatabase';
+import { getTestDatabase, generateTestUUID } from '../utils/testDatabase';
 import { schema } from '../../src/database';
 import { eq } from 'drizzle-orm';
 
@@ -12,18 +12,29 @@ export interface TestGameScenario {
 export async function createBasicGameScenario(): Promise<TestGameScenario> {
   const db = getTestDatabase();
 
+  const userId1 = generateTestUUID('1001');
+  const userId2 = generateTestUUID('1002');
+  const gameId = generateTestUUID('2001');
+  const playerId1 = generateTestUUID('3001');
+  const playerId2 = generateTestUUID('3002');
+  const cityId1 = generateTestUUID('4001');
+  const cityId2 = generateTestUUID('4002');
+  const unitId1 = generateTestUUID('5001');
+  const unitId2 = generateTestUUID('5002');
+  const unitId3 = generateTestUUID('5003');
+
   // Create test users
   const users = await db
     .insert(schema.users)
     .values([
       {
-        id: 'user-1',
+        id: userId1,
         username: 'Player1',
         email: 'player1@test.com',
         passwordHash: 'hash1',
       },
       {
-        id: 'user-2',
+        id: userId2,
         username: 'Player2',
         email: 'player2@test.com',
         passwordHash: 'hash2',
@@ -35,7 +46,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
   const [game] = await db
     .insert(schema.games)
     .values({
-      id: 'game-basic',
+      id: gameId,
       name: 'Basic Test Game',
       hostId: users[0].id,
       status: 'active',
@@ -53,7 +64,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
     .insert(schema.players)
     .values([
       {
-        id: 'player-1',
+        id: playerId1,
         gameId: game.id,
         userId: users[0].id,
         playerNumber: 0,
@@ -68,7 +79,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         culture: 5,
       },
       {
-        id: 'player-2',
+        id: playerId2,
         gameId: game.id,
         userId: users[1].id,
         playerNumber: 1,
@@ -90,7 +101,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
     .insert(schema.cities)
     .values([
       {
-        id: 'city-1',
+        id: cityId1,
         gameId: game.id,
         playerId: players[0].id,
         name: 'Rome',
@@ -117,7 +128,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         foundedTurn: 1,
       },
       {
-        id: 'city-2',
+        id: cityId2,
         gameId: game.id,
         playerId: players[1].id,
         name: 'Athens',
@@ -147,7 +158,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
     .insert(schema.units)
     .values([
       {
-        id: 'unit-1',
+        id: unitId1,
         gameId: game.id,
         playerId: players[0].id,
         unitType: 'warrior',
@@ -163,7 +174,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         createdTurn: 1,
       },
       {
-        id: 'unit-2',
+        id: unitId2,
         gameId: game.id,
         playerId: players[0].id,
         unitType: 'settler',
@@ -179,7 +190,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         createdTurn: 1,
       },
       {
-        id: 'unit-3',
+        id: unitId3,
         gameId: game.id,
         playerId: players[1].id,
         unitType: 'warrior',

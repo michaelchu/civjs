@@ -1,21 +1,29 @@
 import { UnitManager } from '../../src/game/UnitManager';
 import { UNIT_TYPES } from '../../src/game/constants/UnitConstants';
-import { getTestDatabase, clearAllTables } from '../utils/testDatabase';
+import {
+  getTestDatabase,
+  clearAllTables,
+  createTestGameAndPlayer,
+  generateTestUUID,
+} from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
 import { schema } from '../../src/database';
 
 describe('UnitManager - Integration Tests with Real Database', () => {
   let unitManager: UnitManager;
-  const gameId = '550e8400-e29b-41d4-a716-446655440010'; // Use proper UUID
+  let testData: { game: any; player: any; user: any };
   const mapWidth = 80;
   const mapHeight = 50;
 
   beforeEach(async () => {
-    // Clear database before each test
+    // Clear database before each test FIRST
     await clearAllTables();
 
-    // Initialize UnitManager
-    unitManager = new UnitManager(gameId, mapWidth, mapHeight);
+    // Then create test game and player with proper UUIDs
+    testData = await createTestGameAndPlayer('0010', '0020');
+
+    // Initialize UnitManager with the test game ID
+    unitManager = new UnitManager(testData.game.id, mapWidth, mapHeight);
   });
 
   afterEach(async () => {
@@ -41,10 +49,10 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
   describe('unit creation with real database persistence', () => {
     it('should create and persist units to database', async () => {
-      const unit = await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      const unit = await unitManager.createUnit(testData.player.id, 'warrior', 10, 10);
 
       // Verify unit in memory
-      expect(unit.playerId).toBe('player-123');
+      expect(unit.playerId).toBe(testData.player.id);
       expect(unit.unitTypeId).toBe('warrior');
       expect(unit.x).toBe(10);
       expect(unit.y).toBe(10);
@@ -56,63 +64,63 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       // Verify unit was persisted to database
       const db = getTestDatabase();
       const dbUnits = await db.query.units.findMany({
-        where: (units, { eq }) => eq(units.gameId, gameId),
+        where: (units, { eq }) => eq(units.gameId, testData.game.id),
       });
 
       expect(dbUnits).toHaveLength(1);
-      expect(dbUnits[0].playerId).toBe('player-123');
+      expect(dbUnits[0].playerId).toBe(testData.player.id);
       expect(dbUnits[0].unitType).toBe('warrior');
       expect(dbUnits[0].x).toBe(10);
       expect(dbUnits[0].y).toBe(10);
       expect(dbUnits[0].health).toBe(100);
-      expect(dbUnits[0].movementPoints).toBe('6'); // Stored as string
+      expect(dbUnits[0].movementPoints).toBe('6.00'); // Stored as decimal string
       expect(dbUnits[0].veteranLevel).toBe(0);
       expect(dbUnits[0].isFortified).toBe(false);
     });
 
     it('should reject invalid unit type with database constraint', async () => {
-      await expect(unitManager.createUnit('player-123', 'invalid-unit', 10, 10)).rejects.toThrow(
-        'Unknown unit type: invalid-unit'
-      );
+      await expect(
+        unitManager.createUnit(testData.player.id, 'invalid-unit', 10, 10)
+      ).rejects.toThrow('Unknown unit type: invalid-unit');
 
       // Verify no unit was created in database
       const db = getTestDatabase();
       const dbUnits = await db.query.units.findMany({
-        where: (units, { eq }) => eq(units.gameId, gameId),
+        where: (units, { eq }) => eq(units.gameId, testData.game.id),
       });
       expect(dbUnits).toHaveLength(0);
     });
 
     it('should reject invalid positions', async () => {
-      await expect(unitManager.createUnit('player-123', 'warrior', -1, 10)).rejects.toThrow(
+      await expect(unitManager.createUnit(testData.player.id, 'warrior', -1, 10)).rejects.toThrow(
         'Invalid position: -1, 10'
       );
 
       await expect(
-        unitManager.createUnit('player-123', 'warrior', mapWidth + 1, 10)
+        unitManager.createUnit(testData.player.id, 'warrior', mapWidth + 1, 10)
       ).rejects.toThrow('Invalid position: 81, 10');
 
       // Verify no units were created
       const db = getTestDatabase();
       const dbUnits = await db.query.units.findMany({
-        where: (units, { eq }) => eq(units.gameId, gameId),
+        where: (units, { eq }) => eq(units.gameId, testData.game.id),
       });
       expect(dbUnits).toHaveLength(0);
     });
 
     it('should prevent stacking civilian units', async () => {
       // Create first civilian unit
-      await unitManager.createUnit('player-123', 'settler', 10, 10);
+      await unitManager.createUnit(testData.player.id, 'settler', 10, 10);
 
       // Try to create another civilian at same position (should fail)
-      await expect(unitManager.createUnit('player-123', 'worker', 10, 10)).rejects.toThrow(
+      await expect(unitManager.createUnit(testData.player.id, 'worker', 10, 10)).rejects.toThrow(
         'Cannot stack civilian units'
       );
 
       // Verify only one unit exists in database
       const db = getTestDatabase();
       const dbUnits = await db.query.units.findMany({
-        where: (units, { eq }) => eq(units.gameId, gameId),
+        where: (units, { eq }) => eq(units.gameId, testData.game.id),
       });
       expect(dbUnits).toHaveLength(1);
       expect(dbUnits[0].unitType).toBe('settler');
@@ -123,7 +131,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
     let unitId: string;
 
     beforeEach(async () => {
-      const unit = await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      const unit = await unitManager.createUnit(testData.player.id, 'warrior', 10, 10);
       unitId = unit.id;
     });
 
@@ -146,7 +154,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
       expect(dbUnit.x).toBe(11);
       expect(dbUnit.y).toBe(10);
-      expect(dbUnit.movementPoints).toBe('3'); // 3 fragments remaining
+      expect(dbUnit.movementPoints).toBe('3.00'); // 3 fragments remaining
       expect(dbUnit.isFortified).toBe(false);
     });
 
@@ -168,12 +176,15 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
       expect(dbUnit.x).toBe(12);
       expect(dbUnit.y).toBe(10);
-      expect(dbUnit.movementPoints).toBe('0');
+      expect(dbUnit.movementPoints).toBe('0.00');
     });
 
     it('should prevent moves to enemy unit positions', async () => {
+      // Create enemy player first
+      const enemyData = await createTestGameAndPlayer('0010', '0456');
+
       // Create enemy unit
-      const enemyUnit = await unitManager.createUnit('player-456', 'warrior', 11, 10);
+      const enemyUnit = await unitManager.createUnit(enemyData.player.id, 'warrior', 11, 10);
 
       await expect(unitManager.moveUnit(unitId, 11, 10)).rejects.toThrow(
         'Cannot move to tile occupied by enemy unit'
@@ -202,8 +213,11 @@ describe('UnitManager - Integration Tests with Real Database', () => {
     let defenderUnitId: string;
 
     beforeEach(async () => {
-      const attacker = await unitManager.createUnit('player-123', 'warrior', 10, 10);
-      const defender = await unitManager.createUnit('player-456', 'warrior', 11, 10);
+      const attacker = await unitManager.createUnit(testData.player.id, 'warrior', 10, 10);
+
+      // Create enemy player first
+      const enemyData = await createTestGameAndPlayer('0010', '0456');
+      const defender = await unitManager.createUnit(enemyData.player.id, 'warrior', 11, 10);
       attackerUnitId = attacker.id;
       defenderUnitId = defender.id;
     });
@@ -249,7 +263,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       // Verify destruction was persisted to database
       const db = getTestDatabase();
       const dbUnits = await db.query.units.findMany({
-        where: (units, { eq }) => eq(units.gameId, gameId),
+        where: (units, { eq }) => eq(units.gameId, testData.game.id),
       });
 
       if (result.attackerDestroyed && result.defenderDestroyed) {
@@ -291,31 +305,13 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       // Insert corrupted data directly into database
       const db = getTestDatabase();
       // Create a valid UUID for the test
-      const corruptUnitId = '550e8400-e29b-41d4-a716-446655440000';
-      const testPlayerId = '550e8400-e29b-41d4-a716-446655440001';
+      const corruptUnitId = generateTestUUID('9999');
 
-      // First create a test user and player to satisfy foreign key constraints
-      await db.insert(schema.users).values({
-        id: testPlayerId,
-        username: 'TestUser',
-        passwordHash: 'test-hash',
-      });
-
-      await db.insert(schema.players).values({
-        id: testPlayerId,
-        gameId: gameId,
-        userId: testPlayerId,
-        playerNumber: 0,
-        nation: 'romans',
-        civilization: 'Roman',
-        leaderName: 'Caesar',
-        color: { r: 255, g: 0, b: 0 },
-      });
-
+      // Use existing test data instead of creating new records
       await db.insert(schema.units).values({
         id: corruptUnitId,
-        gameId: gameId,
-        playerId: testPlayerId,
+        gameId: testData.game.id,
+        playerId: testData.player.id,
         unitType: 'warrior',
         x: 5,
         y: 5,
@@ -342,14 +338,14 @@ describe('UnitManager - Integration Tests with Real Database', () => {
     let unitId: string;
 
     beforeEach(async () => {
-      const unit = await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      const unit = await unitManager.createUnit(testData.player.id, 'warrior', 10, 10);
       unitId = unit.id;
       // Use some movement
       await unitManager.moveUnit(unitId, 11, 10);
     });
 
     it('should reset movement and persist changes', async () => {
-      await unitManager.resetMovement('player-123');
+      await unitManager.resetMovement(testData.player.id);
 
       const unit = unitManager.getUnit(unitId);
       expect(unit!.movementLeft).toBe(6); // Reset to warrior's full movement
@@ -360,7 +356,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         where: (units, { eq }) => eq(units.id, unitId),
       });
 
-      expect(dbUnit.movementPoints).toBe('6');
+      expect(dbUnit.movementPoints).toBe('6.00');
     });
 
     it('should heal fortified units and persist health', async () => {
@@ -368,7 +364,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       unit.health = 80;
       unit.fortified = true;
 
-      await unitManager.resetMovement('player-123');
+      await unitManager.resetMovement(testData.player.id);
 
       expect(unit.health).toBe(90); // Healed 10 points
 
