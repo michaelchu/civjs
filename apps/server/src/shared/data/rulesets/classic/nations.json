@@ -54,10 +54,6 @@
         {
           "name": "Eleanor Roosevelt",
           "sex": "Female"
-        },
-        {
-          "name": "John F. Kennedy",
-          "sex": "Male"
         }
       ],
       "cities": [
@@ -125,18 +121,18 @@
         "Roma",
         "Capua",
         "Veii",
-        "Venusia",
+        "Beneventum",
         "Corfinium",
-        "Palma",
-        "Verona",
+        "Ancona",
+        "Tarentum",
         "Brundisium",
-        "Caesarea",
-        "Carthago",
-        "Londinium",
-        "Lutetia",
-        "Aquincum",
-        "Berytus",
-        "Damascus"
+        "Ravenna",
+        "Pisae",
+        "Genua",
+        "Mediolanum",
+        "Aquileia",
+        "Florentia",
+        "Neapolis"
       ],
       "traits": {
         "expansionist_min": 70,
@@ -164,15 +160,15 @@
           "sex": "Female"
         },
         {
-          "name": "Henry VIII",
+          "name": "Alfred the Great",
           "sex": "Male"
         },
         {
-          "name": "Victoria",
-          "sex": "Female"
+          "name": "William the Conqueror",
+          "sex": "Male"
         },
         {
-          "name": "Winston Churchill",
+          "name": "Richard Lionheart",
           "sex": "Male"
         },
         {
@@ -182,20 +178,20 @@
       ],
       "cities": [
         "London",
-        "York",
-        "Nottingham",
-        "Canterbury",
-        "Coventry",
-        "Warwick",
-        "Oxford",
-        "Cambridge",
-        "Liverpool",
-        "Brighton",
+        "Westminster",
         "Birmingham",
-        "Leicester",
-        "Hastings",
-        "Bath",
-        "Dover"
+        "Liverpool",
+        "Manchester",
+        "Leeds",
+        "York",
+        "Newcastle",
+        "Canterbury",
+        "Bradford",
+        "Derby",
+        "Southampton",
+        "Sheffield",
+        "Nottingham",
+        "Coventry"
       ],
       "traits": {
         "trader_min": 60,
@@ -207,7 +203,7 @@
       },
       "flag": "f.england",
       "flag_alt": "f.united_kingdom",
-      "legend": "England was a medieval kingdom that eventually expanded to become the British Empire, the largest empire in history."
+      "legend": "England was unified by Alfred the Great of Wessex in the late 9th century, only to be conquered by William of Normandy a century later, in the last successful invasion of the country."
     },
     "chinese": {
       "id": "chinese",
@@ -267,6 +263,655 @@
       "flag": "f.china",
       "flag_alt": "f.prc",
       "legend": "China is one of the world's oldest continuous civilizations, with a history spanning over 4000 years."
+    },
+    "korean": {
+      "id": "korean",
+      "name": "Korean",
+      "plural": "Koreans",
+      "adjective": "Korean",
+      "class": "Asian",
+      "style": "Asian",
+      "init_government": "Monarchy",
+      "leaders": [
+        {
+          "name": "Tangun",
+          "sex": "Male"
+        },
+        {
+          "name": "Sejong",
+          "sex": "Male"
+        },
+        {
+          "name": "Yi Song-gye",
+          "sex": "Male"
+        },
+        {
+          "name": "Wang Kon",
+          "sex": "Male"
+        },
+        {
+          "name": "Sondok",
+          "sex": "Female"
+        }
+      ],
+      "cities": [
+        "Hanyang",
+        "Kaegyong",
+        "Wanggomsong",
+        "Ungjin",
+        "Sabi",
+        "Jolbon",
+        "Wandu",
+        "Wiryesong",
+        "Dalgubol",
+        "Hanbat",
+        "Hamhung",
+        "Wonsanjin",
+        "Michuhol",
+        "Sipje",
+        "Kwangju"
+      ],
+      "traits": {
+        "builder_min": 50,
+        "builder_max": 80,
+        "expansionist_min": 30,
+        "expansionist_max": 60,
+        "aggressive_min": 40,
+        "aggressive_max": 70
+      },
+      "flag": "f.korea_ancient",
+      "flag_alt": "f.south_korea",
+      "legend": "According to legend, the first Korean kingdom was founded in prehistory by the ancestral Tangun in southern Manchuria. The Korean kingdoms were united in 668 by king Munmu."
+    },
+    "japanese": {
+      "id": "japanese",
+      "name": "Japanese",
+      "plural": "Japanese",
+      "adjective": "Japanese",
+      "class": "Asian",
+      "style": "Asian",
+      "init_government": "Monarchy",
+      "leaders": [
+        {
+          "name": "Jimmu",
+          "sex": "Male"
+        },
+        {
+          "name": "Mutsuhito",
+          "sex": "Male"
+        },
+        {
+          "name": "Oda Nobunaga",
+          "sex": "Male"
+        },
+        {
+          "name": "Tokugawa Ieyasu",
+          "sex": "Male"
+        },
+        {
+          "name": "Suiko",
+          "sex": "Female"
+        }
+      ],
+      "cities": [
+        "Tokyo",
+        "Osaka",
+        "Kyoto",
+        "Nara",
+        "Sapporo",
+        "Nagoya",
+        "Fukuoka",
+        "Kobe",
+        "Hiroshima",
+        "Sendai",
+        "Kawasaki",
+        "Kokura",
+        "Saitama",
+        "Yokohama",
+        "Chiba"
+      ],
+      "traits": {
+        "aggressive_min": 60,
+        "aggressive_max": 90,
+        "builder_min": 50,
+        "builder_max": 80,
+        "expansionist_min": 40,
+        "expansionist_max": 70
+      },
+      "flag": "f.japan",
+      "flag_alt": "f.japan",
+      "legend": "According to traditional Japanese mythology, Japan was founded in the 7th century BCE by the ancestral Emperor Jimmu."
+    },
+    "egyptian": {
+      "id": "egyptian",
+      "name": "Egyptian",
+      "plural": "Egyptians",
+      "adjective": "Egyptian",
+      "class": "Ancient",
+      "style": "African",
+      "init_government": "Monarchy",
+      "leaders": [
+        {
+          "name": "Ramesses II",
+          "sex": "Male"
+        },
+        {
+          "name": "Cleopatra VII",
+          "sex": "Female"
+        },
+        {
+          "name": "Tutankhamun",
+          "sex": "Male"
+        },
+        {
+          "name": "Hatshepsut",
+          "sex": "Female"
+        },
+        {
+          "name": "Khufu",
+          "sex": "Male"
+        }
+      ],
+      "cities": [
+        "Waset",
+        "Ineb-Hedj",
+        "Yunu",
+        "Suentet",
+        "Sheresi",
+        "Per-Bastet",
+        "Rakote",
+        "Behdet",
+        "Sa",
+        "Hardai",
+        "This",
+        "Ipu",
+        "Djeuka",
+        "Yuni",
+        "Khem"
+      ],
+      "traits": {
+        "builder_min": 70,
+        "builder_max": 90,
+        "expansionist_min": 30,
+        "expansionist_max": 60,
+        "aggressive_min": 40,
+        "aggressive_max": 70
+      },
+      "flag": "f.egypt_ancient",
+      "flag_alt": "f.egypt",
+      "legend": "Egypt was the second-oldest of the world's civilizations. Since ancient times it has been unusually urbanized, supporting a large population on silt deposited by the annual floodings of the Nile."
+    },
+    "babylonian": {
+      "id": "babylonian",
+      "name": "Babylonian",
+      "plural": "Babylonians",
+      "adjective": "Babylonian",
+      "class": "Ancient",
+      "style": "Middle Eastern",
+      "init_government": "Monarchy",
+      "leaders": [
+        {
+          "name": "Hammurabi",
+          "sex": "Male"
+        },
+        {
+          "name": "Nebuchadnezzar II",
+          "sex": "Male"
+        },
+        {
+          "name": "Sargon II",
+          "sex": "Male"
+        },
+        {
+          "name": "Tiglath-Pileser III",
+          "sex": "Male"
+        },
+        {
+          "name": "Burnaburiash II",
+          "sex": "Male"
+        }
+      ],
+      "cities": [
+        "Babilum",
+        "Lagash",
+        "Nibbur",
+        "Ur",
+        "Kish",
+        "Shuruppak",
+        "Kisurra",
+        "Kutha",
+        "Adab",
+        "Umma",
+        "Akkad",
+        "Ea",
+        "Larsa",
+        "Borsippa",
+        "Sippar"
+      ],
+      "traits": {
+        "builder_min": 60,
+        "builder_max": 90,
+        "trader_min": 50,
+        "trader_max": 80,
+        "aggressive_min": 50,
+        "aggressive_max": 80
+      },
+      "flag": "f.babylon",
+      "flag_alt": "f.babylon",
+      "legend": "Babylon was the dominant city of Mesopotamia from the 18th to 7th centuries BCE under a succession of peoples including Amorites, Kassites, Assyrians, and Chaldeans."
+    },
+    "persian": {
+      "id": "persian",
+      "name": "Persian",
+      "plural": "Persians",
+      "adjective": "Persian",
+      "class": "Ancient",
+      "style": "Middle Eastern",
+      "init_government": "Monarchy",
+      "leaders": [
+        {
+          "name": "Cyrus the Great",
+          "sex": "Male"
+        },
+        {
+          "name": "Darius I",
+          "sex": "Male"
+        },
+        {
+          "name": "Xerxes I",
+          "sex": "Male"
+        },
+        {
+          "name": "Artaxerxes I",
+          "sex": "Male"
+        },
+        {
+          "name": "Cambyses II",
+          "sex": "Male"
+        }
+      ],
+      "cities": [
+        "Parsa",
+        "Susa",
+        "Ecbatana",
+        "Babylon",
+        "Memphis",
+        "Sardis",
+        "Bactra",
+        "Gandhara",
+        "Samarkand",
+        "Merv",
+        "Herat",
+        "Nishapur",
+        "Rayy",
+        "Isfahan",
+        "Shiraz"
+      ],
+      "traits": {
+        "expansionist_min": 60,
+        "expansionist_max": 90,
+        "aggressive_min": 50,
+        "aggressive_max": 80,
+        "trader_min": 40,
+        "trader_max": 70
+      },
+      "flag": "f.persia",
+      "flag_alt": "f.iran",
+      "legend": "The Persian Empire was founded by Cyrus the Great and became the largest empire the ancient world had seen, stretching from India to Greece and Egypt."
+    },
+    "greek": {
+      "id": "greek",
+      "name": "Greek",
+      "plural": "Greeks",
+      "adjective": "Greek",
+      "class": "Ancient",
+      "style": "European",
+      "init_government": "Republic",
+      "leaders": [
+        {
+          "name": "Alexander the Great",
+          "sex": "Male"
+        },
+        {
+          "name": "Pericles",
+          "sex": "Male"
+        },
+        {
+          "name": "Leonidas I",
+          "sex": "Male"
+        },
+        {
+          "name": "Solon",
+          "sex": "Male"
+        },
+        {
+          "name": "Cleisthenes",
+          "sex": "Male"
+        }
+      ],
+      "cities": [
+        "Athens",
+        "Sparta",
+        "Corinth",
+        "Thebes",
+        "Argos",
+        "Syracuse",
+        "Aegina",
+        "Megara",
+        "Phocaea",
+        "Plataea",
+        "Apollonia",
+        "Herakleia",
+        "Miletos",
+        "Ephesos",
+        "Halicarnassos"
+      ],
+      "traits": {
+        "builder_min": 50,
+        "builder_max": 80,
+        "trader_min": 60,
+        "trader_max": 90,
+        "aggressive_min": 50,
+        "aggressive_max": 80
+      },
+      "flag": "f.greece_ancient",
+      "flag_alt": "f.greece",
+      "legend": "The ancient Greeks laid the foundations for Western philosophy, politics, science, and arts. The Greek city-states were pioneers of democracy and produced great military leaders like Alexander the Great."
+    },
+    "french": {
+      "id": "french",
+      "name": "French",
+      "plural": "French",
+      "adjective": "French",
+      "class": "Medieval",
+      "style": "European",
+      "init_government": "Monarchy",
+      "leaders": [
+        {
+          "name": "Napoleon Bonaparte",
+          "sex": "Male"
+        },
+        {
+          "name": "Louis XIV",
+          "sex": "Male"
+        },
+        {
+          "name": "Charlemagne",
+          "sex": "Male"
+        },
+        {
+          "name": "Joan of Arc",
+          "sex": "Female"
+        },
+        {
+          "name": "Charles de Gaulle",
+          "sex": "Male"
+        }
+      ],
+      "cities": [
+        "Paris",
+        "Marseille",
+        "Lyon",
+        "Toulouse",
+        "Nice",
+        "Nantes",
+        "Strasbourg",
+        "Montpellier",
+        "Bordeaux",
+        "Lille",
+        "Rennes",
+        "Reims",
+        "Le Havre",
+        "Orleans",
+        "Rouen"
+      ],
+      "traits": {
+        "builder_min": 50,
+        "builder_max": 80,
+        "trader_min": 50,
+        "trader_max": 80,
+        "aggressive_min": 60,
+        "aggressive_max": 90
+      },
+      "flag": "f.france",
+      "flag_alt": "f.france",
+      "legend": "France has been a major European power for over a millennium. From Charlemagne's empire to Napoleon's conquests, France has shaped European politics and culture."
+    },
+    "german": {
+      "id": "german",
+      "name": "German",
+      "plural": "Germans",
+      "adjective": "German",
+      "class": "Medieval",
+      "style": "European",
+      "init_government": "Republic",
+      "leaders": [
+        {
+          "name": "Frederick Barbarossa",
+          "sex": "Male"
+        },
+        {
+          "name": "Otto von Bismarck",
+          "sex": "Male"
+        },
+        {
+          "name": "Frederick the Great",
+          "sex": "Male"
+        },
+        {
+          "name": "Ludwig II",
+          "sex": "Male"
+        },
+        {
+          "name": "Maria Theresa",
+          "sex": "Female"
+        }
+      ],
+      "cities": [
+        "Berlin",
+        "Hamburg",
+        "Munich",
+        "Cologne",
+        "Frankfurt",
+        "Stuttgart",
+        "Dusseldorf",
+        "Dortmund",
+        "Essen",
+        "Leipzig",
+        "Bremen",
+        "Dresden",
+        "Hanover",
+        "Nuremberg",
+        "Duisburg"
+      ],
+      "traits": {
+        "builder_min": 60,
+        "builder_max": 90,
+        "aggressive_min": 50,
+        "aggressive_max": 80,
+        "expansionist_min": 50,
+        "expansionist_max": 80
+      },
+      "flag": "f.germany",
+      "flag_alt": "f.hre",
+      "legend": "The German lands were united under the Holy Roman Empire and later became a major industrial and military power in Europe."
+    },
+    "russian": {
+      "id": "russian",
+      "name": "Russian",
+      "plural": "Russians",
+      "adjective": "Russian",
+      "class": "Medieval",
+      "style": "European",
+      "init_government": "Monarchy",
+      "leaders": [
+        {
+          "name": "Catherine the Great",
+          "sex": "Female"
+        },
+        {
+          "name": "Peter the Great",
+          "sex": "Male"
+        },
+        {
+          "name": "Ivan the Terrible",
+          "sex": "Male"
+        },
+        {
+          "name": "Alexander Nevsky",
+          "sex": "Male"
+        },
+        {
+          "name": "Nicholas II",
+          "sex": "Male"
+        }
+      ],
+      "cities": [
+        "Moscow",
+        "St. Petersburg",
+        "Kiev",
+        "Novgorod",
+        "Tver",
+        "Kazan",
+        "Nizhny Novgorod",
+        "Smolensk",
+        "Pskov",
+        "Yaroslavl",
+        "Rostov",
+        "Suzdal",
+        "Vladimir",
+        "Ryazan",
+        "Murom"
+      ],
+      "traits": {
+        "expansionist_min": 70,
+        "expansionist_max": 90,
+        "aggressive_min": 60,
+        "aggressive_max": 90,
+        "builder_min": 40,
+        "builder_max": 70
+      },
+      "flag": "f.russia",
+      "flag_alt": "f.soviet",
+      "legend": "Russia grew from the medieval principality of Moscow to become the largest country in the world, spanning eleven time zones."
+    },
+    "indian": {
+      "id": "indian",
+      "name": "Indian",
+      "plural": "Indians",
+      "adjective": "Indian",
+      "class": "Ancient",
+      "style": "Asian",
+      "init_government": "Monarchy",
+      "leaders": [
+        {
+          "name": "Gandhi",
+          "sex": "Male"
+        },
+        {
+          "name": "Ashoka",
+          "sex": "Male"
+        },
+        {
+          "name": "Chandragupta",
+          "sex": "Male"
+        },
+        {
+          "name": "Akbar",
+          "sex": "Male"
+        },
+        {
+          "name": "Harsha",
+          "sex": "Male"
+        }
+      ],
+      "cities": [
+        "Delhi",
+        "Mumbai",
+        "Calcutta",
+        "Madras",
+        "Bangalore",
+        "Lahore",
+        "Karachi",
+        "Hyderabad",
+        "Pune",
+        "Ahmedabad",
+        "Patna",
+        "Agra",
+        "Kanpur",
+        "Lucknow",
+        "Nagpur"
+      ],
+      "traits": {
+        "builder_min": 50,
+        "builder_max": 80,
+        "trader_min": 60,
+        "trader_max": 90,
+        "expansionist_min": 30,
+        "expansionist_max": 60
+      },
+      "flag": "f.india",
+      "flag_alt": "f.india",
+      "legend": "India is one of the world's oldest civilizations, with a rich cultural heritage spanning thousands of years and home to major world religions."
+    },
+    "aztec": {
+      "id": "aztec",
+      "name": "Aztec",
+      "plural": "Aztecs",
+      "adjective": "Aztec",
+      "class": "Ancient",
+      "style": "American",
+      "init_government": "Monarchy",
+      "leaders": [
+        {
+          "name": "Montezuma I",
+          "sex": "Male"
+        },
+        {
+          "name": "Montezuma II",
+          "sex": "Male"
+        },
+        {
+          "name": "Tlacaelel",
+          "sex": "Male"
+        },
+        {
+          "name": "Itzcoatl",
+          "sex": "Male"
+        },
+        {
+          "name": "Axayacatl",
+          "sex": "Male"
+        }
+      ],
+      "cities": [
+        "Tenochtitlan",
+        "Tlatelolco",
+        "Texcoco",
+        "Tlacopan",
+        "Chalco",
+        "Xochimilco",
+        "Coyoacan",
+        "Iztapalapa",
+        "Tepeyacac",
+        "Tula",
+        "Tollan",
+        "Azcapotzalco",
+        "Cuauhnahuac",
+        "Huexotzinco",
+        "Tlaxcala"
+      ],
+      "traits": {
+        "aggressive_min": 70,
+        "aggressive_max": 90,
+        "builder_min": 50,
+        "builder_max": 80,
+        "expansionist_min": 50,
+        "expansionist_max": 80
+      },
+      "flag": "f.aztec",
+      "flag_alt": "f.mexico",
+      "legend": "The Aztec Empire was the last of the great Mesoamerican civilizations. Before the Spanish arrival, the Aztecs ruled much of central Mexico from their island capital of Tenochtitlan."
     },
     "barbarian": {
       "id": "barbarian",

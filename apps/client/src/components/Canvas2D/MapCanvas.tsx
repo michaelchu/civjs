@@ -333,7 +333,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           console.error(`Failed to execute goto for unit ${gotoMode.unit.id}`);
         }
       } catch (error) {
-        console.error(`Error executing goto action:`, error);
+        console.error('Error executing goto action:', error);
       } finally {
         // Always deactivate goto mode after execution attempt
         deactivateGotoMode();

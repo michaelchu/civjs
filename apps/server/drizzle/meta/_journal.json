@@ -15,6 +15,13 @@
       "when": 1756745304183,
       "tag": "0001_right_scream",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1756788869910,
+      "tag": "0002_good_roxanne_simpson",
+      "breakpoints": true
     }
   ]
 }

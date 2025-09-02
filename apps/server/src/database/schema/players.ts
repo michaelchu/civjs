@@ -16,8 +16,9 @@ export const players = pgTable('players', {
 
   // Player info
   playerNumber: integer('player_number').notNull(), // 0-based index
-  civilization: varchar('civilization', { length: 50 }).notNull(),
-  leaderName: varchar('leader_name', { length: 100 }).notNull(),
+  nation: varchar('nation', { length: 50 }).notNull(), // Nation ID (e.g., 'american', 'roman')
+  civilization: varchar('civilization', { length: 50 }).notNull(), // Display name (e.g., 'American', 'Roman')
+  leaderName: varchar('leader_name', { length: 100 }).notNull(), // Selected leader name
   color: jsonb('color').notNull(), // {r, g, b}
 
   // Status

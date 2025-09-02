@@ -17,12 +17,15 @@ import {
   ResearchGoalSetSchema,
   ResearchListSchema,
   ResearchProgressSchema,
+  NationSelectReqSchema,
+  NationListReqSchema,
 } from '../types/packet';
 import { sessionCache } from '../database/redis';
 import { db } from '../database';
 import { users, games } from '../database/schema';
 import { eq } from 'drizzle-orm';
 import { GameManager } from '../game/GameManager';
+import { RulesetLoader } from '../shared/data/rulesets/RulesetLoader';
 
 // Store active connections
 const activeConnections = new Map<
@@ -584,7 +587,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       connection.gameId = gameId;
       socket.join(`game:${gameId}`);
 
-      const playerId = await gameManager.joinGame(gameId, connection.userId, 'random');
+      const playerId = await gameManager.joinGame(gameId, connection.userId, data.selectedNation);
       await gameManager.updatePlayerConnection(playerId, true);
 
       socket.emit('game_created', {
@@ -1431,6 +1434,120 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
       }
     },
     ResearchProgressSchema
+  );
+
+  // Nation selection handlers
+  handler.register(
+    PacketType.NATION_LIST_REQ,
+    async (socket, data) => {
+      try {
+        const ruleset = data.ruleset || 'classic';
+        const loader = RulesetLoader.getInstance();
+        const nationsRuleset = loader.loadNationsRuleset(ruleset);
+
+        if (!nationsRuleset) {
+          handler.send(socket, PacketType.NATION_LIST_REPLY, {
+            success: false,
+            message: `No nations found for ruleset: ${ruleset}`,
+          });
+          return;
+        }
+
+        // Transform nations data for client
+        const nationsArray = Object.values(nationsRuleset.nations)
+          .filter(nation => nation.id !== 'barbarian') // Filter out barbarian for player selection
+          .map(nation => ({
+            id: nation.id,
+            name: nation.name,
+            plural: nation.plural,
+            adjective: nation.adjective,
+            class: nation.class,
+            style: nation.style,
+            init_government: nation.init_government,
+            leaders: nation.leaders,
+            flag: nation.flag,
+            flag_alt: nation.flag_alt,
+            legend: nation.legend,
+          }));
+
+        handler.send(socket, PacketType.NATION_LIST_REPLY, {
+          success: true,
+          nations: nationsArray,
+        });
+
+        logger.debug('Sent nation list', {
+          ruleset,
+          count: nationsArray.length,
+        });
+      } catch (error) {
+        logger.error('Error getting nation list:', error);
+        handler.send(socket, PacketType.NATION_LIST_REPLY, {
+          success: false,
+          message: 'Failed to load nations data',
+        });
+      }
+    },
+    NationListReqSchema
+  );
+
+  handler.register(
+    PacketType.NATION_SELECT_REQ,
+    async (socket, data) => {
+      try {
+        const connection = activeConnections.get(socket.id);
+        if (!connection?.userId) {
+          handler.send(socket, PacketType.NATION_SELECT_REPLY, {
+            success: false,
+            message: 'Not authenticated',
+          });
+          return;
+        }
+
+        const { nation } = data;
+
+        // Validate nation exists
+        const loader = RulesetLoader.getInstance();
+        try {
+          const nationData = loader.getNation(nation, 'classic');
+          if (!nationData) {
+            handler.send(socket, PacketType.NATION_SELECT_REPLY, {
+              success: false,
+              message: `Nation '${nation}' not found`,
+            });
+            return;
+          }
+        } catch {
+          handler.send(socket, PacketType.NATION_SELECT_REPLY, {
+            success: false,
+            message: `Invalid nation: ${nation}`,
+          });
+          return;
+        }
+
+        // TODO: Store nation selection in database/game state
+        // For now, we'll just acknowledge the selection
+        // In a full implementation, this would update the player's nation in the database
+
+        handler.send(socket, PacketType.NATION_SELECT_REPLY, {
+          success: true,
+          selectedNation: nation,
+          message: `Selected nation: ${nation}`,
+        });
+
+        logger.info('Player selected nation', {
+          userId: connection.userId,
+          username: connection.username,
+          nation,
+        });
+      } catch (error) {
+        logger.error('Error handling nation selection:', error);
+        handler.send(socket, PacketType.NATION_SELECT_REPLY, {
+          success: false,
+          message: 'Failed to select nation',
+        });
+      }
+    },
+    NationSelectReqSchema
   );
 }
 

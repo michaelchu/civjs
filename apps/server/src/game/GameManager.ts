@@ -16,6 +16,8 @@ import { MapStartpos } from './map/MapTypes';
 import { Server as SocketServer } from 'socket.io';
 import { PacketType, PACKET_NAMES } from '../types/packet';
 
+import { RulesetLoader } from '../shared/data/rulesets/RulesetLoader';
+
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
 
@@ -163,11 +165,38 @@ export class GameManager {
 
     // Create player in database
     const playerNumber = game.players.length + 1;
+
+    // Handle random nation selection
+    let selectedNation = civilization || 'american';
+    if (civilization === 'random') {
+      try {
+        const loader = RulesetLoader.getInstance();
+        const nationsRuleset = loader.loadNationsRuleset('classic');
+
+        if (nationsRuleset) {
+          // Get playable nations (exclude barbarian)
+          const playableNations = Object.values(nationsRuleset.nations)
+            .filter(nation => nation.id !== 'barbarian')
+            .map(nation => nation.id);
+
+          // Randomly select from available nations
+          if (playableNations.length > 0) {
+            const randomIndex = Math.floor(Math.random() * playableNations.length);
+            selectedNation = playableNations[randomIndex];
+          }
+        }
+      } catch (error) {
+        logger.warn('Failed to load nations for random selection, using default', error);
+        selectedNation = 'american';
+      }
+    }
+
     const playerData = {
       gameId,
       userId,
       playerNumber,
-      civilization: civilization || `Civilization${playerNumber}`,
+      nation: selectedNation,
+      civilization: selectedNation || `Civilization${playerNumber}`,
       leaderName: `Leader${playerNumber}`,
       color: {
         r: Math.floor(Math.random() * 255),

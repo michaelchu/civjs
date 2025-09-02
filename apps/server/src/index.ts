@@ -10,6 +10,7 @@ import logger from './utils/logger';
 import { testConnection, closeConnection } from './database';
 import redis from './database/redis';
 import { setupSocketHandlers } from './network/socket-handlers';
+import apiRouter from './routes/api';
 
 // Load environment variables
 dotenv.config();
@@ -79,6 +80,9 @@ app.get('/health', (_req, res) => {
     uptime: process.uptime(),
   });
 });
+
+// Mount API routes
+app.use('/api', apiRouter);
 
 // API info endpoint
 app.get('/api/info', (_req, res) => {

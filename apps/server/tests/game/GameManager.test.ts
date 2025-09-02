@@ -146,9 +146,9 @@ describe('GameManager', () => {
     it('should assign default civilization if not provided', async () => {
       await gameManager.joinGame(gameId, 'user-123');
 
-      // Check that insert was called with a default civilization
+      // Check that insert was called with a default civilization (should be 'american')
       const insertCall = mockDb.values.mock.calls.find(
-        (call: any) => call[0].civilization && call[0].civilization.startsWith('Civilization')
+        (call: any) => call[0].civilization === 'american'
       );
       expect(insertCall).toBeDefined();
     });

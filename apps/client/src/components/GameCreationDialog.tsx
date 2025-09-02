@@ -4,6 +4,7 @@ import { PageBackground } from './shared/PageBackground';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './ui/card';
 import { Input } from './ui/input';
 import { Combobox } from './ui/combobox';
+import { useNationSelection } from '../hooks/useNations';
 
 export const GameCreationDialog: React.FC = () => {
   const [playerName, setPlayerName] = useState('');
@@ -11,7 +12,11 @@ export const GameCreationDialog: React.FC = () => {
   const [gameType, setGameType] = useState<'single' | 'multiplayer'>('single');
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [mapSize, setMapSize] = useState('standard');
+  const [selectedNation, setSelectedNation] = useState('random');
   const [error, setError] = useState('');
+
+  // Fetch nations using our hook
+  const { nations, loading: nationsLoading, error: nationsError } = useNationSelection('classic');
 
   const navigate = useNavigate();
 
@@ -32,6 +37,11 @@ export const GameCreationDialog: React.FC = () => {
       return;
     }
 
+    if (!selectedNation) {
+      setError('Please select a nation');
+      return;
+    }
+
     // Navigate to terrain settings with game parameters
     navigate('/terrain-settings', {
       state: {
@@ -40,6 +50,7 @@ export const GameCreationDialog: React.FC = () => {
         gameType,
         maxPlayers: gameType === 'single' ? 1 : maxPlayers,
         mapSize,
+        selectedNation,
       },
     });
   };
@@ -60,6 +71,15 @@ export const GameCreationDialog: React.FC = () => {
     { value: '4', label: '4 Players' },
     { value: '6', label: '6 Players' },
     { value: '8', label: '8 Players' },
+  ];
+
+  // Create nation options from the fetched nations
+  const nationOptions = [
+    { value: 'random', label: 'Random' },
+    ...nations.map(nation => ({
+      value: nation.id,
+      label: nation.name,
+    })),
   ];
 
   return (
@@ -123,6 +143,27 @@ export const GameCreationDialog: React.FC = () => {
                     placeholder="Enter game name"
                     maxLength={50}
                   />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="nation"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Your Nation
+                  </label>
+                  <Combobox
+                    options={nationOptions}
+                    value={selectedNation}
+                    onValueChange={value => setSelectedNation(value)}
+                    placeholder={nationsLoading ? 'Loading nations...' : 'Select your nation'}
+                    disabled={nationsLoading}
+                  />
+                  {nationsError && (
+                    <p className="text-xs text-red-500 mt-1">
+                      Failed to load nations. Please refresh the page.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -195,7 +236,9 @@ export const GameCreationDialog: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={!playerName.trim() || !gameName.trim()}
+                  disabled={
+                    !playerName.trim() || !gameName.trim() || !selectedNation || nationsLoading
+                  }
                   className="flex-1 py-3 px-4 bg-primary hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 text-primary-foreground font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-sm"
                 >
                   Next
@@ -216,7 +259,9 @@ export const GameCreationDialog: React.FC = () => {
               <button
                 type="submit"
                 form="create-game-form"
-                disabled={!playerName.trim() || !gameName.trim()}
+                disabled={
+                  !playerName.trim() || !gameName.trim() || !selectedNation || nationsLoading
+                }
                 className="flex-1 py-3 px-4 bg-primary hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 text-primary-foreground font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-sm"
               >
                 Next

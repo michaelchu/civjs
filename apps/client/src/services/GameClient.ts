@@ -644,6 +644,7 @@ class GameClient {
     gameType?: 'single' | 'multiplayer';
     maxPlayers: number;
     mapSize: string;
+    selectedNation: string;
     terrainSettings?: {
       generator: string;
       landmass: string;
@@ -679,6 +680,7 @@ class GameClient {
           mapWidth: dimensions.width,
           mapHeight: dimensions.height,
           ruleset: 'classic',
+          selectedNation: gameData.selectedNation,
           victoryConditions: [],
           turnTimeLimit: 120,
           terrainSettings: gameData.terrainSettings || {

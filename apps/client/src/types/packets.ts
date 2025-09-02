@@ -18,12 +18,12 @@ export enum PacketType {
   PLAYER_REMOVE = 14,
 
   // Map & Tile (15-40)
-  TILE_INFO = 15,
   GAME_INFO = 16,
-  MAP_INFO = 17,
-  NUKE_TILE_INFO = 18,
-  MAP_VIEW_REQ = 19,
-  TILE_VISIBILITY_REQ = 20,
+  MAP_VIEW_REQ = 17,
+  TILE_INFO = 18,
+  NUKE_TILE_INFO = 19,
+  MAP_INFO = 20,
+  TILE_VISIBILITY_REQ = 21,
 
   // Chat & Messages (25-30)
   CHAT_MSG = 25,
