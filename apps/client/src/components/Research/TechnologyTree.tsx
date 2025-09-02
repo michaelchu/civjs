@@ -94,7 +94,7 @@ const TechnologyTreeInner: React.FC = () => {
     updateResearchState({
       availableTechs: new Set(availableTechs),
     });
-  }, [store.research?.researchedTechs, updateResearchState]);
+  }, [store.research, store.research?.researchedTechs, updateResearchState]);
 
   // Update nodes when game state changes
   useEffect(() => {

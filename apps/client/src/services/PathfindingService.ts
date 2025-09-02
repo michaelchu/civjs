@@ -21,6 +21,15 @@ export interface PathRequest {
   targetY: number;
 }
 
+export interface PathResponse {
+  unitId: string;
+  targetX: number;
+  targetY: number;
+  path: GotoPath | null;
+  success: boolean;
+  error?: string;
+}
+
 /**
  * Service for handling pathfinding communication between client and server
  * Based on freeciv-web's goto path system
@@ -43,7 +52,7 @@ export class PathfindingService {
    */
   async requestPath(unitId: string, targetX: number, targetY: number): Promise<GotoPath | null> {
     const requestKey = `${unitId}-${targetX}-${targetY}`;
-    
+
     // Check if we already have this path cached
     if (this.pathCache.has(requestKey)) {
       return this.pathCache.get(requestKey)!;
@@ -52,7 +61,7 @@ export class PathfindingService {
     // Check if we're already requesting this path
     if (this.pendingRequests.has(requestKey)) {
       // Wait for the pending request to complete
-      return new Promise((resolve) => {
+      return new Promise(resolve => {
         const checkForResult = () => {
           if (this.pathCache.has(requestKey)) {
             resolve(this.pathCache.get(requestKey)!);
@@ -72,7 +81,7 @@ export class PathfindingService {
     try {
       // Send path request to server via GameClient socket
       const path = await this.sendPathRequest({ unitId, targetX, targetY });
-      
+
       if (path) {
         // Cache the result
         this.pathCache.set(requestKey, path);
@@ -120,7 +129,7 @@ export class PathfindingService {
    * This will be enhanced when we implement socket events for pathfinding
    */
   private async sendPathRequest(request: PathRequest): Promise<GotoPath | null> {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       const socket = gameClient.getSocket();
       if (!socket) {
         console.error('No socket connection available for path request');
@@ -129,14 +138,15 @@ export class PathfindingService {
       }
 
       // Set up response handler
-      const responseHandler = (response: any) => {
-        if (response.unitId === request.unitId && 
-            response.targetX === request.targetX && 
-            response.targetY === request.targetY) {
-          
+      const responseHandler = (response: PathResponse) => {
+        if (
+          response.unitId === request.unitId &&
+          response.targetX === request.targetX &&
+          response.targetY === request.targetY
+        ) {
           // Remove the listener to avoid memory leaks
           socket.off('path_response', responseHandler);
-          
+
           if (response.success && response.path) {
             resolve(response.path as GotoPath);
           } else {
@@ -171,10 +181,10 @@ export class PathfindingService {
 
     // Freeciv uses 8 directions: 0=North, 1=NE, 2=East, 3=SE, 4=South, 5=SW, 6=West, 7=NW
     if (dx === 0 && dy === -1) return 0; // North
-    if (dx === 1 && dy === -1) return 1; // NE  
-    if (dx === 1 && dy === 0) return 2;  // East
-    if (dx === 1 && dy === 1) return 3;  // SE
-    if (dx === 0 && dy === 1) return 4;  // South
+    if (dx === 1 && dy === -1) return 1; // NE
+    if (dx === 1 && dy === 0) return 2; // East
+    if (dx === 1 && dy === 1) return 3; // SE
+    if (dx === 0 && dy === 1) return 4; // South
     if (dx === -1 && dy === 1) return 5; // SW
     if (dx === -1 && dy === 0) return 6; // West
     if (dx === -1 && dy === -1) return 7; // NW

@@ -1616,11 +1616,11 @@ export class MapRenderer {
 
     // Draw path segments
     this.ctx.beginPath();
-    
+
     let isFirstPoint = true;
     for (let i = 0; i < gotoPath.tiles.length; i++) {
       const tile = gotoPath.tiles[i];
-      
+
       // Skip tiles not in viewport
       if (!this.isInViewport(tile.x, tile.y, viewport)) {
         continue;
@@ -1628,12 +1628,16 @@ export class MapRenderer {
 
       // Convert tile coordinates to screen coordinates
       const screenPos = this.mapToGuiVector(tile.x, tile.y);
-      const canvasX = screenPos.guiDx - viewport.x + (this.tileWidth / 2);
-      const canvasY = screenPos.guiDy - viewport.y + (this.tileHeight / 2);
+      const canvasX = screenPos.guiDx - viewport.x + this.tileWidth / 2;
+      const canvasY = screenPos.guiDy - viewport.y + this.tileHeight / 2;
 
       // Check if canvas coordinates are visible
-      if (canvasX < -50 || canvasX > this.ctx.canvas.width + 50 ||
-          canvasY < -50 || canvasY > this.ctx.canvas.height + 50) {
+      if (
+        canvasX < -50 ||
+        canvasX > this.ctx.canvas.width + 50 ||
+        canvasY < -50 ||
+        canvasY > this.ctx.canvas.height + 50
+      ) {
         continue;
       }
 
@@ -1665,17 +1669,20 @@ export class MapRenderer {
 
     for (const tile of gotoPath.tiles) {
       accumulatedCost += tile.moveCost;
-      
-      if (accumulatedCost >= movementPerTurn * turnNumber && this.isInViewport(tile.x, tile.y, viewport)) {
+
+      if (
+        accumulatedCost >= movementPerTurn * turnNumber &&
+        this.isInViewport(tile.x, tile.y, viewport)
+      ) {
         const screenPos = this.mapToGuiVector(tile.x, tile.y);
-        const canvasX = screenPos.guiDx - viewport.x + (this.tileWidth / 2);
-        const canvasY = screenPos.guiDy - viewport.y + (this.tileHeight / 2);
+        const canvasX = screenPos.guiDx - viewport.x + this.tileWidth / 2;
+        const canvasY = screenPos.guiDy - viewport.y + this.tileHeight / 2;
 
         // Draw turn number circle
         this.ctx.fillStyle = 'rgba(255,255,255,0.8)';
         this.ctx.strokeStyle = 'rgba(0,0,0,0.6)';
         this.ctx.lineWidth = 2;
-        
+
         this.ctx.beginPath();
         this.ctx.arc(canvasX, canvasY, 12, 0, 2 * Math.PI);
         this.ctx.fill();

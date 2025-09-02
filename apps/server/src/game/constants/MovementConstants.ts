@@ -50,10 +50,10 @@ export const UNIT_MOVEMENT_TYPES: Record<string, MovementType> = {
   archer: MovementType.LAND,
   spearman: MovementType.LAND,
   settler: MovementType.LAND,
-  
+
   // Sea units
   trireme: MovementType.SEA,
-  
+
   // Future: Air units, amphibious units, etc.
 };
 
@@ -63,7 +63,7 @@ export const UNIT_MOVEMENT_TYPES: Record<string, MovementType> = {
  */
 export function getTerrainMovementCost(terrain: string, unitTypeId?: string): number {
   const baseCost = TERRAIN_MOVEMENT_COSTS[terrain] || SINGLE_MOVE;
-  
+
   // If no unit type specified, return base cost
   if (!unitTypeId) {
     return baseCost;
@@ -121,7 +121,7 @@ export function calculateMovementCost(
   unitTypeId: string
 ): number {
   const baseCost = getTerrainMovementCost(toTerrain, unitTypeId);
-  
+
   if (baseCost < 0) {
     return -1; // Impassable
   }

@@ -78,7 +78,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     return () => {
       rendererRef.current?.cleanup();
     };
-  }, []);
+  }, [viewport]);
 
   // Update canvas size
   useEffect(() => {
@@ -179,6 +179,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     Object.keys(units).length,
     Object.keys(cities).length,
     setViewport,
+    cities,
+    units,
+    viewport,
   ]);
 
   // Render game state
@@ -274,10 +277,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       if (!gotoMode.unit) return;
 
       console.log(`Requesting path for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
-      
+
       try {
         const path = await pathfindingService.requestPath(gotoMode.unit.id, targetX, targetY);
-        
+
         if (path) {
           setGotoMode(prev => ({
             ...prev,
@@ -306,7 +309,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       if (!gotoMode.unit) return;
 
       console.log(`Executing goto for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
-      
+
       try {
         const success = await gameClient.requestUnitAction(
           gotoMode.unit.id,
@@ -385,7 +388,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         // If in goto mode, request path for hovered tile
         if (gotoMode.active && gotoMode.unit) {
           // Only request path if hovering a different tile
-          if (!gotoMode.targetTile || gotoMode.targetTile.x !== tileX || gotoMode.targetTile.y !== tileY) {
+          if (
+            !gotoMode.targetTile ||
+            gotoMode.targetTile.x !== tileX ||
+            gotoMode.targetTile.y !== tileY
+          ) {
             requestGotoPath(tileX, tileY);
           }
         }
@@ -397,10 +404,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         if (globalTiles) {
           // Find the tile at the mouse position
           const hoveredTileData = globalTiles.find(
-            tile =>
-              tile &&
-              Math.floor(tile.x) === tileX &&
-              Math.floor(tile.y) === tileY
+            tile => tile && Math.floor(tile.x) === tileX && Math.floor(tile.y) === tileY
           );
 
           if (hoveredTileData && hoveredTileData.terrain) {
@@ -408,13 +412,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             const terrainName = hoveredTileData.terrain
               .replace(/_/g, ' ')
               .replace(/\b\w/g, (l: string) => l.toUpperCase());
-            
+
             // In goto mode, show path info if available
             let hoverText = `${terrainName} (${tileX}, ${tileY})`;
             if (gotoMode.active && gotoMode.currentPath) {
               hoverText += ` - ${gotoMode.currentPath.estimatedTurns} turns, ${gotoMode.currentPath.totalCost} movement`;
             }
-            
+
             setHoveredTile(hoverText);
           } else {
             setHoveredTile(null);
@@ -452,7 +456,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         }
       });
     },
-    [isDragging, viewport, gotoMode.active, gotoMode.unit, gotoMode.targetTile, requestGotoPath, gotoMode.currentPath]
+    [
+      isDragging,
+      viewport,
+      gotoMode.active,
+      gotoMode.unit,
+      gotoMode.targetTile,
+      requestGotoPath,
+      gotoMode.currentPath,
+    ]
   );
 
   const handleMouseUp = useCallback(
@@ -585,7 +597,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       // Prevent default to avoid page scrolling
       event.preventDefault();
     },
-    [isDragging]
+    [isDragging, gotoMode.currentPath]
   );
 
   const handleTouchEnd = useCallback(
