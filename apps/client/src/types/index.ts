@@ -15,7 +15,7 @@ export interface Tile {
 export interface Unit {
   id: string;
   playerId: string;
-  type: string;
+  unitTypeId: string;
   x: number;
   y: number;
   hp: number;

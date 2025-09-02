@@ -800,7 +800,7 @@ export class MapRenderer {
           this.ctx.drawImage(sprite, unitX + offsetX, unitY + offsetY);
         } else {
           // Fallback to unit type specific sprite key
-          const fallbackKey = this.getUnitTypeGraphicTag(unit.type);
+          const fallbackKey = this.getUnitTypeGraphicTag(unit.unitTypeId);
           const fallbackSprite = this.tilesetLoader.getSprite(fallbackKey);
           if (fallbackSprite) {
             this.ctx.drawImage(fallbackSprite, unitX, unitY);
@@ -849,7 +849,7 @@ export class MapRenderer {
 
     // Get main unit graphic
     // @reference freeciv-web: tileset_unit_graphic_tag(punit)
-    const unitGraphic = this.getUnitTypeGraphicTag(unit.type);
+    const unitGraphic = this.getUnitTypeGraphicTag(unit.unitTypeId);
     sprites.push({
       key: unitGraphic,
       offset_x: 0,
@@ -937,7 +937,7 @@ export class MapRenderer {
     this.ctx.font = '12px Arial';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(
-      unit.type.charAt(0).toUpperCase(),
+      unit.unitTypeId.charAt(0).toUpperCase(),
       x + this.tileWidth / 2,
       y + this.tileHeight / 2 + 4
     );

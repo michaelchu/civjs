@@ -231,6 +231,42 @@ export class PathfindingService {
   }
 
   /**
+   * Clear cached paths for a specific unit
+   * Should be called when a unit moves to prevent stale path rendering
+   */
+  clearUnitPaths(unitId: string): void {
+    // Remove all cached paths for this unit
+    const keysToDelete: string[] = [];
+    for (const key of this.pathCache.keys()) {
+      if (key.startsWith(`${unitId}-`)) {
+        keysToDelete.push(key);
+      }
+    }
+    keysToDelete.forEach(key => this.pathCache.delete(key));
+
+    // Also clear any pending requests for this unit
+    const pendingKeysToDelete: string[] = [];
+    for (const key of this.pendingRequests.keys()) {
+      if (key.startsWith(`${unitId}-`)) {
+        pendingKeysToDelete.push(key);
+      }
+    }
+    pendingKeysToDelete.forEach(key => {
+      const request = this.pendingRequests.get(key);
+      if (request) {
+        clearTimeout(request.timeoutId);
+        this.pendingRequests.delete(key);
+      }
+    });
+
+    if (import.meta.env.DEV) {
+      console.log(
+        `Cleared ${keysToDelete.length} cached paths and ${pendingKeysToDelete.length} pending requests for unit ${unitId}`
+      );
+    }
+  }
+
+  /**
    * Calculate direction from one tile to another
    * Used for rendering path lines - matches freeciv direction system
    */

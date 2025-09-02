@@ -319,24 +319,41 @@ export class PathfindingManager {
     toY: number,
     unit: Unit
   ): number {
-    // Try to get terrain from MapManager
-    if (this.mapManager && this.mapManager.getTile) {
-      try {
-        const tile = this.mapManager.getTile(toX, toY);
-        if (tile && tile.terrain) {
-          // Use enhanced movement cost calculation
-          return calculateMovementCost(fromX, fromY, toX, toY, tile.terrain, unit.unitTypeId);
-        }
-      } catch (error) {
-        logger.debug('MapManager.getTile failed, using default costs', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+    // MapManager is required for terrain validation
+    if (!this.mapManager || !this.mapManager.getTile) {
+      logger.error('PathfindingManager: MapManager is required for movement validation', {
+        unitId: unit.id,
+        unitType: unit.unitTypeId,
+        from: { x: fromX, y: fromY },
+        to: { x: toX, y: toY },
+      });
+      return -1; // Impassable when no terrain data available
     }
 
-    // Fallback movement costs for basic testing when no terrain data available
-    const isDiagonal = Math.abs(fromX - toX) === 1 && Math.abs(fromY - toY) === 1;
-    return isDiagonal ? 4 : 3; // Use movement fragments (3 = 1 movement point)
+    try {
+      const tile = this.mapManager.getTile(toX, toY);
+      if (!tile || !tile.terrain) {
+        logger.warn('PathfindingManager: No terrain data for tile', {
+          x: toX,
+          y: toY,
+          unitId: unit.id,
+          unitType: unit.unitTypeId,
+        });
+        return -1; // Impassable when terrain data is missing
+      }
+
+      // Use enhanced movement cost calculation with terrain validation
+      return calculateMovementCost(fromX, fromY, toX, toY, tile.terrain, unit.unitTypeId);
+    } catch (error) {
+      logger.error('PathfindingManager: Failed to get terrain data', {
+        x: toX,
+        y: toY,
+        unitId: unit.id,
+        unitType: unit.unitTypeId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return -1; // Impassable on error
+    }
   }
 
   /**

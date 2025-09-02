@@ -4,6 +4,7 @@ import { SERVER_URL } from '../config';
 import { useGameStore } from '../store/gameStore';
 import { PacketType, PACKET_NAMES, type Packet } from '../types/packets';
 import { ActionType } from '../types/shared/actions';
+import { pathfindingService } from './PathfindingService';
 
 // Mock government data for development
 const getMockGovernments = () => ({
@@ -209,6 +210,9 @@ class GameClient {
             },
           },
         });
+
+        // Clear cached paths for this unit to prevent stale path visualization
+        pathfindingService.clearUnitPaths(data.unitId);
       }
     });
   }
@@ -244,16 +248,24 @@ class GameClient {
           const updatedUnits = { ...units };
 
           for (const unitData of packet.data.units) {
-            updatedUnits[unitData.id] = {
+            const existingUnit = units[unitData.id];
+            const newUnit = {
               id: unitData.id,
               playerId: unitData.owner, // Server sends 'owner' not 'playerId'
-              type: unitData.type,
+              unitTypeId: unitData.type,
               x: unitData.x,
               y: unitData.y,
               hp: unitData.hp,
               movesLeft: unitData.movesleft, // Server sends 'movesleft' not 'movesLeft'
               veteranLevel: unitData.veteran, // Server sends 'veteran' not 'veteranLevel'
             };
+
+            // Check if unit position changed and clear cached paths if so
+            if (existingUnit && (existingUnit.x !== unitData.x || existingUnit.y !== unitData.y)) {
+              pathfindingService.clearUnitPaths(unitData.id);
+            }
+
+            updatedUnits[unitData.id] = newUnit;
           }
 
           useGameStore.getState().updateGameState({
