@@ -1583,7 +1583,7 @@ export class MapRenderer {
       // Very generous bounds - allow seeing entire map plus lots of padding
       // This matches freeciv-web's behavior which is quite permissive
       // Use consistent minimum padding to prevent snap-back on small screens
-      const padding = Math.max(viewportWidth, viewportHeight, 1200); // Minimum 1200px padding
+      const padding = Math.max(viewportWidth * 2, viewportHeight * 2, 2000); // Much more generous padding
 
       const minX = -(mapWidthGui + padding);
       const maxX = padding;
@@ -1592,6 +1592,16 @@ export class MapRenderer {
 
       const constrainedX = Math.max(minX, Math.min(maxX, guiX0));
       const constrainedY = Math.max(minY, Math.min(maxY, guiY0));
+
+      // Only apply constraints if we're really far out of bounds
+      // This prevents snap-back when dragging near edges
+      const tolerance = 100; // pixels of tolerance before snapping
+      if (
+        Math.abs(constrainedX - guiX0) < tolerance &&
+        Math.abs(constrainedY - guiY0) < tolerance
+      ) {
+        return { x: guiX0, y: guiY0 }; // Keep original position if close to bounds
+      }
 
       return { x: constrainedX, y: constrainedY };
     }
