@@ -73,64 +73,62 @@ export const GameLayout: React.FC = () => {
       <div className="flex-1 overflow-hidden flex flex-col">
         {/* Primary content */}
         <div className="flex-1 relative">
-          {activeTab === 'map' && (
-            <div className="h-full relative">
-              <MapCanvas width={canvasSize.width} height={canvasSize.height} />
+          {/* Keep MapCanvas mounted but hidden to avoid reloading tileset */}
+          <div className={`h-full relative ${activeTab === 'map' ? 'block' : 'hidden'}`}>
+            <MapCanvas width={canvasSize.width} height={canvasSize.height} />
 
-              {/* Overlay UI elements - COMMENTED OUT */}
-              {/* <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end pointer-events-none">
-                {/* Chat box */}
-              {/* <div className="w-80 pointer-events-auto">
-                  <ChatBox />
-                </div> */}
+            {/* Overlay UI elements - COMMENTED OUT */}
+            {/* <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end pointer-events-none">
+              {/* Chat box */}
+            {/* <div className="w-80 pointer-events-auto">
+                <ChatBox />
+              </div> */}
 
-              {/* Overview mini-map would go here */}
-              {/* <div className="w-48 h-32 bg-gray-900 bg-opacity-80 border border-gray-600 rounded pointer-events-auto">
-                  <div className="p-2 text-sm text-gray-300">
-                    Mini-map placeholder
-                  </div>
-                </div> */}
-              {/* </div> */}
-            </div>
-          )}
+            {/* Overview mini-map would go here */}
+            {/* <div className="w-48 h-32 bg-gray-900 bg-opacity-80 border border-gray-600 rounded pointer-events-auto">
+                <div className="p-2 text-sm text-gray-300">
+                  Mini-map placeholder
+                </div>
+              </div> */}
+            {/* </div> */}
+          </div>
 
-          {activeTab === 'government' && <GovernmentPanel />}
+          <div className={`${activeTab === 'government' ? 'block' : 'hidden'}`}>
+            <GovernmentPanel />
+          </div>
 
-          {activeTab === 'research' && (
-            <div className="h-full w-full relative">
-              <TechnologyTree />
-            </div>
-          )}
+          <div
+            className={`h-full w-full relative ${activeTab === 'research' ? 'block' : 'hidden'}`}
+          >
+            <TechnologyTree />
+          </div>
 
-          {activeTab === 'nations' && (
-            <div style={{ padding: '24px', backgroundColor: '#4a5568', height: '100%' }}>
-              <h2
-                style={{
-                  color: 'white',
-                  fontSize: '24px',
-                  fontWeight: 'bold',
-                  marginBottom: '16px',
-                }}
-              >
-                Nations
-              </h2>
-              <p style={{ color: '#cbd5e0' }}>Diplomacy and nation info will be implemented here</p>
-            </div>
-          )}
+          <div
+            className={`${activeTab === 'nations' ? 'block' : 'hidden'}`}
+            style={{ padding: '24px', backgroundColor: '#4a5568', height: '100%' }}
+          >
+            <h2
+              style={{
+                color: 'white',
+                fontSize: '24px',
+                fontWeight: 'bold',
+                marginBottom: '16px',
+              }}
+            >
+              Nations
+            </h2>
+            <p style={{ color: '#cbd5e0' }}>Diplomacy and nation info will be implemented here</p>
+          </div>
 
-          {activeTab === 'cities' && (
-            <div className="p-6">
-              <h2 className="text-2xl font-bold mb-4">Cities</h2>
-              <p className="text-gray-300">City management will be implemented here</p>
-            </div>
-          )}
+          <div className={`p-6 ${activeTab === 'cities' ? 'block' : 'hidden'}`}>
+            <h2 className="text-2xl font-bold mb-4">Cities</h2>
+            <p className="text-gray-300">City management will be implemented here</p>
+          </div>
 
-          {activeTab === 'options' && (
-            <div className="p-6">
-              <h2 className="text-2xl font-bold mb-4">Options</h2>
-              <p className="text-gray-300">Game options will be implemented here</p>
-            </div>
-          )}
+          <div className={`p-6 ${activeTab === 'options' ? 'block' : 'hidden'}`}>
+            <h2 className="text-2xl font-bold mb-4">Options</h2>
+            <p className="text-gray-300">Game options will be implemented here</p>
+          </div>
         </div>
       </div>
     </div>
