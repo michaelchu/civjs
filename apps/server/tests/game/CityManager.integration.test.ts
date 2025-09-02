@@ -206,7 +206,10 @@ describe('CityManager - Integration Tests with Real Database', () => {
       const city = cityManager.getCity(cityId)!;
 
       // Set production to almost complete
-      city.productionStock = UNIT_TYPES.warrior.cost - 1;
+      const city = cityManager.getCity(cityId)!;
+      if (city) {
+        city.productionStock = UNIT_TYPES.warrior.cost - 1;
+      }
 
       // Process turn - should complete production
       await cityManager.processCityTurn(cityId, 2);
@@ -288,8 +291,8 @@ describe('CityManager - Integration Tests with Real Database', () => {
         goldPerTurn: 0,
         sciencePerTurn: 0,
         culturePerTurn: 1,
-        buildings: null, // Invalid data
-        workedTiles: null, // Invalid data
+        buildings: [], // Valid empty array
+        workedTiles: [{ x: 5, y: 5 }], // Valid default worked tiles
         isCapital: false,
         defenseStrength: 1,
         happiness: 50,

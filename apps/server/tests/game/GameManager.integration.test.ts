@@ -1,6 +1,11 @@
 import { GameManager, GameConfig } from '../../src/game/GameManager';
 import { Server as SocketServer } from 'socket.io';
-import { getTestDatabase, clearAllTables, generateTestUUID } from '../utils/testDatabase';
+import {
+  getTestDatabase,
+  clearAllTables,
+  generateTestUUID,
+  createTestGameAndPlayer,
+} from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
 
 describe('GameManager - Integration Tests with Real Database', () => {

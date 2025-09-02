@@ -181,7 +181,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
     it('should prevent moves to enemy unit positions', async () => {
       // Create enemy player first
-      const enemyData = await createTestGameAndPlayer('0010', '0456');
+      const enemyData = await createTestGameAndPlayer('0011', '0456');
 
       // Create enemy unit
       const enemyUnit = await unitManager.createUnit(enemyData.player.id, 'warrior', 11, 10);
@@ -216,7 +216,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       const attacker = await unitManager.createUnit(testData.player.id, 'warrior', 10, 10);
 
       // Create enemy player first
-      const enemyData = await createTestGameAndPlayer('0010', '0456');
+      const enemyData = await createTestGameAndPlayer('0012', '0457');
       const defender = await unitManager.createUnit(enemyData.player.id, 'warrior', 11, 10);
       attackerUnitId = attacker.id;
       defenderUnitId = defender.id;

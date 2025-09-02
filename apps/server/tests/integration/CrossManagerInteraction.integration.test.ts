@@ -223,12 +223,12 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       const research = gameManager.getPlayerResearch(gameId, playerId);
       expect(research?.currentTech).toBe('pottery');
 
-      // Simulate research completion by advancing progress
-      await game.researchManager.addResearchProgress(playerId, 100);
+      // Simulate research completion by adding enough research points
+      await game.researchManager.addResearchPoints(playerId, 1000); // Give plenty to complete
 
       // Verify technology was completed
-      const completedTechs = gameManager.getPlayerTechnologies(gameId, playerId);
-      expect(completedTechs).toContain('pottery');
+      const playerTechs = game.researchManager.getResearchedTechs(playerId);
+      expect(playerTechs).toContain('pottery');
 
       // Verify new techs became available
       const availableTechs = gameManager.getAvailableTechnologies(gameId, playerId);
@@ -246,8 +246,9 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
     it('should enable new unit types after tech research', async () => {
       const game = gameManager.getGameInstance(gameId)!;
 
-      // Complete prerequisite techs for new units
-      await game.researchManager.completeTechnology(playerId, 'bronze_working');
+      // Set bronze working as current research and complete it
+      await game.researchManager.setCurrentResearch(playerId, 'bronze_working');
+      await game.researchManager.addResearchPoints(playerId, 1000);
 
       // Found a city for production
       const cityId = await gameManager.foundCity(gameId, playerId, 'TechCity', 7, 7);
@@ -311,8 +312,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
 
       // Verify all managers processed the turn
       const city = game.cityManager.getCity(cityId)!;
-      expect(city.food).toBeGreaterThanOrEqual(0);
-      expect(city.production).toBeGreaterThan(0);
+      expect(city.foodStock).toBeGreaterThanOrEqual(0);
+      expect(city.productionStock).toBeGreaterThan(0);
 
       const unit = game.unitManager.getUnit(unitId)!;
       expect(unit.movementLeft).toBe(6); // Reset after turn
@@ -333,8 +334,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       });
 
       expect(dbGame.currentTurn).toBe(initialTurn + 1);
-      expect(dbCity.food).toBe(city.food);
-      expect(dbCity.production).toBe(city.production);
+      expect(dbCity.food).toBe(city.foodStock);
+      expect(dbCity.production).toBe(city.productionStock);
       expect(dbUnit.movementPoints).toBe('6.00');
     });
 
@@ -444,7 +445,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       const dbUnits = await db.query.units.findMany({
         where: (units, { eq }) => eq(units.gameId, gameId),
       });
-      const dbResearch = await db.query.playerTechnologies.findMany({
+      const dbResearch = await db.query.playerTechs.findMany({
         where: (tech, { eq }) => eq(tech.playerId, playerId),
       });
 
