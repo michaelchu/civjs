@@ -12,7 +12,7 @@ import type {
   SharedVision,
   IntelligenceReport,
   DiplomaticState,
-} from '../../../shared/src/types/nations';
+} from '../../../server/src/shared/types/nations';
 
 export type TurnProcessingState = 'idle' | 'processing' | 'completed' | 'error';
 

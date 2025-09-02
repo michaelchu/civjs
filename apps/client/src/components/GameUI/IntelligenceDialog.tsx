@@ -29,7 +29,7 @@ import {
   Handshake,
   Swords,
 } from 'lucide-react';
-import type { DiplomaticState } from '@shared/types/nations';
+import type { DiplomaticState } from '../../../../server/src/shared/types/nations';
 
 interface IntelligenceDialogProps {
   playerId: string;

@@ -15,7 +15,7 @@ import { PlayerStatusIndicator } from './NationsTab';
 import { FlagGraphics } from './NationsTab/FlagGraphics';
 import { cn } from '../../lib/utils';
 import { Crown, Bot, Eye, EyeOff, Building2, Handshake, Swords, Shield, Users } from 'lucide-react';
-import type { Nation, PlayerNationInfo, DiplomaticState } from '@shared/types/nations';
+import type { Nation, PlayerNationInfo, DiplomaticState } from '../../../../server/src/shared/types/nations';
 
 interface PlayerRowProps {
   player: PlayerNationInfo;
