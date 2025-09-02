@@ -290,14 +290,18 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   socket.on('path_request', async (data, callback) => {
     const connection = activeConnections.get(socket.id);
     if (!connection?.gameId || !connection?.userId) {
-      callback({ success: false, error: 'Not authenticated or not in a game' });
+      if (typeof callback === 'function') {
+        callback({ success: false, error: 'Not authenticated or not in a game' });
+      }
       return;
     }
 
     try {
       const gameInstance = gameManager.getGameInstance(connection.gameId);
       if (!gameInstance) {
-        callback({ success: false, error: 'Game instance not found' });
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Game instance not found' });
+        }
         return;
       }
 
@@ -313,7 +317,9 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       }
 
       if (!playerId) {
-        callback({ success: false, error: 'Player not found' });
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Player not found' });
+        }
         return;
       }
 
@@ -325,12 +331,21 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
         data.targetY
       );
 
-      callback(pathResult);
+      if (typeof callback === 'function') {
+        callback(pathResult);
+      }
 
       // Also emit to the socket for the PathfindingService listener
-      if (pathResult.success && pathResult.path) {
-        socket.emit('path_response', pathResult.path);
-      }
+      // Add request identification fields for client matching
+      const responseWithId = {
+        ...pathResult,
+        unitId: data.unitId,
+        targetX: data.targetX,
+        targetY: data.targetY,
+      };
+
+      // Ensure response is always sent
+      socket.emit('path_response', responseWithId);
 
       logger.debug('Path request processed', {
         gameId: connection.gameId,
@@ -342,10 +357,21 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       });
     } catch (error) {
       logger.error('Error processing path request:', error);
-      callback({
+      const errorResponse = {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to process path request',
-      });
+        unitId: data.unitId,
+        targetX: data.targetX,
+        targetY: data.targetY,
+        path: null,
+      };
+
+      if (typeof callback === 'function') {
+        callback(errorResponse);
+      }
+
+      // Also emit error response to the socket for PathfindingService
+      socket.emit('path_response', errorResponse);
     }
   });
 

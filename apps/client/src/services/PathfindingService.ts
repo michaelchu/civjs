@@ -41,7 +41,11 @@ export interface PathResponse {
 export class PathfindingService {
   private static instance: PathfindingService;
   private pathCache = new Map<string, GotoPath>();
-  private pendingRequests = new Set<string>();
+  private pendingRequests = new Map<
+    string,
+    { resolve: (path: GotoPath | null) => void; timeoutId: NodeJS.Timeout }
+  >();
+  private eventListenerSetup = false;
 
   static getInstance(): PathfindingService {
     if (!PathfindingService.instance) {
@@ -79,8 +83,10 @@ export class PathfindingService {
       });
     }
 
-    // Mark as pending
-    this.pendingRequests.add(requestKey);
+    // Setup the single event listener if not already done
+    if (!this.eventListenerSetup) {
+      this.setupEventListener();
+    }
 
     try {
       // Send path request to server via GameClient socket
@@ -113,10 +119,15 @@ export class PathfindingService {
   }
 
   /**
-   * Clear all cached paths
+   * Clear all cached paths and pending requests
    */
   clearAllPaths(): void {
     this.pathCache.clear();
+    // Clear all pending requests and their timeouts
+    for (const [, pendingRequest] of this.pendingRequests) {
+      clearTimeout(pendingRequest.timeoutId);
+      pendingRequest.resolve(null);
+    }
     this.pendingRequests.clear();
   }
 
@@ -129,8 +140,49 @@ export class PathfindingService {
   }
 
   /**
+   * Setup single event listener for path responses
+   */
+  private setupEventListener(): void {
+    const socket = gameClient.getSocket();
+    if (!socket) {
+      console.error('No socket connection available for setting up path listener');
+      return;
+    }
+
+    socket.on('path_response', (response: PathResponse) => {
+      if (import.meta.env.DEV) {
+        console.log('Received path_response:', response);
+      }
+
+      const requestKey = `${response.unitId}-${response.targetX}-${response.targetY}`;
+      const pendingRequest = this.pendingRequests.get(requestKey);
+
+      if (pendingRequest) {
+        // Clear timeout and resolve the promise
+        clearTimeout(pendingRequest.timeoutId);
+        this.pendingRequests.delete(requestKey);
+
+        if (response.success && response.path) {
+          if (import.meta.env.DEV) {
+            console.log('Path request succeeded:', response.path);
+          }
+          // Cache the result
+          this.pathCache.set(requestKey, response.path as GotoPath);
+          pendingRequest.resolve(response.path as GotoPath);
+        } else {
+          console.warn('Path request failed:', response.error);
+          pendingRequest.resolve(null);
+        }
+      } else if (import.meta.env.DEV) {
+        console.log('Received path_response for unknown request:', requestKey);
+      }
+    });
+
+    this.eventListenerSetup = true;
+  }
+
+  /**
    * Send path request to server and wait for response
-   * This will be enhanced when we implement socket events for pathfinding
    */
   private async sendPathRequest(request: PathRequest): Promise<GotoPath | null> {
     return new Promise(resolve => {
@@ -141,37 +193,25 @@ export class PathfindingService {
         return;
       }
 
-      // Set up response handler
-      const responseHandler = (response: PathResponse) => {
-        if (
-          response.unitId === request.unitId &&
-          response.targetX === request.targetX &&
-          response.targetY === request.targetY
-        ) {
-          // Remove the listener to avoid memory leaks
-          socket.off('path_response', responseHandler);
+      const requestKey = `${request.unitId}-${request.targetX}-${request.targetY}`;
 
-          if (response.success && response.path) {
-            resolve(response.path as GotoPath);
-          } else {
-            console.warn('Path request failed:', response.error);
-            resolve(null);
-          }
+      // Set up timeout
+      const timeoutId = setTimeout(() => {
+        if (import.meta.env.DEV) {
+          console.warn('Path request timeout after 5s for:', request);
         }
-      };
+        this.pendingRequests.delete(requestKey);
+        resolve(null);
+      }, 5000);
 
-      // Listen for response
-      socket.on('path_response', responseHandler);
+      // Store the request
+      this.pendingRequests.set(requestKey, { resolve, timeoutId });
 
       // Send request
+      if (import.meta.env.DEV) {
+        console.log('Sending path_request:', request);
+      }
       socket.emit('path_request', request);
-
-      // Set timeout to avoid hanging requests
-      setTimeout(() => {
-        socket.off('path_response', responseHandler);
-        console.warn('Path request timeout for:', request);
-        resolve(null);
-      }, 5000); // 5 second timeout
     });
   }
 

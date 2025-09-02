@@ -192,6 +192,25 @@ class GameClient {
         phase: 'movement',
       });
     });
+
+    // Handle unit movement updates
+    this.socket.on('unit_moved', data => {
+      console.log('Unit moved:', data);
+      const { units } = useGameStore.getState();
+      if (units[data.unitId]) {
+        useGameStore.getState().updateGameState({
+          units: {
+            ...units,
+            [data.unitId]: {
+              ...units[data.unitId],
+              x: data.x,
+              y: data.y,
+              movesLeft: Math.floor(data.movementLeft / 3), // Convert from fragments to moves
+            },
+          },
+        });
+      }
+    });
   }
 
   private handlePacket(packet: Packet) {
@@ -227,13 +246,13 @@ class GameClient {
           for (const unitData of packet.data.units) {
             updatedUnits[unitData.id] = {
               id: unitData.id,
-              playerId: unitData.playerId,
+              playerId: unitData.owner, // Server sends 'owner' not 'playerId'
               type: unitData.type,
               x: unitData.x,
               y: unitData.y,
               hp: unitData.hp,
-              movesLeft: unitData.movesLeft,
-              veteranLevel: unitData.veteranLevel,
+              movesLeft: unitData.movesleft, // Server sends 'movesleft' not 'movesLeft'
+              veteranLevel: unitData.veteran, // Server sends 'veteran' not 'veteranLevel'
             };
           }
 

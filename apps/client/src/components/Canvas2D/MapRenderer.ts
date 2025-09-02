@@ -143,7 +143,12 @@ export class MapRenderer {
 
     // Render goto path if available (similar to freeciv-web's path rendering)
     if (state.gotoPath && state.gotoPath.tiles.length > 1) {
+      if (import.meta.env.DEV) {
+        console.log('Rendering goto path:', state.gotoPath);
+      }
       this.renderGotoPath(state.gotoPath, state.viewport);
+    } else if (import.meta.env.DEV && state.gotoPath) {
+      console.log('Goto path available but not rendered:', state.gotoPath);
     }
 
     if (import.meta.env.DEV && this.isInitialized) {
@@ -364,6 +369,7 @@ export class MapRenderer {
       iron: 'ts.iron:0',
       coal: 'ts.coal:0',
       oil: 'ts.oil:0',
+      // Note: copper and uranium sprites not available in tileset, will be skipped
 
       // Desert resources
       oasis: 'ts.oasis:0',
@@ -386,14 +392,13 @@ export class MapRenderer {
     const spriteKey = resourceSpriteMap[tile.resource];
 
     if (!spriteKey) {
-      // Fallback: use generic resource sprite if specific mapping not found
-      const genericKey = `ts.${tile.resource}:0`;
+      // Skip rendering resources without sprite mappings (copper, uranium, etc.)
       if (import.meta.env.DEV) {
-        console.warn(
-          `No sprite mapping for resource '${tile.resource}', trying generic key: ${genericKey}`
+        console.debug(
+          `Skipping rendering for unmapped resource '${tile.resource}' at (${tile.x},${tile.y})`
         );
       }
-      return { key: genericKey };
+      return null;
     }
 
     // Debug logging for resource sprite generation

@@ -8,7 +8,7 @@ import {
   ActionTargetType,
   ActionMovesActor,
 } from '../types/shared/actions';
-import { Unit } from './UnitManager';
+import { Unit, UnitOrder } from './UnitManager';
 import { SINGLE_MOVE } from './constants/MovementConstants';
 
 // Action definitions based on freeciv classic ruleset
@@ -177,6 +177,12 @@ export class ActionSystem {
       x: number,
       y: number
     ) => Promise<string>;
+    requestPath: (
+      playerId: string,
+      unitId: string,
+      targetX: number,
+      targetY: number
+    ) => Promise<{ success: boolean; path?: any; error?: string }>;
   };
 
   constructor(
@@ -189,6 +195,12 @@ export class ActionSystem {
         x: number,
         y: number
       ) => Promise<string>;
+      requestPath: (
+        playerId: string,
+        unitId: string,
+        targetX: number,
+        targetY: number
+      ) => Promise<{ success: boolean; path?: any; error?: string }>;
     }
   ) {
     this.gameId = gameId;
@@ -456,46 +468,109 @@ export class ActionSystem {
       };
     }
 
-    // For now, implement simple direct movement to adjacent tiles only
-    // This will be enhanced with full pathfinding in the next phase
-    const dx = Math.abs(targetX - unit.x);
-    const dy = Math.abs(targetY - unit.y);
-    const isAdjacent = dx <= 1 && dy <= 1 && dx + dy > 0;
-
-    if (!isAdjacent) {
+    // Use GameManager's requestPath method to find the best path
+    if (!this.gameManagerCallback?.requestPath) {
       return {
         success: false,
-        message: 'Can only move to adjacent tiles (full pathfinding not yet implemented)',
+        message: 'Pathfinding not available',
       };
     }
 
-    // Calculate movement cost using movement fragments (like freeciv)
-    const movementCost = dx === 1 && dy === 1 ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
+    const pathResult = await this.gameManagerCallback.requestPath(
+      unit.playerId,
+      unit.id,
+      targetX,
+      targetY
+    );
 
-    if (unit.movementLeft < movementCost) {
+    if (!pathResult.success || !pathResult.path || pathResult.path.tiles.length < 2) {
       return {
         success: false,
-        message: 'Insufficient movement points for this move',
+        message: pathResult.error || 'No valid path to target',
       };
     }
 
-    // TODO: Check for terrain obstacles, other units, etc.
-    // TODO: Integrate with PathfindingManager for complex paths
+    // For GOTO action, we move the unit along the entire path as far as movement points allow
+    let currentX = unit.x;
+    let currentY = unit.y;
+    let remainingMovement = unit.movementLeft;
+    let tilesTraversed = 0;
+
+    // Process each step of the path
+    for (let i = 1; i < pathResult.path.tiles.length; i++) {
+      const nextTile = pathResult.path.tiles[i];
+
+      // Calculate movement cost to next tile
+      const dx = Math.abs(nextTile.x - currentX);
+      const dy = Math.abs(nextTile.y - currentY);
+      const movementCost = dx === 1 && dy === 1 ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
+
+      // Check if we have enough movement points
+      if (remainingMovement < movementCost) {
+        break; // Stop here, not enough movement points
+      }
+
+      // Move to next tile
+      currentX = nextTile.x;
+      currentY = nextTile.y;
+      remainingMovement -= movementCost;
+      tilesTraversed++;
+    }
+
+    // If we couldn't move at all
+    if (tilesTraversed === 0) {
+      return {
+        success: false,
+        message: 'Insufficient movement points to start moving',
+      };
+    }
+
+    // Update unit position to the furthest point we could reach
+    const oldX = unit.x;
+    const oldY = unit.y;
+    unit.x = currentX;
+    unit.y = currentY;
+    unit.movementLeft = remainingMovement;
 
     logger.info('Unit goto executed', {
       gameId: this.gameId,
       unitId: unit.id,
-      from: { x: unit.x, y: unit.y },
-      to: { x: targetX, y: targetY },
-      movementCost,
-      remainingMovement: unit.movementLeft - movementCost,
+      from: { x: oldX, y: oldY },
+      to: { x: currentX, y: currentY },
+      targetDestination: { x: targetX, y: targetY },
+      tilesTraversed,
+      remainingMovement,
     });
+
+    // Check if we reached the destination
+    const reachedDestination = currentX === targetX && currentY === targetY;
+
+    // If we didn't reach the destination, add a move order to continue next turn
+    if (!reachedDestination) {
+      const moveOrder: UnitOrder = {
+        type: 'move',
+        targetX: targetX,
+        targetY: targetY,
+      };
+
+      // Initialize orders array if it doesn't exist, then add the order
+      if (!unit.orders) {
+        unit.orders = [];
+      }
+      // Clear any existing orders and add the new move order
+      unit.orders = [moveOrder];
+    } else {
+      // Clear orders when destination is reached
+      unit.orders = [];
+    }
 
     return {
       success: true,
-      message: `${unit.unitTypeId} moved to (${targetX}, ${targetY})`,
-      newPosition: { x: targetX, y: targetY },
-      movementCost,
+      message: reachedDestination
+        ? `${unit.unitTypeId} reached destination at (${targetX}, ${targetY})`
+        : `${unit.unitTypeId} moved ${tilesTraversed} tiles toward (${targetX}, ${targetY}). Will continue next turn.`,
+      newPosition: { x: currentX, y: currentY },
+      movementCost: unit.movementLeft - remainingMovement,
     };
   }
 

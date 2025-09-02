@@ -515,6 +515,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         // If in goto mode, execute goto to clicked tile
         if (gotoMode.active) {
           executeGoto(tileX, tileY);
+          // Reset drag tracking even when executing goto
+          dragStartTime.current = 0;
           return;
         }
 
