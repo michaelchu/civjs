@@ -337,9 +337,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       } finally {
         // Always deactivate goto mode after execution attempt
         deactivateGotoMode();
+        // Deselect the unit after goto destination is clicked
+        selectUnit(null);
+        setSelectedUnit(null);
       }
     },
-    [gotoMode.unit, deactivateGotoMode]
+    [gotoMode.unit, deactivateGotoMode, selectUnit]
   );
 
   const handleMouseDown = useCallback(
