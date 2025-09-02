@@ -8,7 +8,6 @@ import ReactFlow, {
   type NodeTypes,
   Background,
   Controls,
-  MiniMap,
   ReactFlowProvider,
   useReactFlow,
 } from 'reactflow';
@@ -174,16 +173,6 @@ const TechnologyTreeInner: React.FC = () => {
         elementsSelectable={true}
       >
         <Controls className="bg-gray-800 border-gray-600 [&>button]:bg-gray-700 [&>button]:border-gray-600 [&>button]:text-white" />
-        <MiniMap
-          className="bg-gray-800 border-gray-600"
-          nodeColor={node => {
-            // Color nodes in minimap based on research state
-            if (node.data?.isResearched) return '#ffffff';
-            if (node.data?.isCurrent) return '#a1c883';
-            if (node.data?.isGoal) return '#6f8db4';
-            return '#3d5f82';
-          }}
-        />
         <Background color="#374151" gap={16} />
       </ReactFlow>
 
