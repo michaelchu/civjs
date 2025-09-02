@@ -11,6 +11,7 @@ import { UnitManager } from './UnitManager';
 import { VisibilityManager } from './VisibilityManager';
 import { CityManager } from './CityManager';
 import { ResearchManager } from './ResearchManager';
+import { PathfindingManager } from './PathfindingManager';
 import { MapStartpos } from './map/MapTypes';
 import { Server as SocketServer } from 'socket.io';
 import { PacketType, PACKET_NAMES } from '../types/packet';
@@ -55,6 +56,7 @@ export interface GameInstance {
   visibilityManager: VisibilityManager;
   cityManager: CityManager;
   researchManager: ResearchManager;
+  pathfindingManager: PathfindingManager;
   lastActivity: Date;
 }
 
@@ -349,6 +351,7 @@ export class GameManager {
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
     const cityManager = new CityManager(gameId);
     const researchManager = new ResearchManager(gameId);
+    const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
 
     // Generate the map with starting positions based on terrain settings
     const generator = terrainSettings?.generator || 'random';
@@ -447,6 +450,7 @@ export class GameManager {
       visibilityManager,
       cityManager,
       researchManager,
+      pathfindingManager,
       lastActivity: new Date(),
     };
 
@@ -817,6 +821,7 @@ export class GameManager {
       await turnManager.initializeTurn(playerIds);
       const cityManager = new CityManager(gameId);
       const researchManager = new ResearchManager(gameId);
+      const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
 
       const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
 
@@ -847,6 +852,7 @@ export class GameManager {
         visibilityManager,
         cityManager,
         researchManager,
+        pathfindingManager,
         lastActivity: new Date(),
       };
 
@@ -1822,6 +1828,79 @@ export class GameManager {
           await gameState.clearGameState(gameId);
         }
       }
+    }
+  }
+
+  /**
+   * Handle pathfinding request from client
+   */
+  public async requestPath(
+    playerId: string,
+    unitId: string,
+    targetX: number,
+    targetY: number
+  ): Promise<{ success: boolean; path?: any; error?: string }> {
+    try {
+      const gameId = this.playerToGame.get(playerId);
+      if (!gameId) {
+        return { success: false, error: 'Player not in any game' };
+      }
+
+      const gameInstance = this.games.get(gameId);
+      if (!gameInstance) {
+        return { success: false, error: 'Game not found' };
+      }
+
+      if (gameInstance.state !== 'active') {
+        return { success: false, error: 'Game is not active' };
+      }
+
+      // Get the unit
+      const unit = await gameInstance.unitManager.getUnit(unitId);
+      if (!unit) {
+        return { success: false, error: 'Unit not found' };
+      }
+
+      // Verify unit ownership
+      if (unit.playerId !== playerId) {
+        return { success: false, error: 'Unit does not belong to player' };
+      }
+
+      // Request pathfinding
+      const pathResult = await gameInstance.pathfindingManager.findPath(unit, targetX, targetY);
+
+      logger.info('Pathfinding request completed', {
+        gameId,
+        playerId,
+        unitId,
+        from: { x: unit.x, y: unit.y },
+        to: { x: targetX, y: targetY },
+        pathFound: pathResult.valid,
+        pathLength: pathResult.path.length,
+      });
+
+      return {
+        success: true,
+        path: {
+          unitId,
+          targetX,
+          targetY,
+          tiles: pathResult.path,
+          totalCost: pathResult.totalCost,
+          estimatedTurns: pathResult.estimatedTurns,
+          valid: pathResult.valid,
+        },
+      };
+    } catch (error) {
+      logger.error('Error processing pathfinding request', {
+        playerId,
+        unitId,
+        targetX,
+        targetY,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return { success: false, error: 'Internal server error' };
     }
   }
 }

@@ -286,6 +286,69 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
     }
   });
 
+  // Pathfinding request handler
+  socket.on('path_request', async (data, callback) => {
+    const connection = activeConnections.get(socket.id);
+    if (!connection?.gameId || !connection?.userId) {
+      callback({ success: false, error: 'Not authenticated or not in a game' });
+      return;
+    }
+
+    try {
+      const gameInstance = gameManager.getGameInstance(connection.gameId);
+      if (!gameInstance) {
+        callback({ success: false, error: 'Game instance not found' });
+        return;
+      }
+
+      // Get player ID from user
+      let playerId: string | undefined = undefined;
+      const playerIds = Array.from(gameInstance.players.keys());
+      for (const pid of playerIds) {
+        const player = gameInstance.players.get(pid);
+        if (player && player.userId === connection.userId) {
+          playerId = pid;
+          break;
+        }
+      }
+
+      if (!playerId) {
+        callback({ success: false, error: 'Player not found' });
+        return;
+      }
+
+      // Request pathfinding from GameManager
+      const pathResult = await gameManager.requestPath(
+        playerId,
+        data.unitId,
+        data.targetX,
+        data.targetY
+      );
+
+      callback(pathResult);
+
+      // Also emit to the socket for the PathfindingService listener
+      if (pathResult.success && pathResult.path) {
+        socket.emit('path_response', pathResult.path);
+      }
+
+      logger.debug('Path request processed', {
+        gameId: connection.gameId,
+        playerId,
+        unitId: data.unitId,
+        targetX: data.targetX,
+        targetY: data.targetY,
+        success: pathResult.success,
+      });
+    } catch (error) {
+      logger.error('Error processing path request:', error);
+      callback({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to process path request',
+      });
+    }
+  });
+
   socket.on('disconnect', async () => {
     logger.info(`Client disconnected: ${socket.id}`);
 

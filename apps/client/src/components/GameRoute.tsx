@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { gameClient } from '../services/GameClient';
@@ -13,7 +13,7 @@ export const GameRoute: React.FC = () => {
 
   const { clientState, setClientState } = useGameStore();
 
-  const loadGame = async () => {
+  const loadGame = useCallback(async () => {
     if (!gameId) {
       setError('Invalid game ID');
       return;
@@ -56,7 +56,7 @@ export const GameRoute: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Failed to load game');
       setClientState('initial');
     }
-  };
+  }, [gameId, setClientState]);
 
   useEffect(() => {
     if (!gameId) {
@@ -99,7 +99,7 @@ export const GameRoute: React.FC = () => {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [gameId, navigate]);
+  }, [gameId, navigate, loadGame, setClientState]);
 
   if (!gameId) {
     return <Navigate to="/" replace />;

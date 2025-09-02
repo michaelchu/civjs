@@ -562,10 +562,11 @@ export class UnitManager {
 
       case ActionType.GOTO:
         if (result.newPosition) {
-          // For now, just move unit immediately (would be pathfinding in full implementation)
+          // Move unit and deduct proper movement cost
           unit.x = result.newPosition.x;
           unit.y = result.newPosition.y;
-          unit.movementLeft = Math.max(0, unit.movementLeft - 1);
+          const movementCost = result.movementCost || 1;
+          unit.movementLeft = Math.max(0, unit.movementLeft - movementCost);
           updateData = {
             x: unit.x,
             y: unit.y,

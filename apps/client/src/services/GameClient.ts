@@ -892,6 +892,13 @@ class GameClient {
   }
 
   /**
+   * Get the socket instance for external services (like PathfindingService)
+   */
+  getSocket(): Socket | null {
+    return this.socket;
+  }
+
+  /**
    * Request unit action from server
    */
   requestUnitAction(
