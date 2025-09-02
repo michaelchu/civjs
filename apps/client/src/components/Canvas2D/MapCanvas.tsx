@@ -28,6 +28,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   } | null>(null);
 
   // Goto mode state (similar to freeciv-web's goto_active)
+  // @reference freeciv-web/freeciv-web/src/main/webapp/javascript/control.js - goto_active variable
   const [gotoMode, setGotoMode] = useState<{
     active: boolean;
     unit: Unit | null;

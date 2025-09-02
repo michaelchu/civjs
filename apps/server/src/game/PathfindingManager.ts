@@ -29,6 +29,11 @@ interface AStarNode {
 /**
  * A* Pathfinding Manager for unit movement
  * Based on freeciv's pathfinding system and classic A* algorithm
+ * 
+ * @reference freeciv/common/aicore/path_finding.h - Core pathfinding definitions
+ * @reference freeciv/common/aicore/path_finding.c - PF algorithm implementation
+ * @reference freeciv-web/freeciv/patches/goto_fcweb.patch - Server-side goto handling
+ * @compliance Implements A* algorithm with move cost calculations as per freeciv standards
  */
 export class PathfindingManager {
   private mapWidth: number;
@@ -43,7 +48,11 @@ export class PathfindingManager {
 
   /**
    * Find path from unit to target using A* algorithm
-   * @reference freeciv/common/aicore/path_finding.c
+   * Implements the core pathfinding logic similar to freeciv's PF system
+   * 
+   * @reference freeciv/common/aicore/path_finding.c:pf_map_new() - Path finding initialization
+   * @reference freeciv/common/aicore/path_finding.c:pf_map_iterate() - Path iteration algorithm
+   * @compliance Uses movement cost calculation and heuristic matching freeciv standards
    */
   async findPath(unit: Unit, targetX: number, targetY: number): Promise<PathfindingResult> {
     const startTime = Date.now();

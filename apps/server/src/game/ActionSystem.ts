@@ -422,6 +422,15 @@ export class ActionSystem {
     };
   }
 
+  /**
+   * Execute goto command for a unit - moves unit along pathfinding path
+   * Implements freeciv-web style goto with server-side pathfinding
+   * 
+   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:do_map_click() - Client goto execution
+   * @reference freeciv-web/freeciv/patches/goto_fcweb.patch:handle_web_goto_path_req() - Server goto handling
+   * @reference freeciv/server/unithand.c:handle_unit_move_query() - Unit movement validation
+   * @compliance Uses pathfinding results and movement cost deduction as per freeciv standards
+   */
   private async executeGoto(unit: Unit, targetX: number, targetY: number): Promise<ActionResult> {
     // Validate target coordinates
     if (targetX < 0 || targetY < 0 || targetX >= 200 || targetY >= 200) {
