@@ -1219,6 +1219,7 @@ export class MapManager {
    * @note Ready for integration - can be used to wrap makeIsland() calls for enhanced reliability
    */
   // Method implemented for future integration with island generation
+  // @ts-expect-error TS6133: Method declared but never used - kept for future integration
   private async retryIslandGeneration(
     islandMass: number,
     playersNum: number,
