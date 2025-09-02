@@ -323,8 +323,8 @@ describe('GameManager - Integration Tests with Real Database', () => {
       await gameManager.loadGame(gameId);
 
       // Make some changes
-      const cityId = await gameManager.foundCity(scenario.players[0].id, 'NewCity', 8, 8);
-      const unitId = await gameManager.createUnit(scenario.players[0].id, 'settler', 9, 9);
+      const cityId = await gameManager.foundCity(gameId, scenario.players[0].id, 'NewCity', 8, 8);
+      const unitId = await gameManager.createUnit(gameId, scenario.players[0].id, 'settler', 9, 9);
 
       // Create new GameManager instance
       (GameManager as any).instance = null;

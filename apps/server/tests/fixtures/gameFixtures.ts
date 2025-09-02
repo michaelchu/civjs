@@ -1,5 +1,6 @@
 import { getTestDatabase } from '../utils/testDatabase';
 import { schema } from '../../src/database';
+import { eq } from 'drizzle-orm';
 
 export interface TestGameScenario {
   game: typeof schema.games.$inferSelect;
@@ -153,9 +154,13 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         x: 11,
         y: 11,
         health: 100,
+        attackStrength: 20,
+        defenseStrength: 20,
         movementPoints: '6',
+        maxMovementPoints: '6',
         veteranLevel: 0,
         isFortified: false,
+        createdTurn: 1,
       },
       {
         id: 'unit-2',
@@ -165,9 +170,13 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         x: 9,
         y: 10,
         health: 100,
+        attackStrength: 0,
+        defenseStrength: 10,
         movementPoints: '3',
+        maxMovementPoints: '3',
         veteranLevel: 0,
         isFortified: false,
+        createdTurn: 1,
       },
       {
         id: 'unit-3',
@@ -177,9 +186,13 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         x: 16,
         y: 15,
         health: 100,
+        attackStrength: 20,
+        defenseStrength: 20,
         movementPoints: '6',
+        maxMovementPoints: '6',
         veteranLevel: 0,
         isFortified: false,
+        createdTurn: 1,
       },
     ])
     .returning();
@@ -206,7 +219,7 @@ export async function createCityGrowthScenario(): Promise<TestGameScenario> {
         { x: 9, y: 10 }, // Additional worked tile
       ],
     })
-    .where(schema.cities.id.eq(basic.cities[0].id))
+    .where(eq(schema.cities.id, basic.cities[0].id))
     .returning();
 
   return {
@@ -224,13 +237,13 @@ export async function createCombatScenario(): Promise<TestGameScenario> {
   const [updatedUnit1] = await db
     .update(schema.units)
     .set({ x: 12, y: 12 })
-    .where(schema.units.id.eq(basic.units[0].id))
+    .where(eq(schema.units.id, basic.units[0].id))
     .returning(); // Roman warrior
 
   const [updatedUnit3] = await db
     .update(schema.units)
     .set({ x: 13, y: 12 })
-    .where(schema.units.id.eq(basic.units[2].id))
+    .where(eq(schema.units.id, basic.units[2].id))
     .returning(); // Greek warrior
 
   return {
@@ -249,11 +262,10 @@ export async function createProductionScenario(): Promise<TestGameScenario> {
     .update(schema.cities)
     .set({
       currentProduction: 'warrior',
-      productionType: 'unit',
       production: 15, // Almost complete (warrior costs 20)
       productionPerTurn: 3,
     })
-    .where(schema.cities.id.eq(basic.cities[0].id))
+    .where(eq(schema.cities.id, basic.cities[0].id))
     .returning();
 
   return {

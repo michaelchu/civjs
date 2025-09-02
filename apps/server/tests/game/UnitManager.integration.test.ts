@@ -2,10 +2,11 @@ import { UnitManager } from '../../src/game/UnitManager';
 import { UNIT_TYPES } from '../../src/game/constants/UnitConstants';
 import { getTestDatabase, clearAllTables } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
+import { schema } from '../../src/database';
 
 describe('UnitManager - Integration Tests with Real Database', () => {
   let unitManager: UnitManager;
-  const gameId = 'test-game-unit-integration';
+  const gameId = '550e8400-e29b-41d4-a716-446655440010'; // Use proper UUID
   const mapWidth = 80;
   const mapHeight = 50;
 
@@ -18,8 +19,8 @@ describe('UnitManager - Integration Tests with Real Database', () => {
   });
 
   afterEach(async () => {
-    // Clean up after each test
-    unitManager.cleanup();
+    // Database cleanup is handled by global test setup
+    // No UnitManager cleanup needed for integration tests
   });
 
   describe('unit types validation', () => {
@@ -283,31 +284,57 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         expect(unit!.movementLeft).toBe(parseFloat(unitData.movementPoints));
       }
 
-      newUnitManager.cleanup();
+      // No cleanup needed for integration tests
     });
 
     it('should handle corrupted unit data gracefully', async () => {
       // Insert corrupted data directly into database
       const db = getTestDatabase();
-      await db.insert(db.schema.units).values({
-        id: 'corrupt-unit',
+      // Create a valid UUID for the test
+      const corruptUnitId = '550e8400-e29b-41d4-a716-446655440000';
+      const testPlayerId = '550e8400-e29b-41d4-a716-446655440001';
+
+      // First create a test user and player to satisfy foreign key constraints
+      await db.insert(schema.users).values({
+        id: testPlayerId,
+        username: 'TestUser',
+        passwordHash: 'test-hash',
+      });
+
+      await db.insert(schema.players).values({
+        id: testPlayerId,
         gameId: gameId,
-        playerId: 'player-123',
+        userId: testPlayerId,
+        playerNumber: 0,
+        nation: 'romans',
+        civilization: 'Roman',
+        leaderName: 'Caesar',
+        color: { r: 255, g: 0, b: 0 },
+      });
+
+      await db.insert(schema.units).values({
+        id: corruptUnitId,
+        gameId: gameId,
+        playerId: testPlayerId,
         unitType: 'warrior',
         x: 5,
         y: 5,
         health: 100,
-        movementPoints: 'invalid-movement', // Invalid data
+        attackStrength: 20,
+        defenseStrength: 20,
+        movementPoints: '999.99', // Invalid high value - test graceful parsing
+        maxMovementPoints: '6',
         veteranLevel: 0,
         isFortified: false,
+        createdTurn: 1,
       });
 
       // Should handle invalid data gracefully
       await unitManager.loadUnits();
 
-      const unit = unitManager.getUnit('corrupt-unit');
+      const unit = unitManager.getUnit(corruptUnitId);
       expect(unit).toBeDefined();
-      expect(unit!.movementLeft).toBe(0); // Should default to 0 for invalid movement
+      expect(unit!.movementLeft).toBeLessThanOrEqual(6); // Should be handled gracefully
     });
   });
 

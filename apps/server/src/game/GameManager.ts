@@ -1037,6 +1037,21 @@ export class GameManager {
     return Array.from(this.games.values());
   }
 
+  /**
+   * Load a game from database into memory for testing purposes
+   * This is similar to recoverGameInstance but specifically for integration tests
+   */
+  public async loadGame(gameId: string): Promise<GameInstance | null> {
+    // Check if game is already loaded
+    const existingInstance = this.games.get(gameId);
+    if (existingInstance) {
+      return existingInstance;
+    }
+
+    // Try to recover from database
+    return await this.recoverGameInstance(gameId);
+  }
+
   public getActiveGameInstances(): GameInstance[] {
     return Array.from(this.games.values()).filter(game => game.state === 'active');
   }

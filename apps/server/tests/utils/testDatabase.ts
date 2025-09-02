@@ -10,7 +10,7 @@ const testConnectionString =
 
 // Create test database connection
 let testQueryClient: postgres.Sql | null = null;
-let testDb: ReturnType<typeof drizzle> | null = null;
+let testDb: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
 export async function setupTestDatabase() {
   try {
