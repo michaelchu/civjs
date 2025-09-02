@@ -37,6 +37,10 @@ export class MapRenderer {
   private tilesetLoader: TilesetLoader;
   private isInitialized = false;
 
+  // Sprite scaling factors for visual size control
+  private resourceScale = 0.7; // Make resources 30% smaller
+  private cityScale = 0.8; // Make cities 20% smaller
+
   // Animation state for unit selection
   private selectionAnimationStartTime: number | null = null;
   private lastSelectedUnitId: string | null = null;
@@ -275,11 +279,23 @@ export class MapRenderer {
     if (resourceSprite) {
       const sprite = this.tilesetLoader.getSprite(resourceSprite.key);
       if (sprite) {
-        this.ctx.drawImage(sprite, screenPos.x, screenPos.y);
+        // Apply resource scaling and center the scaled sprite on the tile
+        const scaledWidth = sprite.width * this.resourceScale;
+        const scaledHeight = sprite.height * this.resourceScale;
+        const offsetX = (sprite.width - scaledWidth) / 2;
+        const offsetY = (sprite.height - scaledHeight) / 2;
+
+        this.ctx.drawImage(
+          sprite,
+          screenPos.x + offsetX,
+          screenPos.y + offsetY,
+          scaledWidth,
+          scaledHeight
+        );
         hasAnySprites = true;
         if (import.meta.env.DEV) {
           console.debug(
-            `Resource sprite rendered: ${resourceSprite.key} at (${screenPos.x},${screenPos.y})`
+            `Resource sprite rendered: ${resourceSprite.key} at (${screenPos.x},${screenPos.y}) scale=${this.resourceScale}`
           );
         }
       } else {
@@ -1080,11 +1096,22 @@ export class MapRenderer {
   private renderCity(city: City, viewport: MapViewport) {
     const screenPos = this.mapToScreen(city.x, city.y, viewport);
 
+    // Apply city scaling for smaller visual representation
+    const scaledWidth = (this.tileWidth - 10) * this.cityScale;
+    const scaledHeight = (this.tileHeight - 10) * this.cityScale;
+    const offsetX = (this.tileWidth - 10 - scaledWidth) / 2;
+    const offsetY = (this.tileHeight - 10 - scaledHeight) / 2;
+
     this.ctx.fillStyle = this.getPlayerColor(city.playerId);
-    this.ctx.fillRect(screenPos.x + 5, screenPos.y + 5, this.tileWidth - 10, this.tileHeight - 10);
+    this.ctx.fillRect(
+      screenPos.x + 5 + offsetX,
+      screenPos.y + 5 + offsetY,
+      scaledWidth,
+      scaledHeight
+    );
 
     this.ctx.fillStyle = 'white';
-    this.ctx.font = '10px Arial';
+    this.ctx.font = `${Math.floor(10 * this.cityScale)}px Arial`; // Scale font size too
     this.ctx.textAlign = 'center';
     this.ctx.fillText(city.name, screenPos.x + this.tileWidth / 2, screenPos.y - 5);
 
@@ -1747,6 +1774,30 @@ export class MapRenderer {
         turnNumber++;
       }
     }
+  }
+
+  /**
+   * Set the scaling factors for different sprite types
+   * @param resourceScale - Scale factor for resource sprites (0.1 to 2.0)
+   * @param cityScale - Scale factor for city sprites (0.1 to 2.0)
+   */
+  setSpriteScales(resourceScale?: number, cityScale?: number) {
+    if (resourceScale !== undefined && resourceScale >= 0.1 && resourceScale <= 2.0) {
+      this.resourceScale = resourceScale;
+    }
+    if (cityScale !== undefined && cityScale >= 0.1 && cityScale <= 2.0) {
+      this.cityScale = cityScale;
+    }
+  }
+
+  /**
+   * Get current sprite scaling factors
+   */
+  getSpriteScales() {
+    return {
+      resourceScale: this.resourceScale,
+      cityScale: this.cityScale,
+    };
   }
 
   cleanup() {
