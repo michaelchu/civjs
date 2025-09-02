@@ -412,7 +412,10 @@ export class UnitManager {
         health: dbUnit.health,
         veteranLevel: dbUnit.veteranLevel,
         fortified: dbUnit.isFortified,
-        orders: dbUnit.orders ? JSON.parse(dbUnit.orders as string) : [],
+        orders:
+          dbUnit.orders && typeof dbUnit.orders === 'string' && dbUnit.orders.trim()
+            ? JSON.parse(dbUnit.orders)
+            : [],
       };
       this.units.set(unit.id, unit);
     }

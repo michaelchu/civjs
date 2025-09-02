@@ -206,7 +206,6 @@ describe('CityManager - Integration Tests with Real Database', () => {
       const city = cityManager.getCity(cityId)!;
 
       // Set production to almost complete
-      const city = cityManager.getCity(cityId)!;
       if (city) {
         city.productionStock = UNIT_TYPES.warrior.cost - 1;
       }

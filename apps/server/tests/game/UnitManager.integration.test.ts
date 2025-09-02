@@ -244,7 +244,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
       expect(dbAttacker.health).toBe(attacker!.health);
       expect(dbDefender.health).toBeLessThan(100);
-      expect(dbAttacker.movementPoints).toBe('0');
+      expect(dbAttacker.movementPoints).toBe('0.00');
     });
 
     it('should handle unit destruction and database cleanup', async () => {
@@ -379,21 +379,24 @@ describe('UnitManager - Integration Tests with Real Database', () => {
   });
 
   describe('visibility and fog of war', () => {
+    let scenario: any;
+
     beforeEach(async () => {
-      await createBasicGameScenario();
+      scenario = await createBasicGameScenario();
       await unitManager.loadUnits();
     });
 
     it('should return visible units based on real game state', () => {
       const visibleTiles = new Set(['11,11', '16,15', '9,10']);
+      const player1Id = scenario.players[0].id;
 
-      const visibleUnits = unitManager.getVisibleUnits('player-1', visibleTiles);
+      const visibleUnits = unitManager.getVisibleUnits(player1Id, visibleTiles);
 
       // Should see own units + enemy units in visible range
       expect(visibleUnits.length).toBeGreaterThan(0);
 
-      const ownUnits = visibleUnits.filter(u => u.playerId === 'player-1');
-      const enemyUnits = visibleUnits.filter(u => u.playerId === 'player-2');
+      const ownUnits = visibleUnits.filter(u => u.playerId === player1Id);
+      const enemyUnits = visibleUnits.filter(u => u.playerId === scenario.players[1].id);
 
       // Should always see own units
       expect(ownUnits.length).toBeGreaterThan(0);
@@ -406,20 +409,24 @@ describe('UnitManager - Integration Tests with Real Database', () => {
   });
 
   describe('unit queries with real data', () => {
+    let scenario: any;
+
     beforeEach(async () => {
-      await createBasicGameScenario();
+      scenario = await createBasicGameScenario();
       await unitManager.loadUnits();
     });
 
     it('should get player units correctly', () => {
-      const player1Units = unitManager.getPlayerUnits('player-1');
-      const player2Units = unitManager.getPlayerUnits('player-2');
+      const player1Id = scenario.players[0].id;
+      const player2Id = scenario.players[1].id;
+      const player1Units = unitManager.getPlayerUnits(player1Id);
+      const player2Units = unitManager.getPlayerUnits(player2Id);
 
       expect(player1Units.length).toBeGreaterThan(0);
       expect(player2Units.length).toBeGreaterThan(0);
 
-      expect(player1Units.every(u => u.playerId === 'player-1')).toBe(true);
-      expect(player2Units.every(u => u.playerId === 'player-2')).toBe(true);
+      expect(player1Units.every(u => u.playerId === player1Id)).toBe(true);
+      expect(player2Units.every(u => u.playerId === player2Id)).toBe(true);
     });
 
     it('should find units at specific positions', () => {
