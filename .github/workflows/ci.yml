@@ -38,9 +38,6 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
 
     services:
       postgres:
@@ -111,33 +108,6 @@ jobs:
           REDIS_URL: redis://localhost:6379
           MIN_PLAYERS_TO_START: 2
 
-      - name: Generate server coverage badge
-        uses: tj-actions/coverage-badge-js@v2
-        if: always()
-        with:
-          path: apps/server
-          report_path: coverage/coverage-summary.json
-          output_path: ../../server-coverage-badge.svg
-
-      - name: Verify Changed files
-        uses: tj-actions/verify-changed-files@v20
-        id: verify-changed-files
-        if: always()
-        with:
-          files: |
-             server-coverage-badge.svg
-
-      - name: Create Pull Request
-        if: steps.verify-changed-files.outputs.files_changed == 'true' && github.ref == 'refs/heads/master'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          base: "master"
-          title: "Updated server coverage badge"
-          branch: "chore/update-server-coverage-badge"
-          commit-message: "Updated server coverage badge."
-          body: "Updated server coverage badge."
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -146,4 +116,3 @@ jobs:
           path: |
             apps/client/coverage
             apps/server/coverage
-            server-coverage-badge.svg
