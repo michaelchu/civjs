@@ -28,40 +28,41 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
     await cleanupTestDatabase();
   });
 
-  beforeEach(async done => {
+  beforeEach(done => {
     // Clear database and reset singleton
-    await clearAllTables();
-    (GameManager as any).instance = null;
+    clearAllTables().then(() => {
+      (GameManager as any).instance = null;
 
-    // Create HTTP server
-    httpServer = createServer();
+      // Create HTTP server
+      httpServer = createServer();
 
-    // Create Socket.IO server
-    socketServer = new SocketServer(httpServer, {
-      cors: {
-        origin: '*',
-        methods: ['GET', 'POST'],
-      },
-    });
-
-    // Initialize GameManager
-    gameManager = GameManager.getInstance(socketServer);
-
-    // Setup socket handlers
-    socketServer.on('connection', socket => {
-      setupSocketHandlers(socketServer, socket);
-    });
-
-    // Start server
-    httpServer.listen(port, () => {
-      // Create client socket
-      clientSocket = ClientIO(`http://localhost:${port}`, {
-        transports: ['websocket'],
-        forceNew: true,
+      // Create Socket.IO server
+      socketServer = new SocketServer(httpServer, {
+        cors: {
+          origin: '*',
+          methods: ['GET', 'POST'],
+        },
       });
 
-      clientSocket.on('connect', () => {
-        done();
+      // Initialize GameManager
+      gameManager = GameManager.getInstance(socketServer);
+
+      // Setup socket handlers
+      socketServer.on('connection', socket => {
+        setupSocketHandlers(socketServer, socket);
+      });
+
+      // Start server
+      httpServer.listen(port, () => {
+        // Create client socket
+        clientSocket = ClientIO(`http://localhost:${port}`, {
+          transports: ['websocket'],
+          forceNew: true,
+        });
+
+        clientSocket.on('connect', () => {
+          done();
+        });
       });
     });
   });
@@ -237,7 +238,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
 
     it('should handle turn management through socket communication', done => {
       const turnEndPacket = {
-        type: PacketType.TURN_END,
+        type: PacketType.END_TURN,
         data: {
           gameId: scenario.game.id,
           playerId: playerId,
@@ -254,6 +255,28 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
 
       // Send turn end command
       clientSocket.emit('packet', turnEndPacket);
+    });
+
+    it('should reject unauthorized game actions', done => {
+      const unauthorizedPacket = {
+        type: PacketType.UNIT_MOVE,
+        data: {
+          gameId: scenario.game.id,
+          unitId: 'fake-unit-id',
+          targetX: 10,
+          targetY: 10,
+        },
+        timestamp: Date.now(),
+      };
+
+      // Listen for error response
+      clientSocket.on('action_error', error => {
+        expect(error.message).toContain('unauthorized');
+        done();
+      });
+
+      // Send unauthorized action
+      clientSocket.emit('packet', unauthorizedPacket);
     });
   });
 
@@ -279,28 +302,6 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
 
       // Send authentication request
       clientSocket.emit('packet', authPacket);
-    });
-
-    it('should reject unauthorized game actions', done => {
-      const unauthorizedPacket = {
-        type: PacketType.UNIT_MOVE,
-        data: {
-          gameId: scenario.game.id,
-          unitId: 'fake-unit-id',
-          targetX: 10,
-          targetY: 10,
-        },
-        timestamp: Date.now(),
-      };
-
-      // Listen for error response
-      clientSocket.on('action_error', error => {
-        expect(error.message).toContain('unauthorized');
-        done();
-      });
-
-      // Send unauthorized action
-      clientSocket.emit('packet', unauthorizedPacket);
     });
   });
 

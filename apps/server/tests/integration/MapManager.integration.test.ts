@@ -71,19 +71,23 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
       expect(mapData!.width).toBe(mapWidth);
       expect(mapData!.height).toBe(mapHeight);
       expect(mapData!.tiles).toBeDefined();
-      expect(mapData!.tiles.length).toBe(mapWidth * mapHeight);
+      expect(mapData!.tiles.length).toBe(mapWidth);
+      expect(mapData!.tiles[0].length).toBe(mapHeight);
 
       // Verify terrain diversity
       const terrainTypes = new Set();
-      mapData!.tiles.forEach(tile => {
-        terrainTypes.add(tile.terrain);
-        expect(tile.x).toBeGreaterThanOrEqual(0);
-        expect(tile.x).toBeLessThan(mapWidth);
-        expect(tile.y).toBeGreaterThanOrEqual(0);
-        expect(tile.y).toBeLessThan(mapHeight);
-        expect(tile.height).toBeGreaterThanOrEqual(0);
-        expect(tile.height).toBeLessThanOrEqual(100);
-      });
+      for (let x = 0; x < mapWidth; x++) {
+        for (let y = 0; y < mapHeight; y++) {
+          const tile = mapData!.tiles[x][y];
+          terrainTypes.add(tile.terrain);
+          expect(tile.x).toBeGreaterThanOrEqual(0);
+          expect(tile.x).toBeLessThan(mapWidth);
+          expect(tile.y).toBeGreaterThanOrEqual(0);
+          expect(tile.y).toBeLessThan(mapHeight);
+          expect(tile.elevation).toBeGreaterThanOrEqual(0);
+          expect(tile.elevation).toBeLessThanOrEqual(255);
+        }
+      }
 
       // Should have multiple terrain types
       expect(terrainTypes.size).toBeGreaterThan(3);
@@ -125,17 +129,23 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
 
       // Maps should be different
       let differentTiles = 0;
-      for (let i = 0; i < mapData1.tiles.length; i++) {
-        if (
-          mapData1.tiles[i].terrain !== mapData2.tiles[i].terrain ||
-          Math.abs(mapData1.tiles[i].height - mapData2.tiles[i].height) > 5
-        ) {
-          differentTiles++;
+      let totalTiles = 0;
+      if (mapData1 && mapData2) {
+        for (let x = 0; x < mapData1.width; x++) {
+          for (let y = 0; y < mapData1.height; y++) {
+            totalTiles++;
+            if (
+              mapData1.tiles[x][y].terrain !== mapData2.tiles[x][y].terrain ||
+              Math.abs(mapData1.tiles[x][y].elevation - mapData2.tiles[x][y].elevation) > 5
+            ) {
+              differentTiles++;
+            }
+          }
         }
       }
 
       // At least 30% of tiles should be different
-      expect(differentTiles / mapData1.tiles.length).toBeGreaterThan(0.3);
+      expect(differentTiles / totalTiles).toBeGreaterThan(0.3);
     });
 
     it('should generate reproducible maps with same seed', async () => {
@@ -169,12 +179,17 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
       const mapData2 = mapManager2.getMapData();
 
       // Maps should be identical
-      expect(mapData1.tiles.length).toBe(mapData2.tiles.length);
-      for (let i = 0; i < mapData1.tiles.length; i++) {
-        expect(mapData1.tiles[i].terrain).toBe(mapData2.tiles[i].terrain);
-        expect(mapData1.tiles[i].height).toBeCloseTo(mapData2.tiles[i].height, 1);
-        expect(mapData1.tiles[i].x).toBe(mapData2.tiles[i].x);
-        expect(mapData1.tiles[i].y).toBe(mapData2.tiles[i].y);
+      if (mapData1 && mapData2) {
+        expect(mapData1.tiles.length).toBe(mapData2.tiles.length);
+        expect(mapData1.tiles[0].length).toBe(mapData2.tiles[0].length);
+        for (let x = 0; x < mapData1.width; x++) {
+          for (let y = 0; y < mapData1.height; y++) {
+            expect(mapData1.tiles[x][y].terrain).toBe(mapData2.tiles[x][y].terrain);
+            expect(mapData1.tiles[x][y].elevation).toBeCloseTo(mapData2.tiles[x][y].elevation, 1);
+            expect(mapData1.tiles[x][y].x).toBe(mapData2.tiles[x][y].x);
+            expect(mapData1.tiles[x][y].y).toBe(mapData2.tiles[x][y].y);
+          }
+        }
       }
     });
   });
@@ -195,17 +210,27 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
       // Verify map was loaded correctly
       const loadedMapData = game!.mapManager.getMapData();
       expect(loadedMapData).toBeDefined();
-      expect(loadedMapData.width).toBe(20); // From createBasicGameScenario
-      expect(loadedMapData.height).toBe(20);
-      expect(loadedMapData.tiles).toBeDefined();
-      expect(loadedMapData.tiles.length).toBe(400); // 20x20
+      expect(loadedMapData).not.toBeNull();
+      if (loadedMapData) {
+        expect(loadedMapData.width).toBe(20); // From createBasicGameScenario
+        expect(loadedMapData.height).toBe(20);
+        expect(loadedMapData.tiles).toBeDefined();
+        expect(loadedMapData.tiles.length).toBe(20); // Width
+        expect(loadedMapData.tiles[0].length).toBe(20); // Height
 
-      // Verify map has proper terrain data
-      const oceanTiles = loadedMapData.tiles.filter(t => t.terrain === 'ocean');
-      const landTiles = loadedMapData.tiles.filter(t => t.terrain !== 'ocean');
+        // Verify map has proper terrain data by flattening 2D array
+        const flatTiles = [];
+        for (let x = 0; x < 20; x++) {
+          for (let y = 0; y < 20; y++) {
+            flatTiles.push(loadedMapData.tiles[x][y]);
+          }
+        }
+        const oceanTiles = flatTiles.filter(t => t.terrain === 'ocean');
+        const landTiles = flatTiles.filter(t => t.terrain !== 'ocean');
 
-      expect(oceanTiles.length).toBeGreaterThan(0);
-      expect(landTiles.length).toBeGreaterThan(0);
+        expect(oceanTiles.length).toBeGreaterThan(0);
+        expect(landTiles.length).toBeGreaterThan(0);
+      }
     });
 
     it('should maintain map data integrity across game saves', async () => {
@@ -225,16 +250,21 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
       const mapData2 = game2!.mapManager.getMapData();
 
       // Map data should be identical
-      expect(mapData1.width).toBe(mapData2.width);
-      expect(mapData1.height).toBe(mapData2.height);
-      expect(mapData1.tiles.length).toBe(mapData2.tiles.length);
+      if (mapData1 && mapData2) {
+        expect(mapData1.width).toBe(mapData2.width);
+        expect(mapData1.height).toBe(mapData2.height);
+        expect(mapData1.tiles.length).toBe(mapData2.tiles.length);
+        expect(mapData1.tiles[0].length).toBe(mapData2.tiles[0].length);
 
-      // Compare tile data
-      for (let i = 0; i < mapData1.tiles.length; i++) {
-        expect(mapData1.tiles[i].terrain).toBe(mapData2.tiles[i].terrain);
-        expect(mapData1.tiles[i].x).toBe(mapData2.tiles[i].x);
-        expect(mapData1.tiles[i].y).toBe(mapData2.tiles[i].y);
-        expect(mapData1.tiles[i].height).toBeCloseTo(mapData2.tiles[i].height, 1);
+        // Compare tile data with 2D array structure
+        for (let x = 0; x < mapData1.width; x++) {
+          for (let y = 0; y < mapData1.height; y++) {
+            expect(mapData1.tiles[x][y].terrain).toBe(mapData2.tiles[x][y].terrain);
+            expect(mapData1.tiles[x][y].x).toBe(mapData2.tiles[x][y].x);
+            expect(mapData1.tiles[x][y].y).toBe(mapData2.tiles[x][y].y);
+            expect(mapData1.tiles[x][y].elevation).toBeCloseTo(mapData2.tiles[x][y].elevation, 1);
+          }
+        }
       }
     });
   });
@@ -256,8 +286,8 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
       expect(tile!.x).toBe(10);
       expect(tile!.y).toBe(10);
       expect(tile!.terrain).toBeDefined();
-      expect(tile!.height).toBeGreaterThanOrEqual(0);
-      expect(tile!.height).toBeLessThanOrEqual(100);
+      expect(tile!.elevation).toBeGreaterThanOrEqual(0);
+      expect(tile!.elevation).toBeLessThanOrEqual(255); // 0-255 range as per MapTypes
     });
 
     it('should return undefined for out-of-bounds coordinates', () => {
