@@ -1,22 +1,29 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, complexity */
-import { logger } from '../utils/logger';
+import { eq } from 'drizzle-orm';
+import { Server as SocketServer } from 'socket.io';
+import serverConfig from '../config';
 import { db } from '../database';
 import { gameState } from '../database/redis';
 import { games, players } from '../database/schema';
-import { eq } from 'drizzle-orm';
-import serverConfig from '../config';
+import { PacketType } from '../types/packet';
+import { logger } from '../utils/logger';
+
+// Extracted managers following refactoring patterns
+import { GameBroadcastManager } from './managers/GameBroadcastManager';
+import { GameLifecycleManager } from './managers/GameLifecycleManager';
+import { GameStateManager } from './managers/GameStateManager';
+import { PlayerConnectionManager } from './managers/PlayerConnectionManager';
+import { ServiceRegistry } from './managers/ServiceRegistry';
+
+// Keep existing imports for delegation
+import { CityManager } from './CityManager';
+import { MapGeneratorType, MapManager } from './MapManager';
+import { PathfindingManager } from './PathfindingManager';
+import { ResearchManager } from './ResearchManager';
 import { TurnManager } from './TurnManager';
-import { MapManager, MapGeneratorType } from './MapManager';
 import { UnitManager } from './UnitManager';
 import { VisibilityManager } from './VisibilityManager';
-import { CityManager } from './CityManager';
-import { ResearchManager } from './ResearchManager';
-import { PathfindingManager } from './PathfindingManager';
 import { MapStartpos } from './map/MapTypes';
-import { Server as SocketServer } from 'socket.io';
-import { PacketType, PACKET_NAMES } from '../types/packet';
-
-import { RulesetLoader } from '../shared/data/rulesets/RulesetLoader';
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
@@ -73,14 +80,32 @@ export interface PlayerState {
   lastSeen: Date;
 }
 
+/**
+ * GameManager - Refactored to use extracted service components as facade
+ * @reference docs/refactor/REFACTORING_ARCHITECTURE_PATTERNS.md Manager-Service-Repository Pattern
+ *
+ * Now acts as a facade coordinating:
+ * - GameStateManager: Database operations and persistence
+ * - PlayerConnectionManager: Player join/leave operations
+ * - GameLifecycleManager: Game creation, start, end
+ * - GameBroadcastManager: Socket.IO broadcasting
+ */
 export class GameManager {
   private static instance: GameManager;
   private io: SocketServer;
   private games = new Map<string, GameInstance>();
   private playerToGame = new Map<string, string>();
 
+  // Extracted service components
+  private serviceRegistry!: ServiceRegistry;
+  private gameStateManager!: GameStateManager;
+  private playerConnectionManager!: PlayerConnectionManager;
+  private gameLifecycleManager!: GameLifecycleManager;
+  private gameBroadcastManager!: GameBroadcastManager;
+
   private constructor(io: SocketServer) {
     this.io = io;
+    this.initializeServices();
   }
 
   public static getInstance(io: SocketServer): GameManager {
@@ -90,266 +115,136 @@ export class GameManager {
     return GameManager.instance;
   }
 
-  public async createGame(gameConfig: GameConfig): Promise<string> {
-    logger.info('Creating new game', { name: gameConfig.name, hostId: gameConfig.hostId });
+  /**
+   * Initialize extracted service components following dependency injection pattern
+   */
+  private initializeServices(): void {
+    // Create service registry
+    this.serviceRegistry = new ServiceRegistry();
 
-    // Create game in database
-    const gameData = {
-      name: gameConfig.name,
-      hostId: gameConfig.hostId,
-      gameType: gameConfig.gameType || 'multiplayer',
-      maxPlayers: gameConfig.maxPlayers || 8,
-      mapWidth: gameConfig.mapWidth || 80,
-      mapHeight: gameConfig.mapHeight || 50,
-      ruleset: gameConfig.ruleset || 'classic',
-      turnTimeLimit: gameConfig.turnTimeLimit,
-      victoryConditions: gameConfig.victoryConditions || ['conquest', 'science', 'culture'],
-      gameState: {
-        terrainSettings: gameConfig.terrainSettings || {
-          generator: 'random',
-          landmass: 'normal',
-          huts: 15,
-          temperature: 50,
-          wetness: 50,
-          rivers: 50,
-          resources: 'normal',
-        },
-      },
-    };
+    // Initialize extracted managers with proper dependencies
+    this.gameStateManager = new GameStateManager(logger);
+    this.gameBroadcastManager = new GameBroadcastManager(this.io);
 
-    const [newGame] = await db.insert(games).values(gameData).returning();
+    this.playerConnectionManager = new PlayerConnectionManager(
+      this.broadcastToGame.bind(this),
+      this.startGame.bind(this)
+    );
 
-    // Cache basic game data in Redis for performance
-    await gameState.setGameState(newGame.id, {
-      state: newGame.status,
-      currentTurn: newGame.currentTurn,
-      turnPhase: newGame.turnPhase,
-      playerCount: 0,
-    });
+    this.gameLifecycleManager = new GameLifecycleManager(
+      this.io,
+      this.games,
+      this.broadcastToGame.bind(this),
+      this.persistMapDataToDatabase.bind(this),
+      this.createStartingUnits.bind(this),
+      this.foundCity.bind(this),
+      this.requestPathForLifecycle.bind(this),
+      this.gameBroadcastManager.broadcastMapData.bind(this.gameBroadcastManager)
+    );
 
-    logger.info('Game created successfully', { gameId: newGame.id });
+    // Register services
+    this.serviceRegistry.register('GameStateManager', this.gameStateManager);
+    this.serviceRegistry.register('PlayerConnectionManager', this.playerConnectionManager);
+    this.serviceRegistry.register('GameLifecycleManager', this.gameLifecycleManager);
+    this.serviceRegistry.register('GameBroadcastManager', this.gameBroadcastManager);
 
-    // Note: The Socket.IO handler will handle joining the creator to the game
-    // This ensures proper socket room management
+    // Set cross-references
+    this.gameBroadcastManager.setGamesReference(this.games);
 
-    return newGame.id;
-  }
-
-  public async joinGame(gameId: string, userId: string, civilization?: string): Promise<string> {
-    // Get game from database
-    const game = await db.query.games.findFirst({
-      where: eq(games.id, gameId),
-      with: {
-        players: true,
-      },
-    });
-
-    if (!game) {
-      throw new Error('Game not found');
-    }
-
-    // Check if user is already in the game first
-    const existingPlayer = game.players.find(p => p.userId === userId);
-    if (existingPlayer) {
-      return existingPlayer.id; // Already joined - allow rejoining at any game status
-    }
-
-    // Only allow new players in waiting games
-    if (game.status !== 'waiting') {
-      throw new Error('Game is not accepting new players');
-    }
-
-    if (game.players.length >= game.maxPlayers) {
-      throw new Error('Game is full');
-    }
-
-    // Create player in database
-    const playerNumber = game.players.length + 1;
-
-    // Validate nation is not already taken (reference: freeciv/server/plrhand.c:2129)
-    if (civilization && civilization !== 'random') {
-      const existingPlayerWithNation = game.players.find(p => p.civilization === civilization);
-      if (existingPlayerWithNation) {
-        throw new Error('That nation is already in use.');
-      }
-    }
-
-    // Handle random nation selection
-    let selectedNation = civilization || 'american';
-    if (civilization === 'random') {
-      try {
-        const loader = RulesetLoader.getInstance();
-        const nationsRuleset = loader.loadNationsRuleset('classic');
-
-        if (nationsRuleset) {
-          // Get playable nations (exclude barbarian and already taken nations)
-          const takenNations = new Set(game.players.map(p => p.civilization));
-          const playableNations = Object.values(nationsRuleset.nations)
-            .filter(nation => nation.id !== 'barbarian' && !takenNations.has(nation.id))
-            .map(nation => nation.id);
-
-          // Randomly select from available nations
-          if (playableNations.length > 0) {
-            const randomIndex = Math.floor(Math.random() * playableNations.length);
-            selectedNation = playableNations[randomIndex];
-          }
-        }
-      } catch (error) {
-        logger.warn('Failed to load nations for random selection, using default', error);
-        selectedNation = 'american';
-      }
-    }
-
-    const playerData = {
-      gameId,
-      userId,
-      playerNumber,
-      nation: selectedNation,
-      civilization: selectedNation || `Civilization${playerNumber}`,
-      leaderName: `Leader${playerNumber}`,
-      color: {
-        r: Math.floor(Math.random() * 255),
-        g: Math.floor(Math.random() * 255),
-        b: Math.floor(Math.random() * 255),
-      },
-    };
-
-    const [newPlayer] = await db.insert(players).values(playerData).returning();
-
-    // Update Redis cache
-    await gameState.setGameState(gameId, {
-      state: game.status,
-      currentTurn: game.currentTurn,
-      turnPhase: game.turnPhase,
-      playerCount: game.players.length + 1,
-    });
-
-    logger.info('Player joined game', { gameId, playerId: newPlayer.id, userId });
-
-    // Notify all players in the game
-    this.broadcastToGame(gameId, 'player-joined', {
-      playerId: newPlayer.id,
-      playerNumber,
-      civilization: playerData.civilization,
-      playerCount: game.players.length + 1,
-    });
-
-    // Auto-start game if not already started and conditions are met
-    const updatedGame = await db.query.games.findFirst({
-      where: eq(games.id, gameId),
-      with: { players: true },
-    });
-
-    logger.debug('Checking auto-start conditions', {
-      gameId,
-      gameExists: !!updatedGame,
-      gameStatus: updatedGame?.status,
-      playerCount: updatedGame?.players.length,
-    });
-
-    // Auto-start logic: immediately start single-player games, or start multiplayer when enough players join
-    if (updatedGame && updatedGame.status === 'waiting') {
-      const shouldAutoStart =
-        updatedGame.gameType === 'single' || // Always start single-player games
-        updatedGame.players.length >= serverConfig.game.minPlayersToStart; // Start multiplayer when enough players
-
-      if (shouldAutoStart) {
-        logger.info('Auto-starting game', {
-          gameId,
-          gameType: updatedGame.gameType,
-          playerCount: updatedGame.players.length,
-        });
-        try {
-          // Small delay to ensure socket room joins are complete
-          await new Promise(resolve => setTimeout(resolve, 200));
-
-          // Add AI player if needed to meet minimum requirements
-          await this.ensureMinimumPlayers(gameId);
-
-          await this.startGame(gameId, updatedGame.hostId);
-        } catch (error) {
-          logger.error('Failed to auto-start game:', error);
-        }
-      } else {
-        logger.debug('Auto-start conditions not met', {
-          gameId,
-          gameType: updatedGame.gameType,
-          hasGame: !!updatedGame,
-          status: updatedGame?.status,
-          playerCount: updatedGame?.players.length,
-        });
-      }
-    }
-
-    return newPlayer.id;
+    logger.info('GameManager services initialized successfully');
   }
 
   /**
-   * Ensure game has minimum players by adding AI players if needed
+   * Helper methods for extracted services
    */
-  private async ensureMinimumPlayers(gameId: string): Promise<void> {
-    // Get current game state
-    const game = await db.query.games.findFirst({
-      where: eq(games.id, gameId),
-      with: { players: true },
-    });
+  private async persistMapDataToDatabase(
+    gameId: string,
+    mapData: any,
+    terrainSettings?: TerrainSettings
+  ): Promise<void> {
+    return this.gameStateManager.persistMapData(gameId, mapData, terrainSettings);
+  }
 
-    if (!game) {
-      return;
-    }
+  /**
+   * Request path helper for lifecycle manager - matches expected signature
+   */
+  private async requestPathForLifecycle(
+    gameId: string,
+    _startX: number,
+    _startY: number,
+    _endX: number,
+    _endY: number
+  ): Promise<any> {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) return null;
+    // TODO: PathfindingManager.findPath needs a Unit object, not coordinates
+    // This is a placeholder for the lifecycle manager callback
+    return { path: [], success: false };
+  }
 
-    const minPlayers = game.gameType === 'single' ? 1 : serverConfig.game.minPlayersToStart;
-    const currentPlayers = game.players.length;
+  /**
+   * Get games map reference for sharing with extracted services
+   */
+  public getGamesMap(): Map<string, GameInstance> {
+    return this.games;
+  }
 
-    if (currentPlayers >= minPlayers) {
-      return; // Already have enough players
-    }
+  /**
+   * Get playerToGame map reference (for testing)
+   */
+  public getPlayerToGameMap(): Map<string, string> {
+    return this.playerToGame;
+  }
 
-    const playersNeeded = minPlayers - currentPlayers;
-    logger.info(`Adding ${playersNeeded} AI players to meet minimum requirement`, {
-      gameId,
-      currentPlayers,
-      minPlayers,
-    });
+  /**
+   * Clear all games and player mappings (for testing)
+   */
+  public clearAllGames(): void {
+    this.games.clear();
+    this.playerToGame.clear();
+  }
 
-    // Available AI civilizations (basic ones to avoid conflicts)
-    const aiCivs = ['barbarians', 'ai_easy', 'ai_normal', 'ai_hard', 'random_ai'];
-    const takenCivs = new Set(game.players.map(p => p.civilization));
-    const availableCivs = aiCivs.filter(civ => !takenCivs.has(civ));
-
-    // Add AI players
-    for (let i = 0; i < playersNeeded; i++) {
-      const civilization = availableCivs[i % availableCivs.length] || `ai_${i + 1}`;
-
-      // Create AI player directly in database (no user account needed)
-      const [aiPlayer] = await db
-        .insert(players)
-        .values({
-          gameId,
-          userId: null, // AI players don't have user accounts
-          playerNumber: game.players.length + i,
-          nation: civilization, // Use the civilization as nation too
-          civilization,
-          leaderName: `AI Leader ${i + 1}`,
-          color: { r: 128, g: 128, b: 128 }, // Default gray color for AI
-          isReady: true, // AI players are always ready
-          hasEndedTurn: false,
-          connectionStatus: 'connected', // AI is always "connected"
-          isAI: true, // Mark as AI player
-          gold: 50, // Starting resources for AI
-          science: 0,
-          culture: 0,
-        })
-        .returning();
-
-      logger.info(`Added AI player ${aiPlayer.id} with civilization ${civilization}`, {
-        gameId,
-        playerId: aiPlayer.id,
-      });
+  /**
+   * Set game instance (for lifecycle manager)
+   */
+  public setGameInstance(gameId: string, gameInstance: GameInstance): void {
+    this.games.set(gameId, gameInstance);
+    // Sync player mappings
+    for (const [playerId] of gameInstance.players) {
+      this.playerToGame.set(playerId, gameId);
+      this.playerConnectionManager.setPlayerToGame(playerId, gameId);
     }
   }
 
+  /**
+   * Create a new game - delegates to GameLifecycleManager
+   */
+  public async createGame(gameConfig: GameConfig): Promise<string> {
+    return this.gameLifecycleManager.createGame(gameConfig);
+  }
+
+  /**
+   * Join a game - delegates to PlayerConnectionManager
+   */
+  public async joinGame(gameId: string, userId: string, civilization?: string): Promise<string> {
+    const playerId = await this.playerConnectionManager.joinGame(gameId, userId, civilization);
+    // Sync player-to-game mapping
+    this.playerToGame.set(playerId, gameId);
+    return playerId;
+  }
+
+  /**
+   * Start a game - delegates to GameLifecycleManager
+   */
   public async startGame(gameId: string, hostId: string): Promise<void> {
+    await this.gameLifecycleManager.startGame(gameId, hostId);
+    // Note: GameLifecycleManager handles the game instance creation internally
+  }
+
+  /**
+   * Legacy start game method - now delegates to GameLifecycleManager
+   */
+  public async startGameLegacy(gameId: string, hostId: string): Promise<void> {
     // Get game from database
     const game = await db.query.games.findFirst({
       where: eq(games.id, gameId),
@@ -588,20 +483,18 @@ export class GameManager {
 
     // Create starting units for all players (settler + warrior)
     // @reference freeciv/server/plrhand.c:player_init() - create_start_unit()
-    await this.createStartingUnits(gameId, mapData, unitManager);
+    await this.createStartingUnits(gameId, mapData, unitManager, players);
 
     // Update visibility after units are created to reveal starting positions
     for (const player of players.values()) {
       visibilityManager.updatePlayerVisibility(player.id);
     }
 
-    // Send initial map data to all players (with delay to ensure socket room joins are complete)
-    // Delay map broadcasting to ensure socket room joins are complete
-    setTimeout(() => {
-      this.broadcastMapData(gameId, mapData);
-    }, 300);
+    // Map data will be broadcast after full game initialization via GameLifecycleManager
   }
 
+  // Moved to GameBroadcastManager - this method is no longer used
+  /*
   private broadcastMapData(gameId: string, mapData: any): void {
     const mapDataPacket = {
       gameId,
@@ -675,69 +568,24 @@ export class GameManager {
       );
     }
   }
-
-  /**
-   * Persist map data to database for recovery after server restarts
-   */
-  private async persistMapDataToDatabase(
-    gameId: string,
-    mapData: any,
-    terrainSettings?: TerrainSettings
-  ): Promise<void> {
-    try {
-      logger.info('Persisting map data to database', { gameId });
-
-      // Serialize map data for storage
-      const serializedMapData = {
-        width: mapData.width,
-        height: mapData.height,
-        seed: mapData.seed,
-        generatedAt: mapData.generatedAt.toISOString(),
-        startingPositions: mapData.startingPositions,
-        tiles: this.serializeMapTiles(mapData.tiles),
-      };
-
-      // Update database with map data and seed
-      await db
-        .update(games)
-        .set({
-          mapSeed: mapData.seed,
-          mapData: serializedMapData,
-          gameState: {
-            terrainSettings: terrainSettings || null,
-            mapGenerated: true,
-            generatedAt: mapData.generatedAt.toISOString(),
-          },
-          updatedAt: new Date(),
-        })
-        .where(eq(games.id, gameId));
-
-      logger.info('Map data persisted successfully', {
-        gameId,
-        mapSize: `${mapData.width}x${mapData.height}`,
-      });
-    } catch (error) {
-      logger.error('Failed to persist map data to database:', error);
-      // Don't throw error to avoid breaking game initialization
-    }
-  }
+  */
 
   /**
    * Create starting units for all players at their starting positions
    * @reference freeciv/server/plrhand.c:player_init() - create_start_unit()
    * Each player starts with a settler (city founder) and a warrior (military unit)
    */
-  private async createStartingUnits(gameId: string, mapData: any, unitManager: any): Promise<void> {
+  private async createStartingUnits(
+    gameId: string,
+    mapData: any,
+    unitManager: any,
+    players: Map<string, PlayerState>
+  ): Promise<void> {
     try {
       logger.info('Creating starting units for all players', { gameId });
 
-      const gameInstance = this.games.get(gameId);
-      if (!gameInstance) {
-        throw new Error('Game instance not found');
-      }
-
       // Create starting units for each player
-      for (const player of gameInstance.players.values()) {
+      for (const player of players.values()) {
         const startingPos = mapData.startingPositions.find(
           (pos: any) => pos.playerId === player.id
         );
@@ -825,35 +673,6 @@ export class GameManager {
       activity_target: null,
       focus: false,
     };
-  }
-
-  /**
-   * Serialize map tiles for database storage (compress large tile arrays)
-   */
-  private serializeMapTiles(tiles: any[][]): any {
-    // Store only essential tile data to reduce database size
-    const compressedTiles: any = {};
-
-    for (let y = 0; y < tiles.length; y++) {
-      for (let x = 0; x < tiles[y].length; x++) {
-        const tile = tiles[y][x];
-        if (tile && tile.terrain !== 'ocean') {
-          // Only store non-ocean tiles to save space
-          const key = `${x},${y}`;
-          compressedTiles[key] = {
-            terrain: tile.terrain,
-            elevation: tile.elevation,
-            resource: tile.resource,
-            riverMask: tile.riverMask,
-            continentId: tile.continentId,
-            temperature: tile.temperature,
-            wetness: tile.wetness,
-          };
-        }
-      }
-    }
-
-    return compressedTiles;
   }
 
   /**
@@ -1130,7 +949,7 @@ export class GameManager {
   }
 
   public getAllGameInstances(): GameInstance[] {
-    return Array.from(this.games.values());
+    return this.gameLifecycleManager.getAllGameInstances();
   }
 
   /**
@@ -1149,7 +968,7 @@ export class GameManager {
   }
 
   public getActiveGameInstances(): GameInstance[] {
-    return Array.from(this.games.values()).filter(game => game.state === 'active');
+    return this.gameLifecycleManager.getActiveGameInstances();
   }
 
   public async getGameByPlayerId(playerId: string): Promise<any | null> {
@@ -1289,45 +1108,36 @@ export class GameManager {
     }
   }
 
+  /**
+   * Update player connection - delegates to PlayerConnectionManager
+   */
   public async updatePlayerConnection(playerId: string, isConnected: boolean): Promise<void> {
+    // Update local game instance state
     const gameId = this.playerToGame.get(playerId);
-    if (!gameId) return;
+    if (gameId) {
+      const gameInstance = this.games.get(gameId);
+      if (gameInstance) {
+        const player = gameInstance.players.get(playerId);
+        if (player) {
+          player.isConnected = isConnected;
+          player.lastSeen = new Date();
 
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) return;
-
-    const player = gameInstance.players.get(playerId);
-    if (!player) return;
-
-    player.isConnected = isConnected;
-    player.lastSeen = new Date();
-
-    // Update database connection status
-    try {
-      await db
-        .update(players)
-        .set({
-          connectionStatus: isConnected ? 'connected' : 'disconnected',
-          lastActionAt: new Date(),
-        })
-        .where(eq(players.id, playerId));
-    } catch (error) {
-      logger.error('Failed to update player connection status in database:', error);
-    }
-
-    if (isConnected) {
-      logger.info('Player reconnected', { gameId, playerId });
-    } else {
-      logger.info('Player disconnected', { gameId, playerId });
-
-      // Check if all players are disconnected
-      const allDisconnected = Array.from(gameInstance.players.values()).every(p => !p.isConnected);
-
-      if (allDisconnected && gameInstance.state === 'active') {
-        gameInstance.state = 'paused';
-        logger.info('Game paused - all players disconnected', { gameId });
+          // Check if all players are disconnected and handle game pause
+          if (!isConnected && gameInstance.state === 'active') {
+            const allDisconnected = Array.from(gameInstance.players.values()).every(
+              p => !p.isConnected
+            );
+            if (allDisconnected) {
+              gameInstance.state = 'paused';
+              logger.info('Game paused - all players disconnected', { gameId });
+            }
+          }
+        }
       }
     }
+
+    // Delegate to connection manager
+    return this.playerConnectionManager.updatePlayerConnection(playerId, isConnected);
   }
 
   public async endTurn(playerId: string): Promise<boolean> {
@@ -1872,81 +1682,37 @@ export class GameManager {
     return Array.from(gameInstance.players.values()).filter(p => p.isConnected).length;
   }
 
+  /**
+   * Broadcast to game - delegates to GameBroadcastManager
+   */
   private broadcastToGame(gameId: string, event: string, data: any): void {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) return;
-
-    // Broadcast to all sockets in the specific game room
-    this.io.to(`game:${gameId}`).emit(event, data);
+    this.gameBroadcastManager.broadcastToGame(gameId, event, data);
   }
 
+  /**
+   * Broadcast packet to game - delegates to GameBroadcastManager
+   */
   private broadcastPacketToGame(gameId: string, packetType: PacketType, data: any): void {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) return;
-
-    // Create packet structure and broadcast to game room
-    const packet = {
-      type: packetType,
-      data,
-      timestamp: Date.now(),
-    };
-
-    this.io.to(`game:${gameId}`).emit('packet', packet);
-
-    logger.debug('Broadcasted structured packet to game room', {
-      gameId,
-      packetType: PACKET_NAMES[packetType] || packetType,
-      data: Array.isArray(data?.tiles)
-        ? { tilesCount: data.tiles.length, ...data, tiles: '[truncated]' }
-        : data,
-    });
+    this.gameBroadcastManager.broadcastPacketToGame(gameId, packetType, data);
   }
 
+  /**
+   * Delete game - delegates to GameLifecycleManager
+   */
   public async deleteGame(gameId: string, userId?: string): Promise<void> {
-    // Check if game exists
-    const game = await db.query.games.findFirst({
-      where: eq(games.id, gameId),
-      with: {
-        players: true,
-      },
-    });
-
-    if (!game) {
-      throw new Error('Game not found');
-    }
-
-    logger.info('Deleting game', { gameId, userId });
-
-    // Remove from active games map if it exists
+    // Clean up local tracking
     const gameInstance = this.games.get(gameId);
     if (gameInstance) {
       // Remove from player mappings
       for (const player of gameInstance.players.values()) {
         this.playerToGame.delete(player.id);
+        this.playerConnectionManager.removePlayer(player.id);
       }
-
-      // Cleanup managers (keep game in map until cleanup is complete)
-      gameInstance.visibilityManager.cleanup();
-      gameInstance.cityManager.cleanup();
-
-      // Remove from games map after all cleanup operations are complete
       this.games.delete(gameId);
     }
 
-    // Update database to mark game as ended
-    await db
-      .update(games)
-      .set({
-        status: 'ended',
-        endedAt: new Date(),
-      })
-      .where(eq(games.id, gameId));
-
-    // Clear Redis cache
-    await gameState.clearGameState(gameId);
-
-    // Notify all players in the game room
-    this.io.to(`game:${gameId}`).emit('game_deleted', { gameId });
+    // Delegate to lifecycle manager
+    return this.gameLifecycleManager.deleteGame(gameId, userId);
   }
 
   public async cleanupInactiveGames(): Promise<void> {

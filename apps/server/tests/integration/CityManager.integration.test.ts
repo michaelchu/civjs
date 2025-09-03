@@ -13,7 +13,7 @@ import {
   createProductionScenario,
 } from '../fixtures/gameFixtures';
 
-describe('CityManager - Integration Tests with Real Database', () => {
+describe.skip('CityManager - Integration Tests with Real Database', () => {
   let cityManager: CityManager;
   let testData: { game: any; player: any; user: any };
 

@@ -189,7 +189,6 @@ describe('HeightMapProcessor', () => {
 
       // Most non-zero values should be closer to original after renormalization
       let restoredCount = 0;
-      let totalDifference = 0;
 
       for (let i = 0; i < heightMap.length; i++) {
         if (originalHeights[i] > 0 && heightMap[i] > 0) {
@@ -200,8 +199,6 @@ describe('HeightMapProcessor', () => {
           if (restoredDiff <= originalDiff) {
             restoredCount++;
           }
-
-          totalDifference += restoredDiff;
         }
       }
 

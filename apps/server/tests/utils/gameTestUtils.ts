@@ -77,9 +77,8 @@ export async function setupGameManagerWithScenario(): Promise<{
 /**
  * Cleans up game manager state after tests
  */
-export function cleanupGameManager(gameManager: GameManager): void {
-  gameManager['games'].clear();
-  gameManager['playerToGame'].clear();
+export function cleanupGameManager(gameManager?: GameManager): void {
+  gameManager?.clearAllGames();
 }
 
 /**

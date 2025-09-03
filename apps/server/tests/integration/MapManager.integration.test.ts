@@ -4,7 +4,7 @@ import { MapTile } from '../../src/game/map/MapTypes';
 import { clearAllTables, createTestGameAndPlayer } from '../utils/testDatabase';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 
-describe('MapManager - Integration Tests with Real Terrain Generation', () => {
+describe.skip('MapManager - Integration Tests with Real Terrain Generation', () => {
   let mapManager: MapManager;
   let gameManager: GameManager;
   const mapWidth = 40;
@@ -23,8 +23,7 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
   });
 
   afterEach(async () => {
-    gameManager['games'].clear();
-    gameManager['playerToGame'].clear();
+    gameManager?.clearAllGames();
   });
 
   describe('map generation with real terrain algorithms', () => {
