@@ -1,6 +1,6 @@
 import { getTestDatabase, generateTestUUID } from '../utils/testDatabase';
-import { schema } from '../../src/database';
-import { eq } from 'drizzle-orm';
+import * as schema from '../../src/database/schema';
+import { eq, inArray } from 'drizzle-orm';
 import { MapManager } from '../../src/game/MapManager';
 import { PlayerState } from '../../src/game/GameManager';
 
@@ -21,6 +21,10 @@ async function generateMapDataForTests(
 
   const mapData = mapManager.getMapData();
   const mapSeed = mapManager.getSeed();
+
+  if (!mapData) {
+    throw new Error('Failed to generate map data for test scenario');
+  }
 
   return { mapData, mapSeed };
 }
@@ -94,14 +98,19 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
       .returning();
   } catch (error) {
     // If users already exist, fetch them
-    const existingUsers = await db.query.users.findMany({
-      where: (users, { inArray }) => inArray(users.id, [userId1, userId2]),
-    });
+    try {
+      const existingUsers = await db
+        .select()
+        .from(schema.users)
+        .where(inArray(schema.users.id, [userId1, userId2]));
 
-    if (existingUsers.length === 2) {
-      users = existingUsers;
-    } else {
-      throw new Error(`Failed to create or find test users: ${error}`);
+      if (existingUsers.length === 2) {
+        users = existingUsers;
+      } else {
+        throw new Error(`Failed to create or find test users: ${error}`);
+      }
+    } catch (queryError) {
+      throw new Error(`Failed to create or find test users: ${error}, Query error: ${queryError}`);
     }
   }
 
