@@ -10,7 +10,6 @@
     "start": "node dist/index.js",
     "start:dev": "echo 'Starting migration...' && npm run db:migrate && echo 'Migration complete, starting server...' && node dist/index.js",
     "start:prod": "npm run db:migrate:prod && node dist/index.js",
-    "vercel-build": "npm run db:push:force && npm run build",
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit --project tsconfig.prod.json",
     "test": "jest",
