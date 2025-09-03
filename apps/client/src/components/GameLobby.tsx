@@ -16,7 +16,7 @@ export const GameLobby: React.FC = () => {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(5); // Show 5 games per page
+  const [itemsPerPage] = useState(10); // Show 10 games per page
 
   const navigate = useNavigate();
 

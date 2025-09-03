@@ -140,33 +140,6 @@ export function DataTable<TData, TValue>({
             </table>
           </div>
         </div>
-
-        {/* Pagination - Fixed at bottom */}
-        <div className="flex items-center justify-between space-x-2 py-4 flex-shrink-0 border-t border-border bg-muted/25">
-          <div className="text-sm text-muted-foreground">
-            {table.getFilteredSelectedRowModel().rows.length} of{' '}
-            {table.getFilteredRowModel().rows.length} row(s) selected.
-          </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-              className="px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 transition-colors"
-            >
-              Previous
-            </button>
-            <span className="text-sm text-foreground">
-              Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
-            </span>
-            <button
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-              className="px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 transition-colors"
-            >
-              Next
-            </button>
-          </div>
-        </div>
       </div>
     );
   }
