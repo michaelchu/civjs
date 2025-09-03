@@ -95,15 +95,16 @@ describe('HeightMapProcessor', () => {
 
   describe('localAveElevation()', () => {
     it('should calculate correct average for interior points', () => {
-      // Create a 3x3 area with known values around center point (10,10)
+      // Create a 7x7 area with known values around center point (10,10)
+      // to match the radius 3 neighborhood used by localAveElevation
       const centerX = 10;
       const centerY = 10;
       let total = 0;
       let count = 0;
 
-      // Set known values in 3x3 area around center
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
+      // Set known values in 7x7 area around center (radius 3)
+      for (let dx = -3; dx <= 3; dx++) {
+        for (let dy = -3; dy <= 3; dy++) {
           const x = centerX + dx;
           const y = centerY + dy;
           const value = 100 + dx * 10 + dy * 5; // Predictable values

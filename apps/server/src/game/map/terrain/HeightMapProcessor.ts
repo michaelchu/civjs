@@ -115,16 +115,18 @@ export class HeightMapProcessor {
 
   /**
    * Calculate local average elevation around a given position
-   * @reference freeciv/server/generator/mapgen.c local_ave_elevation()
+   * @reference freeciv/server/generator/fracture_map.c:268-284 local_ave_elevation()
    * Used for terrain smoothing and placement decisions
+   * Uses square_iterate with radius 3 (7x7 neighborhood) from freeciv
    */
   public localAveElevation(heightMap: number[], x: number, y: number): number {
     let ele = 0;
     let count = 0;
 
-    // Check 3x3 neighborhood
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
+    // Check 7x7 neighborhood (radius 3) to match freeciv's square_iterate(ptile, 3)
+    // @reference freeciv/server/generator/fracture_map.c:274-277
+    for (let dx = -3; dx <= 3; dx++) {
+      for (let dy = -3; dy <= 3; dy++) {
         const nx = x + dx;
         const ny = y + dy;
         if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
