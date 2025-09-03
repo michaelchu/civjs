@@ -122,9 +122,9 @@ export const GameLobby: React.FC = () => {
 
   return (
     <PageBackground className="min-h-[100dvh] flex flex-col" showBackground={false}>
-      <div className="flex-1 flex flex-col max-w-6xl mx-auto w-full p-4 md:p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 flex-shrink-0">
+      {/* Fixed Header */}
+      <div className="flex-shrink-0 max-w-6xl mx-auto w-full p-4 md:p-6">
+        <div className="flex items-center justify-between mb-6 md:mb-8">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -142,10 +142,10 @@ export const GameLobby: React.FC = () => {
               </svg>
             </Button>
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
                 Game Lobby
               </h1>
-              <p className="text-muted-foreground mt-1">
+              <p className="text-muted-foreground mt-1 text-sm md:text-base">
                 Choose a game to join and start your civilization
               </p>
             </div>
@@ -179,7 +179,7 @@ export const GameLobby: React.FC = () => {
         </div>
 
         {/* Mobile refresh button */}
-        <div className="md:hidden mb-6 flex-shrink-0">
+        <div className="md:hidden mb-4">
           <Button onClick={() => loadGames(true)} disabled={isRefreshing} className="w-full">
             {isRefreshing ? (
               <>
@@ -203,7 +203,7 @@ export const GameLobby: React.FC = () => {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive flex-shrink-0">
+          <div className="mb-4 md:mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive">
             <div className="flex items-center gap-2">
               <svg
                 className="w-4 h-4 flex-shrink-0"
@@ -222,11 +222,13 @@ export const GameLobby: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
 
-        {/* Content - Scrollable Area */}
-        <div className="flex-1 flex flex-col min-h-0">
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-hidden pb-20 md:pb-24">
+        <div className="max-w-6xl mx-auto w-full px-4 md:px-6 h-full">
           {isLoading ? (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="h-full flex items-center justify-center">
               <div className="text-center">
                 <div className="animate-spin w-12 h-12 border-2 border-primary border-t-transparent rounded-full mx-auto mb-6"></div>
                 <h3 className="text-lg font-semibold mb-2">Loading Games</h3>
@@ -234,7 +236,7 @@ export const GameLobby: React.FC = () => {
               </div>
             </div>
           ) : games.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="h-full flex items-center justify-center">
               <div className="text-center">
                 <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6">
                   <svg
@@ -272,112 +274,104 @@ export const GameLobby: React.FC = () => {
               </div>
             </div>
           ) : (
-            <>
-              {/* DataTable - Scrollable */}
-              <div className="flex-1 overflow-hidden">
-                <DataTable columns={columns} data={currentGames} className="h-full" />
-              </div>
-
-              {/* Fixed Pagination Controls */}
-              <div className="flex-shrink-0 pt-6 border-t border-border/20 mt-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {startIndex + 1} to {Math.min(endIndex, games.length)} of {games.length}{' '}
-                    games
-                  </div>
-
-                  {totalPages > 1 && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handlePreviousPage}
-                        disabled={currentPage === 1}
-                      >
-                        <svg
-                          className="w-4 h-4 mr-2"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M15 19l-7-7 7-7"
-                          />
-                        </svg>
-                        Previous
-                      </Button>
-
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                          let pageNumber;
-                          if (totalPages <= 7) {
-                            pageNumber = i + 1;
-                          } else if (currentPage <= 4) {
-                            pageNumber = i + 1;
-                          } else if (currentPage >= totalPages - 3) {
-                            pageNumber = totalPages - 6 + i;
-                          } else {
-                            pageNumber = currentPage - 3 + i;
-                          }
-                          return (
-                            <Button
-                              key={pageNumber}
-                              variant={currentPage === pageNumber ? 'default' : 'outline'}
-                              size="sm"
-                              onClick={() => handlePageChange(pageNumber)}
-                              className="min-w-[40px]"
-                            >
-                              {pageNumber}
-                            </Button>
-                          );
-                        })}
-                        {totalPages > 7 && currentPage < totalPages - 3 && (
-                          <>
-                            <span className="px-2 text-muted-foreground">...</span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handlePageChange(totalPages)}
-                              className="min-w-[40px]"
-                            >
-                              {totalPages}
-                            </Button>
-                          </>
-                        )}
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleNextPage}
-                        disabled={currentPage === totalPages}
-                      >
-                        Next
-                        <svg
-                          className="w-4 h-4 ml-2"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5l7 7-7 7"
-                          />
-                        </svg>
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </>
+            /* DataTable with Search - Scrollable */
+            <div className="h-full">
+              <DataTable columns={columns} data={currentGames} className="h-full" />
+            </div>
           )}
         </div>
       </div>
+
+      {/* Fixed Pagination Controls at Bottom */}
+      {games.length > 0 && !isLoading && (
+        <div className="fixed bottom-0 left-0 right-0 bg-civ-cream border-t border-border/20 backdrop-blur-sm z-10">
+          <div className="max-w-6xl mx-auto w-full px-4 md:px-6 py-3 md:py-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs md:text-sm text-muted-foreground flex-shrink-0">
+                <span className="hidden sm:inline">Showing </span>
+                {startIndex + 1}-{Math.min(endIndex, games.length)} of {games.length}
+                <span className="hidden sm:inline"> games</span>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1 md:gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePreviousPage}
+                    disabled={currentPage === 1}
+                    className="text-xs md:text-sm px-2 md:px-3"
+                  >
+                    <svg
+                      className="w-3 h-3 md:w-4 md:h-4 md:mr-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 19l-7-7 7-7"
+                      />
+                    </svg>
+                    <span className="hidden md:inline">Prev</span>
+                  </Button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                      let pageNumber;
+                      if (totalPages <= 5) {
+                        pageNumber = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNumber = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNumber = totalPages - 4 + i;
+                      } else {
+                        pageNumber = currentPage - 2 + i;
+                      }
+                      return (
+                        <Button
+                          key={pageNumber}
+                          variant={currentPage === pageNumber ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => handlePageChange(pageNumber)}
+                          className="min-w-[32px] md:min-w-[40px] text-xs md:text-sm px-2 md:px-3"
+                        >
+                          {pageNumber}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                    className="text-xs md:text-sm px-2 md:px-3"
+                  >
+                    <span className="hidden md:inline">Next</span>
+                    <svg
+                      className="w-3 h-3 md:w-4 md:h-4 md:ml-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </PageBackground>
   );
 };
