@@ -1211,94 +1211,6 @@ export class MapManager {
   }
 
   /**
-   * Retry wrapper for island generation with size reduction on failure
-   * @reference freeciv/server/generator/mapgen.c:2274-2342
-   * Implements freeciv's retry mechanism with progressive size reduction
-   * @param maxRetries Maximum number of retry attempts (default 5)
-   * @param sizeReduction Percentage to reduce size on each retry (default 0.8)
-   * @note Ready for integration - can be used to wrap makeIsland() calls for enhanced reliability
-   */
-  // @ts-expect-error - Method implemented for future integration with island generation
-  private async retryIslandGeneration(
-    islandMass: number,
-    playersNum: number,
-    state: IslandGeneratorState,
-    tiles: MapTile[][],
-    terrainPercentages: TerrainPercentages,
-    minSizePercent: number = 50,
-    maxRetries: number = 5,
-    sizeReduction: number = 0.8
-  ): Promise<boolean> {
-    let currentSize = islandMass;
-    let retryCount = 0;
-
-    while (retryCount < maxRetries) {
-      try {
-        // Calculate minimum viable size (matches freeciv's size constraints)
-        const minViableSize = Math.max(Math.floor((islandMass * minSizePercent) / 100), 1);
-
-        if (currentSize < minViableSize) {
-          logger.warn('Island size too small for viable generation, abandoning retry', {
-            currentSize,
-            minViableSize,
-            originalSize: islandMass,
-            retryCount,
-            reference: 'freeciv/server/generator/mapgen.c:2284-2288',
-          });
-          return false;
-        }
-
-        // Attempt island generation
-        await this.islandGenerator.makeIsland(
-          Math.floor(currentSize),
-          playersNum,
-          state,
-          tiles,
-          terrainPercentages,
-          minSizePercent
-        );
-
-        // If we get here, generation succeeded
-        if (retryCount > 0) {
-          logger.info('Island generation succeeded after retry', {
-            retryCount,
-            finalSize: Math.floor(currentSize),
-            originalSize: islandMass,
-            reference: 'freeciv/server/generator/mapgen.c:2274-2342',
-          });
-        }
-        return true;
-      } catch (error) {
-        retryCount++;
-        const previousSize = currentSize;
-        currentSize = Math.floor(currentSize * sizeReduction);
-
-        logger.warn('Island generation failed, retrying with reduced size', {
-          error: error instanceof Error ? error.message : error,
-          retryCount,
-          maxRetries,
-          previousSize: Math.floor(previousSize),
-          newSize: Math.floor(currentSize),
-          sizeReduction,
-          reference: 'freeciv/server/generator/mapgen.c:2274-2342',
-        });
-
-        if (retryCount >= maxRetries) {
-          logger.error('Island generation failed after maximum retries', {
-            maxRetries,
-            finalSize: Math.floor(currentSize),
-            originalSize: islandMass,
-            reference: 'freeciv/server/generator/mapgen.c:2332-2342',
-          });
-          return false;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  /**
    * Large continent generation with 70% big / 20% medium / 10% small landmass
    * @reference freeciv/server/generator/mapgen.c mapgenerator2()
    * Exact copy of freeciv mapgenerator2 algorithm with validation fallbacks
@@ -1565,6 +1477,10 @@ export class MapManager {
   // Map access methods
   public getMapData(): MapData | null {
     return this.mapData;
+  }
+
+  public getSeed(): string {
+    return this.seed;
   }
 
   /**

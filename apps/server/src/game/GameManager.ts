@@ -448,13 +448,6 @@ export class GameManager {
       temperatureParam
     );
     const turnManager = new TurnManager(gameId, this.io);
-    
-    // Initialize city manager first so it can be referenced in callbacks
-    const cityManager = new CityManager(gameId, undefined, {
-      createUnit: (playerId: string, unitType: string, x: number, y: number) =>
-        this.createUnit(gameId, playerId, unitType, x, y),
-    });
-    
     const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager, {
       foundCity: this.foundCity.bind(this),
       requestPath: this.requestPath.bind(this),
@@ -471,6 +464,10 @@ export class GameManager {
     const playerIds = Array.from(players.keys());
     await turnManager.initializeTurn(playerIds);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
+    const cityManager = new CityManager(gameId, undefined, {
+      createUnit: (playerId: string, unitType: string, x: number, y: number) =>
+        this.createUnit(gameId, playerId, unitType, x, y),
+    });
     const researchManager = new ResearchManager(gameId);
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
 
@@ -933,13 +930,6 @@ export class GameManager {
 
       // Initialize managers (now that mapManager is available)
       const turnManager = new TurnManager(gameId, this.io);
-      
-      // Initialize city manager first so it can be referenced in callbacks
-      const cityManager = new CityManager(gameId, undefined, {
-        createUnit: (playerId: string, unitType: string, x: number, y: number) =>
-          this.createUnit(gameId, playerId, unitType, x, y),
-      });
-      
       const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager, {
         foundCity: this.foundCity.bind(this),
         requestPath: this.requestPath.bind(this),
@@ -955,6 +945,10 @@ export class GameManager {
       // Initialize turn system with existing player IDs
       const playerIds = Array.from(players.keys());
       await turnManager.initializeTurn(playerIds);
+      const cityManager = new CityManager(gameId, undefined, {
+        createUnit: (playerId: string, unitType: string, x: number, y: number) =>
+          this.createUnit(gameId, playerId, unitType, x, y),
+      });
       const researchManager = new ResearchManager(gameId);
       const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
 

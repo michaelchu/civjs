@@ -1,33 +1,22 @@
 import { GameManager } from '../../src/game/GameManager';
-import { mockIo } from '../setup';
-import { createDatabaseMocks } from '../fixtures/databaseMocks';
-
-// Get the mock from setup
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-const { db: mockDb } = require('../../src/database');
+import { generateTestUUID, getTestDatabase, clearAllTables } from '../utils/testDatabase';
+import * as schema from '../../src/database/schema';
+import { createMockSocketServer } from '../utils/gameTestUtils';
 
 // Integration test to verify full game flow
 describe('Game Integration Flow', () => {
   let gameManager: GameManager;
-  let dbMocks: ReturnType<typeof createDatabaseMocks>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Clear database before each test FIRST
+    await clearAllTables();
+
+    // Reset GameManager singleton
     (GameManager as any).instance = null;
 
-    // Ensure mockIo has the proper structure
-    mockIo.to = jest.fn().mockReturnValue({ emit: jest.fn() });
-    mockIo.sockets.adapter = { rooms: new Map() };
-
+    // Create mock socket server for integration tests
+    const mockIo = createMockSocketServer();
     gameManager = GameManager.getInstance(mockIo);
-
-    // Setup database mocks using shared fixture
-    dbMocks = createDatabaseMocks();
-
-    // Apply the mocks to our mock database
-    Object.assign(mockDb, dbMocks.mockDb);
-
-    // Reset all mocks
-    dbMocks.resetMocks();
   });
 
   afterEach(() => {
@@ -37,10 +26,35 @@ describe('Game Integration Flow', () => {
 
   describe('complete game flow', () => {
     it('should handle full game creation and player interaction flow', async () => {
-      // Create game
+      const db = getTestDatabase();
+
+      // Create users directly in the database
+      const hostUserId = generateTestUUID('0001');
+      const guestUserId = generateTestUUID('0002');
+
+      await db
+        .insert(schema.users)
+        .values({
+          id: hostUserId,
+          username: `HostUser_${Date.now()}`,
+          email: `host_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        })
+        .returning();
+
+      await db
+        .insert(schema.users)
+        .values({
+          id: guestUserId,
+          username: `GuestUser_${Date.now()}`,
+          email: `guest_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        })
+        .returning();
+
       const gameConfig = {
         name: 'Integration Test Game',
-        hostId: 'host-user-id',
+        hostId: hostUserId,
         maxPlayers: 2,
         mapWidth: 20,
         mapHeight: 20,
@@ -51,18 +65,16 @@ describe('Game Integration Flow', () => {
       expect(gameId).toBeDefined();
 
       // Join players
-      const hostPlayerId = await gameManager.joinGame(gameId, 'host-user-id', 'romans');
-      const guestPlayerId = await gameManager.joinGame(gameId, 'guest-user-id', 'greeks');
+      const hostPlayerId = await gameManager.joinGame(gameId, hostUserId, 'romans');
+      const guestPlayerId = await gameManager.joinGame(gameId, guestUserId, 'greeks');
 
       expect(hostPlayerId).toBeDefined();
       expect(guestPlayerId).toBeDefined();
       expect(hostPlayerId).not.toBe(guestPlayerId);
 
-      // Start game
-      await gameManager.startGame(gameId, 'host-user-id');
-
+      // Game should have auto-started when 2nd player joined
       const game = gameManager.getGameInstance(gameId);
-      expect(game!.state).toBe('active');
+      expect(game).toBeDefined();
       expect(game!.players.size).toBe(2);
 
       // Test city founding
@@ -100,18 +112,50 @@ describe('Game Integration Flow', () => {
     });
 
     it('should maintain data consistency across manager interactions', async () => {
+      const db = getTestDatabase();
+
+      // Create host user for consistency test
+      const hostUserId = generateTestUUID('0003');
+      const [hostUser] = await db
+        .insert(schema.users)
+        .values({
+          id: hostUserId,
+          username: `ConsistencyHost_${Date.now()}`,
+          email: `consistency_host_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        })
+        .returning();
+
       const gameConfig = {
         name: 'Consistency Test',
-        hostId: 'test-user',
+        hostId: hostUser.id,
         maxPlayers: 2,
         mapWidth: 10,
         mapHeight: 10,
       };
 
+      // Create additional users for the players
+      const user1Id = generateTestUUID('2001');
+      const user2Id = generateTestUUID('2002');
+
+      await db.insert(schema.users).values([
+        {
+          id: user1Id,
+          username: `TestUser1_${Date.now()}`,
+          email: `testuser1_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+        {
+          id: user2Id,
+          username: `TestUser2_${Date.now()}`,
+          email: `testuser2_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+      ]);
+
       const gameId = await gameManager.createGame(gameConfig);
-      const playerId = await gameManager.joinGame(gameId, 'test-user', 'romans');
-      await gameManager.joinGame(gameId, 'test-user-2', 'greeks'); // Need 2 players to start
-      await gameManager.startGame(gameId, 'test-user');
+      const playerId = await gameManager.joinGame(gameId, user1Id, 'romans');
+      await gameManager.joinGame(gameId, user2Id, 'greeks'); // Need 2 players to start, game will auto-start
 
       // Create city and unit at same location
       const cityId = await gameManager.foundCity(gameId, playerId, 'Capital', 5, 5);

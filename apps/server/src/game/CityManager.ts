@@ -13,6 +13,11 @@ export const CITY_MAP_DEFAULT_RADIUS_SQ = CITY_MAP_DEFAULT_RADIUS * CITY_MAP_DEF
 export const CITY_MAP_MAX_RADIUS = 3;
 export const CITY_MAP_MAX_RADIUS_SQ = CITY_MAP_MAX_RADIUS * CITY_MAP_MAX_RADIUS + 1; // 10
 
+// Following Freeciv city minimum distance constants (reference: freeciv/common/game.h:492-494)
+export const GAME_DEFAULT_CITYMINDIST = 2;
+export const GAME_MIN_CITYMINDIST = 1;
+export const GAME_MAX_CITYMINDIST = 11;
+
 // Following Freeciv building types
 export interface BuildingType {
   id: string;
@@ -50,7 +55,7 @@ export const BUILDING_TYPES: Record<string, BuildingType> = {
     cost: 60,
     upkeep: 1,
     effects: {
-      foodBonus: 1, // Helps with growth
+      foodBonus: 50, // 50% food bonus (helps with growth)
     },
   },
   barracks: {
@@ -117,8 +122,8 @@ export interface CityState {
   // Production (following Freeciv shield system)
   productionStock: number; // accumulated shields
   productionPerTurn: number; // shield surplus
-  currentProduction?: string; // what's being built
-  productionType?: 'unit' | 'building'; // type of production
+  currentProduction?: string | null; // what's being built
+  productionType?: 'unit' | 'building' | null; // type of production
   turnsToComplete: number;
 
   // Economy (following Freeciv trade system)
@@ -181,6 +186,33 @@ export class CityManager {
   }
 
   /**
+   * Check if citymindist prevents city on tile
+   * Based on reference: freeciv/common/city.c:1465-1478 citymindist_prevents_city_on_tile()
+   */
+  private citymindistPreventsCityOnTile(x: number, y: number): boolean {
+    // citymindist minimum is 1, meaning adjacent is okay
+    const citymindist = GAME_DEFAULT_CITYMINDIST;
+
+    // square_iterate(nmap, ptile, citymindist - 1, ptile1) - check all tiles within citymindist-1
+    const radius = citymindist - 1;
+
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        const checkX = x + dx;
+        const checkY = y + dy;
+
+        // Check if there's a city at this position
+        const existingCity = this.getCityAt(checkX, checkY);
+        if (existingCity) {
+          return true; // City found within minimum distance
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Found a new city following Freeciv logic
    */
   async foundCity(
@@ -191,6 +223,13 @@ export class CityManager {
     foundedTurn: number
   ): Promise<string> {
     logger.info('Founding new city', { name, x, y, playerId });
+
+    // Validate city can be founded here (reference: freeciv/common/city.c:1487-1551 city_can_be_built_here())
+    if (this.citymindistPreventsCityOnTile(x, y)) {
+      throw new Error(
+        `Cannot found city at (${x}, ${y}): too close to existing city (citymindist=${GAME_DEFAULT_CITYMINDIST})`
+      );
+    }
 
     // Create city in database following Freeciv initial values
     const [dbCity] = await db
@@ -284,6 +323,7 @@ export class CityManager {
     let goldBonus = 0;
     let defenseBonus = 0;
     let happinessBonus = 0;
+    let foodBonus = 0;
 
     for (const buildingId of city.buildings) {
       const building = BUILDING_TYPES[buildingId];
@@ -292,6 +332,7 @@ export class CityManager {
         goldBonus += building.effects.goldBonus || 0;
         defenseBonus += building.effects.defenseBonus || 0;
         happinessBonus += building.effects.happinessBonus || 0;
+        foodBonus += building.effects.foodBonus || 0;
       }
     }
 
@@ -303,7 +344,7 @@ export class CityManager {
 
     // Calculate food and production surplus (following Freeciv upkeep)
     const populationUpkeep = city.population * 2; // Each citizen eats 2 food
-    city.foodPerTurn = foodOutput - populationUpkeep;
+    city.foodPerTurn = Math.floor((foodOutput * (100 + foodBonus)) / 100) - populationUpkeep;
     city.productionPerTurn = shieldOutput;
 
     logger.debug('City refreshed', {
@@ -414,8 +455,8 @@ export class CityManager {
 
     // Reset production
     city.productionStock = 0;
-    city.currentProduction = undefined;
-    city.productionType = undefined;
+    city.currentProduction = null;
+    city.productionType = null;
     city.turnsToComplete = 0;
 
     // Refresh city to apply new building effects
@@ -487,13 +528,6 @@ export class CityManager {
   }
 
   /**
-   * Get city at position
-   */
-  getCityAt(x: number, y: number): CityState | undefined {
-    return Array.from(this.cities.values()).find(city => city.x === x && city.y === y);
-  }
-
-  /**
    * Load cities from database
    */
   async loadCities(): Promise<void> {
@@ -512,7 +546,7 @@ export class CityManager {
         foodPerTurn: dbCity.foodPerTurn,
         productionStock: dbCity.production,
         productionPerTurn: dbCity.productionPerTurn,
-        currentProduction: dbCity.currentProduction || undefined,
+        currentProduction: dbCity.currentProduction || null,
         goldPerTurn: dbCity.goldPerTurn,
         sciencePerTurn: dbCity.sciencePerTurn,
         culturePerTurn: dbCity.culturePerTurn,
@@ -911,6 +945,18 @@ export class CityManager {
     // Apply corruption and happiness
     this.applyCityCorruption(cityId, currentGovernment);
     this.applyCityHappiness(cityId, currentGovernment);
+  }
+
+  /**
+   * Get city at specific coordinates
+   */
+  getCityAt(x: number, y: number): CityState | null {
+    for (const city of this.cities.values()) {
+      if (city.x === x && city.y === y) {
+        return city;
+      }
+    }
+    return null;
   }
 
   /**

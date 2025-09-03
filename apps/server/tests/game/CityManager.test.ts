@@ -67,7 +67,7 @@ describe('CityManager', () => {
       expect(BUILDING_TYPES.library.effects.scienceBonus).toBe(50);
 
       expect(BUILDING_TYPES.granary).toBeDefined();
-      expect(BUILDING_TYPES.granary.effects.foodBonus).toBe(1);
+      expect(BUILDING_TYPES.granary.effects.foodBonus).toBe(50);
     });
   });
 
@@ -261,8 +261,8 @@ describe('CityManager', () => {
       await cityManager.processCityTurn(cityId, 2);
 
       expect(city.productionStock).toBe(0); // Reset after completion
-      expect(city.currentProduction).toBeUndefined();
-      expect(city.productionType).toBeUndefined();
+      expect(city.currentProduction).toBeNull();
+      expect(city.productionType).toBeNull();
     });
 
     it('should complete building production', async () => {
@@ -274,7 +274,7 @@ describe('CityManager', () => {
 
       expect(city.buildings).toContain('granary');
       expect(city.productionStock).toBe(0); // Reset after completion
-      expect(city.currentProduction).toBeUndefined();
+      expect(city.currentProduction).toBeNull();
     });
   });
 
@@ -302,7 +302,7 @@ describe('CityManager', () => {
       expect(city!.name).toBe('City1');
 
       const noCity = cityManager.getCityAt(50, 50);
-      expect(noCity).toBeUndefined();
+      expect(noCity).toBeNull();
     });
   });
 
