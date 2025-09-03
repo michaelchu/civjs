@@ -1527,6 +1527,62 @@ export class MapManager {
   }
 
   /**
+   * Get neighboring tiles for a given position
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @returns Array of neighboring MapTiles
+   */
+  public getNeighbors(x: number, y: number): MapTile[] {
+    if (!this.mapData) return [];
+
+    const neighbors: MapTile[] = [];
+    const directions = [
+      [-1, -1],
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [0, 1],
+      [1, -1],
+      [1, 0],
+      [1, 1],
+    ];
+
+    for (const [dx, dy] of directions) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (this.isValidPosition(nx, ny)) {
+        neighbors.push(this.mapData.tiles[nx][ny]);
+      }
+    }
+
+    return neighbors;
+  }
+
+  /**
+   * Check if a position is valid within map bounds
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @returns true if position is valid, false otherwise
+   */
+  public isValidPosition(x: number, y: number): boolean {
+    return x >= 0 && x < this.width && y >= 0 && y < this.height;
+  }
+
+  /**
+   * Update a specific property of a tile
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @param property Property name to update
+   * @param value New value for the property
+   */
+  public updateTileProperty(x: number, y: number, property: string, value: any): void {
+    if (!this.mapData || !this.isValidPosition(x, y)) return;
+
+    const tile = this.mapData.tiles[x][y];
+    (tile as any)[property] = value;
+  }
+
+  /**
    * Apply climate-based terrain variety to generated islands
    * @reference freeciv/server/generator/mapgen.c fill_island() calls
    * Uses freeciv's terrain selection system for realistic island terrain distribution
