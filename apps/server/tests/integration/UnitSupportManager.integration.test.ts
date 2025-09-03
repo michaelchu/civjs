@@ -265,7 +265,9 @@ describe('UnitSupportManager - Integration Tests with Real Unit Support Calculat
 
   describe('integration with GameManager systems', () => {
     it('should integrate with government effects on unit support', async () => {
-      const _game = gameManager.getGameInstance(gameId)!;
+      const game = gameManager.getGameInstance(gameId)!;
+      // The game instance is used to validate system integration but not directly accessed
+      expect(game).toBeDefined();
 
       // Calculate support with current government
       const currentSupport = await unitSupportManager.calculatePlayerUnitSupport(playerId1);

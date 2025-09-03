@@ -22,8 +22,26 @@ describe('UnitManager - Integration Tests with Real Database', () => {
     // Then create test game and player with proper UUIDs
     testData = await createTestGameAndPlayer('0010', '0020');
 
-    // Initialize UnitManager with the test game ID
-    unitManager = new UnitManager(testData.game.id, mapWidth, mapHeight);
+    // Initialize UnitManager with the test game ID and mock dependencies
+    const mockMapManager = {
+      getTileAt: () => ({ terrain: 'grassland' }),
+      getTerrainMovementCost: () => 1,
+    };
+
+    const mockGameManagerCallback = {
+      foundCity: async () => 'test-city-id',
+      requestPath: async () => ({ success: true }),
+      broadcastUnitMoved: () => {},
+      getCityAt: () => null,
+    };
+
+    unitManager = new UnitManager(
+      testData.game.id,
+      mapWidth,
+      mapHeight,
+      mockMapManager,
+      mockGameManagerCallback
+    );
   });
 
   afterEach(async () => {
@@ -384,8 +402,26 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
     beforeEach(async () => {
       scenario = await createBasicGameScenario();
-      // Create UnitManager with the scenario's game ID
-      scenarioUnitManager = new UnitManager(scenario.game.id, mapWidth, mapHeight);
+      // Create UnitManager with the scenario's game ID and mock dependencies
+      const mockMapManager = {
+        getTileAt: () => ({ terrain: 'grassland' }),
+        getTerrainMovementCost: () => 1,
+      };
+
+      const mockGameManagerCallback = {
+        foundCity: async () => 'test-city-id',
+        requestPath: async () => ({ success: true }),
+        broadcastUnitMoved: () => {},
+        getCityAt: () => null,
+      };
+
+      scenarioUnitManager = new UnitManager(
+        scenario.game.id,
+        mapWidth,
+        mapHeight,
+        mockMapManager,
+        mockGameManagerCallback
+      );
       await scenarioUnitManager.loadUnits();
     });
 
@@ -420,7 +456,26 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
       // Create a fresh scenario and reinitialize the UnitManager with the correct game ID
       scenario = await createBasicGameScenario();
-      unitManager = new UnitManager(scenario.game.id, mapWidth, mapHeight);
+
+      const mockMapManager = {
+        getTileAt: () => ({ terrain: 'grassland' }),
+        getTerrainMovementCost: () => 1,
+      };
+
+      const mockGameManagerCallback = {
+        foundCity: async () => 'test-city-id',
+        requestPath: async () => ({ success: true }),
+        broadcastUnitMoved: () => {},
+        getCityAt: () => null,
+      };
+
+      unitManager = new UnitManager(
+        scenario.game.id,
+        mapWidth,
+        mapHeight,
+        mockMapManager,
+        mockGameManagerCallback
+      );
       await unitManager.loadUnits();
     });
 
