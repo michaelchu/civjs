@@ -62,17 +62,7 @@ export function DataTable<TData, TValue>({
   if (isFullHeight) {
     return (
       <div className="h-full flex flex-col">
-        {/* Search Input - Fixed at top */}
-        <div className="flex items-center mb-4 flex-shrink-0">
-          <input
-            placeholder="Search games..."
-            value={globalFilter ?? ''}
-            onChange={event => setGlobalFilter(String(event.target.value))}
-            className="max-w-sm px-3 py-2 border border-border rounded-md bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-          />
-        </div>
-
-        {/* Table - Scrollable middle section that grows with available space */}
+        {/* Table - Scrollable section that grows with available space */}
         <div
           className="flex-1 rounded-lg border border-border shadow-sm overflow-hidden"
           style={{ minHeight: 0 }}
@@ -146,17 +136,7 @@ export function DataTable<TData, TValue>({
 
   // Default layout for non-full-height mode
   return (
-    <div className="space-y-4">
-      {/* Search Input */}
-      <div className="flex items-center">
-        <input
-          placeholder="Search games..."
-          value={globalFilter ?? ''}
-          onChange={event => setGlobalFilter(String(event.target.value))}
-          className="max-w-sm px-3 py-2 border border-border rounded-md bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-        />
-      </div>
-
+    <div>
       {/* Table */}
       <div className="rounded-lg border border-border shadow-sm overflow-hidden">
         <div className="overflow-auto max-h-96">
