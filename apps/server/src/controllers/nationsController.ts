@@ -14,7 +14,9 @@ export class NationsController {
     try {
       const { ruleset = 'classic' } = req.query;
 
-      if (typeof ruleset !== 'string') {
+      // Express query parameters are always strings or arrays
+      // Check for invalid values like arrays or empty strings
+      if (typeof ruleset !== 'string' || Array.isArray(ruleset) || ruleset.trim() === '') {
         res.status(400).json({
           error: 'Invalid ruleset parameter',
           message: 'Ruleset must be a string',
@@ -23,8 +25,19 @@ export class NationsController {
       }
 
       const loader = RulesetLoader.getInstance();
-      const nationsRuleset = loader.loadNationsRuleset(ruleset);
-      const nations = loader.getNations(ruleset);
+
+      // Try to load the ruleset - this will throw if not found
+      let nationsRuleset, nations;
+      try {
+        nationsRuleset = loader.loadNationsRuleset(ruleset);
+        nations = loader.getNations(ruleset);
+      } catch {
+        res.status(404).json({
+          error: 'Ruleset not found',
+          message: `No nations found for ruleset: ${ruleset}`,
+        });
+        return;
+      }
 
       if (!nationsRuleset || !nations) {
         res.status(404).json({
@@ -78,7 +91,7 @@ export class NationsController {
       const { id } = req.params;
       const { ruleset = 'classic' } = req.query;
 
-      if (typeof ruleset !== 'string') {
+      if (typeof ruleset !== 'string' || Array.isArray(ruleset) || ruleset.trim() === '') {
         res.status(400).json({
           error: 'Invalid ruleset parameter',
           message: 'Ruleset must be a string',
@@ -159,7 +172,7 @@ export class NationsController {
       const { id } = req.params;
       const { ruleset = 'classic' } = req.query;
 
-      if (typeof ruleset !== 'string') {
+      if (typeof ruleset !== 'string' || Array.isArray(ruleset) || ruleset.trim() === '') {
         res.status(400).json({
           error: 'Invalid ruleset parameter',
           message: 'Ruleset must be a string',

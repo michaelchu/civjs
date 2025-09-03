@@ -2,7 +2,33 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import * as schema from '../../src/database/schema';
-import { logger } from '../../src/utils/logger';
+// Import logger with fallback for mocked scenarios
+let logger: {
+  info: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
+  debug: (...args: unknown[]) => void;
+};
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+  const loggerModule = require('../../src/utils/logger');
+  logger = loggerModule.logger || loggerModule.default;
+} catch {
+  // Fallback logger for tests
+  logger = {
+    info: (...args: unknown[]) => {
+      // eslint-disable-next-line no-console
+      console.log('[TEST INFO]', ...args);
+    },
+    error: (...args: unknown[]) => {
+      // eslint-disable-next-line no-console
+      console.error('[TEST ERROR]', ...args);
+    },
+    debug: (...args: unknown[]) => {
+      // eslint-disable-next-line no-console
+      console.debug('[TEST DEBUG]', ...args);
+    },
+  };
+}
 
 // UUID generator for tests
 export function generateTestUUID(suffix: string): string {

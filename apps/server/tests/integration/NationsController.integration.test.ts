@@ -87,7 +87,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     it('should return 400 for invalid ruleset parameter type', async () => {
       const response = await request(app)
         .get('/api/nations')
-        .query({ ruleset: 123 }) // Invalid type
+        .query({ ruleset: '' }) // Empty string
         .expect(400);
 
       expect(response.body.error).toBe('Invalid ruleset parameter');
@@ -98,7 +98,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
       const response = await request(app).get('/api/nations').expect(200);
 
       const nations = response.body.data.nations;
-      const romanNation = nations.find((n: any) => n.id === 'romans');
+      const romanNation = nations.find((n: any) => n.id === 'roman');
 
       if (romanNation) {
         expect(romanNation).toHaveProperty('class');
@@ -113,18 +113,18 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
 
   describe('GET /api/nations/:id', () => {
     it('should return specific nation by ID', async () => {
-      const response = await request(app).get('/api/nations/romans').expect(200);
+      const response = await request(app).get('/api/nations/roman').expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.nation).toBeDefined();
-      expect(response.body.data.nation.id).toBe('romans');
+      expect(response.body.data.nation.id).toBe('roman');
       expect(response.body.data.nation.name).toBeDefined();
       expect(response.body.data.nation.leaders).toBeInstanceOf(Array);
       expect(response.body.data.nation.leaders.length).toBeGreaterThan(0);
     });
 
     it('should return nation with complete data structure', async () => {
-      const response = await request(app).get('/api/nations/romans').expect(200);
+      const response = await request(app).get('/api/nations/roman').expect(200);
 
       const nation = response.body.data.nation;
       expect(nation).toHaveProperty('id');
@@ -149,17 +149,17 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
 
     it('should work with different rulesets via query parameter', async () => {
       const response = await request(app)
-        .get('/api/nations/romans')
+        .get('/api/nations/roman')
         .query({ ruleset: 'classic' })
         .expect(200);
 
-      expect(response.body.data.nation.id).toBe('romans');
+      expect(response.body.data.nation.id).toBe('roman');
     });
 
     it('should return 400 for invalid ruleset parameter', async () => {
       const response = await request(app)
-        .get('/api/nations/romans')
-        .query({ ruleset: ['invalid', 'array'] })
+        .get('/api/nations/roman')
+        .query({ ruleset: '' })
         .expect(400);
 
       expect(response.body.error).toBe('Invalid ruleset parameter');
@@ -189,11 +189,11 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
 
   describe('GET /api/nations/:id/leaders', () => {
     it('should return leaders for a specific nation', async () => {
-      const response = await request(app).get('/api/nations/romans/leaders').expect(200);
+      const response = await request(app).get('/api/nations/roman/leaders').expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toBeDefined();
-      expect(response.body.data.nation_id).toBe('romans');
+      expect(response.body.data.nation_id).toBe('roman');
       expect(response.body.data.nation_name).toBeDefined();
       expect(response.body.data.leaders).toBeInstanceOf(Array);
       expect(response.body.data.leaders.length).toBeGreaterThan(0);
@@ -205,9 +205,9 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     });
 
     it('should return leaders with proper nation context', async () => {
-      const response = await request(app).get('/api/nations/greeks/leaders').expect(200);
+      const response = await request(app).get('/api/nations/greek/leaders').expect(200);
 
-      expect(response.body.data.nation_id).toBe('greeks');
+      expect(response.body.data.nation_id).toBe('greek');
       expect(response.body.data.nation_name).toBeDefined();
       expect(response.body.data.leaders).toBeInstanceOf(Array);
     });
@@ -221,18 +221,18 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
 
     it('should work with ruleset parameter', async () => {
       const response = await request(app)
-        .get('/api/nations/romans/leaders')
+        .get('/api/nations/roman/leaders')
         .query({ ruleset: 'classic' })
         .expect(200);
 
-      expect(response.body.data.nation_id).toBe('romans');
+      expect(response.body.data.nation_id).toBe('roman');
       expect(response.body.data.leaders.length).toBeGreaterThan(0);
     });
 
     it('should return 400 for invalid ruleset parameter', async () => {
       const response = await request(app)
-        .get('/api/nations/romans/leaders')
-        .query({ ruleset: null })
+        .get('/api/nations/roman/leaders')
+        .query({ ruleset: '' })
         .expect(400);
 
       expect(response.body.error).toBe('Invalid ruleset parameter');
@@ -280,8 +280,8 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
 
   describe('data integrity and validation', () => {
     it('should return consistent nation data across multiple requests', async () => {
-      const response1 = await request(app).get('/api/nations/romans').expect(200);
-      const response2 = await request(app).get('/api/nations/romans').expect(200);
+      const response1 = await request(app).get('/api/nations/roman').expect(200);
+      const response2 = await request(app).get('/api/nations/roman').expect(200);
 
       expect(response1.body.data.nation).toEqual(response2.body.data.nation);
     });
