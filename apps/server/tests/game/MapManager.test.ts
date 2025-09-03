@@ -261,7 +261,7 @@ describe('MapManager', () => {
         for (let j = 0; j < 3; j++) {
           const tile1 = data1!.tiles[i][j];
           const tile2 = data2!.tiles[i][j];
-          
+
           if (tile1.terrain !== tile2.terrain) {
             throw new Error(
               `Terrain mismatch at [${i}][${j}]: map1=${tile1.terrain}, map2=${tile2.terrain}, seed=${uniqueSeed}`
@@ -272,7 +272,7 @@ describe('MapManager', () => {
               `Elevation mismatch at [${i}][${j}]: map1=${tile1.elevation}, map2=${tile2.elevation}, seed=${uniqueSeed}`
             );
           }
-          
+
           expect(tile1.terrain).toBe(tile2.terrain);
           expect(tile1.elevation).toBe(tile2.elevation);
         }
