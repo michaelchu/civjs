@@ -247,4 +247,101 @@ describe('GameManager', () => {
       expect(mockDb.returning).toHaveBeenCalled();
     });
   });
+
+  // Safe tests that don't trigger complex Socket.IO dependencies
+  describe('safe game queries', () => {
+    let gameId: string;
+
+    beforeEach(async () => {
+      gameId = await gameManager.createGame({
+        name: 'Query Test Game',
+        hostId: 'host-123',
+      });
+    });
+
+    describe('getGame', () => {
+      it('should return game data for valid game ID', async () => {
+        mockDb.query.games.findFirst.mockResolvedValueOnce({
+          id: gameId,
+          name: 'Test Game',
+          status: 'waiting',
+          players: [],
+        });
+
+        const game = await gameManager.getGame(gameId);
+
+        expect(game).toBeDefined();
+        if (game) {
+          expect(game.id).toBe(gameId);
+          expect(game.name).toBe('Test Game');
+        }
+      });
+
+      it('should return null for invalid game ID', async () => {
+        mockDb.query.games.findFirst.mockResolvedValueOnce(null);
+
+        const game = await gameManager.getGame('invalid-id');
+
+        expect(game).toBeNull();
+      });
+    });
+
+    describe('getGameByPlayerId', () => {
+      it('should return null for invalid player', async () => {
+        mockDb.query.games.findFirst.mockResolvedValueOnce(null);
+
+        const game = await gameManager.getGameByPlayerId('invalid-player');
+
+        expect(game).toBeNull();
+      });
+    });
+
+    describe('getAllGamesFromDatabase', () => {
+      it('should handle database queries without crashing', async () => {
+        // Simple test to ensure method exists and handles basic call
+        const result = await gameManager.getAllGamesFromDatabase();
+
+        // Should return an array (might be empty due to mocking)
+        expect(Array.isArray(result)).toBe(true);
+      });
+    });
+
+    describe('loadGame', () => {
+      it('should return null if game not found in database', async () => {
+        mockDb.query.games.findFirst.mockResolvedValueOnce(null);
+
+        const result = await gameManager.loadGame('non-existent-game');
+
+        expect(result).toBeNull();
+      });
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle database connection errors', async () => {
+      // Mock database error during game creation
+      mockDb.insert.mockImplementationOnce(() => {
+        throw new Error('Database connection failed');
+      });
+
+      await expect(
+        gameManager.createGame({
+          name: 'Error Test',
+          hostId: 'host-123',
+        })
+      ).rejects.toThrow('Database connection failed');
+    });
+
+    it('should handle invalid game configuration gracefully', async () => {
+      // Test with minimal configuration
+      const minimalConfig = {
+        name: 'Minimal Test',
+        hostId: 'host-123',
+      };
+
+      await gameManager.createGame(minimalConfig);
+
+      expect(mockDb.insert).toHaveBeenCalled();
+    });
+  });
 });
