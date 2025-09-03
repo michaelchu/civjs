@@ -411,6 +411,12 @@ export class UnitManager {
     const dbUnits = await db.select().from(units).where(eq(units.gameId, this.gameId));
 
     for (const dbUnit of dbUnits) {
+      const unitType = UNIT_TYPES[dbUnit.unitType];
+      if (!unitType) {
+        logger.warn(`Unknown unit type: ${dbUnit.unitType} for unit ${dbUnit.id}`);
+        continue; // Skip invalid unit types
+      }
+
       const unit: Unit = {
         id: dbUnit.id,
         gameId: dbUnit.gameId,
@@ -418,7 +424,7 @@ export class UnitManager {
         unitTypeId: dbUnit.unitType,
         x: dbUnit.x,
         y: dbUnit.y,
-        movementLeft: parseFloat(dbUnit.movementPoints),
+        movementLeft: Math.min(parseFloat(dbUnit.movementPoints) || 0, unitType.movement),
         health: dbUnit.health,
         veteranLevel: dbUnit.veteranLevel,
         fortified: dbUnit.isFortified,

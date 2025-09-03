@@ -6,9 +6,14 @@ import { logger } from '../../src/utils/logger';
 
 // UUID generator for tests
 export function generateTestUUID(suffix: string): string {
-  const base = '550e8400-e29b-41d4-a716-44665544';
-  const paddedSuffix = suffix.padStart(4, '0');
-  return `${base}${paddedSuffix}`;
+  // Generate a valid UUID with better randomness
+  const timestamp = Date.now().toString(16).slice(-6); // Last 6 hex digits
+  const random = Math.floor(Math.random() * 0xffffff)
+    .toString(16)
+    .padStart(6, '0'); // 6 hex digits
+  const paddedSuffix = suffix.padStart(2, '0');
+  // Format: 550e8400-e29b-41d4-a716-ssttttttrrrrrrr (12 chars total after last dash)
+  return `550e8400-e29b-41d4-a716-${paddedSuffix}${timestamp}${random}`.slice(0, 36);
 }
 
 // Create test game and player for unit tests

@@ -166,6 +166,14 @@ export class GameManager {
     // Create player in database
     const playerNumber = game.players.length + 1;
 
+    // Validate nation is not already taken (reference: freeciv/server/plrhand.c:2129)
+    if (civilization && civilization !== 'random') {
+      const existingPlayerWithNation = game.players.find(p => p.civilization === civilization);
+      if (existingPlayerWithNation) {
+        throw new Error('That nation is already in use.');
+      }
+    }
+
     // Handle random nation selection
     let selectedNation = civilization || 'american';
     if (civilization === 'random') {
@@ -174,9 +182,10 @@ export class GameManager {
         const nationsRuleset = loader.loadNationsRuleset('classic');
 
         if (nationsRuleset) {
-          // Get playable nations (exclude barbarian)
+          // Get playable nations (exclude barbarian and already taken nations)
+          const takenNations = new Set(game.players.map(p => p.civilization));
           const playableNations = Object.values(nationsRuleset.nations)
-            .filter(nation => nation.id !== 'barbarian')
+            .filter(nation => nation.id !== 'barbarian' && !takenNations.has(nation.id))
             .map(nation => nation.id);
 
           // Randomly select from available nations
