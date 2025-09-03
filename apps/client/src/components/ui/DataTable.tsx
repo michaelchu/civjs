@@ -62,22 +62,9 @@ export function DataTable<TData, TValue>({
   if (isFullHeight) {
     return (
       <div className="h-full flex flex-col">
-        {/* Search Input - Fixed at top */}
-        <div className="flex items-center mb-4 flex-shrink-0">
-          <input
-            placeholder="Search games..."
-            value={globalFilter ?? ''}
-            onChange={event => setGlobalFilter(String(event.target.value))}
-            className="max-w-sm px-3 py-2 border border-border rounded-md bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-          />
-        </div>
-
-        {/* Table - Scrollable middle section that grows with available space */}
-        <div
-          className="flex-1 rounded-lg border border-border shadow-sm overflow-hidden"
-          style={{ minHeight: 0 }}
-        >
-          <div className="h-full overflow-y-auto overflow-x-auto" style={{ maxHeight: '100%' }}>
+        {/* Table - Scrollable section that grows with available space */}
+        <div className="flex-1 rounded-lg border border-border shadow-sm overflow-hidden min-h-0">
+          <div className="h-full max-h-[50vh] md:max-h-[60vh] overflow-y-auto overflow-x-auto">
             <table className="w-full border-collapse bg-card">
               <thead className="bg-muted sticky top-0 z-10">
                 {table.getHeaderGroups().map(headerGroup => (
@@ -140,50 +127,13 @@ export function DataTable<TData, TValue>({
             </table>
           </div>
         </div>
-
-        {/* Pagination - Fixed at bottom */}
-        <div className="flex items-center justify-between space-x-2 py-4 flex-shrink-0 border-t border-border bg-muted/25">
-          <div className="text-sm text-muted-foreground">
-            {table.getFilteredSelectedRowModel().rows.length} of{' '}
-            {table.getFilteredRowModel().rows.length} row(s) selected.
-          </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-              className="px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 transition-colors"
-            >
-              Previous
-            </button>
-            <span className="text-sm text-foreground">
-              Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
-            </span>
-            <button
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-              className="px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 transition-colors"
-            >
-              Next
-            </button>
-          </div>
-        </div>
       </div>
     );
   }
 
   // Default layout for non-full-height mode
   return (
-    <div className="space-y-4">
-      {/* Search Input */}
-      <div className="flex items-center">
-        <input
-          placeholder="Search games..."
-          value={globalFilter ?? ''}
-          onChange={event => setGlobalFilter(String(event.target.value))}
-          className="max-w-sm px-3 py-2 border border-border rounded-md bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-        />
-      </div>
-
+    <div>
       {/* Table */}
       <div className="rounded-lg border border-border shadow-sm overflow-hidden">
         <div className="overflow-auto max-h-96">

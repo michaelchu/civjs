@@ -4,6 +4,7 @@ import { gameClient } from '../services/GameClient';
 import { DataTable } from './ui/DataTable';
 import { createGameColumns, type GameInfo } from './GameLobbyColumns';
 import { PageBackground } from './shared/PageBackground';
+import { Button } from './ui/button';
 
 export const GameLobby: React.FC = () => {
   const [games, setGames] = useState<GameInfo[]>([]);
@@ -12,6 +13,10 @@ export const GameLobby: React.FC = () => {
   const [joiningGameId, setJoiningGameId] = useState<string | null>(null);
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null);
   const [error, setError] = useState('');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10); // Show 10 games per page
 
   const navigate = useNavigate();
 
@@ -80,6 +85,33 @@ export const GameLobby: React.FC = () => {
     }
   };
 
+  // Pagination calculations
+  const totalPages = Math.ceil(games.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentGames = games.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  // Reset to first page when games change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [games.length]);
+
   // Create columns with action handlers
   const columns = createGameColumns(
     handleJoinGame,
@@ -89,82 +121,141 @@ export const GameLobby: React.FC = () => {
   );
 
   return (
-    <PageBackground
-      className="min-h-[100dvh] md:flex md:items-center md:justify-center md:p-4"
-      showBackground={false}
-    >
-      <div className="flex flex-col h-[100dvh] md:h-auto md:max-w-4xl xl:max-w-5xl md:mx-auto">
-        <div className="bg-transparent md:bg-card md:border md:border-border md:shadow-2xl p-4 md:p-8 md:rounded-lg w-full flex-1 md:flex-none overflow-y-auto">
-          {/* Header Section */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-4 md:mb-6">
-              <div className="flex items-center">
-                <button
-                  onClick={handleBack}
-                  className="mr-3 p-2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <PageBackground className="min-h-[100dvh] flex flex-col" showBackground={false}>
+      {/* Fixed Header */}
+      <div className="flex-shrink-0 max-w-6xl mx-auto w-full p-4 md:p-6">
+        <div className="flex items-center justify-between mb-6 md:mb-8">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleBack}
+              className="hover:bg-background/80"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </Button>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                Game Lobby
+              </h1>
+              <p className="text-muted-foreground mt-1 text-sm md:text-base">
+                Choose a game to join and start your civilization
+              </p>
+            </div>
+          </div>
+
+          <Button
+            onClick={() => loadGames(true)}
+            disabled={isRefreshing}
+            variant="outline"
+            className="hidden md:flex"
+          >
+            {isRefreshing ? (
+              <>
+                <div className="animate-spin w-4 h-4 border border-current/30 border-t-transparent rounded-full mr-2"></div>
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                Refresh
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Mobile refresh button */}
+        <div className="md:hidden mb-4">
+          <Button onClick={() => loadGames(true)} disabled={isRefreshing} className="w-full">
+            {isRefreshing ? (
+              <>
+                <div className="animate-spin w-4 h-4 border border-current/30 border-t-transparent rounded-full mr-2"></div>
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                Refresh Games
+              </>
+            )}
+          </Button>
+        </div>
+
+        {error && (
+          <div className="mb-4 md:mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive">
+            <div className="flex items-center gap-2">
+              <svg
+                className="w-4 h-4 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              {error}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-hidden pb-20 md:pb-24" style={{ transform: 'translateZ(0)' }}>
+        <div className="max-w-6xl mx-auto w-full px-4 md:px-6 h-full max-h-[calc(100vh-12rem)] md:max-h-[calc(100vh-14rem)]">
+          {isLoading ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin w-12 h-12 border-2 border-primary border-t-transparent rounded-full mx-auto mb-6"></div>
+                <h3 className="text-lg font-semibold mb-2">Loading Games</h3>
+                <p className="text-muted-foreground">Discovering active civilizations...</p>
+              </div>
+            </div>
+          ) : games.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <svg
+                    className="w-10 h-10 text-muted-foreground"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 19l-7-7 7-7"
+                      strokeWidth={1.5}
+                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
                     />
                   </svg>
-                </button>
-                <div>
-                  <h2 className="text-xl md:text-2xl font-bold text-foreground">Game Lobby</h2>
-                  <p className="text-muted-foreground text-sm md:text-base">
-                    Choose a game to join
-                  </p>
                 </div>
-              </div>
-
-              {/* Desktop refresh button */}
-              <button
-                onClick={() => loadGames(true)}
-                className="hidden md:flex items-center px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-primary/50 text-primary-foreground rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring shadow-sm"
-                disabled={isRefreshing}
-              >
-                {isRefreshing ? (
-                  <>
-                    <div className="animate-spin w-4 h-4 border border-primary-foreground/30 border-t-transparent rounded-full mr-2"></div>
-                    Refreshing...
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      className="w-4 h-4 mr-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                      />
-                    </svg>
-                    Refresh
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Mobile refresh button - full width below header */}
-            <button
-              onClick={() => loadGames(true)}
-              className="md:hidden w-full flex items-center justify-center px-4 py-3 bg-primary hover:bg-primary/90 disabled:bg-primary/50 text-primary-foreground rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring shadow-sm font-medium"
-              disabled={isRefreshing}
-            >
-              {isRefreshing ? (
-                <>
-                  <div className="animate-spin w-4 h-4 border border-primary-foreground/30 border-t-transparent rounded-full mr-2"></div>
-                  Refreshing...
-                </>
-              ) : (
-                <>
+                <h3 className="text-xl font-semibold mb-2">No Active Games</h3>
+                <p className="text-muted-foreground mb-6">Be the first to start a civilization!</p>
+                <Button onClick={() => navigate('/create-game')}>
                   <svg
                     className="w-4 h-4 mr-2"
                     fill="none"
@@ -175,51 +266,115 @@ export const GameLobby: React.FC = () => {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                     />
                   </svg>
-                  Refresh Games
-                </>
-              )}
-            </button>
-          </div>
-
-          {error && (
-            <div className="mb-6 p-3 bg-red-50 border border-red-300 rounded-md text-red-800 text-sm">
-              {error}
-            </div>
-          )}
-
-          {isLoading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Loading games...</p>
-            </div>
-          ) : games.length === 0 ? (
-            <div className="text-center py-12">
-              <svg
-                className="w-16 h-16 text-muted-foreground mx-auto mb-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                />
-              </svg>
-              <p className="text-foreground text-lg font-medium">No games available</p>
-              <p className="text-muted-foreground text-sm">Start a new game to begin playing!</p>
+                  Create New Game
+                </Button>
+              </div>
             </div>
           ) : (
-            <div className="flex-1 w-full min-h-0">
-              <DataTable columns={columns} data={games} className="h-full w-full" />
+            /* DataTable with Search - Scrollable */
+            <div className="h-full min-h-[300px]">
+              <DataTable columns={columns} data={currentGames} className="h-full" />
             </div>
           )}
         </div>
       </div>
+
+      {/* Fixed Pagination Controls at Bottom */}
+      {games.length > 0 && !isLoading && (
+        <div
+          className="fixed bottom-0 left-0 right-0 bg-civ-cream/95 border-t border-border/20 z-10"
+          style={{ transform: 'translateZ(0)' }}
+        >
+          <div className="max-w-6xl mx-auto w-full px-4 md:px-6 py-3 md:py-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs md:text-sm text-muted-foreground flex-shrink-0">
+                <span className="hidden sm:inline">Showing </span>
+                {startIndex + 1}-{Math.min(endIndex, games.length)} of {games.length}
+                <span className="hidden sm:inline"> games</span>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1 md:gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePreviousPage}
+                    disabled={currentPage === 1}
+                    className="text-xs md:text-sm px-2 md:px-3"
+                  >
+                    <svg
+                      className="w-3 h-3 md:w-4 md:h-4 md:mr-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 19l-7-7 7-7"
+                      />
+                    </svg>
+                    <span className="hidden md:inline">Prev</span>
+                  </Button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                      let pageNumber;
+                      if (totalPages <= 5) {
+                        pageNumber = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNumber = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNumber = totalPages - 4 + i;
+                      } else {
+                        pageNumber = currentPage - 2 + i;
+                      }
+                      return (
+                        <Button
+                          key={pageNumber}
+                          variant={currentPage === pageNumber ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => handlePageChange(pageNumber)}
+                          className="min-w-[32px] md:min-w-[40px] text-xs md:text-sm px-2 md:px-3"
+                        >
+                          {pageNumber}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                    className="text-xs md:text-sm px-2 md:px-3"
+                  >
+                    <span className="hidden md:inline">Next</span>
+                    <svg
+                      className="w-3 h-3 md:w-4 md:h-4 md:ml-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </PageBackground>
   );
 };
