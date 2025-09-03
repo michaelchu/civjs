@@ -226,7 +226,7 @@ export const GameLobby: React.FC = () => {
 
       {/* Scrollable Content Area */}
       <div className="flex-1 overflow-hidden pb-20 md:pb-24" style={{ transform: 'translateZ(0)' }}>
-        <div className="max-w-6xl mx-auto w-full px-4 md:px-6 h-full">
+        <div className="max-w-6xl mx-auto w-full px-4 md:px-6 h-full max-h-[calc(100vh-12rem)] md:max-h-[calc(100vh-14rem)]">
           {isLoading ? (
             <div className="h-full flex items-center justify-center">
               <div className="text-center">
@@ -275,7 +275,7 @@ export const GameLobby: React.FC = () => {
             </div>
           ) : (
             /* DataTable with Search - Scrollable */
-            <div className="h-full">
+            <div className="h-full min-h-[300px]">
               <DataTable columns={columns} data={currentGames} className="h-full" />
             </div>
           )}
