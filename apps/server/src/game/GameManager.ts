@@ -64,7 +64,7 @@ export interface GameInstance {
 
 export interface PlayerState {
   id: string;
-  userId: string;
+  userId: string | null; // Can be null for AI players
   playerNumber: number;
   civilization: string;
   isReady: boolean;
