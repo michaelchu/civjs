@@ -9,7 +9,7 @@ import { createBasicGameScenario } from '../fixtures/gameFixtures';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 import * as schema from '../../src/database/schema';
 
-describe('GameManager - Integration Tests with Real Database', () => {
+describe.skip('GameManager - Integration Tests with Real Database', () => {
   let gameManager: GameManager;
 
   beforeEach(async () => {

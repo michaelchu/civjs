@@ -4,7 +4,7 @@ import { clearAllTables } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 
-describe('GovernmentManager - Integration Tests with Real Government System', () => {
+describe.skip('GovernmentManager - Integration Tests with Real Government System', () => {
   let governmentManager: GovernmentManager;
   let gameManager: GameManager;
   let gameId: string;

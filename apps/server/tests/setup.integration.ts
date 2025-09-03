@@ -26,6 +26,15 @@ jest.mock('../src/utils/logger', () => ({
 // Import after mocking
 import { setupTestDatabase, cleanupTestDatabase } from './utils/testDatabase';
 
+// Mock Redis to avoid connection issues in tests
+jest.mock('../src/database/redis', () => ({
+  gameState: {
+    setGameState: jest.fn().mockResolvedValue(undefined),
+    getGameState: jest.fn().mockResolvedValue(null),
+    deleteGameState: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
 // Note: Database mocking removed for simplified ActionSystem tests
 // The simplified tests focus on ActionSystem behavior with mock units
 // rather than complex GameManager database integration
