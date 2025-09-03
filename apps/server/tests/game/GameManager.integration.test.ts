@@ -269,29 +269,39 @@ describe('GameManager - Integration Tests with Real Database', () => {
   });
 
   describe('game lifecycle with real state management', () => {
-    let gameId: string;
+    let hostData: { game: any; player: any; user: any };
+    let user2Data: { game: any; player: any; user: any };
 
     beforeEach(async () => {
-      const hostData = await createTestGameAndPlayer('9007', '9008');
-      const user2Data = await createTestGameAndPlayer('9009', '9010');
+      hostData = await createTestGameAndPlayer('9007', '9008');
+      user2Data = await createTestGameAndPlayer('9009', '9010');
+    });
+
+    it('should start game and initialize all managers', async () => {
       const gameConfig: GameConfig = {
         name: 'Lifecycle Test Game',
         hostId: hostData.user.id,
-        maxPlayers: 2,
+        maxPlayers: 4,
         mapWidth: 20,
         mapHeight: 20,
       };
 
-      gameId = await gameManager.createGame(gameConfig);
+      const gameId = await gameManager.createGame(gameConfig);
+      // Join players
       await gameManager.joinGame(gameId, hostData.user.id, 'romans');
       await gameManager.joinGame(gameId, user2Data.user.id, 'greeks');
-    });
 
-    it('should start game and initialize all managers', async () => {
-      const hostData = await createTestGameAndPlayer('9007', '9008');
-      await gameManager.startGame(gameId, hostData.user.id);
+      // Give auto-start a chance, but then manually start if needed
+      await new Promise(resolve => setTimeout(resolve, 300));
 
-      const game = gameManager.getGameInstance(gameId);
+      let game = gameManager.getGameInstance(gameId);
+      if (!game) {
+        // Auto-start didn't work, manually start
+        await gameManager.startGame(gameId, hostData.user.id);
+        game = gameManager.getGameInstance(gameId);
+      }
+
+      expect(game).toBeDefined();
       expect(game!.state).toBe('active');
 
       // Verify managers are initialized
@@ -309,10 +319,23 @@ describe('GameManager - Integration Tests with Real Database', () => {
     });
 
     it('should prevent non-host from starting game', async () => {
-      const user2Data = await createTestGameAndPlayer('9009', '9010');
-      await expect(gameManager.startGame(gameId, user2Data.user.id)).rejects.toThrow();
+      const gameConfig: GameConfig = {
+        name: 'Non-Host Test Game',
+        hostId: hostData.user.id,
+        maxPlayers: 4,
+        mapWidth: 20,
+        mapHeight: 20,
+      };
 
-      // Game should still be waiting
+      const gameId = await gameManager.createGame(gameConfig);
+      await gameManager.joinGame(gameId, hostData.user.id, 'romans');
+
+      // Try to start game as non-host (should fail)
+      await expect(gameManager.startGame(gameId, user2Data.user.id)).rejects.toThrow(
+        'Only the host can start the game'
+      );
+
+      // Game should still be in waiting status since no valid start occurred
       const db = getTestDatabase();
       const [dbGame] = await db.query.games.findMany({
         where: (games, { eq }) => eq(games.id, gameId),

@@ -64,7 +64,7 @@ export interface GameInstance {
 
 export interface PlayerState {
   id: string;
-  userId: string;
+  userId: string | null; // Can be null for AI players
   playerNumber: number;
   civilization: string;
   isReady: boolean;
@@ -262,6 +262,10 @@ export class GameManager {
         try {
           // Small delay to ensure socket room joins are complete
           await new Promise(resolve => setTimeout(resolve, 200));
+
+          // Add AI player if needed to meet minimum requirements
+          await this.ensureMinimumPlayers(gameId);
+
           await this.startGame(gameId, updatedGame.hostId);
         } catch (error) {
           logger.error('Failed to auto-start game:', error);
@@ -278,6 +282,71 @@ export class GameManager {
     }
 
     return newPlayer.id;
+  }
+
+  /**
+   * Ensure game has minimum players by adding AI players if needed
+   */
+  private async ensureMinimumPlayers(gameId: string): Promise<void> {
+    // Get current game state
+    const game = await db.query.games.findFirst({
+      where: eq(games.id, gameId),
+      with: { players: true },
+    });
+
+    if (!game) {
+      return;
+    }
+
+    const minPlayers = game.gameType === 'single' ? 1 : serverConfig.game.minPlayersToStart;
+    const currentPlayers = game.players.length;
+
+    if (currentPlayers >= minPlayers) {
+      return; // Already have enough players
+    }
+
+    const playersNeeded = minPlayers - currentPlayers;
+    logger.info(`Adding ${playersNeeded} AI players to meet minimum requirement`, {
+      gameId,
+      currentPlayers,
+      minPlayers,
+    });
+
+    // Available AI civilizations (basic ones to avoid conflicts)
+    const aiCivs = ['barbarians', 'ai_easy', 'ai_normal', 'ai_hard', 'random_ai'];
+    const takenCivs = new Set(game.players.map(p => p.civilization));
+    const availableCivs = aiCivs.filter(civ => !takenCivs.has(civ));
+
+    // Add AI players
+    for (let i = 0; i < playersNeeded; i++) {
+      const civilization = availableCivs[i % availableCivs.length] || `ai_${i + 1}`;
+
+      // Create AI player directly in database (no user account needed)
+      const [aiPlayer] = await db
+        .insert(players)
+        .values({
+          gameId,
+          userId: null, // AI players don't have user accounts
+          playerNumber: game.players.length + i,
+          nation: civilization, // Use the civilization as nation too
+          civilization,
+          leaderName: `AI Leader ${i + 1}`,
+          color: { r: 128, g: 128, b: 128 }, // Default gray color for AI
+          isReady: true, // AI players are always ready
+          hasEndedTurn: false,
+          connectionStatus: 'connected', // AI is always "connected"
+          isAI: true, // Mark as AI player
+          gold: 50, // Starting resources for AI
+          science: 0,
+          culture: 0,
+        })
+        .returning();
+
+      logger.info(`Added AI player ${aiPlayer.id} with civilization ${civilization}`, {
+        gameId,
+        playerId: aiPlayer.id,
+      });
+    }
   }
 
   public async startGame(gameId: string, hostId: string): Promise<void> {
@@ -918,6 +987,10 @@ export class GameManager {
 
       // Store the recovered game instance
       this.games.set(gameId, gameInstance);
+
+      // Load data from database into managers
+      await cityManager.loadCities();
+      await unitManager.loadUnits();
 
       // Initialize research and visibility for all players
       for (const player of players.values()) {

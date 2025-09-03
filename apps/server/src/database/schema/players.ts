@@ -10,9 +10,7 @@ export const players = pgTable('players', {
   gameId: uuid('game_id')
     .references(() => games.id, { onDelete: 'cascade' })
     .notNull(),
-  userId: uuid('user_id')
-    .references(() => users.id)
-    .notNull(),
+  userId: uuid('user_id').references(() => users.id),
 
   // Player info
   playerNumber: integer('player_number').notNull(), // 0-based index
