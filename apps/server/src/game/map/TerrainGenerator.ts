@@ -15,6 +15,7 @@ import {
   PlacementMap,
 } from './TerrainUtils';
 import { MapgenTerrainPropertyEnum, pickTerrain, getTerrainProperties } from './TerrainRuleset';
+import { HeightMapProcessor } from './terrain/HeightMapProcessor';
 
 export interface TerrainParams {
   mountain_pct: number;
@@ -35,28 +36,27 @@ export class TerrainGenerator {
   private temperatureMap?: TemperatureMap; // Will be passed for temperature map creation
   private riverGenerator?: any; // Will be passed for river generation
 
+  // Extracted components
+  private heightMapProcessor: HeightMapProcessor;
+
   constructor(width: number, height: number, random: () => number, generator: string) {
     this.width = width;
     this.height = height;
     this.random = random;
     this.generator = generator;
     this.placementMap = new PlacementMap(width, height);
+
+    // Initialize extracted components
+    this.heightMapProcessor = new HeightMapProcessor(width, height, random);
   }
 
   /**
    * Copy height map values to tile altitude properties
    * @reference freeciv/server/generator/height_map.c height_map_to_map()
-   * Exact copy of freeciv height map transfer algorithm
+   * Delegated to HeightMapProcessor for better organization
    */
   public heightMapToMap(tiles: MapTile[][], heightMap: number[]): void {
-    // Copy height map values to tile altitude
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const index = y * this.width + x;
-        tiles[x][y].elevation = heightMap[index];
-      }
-    }
-    // Note: wld.map.altitude_info = TRUE; is implicit in our implementation
+    return this.heightMapProcessor.heightMapToMap(tiles, heightMap);
   }
 
   /**
@@ -130,8 +130,8 @@ export class TerrainGenerator {
 
     // Step 1: HAS_POLES - normalize height map at poles to prevent excessive land
     // @reference freeciv/server/generator/mapgen.c:899-901 normalize_hmap_poles()
-    if (this.hasPoles()) {
-      this.normalizeHmapPoles(heightMap, tiles);
+    if (this.heightMapProcessor.hasPoles()) {
+      this.heightMapProcessor.normalizeHmapPoles(heightMap, tiles);
     }
 
     // Step 2: Pick a non-ocean terrain for land_fill (temporary land terrain)
@@ -201,8 +201,8 @@ export class TerrainGenerator {
 
     // Step 6: HAS_POLES - renormalize height map and create polar land
     // @reference freeciv/server/generator/mapgen.c:928-932
-    if (this.hasPoles()) {
-      this.renormalizeHmapPoles(heightMap, tiles);
+    if (this.heightMapProcessor.hasPoles()) {
+      this.heightMapProcessor.renormalizeHmapPoles(heightMap, tiles);
       // Note: make_polar_land() creates additional land at poles - not implemented yet
     }
 
@@ -564,7 +564,7 @@ export class TerrainGenerator {
         }
 
         // Calculate local average elevation
-        const localAvg = this.localAveElevation(heightMap, x, y);
+        const localAvg = this.heightMapProcessor.localAveElevation(heightMap, x, y);
 
         // Exact freeciv mountain placement thresholds
         // @reference freeciv/server/generator/fracture_map.c:317-321
@@ -764,37 +764,6 @@ export class TerrainGenerator {
     }
 
     return true;
-  }
-
-  /**
-   * Calculate local average elevation for fracture maps
-   * @reference freeciv/server/generator/fracture_map.c:268-284 local_ave_elevation()
-   * Used for determining relative elevation in fracture relief
-   */
-  private localAveElevation(heightMap: number[], x: number, y: number): number {
-    let ele = 0;
-    let n = 0;
-
-    // Calculate average in a 7x7 square (radius 3)
-    // @reference freeciv/server/generator/fracture_map.c:274-277
-    for (let dx = -3; dx <= 3; dx++) {
-      for (let dy = -3; dy <= 3; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const index = ny * this.width + nx;
-          ele += heightMap[index];
-          n++;
-        }
-      }
-    }
-
-    // Avoid division by zero
-    if (n > 0) {
-      ele = ele / n;
-    }
-
-    return ele;
   }
 
   /**
@@ -2323,134 +2292,5 @@ export class TerrainGenerator {
       // @reference freeciv uses adjc_iterate for adjacent tile iteration
       stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
     }
-  }
-
-  /**
-   * Check if map has poles requiring height normalization
-   * @reference freeciv/server/generator/mapgen.c:48-49 HAS_POLES macro
-   * Original: #define HAS_POLES (MIN(COLD_LEVEL, 2 * ICE_BASE_LEVEL) > MIN_REAL_COLATITUDE(wld.map))
-   * Simplified for rectangular maps
-   */
-  private hasPoles(): boolean {
-    // For simplicity, assume we have poles if temperature system is enabled
-    // @reference freeciv/server/generator/mapgen.c:48-49
-    const ICE_BASE_LEVEL = 200; // From freeciv mapgen_topology.h ice_base_colatitude
-    const COLD_LEVEL = 400; // Simplified assumption for temperature 50
-    const MIN_REAL_COLATITUDE = 0; // Simplified for rectangular maps
-
-    return Math.min(COLD_LEVEL, 2 * ICE_BASE_LEVEL) > MIN_REAL_COLATITUDE;
-  }
-
-  /**
-   * Normalize height map at poles to prevent excessive land formation
-   * @reference freeciv/server/generator/height_map.c:165-172 normalize_hmap_poles()
-   * Reduces height values in polar regions and near map edges to prevent
-   * excessive land generation in areas that should be mostly ocean
-   */
-  private normalizeHmapPoles(heightMap: number[], _tiles: MapTile[][]): void {
-    const ICE_BASE_LEVEL = 200; // From freeciv mapgen_topology.h
-    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL; // 500
-
-    // Create TemperatureMap instance for colatitude calculation
-    const tempMap = new TemperatureMap(this.width, this.height);
-
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const index = y * this.width + x;
-        const colatitude = tempMap.mapColatitude(x, y);
-
-        if (colatitude <= POLAR_THRESHOLD) {
-          // Apply pole factor to reduce height
-          // @reference freeciv/server/generator/height_map.c:165-170
-          const poleFactor = this.hmapPoleFactor(colatitude, x, y);
-          heightMap[index] = Math.floor(heightMap[index] * poleFactor);
-        } else if (this.nearSingularity(x, y)) {
-          // Near map edge but not near pole - set to minimum height
-          // @reference freeciv/server/generator/height_map.c:170-171
-          heightMap[index] = 0;
-        }
-      }
-    }
-  }
-
-  /**
-   * Invert most effects of normalize_hmap_poles for accurate polar texturing
-   * @reference freeciv/server/generator/height_map.c:178-192 renormalize_hmap_poles()
-   * Original implementation inverts height reduction applied during normalization
-   * Restores original heights for polar regions to enable accurate terrain texturing
-   */
-  private renormalizeHmapPoles(heightMap: number[], _tiles: MapTile[][]): void {
-    const ICE_BASE_LEVEL = 200;
-    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL; // 500
-
-    // Create TemperatureMap instance for colatitude calculation
-    const tempMap = new TemperatureMap(this.width, this.height);
-
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const index = y * this.width + x;
-
-        if (heightMap[index] === 0) {
-          // Nothing left to restore
-          // @reference freeciv/server/generator/height_map.c:181-182
-          continue;
-        }
-
-        const colatitude = tempMap.mapColatitude(x, y);
-
-        if (colatitude <= POLAR_THRESHOLD) {
-          const factor = this.hmapPoleFactor(colatitude, x, y);
-
-          if (factor > 0) {
-            // Invert the previously applied function
-            // @reference freeciv/server/generator/height_map.c:186-189
-            heightMap[index] = Math.floor(heightMap[index] / factor);
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Calculate height reduction factor for polar regions
-   * @reference freeciv/server/generator/height_map.c:133-150 hmap_pole_factor()
-   * Original: factor = 1 - ((1 - (map_colatitude(ptile) / (2.5 * ICE_BASE_LEVEL)))
-   *                          * wld.map.server.flatpoles / 100);
-   */
-  private hmapPoleFactor(colatitude: number, x: number, y: number): number {
-    const ICE_BASE_LEVEL = 200;
-    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL; // 500
-    const flatpoles = 100; // Default flatpoles parameter (0-100)
-    let factor = 1.0;
-
-    if (this.nearSingularity(x, y)) {
-      // Map edge near pole: clamp to what linear ramp would give us at pole
-      // @reference freeciv/server/generator/height_map.c:138-141
-      factor = (100 - flatpoles) / 100.0;
-    } else if (flatpoles > 0) {
-      // Linear ramp down from 100% at 2.5*ICE_BASE_LEVEL to (100-flatpoles) % at the poles
-      // @reference freeciv/server/generator/height_map.c:142-145
-      factor = 1 - ((1 - colatitude / POLAR_THRESHOLD) * flatpoles) / 100;
-    }
-
-    // Additional reduction for separate poles (simplified)
-    // @reference freeciv/server/generator/height_map.c:146-150
-    if (colatitude >= 2 * ICE_BASE_LEVEL) {
-      factor = Math.min(factor, 0.1);
-    }
-
-    return Math.max(0, factor);
-  }
-
-  /**
-   * Check if position is near map edge singularity
-   * @reference freeciv/server/generator/mapgen_topology.c:53-56 near_singularity()
-   * Original: return is_singular_tile(ptile, CITY_MAP_DEFAULT_RADIUS);
-   * Simplified for rectangular maps
-   */
-  private nearSingularity(x: number, y: number): boolean {
-    const CITY_MAP_DEFAULT_RADIUS = 2; // From freeciv
-    const edgeDistance = Math.min(x, this.width - 1 - x, y, this.height - 1 - y);
-    return edgeDistance <= CITY_MAP_DEFAULT_RADIUS;
   }
 }
