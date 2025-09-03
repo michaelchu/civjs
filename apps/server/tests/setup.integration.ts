@@ -24,7 +24,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 // Import after mocking
-import { setupTestDatabase, cleanupTestDatabase, getTestDatabase } from './utils/testDatabase';
+import { setupTestDatabase, cleanupTestDatabase } from './utils/testDatabase';
 
 // Note: Database mocking removed for simplified ActionSystem tests
 // The simplified tests focus on ActionSystem behavior with mock units
