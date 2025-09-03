@@ -114,7 +114,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         // TODO: Implement fog of war - for now send all tiles
         // Get player-specific visibility data (disabled until fog of war is implemented)
         const visibleTilesSet = gameInstance.visibilityManager.getVisibleTiles(playerId);
-        
+
         // Process and format all tiles (no fog of war for now)
         const visibleTiles = [];
         for (let y = 0; y < mapData.height; y++) {
