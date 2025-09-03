@@ -112,6 +112,7 @@ jobs:
         uses: tj-actions/coverage-badge-js@v2
         if: always()
         with:
+          path: apps/server
           report_path: apps/server/coverage/coverage-summary.json
           output_path: server-coverage-badge.svg
 
