@@ -144,7 +144,7 @@ export const GameLobby: React.FC = () => {
   }, [games.length]);
 
   return (
-    <PageBackground className="min-h-[100dvh] flex flex-col">
+    <PageBackground className="min-h-[100dvh] flex flex-col" showBackground={false}>
       <div className="flex-1 flex flex-col max-w-6xl mx-auto w-full p-4 md:p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-8 flex-shrink-0">
