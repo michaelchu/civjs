@@ -28,7 +28,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
     await cleanupTestDatabase();
   });
 
-  beforeEach(async (done) => {
+  beforeEach(async done => {
     // Clear database and reset singleton
     await clearAllTables();
     (GameManager as any).instance = null;
@@ -48,7 +48,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
     gameManager = GameManager.getInstance(socketServer);
 
     // Setup socket handlers
-    socketServer.on('connection', (socket) => {
+    socketServer.on('connection', socket => {
       setupSocketHandlers(socketServer, socket);
     });
 
@@ -66,7 +66,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
     });
   });
 
-  afterEach((done) => {
+  afterEach(done => {
     // Cleanup
     if (clientSocket) {
       clientSocket.disconnect();
@@ -84,7 +84,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
   });
 
   describe('packet handling and validation', () => {
-    it('should handle valid packets and validate schemas', (done) => {
+    it('should handle valid packets and validate schemas', done => {
       const validPacket = {
         type: PacketType.CHAT_MSG,
         data: {
@@ -94,7 +94,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       };
 
       // Listen for response
-      clientSocket.on('packet_response', (response) => {
+      clientSocket.on('packet_response', response => {
         expect(response.success).toBeDefined();
         done();
       });
@@ -103,14 +103,14 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       clientSocket.emit('packet', validPacket);
     });
 
-    it('should reject invalid packet structures', (done) => {
+    it('should reject invalid packet structures', done => {
       const invalidPacket = {
         // Missing type and data
         timestamp: Date.now(),
       };
 
       // Listen for error response
-      clientSocket.on('packet_error', (error) => {
+      clientSocket.on('packet_error', error => {
         expect(error.message).toContain('Invalid packet');
         done();
       });
@@ -119,7 +119,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       clientSocket.emit('packet', invalidPacket);
     });
 
-    it('should handle packet sequence numbers correctly', (done) => {
+    it('should handle packet sequence numbers correctly', done => {
       let responseCount = 0;
 
       const packet1 = {
@@ -165,7 +165,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       await gameManager.loadGame(scenario.game.id);
     });
 
-    it('should handle unit movement commands through socket', (done) => {
+    it('should handle unit movement commands through socket', done => {
       const game = gameManager.getGameInstance(scenario.game.id);
       const unit = Array.from(game!.unitManager.getPlayerUnits(playerId))[0];
 
@@ -181,16 +181,16 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       };
 
       // Listen for movement response
-      clientSocket.on('unit_moved', (response) => {
+      clientSocket.on('unit_moved', response => {
         expect(response.unitId).toBe(unit.id);
         expect(response.newX).toBe(unit.x + 1);
         expect(response.newY).toBe(unit.y);
-        
+
         // Verify unit actually moved in game
         const movedUnit = game!.unitManager.getUnit(unit.id);
         expect(movedUnit!.x).toBe(unit.x + 1);
         expect(movedUnit!.y).toBe(unit.y);
-        
+
         done();
       });
 
@@ -198,7 +198,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       clientSocket.emit('packet', movePacket);
     });
 
-    it('should broadcast game state changes to all players', (done) => {
+    it('should broadcast game state changes to all players', done => {
       // Create second client socket
       const client2Socket = ClientIO(`http://localhost:${port}`, {
         transports: ['websocket'],
@@ -212,7 +212,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
         let broadcastReceived = false;
 
         // Second client listens for broadcasts
-        client2Socket.on('game_state_update', (update) => {
+        client2Socket.on('game_state_update', update => {
           expect(update.gameId).toBe(scenario.game.id);
           broadcastReceived = true;
           client2Socket.disconnect();
@@ -235,7 +235,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       });
     });
 
-    it('should handle turn management through socket communication', (done) => {
+    it('should handle turn management through socket communication', done => {
       const turnEndPacket = {
         type: PacketType.TURN_END,
         data: {
@@ -246,7 +246,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       };
 
       // Listen for turn response
-      clientSocket.on('turn_ended', (response) => {
+      clientSocket.on('turn_ended', response => {
         expect(response.playerId).toBe(playerId);
         expect(response.turnAdvanced).toBeDefined();
         done();
@@ -258,7 +258,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
   });
 
   describe('authentication and authorization', () => {
-    it('should handle user authentication through sockets', (done) => {
+    it('should handle user authentication through sockets', done => {
       const authPacket = {
         type: PacketType.SERVER_JOIN_REQ,
         data: {
@@ -269,7 +269,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       };
 
       // Listen for authentication response
-      clientSocket.on('server_join_reply', (response) => {
+      clientSocket.on('server_join_reply', response => {
         expect(response.accepted).toBeDefined();
         if (response.accepted) {
           expect(response.userId).toBeDefined();
@@ -281,7 +281,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       clientSocket.emit('packet', authPacket);
     });
 
-    it('should reject unauthorized game actions', (done) => {
+    it('should reject unauthorized game actions', done => {
       const unauthorizedPacket = {
         type: PacketType.UNIT_MOVE,
         data: {
@@ -294,7 +294,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       };
 
       // Listen for error response
-      clientSocket.on('action_error', (error) => {
+      clientSocket.on('action_error', error => {
         expect(error.message).toContain('unauthorized');
         done();
       });
@@ -312,10 +312,11 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       await gameManager.loadGame(scenario.game.id);
     });
 
-    it('should broadcast city founding events to all players', (done) => {
+    it('should broadcast city founding events to all players', done => {
       const game = gameManager.getGameInstance(scenario.game.id);
-      const settlerUnit = Array.from(game!.unitManager.getPlayerUnits(scenario.players[0].id))
-        .find(u => u.unitTypeId === 'settler');
+      const settlerUnit = Array.from(game!.unitManager.getPlayerUnits(scenario.players[0].id)).find(
+        u => u.unitTypeId === 'settler'
+      );
 
       if (!settlerUnit) {
         done();
@@ -333,7 +334,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       };
 
       // Listen for city founded broadcast
-      clientSocket.on('city_founded', (response) => {
+      clientSocket.on('city_founded', response => {
         expect(response.cityName).toBe('New Test City');
         expect(response.x).toBe(settlerUnit.x);
         expect(response.y).toBe(settlerUnit.y);
@@ -344,7 +345,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       clientSocket.emit('packet', foundCityPacket);
     });
 
-    it('should handle research progress updates', (done) => {
+    it('should handle research progress updates', done => {
       const researchPacket = {
         type: PacketType.RESEARCH_SET,
         data: {
@@ -356,7 +357,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       };
 
       // Listen for research update
-      clientSocket.on('research_updated', (response) => {
+      clientSocket.on('research_updated', response => {
         expect(response.playerId).toBe(scenario.players[0].id);
         expect(response.currentTech).toBe('pottery');
         done();
@@ -366,7 +367,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       clientSocket.emit('packet', researchPacket);
     });
 
-    it('should handle chat messages and broadcast to game players', (done) => {
+    it('should handle chat messages and broadcast to game players', done => {
       const chatPacket = {
         type: PacketType.CHAT_MSG,
         data: {
@@ -378,7 +379,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       };
 
       // Listen for chat broadcast
-      clientSocket.on('chat_message_broadcast', (response) => {
+      clientSocket.on('chat_message_broadcast', response => {
         expect(response.message).toBe('Hello from integration test!');
         expect(response.playerId).toBe(scenario.players[0].id);
         expect(response.gameId).toBe(scenario.game.id);
@@ -391,10 +392,10 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
   });
 
   describe('connection management and error handling', () => {
-    it('should handle client disconnection gracefully', (done) => {
+    it('should handle client disconnection gracefully', done => {
       const disconnectHandled = jest.fn();
 
-      socketServer.on('disconnect', (socket) => {
+      socketServer.on('disconnect', socket => {
         disconnectHandled();
       });
 
@@ -408,7 +409,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       }, 100);
     });
 
-    it('should handle rapid successive packet sending', (done) => {
+    it('should handle rapid successive packet sending', done => {
       let responsesReceived = 0;
       const totalPackets = 10;
 
@@ -432,9 +433,9 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       }
     });
 
-    it('should handle malformed JSON gracefully', (done) => {
+    it('should handle malformed JSON gracefully', done => {
       // Listen for error response
-      clientSocket.on('packet_error', (error) => {
+      clientSocket.on('packet_error', error => {
         expect(error.message).toBeDefined();
         done();
       });
@@ -460,7 +461,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
         clients.push(client);
 
         connectionPromises.push(
-          new Promise<void>((resolve) => {
+          new Promise<void>(resolve => {
             client.on('connect', resolve);
           })
         );
@@ -471,15 +472,15 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
 
       // Send packet from each client
       const responsePromises = clients.map((client, index) => {
-        return new Promise<void>((resolve) => {
+        return new Promise<void>(resolve => {
           client.on('packet_response', resolve);
-          
+
           const packet = {
             type: PacketType.CHAT_MSG,
             data: { message: `Message from client ${index}` },
             timestamp: Date.now(),
           };
-          
+
           client.emit('packet', packet);
         });
       });
@@ -491,7 +492,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
       clients.forEach(client => client.disconnect());
     });
 
-    it('should maintain responsiveness under packet load', (done) => {
+    it('should maintain responsiveness under packet load', done => {
       const startTime = Date.now();
       let responsesReceived = 0;
       const totalPackets = 50;
@@ -501,7 +502,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
         if (responsesReceived === totalPackets) {
           const endTime = Date.now();
           const totalTime = endTime - startTime;
-          
+
           // Should handle 50 packets within reasonable time (< 5 seconds)
           expect(totalTime).toBeLessThan(5000);
           done();

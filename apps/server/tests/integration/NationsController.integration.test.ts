@@ -35,7 +35,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     // Create fresh Express app for each test
     app = express();
     app.use(express.json());
-    
+
     // Setup routes
     app.get('/api/nations', NationsController.getNations);
     app.get('/api/nations/:id', NationsController.getNationById);
@@ -45,9 +45,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
 
   describe('GET /api/nations', () => {
     it('should return all nations for default (classic) ruleset', async () => {
-      const response = await request(app)
-        .get('/api/nations')
-        .expect(200);
+      const response = await request(app).get('/api/nations').expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toBeDefined();
@@ -98,13 +96,11 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     });
 
     it('should include nation traits and essential properties', async () => {
-      const response = await request(app)
-        .get('/api/nations')
-        .expect(200);
+      const response = await request(app).get('/api/nations').expect(200);
 
       const nations = response.body.data.nations;
       const romanNation = nations.find((n: any) => n.id === 'romans');
-      
+
       if (romanNation) {
         expect(romanNation).toHaveProperty('class');
         expect(romanNation).toHaveProperty('style');
@@ -118,9 +114,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
 
   describe('GET /api/nations/:id', () => {
     it('should return specific nation by ID', async () => {
-      const response = await request(app)
-        .get('/api/nations/romans')
-        .expect(200);
+      const response = await request(app).get('/api/nations/romans').expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.nation).toBeDefined();
@@ -131,9 +125,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     });
 
     it('should return nation with complete data structure', async () => {
-      const response = await request(app)
-        .get('/api/nations/romans')
-        .expect(200);
+      const response = await request(app).get('/api/nations/romans').expect(200);
 
       const nation = response.body.data.nation;
       expect(nation).toHaveProperty('id');
@@ -150,9 +142,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     });
 
     it('should return 404 for non-existent nation', async () => {
-      const response = await request(app)
-        .get('/api/nations/nonexistent')
-        .expect(404);
+      const response = await request(app).get('/api/nations/nonexistent').expect(404);
 
       expect(response.body.error).toBe('Nation not found');
       expect(response.body.message).toContain('nonexistent');
@@ -179,9 +169,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
 
   describe('GET /api/rulesets', () => {
     it('should return available rulesets', async () => {
-      const response = await request(app)
-        .get('/api/rulesets')
-        .expect(200);
+      const response = await request(app).get('/api/rulesets').expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toBeDefined();
@@ -191,9 +179,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     });
 
     it('should return consistent response structure', async () => {
-      const response = await request(app)
-        .get('/api/rulesets')
-        .expect(200);
+      const response = await request(app).get('/api/rulesets').expect(200);
 
       expect(response.body).toHaveProperty('success');
       expect(response.body).toHaveProperty('data');
@@ -204,9 +190,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
 
   describe('GET /api/nations/:id/leaders', () => {
     it('should return leaders for a specific nation', async () => {
-      const response = await request(app)
-        .get('/api/nations/romans/leaders')
-        .expect(200);
+      const response = await request(app).get('/api/nations/romans/leaders').expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toBeDefined();
@@ -222,9 +206,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     });
 
     it('should return leaders with proper nation context', async () => {
-      const response = await request(app)
-        .get('/api/nations/greeks/leaders')
-        .expect(200);
+      const response = await request(app).get('/api/nations/greeks/leaders').expect(200);
 
       expect(response.body.data.nation_id).toBe('greeks');
       expect(response.body.data.nation_name).toBeDefined();
@@ -232,9 +214,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     });
 
     it('should return 404 for non-existent nation leaders', async () => {
-      const response = await request(app)
-        .get('/api/nations/nonexistent/leaders')
-        .expect(404);
+      const response = await request(app).get('/api/nations/nonexistent/leaders').expect(404);
 
       expect(response.body.error).toBe('Nation not found');
       expect(response.body.message).toContain('nonexistent');
@@ -264,17 +244,13 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     it('should handle malformed requests gracefully', async () => {
       // Test with extremely long nation ID
       const longId = 'a'.repeat(1000);
-      const response = await request(app)
-        .get(`/api/nations/${longId}`)
-        .expect(404);
+      const response = await request(app).get(`/api/nations/${longId}`).expect(404);
 
       expect(response.body.error).toBe('Nation not found');
     });
 
     it('should handle special characters in nation ID', async () => {
-      const response = await request(app)
-        .get('/api/nations/test@#$%')
-        .expect(404);
+      const response = await request(app).get('/api/nations/test@#$%').expect(404);
 
       expect(response.body.error).toBe('Nation not found');
     });
@@ -321,7 +297,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
         expect(nation.name).toBeDefined();
         expect(nation.leaders).toBeInstanceOf(Array);
         expect(nation.leaders.length).toBeGreaterThan(0);
-        
+
         // Leaders should have names
         nation.leaders.forEach((leader: any) => {
           expect(leader.name).toBeDefined();

@@ -1,11 +1,7 @@
 import { MapManager, MapGeneratorType, MapStartpos } from '../../src/game/MapManager';
 import { GameManager } from '../../src/game/GameManager';
 import { MapData, MapTile } from '../../src/game/map/MapTypes';
-import {
-  getTestDatabase,
-  clearAllTables,
-  createTestGameAndPlayer,
-} from '../utils/testDatabase';
+import { getTestDatabase, clearAllTables, createTestGameAndPlayer } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 
@@ -39,26 +35,32 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
       const player2Data = await createTestGameAndPlayer('0003', '0004');
 
       const players = new Map([
-        [player1Data.player.id, {
-          id: player1Data.player.id,
-          userId: player1Data.user.id,
-          playerNumber: 0,
-          civilization: 'Roman',
-          isReady: true,
-          hasEndedTurn: false,
-          isConnected: true,
-          lastSeen: new Date(),
-        }],
-        [player2Data.player.id, {
-          id: player2Data.player.id,
-          userId: player2Data.user.id,
-          playerNumber: 1,
-          civilization: 'Greek',
-          isReady: true,
-          hasEndedTurn: false,
-          isConnected: true,
-          lastSeen: new Date(),
-        }],
+        [
+          player1Data.player.id,
+          {
+            id: player1Data.player.id,
+            userId: player1Data.user.id,
+            playerNumber: 0,
+            civilization: 'Roman',
+            isReady: true,
+            hasEndedTurn: false,
+            isConnected: true,
+            lastSeen: new Date(),
+          },
+        ],
+        [
+          player2Data.player.id,
+          {
+            id: player2Data.player.id,
+            userId: player2Data.user.id,
+            playerNumber: 1,
+            civilization: 'Greek',
+            isReady: true,
+            hasEndedTurn: false,
+            isConnected: true,
+            lastSeen: new Date(),
+          },
+        ],
       ]);
 
       // Generate map
@@ -97,16 +99,19 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
     it('should generate different maps with different seeds', async () => {
       const player1Data = await createTestGameAndPlayer('0005', '0006');
       const players = new Map([
-        [player1Data.player.id, {
-          id: player1Data.player.id,
-          userId: player1Data.user.id,
-          playerNumber: 0,
-          civilization: 'Roman',
-          isReady: true,
-          hasEndedTurn: false,
-          isConnected: true,
-          lastSeen: new Date(),
-        }],
+        [
+          player1Data.player.id,
+          {
+            id: player1Data.player.id,
+            userId: player1Data.user.id,
+            playerNumber: 0,
+            civilization: 'Roman',
+            isReady: true,
+            hasEndedTurn: false,
+            isConnected: true,
+            lastSeen: new Date(),
+          },
+        ],
       ]);
 
       // Generate first map
@@ -122,8 +127,10 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
       // Maps should be different
       let differentTiles = 0;
       for (let i = 0; i < mapData1.tiles.length; i++) {
-        if (mapData1.tiles[i].terrain !== mapData2.tiles[i].terrain ||
-            Math.abs(mapData1.tiles[i].height - mapData2.tiles[i].height) > 5) {
+        if (
+          mapData1.tiles[i].terrain !== mapData2.tiles[i].terrain ||
+          Math.abs(mapData1.tiles[i].height - mapData2.tiles[i].height) > 5
+        ) {
           differentTiles++;
         }
       }
@@ -135,16 +142,19 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
     it('should generate reproducible maps with same seed', async () => {
       const player1Data = await createTestGameAndPlayer('0007', '0008');
       const players = new Map([
-        [player1Data.player.id, {
-          id: player1Data.player.id,
-          userId: player1Data.user.id,
-          playerNumber: 0,
-          civilization: 'Roman',
-          isReady: true,
-          hasEndedTurn: false,
-          isConnected: true,
-          lastSeen: new Date(),
-        }],
+        [
+          player1Data.player.id,
+          {
+            id: player1Data.player.id,
+            userId: player1Data.user.id,
+            playerNumber: 0,
+            civilization: 'Roman',
+            isReady: true,
+            hasEndedTurn: false,
+            isConnected: true,
+            lastSeen: new Date(),
+          },
+        ],
       ]);
 
       const seedValue = 'reproducible-seed-123';
@@ -399,7 +409,7 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
 
     it('should identify accessible tiles within movement range', () => {
       const accessibleTiles = gameMapManager.getAccessibleTiles(10, 10, 6); // 6 movement points
-      
+
       expect(accessibleTiles).toBeDefined();
       expect(accessibleTiles.length).toBeGreaterThan(0);
 
@@ -415,16 +425,19 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
     it('should validate generated map meets quality standards', async () => {
       const player1Data = await createTestGameAndPlayer('0009', '0010');
       const players = new Map([
-        [player1Data.player.id, {
-          id: player1Data.player.id,
-          userId: player1Data.user.id,
-          playerNumber: 0,
-          civilization: 'Roman',
-          isReady: true,
-          hasEndedTurn: false,
-          isConnected: true,
-          lastSeen: new Date(),
-        }],
+        [
+          player1Data.player.id,
+          {
+            id: player1Data.player.id,
+            userId: player1Data.user.id,
+            playerNumber: 0,
+            civilization: 'Roman',
+            isReady: true,
+            hasEndedTurn: false,
+            isConnected: true,
+            lastSeen: new Date(),
+          },
+        ],
       ]);
 
       await mapManager.generateMap(players);
@@ -446,18 +459,21 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
       // Create a very small map that might have issues
       const smallMapManager = new MapManager(3, 3, 'small-test');
       const player1Data = await createTestGameAndPlayer('0011', '0012');
-      
+
       const players = new Map([
-        [player1Data.player.id, {
-          id: player1Data.player.id,
-          userId: player1Data.user.id,
-          playerNumber: 0,
-          civilization: 'Roman',
-          isReady: true,
-          hasEndedTurn: false,
-          isConnected: true,
-          lastSeen: new Date(),
-        }],
+        [
+          player1Data.player.id,
+          {
+            id: player1Data.player.id,
+            userId: player1Data.user.id,
+            playerNumber: 0,
+            civilization: 'Roman',
+            isReady: true,
+            hasEndedTurn: false,
+            isConnected: true,
+            lastSeen: new Date(),
+          },
+        ],
       ]);
 
       await smallMapManager.generateMap(players);
