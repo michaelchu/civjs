@@ -12,7 +12,7 @@ import { games, players } from '../../database/schema';
 import { eq } from 'drizzle-orm';
 import { RulesetLoader } from '../../shared/data/rulesets/RulesetLoader';
 import serverConfig from '../../config';
-import type { PlayerState } from '../GameManager';
+// PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {
   joinGame(gameId: string, userId: string, civilization?: string): Promise<string>;
@@ -176,7 +176,11 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     const minPlayers = serverConfig.game.minPlayersToStart;
 
     if (currentPlayerCount >= minPlayers) {
-      this.logger.debug('Game already has sufficient players', { gameId, currentPlayerCount, minPlayers });
+      this.logger.debug('Game already has sufficient players', {
+        gameId,
+        currentPlayerCount,
+        minPlayers,
+      });
       return;
     }
 
@@ -213,7 +217,11 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
 
       try {
         const [aiPlayer] = await db.insert(players).values(aiPlayerData).returning();
-        this.logger.info('Added AI player to game', { gameId, aiPlayerId: aiPlayer.id, nation: aiNation });
+        this.logger.info('Added AI player to game', {
+          gameId,
+          aiPlayerId: aiPlayer.id,
+          nation: aiNation,
+        });
 
         // Broadcast AI player addition
         this.onBroadcast?.(gameId, 'player-joined', {
@@ -254,7 +262,10 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
    * Validate and select nation for player
    * @reference Original GameManager.ts:169-201 nation validation logic
    */
-  private async validateAndSelectNation(civilization: string | undefined, existingPlayers: any[]): Promise<string> {
+  private async validateAndSelectNation(
+    civilization: string | undefined,
+    existingPlayers: any[]
+  ): Promise<string> {
     // Validate nation is not already taken (reference: freeciv/server/plrhand.c:2129)
     if (civilization && civilization !== 'random') {
       const existingPlayerWithNation = existingPlayers.find(p => p.civilization === civilization);

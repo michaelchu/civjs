@@ -65,7 +65,10 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   broadcastPacketToGame(gameId: string, packetType: PacketType, data: any): void {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) {
-      this.logger.warn('Attempted to broadcast packet to non-existent game', { gameId, packetType });
+      this.logger.warn('Attempted to broadcast packet to non-existent game', {
+        gameId,
+        packetType,
+      });
       return;
     }
 
@@ -99,27 +102,31 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       return;
     }
 
-    this.logger.info('Broadcasting map data to players', { 
-      gameId, 
+    this.logger.info('Broadcasting map data to players', {
+      gameId,
       mapSize: `${mapData.width}x${mapData.height}`,
-      playerCount: gameInstance.players.size 
+      playerCount: gameInstance.players.size,
     });
 
     // Broadcast to each player individually to provide player-specific data
     for (const [playerId, playerState] of gameInstance.players) {
       try {
         // Get player-specific visibility data
-        const playerVisibility = gameInstance.visibilityManager.getPlayerVisibilityTiles(playerId);
-        const visibleTiles = gameInstance.visibilityManager.filterTilesByVisibility(
-          mapData.tiles,
-          playerVisibility
+        const visibleTilesSet = gameInstance.visibilityManager.getVisibleTiles(playerId);
+        // Filter tiles based on visibility (simplified approach)
+        const visibleTiles = mapData.tiles.filter((_: any, index: number) => {
+          const x = index % mapData.width;
+          const y = Math.floor(index / mapData.width);
+          return visibleTilesSet.has(`${x},${y}`);
+        });
+
+        // Get units visible to this player (delegate to UnitManager)
+        const visibleUnits = gameInstance.unitManager.getVisibleUnits(playerId, visibleTilesSet);
+        const formattedUnits = visibleUnits.map((unit: any) =>
+          this.formatUnitForClient(unit, gameInstance.unitManager)
         );
 
-        // Get units visible to this player
-        const visibleUnits = gameInstance.visibilityManager.getVisibleUnits(playerId);
-        const formattedUnits = visibleUnits.map(unit => this.formatUnitForClient(unit, gameInstance.unitManager));
-
-        // Get cities visible to this player  
+        // Get cities visible to this player
         const playerCities = gameInstance.cityManager.getPlayerCities(playerId);
         const visibleCities = playerCities.map(city => ({
           id: city.id,
@@ -128,7 +135,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
           x: city.x,
           y: city.y,
           population: city.population,
-          size: city.size,
+          size: city.population,
           production: city.currentProduction,
           buildings: city.buildings || [],
         }));
@@ -164,10 +171,10 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
           citiesCount: visibleCities.length,
         });
       } catch (error) {
-        this.logger.error('Error sending map data to player:', { 
-          error: error instanceof Error ? error.message : error, 
-          gameId, 
-          playerId 
+        this.logger.error('Error sending map data to player:', {
+          error: error instanceof Error ? error.message : error,
+          gameId,
+          playerId,
         });
       }
     }
@@ -186,7 +193,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
    */
   broadcastToPlayer(playerId: string, event: string, data: any): void {
     this.io.to(`player:${playerId}`).emit(event, data);
-    
+
     this.logger.debug('Broadcasted event to specific player', {
       playerId,
       event,
@@ -199,7 +206,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
    */
   broadcastGlobally(event: string, data: any): void {
     this.io.emit(event, data);
-    
+
     this.logger.debug('Broadcasted event globally', {
       event,
       dataSize: JSON.stringify(data).length,

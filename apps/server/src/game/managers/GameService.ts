@@ -3,7 +3,7 @@
  * @reference docs/refactor/REFACTORING_ARCHITECTURE_PATTERNS.md Service Layer Organization
  */
 
-import { Logger } from '../../utils/logger';
+import { logger as baseLogger } from '../../utils/logger';
 
 export interface GameService {
   /**
@@ -26,9 +26,9 @@ export interface GameService {
  * Base class providing common functionality for game services
  */
 export abstract class BaseGameService implements GameService {
-  protected logger: Logger;
+  protected logger: typeof baseLogger;
 
-  constructor(logger: Logger) {
+  constructor(logger: typeof baseLogger) {
     this.logger = logger;
   }
 

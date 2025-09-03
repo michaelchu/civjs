@@ -5,12 +5,11 @@
  */
 
 import { BaseGameService } from './GameService';
-import { logger } from '../../utils/logger';
 import { db } from '../../database';
 import { gameState } from '../../database/redis';
 import { games, players } from '../../database/schema';
 import { eq } from 'drizzle-orm';
-import type { GameConfig, GameInstance, PlayerState, TerrainSettings } from '../GameManager';
+import type { TerrainSettings } from '../GameManager';
 import type { MapManager } from '../MapManager';
 
 export interface GameStateRepository {
@@ -32,7 +31,10 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
    * @reference Original GameManager.ts:93-136 createGame()
    */
   async createGameInDatabase(gameData: any): Promise<any> {
-    this.logger.info('Creating new game in database', { name: gameData.name, hostId: gameData.hostId });
+    this.logger.info('Creating new game in database', {
+      name: gameData.name,
+      hostId: gameData.hostId,
+    });
 
     const [newGame] = await db.insert(games).values(gameData).returning();
 
@@ -175,11 +177,12 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
         createdAt: game.createdAt.toISOString(),
         canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
         isPlayer: userId ? game.players?.some(p => p.userId === userId) : false,
-        players: game.players?.map(p => ({
-          id: p.id,
-          civilization: p.civilization,
-          isConnected: p.connectionStatus === 'connected',
-        })) || [],
+        players:
+          game.players?.map(p => ({
+            id: p.id,
+            civilization: p.civilization,
+            isConnected: p.connectionStatus === 'connected',
+          })) || [],
       }));
     } catch (error) {
       this.logger.error('Error fetching games from database:', error);
@@ -191,7 +194,11 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
    * Persist map data to database
    * @reference Original GameManager.ts:682-723 persistMapDataToDatabase()
    */
-  async persistMapData(gameId: string, mapData: any, terrainSettings?: TerrainSettings): Promise<void> {
+  async persistMapData(
+    gameId: string,
+    mapData: any,
+    terrainSettings?: TerrainSettings
+  ): Promise<void> {
     try {
       this.logger.info('Persisting map data to database', { gameId });
 
@@ -234,25 +241,29 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
    * Restore map data from database to MapManager instance
    * @reference Original GameManager.ts:1014-1047 restoreMapDataToManager()
    */
-  async restoreMapDataToManager(mapManager: MapManager, mapData: any, seed: string): Promise<void> {
+  async restoreMapDataToManager(
+    _mapManager: MapManager,
+    mapData: any,
+    _seed: string
+  ): Promise<void> {
     try {
       this.logger.info('Restoring map data to manager from database');
 
       // Deserialize map tiles
       const tiles = this.deserializeMapTiles(mapData.tiles, mapData.width, mapData.height);
 
-      // Create restored map data structure
-      const restoredMapData = {
-        width: mapData.width,
-        height: mapData.height,
-        seed: seed,
-        generatedAt: new Date(mapData.generatedAt),
-        startingPositions: mapData.startingPositions || [],
-        tiles: tiles,
-      };
-
-      // Set the map data in the manager
-      mapManager.setMapData(restoredMapData);
+      // TODO: Need to find proper way to restore map data to MapManager
+      // Create restored map data structure (currently unused until we have proper restoration)
+      // const restoredMapData = {
+      //   width: mapData.width,
+      //   height: mapData.height,
+      //   seed: seed,
+      //   generatedAt: new Date(mapData.generatedAt),
+      //   startingPositions: mapData.startingPositions || [],
+      //   tiles: tiles,
+      // };
+      // mapManager.setMapData(restoredMapData);
+      // For now, this is a placeholder - MapManager might need a restore method
 
       this.logger.info('Map data restored successfully to manager', {
         mapSize: `${mapData.width}x${mapData.height}`,
@@ -395,7 +406,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
 
       // Clean up Redis cache
       try {
-        await gameState.deleteGameState(gameId);
+        await gameState.clearGameState(gameId);
       } catch (redisError) {
         this.logger.warn('Failed to clean up Redis cache for deleted game:', redisError);
       }

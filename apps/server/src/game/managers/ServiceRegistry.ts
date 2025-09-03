@@ -42,9 +42,7 @@ export class ServiceRegistry {
       return;
     }
 
-    const initPromises = Array.from(this.services.values()).map(service => 
-      service.initialize()
-    );
+    const initPromises = Array.from(this.services.values()).map(service => service.initialize());
 
     await Promise.all(initPromises);
     this.initialized = true;
@@ -58,9 +56,7 @@ export class ServiceRegistry {
       return;
     }
 
-    const cleanupPromises = Array.from(this.services.values()).map(service => 
-      service.cleanup()
-    );
+    const cleanupPromises = Array.from(this.services.values()).map(service => service.cleanup());
 
     await Promise.all(cleanupPromises);
     this.initialized = false;

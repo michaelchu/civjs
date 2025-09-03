@@ -27,25 +27,61 @@ export interface GameLifecycleService {
   startGame(gameId: string, hostId: string): Promise<void>;
   deleteGame(gameId: string, userId?: string): Promise<void>;
   cleanupInactiveGames(): Promise<void>;
-  initializeGameInstance(gameId: string, game: any, terrainSettings?: TerrainSettings): Promise<GameInstance>;
+  initializeGameInstance(
+    gameId: string,
+    game: any,
+    terrainSettings?: TerrainSettings
+  ): Promise<GameInstance>;
 }
 
 export class GameLifecycleManager extends BaseGameService implements GameLifecycleService {
   private io: SocketServer;
   private games = new Map<string, GameInstance>();
   private onBroadcast?: (gameId: string, event: string, data: any) => void;
-  private onPersistMapData?: (gameId: string, mapData: any, terrainSettings?: TerrainSettings) => Promise<void>;
+  private onPersistMapData?: (
+    gameId: string,
+    mapData: any,
+    terrainSettings?: TerrainSettings
+  ) => Promise<void>;
   private onCreateStartingUnits?: (gameId: string, mapData: any, unitManager: any) => Promise<void>;
-  private onFoundCity?: (gameId: string, playerId: string, name: string, x: number, y: number) => Promise<string>;
-  private onRequestPath?: (gameId: string, startX: number, startY: number, endX: number, endY: number) => Promise<any>;
+  private onFoundCity?: (
+    gameId: string,
+    playerId: string,
+    name: string,
+    x: number,
+    y: number
+  ) => Promise<string>;
+  private onRequestPath?: (
+    gameId: string,
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number
+  ) => Promise<any>;
 
   constructor(
     io: SocketServer,
     onBroadcast?: (gameId: string, event: string, data: any) => void,
-    onPersistMapData?: (gameId: string, mapData: any, terrainSettings?: TerrainSettings) => Promise<void>,
+    onPersistMapData?: (
+      gameId: string,
+      mapData: any,
+      terrainSettings?: TerrainSettings
+    ) => Promise<void>,
     onCreateStartingUnits?: (gameId: string, mapData: any, unitManager: any) => Promise<void>,
-    onFoundCity?: (gameId: string, playerId: string, name: string, x: number, y: number) => Promise<string>,
-    onRequestPath?: (gameId: string, startX: number, startY: number, endX: number, endY: number) => Promise<any>
+    onFoundCity?: (
+      gameId: string,
+      playerId: string,
+      name: string,
+      x: number,
+      y: number
+    ) => Promise<string>,
+    onRequestPath?: (
+      gameId: string,
+      startX: number,
+      startY: number,
+      endX: number,
+      endY: number
+    ) => Promise<any>
   ) {
     super(logger);
     this.io = io;
@@ -159,7 +195,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     // Initialize the in-memory game instance with map generation
     const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
     const gameInstance = await this.initializeGameInstance(gameId, game, storedTerrainSettings);
-    
+
     // Store the game instance
     this.games.set(gameId, gameInstance);
 
@@ -213,35 +249,41 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     );
 
     const turnManager = new TurnManager(gameId, this.io);
-    
-    // Create a dummy cityManager reference for UnitManager
-    let cityManager: CityManager;
-    
-    const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager, {
-      foundCity: this.onFoundCity ? (playerId: string, name: string, x: number, y: number) => 
-        this.onFoundCity!(gameId, playerId, name, x, y) : async () => '',
-      requestPath: this.onRequestPath ? (startX: number, startY: number, endX: number, endY: number) => 
-        this.onRequestPath!(gameId, startX, startY, endX, endY) : async () => null,
-      broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
-        this.onBroadcast?.(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
-      },
-      getCityAt: (x: number, y: number) => {
-        const city = cityManager?.getCityAt(x, y);
-        return city ? { playerId: city.playerId } : null;
-      },
-    });
 
     // Initialize turn system with player IDs
     const playerIds = Array.from(players.keys());
     await turnManager.initializeTurn(playerIds);
 
-    const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
-    
-    cityManager = new CityManager(gameId, undefined, {
-      createUnit: (playerId: string, unitType: string, x: number, y: number) =>
+    // Create cityManager first to avoid circular dependency
+    const cityManager = new CityManager(gameId, undefined, {
+      createUnit: (_playerId: string, _unitType: string, _x: number, _y: number) =>
         // This callback will be handled by the main GameManager
         Promise.resolve(''),
     });
+
+    // Create UnitManager with proper dependencies
+    const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager, {
+      foundCity: this.onFoundCity
+        ? (gameId: string, playerId: string, name: string, x: number, y: number) =>
+            this.onFoundCity!(gameId, playerId, name, x, y)
+        : async () => '',
+      requestPath: async (_playerId: string, _unitId: string, targetX: number, targetY: number) => {
+        if (this.onRequestPath) {
+          const result = await this.onRequestPath(gameId, targetX, targetY, targetX, targetY);
+          return { success: !!result, path: result };
+        }
+        return { success: false, error: 'No path handler available' };
+      },
+      broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
+        this.onBroadcast?.(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
+      },
+      getCityAt: (x: number, y: number) => {
+        const city = cityManager.getCityAt(x, y);
+        return city ? { playerId: city.playerId } : null;
+      },
+    });
+
+    const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
 
     const researchManager = new ResearchManager(gameId);
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
@@ -278,7 +320,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       lastActivity: new Date(),
     };
 
-    this.logger.info('Game instance initialized successfully', { gameId, playerCount: players.size });
+    this.logger.info('Game instance initialized successfully', {
+      gameId,
+      playerCount: players.size,
+    });
     return gameInstance;
   }
 
@@ -388,7 +433,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     // Generate the map with starting positions based on terrain settings
     const generator = terrainSettings?.generator || 'random';
     const startpos = terrainSettings?.startpos ?? MapStartpos.DEFAULT;
-    
+
     this.logger.debug('Map generation starting', { terrainSettings, generator, startpos });
 
     const generatorType = this.convertGeneratorType(generator);
