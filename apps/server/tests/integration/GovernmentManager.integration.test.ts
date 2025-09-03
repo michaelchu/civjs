@@ -79,10 +79,10 @@ describe('GovernmentManager - Integration Tests with Real Government System', ()
       const playerGov = governmentManager.getPlayerGovernment(playerId1);
 
       expect(playerGov).toBeDefined();
-      expect(playerGov.playerId).toBe(playerId1);
-      expect(playerGov.currentGovernment).toBe('despotism');
-      expect(playerGov.revolutionTurns).toBe(0);
-      expect(playerGov.requestedGovernment).toBeUndefined();
+      expect(playerGov!.playerId).toBe(playerId1);
+      expect(playerGov!.currentGovernment).toBe('despotism');
+      expect(playerGov!.revolutionTurns).toBe(0);
+      expect(playerGov!.requestedGovernment).toBeUndefined();
 
       // Verify persistence to database
       const db = getTestDatabase();
@@ -100,10 +100,12 @@ describe('GovernmentManager - Integration Tests with Real Government System', ()
       const player1Gov = governmentManager.getPlayerGovernment(playerId1);
       const player2Gov = governmentManager.getPlayerGovernment(playerId2);
 
-      expect(player1Gov.playerId).toBe(playerId1);
-      expect(player2Gov.playerId).toBe(playerId2);
-      expect(player1Gov.currentGovernment).toBe('despotism');
-      expect(player2Gov.currentGovernment).toBe('despotism');
+      expect(player1Gov).toBeDefined();
+      expect(player2Gov).toBeDefined();
+      expect(player1Gov!.playerId).toBe(playerId1);
+      expect(player2Gov!.playerId).toBe(playerId2);
+      expect(player1Gov!.currentGovernment).toBe('despotism');
+      expect(player2Gov!.currentGovernment).toBe('despotism');
 
       // Should be separate instances
       expect(player1Gov).not.toBe(player2Gov);
@@ -125,9 +127,10 @@ describe('GovernmentManager - Integration Tests with Real Government System', ()
         expect(result.revolutionTurns).toBeGreaterThan(0);
 
         const playerGov = governmentManager.getPlayerGovernment(playerId1);
-        expect(playerGov.revolutionTurns).toBeGreaterThan(0);
-        expect(playerGov.requestedGovernment).toBe('republic');
-        expect(playerGov.currentGovernment).toBe('anarchy'); // Should be in anarchy during revolution
+        expect(playerGov).toBeDefined();
+        expect(playerGov!.revolutionTurns).toBeGreaterThan(0);
+        expect(playerGov!.requestedGovernment).toBe('republic');
+        expect(playerGov!.currentGovernment).toBe('anarchy'); // Should be in anarchy during revolution
       } else {
         // If revolution not possible, that's also valid behavior
         expect(true).toBe(true);
@@ -142,7 +145,8 @@ describe('GovernmentManager - Integration Tests with Real Government System', ()
         await governmentManager.initiateRevolution(playerId1, 'monarchy');
 
         let playerGov = governmentManager.getPlayerGovernment(playerId1);
-        const initialRevolutionTurns = playerGov.revolutionTurns;
+        expect(playerGov).toBeDefined();
+        const initialRevolutionTurns = playerGov!.revolutionTurns;
 
         // Process revolution turns
         for (let i = 0; i < initialRevolutionTurns; i++) {
@@ -150,9 +154,10 @@ describe('GovernmentManager - Integration Tests with Real Government System', ()
         }
 
         playerGov = governmentManager.getPlayerGovernment(playerId1);
-        expect(playerGov.revolutionTurns).toBe(0);
-        expect(playerGov.currentGovernment).toBe('monarchy');
-        expect(playerGov.requestedGovernment).toBeUndefined();
+        expect(playerGov).toBeDefined();
+        expect(playerGov!.revolutionTurns).toBe(0);
+        expect(playerGov!.currentGovernment).toBe('monarchy');
+        expect(playerGov!.requestedGovernment).toBeUndefined();
 
         // Verify database persistence
         const db = getTestDatabase();
@@ -230,13 +235,14 @@ describe('GovernmentManager - Integration Tests with Real Government System', ()
         await game.turnManager.processTurn();
 
         const playerGov = governmentManager.getPlayerGovernment(playerId1);
+        expect(playerGov).toBeDefined();
 
         // Revolution turns should have decremented
-        expect(playerGov.revolutionTurns).toBeGreaterThanOrEqual(0);
+        expect(playerGov!.revolutionTurns).toBeGreaterThanOrEqual(0);
 
         // If revolution completed, should be in new government
-        if (playerGov.revolutionTurns === 0) {
-          expect(playerGov.currentGovernment).toBe('republic');
+        if (playerGov!.revolutionTurns === 0) {
+          expect(playerGov!.currentGovernment).toBe('republic');
         }
       }
     });
@@ -283,7 +289,8 @@ describe('GovernmentManager - Integration Tests with Real Government System', ()
 
         // Complete the revolution
         const playerGov = governmentManager.getPlayerGovernment(playerId1);
-        for (let i = 0; i < playerGov.revolutionTurns; i++) {
+        expect(playerGov).toBeDefined();
+        for (let i = 0; i < playerGov!.revolutionTurns; i++) {
           await governmentManager.processRevolutionTurn(playerId1);
         }
 

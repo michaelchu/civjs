@@ -10,7 +10,7 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
   let gameManager: GameManager;
   let gameId: string;
   let playerId1: string;
-  let _playerId2: string; // Reserved for future multi-player tests
+  // let _playerId2: string; // Reserved for future multi-player tests
 
   beforeEach(async () => {
     // Clear database and reset singleton
@@ -21,7 +21,7 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
     const scenario = await createBasicGameScenario();
     gameId = scenario.game.id;
     playerId1 = scenario.players[0].id;
-    _playerId2 = scenario.players[1].id; // Reserved for future multi-player tests
+    // _playerId2 = scenario.players[1].id; // Reserved for future multi-player tests
 
     // Initialize GameManager and load the game
     const mockIo = createMockSocketServer();

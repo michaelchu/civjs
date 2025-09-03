@@ -6,7 +6,24 @@ process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test_db';
 process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.PORT = '3000';
 
-// Mock logger to prevent console spam during tests
+// Setup test database for integration tests
+beforeAll(async () => {
+  // Only setup test database if running integration tests
+  if (expect.getState().testPath?.includes('integration')) {
+    const { setupTestDatabase } = await import('./utils/testDatabase');
+    await setupTestDatabase();
+  }
+});
+
+afterAll(async () => {
+  // Only cleanup test database if running integration tests
+  if (expect.getState().testPath?.includes('integration')) {
+    const { cleanupTestDatabase } = await import('./utils/testDatabase');
+    await cleanupTestDatabase();
+  }
+});
+
+// Mock logger to prevent console spam during tests - defined before mock
 const mockLogger = {
   info: jest.fn(),
   error: jest.fn(),
