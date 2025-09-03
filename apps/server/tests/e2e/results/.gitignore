@@ -1,8 +1,0 @@
-# E2E Test Results
-*.json
-*.log
-*.txt
-
-# Keep the directory but ignore contents
-*
-!.gitignore
