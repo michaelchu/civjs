@@ -33,7 +33,8 @@ ehthumbs.db
 Thumbs.db
 
 # IDE
-.vscode/
+.vscode/launch.json
+.vscode/tasks.json
 .idea/
 *.swp
 *.swo

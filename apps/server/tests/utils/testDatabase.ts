@@ -94,7 +94,9 @@ export async function createTestGameAndPlayer(
 
 // Test database connection string
 const testConnectionString =
-  process.env.TEST_DATABASE_URL || 'postgresql://civjs_test:civjs_test@localhost:5432/civjs_test';
+  process.env.TEST_DATABASE_URL ||
+  process.env.DATABASE_URL ||
+  'postgresql://civjs_test:civjs_test@localhost:5432/civjs_test';
 
 // Create test database connection
 let testQueryClient: postgres.Sql | null = null;
