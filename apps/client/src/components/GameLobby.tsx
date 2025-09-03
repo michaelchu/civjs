@@ -13,6 +13,10 @@ export const GameLobby: React.FC = () => {
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(5); // Show 5 games per page
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -112,11 +116,38 @@ export const GameLobby: React.FC = () => {
     }
   };
 
+  // Pagination calculations
+  const totalPages = Math.ceil(games.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentGames = games.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  // Reset to first page when games change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [games.length]);
+
   return (
-    <PageBackground className="min-h-[100dvh] p-4 md:p-6">
-      <div className="max-w-6xl mx-auto">
+    <PageBackground className="min-h-[100dvh] flex flex-col">
+      <div className="flex-1 flex flex-col max-w-6xl mx-auto w-full p-4 md:p-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 flex-shrink-0">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -171,7 +202,7 @@ export const GameLobby: React.FC = () => {
         </div>
 
         {/* Mobile refresh button */}
-        <div className="md:hidden mb-6">
+        <div className="md:hidden mb-6 flex-shrink-0">
           <Button onClick={() => loadGames(true)} disabled={isRefreshing} className="w-full">
             {isRefreshing ? (
               <>
@@ -195,7 +226,7 @@ export const GameLobby: React.FC = () => {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive">
+          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive flex-shrink-0">
             <div className="flex items-center gap-2">
               <svg
                 className="w-4 h-4 flex-shrink-0"
@@ -215,218 +246,333 @@ export const GameLobby: React.FC = () => {
           </div>
         )}
 
-        {/* Content */}
-        {isLoading ? (
-          <div className="text-center py-16">
-            <div className="animate-spin w-12 h-12 border-2 border-primary border-t-transparent rounded-full mx-auto mb-6"></div>
-            <h3 className="text-lg font-semibold mb-2">Loading Games</h3>
-            <p className="text-muted-foreground">Discovering active civilizations...</p>
-          </div>
-        ) : games.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg
-                className="w-10 h-10 text-muted-foreground"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                />
-              </svg>
+        {/* Content - Scrollable Area */}
+        <div className="flex-1 flex flex-col min-h-0">
+          {isLoading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin w-12 h-12 border-2 border-primary border-t-transparent rounded-full mx-auto mb-6"></div>
+                <h3 className="text-lg font-semibold mb-2">Loading Games</h3>
+                <p className="text-muted-foreground">Discovering active civilizations...</p>
+              </div>
             </div>
-            <h3 className="text-xl font-semibold mb-2">No Active Games</h3>
-            <p className="text-muted-foreground mb-6">Be the first to start a civilization!</p>
-            <Button onClick={() => navigate('/create-game')}>
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                />
-              </svg>
-              Create New Game
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {games.map(game => (
-              <div
-                key={game.id}
-                className="group bg-background/50 backdrop-blur-sm border border-border/50 rounded-2xl p-6 hover:bg-background/80 hover:border-border/80 transition-all duration-300 hover:shadow-lg"
-              >
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  {/* Game Info */}
-                  <div className="flex-1 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="text-xl font-semibold text-foreground group-hover:text-foreground/90 transition-colors">
-                          {game.name}
-                        </h3>
-                        <p className="text-muted-foreground mt-1">Hosted by {game.hostName}</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(game.status)}`}
-                        >
-                          {getStatusLabel(game.status)}
-                        </div>
-                        {!game.canJoin && (
-                          <div className="px-3 py-1 rounded-full text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20">
-                            Full
+          ) : games.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <svg
+                    className="w-10 h-10 text-muted-foreground"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold mb-2">No Active Games</h3>
+                <p className="text-muted-foreground mb-6">Be the first to start a civilization!</p>
+                <Button onClick={() => navigate('/create-game')}>
+                  <svg
+                    className="w-4 h-4 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                    />
+                  </svg>
+                  Create New Game
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Game List - Scrollable */}
+              <div className="flex-1 overflow-y-auto min-h-0 pr-2">
+                <div className="space-y-4 pb-4">
+                  {currentGames.map(game => (
+                    <div
+                      key={game.id}
+                      className="group bg-background/50 backdrop-blur-sm border border-border/50 rounded-2xl p-6 hover:bg-background/80 hover:border-border/80 transition-all duration-300 hover:shadow-lg"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        {/* Game Info */}
+                        <div className="flex-1 space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h3 className="text-xl font-semibold text-foreground group-hover:text-foreground/90 transition-colors">
+                                {game.name}
+                              </h3>
+                              <p className="text-muted-foreground mt-1">
+                                Hosted by {game.hostName}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(game.status)}`}
+                              >
+                                {getStatusLabel(game.status)}
+                              </div>
+                              {!game.canJoin && (
+                                <div className="px-3 py-1 rounded-full text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20">
+                                  Full
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Game Stats */}
-                    <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
-                          />
-                        </svg>
-                        <span>
-                          {game.currentPlayers}/{game.maxPlayers} players
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        <span>Turn {game.currentTurn}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-                          />
-                        </svg>
-                        <span className="capitalize">{game.mapSize}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                          />
-                        </svg>
-                        <span>{new Date(game.createdAt).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  </div>
+                          {/* Game Stats */}
+                          <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
+                                />
+                              </svg>
+                              <span>
+                                {game.currentPlayers}/{game.maxPlayers} players
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
+                              </svg>
+                              <span>Turn {game.currentTurn}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                                />
+                              </svg>
+                              <span className="capitalize">{game.mapSize}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                />
+                              </svg>
+                              <span>{new Date(game.createdAt).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-3">
-                    <Button
-                      onClick={() => handleJoinGame(game.id)}
-                      disabled={!game.canJoin || joiningGameId === game.id}
-                      size="lg"
-                      className="min-w-[100px]"
-                    >
-                      {joiningGameId === game.id ? (
-                        <>
-                          <div className="animate-spin w-4 h-4 border border-current/30 border-t-transparent rounded-full mr-2"></div>
-                          Joining...
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            className="w-4 h-4 mr-2"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                        {/* Actions */}
+                        <div className="flex items-center gap-3">
+                          <Button
+                            onClick={() => handleJoinGame(game.id)}
+                            disabled={!game.canJoin || joiningGameId === game.id}
+                            size="lg"
+                            className="min-w-[100px]"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-                            />
-                          </svg>
-                          Join Game
-                        </>
-                      )}
-                    </Button>
+                            {joiningGameId === game.id ? (
+                              <>
+                                <div className="animate-spin w-4 h-4 border border-current/30 border-t-transparent rounded-full mr-2"></div>
+                                Joining...
+                              </>
+                            ) : (
+                              <>
+                                <svg
+                                  className="w-4 h-4 mr-2"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
+                                  />
+                                </svg>
+                                Join Game
+                              </>
+                            )}
+                          </Button>
 
-                    <Button
-                      onClick={async () => {
-                        if (
-                          window.confirm(
-                            `Are you sure you want to delete "${game.name}"? This action cannot be undone.`
-                          )
-                        ) {
-                          await handleDeleteGame(game.id);
-                        }
-                      }}
-                      disabled={deletingGameId === game.id}
-                      variant="destructive"
-                      size="icon"
-                      className="flex-shrink-0"
-                    >
-                      {deletingGameId === game.id ? (
-                        <div className="animate-spin w-4 h-4 border border-current/30 border-t-transparent rounded-full"></div>
-                      ) : (
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      )}
-                    </Button>
-                  </div>
+                          <Button
+                            onClick={async () => {
+                              if (
+                                window.confirm(
+                                  `Are you sure you want to delete "${game.name}"? This action cannot be undone.`
+                                )
+                              ) {
+                                await handleDeleteGame(game.id);
+                              }
+                            }}
+                            disabled={deletingGameId === game.id}
+                            variant="destructive"
+                            size="icon"
+                            className="flex-shrink-0"
+                          >
+                            {deletingGameId === game.id ? (
+                              <div className="animate-spin w-4 h-4 border border-current/30 border-t-transparent rounded-full"></div>
+                            ) : (
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                              </svg>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+
+              {/* Fixed Pagination Controls */}
+              <div className="flex-shrink-0 pt-6 border-t border-border/20 mt-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {startIndex + 1} to {Math.min(endIndex, games.length)} of {games.length}{' '}
+                    games
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePreviousPage}
+                        disabled={currentPage === 1}
+                      >
+                        <svg
+                          className="w-4 h-4 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 19l-7-7 7-7"
+                          />
+                        </svg>
+                        Previous
+                      </Button>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                          let pageNumber;
+                          if (totalPages <= 7) {
+                            pageNumber = i + 1;
+                          } else if (currentPage <= 4) {
+                            pageNumber = i + 1;
+                          } else if (currentPage >= totalPages - 3) {
+                            pageNumber = totalPages - 6 + i;
+                          } else {
+                            pageNumber = currentPage - 3 + i;
+                          }
+                          return (
+                            <Button
+                              key={pageNumber}
+                              variant={currentPage === pageNumber ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => handlePageChange(pageNumber)}
+                              className="min-w-[40px]"
+                            >
+                              {pageNumber}
+                            </Button>
+                          );
+                        })}
+                        {totalPages > 7 && currentPage < totalPages - 3 && (
+                          <>
+                            <span className="px-2 text-muted-foreground">...</span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handlePageChange(totalPages)}
+                              className="min-w-[40px]"
+                            >
+                              {totalPages}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleNextPage}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                        <svg
+                          className="w-4 h-4 ml-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 5l7 7-7 7"
+                          />
+                        </svg>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </PageBackground>
   );
