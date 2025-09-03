@@ -24,7 +24,11 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 // Import after mocking
-import { setupTestDatabase, cleanupTestDatabase } from './utils/testDatabase';
+import { setupTestDatabase, cleanupTestDatabase, getTestDatabase } from './utils/testDatabase';
+
+// Note: Database mocking removed for simplified ActionSystem tests
+// The simplified tests focus on ActionSystem behavior with mock units
+// rather than complex GameManager database integration
 
 // Mock Redis (still mock this for integration tests to avoid external dependencies)
 jest.mock('../src/database/redis', () => ({

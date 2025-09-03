@@ -1527,6 +1527,62 @@ export class MapManager {
   }
 
   /**
+   * Get neighboring tiles for a given position
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @returns Array of neighboring MapTiles
+   */
+  public getNeighbors(x: number, y: number): MapTile[] {
+    if (!this.mapData) return [];
+
+    const neighbors: MapTile[] = [];
+    const directions = [
+      [-1, -1],
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [0, 1],
+      [1, -1],
+      [1, 0],
+      [1, 1],
+    ];
+
+    for (const [dx, dy] of directions) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (this.isValidPosition(nx, ny)) {
+        neighbors.push(this.mapData.tiles[nx][ny]);
+      }
+    }
+
+    return neighbors;
+  }
+
+  /**
+   * Check if a position is valid within map bounds
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @returns true if position is valid, false otherwise
+   */
+  public isValidPosition(x: number, y: number): boolean {
+    return x >= 0 && x < this.width && y >= 0 && y < this.height;
+  }
+
+  /**
+   * Update a specific property of a tile
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @param property Property name to update
+   * @param value New value for the property
+   */
+  public updateTileProperty(x: number, y: number, property: string, value: any): void {
+    if (!this.mapData || !this.isValidPosition(x, y)) return;
+
+    const tile = this.mapData.tiles[x][y];
+    (tile as any)[property] = value;
+  }
+
+  /**
    * Apply climate-based terrain variety to generated islands
    * @reference freeciv/server/generator/mapgen.c fill_island() calls
    * Uses freeciv's terrain selection system for realistic island terrain distribution
@@ -1820,6 +1876,183 @@ export class MapManager {
     return {
       balanced,
       score,
+      issues,
+    };
+  }
+
+  /**
+   * Get movement cost for a tile
+   * @reference freeciv/common/movement.c map_move_cost_unit()
+   * @param x tile x coordinate
+   * @param y tile y coordinate
+   * @param unitTypeId optional unit type for specific movement rules
+   * @returns movement cost in fragments, or -1 if impassable
+   */
+  public getMovementCost(x: number, y: number, unitTypeId?: string): number {
+    const tile = this.getTile(x, y);
+    if (!tile) return -1;
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+    const { getTerrainMovementCost } = require('./constants/MovementConstants');
+    return getTerrainMovementCost(tile.terrain, unitTypeId);
+  }
+
+  /**
+   * Calculate distance between two points using Manhattan distance
+   * @reference freeciv/common/map.c map_distance()
+   * @param x1 first point x coordinate
+   * @param y1 first point y coordinate
+   * @param x2 second point x coordinate
+   * @param y2 second point y coordinate
+   * @returns distance between the two points
+   */
+  public getDistance(x1: number, y1: number, x2: number, y2: number): number {
+    const dx = Math.abs(x2 - x1);
+    const dy = Math.abs(y2 - y1);
+
+    // Handle wrapping for world maps (simplified for now)
+    const wrappedDx = Math.min(dx, this.width - dx);
+    const wrappedDy = Math.min(dy, this.height - dy);
+
+    return Math.max(wrappedDx, wrappedDy);
+  }
+
+  /**
+   * Get tiles accessible within movement range
+   * @reference freeciv/common/aicore/path_finding.c pf_create_map()
+   * @param x starting x coordinate
+   * @param y starting y coordinate
+   * @param movementPoints available movement points
+   * @param unitTypeId unit type for movement rules
+   * @returns array of accessible tiles
+   */
+  public getAccessibleTiles(
+    x: number,
+    y: number,
+    movementPoints: number,
+    unitTypeId?: string
+  ): MapTile[] {
+    const accessibleTiles: MapTile[] = [];
+    const visited = new Set<string>();
+    const queue: Array<{ x: number; y: number; remainingMoves: number }> = [
+      { x, y, remainingMoves: movementPoints * 3 },
+    ]; // Convert to movement fragments
+
+    visited.add(`${x},${y}`);
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+
+      // Add current tile to accessible tiles
+      const tile = this.getTile(current.x, current.y);
+      if (tile) {
+        accessibleTiles.push(tile);
+      }
+
+      // Check all neighboring tiles
+      const neighbors = this.getNeighbors(current.x, current.y);
+      for (const neighbor of neighbors) {
+        const key = `${neighbor.x},${neighbor.y}`;
+        if (visited.has(key)) continue;
+
+        const moveCost = this.getMovementCost(neighbor.x, neighbor.y, unitTypeId);
+        if (moveCost < 0) continue; // Impassable
+
+        const remainingAfterMove = current.remainingMoves - moveCost;
+        if (remainingAfterMove >= 0) {
+          visited.add(key);
+          queue.push({
+            x: neighbor.x,
+            y: neighbor.y,
+            remainingMoves: remainingAfterMove,
+          });
+        }
+      }
+    }
+
+    return accessibleTiles;
+  }
+
+  /**
+   * Validate map structure and properties
+   * @reference freeciv/server/maphand.c map_fractal_generate()
+   * @returns validation result with issues found
+   */
+  public validateMap(): { valid: boolean; issues: string[] } {
+    const issues: string[] = [];
+
+    // Check map dimensions
+    if (this.width < 1 || this.height < 1) {
+      issues.push('Invalid map dimensions');
+    }
+
+    // Check if map is generated
+    if (!this.mapData || this.mapData.tiles.length === 0) {
+      issues.push('Map not generated');
+      return { valid: false, issues };
+    }
+
+    // Check tile count matches dimensions
+    const expectedTileCount = this.width * this.height;
+    if (this.mapData.tiles.length !== expectedTileCount) {
+      issues.push(
+        `Tile count mismatch: expected ${expectedTileCount}, got ${this.mapData.tiles.length}`
+      );
+    }
+
+    // Check for valid terrain types
+    const validTerrains = [
+      'ocean',
+      'coast',
+      'deep_ocean',
+      'lake',
+      'plains',
+      'grassland',
+      'desert',
+      'tundra',
+      'hills',
+      'forest',
+      'jungle',
+      'swamp',
+      'mountains',
+    ];
+    let invalidTerrainCount = 0;
+
+    for (const tileArray of this.mapData.tiles) {
+      for (const tile of tileArray) {
+        if (!validTerrains.includes(tile.terrain)) {
+          invalidTerrainCount++;
+        }
+      }
+    }
+
+    if (invalidTerrainCount > 0) {
+      issues.push(`${invalidTerrainCount} tiles have invalid terrain types`);
+    }
+
+    // Check for reasonable terrain distribution
+    let oceanTiles = 0;
+    let totalTiles = 0;
+
+    for (const tileArray of this.mapData.tiles) {
+      for (const tile of tileArray) {
+        totalTiles++;
+        if (['ocean', 'deep_ocean'].includes(tile.terrain)) {
+          oceanTiles++;
+        }
+      }
+    }
+
+    const oceanRatio = oceanTiles / totalTiles;
+
+    if (oceanRatio > 0.8) {
+      issues.push('Map is mostly ocean (>80%)');
+    } else if (oceanRatio < 0.2) {
+      issues.push('Map has very little water (<20%)');
+    }
+
+    return {
+      valid: issues.length === 0,
       issues,
     };
   }

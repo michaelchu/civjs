@@ -534,6 +534,22 @@ export class UnitManager {
   }
 
   /**
+   * Remove a unit from the game
+   * @reference freeciv/server/unittools.c server_remove_unit()
+   * @param unitId The ID of the unit to remove
+   */
+  async removeUnit(unitId: string): Promise<void> {
+    const unit = this.units.get(unitId);
+    if (!unit) {
+      logger.warn(`Attempted to remove non-existent unit: ${unitId}`);
+      return;
+    }
+
+    logger.info(`Removing unit ${unitId} (${unit.unitTypeId}) at (${unit.x}, ${unit.y})`);
+    await this.destroyUnit(unitId);
+  }
+
+  /**
    * Get unit by ID
    */
   getUnit(unitId: string): Unit | undefined {
