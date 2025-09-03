@@ -133,11 +133,13 @@ export class GameManager {
 
     this.gameLifecycleManager = new GameLifecycleManager(
       this.io,
+      this.games,
       this.broadcastToGame.bind(this),
       this.persistMapDataToDatabase.bind(this),
       this.createStartingUnits.bind(this),
       this.foundCity.bind(this),
-      this.requestPathForLifecycle.bind(this)
+      this.requestPathForLifecycle.bind(this),
+      this.gameBroadcastManager.broadcastMapData.bind(this.gameBroadcastManager)
     );
 
     // Register services
@@ -481,20 +483,18 @@ export class GameManager {
 
     // Create starting units for all players (settler + warrior)
     // @reference freeciv/server/plrhand.c:player_init() - create_start_unit()
-    await this.createStartingUnits(gameId, mapData, unitManager);
+    await this.createStartingUnits(gameId, mapData, unitManager, players);
 
     // Update visibility after units are created to reveal starting positions
     for (const player of players.values()) {
       visibilityManager.updatePlayerVisibility(player.id);
     }
 
-    // Send initial map data to all players (with delay to ensure socket room joins are complete)
-    // Delay map broadcasting to ensure socket room joins are complete
-    setTimeout(() => {
-      this.broadcastMapData(gameId, mapData);
-    }, 300);
+    // Map data will be broadcast after full game initialization via GameLifecycleManager
   }
 
+  // Moved to GameBroadcastManager - this method is no longer used
+  /*
   private broadcastMapData(gameId: string, mapData: any): void {
     const mapDataPacket = {
       gameId,
@@ -568,23 +568,24 @@ export class GameManager {
       );
     }
   }
+  */
 
   /**
    * Create starting units for all players at their starting positions
    * @reference freeciv/server/plrhand.c:player_init() - create_start_unit()
    * Each player starts with a settler (city founder) and a warrior (military unit)
    */
-  private async createStartingUnits(gameId: string, mapData: any, unitManager: any): Promise<void> {
+  private async createStartingUnits(
+    gameId: string,
+    mapData: any,
+    unitManager: any,
+    players: Map<string, PlayerState>
+  ): Promise<void> {
     try {
       logger.info('Creating starting units for all players', { gameId });
 
-      const gameInstance = this.games.get(gameId);
-      if (!gameInstance) {
-        throw new Error('Game instance not found');
-      }
-
       // Create starting units for each player
-      for (const player of gameInstance.players.values()) {
+      for (const player of players.values()) {
         const startingPos = mapData.startingPositions.find(
           (pos: any) => pos.playerId === player.id
         );

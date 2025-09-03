@@ -518,6 +518,14 @@ export class UnitManager {
   }
 
   /**
+   * Get unit type maximum movement points
+   */
+  getUnitMaxMovement(unitTypeId: string): number {
+    const unitType = getUnitType(unitTypeId);
+    return unitType ? unitType.movement : 1;
+  }
+
+  /**
    * Check if position is valid
    */
   private isValidPosition(x: number, y: number): boolean {

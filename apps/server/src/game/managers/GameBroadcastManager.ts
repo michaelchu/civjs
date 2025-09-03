@@ -109,16 +109,40 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     });
 
     // Broadcast to each player individually to provide player-specific data
-    for (const [playerId, playerState] of gameInstance.players) {
+    for (const [playerId] of gameInstance.players) {
       try {
-        // Get player-specific visibility data
+        // TODO: Implement fog of war - for now send all tiles
+        // Get player-specific visibility data (disabled until fog of war is implemented)
         const visibleTilesSet = gameInstance.visibilityManager.getVisibleTiles(playerId);
-        // Filter tiles based on visibility (simplified approach)
-        const visibleTiles = mapData.tiles.filter((_: any, index: number) => {
-          const x = index % mapData.width;
-          const y = Math.floor(index / mapData.width);
-          return visibleTilesSet.has(`${x},${y}`);
-        });
+        
+        // Process and format all tiles (no fog of war for now)
+        const visibleTiles = [];
+        for (let y = 0; y < mapData.height; y++) {
+          for (let x = 0; x < mapData.width; x++) {
+            const index = x + y * mapData.width;
+            // Handle column-based tile array structure: mapData.tiles[x][y]
+            const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
+
+            if (serverTile) {
+              // Format tile in exact freeciv-web format
+              const tileInfo = {
+                tile: index, // This is the key - tile index used by freeciv-web
+                x: x,
+                y: y,
+                terrain: serverTile.terrain,
+                resource: serverTile.resource,
+                elevation: serverTile.elevation || 0,
+                riverMask: serverTile.riverMask || 0,
+                known: 1, // TILE_KNOWN
+                seen: 1,
+                player: null,
+                worked: null,
+                extras: 0, // BitVector for extras
+              };
+              visibleTiles.push(tileInfo);
+            }
+          }
+        }
 
         // Get units visible to this player (delegate to UnitManager)
         const visibleUnits = gameInstance.unitManager.getVisibleUnits(playerId, visibleTilesSet);
@@ -126,49 +150,33 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
           this.formatUnitForClient(unit, gameInstance.unitManager)
         );
 
-        // Get cities visible to this player
-        const playerCities = gameInstance.cityManager.getPlayerCities(playerId);
-        const visibleCities = playerCities.map(city => ({
-          id: city.id,
-          playerId: city.playerId,
-          name: city.name,
-          x: city.x,
-          y: city.y,
-          population: city.population,
-          size: city.population,
-          production: city.currentProduction,
-          buildings: city.buildings || [],
-        }));
-
-        // Prepare player-specific map data
-        const playerMapData = {
-          gameId,
-          playerId,
-          mapData: {
-            width: mapData.width,
-            height: mapData.height,
-            tiles: visibleTiles,
-            startingPositions: mapData.startingPositions,
-          },
-          units: formattedUnits,
-          cities: visibleCities,
-          playerData: {
-            playerId,
-            playerNumber: playerState.playerNumber,
-            civilization: playerState.civilization,
-          },
-          currentTurn: gameInstance.currentTurn,
+        // Send MAP_INFO packet first (like original code)
+        const mapInfoPacket = {
+          xsize: mapData.width,
+          ysize: mapData.height,
+          wrap_id: 0, // Flat earth
+          topology_id: 0,
         };
+        this.broadcastPacketToGame(gameId, PacketType.MAP_INFO, mapInfoPacket);
 
-        // Send to specific player via Socket.IO room
-        this.io.to(`player:${playerId}`).emit('map_data', playerMapData);
+        // Send tiles in batches like original code
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < visibleTiles.length; i += BATCH_SIZE) {
+          const batch = visibleTiles.slice(i, i + BATCH_SIZE);
+          this.broadcastPacketToGame(gameId, PacketType.TILE_INFO, {
+            tiles: batch,
+            startIndex: i,
+            endIndex: Math.min(i + BATCH_SIZE, visibleTiles.length),
+            total: visibleTiles.length,
+          });
+        }
 
         this.logger.debug('Sent player-specific map data', {
           gameId,
           playerId,
-          visibleTilesCount: visibleTiles.length,
+          tilesCount: visibleTiles.length,
           unitsCount: formattedUnits.length,
-          citiesCount: visibleCities.length,
+          batches: Math.ceil(visibleTiles.length / BATCH_SIZE),
         });
       } catch (error) {
         this.logger.error('Error sending map data to player:', {
