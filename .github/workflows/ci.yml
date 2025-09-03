@@ -94,10 +94,11 @@ jobs:
         env:
           DATABASE_URL: postgresql://ci_test_user:ci_test_password_123@localhost:5432/civjs_test
       
-      - name: Run unit tests
-        run: |
-          cd apps/client && npm run test
-          cd apps/server && npm run test:unit -- --ci --coverage --maxWorkers=2
+      - name: Run client unit tests
+        run: cd apps/client && npm run test
+      
+      - name: Run server unit tests
+        run: cd apps/server && npm run test:unit -- --ci --coverage --maxWorkers=2
       
       - name: Run integration tests
         run: cd apps/server && npm run test:integration -- --ci --coverage --maxWorkers=1
