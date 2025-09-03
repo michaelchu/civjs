@@ -66,6 +66,7 @@ export class UnitManager {
       y: number,
       movementLeft: number
     ) => void;
+    getCityAt?: (x: number, y: number) => { playerId: string } | null;
   };
 
   constructor(
@@ -94,6 +95,7 @@ export class UnitManager {
         y: number,
         movementLeft: number
       ) => void;
+      getCityAt?: (x: number, y: number) => { playerId: string } | null;
     }
   ) {
     this.gameId = gameId;
