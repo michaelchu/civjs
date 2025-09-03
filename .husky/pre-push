@@ -1,0 +1,19 @@
+echo "🚀 Running pre-push checks..."
+
+# Run linter for client
+echo "📝 Running client linter..."
+(cd apps/client && npm run lint)
+
+# Run type checking for client
+echo "🔎 Running client type check..."
+(cd apps/client && npm run type-check)
+
+# Run tests for client
+echo "🧪 Running client tests..."
+(cd apps/client && npm run test)
+
+# Run build to ensure everything compiles
+echo "🏗️ Running client build..."
+(cd apps/client && npm run build)
+
+echo "✅ Pre-push checks passed! Ready to push to remote."

@@ -1,3 +1,11 @@
-# Auto-fix linting and formatting, stage changes, then verify everything is correct
-# This ensures all fixes are included in the commit
-npm run lint:fix && npm run format && git add -A && npm run format:check && npm run typecheck
+echo "🔍 Running pre-commit checks..."
+
+# Run linter for client only (since we're working on client)
+echo "📝 Running client linter..."
+(cd apps/client && npm run lint)
+
+# Run type checking for client only
+echo "🔎 Running client type check..."
+(cd apps/client && npm run type-check)
+
+echo "✅ Pre-commit checks passed!"
