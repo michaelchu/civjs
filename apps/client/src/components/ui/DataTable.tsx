@@ -63,11 +63,8 @@ export function DataTable<TData, TValue>({
     return (
       <div className="h-full flex flex-col">
         {/* Table - Scrollable section that grows with available space */}
-        <div
-          className="flex-1 rounded-lg border border-border shadow-sm overflow-hidden"
-          style={{ minHeight: 0 }}
-        >
-          <div className="h-full overflow-y-auto overflow-x-auto" style={{ maxHeight: '100%' }}>
+        <div className="flex-1 rounded-lg border border-border shadow-sm overflow-hidden">
+          <div className="h-full overflow-y-auto overflow-x-auto">
             <table className="w-full border-collapse bg-card">
               <thead className="bg-muted sticky top-0 z-10">
                 {table.getHeaderGroups().map(headerGroup => (
