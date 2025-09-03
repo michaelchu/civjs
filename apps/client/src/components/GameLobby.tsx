@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gameClient } from '../services/GameClient';
-import { type GameInfo } from './GameLobbyColumns';
+import { DataTable } from './ui/DataTable';
+import { createGameColumns, type GameInfo } from './GameLobbyColumns';
 import { PageBackground } from './shared/PageBackground';
 import { Button } from './ui/button';
 
@@ -84,38 +85,6 @@ export const GameLobby: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: GameInfo['status']) => {
-    switch (status) {
-      case 'waiting':
-        return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
-      case 'active':
-        return 'bg-green-500/10 text-green-600 border-green-500/20';
-      case 'paused':
-        return 'bg-orange-500/10 text-orange-600 border-orange-500/20';
-      case 'finished':
-        return 'bg-gray-500/10 text-gray-600 border-gray-500/20';
-      default:
-        return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
-    }
-  };
-
-  const getStatusLabel = (status: GameInfo['status']) => {
-    switch (status) {
-      case 'waiting':
-        return 'Waiting for Players';
-      case 'starting':
-        return 'Starting';
-      case 'active':
-        return 'In Progress';
-      case 'paused':
-        return 'Paused';
-      case 'finished':
-        return 'Finished';
-      default:
-        return status;
-    }
-  };
-
   // Pagination calculations
   const totalPages = Math.ceil(games.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -142,6 +111,14 @@ export const GameLobby: React.FC = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [games.length]);
+
+  // Create columns with action handlers
+  const columns = createGameColumns(
+    handleJoinGame,
+    handleDeleteGame,
+    joiningGameId,
+    deletingGameId
+  );
 
   return (
     <PageBackground className="min-h-[100dvh] flex flex-col" showBackground={false}>
@@ -296,182 +273,9 @@ export const GameLobby: React.FC = () => {
             </div>
           ) : (
             <>
-              {/* Game List - Scrollable */}
-              <div className="flex-1 overflow-y-auto min-h-0 pr-2">
-                <div className="space-y-4 pb-4">
-                  {currentGames.map(game => (
-                    <div
-                      key={game.id}
-                      className="group bg-background/50 backdrop-blur-sm border border-border/50 rounded-2xl p-6 hover:bg-background/80 hover:border-border/80 transition-all duration-300 hover:shadow-lg"
-                    >
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        {/* Game Info */}
-                        <div className="flex-1 space-y-3">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <h3 className="text-xl font-semibold text-foreground group-hover:text-foreground/90 transition-colors">
-                                {game.name}
-                              </h3>
-                              <p className="text-muted-foreground mt-1">
-                                Hosted by {game.hostName}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(game.status)}`}
-                              >
-                                {getStatusLabel(game.status)}
-                              </div>
-                              {!game.canJoin && (
-                                <div className="px-3 py-1 rounded-full text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20">
-                                  Full
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Game Stats */}
-                          <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <svg
-                                className="w-4 h-4"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
-                                />
-                              </svg>
-                              <span>
-                                {game.currentPlayers}/{game.maxPlayers} players
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <svg
-                                className="w-4 h-4"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                                />
-                              </svg>
-                              <span>Turn {game.currentTurn}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <svg
-                                className="w-4 h-4"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-                                />
-                              </svg>
-                              <span className="capitalize">{game.mapSize}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <svg
-                                className="w-4 h-4"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                />
-                              </svg>
-                              <span>{new Date(game.createdAt).toLocaleDateString()}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-3">
-                          <Button
-                            onClick={() => handleJoinGame(game.id)}
-                            disabled={!game.canJoin || joiningGameId === game.id}
-                            size="lg"
-                            className="min-w-[100px]"
-                          >
-                            {joiningGameId === game.id ? (
-                              <>
-                                <div className="animate-spin w-4 h-4 border border-current/30 border-t-transparent rounded-full mr-2"></div>
-                                Joining...
-                              </>
-                            ) : (
-                              <>
-                                <svg
-                                  className="w-4 h-4 mr-2"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-                                  />
-                                </svg>
-                                Join Game
-                              </>
-                            )}
-                          </Button>
-
-                          <Button
-                            onClick={async () => {
-                              if (
-                                window.confirm(
-                                  `Are you sure you want to delete "${game.name}"? This action cannot be undone.`
-                                )
-                              ) {
-                                await handleDeleteGame(game.id);
-                              }
-                            }}
-                            disabled={deletingGameId === game.id}
-                            variant="destructive"
-                            size="icon"
-                            className="flex-shrink-0"
-                          >
-                            {deletingGameId === game.id ? (
-                              <div className="animate-spin w-4 h-4 border border-current/30 border-t-transparent rounded-full"></div>
-                            ) : (
-                              <svg
-                                className="w-4 h-4"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                />
-                              </svg>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              {/* DataTable - Scrollable */}
+              <div className="flex-1 overflow-hidden">
+                <DataTable columns={columns} data={currentGames} className="h-full" />
               </div>
 
               {/* Fixed Pagination Controls */}
