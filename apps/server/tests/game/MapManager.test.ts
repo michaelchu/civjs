@@ -245,8 +245,10 @@ describe('MapManager', () => {
 
   describe('seeded generation', () => {
     it('should generate identical maps with same seed', async () => {
-      const map1 = new MapManager(10, 10, 'identical-seed');
-      const map2 = new MapManager(10, 10, 'identical-seed');
+      // Use a unique seed to avoid interference from other tests
+      const uniqueSeed = `test-seed-${Date.now()}-${Math.random()}`;
+      const map1 = new MapManager(10, 10, uniqueSeed);
+      const map2 = new MapManager(10, 10, uniqueSeed);
 
       await map1.generateMap(testPlayers);
       await map2.generateMap(testPlayers);
@@ -254,11 +256,25 @@ describe('MapManager', () => {
       const data1 = map1.getMapData();
       const data2 = map2.getMapData();
 
-      // Compare a few key tiles
+      // Compare a few key tiles with better error reporting
       for (let i = 0; i < 3; i++) {
         for (let j = 0; j < 3; j++) {
-          expect(data1!.tiles[i][j].terrain).toBe(data2!.tiles[i][j].terrain);
-          expect(data1!.tiles[i][j].elevation).toBe(data2!.tiles[i][j].elevation);
+          const tile1 = data1!.tiles[i][j];
+          const tile2 = data2!.tiles[i][j];
+          
+          if (tile1.terrain !== tile2.terrain) {
+            throw new Error(
+              `Terrain mismatch at [${i}][${j}]: map1=${tile1.terrain}, map2=${tile2.terrain}, seed=${uniqueSeed}`
+            );
+          }
+          if (tile1.elevation !== tile2.elevation) {
+            throw new Error(
+              `Elevation mismatch at [${i}][${j}]: map1=${tile1.elevation}, map2=${tile2.elevation}, seed=${uniqueSeed}`
+            );
+          }
+          
+          expect(tile1.terrain).toBe(tile2.terrain);
+          expect(tile1.elevation).toBe(tile2.elevation);
         }
       }
     });
