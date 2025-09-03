@@ -225,10 +225,7 @@ export const GameLobby: React.FC = () => {
       </div>
 
       {/* Scrollable Content Area */}
-      <div 
-        className="flex-1 overflow-hidden pb-20 md:pb-24"
-        style={{ transform: 'translateZ(0)' }}
-      >
+      <div className="flex-1 overflow-hidden pb-20 md:pb-24" style={{ transform: 'translateZ(0)' }}>
         <div className="max-w-6xl mx-auto w-full px-4 md:px-6 h-full">
           {isLoading ? (
             <div className="h-full flex items-center justify-center">
@@ -287,7 +284,7 @@ export const GameLobby: React.FC = () => {
 
       {/* Fixed Pagination Controls at Bottom */}
       {games.length > 0 && !isLoading && (
-        <div 
+        <div
           className="fixed bottom-0 left-0 right-0 bg-civ-cream/95 border-t border-border/20 z-10"
           style={{ transform: 'translateZ(0)' }}
         >
