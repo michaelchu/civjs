@@ -118,9 +118,9 @@ export const GameLobby: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={handleBack}
               className="hover:bg-background/80"
             >
@@ -137,7 +137,9 @@ export const GameLobby: React.FC = () => {
               <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
                 Game Lobby
               </h1>
-              <p className="text-muted-foreground mt-1">Choose a game to join and start your civilization</p>
+              <p className="text-muted-foreground mt-1">
+                Choose a game to join and start your civilization
+              </p>
             </div>
           </div>
 
@@ -170,11 +172,7 @@ export const GameLobby: React.FC = () => {
 
         {/* Mobile refresh button */}
         <div className="md:hidden mb-6">
-          <Button
-            onClick={() => loadGames(true)}
-            disabled={isRefreshing}
-            className="w-full"
-          >
+          <Button onClick={() => loadGames(true)} disabled={isRefreshing} className="w-full">
             {isRefreshing ? (
               <>
                 <div className="animate-spin w-4 h-4 border border-current/30 border-t-transparent rounded-full mr-2"></div>
@@ -199,8 +197,18 @@ export const GameLobby: React.FC = () => {
         {error && (
           <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive">
             <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="w-4 h-4 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
               {error}
             </div>
@@ -217,7 +225,12 @@ export const GameLobby: React.FC = () => {
         ) : games.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg className="w-10 h-10 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-10 h-10 text-muted-foreground"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -230,14 +243,19 @@ export const GameLobby: React.FC = () => {
             <p className="text-muted-foreground mb-6">Be the first to start a civilization!</p>
             <Button onClick={() => navigate('/create-game')}>
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
               </svg>
               Create New Game
             </Button>
           </div>
         ) : (
           <div className="space-y-4">
-            {games.map((game) => (
+            {games.map(game => (
               <div
                 key={game.id}
                 className="group bg-background/50 backdrop-blur-sm border border-border/50 rounded-2xl p-6 hover:bg-background/80 hover:border-border/80 transition-all duration-300 hover:shadow-lg"
@@ -253,7 +271,9 @@ export const GameLobby: React.FC = () => {
                         <p className="text-muted-foreground mt-1">Hosted by {game.hostName}</p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(game.status)}`}>
+                        <div
+                          className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(game.status)}`}
+                        >
                           {getStatusLabel(game.status)}
                         </div>
                         {!game.canJoin && (
@@ -267,26 +287,68 @@ export const GameLobby: React.FC = () => {
                     {/* Game Stats */}
                     <div className="flex items-center gap-6 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
+                          />
                         </svg>
-                        <span>{game.currentPlayers}/{game.maxPlayers} players</span>
+                        <span>
+                          {game.currentPlayers}/{game.maxPlayers} players
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
                         </svg>
                         <span>Turn {game.currentTurn}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                          />
                         </svg>
                         <span className="capitalize">{game.mapSize}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          />
                         </svg>
                         <span>{new Date(game.createdAt).toLocaleDateString()}</span>
                       </div>
@@ -308,8 +370,18 @@ export const GameLobby: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                          <svg
+                            className="w-4 h-4 mr-2"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
+                            />
                           </svg>
                           Join Game
                         </>
@@ -318,7 +390,11 @@ export const GameLobby: React.FC = () => {
 
                     <Button
                       onClick={async () => {
-                        if (window.confirm(`Are you sure you want to delete "${game.name}"? This action cannot be undone.`)) {
+                        if (
+                          window.confirm(
+                            `Are you sure you want to delete "${game.name}"? This action cannot be undone.`
+                          )
+                        ) {
                           await handleDeleteGame(game.id);
                         }
                       }}
@@ -330,8 +406,18 @@ export const GameLobby: React.FC = () => {
                       {deletingGameId === game.id ? (
                         <div className="animate-spin w-4 h-4 border border-current/30 border-t-transparent rounded-full"></div>
                       ) : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
                         </svg>
                       )}
                     </Button>
