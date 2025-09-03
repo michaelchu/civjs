@@ -108,6 +108,14 @@ jobs:
           REDIS_URL: redis://localhost:6379
           MIN_PLAYERS_TO_START: 2
 
+      - name: Generate server coverage badge
+        uses: tj-actions/coverage-badge-js@v2
+        if: always()
+        with:
+          path: apps/server
+          report_path: coverage/coverage-summary.json
+          output_path: ../../server-coverage-badge.svg
+
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -116,3 +124,4 @@ jobs:
           path: |
             apps/client/coverage
             apps/server/coverage
+            server-coverage-badge.svg
