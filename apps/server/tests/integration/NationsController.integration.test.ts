@@ -16,7 +16,6 @@ jest.mock('../../src/utils/logger', () => ({
 
 describe('NationsController - Integration Tests with Real Ruleset Data', () => {
   let app: express.Application;
-  let rulesetLoader: RulesetLoader;
 
   beforeAll(async () => {
     // Setup test database (even though this controller doesn't use it directly,
@@ -24,7 +23,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     await setupTestDatabase();
 
     // Initialize RulesetLoader with actual data
-    rulesetLoader = RulesetLoader.getInstance();
+    RulesetLoader.getInstance();
   });
 
   afterAll(async () => {

@@ -1,7 +1,6 @@
-import { MapManager, MapGeneratorType, MapStartpos } from '../../src/game/MapManager';
+import { MapManager } from '../../src/game/MapManager';
 import { GameManager } from '../../src/game/GameManager';
-import { MapData, MapTile } from '../../src/game/map/MapTypes';
-import { getTestDatabase, clearAllTables, createTestGameAndPlayer } from '../utils/testDatabase';
+import { clearAllTables, createTestGameAndPlayer } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 

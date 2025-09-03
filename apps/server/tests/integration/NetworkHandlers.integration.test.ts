@@ -1,12 +1,12 @@
 import { Server as SocketServer } from 'socket.io';
 import { Socket as ClientSocket, io as ClientIO } from 'socket.io-client';
 import { createServer, Server as HTTPServer } from 'http';
-import { PacketHandler } from '../../src/network/PacketHandler';
+// Comprehensive NetworkHandlers integration test
 import { setupSocketHandlers } from '../../src/network/socket-handlers';
 import { PacketType } from '../../src/types/packet';
 import { GameManager } from '../../src/game/GameManager';
 import {
-  getTestDatabase,
+  // getTestDatabase, // Removed unused import
   clearAllTables,
   setupTestDatabase,
   cleanupTestDatabase,
@@ -395,7 +395,7 @@ describe('NetworkHandlers - Integration Tests with Real Socket Communication', (
     it('should handle client disconnection gracefully', done => {
       const disconnectHandled = jest.fn();
 
-      socketServer.on('disconnect', socket => {
+      socketServer.on('disconnect', _socket => {
         disconnectHandled();
       });
 
