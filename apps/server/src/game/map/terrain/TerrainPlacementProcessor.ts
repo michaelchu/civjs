@@ -434,8 +434,14 @@ export class TerrainPlacementProcessor {
 
     // Get terrain properties from ruleset
     const properties = getTerrainProperties(tile.terrain);
+    console.log(
+      'TerrainPlacementProcessor: setTerrainProperties called with terrain:',
+      tile.terrain,
+      'properties:',
+      properties
+    );
 
     // Apply properties to tile (this ensures consistency with freeciv rules)
-    Object.assign(tile, properties);
+    tile.properties = properties;
   }
 }

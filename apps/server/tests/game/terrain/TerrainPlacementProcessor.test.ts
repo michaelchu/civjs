@@ -34,6 +34,7 @@ jest.mock('../../../src/game/map/TerrainRuleset', () => ({
     UNUSED: 'unused',
   },
   pickTerrain: jest.fn((prop1, _prop2, _prop3, _random) => {
+    console.log('Mock pickTerrain called with:', prop1);
     if (prop1 === 'foliage') return 'forest';
     if (prop1 === 'wet') return 'swamp';
     if (prop1 === 'dry') return 'desert';
@@ -41,7 +42,10 @@ jest.mock('../../../src/game/map/TerrainRuleset', () => ({
     if (prop1 === 'cold') return 'tundra';
     return 'grassland';
   }),
-  getTerrainProperties: jest.fn(() => ({ temperate: 50, green: 30 })),
+  getTerrainProperties: jest.fn(terrain => {
+    console.log('Mock getTerrainProperties called with:', terrain);
+    return { temperate: 50, green: 30 };
+  }),
 }));
 
 describe('TerrainPlacementProcessor', () => {
@@ -58,31 +62,43 @@ describe('TerrainPlacementProcessor', () => {
     placementMap = new PlacementMap(width, height);
     processor = new TerrainPlacementProcessor(width, height, mockRandom, placementMap);
 
-    // Create test tiles grid
+    // Create test tiles grid with diverse conditions for terrain placement testing
     tiles = Array(width)
       .fill(null)
       .map((_, x) =>
         Array(height)
           .fill(null)
-          .map((_, y) => ({
-            x,
-            y,
-            terrain: 'grassland' as TerrainType,
-            resource: undefined,
-            riverMask: 0,
-            elevation: 0,
-            continentId: 1,
-            isExplored: false,
-            isVisible: false,
-            hasRoad: false,
-            hasRailroad: false,
-            improvements: [],
-            cityId: undefined,
-            unitIds: [],
-            properties: {},
-            temperature: TemperatureType.TEMPERATE,
-            wetness: 50,
-          }))
+          .map((_, y) => {
+            // Create diverse tile conditions to satisfy various terrain placement requirements
+            const isDry = (x + y) % 3 === 0; // ~33% dry tiles (wetness < 50)
+            const isHighElevation = (x * y) % 4 === 0; // ~25% high elevation tiles (>= 30)
+            const isTropical = y > height * 0.7; // Bottom 30% tropical
+            const isFrozen = y < height * 0.2; // Top 20% frozen
+
+            return {
+              x,
+              y,
+              terrain: 'grassland' as TerrainType,
+              resource: undefined,
+              riverMask: 0,
+              elevation: isHighElevation ? 50 : 10, // High (50) or low (10) elevation
+              continentId: 1,
+              isExplored: false,
+              isVisible: false,
+              hasRoad: false,
+              hasRailroad: false,
+              improvements: [],
+              cityId: undefined,
+              unitIds: [],
+              properties: {},
+              temperature: isFrozen
+                ? TemperatureType.FROZEN
+                : isTropical
+                  ? TemperatureType.TROPICAL
+                  : TemperatureType.TEMPERATE,
+              wetness: isDry ? 30 : 70, // Dry (30) or wet (70)
+            };
+          })
       );
 
     // Initialize placement map (all tiles start as not placed)
