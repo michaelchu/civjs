@@ -444,7 +444,7 @@ export class PolicyManager {
    * Reference: freeciv multiplier_can_be_changed()
    */
   public async canAdjustPolicy(
-    playerId: string,
+    _playerId: string,
     policyId: string,
     newValue: number
   ): Promise<boolean> {
@@ -496,8 +496,8 @@ export class PolicyManager {
    * Get policy bonus for specific area
    * Reference: freeciv policy effect calculations
    */
-  public getPolicyBonus(playerId: string, bonusType: string): number {
-    const playerPolicies = this.playerPolicies.get(playerId);
+  public getPolicyBonus(_playerId: string, bonusType: string): number {
+    const playerPolicies = this.playerPolicies.get(_playerId);
     if (!playerPolicies) {
       return bonusType === 'science' || bonusType === 'gold' || bonusType === 'luxury' ? 30 : 0;
     }
@@ -538,7 +538,7 @@ export class PolicyManager {
    * Check if player can adopt policy
    * Reference: freeciv requirements evaluation
    */
-  public async canAdoptPolicy(playerId: string, policyId: string): Promise<boolean> {
+  public async canAdoptPolicy(_playerId: string, policyId: string): Promise<boolean> {
     const policy = this.availablePolicies.get(policyId);
     if (!policy || !policy.reqs) {
       return true;

@@ -23,7 +23,7 @@ export const playerPolicies = pgTable('player_policies', {
   // Policy values
   currentValue: integer('current_value').notNull(),
   targetValue: integer('target_value').notNull(),
-  
+
   // Change tracking
   adoptedTurn: integer('adopted_turn').notNull(),
   lastChangedTurn: integer('last_changed_turn').notNull(),

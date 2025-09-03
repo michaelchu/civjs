@@ -53,13 +53,13 @@ export interface UnitSupportData {
  * Direct port of freeciv unit support system architecture
  */
 export class UnitSupportManager {
-  private gameId: string;
+  private _gameId: string; // Stored for future database queries
   private effectsManager?: EffectsManager;
   private goldUpkeepStyle: GoldUpkeepStyle = GoldUpkeepStyle.CITY;
   private foodCostPerCitizen = 2; // Default food cost per citizen
 
-  constructor(_gameId: string, effectsManager?: EffectsManager) {
-    this.gameId = _gameId;
+  constructor(gameId: string, effectsManager?: EffectsManager) {
+    this._gameId = gameId;
     this.effectsManager = effectsManager;
   }
 
@@ -428,7 +428,7 @@ export class UnitSupportManager {
    * Calculate upkeep for individual unit
    * Reference: freeciv unit upkeep calculations
    */
-  public async calculateUnitUpkeep(unitId: string): Promise<UnitUpkeep> {
+  public async calculateUnitUpkeep(_unitId: string): Promise<UnitUpkeep> {
     // Mock implementation based on unit type
     // In full implementation, this would get actual unit data
     return { food: 1, shield: 1, gold: 0 };
@@ -457,7 +457,7 @@ export class UnitSupportManager {
    * Calculate player unit support totals
    * Reference: freeciv player unit support calculations
    */
-  public async calculatePlayerUnitSupport(playerId: string): Promise<{
+  public async calculatePlayerUnitSupport(_playerId: string): Promise<{
     totalUnitsSupported: number;
     upkeepCosts: UnitUpkeep;
     freeUnitsSupported: number;
@@ -503,7 +503,7 @@ export class UnitSupportManager {
    */
   public async calculateUnitSupportInCity(
     unitId: string,
-    cityId: string,
+    _cityId: string,
     isHome: boolean
   ): Promise<{ happinessEffect: number; upkeepCost: UnitUpkeep }> {
     const baseUpkeep = await this.calculateUnitUpkeep(unitId);
@@ -519,7 +519,7 @@ export class UnitSupportManager {
    * Calculate total city support costs
    * Reference: freeciv city unit support totals
    */
-  public async calculateTotalCitySupport(cityId: string): Promise<UnitUpkeep> {
+  public async calculateTotalCitySupport(_cityId: string): Promise<UnitUpkeep> {
     // Mock implementation for integration tests
     return { food: 4, shield: 3, gold: 1 };
   }
@@ -528,7 +528,7 @@ export class UnitSupportManager {
    * Calculate unit happiness effect
    * Reference: freeciv unit happiness penalties
    */
-  public async calculateUnitHappinessEffect(unitId: string, isAtHome: boolean): Promise<number> {
+  public async calculateUnitHappinessEffect(_unitId: string, isAtHome: boolean): Promise<number> {
     // Military units away from home cause unhappiness in some governments
     return isAtHome ? 0 : 1;
   }
@@ -537,7 +537,7 @@ export class UnitSupportManager {
    * Calculate city happiness from units
    * Reference: freeciv city happiness from military units
    */
-  public async calculateCityHappinessFromUnits(cityId: string): Promise<number> {
+  public async calculateCityHappinessFromUnits(_cityId: string): Promise<number> {
     // Mock implementation - in full version would check all units affecting city
     return 2; // 2 points of unhappiness from units away from home
   }
@@ -577,6 +577,13 @@ export class UnitSupportManager {
       default:
         return 1.0;
     }
+  }
+
+  /**
+   * Get the game ID (stored for future database operations)
+   */
+  public getGameId(): string {
+    return this._gameId;
   }
 }
 

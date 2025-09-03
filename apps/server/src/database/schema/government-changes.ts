@@ -20,7 +20,7 @@ export const governmentChanges = pgTable('government_changes', {
   // Government transition
   fromGovernment: varchar('from_government', { length: 50 }),
   toGovernment: varchar('to_government', { length: 50 }).notNull(),
-  
+
   // Revolution details
   changeTurn: integer('change_turn').notNull(),
   anarchyTurns: integer('anarchy_turns').default(0).notNull(),
