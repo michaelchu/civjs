@@ -8,7 +8,6 @@ This is a monorepo containing:
 
 - **`apps/client`** - React/TypeScript frontend with Canvas 2D rendering
 - **`apps/server`** - Node.js/Socket.IO backend with PostgreSQL and Redis
-- **`packages/shared-types`** - Shared TypeScript types between client and server
 
 ## 🚀 Quick Start
 
@@ -83,10 +82,6 @@ civjs/
 │       │   └── types/       # Server type definitions
 │       ├── Dockerfile
 │       └── package.json
-├── packages/
-│   └── shared-types/        # Shared TypeScript types
-│       ├── src/index.ts
-│       └── package.json
 ├── docker-compose.yml       # Multi-container setup
 └── package.json            # Root workspace config
 ```
@@ -108,10 +103,10 @@ civjs/
 - **Game Managers** - Modular game logic (Cities, Units, Turn, etc.)
 - **TypeScript** - Fully typed server implementation
 
-### Shared
-- **Common Types** - Shared TypeScript interfaces and types
-- **Game Packets** - Standardized client-server communication
-- **Development Tools** - ESLint, Prettier, and testing setup
+### Development Tools
+- **Code Quality** - ESLint, Prettier, and comprehensive testing setup
+- **Type Safety** - Full TypeScript coverage across client and server
+- **Hot Reload** - Fast development with Vite and nodemon
 
 ## 🛠️ Development
 
@@ -156,8 +151,8 @@ npm install <package> --workspace=apps/client
 # Add to server  
 npm install <package> --workspace=apps/server
 
-# Add to shared types
-npm install <package> --workspace=packages/shared-types
+# Add shared dependency to both apps
+npm install <package> --workspace=apps/client --workspace=apps/server
 
 # Add to root (dev dependencies)
 npm install <package> --save-dev
