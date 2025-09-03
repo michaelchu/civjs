@@ -380,17 +380,20 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
   describe('visibility and fog of war', () => {
     let scenario: any;
+    let scenarioUnitManager: UnitManager;
 
     beforeEach(async () => {
       scenario = await createBasicGameScenario();
-      await unitManager.loadUnits();
+      // Create UnitManager with the scenario's game ID
+      scenarioUnitManager = new UnitManager(scenario.game.id, mapWidth, mapHeight);
+      await scenarioUnitManager.loadUnits();
     });
 
     it('should return visible units based on real game state', () => {
       const visibleTiles = new Set(['11,11', '16,15', '9,10']);
       const player1Id = scenario.players[0].id;
 
-      const visibleUnits = unitManager.getVisibleUnits(player1Id, visibleTiles);
+      const visibleUnits = scenarioUnitManager.getVisibleUnits(player1Id, visibleTiles);
 
       // Should see own units + enemy units in visible range
       expect(visibleUnits.length).toBeGreaterThan(0);
