@@ -5,11 +5,13 @@
 import { beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { MapTile, TemperatureType } from '../../src/game/map/MapTypes';
 import { TerrainGenerator } from '../../src/game/map/TerrainGenerator';
+import { HeightMapProcessor } from '../../src/game/map/terrain/HeightMapProcessor';
 import { isOceanTerrain } from '../../src/game/map/TerrainUtils';
 import { getTerrainProperties } from '../../src/game/map/TerrainRuleset';
 
 describe('TerrainGenerator - Relief Generation System', () => {
   let generator: TerrainGenerator;
+  let heightMapProcessor: HeightMapProcessor;
   let tiles: MapTile[][];
   let heightMap: number[];
   const width = 40;
@@ -30,6 +32,7 @@ describe('TerrainGenerator - Relief Generation System', () => {
 
   beforeEach(() => {
     generator = new TerrainGenerator(width, height, seededRandom, 'random');
+    heightMapProcessor = new HeightMapProcessor(width, height, seededRandom);
     tiles = [];
     heightMap = new Array(width * height);
 
@@ -233,6 +236,7 @@ describe('TerrainGenerator - Relief Generation System', () => {
   describe('makeFractureRelief()', () => {
     beforeEach(() => {
       generator = new TerrainGenerator(width, height, seededRandom, 'fracture');
+      heightMapProcessor = new HeightMapProcessor(width, height, seededRandom);
     });
 
     it('should place relief based on local elevation differences', () => {
@@ -429,8 +433,8 @@ describe('TerrainGenerator - Relief Generation System', () => {
       const centerIndex = centerY * width + centerX;
       const expectedAvg = heightMap[centerIndex]; // Should be close to center value
 
-      // Create generator and calculate local average (need to expose for testing)
-      const localAvg = generator['localAveElevation'](heightMap, centerX, centerY);
+      // Calculate local average using extracted HeightMapProcessor
+      const localAvg = heightMapProcessor.localAveElevation(heightMap, centerX, centerY);
 
       // Local average should be close to the center value for smooth gradients
       expect(Math.abs(localAvg - expectedAvg)).toBeLessThan(50);

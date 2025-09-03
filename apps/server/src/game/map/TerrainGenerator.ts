@@ -6,24 +6,13 @@
  */
 import { MapTile, TemperatureType, TemperatureFlags, TerrainType } from './MapTypes';
 import { TemperatureMap } from './TemperatureMap';
-import {
-  isOceanTerrain,
-  isFrozenTerrain,
-  isLandTile,
-  setTerrainGameProperties,
-  isTinyIsland,
-  PlacementMap,
-} from './TerrainUtils';
-import { MapgenTerrainPropertyEnum, pickTerrain, getTerrainProperties } from './TerrainRuleset';
-
-export interface TerrainParams {
-  mountain_pct: number;
-  forest_pct: number;
-  jungle_pct: number;
-  desert_pct: number;
-  swamp_pct: number;
-  river_pct: number;
-}
+import { isOceanTerrain, setTerrainGameProperties, PlacementMap } from './TerrainUtils';
+import { MapgenTerrainPropertyEnum, pickTerrain } from './TerrainRuleset';
+import { HeightMapProcessor } from './terrain/HeightMapProcessor';
+import { TerrainPlacementProcessor, TerrainParams } from './terrain/TerrainPlacementProcessor';
+import { BiomeProcessor } from './terrain/BiomeProcessor';
+import { OceanProcessor } from './terrain/OceanProcessor';
+import { ContinentProcessor } from './terrain/ContinentProcessor';
 
 export class TerrainGenerator {
   private width: number;
@@ -35,28 +24,40 @@ export class TerrainGenerator {
   private temperatureMap?: TemperatureMap; // Will be passed for temperature map creation
   private riverGenerator?: any; // Will be passed for river generation
 
+  // Extracted components
+  private heightMapProcessor: HeightMapProcessor;
+  private terrainPlacementProcessor: TerrainPlacementProcessor;
+  private biomeProcessor: BiomeProcessor;
+  private oceanProcessor: OceanProcessor;
+  private continentProcessor: ContinentProcessor;
+
   constructor(width: number, height: number, random: () => number, generator: string) {
     this.width = width;
     this.height = height;
     this.random = random;
     this.generator = generator;
     this.placementMap = new PlacementMap(width, height);
+
+    // Initialize extracted components
+    this.heightMapProcessor = new HeightMapProcessor(width, height, random);
+    this.terrainPlacementProcessor = new TerrainPlacementProcessor(
+      width,
+      height,
+      random,
+      this.placementMap
+    );
+    this.biomeProcessor = new BiomeProcessor(width, height, random);
+    this.oceanProcessor = new OceanProcessor(width, height, random);
+    this.continentProcessor = new ContinentProcessor(width, height, random);
   }
 
   /**
    * Copy height map values to tile altitude properties
    * @reference freeciv/server/generator/height_map.c height_map_to_map()
-   * Exact copy of freeciv height map transfer algorithm
+   * Delegated to HeightMapProcessor for better organization
    */
   public heightMapToMap(tiles: MapTile[][], heightMap: number[]): void {
-    // Copy height map values to tile altitude
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const index = y * this.width + x;
-        tiles[x][y].elevation = heightMap[index];
-      }
-    }
-    // Note: wld.map.altitude_info = TRUE; is implicit in our implementation
+    return this.heightMapProcessor.heightMapToMap(tiles, heightMap);
   }
 
   /**
@@ -130,8 +131,8 @@ export class TerrainGenerator {
 
     // Step 1: HAS_POLES - normalize height map at poles to prevent excessive land
     // @reference freeciv/server/generator/mapgen.c:899-901 normalize_hmap_poles()
-    if (this.hasPoles()) {
-      this.normalizeHmapPoles(heightMap, tiles);
+    if (this.heightMapProcessor.hasPoles()) {
+      this.heightMapProcessor.normalizeHmapPoles(heightMap, tiles);
     }
 
     // Step 2: Pick a non-ocean terrain for land_fill (temporary land terrain)
@@ -201,8 +202,8 @@ export class TerrainGenerator {
 
     // Step 6: HAS_POLES - renormalize height map and create polar land
     // @reference freeciv/server/generator/mapgen.c:928-932
-    if (this.hasPoles()) {
-      this.renormalizeHmapPoles(heightMap, tiles);
+    if (this.heightMapProcessor.hasPoles()) {
+      this.heightMapProcessor.renormalizeHmapPoles(heightMap, tiles);
       // Note: make_polar_land() creates additional land at poles - not implemented yet
     }
 
@@ -239,15 +240,15 @@ export class TerrainGenerator {
     }
 
     // Step 10: make_terrains() - place forests, deserts, etc. (NOW WITH PROPER TEMPERATURES)
-    this.makeTerrains(tiles, terrainParams);
+    this.terrainPlacementProcessor.makeTerrains(tiles, terrainParams);
 
     // Step 10.5: Continent assignment in correct order (Phase 1 fix)
     // @reference freeciv/server/generator/mapgen.c:1370-1377 sequence
     // First remove tiny islands, then assign continent numbers
     // CALIBRATION FIX: Make tiny island removal less aggressive for Random mode
     const isRandomMode = this.generator === 'random';
-    this.removeTinyIslands(tiles, isRandomMode);
-    this.generateContinents(tiles);
+    this.continentProcessor.removeTinyIslands(tiles, isRandomMode);
+    this.continentProcessor.generateContinents(tiles);
 
     // Step 11: destroy_placed_map() - cleanup
     // @reference freeciv/server/generator/mapgen.c:1045 destroy_placed_map()
@@ -356,7 +357,7 @@ export class TerrainGenerator {
           const terrainChoice = this.selectReliefTerrain(tile, generatorAdjustments);
           tile.terrain = terrainChoice as TerrainType;
           this.placementMap.setPlaced(x, y);
-          this.setTerrainProperties(tile);
+          this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
         }
       }
     }
@@ -564,7 +565,7 @@ export class TerrainGenerator {
         }
 
         // Calculate local average elevation
-        const localAvg = this.localAveElevation(heightMap, x, y);
+        const localAvg = this.heightMapProcessor.localAveElevation(heightMap, x, y);
 
         // Exact freeciv mountain placement thresholds
         // @reference freeciv/server/generator/fracture_map.c:317-321
@@ -597,7 +598,7 @@ export class TerrainGenerator {
         // Exact freeciv coastal avoidance - ZERO EXCEPTIONS
         // @reference freeciv/server/generator/fracture_map.c:322-326
         // "The following avoids hills and mountains directly along the coast."
-        if (this.hasOceanNeighbor(tiles, x, y)) {
+        if (this.oceanProcessor.hasOceanNeighbor(tiles, x, y)) {
           continue; // choose_mountain = FALSE; choose_hill = FALSE;
         }
 
@@ -612,7 +613,7 @@ export class TerrainGenerator {
             this.random
           );
           this.placementMap.setPlaced(x, y);
-          this.setTerrainProperties(tile);
+          this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
         } else if (choose_hill) {
           total_mtns++;
           tile.terrain = pickTerrain(
@@ -622,7 +623,7 @@ export class TerrainGenerator {
             this.random
           );
           this.placementMap.setPlaced(x, y);
-          this.setTerrainProperties(tile);
+          this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
         }
       }
     }
@@ -653,7 +654,7 @@ export class TerrainGenerator {
                 this.random
               );
               this.placementMap.setPlaced(x, y);
-              this.setTerrainProperties(tile);
+              this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
             } else if (choose_hill) {
               total_mtns++;
               tile.terrain = pickTerrain(
@@ -663,7 +664,7 @@ export class TerrainGenerator {
                 this.random
               );
               this.placementMap.setPlaced(x, y);
-              this.setTerrainProperties(tile);
+              this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
             }
           }
 
@@ -766,57 +767,6 @@ export class TerrainGenerator {
     return true;
   }
 
-  /**
-   * Calculate local average elevation for fracture maps
-   * @reference freeciv/server/generator/fracture_map.c:268-284 local_ave_elevation()
-   * Used for determining relative elevation in fracture relief
-   */
-  private localAveElevation(heightMap: number[], x: number, y: number): number {
-    let ele = 0;
-    let n = 0;
-
-    // Calculate average in a 7x7 square (radius 3)
-    // @reference freeciv/server/generator/fracture_map.c:274-277
-    for (let dx = -3; dx <= 3; dx++) {
-      for (let dy = -3; dy <= 3; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const index = ny * this.width + nx;
-          ele += heightMap[index];
-          n++;
-        }
-      }
-    }
-
-    // Avoid division by zero
-    if (n > 0) {
-      ele = ele / n;
-    }
-
-    return ele;
-  }
-
-  /**
-   * Check if tile has ocean neighbor
-   * Helper for fracture relief to avoid coastal mountains
-   */
-  private hasOceanNeighbor(tiles: MapTile[][], x: number, y: number): boolean {
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          if (isOceanTerrain(tiles[nx][ny].terrain)) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
-
   // UNUSED: Legacy terrain clustering method - replaced with freeciv-compliant approach
   /*
   private hasTerrainClusterNearby(
@@ -842,389 +792,7 @@ export class TerrainGenerator {
   }
   */
 
-  /**
-   * Exact copy of freeciv make_terrains() function
-   * @reference freeciv/server/generator/mapgen.c:491 make_terrains()
-   *
-   */
-  public makeTerrains(tiles: MapTile[][], terrainParams: TerrainParams): void {
-    // Count total unplaced tiles using placement tracking
-    // @reference freeciv/server/generator/mapgen.c:491 make_terrains()
-    let total = 0;
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const tile = tiles[x][y];
-        // In freeciv: not_placed(ptile) - tiles that aren't ocean and haven't been assigned terrain yet
-        if (this.placementMap.notPlaced(x, y) && !isOceanTerrain(tile.terrain)) {
-          total++;
-        }
-      }
-    }
-
-    // Calculate terrain counts exactly as freeciv does
-    let forests_count = Math.floor(
-      (total * terrainParams.forest_pct) / (100 - terrainParams.mountain_pct)
-    );
-    let jungles_count = Math.floor(
-      (total * terrainParams.jungle_pct) / (100 - terrainParams.mountain_pct)
-    );
-    let deserts_count = Math.floor(
-      (total * terrainParams.desert_pct) / (100 - terrainParams.mountain_pct)
-    );
-    let swamps_count = Math.floor(
-      (total * terrainParams.swamp_pct) / (100 - terrainParams.mountain_pct)
-    );
-    let alt_deserts_count = 0;
-
-    // Grassland, tundra, arctic and plains is counted in plains_count
-    let plains_count = total - forests_count - deserts_count - swamps_count - jungles_count;
-
-    // The placement loop - exact copy of freeciv logic
-    do {
-      // PLACE_ONE_TYPE(forests_count, plains_count, pick_terrain(MG_FOLIAGE, MG_TEMPERATE, MG_TROPICAL), WC_ALL, TT_NFROZEN, MC_NONE, 60);
-      if (forests_count > 0) {
-        const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_NFROZEN', 'MC_NONE');
-        if (candidate) {
-          // Use pick_terrain with proper properties as in freeciv
-          // @reference freeciv/server/generator/mapgen.c:522 pick_terrain(MG_FOLIAGE, MG_TEMPERATE, MG_TROPICAL)
-          const terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.FOLIAGE,
-            MapgenTerrainPropertyEnum.TEMPERATE,
-            MapgenTerrainPropertyEnum.TROPICAL,
-            this.random
-          );
-          this.placeTerrain(
-            candidate.tile,
-            candidate.x,
-            candidate.y,
-            60,
-            terrain,
-            forests_count,
-            plains_count,
-            'WC_ALL',
-            'TT_NFROZEN',
-            'MC_NONE'
-          );
-          forests_count--;
-        } else {
-          plains_count += forests_count;
-          forests_count = 0;
-        }
-      }
-
-      // PLACE_ONE_TYPE(jungles_count, forests_count, pick_terrain(MG_FOLIAGE, MG_TROPICAL, MG_COLD), WC_ALL, TT_TROPICAL, MC_NONE, 50);
-      if (jungles_count > 0) {
-        const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_TROPICAL', 'MC_NONE');
-        if (candidate) {
-          // Use pick_terrain with proper properties as in freeciv
-          // @reference freeciv/server/generator/mapgen.c:540 pick_terrain(MG_FOLIAGE, MG_TROPICAL, MG_COLD)
-          const terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.FOLIAGE,
-            MapgenTerrainPropertyEnum.TROPICAL,
-            MapgenTerrainPropertyEnum.COLD,
-            this.random
-          );
-          this.placeTerrain(
-            candidate.tile,
-            candidate.x,
-            candidate.y,
-            50,
-            terrain,
-            jungles_count,
-            forests_count,
-            'WC_ALL',
-            'TT_TROPICAL',
-            'MC_NONE'
-          );
-          jungles_count--;
-        } else {
-          forests_count += jungles_count;
-          jungles_count = 0;
-        }
-      }
-
-      // PLACE_ONE_TYPE(swamps_count, forests_count, pick_terrain(MG_WET, MG_UNUSED, MG_FOLIAGE), WC_NDRY, TT_HOT, MC_LOW, 50);
-      if (swamps_count > 0) {
-        const candidate = this.randMapPosCharacteristic(tiles, 'WC_NDRY', 'TT_HOT', 'MC_LOW');
-        if (candidate) {
-          // Use pick_terrain with proper properties as in freeciv
-          // @reference freeciv/server/generator/mapgen.c:558 pick_terrain(MG_WET, MG_UNUSED, MG_FOLIAGE)
-          const terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.WET,
-            MapgenTerrainPropertyEnum.UNUSED,
-            MapgenTerrainPropertyEnum.FOLIAGE,
-            this.random
-          );
-          this.placeTerrain(
-            candidate.tile,
-            candidate.x,
-            candidate.y,
-            50,
-            terrain,
-            swamps_count,
-            forests_count,
-            'WC_NDRY',
-            'TT_HOT',
-            'MC_LOW'
-          );
-          swamps_count--;
-        } else {
-          forests_count += swamps_count;
-          swamps_count = 0;
-        }
-      }
-
-      // PLACE_ONE_TYPE(deserts_count, alt_deserts_count, pick_terrain(MG_DRY, MG_TROPICAL, MG_COLD), WC_DRY, TT_NFROZEN, MC_NLOW, 80);
-      if (deserts_count > 0) {
-        const candidate = this.randMapPosCharacteristic(tiles, 'WC_DRY', 'TT_NFROZEN', 'MC_NLOW');
-        if (candidate) {
-          // Use pick_terrain with proper properties as in freeciv
-          // @reference freeciv/server/generator/mapgen.c:576 pick_terrain(MG_DRY, MG_TROPICAL, MG_COLD)
-          const terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.DRY,
-            MapgenTerrainPropertyEnum.TROPICAL,
-            MapgenTerrainPropertyEnum.COLD,
-            this.random
-          );
-          this.placeTerrain(
-            candidate.tile,
-            candidate.x,
-            candidate.y,
-            80,
-            terrain,
-            deserts_count,
-            alt_deserts_count,
-            'WC_DRY',
-            'TT_NFROZEN',
-            'MC_NLOW'
-          );
-          deserts_count--;
-        } else {
-          alt_deserts_count += deserts_count;
-          deserts_count = 0;
-        }
-      }
-
-      // PLACE_ONE_TYPE(alt_deserts_count, plains_count, pick_terrain(MG_DRY, MG_TROPICAL, MG_WET), WC_ALL, TT_NFROZEN, MC_NLOW, 40);
-      if (alt_deserts_count > 0) {
-        const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_NFROZEN', 'MC_NLOW');
-        if (candidate) {
-          // Use pick_terrain with proper properties as in freeciv
-          // @reference freeciv/server/generator/mapgen.c:594 pick_terrain(MG_DRY, MG_TROPICAL, MG_WET)
-          const terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.DRY,
-            MapgenTerrainPropertyEnum.TROPICAL,
-            MapgenTerrainPropertyEnum.WET,
-            this.random
-          );
-          this.placeTerrain(
-            candidate.tile,
-            candidate.x,
-            candidate.y,
-            40,
-            terrain,
-            alt_deserts_count,
-            plains_count,
-            'WC_ALL',
-            'TT_NFROZEN',
-            'MC_NLOW'
-          );
-          alt_deserts_count--;
-        } else {
-          plains_count += alt_deserts_count;
-          alt_deserts_count = 0;
-        }
-      }
-
-      // Make the plains and tundras
-      if (plains_count > 0) {
-        const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_ALL', 'MC_NONE');
-        if (candidate) {
-          this.makePlain(candidate.tile, candidate.x, candidate.y);
-          plains_count--;
-        } else {
-          plains_count = 0;
-        }
-      }
-    } while (
-      forests_count > 0 ||
-      jungles_count > 0 ||
-      deserts_count > 0 ||
-      alt_deserts_count > 0 ||
-      plains_count > 0 ||
-      swamps_count > 0
-    );
-  }
-
-  /**
-   * Supporting function for make_terrains - equivalent to freeciv's rand_map_pos_characteristic
-   * @reference freeciv/server/generator/mapgen.c rand_map_pos_characteristic()
-   * Uses placement tracking to find valid tiles for terrain placement
-   */
-  private randMapPosCharacteristic(
-    tiles: MapTile[][],
-    wetness_condition: string,
-    temp_condition: string,
-    mount_condition: string
-  ): { tile: MapTile; x: number; y: number } | null {
-    const candidates: { tile: MapTile; x: number; y: number }[] = [];
-
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const tile = tiles[x][y];
-
-        // Only consider unplaced land tiles using placement tracking
-        // @reference freeciv/server/generator/mapgen.c:262 not yet placed on pmap
-        if (!this.placementMap.notPlaced(x, y) || isOceanTerrain(tile.terrain)) continue;
-
-        // Check wetness condition
-        if (!this.checkWetnessCondition(tile, wetness_condition)) continue;
-
-        // Check temperature condition
-        if (!this.checkTemperatureCondition(tile, temp_condition)) continue;
-
-        // Check mountain condition
-        if (!this.checkMountainCondition(tile, mount_condition)) continue;
-
-        candidates.push({ tile, x, y });
-      }
-    }
-
-    if (candidates.length === 0) return null;
-    return candidates[Math.floor(this.random() * candidates.length)];
-  }
-
-  /**
-   * Supporting function - place terrain with weight/spread logic
-   * @reference freeciv/server/generator/mapgen.c place_terrain()
-   * Marks placed tiles using placement tracking system
-   */
-  private placeTerrain(
-    tile: MapTile,
-    x: number,
-    y: number,
-    _weight: number,
-    terrain: string,
-    _count: number,
-    _alternate: number,
-    _wc: string,
-    _tc: string,
-    _mc: string
-  ): void {
-    // Set terrain type
-    tile.terrain = terrain as TerrainType;
-
-    // Mark tile as placed in placement map
-    // @reference freeciv/server/generator/mapgen_utils.c:79 map_set_placed()
-    this.placementMap.setPlaced(x, y);
-
-    this.setTerrainProperties(tile);
-  }
-
-  /**
-   * Supporting function - make plains/tundra based on temperature
-   * @reference freeciv/server/generator/mapgen.c make_plain()
-   * Uses placement tracking to mark placed tiles
-   */
-  private makePlain(tile: MapTile, x: number, y: number): void {
-    // Choose terrain based on temperature using pick_terrain like freeciv
-    // @reference freeciv/server/generator/mapgen.c:437-445
-    let terrain: TerrainType;
-    if (tile.temperature === TemperatureType.FROZEN) {
-      // tile_set_terrain(ptile, pick_terrain(MG_FROZEN, MG_UNUSED, MG_MOUNTAINOUS));
-      terrain = pickTerrain(
-        MapgenTerrainPropertyEnum.FROZEN,
-        MapgenTerrainPropertyEnum.UNUSED,
-        MapgenTerrainPropertyEnum.MOUNTAINOUS,
-        this.random
-      );
-    } else if (tile.temperature === TemperatureType.COLD) {
-      // tile_set_terrain(ptile, pick_terrain(MG_COLD, MG_UNUSED, MG_MOUNTAINOUS));
-      terrain = pickTerrain(
-        MapgenTerrainPropertyEnum.COLD,
-        MapgenTerrainPropertyEnum.UNUSED,
-        MapgenTerrainPropertyEnum.MOUNTAINOUS,
-        this.random
-      );
-    } else {
-      // tile_set_terrain(ptile, pick_terrain(MG_TEMPERATE, MG_GREEN, MG_MOUNTAINOUS));
-      terrain = pickTerrain(
-        MapgenTerrainPropertyEnum.TEMPERATE,
-        MapgenTerrainPropertyEnum.GREEN,
-        MapgenTerrainPropertyEnum.MOUNTAINOUS,
-        this.random
-      );
-    }
-
-    tile.terrain = terrain;
-
-    // Mark tile as placed
-    // @reference freeciv/server/generator/mapgen_utils.c:79 map_set_placed()
-    this.placementMap.setPlaced(x, y);
-
-    this.setTerrainProperties(tile);
-  }
-
-  /**
-   * Helper functions for terrain conditions (freeciv equivalents)
-   */
-  private checkWetnessCondition(tile: MapTile, condition: string): boolean {
-    switch (condition) {
-      case 'WC_ALL':
-        return true;
-      case 'WC_DRY':
-        return tile.wetness < 50;
-      case 'WC_NDRY':
-        return tile.wetness >= 50;
-      default:
-        return true;
-    }
-  }
-
-  private checkTemperatureCondition(tile: MapTile, condition: string): boolean {
-    switch (condition) {
-      case 'TT_ALL':
-        return true;
-      case 'TT_NFROZEN':
-        return tile.temperature !== TemperatureType.FROZEN;
-      case 'TT_TROPICAL':
-        return tile.temperature === TemperatureType.TROPICAL;
-      case 'TT_HOT':
-        return (
-          tile.temperature === TemperatureType.TROPICAL ||
-          tile.temperature === TemperatureType.TEMPERATE
-        );
-      default:
-        return true;
-    }
-  }
-
-  private checkMountainCondition(tile: MapTile, condition: string): boolean {
-    switch (condition) {
-      case 'MC_NONE':
-        return true;
-      case 'MC_LOW':
-        return tile.elevation < 500;
-      case 'MC_NLOW':
-        return tile.elevation >= 500;
-      default:
-        return true;
-    }
-  }
-
   // Utility functions
-
-  private setTerrainProperties(tile: MapTile): void {
-    // Set terrain properties based on terrain ruleset
-    // @reference freeciv/common/terrain.h:136-147 property[MG_COUNT]
-    if (!tile.properties) {
-      tile.properties = {};
-    }
-
-    // Copy properties from ruleset to tile
-    const properties = getTerrainProperties(tile.terrain);
-    tile.properties = { ...properties };
-  }
 
   /**
    * REMOVED: Custom temperature conversion - now uses 100% compliant TemperatureMap
@@ -1238,819 +806,27 @@ export class TerrainGenerator {
   }
 
   /**
+   * Smooth water depth based on distance from land and adjacent ocean types
+   * Delegated to OceanProcessor for better organization
+   */
+  public smoothWaterDepth(tiles: MapTile[][]): void {
+    return this.oceanProcessor.smoothWaterDepth(tiles);
+  }
+
+  /**
    * Generate wetness map for terrain variation
+   * Delegated to BiomeProcessor for better organization
    */
   public generateWetnessMap(tiles: MapTile[][]): void {
-    // Use default wetness base for better terrain variety
-    const baseWetness = 50;
-
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        // Start with user's wetness setting
-        let wetness = baseWetness;
-
-        // Reduce water influence for better terrain variety
-        wetness += this.calculateWetnessFromNearbyWater(tiles, x, y) * 0.3;
-
-        // Add randomness for variety
-        wetness += (this.random() - 0.5) * 40;
-
-        tiles[x][y].wetness = Math.max(0, Math.min(100, wetness));
-      }
-    }
+    return this.biomeProcessor.generateWetnessMap(tiles);
   }
 
   /**
    * Apply biome transitions with enhanced terrain clustering algorithms
-   * @reference Task 10: Biome-based terrain grouping and natural transitions
-   * Enhanced with generator-specific characteristics and regional climate consistency
+   * Delegated to BiomeProcessor for better organization
    */
   public applyBiomeTransitions(tiles: MapTile[][]): void {
-    const generatorAdjustments = this.getGeneratorSpecificAdjustments();
-    const newTerrain = tiles.map(col => col.map(tile => ({ ...tile })));
-
-    // Phase 1: Biome-based terrain grouping
-    this.applyBiomeBasedGrouping(tiles, newTerrain, generatorAdjustments);
-
-    // Phase 2: Natural terrain transitions
-    this.applyNaturalTerrainTransitions(tiles, newTerrain, generatorAdjustments);
-
-    // Phase 3: Regional climate consistency
-    this.enforceRegionalClimateConsistency(tiles, newTerrain, generatorAdjustments);
-
-    // Apply changes and update properties
-    this.applyTerrainChanges(tiles, newTerrain);
-  }
-
-  /**
-   * Apply biome-based terrain grouping for natural clustering
-   * @reference Task 10: Biome-based terrain grouping
-   */
-  private applyBiomeBasedGrouping(
-    tiles: MapTile[][],
-    newTerrain: MapTile[][],
-    adjustments: any
-  ): void {
-    const clusteringStrength =
-      adjustments.type === 'random' ? adjustments.clusteringReduction : 1.0;
-
-    for (let x = 1; x < this.width - 1; x++) {
-      for (let y = 1; y < this.height - 1; y++) {
-        const tile = tiles[x][y];
-        if (!isLandTile(tile.terrain)) continue;
-
-        // Identify biome type based on temperature and wetness
-        const biomeType = this.identifyBiomeType(tile);
-
-        // Find similar biome neighbors
-        const similarBiomeNeighbors = this.findSimilarBiomeNeighbors(tiles, x, y, biomeType);
-
-        if (similarBiomeNeighbors.length >= 3 && this.random() < 0.15 * clusteringStrength) {
-          // Strong biome clustering: adopt dominant neighbor terrain
-          const dominantTerrain = this.findDominantTerrainInBiome(similarBiomeNeighbors, biomeType);
-          if (dominantTerrain && this.isBiomeCompatible(tile.terrain, dominantTerrain, biomeType)) {
-            newTerrain[x][y].terrain = dominantTerrain as TerrainType;
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Apply natural terrain transitions based on elevation and climate gradients
-   * @reference Task 10: Natural terrain transitions
-   */
-  private applyNaturalTerrainTransitions(
-    tiles: MapTile[][],
-    newTerrain: MapTile[][],
-    adjustments: any
-  ): void {
-    const transitionStrength = adjustments.type === 'island' ? 1.2 : 1.0;
-
-    for (let x = 1; x < this.width - 1; x++) {
-      for (let y = 1; y < this.height - 1; y++) {
-        const tile = tiles[x][y];
-        if (!isLandTile(tile.terrain)) continue;
-
-        // Calculate terrain transition gradients
-        const elevationGradient = this.calculateElevationGradient(tiles, x, y);
-        const temperatureGradient = this.calculateTemperatureGradient(tiles, x, y);
-        const wetnessGradient = this.calculateWetnessGradient(tiles, x, y);
-
-        // Apply elevation-based transitions (mountains -> hills -> plains)
-        if (elevationGradient > 100 && this.random() < 0.1 * transitionStrength) {
-          const transitionTerrain = this.getElevationTransitionTerrain(tile, elevationGradient);
-          if (transitionTerrain) {
-            newTerrain[x][y].terrain = transitionTerrain as TerrainType;
-          }
-        }
-
-        // Apply climate-based transitions
-        if (
-          (Math.abs(temperatureGradient) > 200 || Math.abs(wetnessGradient) > 20) &&
-          this.random() < 0.08 * transitionStrength
-        ) {
-          const transitionTerrain = this.getClimateTransitionTerrain(
-            tile,
-            temperatureGradient,
-            wetnessGradient
-          );
-          if (transitionTerrain) {
-            newTerrain[x][y].terrain = transitionTerrain as TerrainType;
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Enforce regional climate consistency across larger areas
-   * @reference Task 10: Regional climate consistency
-   */
-  private enforceRegionalClimateConsistency(
-    tiles: MapTile[][],
-    newTerrain: MapTile[][],
-    adjustments: any
-  ): void {
-    const regionSize = adjustments.type === 'fracture' ? 5 : 3; // Larger regions for continental maps
-    const consistencyStrength = 0.12;
-
-    for (let x = regionSize; x < this.width - regionSize; x += regionSize) {
-      for (let y = regionSize; y < this.height - regionSize; y += regionSize) {
-        if (this.random() < consistencyStrength) {
-          this.enforceRegionalConsistency(tiles, newTerrain, x, y, regionSize);
-        }
-      }
-    }
-  }
-
-  /**
-   * Identify biome type based on temperature and wetness
-   * FIXED: Use temperature types instead of raw values to match aggressive tundra reduction
-   */
-  private identifyBiomeType(tile: MapTile): string {
-    const temp = tile.temperature as TemperatureType;
-    const wet = tile.wetness;
-
-    if (temp & TemperatureType.TROPICAL) {
-      return wet > 60 ? 'tropical_wet' : 'tropical_dry';
-    } else if (temp & TemperatureType.TEMPERATE) {
-      return wet > 70 ? 'temperate_wet' : wet > 30 ? 'temperate' : 'temperate_dry';
-    } else if (temp & TemperatureType.COLD) {
-      return wet > 50 ? 'cold_wet' : 'cold_dry';
-    } else if (temp & TemperatureType.FROZEN) {
-      return 'frozen';
-    } else {
-      // Fallback for any unrecognized temperature type
-      return 'temperate';
-    }
-  }
-
-  /**
-   * Find neighbors with similar biome characteristics
-   */
-  private findSimilarBiomeNeighbors(
-    tiles: MapTile[][],
-    x: number,
-    y: number,
-    biomeType: string
-  ): MapTile[] {
-    const neighbors = this.getNeighbors(tiles, x, y);
-    return neighbors.filter(neighbor => {
-      return isLandTile(neighbor.terrain) && this.identifyBiomeType(neighbor) === biomeType;
-    });
-  }
-
-  /**
-   * Find the dominant terrain type within a biome group
-   */
-  private findDominantTerrainInBiome(neighbors: MapTile[], biomeType: string): string | null {
-    const terrainCounts: Record<string, number> = {};
-
-    for (const neighbor of neighbors) {
-      if (this.isValidTerrainForBiome(neighbor.terrain, biomeType)) {
-        terrainCounts[neighbor.terrain] = (terrainCounts[neighbor.terrain] || 0) + 1;
-      }
-    }
-
-    let maxCount = 0;
-    let dominantTerrain: string | null = null;
-    for (const [terrain, count] of Object.entries(terrainCounts)) {
-      if (count > maxCount) {
-        maxCount = count;
-        dominantTerrain = terrain;
-      }
-    }
-
-    return maxCount >= 2 ? dominantTerrain : null; // Require at least 2 neighbors
-  }
-
-  /**
-   * Check if terrain is valid for the given biome
-   */
-  private isValidTerrainForBiome(terrain: string, biomeType: string): boolean {
-    const biomeTerrains: Record<string, string[]> = {
-      tropical_wet: ['jungle', 'forest', 'swamp'],
-      tropical_dry: ['desert', 'plains', 'grassland'],
-      temperate_wet: ['forest', 'grassland', 'swamp'],
-      temperate: ['grassland', 'plains', 'forest'],
-      temperate_dry: ['plains', 'desert', 'grassland'],
-      cold_wet: ['forest', 'tundra', 'swamp'], // Restored tundra for tips-only generation
-      cold_dry: ['tundra', 'plains'], // Restored tundra for tips-only generation
-      frozen: ['tundra'], // Restored tundra for tips-only generation
-    };
-
-    return biomeTerrains[biomeType]?.includes(terrain) || false;
-  }
-
-  /**
-   * Check if two terrains are compatible within the same biome
-   */
-  private isBiomeCompatible(terrain1: string, terrain2: string, biomeType: string): boolean {
-    return (
-      this.isValidTerrainForBiome(terrain1, biomeType) &&
-      this.isValidTerrainForBiome(terrain2, biomeType)
-    );
-  }
-
-  /**
-   * Calculate elevation gradient in the local area
-   */
-  private calculateElevationGradient(tiles: MapTile[][], x: number, y: number): number {
-    const centerElevation = tiles[x][y].elevation || 0;
-    let totalDifference = 0;
-    let count = 0;
-
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const neighborElevation = tiles[nx][ny].elevation || 0;
-          totalDifference += Math.abs(centerElevation - neighborElevation);
-          count++;
-        }
-      }
-    }
-
-    return count > 0 ? totalDifference / count : 0;
-  }
-
-  /**
-   * Calculate temperature gradient in the local area
-   */
-  private calculateTemperatureGradient(tiles: MapTile[][], x: number, y: number): number {
-    const centerTemp = (tiles[x][y].temperature as number) || 0;
-    let totalDifference = 0;
-    let count = 0;
-
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const neighborTemp = (tiles[nx][ny].temperature as number) || 0;
-          totalDifference += Math.abs(centerTemp - neighborTemp);
-          count++;
-        }
-      }
-    }
-
-    return count > 0 ? totalDifference / count : 0;
-  }
-
-  /**
-   * Calculate wetness gradient in the local area
-   */
-  private calculateWetnessGradient(tiles: MapTile[][], x: number, y: number): number {
-    const centerWetness = tiles[x][y].wetness || 0;
-    let totalDifference = 0;
-    let count = 0;
-
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const neighborWetness = tiles[nx][ny].wetness || 0;
-          totalDifference += Math.abs(centerWetness - neighborWetness);
-          count++;
-        }
-      }
-    }
-
-    return count > 0 ? totalDifference / count : 0;
-  }
-
-  /**
-   * Get appropriate transition terrain based on elevation gradient
-   */
-  private getElevationTransitionTerrain(tile: MapTile, gradient: number): string | null {
-    const currentTerrain = tile.terrain;
-
-    if (currentTerrain === 'mountains' && gradient > 150) {
-      return 'hills';
-    } else if (currentTerrain === 'hills' && gradient > 120) {
-      // Use proper temperature types instead of raw values
-      return tile.temperature & TemperatureType.FROZEN ? 'tundra' : 'grassland';
-    }
-
-    return null;
-  }
-
-  /**
-   * Get appropriate transition terrain based on climate gradients
-   */
-  private getClimateTransitionTerrain(
-    tile: MapTile,
-    tempGradient: number,
-    wetnessGradient: number
-  ): string | null {
-    const currentTerrain = tile.terrain;
-
-    // Wetness-based transitions
-    if (wetnessGradient > 25) {
-      if (currentTerrain === 'desert' && tile.wetness > 40) {
-        return 'plains';
-      } else if (currentTerrain === 'forest' && tile.wetness < 30) {
-        return 'grassland';
-      } else if (currentTerrain === 'jungle' && tile.wetness < 50) {
-        return 'forest';
-      }
-    }
-
-    // Temperature-based transitions
-    if (tempGradient > 200) {
-      const temp = tile.temperature as number;
-      if (
-        tile.temperature & TemperatureType.FROZEN &&
-        ['grassland', 'plains'].includes(currentTerrain)
-      ) {
-        return 'tundra';
-      } else if (temp > 700 && currentTerrain === 'forest') {
-        return tile.wetness > 60 ? 'jungle' : 'grassland';
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Enforce consistency within a regional area
-   */
-  private enforceRegionalConsistency(
-    tiles: MapTile[][],
-    newTerrain: MapTile[][],
-    centerX: number,
-    centerY: number,
-    regionSize: number
-  ): void {
-    const regionTiles: Array<{ x: number; y: number; tile: MapTile }> = [];
-
-    // Collect all tiles in the region
-    for (let dx = -regionSize; dx <= regionSize; dx++) {
-      for (let dy = -regionSize; dy <= regionSize; dy++) {
-        const x = centerX + dx;
-        const y = centerY + dy;
-        if (
-          x >= 0 &&
-          x < this.width &&
-          y >= 0 &&
-          y < this.height &&
-          isLandTile(tiles[x][y].terrain)
-        ) {
-          regionTiles.push({ x, y, tile: tiles[x][y] });
-        }
-      }
-    }
-
-    if (regionTiles.length < 5) return; // Too small region
-
-    // Calculate regional averages
-    const avgTemp =
-      regionTiles.reduce((sum, t) => sum + ((t.tile.temperature as number) || 0), 0) /
-      regionTiles.length;
-    const avgWetness =
-      regionTiles.reduce((sum, t) => sum + (t.tile.wetness || 0), 0) / regionTiles.length;
-    const dominantBiome = this.identifyBiomeType({
-      temperature: avgTemp,
-      wetness: avgWetness,
-    } as MapTile);
-
-    // Apply regional consistency
-    for (const { x, y, tile } of regionTiles) {
-      if (!this.isValidTerrainForBiome(tile.terrain, dominantBiome) && this.random() < 0.3) {
-        const suitableTerrains = this.getValidTerrainsForBiome(dominantBiome);
-        if (suitableTerrains.length > 0) {
-          newTerrain[x][y].terrain = suitableTerrains[
-            Math.floor(this.random() * suitableTerrains.length)
-          ] as TerrainType;
-        }
-      }
-    }
-  }
-
-  /**
-   * Get valid terrains for a specific biome
-   */
-  private getValidTerrainsForBiome(biomeType: string): string[] {
-    const biomeTerrains: Record<string, string[]> = {
-      tropical_wet: ['jungle', 'forest', 'swamp'],
-      tropical_dry: ['desert', 'plains', 'grassland'],
-      temperate_wet: ['forest', 'grassland', 'swamp'],
-      temperate: ['grassland', 'plains', 'forest'],
-      temperate_dry: ['plains', 'desert', 'grassland'],
-      cold_wet: ['forest', 'tundra', 'swamp'], // Restored tundra for tips-only generation
-      cold_dry: ['tundra', 'plains'], // Restored tundra for tips-only generation
-      frozen: ['tundra'], // Restored tundra for tips-only generation
-    };
-
-    return biomeTerrains[biomeType] || ['grassland'];
-  }
-
-  /**
-   * Apply all terrain changes and update properties
-   */
-  private applyTerrainChanges(tiles: MapTile[][], newTerrain: MapTile[][]): void {
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        if (tiles[x][y].terrain !== newTerrain[x][y].terrain) {
-          tiles[x][y].terrain = newTerrain[x][y].terrain;
-          this.setTerrainProperties(tiles[x][y]);
-        }
-      }
-    }
-
-    // Apply biome transition smoothing for better boundaries
-    this.applyBiomeTransitionSmoothing(tiles);
-  }
-
-  /**
-   * Apply biome transition smoothing to create gradual boundaries between temperature zones
-   * This softens harsh edges while preserving tundra blocks
-   */
-  private applyBiomeTransitionSmoothing(tiles: MapTile[][]): number {
-    let smoothingChanges = 0;
-
-    // Single pass to preserve tundra blocks while softening edges
-    const newTerrain = tiles.map(row => [...row]);
-
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const currentTile = tiles[x][y];
-
-        // Skip if not land
-        if (!isLandTile(currentTile.terrain)) continue;
-
-        // Use moderate radius for edge detection
-        const closeNeighbors = this.getNeighborTerrain(tiles, x, y, 1);
-        const neighbors = this.getNeighborTerrain(tiles, x, y, 2);
-
-        // Count terrain types
-        const tundraClose = closeNeighbors.filter(n => n.terrain === 'tundra').length;
-        const tundraWide = neighbors.filter(n => n.terrain === 'tundra').length;
-        const grassClose = closeNeighbors.filter(n => n.terrain === 'grassland').length;
-        const grassWide = neighbors.filter(n => n.terrain === 'grassland').length;
-
-        // GENTLE TUNDRA EDGE SOFTENING: Only convert isolated/edge tundra
-        if (currentTile.terrain === 'tundra') {
-          // Only convert tundra that's very isolated or on the very edge
-          if (tundraClose <= 1 && grassClose > 0 && this.random() < 0.3) {
-            newTerrain[x][y].terrain = 'plains';
-            this.setTerrainProperties(newTerrain[x][y]);
-            smoothingChanges++;
-          }
-        }
-
-        // GRASSLAND BUFFERING: Prevent direct grassland-tundra contact
-        else if (currentTile.terrain === 'grassland') {
-          // Only buffer grassland that's directly next to tundra
-          if (tundraClose > 0 && this.random() < 0.5) {
-            newTerrain[x][y].terrain = 'plains';
-            this.setTerrainProperties(newTerrain[x][y]);
-            smoothingChanges++;
-          }
-        }
-
-        // ADD OCCASIONAL FORESTS: Natural transition zones
-        else if (currentTile.terrain === 'plains') {
-          // Add forest if plains is between tundra and grassland
-          if (
-            tundraWide > 0 &&
-            grassWide > 0 &&
-            tundraClose === 0 &&
-            grassClose === 0 &&
-            this.random() < 0.2
-          ) {
-            newTerrain[x][y].terrain = 'forest';
-            this.setTerrainProperties(newTerrain[x][y]);
-            smoothingChanges++;
-          }
-        }
-      }
-    }
-
-    // Apply the smoothing changes
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        if (tiles[x][y].terrain !== newTerrain[x][y].terrain) {
-          tiles[x][y].terrain = newTerrain[x][y].terrain;
-        }
-      }
-    }
-
-    return smoothingChanges;
-  }
-
-  /**
-   * Get terrain info for neighbors within specified radius
-   */
-  private getNeighborTerrain(
-    tiles: MapTile[][],
-    x: number,
-    y: number,
-    radius: number
-  ): Array<{ terrain: string; distance: number }> {
-    const neighbors = [];
-
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        if (dx === 0 && dy === 0) continue; // Skip center tile
-
-        const nx = x + dx;
-        const ny = y + dy;
-
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          neighbors.push({
-            terrain: tiles[nx][ny].terrain,
-            distance: distance,
-          });
-        }
-      }
-    }
-
-    return neighbors;
-  }
-
-  /**
-   * Calculate wetness bonus from nearby water bodies
-   */
-  private calculateWetnessFromNearbyWater(tiles: MapTile[][], x: number, y: number): number {
-    let wetnessBonus = 0;
-    for (let dx = -2; dx <= 2; dx++) {
-      for (let dy = -2; dy <= 2; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const terrain = tiles[nx][ny].terrain;
-          if (!isLandTile(terrain)) {
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            wetnessBonus += 20 / (1 + distance);
-          }
-        }
-      }
-    }
-    return wetnessBonus;
-  }
-
-  /**
-   * Get neighboring tiles for a given position
-   */
-  private getNeighbors(tiles: MapTile[][], x: number, y: number): MapTile[] {
-    const neighbors: MapTile[] = [];
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          neighbors.push(tiles[nx][ny]);
-        }
-      }
-    }
-    return neighbors;
-  }
-
-  /**
-   * Smooth water depth based on distance from land and adjacent ocean types
-   * @reference freeciv/server/generator/mapgen_utils.c smooth_water_depth()
-   * Exact copy of freeciv ocean depth calculation and smoothing algorithm
-   */
-  public smoothWaterDepth(tiles: MapTile[][]): void {
-    const TERRAIN_OCEAN_DEPTH_MAXIMUM = 100; // From freeciv reference
-    const OCEAN_DEPTH_STEP = 25; // Distance step for ocean depth calculation (not used with custom depths)
-    const OCEAN_DIST_MAX = Math.floor(TERRAIN_OCEAN_DEPTH_MAXIMUM / OCEAN_DEPTH_STEP); // = 4
-
-    // Debug: Count terrain types before processing
-    const beforeCounts = { coast: 0, ocean: 0, deep_ocean: 0, land: 0 };
-    const distanceDistribution: Record<number, number> = {};
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const terrain = tiles[x][y].terrain;
-        if (terrain === 'coast') beforeCounts.coast++;
-        else if (terrain === 'ocean') beforeCounts.ocean++;
-        else if (terrain === 'deep_ocean') beforeCounts.deep_ocean++;
-        else beforeCounts.land++;
-      }
-    }
-
-    // First pass: Set ocean depths based on distance from land
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const tile = tiles[x][y];
-
-        // Skip non-ocean tiles
-        if (!isOceanTerrain(tile.terrain)) {
-          continue;
-        }
-
-        // Calculate distance to land - exact freeciv logic
-        const distToLand = this.realDistanceToLand(tiles, x, y, OCEAN_DIST_MAX);
-
-        // Track distance distribution
-        distanceDistribution[distToLand] = (distanceDistribution[distToLand] || 0) + 1;
-
-        let depth: number;
-        if (distToLand <= OCEAN_DIST_MAX) {
-          // Near land: use EXACT freeciv formula from mapgen_utils.c
-          // ocean = pick_ocean(dist * OCEAN_DEPTH_STEP + fc_rand(OCEAN_DEPTH_RAND), ...);
-          const OCEAN_DEPTH_RAND = 15;
-          depth = distToLand * OCEAN_DEPTH_STEP + Math.floor(this.random() * OCEAN_DEPTH_RAND);
-        } else {
-          // Far from land: make it deep ocean
-          // In freeciv, tiles beyond OCEAN_DIST_MAX remain as deep ocean
-          depth = TERRAIN_OCEAN_DEPTH_MAXIMUM;
-        }
-
-        const isFrozen = isFrozenTerrain(tile.terrain);
-        const newOceanType = this.pickOcean(depth, isFrozen);
-
-        if (newOceanType && newOceanType !== tile.terrain) {
-          tile.terrain = newOceanType as TerrainType;
-        }
-      }
-    }
-
-    // Debug: Show distance distribution and expected depth ranges
-
-    // Second pass: Smooth based on adjacent ocean types for continuity
-    // Using exact freeciv most_adjacent_ocean_type() logic
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const tile = tiles[x][y];
-
-        if (!isOceanTerrain(tile.terrain)) {
-          continue;
-        }
-
-        const mostCommonAdjacentOcean = this.getMostAdjacentOceanType(tiles, x, y);
-        if (mostCommonAdjacentOcean && mostCommonAdjacentOcean !== tile.terrain) {
-          // Only change if there's strong consensus from neighbors (need 2/3 of the 8 adjacent tiles)
-          tile.terrain = mostCommonAdjacentOcean as TerrainType;
-        }
-      }
-    }
-
-    // Debug: Count terrain types after processing
-    const afterCounts = { coast: 0, ocean: 0, deep_ocean: 0, land: 0 };
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const terrain = tiles[x][y].terrain;
-        if (terrain === 'coast') afterCounts.coast++;
-        else if (terrain === 'ocean') afterCounts.ocean++;
-        else if (terrain === 'deep_ocean') afterCounts.deep_ocean++;
-        else afterCounts.land++;
-      }
-    }
-  }
-
-  /**
-   * Calculate real distance to nearest land tile
-   * @reference freeciv/server/generator/mapgen_utils.c real_distance_to_land()
-   * Exact copy of freeciv logic using square_dxy_iterate and map_vector_to_real_distance
-   */
-  private realDistanceToLand(
-    tiles: MapTile[][],
-    centerX: number,
-    centerY: number,
-    max: number
-  ): number {
-    // square_dxy_iterate: iterate through all tiles in a square with given center and radius
-    for (let dx = -max; dx <= max; dx++) {
-      for (let dy = -max; dy <= max; dy++) {
-        const x = centerX + dx;
-        const y = centerY + dy;
-
-        // Check bounds (freeciv automatically handles this in square_dxy_iterate)
-        if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
-          continue;
-        }
-
-        // if (terrain_type_terrain_class(tile_terrain(atile)) != TC_OCEAN)
-        if (!isOceanTerrain(tiles[x][y].terrain)) {
-          // return map_vector_to_real_distance(dx, dy);
-          return this.mapVectorToRealDistance(dx, dy);
-        }
-      }
-    }
-
-    return max + 1;
-  }
-
-  /**
-   * Return the "real" distance for a given vector
-   * @reference freeciv/common/map.c map_vector_to_real_distance()
-   * Exact copy of freeciv logic
-   */
-  private mapVectorToRealDistance(dx: number, dy: number): number {
-    const absdx = Math.abs(dx);
-    const absdy = Math.abs(dy);
-
-    // For square maps (not hex), freeciv uses Chebyshev distance (max of dx, dy)
-    // This is the standard "8-directional movement" distance
-    return Math.max(absdx, absdy);
-  }
-
-  /**
-   * Pick appropriate ocean terrain based on depth - exact freeciv algorithm
-   * @reference freeciv/server/generator/mapgen_utils.c pick_ocean()
-   * Finds terrain with ocean depth property closest to calculated depth
-   */
-  private pickOcean(depth: number, _isFrozen: boolean): string | null {
-    // Freeciv ocean terrain types with their MG_OCEAN_DEPTH property values
-    // From freeciv data/classic/terrain.ruleset:
-    const oceanTerrains = [
-      { type: 'coast', oceanDepth: 0 }, // property_ocean_depth = 0
-      { type: 'ocean', oceanDepth: 32 }, // property_ocean_depth = 32
-      { type: 'deep_ocean', oceanDepth: 87 }, // property_ocean_depth = 87
-    ];
-
-    let bestTerrain: string | null = null;
-    let bestMatch = 100; // TERRAIN_OCEAN_DEPTH_MAXIMUM
-
-    // Find terrain with closest ocean depth property to calculated depth
-    for (const terrain of oceanTerrains) {
-      const match = Math.abs(depth - terrain.oceanDepth);
-
-      if (bestMatch > match) {
-        bestMatch = match;
-        bestTerrain = terrain.type;
-      }
-    }
-
-    return bestTerrain;
-  }
-
-  /**
-   * Get most common adjacent ocean type for smoothing
-   * @reference freeciv/server/generator/mapgen_utils.c most_adjacent_ocean_type()
-   * Exact copy of freeciv logic: needs 2/3 of adjacent tiles to be same type
-   */
-  private getMostAdjacentOceanType(tiles: MapTile[][], x: number, y: number): string | null {
-    // Freeciv: const int need = 2 * MAP_NUM_VALID_DIRS / 3;
-    // For square maps: MAP_NUM_VALID_DIRS = 8, so need = 2 * 8 / 3 = 5.33 → 5 when floored (freeciv uses integer division)
-    const MAP_NUM_VALID_DIRS = 8;
-    const need = Math.floor((2 * MAP_NUM_VALID_DIRS) / 3); // = 5, exact freeciv logic
-
-    // Check all 8 adjacent directions (like freeciv adjc_iterate)
-    const directions = [
-      { dx: -1, dy: -1 }, // NW
-      { dx: 0, dy: -1 }, // N
-      { dx: 1, dy: -1 }, // NE
-      { dx: -1, dy: 0 }, // W
-      { dx: 1, dy: 0 }, // E
-      { dx: -1, dy: 1 }, // SW
-      { dx: 0, dy: 1 }, // S
-      { dx: 1, dy: 1 }, // SE
-    ];
-
-    // Try each ocean terrain type and count how many adjacent tiles match
-    const oceanTerrainTypes = ['coast', 'ocean', 'deep_ocean'];
-
-    for (const terrainType of oceanTerrainTypes) {
-      let count = 0;
-
-      for (const dir of directions) {
-        const nx = x + dir.dx;
-        const ny = y + dir.dy;
-
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const terrain = tiles[nx][ny].terrain;
-          if (terrain === terrainType) {
-            count++;
-            if (count >= need) {
-              return terrainType; // Found enough matching neighbors
-            }
-          }
-        }
-      }
-    }
-
-    return null; // No terrain type has enough matching neighbors
+    return this.biomeProcessor.applyBiomeTransitions(tiles);
   }
 
   /**
@@ -2136,77 +912,7 @@ export class TerrainGenerator {
     }
 
     // Phase 3: Apply biome transition logic for more natural borders
-    this.applyBiomeTransitions(tiles);
-  }
-
-  /**
-   * Assign continent IDs to connected landmasses
-   */
-  public generateContinents(tiles: MapTile[][]): void {
-    let continentId = 1;
-    const visited = new Set<string>();
-
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const key = `${x},${y}`;
-        if (visited.has(key) || !isLandTile(tiles[x][y].terrain)) {
-          continue;
-        }
-
-        // Flood fill to mark continent
-        this.floodFillContinent(tiles, x, y, continentId, visited);
-        continentId++;
-      }
-    }
-  }
-
-  /**
-   * Flood fill algorithm to assign continent IDs to connected landmasses
-   */
-  private floodFillContinent(
-    tiles: MapTile[][],
-    startX: number,
-    startY: number,
-    continentId: number,
-    visited: Set<string>
-  ): void {
-    const stack: Array<[number, number]> = [[startX, startY]];
-
-    while (stack.length > 0) {
-      const [x, y] = stack.pop()!;
-      const key = `${x},${y}`;
-
-      if (visited.has(key) || x < 0 || x >= this.width || y < 0 || y >= this.height) {
-        continue;
-      }
-
-      if (!isLandTile(tiles[x][y].terrain)) {
-        continue;
-      }
-
-      visited.add(key);
-      tiles[x][y].continentId = continentId;
-
-      // Add neighbors to stack
-      stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
-    }
-  }
-
-  /**
-   * Remove tiny islands by converting them to ocean
-   * @reference freeciv/server/generator/mapgen.c remove_tiny_islands()
-   * Uses isTinyIsland() for detection and converts to ocean
-   */
-  public removeTinyIslands(tiles: MapTile[][], isRandomMode: boolean = false): void {
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        if (isTinyIsland(tiles, x, y, this.width, this.height, this.random, isRandomMode)) {
-          // Convert tiny island to shallow ocean
-          tiles[x][y].terrain = 'ocean';
-          tiles[x][y].continentId = 0; // Ocean continent ID
-        }
-      }
-    }
+    this.biomeProcessor.applyBiomeTransitions(tiles);
   }
 
   /**
@@ -2216,241 +922,7 @@ export class TerrainGenerator {
    * Assumes continent numbers have already been assigned
    */
   public regenerateLakes(tiles: MapTile[][]): void {
-    // Configuration matching freeciv defaults
-    const LAKE_MAX_SIZE = 2; // terrain_control.lake_max_size equivalent - small water bodies only
-
-    // Step 1: Identify all ocean bodies and their sizes
-    const oceanBodies = this.identifyOceanBodies(tiles);
-
-    // Step 2: Convert small ocean bodies to lakes
-    for (const oceanBody of oceanBodies) {
-      if (oceanBody.tiles.length <= LAKE_MAX_SIZE) {
-        // Small ocean body - convert to lake
-        for (const tile of oceanBody.tiles) {
-          const currentTerrain = tile.terrain;
-
-          // Determine appropriate lake type based on original terrain
-          // @reference freeciv/server/generator/mapgen_utils.c:416
-          // Preserve frozen status: frozen ocean → frozen lake, regular ocean → regular lake
-          if (isFrozenTerrain(currentTerrain)) {
-            // In our terrain system, we don't have separate frozen lake types
-            // For simplicity, frozen oceans become regular lakes (could be extended later)
-            tile.terrain = 'lake';
-          } else {
-            tile.terrain = 'lake';
-          }
-
-          // Keep the same continent ID to maintain connectivity information
-          // In freeciv, lakes retain the ocean's negative continent ID
-          // For our implementation, we'll keep the existing continentId
-        }
-      }
-    }
-  }
-
-  /**
-   * Identify distinct ocean bodies using flood-fill algorithm
-   * @reference freeciv/server/generator/mapgen_utils.c assign_continent_numbers()
-   * Finds connected components of ocean tiles
-   */
-  private identifyOceanBodies(tiles: MapTile[][]): Array<{ tiles: MapTile[]; id: number }> {
-    const visited = new Set<string>();
-    const oceanBodies: Array<{ tiles: MapTile[]; id: number }> = [];
-    let oceanBodyId = 1;
-
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const key = `${x},${y}`;
-
-        if (visited.has(key)) continue;
-
-        const tile = tiles[x][y];
-
-        // Only process ocean/coastal waters, not land or lakes
-        if (!isOceanTerrain(tile.terrain)) continue;
-
-        // Found unvisited ocean tile - start flood fill
-        const oceanTiles: MapTile[] = [];
-        this.floodFillOceanBody(tiles, x, y, visited, oceanTiles);
-
-        if (oceanTiles.length > 0) {
-          oceanBodies.push({
-            tiles: oceanTiles,
-            id: oceanBodyId++,
-          });
-        }
-      }
-    }
-
-    return oceanBodies;
-  }
-
-  /**
-   * Flood fill algorithm to identify connected ocean tiles
-   * @reference freeciv/server/generator/mapgen_utils.c assign_continent_numbers()
-   * Modified to work with our tile system
-   */
-  private floodFillOceanBody(
-    tiles: MapTile[][],
-    startX: number,
-    startY: number,
-    visited: Set<string>,
-    oceanTiles: MapTile[]
-  ): void {
-    const stack: Array<[number, number]> = [[startX, startY]];
-
-    while (stack.length > 0) {
-      const [x, y] = stack.pop()!;
-      const key = `${x},${y}`;
-
-      // Check bounds and visited status
-      if (x < 0 || x >= this.width || y < 0 || y >= this.height || visited.has(key)) {
-        continue;
-      }
-
-      const tile = tiles[x][y];
-
-      // Only include ocean terrain in the ocean body
-      if (!isOceanTerrain(tile.terrain)) {
-        continue;
-      }
-
-      // Mark as visited and add to ocean body
-      visited.add(key);
-      oceanTiles.push(tile);
-
-      // Add adjacent tiles to search (4-directional connectivity like freeciv)
-      // @reference freeciv uses adjc_iterate for adjacent tile iteration
-      stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
-    }
-  }
-
-  /**
-   * Check if map has poles requiring height normalization
-   * @reference freeciv/server/generator/mapgen.c:48-49 HAS_POLES macro
-   * Original: #define HAS_POLES (MIN(COLD_LEVEL, 2 * ICE_BASE_LEVEL) > MIN_REAL_COLATITUDE(wld.map))
-   * Simplified for rectangular maps
-   */
-  private hasPoles(): boolean {
-    // For simplicity, assume we have poles if temperature system is enabled
-    // @reference freeciv/server/generator/mapgen.c:48-49
-    const ICE_BASE_LEVEL = 200; // From freeciv mapgen_topology.h ice_base_colatitude
-    const COLD_LEVEL = 400; // Simplified assumption for temperature 50
-    const MIN_REAL_COLATITUDE = 0; // Simplified for rectangular maps
-
-    return Math.min(COLD_LEVEL, 2 * ICE_BASE_LEVEL) > MIN_REAL_COLATITUDE;
-  }
-
-  /**
-   * Normalize height map at poles to prevent excessive land formation
-   * @reference freeciv/server/generator/height_map.c:165-172 normalize_hmap_poles()
-   * Reduces height values in polar regions and near map edges to prevent
-   * excessive land generation in areas that should be mostly ocean
-   */
-  private normalizeHmapPoles(heightMap: number[], _tiles: MapTile[][]): void {
-    const ICE_BASE_LEVEL = 200; // From freeciv mapgen_topology.h
-    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL; // 500
-
-    // Create TemperatureMap instance for colatitude calculation
-    const tempMap = new TemperatureMap(this.width, this.height);
-
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const index = y * this.width + x;
-        const colatitude = tempMap.mapColatitude(x, y);
-
-        if (colatitude <= POLAR_THRESHOLD) {
-          // Apply pole factor to reduce height
-          // @reference freeciv/server/generator/height_map.c:165-170
-          const poleFactor = this.hmapPoleFactor(colatitude, x, y);
-          heightMap[index] = Math.floor(heightMap[index] * poleFactor);
-        } else if (this.nearSingularity(x, y)) {
-          // Near map edge but not near pole - set to minimum height
-          // @reference freeciv/server/generator/height_map.c:170-171
-          heightMap[index] = 0;
-        }
-      }
-    }
-  }
-
-  /**
-   * Invert most effects of normalize_hmap_poles for accurate polar texturing
-   * @reference freeciv/server/generator/height_map.c:178-192 renormalize_hmap_poles()
-   * Original implementation inverts height reduction applied during normalization
-   * Restores original heights for polar regions to enable accurate terrain texturing
-   */
-  private renormalizeHmapPoles(heightMap: number[], _tiles: MapTile[][]): void {
-    const ICE_BASE_LEVEL = 200;
-    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL; // 500
-
-    // Create TemperatureMap instance for colatitude calculation
-    const tempMap = new TemperatureMap(this.width, this.height);
-
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const index = y * this.width + x;
-
-        if (heightMap[index] === 0) {
-          // Nothing left to restore
-          // @reference freeciv/server/generator/height_map.c:181-182
-          continue;
-        }
-
-        const colatitude = tempMap.mapColatitude(x, y);
-
-        if (colatitude <= POLAR_THRESHOLD) {
-          const factor = this.hmapPoleFactor(colatitude, x, y);
-
-          if (factor > 0) {
-            // Invert the previously applied function
-            // @reference freeciv/server/generator/height_map.c:186-189
-            heightMap[index] = Math.floor(heightMap[index] / factor);
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Calculate height reduction factor for polar regions
-   * @reference freeciv/server/generator/height_map.c:133-150 hmap_pole_factor()
-   * Original: factor = 1 - ((1 - (map_colatitude(ptile) / (2.5 * ICE_BASE_LEVEL)))
-   *                          * wld.map.server.flatpoles / 100);
-   */
-  private hmapPoleFactor(colatitude: number, x: number, y: number): number {
-    const ICE_BASE_LEVEL = 200;
-    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL; // 500
-    const flatpoles = 100; // Default flatpoles parameter (0-100)
-    let factor = 1.0;
-
-    if (this.nearSingularity(x, y)) {
-      // Map edge near pole: clamp to what linear ramp would give us at pole
-      // @reference freeciv/server/generator/height_map.c:138-141
-      factor = (100 - flatpoles) / 100.0;
-    } else if (flatpoles > 0) {
-      // Linear ramp down from 100% at 2.5*ICE_BASE_LEVEL to (100-flatpoles) % at the poles
-      // @reference freeciv/server/generator/height_map.c:142-145
-      factor = 1 - ((1 - colatitude / POLAR_THRESHOLD) * flatpoles) / 100;
-    }
-
-    // Additional reduction for separate poles (simplified)
-    // @reference freeciv/server/generator/height_map.c:146-150
-    if (colatitude >= 2 * ICE_BASE_LEVEL) {
-      factor = Math.min(factor, 0.1);
-    }
-
-    return Math.max(0, factor);
-  }
-
-  /**
-   * Check if position is near map edge singularity
-   * @reference freeciv/server/generator/mapgen_topology.c:53-56 near_singularity()
-   * Original: return is_singular_tile(ptile, CITY_MAP_DEFAULT_RADIUS);
-   * Simplified for rectangular maps
-   */
-  private nearSingularity(x: number, y: number): boolean {
-    const CITY_MAP_DEFAULT_RADIUS = 2; // From freeciv
-    const edgeDistance = Math.min(x, this.width - 1 - x, y, this.height - 1 - y);
-    return edgeDistance <= CITY_MAP_DEFAULT_RADIUS;
+    // Use OceanProcessor for lake regeneration
+    this.oceanProcessor.regenerateLakes(tiles);
   }
 }
