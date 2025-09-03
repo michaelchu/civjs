@@ -113,8 +113,8 @@ jobs:
         if: always()
         with:
           path: apps/server
-          report_path: apps/server/coverage/coverage-summary.json
-          output_path: server-coverage-badge.svg
+          report_path: coverage/coverage-summary.json
+          output_path: ../../server-coverage-badge.svg
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
