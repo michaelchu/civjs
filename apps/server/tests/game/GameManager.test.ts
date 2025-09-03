@@ -56,8 +56,7 @@ describe('GameManager', () => {
 
   afterEach(() => {
     // Clean up games map
-    gameManager['games'].clear();
-    gameManager['playerToGame'].clear();
+    gameManager.clearAllGames();
   });
 
   describe('singleton pattern', () => {

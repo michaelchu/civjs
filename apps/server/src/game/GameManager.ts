@@ -188,6 +188,21 @@ export class GameManager {
   }
 
   /**
+   * Get playerToGame map reference (for testing)
+   */
+  public getPlayerToGameMap(): Map<string, string> {
+    return this.playerToGame;
+  }
+
+  /**
+   * Clear all games and player mappings (for testing)
+   */
+  public clearAllGames(): void {
+    this.games.clear();
+    this.playerToGame.clear();
+  }
+
+  /**
    * Set game instance (for lifecycle manager)
    */
   public setGameInstance(gameId: string, gameInstance: GameInstance): void {
