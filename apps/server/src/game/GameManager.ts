@@ -1,28 +1,28 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, complexity */
-import { logger } from '../utils/logger';
+import { eq } from 'drizzle-orm';
+import { Server as SocketServer } from 'socket.io';
+import serverConfig from '../config';
 import { db } from '../database';
 import { gameState } from '../database/redis';
 import { games, players } from '../database/schema';
-import { eq } from 'drizzle-orm';
-import serverConfig from '../config';
-import { Server as SocketServer } from 'socket.io';
 import { PacketType } from '../types/packet';
+import { logger } from '../utils/logger';
 
 // Extracted managers following refactoring patterns
-import { ServiceRegistry } from './managers/ServiceRegistry';
+import { GameBroadcastManager } from './managers/GameBroadcastManager';
+import { GameLifecycleManager } from './managers/GameLifecycleManager';
 import { GameStateManager } from './managers/GameStateManager';
 import { PlayerConnectionManager } from './managers/PlayerConnectionManager';
-import { GameLifecycleManager } from './managers/GameLifecycleManager';
-import { GameBroadcastManager } from './managers/GameBroadcastManager';
+import { ServiceRegistry } from './managers/ServiceRegistry';
 
 // Keep existing imports for delegation
+import { CityManager } from './CityManager';
+import { MapGeneratorType, MapManager } from './MapManager';
+import { PathfindingManager } from './PathfindingManager';
+import { ResearchManager } from './ResearchManager';
 import { TurnManager } from './TurnManager';
-import { MapManager, MapGeneratorType } from './MapManager';
 import { UnitManager } from './UnitManager';
 import { VisibilityManager } from './VisibilityManager';
-import { CityManager } from './CityManager';
-import { ResearchManager } from './ResearchManager';
-import { PathfindingManager } from './PathfindingManager';
 import { MapStartpos } from './map/MapTypes';
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
@@ -672,38 +672,6 @@ export class GameManager {
       activity_target: null,
       focus: false,
     };
-  }
-
-  /**
-   * Serialize map tiles for database storage (compress large tile arrays)
-   * @deprecated Currently unused after refactoring - kept for potential future use
-   */
-  // @ts-expect-error - Method kept for potential future use after refactoring
-
-  private serializeMapTiles(_tiles: any[][]): any {
-    // Store only essential tile data to reduce database size
-    const compressedTiles: any = {};
-
-    for (let y = 0; y < _tiles.length; y++) {
-      for (let x = 0; x < _tiles[y].length; x++) {
-        const tile = _tiles[y][x];
-        if (tile && tile.terrain !== 'ocean') {
-          // Only store non-ocean tiles to save space
-          const key = `${x},${y}`;
-          compressedTiles[key] = {
-            terrain: tile.terrain,
-            elevation: tile.elevation,
-            resource: tile.resource,
-            riverMask: tile.riverMask,
-            continentId: tile.continentId,
-            temperature: tile.temperature,
-            wetness: tile.wetness,
-          };
-        }
-      }
-    }
-
-    return compressedTiles;
   }
 
   /**
