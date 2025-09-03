@@ -133,7 +133,7 @@ jobs:
           branch: "chore/update-server-coverage-badge"
           commit-message: "Updated server coverage badge."
           body: "Updated server coverage badge."
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
