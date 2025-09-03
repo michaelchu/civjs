@@ -1,5 +1,7 @@
 # CivJS - Modern Civilization Game
 
+[![Server Coverage](https://img.shields.io/badge/Server%20Coverage-Loading...-lightgrey)](https://github.com/michaelchu/civjs/actions)
+
 A modern web-based civilization game built with TypeScript, React, and Node.js. This project ports the freeciv-web 2D client with a modern React architecture while maintaining compatibility with civilization game mechanics.
 
 ## 🏗️ Architecture
