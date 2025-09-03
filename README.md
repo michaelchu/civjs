@@ -83,7 +83,7 @@ civjs/
 │       ├── Dockerfile
 │       └── package.json
 ├── docker-compose.yml       # Multi-container setup
-└── package.json            # Root workspace config
+└── package.json            # Root scripts and dev dependencies
 ```
 
 ## 🎮 Features
@@ -146,13 +146,13 @@ npm run clean            # Clean all build artifacts
 
 ```bash
 # Add to client
-npm install <package> --workspace=apps/client
+cd apps/client && npm install <package>
 
 # Add to server  
-npm install <package> --workspace=apps/server
+cd apps/server && npm install <package>
 
-# Add shared dependency to both apps
-npm install <package> --workspace=apps/client --workspace=apps/server
+# Add to both client and server
+cd apps/client && npm install <package> && cd ../server && npm install <package>
 
 # Add to root (dev dependencies)
 npm install <package> --save-dev
