@@ -30,7 +30,7 @@ describe('GovernmentManager - Integration Tests with Real Government System', ()
   });
 
   afterEach(async () => {
-    gameManager.clearAllGames();
+    gameManager?.clearAllGames();
   });
 
   describe('government ruleset integration', () => {

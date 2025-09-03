@@ -24,7 +24,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
   afterEach(async () => {
     // Clean up after each test
-    gameManager.clearAllGames();
+    gameManager?.clearAllGames();
   });
 
   describe('singleton pattern', () => {

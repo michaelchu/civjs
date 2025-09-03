@@ -45,7 +45,7 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
   });
 
   afterEach(async () => {
-    gameManager.clearAllGames();
+    gameManager?.clearAllGames();
   });
 
   describe('action system initialization and definitions', () => {

@@ -23,7 +23,7 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
   });
 
   afterEach(async () => {
-    gameManager.clearAllGames();
+    gameManager?.clearAllGames();
   });
 
   describe('map generation with real terrain algorithms', () => {

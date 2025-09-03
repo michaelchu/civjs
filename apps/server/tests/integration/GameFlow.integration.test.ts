@@ -20,7 +20,7 @@ describe('Game Integration Flow', () => {
   });
 
   afterEach(() => {
-    gameManager.clearAllGames();
+    gameManager?.clearAllGames();
   });
 
   describe('complete game flow', () => {
