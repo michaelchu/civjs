@@ -7,7 +7,7 @@ on:
     branches: [master, main, develop]
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
 
 jobs:
   # ================================
@@ -55,6 +55,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Debug environment
+        run: |
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          echo "ESLint version: $(npx eslint --version)"
+          echo "Working directory: $(pwd)"
+          echo "Files to lint:"
+          find src tests -name "*.ts" -type f | head -20
+          
       - name: Run linting
         run: npm run lint
 
