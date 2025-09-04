@@ -37,6 +37,53 @@ const activeConnections = new Map<
   }
 >();
 
+/**
+ * Create new user with race condition handling
+ */
+async function createNewUserWithRaceConditionHandling(
+  username: string
+): Promise<{ userId: string; isNewUser: boolean }> {
+  try {
+    const [newUser] = await db
+      .insert(users)
+      .values({
+        username,
+        isGuest: true,
+      })
+      .returning();
+    return { userId: newUser.id, isNewUser: true };
+  } catch (insertError: any) {
+    return await handleUserCreationRaceCondition(username, insertError);
+  }
+}
+
+/**
+ * Handle race condition during user creation
+ */
+async function handleUserCreationRaceCondition(
+  username: string,
+  insertError: any
+): Promise<{ userId: string; isNewUser: boolean }> {
+  // Handle race condition: username was created by another connection
+  if (insertError?.code !== '23505') {
+    throw insertError; // Re-throw if it's a different error
+  }
+
+  // PostgreSQL unique constraint violation
+  logger.debug(`Username ${username} already exists due to race condition, fetching existing user`);
+
+  const existingUserRetry = await db.query.users.findFirst({
+    where: eq(users.username, username),
+  });
+
+  if (!existingUserRetry) {
+    throw new Error(`Failed to find user ${username} after constraint violation`);
+  }
+
+  await db.update(users).set({ lastSeen: new Date() }).where(eq(users.id, existingUserRetry.id));
+  return { userId: existingUserRetry.id, isNewUser: false };
+}
+
 export function setupSocketHandlers(io: Server, socket: Socket) {
   const packetHandler = new PacketHandler();
   const gameManager = GameManager.getInstance(io);
@@ -435,36 +482,9 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
           userId = existingUser.id;
           await db.update(users).set({ lastSeen: new Date() }).where(eq(users.id, userId));
         } else {
-          try {
-            const [newUser] = await db
-              .insert(users)
-              .values({
-                username,
-                isGuest: true,
-              })
-              .returning();
-            userId = newUser.id;
-            isNewUser = true;
-          } catch (insertError: any) {
-            // Handle race condition: username was created by another connection
-            if (insertError?.code === '23505') {
-              // PostgreSQL unique constraint violation
-              logger.debug(
-                `Username ${username} already exists due to race condition, fetching existing user`
-              );
-              const existingUserRetry = await db.query.users.findFirst({
-                where: eq(users.username, username),
-              });
-              if (existingUserRetry) {
-                userId = existingUserRetry.id;
-                await db.update(users).set({ lastSeen: new Date() }).where(eq(users.id, userId));
-              } else {
-                throw new Error(`Failed to find user ${username} after constraint violation`);
-              }
-            } else {
-              throw insertError; // Re-throw if it's a different error
-            }
-          }
+          const result = await createNewUserWithRaceConditionHandling(username);
+          userId = result.userId;
+          isNewUser = result.isNewUser;
         }
 
         const connection = activeConnections.get(socket.id);

@@ -311,21 +311,9 @@ export class StartingPositionGenerator {
           bcount = 0;
 
         // Check all tiles within city radius
-        for (let dx = -cityRadius; dx <= cityRadius; dx++) {
-          for (let dy = -cityRadius; dy <= cityRadius; dy++) {
-            const nx = x + dx;
-            const ny = y + dy;
-
-            if (this.isValidCoord(nx, ny) && dx * dx + dy * dy <= cityRadius * cityRadius) {
-              const nIndex = ny * this.width + nx;
-              if (thisTileValue > tileValueAux[nIndex]) {
-                lcount++;
-              } else if (thisTileValue < tileValueAux[nIndex]) {
-                bcount++;
-              }
-            }
-          }
-        }
+        const counts = this.calculateTileValueCounts(x, y, thisTileValue, tileValueAux, cityRadius);
+        lcount = counts.lcount;
+        bcount = counts.bcount;
 
         tileValue[index] = lcount <= bcount ? 0 : 100 * thisTileValue;
       }
@@ -678,6 +666,62 @@ export class StartingPositionGenerator {
       }
     }
     return size;
+  }
+
+  /**
+   * Calculate tile value counts within city radius
+   */
+  private calculateTileValueCounts(
+    x: number,
+    y: number,
+    thisTileValue: number,
+    tileValueAux: number[],
+    cityRadius: number
+  ): { lcount: number; bcount: number } {
+    let lcount = 0;
+    let bcount = 0;
+
+    for (let dx = -cityRadius; dx <= cityRadius; dx++) {
+      for (let dy = -cityRadius; dy <= cityRadius; dy++) {
+        const nx = x + dx;
+        const ny = y + dy;
+
+        if (this.isValidCoord(nx, ny) && this.isWithinCityRadius(dx, dy, cityRadius)) {
+          const counts = this.compareTileValues(thisTileValue, tileValueAux, nx, ny);
+          lcount += counts.lcount;
+          bcount += counts.bcount;
+        }
+      }
+    }
+
+    return { lcount, bcount };
+  }
+
+  /**
+   * Check if offset is within city radius
+   */
+  private isWithinCityRadius(dx: number, dy: number, cityRadius: number): boolean {
+    return dx * dx + dy * dy <= cityRadius * cityRadius;
+  }
+
+  /**
+   * Compare tile values and return count increments
+   */
+  private compareTileValues(
+    thisTileValue: number,
+    tileValueAux: number[],
+    nx: number,
+    ny: number
+  ): { lcount: number; bcount: number } {
+    const nIndex = ny * this.width + nx;
+
+    if (thisTileValue > tileValueAux[nIndex]) {
+      return { lcount: 1, bcount: 0 };
+    } else if (thisTileValue < tileValueAux[nIndex]) {
+      return { lcount: 0, bcount: 1 };
+    }
+
+    return { lcount: 0, bcount: 0 };
   }
 
   /**

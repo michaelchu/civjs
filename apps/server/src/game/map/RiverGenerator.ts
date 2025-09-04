@@ -355,33 +355,49 @@ export class RiverGenerator {
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         if (tiles[x][y].riverMask > 0) {
-          let mask = 0;
-
-          // Check cardinal directions for river connections
-          const cardinalDirs = [
-            { dx: 0, dy: -1, mask: 1 }, // North
-            { dx: 1, dy: 0, mask: 2 }, // East
-            { dx: 0, dy: 1, mask: 4 }, // South
-            { dx: -1, dy: 0, mask: 8 }, // West
-          ];
-
-          for (const dir of cardinalDirs) {
-            const nx = x + dir.dx;
-            const ny = y + dir.dy;
-
-            if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-              const neighborTile = tiles[nx][ny];
-
-              // Connect to other rivers or ocean
-              if (neighborTile.riverMask > 0 || !this.isLandTile(neighborTile.terrain)) {
-                mask |= dir.mask;
-              }
-            }
-          }
-
-          tiles[x][y].riverMask = mask;
+          tiles[x][y].riverMask = this.calculateRiverMaskForTile(tiles, x, y);
         }
       }
     }
+  }
+
+  /**
+   * Calculate river connection mask for a specific tile
+   */
+  private calculateRiverMaskForTile(tiles: MapTile[][], x: number, y: number): number {
+    let mask = 0;
+
+    // Check cardinal directions for river connections
+    const cardinalDirs = [
+      { dx: 0, dy: -1, mask: 1 }, // North
+      { dx: 1, dy: 0, mask: 2 }, // East
+      { dx: 0, dy: 1, mask: 4 }, // South
+      { dx: -1, dy: 0, mask: 8 }, // West
+    ];
+
+    for (const dir of cardinalDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+
+      if (this.shouldConnectToNeighbor(tiles, nx, ny)) {
+        mask |= dir.mask;
+      }
+    }
+
+    return mask;
+  }
+
+  /**
+   * Check if river should connect to neighbor tile
+   */
+  private shouldConnectToNeighbor(tiles: MapTile[][], nx: number, ny: number): boolean {
+    if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) {
+      return false;
+    }
+
+    const neighborTile = tiles[nx][ny];
+
+    // Connect to other rivers or ocean
+    return neighborTile.riverMask > 0 || !this.isLandTile(neighborTile.terrain);
   }
 }

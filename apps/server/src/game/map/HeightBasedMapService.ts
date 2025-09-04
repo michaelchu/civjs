@@ -298,20 +298,7 @@ export class HeightBasedMapService extends BaseMapGenerationService {
       landmasses.push(landmass);
 
       // Apply fracture circle around each point
-      for (let dx = -size; dx <= size; dx++) {
-        for (let dy = -size; dy <= size; dy++) {
-          const x = point.x + dx;
-          const y = point.y + dy;
-          if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            if (distance <= size) {
-              tiles[x][y].elevation = landmass.elevation;
-              // Only set elevation - let makeLand() handle terrain and continent assignment
-              // based on elevation values, just like FRACTAL and RANDOM generators
-            }
-          }
-        }
-      }
+      this.applyFractureCircle(tiles, point, size, landmass.elevation);
     }
 
     logger.debug('Generated fracture height map', {
@@ -321,6 +308,48 @@ export class HeightBasedMapService extends BaseMapGenerationService {
       landmasses: landmasses.length,
       reference: 'freeciv/server/generator/mapgen.c make_fracture_map()',
     });
+  }
+
+  /**
+   * Apply fracture circle around a point
+   */
+  private applyFractureCircle(
+    tiles: MapTile[][],
+    point: { x: number; y: number },
+    size: number,
+    elevation: number
+  ): void {
+    for (let dx = -size; dx <= size; dx++) {
+      for (let dy = -size; dy <= size; dy++) {
+        this.applyFracturePointIfValid(tiles, point, dx, dy, size, elevation);
+      }
+    }
+  }
+
+  /**
+   * Apply fracture effect to a single point if coordinates are valid
+   */
+  private applyFracturePointIfValid(
+    tiles: MapTile[][],
+    point: { x: number; y: number },
+    dx: number,
+    dy: number,
+    size: number,
+    elevation: number
+  ): void {
+    const x = point.x + dx;
+    const y = point.y + dy;
+
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+      return;
+    }
+
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance <= size) {
+      tiles[x][y].elevation = elevation;
+      // Only set elevation - let makeLand() handle terrain and continent assignment
+      // based on elevation values, just like FRACTAL and RANDOM generators
+    }
   }
 
   /**

@@ -475,24 +475,7 @@ export class FairIslandsService extends BaseMapGenerationService {
     const resourceCounts: number[] = [];
 
     for (const position of startingPositions) {
-      let nearbyResources = 0;
-      const searchRadius = 3;
-
-      // Check tiles within search radius for resources
-      for (let dx = -searchRadius; dx <= searchRadius; dx++) {
-        for (let dy = -searchRadius; dy <= searchRadius; dy++) {
-          const x = position.x + dx;
-          const y = position.y + dy;
-
-          if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-            const tile = tiles[x][y];
-            if (tile.resource && tile.resource !== ('none' as any)) {
-              nearbyResources++;
-            }
-          }
-        }
-      }
-
+      const nearbyResources = this.countNearbyResources(tiles, position);
       resourceCounts.push(nearbyResources);
     }
 
@@ -526,6 +509,46 @@ export class FairIslandsService extends BaseMapGenerationService {
     }
 
     return result;
+  }
+
+  /**
+   * Count nearby resources around a starting position
+   */
+  private countNearbyResources(tiles: MapTile[][], position: Position): number {
+    let nearbyResources = 0;
+    const searchRadius = 3;
+
+    // Check tiles within search radius for resources
+    for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+      for (let dy = -searchRadius; dy <= searchRadius; dy++) {
+        const resourceFound = this.checkTileForResource(tiles, position, dx, dy);
+        if (resourceFound) {
+          nearbyResources++;
+        }
+      }
+    }
+
+    return nearbyResources;
+  }
+
+  /**
+   * Check if a tile at offset from position has a resource
+   */
+  private checkTileForResource(
+    tiles: MapTile[][],
+    position: Position,
+    dx: number,
+    dy: number
+  ): boolean {
+    const x = position.x + dx;
+    const y = position.y + dy;
+
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+      return false;
+    }
+
+    const tile = tiles[x][y];
+    return Boolean(tile.resource) && tile.resource !== ('none' as any);
   }
 
   /**

@@ -296,26 +296,63 @@ export class ContinentProcessor {
     const maxSearchRadius = 5;
 
     for (let radius = 1; radius <= maxSearchRadius; radius++) {
-      for (let dx = -radius; dx <= radius; dx++) {
-        for (let dy = -radius; dy <= radius; dy++) {
-          // Only check perimeter of search square
-          if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) {
-            continue;
-          }
-
-          const nx = x + dx;
-          const ny = y + dy;
-
-          if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-            const tile = tiles[nx][ny];
-            if (isLandTile(tile.terrain) && tile.continentId > 0) {
-              return tile.continentId;
-            }
-          }
-        }
+      const continentId = this.searchRadiusForLandContinent(tiles, x, y, radius);
+      if (continentId > 0) {
+        return continentId;
       }
     }
 
     return 0; // Default to ocean continent ID if no land found
+  }
+
+  /**
+   * Search a specific radius for land continent
+   */
+  private searchRadiusForLandContinent(
+    tiles: MapTile[][],
+    x: number,
+    y: number,
+    radius: number
+  ): number {
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        // Only check perimeter of search square
+        if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) {
+          continue;
+        }
+
+        const continentId = this.checkTileForLandContinent(tiles, x, y, dx, dy);
+        if (continentId > 0) {
+          return continentId;
+        }
+      }
+    }
+
+    return 0;
+  }
+
+  /**
+   * Check a specific tile offset for land continent
+   */
+  private checkTileForLandContinent(
+    tiles: MapTile[][],
+    x: number,
+    y: number,
+    dx: number,
+    dy: number
+  ): number {
+    const nx = x + dx;
+    const ny = y + dy;
+
+    if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) {
+      return 0;
+    }
+
+    const tile = tiles[nx][ny];
+    if (isLandTile(tile.terrain) && tile.continentId > 0) {
+      return tile.continentId;
+    }
+
+    return 0;
   }
 }
