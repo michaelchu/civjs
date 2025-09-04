@@ -23,33 +23,7 @@ describe('VisibilityManager', () => {
     mapManager = new MapManager(mapWidth, mapHeight);
     visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
 
-    // Mock database operations for UnitManager
-    let unitCounter = 0;
-    mockDb.insert = jest.fn().mockReturnThis();
-    mockDb.values = jest.fn().mockReturnThis();
-    mockDb.returning = jest.fn().mockImplementation(() => {
-      const unitId = `unit-${++unitCounter}`;
-      return Promise.resolve([
-        {
-          id: unitId,
-          gameId,
-          playerId: 'player-123',
-          unitType: 'warrior',
-          x: 10,
-          y: 10,
-          health: 100,
-          movementPoints: '2',
-          veteranLevel: 0,
-          isFortified: false,
-        },
-      ]);
-    });
-    mockDb.update = jest.fn().mockReturnThis();
-    mockDb.set = jest.fn().mockReturnThis();
-    mockDb.where = jest.fn().mockReturnThis();
-    mockDb.select = jest.fn().mockReturnThis();
-    mockDb.from = jest.fn().mockReturnThis();
-    mockDb.delete = jest.fn().mockReturnThis();
+    // Database operations handled by MockDatabaseProvider
 
     // Generate a simple test map
     await mapManager.generateMap(new Map());

@@ -5,6 +5,8 @@ import { DatabaseProvider } from '../../src/database/DatabaseProvider';
  * Returns mock data instead of making real database calls
  */
 export class MockDatabaseProvider implements DatabaseProvider {
+  private static idCounter = 1;
+
   getDatabase() {
     // Return a mock database object with common methods
     return {
@@ -13,10 +15,14 @@ export class MockDatabaseProvider implements DatabaseProvider {
       update: jest.fn().mockReturnThis(),
       delete: jest.fn().mockReturnThis(),
       from: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
+      where: jest.fn().mockResolvedValue([]), // Return empty array for select queries
       values: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
-      returning: jest.fn().mockResolvedValue([]),
+      // Mock insert operations to return objects with generated IDs
+      returning: jest.fn().mockImplementation(() => {
+        const id = `test-id-${MockDatabaseProvider.idCounter++}`;
+        return Promise.resolve([{ id, createdAt: new Date(), updatedAt: new Date() }]);
+      }),
       query: {
         games: {
           findFirst: jest.fn().mockResolvedValue(null),
