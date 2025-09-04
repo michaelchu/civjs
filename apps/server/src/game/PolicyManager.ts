@@ -506,26 +506,36 @@ export class PolicyManager {
       return bonusType === 'science' || bonusType === 'gold' || bonusType === 'luxury' ? 33.33 : 0;
     }
 
-    // Calculate bonus based on policy values
     let bonus = 0;
     for (const [policyId, policyValue] of playerPolicies.policies) {
       const policy = this.availablePolicies.get(policyId);
-      if (policy) {
-        const effectiveValue = ((policyValue.value + policy.offset) * policy.factor) / 100;
-
-        // Map policies to bonus types - for tax rates, distribute the effective value proportionally
-        if (policyId === 'tax_rates') {
-          if (bonusType === 'science') bonus += effectiveValue * 0.6;
-          if (bonusType === 'gold') bonus += effectiveValue * 0.8;
-          if (bonusType === 'luxury') bonus += effectiveValue * 0.6;
-        }
-        if (policyId === 'economic_focus' && bonusType === 'production') {
-          bonus += effectiveValue * 0.1;
-        }
-      }
+      if (!policy) continue;
+      const effectiveValue = this.computeEffectivePolicyContribution(policy, policyValue.value);
+      bonus += this.mapPolicyToBonusDelta(policyId, bonusType, effectiveValue);
     }
 
     return Math.max(0, bonus);
+  }
+
+  private computeEffectivePolicyContribution(policy: Policy, value: number): number {
+    return ((value + policy.offset) * policy.factor) / 100;
+  }
+
+  private mapPolicyToBonusDelta(
+    policyId: string,
+    bonusType: string,
+    effectiveValue: number
+  ): number {
+    if (policyId === 'tax_rates') {
+      if (bonusType === 'science') return effectiveValue * 0.6;
+      if (bonusType === 'gold') return effectiveValue * 0.8;
+      if (bonusType === 'luxury') return effectiveValue * 0.6;
+      return 0;
+    }
+    if (policyId === 'economic_focus' && bonusType === 'production') {
+      return effectiveValue * 0.1;
+    }
+    return 0;
   }
 
   /**

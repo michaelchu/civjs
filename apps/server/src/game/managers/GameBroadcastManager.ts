@@ -115,33 +115,50 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       return;
     }
 
-    // DEBUG: Check map data completeness before broadcasting
-    const tilesComplete = mapData && mapData.tiles && mapData.tiles.length > 0;
-    const firstTileComplete = tilesComplete && mapData.tiles[0] && mapData.tiles[0].length > 0;
-    const sampleTile = firstTileComplete ? mapData.tiles[0][0] : null;
+    const metrics = this.computeMapDataMetrics(mapData);
 
     this.logger.info('Broadcasting map data to players', {
       gameId,
       mapSize: `${mapData.width}x${mapData.height}`,
       playerCount: gameInstance.players.size,
-      tilesComplete,
-      firstTileComplete,
-      sampleTileTerrain: sampleTile?.terrain || 'undefined',
-      sampleTileElevation: sampleTile?.elevation || 'undefined',
+      ...metrics,
     });
 
-    // Broadcast to each player individually to provide player-specific data
-    for (const [playerId] of gameInstance.players) {
-      this.sendMapDataToPlayer(gameInstance, gameId, playerId, mapData);
-    }
+    this.broadcastMapDataToPlayers(gameInstance, gameId, mapData);
 
-    // Also broadcast general game started event
     this.broadcastToGame(gameId, 'game_ready', {
       gameId,
       mapSize: `${mapData.width}x${mapData.height}`,
       playerCount: gameInstance.players.size,
       currentTurn: gameInstance.currentTurn,
     });
+  }
+
+  private computeMapDataMetrics(mapData: any): {
+    tilesComplete: boolean;
+    firstTileComplete: boolean;
+    sampleTileTerrain: string;
+    sampleTileElevation: string | number;
+  } {
+    const tilesComplete = !!(mapData && mapData.tiles && mapData.tiles.length > 0);
+    const firstTileComplete = !!(tilesComplete && mapData.tiles[0] && mapData.tiles[0].length > 0);
+    const sampleTile = firstTileComplete ? mapData.tiles[0][0] : null;
+    return {
+      tilesComplete,
+      firstTileComplete,
+      sampleTileTerrain: sampleTile?.terrain || 'undefined',
+      sampleTileElevation: (sampleTile?.elevation as any) || 'undefined',
+    };
+  }
+
+  private broadcastMapDataToPlayers(
+    gameInstance: GameInstance,
+    gameId: string,
+    mapData: any
+  ): void {
+    for (const [playerId] of gameInstance.players) {
+      this.sendMapDataToPlayer(gameInstance, gameId, playerId, mapData);
+    }
   }
 
   /**

@@ -444,36 +444,11 @@ export class ActionSystem {
    * @compliance Uses pathfinding results and movement cost deduction as per freeciv standards
    */
   private async executeGoto(unit: Unit, targetX: number, targetY: number): Promise<ActionResult> {
-    // Validate target coordinates
-    if (targetX < 0 || targetY < 0 || targetX >= 200 || targetY >= 200) {
-      return {
-        success: false,
-        message: 'Invalid target coordinates',
-      };
-    }
+    const validation = this.validateGotoInputs(unit, targetX, targetY);
+    if (validation) return validation;
 
-    // Check if unit has movement points
-    if (unit.movementLeft <= 0) {
-      return {
-        success: false,
-        message: 'Unit has no movement points left',
-      };
-    }
-
-    // Check if target is the same as current position
-    if (unit.x === targetX && unit.y === targetY) {
-      return {
-        success: false,
-        message: 'Unit is already at target position',
-      };
-    }
-
-    // Use GameManager's requestPath method to find the best path
     if (!this.gameManagerCallback?.requestPath) {
-      return {
-        success: false,
-        message: 'Pathfinding not available',
-      };
+      return { success: false, message: 'Pathfinding not available' };
     }
 
     const pathResult = await this.gameManagerCallback.requestPath(
@@ -483,70 +458,25 @@ export class ActionSystem {
       targetY
     );
 
-    if (
-      !pathResult ||
-      !pathResult.success ||
-      !pathResult.path ||
-      !pathResult.path.tiles ||
-      pathResult.path.tiles.length < 2
-    ) {
-      logger.warn('Pathfinding failed for unit movement', {
-        unitId: unit.id,
-        from: { x: unit.x, y: unit.y },
-        to: { x: targetX, y: targetY },
-        error: pathResult?.error,
-      });
+    const validationPath = this.validatePathResult(pathResult, unit, targetX, targetY);
+    if (validationPath) return validationPath;
 
-      return {
-        success: false,
-        message: pathResult?.error || 'No valid path to target',
-      };
-    }
+    const { currentX, currentY, remainingMovement, tilesTraversed } = this.traversePath(
+      unit,
+      pathResult
+    );
 
-    // For GOTO action, we move the unit along the entire path as far as movement points allow
-    let currentX = unit.x;
-    let currentY = unit.y;
-    let remainingMovement = unit.movementLeft;
-    let tilesTraversed = 0;
-
-    // Process each step of the path
-    for (let i = 1; i < pathResult.path.tiles.length; i++) {
-      const nextTile = pathResult.path.tiles[i];
-
-      // Calculate movement cost to next tile
-      const dx = Math.abs(nextTile.x - currentX);
-      const dy = Math.abs(nextTile.y - currentY);
-      const movementCost = dx === 1 && dy === 1 ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
-
-      // Check if we have enough movement points
-      if (remainingMovement < movementCost) {
-        break; // Stop here, not enough movement points
-      }
-
-      // Move to next tile
-      currentX = nextTile.x;
-      currentY = nextTile.y;
-      remainingMovement -= movementCost;
-      tilesTraversed++;
-    }
-
-    // If we couldn't move at all
     if (tilesTraversed === 0) {
-      return {
-        success: false,
-        message: 'Insufficient movement points to start moving',
-      };
+      return { success: false, message: 'Insufficient movement points to start moving' };
     }
 
-    // Calculate total movement cost before updating unit
-    const totalMovementCost = unit.movementLeft - remainingMovement;
-
-    // Update unit position to the furthest point we could reach
     const oldX = unit.x;
     const oldY = unit.y;
+    const originalMovementLeft = unit.movementLeft;
     unit.x = currentX;
     unit.y = currentY;
     unit.movementLeft = remainingMovement;
+    const totalMovementCost = originalMovementLeft - remainingMovement;
 
     logger.info('Unit goto executed', {
       gameId: this.gameId,
@@ -558,10 +488,8 @@ export class ActionSystem {
       remainingMovement,
     });
 
-    // Check if we reached the destination
     const reachedDestination = currentX === targetX && currentY === targetY;
 
-    // If we didn't reach the destination, add a move order to continue next turn
     if (!reachedDestination) {
       const moveOrder: UnitOrder = {
         type: 'move',
@@ -661,6 +589,69 @@ export class ActionSystem {
         message: error.message || 'Failed to found city',
       };
     }
+  }
+
+  private validateGotoInputs(unit: Unit, targetX: number, targetY: number): ActionResult | null {
+    if (targetX < 0 || targetY < 0 || targetX >= 200 || targetY >= 200) {
+      return { success: false, message: 'Invalid target coordinates' };
+    }
+    if (unit.movementLeft <= 0) {
+      return { success: false, message: 'Unit has no movement points left' };
+    }
+    if (unit.x === targetX && unit.y === targetY) {
+      return { success: false, message: 'Unit is already at target position' };
+    }
+    return null;
+  }
+
+  private validatePathResult(
+    pathResult: any,
+    unit: Unit,
+    targetX: number,
+    targetY: number
+  ): ActionResult | null {
+    if (
+      !pathResult ||
+      !pathResult.success ||
+      !pathResult.path ||
+      !pathResult.path.tiles ||
+      pathResult.path.tiles.length < 2
+    ) {
+      logger.warn('Pathfinding failed for unit movement', {
+        unitId: unit.id,
+        from: { x: unit.x, y: unit.y },
+        to: { x: targetX, y: targetY },
+        error: pathResult?.error,
+      });
+      return { success: false, message: pathResult?.error || 'No valid path to target' };
+    }
+    return null;
+  }
+
+  private traversePath(
+    unit: Unit,
+    pathResult: any
+  ): { currentX: number; currentY: number; remainingMovement: number; tilesTraversed: number } {
+    let currentX = unit.x;
+    let currentY = unit.y;
+    let remainingMovement = unit.movementLeft;
+    let tilesTraversed = 0;
+
+    for (let i = 1; i < pathResult.path.tiles.length; i++) {
+      const nextTile = pathResult.path.tiles[i];
+      const dx = Math.abs(nextTile.x - currentX);
+      const dy = Math.abs(nextTile.y - currentY);
+      const movementCost = dx === 1 && dy === 1 ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
+      if (remainingMovement < movementCost) {
+        break;
+      }
+      currentX = nextTile.x;
+      currentY = nextTile.y;
+      remainingMovement -= movementCost;
+      tilesTraversed++;
+    }
+
+    return { currentX, currentY, remainingMovement, tilesTraversed };
   }
 
   private async executeBuildRoad(unit: Unit): Promise<ActionResult> {
