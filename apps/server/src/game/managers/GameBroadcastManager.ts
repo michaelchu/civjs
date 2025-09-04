@@ -132,97 +132,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
 
     // Broadcast to each player individually to provide player-specific data
     for (const [playerId] of gameInstance.players) {
-      try {
-        // TODO: Implement fog of war - for now send all tiles
-        // Get player-specific visibility data (disabled until fog of war is implemented)
-        const visibleTilesSet = gameInstance.visibilityManager.getVisibleTiles(playerId);
-
-        // Process and format all tiles (no fog of war for now)
-        const visibleTiles = [];
-        for (let y = 0; y < mapData.height; y++) {
-          for (let x = 0; x < mapData.width; x++) {
-            const index = x + y * mapData.width;
-            // Handle column-based tile array structure: mapData.tiles[x][y]
-            const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
-
-            if (serverTile) {
-              // Format tile in exact freeciv-web format
-              const tileInfo = {
-                tile: index, // This is the key - tile index used by freeciv-web
-                x: x,
-                y: y,
-                terrain: serverTile.terrain,
-                resource: serverTile.resource,
-                elevation: serverTile.elevation || 0,
-                riverMask: serverTile.riverMask || 0,
-                known: 1, // TILE_KNOWN
-                seen: 1,
-                player: null,
-                worked: null,
-                extras: 0, // BitVector for extras
-              };
-              visibleTiles.push(tileInfo);
-            }
-          }
-        }
-
-        // Get units visible to this player (delegate to UnitManager)
-        const visibleUnits = gameInstance.unitManager.getVisibleUnits(playerId, visibleTilesSet);
-        const formattedUnits = visibleUnits.map((unit: any) =>
-          this.formatUnitForClient(unit, gameInstance.unitManager)
-        );
-
-        // Send MAP_INFO packet first (like original code)
-        const mapInfoPacket = {
-          xsize: mapData.width,
-          ysize: mapData.height,
-          wrap_id: 0, // Flat earth
-          topology_id: 0,
-        };
-        this.broadcastPacketToGame(gameId, PacketType.MAP_INFO, mapInfoPacket);
-
-        // Send tiles in batches like original code
-        const BATCH_SIZE = 100;
-        for (let i = 0; i < visibleTiles.length; i += BATCH_SIZE) {
-          const batch = visibleTiles.slice(i, i + BATCH_SIZE);
-
-          // DEBUG: Check first tile in batch for completeness
-          if (i === 0 && batch.length > 0) {
-            this.logger.info('First TILE_INFO batch sample:', {
-              firstTile: {
-                tile: batch[0].tile,
-                x: batch[0].x,
-                y: batch[0].y,
-                terrain: batch[0].terrain,
-                elevation: batch[0].elevation,
-                known: batch[0].known,
-                seen: batch[0].seen,
-              },
-            });
-          }
-
-          this.broadcastPacketToGame(gameId, PacketType.TILE_INFO, {
-            tiles: batch,
-            startIndex: i,
-            endIndex: Math.min(i + BATCH_SIZE, visibleTiles.length),
-            total: visibleTiles.length,
-          });
-        }
-
-        this.logger.debug('Sent player-specific map data', {
-          gameId,
-          playerId,
-          tilesCount: visibleTiles.length,
-          unitsCount: formattedUnits.length,
-          batches: Math.ceil(visibleTiles.length / BATCH_SIZE),
-        });
-      } catch (error) {
-        this.logger.error('Error sending map data to player:', {
-          error: error instanceof Error ? error.message : error,
-          gameId,
-          playerId,
-        });
-      }
+      this.sendMapDataToPlayer(gameInstance, gameId, playerId, mapData);
     }
 
     // Also broadcast general game started event
@@ -268,6 +178,134 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     if (!gameInstance) return 0;
 
     return Array.from(gameInstance.players.values()).filter(player => player.isConnected).length;
+  }
+
+  /**
+   * Send map data to a specific player
+   */
+  private sendMapDataToPlayer(
+    gameInstance: any,
+    gameId: string,
+    playerId: string,
+    mapData: any
+  ): void {
+    try {
+      // TODO: Implement fog of war - for now send all tiles
+      // Get player-specific visibility data (disabled until fog of war is implemented)
+      const visibleTilesSet = gameInstance.visibilityManager.getVisibleTiles(playerId);
+
+      // Process and format all tiles (no fog of war for now)
+      const visibleTiles = this.processMapTilesForPlayer(mapData);
+
+      // Get units visible to this player (delegate to UnitManager)
+      const visibleUnits = gameInstance.unitManager.getVisibleUnits(playerId, visibleTilesSet);
+      const formattedUnits = visibleUnits.map((unit: any) =>
+        this.formatUnitForClient(unit, gameInstance.unitManager)
+      );
+
+      // Send MAP_INFO packet first (like original code)
+      const mapInfoPacket = {
+        xsize: mapData.width,
+        ysize: mapData.height,
+        wrap_id: 0, // Flat earth
+        topology_id: 0,
+      };
+      this.broadcastPacketToGame(gameId, PacketType.MAP_INFO, mapInfoPacket);
+
+      // Send tiles in batches like original code
+      this.sendTileDataInBatches(gameId, visibleTiles);
+
+      this.logger.debug('Sent player-specific map data', {
+        gameId,
+        playerId,
+        tilesCount: visibleTiles.length,
+        unitsCount: formattedUnits.length,
+        batches: Math.ceil(visibleTiles.length / 100),
+      });
+    } catch (error) {
+      this.logger.error('Error sending map data to player:', {
+        error: error instanceof Error ? error.message : error,
+        gameId,
+        playerId,
+      });
+    }
+  }
+
+  /**
+   * Process map tiles for player visibility
+   */
+  private processMapTilesForPlayer(mapData: any): any[] {
+    const visibleTiles = [];
+    for (let y = 0; y < mapData.height; y++) {
+      for (let x = 0; x < mapData.width; x++) {
+        const tileInfo = this.createTileInfo(mapData, x, y);
+        if (tileInfo) {
+          visibleTiles.push(tileInfo);
+        }
+      }
+    }
+    return visibleTiles;
+  }
+
+  /**
+   * Create tile information object for a specific coordinate
+   */
+  private createTileInfo(mapData: any, x: number, y: number): any | null {
+    const index = x + y * mapData.width;
+    // Handle column-based tile array structure: mapData.tiles[x][y]
+    const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
+
+    if (!serverTile) {
+      return null;
+    }
+
+    // Format tile in exact freeciv-web format
+    return {
+      tile: index, // This is the key - tile index used by freeciv-web
+      x: x,
+      y: y,
+      terrain: serverTile.terrain,
+      resource: serverTile.resource,
+      elevation: serverTile.elevation || 0,
+      riverMask: serverTile.riverMask || 0,
+      known: 1, // TILE_KNOWN
+      seen: 1,
+      player: null,
+      worked: null,
+      extras: 0, // BitVector for extras
+    };
+  }
+
+  /**
+   * Send tile data in batches
+   */
+  private sendTileDataInBatches(gameId: string, visibleTiles: any[]): void {
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < visibleTiles.length; i += BATCH_SIZE) {
+      const batch = visibleTiles.slice(i, i + BATCH_SIZE);
+
+      // DEBUG: Check first tile in batch for completeness
+      if (i === 0 && batch.length > 0) {
+        this.logger.info('First TILE_INFO batch sample:', {
+          firstTile: {
+            tile: batch[0].tile,
+            x: batch[0].x,
+            y: batch[0].y,
+            terrain: batch[0].terrain,
+            elevation: batch[0].elevation,
+            known: batch[0].known,
+            seen: batch[0].seen,
+          },
+        });
+      }
+
+      this.broadcastPacketToGame(gameId, PacketType.TILE_INFO, {
+        tiles: batch,
+        startIndex: i,
+        endIndex: Math.min(i + BATCH_SIZE, visibleTiles.length),
+        total: visibleTiles.length,
+      });
+    }
   }
 
   /**

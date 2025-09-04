@@ -886,30 +886,59 @@ export class GameManager {
   public async updatePlayerConnection(playerId: string, isConnected: boolean): Promise<void> {
     // Update local game instance state
     const gameId = this.playerToGame.get(playerId);
-    if (gameId) {
-      const gameInstance = this.games.get(gameId);
-      if (gameInstance) {
-        const player = gameInstance.players.get(playerId);
-        if (player) {
-          player.isConnected = isConnected;
-          player.lastSeen = new Date();
+    if (!gameId) {
+      // Delegate to connection manager
+      return this.playerConnectionManager.updatePlayerConnection(playerId, isConnected);
+    }
 
-          // Check if all players are disconnected and handle game pause
-          if (!isConnected && gameInstance.state === 'active') {
-            const allDisconnected = Array.from(gameInstance.players.values()).every(
-              p => !p.isConnected
-            );
-            if (allDisconnected) {
-              gameInstance.state = 'paused';
-              logger.info('Game paused - all players disconnected', { gameId });
-            }
-          }
-        }
-      }
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) {
+      // Delegate to connection manager
+      return this.playerConnectionManager.updatePlayerConnection(playerId, isConnected);
+    }
+
+    const player = gameInstance.players.get(playerId);
+    if (!player) {
+      // Delegate to connection manager
+      return this.playerConnectionManager.updatePlayerConnection(playerId, isConnected);
+    }
+
+    // Update player connection state
+    this.updatePlayerConnectionState(player, isConnected);
+
+    // Handle game pause if needed
+    if (!isConnected) {
+      this.handlePlayerDisconnection(gameInstance, gameId);
     }
 
     // Delegate to connection manager
     return this.playerConnectionManager.updatePlayerConnection(playerId, isConnected);
+  }
+
+  /**
+   * Update player connection state and timestamp
+   */
+  private updatePlayerConnectionState(player: any, isConnected: boolean): void {
+    player.isConnected = isConnected;
+    player.lastSeen = new Date();
+  }
+
+  /**
+   * Handle game pause when player disconnects
+   */
+  private handlePlayerDisconnection(gameInstance: any, gameId: string): void {
+    if (gameInstance.state !== 'active') {
+      return;
+    }
+
+    const allDisconnected = Array.from(gameInstance.players.values()).every(
+      (p: any) => !p.isConnected
+    );
+
+    if (allDisconnected) {
+      gameInstance.state = 'paused';
+      logger.info('Game paused - all players disconnected', { gameId });
+    }
   }
 
   public async endTurn(playerId: string): Promise<boolean> {
