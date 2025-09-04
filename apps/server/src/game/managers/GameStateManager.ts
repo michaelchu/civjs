@@ -120,11 +120,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
         with: {
           game: {
             with: {
-              host: {
-                columns: {
-                  username: true,
-                },
-              },
+              host: { columns: { username: true } },
               players: true,
             },
           },
@@ -132,24 +128,26 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       });
 
       if (!player?.game) return null;
-
-      const game = player.game;
-      return {
-        id: game.id,
-        name: game.name,
-        hostName: game.host?.username || 'Unknown',
-        status: game.status,
-        currentPlayers: game.players?.length || 0,
-        maxPlayers: game.maxPlayers,
-        currentTurn: game.currentTurn,
-        mapSize: `${game.mapWidth}x${game.mapHeight}`,
-        createdAt: game.createdAt.toISOString(),
-        canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
-      };
+      return this.formatGameSummary(player.game);
     } catch (error) {
       this.logger.error('Error fetching game by player ID:', error);
       return null;
     }
+  }
+
+  private formatGameSummary(game: any): any {
+    return {
+      id: game.id,
+      name: game.name,
+      hostName: game.host?.username || 'Unknown',
+      status: game.status,
+      currentPlayers: game.players?.length || 0,
+      maxPlayers: game.maxPlayers,
+      currentTurn: game.currentTurn,
+      mapSize: `${game.mapWidth}x${game.mapHeight}`,
+      createdAt: game.createdAt.toISOString(),
+      canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
+    };
   }
 
   /**
@@ -160,46 +158,41 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
     try {
       const gamesQuery = await this.databaseProvider.getDatabase().query.games.findMany({
         with: {
-          host: {
-            columns: {
-              username: true,
-            },
-          },
+          host: { columns: { username: true } },
           players: {
-            columns: {
-              id: true,
-              userId: true,
-              civilization: true,
-              connectionStatus: true,
-            },
+            columns: { id: true, userId: true, civilization: true, connectionStatus: true },
           },
         },
         orderBy: (games, { desc }) => [desc(games.createdAt)],
       });
 
-      return gamesQuery.map(game => ({
-        id: game.id,
-        name: game.name,
-        hostName: game.host?.username || 'Unknown',
-        status: game.status,
-        currentPlayers: game.players?.length || 0,
-        maxPlayers: game.maxPlayers,
-        currentTurn: game.currentTurn,
-        mapSize: `${game.mapWidth}x${game.mapHeight}`,
-        createdAt: game.createdAt.toISOString(),
-        canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
-        isPlayer: userId ? game.players?.some(p => p.userId === userId) : false,
-        players:
-          game.players?.map(p => ({
-            id: p.id,
-            civilization: p.civilization,
-            isConnected: p.connectionStatus === 'connected',
-          })) || [],
-      }));
+      return gamesQuery.map(game => this.formatGameRow(game, userId));
     } catch (error) {
       this.logger.error('Error fetching games from database:', error);
       return [];
     }
+  }
+
+  private formatGameRow(game: any, userId?: string | null): any {
+    return {
+      id: game.id,
+      name: game.name,
+      hostName: game.host?.username || 'Unknown',
+      status: game.status,
+      currentPlayers: game.players?.length || 0,
+      maxPlayers: game.maxPlayers,
+      currentTurn: game.currentTurn,
+      mapSize: `${game.mapWidth}x${game.mapHeight}`,
+      createdAt: game.createdAt.toISOString(),
+      canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
+      isPlayer: userId ? game.players?.some((p: any) => p.userId === userId) : false,
+      players:
+        game.players?.map((p: any) => ({
+          id: p.id,
+          civilization: p.civilization,
+          isConnected: p.connectionStatus === 'connected',
+        })) || [],
+    };
   }
 
   /**

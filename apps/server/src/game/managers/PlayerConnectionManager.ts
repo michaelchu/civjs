@@ -350,7 +350,6 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
    * @reference Original GameManager.ts:237-282 auto-start logic
    */
   private async handleAutoStart(gameId: string): Promise<void> {
-    // Get updated game state
     const updatedGame = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
       with: { players: true },
@@ -363,30 +362,10 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       playerCount: updatedGame?.players.length,
     });
 
-    // Auto-start logic: immediately start single-player games, or start multiplayer when enough players join
     if (updatedGame && updatedGame.status === 'waiting') {
-      const shouldAutoStart =
-        updatedGame.gameType === 'single' || // Always start single-player games
-        updatedGame.players.length >= serverConfig.game.minPlayersToStart; // Start multiplayer when enough players
-
+      const shouldAutoStart = this.shouldAutoStart(updatedGame);
       if (shouldAutoStart) {
-        this.logger.info('Auto-starting game', {
-          gameId,
-          gameType: updatedGame.gameType,
-          playerCount: updatedGame.players.length,
-        });
-        try {
-          // Small delay to ensure socket room joins are complete
-          await new Promise(resolve => setTimeout(resolve, 200));
-
-          // Add AI player if needed to meet minimum requirements
-          await this.ensureMinimumPlayers(gameId);
-
-          // Trigger auto-start through callback
-          await this.onAutoStartGame?.(gameId, updatedGame.hostId);
-        } catch (error) {
-          this.logger.error('Failed to auto-start game:', error);
-        }
+        await this.performAutoStart(gameId, updatedGame);
       } else {
         this.logger.debug('Auto-start conditions not met', {
           gameId,
@@ -396,6 +375,28 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
           playerCount: updatedGame?.players.length,
         });
       }
+    }
+  }
+
+  private shouldAutoStart(updatedGame: any): boolean {
+    return (
+      updatedGame.gameType === 'single' ||
+      updatedGame.players.length >= serverConfig.game.minPlayersToStart
+    );
+  }
+
+  private async performAutoStart(gameId: string, updatedGame: any): Promise<void> {
+    this.logger.info('Auto-starting game', {
+      gameId,
+      gameType: updatedGame.gameType,
+      playerCount: updatedGame.players.length,
+    });
+    try {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      await this.ensureMinimumPlayers(gameId);
+      await this.onAutoStartGame?.(gameId, updatedGame.hostId);
+    } catch (error) {
+      this.logger.error('Failed to auto-start game:', error);
     }
   }
 }

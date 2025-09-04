@@ -41,47 +41,13 @@ export class TurnManagementHandler extends BaseSocketHandler {
     }
 
     try {
-      let playerId: string | null = null;
-      for (const game of await this.gameManager.getAllGames()) {
-        const player = game.players.find((p: any) => p.userId === connection.userId) as any;
-        if (player) {
-          playerId = player.id;
-          break;
-        }
-      }
-
+      const playerId = await this.resolvePlayerIdForTurn(connection);
       if (!playerId) return;
 
       const turnAdvanced = await this.gameManager.endTurn(playerId);
 
       if (turnAdvanced && connection.gameId) {
-        // Get the updated game state from database after turn processing
-        const updatedGame = await this.gameManager.getGame(connection.gameId);
-        const gameInstance = this.gameManager.getGameInstance(connection.gameId);
-
-        if (updatedGame && gameInstance) {
-          const turnData = {
-            turn: updatedGame.currentTurn,
-            year: gameInstance.turnManager.getCurrentYear(),
-          };
-          logger.debug('Sending TURN_START packet', {
-            gameId: connection.gameId,
-            turnData,
-            gameInstanceTurn: gameInstance.currentTurn,
-            dbTurn: updatedGame.currentTurn,
-          });
-          // Notify all players that turn advanced
-          io.to(`game:${connection.gameId}`).emit('packet', {
-            type: PacketType.TURN_START,
-            data: turnData,
-          });
-        } else {
-          logger.warn('No game found for TURN_START', {
-            gameId: connection.gameId,
-            updatedGame: !!updatedGame,
-            gameInstance: !!gameInstance,
-          });
-        }
+        await this.notifyTurnStart(io, connection.gameId);
       } else {
         logger.debug('Not sending TURN_START', {
           turnAdvanced,
@@ -89,11 +55,7 @@ export class TurnManagementHandler extends BaseSocketHandler {
         });
       }
 
-      handler.send(socket, PacketType.TURN_END_REPLY, {
-        success: true,
-        turnAdvanced,
-      });
-
+      handler.send(socket, PacketType.TURN_END_REPLY, { success: true, turnAdvanced });
       logger.debug(`${connection.username} ended turn`, {
         gameId: connection.gameId,
         turnAdvanced,
@@ -103,6 +65,39 @@ export class TurnManagementHandler extends BaseSocketHandler {
       handler.send(socket, PacketType.TURN_END_REPLY, {
         success: false,
         message: error instanceof Error ? error.message : 'Failed to end turn',
+      });
+    }
+  }
+
+  private async resolvePlayerIdForTurn(connection: any): Promise<string | null> {
+    for (const game of await this.gameManager.getAllGames()) {
+      const player = game.players.find((p: any) => p.userId === connection.userId) as any;
+      if (player) return player.id;
+    }
+    return null;
+  }
+
+  private async notifyTurnStart(io: Server, gameId: string): Promise<void> {
+    const updatedGame = await this.gameManager.getGame(gameId);
+    const gameInstance = this.gameManager.getGameInstance(gameId);
+
+    if (updatedGame && gameInstance) {
+      const turnData = {
+        turn: updatedGame.currentTurn,
+        year: gameInstance.turnManager.getCurrentYear(),
+      };
+      logger.debug('Sending TURN_START packet', {
+        gameId,
+        turnData,
+        gameInstanceTurn: gameInstance.currentTurn,
+        dbTurn: updatedGame.currentTurn,
+      });
+      io.to(`game:${gameId}`).emit('packet', { type: PacketType.TURN_START, data: turnData });
+    } else {
+      logger.warn('No game found for TURN_START', {
+        gameId,
+        updatedGame: !!updatedGame,
+        gameInstance: !!gameInstance,
       });
     }
   }

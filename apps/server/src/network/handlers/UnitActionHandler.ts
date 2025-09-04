@@ -400,25 +400,12 @@ export class UnitActionHandler extends BaseSocketHandler {
         return;
       }
 
-      // Get player ID from user
-      let playerId: string | undefined = undefined;
-      if (connection.userId) {
-        const playerIds = Array.from(gameInstance.players.keys());
-        for (const pid of playerIds) {
-          const player = gameInstance.players.get(pid);
-          if (player && player.userId === connection.userId) {
-            playerId = pid;
-            break;
-          }
-        }
-      }
-
+      const playerId = this.resolvePlayerId(connection, gameInstance);
       if (!playerId) {
         callback({ success: false, error: 'Player not found' });
         return;
       }
 
-      // Execute the unit action
       const result = await gameInstance.unitManager.executeUnitAction(
         data.unitId,
         data.actionType,
@@ -427,14 +414,12 @@ export class UnitActionHandler extends BaseSocketHandler {
       );
 
       if (result.success) {
-        // If unit was destroyed (e.g., settler founding city), broadcast destruction
         if (result.unitDestroyed) {
           io.to(`game:${connection.gameId}`).emit('unit_destroyed', {
             gameId: connection.gameId,
             unitId: data.unitId,
           });
         } else {
-          // Broadcast unit state updates if unit still exists
           const updatedUnit = gameInstance.unitManager.getUnit(data.unitId);
           if (updatedUnit) {
             io.to(`game:${connection.gameId}`).emit('unit_update', {
@@ -468,6 +453,16 @@ export class UnitActionHandler extends BaseSocketHandler {
     }
   }
 
+  private resolvePlayerId(connection: any, gameInstance: any): string | undefined {
+    if (!connection?.userId) return undefined;
+    const playerIds: string[] = Array.from(gameInstance.players.keys()) as string[];
+    for (const pid of playerIds) {
+      const player = gameInstance.players.get(pid);
+      if (player && player.userId === connection.userId) return pid;
+    }
+    return undefined;
+  }
+
   /**
    * Handle path_request socket event
    */
@@ -478,40 +473,23 @@ export class UnitActionHandler extends BaseSocketHandler {
   ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
-      if (typeof callback === 'function') {
-        callback({ success: false, error: 'Not authenticated or not in a game' });
-      }
+      this.safeCallback(callback, { success: false, error: 'Not authenticated or not in a game' });
       return;
     }
 
     try {
       const gameInstance = this.gameManager.getGameInstance(connection.gameId!);
       if (!gameInstance) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'Game instance not found' });
-        }
+        this.safeCallback(callback, { success: false, error: 'Game instance not found' });
         return;
       }
 
-      // Get player ID from user
-      let playerId: string | undefined = undefined;
-      const playerIds = Array.from(gameInstance.players.keys());
-      for (const pid of playerIds) {
-        const player = gameInstance.players.get(pid);
-        if (player && player.userId === connection.userId) {
-          playerId = pid;
-          break;
-        }
-      }
-
+      const playerId = this.resolvePlayerId(connection, gameInstance);
       if (!playerId) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'Player not found' });
-        }
+        this.safeCallback(callback, { success: false, error: 'Player not found' });
         return;
       }
 
-      // Request pathfinding from GameManager
       const pathResult = await this.gameManager.requestPath(
         playerId,
         data.unitId,
@@ -519,11 +497,8 @@ export class UnitActionHandler extends BaseSocketHandler {
         data.targetY
       );
 
-      if (typeof callback === 'function') {
-        callback(pathResult);
-      }
+      this.safeCallback(callback, pathResult);
 
-      // Also emit to the socket for the PathfindingService listener
       const responseWithId = {
         ...pathResult,
         unitId: data.unitId,
@@ -552,11 +527,14 @@ export class UnitActionHandler extends BaseSocketHandler {
         path: null,
       };
 
-      if (typeof callback === 'function') {
-        callback(errorResponse);
-      }
-
+      this.safeCallback(callback, errorResponse);
       socket.emit('path_response', errorResponse);
+    }
+  }
+
+  private safeCallback(callback: (response: any) => void, payload: any): void {
+    if (typeof callback === 'function') {
+      callback(payload);
     }
   }
 }
