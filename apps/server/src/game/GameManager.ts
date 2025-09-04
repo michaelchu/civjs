@@ -18,6 +18,7 @@ import { UnitManagementService } from './managers/UnitManagementService';
 import { CityManagementService } from './managers/CityManagementService';
 import { ResearchManagementService } from './managers/ResearchManagementService';
 import { VisibilityMapService } from './managers/VisibilityMapService';
+import { GameInstanceRecoveryService } from './managers/GameInstanceRecoveryService';
 
 // Keep existing imports for delegation
 import { CityManager } from './CityManager';
@@ -110,6 +111,7 @@ export class GameManager {
   private cityManagementService!: CityManagementService;
   private researchManagementService!: ResearchManagementService;
   private visibilityMapService!: VisibilityMapService;
+  private gameInstanceRecoveryService!: GameInstanceRecoveryService;
 
   private constructor(io: SocketServer) {
     this.io = io;
@@ -166,6 +168,16 @@ export class GameManager {
 
     this.visibilityMapService = new VisibilityMapService(this.games);
 
+    this.gameInstanceRecoveryService = new GameInstanceRecoveryService(
+      this.games,
+      this.playerToGame,
+      this.io,
+      this.foundCity.bind(this),
+      this.requestPath.bind(this),
+      this.createUnit.bind(this),
+      this.broadcastToGame.bind(this)
+    );
+
     // Register services
     this.serviceRegistry.register('GameStateManager', this.gameStateManager);
     this.serviceRegistry.register('PlayerConnectionManager', this.playerConnectionManager);
@@ -175,6 +187,7 @@ export class GameManager {
     this.serviceRegistry.register('CityManagementService', this.cityManagementService);
     this.serviceRegistry.register('ResearchManagementService', this.researchManagementService);
     this.serviceRegistry.register('VisibilityMapService', this.visibilityMapService);
+    this.serviceRegistry.register('GameInstanceRecoveryService', this.gameInstanceRecoveryService);
 
     // Set cross-references
     this.gameBroadcastManager.setGamesReference(this.games);
@@ -692,265 +705,9 @@ export class GameManager {
    * Recover game instance from database when not found in memory
    * This handles cases where the server restarted and game instances were lost
    */
+  // Game recovery methods - delegates to GameInstanceRecoveryService
   public async recoverGameInstance(gameId: string): Promise<GameInstance | null> {
-    try {
-      logger.info('Attempting to recover game instance from database', { gameId });
-
-      // Get game from database with all related data
-      const game = await db.query.games.findFirst({
-        where: eq(games.id, gameId),
-        with: {
-          players: true,
-        },
-      });
-
-      if (!game || game.status !== 'active') {
-        logger.warn('Game not found or not active, cannot recover', {
-          gameId,
-          found: !!game,
-          status: game?.status,
-        });
-        return null;
-      }
-
-      // Check if map data exists in database
-      if (!game.mapData || !game.mapSeed) {
-        logger.warn('No map data found in database, cannot recover game instance', { gameId });
-        return null;
-      }
-
-      logger.info('Recovering game instance with map data', {
-        gameId,
-        playerCount: game.players.length,
-        mapSize: `${game.mapWidth}x${game.mapHeight}`,
-      });
-
-      // Reconstruct player state map
-      const players = new Map<string, PlayerState>();
-      for (const dbPlayer of game.players) {
-        players.set(dbPlayer.id, {
-          id: dbPlayer.id,
-          userId: dbPlayer.userId,
-          playerNumber: dbPlayer.playerNumber,
-          civilization: dbPlayer.civilization,
-          isReady: dbPlayer.isReady || false,
-          hasEndedTurn: dbPlayer.hasEndedTurn || false,
-          isConnected: dbPlayer.connectionStatus === 'connected',
-          lastSeen: new Date(),
-        });
-
-        // Track player to game mapping
-        this.playerToGame.set(dbPlayer.id, gameId);
-      }
-
-      // Extract terrain settings from stored game state
-      const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
-      const temperatureParam = storedTerrainSettings?.temperature ?? 50;
-
-      // Create MapManager and restore map data from database
-      const mapManager = new MapManager(
-        game.mapWidth,
-        game.mapHeight,
-        undefined,
-        'recovered',
-        undefined,
-        undefined,
-        false,
-        temperatureParam
-      );
-      await this.restoreMapDataToManager(mapManager, game.mapData as any, game.mapSeed!);
-
-      // Initialize managers (now that mapManager is available)
-      const turnManager = new TurnManager(gameId, this.io);
-      const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager, {
-        foundCity: this.foundCity.bind(this),
-        requestPath: this.requestPath.bind(this),
-        broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
-          this.broadcastToGame(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
-        },
-        getCityAt: (x: number, y: number) => {
-          const city = cityManager.getCityAt(x, y);
-          return city ? { playerId: city.playerId } : null;
-        },
-      });
-
-      // Initialize turn system with existing player IDs
-      const playerIds = Array.from(players.keys());
-      await turnManager.initializeTurn(playerIds);
-      const cityManager = new CityManager(gameId, undefined, {
-        createUnit: (playerId: string, unitType: string, x: number, y: number) =>
-          this.createUnit(gameId, playerId, unitType, x, y),
-      });
-      const researchManager = new ResearchManager(gameId);
-      const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
-
-      const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
-
-      // Create recovered game instance
-      const gameInstance: GameInstance = {
-        id: gameId,
-        config: {
-          name: game.name,
-          hostId: game.hostId,
-          maxPlayers: game.maxPlayers,
-          mapWidth: game.mapWidth,
-          mapHeight: game.mapHeight,
-          ruleset: game.ruleset || 'classic',
-          turnTimeLimit: game.turnTimeLimit || undefined,
-          victoryConditions: (game.victoryConditions as string[]) || [
-            'conquest',
-            'science',
-            'culture',
-          ],
-        },
-        state: 'active',
-        currentTurn: game.currentTurn,
-        turnPhase: game.turnPhase as TurnPhase,
-        players,
-        turnManager,
-        mapManager,
-        unitManager,
-        visibilityManager,
-        cityManager,
-        researchManager,
-        pathfindingManager,
-        lastActivity: new Date(),
-      };
-
-      // Store the recovered game instance
-      this.games.set(gameId, gameInstance);
-
-      // Load data from database into managers
-      await cityManager.loadCities();
-      await unitManager.loadUnits();
-
-      // Initialize research and visibility for all players
-      for (const player of players.values()) {
-        await researchManager.initializePlayerResearch(player.id);
-        visibilityManager.initializePlayerVisibility(player.id);
-        // Grant initial visibility around starting position
-        visibilityManager.updatePlayerVisibility(player.id);
-      }
-
-      logger.info('Game instance recovered successfully', { gameId });
-      return gameInstance;
-    } catch (error) {
-      logger.error('Failed to recover game instance:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Restore map data from database to MapManager
-   */
-  private async restoreMapDataToManager(
-    mapManager: MapManager,
-    mapData: any,
-    mapSeed: string
-  ): Promise<void> {
-    try {
-      // Reconstruct full MapData from serialized database storage
-      const restoredMapData = {
-        width: mapData.width,
-        height: mapData.height,
-        seed: mapSeed,
-        generatedAt: new Date(mapData.generatedAt),
-        startingPositions: mapData.startingPositions || [],
-        tiles: this.deserializeMapTiles(mapData.tiles, mapData.width, mapData.height),
-      };
-
-      // Set the restored map data directly in MapManager
-      // This bypasses generation and uses the stored data
-      (mapManager as any).mapData = restoredMapData;
-
-      logger.info('Map data restored to manager', {
-        width: restoredMapData.width,
-        height: restoredMapData.height,
-        startingPositions: restoredMapData.startingPositions.length,
-      });
-    } catch (error) {
-      logger.error('Failed to restore map data to manager:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Deserialize compressed map tiles from database storage
-   */
-  private deserializeMapTiles(compressedTiles: any, width: number, height: number): any[][] {
-    // Create empty tile array filled with ocean tiles - match generation pattern [x][y]
-    const tiles: any[][] = [];
-
-    for (let x = 0; x < width; x++) {
-      tiles[x] = [];
-      for (let y = 0; y < height; y++) {
-        // Default ocean tile
-        tiles[x][y] = {
-          x,
-          y,
-          terrain: 'ocean',
-          elevation: 0,
-          riverMask: 0,
-          continentId: 0,
-          isExplored: false,
-          isVisible: false,
-          hasRoad: false,
-          hasRailroad: false,
-          improvements: [],
-          unitIds: [],
-          properties: {},
-          temperature: 4, // TEMPERATE
-          wetness: 50,
-        };
-      }
-    }
-
-    // Restore non-ocean tiles from compressed storage
-    if (compressedTiles) {
-      for (const [key, tileData] of Object.entries(compressedTiles)) {
-        const [x, y] = key.split(',').map(Number);
-        if (
-          x >= 0 &&
-          x < width &&
-          y >= 0 &&
-          y < height &&
-          tileData &&
-          typeof tileData === 'object'
-        ) {
-          tiles[x][y] = {
-            ...tiles[x][y], // Keep default values
-            ...(tileData as any), // Override with stored data
-          };
-        }
-      }
-    }
-
-    return tiles;
-  }
-
-  /**
-   * Convert string generator type to MapGeneratorType enum
-   * @param generator String generator identifier from client
-   * @returns MapGeneratorType enum value for MapManager
-   */
-  private convertGeneratorType(generator: string): MapGeneratorType {
-    switch (generator.toLowerCase()) {
-      case 'fair':
-        return 'FAIR';
-      case 'island':
-        return 'ISLAND';
-      case 'random':
-        return 'RANDOM';
-      case 'fracture':
-        return 'FRACTURE';
-      case 'fractal':
-        return 'FRACTAL';
-      case 'scenario':
-        return 'SCENARIO';
-      default:
-        logger.warn('Unknown generator type, defaulting to FRACTAL', { generator });
-        return 'FRACTAL';
-    }
+    return this.gameInstanceRecoveryService.recoverGameInstance(gameId);
   }
 
   public async getGame(gameId: string): Promise<any | null> {
@@ -965,19 +722,8 @@ export class GameManager {
     return this.gameLifecycleManager.getAllGameInstances();
   }
 
-  /**
-   * Load a game from database into memory for testing purposes
-   * This is similar to recoverGameInstance but specifically for integration tests
-   */
   public async loadGame(gameId: string): Promise<GameInstance | null> {
-    // Check if game is already loaded
-    const existingInstance = this.games.get(gameId);
-    if (existingInstance) {
-      return existingInstance;
-    }
-
-    // Try to recover from database
-    return await this.recoverGameInstance(gameId);
+    return this.gameInstanceRecoveryService.loadGame(gameId);
   }
 
   public getActiveGameInstances(): GameInstance[] {
@@ -1493,6 +1239,31 @@ export class GameManager {
       });
 
       return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
+   * Convert string generator type to MapGeneratorType enum
+   * @param generator String generator identifier from client
+   * @returns MapGeneratorType enum value for MapManager
+   */
+  private convertGeneratorType(generator: string): MapGeneratorType {
+    switch (generator.toLowerCase()) {
+      case 'fair':
+        return 'FAIR';
+      case 'island':
+        return 'ISLAND';
+      case 'random':
+        return 'RANDOM';
+      case 'fracture':
+        return 'FRACTURE';
+      case 'fractal':
+        return 'FRACTAL';
+      case 'scenario':
+        return 'SCENARIO';
+      default:
+        logger.warn('Unknown generator type, defaulting to FRACTAL', { generator });
+        return 'FRACTAL';
     }
   }
 }
