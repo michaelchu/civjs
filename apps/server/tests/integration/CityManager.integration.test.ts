@@ -2,6 +2,7 @@ import { CityManager, BUILDING_TYPES } from '../../src/game/CityManager';
 import { UNIT_TYPES } from '../../src/game/constants/UnitConstants';
 import {
   getTestDatabase,
+  getTestDatabaseProvider,
   clearAllTables,
   generateTestUUID,
   createTestGameAndPlayer,
@@ -13,7 +14,7 @@ import {
   createProductionScenario,
 } from '../fixtures/gameFixtures';
 
-describe.skip('CityManager - Integration Tests with Real Database', () => {
+describe('CityManager - Integration Tests with Real Database', () => {
   let cityManager: CityManager;
   let testData: { game: any; player: any; user: any };
 
@@ -24,8 +25,9 @@ describe.skip('CityManager - Integration Tests with Real Database', () => {
     // Create test game and player
     testData = await createTestGameAndPlayer('0010', '0020');
 
-    // Initialize CityManager
-    cityManager = new CityManager(testData.game.id);
+    // Initialize CityManager with test database provider
+    const testDbProvider = getTestDatabaseProvider();
+    cityManager = new CityManager(testData.game.id, testDbProvider);
   });
 
   afterEach(async () => {

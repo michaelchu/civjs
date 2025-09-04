@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, complexity */
 import { logger } from '../utils/logger';
-import { db } from '../database';
+import { DatabaseProvider } from '../database';
 import { cities } from '../database/schema';
 import { eq } from 'drizzle-orm';
 import { UNIT_TYPES } from './constants/UnitConstants';
@@ -175,12 +175,14 @@ export interface CityManagerCallbacks {
 export class CityManager {
   private cities: Map<string, CityState> = new Map();
   private gameId: string;
+  private databaseProvider: DatabaseProvider;
   private effectsManager: EffectsManager;
   private governmentManager?: GovernmentManager;
   private callbacks: CityManagerCallbacks;
 
-  constructor(gameId: string, effectsManager?: EffectsManager, callbacks?: CityManagerCallbacks) {
+  constructor(gameId: string, databaseProvider: DatabaseProvider, effectsManager?: EffectsManager, callbacks?: CityManagerCallbacks) {
     this.gameId = gameId;
+    this.databaseProvider = databaseProvider;
     this.effectsManager = effectsManager || new EffectsManager();
     this.callbacks = callbacks || {};
   }
@@ -531,7 +533,7 @@ export class CityManager {
    * Load cities from database
    */
   async loadCities(): Promise<void> {
-    const dbCities = await db.select().from(cities).where(eq(cities.gameId, this.gameId));
+    const dbCities = await this.databaseProvider.getDatabase().select().from(cities).where(eq(cities.gameId, this.gameId));
 
     for (const dbCity of dbCities) {
       const cityState: CityState = {

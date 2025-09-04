@@ -5,7 +5,7 @@
  */
 
 import { BaseGameService } from './GameService';
-import { db } from '../../database';
+import { DatabaseProvider } from '../../database';
 import { gameState } from '../../database/redis';
 import { games, players } from '../../database/schema';
 import { eq } from 'drizzle-orm';
@@ -22,6 +22,13 @@ export interface GameStateRepository {
 }
 
 export class GameStateManager extends BaseGameService implements GameStateRepository {
+  private databaseProvider: DatabaseProvider;
+
+  constructor(logger: any, databaseProvider: DatabaseProvider) {
+    super(logger);
+    this.databaseProvider = databaseProvider;
+  }
+
   getServiceName(): string {
     return 'GameStateManager';
   }
@@ -36,7 +43,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       hostId: gameData.hostId,
     });
 
-    const [newGame] = await db.insert(games).values(gameData).returning();
+    const [newGame] = await this.databaseProvider.getDatabase().insert(games).values(gameData).returning();
 
     // Cache basic game data in Redis for performance
     await this.cacheGameState(newGame.id, {
@@ -78,7 +85,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
     try {
       this.logger.info('Loading game from database', { gameId });
 
-      const game = await db.query.games.findFirst({
+      const game = await this.databaseProvider.getDatabase().query.games.findFirst({
         where: eq(games.id, gameId),
         with: {
           players: true,
@@ -103,7 +110,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
    */
   async getGameByPlayerId(playerId: string): Promise<any | null> {
     try {
-      const player = await db.query.players.findFirst({
+      const player = await this.databaseProvider.getDatabase().query.players.findFirst({
         where: eq(players.id, playerId),
         with: {
           game: {
@@ -146,7 +153,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
    */
   async getAllGamesFromDatabase(userId?: string | null): Promise<any[]> {
     try {
-      const gamesQuery = await db.query.games.findMany({
+      const gamesQuery = await this.databaseProvider.getDatabase().query.games.findMany({
         with: {
           host: {
             columns: {
@@ -388,7 +395,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
   async deleteGameFromDatabase(gameId: string, userId?: string): Promise<void> {
     try {
       // Get game to verify ownership or admin permissions
-      const game = await db.query.games.findFirst({
+      const game = await this.databaseProvider.getDatabase().query.games.findFirst({
         where: eq(games.id, gameId),
       });
 
@@ -402,7 +409,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       }
 
       // Delete game (cascade should handle players)
-      await db.delete(games).where(eq(games.id, gameId));
+      await this.databaseProvider.getDatabase().delete(games).where(eq(games.id, gameId));
 
       // Clean up Redis cache
       try {

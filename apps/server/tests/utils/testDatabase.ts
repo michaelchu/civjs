@@ -30,6 +30,44 @@ try {
   };
 }
 
+import { DatabaseProvider } from '../../src/database/DatabaseProvider';
+
+/**
+ * Test database provider for integration tests
+ * Provides isolated database instances for testing
+ */
+export class TestDatabaseProvider implements DatabaseProvider {
+  private database: ReturnType<typeof drizzle<typeof schema>>;
+
+  constructor(database: ReturnType<typeof drizzle<typeof schema>>) {
+    this.database = database;
+  }
+
+  getDatabase() {
+    return this.database;
+  }
+
+  async testConnection(): Promise<boolean> {
+    try {
+      // Access the underlying postgres client for connection testing
+      const queryClient = (this.database as any)._.session.client;
+      await queryClient`SELECT 1`;
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async closeConnection(): Promise<void> {
+    try {
+      const queryClient = (this.database as any)._.session.client;
+      await queryClient.end();
+    } catch (error) {
+      logger.error('Error closing test database connection:', error);
+    }
+  }
+}
+
 // UUID generator for tests
 export function generateTestUUID(suffix: string): string {
   // Generate a valid UUID with better randomness
@@ -169,6 +207,14 @@ export function getTestDatabase() {
     throw new Error('Test database not initialized. Call setupTestDatabase() first.');
   }
   return testDb;
+}
+
+/**
+ * Get a TestDatabaseProvider instance for dependency injection
+ */
+export function getTestDatabaseProvider(): TestDatabaseProvider {
+  const db = getTestDatabase();
+  return new TestDatabaseProvider(db);
 }
 
 export async function clearAllTables() {

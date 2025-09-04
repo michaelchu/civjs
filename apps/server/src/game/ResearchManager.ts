@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { db } from '../database';
+import { DatabaseProvider } from '../database';
 import { research as researchTable, playerTechs } from '../database/schema';
 import { eq, and } from 'drizzle-orm';
 
@@ -186,9 +186,11 @@ export const TECHNOLOGIES: Record<string, Technology> = {
 export class ResearchManager {
   private playerResearch: Map<string, PlayerResearch> = new Map();
   private gameId: string;
+  private databaseProvider: DatabaseProvider;
 
-  constructor(gameId: string) {
+  constructor(gameId: string, databaseProvider: DatabaseProvider) {
     this.gameId = gameId;
+    this.databaseProvider = databaseProvider;
   }
 
   public async initializePlayerResearch(playerId: string): Promise<void> {
@@ -202,7 +204,7 @@ export class ResearchManager {
     this.playerResearch.set(playerId, research);
 
     // Save to database
-    await db.insert(playerTechs).values({
+    await this.databaseProvider.getDatabase().insert(playerTechs).values({
       gameId: this.gameId,
       playerId,
       techId: 'alphabet',
@@ -242,7 +244,7 @@ export class ResearchManager {
       .where(and(eq(researchTable.gameId, this.gameId), eq(researchTable.playerId, playerId)));
 
     if (existingResearch.length === 0) {
-      await db.insert(researchTable).values({
+      await this.databaseProvider.getDatabase().insert(researchTable).values({
         gameId: this.gameId,
         playerId,
         currentTech: techId,
@@ -325,7 +327,7 @@ export class ResearchManager {
     playerResearch.currentTech = undefined;
 
     // Save to database
-    await db.insert(playerTechs).values({
+    await this.databaseProvider.getDatabase().insert(playerTechs).values({
       gameId: this.gameId,
       playerId,
       techId,
@@ -339,7 +341,7 @@ export class ResearchManager {
         // Give random available tech
         const randomTech = availableTechs[Math.floor(Math.random() * availableTechs.length)];
         playerResearch.researchedTechs.add(randomTech.id);
-        await db.insert(playerTechs).values({
+        await this.databaseProvider.getDatabase().insert(playerTechs).values({
           gameId: this.gameId,
           playerId,
           techId: randomTech.id,
@@ -439,7 +441,7 @@ export class ResearchManager {
       .select()
       .from(researchTable)
       .where(eq(researchTable.gameId, this.gameId));
-    const techData = await db.select().from(playerTechs).where(eq(playerTechs.gameId, this.gameId));
+    const techData = await this.databaseProvider.getDatabase().select().from(playerTechs).where(eq(playerTechs.gameId, this.gameId));
 
     // Group techs by player
     const playerTechMap = new Map<string, string[]>();

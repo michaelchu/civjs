@@ -2,6 +2,7 @@ import { UnitManager } from '../../src/game/UnitManager';
 import { UNIT_TYPES } from '../../src/game/constants/UnitConstants';
 import {
   getTestDatabase,
+  getTestDatabaseProvider,
   clearAllTables,
   createTestGameAndPlayer,
   generateTestUUID,
@@ -9,7 +10,7 @@ import {
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
 import { schema } from '../../src/database';
 
-describe.skip('UnitManager - Integration Tests with Real Database', () => {
+describe('UnitManager - Integration Tests with Real Database', () => {
   let unitManager: UnitManager;
   let testData: { game: any; player: any; user: any };
   const mapWidth = 80;
@@ -35,8 +36,11 @@ describe.skip('UnitManager - Integration Tests with Real Database', () => {
       getCityAt: () => null,
     };
 
+    // Initialize UnitManager with test database provider
+    const testDbProvider = getTestDatabaseProvider();
     unitManager = new UnitManager(
       testData.game.id,
+      testDbProvider,
       mapWidth,
       mapHeight,
       mockMapManager,

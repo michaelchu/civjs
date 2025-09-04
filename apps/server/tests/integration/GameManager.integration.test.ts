@@ -1,6 +1,7 @@
 import { GameManager, GameConfig } from '../../src/game/GameManager';
 import {
   getTestDatabase,
+  getTestDatabaseProvider,
   clearAllTables,
   generateTestUUID,
   createTestGameAndPlayer,
@@ -9,8 +10,9 @@ import { createBasicGameScenario } from '../fixtures/gameFixtures';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 import * as schema from '../../src/database/schema';
 
-describe.skip('GameManager - Integration Tests with Real Database', () => {
+describe('GameManager - Integration Tests with Real Database', () => {
   let gameManager: GameManager;
+  let testDbProvider: ReturnType<typeof getTestDatabaseProvider>;
 
   beforeEach(async () => {
     // Clear database before each test
@@ -19,7 +21,10 @@ describe.skip('GameManager - Integration Tests with Real Database', () => {
     // Reset singleton for testing
     (GameManager as any).instance = null;
     const mockIo = createMockSocketServer();
-    gameManager = GameManager.getInstance(mockIo);
+    
+    // Create test database provider
+    testDbProvider = getTestDatabaseProvider();
+    gameManager = GameManager.getInstance(mockIo, testDbProvider);
   });
 
   afterEach(async () => {

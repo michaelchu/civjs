@@ -2,7 +2,7 @@
 import { eq } from 'drizzle-orm';
 import { Server as SocketServer } from 'socket.io';
 import serverConfig from '../config';
-import { db } from '../database';
+import { DatabaseProvider, productionDatabaseProvider } from '../database';
 import { gameState } from '../database/redis';
 import { games, players } from '../database/schema';
 import { PacketType } from '../types/packet';
@@ -98,6 +98,7 @@ export interface PlayerState {
 export class GameManager {
   private static instance: GameManager;
   private io: SocketServer;
+  private databaseProvider: DatabaseProvider;
   private games = new Map<string, GameInstance>();
   private playerToGame = new Map<string, string>();
 
@@ -113,14 +114,15 @@ export class GameManager {
   private visibilityMapService!: VisibilityMapService;
   private gameInstanceRecoveryService!: GameInstanceRecoveryService;
 
-  private constructor(io: SocketServer) {
+  private constructor(io: SocketServer, databaseProvider?: DatabaseProvider) {
     this.io = io;
+    this.databaseProvider = databaseProvider || productionDatabaseProvider;
     this.initializeServices();
   }
 
-  public static getInstance(io: SocketServer): GameManager {
+  public static getInstance(io: SocketServer, databaseProvider?: DatabaseProvider): GameManager {
     if (!GameManager.instance) {
-      GameManager.instance = new GameManager(io);
+      GameManager.instance = new GameManager(io, databaseProvider);
     }
     return GameManager.instance;
   }
@@ -133,7 +135,7 @@ export class GameManager {
     this.serviceRegistry = new ServiceRegistry();
 
     // Initialize extracted managers with proper dependencies
-    this.gameStateManager = new GameStateManager(logger);
+    this.gameStateManager = new GameStateManager(logger, this.databaseProvider);
     this.gameBroadcastManager = new GameBroadcastManager(this.io);
 
     this.playerConnectionManager = new PlayerConnectionManager(
@@ -272,7 +274,7 @@ export class GameManager {
    */
   public async startGameLegacy(gameId: string, hostId: string): Promise<void> {
     // Get game from database
-    const game = await db.query.games.findFirst({
+    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
       with: {
         players: true,
@@ -368,8 +370,8 @@ export class GameManager {
       false,
       temperatureParam
     );
-    const turnManager = new TurnManager(gameId, this.io);
-    const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager, {
+    const turnManager = new TurnManager(gameId, this.databaseProvider, this.io);
+    const unitManager = new UnitManager(gameId, this.databaseProvider, game.mapWidth, game.mapHeight, mapManager, {
       foundCity: this.foundCity.bind(this),
       requestPath: this.requestPath.bind(this),
       broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
@@ -385,11 +387,11 @@ export class GameManager {
     const playerIds = Array.from(players.keys());
     await turnManager.initializeTurn(playerIds);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
-    const cityManager = new CityManager(gameId, undefined, {
+    const cityManager = new CityManager(gameId, this.databaseProvider, undefined, {
       createUnit: (playerId: string, unitType: string, x: number, y: number) =>
         this.createUnit(gameId, playerId, unitType, x, y),
     });
-    const researchManager = new ResearchManager(gameId);
+    const researchManager = new ResearchManager(gameId, this.databaseProvider);
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
 
     // Generate the map with starting positions based on terrain settings
@@ -732,7 +734,7 @@ export class GameManager {
 
   public async getGameByPlayerId(playerId: string): Promise<any | null> {
     try {
-      const player = await db.query.players.findFirst({
+      const player = await this.databaseProvider.getDatabase().query.players.findFirst({
         where: eq(players.id, playerId),
         with: {
           game: {
@@ -779,7 +781,7 @@ export class GameManager {
 
   public async getAllGamesFromDatabase(userId?: string | null): Promise<any[]> {
     try {
-      const dbGames = await db.query.games.findMany({
+      const dbGames = await this.databaseProvider.getDatabase().query.games.findMany({
         where: (games, { inArray }) => inArray(games.status, ['waiting', 'running', 'active']),
         with: {
           host: {
@@ -835,7 +837,7 @@ export class GameManager {
 
   public async getGameById(gameId: string): Promise<any | null> {
     try {
-      const game = await db.query.games.findFirst({
+      const game = await this.databaseProvider.getDatabase().query.games.findFirst({
         where: eq(games.id, gameId),
         with: {
           host: {
