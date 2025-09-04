@@ -685,7 +685,7 @@ export class RulesetLoader {
         break;
 
       case 'CityTile':
-        satisfied = name === 'Center' ? (context.tile?.isCity ?? false) : false;
+        satisfied = name === 'Center' ? context.tile?.isCity ?? false : false;
         break;
 
       case 'Extra':

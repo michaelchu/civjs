@@ -19,10 +19,7 @@ export class TurnManagementHandler extends BaseSocketHandler {
 
   protected handlerName = 'TurnManagementHandler';
 
-  constructor(
-    private activeConnections: Map<string, any>,
-    private gameManager: GameManager
-  ) {
+  constructor(private activeConnections: Map<string, any>, private gameManager: GameManager) {
     super();
   }
 

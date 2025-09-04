@@ -62,7 +62,9 @@ export class RiverGenerator {
 
     const endTime = Date.now();
     logger.info(
-      `Advanced river generation completed: ${networksCreated} networks with ${totalRiverTiles} total river tiles in ${endTime - startTime}ms`
+      `Advanced river generation completed: ${networksCreated} networks with ${totalRiverTiles} total river tiles in ${
+        endTime - startTime
+      }ms`
     );
   }
 

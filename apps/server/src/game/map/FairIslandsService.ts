@@ -492,7 +492,9 @@ export class FairIslandsService extends BaseMapGenerationService {
       if (balanceRatio < 0.6) {
         result.balanced = false;
         result.issues.push(
-          `Resource imbalance: min=${minResources}, max=${maxResources}, ratio=${Math.round(balanceRatio * 100)}%`
+          `Resource imbalance: min=${minResources}, max=${maxResources}, ratio=${Math.round(
+            balanceRatio * 100
+          )}%`
         );
       }
 
