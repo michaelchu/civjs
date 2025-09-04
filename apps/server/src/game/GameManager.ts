@@ -16,6 +16,7 @@ import { PlayerConnectionManager } from './managers/PlayerConnectionManager';
 import { ServiceRegistry } from './managers/ServiceRegistry';
 import { UnitManagementService } from './managers/UnitManagementService';
 import { CityManagementService } from './managers/CityManagementService';
+import { ResearchManagementService } from './managers/ResearchManagementService';
 
 // Keep existing imports for delegation
 import { CityManager } from './CityManager';
@@ -106,6 +107,7 @@ export class GameManager {
   private gameBroadcastManager!: GameBroadcastManager;
   private unitManagementService!: UnitManagementService;
   private cityManagementService!: CityManagementService;
+  private researchManagementService!: ResearchManagementService;
 
   private constructor(io: SocketServer) {
     this.io = io;
@@ -155,6 +157,11 @@ export class GameManager {
       this.broadcastToGame.bind(this)
     );
 
+    this.researchManagementService = new ResearchManagementService(
+      this.games,
+      this.broadcastToGame.bind(this)
+    );
+
     // Register services
     this.serviceRegistry.register('GameStateManager', this.gameStateManager);
     this.serviceRegistry.register('PlayerConnectionManager', this.playerConnectionManager);
@@ -162,6 +169,7 @@ export class GameManager {
     this.serviceRegistry.register('GameBroadcastManager', this.gameBroadcastManager);
     this.serviceRegistry.register('UnitManagementService', this.unitManagementService);
     this.serviceRegistry.register('CityManagementService', this.cityManagementService);
+    this.serviceRegistry.register('ResearchManagementService', this.researchManagementService);
 
     // Set cross-references
     this.gameBroadcastManager.setGamesReference(this.games);
@@ -1359,114 +1367,29 @@ export class GameManager {
     return this.cityManagementService.getCity(gameId, cityId);
   }
 
-  // Research management methods
+  // Research management methods - delegates to ResearchManagementService
   public async setPlayerResearch(gameId: string, playerId: string, techId: string): Promise<void> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    const player = gameInstance.players.get(playerId);
-    if (!player) {
-      throw new Error('Player not found in game');
-    }
-
-    await gameInstance.researchManager.setCurrentResearch(playerId, techId);
-
-    // Broadcast research change to the player
-    this.broadcastToGame(gameId, 'research_changed', {
-      gameId,
-      playerId,
-      techId,
-      availableTechs: gameInstance.researchManager.getAvailableTechnologies(playerId),
-    });
+    return this.researchManagementService.setPlayerResearch(gameId, playerId, techId);
   }
 
   public async setResearchGoal(gameId: string, playerId: string, techId: string): Promise<void> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    const player = gameInstance.players.get(playerId);
-    if (!player) {
-      throw new Error('Player not found in game');
-    }
-
-    await gameInstance.researchManager.setResearchGoal(playerId, techId);
-
-    // Broadcast goal change to the player
-    this.broadcastToGame(gameId, 'research_goal_changed', {
-      gameId,
-      playerId,
-      techGoal: techId,
-    });
+    return this.researchManagementService.setResearchGoal(gameId, playerId, techId);
   }
 
   public getPlayerResearch(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.researchManager.getPlayerResearch(playerId);
+    return this.researchManagementService.getPlayerResearch(gameId, playerId);
   }
 
   public getAvailableTechnologies(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.researchManager.getAvailableTechnologies(playerId);
+    return this.researchManagementService.getAvailableTechnologies(gameId, playerId);
   }
 
   public getResearchProgress(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.researchManager.getResearchProgress(playerId);
+    return this.researchManagementService.getResearchProgress(gameId, playerId);
   }
 
   public async processResearchTurn(gameId: string): Promise<void> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    // Process research for each player
-    for (const [playerId, player] of gameInstance.players) {
-      if (!player.isConnected) continue;
-
-      // Get science output from cities
-      const playerCities = gameInstance.cityManager.getPlayerCities(playerId);
-      let totalScience = 0;
-
-      for (const city of playerCities) {
-        totalScience += city.sciencePerTurn || 0;
-      }
-
-      // Add research points and check for completed techs
-      const completedTech = await gameInstance.researchManager.addResearchPoints(
-        playerId,
-        totalScience
-      );
-
-      if (completedTech) {
-        // Broadcast tech completion to all players
-        this.broadcastToGame(gameId, 'tech_completed', {
-          gameId,
-          playerId,
-          techId: completedTech,
-          playerName: player.civilization,
-          availableTechs: gameInstance.researchManager.getAvailableTechnologies(playerId),
-        });
-
-        logger.info('Technology completed', { gameId, playerId, techId: completedTech });
-      }
-    }
+    return this.researchManagementService.processResearchTurn(gameId);
   }
 
   /**
