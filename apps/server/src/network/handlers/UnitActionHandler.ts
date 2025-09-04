@@ -123,25 +123,10 @@ export class UnitActionHandler extends BaseSocketHandler {
       }
 
       // Execute the move immediately
-      const moved = await this.gameManager.moveUnit(
-        connection.gameId!,
-        player.id,
-        data.unitId,
-        data.x,
-        data.y
-      );
+      const { moved, unit } = await this.executeMove(connection.gameId!, player.id, data);
 
       if (moved) {
-        const gameInstance = this.gameManager.getGameInstance(connection.gameId!);
-        const unit = gameInstance?.unitManager.getUnit(data.unitId);
-        handler.send(socket, PacketType.UNIT_MOVE_REPLY, {
-          success: true,
-          unitId: data.unitId,
-          newX: unit?.x,
-          newY: unit?.y,
-          movementLeft: unit?.movementLeft,
-        });
-
+        this.sendMoveSuccessReply(handler, socket, data.unitId, unit);
         logger.debug('Unit moved successfully', {
           gameId: connection.gameId,
           playerId: player.id,
@@ -173,6 +158,18 @@ export class UnitActionHandler extends BaseSocketHandler {
     );
   }
 
+  private async executeMove(
+    gameId: string,
+    playerId: string,
+    data: { unitId: string; x: number; y: number }
+  ): Promise<{ moved: boolean; unit?: any }> {
+    const moved = await this.gameManager.moveUnit(gameId, playerId, data.unitId, data.x, data.y);
+    if (!moved) return { moved };
+    const gameInstance = this.gameManager.getGameInstance(gameId);
+    const unit = gameInstance?.unitManager.getUnit(data.unitId);
+    return { moved, unit };
+  }
+
   private sendMoveReply(
     handler: PacketHandler,
     socket: Socket,
@@ -183,6 +180,21 @@ export class UnitActionHandler extends BaseSocketHandler {
     const payload: any = { success, unitId };
     if (message) payload.message = message;
     handler.send(socket, PacketType.UNIT_MOVE_REPLY, payload);
+  }
+
+  private sendMoveSuccessReply(
+    handler: PacketHandler,
+    socket: Socket,
+    unitId: string,
+    unit: any | undefined
+  ): void {
+    handler.send(socket, PacketType.UNIT_MOVE_REPLY, {
+      success: true,
+      unitId,
+      newX: unit?.x,
+      newY: unit?.y,
+      movementLeft: unit?.movementLeft,
+    });
   }
 
   /**
