@@ -36,7 +36,9 @@ export function useNations(ruleset: string = 'classic') {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
+      console.log(`Fetching nations for ruleset: ${ruleset}`);
       const response = await nationsApi.getNations(ruleset);
+      console.log('Nations API response:', response);
 
       if (response.success && response.data) {
         setState({
@@ -53,6 +55,7 @@ export function useNations(ruleset: string = 'classic') {
         }));
       }
     } catch (error) {
+      console.error('Error fetching nations:', error);
       setState(prev => ({
         ...prev,
         loading: false,

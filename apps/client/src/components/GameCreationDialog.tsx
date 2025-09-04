@@ -1,18 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageBackground } from './shared/PageBackground';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './ui/card';
 import { Input } from './ui/input';
 import { Combobox } from './ui/combobox';
 import { useNationSelection } from '../hooks/useNations';
+import { useGameCreationStore } from '../store/gameCreationStore';
 
 export const GameCreationDialog: React.FC = () => {
-  const [playerName, setPlayerName] = useState('');
-  const [gameName, setGameName] = useState('');
-  const [gameType, setGameType] = useState<'single' | 'multiplayer'>('single');
-  const [maxPlayers, setMaxPlayers] = useState(4);
-  const [mapSize, setMapSize] = useState('standard');
-  const [selectedNation, setSelectedNation] = useState('random');
+  const { formData, updateFormData, resetAll, _hasHydrated } = useGameCreationStore();
   const [error, setError] = useState('');
 
   // Fetch nations using our hook
@@ -20,7 +16,32 @@ export const GameCreationDialog: React.FC = () => {
 
   const navigate = useNavigate();
 
+  // Log errors for debugging
+  useEffect(() => {
+    if (nationsError) {
+      console.error('Failed to fetch nations:', nationsError);
+    }
+  }, [nationsError]);
+
+  // Wait for hydration before rendering
+  if (!_hasHydrated) {
+    return (
+      <PageBackground>
+        <Card className="w-full max-w-4xl mx-auto mt-8 mb-8 shadow-2xl bg-gray-800/95 border-gray-700">
+          <CardContent className="flex items-center justify-center py-10">
+            <div className="text-gray-400">Loading...</div>
+          </CardContent>
+        </Card>
+      </PageBackground>
+    );
+  }
+
+  // Destructure form data for easier access
+  const { playerName, gameName, gameType, maxPlayers, mapSize, selectedNation } = formData;
+
   const handleBack = () => {
+    // Clear the stored form data when canceling
+    resetAll();
     navigate('/');
   };
 
@@ -42,17 +63,18 @@ export const GameCreationDialog: React.FC = () => {
       return;
     }
 
-    // Navigate to terrain settings with game parameters
-    navigate('/terrain-settings', {
-      state: {
-        playerName: playerName.trim(),
-        gameName: gameName.trim(),
-        gameType,
-        maxPlayers: gameType === 'single' ? 1 : maxPlayers,
-        mapSize,
-        selectedNation,
-      },
+    // Update the store with final values before navigation
+    updateFormData({
+      playerName: playerName.trim(),
+      gameName: gameName.trim(),
+      gameType,
+      maxPlayers: gameType === 'single' ? 1 : maxPlayers,
+      mapSize,
+      selectedNation,
     });
+
+    // Navigate to terrain settings
+    navigate('/terrain-settings');
   };
 
   const mapSizeOptions = [
@@ -122,7 +144,7 @@ export const GameCreationDialog: React.FC = () => {
                     id="playerName"
                     type="text"
                     value={playerName}
-                    onChange={e => setPlayerName(e.target.value)}
+                    onChange={e => updateFormData({ playerName: e.target.value })}
                     placeholder="Enter your player name"
                     maxLength={32}
                   />
@@ -139,7 +161,7 @@ export const GameCreationDialog: React.FC = () => {
                     id="gameName"
                     type="text"
                     value={gameName}
-                    onChange={e => setGameName(e.target.value)}
+                    onChange={e => updateFormData({ gameName: e.target.value })}
                     placeholder="Enter game name"
                     maxLength={50}
                   />
@@ -155,7 +177,7 @@ export const GameCreationDialog: React.FC = () => {
                   <Combobox
                     options={nationOptions}
                     value={selectedNation}
-                    onValueChange={value => setSelectedNation(value)}
+                    onValueChange={value => updateFormData({ selectedNation: value })}
                     placeholder={nationsLoading ? 'Loading nations...' : 'Select your nation'}
                     disabled={nationsLoading}
                   />
@@ -176,7 +198,9 @@ export const GameCreationDialog: React.FC = () => {
                   <Combobox
                     options={gameTypeOptions}
                     value={gameType}
-                    onValueChange={value => setGameType(value as 'single' | 'multiplayer')}
+                    onValueChange={value =>
+                      updateFormData({ gameType: value as 'single' | 'multiplayer' })
+                    }
                     placeholder="Select game type"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
@@ -196,7 +220,7 @@ export const GameCreationDialog: React.FC = () => {
                   <Combobox
                     options={mapSizeOptions}
                     value={mapSize}
-                    onValueChange={value => setMapSize(value)}
+                    onValueChange={value => updateFormData({ mapSize: value })}
                     placeholder="Select map size"
                   />
                 </div>
@@ -213,7 +237,7 @@ export const GameCreationDialog: React.FC = () => {
                   <Combobox
                     options={maxPlayersOptions}
                     value={maxPlayers.toString()}
-                    onValueChange={value => setMaxPlayers(Number(value))}
+                    onValueChange={value => updateFormData({ maxPlayers: Number(value) })}
                     placeholder="Select max players"
                     className="md:max-w-xs"
                   />

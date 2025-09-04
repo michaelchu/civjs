@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Server, Socket } from 'socket.io';
 import { logger } from '../../utils/logger';
 import { PacketHandler } from '../PacketHandler';
@@ -155,7 +154,7 @@ export class MapVisibilityHandler extends BaseSocketHandler {
     }
   }
 
-  private async handleGetMapData(socket: Socket, callback: Function): Promise<void> {
+  private async handleGetMapData(socket: Socket, callback: (response: any) => void): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isInGame(connection)) {
       callback({ success: false, error: 'Not in a game' });
@@ -174,7 +173,10 @@ export class MapVisibilityHandler extends BaseSocketHandler {
     }
   }
 
-  private async handleGetVisibleTiles(socket: Socket, callback: Function): Promise<void> {
+  private async handleGetVisibleTiles(
+    socket: Socket,
+    callback: (response: any) => void
+  ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isInGame(connection)) {
       callback({ success: false, error: 'Not in a game' });

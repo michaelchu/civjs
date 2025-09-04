@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Server, Socket } from 'socket.io';
 import { logger } from '../../utils/logger';
 import { PacketHandler } from '../PacketHandler';
@@ -234,7 +233,11 @@ export class GameManagementHandler extends BaseSocketHandler {
   /**
    * Handle join_game socket event
    */
-  private async handleJoinGameEvent(socket: Socket, data: any, callback: Function): Promise<void> {
+  private async handleJoinGameEvent(
+    socket: Socket,
+    data: any,
+    callback: (response: any) => void
+  ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection)) {
       callback({ success: false, error: 'Not authenticated' });
@@ -272,7 +275,7 @@ export class GameManagementHandler extends BaseSocketHandler {
   private async handleObserveGameEvent(
     socket: Socket,
     data: any,
-    callback: Function
+    callback: (response: any) => void
   ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection)) {
@@ -306,7 +309,7 @@ export class GameManagementHandler extends BaseSocketHandler {
   /**
    * Handle get_game_list socket event
    */
-  private async handleGetGameListEvent(callback: Function): Promise<void> {
+  private async handleGetGameListEvent(callback: (response: any) => void): Promise<void> {
     try {
       logger.info('Getting game list requested');
       const games = await this.gameManager.getGameListForLobby(null);
@@ -322,7 +325,7 @@ export class GameManagementHandler extends BaseSocketHandler {
   /**
    * Handle delete_game socket event
    */
-  private async handleDeleteGameEvent(data: any, callback: Function): Promise<void> {
+  private async handleDeleteGameEvent(data: any, callback: (response: any) => void): Promise<void> {
     try {
       // For single-player mode, allow anyone to delete any game
       await this.gameManager.deleteGame(data.gameId);
