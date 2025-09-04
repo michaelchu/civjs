@@ -15,6 +15,7 @@ import { GameStateManager } from './managers/GameStateManager';
 import { PlayerConnectionManager } from './managers/PlayerConnectionManager';
 import { ServiceRegistry } from './managers/ServiceRegistry';
 import { UnitManagementService } from './managers/UnitManagementService';
+import { CityManagementService } from './managers/CityManagementService';
 
 // Keep existing imports for delegation
 import { CityManager } from './CityManager';
@@ -104,6 +105,7 @@ export class GameManager {
   private gameLifecycleManager!: GameLifecycleManager;
   private gameBroadcastManager!: GameBroadcastManager;
   private unitManagementService!: UnitManagementService;
+  private cityManagementService!: CityManagementService;
 
   private constructor(io: SocketServer) {
     this.io = io;
@@ -148,12 +150,18 @@ export class GameManager {
       this.broadcastToGame.bind(this)
     );
 
+    this.cityManagementService = new CityManagementService(
+      this.games,
+      this.broadcastToGame.bind(this)
+    );
+
     // Register services
     this.serviceRegistry.register('GameStateManager', this.gameStateManager);
     this.serviceRegistry.register('PlayerConnectionManager', this.playerConnectionManager);
     this.serviceRegistry.register('GameLifecycleManager', this.gameLifecycleManager);
     this.serviceRegistry.register('GameBroadcastManager', this.gameBroadcastManager);
     this.serviceRegistry.register('UnitManagementService', this.unitManagementService);
+    this.serviceRegistry.register('CityManagementService', this.cityManagementService);
 
     // Set cross-references
     this.gameBroadcastManager.setGamesReference(this.games);
@@ -1322,7 +1330,7 @@ export class GameManager {
     }));
   }
 
-  // City management methods
+  // City management methods - delegates to CityManagementService
   public async foundCity(
     gameId: string,
     playerId: string,
@@ -1330,48 +1338,7 @@ export class GameManager {
     x: number,
     y: number
   ): Promise<string> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    if (gameInstance.state !== 'active') {
-      throw new Error('Cannot found cities unless game is active');
-    }
-
-    const player = gameInstance.players.get(playerId);
-    if (!player) {
-      throw new Error('Player not found in game');
-    }
-
-    // Check if there's already a city at this position
-    const existingCity = gameInstance.cityManager.getCityAt(x, y);
-    if (existingCity) {
-      throw new Error('There is already a city at this location');
-    }
-
-    const cityId = await gameInstance.cityManager.foundCity(
-      playerId,
-      name,
-      x,
-      y,
-      gameInstance.currentTurn
-    );
-
-    // Broadcast city founding to all players
-    this.broadcastToGame(gameId, 'city_founded', {
-      gameId,
-      city: {
-        id: cityId,
-        playerId,
-        name,
-        x,
-        y,
-        population: 1,
-      },
-    });
-
-    return cityId;
+    return this.cityManagementService.foundCity(gameId, playerId, name, x, y);
   }
 
   public async setCityProduction(
@@ -1381,47 +1348,15 @@ export class GameManager {
     production: string,
     type: 'unit' | 'building'
   ): Promise<void> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    const city = gameInstance.cityManager.getCity(cityId);
-    if (!city) {
-      throw new Error('City not found');
-    }
-
-    if (city.playerId !== playerId) {
-      throw new Error('City does not belong to player');
-    }
-
-    await gameInstance.cityManager.setCityProduction(cityId, production, type);
-
-    // Broadcast production change to all players
-    this.broadcastToGame(gameId, 'city_production_changed', {
-      gameId,
-      cityId,
-      production,
-      type,
-    });
+    return this.cityManagementService.setCityProduction(gameId, playerId, cityId, production, type);
   }
 
   public getPlayerCities(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.cityManager.getPlayerCities(playerId);
+    return this.cityManagementService.getPlayerCities(gameId, playerId);
   }
 
   public getCity(gameId: string, cityId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.cityManager.getCity(cityId);
+    return this.cityManagementService.getCity(gameId, cityId);
   }
 
   // Research management methods
