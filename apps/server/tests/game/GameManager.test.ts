@@ -18,11 +18,11 @@ describe('GameManager', () => {
   beforeEach(() => {
     // Reset singleton for testing
     (GameManager as any).instance = null;
-    
+
     // Reset mock functions
     (mockIo.to as jest.Mock).mockClear();
     mockEmit.mockClear();
-    
+
     gameManager = GameManager.getInstance(mockIo);
 
     // Setup database query mock (needed for joinGame and other methods)
@@ -351,7 +351,10 @@ describe('GameManager', () => {
           },
           pathfindingManager: {
             findPath: jest.fn().mockResolvedValue({
-              path: [{ x: 5, y: 5, moveCost: 0 }, { x: 10, y: 10, moveCost: 3 }],
+              path: [
+                { x: 5, y: 5, moveCost: 0 },
+                { x: 10, y: 10, moveCost: 3 },
+              ],
               totalCost: 3,
               estimatedTurns: 1,
               valid: true,
@@ -451,7 +454,7 @@ describe('GameManager', () => {
           path: [
             { x: 5, y: 5, moveCost: 0 },
             { x: 6, y: 5, moveCost: 1 },
-            { x: 7, y: 5, moveCost: 1 }
+            { x: 7, y: 5, moveCost: 1 },
           ],
           totalCost: 2,
           estimatedTurns: 1,
@@ -488,7 +491,7 @@ describe('GameManager', () => {
         expect(result.path).toHaveProperty('totalCost', 2);
         expect(result.path).toHaveProperty('estimatedTurns', 1);
         expect(result.path).toHaveProperty('valid', true);
-        
+
         // Verify tiles array structure
         expect(Array.isArray(result.path?.tiles)).toBe(true);
         expect(result.path?.tiles).toHaveLength(3);

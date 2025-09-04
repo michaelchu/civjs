@@ -277,7 +277,7 @@ export class TerrainGenerator {
     let completeCount = 0;
     let incompleteCount = 0;
     let sampleTile = null;
-    
+
     for (let x = 0; x < this.width && x < 5; x++) {
       for (let y = 0; y < this.height && y < 5; y++) {
         const tile = tiles[x][y];
@@ -289,16 +289,18 @@ export class TerrainGenerator {
         }
       }
     }
-    
+
     console.log(`TerrainGenerator completed - Sample check (first 5x5):`, {
       complete: completeCount,
       incomplete: incompleteCount,
-      sampleTile: sampleTile ? { 
-        terrain: sampleTile.terrain, 
-        elevation: sampleTile.elevation,
-        x: sampleTile.x,
-        y: sampleTile.y 
-      } : 'none'
+      sampleTile: sampleTile
+        ? {
+            terrain: sampleTile.terrain,
+            elevation: sampleTile.elevation,
+            x: sampleTile.x,
+            y: sampleTile.y,
+          }
+        : 'none',
     });
   }
 

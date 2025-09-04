@@ -253,9 +253,9 @@ describe('PathfindingManager', () => {
     it('should require MapManager for movement cost calculations', async () => {
       // Test without MapManager - should return invalid path
       const pathfinderWithoutMap = new PathfindingManager(mockMapWidth, mockMapHeight);
-      
+
       const result = await pathfinderWithoutMap.findPath(mockUnit, 11, 10);
-      
+
       // Without MapManager, pathfinding should fail gracefully
       expect(result.valid).toBe(false);
       expect(result.path).toHaveLength(0);
@@ -264,9 +264,9 @@ describe('PathfindingManager', () => {
     it('should handle MapManager getTile failures gracefully', async () => {
       // Mock getTile to return null (tile not found)
       mockMapManager.getTile.mockReturnValue(null);
-      
+
       const result = await pathfindingManager.findPath(mockUnit, 11, 10);
-      
+
       // Should handle missing tile data gracefully
       expect(result.valid).toBe(false);
     });
@@ -274,19 +274,19 @@ describe('PathfindingManager', () => {
     it('should return consistent path structure for ActionSystem integration', async () => {
       // This test ensures the pathResult structure matches what ActionSystem expects
       mockMapManager.getTile.mockReturnValue({ terrain: 'grassland' });
-      
+
       const result = await pathfindingManager.findPath(mockUnit, 12, 10);
-      
+
       expect(result).toHaveProperty('path');
       expect(result).toHaveProperty('totalCost');
       expect(result).toHaveProperty('estimatedTurns');
       expect(result).toHaveProperty('valid');
-      
+
       if (result.valid) {
         expect(Array.isArray(result.path)).toBe(true);
         expect(typeof result.totalCost).toBe('number');
         expect(typeof result.estimatedTurns).toBe('number');
-        
+
         // Each path tile should have required structure
         result.path.forEach(tile => {
           expect(tile).toHaveProperty('x');
@@ -308,9 +308,9 @@ describe('PathfindingManager', () => {
         }
         return { x, y, terrain: 'grassland' }; // Standard cost
       });
-      
+
       const result = await pathfindingManager.findPath(mockUnit, 11, 10);
-      
+
       expect(result.valid).toBe(true);
       expect(result.totalCost).toBeGreaterThan(0);
       expect(result.estimatedTurns).toBeGreaterThan(0);
@@ -318,18 +318,18 @@ describe('PathfindingManager', () => {
 
     it('should handle unit movement point calculations correctly', async () => {
       mockMapManager.getTile.mockReturnValue({ terrain: 'grassland' });
-      
+
       // Test with unit having different movement points
       const slowUnit = { ...mockUnit, movementLeft: 1 };
       const fastUnit = { ...mockUnit, movementLeft: 6 };
-      
+
       const slowResult = await pathfindingManager.findPath(slowUnit, 12, 10);
       const fastResult = await pathfindingManager.findPath(fastUnit, 12, 10);
-      
+
       // Both should find path, but estimated turns should differ based on movement capability
       expect(slowResult.valid).toBe(true);
       expect(fastResult.valid).toBe(true);
-      
+
       // Slow unit should need more turns for same distance
       if (slowResult.totalCost === fastResult.totalCost) {
         expect(slowResult.estimatedTurns).toBeGreaterThanOrEqual(fastResult.estimatedTurns);

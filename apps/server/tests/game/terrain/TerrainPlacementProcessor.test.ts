@@ -210,7 +210,9 @@ describe('TerrainPlacementProcessor', () => {
       processor.initializeHmapLowLevel(swampPct, hmapShoreLevel, hmapMaxLevel);
 
       // Calculate expected value: (4 * 15 * (1000 - 200)) / 100 + 200 = 680
-      const expectedHmapLowLevel = Math.floor((4 * swampPct * (hmapMaxLevel - hmapShoreLevel)) / 100 + hmapShoreLevel);
+      const expectedHmapLowLevel = Math.floor(
+        (4 * swampPct * (hmapMaxLevel - hmapShoreLevel)) / 100 + hmapShoreLevel
+      );
       expect(expectedHmapLowLevel).toBe(680);
 
       // This test ensures the calculation is dynamic, not hardcoded to values like 30 or 500
@@ -222,19 +224,21 @@ describe('TerrainPlacementProcessor', () => {
 
       // Test various swamp percentages produce different thresholds
       const testCases = [
-        { swampPct: 0, expected: 200 },   // (4 * 0 * 800) / 100 + 200 = 200
-        { swampPct: 10, expected: 520 },  // (4 * 10 * 800) / 100 + 200 = 520
+        { swampPct: 0, expected: 200 }, // (4 * 0 * 800) / 100 + 200 = 200
+        { swampPct: 10, expected: 520 }, // (4 * 10 * 800) / 100 + 200 = 520
         { swampPct: 25, expected: 1000 }, // (4 * 25 * 800) / 100 + 200 = 1000
       ];
 
       testCases.forEach(({ swampPct, expected }) => {
         processor.initializeHmapLowLevel(swampPct, hmapShoreLevel, hmapMaxLevel);
-        const calculated = Math.floor((4 * swampPct * (hmapMaxLevel - hmapShoreLevel)) / 100 + hmapShoreLevel);
+        const calculated = Math.floor(
+          (4 * swampPct * (hmapMaxLevel - hmapShoreLevel)) / 100 + hmapShoreLevel
+        );
         expect(calculated).toBe(expected);
-        
+
         // Ensure we never get the old hardcoded broken values
-        expect(calculated).not.toBe(30);   // Old broken hardcoded value
-        expect(calculated).not.toBe(500);  // Old broken hardcoded value
+        expect(calculated).not.toBe(30); // Old broken hardcoded value
+        expect(calculated).not.toBe(500); // Old broken hardcoded value
       });
     });
 
@@ -244,16 +248,20 @@ describe('TerrainPlacementProcessor', () => {
       const hmapMaxLevel = 1000;
 
       processor.initializeHmapLowLevel(10, hmapShoreLevel, hmapMaxLevel);
-      const lowSwampThreshold = Math.floor((4 * 10 * (hmapMaxLevel - hmapShoreLevel)) / 100 + hmapShoreLevel);
+      const lowSwampThreshold = Math.floor(
+        (4 * 10 * (hmapMaxLevel - hmapShoreLevel)) / 100 + hmapShoreLevel
+      );
 
       processor.initializeHmapLowLevel(30, hmapShoreLevel, hmapMaxLevel);
-      const highSwampThreshold = Math.floor((4 * 30 * (hmapMaxLevel - hmapShoreLevel)) / 100 + hmapShoreLevel);
+      const highSwampThreshold = Math.floor(
+        (4 * 30 * (hmapMaxLevel - hmapShoreLevel)) / 100 + hmapShoreLevel
+      );
 
       expect(lowSwampThreshold).not.toBe(highSwampThreshold);
       expect(highSwampThreshold).toBeGreaterThan(lowSwampThreshold);
 
       // Values should be calculated, not hardcoded
-      expect(lowSwampThreshold).toBe(520);  // Calculated value
+      expect(lowSwampThreshold).toBe(520); // Calculated value
       expect(highSwampThreshold).toBe(1160); // Calculated value
     });
   });
