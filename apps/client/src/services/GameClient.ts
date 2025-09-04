@@ -403,9 +403,9 @@ class GameClient {
       xsize: data.xsize,
       ysize: data.ysize,
       totalTiles: data.xsize * data.ysize,
-      existingTiles: !!(window as any).tiles
+      existingTiles: !!(window as any).tiles,
     });
-    
+
     // Store in global map variable exactly like freeciv-web: map = packet;
     (window as any).map = data;
 
@@ -424,14 +424,14 @@ class GameClient {
   }
 
   private handleTileInfo(data: any) {
-    console.log('Received single TILE_INFO packet:', { 
-      tile: data.tile, 
-      x: data.x, 
-      y: data.y, 
+    console.log('Received single TILE_INFO packet:', {
+      tile: data.tile,
+      x: data.x,
+      y: data.y,
       terrain: data.terrain,
-      elevation: data.elevation 
+      elevation: data.elevation,
     });
-    
+
     if ((window as any).tiles && data.tile !== undefined) {
       const tiles = (window as any).tiles;
       tiles[data.tile] = Object.assign(tiles[data.tile] || {}, data);
@@ -474,20 +474,22 @@ class GameClient {
   }
 
   private handleTileInfoBatch(data: any) {
-    console.log('Received TILE_INFO batch:', { 
+    console.log('Received TILE_INFO batch:', {
       batchSize: data.tiles?.length || 0,
       startIndex: data.startIndex,
       endIndex: data.endIndex,
       total: data.total,
-      firstTile: data.tiles?.[0] ? {
-        tile: data.tiles[0].tile,
-        x: data.tiles[0].x,
-        y: data.tiles[0].y,
-        terrain: data.tiles[0].terrain,
-        elevation: data.tiles[0].elevation
-      } : 'none'
+      firstTile: data.tiles?.[0]
+        ? {
+            tile: data.tiles[0].tile,
+            x: data.tiles[0].x,
+            y: data.tiles[0].y,
+            terrain: data.tiles[0].terrain,
+            elevation: data.tiles[0].elevation,
+          }
+        : 'none',
     });
-    
+
     if (!(window as any).tiles || !data.tiles) return;
 
     const tiles = (window as any).tiles;

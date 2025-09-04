@@ -199,19 +199,20 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   // Render game state - use global tiles for stability (same source as MapRenderer)
   useEffect(() => {
     if (!rendererRef.current || !canvasRef.current) return;
-    
+
     const globalTiles = (window as unknown as Record<string, unknown>).tiles as unknown[];
     const globalMap = (window as unknown as Record<string, unknown>).map;
-    
+
     console.log('MapCanvas render effect triggered:', {
       globalTilesCount: globalTiles ? globalTiles.length : 0,
       storeTileCount: map ? Object.keys(map.tiles).length : 0,
       unitCount: Object.keys(units).length,
       cityCount: Object.keys(cities).length,
       viewport,
-      dataSourceMismatch: globalTiles && map ? globalTiles.length !== Object.keys(map.tiles).length : false
+      dataSourceMismatch:
+        globalTiles && map ? globalTiles.length !== Object.keys(map.tiles).length : false,
     });
-    
+
     // Only render if we have the global tiles data that MapRenderer uses
     if (rendererRef.current && globalTiles && globalMap) {
       console.log('Executing render with global tiles count:', globalTiles.length);
@@ -229,31 +230,34 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   // Monitor global tiles changes and trigger canvas reinitialization (like window resize)
   useEffect(() => {
     let lastTilesLength = 0;
-    
+
     const checkGlobalTiles = () => {
       const globalTiles = (window as unknown as Record<string, unknown>).tiles as unknown[];
       if (globalTiles && globalTiles.length !== lastTilesLength && globalTiles.length > 0) {
         console.log('Global tiles changed, triggering canvas reinitialization:', {
           oldLength: lastTilesLength,
-          newLength: globalTiles.length
+          newLength: globalTiles.length,
         });
-        
+
         lastTilesLength = globalTiles.length;
-        
+
         // Force canvas reinitialization like window resize does
         const canvas = canvasRef.current;
         if (canvas && rendererRef.current) {
           // Get current dimensions
           const currentWidth = canvas.width;
           const currentHeight = canvas.height;
-          
-          console.log('Forcing canvas context reset:', { width: currentWidth, height: currentHeight });
-          
+
+          console.log('Forcing canvas context reset:', {
+            width: currentWidth,
+            height: currentHeight,
+          });
+
           // Force complete canvas context reset by setting dimensions
           // This clears any corrupted rendering state that might cause visual glitches
           canvas.width = currentWidth;
           canvas.height = currentHeight;
-          
+
           // Reinitialize the renderer context (important!)
           const ctx = canvas.getContext('2d');
           if (ctx) {
@@ -264,21 +268,21 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             (ctx as unknown as Record<string, unknown>).msImageSmoothingEnabled = false;
             ctx.font = '14px Arial, sans-serif';
           }
-          
-          // Update viewport to trigger full re-render  
+
+          // Update viewport to trigger full re-render
           setViewport({ width: currentWidth, height: currentHeight });
         }
-        
+
         setGlobalTilesVersion(prev => prev + 1);
       }
     };
-    
+
     // Check periodically for global tiles changes (more stable than event-based)
     const interval = setInterval(checkGlobalTiles, 100); // Check every 100ms
-    
+
     // Also check immediately
     checkGlobalTiles();
-    
+
     return () => clearInterval(interval);
   }, [setViewport]); // Add setViewport dependency
 
