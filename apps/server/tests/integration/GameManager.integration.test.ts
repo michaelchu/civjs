@@ -152,7 +152,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
       gameId = await gameManager.createGame(gameConfig);
     });
 
-    // TODO: Fix in separate PR - games auto-transitioning from waiting to active status  
+    // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     it.skip('should join players and persist to database', async () => {
       const userId1 = generateTestUUID('0011');
       const userId2 = generateTestUUID('0012');
@@ -326,7 +326,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
       expect(dbGame.status).toBe('active');
     });
 
-    // TODO: Fix in separate PR - game state transition logic issues  
+    // TODO: Fix in separate PR - game state transition logic issues
     it.skip('should prevent non-host from starting game', async () => {
       const gameConfig: GameConfig = {
         name: 'Non-Host Test Game',
