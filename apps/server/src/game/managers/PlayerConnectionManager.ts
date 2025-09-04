@@ -95,7 +95,11 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       },
     };
 
-    const [newPlayer] = await this.databaseProvider.getDatabase().insert(players).values(playerData).returning();
+    const [newPlayer] = await this.databaseProvider
+      .getDatabase()
+      .insert(players)
+      .values(playerData)
+      .returning();
 
     // Track player to game mapping
     this.playerToGame.set(newPlayer.id, gameId);
@@ -134,7 +138,8 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
 
     // Update database connection status
     try {
-      await this.databaseProvider.getDatabase()
+      await this.databaseProvider
+        .getDatabase()
         .update(players)
         .set({
           connectionStatus: isConnected ? 'connected' : 'disconnected',
@@ -219,7 +224,11 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       };
 
       try {
-        const [aiPlayer] = await this.databaseProvider.getDatabase().insert(players).values(aiPlayerData).returning();
+        const [aiPlayer] = await this.databaseProvider
+          .getDatabase()
+          .insert(players)
+          .values(aiPlayerData)
+          .returning();
         this.logger.info('Added AI player to game', {
           gameId,
           aiPlayerId: aiPlayer.id,

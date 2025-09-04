@@ -133,7 +133,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       },
     };
 
-    const [newGame] = await this.databaseProvider.getDatabase().insert(games).values(gameData).returning();
+    const [newGame] = await this.databaseProvider
+      .getDatabase()
+      .insert(games)
+      .values(gameData)
+      .returning();
 
     // Cache basic game data in Redis for performance
     await gameState.setGameState(newGame.id, {
@@ -181,7 +185,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     this.logger.info('Starting game', { gameId, playerCount: game.players.length });
 
     // Update database to active state
-    await this.databaseProvider.getDatabase()
+    await this.databaseProvider
+      .getDatabase()
       .update(games)
       .set({
         status: 'active',
@@ -316,67 +321,78 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     });
 
     // Create UnitManager with proper dependencies
-    const unitManager = new UnitManager(gameId, this.databaseProvider, game.mapWidth, game.mapHeight, mapManager, {
-      foundCity: this.onFoundCity
-        ? (gameId: string, playerId: string, name: string, x: number, y: number) =>
-            this.onFoundCity!(gameId, playerId, name, x, y)
-        : async () => '',
-      requestPath: async (playerId: string, unitId: string, targetX: number, targetY: number) => {
-        // Delegate to the main GameManager's requestPath method
-        // We need access to the GameManager instance that created this lifecycle manager
+    const unitManager = new UnitManager(
+      gameId,
+      this.databaseProvider,
+      game.mapWidth,
+      game.mapHeight,
+      mapManager,
+      {
+        foundCity: this.onFoundCity
+          ? (gameId: string, playerId: string, name: string, x: number, y: number) =>
+              this.onFoundCity!(gameId, playerId, name, x, y)
+          : async () => '',
+        requestPath: async (playerId: string, unitId: string, targetX: number, targetY: number) => {
+          // Delegate to the main GameManager's requestPath method
+          // We need access to the GameManager instance that created this lifecycle manager
 
-        // For now, we'll use a direct approach through the games map
-        // This should be the same GameManager instance that created us
-        const gameInstance = this.games.get(gameId);
-        if (!gameInstance) {
-          return { success: false, error: 'Game instance not found' };
-        }
-
-        // Use the GameManager's pathfinding directly via the game instance
-        try {
-          const unit = gameInstance.unitManager.getUnit(unitId);
-          if (!unit) {
-            return { success: false, error: 'Unit not found' };
+          // For now, we'll use a direct approach through the games map
+          // This should be the same GameManager instance that created us
+          const gameInstance = this.games.get(gameId);
+          if (!gameInstance) {
+            return { success: false, error: 'Game instance not found' };
           }
 
-          if (unit.playerId !== playerId) {
-            return { success: false, error: 'Unit does not belong to player' };
+          // Use the GameManager's pathfinding directly via the game instance
+          try {
+            const unit = gameInstance.unitManager.getUnit(unitId);
+            if (!unit) {
+              return { success: false, error: 'Unit not found' };
+            }
+
+            if (unit.playerId !== playerId) {
+              return { success: false, error: 'Unit does not belong to player' };
+            }
+
+            // Call PathfindingManager directly
+            const pathResult = await gameInstance.pathfindingManager.findPath(
+              unit,
+              targetX,
+              targetY
+            );
+
+            const tiles = Array.isArray(pathResult?.path) ? pathResult.path : [];
+            const isValid = pathResult?.valid && tiles.length > 0;
+
+            return {
+              success: isValid,
+              path: isValid
+                ? {
+                    unitId,
+                    targetX,
+                    targetY,
+                    tiles: tiles,
+                    totalCost: pathResult.totalCost || 0,
+                    estimatedTurns: pathResult.estimatedTurns || 0,
+                    valid: isValid,
+                  }
+                : undefined,
+              error: isValid ? undefined : 'No valid path found',
+            };
+          } catch (error) {
+            logger.error('Error in GameLifecycleManager requestPath delegation:', error);
+            return { success: false, error: 'Pathfinding error' };
           }
-
-          // Call PathfindingManager directly
-          const pathResult = await gameInstance.pathfindingManager.findPath(unit, targetX, targetY);
-
-          const tiles = Array.isArray(pathResult?.path) ? pathResult.path : [];
-          const isValid = pathResult?.valid && tiles.length > 0;
-
-          return {
-            success: isValid,
-            path: isValid
-              ? {
-                  unitId,
-                  targetX,
-                  targetY,
-                  tiles: tiles,
-                  totalCost: pathResult.totalCost || 0,
-                  estimatedTurns: pathResult.estimatedTurns || 0,
-                  valid: isValid,
-                }
-              : undefined,
-            error: isValid ? undefined : 'No valid path found',
-          };
-        } catch (error) {
-          logger.error('Error in GameLifecycleManager requestPath delegation:', error);
-          return { success: false, error: 'Pathfinding error' };
-        }
-      },
-      broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
-        this.onBroadcast?.(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
-      },
-      getCityAt: (x: number, y: number) => {
-        const city = cityManager.getCityAt(x, y);
-        return city ? { playerId: city.playerId } : null;
-      },
-    });
+        },
+        broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
+          this.onBroadcast?.(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
+        },
+        getCityAt: (x: number, y: number) => {
+          const city = cityManager.getCityAt(x, y);
+          return city ? { playerId: city.playerId } : null;
+        },
+      }
+    );
 
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
 
@@ -453,7 +469,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     }
 
     // Update database to mark game as ended
-    await this.databaseProvider.getDatabase()
+    await this.databaseProvider
+      .getDatabase()
       .update(games)
       .set({
         status: 'ended',

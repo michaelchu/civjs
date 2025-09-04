@@ -43,7 +43,11 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       hostId: gameData.hostId,
     });
 
-    const [newGame] = await this.databaseProvider.getDatabase().insert(games).values(gameData).returning();
+    const [newGame] = await this.databaseProvider
+      .getDatabase()
+      .insert(games)
+      .values(gameData)
+      .returning();
 
     // Cache basic game data in Redis for performance
     await this.cacheGameState(newGame.id, {
@@ -62,7 +66,8 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
    */
   async updateGameState(gameId: string, updates: any): Promise<void> {
     try {
-      await this.databaseProvider.getDatabase()
+      await this.databaseProvider
+        .getDatabase()
         .update(games)
         .set({
           ...updates,
@@ -220,7 +225,8 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       };
 
       // Update database with map data and seed
-      await this.databaseProvider.getDatabase()
+      await this.databaseProvider
+        .getDatabase()
         .update(games)
         .set({
           mapSeed: mapData.seed,

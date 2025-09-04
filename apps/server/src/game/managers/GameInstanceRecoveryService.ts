@@ -132,17 +132,24 @@ export class GameInstanceRecoveryService extends BaseGameService {
 
       // Initialize managers (now that mapManager is available)
       const turnManager = new TurnManager(gameId, this.databaseProvider, this.io);
-      const unitManager = new UnitManager(gameId, this.databaseProvider, game.mapWidth, game.mapHeight, mapManager, {
-        foundCity: this.foundCity.bind(this),
-        requestPath: this.requestPath.bind(this),
-        broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
-          this.broadcastToGame(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
-        },
-        getCityAt: (x: number, y: number) => {
-          const city = cityManager.getCityAt(x, y);
-          return city ? { playerId: city.playerId } : null;
-        },
-      });
+      const unitManager = new UnitManager(
+        gameId,
+        this.databaseProvider,
+        game.mapWidth,
+        game.mapHeight,
+        mapManager,
+        {
+          foundCity: this.foundCity.bind(this),
+          requestPath: this.requestPath.bind(this),
+          broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
+            this.broadcastToGame(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
+          },
+          getCityAt: (x: number, y: number) => {
+            const city = cityManager.getCityAt(x, y);
+            return city ? { playerId: city.playerId } : null;
+          },
+        }
+      );
 
       // Initialize turn system with existing player IDs
       const playerIds = Array.from(players.keys());
