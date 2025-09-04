@@ -463,28 +463,46 @@ export function adjustIntMapFiltered(
   maxValue: number,
   filter?: (x: number, y: number) => boolean
 ): void {
-  const intMapDelta = maxValue - minValue;
+  const { minVal, maxVal, total } = determineMinMax(intMap, width, height, filter);
+  if (total === 0) return;
+
+  const size = 1 + maxVal - minVal;
+  if (size < 1) return;
+
+  if (size > 1000000) {
+    convertAllToIntegers(intMap, width, height, filter);
+    return adjustIntMapFiltered(intMap, width, height, minValue, maxValue, filter);
+  }
+
+  if (size === 1) {
+    fillUniform(intMap, width, height, minValue, filter);
+    return;
+  }
+
+  const frequencies = buildHistogram(intMap, width, height, minVal, filter, size);
+  buildCdfInPlace(frequencies, minValue, maxValue - minValue, total);
+  applyLinearization(intMap, width, height, frequencies, filter);
+}
+
+function determineMinMax(
+  intMap: number[],
+  width: number,
+  height: number,
+  filter?: (x: number, y: number) => boolean
+): { minVal: number; maxVal: number; total: number } {
   let minVal = 0;
   let maxVal = 0;
   let total = 0;
   let first = true;
-
-  // Pass 1: Determine minimum and maximum values
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (filter && !filter(x, y)) {
-        continue; // Skip tiles that don't pass the filter
-      }
-
+      if (filter && !filter(x, y)) continue;
       const index = y * width + x;
       let value = intMap[index];
-
-      // Convert fractional values to integers (freeciv expects integers)
       if (!Number.isInteger(value)) {
         value = Math.floor(value);
         intMap[index] = value;
       }
-
       if (first) {
         minVal = value;
         maxVal = value;
@@ -496,79 +514,83 @@ export function adjustIntMapFiltered(
       total++;
     }
   }
+  return { minVal, maxVal, total };
+}
 
-  if (total === 0) {
-    return; // No tiles to process
-  }
-
-  const size = 1 + maxVal - minVal;
-
-  // Prevent invalid array sizes (this shouldn't happen with proper integer inputs)
-  if (size < 1) {
-    return; // No range to process
-  }
-  if (size > 1000000) {
-    // This indicates fractional inputs that create huge ranges
-    // Convert to integers to match freeciv's integer-only processing
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        if (filter && !filter(x, y)) {
-          continue;
-        }
-        const index = y * width + x;
-        intMap[index] = Math.floor(intMap[index]);
-      }
-    }
-    // Recalculate with integer values
-    return adjustIntMapFiltered(intMap, width, height, minValue, maxValue, filter);
-  }
-
-  // Special case: if all values are the same (size == 1), handle directly
-  if (size === 1) {
-    // When all values are uniform, freeciv maps them to minValue
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        if (filter && !filter(x, y)) {
-          continue;
-        }
-        const index = y * width + x;
-        intMap[index] = minValue; // Set to minValue for uniform distribution
-      }
-    }
-    return;
-  }
-
-  const frequencies = new Array(size).fill(0);
-
-  // Pass 2: Translate values and build frequency histogram
+function convertAllToIntegers(
+  intMap: number[],
+  width: number,
+  height: number,
+  filter?: (x: number, y: number) => boolean
+): void {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (filter && !filter(x, y)) {
-        continue;
-      }
-
+      if (filter && !filter(x, y)) continue;
       const index = y * width + x;
-      intMap[index] -= minVal; // Translate so minimum value is 0
+      intMap[index] = Math.floor(intMap[index]);
+    }
+  }
+}
+
+function fillUniform(
+  intMap: number[],
+  width: number,
+  height: number,
+  minValue: number,
+  filter?: (x: number, y: number) => boolean
+): void {
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (filter && !filter(x, y)) continue;
+      const index = y * width + x;
+      intMap[index] = minValue;
+    }
+  }
+}
+
+function buildHistogram(
+  intMap: number[],
+  width: number,
+  height: number,
+  minVal: number,
+  filter: ((x: number, y: number) => boolean) | undefined,
+  size: number
+): number[] {
+  const frequencies = new Array(size).fill(0);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (filter && !filter(x, y)) continue;
+      const index = y * width + x;
+      intMap[index] -= minVal;
       frequencies[intMap[index]]++;
     }
   }
+  return frequencies;
+}
 
-  // Pass 3: Create cumulative distribution function (linearize function)
-  // This exactly matches freeciv's algorithm
+function buildCdfInPlace(
+  frequencies: number[],
+  minValue: number,
+  intMapDelta: number,
+  total: number
+): void {
   let count = 0;
-  for (let i = 0; i < size; i++) {
+  for (let i = 0; i < frequencies.length; i++) {
     count += frequencies[i];
-    // Exact freeciv formula: int_map_min + (count * int_map_delta) / total
     frequencies[i] = minValue + Math.floor((count * intMapDelta) / total);
   }
+}
 
-  // Pass 4: Apply the linearization function
+function applyLinearization(
+  intMap: number[],
+  width: number,
+  height: number,
+  frequencies: number[],
+  filter?: (x: number, y: number) => boolean
+): void {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (filter && !filter(x, y)) {
-        continue;
-      }
-
+      if (filter && !filter(x, y)) continue;
       const index = y * width + x;
       intMap[index] = frequencies[intMap[index]];
     }

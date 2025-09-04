@@ -642,31 +642,27 @@ export class TerrainGenerator {
 
         // Exact freeciv mountain placement thresholds
         // @reference freeciv/server/generator/fracture_map.c:317-321
-        const choose_mountain =
-          tileHeight > localAvg * 1.2 ||
-          (this.areaIsTooFlat(
-            tiles,
-            heightMap,
-            x,
-            y,
-            hmap_mountain_level,
-            tileHeight,
-            hmap_shore_level
-          ) &&
-            this.random() < 0.4);
+        const choose_mountain = this.shouldChooseMountain(
+          tileHeight,
+          localAvg,
+          tiles,
+          heightMap,
+          x,
+          y,
+          hmap_mountain_level,
+          hmap_shore_level
+        );
 
-        const choose_hill =
-          tileHeight > localAvg * 1.1 ||
-          (this.areaIsTooFlat(
-            tiles,
-            heightMap,
-            x,
-            y,
-            hmap_mountain_level,
-            tileHeight,
-            hmap_shore_level
-          ) &&
-            this.random() < 0.4);
+        const choose_hill = this.shouldChooseHill(
+          tileHeight,
+          localAvg,
+          tiles,
+          heightMap,
+          x,
+          y,
+          hmap_mountain_level,
+          hmap_shore_level
+        );
 
         // Exact freeciv coastal avoidance - ZERO EXCEPTIONS
         // @reference freeciv/server/generator/fracture_map.c:322-326
@@ -679,24 +675,10 @@ export class TerrainGenerator {
         // @reference freeciv/server/generator/fracture_map.c:327-337
         if (choose_mountain) {
           total_mtns++;
-          tile.terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.MOUNTAINOUS,
-            MapgenTerrainPropertyEnum.UNUSED,
-            MapgenTerrainPropertyEnum.GREEN,
-            this.random
-          );
-          this.placementMap.setPlaced(x, y);
-          this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
+          this.placeMountainTerrain(tile, x, y);
         } else if (choose_hill) {
           total_mtns++;
-          tile.terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.MOUNTAINOUS,
-            MapgenTerrainPropertyEnum.GREEN,
-            MapgenTerrainPropertyEnum.UNUSED,
-            this.random
-          );
-          this.placementMap.setPlaced(x, y);
-          this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
+          this.placeHillTerrain(tile, x, y);
         }
       }
     }
@@ -720,24 +702,10 @@ export class TerrainGenerator {
 
             if (choose_mountain) {
               total_mtns++;
-              tile.terrain = pickTerrain(
-                MapgenTerrainPropertyEnum.MOUNTAINOUS,
-                MapgenTerrainPropertyEnum.UNUSED,
-                MapgenTerrainPropertyEnum.GREEN,
-                this.random
-              );
-              this.placementMap.setPlaced(x, y);
-              this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
+              this.placeMountainTerrain(tile, x, y);
             } else if (choose_hill) {
               total_mtns++;
-              tile.terrain = pickTerrain(
-                MapgenTerrainPropertyEnum.MOUNTAINOUS,
-                MapgenTerrainPropertyEnum.GREEN,
-                MapgenTerrainPropertyEnum.UNUSED,
-                this.random
-              );
-              this.placementMap.setPlaced(x, y);
-              this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
+              this.placeHillTerrain(tile, x, y);
             }
           }
 
@@ -750,6 +718,78 @@ export class TerrainGenerator {
         }
       }
     }
+  }
+
+  private shouldChooseMountain(
+    tileHeight: number,
+    localAvg: number,
+    tiles: MapTile[][],
+    heightMap: number[],
+    x: number,
+    y: number,
+    hmap_mountain_level: number,
+    hmap_shore_level: number
+  ): boolean {
+    return (
+      tileHeight > localAvg * 1.2 ||
+      (this.areaIsTooFlat(
+        tiles,
+        heightMap,
+        x,
+        y,
+        hmap_mountain_level,
+        tileHeight,
+        hmap_shore_level
+      ) &&
+        this.random() < 0.4)
+    );
+  }
+
+  private shouldChooseHill(
+    tileHeight: number,
+    localAvg: number,
+    tiles: MapTile[][],
+    heightMap: number[],
+    x: number,
+    y: number,
+    hmap_mountain_level: number,
+    hmap_shore_level: number
+  ): boolean {
+    return (
+      tileHeight > localAvg * 1.1 ||
+      (this.areaIsTooFlat(
+        tiles,
+        heightMap,
+        x,
+        y,
+        hmap_mountain_level,
+        tileHeight,
+        hmap_shore_level
+      ) &&
+        this.random() < 0.4)
+    );
+  }
+
+  private placeMountainTerrain(tile: MapTile, x: number, y: number): void {
+    tile.terrain = pickTerrain(
+      MapgenTerrainPropertyEnum.MOUNTAINOUS,
+      MapgenTerrainPropertyEnum.UNUSED,
+      MapgenTerrainPropertyEnum.GREEN,
+      this.random
+    );
+    this.placementMap.setPlaced(x, y);
+    this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
+  }
+
+  private placeHillTerrain(tile: MapTile, x: number, y: number): void {
+    tile.terrain = pickTerrain(
+      MapgenTerrainPropertyEnum.MOUNTAINOUS,
+      MapgenTerrainPropertyEnum.GREEN,
+      MapgenTerrainPropertyEnum.UNUSED,
+      this.random
+    );
+    this.placementMap.setPlaced(x, y);
+    this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
   }
 
   /**
