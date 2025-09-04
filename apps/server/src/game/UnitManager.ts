@@ -725,43 +725,80 @@ export class UnitManager {
    */
   async processUnitOrders(playerId: string): Promise<void> {
     for (const unit of this.units.values()) {
-      if (
-        unit.playerId === playerId &&
-        unit.orders &&
-        unit.orders.length > 0 &&
-        unit.movementLeft > 0
-      ) {
-        // Process the first order in the queue
-        const order = unit.orders[0];
-
-        if (order.type === 'move' && order.targetX !== undefined && order.targetY !== undefined) {
-          // Continue GOTO movement
-          const result = await this.actionSystem.executeAction(
-            unit,
-            ActionType.GOTO,
-            order.targetX,
-            order.targetY
-          );
-
-          if (result.success) {
-            await this.applyActionResult(unit, ActionType.GOTO, result);
-
-            // Check if destination was reached (this will clear orders automatically in executeGoto)
-            if (unit.x === order.targetX && unit.y === order.targetY) {
-              logger.info(`Unit ${unit.id} completed GOTO to (${order.targetX}, ${order.targetY})`);
-            } else {
-              logger.info(
-                `Unit ${unit.id} continued GOTO toward (${order.targetX}, ${order.targetY})`
-              );
-            }
-          } else {
-            logger.warn(`Failed to process GOTO order for unit ${unit.id}: ${result.message}`);
-            // Clear failed orders
-            unit.orders = [];
-          }
-        }
-      }
+      await this.processUnitOrder(unit, playerId);
     }
+  }
+
+  /**
+   * Process a single unit's pending order
+   */
+  private async processUnitOrder(unit: Unit, playerId: string): Promise<void> {
+    // Early return if unit doesn't belong to player or has no valid orders
+    if (!this.shouldProcessUnitOrder(unit, playerId)) {
+      return;
+    }
+
+    const order = unit.orders![0];
+    await this.processMoveOrder(unit, order);
+  }
+
+  /**
+   * Check if a unit's order should be processed
+   */
+  private shouldProcessUnitOrder(unit: Unit, playerId: string): boolean {
+    return (
+      unit.playerId === playerId &&
+      unit.orders !== undefined &&
+      unit.orders.length > 0 &&
+      unit.movementLeft > 0
+    );
+  }
+
+  /**
+   * Process a move order for a unit
+   */
+  private async processMoveOrder(unit: Unit, order: any): Promise<void> {
+    // Only process move orders with valid target coordinates
+    if (order.type !== 'move' || order.targetX === undefined || order.targetY === undefined) {
+      return;
+    }
+
+    // Execute the GOTO action
+    const result = await this.actionSystem.executeAction(
+      unit,
+      ActionType.GOTO,
+      order.targetX,
+      order.targetY
+    );
+
+    if (result.success) {
+      await this.handleSuccessfulGoto(unit, order, result);
+    } else {
+      this.handleFailedGoto(unit, result);
+    }
+  }
+
+  /**
+   * Handle successful GOTO action result
+   */
+  private async handleSuccessfulGoto(unit: Unit, order: any, result: any): Promise<void> {
+    await this.applyActionResult(unit, ActionType.GOTO, result);
+
+    // Log completion or continuation status
+    if (unit.x === order.targetX && unit.y === order.targetY) {
+      logger.info(`Unit ${unit.id} completed GOTO to (${order.targetX}, ${order.targetY})`);
+    } else {
+      logger.info(`Unit ${unit.id} continued GOTO toward (${order.targetX}, ${order.targetY})`);
+    }
+  }
+
+  /**
+   * Handle failed GOTO action result
+   */
+  private handleFailedGoto(unit: Unit, result: any): void {
+    logger.warn(`Failed to process GOTO order for unit ${unit.id}: ${result.message}`);
+    // Clear failed orders
+    unit.orders = [];
   }
 
   /**
