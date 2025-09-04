@@ -7,7 +7,7 @@ import {
   generateTestUUID,
   createTestGameAndPlayer,
 } from '../utils/testDatabase';
-import { schema } from '../../src/database';
+import * as schema from '../../src/database/schema';
 import {
   createBasicGameScenario,
   createCityGrowthScenario,
@@ -148,8 +148,9 @@ describe('CityManager - Integration Tests with Real Database', () => {
     it('should handle city growth with database persistence', async () => {
       const scenario = await createCityGrowthScenario();
 
-      // Initialize cityManager with the scenario's game ID
-      cityManager = new CityManager(scenario.game.id);
+      // Initialize cityManager with the scenario's game ID and database provider
+      const testDbProvider = getTestDatabaseProvider();
+      cityManager = new CityManager(scenario.game.id, testDbProvider);
 
       // Load cities from database
       await cityManager.loadCities();
@@ -206,8 +207,9 @@ describe('CityManager - Integration Tests with Real Database', () => {
     it('should complete production and create units in database', async () => {
       const scenario = await createProductionScenario();
 
-      // Initialize cityManager with the scenario's game ID
-      cityManager = new CityManager(scenario.game.id);
+      // Initialize cityManager with the scenario's game ID and database provider
+      const testDbProvider = getTestDatabaseProvider();
+      cityManager = new CityManager(scenario.game.id, testDbProvider);
       await cityManager.loadCities();
 
       const cityId = scenario.cities[0].id;
@@ -259,8 +261,9 @@ describe('CityManager - Integration Tests with Real Database', () => {
     it('should load cities from database correctly', async () => {
       const scenario = await createBasicGameScenario();
 
-      // Create a new city manager instance
-      const newCityManager = new CityManager(scenario.game.id);
+      // Create a new city manager instance with database provider
+      const testDbProvider = getTestDatabaseProvider();
+      const newCityManager = new CityManager(scenario.game.id, testDbProvider);
 
       // Load cities from database
       await newCityManager.loadCities();
