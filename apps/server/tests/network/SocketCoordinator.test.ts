@@ -4,14 +4,30 @@ import { Server, Socket } from 'socket.io';
 import { PacketType } from '../../src/types/packet';
 
 // Mock dependencies
-jest.mock('../../src/utils/logger', () => ({
-  logger: {
+jest.mock('../../src/utils/logger', () => {
+  const mockLogger = {
     info: jest.fn(),
     error: jest.fn(),
     debug: jest.fn(),
     warn: jest.fn(),
-  },
-}));
+  };
+  return {
+    logger: mockLogger,
+    default: mockLogger,
+  };
+});
+
+jest.mock('../../src/network/PacketHandler', () => {
+  return {
+    PacketHandler: jest.fn().mockImplementation(() => ({
+      register: jest.fn(),
+      send: jest.fn(),
+      process: jest.fn(),
+      broadcast: jest.fn(),
+      cleanup: jest.fn(),
+    })),
+  };
+});
 
 jest.mock('../../src/game/GameManager');
 
@@ -105,6 +121,14 @@ describe('SocketCoordinator', () => {
     it('should handle disconnect cleanup', async () => {
       coordinator.setupSocket(mockIo, mockSocket);
 
+      // Make sure the socket has the packet handler with cleanup method
+      const mockPacketHandler = {
+        cleanup: jest.fn(),
+      };
+      mockSocket.data = {
+        packetHandler: mockPacketHandler,
+      };
+
       // Simulate disconnect
       const disconnectHandler = (mockSocket.on as jest.Mock).mock.calls.find(
         call => call[0] === 'disconnect'
@@ -112,6 +136,8 @@ describe('SocketCoordinator', () => {
 
       await disconnectHandler();
 
+      // Should call cleanup on packet handler
+      expect(mockPacketHandler.cleanup).toHaveBeenCalledWith(mockSocket.id);
       // Should clean up connection
       expect(coordinator.getActiveConnectionsCount()).toBe(0);
     });
