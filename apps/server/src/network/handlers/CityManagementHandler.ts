@@ -3,11 +3,7 @@ import { Server, Socket } from 'socket.io';
 import { logger } from '../../utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
-import {
-  PacketType,
-  CityFoundSchema,
-  CityProductionChangeSchema,
-} from '../../types/packet';
+import { PacketType, CityFoundSchema, CityProductionChangeSchema } from '../../types/packet';
 import { GameManager } from '../../game/GameManager';
 
 /**
@@ -113,7 +109,11 @@ export class CityManagementHandler extends BaseSocketHandler {
     }
   }
 
-  private async handleCityProductionChange(handler: PacketHandler, socket: Socket, data: any): Promise<void> {
+  private async handleCityProductionChange(
+    handler: PacketHandler,
+    socket: Socket,
+    data: any
+  ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
       handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {

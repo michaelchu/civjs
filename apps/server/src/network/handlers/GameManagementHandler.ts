@@ -25,10 +25,7 @@ export class GameManagementHandler extends BaseSocketHandler {
   private activeConnections: Map<string, { userId?: string; username?: string; gameId?: string }>;
   private gameManager: GameManager;
 
-  constructor(
-    activeConnections: Map<string, any>,
-    gameManager: GameManager
-  ) {
+  constructor(activeConnections: Map<string, any>, gameManager: GameManager) {
     super();
     this.activeConnections = activeConnections;
     this.gameManager = gameManager;
@@ -61,7 +58,7 @@ export class GameManagementHandler extends BaseSocketHandler {
   /**
    * Register non-packet socket events
    */
-  private registerSocketEvents(socket: Socket, io: Server): void {
+  private registerSocketEvents(socket: Socket, _io: Server): void {
     // Handle join_game event
     socket.on('join_game', async (data, callback) => {
       await this.handleJoinGameEvent(socket, data, callback);
@@ -86,7 +83,7 @@ export class GameManagementHandler extends BaseSocketHandler {
   /**
    * Handle GAME_LIST packet
    */
-  private async handleGameList(handler: PacketHandler, socket: Socket): Promise<void> {
+  private async handleGameList(_handler: PacketHandler, socket: Socket): Promise<void> {
     try {
       const connection = this.getConnection(socket, this.activeConnections);
       const userId = connection?.userId || null;
@@ -144,7 +141,11 @@ export class GameManagementHandler extends BaseSocketHandler {
       connection.gameId = gameId;
       socket.join(`game:${gameId}`);
 
-      const playerId = await this.gameManager.joinGame(gameId, connection.userId!, data.selectedNation);
+      const playerId = await this.gameManager.joinGame(
+        gameId,
+        connection.userId!,
+        data.selectedNation
+      );
       await this.gameManager.updatePlayerConnection(playerId, true);
 
       socket.emit('game_created', {
@@ -268,7 +269,11 @@ export class GameManagementHandler extends BaseSocketHandler {
   /**
    * Handle observe_game socket event
    */
-  private async handleObserveGameEvent(socket: Socket, data: any, callback: Function): Promise<void> {
+  private async handleObserveGameEvent(
+    socket: Socket,
+    data: any,
+    callback: Function
+  ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection)) {
       callback({ success: false, error: 'Not authenticated' });
@@ -335,7 +340,11 @@ export class GameManagementHandler extends BaseSocketHandler {
   /**
    * Send map data to player (placeholder - would need to be implemented)
    */
-  private async sendPlayerMapData(gameId: string, playerId: string, socket: Socket): Promise<void> {
+  private async sendPlayerMapData(
+    gameId: string,
+    playerId: string,
+    _socket: Socket
+  ): Promise<void> {
     // TODO: This would need to be implemented with proper map data sending
     // For now, we'll leave it as a placeholder since it involves complex map data logic
     logger.debug(`Sending player map data for game ${gameId}, player ${playerId}`);

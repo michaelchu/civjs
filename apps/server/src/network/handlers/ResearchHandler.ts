@@ -37,26 +37,46 @@ export class ResearchHandler extends BaseSocketHandler {
   }
 
   register(handler: PacketHandler, _io: Server, socket: Socket): void {
-    handler.register(PacketType.RESEARCH_SET, async (socket, _data) => {
-      await this.handleResearchSet(handler, socket, _data);
-    }, ResearchSetSchema);
+    handler.register(
+      PacketType.RESEARCH_SET,
+      async (socket, _data) => {
+        await this.handleResearchSet(handler, socket, _data);
+      },
+      ResearchSetSchema
+    );
 
-    handler.register(PacketType.RESEARCH_GOAL_SET, async (socket, _data) => {
-      await this.handleResearchGoalSet(handler, socket, _data);
-    }, ResearchGoalSetSchema);
+    handler.register(
+      PacketType.RESEARCH_GOAL_SET,
+      async (socket, _data) => {
+        await this.handleResearchGoalSet(handler, socket, _data);
+      },
+      ResearchGoalSetSchema
+    );
 
-    handler.register(PacketType.RESEARCH_LIST, async (socket, _data) => {
-      await this.handleResearchList(handler, socket, _data);
-    }, ResearchListSchema);
+    handler.register(
+      PacketType.RESEARCH_LIST,
+      async (socket, _data) => {
+        await this.handleResearchList(handler, socket, _data);
+      },
+      ResearchListSchema
+    );
 
-    handler.register(PacketType.RESEARCH_PROGRESS, async (socket, _data) => {
-      await this.handleResearchProgress(handler, socket, _data);
-    }, ResearchProgressSchema);
+    handler.register(
+      PacketType.RESEARCH_PROGRESS,
+      async (socket, _data) => {
+        await this.handleResearchProgress(handler, socket, _data);
+      },
+      ResearchProgressSchema
+    );
 
     logger.debug(`${this.handlerName} registered handlers for socket ${socket.id}`);
   }
 
-  private async handleResearchSet(handler: PacketHandler, socket: Socket, data: any): Promise<void> {
+  private async handleResearchSet(
+    handler: PacketHandler,
+    socket: Socket,
+    data: any
+  ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
       handler.send(socket, PacketType.RESEARCH_SET_REPLY, {
@@ -89,7 +109,10 @@ export class ResearchHandler extends BaseSocketHandler {
 
       await this.gameManager.setPlayerResearch(connection.gameId!, player.id, data.techId);
 
-      const availableTechs = this.gameManager.getAvailableTechnologies(connection.gameId!, player.id);
+      const availableTechs = this.gameManager.getAvailableTechnologies(
+        connection.gameId!,
+        player.id
+      );
 
       handler.send(socket, PacketType.RESEARCH_SET_REPLY, {
         success: true,
@@ -116,7 +139,11 @@ export class ResearchHandler extends BaseSocketHandler {
     }
   }
 
-  private async handleResearchGoalSet(handler: PacketHandler, socket: Socket, data: any): Promise<void> {
+  private async handleResearchGoalSet(
+    handler: PacketHandler,
+    socket: Socket,
+    data: any
+  ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
       handler.send(socket, PacketType.RESEARCH_GOAL_SET_REPLY, {
@@ -167,7 +194,11 @@ export class ResearchHandler extends BaseSocketHandler {
     }
   }
 
-  private async handleResearchList(handler: PacketHandler, socket: Socket, data: any): Promise<void> {
+  private async handleResearchList(
+    handler: PacketHandler,
+    socket: Socket,
+    _data: any
+  ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
       return;
@@ -182,7 +213,10 @@ export class ResearchHandler extends BaseSocketHandler {
       ) as any;
       if (!player) return;
 
-      const availableTechs = this.gameManager.getAvailableTechnologies(connection.gameId!, player.id);
+      const availableTechs = this.gameManager.getAvailableTechnologies(
+        connection.gameId!,
+        player.id
+      );
       const playerResearch = this.gameManager.getPlayerResearch(connection.gameId!, player.id);
 
       handler.send(socket, PacketType.RESEARCH_LIST_REPLY, {
@@ -207,7 +241,11 @@ export class ResearchHandler extends BaseSocketHandler {
     }
   }
 
-  private async handleResearchProgress(handler: PacketHandler, socket: Socket, data: any): Promise<void> {
+  private async handleResearchProgress(
+    handler: PacketHandler,
+    socket: Socket,
+    _data: any
+  ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
       return;

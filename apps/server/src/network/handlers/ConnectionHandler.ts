@@ -3,10 +3,7 @@ import { Server, Socket } from 'socket.io';
 import { logger } from '../../utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
-import {
-  PacketType,
-  ServerJoinReqSchema,
-} from '../../types/packet';
+import { PacketType, ServerJoinReqSchema } from '../../types/packet';
 import { sessionCache } from '../../database/redis';
 import { db } from '../../database';
 import { users } from '../../database/schema';
@@ -180,14 +177,19 @@ export class ConnectionHandler extends BaseSocketHandler {
   /**
    * Get connection info for a socket
    */
-  getConnectionInfo(socketId: string): { userId?: string; username?: string; gameId?: string } | undefined {
+  getConnectionInfo(
+    socketId: string
+  ): { userId?: string; username?: string; gameId?: string } | undefined {
     return this.activeConnections.get(socketId);
   }
 
   /**
    * Update connection info
    */
-  updateConnection(socketId: string, updates: Partial<{ userId: string; username: string; gameId: string }>): void {
+  updateConnection(
+    socketId: string,
+    updates: Partial<{ userId: string; username: string; gameId: string }>
+  ): void {
     const connection = this.activeConnections.get(socketId);
     if (connection) {
       Object.assign(connection, updates);

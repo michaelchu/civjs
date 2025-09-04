@@ -23,14 +23,23 @@ export class ChatCommunicationHandler extends BaseSocketHandler {
   }
 
   register(handler: PacketHandler, io: Server, socket: Socket): void {
-    handler.register(PacketType.CHAT_MSG_REQ, async (socket, data) => {
-      await this.handleChatMessage(handler, socket, data, io);
-    }, ChatMsgSchema);
+    handler.register(
+      PacketType.CHAT_MSG_REQ,
+      async (socket, data) => {
+        await this.handleChatMessage(handler, socket, data, io);
+      },
+      ChatMsgSchema
+    );
 
     logger.debug(`${this.handlerName} registered handlers for socket ${socket.id}`);
   }
 
-  private async handleChatMessage(handler: PacketHandler, socket: Socket, data: any, io: Server): Promise<void> {
+  private async handleChatMessage(
+    handler: PacketHandler,
+    socket: Socket,
+    data: any,
+    io: Server
+  ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection)) {
       return;

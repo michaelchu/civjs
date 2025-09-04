@@ -124,8 +124,9 @@ describe('GameManagementHandler', () => {
       mockGameManager.getGameListForLobby.mockResolvedValue(mockGames as any);
 
       // Get the registered handler function for GAME_LIST
-      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls
-        .find(call => call[0] === PacketType.GAME_LIST)[1];
+      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls.find(
+        call => call[0] === PacketType.GAME_LIST
+      )[1];
 
       await handlerFn(mockSocket);
 
@@ -164,8 +165,9 @@ describe('GameManagementHandler', () => {
       mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
 
       // Get the registered handler function for GAME_CREATE
-      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls
-        .find(call => call[0] === PacketType.GAME_CREATE)[1];
+      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls.find(
+        call => call[0] === PacketType.GAME_CREATE
+      )[1];
 
       await handlerFn(mockSocket, gameData);
 
@@ -195,8 +197,9 @@ describe('GameManagementHandler', () => {
       // Remove authentication
       activeConnections.set(mockSocketId, {});
 
-      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls
-        .find(call => call[0] === PacketType.GAME_CREATE)[1];
+      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls.find(
+        call => call[0] === PacketType.GAME_CREATE
+      )[1];
 
       await handlerFn(mockSocket, {});
 
@@ -213,8 +216,9 @@ describe('GameManagementHandler', () => {
     it('should handle game creation error', async () => {
       mockGameManager.createGame.mockRejectedValue(new Error('Game creation failed'));
 
-      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls
-        .find(call => call[0] === PacketType.GAME_CREATE)[1];
+      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls.find(
+        call => call[0] === PacketType.GAME_CREATE
+      )[1];
 
       await handlerFn(mockSocket, { name: 'Test Game' });
 
@@ -239,8 +243,9 @@ describe('GameManagementHandler', () => {
       const joinData = { gameId: mockGameId, civilization: 'greeks' };
       mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
 
-      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls
-        .find(call => call[0] === PacketType.GAME_JOIN)[1];
+      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls.find(
+        call => call[0] === PacketType.GAME_JOIN
+      )[1];
 
       await handlerFn(mockSocket, joinData);
 
@@ -248,15 +253,11 @@ describe('GameManagementHandler', () => {
       expect(mockSocket.join).toHaveBeenCalledWith(`game:${mockGameId}`);
       expect(mockGameManager.updatePlayerConnection).toHaveBeenCalledWith(mockPlayerId, true);
 
-      expect(mockPacketHandler.send).toHaveBeenCalledWith(
-        mockSocket,
-        PacketType.GAME_JOIN_REPLY,
-        {
-          success: true,
-          playerId: mockPlayerId,
-          message: 'Joined game successfully',
-        }
-      );
+      expect(mockPacketHandler.send).toHaveBeenCalledWith(mockSocket, PacketType.GAME_JOIN_REPLY, {
+        success: true,
+        playerId: mockPlayerId,
+        message: 'Joined game successfully',
+      });
     });
   });
 
@@ -270,8 +271,9 @@ describe('GameManagementHandler', () => {
       mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
 
       // Get the join_game event handler
-      const eventHandler = (mockSocket.on as jest.Mock).mock.calls
-        .find(call => call[0] === 'join_game')[1];
+      const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'join_game'
+      )[1];
 
       const mockCallback = jest.fn();
       await eventHandler({ gameId: mockGameId }, mockCallback);
@@ -286,8 +288,9 @@ describe('GameManagementHandler', () => {
     it('should handle authentication error', async () => {
       activeConnections.set(mockSocketId, {}); // No userId
 
-      const eventHandler = (mockSocket.on as jest.Mock).mock.calls
-        .find(call => call[0] === 'join_game')[1];
+      const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'join_game'
+      )[1];
 
       const mockCallback = jest.fn();
       await eventHandler({ gameId: mockGameId }, mockCallback);
@@ -308,8 +311,9 @@ describe('GameManagementHandler', () => {
       const mockGames = [{ id: mockGameId, name: 'Test Game' }];
       mockGameManager.getGameListForLobby.mockResolvedValue(mockGames as any);
 
-      const eventHandler = (mockSocket.on as jest.Mock).mock.calls
-        .find(call => call[0] === 'get_game_list')[1];
+      const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'get_game_list'
+      )[1];
 
       const mockCallback = jest.fn();
       await eventHandler(mockCallback);

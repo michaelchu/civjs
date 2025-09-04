@@ -11,17 +11,17 @@ export interface SocketHandler {
    * Register packet handlers with the packet handler system
    */
   register(handler: PacketHandler, io: Server, socket: Socket): void;
-  
+
   /**
    * Clean up any resources when socket disconnects (optional)
    */
   cleanup?(socketId: string): void;
-  
+
   /**
    * Get the list of packet types this handler manages
    */
   getHandledPacketTypes(): PacketType[];
-  
+
   /**
    * Get handler name for logging and debugging
    */
@@ -60,13 +60,13 @@ export abstract class BaseSocketHandler implements SocketHandler {
    * Helper method to check if user is authenticated
    */
   protected isAuthenticated(connection: any): boolean {
-    return !!(connection?.userId);
+    return !!connection?.userId;
   }
 
   /**
    * Helper method to check if user is in a game
    */
   protected isInGame(connection: any): boolean {
-    return !!(connection?.gameId);
+    return !!connection?.gameId;
   }
 }

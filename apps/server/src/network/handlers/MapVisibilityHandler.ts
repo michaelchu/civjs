@@ -36,17 +36,21 @@ export class MapVisibilityHandler extends BaseSocketHandler {
       await this.handleMapViewRequest(handler, socket, _data);
     });
 
-    handler.register(PacketType.TILE_VISIBILITY_REQ, async (socket, _data) => {
-      await this.handleTileVisibilityRequest(handler, socket, _data);
-    }, TileVisibilityReqSchema);
+    handler.register(
+      PacketType.TILE_VISIBILITY_REQ,
+      async (socket, _data) => {
+        await this.handleTileVisibilityRequest(handler, socket, _data);
+      },
+      TileVisibilityReqSchema
+    );
 
     // Register socket event handlers
-    this.registerSocketEvents(socket, io);
+    this.registerSocketEvents(socket, _io);
 
     logger.debug(`${this.handlerName} registered handlers for socket ${socket.id}`);
   }
 
-  private registerSocketEvents(socket: Socket, io: Server): void {
+  private registerSocketEvents(socket: Socket, _io: Server): void {
     socket.on('get_map_data', async (_data, callback) => {
       await this.handleGetMapData(socket, callback);
     });
@@ -56,7 +60,11 @@ export class MapVisibilityHandler extends BaseSocketHandler {
     });
   }
 
-  private async handleMapViewRequest(handler: PacketHandler, socket: Socket, data: any): Promise<void> {
+  private async handleMapViewRequest(
+    handler: PacketHandler,
+    socket: Socket,
+    _data: any
+  ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
       return;
@@ -90,7 +98,11 @@ export class MapVisibilityHandler extends BaseSocketHandler {
     }
   }
 
-  private async handleTileVisibilityRequest(handler: PacketHandler, socket: Socket, data: any): Promise<void> {
+  private async handleTileVisibilityRequest(
+    handler: PacketHandler,
+    socket: Socket,
+    data: any
+  ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
       handler.send(socket, PacketType.TILE_VISIBILITY_REPLY, {

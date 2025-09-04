@@ -116,7 +116,7 @@ describe('ConnectionHandler', () => {
       expect(db.query.users.findFirst).toHaveBeenCalled();
       expect(mockSocket.join).toHaveBeenCalledWith(`player:${mockUserId}`);
       expect(sessionCache.setSession).toHaveBeenCalledWith(mockSocketId, mockUserId);
-      
+
       expect(mockPacketHandler.send).toHaveBeenCalledWith(
         mockSocket,
         PacketType.SERVER_JOIN_REPLY,
@@ -146,7 +146,7 @@ describe('ConnectionHandler', () => {
 
       expect(db.insert).toHaveBeenCalled();
       expect(mockSocket.join).toHaveBeenCalledWith(`player:${mockUserId}`);
-      
+
       expect(mockPacketHandler.send).toHaveBeenCalledWith(
         mockSocket,
         PacketType.SERVER_JOIN_REPLY,
@@ -168,7 +168,7 @@ describe('ConnectionHandler', () => {
       // Mock unique constraint violation
       const constraintError = new Error('Unique constraint violation');
       (constraintError as any).code = '23505';
-      
+
       (db.insert as jest.Mock).mockReturnValue({
         values: jest.fn().mockReturnThis(),
         returning: jest.fn().mockRejectedValue(constraintError),
@@ -215,7 +215,7 @@ describe('ConnectionHandler', () => {
   describe('disconnect handling', () => {
     beforeEach(() => {
       handler.register(mockPacketHandler, mockIo, mockSocket);
-      
+
       // Set up connection info
       activeConnections.set(mockSocketId, {
         userId: mockUserId,
@@ -226,8 +226,9 @@ describe('ConnectionHandler', () => {
 
     it('should handle disconnect and update last seen', async () => {
       // Get the disconnect handler
-      const disconnectHandler = (mockSocket.on as jest.Mock).mock.calls
-        .find(call => call[0] === 'disconnect')[1];
+      const disconnectHandler = (mockSocket.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'disconnect'
+      )[1];
 
       await disconnectHandler();
 
@@ -256,7 +257,7 @@ describe('ConnectionHandler', () => {
 
     it('should update connection info', () => {
       handler.updateConnection(mockSocketId, { gameId: 'new-game-id' });
-      
+
       const info = handler.getConnectionInfo(mockSocketId);
       expect(info?.gameId).toBe('new-game-id');
     });
@@ -274,9 +275,9 @@ describe('ConnectionHandler', () => {
   describe('cleanup', () => {
     it('should remove connection from active connections', () => {
       activeConnections.set(mockSocketId, { userId: mockUserId });
-      
+
       handler.cleanup(mockSocketId);
-      
+
       expect(activeConnections.has(mockSocketId)).toBe(false);
     });
   });

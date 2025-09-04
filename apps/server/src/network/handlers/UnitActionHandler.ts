@@ -34,16 +34,13 @@ export class UnitActionHandler extends BaseSocketHandler {
   private activeConnections: Map<string, { userId?: string; username?: string; gameId?: string }>;
   private gameManager: GameManager;
 
-  constructor(
-    activeConnections: Map<string, any>,
-    gameManager: GameManager
-  ) {
+  constructor(activeConnections: Map<string, any>, gameManager: GameManager) {
     super();
     this.activeConnections = activeConnections;
     this.gameManager = gameManager;
   }
 
-  register(handler: PacketHandler, _io: Server, socket: Socket): void {
+  register(handler: PacketHandler, io: Server, socket: Socket): void {
     // Register packet handlers
     handler.register(
       PacketType.UNIT_MOVE,
@@ -86,7 +83,7 @@ export class UnitActionHandler extends BaseSocketHandler {
   /**
    * Register non-packet socket events
    */
-  private registerSocketEvents(socket: Socket, _io: Server): void {
+  private registerSocketEvents(socket: Socket, io: Server): void {
     // Handle unit_action event
     socket.on('unit_action', async (data, callback) => {
       await this.handleUnitActionEvent(socket, data, callback, io);
@@ -105,7 +102,7 @@ export class UnitActionHandler extends BaseSocketHandler {
     handler: PacketHandler,
     socket: Socket,
     data: any,
-    io: Server
+    _io: Server
   ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
@@ -190,7 +187,7 @@ export class UnitActionHandler extends BaseSocketHandler {
     handler: PacketHandler,
     socket: Socket,
     data: any,
-    io: Server
+    _io: Server
   ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
@@ -257,7 +254,7 @@ export class UnitActionHandler extends BaseSocketHandler {
     handler: PacketHandler,
     socket: Socket,
     data: any,
-    io: Server
+    _io: Server
   ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
@@ -321,7 +318,7 @@ export class UnitActionHandler extends BaseSocketHandler {
     handler: PacketHandler,
     socket: Socket,
     data: any,
-    io: Server
+    _io: Server
   ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
@@ -475,7 +472,11 @@ export class UnitActionHandler extends BaseSocketHandler {
   /**
    * Handle path_request socket event
    */
-  private async handlePathRequestEvent(socket: Socket, data: any, callback: Function): Promise<void> {
+  private async handlePathRequestEvent(
+    socket: Socket,
+    data: any,
+    callback: Function
+  ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
       if (typeof callback === 'function') {

@@ -98,9 +98,9 @@ describe('UnitActionHandler', () => {
   describe('UNIT_MOVE handler', () => {
     beforeEach(() => {
       handler.register(mockPacketHandler, mockIo, mockSocket);
-      activeConnections.set(mockSocketId, { 
-        userId: mockUserId, 
-        gameId: mockGameId 
+      activeConnections.set(mockSocketId, {
+        userId: mockUserId,
+        gameId: mockGameId,
       });
     });
 
@@ -111,8 +111,10 @@ describe('UnitActionHandler', () => {
       };
       const mockGameInstance = {
         unitManager: {
-          getUnit: jest.fn().mockReturnValue({ 
-            x: 5, y: 5, movementLeft: 2 
+          getUnit: jest.fn().mockReturnValue({
+            x: 5,
+            y: 5,
+            movementLeft: 2,
           }),
         },
       };
@@ -121,13 +123,14 @@ describe('UnitActionHandler', () => {
       mockGameManager.moveUnit.mockResolvedValue(true);
       mockGameManager.getGameInstance.mockReturnValue(mockGameInstance as any);
 
-      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls
-        .find(call => call[0] === PacketType.UNIT_MOVE)[1];
+      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls.find(
+        call => call[0] === PacketType.UNIT_MOVE
+      )[1];
 
-      await handlerFn(mockSocket, { 
-        unitId: mockUnitId, 
-        x: 5, 
-        y: 5 
+      await handlerFn(mockSocket, {
+        unitId: mockUnitId,
+        x: 5,
+        y: 5,
       });
 
       expect(mockGameManager.moveUnit).toHaveBeenCalledWith(
@@ -138,65 +141,55 @@ describe('UnitActionHandler', () => {
         5
       );
 
-      expect(mockPacketHandler.send).toHaveBeenCalledWith(
-        mockSocket,
-        PacketType.UNIT_MOVE_REPLY,
-        {
-          success: true,
-          unitId: mockUnitId,
-          newX: 5,
-          newY: 5,
-          movementLeft: 2,
-        }
-      );
+      expect(mockPacketHandler.send).toHaveBeenCalledWith(mockSocket, PacketType.UNIT_MOVE_REPLY, {
+        success: true,
+        unitId: mockUnitId,
+        newX: 5,
+        newY: 5,
+        movementLeft: 2,
+      });
     });
 
     it('should reject unauthenticated user', async () => {
       activeConnections.set(mockSocketId, {}); // No userId
 
-      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls
-        .find(call => call[0] === PacketType.UNIT_MOVE)[1];
+      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls.find(
+        call => call[0] === PacketType.UNIT_MOVE
+      )[1];
 
       await handlerFn(mockSocket, { unitId: mockUnitId });
 
-      expect(mockPacketHandler.send).toHaveBeenCalledWith(
-        mockSocket,
-        PacketType.UNIT_MOVE_REPLY,
-        {
-          success: false,
-          unitId: mockUnitId,
-          message: 'Not authenticated or not in a game',
-        }
-      );
+      expect(mockPacketHandler.send).toHaveBeenCalledWith(mockSocket, PacketType.UNIT_MOVE_REPLY, {
+        success: false,
+        unitId: mockUnitId,
+        message: 'Not authenticated or not in a game',
+      });
     });
 
     it('should handle inactive game', async () => {
       const mockGame = { state: 'waiting' };
       mockGameManager.getGame.mockResolvedValue(mockGame as any);
 
-      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls
-        .find(call => call[0] === PacketType.UNIT_MOVE)[1];
+      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls.find(
+        call => call[0] === PacketType.UNIT_MOVE
+      )[1];
 
       await handlerFn(mockSocket, { unitId: mockUnitId });
 
-      expect(mockPacketHandler.send).toHaveBeenCalledWith(
-        mockSocket,
-        PacketType.UNIT_MOVE_REPLY,
-        {
-          success: false,
-          unitId: mockUnitId,
-          message: 'Game is not active',
-        }
-      );
+      expect(mockPacketHandler.send).toHaveBeenCalledWith(mockSocket, PacketType.UNIT_MOVE_REPLY, {
+        success: false,
+        unitId: mockUnitId,
+        message: 'Game is not active',
+      });
     });
   });
 
   describe('UNIT_ATTACK handler', () => {
     beforeEach(() => {
       handler.register(mockPacketHandler, mockIo, mockSocket);
-      activeConnections.set(mockSocketId, { 
-        userId: mockUserId, 
-        gameId: mockGameId 
+      activeConnections.set(mockSocketId, {
+        userId: mockUserId,
+        gameId: mockGameId,
       });
     });
 
@@ -205,20 +198,21 @@ describe('UnitActionHandler', () => {
         state: 'active',
         players: new Map([[mockPlayerId, { userId: mockUserId }]]),
       };
-      const mockCombatResult = { 
-        attackerWins: true, 
-        defenderDestroyed: false 
+      const mockCombatResult = {
+        attackerWins: true,
+        defenderDestroyed: false,
       };
 
       mockGameManager.getGame.mockResolvedValue(mockGame as any);
       mockGameManager.attackUnit.mockResolvedValue(mockCombatResult);
 
-      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls
-        .find(call => call[0] === PacketType.UNIT_ATTACK)[1];
+      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls.find(
+        call => call[0] === PacketType.UNIT_ATTACK
+      )[1];
 
-      await handlerFn(mockSocket, { 
-        attackerUnitId: mockUnitId, 
-        defenderUnitId: 'defender-unit-id' 
+      await handlerFn(mockSocket, {
+        attackerUnitId: mockUnitId,
+        defenderUnitId: 'defender-unit-id',
       });
 
       expect(mockGameManager.attackUnit).toHaveBeenCalledWith(
@@ -242,9 +236,9 @@ describe('UnitActionHandler', () => {
   describe('path_request socket event', () => {
     beforeEach(() => {
       handler.register(mockPacketHandler, mockIo, mockSocket);
-      activeConnections.set(mockSocketId, { 
-        userId: mockUserId, 
-        gameId: mockGameId 
+      activeConnections.set(mockSocketId, {
+        userId: mockUserId,
+        gameId: mockGameId,
       });
     });
 
@@ -252,30 +246,32 @@ describe('UnitActionHandler', () => {
       const mockGameInstance = {
         players: new Map([[mockPlayerId, { userId: mockUserId }]]),
       };
-      const mockPathResult = { 
-        success: true, 
-        path: [[1, 1], [2, 2]] 
+      const mockPathResult = {
+        success: true,
+        path: [
+          [1, 1],
+          [2, 2],
+        ],
       };
 
       mockGameManager.getGameInstance.mockReturnValue(mockGameInstance as any);
       mockGameManager.requestPath.mockResolvedValue(mockPathResult);
 
-      const eventHandler = (mockSocket.on as jest.Mock).mock.calls
-        .find(call => call[0] === 'path_request')[1];
+      const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'path_request'
+      )[1];
 
       const mockCallback = jest.fn();
-      await eventHandler({ 
-        unitId: mockUnitId, 
-        targetX: 10, 
-        targetY: 10 
-      }, mockCallback);
-
-      expect(mockGameManager.requestPath).toHaveBeenCalledWith(
-        mockPlayerId,
-        mockUnitId,
-        10,
-        10
+      await eventHandler(
+        {
+          unitId: mockUnitId,
+          targetX: 10,
+          targetY: 10,
+        },
+        mockCallback
       );
+
+      expect(mockGameManager.requestPath).toHaveBeenCalledWith(mockPlayerId, mockUnitId, 10, 10);
 
       expect(mockCallback).toHaveBeenCalledWith(mockPathResult);
       expect(mockSocket.emit).toHaveBeenCalledWith('path_response', {
