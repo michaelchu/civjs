@@ -57,199 +57,89 @@ export class TerrainPlacementProcessor {
    * @reference freeciv/server/generator/mapgen.c:491 make_terrains()
    */
   public makeTerrains(tiles: MapTile[][], terrainParams: TerrainParams): void {
-    // Count total unplaced tiles using placement tracking
-    // @reference freeciv/server/generator/mapgen.c:491 make_terrains()
-    let total = 0;
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const tile = tiles[x][y];
-        // In freeciv: not_placed(ptile) - tiles that aren't ocean and haven't been assigned terrain yet
-        if (this.placementMap.notPlaced(x, y) && !isOceanTerrain(tile.terrain)) {
-          total++;
-        }
-      }
-    }
+    // Count total unplaced land tiles
+    const total = this.countUnplacedLandTiles(tiles);
 
     // Calculate terrain counts exactly as freeciv does
-    let forests_count = Math.floor(
-      (total * terrainParams.forest_pct) / (100 - terrainParams.mountain_pct)
-    );
-    let jungles_count = Math.floor(
-      (total * terrainParams.jungle_pct) / (100 - terrainParams.mountain_pct)
-    );
-    let deserts_count = Math.floor(
-      (total * terrainParams.desert_pct) / (100 - terrainParams.mountain_pct)
-    );
-    let swamps_count = Math.floor(
-      (total * terrainParams.swamp_pct) / (100 - terrainParams.mountain_pct)
-    );
-    let alt_deserts_count = 0;
+    const counts = this.computeInitialCounts(total, terrainParams);
 
-    // Grassland, tundra, arctic and plains is counted in plains_count
-    let plains_count = total - forests_count - deserts_count - swamps_count - jungles_count;
-
-    // The placement loop - exact copy of freeciv logic
+    // The placement loop - exact copy of freeciv logic, factored via helper
     do {
-      // PLACE_ONE_TYPE(forests_count, plains_count, pick_terrain(MG_FOLIAGE, MG_TEMPERATE, MG_TROPICAL), WC_ALL, TT_NFROZEN, MC_NONE, 60);
-      if (forests_count > 0) {
-        const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_NFROZEN', 'MC_NONE');
-        if (candidate) {
-          // Use pick_terrain with proper properties as in freeciv
-          // @reference freeciv/server/generator/mapgen.c:522 pick_terrain(MG_FOLIAGE, MG_TEMPERATE, MG_TROPICAL)
-          const terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.FOLIAGE,
-            MapgenTerrainPropertyEnum.TEMPERATE,
-            MapgenTerrainPropertyEnum.TROPICAL,
-            this.random
-          );
-          this.placeTerrain(
-            candidate.tile,
-            candidate.x,
-            candidate.y,
-            60,
-            terrain,
-            forests_count,
-            plains_count,
-            'WC_ALL',
-            'TT_NFROZEN',
-            'MC_NONE'
-          );
-          forests_count--;
-        } else {
-          plains_count += forests_count;
-          forests_count = 0;
-        }
-      }
+      this.processPlacement(tiles, counts, {
+        key: 'forests',
+        fallback: 'plains',
+        wc: 'WC_ALL',
+        tc: 'TT_NFROZEN',
+        mc: 'MC_NONE',
+        weight: 60,
+        props: [
+          MapgenTerrainPropertyEnum.FOLIAGE,
+          MapgenTerrainPropertyEnum.TEMPERATE,
+          MapgenTerrainPropertyEnum.TROPICAL,
+        ],
+      });
 
-      // PLACE_ONE_TYPE(jungles_count, forests_count, pick_terrain(MG_FOLIAGE, MG_TROPICAL, MG_COLD), WC_ALL, TT_TROPICAL, MC_NONE, 50);
-      if (jungles_count > 0) {
-        const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_TROPICAL', 'MC_NONE');
-        if (candidate) {
-          // Use pick_terrain with proper properties as in freeciv
-          // @reference freeciv/server/generator/mapgen.c:540 pick_terrain(MG_FOLIAGE, MG_TROPICAL, MG_COLD)
-          const terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.FOLIAGE,
-            MapgenTerrainPropertyEnum.TROPICAL,
-            MapgenTerrainPropertyEnum.COLD,
-            this.random
-          );
-          this.placeTerrain(
-            candidate.tile,
-            candidate.x,
-            candidate.y,
-            50,
-            terrain,
-            jungles_count,
-            forests_count,
-            'WC_ALL',
-            'TT_TROPICAL',
-            'MC_NONE'
-          );
-          jungles_count--;
-        } else {
-          forests_count += jungles_count;
-          jungles_count = 0;
-        }
-      }
+      this.processPlacement(tiles, counts, {
+        key: 'jungles',
+        fallback: 'forests',
+        wc: 'WC_ALL',
+        tc: 'TT_TROPICAL',
+        mc: 'MC_NONE',
+        weight: 50,
+        props: [
+          MapgenTerrainPropertyEnum.FOLIAGE,
+          MapgenTerrainPropertyEnum.TROPICAL,
+          MapgenTerrainPropertyEnum.COLD,
+        ],
+      });
 
-      // PLACE_ONE_TYPE(swamps_count, forests_count, pick_terrain(MG_WET, MG_UNUSED, MG_FOLIAGE), WC_NDRY, TT_HOT, MC_LOW, 50);
-      if (swamps_count > 0) {
-        const candidate = this.randMapPosCharacteristic(tiles, 'WC_NDRY', 'TT_HOT', 'MC_LOW');
-        if (candidate) {
-          // Use pick_terrain with proper properties as in freeciv
-          // @reference freeciv/server/generator/mapgen.c:558 pick_terrain(MG_WET, MG_UNUSED, MG_FOLIAGE)
-          const terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.WET,
-            MapgenTerrainPropertyEnum.UNUSED,
-            MapgenTerrainPropertyEnum.FOLIAGE,
-            this.random
-          );
-          this.placeTerrain(
-            candidate.tile,
-            candidate.x,
-            candidate.y,
-            50,
-            terrain,
-            swamps_count,
-            forests_count,
-            'WC_NDRY',
-            'TT_HOT',
-            'MC_LOW'
-          );
-          swamps_count--;
-        } else {
-          forests_count += swamps_count;
-          swamps_count = 0;
-        }
-      }
+      this.processPlacement(tiles, counts, {
+        key: 'swamps',
+        fallback: 'forests',
+        wc: 'WC_NDRY',
+        tc: 'TT_HOT',
+        mc: 'MC_LOW',
+        weight: 50,
+        props: [
+          MapgenTerrainPropertyEnum.WET,
+          MapgenTerrainPropertyEnum.UNUSED,
+          MapgenTerrainPropertyEnum.FOLIAGE,
+        ],
+      });
 
-      // PLACE_ONE_TYPE(deserts_count, alt_deserts_count, pick_terrain(MG_DRY, MG_TROPICAL, MG_COLD), WC_DRY, TT_NFROZEN, MC_NLOW, 80);
-      if (deserts_count > 0) {
-        const candidate = this.randMapPosCharacteristic(tiles, 'WC_DRY', 'TT_NFROZEN', 'MC_NLOW');
-        if (candidate) {
-          // Use pick_terrain with proper properties as in freeciv
-          // @reference freeciv/server/generator/mapgen.c:576 pick_terrain(MG_DRY, MG_TROPICAL, MG_COLD)
-          const terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.DRY,
-            MapgenTerrainPropertyEnum.TROPICAL,
-            MapgenTerrainPropertyEnum.COLD,
-            this.random
-          );
-          this.placeTerrain(
-            candidate.tile,
-            candidate.x,
-            candidate.y,
-            80,
-            terrain,
-            deserts_count,
-            alt_deserts_count,
-            'WC_DRY',
-            'TT_NFROZEN',
-            'MC_NLOW'
-          );
-          deserts_count--;
-        } else {
-          alt_deserts_count += deserts_count;
-          deserts_count = 0;
-        }
-      }
+      this.processPlacement(tiles, counts, {
+        key: 'deserts',
+        fallback: 'altDeserts',
+        wc: 'WC_DRY',
+        tc: 'TT_NFROZEN',
+        mc: 'MC_NLOW',
+        weight: 80,
+        props: [
+          MapgenTerrainPropertyEnum.DRY,
+          MapgenTerrainPropertyEnum.TROPICAL,
+          MapgenTerrainPropertyEnum.COLD,
+        ],
+      });
 
-      // PLACE_ONE_TYPE(alt_deserts_count, plains_count, pick_terrain(MG_DRY, MG_TROPICAL, MG_WET), WC_ALL, TT_NFROZEN, MC_NLOW, 40);
-      if (alt_deserts_count > 0) {
-        const candidate = this.randMapPosCharacteristic(tiles, 'WC_ALL', 'TT_NFROZEN', 'MC_NLOW');
-        if (candidate) {
-          // Use pick_terrain with proper properties as in freeciv
-          // @reference freeciv/server/generator/mapgen.c:594 pick_terrain(MG_DRY, MG_TROPICAL, MG_WET)
-          const terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.DRY,
-            MapgenTerrainPropertyEnum.TROPICAL,
-            MapgenTerrainPropertyEnum.WET,
-            this.random
-          );
-          this.placeTerrain(
-            candidate.tile,
-            candidate.x,
-            candidate.y,
-            40,
-            terrain,
-            alt_deserts_count,
-            plains_count,
-            'WC_ALL',
-            'TT_NFROZEN',
-            'MC_NLOW'
-          );
-          alt_deserts_count--;
-        } else {
-          plains_count += alt_deserts_count;
-          alt_deserts_count = 0;
-        }
-      }
+      this.processPlacement(tiles, counts, {
+        key: 'altDeserts',
+        fallback: 'plains',
+        wc: 'WC_ALL',
+        tc: 'TT_NFROZEN',
+        mc: 'MC_NLOW',
+        weight: 40,
+        props: [
+          MapgenTerrainPropertyEnum.DRY,
+          MapgenTerrainPropertyEnum.TROPICAL,
+          MapgenTerrainPropertyEnum.WET,
+        ],
+      });
     } while (
-      forests_count > 0 ||
-      jungles_count > 0 ||
-      swamps_count > 0 ||
-      deserts_count > 0 ||
-      alt_deserts_count > 0
+      counts.forests > 0 ||
+      counts.jungles > 0 ||
+      counts.swamps > 0 ||
+      counts.deserts > 0 ||
+      counts.altDeserts > 0
     );
 
     // Fill remaining spots with plains/grassland - exact copy of freeciv logic
@@ -264,6 +154,102 @@ export class TerrainPlacementProcessor {
           }
         }
       }
+    }
+  }
+
+  /**
+   * Count unplaced land tiles (not placed and not ocean)
+   */
+  private countUnplacedLandTiles(tiles: MapTile[][]): number {
+    let total = 0;
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const tile = tiles[x][y];
+        if (this.placementMap.notPlaced(x, y) && !isOceanTerrain(tile.terrain)) {
+          total++;
+        }
+      }
+    }
+    return total;
+  }
+
+  /**
+   * Compute initial terrain counts per freeciv formulas
+   */
+  private computeInitialCounts(
+    total: number,
+    terrainParams: TerrainParams
+  ): {
+    forests: number;
+    jungles: number;
+    deserts: number;
+    swamps: number;
+    altDeserts: number;
+    plains: number;
+  } {
+    const forests = Math.floor(
+      (total * terrainParams.forest_pct) / (100 - terrainParams.mountain_pct)
+    );
+    const jungles = Math.floor(
+      (total * terrainParams.jungle_pct) / (100 - terrainParams.mountain_pct)
+    );
+    const deserts = Math.floor(
+      (total * terrainParams.desert_pct) / (100 - terrainParams.mountain_pct)
+    );
+    const swamps = Math.floor(
+      (total * terrainParams.swamp_pct) / (100 - terrainParams.mountain_pct)
+    );
+    const altDeserts = 0;
+    const plains = total - forests - deserts - swamps - jungles;
+
+    return { forests, jungles, deserts, swamps, altDeserts, plains };
+  }
+
+  /**
+   * Process one terrain category placement step, updating counts as in freeciv
+   */
+  private processPlacement(
+    tiles: MapTile[][],
+    counts: {
+      forests: number;
+      jungles: number;
+      deserts: number;
+      swamps: number;
+      altDeserts: number;
+      plains: number;
+    },
+    config: {
+      key: 'forests' | 'jungles' | 'deserts' | 'swamps' | 'altDeserts';
+      fallback: 'plains' | 'forests' | 'altDeserts';
+      wc: string;
+      tc: string;
+      mc: string;
+      weight: number;
+      props: [MapgenTerrainPropertyEnum, MapgenTerrainPropertyEnum, MapgenTerrainPropertyEnum];
+    }
+  ): void {
+    const key = config.key;
+    if (counts[key] <= 0) return;
+
+    const candidate = this.randMapPosCharacteristic(tiles, config.wc, config.tc, config.mc);
+    if (candidate) {
+      const terrain = pickTerrain(config.props[0], config.props[1], config.props[2], this.random);
+      this.placeTerrain(
+        candidate.tile,
+        candidate.x,
+        candidate.y,
+        config.weight,
+        terrain,
+        counts[key],
+        counts[config.fallback],
+        config.wc,
+        config.tc,
+        config.mc
+      );
+      counts[key]--;
+    } else {
+      counts[config.fallback] += counts[key];
+      counts[key] = 0;
     }
   }
 
