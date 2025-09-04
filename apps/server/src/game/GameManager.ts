@@ -305,7 +305,8 @@ export class GameManager {
     logger.info('Starting game', { gameId, playerCount: game.players.length });
 
     // Update database to active state
-    await this.databaseProvider.getDatabase()
+    await this.databaseProvider
+      .getDatabase()
       .update(games)
       .set({
         status: 'active',
@@ -374,17 +375,24 @@ export class GameManager {
       temperatureParam
     );
     const turnManager = new TurnManager(gameId, this.databaseProvider, this.io);
-    const unitManager = new UnitManager(gameId, this.databaseProvider, game.mapWidth, game.mapHeight, mapManager, {
-      foundCity: this.foundCity.bind(this),
-      requestPath: this.requestPath.bind(this),
-      broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
-        this.broadcastToGame(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
-      },
-      getCityAt: (x: number, y: number) => {
-        const city = cityManager.getCityAt(x, y);
-        return city ? { playerId: city.playerId } : null;
-      },
-    });
+    const unitManager = new UnitManager(
+      gameId,
+      this.databaseProvider,
+      game.mapWidth,
+      game.mapHeight,
+      mapManager,
+      {
+        foundCity: this.foundCity.bind(this),
+        requestPath: this.requestPath.bind(this),
+        broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
+          this.broadcastToGame(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
+        },
+        getCityAt: (x: number, y: number) => {
+          const city = cityManager.getCityAt(x, y);
+          return city ? { playerId: city.playerId } : null;
+        },
+      }
+    );
 
     // Initialize turn system with player IDs
     const playerIds = Array.from(players.keys());
@@ -1152,7 +1160,8 @@ export class GameManager {
           this.games.delete(gameId);
 
           // Update database
-          await this.databaseProvider.getDatabase()
+          await this.databaseProvider
+            .getDatabase()
             .update(games)
             .set({
               status: 'ended',

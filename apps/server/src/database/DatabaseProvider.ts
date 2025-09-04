@@ -34,7 +34,7 @@ export class ProductionDatabaseProvider implements DatabaseProvider {
       const queryClient = (this.database as any)._.session.client;
       await queryClient`SELECT 1`;
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

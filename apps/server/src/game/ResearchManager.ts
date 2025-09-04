@@ -238,7 +238,8 @@ export class ResearchManager {
     playerResearch.currentTech = techId;
 
     // Update database - create research entry if it doesn't exist
-    const existingResearch = await this.databaseProvider.getDatabase()
+    const existingResearch = await this.databaseProvider
+      .getDatabase()
       .select()
       .from(researchTable)
       .where(and(eq(researchTable.gameId, this.gameId), eq(researchTable.playerId, playerId)));
@@ -252,7 +253,8 @@ export class ResearchManager {
         bulbsLastTurn: 0,
       });
     } else {
-      await this.databaseProvider.getDatabase()
+      await this.databaseProvider
+        .getDatabase()
         .update(researchTable)
         .set({
           currentTech: techId,
@@ -275,7 +277,8 @@ export class ResearchManager {
     playerResearch.techGoal = techId;
 
     // Update database
-    await this.databaseProvider.getDatabase()
+    await this.databaseProvider
+      .getDatabase()
       .update(researchTable)
       .set({
         techGoal: techId,
@@ -437,11 +440,16 @@ export class ResearchManager {
 
   public async loadPlayerResearch(): Promise<void> {
     // Load research state from database
-    const researchData = await this.databaseProvider.getDatabase()
+    const researchData = await this.databaseProvider
+      .getDatabase()
       .select()
       .from(researchTable)
       .where(eq(researchTable.gameId, this.gameId));
-    const techData = await this.databaseProvider.getDatabase().select().from(playerTechs).where(eq(playerTechs.gameId, this.gameId));
+    const techData = await this.databaseProvider
+      .getDatabase()
+      .select()
+      .from(playerTechs)
+      .where(eq(playerTechs.gameId, this.gameId));
 
     // Group techs by player
     const playerTechMap = new Map<string, string[]>();

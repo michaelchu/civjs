@@ -180,7 +180,12 @@ export class CityManager {
   private governmentManager?: GovernmentManager;
   private callbacks: CityManagerCallbacks;
 
-  constructor(gameId: string, databaseProvider: DatabaseProvider, effectsManager?: EffectsManager, callbacks?: CityManagerCallbacks) {
+  constructor(
+    gameId: string,
+    databaseProvider: DatabaseProvider,
+    effectsManager?: EffectsManager,
+    callbacks?: CityManagerCallbacks
+  ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
     this.effectsManager = effectsManager || new EffectsManager();
@@ -234,7 +239,8 @@ export class CityManager {
     }
 
     // Create city in database following Freeciv initial values
-    const [dbCity] = await this.databaseProvider.getDatabase()
+    const [dbCity] = await this.databaseProvider
+      .getDatabase()
       .insert(cities)
       .values({
         gameId: this.gameId,
@@ -533,7 +539,11 @@ export class CityManager {
    * Load cities from database
    */
   async loadCities(): Promise<void> {
-    const dbCities = await this.databaseProvider.getDatabase().select().from(cities).where(eq(cities.gameId, this.gameId));
+    const dbCities = await this.databaseProvider
+      .getDatabase()
+      .select()
+      .from(cities)
+      .where(eq(cities.gameId, this.gameId));
 
     for (const dbCity of dbCities) {
       const cityState: CityState = {
@@ -574,7 +584,8 @@ export class CityManager {
    * Save city to database
    */
   private async saveCityToDatabase(city: CityState): Promise<void> {
-    await this.databaseProvider.getDatabase()
+    await this.databaseProvider
+      .getDatabase()
       .update(cities)
       .set({
         population: city.population,

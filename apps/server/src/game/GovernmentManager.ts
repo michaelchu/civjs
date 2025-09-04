@@ -94,7 +94,8 @@ export class GovernmentManager {
     this.playerGovernments.set(playerId, government);
 
     // Update player record in database with initial government
-    await this.databaseProvider.getDatabase()
+    await this.databaseProvider
+      .getDatabase()
       .update(playersTable)
       .set({
         government: 'despotism',
@@ -144,7 +145,8 @@ export class GovernmentManager {
     playerGov.requestedGovernment = requestedGovernment;
 
     // Update database
-    await this.databaseProvider.getDatabase()
+    await this.databaseProvider
+      .getDatabase()
       .update(playersTable)
       .set({
         government: 'anarchy',
@@ -173,7 +175,8 @@ export class GovernmentManager {
       playerGov.requestedGovernment = undefined;
 
       // Update database
-      await this.databaseProvider.getDatabase()
+      await this.databaseProvider
+        .getDatabase()
         .update(playersTable)
         .set({
           government: newGovernment,
@@ -184,7 +187,8 @@ export class GovernmentManager {
       return newGovernment;
     } else {
       // Update remaining turns in database
-      await this.databaseProvider.getDatabase()
+      await this.databaseProvider
+        .getDatabase()
         .update(playersTable)
         .set({
           revolutionTurns: playerGov.revolutionTurns,
@@ -374,7 +378,8 @@ export class GovernmentManager {
     playerGov.requestedGovernment = governmentType;
 
     // Update database
-    await this.databaseProvider.getDatabase()
+    await this.databaseProvider
+      .getDatabase()
       .update(playersTable)
       .set({
         government: 'anarchy',
@@ -587,7 +592,8 @@ export class GovernmentManager {
    * Reference: Integration test requirement for game reloads
    */
   public async loadPlayerGovernments(): Promise<void> {
-    const results = await this.databaseProvider.getDatabase()
+    const results = await this.databaseProvider
+      .getDatabase()
       .select({
         id: playersTable.id,
         government: playersTable.government,
@@ -610,7 +616,8 @@ export class GovernmentManager {
   }
 
   public async loadPlayerGovernmentFromDb(playerId: string): Promise<void> {
-    const result = await this.databaseProvider.getDatabase()
+    const result = await this.databaseProvider
+      .getDatabase()
       .select({
         government: playersTable.government,
         revolutionTurns: playersTable.revolutionTurns,

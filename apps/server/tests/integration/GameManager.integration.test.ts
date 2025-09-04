@@ -21,7 +21,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
     // Reset singleton for testing
     (GameManager as any).instance = null;
     const mockIo = createMockSocketServer();
-    
+
     // Create test database provider
     testDbProvider = getTestDatabaseProvider();
     gameManager = GameManager.getInstance(mockIo, testDbProvider);
