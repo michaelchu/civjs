@@ -364,59 +364,111 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     this.logger.debug('Map generation starting', { terrainSettings, generator, startpos });
 
     const generatorType = this.convertGeneratorType(generator);
-    let generationAttempted = false;
-    let lastError: Error | null = null;
 
+    const generated = await this.tryGenerate(mapManager, players, generator, generatorType);
+
+    // Emergency fallback sequence (defensive addition, not in freeciv)
+    if (!generated || !mapManager.getMapData()) {
+      await this.performEmergencyFallback(mapManager, players, generatorType);
+    }
+
+    await this.persistAndBroadcast(
+      gameId,
+      mapManager,
+      terrainSettings,
+      unitManager,
+      players,
+      generatorType
+    );
+  }
+
+  /**
+   * Convert generator string to MapGeneratorType
+   * @reference Original GameManager.ts:1104-1123 convertGeneratorType()
+   */
+  private convertGeneratorType(generator: string): MapGeneratorType {
+    switch (generator.toLowerCase()) {
+      case 'random':
+        return 'RANDOM';
+      case 'fractal':
+        return 'FRACTAL';
+      case 'island':
+        return 'ISLAND';
+      case 'fair':
+        return 'FAIR';
+      case 'scenario':
+        return 'SCENARIO';
+      default:
+        this.logger.warn(`Unknown generator type: ${generator}, defaulting to RANDOM`);
+        return 'RANDOM';
+    }
+  }
+
+  private async tryGenerate(
+    mapManager: MapManager,
+    players: Map<string, PlayerState>,
+    generator: string,
+    generatorType: MapGeneratorType
+  ): Promise<boolean> {
     try {
       this.logger.info('Delegating to restructured MapManager', {
         generator,
         generatorType,
         reference: 'apps/server/src/game/MapManager.ts:97-138',
       });
-
-      // Delegate to restructured MapManager system
       await mapManager.generateMap(players, generatorType);
-      generationAttempted = true;
+      return true;
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
+      const lastError = error instanceof Error ? error : new Error(String(error));
       this.logger.error('Map generation failed, attempting emergency recovery', {
         generator: generatorType,
         error: lastError.message,
       });
+      return false;
     }
+  }
 
-    // Emergency fallback sequence (defensive addition, not in freeciv)
-    if (!generationAttempted || !mapManager.getMapData()) {
-      this.logger.warn('Initiating emergency fallback sequence (defensive extension)');
+  private async performEmergencyFallback(
+    mapManager: MapManager,
+    players: Map<string, PlayerState>,
+    generatorType: MapGeneratorType
+  ): Promise<void> {
+    this.logger.warn('Initiating emergency fallback sequence (defensive extension)');
+
+    try {
+      this.logger.info('Emergency fallback: MAPGEN_FRACTAL');
+      await mapManager.generateMap(players, 'FRACTAL');
+      return;
+    } catch (error) {
+      this.logger.error('Emergency fractal failed, trying final MAPGEN_RANDOM fallback', {
+        error: error instanceof Error ? error.message : error,
+      });
 
       try {
-        this.logger.info('Emergency fallback: MAPGEN_FRACTAL');
-        await mapManager.generateMap(players, 'FRACTAL');
-        generationAttempted = true;
+        this.logger.info('Final emergency fallback: MAPGEN_RANDOM');
+        await mapManager.generateMap(players, 'RANDOM');
+        return;
       } catch (error) {
-        this.logger.error('Emergency fractal failed, trying final MAPGEN_RANDOM fallback', {
-          error: error instanceof Error ? error.message : error,
+        const finalError = error instanceof Error ? error : new Error(String(error));
+        this.logger.error('All generation methods exhausted', {
+          originalError: `initial generator: ${generatorType}`,
+          finalError: finalError.message,
         });
-
-        try {
-          this.logger.info('Final emergency fallback: MAPGEN_RANDOM');
-          await mapManager.generateMap(players, 'RANDOM');
-          generationAttempted = true;
-        } catch (error) {
-          const finalError = error instanceof Error ? error : new Error(String(error));
-          this.logger.error('All generation methods exhausted', {
-            originalError: lastError?.message,
-            finalError: finalError.message,
-          });
-          throw new Error(
-            `Complete map generation failure. Original: ${
-              lastError?.message || 'unknown'
-            }, Final: ${finalError.message}`
-          );
-        }
+        throw new Error(
+          `Complete map generation failure. Original: initial generator: ${generatorType}, Final: ${finalError.message}`
+        );
       }
     }
+  }
 
+  private async persistAndBroadcast(
+    gameId: string,
+    mapManager: MapManager,
+    terrainSettings: TerrainSettings | undefined,
+    unitManager: UnitManager | undefined,
+    players: Map<string, PlayerState>,
+    generatorType: MapGeneratorType
+  ): Promise<void> {
     const mapData = mapManager.getMapData();
     if (!mapData) {
       throw new Error('Map generation failed - no map data available');
@@ -445,26 +497,43 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     });
   }
 
-  /**
-   * Convert generator string to MapGeneratorType
-   * @reference Original GameManager.ts:1104-1123 convertGeneratorType()
-   */
-  private convertGeneratorType(generator: string): MapGeneratorType {
-    switch (generator.toLowerCase()) {
-      case 'random':
-        return 'RANDOM';
-      case 'fractal':
-        return 'FRACTAL';
-      case 'island':
-        return 'ISLAND';
-      case 'fair':
-        return 'FAIR';
-      case 'scenario':
-        return 'SCENARIO';
-      default:
-        this.logger.warn(`Unknown generator type: ${generator}, defaulting to RANDOM`);
-        return 'RANDOM';
-    }
+  private buildPathResponse(
+    pathResult: any,
+    unitId: string,
+    targetX: number,
+    targetY: number
+  ): { success: boolean; path?: any; error?: string } {
+    const tiles = Array.isArray(pathResult?.path) ? pathResult.path : [];
+    const isValid = pathResult?.valid && tiles.length > 0;
+    return {
+      success: isValid,
+      path: isValid
+        ? {
+            unitId,
+            targetX,
+            targetY,
+            tiles: tiles,
+            totalCost: pathResult.totalCost || 0,
+            estimatedTurns: pathResult.estimatedTurns || 0,
+            valid: isValid,
+          }
+        : undefined,
+      error: isValid ? undefined : 'No valid path found',
+    };
+  }
+
+  private validatePathRequest(
+    gameId: string,
+    playerId: string,
+    unitId: string
+  ): { gameInstance: GameInstance | null; unit?: any; error?: string } {
+    const gameInstance = this.games.get(gameId) || null;
+    if (!gameInstance) return { gameInstance, error: 'Game instance not found' };
+    const unit = gameInstance.unitManager.getUnit(unitId);
+    if (!unit) return { gameInstance, error: 'Unit not found' };
+    if (unit.playerId !== playerId)
+      return { gameInstance, error: 'Unit does not belong to player' };
+    return { gameInstance, unit };
   }
   private validateStartConditions(game: any, hostId: string): void {
     if (game.hostId !== hostId) {
@@ -678,41 +747,14 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     targetX: number,
     targetY: number
   ): Promise<{ success: boolean; path?: any; error?: string }> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      return { success: false, error: 'Game instance not found' };
-    }
-
     try {
-      const unit = gameInstance.unitManager.getUnit(unitId);
-      if (!unit) {
-        return { success: false, error: 'Unit not found' };
-      }
-
-      if (unit.playerId !== playerId) {
-        return { success: false, error: 'Unit does not belong to player' };
+      const { gameInstance, unit, error } = this.validatePathRequest(gameId, playerId, unitId);
+      if (error || !gameInstance || !unit) {
+        return { success: false, error: error || 'Pathfinding error' };
       }
 
       const pathResult = await gameInstance.pathfindingManager.findPath(unit, targetX, targetY);
-
-      const tiles = Array.isArray(pathResult?.path) ? pathResult.path : [];
-      const isValid = pathResult?.valid && tiles.length > 0;
-
-      return {
-        success: isValid,
-        path: isValid
-          ? {
-              unitId,
-              targetX,
-              targetY,
-              tiles: tiles,
-              totalCost: pathResult.totalCost || 0,
-              estimatedTurns: pathResult.estimatedTurns || 0,
-              valid: isValid,
-            }
-          : undefined,
-        error: isValid ? undefined : 'No valid path found',
-      };
+      return this.buildPathResponse(pathResult, unitId, targetX, targetY);
     } catch (error) {
       logger.error('Error in GameLifecycleManager requestPath delegation:', error);
       return { success: false, error: 'Pathfinding error' };
