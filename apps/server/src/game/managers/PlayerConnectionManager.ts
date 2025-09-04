@@ -6,7 +6,7 @@
 
 import { BaseGameService } from './GameService';
 import { logger } from '../../utils/logger';
-import { db } from '../../database';
+import { DatabaseProvider } from '../../database';
 import { gameState } from '../../database/redis';
 import { games, players } from '../../database/schema';
 import { eq } from 'drizzle-orm';
@@ -22,14 +22,17 @@ export interface PlayerConnectionService {
 
 export class PlayerConnectionManager extends BaseGameService implements PlayerConnectionService {
   private playerToGame = new Map<string, string>();
+  private databaseProvider: DatabaseProvider;
   private onBroadcast?: (gameId: string, event: string, data: any) => void;
   private onAutoStartGame?: (gameId: string, hostId: string) => Promise<void>;
 
   constructor(
+    databaseProvider: DatabaseProvider,
     onBroadcast?: (gameId: string, event: string, data: any) => void,
     onAutoStartGame?: (gameId: string, hostId: string) => Promise<void>
   ) {
     super(logger);
+    this.databaseProvider = databaseProvider;
     this.onBroadcast = onBroadcast;
     this.onAutoStartGame = onAutoStartGame;
   }
@@ -44,7 +47,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
    */
   async joinGame(gameId: string, userId: string, civilization?: string): Promise<string> {
     // Get game from database
-    const game = await db.query.games.findFirst({
+    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
       with: {
         players: true,
@@ -92,7 +95,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       },
     };
 
-    const [newPlayer] = await db.insert(players).values(playerData).returning();
+    const [newPlayer] = await this.databaseProvider.getDatabase().insert(players).values(playerData).returning();
 
     // Track player to game mapping
     this.playerToGame.set(newPlayer.id, gameId);
@@ -131,7 +134,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
 
     // Update database connection status
     try {
-      await db
+      await this.databaseProvider.getDatabase()
         .update(players)
         .set({
           connectionStatus: isConnected ? 'connected' : 'disconnected',
@@ -162,7 +165,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
    */
   async ensureMinimumPlayers(gameId: string): Promise<void> {
     // Get current game state
-    const game = await db.query.games.findFirst({
+    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
       with: { players: true },
     });
@@ -216,7 +219,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       };
 
       try {
-        const [aiPlayer] = await db.insert(players).values(aiPlayerData).returning();
+        const [aiPlayer] = await this.databaseProvider.getDatabase().insert(players).values(aiPlayerData).returning();
         this.logger.info('Added AI player to game', {
           gameId,
           aiPlayerId: aiPlayer.id,
@@ -339,7 +342,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
    */
   private async handleAutoStart(gameId: string): Promise<void> {
     // Get updated game state
-    const updatedGame = await db.query.games.findFirst({
+    const updatedGame = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
       with: { players: true },
     });

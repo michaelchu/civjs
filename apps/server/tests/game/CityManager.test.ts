@@ -1,57 +1,14 @@
 import { CityManager, BUILDING_TYPES } from '../../src/game/CityManager';
 import { UNIT_TYPES } from '../../src/game/constants/UnitConstants';
-
-// Get the mock from setup
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-const { db: mockDb } = require('../../src/database');
+import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('CityManager', () => {
   let cityManager: CityManager;
   const gameId = 'test-game-id';
 
   beforeEach(() => {
-    cityManager = new CityManager(gameId);
-
-    let cityCounter = 0;
-
-    // Mock database operations
-    mockDb.insert = jest.fn().mockReturnThis();
-    mockDb.values = jest.fn().mockReturnThis();
-    mockDb.returning = jest.fn().mockImplementation(() => {
-      const cityId = `city-${++cityCounter}`;
-      return Promise.resolve([
-        {
-          id: cityId,
-          gameId,
-          playerId: 'player-123',
-          name: 'TestCity',
-          x: 10,
-          y: 10,
-          population: 1,
-          food: 0,
-          foodPerTurn: 2,
-          production: 0,
-          productionPerTurn: 1,
-          currentProduction: null,
-          goldPerTurn: 0,
-          sciencePerTurn: 0,
-          culturePerTurn: 1,
-          buildings: [],
-          workedTiles: [{ x: 10, y: 10 }],
-          isCapital: false,
-          defenseStrength: 1,
-          happiness: 50,
-          health: 100,
-          foundedTurn: 1,
-        },
-      ]);
-    });
-    mockDb.update = jest.fn().mockReturnThis();
-    mockDb.set = jest.fn().mockReturnThis();
-    mockDb.where = jest.fn().mockReturnThis();
-    mockDb.select = jest.fn().mockReturnThis();
-    mockDb.from = jest.fn().mockReturnThis();
-
+    const mockDbProvider = createMockDatabaseProvider();
+    cityManager = new CityManager(gameId, mockDbProvider);
     jest.clearAllMocks();
   });
 

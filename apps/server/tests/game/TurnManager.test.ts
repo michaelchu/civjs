@@ -1,5 +1,6 @@
 import { TurnManager } from '../../src/game/TurnManager';
 import { Server as SocketServer } from 'socket.io';
+import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('TurnManager', () => {
   let turnManager: TurnManager;
@@ -10,7 +11,8 @@ describe('TurnManager', () => {
   } as unknown as SocketServer;
 
   beforeEach(() => {
-    turnManager = new TurnManager(testGameId, mockIo);
+    const mockDbProvider = createMockDatabaseProvider();
+    turnManager = new TurnManager(testGameId, mockDbProvider, mockIo);
 
     // Mock database operations
     turnManager['createTurnRecord'] = jest.fn().mockResolvedValue(undefined);

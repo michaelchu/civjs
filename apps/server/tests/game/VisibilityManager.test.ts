@@ -2,10 +2,7 @@ import { beforeAll } from '@jest/globals';
 import { VisibilityManager } from '../../src/game/VisibilityManager';
 import { UnitManager } from '../../src/game/UnitManager';
 import { MapManager } from '../../src/game/MapManager';
-
-// Get the mock from setup
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-const { db: mockDb } = require('../../src/database');
+import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('VisibilityManager', () => {
   let visibilityManager: VisibilityManager;
@@ -21,7 +18,8 @@ describe('VisibilityManager', () => {
 
   beforeEach(async () => {
     // Setup managers
-    unitManager = new UnitManager(gameId, mapWidth, mapHeight);
+    const mockDbProvider = createMockDatabaseProvider();
+    unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight);
     mapManager = new MapManager(mapWidth, mapHeight);
     visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
 

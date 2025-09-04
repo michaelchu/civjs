@@ -62,7 +62,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
    */
   async updateGameState(gameId: string, updates: any): Promise<void> {
     try {
-      await db
+      await this.databaseProvider.getDatabase()
         .update(games)
         .set({
           ...updates,
@@ -220,7 +220,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       };
 
       // Update database with map data and seed
-      await db
+      await this.databaseProvider.getDatabase()
         .update(games)
         .set({
           mapSeed: mapData.seed,

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../../database';
+import { DatabaseProvider } from '../../database';
 import { games } from '../../database/schema';
 import { GameInstance, PlayerState, TurnPhase } from '../GameManager';
 import { BaseGameService } from './GameService';
@@ -25,6 +25,7 @@ import { Server as SocketServer } from 'socket.io';
  */
 export class GameInstanceRecoveryService extends BaseGameService {
   constructor(
+    private databaseProvider: DatabaseProvider,
     private games: Map<string, GameInstance>,
     private playerToGame: Map<string, string>,
     private io: SocketServer,
@@ -66,7 +67,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       logger.info('Attempting to recover game instance from database', { gameId });
 
       // Get game from database with all related data
-      const game = await db.query.games.findFirst({
+      const game = await this.databaseProvider.getDatabase().query.games.findFirst({
         where: eq(games.id, gameId),
         with: {
           players: true,
@@ -130,8 +131,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       await this.restoreMapDataToManager(mapManager, game.mapData as any, game.mapSeed!);
 
       // Initialize managers (now that mapManager is available)
-      const turnManager = new TurnManager(gameId, this.io);
-      const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager, {
+      const turnManager = new TurnManager(gameId, this.databaseProvider, this.io);
+      const unitManager = new UnitManager(gameId, this.databaseProvider, game.mapWidth, game.mapHeight, mapManager, {
         foundCity: this.foundCity.bind(this),
         requestPath: this.requestPath.bind(this),
         broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
@@ -146,11 +147,11 @@ export class GameInstanceRecoveryService extends BaseGameService {
       // Initialize turn system with existing player IDs
       const playerIds = Array.from(players.keys());
       await turnManager.initializeTurn(playerIds);
-      const cityManager = new CityManager(gameId, undefined, {
+      const cityManager = new CityManager(gameId, this.databaseProvider, undefined, {
         createUnit: (playerId: string, unitType: string, x: number, y: number) =>
           this.createUnit(gameId, playerId, unitType, x, y),
       });
-      const researchManager = new ResearchManager(gameId);
+      const researchManager = new ResearchManager(gameId, this.databaseProvider);
       const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
 
       const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);

@@ -139,12 +139,14 @@ export class GameManager {
     this.gameBroadcastManager = new GameBroadcastManager(this.io);
 
     this.playerConnectionManager = new PlayerConnectionManager(
+      this.databaseProvider,
       this.broadcastToGame.bind(this),
       this.startGame.bind(this)
     );
 
     this.gameLifecycleManager = new GameLifecycleManager(
       this.io,
+      this.databaseProvider,
       this.games,
       this.broadcastToGame.bind(this),
       this.persistMapDataToDatabase.bind(this),
@@ -171,6 +173,7 @@ export class GameManager {
     this.visibilityMapService = new VisibilityMapService(this.games);
 
     this.gameInstanceRecoveryService = new GameInstanceRecoveryService(
+      this.databaseProvider,
       this.games,
       this.playerToGame,
       this.io,
@@ -302,7 +305,7 @@ export class GameManager {
     logger.info('Starting game', { gameId, playerCount: game.players.length });
 
     // Update database to active state
-    await db
+    await this.databaseProvider.getDatabase()
       .update(games)
       .set({
         status: 'active',
@@ -1149,7 +1152,7 @@ export class GameManager {
           this.games.delete(gameId);
 
           // Update database
-          await db
+          await this.databaseProvider.getDatabase()
             .update(games)
             .set({
               status: 'ended',

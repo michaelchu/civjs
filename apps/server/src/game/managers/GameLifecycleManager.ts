@@ -6,7 +6,7 @@
 
 import { BaseGameService } from './GameService';
 import { logger } from '../../utils/logger';
-import { db } from '../../database';
+import { DatabaseProvider } from '../../database';
 import { gameState } from '../../database/redis';
 import { games } from '../../database/schema';
 import { eq } from 'drizzle-orm';
@@ -36,6 +36,7 @@ export interface GameLifecycleService {
 
 export class GameLifecycleManager extends BaseGameService implements GameLifecycleService {
   private io: SocketServer;
+  private databaseProvider: DatabaseProvider;
   private games: Map<string, GameInstance>;
   private onBroadcast?: (gameId: string, event: string, data: any) => void;
   private onPersistMapData?: (
@@ -61,6 +62,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
   constructor(
     io: SocketServer,
+    databaseProvider: DatabaseProvider,
     games: Map<string, GameInstance>,
     onBroadcast?: (gameId: string, event: string, data: any) => void,
     onPersistMapData?: (
@@ -86,6 +88,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   ) {
     super(logger);
     this.io = io;
+    this.databaseProvider = databaseProvider;
     this.games = games;
     this.onBroadcast = onBroadcast;
     this.onPersistMapData = onPersistMapData;
@@ -130,7 +133,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       },
     };
 
-    const [newGame] = await db.insert(games).values(gameData).returning();
+    const [newGame] = await this.databaseProvider.getDatabase().insert(games).values(gameData).returning();
 
     // Cache basic game data in Redis for performance
     await gameState.setGameState(newGame.id, {
@@ -150,7 +153,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
    */
   async startGame(gameId: string, hostId: string): Promise<void> {
     // Get game from database
-    const game = await db.query.games.findFirst({
+    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
       with: {
         players: true,
@@ -178,7 +181,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     this.logger.info('Starting game', { gameId, playerCount: game.players.length });
 
     // Update database to active state
-    await db
+    await this.databaseProvider.getDatabase()
       .update(games)
       .set({
         status: 'active',
@@ -299,21 +302,21 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       temperatureParam
     );
 
-    const turnManager = new TurnManager(gameId, this.io);
+    const turnManager = new TurnManager(gameId, this.databaseProvider, this.io);
 
     // Initialize turn system with player IDs
     const playerIds = Array.from(players.keys());
     await turnManager.initializeTurn(playerIds);
 
     // Create cityManager first to avoid circular dependency
-    const cityManager = new CityManager(gameId, undefined, {
+    const cityManager = new CityManager(gameId, this.databaseProvider, undefined, {
       createUnit: (_playerId: string, _unitType: string, _x: number, _y: number) =>
         // This callback will be handled by the main GameManager
         Promise.resolve(''),
     });
 
     // Create UnitManager with proper dependencies
-    const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager, {
+    const unitManager = new UnitManager(gameId, this.databaseProvider, game.mapWidth, game.mapHeight, mapManager, {
       foundCity: this.onFoundCity
         ? (gameId: string, playerId: string, name: string, x: number, y: number) =>
             this.onFoundCity!(gameId, playerId, name, x, y)
@@ -377,7 +380,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
 
-    const researchManager = new ResearchManager(gameId);
+    const researchManager = new ResearchManager(gameId, this.databaseProvider);
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
 
     // Generate the map with starting positions based on terrain settings
@@ -425,7 +428,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
    */
   async deleteGame(gameId: string, userId?: string): Promise<void> {
     // Check if game exists
-    const game = await db.query.games.findFirst({
+    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
       with: {
         players: true,
@@ -450,7 +453,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     }
 
     // Update database to mark game as ended
-    await db
+    await this.databaseProvider.getDatabase()
       .update(games)
       .set({
         status: 'ended',

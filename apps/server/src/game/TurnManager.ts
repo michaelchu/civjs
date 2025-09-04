@@ -317,7 +317,7 @@ export class TurnManager {
     const endTime = new Date();
     const duration = this.turnStartTime ? endTime.getTime() - this.turnStartTime.getTime() : 0;
 
-    await db
+    await this.databaseProvider.getDatabase()
       .update(gameTurns)
       .set({
         endedAt: endTime,
@@ -345,7 +345,7 @@ export class TurnManager {
     await this.databaseProvider.getDatabase().update(players).set({ hasEndedTurn: false }).where(eq(players.gameId, this.gameId));
 
     // Update game turn counter
-    await db
+    await this.databaseProvider.getDatabase()
       .update(games)
       .set({
         currentTurn: this.currentTurn,

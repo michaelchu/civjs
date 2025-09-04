@@ -234,7 +234,7 @@ export class CityManager {
     }
 
     // Create city in database following Freeciv initial values
-    const [dbCity] = await db
+    const [dbCity] = await this.databaseProvider.getDatabase()
       .insert(cities)
       .values({
         gameId: this.gameId,
@@ -574,7 +574,7 @@ export class CityManager {
    * Save city to database
    */
   private async saveCityToDatabase(city: CityState): Promise<void> {
-    await db
+    await this.databaseProvider.getDatabase()
       .update(cities)
       .set({
         population: city.population,

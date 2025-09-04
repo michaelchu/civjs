@@ -130,7 +130,7 @@ export class UnitManager {
     }
 
     // Save to database and get the generated ID
-    const [dbUnit] = await db
+    const [dbUnit] = await this.databaseProvider.getDatabase()
       .insert(units)
       .values({
         gameId: this.gameId,
@@ -220,7 +220,7 @@ export class UnitManager {
     unit.fortified = false; // Moving breaks fortification
 
     // Update database
-    await db
+    await this.databaseProvider.getDatabase()
       .update(units)
       .set({
         x: unit.x,
@@ -284,7 +284,7 @@ export class UnitManager {
     if (attackerDestroyed) {
       await this.destroyUnit(attackerId);
     } else {
-      await db
+      await this.databaseProvider.getDatabase()
         .update(units)
         .set({ health: attacker.health, movementPoints: '0' })
         .where(eq(units.id, attackerId));
@@ -296,7 +296,7 @@ export class UnitManager {
       if (!attackerDestroyed && attackerType.range === 1) {
         attacker.x = defender.x;
         attacker.y = defender.y;
-        await db
+        await this.databaseProvider.getDatabase()
           .update(units)
           .set({ x: attacker.x, y: attacker.y })
           .where(eq(units.id, attackerId));
@@ -330,7 +330,7 @@ export class UnitManager {
     unit.fortified = true;
     unit.movementLeft = 0; // Fortifying uses all movement
 
-    await db
+    await this.databaseProvider.getDatabase()
       .update(units)
       .set({ movementPoints: '0', isFortified: true })
       .where(eq(units.id, unitId));
@@ -375,7 +375,7 @@ export class UnitManager {
     for (const unit of this.units.values()) {
       if (unit.playerId === playerId) {
         const unitType = UNIT_TYPES[unit.unitTypeId];
-        await db
+        await this.databaseProvider.getDatabase()
           .update(units)
           .set({
             movementPoints: unitType.movement.toString(),

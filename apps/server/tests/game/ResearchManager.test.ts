@@ -1,15 +1,13 @@
 import { ResearchManager, TECHNOLOGIES } from '../../src/game/ResearchManager';
-
-// Get the mock from setup
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-const { db: mockDb } = require('../../src/database');
+import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('ResearchManager', () => {
   let researchManager: ResearchManager;
   const gameId = 'test-game-id';
 
   beforeEach(() => {
-    researchManager = new ResearchManager(gameId);
+    const mockDbProvider = createMockDatabaseProvider();
+    researchManager = new ResearchManager(gameId, mockDbProvider);
 
     let techCounter = 0;
     let researchCounter = 0;
