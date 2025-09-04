@@ -6,9 +6,13 @@ import { DatabaseProvider } from '../../src/database/DatabaseProvider';
  */
 export class MockDatabaseProvider implements DatabaseProvider {
   private static idCounter = 1;
+  private mockDb: any;
 
-  getDatabase() {
-    // Return a mock database object with common methods
+  constructor() {
+    this.mockDb = this.createMockDatabase();
+  }
+
+  private createMockDatabase() {
     return {
       select: jest.fn().mockReturnThis(),
       insert: jest.fn().mockReturnThis(),
@@ -41,7 +45,11 @@ export class MockDatabaseProvider implements DatabaseProvider {
           findMany: jest.fn().mockResolvedValue([]),
         },
       },
-    } as any;
+    };
+  }
+
+  getDatabase() {
+    return this.mockDb;
   }
 
   async testConnection(): Promise<boolean> {
