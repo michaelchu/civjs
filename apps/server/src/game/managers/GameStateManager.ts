@@ -184,15 +184,30 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       currentTurn: game.currentTurn,
       mapSize: `${game.mapWidth}x${game.mapHeight}`,
       createdAt: game.createdAt.toISOString(),
-      canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
-      isPlayer: userId ? game.players?.some((p: any) => p.userId === userId) : false,
-      players:
-        game.players?.map((p: any) => ({
-          id: p.id,
-          civilization: p.civilization,
-          isConnected: p.connectionStatus === 'connected',
-        })) || [],
+      canJoin: this.isJoinable(game),
+      isPlayer: this.isUserPlayer(game, userId),
+      players: this.mapPlayersForRow(game.players),
     };
+  }
+
+  private isJoinable(game: any): boolean {
+    const count = game.players?.length || 0;
+    return game.status === 'waiting' && count < game.maxPlayers;
+  }
+
+  private isUserPlayer(game: any, userId?: string | null): boolean {
+    if (!userId) return false;
+    return game.players?.some((p: any) => p.userId === userId) || false;
+  }
+
+  private mapPlayersForRow(players?: any[]): any[] {
+    return (
+      players?.map((p: any) => ({
+        id: p.id,
+        civilization: p.civilization,
+        isConnected: p.connectionStatus === 'connected',
+      })) || []
+    );
   }
 
   /**
