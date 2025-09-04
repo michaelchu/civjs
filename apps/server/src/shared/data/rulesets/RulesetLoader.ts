@@ -639,87 +639,40 @@ export class RulesetLoader {
    */
   private evaluateRequirement(requirement: Requirement, context: any): boolean {
     const { type, name, present = true } = requirement;
-
-    let satisfied = false;
-
-    switch (type) {
-      case 'Tech':
-        satisfied = context.player?.technologies?.includes(name) ?? false;
-        break;
-
-      case 'Government':
-        satisfied = context.player?.government === name;
-        break;
-
-      case 'Building':
-        satisfied = context.city?.buildings?.includes(name) ?? false;
-        break;
-
-      case 'UnitType':
-        satisfied = context.unit?.type === name;
-        break;
-
-      case 'UnitClass':
-        satisfied = context.unit?.unitClass === name;
-        break;
-
-      case 'Terrain':
-        satisfied = context.tile?.terrain === name;
-        break;
-
-      case 'TerrainClass':
-        // This would need terrain class mapping
-        satisfied = false; // Placeholder
-        break;
-
-      case 'NationGroup':
-        satisfied = context.player?.nationGroups?.includes(name) ?? false;
-        break;
-
-      case 'Age':
-        satisfied = (context.unit?.age ?? 0) >= parseInt(name);
-        break;
-
-      case 'Activity':
-        satisfied = context.unit?.activity === name;
-        break;
-
-      case 'CityTile':
-        satisfied = name === 'Center' ? (context.tile?.isCity ?? false) : false;
-        break;
-
-      case 'Extra':
-        satisfied = context.tile?.extras?.includes(name) ?? false;
-        break;
-
-      case 'UnitClassFlag':
-        satisfied = context.unit?.classFlags?.includes(name) ?? false;
-        break;
-
-      case 'UnitTypeFlag':
-        satisfied = context.unit?.typeFlags?.includes(name) ?? false;
-        break;
-
-      case 'Specialist':
-        satisfied = context.city?.specialists?.[name] > 0;
-        break;
-
-      case 'OutputType':
-        // This would be used in conjunction with Specialist
-        satisfied = true; // Placeholder - context-dependent
-        break;
-
-      case 'MaxUnitsOnTile':
-        satisfied = (context.tile?.unitCount ?? 0) <= parseInt(name);
-        break;
-
-      default:
-        console.warn(`Unknown requirement type: ${type}`);
-        satisfied = false;
-    }
-
-    // Apply present/absent logic
+    const satisfied = this.evaluateByType(type, name, context);
     return present ? satisfied : !satisfied;
+  }
+
+  private evaluateByType(type: string, name: string, context: any): boolean {
+    const evaluators = this.getRequirementEvaluators();
+    const fn = evaluators[type];
+    if (!fn) {
+      console.warn(`Unknown requirement type: ${type}`);
+      return false;
+    }
+    return fn(name, context);
+  }
+
+  private getRequirementEvaluators(): Record<string, (name: string, context: any) => boolean> {
+    return {
+      Tech: (n, ctx) => ctx.player?.technologies?.includes(n) ?? false,
+      Government: (n, ctx) => ctx.player?.government === n,
+      Building: (n, ctx) => ctx.city?.buildings?.includes(n) ?? false,
+      UnitType: (n, ctx) => ctx.unit?.type === n,
+      UnitClass: (n, ctx) => ctx.unit?.unitClass === n,
+      Terrain: (n, ctx) => ctx.tile?.terrain === n,
+      TerrainClass: (_n, _ctx) => false, // Placeholder until class mapping exists
+      NationGroup: (n, ctx) => ctx.player?.nationGroups?.includes(n) ?? false,
+      Age: (n, ctx) => (ctx.unit?.age ?? 0) >= parseInt(n),
+      Activity: (n, ctx) => ctx.unit?.activity === n,
+      CityTile: (n, ctx) => (n === 'Center' ? (ctx.tile?.isCity ?? false) : false),
+      Extra: (n, ctx) => ctx.tile?.extras?.includes(n) ?? false,
+      UnitClassFlag: (n, ctx) => ctx.unit?.classFlags?.includes(n) ?? false,
+      UnitTypeFlag: (n, ctx) => ctx.unit?.typeFlags?.includes(n) ?? false,
+      Specialist: (n, ctx) => (ctx.city?.specialists?.[n] ?? 0) > 0,
+      OutputType: (_n, _ctx) => true, // Placeholder - context dependent
+      MaxUnitsOnTile: (n, ctx) => (ctx.tile?.unitCount ?? 0) <= parseInt(n),
+    };
   }
 
   /**
