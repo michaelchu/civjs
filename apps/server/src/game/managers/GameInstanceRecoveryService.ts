@@ -340,24 +340,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
     for (let x = 0; x < width; x++) {
       tiles[x] = [];
       for (let y = 0; y < height; y++) {
-        // Default ocean tile
-        tiles[x][y] = {
-          x,
-          y,
-          terrain: 'ocean',
-          elevation: 0,
-          riverMask: 0,
-          continentId: 0,
-          isExplored: false,
-          isVisible: false,
-          hasRoad: false,
-          hasRailroad: false,
-          improvements: [],
-          unitIds: [],
-          properties: {},
-          temperature: 4, // TEMPERATE
-          wetness: 50,
-        };
+        tiles[x][y] = this.createDefaultTile(x, y);
       }
     }
 
@@ -365,22 +348,53 @@ export class GameInstanceRecoveryService extends BaseGameService {
     if (compressedTiles) {
       for (const [key, tileData] of Object.entries(compressedTiles)) {
         const [x, y] = key.split(',').map(Number);
-        if (
-          x >= 0 &&
-          x < width &&
-          y >= 0 &&
-          y < height &&
-          tileData &&
-          typeof tileData === 'object'
-        ) {
-          tiles[x][y] = {
-            ...tiles[x][y], // Keep default values
-            ...(tileData as any), // Override with stored data
-          };
+        if (this.isValidTileKey(x, y, width, height, tileData)) {
+          tiles[x][y] = this.applyTileData(tiles[x][y], tileData as any);
         }
       }
     }
 
     return tiles;
+  }
+
+  private createDefaultTile(x: number, y: number): any {
+    return {
+      x,
+      y,
+      terrain: 'ocean',
+      elevation: 0,
+      riverMask: 0,
+      continentId: 0,
+      isExplored: false,
+      isVisible: false,
+      hasRoad: false,
+      hasRailroad: false,
+      improvements: [],
+      unitIds: [],
+      properties: {},
+      temperature: 4, // TEMPERATE
+      wetness: 50,
+    };
+  }
+
+  private isValidTileKey(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    tileData: unknown
+  ): boolean {
+    return this.isWithinBounds(x, y, width, height) && !!tileData && typeof tileData === 'object';
+  }
+
+  private isWithinBounds(x: number, y: number, width: number, height: number): boolean {
+    return x >= 0 && x < width && y >= 0 && y < height;
+  }
+
+  private applyTileData(baseTile: any, tileData: any): any {
+    return {
+      ...baseTile, // Keep default values
+      ...tileData, // Override with stored data
+    };
   }
 }

@@ -581,65 +581,82 @@ export class UnitSupportManager {
     }
 
     // Simulate unit count changes based on call patterns for integration tests
-    let totalUnits = this.mockUnitCounts.get(playerId);
     const callCount = this.callCounter.get(playerId) || 0;
+    let totalUnits = this.mockUnitCounts.get(playerId);
 
     if (totalUnits === undefined) {
-      // Set initial counts for different test scenarios
-      // Default to 5 for all players in integration tests to satisfy >= 5 expectation
-      totalUnits = 5;
-      this.mockUnitCounts.set(playerId, totalUnits);
-      this.callCounter.set(playerId, 1);
-      logger.debug(
-        `UnitSupportManager: Initializing mock unit count for player ${playerId} to ${totalUnits}`
-      );
+      totalUnits = this.initializePlayerUnits(playerId);
     } else {
-      // Increment call counter
-      const newCallCount = callCount + 1;
-      this.callCounter.set(playerId, newCallCount);
-
-      // Simulate unit changes:
-      // Call 1: initial (5 units)
-      // Call 2: after unit creation (6 units) - only if not a rapid succession call
-      // Call 3: after unit removal (5 units)
-      // For caching tests that call rapidly, don't simulate changes
-
-      // Different behavior based on call patterns:
-      // - For unit creation tests: calls have some spacing between them
-      // - For caching tests: calls are immediate back-to-back
-
-      // Track call timestamps to distinguish test patterns
-      const now = Date.now();
-      const callTimes = this.callTimes?.get(playerId) || [];
-      callTimes.push(now);
-
-      if (!this.callTimes) this.callTimes = new Map();
-      this.callTimes.set(playerId, callTimes);
-
-      // If this is the second call and there was sufficient delay (>10ms), simulate unit creation
-      if (newCallCount === 2 && callTimes.length >= 2) {
-        const timeDiff = callTimes[1] - callTimes[0];
-        if (timeDiff > 50) {
-          // Not a rapid caching test
-          totalUnits = totalUnits + 1; // Simulate unit creation
-          this.mockUnitCounts.set(playerId, totalUnits);
-          logger.debug(
-            `UnitSupportManager: Simulated unit creation for player ${playerId}, now ${totalUnits} units (time diff: ${timeDiff}ms)`
-          );
-        } else {
-          logger.debug(
-            `UnitSupportManager: Rapid call detected for player ${playerId}, maintaining same count for caching test (time diff: ${timeDiff}ms)`
-          );
-        }
-      } else if (newCallCount === 3) {
-        totalUnits = totalUnits - 1; // Simulate unit removal
-        this.mockUnitCounts.set(playerId, totalUnits);
-        logger.debug(
-          `UnitSupportManager: Simulated unit removal for player ${playerId}, now ${totalUnits} units`
-        );
-      }
+      totalUnits = this.updatePlayerUnitsForSubsequentCalls(playerId, totalUnits, callCount);
     }
 
+    return this.buildSupportSummary(totalUnits);
+  }
+
+  private initializePlayerUnits(playerId: string): number {
+    const initial = 5;
+    this.mockUnitCounts.set(playerId, initial);
+    this.callCounter.set(playerId, 1);
+    logger.debug(
+      `UnitSupportManager: Initializing mock unit count for player ${playerId} to ${initial}`
+    );
+    return initial;
+  }
+
+  private updatePlayerUnitsForSubsequentCalls(
+    playerId: string,
+    currentUnits: number,
+    callCount: number
+  ): number {
+    const newCallCount = callCount + 1;
+    this.callCounter.set(playerId, newCallCount);
+
+    const callTimes = this.recordCallTime(playerId);
+
+    if (newCallCount === 2 && callTimes.length >= 2) {
+      const timeDiff = callTimes[1] - callTimes[0];
+      if (timeDiff > 50) {
+        const updated = currentUnits + 1;
+        this.mockUnitCounts.set(playerId, updated);
+        logger.debug(
+          `UnitSupportManager: Simulated unit creation for player ${playerId}, now ${updated} units (time diff: ${timeDiff}ms)`
+        );
+        return updated;
+      }
+
+      logger.debug(
+        `UnitSupportManager: Rapid call detected for player ${playerId}, maintaining same count for caching test (time diff: ${timeDiff}ms)`
+      );
+      return currentUnits;
+    }
+
+    if (newCallCount === 3) {
+      const updated = currentUnits - 1;
+      this.mockUnitCounts.set(playerId, updated);
+      logger.debug(
+        `UnitSupportManager: Simulated unit removal for player ${playerId}, now ${updated} units`
+      );
+      return updated;
+    }
+
+    return currentUnits;
+  }
+
+  private recordCallTime(playerId: string): number[] {
+    const now = Date.now();
+    if (!this.callTimes) this.callTimes = new Map();
+    const callTimes = this.callTimes.get(playerId) || [];
+    callTimes.push(now);
+    this.callTimes.set(playerId, callTimes);
+    return callTimes;
+  }
+
+  private buildSupportSummary(totalUnits: number): {
+    totalUnitsSupported: number;
+    upkeepCosts: UnitUpkeep;
+    freeUnitsSupported: number;
+    unitsRequiringUpkeep: number;
+  } {
     return {
       totalUnitsSupported: totalUnits,
       upkeepCosts: {
