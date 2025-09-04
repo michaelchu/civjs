@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, complexity */
+/* eslint-disable complexity */
 import { Server, Socket } from 'socket.io';
 import { logger } from '../utils/logger';
 import { PacketHandler } from './PacketHandler';

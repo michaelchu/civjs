@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import dotenv from 'dotenv';
 import { z } from 'zod';
 

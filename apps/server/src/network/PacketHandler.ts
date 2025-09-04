@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, complexity */
+/* eslint-disable complexity */
 import { Socket } from 'socket.io';
 import { z } from 'zod';
 import logger from '../utils/logger';

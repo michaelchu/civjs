@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { logger } from '../utils/logger';
 import { db } from '../database';
 import { gameState } from '../database/redis';

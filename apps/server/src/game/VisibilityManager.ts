@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { logger } from '../utils/logger';
 import { UnitManager } from './UnitManager';
 import { UNIT_TYPES } from './constants/UnitConstants';

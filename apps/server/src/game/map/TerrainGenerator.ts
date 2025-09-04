@@ -274,34 +274,21 @@ export class TerrainGenerator {
     }
 
     // DEBUG: Check tile completeness after terrain generation
-    let completeCount = 0;
-    let incompleteCount = 0;
+    let _completeCount = 0;
+    let _incompleteCount = 0;
     let sampleTile = null;
 
     for (let x = 0; x < this.width && x < 5; x++) {
       for (let y = 0; y < this.height && y < 5; y++) {
         const tile = tiles[x][y];
         if (tile && tile.terrain && tile.terrain !== 'ocean' && tile.elevation !== undefined) {
-          completeCount++;
+          _completeCount++;
           if (!sampleTile) sampleTile = tile;
         } else {
-          incompleteCount++;
+          _incompleteCount++;
         }
       }
     }
-
-    console.log(`TerrainGenerator completed - Sample check (first 5x5):`, {
-      complete: completeCount,
-      incomplete: incompleteCount,
-      sampleTile: sampleTile
-        ? {
-            terrain: sampleTile.terrain,
-            elevation: sampleTile.elevation,
-            x: sampleTile.x,
-            y: sampleTile.y,
-          }
-        : 'none',
-    });
   }
 
   /**

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, complexity */
+/* eslint-disable complexity */
 import { logger } from '../utils/logger';
 import { db } from '../database';
 import { cities } from '../database/schema';

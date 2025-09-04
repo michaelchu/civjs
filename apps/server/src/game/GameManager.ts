@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, complexity */
+/* eslint-disable complexity */
 import { eq } from 'drizzle-orm';
 import { Server as SocketServer } from 'socket.io';
 import serverConfig from '../config';
