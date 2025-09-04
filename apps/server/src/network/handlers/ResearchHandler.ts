@@ -233,22 +233,18 @@ export class ResearchHandler extends BaseSocketHandler {
     }
 
     try {
-      const game = await this.resolveGame(connection);
-      if (!game) return;
-
-      const player = this.resolvePlayer(connection, game);
-      if (!player) return;
+      const ctx = await this.resolveProgressContext(connection);
+      if (!ctx) return;
+      const { player } = ctx;
 
       const playerResearch = this.gameManager.getPlayerResearch(connection.gameId!, player.id);
       const progress = this.gameManager.getResearchProgress(connection.gameId!, player.id);
 
-      handler.send(socket, PacketType.RESEARCH_PROGRESS_REPLY, {
-        currentTech: playerResearch?.currentTech,
-        techGoal: playerResearch?.techGoal,
-        current: progress?.current || 0,
-        required: progress?.required || 0,
-        turnsRemaining: progress?.turnsRemaining || -1,
-      });
+      handler.send(
+        socket,
+        PacketType.RESEARCH_PROGRESS_REPLY,
+        this.buildProgressReply(playerResearch, progress)
+      );
 
       logger.debug('Sent research progress', {
         gameId: connection.gameId,
@@ -271,6 +267,26 @@ export class ResearchHandler extends BaseSocketHandler {
     return (
       Array.from(game.players.values()).find((p: any) => p.userId === connection.userId) || null
     );
+  }
+
+  private async resolveProgressContext(
+    connection: any
+  ): Promise<{ game: any; player: any } | null> {
+    const game = await this.resolveGame(connection);
+    if (!game) return null;
+    const player = this.resolvePlayer(connection, game);
+    if (!player) return null;
+    return { game, player };
+  }
+
+  private buildProgressReply(playerResearch: any | undefined, progress: any | undefined) {
+    return {
+      currentTech: playerResearch?.currentTech,
+      techGoal: playerResearch?.techGoal,
+      current: progress?.current || 0,
+      required: progress?.required || 0,
+      turnsRemaining: progress?.turnsRemaining || -1,
+    };
   }
 
   private mapTechs(techs: any[]): any[] {
