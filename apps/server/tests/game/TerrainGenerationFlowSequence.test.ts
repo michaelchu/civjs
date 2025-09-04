@@ -639,29 +639,33 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
         let riverOnLandCount = 0;
         let continentOnLandCount = 0;
 
+        // Helper function to process a tile and update counters
+        const processTile = (tile: any) => {
+          const isOcean = tile.terrain === 'ocean' || tile.terrain === 'deep_ocean';
+
+          // Temperature should exist regardless of terrain (created after land/ocean assignment)
+          if (tile.temperature !== undefined) {
+            if (isOcean) {
+              oceanTempCount++;
+            } else {
+              landTempCount++;
+            }
+          }
+
+          // Rivers should primarily be on land (created after terrain assignment)
+          if (tile.riverMask > 0 && !isOcean) {
+            riverOnLandCount++;
+          }
+
+          // Continents should be properly assigned (created after terrain assignment)
+          if (!isOcean && tile.continentId > 0) {
+            continentOnLandCount++;
+          }
+        };
+
         for (let x = 0; x < mapData.width; x++) {
           for (let y = 0; y < mapData.height; y++) {
-            const tile = mapData.tiles[x][y];
-            const isOcean = tile.terrain === 'ocean' || tile.terrain === 'deep_ocean';
-
-            // Temperature should exist regardless of terrain (created after land/ocean assignment)
-            if (tile.temperature !== undefined) {
-              if (isOcean) {
-                oceanTempCount++;
-              } else {
-                landTempCount++;
-              }
-            }
-
-            // Rivers should primarily be on land (created after terrain assignment)
-            if (tile.riverMask > 0 && !isOcean) {
-              riverOnLandCount++;
-            }
-
-            // Continents should be properly assigned (created after terrain assignment)
-            if (!isOcean && tile.continentId > 0) {
-              continentOnLandCount++;
-            }
+            processTile(mapData.tiles[x][y]);
           }
         }
 

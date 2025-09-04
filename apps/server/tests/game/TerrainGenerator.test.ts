@@ -306,30 +306,30 @@ describe('TerrainGenerator - Relief Generation System', () => {
       let coastalRelief = 0;
       let totalRelief = 0;
 
+      // Helper function to check if a tile has ocean neighbors
+      const hasOceanNeighbor = (x: number, y: number): boolean => {
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+              if (isOceanTerrain(tiles[nx][ny].terrain)) {
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      };
+
       for (let x = 0; x < width; x++) {
         for (let y = 0; y < height; y++) {
           const terrain = tiles[x][y].terrain;
           if (terrain === 'mountains' || terrain === 'hills') {
             totalRelief++;
 
-            // Check if tile is adjacent to ocean
-            let hasOceanNeighbor = false;
-            for (let dx = -1; dx <= 1; dx++) {
-              for (let dy = -1; dy <= 1; dy++) {
-                if (dx === 0 && dy === 0) continue;
-                const nx = x + dx;
-                const ny = y + dy;
-                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                  if (isOceanTerrain(tiles[nx][ny].terrain)) {
-                    hasOceanNeighbor = true;
-                    break;
-                  }
-                }
-              }
-              if (hasOceanNeighbor) break;
-            }
-
-            if (hasOceanNeighbor) {
+            if (hasOceanNeighbor(x, y)) {
               coastalRelief++;
             }
           }
