@@ -571,7 +571,6 @@ describe('MapManager', () => {
       jest.spyOn(mockTerrainGenerator, 'makeLand').mockImplementation(async () => {});
       jest.spyOn(mockTerrainGenerator, 'smoothWaterDepth').mockImplementation(() => {});
       jest.spyOn(mockTerrainGenerator, 'regenerateLakes').mockImplementation(() => {});
-      jest.spyOn(mockTerrainGenerator, 'generateTerrain').mockImplementation(async () => {});
       jest.spyOn(mockTerrainGenerator, 'convertTemperatureToEnum').mockImplementation(() => {});
       jest.spyOn(mockTerrainGenerator, 'generateWetnessMap').mockImplementation(() => {});
 
@@ -606,7 +605,6 @@ describe('MapManager', () => {
       // Verify post-makeLand sequence is correct
       expect(mockTerrainGenerator.smoothWaterDepth).toHaveBeenCalledTimes(1);
       expect(mockTerrainGenerator.regenerateLakes).toHaveBeenCalledTimes(1);
-      expect(mockTerrainGenerator.generateTerrain).toHaveBeenCalledTimes(1);
       expect(mockTerrainGenerator.convertTemperatureToEnum).toHaveBeenCalledTimes(1);
       expect(mockTerrainGenerator.generateWetnessMap).toHaveBeenCalledTimes(1);
     });
@@ -622,7 +620,6 @@ describe('MapManager', () => {
       // Verify correct post-processing sequence
       expect(mockTerrainGenerator.smoothWaterDepth).toHaveBeenCalledTimes(1);
       expect(mockTerrainGenerator.regenerateLakes).toHaveBeenCalledTimes(1);
-      expect(mockTerrainGenerator.generateTerrain).toHaveBeenCalledTimes(1);
       expect(mockTerrainGenerator.convertTemperatureToEnum).toHaveBeenCalledTimes(1);
       expect(mockTerrainGenerator.generateWetnessMap).toHaveBeenCalledTimes(1);
     });
@@ -638,7 +635,6 @@ describe('MapManager', () => {
       // Verify correct post-processing sequence
       expect(mockTerrainGenerator.smoothWaterDepth).toHaveBeenCalledTimes(1);
       expect(mockTerrainGenerator.regenerateLakes).toHaveBeenCalledTimes(1);
-      expect(mockTerrainGenerator.generateTerrain).toHaveBeenCalledTimes(1);
       expect(mockTerrainGenerator.convertTemperatureToEnum).toHaveBeenCalledTimes(1);
       expect(mockTerrainGenerator.generateWetnessMap).toHaveBeenCalledTimes(1);
     });
@@ -671,9 +667,6 @@ describe('MapManager', () => {
       mockTerrainGenerator.regenerateLakes.mockImplementation(() => {
         callOrder.push('regenerateLakes');
       });
-      mockTerrainGenerator.generateTerrain.mockImplementation(async () => {
-        callOrder.push('generateTerrain');
-      });
       mockTerrainGenerator.convertTemperatureToEnum.mockImplementation(() => {
         callOrder.push('convertTemperatureToEnum');
       });
@@ -688,7 +681,6 @@ describe('MapManager', () => {
         'makeLand', // Contains Phase 1 integrated steps
         'smoothWaterDepth', // Post-makeLand processing
         'regenerateLakes',
-        'generateTerrain',
         'convertTemperatureToEnum', // Phase 2: Only enum conversion, not external creation
         'generateWetnessMap',
       ]);

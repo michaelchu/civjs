@@ -240,6 +240,13 @@ export class TerrainGenerator {
     }
 
     // Step 10: make_terrains() - place forests, deserts, etc. (NOW WITH PROPER TEMPERATURES)
+    // Initialize hmap_low_level for mountain conditions before terrain placement
+    const hmap_max_level = 1000;
+    this.terrainPlacementProcessor.initializeHmapLowLevel(
+      terrainParams.swamp_pct,
+      hmap_shore_level,
+      hmap_max_level
+    );
     this.terrainPlacementProcessor.makeTerrains(tiles, terrainParams);
 
     // Step 10.5: Continent assignment in correct order (Phase 1 fix)
@@ -862,58 +869,6 @@ export class TerrainGenerator {
   /**
    * Create base map tile with default terrain properties
    */
-
-  /**
-   * Generate terrain varieties using terrain selection engine
-   * @reference freeciv/server/generator/mapgen.c make_terrains()
-   * Coordinates terrain engine with terrain property assignment
-   */
-  public async generateTerrain(
-    tiles: MapTile[][],
-    heightGenerator: any,
-    random: () => number,
-    _generator: string,
-    preserveSpecializedTerrain: boolean = false
-  ): Promise<void> {
-    // Apply smoothing passes for natural terrain transitions
-    heightGenerator.applySmoothingPasses(2);
-
-    const shoreLevel = heightGenerator.getShoreLevel();
-    const mountainLevel = heightGenerator.getMountainLevel();
-
-    // Create terrain engine with proper freeciv reference levels
-    const TerrainSelectionEngine = (await import('./TerrainSelectionEngine'))
-      .TerrainSelectionEngine;
-    const terrainEngine = new TerrainSelectionEngine(random, shoreLevel, mountainLevel);
-
-    // Phase 2: Assign terrain using property-based selection (following freeciv reference)
-    // Only apply to land tiles - ocean/coast already set by makeLand()
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const tile = tiles[x][y];
-
-        // Only modify land tiles, leave ocean tiles as-is
-        // If preserveSpecializedTerrain is true, only modify 'grassland' tiles
-        if (!isOceanTerrain(tile.terrain)) {
-          if (!preserveSpecializedTerrain || tile.terrain === 'grassland') {
-            const selectedTerrain = terrainEngine.pickTerrain(
-              tile.temperature,
-              tile.wetness,
-              tile.elevation
-            );
-
-            tile.terrain = selectedTerrain;
-          }
-        }
-
-        // Set terrain properties based on selected terrain
-        setTerrainGameProperties(tile);
-      }
-    }
-
-    // Phase 3: Apply biome transition logic for more natural borders
-    this.biomeProcessor.applyBiomeTransitions(tiles);
-  }
 
   /**
    * Regenerate all oceanic tiles for small water bodies as lakes

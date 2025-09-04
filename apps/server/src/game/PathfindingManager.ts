@@ -57,9 +57,23 @@ export class PathfindingManager {
   async findPath(unit: Unit, targetX: number, targetY: number): Promise<PathfindingResult> {
     const startTime = Date.now();
 
+    logger.debug('PathfindingManager.findPath called', {
+      unitId: unit.id,
+      from: { x: unit.x, y: unit.y },
+      to: { x: targetX, y: targetY },
+      hasMapManager: !!this.mapManager,
+      hasGetTile: !!this.mapManager?.getTile,
+      mapSize: `${this.mapWidth}x${this.mapHeight}`,
+    });
+
     try {
       // Validate coordinates
       if (!this.isValidCoordinate(targetX, targetY)) {
+        logger.debug('Invalid coordinates in pathfinding', {
+          targetX,
+          targetY,
+          mapSize: `${this.mapWidth}x${this.mapHeight}`,
+        });
         return {
           path: [],
           totalCost: 0,
@@ -326,6 +340,9 @@ export class PathfindingManager {
         unitType: unit.unitTypeId,
         from: { x: fromX, y: fromY },
         to: { x: toX, y: toY },
+        hasMapManager: !!this.mapManager,
+        hasGetTile: !!this.mapManager?.getTile,
+        mapManagerType: typeof this.mapManager,
       });
       return -1; // Impassable when no terrain data available
     }

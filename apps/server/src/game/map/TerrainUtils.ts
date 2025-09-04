@@ -223,30 +223,37 @@ export function createBaseTile(x: number, y: number): MapTile {
  * Assigns movement cost and defense bonuses based on terrain type
  */
 export function setTerrainGameProperties(tile: MapTile): void {
-  // Set basic terrain properties for game mechanics
-  // These would normally come from terrain.ruleset in freeciv
-  const terrainProperties: Record<string, { moveCost: number; defense: number }> = {
-    ocean: { moveCost: 1, defense: 100 },
-    coast: { moveCost: 1, defense: 100 },
-    deep_ocean: { moveCost: 1, defense: 100 },
-    lake: { moveCost: 1, defense: 100 },
-    plains: { moveCost: 1, defense: 100 },
-    grassland: { moveCost: 1, defense: 100 },
-    desert: { moveCost: 1, defense: 100 },
-    tundra: { moveCost: 1, defense: 100 },
-    hills: { moveCost: 2, defense: 150 },
-    mountains: { moveCost: 3, defense: 200 },
-    forest: { moveCost: 2, defense: 125 },
-    jungle: { moveCost: 2, defense: 125 },
-    swamp: { moveCost: 2, defense: 125 },
-    snow: { moveCost: 1, defense: 100 },
-  };
+  // Ensure tile.properties exists
+  if (!tile.properties) {
+    tile.properties = {};
+  }
 
-  const props = terrainProperties[tile.terrain];
-  if (props && tile.properties) {
-    // These would be set if MapTile interface had these properties
-    // Currently MapTile doesn't have moveCost/defense properties
-    // This is a placeholder for future terrain property expansion
+  // Set terrain properties that other systems might depend on
+  // This supplements the ruleset properties with game-specific values needed by RiverGenerator, etc.
+  switch (tile.terrain) {
+    case 'hills':
+    case 'mountains':
+      tile.properties.mountainous = tile.terrain === 'mountains' ? 100 : 70;
+      break;
+    case 'desert':
+      tile.properties.dry = 100;
+      tile.properties.tropical = 50;
+      break;
+    case 'swamp':
+      tile.properties.wet = 100;
+      break;
+    case 'forest':
+    case 'jungle':
+      tile.properties.foliage = 50;
+      tile.properties.green = 50;
+      break;
+    case 'tundra':
+      tile.properties.cold = 50;
+      tile.properties.frozen = 30;
+      break;
+    default:
+      // For other terrains, ensure basic properties exist but don't override ruleset values
+      break;
   }
 }
 

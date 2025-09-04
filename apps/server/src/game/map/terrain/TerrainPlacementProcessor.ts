@@ -26,12 +26,30 @@ export class TerrainPlacementProcessor {
   private height: number;
   private random: () => number;
   private placementMap: PlacementMap;
+  private hmapLowLevel: number = 0;
 
   constructor(width: number, height: number, random: () => number, placementMap: PlacementMap) {
     this.width = width;
     this.height = height;
     this.random = random;
     this.placementMap = placementMap;
+  }
+
+  /**
+   * Initialize hmap_low_level for mountain conditions
+   * @reference freeciv/server/generator/mapgen.c ini_hmap_low_level()
+   * Must be called before makeTerrains() with proper shore and max levels
+   */
+  public initializeHmapLowLevel(
+    swampPct: number,
+    hmapShoreLevel: number,
+    hmapMaxLevel: number
+  ): void {
+    // @reference freeciv/server/generator/mapgen.c:120-123
+    // hmap_low_level = (4 * swamp_pct * (hmap_max_level - hmap_shore_level)) / 100 + hmap_shore_level;
+    this.hmapLowLevel = Math.floor(
+      (4 * swampPct * (hmapMaxLevel - hmapShoreLevel)) / 100 + hmapShoreLevel
+    );
   }
 
   /**
@@ -401,6 +419,7 @@ export class TerrainPlacementProcessor {
   /**
    * Check mountain condition for terrain placement
    * @reference freeciv/server/generator/mapgen.c mountain conditions
+   * Uses freeciv's hmap_low_level threshold for MC_LOW/MC_NLOW conditions
    */
   private checkMountainCondition(tile: MapTile, condition: string): boolean {
     const height = tile.elevation || 0;
@@ -408,9 +427,11 @@ export class TerrainPlacementProcessor {
       case 'MC_NONE':
         return true;
       case 'MC_LOW':
-        return height < 30;
+        // @reference freeciv/server/generator/mapgen.c map_pos_is_low(ptile)
+        return height < this.hmapLowLevel;
       case 'MC_NLOW':
-        return height >= 30;
+        // @reference freeciv/server/generator/mapgen.c !map_pos_is_low(ptile)
+        return height >= this.hmapLowLevel;
       default:
         return true;
     }

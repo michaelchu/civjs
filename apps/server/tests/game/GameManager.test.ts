@@ -7,11 +7,22 @@ const { db: mockDb } = require('../../src/database');
 
 describe('GameManager', () => {
   let gameManager: GameManager;
-  const mockIo = {} as SocketServer;
+  const mockEmit = jest.fn();
+  const mockIo = {
+    to: jest.fn(() => ({
+      emit: mockEmit,
+    })),
+    emit: mockEmit,
+  } as unknown as SocketServer;
 
   beforeEach(() => {
     // Reset singleton for testing
     (GameManager as any).instance = null;
+    
+    // Reset mock functions
+    (mockIo.to as jest.Mock).mockClear();
+    mockEmit.mockClear();
+    
     gameManager = GameManager.getInstance(mockIo);
 
     // Setup database query mock (needed for joinGame and other methods)
@@ -312,6 +323,175 @@ describe('GameManager', () => {
         const result = await gameManager.loadGame('non-existent-game');
 
         expect(result).toBeNull();
+      });
+    });
+
+    describe('requestPath', () => {
+      it('should use getGameInstance for unit pathfinding requests', async () => {
+        const gameId = 'test-game-id';
+        const playerId = 'test-player';
+        const unitId = 'test-unit';
+        const targetX = 10;
+        const targetY = 10;
+
+        // Mock player-to-game mapping
+        (gameManager as any).playerToGame.set(playerId, gameId);
+
+        // Mock a game instance with proper structure
+        const mockGameInstance = {
+          state: 'active',
+          unitManager: {
+            getUnit: jest.fn().mockResolvedValue({
+              id: unitId,
+              playerId: playerId,
+              x: 5,
+              y: 5,
+              movementLeft: 3,
+            }),
+          },
+          pathfindingManager: {
+            findPath: jest.fn().mockResolvedValue({
+              path: [{ x: 5, y: 5, moveCost: 0 }, { x: 10, y: 10, moveCost: 3 }],
+              totalCost: 3,
+              estimatedTurns: 1,
+              valid: true,
+            }),
+          },
+        };
+
+        // Mock the games map to return our mock instance
+        (gameManager as any).games.set(gameId, mockGameInstance);
+
+        const result = await gameManager.requestPath(playerId, unitId, targetX, targetY);
+
+        // Verify successful pathfinding result
+        expect(result.success).toBe(true);
+        expect(result.path).toBeDefined();
+        expect(result.path?.tiles).toHaveLength(2);
+        expect(result.error).toBeUndefined();
+      });
+
+      it('should handle missing game instance gracefully', async () => {
+        const playerId = 'test-player';
+        const unitId = 'test-unit';
+
+        // Mock getGameInstance to return null
+        jest.spyOn(gameManager, 'getGameInstance').mockReturnValue(null);
+
+        const result = await gameManager.requestPath(playerId, unitId, 10, 10);
+
+        // Should return failure when game instance not found
+        expect(result.success).toBe(false);
+        expect(result.error).toBeDefined();
+        expect(result.path).toBeUndefined();
+      });
+
+      it('should handle missing unit gracefully', async () => {
+        const gameId = 'test-game-id';
+        const playerId = 'test-player';
+        const unitId = 'missing-unit';
+
+        // Mock player-to-game mapping
+        (gameManager as any).playerToGame.set(playerId, gameId);
+
+        const mockGameInstance = {
+          state: 'active',
+          unitManager: {
+            getUnit: jest.fn().mockResolvedValue(null), // Unit not found
+          },
+        };
+
+        (gameManager as any).games.set(gameId, mockGameInstance);
+
+        const result = await gameManager.requestPath(playerId, unitId, 10, 10);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('Unit not found');
+      });
+
+      it('should validate unit ownership', async () => {
+        const gameId = 'test-game-id';
+        const playerId = 'test-player';
+        const unitId = 'enemy-unit';
+
+        // Mock player-to-game mapping
+        (gameManager as any).playerToGame.set(playerId, gameId);
+
+        const mockGameInstance = {
+          state: 'active',
+          unitManager: {
+            getUnit: jest.fn().mockResolvedValue({
+              id: unitId,
+              playerId: 'different-player', // Different owner
+              x: 5,
+              y: 5,
+            }),
+          },
+        };
+
+        (gameManager as any).games.set(gameId, mockGameInstance);
+
+        const result = await gameManager.requestPath(playerId, unitId, 10, 10);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('does not belong to player');
+      });
+
+      it('should return proper path structure for ActionSystem compatibility', async () => {
+        const gameId = 'test-game-id';
+        const playerId = 'test-player';
+        const unitId = 'test-unit';
+        const targetX = 7;
+        const targetY = 5;
+
+        // Mock player-to-game mapping
+        (gameManager as any).playerToGame.set(playerId, gameId);
+
+        const mockPathResult = {
+          path: [
+            { x: 5, y: 5, moveCost: 0 },
+            { x: 6, y: 5, moveCost: 1 },
+            { x: 7, y: 5, moveCost: 1 }
+          ],
+          totalCost: 2,
+          estimatedTurns: 1,
+          valid: true,
+        };
+
+        const mockGameInstance = {
+          state: 'active',
+          unitManager: {
+            getUnit: jest.fn().mockResolvedValue({
+              id: unitId,
+              playerId: playerId,
+              x: 5,
+              y: 5,
+              movementLeft: 3,
+            }),
+          },
+          pathfindingManager: {
+            findPath: jest.fn().mockResolvedValue(mockPathResult),
+          },
+        };
+
+        (gameManager as any).games.set(gameId, mockGameInstance);
+
+        const result = await gameManager.requestPath(playerId, unitId, targetX, targetY);
+
+        // Verify the result has the expected structure for ActionSystem
+        expect(result).toHaveProperty('success', true);
+        expect(result).toHaveProperty('path');
+        expect(result.path).toHaveProperty('unitId', unitId);
+        expect(result.path).toHaveProperty('targetX', targetX);
+        expect(result.path).toHaveProperty('targetY', targetY);
+        expect(result.path).toHaveProperty('tiles');
+        expect(result.path).toHaveProperty('totalCost', 2);
+        expect(result.path).toHaveProperty('estimatedTurns', 1);
+        expect(result.path).toHaveProperty('valid', true);
+        
+        // Verify tiles array structure
+        expect(Array.isArray(result.path?.tiles)).toBe(true);
+        expect(result.path?.tiles).toHaveLength(3);
       });
     });
   });
