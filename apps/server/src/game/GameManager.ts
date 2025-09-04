@@ -17,6 +17,7 @@ import { ServiceRegistry } from './managers/ServiceRegistry';
 import { UnitManagementService } from './managers/UnitManagementService';
 import { CityManagementService } from './managers/CityManagementService';
 import { ResearchManagementService } from './managers/ResearchManagementService';
+import { VisibilityMapService } from './managers/VisibilityMapService';
 
 // Keep existing imports for delegation
 import { CityManager } from './CityManager';
@@ -108,6 +109,7 @@ export class GameManager {
   private unitManagementService!: UnitManagementService;
   private cityManagementService!: CityManagementService;
   private researchManagementService!: ResearchManagementService;
+  private visibilityMapService!: VisibilityMapService;
 
   private constructor(io: SocketServer) {
     this.io = io;
@@ -162,6 +164,8 @@ export class GameManager {
       this.broadcastToGame.bind(this)
     );
 
+    this.visibilityMapService = new VisibilityMapService(this.games);
+
     // Register services
     this.serviceRegistry.register('GameStateManager', this.gameStateManager);
     this.serviceRegistry.register('PlayerConnectionManager', this.playerConnectionManager);
@@ -170,6 +174,7 @@ export class GameManager {
     this.serviceRegistry.register('UnitManagementService', this.unitManagementService);
     this.serviceRegistry.register('CityManagementService', this.cityManagementService);
     this.serviceRegistry.register('ResearchManagementService', this.researchManagementService);
+    this.serviceRegistry.register('VisibilityMapService', this.visibilityMapService);
 
     // Set cross-references
     this.gameBroadcastManager.setGamesReference(this.games);
@@ -1253,89 +1258,25 @@ export class GameManager {
     return this.unitManagementService.getVisibleUnits(gameId, playerId, visibleTiles);
   }
 
+  // Visibility and map methods - delegates to VisibilityMapService
   public getPlayerMapView(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.visibilityManager.getPlayerMapView(playerId);
+    return this.visibilityMapService.getPlayerMapView(gameId, playerId);
   }
 
   public getTileVisibility(gameId: string, playerId: string, x: number, y: number) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.visibilityManager.getTileVisibility(playerId, x, y);
+    return this.visibilityMapService.getTileVisibility(gameId, playerId, x, y);
   }
 
   public updatePlayerVisibility(gameId: string, playerId: string): void {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    gameInstance.visibilityManager.updatePlayerVisibility(playerId);
+    this.visibilityMapService.updatePlayerVisibility(gameId, playerId);
   }
 
   public getMapData(gameId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found in memory - the game may need to be restarted');
-    }
-
-    const mapData = gameInstance.mapManager.getMapData();
-    if (!mapData) {
-      throw new Error('Map not generated yet');
-    }
-
-    return {
-      width: mapData.width,
-      height: mapData.height,
-      startingPositions: mapData.startingPositions,
-      seed: mapData.seed,
-      generatedAt: mapData.generatedAt,
-    };
+    return this.visibilityMapService.getMapData(gameId);
   }
 
   public getPlayerVisibleTiles(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    // Get player's starting position if they don't have units yet
-    const mapData = gameInstance.mapManager.getMapData();
-    const startPos = mapData?.startingPositions.find(pos => pos.playerId === playerId);
-
-    if (!startPos) {
-      throw new Error('Player starting position not found');
-    }
-
-    const visibleTiles = gameInstance.mapManager.getVisibleTiles(
-      startPos.x,
-      startPos.y,
-      2 // Initial sight radius
-    );
-
-    return visibleTiles.map(tile => ({
-      x: tile.x,
-      y: tile.y,
-      terrain: tile.terrain,
-      resource: tile.resource,
-      elevation: tile.elevation,
-      riverMask: tile.riverMask,
-      continentId: tile.continentId,
-      isExplored: true,
-      isVisible: true,
-      hasRoad: tile.hasRoad,
-      hasRailroad: tile.hasRailroad,
-      improvements: tile.improvements,
-      cityId: tile.cityId,
-      unitIds: tile.unitIds,
-    }));
+    return this.visibilityMapService.getPlayerVisibleTiles(gameId, playerId);
   }
 
   // City management methods - delegates to CityManagementService
