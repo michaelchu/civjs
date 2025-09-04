@@ -65,12 +65,18 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         const gameState = useGameStore.getState();
 
         if (rendererRef.current) {
-          rendererRef.current.render({
-            viewport: gameState.viewport,
-            map: gameState.map,
-            units: gameState.units,
-            cities: gameState.cities,
-            selectedUnitId: gameState.selectedUnitId,
+          // Force immediate render after initialization to fix missing sprites on first load
+          requestAnimationFrame(() => {
+            if (rendererRef.current) {
+              rendererRef.current.render({
+                viewport: gameState.viewport,
+                map: gameState.map,
+                units: gameState.units,
+                cities: gameState.cities,
+                selectedUnitId: gameState.selectedUnitId,
+                gotoPath: null,
+              });
+            }
           });
         }
       } catch (error) {
@@ -90,11 +96,24 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Setting canvas dimensions clears the canvas, so we need to re-render after
     canvas.width = width;
     canvas.height = height;
 
     setViewport({ width, height });
-  }, [width, height, setViewport]);
+    
+    // Force immediate re-render after canvas resize to fix disappearing sprites
+    if (rendererRef.current) {
+      rendererRef.current.render({
+        viewport,
+        map,
+        units,
+        cities,
+        selectedUnitId: gameState.selectedUnitId,
+        gotoPath: gotoMode.currentPath,
+      });
+    }
+  }, [width, height, setViewport, viewport, map, units, cities, gameState.selectedUnitId, gotoMode.currentPath]);
 
   // Extract complex expressions to satisfy ESLint rule
   const unitsCount = Object.keys(units).length;

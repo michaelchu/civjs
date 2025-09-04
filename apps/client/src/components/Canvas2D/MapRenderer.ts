@@ -78,6 +78,9 @@ export class MapRenderer {
   }
 
   render(state: RenderState) {
+    // Ensure canvas settings are preserved after resize (fixes rendering glitches)
+    this.setupCanvas();
+    
     // Reset tile map cache if tiles data has changed
     const currentGlobalTiles = (window as any).tiles;
     if (currentGlobalTiles && currentGlobalTiles !== this.lastGlobalTiles) {
@@ -801,6 +804,11 @@ export class MapRenderer {
   }
 
   private renderUnit(unit: Unit, viewport: MapViewport) {
+    // Ensure tileset is loaded before attempting to render units
+    if (!this.tilesetLoader.isReady()) {
+      return;
+    }
+    
     const screenPos = this.mapToScreen(unit.x, unit.y, viewport);
 
     // Get unit animation offset for smooth movement
