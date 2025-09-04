@@ -315,26 +315,27 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
    */
   private serializeMapTiles(tiles: any[][]): any {
     try {
-      const serializedTiles = tiles.map(row =>
-        row.map(tile => ({
-          terrain: tile.terrain,
-          resource: tile.resource || null,
-          improvement: tile.improvement || null,
-          altitude: tile.altitude || 0,
-          temperature: tile.temperature || 0,
-          moisture: tile.moisture || 0,
-          riverMask: tile.riverMask || 0,
-          special: tile.special || null,
-          x: tile.x,
-          y: tile.y,
-        }))
-      );
-
+      const serializedTiles = tiles.map(row => row.map(tile => this.serializeTile(tile)));
       return serializedTiles;
     } catch (error) {
       this.logger.error('Error serializing map tiles:', error);
       throw error;
     }
+  }
+
+  private serializeTile(tile: any): any {
+    return {
+      terrain: tile.terrain,
+      resource: tile.resource || null,
+      improvement: tile.improvement || null,
+      altitude: tile.altitude || 0,
+      temperature: tile.temperature || 0,
+      moisture: tile.moisture || 0,
+      riverMask: tile.riverMask || 0,
+      special: tile.special || null,
+      x: tile.x,
+      y: tile.y,
+    };
   }
 
   /**
@@ -350,18 +351,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
 
       // Restore tile objects with all properties
       const tiles = compressedTiles.map((row: any[]) =>
-        row.map((tileData: any) => ({
-          terrain: tileData.terrain || 'ocean',
-          resource: tileData.resource || null,
-          improvement: tileData.improvement || null,
-          altitude: tileData.altitude || 0,
-          temperature: tileData.temperature || 0,
-          moisture: tileData.moisture || 0,
-          riverMask: tileData.riverMask || 0,
-          special: tileData.special || null,
-          x: tileData.x || 0,
-          y: tileData.y || 0,
-        }))
+        row.map((tileData: any) => this.deserializeTile(tileData))
       );
 
       this.logger.debug('Deserialized map tiles successfully', {
@@ -375,6 +365,21 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       this.logger.info('Creating empty tile array as fallback');
       return this.createEmptyTileArray(width, height);
     }
+  }
+
+  private deserializeTile(tileData: any): any {
+    return {
+      terrain: tileData.terrain || 'ocean',
+      resource: tileData.resource || null,
+      improvement: tileData.improvement || null,
+      altitude: tileData.altitude || 0,
+      temperature: tileData.temperature || 0,
+      moisture: tileData.moisture || 0,
+      riverMask: tileData.riverMask || 0,
+      special: tileData.special || null,
+      x: tileData.x || 0,
+      y: tileData.y || 0,
+    };
   }
 
   /**

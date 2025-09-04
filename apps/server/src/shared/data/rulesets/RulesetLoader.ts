@@ -131,59 +131,64 @@ export class RulesetLoader {
     let sum = 0;
     const validTerrains: Array<{ terrain: TerrainType; weight: number }> = [];
 
-    // Find the total weight - exact copy of freeciv logic
     for (const [terrainName, ruleset] of Object.entries(terrains)) {
       if (ruleset.notGenerated) continue; // Skip TER_NOT_GENERATED terrains
+      if (this.isTerrainAvoided(ruleset, avoid)) continue;
+      if (!this.matchesPrefer(ruleset, prefer)) continue;
 
-      // Check avoid condition
-      if (avoid !== 'MG_UNUSED' && (ruleset.properties?.[avoid] ?? 0) > 0) {
-        continue;
-      }
-
-      // Check prefer condition
-      if (prefer !== 'MG_UNUSED' && (ruleset.properties?.[prefer] ?? 0) === 0) {
-        continue;
-      }
-
-      // Calculate weight
-      let weight: number;
-      if (target !== 'MG_UNUSED') {
-        weight = ruleset.properties?.[target] ?? 0;
-      } else {
-        weight = 1;
-      }
-
+      const weight = this.computeTerrainWeight(ruleset, target);
       if (weight > 0) {
         sum += weight;
         validTerrains.push({ terrain: terrainName as TerrainType, weight });
       }
     }
 
-    // If no valid terrains found, drop requirements and try again
     if (sum === 0) {
-      if (prefer !== 'MG_UNUSED') {
-        // Drop prefer requirement
-        return this.pickTerrain(target, 'MG_UNUSED', avoid, random, rulesetName);
-      } else if (avoid !== 'MG_UNUSED') {
-        // Drop avoid requirement
-        return this.pickTerrain(target, prefer, 'MG_UNUSED', random, rulesetName);
-      } else {
-        // Drop target requirement
-        return this.pickTerrain('MG_UNUSED', prefer, avoid, random, rulesetName);
-      }
+      return this.relaxPickConstraints(target, prefer, avoid, random, rulesetName);
     }
 
-    // Now pick - exact copy of freeciv selection
+    return this.selectTerrainByWeight(validTerrains, sum, random) ?? 'grassland';
+  }
+
+  private isTerrainAvoided(ruleset: TerrainRuleset, avoid: MapgenTerrainProperty): boolean {
+    return avoid !== 'MG_UNUSED' && (ruleset.properties?.[avoid] ?? 0) > 0;
+  }
+
+  private matchesPrefer(ruleset: TerrainRuleset, prefer: MapgenTerrainProperty): boolean {
+    return prefer === 'MG_UNUSED' || (ruleset.properties?.[prefer] ?? 0) > 0;
+  }
+
+  private computeTerrainWeight(ruleset: TerrainRuleset, target: MapgenTerrainProperty): number {
+    return target !== 'MG_UNUSED' ? (ruleset.properties?.[target] ?? 0) : 1;
+  }
+
+  private relaxPickConstraints(
+    target: MapgenTerrainProperty,
+    prefer: MapgenTerrainProperty,
+    avoid: MapgenTerrainProperty,
+    random: () => number,
+    rulesetName: string
+  ): TerrainType {
+    if (prefer !== 'MG_UNUSED') {
+      return this.pickTerrain(target, 'MG_UNUSED', avoid, random, rulesetName);
+    }
+    if (avoid !== 'MG_UNUSED') {
+      return this.pickTerrain(target, prefer, 'MG_UNUSED', random, rulesetName);
+    }
+    return this.pickTerrain('MG_UNUSED', prefer, avoid, random, rulesetName);
+  }
+
+  private selectTerrainByWeight(
+    validTerrains: Array<{ terrain: TerrainType; weight: number }>,
+    sum: number,
+    random: () => number
+  ): TerrainType | null {
     let pick = Math.floor(random() * sum);
     for (const { terrain, weight } of validTerrains) {
-      if (pick < weight) {
-        return terrain;
-      }
+      if (pick < weight) return terrain;
       pick -= weight;
     }
-
-    // Fallback (should never reach here)
-    return 'grassland';
+    return null;
   }
 
   /**
