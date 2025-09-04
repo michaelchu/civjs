@@ -96,29 +96,24 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Only update if dimensions actually changed
-    if (canvas.width !== width || canvas.height !== height) {
-      // Setting canvas dimensions clears the canvas, so we need to re-render after
-      canvas.width = width;
-      canvas.height = height;
+    // Setting canvas dimensions clears the canvas, so we need to re-render after
+    canvas.width = width;
+    canvas.height = height;
 
-      setViewport({ width, height });
-      
-      // Force immediate re-render after canvas resize to fix disappearing sprites
-      if (rendererRef.current) {
-        // Use current state values directly to avoid stale closure
-        const currentState = useGameStore.getState();
-        rendererRef.current.render({
-          viewport: { ...currentState.viewport, width, height },
-          map: currentState.map,
-          units: currentState.units,
-          cities: currentState.cities,
-          selectedUnitId: currentState.selectedUnitId,
-          gotoPath: gotoMode.currentPath,
-        });
-      }
+    setViewport({ width, height });
+    
+    // Force immediate re-render after canvas resize to fix disappearing sprites
+    if (rendererRef.current) {
+      rendererRef.current.render({
+        viewport,
+        map,
+        units,
+        cities,
+        selectedUnitId: gameState.selectedUnitId,
+        gotoPath: gotoMode.currentPath,
+      });
     }
-  }, [width, height, setViewport, gotoMode.currentPath]);
+  }, [width, height, setViewport, viewport, map, units, cities, gameState.selectedUnitId, gotoMode.currentPath]);
 
   // Extract complex expressions to satisfy ESLint rule
   const unitsCount = Object.keys(units).length;
