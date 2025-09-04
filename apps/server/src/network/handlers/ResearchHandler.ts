@@ -28,7 +28,10 @@ export class ResearchHandler extends BaseSocketHandler {
 
   protected handlerName = 'ResearchHandler';
 
-  constructor(private activeConnections: Map<string, any>, private gameManager: GameManager) {
+  constructor(
+    private activeConnections: Map<string, any>,
+    private gameManager: GameManager
+  ) {
     super();
   }
 
