@@ -172,56 +172,20 @@ export class RiverGenerator {
    * Find suitable starting position for river network (high elevation, away from existing rivers)
    */
   private findRiverStartPosition(tiles: MapTile[][]): { x: number; y: number } | null {
-    const candidates: { x: number; y: number; elevation: number }[] = [];
+    // Create randomized positions to eliminate spatial bias
+    const positions = this.getAllPositionsShuffled();
 
-    // Create randomized tile positions to eliminate spatial bias
-    const allPositions: { x: number; y: number }[] = [];
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        allPositions.push({ x, y });
-      }
-    }
+    // Primary strategy: mountainous candidates
+    let candidates = this.collectMountainCandidates(tiles, positions);
 
-    // Fisher-Yates shuffle to randomize search order
-    for (let i = allPositions.length - 1; i > 0; i--) {
-      const j = Math.floor(this.random() * (i + 1));
-      [allPositions[i], allPositions[j]] = [allPositions[j], allPositions[i]];
-    }
-
-    // Primary strategy: Look for mountainous areas first (randomized order)
-    for (const pos of allPositions) {
-      const tile = tiles[pos.x][pos.y];
-
-      if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 150) {
-        const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
-        if (mountainous > 20) {
-          candidates.push({ x: pos.x, y: pos.y, elevation: tile.elevation + mountainous });
-        }
-      }
-    }
-
-    // Fallback: If no mountainous areas, use high elevation tiles (randomized order)
+    // Fallback: very high elevation
     if (candidates.length === 0) {
-      for (const pos of allPositions) {
-        const tile = tiles[pos.x][pos.y];
-
-        if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 180) {
-          candidates.push({ x: pos.x, y: pos.y, elevation: tile.elevation });
-          if (candidates.length >= 20) break; // Get enough candidates
-        }
-      }
+      candidates = this.collectHighElevationCandidates(tiles, positions, 180, 20);
     }
 
-    // Last resort fallback: Use any high elevation land (randomized order)
+    // Last resort: high elevation
     if (candidates.length === 0) {
-      for (const pos of allPositions) {
-        const tile = tiles[pos.x][pos.y];
-
-        if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 160) {
-          candidates.push({ x: pos.x, y: pos.y, elevation: tile.elevation });
-          if (candidates.length >= 15) break;
-        }
-      }
+      candidates = this.collectHighElevationCandidates(tiles, positions, 160, 15);
     }
 
     if (candidates.length === 0) return null;
@@ -230,6 +194,70 @@ export class RiverGenerator {
     candidates.sort((a, b) => b.elevation - a.elevation);
     const topCandidates = candidates.slice(0, Math.min(10, candidates.length));
     return topCandidates[Math.floor(this.random() * topCandidates.length)];
+  }
+
+  /**
+   * Generate all map positions and return them shuffled
+   */
+  private getAllPositionsShuffled(): { x: number; y: number }[] {
+    const all: { x: number; y: number }[] = [];
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        all.push({ x, y });
+      }
+    }
+    for (let i = all.length - 1; i > 0; i--) {
+      const j = Math.floor(this.random() * (i + 1));
+      [all[i], all[j]] = [all[j], all[i]];
+    }
+    return all;
+  }
+
+  /**
+   * Collect mountainous candidates with elevation preference
+   */
+  private collectMountainCandidates(
+    tiles: MapTile[][],
+    positions: { x: number; y: number }[]
+  ): { x: number; y: number; elevation: number }[] {
+    const result: { x: number; y: number; elevation: number }[] = [];
+    for (const pos of positions) {
+      const tile = tiles[pos.x][pos.y];
+      if (this.isSuitableStartBase(tile) && tile.elevation > 150) {
+        const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
+        if (mountainous > 20) {
+          result.push({ x: pos.x, y: pos.y, elevation: tile.elevation + mountainous });
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Collect high elevation candidates with optional limit
+   */
+  private collectHighElevationCandidates(
+    tiles: MapTile[][],
+    positions: { x: number; y: number }[],
+    threshold: number,
+    limit: number
+  ): { x: number; y: number; elevation: number }[] {
+    const result: { x: number; y: number; elevation: number }[] = [];
+    for (const pos of positions) {
+      const tile = tiles[pos.x][pos.y];
+      if (this.isSuitableStartBase(tile) && tile.elevation > threshold) {
+        result.push({ x: pos.x, y: pos.y, elevation: tile.elevation });
+        if (result.length >= limit) break;
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Common suitability checks for river start
+   */
+  private isSuitableStartBase(tile: MapTile): boolean {
+    return this.isLandTile(tile.terrain) && tile.riverMask === 0;
   }
 
   /**
