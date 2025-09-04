@@ -2,10 +2,7 @@ import { beforeAll } from '@jest/globals';
 import { VisibilityManager } from '../../src/game/VisibilityManager';
 import { UnitManager } from '../../src/game/UnitManager';
 import { MapManager } from '../../src/game/MapManager';
-
-// Get the mock from setup
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-const { db: mockDb } = require('../../src/database');
+import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('VisibilityManager', () => {
   let visibilityManager: VisibilityManager;
@@ -21,37 +18,12 @@ describe('VisibilityManager', () => {
 
   beforeEach(async () => {
     // Setup managers
-    unitManager = new UnitManager(gameId, mapWidth, mapHeight);
+    const mockDbProvider = createMockDatabaseProvider();
+    unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight);
     mapManager = new MapManager(mapWidth, mapHeight);
     visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
 
-    // Mock database operations for UnitManager
-    let unitCounter = 0;
-    mockDb.insert = jest.fn().mockReturnThis();
-    mockDb.values = jest.fn().mockReturnThis();
-    mockDb.returning = jest.fn().mockImplementation(() => {
-      const unitId = `unit-${++unitCounter}`;
-      return Promise.resolve([
-        {
-          id: unitId,
-          gameId,
-          playerId: 'player-123',
-          unitType: 'warrior',
-          x: 10,
-          y: 10,
-          health: 100,
-          movementPoints: '2',
-          veteranLevel: 0,
-          isFortified: false,
-        },
-      ]);
-    });
-    mockDb.update = jest.fn().mockReturnThis();
-    mockDb.set = jest.fn().mockReturnThis();
-    mockDb.where = jest.fn().mockReturnThis();
-    mockDb.select = jest.fn().mockReturnThis();
-    mockDb.from = jest.fn().mockReturnThis();
-    mockDb.delete = jest.fn().mockReturnThis();
+    // Database operations handled by MockDatabaseProvider
 
     // Generate a simple test map
     await mapManager.generateMap(new Map());

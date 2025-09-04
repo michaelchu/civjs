@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { logger } from '../utils/logger';
-import { db } from '../database';
+import { DatabaseProvider } from '../database';
 import { gameState } from '../database/redis';
 import { gameTurns, games, players } from '../database/schema';
 import { eq } from 'drizzle-orm';
@@ -24,6 +24,7 @@ export interface TurnStatistics {
 
 export class TurnManager {
   private gameId: string;
+  private databaseProvider: DatabaseProvider;
   private io: SocketServer;
   private currentTurn: number = 0;
   private currentYear: number = -4000; // Starting year like Civilization
@@ -32,8 +33,9 @@ export class TurnManager {
   private turnStartTime: Date | null = null;
   private turnTimer: NodeJS.Timeout | null = null;
 
-  constructor(gameId: string, io: SocketServer) {
+  constructor(gameId: string, databaseProvider: DatabaseProvider, io: SocketServer) {
     this.gameId = gameId;
+    this.databaseProvider = databaseProvider;
     this.io = io;
   }
 
@@ -307,7 +309,7 @@ export class TurnManager {
       statistics: {},
     };
 
-    await db.insert(gameTurns).values(turnData);
+    await this.databaseProvider.getDatabase().insert(gameTurns).values(turnData);
     logger.debug('Created turn record', { gameId: this.gameId, turn: this.currentTurn });
   }
 
@@ -315,7 +317,8 @@ export class TurnManager {
     const endTime = new Date();
     const duration = this.turnStartTime ? endTime.getTime() - this.turnStartTime.getTime() : 0;
 
-    await db
+    await this.databaseProvider
+      .getDatabase()
       .update(gameTurns)
       .set({
         endedAt: endTime,
@@ -340,10 +343,15 @@ export class TurnManager {
     this.turnEvents = [];
 
     // Reset player turn status
-    await db.update(players).set({ hasEndedTurn: false }).where(eq(players.gameId, this.gameId));
+    await this.databaseProvider
+      .getDatabase()
+      .update(players)
+      .set({ hasEndedTurn: false })
+      .where(eq(players.gameId, this.gameId));
 
     // Update game turn counter
-    await db
+    await this.databaseProvider
+      .getDatabase()
       .update(games)
       .set({
         currentTurn: this.currentTurn,

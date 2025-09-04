@@ -2,18 +2,19 @@ import { CityManager, BUILDING_TYPES } from '../../src/game/CityManager';
 import { UNIT_TYPES } from '../../src/game/constants/UnitConstants';
 import {
   getTestDatabase,
+  getTestDatabaseProvider,
   clearAllTables,
   generateTestUUID,
   createTestGameAndPlayer,
 } from '../utils/testDatabase';
-import { schema } from '../../src/database';
+import * as schema from '../../src/database/schema';
 import {
   createBasicGameScenario,
   createCityGrowthScenario,
   createProductionScenario,
 } from '../fixtures/gameFixtures';
 
-describe.skip('CityManager - Integration Tests with Real Database', () => {
+describe('CityManager - Integration Tests with Real Database', () => {
   let cityManager: CityManager;
   let testData: { game: any; player: any; user: any };
 
@@ -24,8 +25,9 @@ describe.skip('CityManager - Integration Tests with Real Database', () => {
     // Create test game and player
     testData = await createTestGameAndPlayer('0010', '0020');
 
-    // Initialize CityManager
-    cityManager = new CityManager(testData.game.id);
+    // Initialize CityManager with test database provider
+    const testDbProvider = getTestDatabaseProvider();
+    cityManager = new CityManager(testData.game.id, testDbProvider);
   });
 
   afterEach(async () => {
@@ -146,8 +148,9 @@ describe.skip('CityManager - Integration Tests with Real Database', () => {
     it('should handle city growth with database persistence', async () => {
       const scenario = await createCityGrowthScenario();
 
-      // Initialize cityManager with the scenario's game ID
-      cityManager = new CityManager(scenario.game.id);
+      // Initialize cityManager with the scenario's game ID and database provider
+      const testDbProvider = getTestDatabaseProvider();
+      cityManager = new CityManager(scenario.game.id, testDbProvider);
 
       // Load cities from database
       await cityManager.loadCities();
@@ -204,8 +207,9 @@ describe.skip('CityManager - Integration Tests with Real Database', () => {
     it('should complete production and create units in database', async () => {
       const scenario = await createProductionScenario();
 
-      // Initialize cityManager with the scenario's game ID
-      cityManager = new CityManager(scenario.game.id);
+      // Initialize cityManager with the scenario's game ID and database provider
+      const testDbProvider = getTestDatabaseProvider();
+      cityManager = new CityManager(scenario.game.id, testDbProvider);
       await cityManager.loadCities();
 
       const cityId = scenario.cities[0].id;
@@ -257,8 +261,9 @@ describe.skip('CityManager - Integration Tests with Real Database', () => {
     it('should load cities from database correctly', async () => {
       const scenario = await createBasicGameScenario();
 
-      // Create a new city manager instance
-      const newCityManager = new CityManager(scenario.game.id);
+      // Create a new city manager instance with database provider
+      const testDbProvider = getTestDatabaseProvider();
+      const newCityManager = new CityManager(scenario.game.id, testDbProvider);
 
       // Load cities from database
       await newCityManager.loadCities();

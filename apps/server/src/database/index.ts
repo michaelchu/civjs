@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema';
 import logger from '../utils/logger';
+import { DatabaseProvider, ProductionDatabaseProvider } from './DatabaseProvider';
 
 // Database connection string - use POSTGRES_URL from Supabase
 const connectionString =
@@ -39,6 +40,9 @@ export async function closeConnection(): Promise<void> {
   logger.info('Database connection closed');
 }
 
-// Export types
+// Create production database provider
+export const productionDatabaseProvider = new ProductionDatabaseProvider(db);
+
+// Export types and interfaces
 export type Database = typeof db;
-export { schema };
+export { schema, DatabaseProvider, ProductionDatabaseProvider };
