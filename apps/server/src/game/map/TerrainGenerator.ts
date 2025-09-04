@@ -240,6 +240,13 @@ export class TerrainGenerator {
     }
 
     // Step 10: make_terrains() - place forests, deserts, etc. (NOW WITH PROPER TEMPERATURES)
+    // Initialize hmap_low_level for mountain conditions before terrain placement
+    const hmap_max_level = 1000;
+    this.terrainPlacementProcessor.initializeHmapLowLevel(
+      terrainParams.swamp_pct, 
+      hmap_shore_level, 
+      hmap_max_level
+    );
     this.terrainPlacementProcessor.makeTerrains(tiles, terrainParams);
 
     // Step 10.5: Continent assignment in correct order (Phase 1 fix)

@@ -249,13 +249,14 @@ export class MapManager {
     // @reference freeciv/server/generator/mapgen.c:1381
     this.terrainGenerator.regenerateLakes(tiles);
 
-    // Generate terrain using terrain engine (only for land variety)
-    await this.terrainGenerator.generateTerrain(
-      tiles,
-      this.heightGenerator,
-      this.random,
-      this.generator
-    );
+    // DISABLED: Generate terrain using terrain engine (only for land variety)
+    // This was overriding the freeciv-compliant terrain placement from makeTerrains()
+    // await this.terrainGenerator.generateTerrain(
+    //   tiles,
+    //   this.heightGenerator,
+    //   this.random,
+    //   this.generator
+    // );
 
     // Phase 2 fix: Temperature map and rivers already handled inside makeLand()
     // Only convert to enum format for compatibility
@@ -938,13 +939,14 @@ export class MapManager {
     // @reference freeciv/server/generator/mapgen.c:1381
     this.terrainGenerator.regenerateLakes(tiles);
 
-    // Generate terrain using terrain engine
-    await this.terrainGenerator.generateTerrain(
-      tiles,
-      this.heightGenerator,
-      this.random,
-      this.generator
-    );
+    // DISABLED: Generate terrain using terrain engine  
+    // This was overriding the freeciv-compliant terrain placement from makeTerrains()
+    // await this.terrainGenerator.generateTerrain(
+    //   tiles,
+    //   this.heightGenerator,
+    //   this.random,
+    //   this.generator
+    // );
 
     // Phase 2 fix: Temperature map and rivers already handled inside makeLand()
     // Only convert to enum format for compatibility
@@ -1148,12 +1150,14 @@ export class MapManager {
     // @reference freeciv/server/generator/mapgen.c:1381
     this.terrainGenerator.regenerateLakes(tiles);
 
-    await this.terrainGenerator.generateTerrain(
-      tiles,
-      this.heightGenerator,
-      this.random,
-      this.generator
-    );
+    // DISABLED: Generate terrain using terrain engine
+    // This was overriding the freeciv-compliant terrain placement from makeTerrains()
+    // await this.terrainGenerator.generateTerrain(
+    //   tiles,
+    //   this.heightGenerator,
+    //   this.random,
+    //   this.generator
+    // );
 
     // Phase 2 fix: Temperature map and rivers already handled inside makeLand()
     // Only convert to enum format for compatibility
