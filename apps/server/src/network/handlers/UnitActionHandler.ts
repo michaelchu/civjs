@@ -105,34 +105,20 @@ export class UnitActionHandler extends BaseSocketHandler {
   ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
-      handler.send(socket, PacketType.UNIT_MOVE_REPLY, {
-        success: false,
-        unitId: data.unitId,
-        message: 'Not authenticated or not in a game',
-      });
+      this.sendMoveReply(handler, socket, data.unitId, false, 'Not authenticated or not in a game');
       return;
     }
 
     try {
-      const game = await this.gameManager.getGame(connection.gameId!);
-      if (!game || game.state !== 'active') {
-        handler.send(socket, PacketType.UNIT_MOVE_REPLY, {
-          success: false,
-          unitId: data.unitId,
-          message: 'Game is not active',
-        });
+      const game = await this.resolveActiveGame(connection);
+      if (!game) {
+        this.sendMoveReply(handler, socket, data.unitId, false, 'Game is not active');
         return;
       }
 
-      const player = Array.from(game.players.values()).find(
-        (p: any) => p.userId === connection.userId
-      ) as any;
+      const player = this.resolvePlayerFromGame(connection, game);
       if (!player) {
-        handler.send(socket, PacketType.UNIT_MOVE_REPLY, {
-          success: false,
-          unitId: data.unitId,
-          message: 'Player not found in game',
-        });
+        this.sendMoveReply(handler, socket, data.unitId, false, 'Player not found in game');
         return;
       }
 
@@ -163,11 +149,7 @@ export class UnitActionHandler extends BaseSocketHandler {
           newPosition: { x: data.x, y: data.y },
         });
       } else {
-        handler.send(socket, PacketType.UNIT_MOVE_REPLY, {
-          success: false,
-          unitId: data.unitId,
-          message: 'Move failed',
-        });
+        this.sendMoveReply(handler, socket, data.unitId, false, 'Move failed');
       }
     } catch (error) {
       logger.error('Error processing unit move:', error);
@@ -177,6 +159,30 @@ export class UnitActionHandler extends BaseSocketHandler {
         message: error instanceof Error ? error.message : 'Failed to move unit',
       });
     }
+  }
+
+  private async resolveActiveGame(connection: any): Promise<any | null> {
+    const game = await this.gameManager.getGame(connection.gameId!);
+    if (!game || game.state !== 'active') return null;
+    return game;
+  }
+
+  private resolvePlayerFromGame(connection: any, game: any): any | null {
+    return (
+      Array.from(game.players.values()).find((p: any) => p.userId === connection.userId) || null
+    );
+  }
+
+  private sendMoveReply(
+    handler: PacketHandler,
+    socket: Socket,
+    unitId: string,
+    success: boolean,
+    message?: string
+  ): void {
+    const payload: any = { success, unitId };
+    if (message) payload.message = message;
+    handler.send(socket, PacketType.UNIT_MOVE_REPLY, payload);
   }
 
   /**
