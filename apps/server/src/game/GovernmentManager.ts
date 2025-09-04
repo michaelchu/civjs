@@ -1,4 +1,4 @@
-import { db } from '../database';
+import { DatabaseProvider } from '../database';
 import { players as playersTable } from '../database/schema';
 import { eq, and } from 'drizzle-orm';
 import { rulesetLoader } from '../shared/data/rulesets/RulesetLoader';
@@ -77,9 +77,11 @@ export function getRevolutionGovernment(rulesetName: string = 'classic'): string
 export class GovernmentManager {
   private playerGovernments: Map<string, PlayerGovernment> = new Map();
   private gameId: string;
+  private databaseProvider: DatabaseProvider;
 
-  constructor(gameId: string) {
+  constructor(gameId: string, databaseProvider: DatabaseProvider) {
     this.gameId = gameId;
+    this.databaseProvider = databaseProvider;
   }
 
   public async initializePlayerGovernment(playerId: string): Promise<void> {
@@ -92,7 +94,8 @@ export class GovernmentManager {
     this.playerGovernments.set(playerId, government);
 
     // Update player record in database with initial government
-    await db
+    await this.databaseProvider
+      .getDatabase()
       .update(playersTable)
       .set({
         government: 'despotism',
@@ -142,7 +145,8 @@ export class GovernmentManager {
     playerGov.requestedGovernment = requestedGovernment;
 
     // Update database
-    await db
+    await this.databaseProvider
+      .getDatabase()
       .update(playersTable)
       .set({
         government: 'anarchy',
@@ -171,7 +175,8 @@ export class GovernmentManager {
       playerGov.requestedGovernment = undefined;
 
       // Update database
-      await db
+      await this.databaseProvider
+        .getDatabase()
         .update(playersTable)
         .set({
           government: newGovernment,
@@ -182,7 +187,8 @@ export class GovernmentManager {
       return newGovernment;
     } else {
       // Update remaining turns in database
-      await db
+      await this.databaseProvider
+        .getDatabase()
         .update(playersTable)
         .set({
           revolutionTurns: playerGov.revolutionTurns,
@@ -372,7 +378,8 @@ export class GovernmentManager {
     playerGov.requestedGovernment = governmentType;
 
     // Update database
-    await db
+    await this.databaseProvider
+      .getDatabase()
       .update(playersTable)
       .set({
         government: 'anarchy',
@@ -585,7 +592,8 @@ export class GovernmentManager {
    * Reference: Integration test requirement for game reloads
    */
   public async loadPlayerGovernments(): Promise<void> {
-    const results = await db
+    const results = await this.databaseProvider
+      .getDatabase()
       .select({
         id: playersTable.id,
         government: playersTable.government,
@@ -608,7 +616,8 @@ export class GovernmentManager {
   }
 
   public async loadPlayerGovernmentFromDb(playerId: string): Promise<void> {
-    const result = await db
+    const result = await this.databaseProvider
+      .getDatabase()
       .select({
         government: playersTable.government,
         revolutionTurns: playersTable.revolutionTurns,

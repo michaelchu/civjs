@@ -30,6 +30,44 @@ try {
   };
 }
 
+import { DatabaseProvider } from '../../src/database/DatabaseProvider';
+
+/**
+ * Test database provider for integration tests
+ * Provides isolated database instances for testing
+ */
+export class TestDatabaseProvider implements DatabaseProvider {
+  private database: ReturnType<typeof drizzle<typeof schema>>;
+
+  constructor(database: ReturnType<typeof drizzle<typeof schema>>) {
+    this.database = database;
+  }
+
+  getDatabase() {
+    return this.database;
+  }
+
+  async testConnection(): Promise<boolean> {
+    try {
+      // Access the underlying postgres client for connection testing
+      const queryClient = (this.database as any)._.session.client;
+      await queryClient`SELECT 1`;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async closeConnection(): Promise<void> {
+    try {
+      const queryClient = (this.database as any)._.session.client;
+      await queryClient.end();
+    } catch (error) {
+      logger.error('Error closing test database connection:', error);
+    }
+  }
+}
+
 // UUID generator for tests
 export function generateTestUUID(suffix: string): string {
   // Generate a valid UUID with better randomness
@@ -149,9 +187,16 @@ export async function setupTestDatabase() {
     logger.info('Test database migrations completed');
 
     return testDb;
-  } catch (error) {
-    logger.error('Failed to setup test database:', error);
-    throw error;
+  } catch {
+    logger.error('Test database not available - integration tests will be skipped');
+
+    // Create a mock database provider that throws helpful errors
+    const mockError = new Error(
+      'Integration tests require a PostgreSQL database. ' +
+        'Set TEST_DATABASE_URL environment variable or start local PostgreSQL with test database.'
+    );
+
+    throw mockError;
   }
 }
 
@@ -169,6 +214,14 @@ export function getTestDatabase() {
     throw new Error('Test database not initialized. Call setupTestDatabase() first.');
   }
   return testDb;
+}
+
+/**
+ * Get a TestDatabaseProvider instance for dependency injection
+ */
+export function getTestDatabaseProvider(): TestDatabaseProvider {
+  const db = getTestDatabase();
+  return new TestDatabaseProvider(db);
 }
 
 export async function clearAllTables() {

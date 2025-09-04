@@ -6,7 +6,7 @@
 
 import { BaseGameService } from './GameService';
 import { logger } from '../../utils/logger';
-import { db } from '../../database';
+import { DatabaseProvider } from '../../database';
 import { gameState } from '../../database/redis';
 import { games } from '../../database/schema';
 import { eq } from 'drizzle-orm';
@@ -36,6 +36,7 @@ export interface GameLifecycleService {
 
 export class GameLifecycleManager extends BaseGameService implements GameLifecycleService {
   private io: SocketServer;
+  private databaseProvider: DatabaseProvider;
   private games: Map<string, GameInstance>;
   private onBroadcast?: (gameId: string, event: string, data: any) => void;
   private onPersistMapData?: (
@@ -61,6 +62,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
   constructor(
     io: SocketServer,
+    databaseProvider: DatabaseProvider,
     games: Map<string, GameInstance>,
     onBroadcast?: (gameId: string, event: string, data: any) => void,
     onPersistMapData?: (
@@ -86,6 +88,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   ) {
     super(logger);
     this.io = io;
+    this.databaseProvider = databaseProvider;
     this.games = games;
     this.onBroadcast = onBroadcast;
     this.onPersistMapData = onPersistMapData;
@@ -130,7 +133,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       },
     };
 
-    const [newGame] = await db.insert(games).values(gameData).returning();
+    const [newGame] = await this.databaseProvider
+      .getDatabase()
+      .insert(games)
+      .values(gameData)
+      .returning();
 
     // Cache basic game data in Redis for performance
     await gameState.setGameState(newGame.id, {
@@ -150,7 +157,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
    */
   async startGame(gameId: string, hostId: string): Promise<void> {
     // Get game from database
-    const game = await db.query.games.findFirst({
+    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
       with: {
         players: true,
@@ -178,7 +185,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     this.logger.info('Starting game', { gameId, playerCount: game.players.length });
 
     // Update database to active state
-    await db
+    await this.databaseProvider
+      .getDatabase()
       .update(games)
       .set({
         status: 'active',
@@ -299,85 +307,96 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       temperatureParam
     );
 
-    const turnManager = new TurnManager(gameId, this.io);
+    const turnManager = new TurnManager(gameId, this.databaseProvider, this.io);
 
     // Initialize turn system with player IDs
     const playerIds = Array.from(players.keys());
     await turnManager.initializeTurn(playerIds);
 
     // Create cityManager first to avoid circular dependency
-    const cityManager = new CityManager(gameId, undefined, {
+    const cityManager = new CityManager(gameId, this.databaseProvider, undefined, {
       createUnit: (_playerId: string, _unitType: string, _x: number, _y: number) =>
         // This callback will be handled by the main GameManager
         Promise.resolve(''),
     });
 
     // Create UnitManager with proper dependencies
-    const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager, {
-      foundCity: this.onFoundCity
-        ? (gameId: string, playerId: string, name: string, x: number, y: number) =>
-            this.onFoundCity!(gameId, playerId, name, x, y)
-        : async () => '',
-      requestPath: async (playerId: string, unitId: string, targetX: number, targetY: number) => {
-        // Delegate to the main GameManager's requestPath method
-        // We need access to the GameManager instance that created this lifecycle manager
+    const unitManager = new UnitManager(
+      gameId,
+      this.databaseProvider,
+      game.mapWidth,
+      game.mapHeight,
+      mapManager,
+      {
+        foundCity: this.onFoundCity
+          ? (gameId: string, playerId: string, name: string, x: number, y: number) =>
+              this.onFoundCity!(gameId, playerId, name, x, y)
+          : async () => '',
+        requestPath: async (playerId: string, unitId: string, targetX: number, targetY: number) => {
+          // Delegate to the main GameManager's requestPath method
+          // We need access to the GameManager instance that created this lifecycle manager
 
-        // For now, we'll use a direct approach through the games map
-        // This should be the same GameManager instance that created us
-        const gameInstance = this.games.get(gameId);
-        if (!gameInstance) {
-          return { success: false, error: 'Game instance not found' };
-        }
-
-        // Use the GameManager's pathfinding directly via the game instance
-        try {
-          const unit = gameInstance.unitManager.getUnit(unitId);
-          if (!unit) {
-            return { success: false, error: 'Unit not found' };
+          // For now, we'll use a direct approach through the games map
+          // This should be the same GameManager instance that created us
+          const gameInstance = this.games.get(gameId);
+          if (!gameInstance) {
+            return { success: false, error: 'Game instance not found' };
           }
 
-          if (unit.playerId !== playerId) {
-            return { success: false, error: 'Unit does not belong to player' };
+          // Use the GameManager's pathfinding directly via the game instance
+          try {
+            const unit = gameInstance.unitManager.getUnit(unitId);
+            if (!unit) {
+              return { success: false, error: 'Unit not found' };
+            }
+
+            if (unit.playerId !== playerId) {
+              return { success: false, error: 'Unit does not belong to player' };
+            }
+
+            // Call PathfindingManager directly
+            const pathResult = await gameInstance.pathfindingManager.findPath(
+              unit,
+              targetX,
+              targetY
+            );
+
+            const tiles = Array.isArray(pathResult?.path) ? pathResult.path : [];
+            const isValid = pathResult?.valid && tiles.length > 0;
+
+            return {
+              success: isValid,
+              path: isValid
+                ? {
+                    unitId,
+                    targetX,
+                    targetY,
+                    tiles: tiles,
+                    totalCost: pathResult.totalCost || 0,
+                    estimatedTurns: pathResult.estimatedTurns || 0,
+                    valid: isValid,
+                  }
+                : undefined,
+              error: isValid ? undefined : 'No valid path found',
+            };
+          } catch (error) {
+            logger.error('Error in GameLifecycleManager requestPath delegation:', error);
+            return { success: false, error: 'Pathfinding error' };
           }
-
-          // Call PathfindingManager directly
-          const pathResult = await gameInstance.pathfindingManager.findPath(unit, targetX, targetY);
-
-          const tiles = Array.isArray(pathResult?.path) ? pathResult.path : [];
-          const isValid = pathResult?.valid && tiles.length > 0;
-
-          return {
-            success: isValid,
-            path: isValid
-              ? {
-                  unitId,
-                  targetX,
-                  targetY,
-                  tiles: tiles,
-                  totalCost: pathResult.totalCost || 0,
-                  estimatedTurns: pathResult.estimatedTurns || 0,
-                  valid: isValid,
-                }
-              : undefined,
-            error: isValid ? undefined : 'No valid path found',
-          };
-        } catch (error) {
-          logger.error('Error in GameLifecycleManager requestPath delegation:', error);
-          return { success: false, error: 'Pathfinding error' };
-        }
-      },
-      broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
-        this.onBroadcast?.(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
-      },
-      getCityAt: (x: number, y: number) => {
-        const city = cityManager.getCityAt(x, y);
-        return city ? { playerId: city.playerId } : null;
-      },
-    });
+        },
+        broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
+          this.onBroadcast?.(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
+        },
+        getCityAt: (x: number, y: number) => {
+          const city = cityManager.getCityAt(x, y);
+          return city ? { playerId: city.playerId } : null;
+        },
+      }
+    );
 
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
 
-    const researchManager = new ResearchManager(gameId);
+    const researchManager = new ResearchManager(gameId, this.databaseProvider);
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
 
     // Generate the map with starting positions based on terrain settings
@@ -425,7 +444,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
    */
   async deleteGame(gameId: string, userId?: string): Promise<void> {
     // Check if game exists
-    const game = await db.query.games.findFirst({
+    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
       with: {
         players: true,
@@ -450,7 +469,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     }
 
     // Update database to mark game as ended
-    await db
+    await this.databaseProvider
+      .getDatabase()
       .update(games)
       .set({
         status: 'ended',

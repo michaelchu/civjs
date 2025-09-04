@@ -1,4 +1,4 @@
-import { db } from '../database';
+import { DatabaseProvider } from '../database';
 import { units } from '../database/schema/units';
 import { eq } from 'drizzle-orm';
 import { logger } from '../utils/logger';
@@ -41,6 +41,7 @@ export interface CombatResult {
 export class UnitManager {
   private units: Map<string, Unit> = new Map();
   private gameId: string;
+  private databaseProvider: DatabaseProvider;
   private mapWidth: number;
   private mapHeight: number;
   private mapManager: any; // MapManager instance for terrain access
@@ -71,6 +72,7 @@ export class UnitManager {
 
   constructor(
     gameId: string,
+    databaseProvider: DatabaseProvider,
     mapWidth: number,
     mapHeight: number,
     mapManager?: any,
@@ -99,6 +101,7 @@ export class UnitManager {
     }
   ) {
     this.gameId = gameId;
+    this.databaseProvider = databaseProvider;
     this.mapWidth = mapWidth;
     this.mapHeight = mapHeight;
     this.mapManager = mapManager;
@@ -127,7 +130,8 @@ export class UnitManager {
     }
 
     // Save to database and get the generated ID
-    const [dbUnit] = await db
+    const [dbUnit] = await this.databaseProvider
+      .getDatabase()
       .insert(units)
       .values({
         gameId: this.gameId,
@@ -217,7 +221,8 @@ export class UnitManager {
     unit.fortified = false; // Moving breaks fortification
 
     // Update database
-    await db
+    await this.databaseProvider
+      .getDatabase()
       .update(units)
       .set({
         x: unit.x,
@@ -281,7 +286,8 @@ export class UnitManager {
     if (attackerDestroyed) {
       await this.destroyUnit(attackerId);
     } else {
-      await db
+      await this.databaseProvider
+        .getDatabase()
         .update(units)
         .set({ health: attacker.health, movementPoints: '0' })
         .where(eq(units.id, attackerId));
@@ -293,13 +299,18 @@ export class UnitManager {
       if (!attackerDestroyed && attackerType.range === 1) {
         attacker.x = defender.x;
         attacker.y = defender.y;
-        await db
+        await this.databaseProvider
+          .getDatabase()
           .update(units)
           .set({ x: attacker.x, y: attacker.y })
           .where(eq(units.id, attackerId));
       }
     } else {
-      await db.update(units).set({ health: defender.health }).where(eq(units.id, defenderId));
+      await this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set({ health: defender.health })
+        .where(eq(units.id, defenderId));
     }
 
     const result: CombatResult = {
@@ -327,7 +338,8 @@ export class UnitManager {
     unit.fortified = true;
     unit.movementLeft = 0; // Fortifying uses all movement
 
-    await db
+    await this.databaseProvider
+      .getDatabase()
       .update(units)
       .set({ movementPoints: '0', isFortified: true })
       .where(eq(units.id, unitId));
@@ -346,7 +358,11 @@ export class UnitManager {
 
     unit.health = Math.min(100, unit.health + amount);
 
-    await db.update(units).set({ health: unit.health }).where(eq(units.id, unitId));
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ health: unit.health })
+      .where(eq(units.id, unitId));
   }
 
   /**
@@ -372,7 +388,8 @@ export class UnitManager {
     for (const unit of this.units.values()) {
       if (unit.playerId === playerId) {
         const unitType = UNIT_TYPES[unit.unitTypeId];
-        await db
+        await this.databaseProvider
+          .getDatabase()
           .update(units)
           .set({
             movementPoints: unitType.movement.toString(),
@@ -408,7 +425,11 @@ export class UnitManager {
    * Load units from database
    */
   async loadUnits(): Promise<void> {
-    const dbUnits = await db.select().from(units).where(eq(units.gameId, this.gameId));
+    const dbUnits = await this.databaseProvider
+      .getDatabase()
+      .select()
+      .from(units)
+      .where(eq(units.gameId, this.gameId));
 
     for (const dbUnit of dbUnits) {
       const unitType = UNIT_TYPES[dbUnit.unitType];
@@ -537,7 +558,7 @@ export class UnitManager {
    */
   private async destroyUnit(unitId: string): Promise<void> {
     this.units.delete(unitId);
-    await db.delete(units).where(eq(units.id, unitId));
+    await this.databaseProvider.getDatabase().delete(units).where(eq(units.id, unitId));
     logger.info(`Unit ${unitId} destroyed`);
   }
 
@@ -683,7 +704,11 @@ export class UnitManager {
 
     // Update database if there are changes
     if (Object.keys(updateData).length > 0) {
-      await db.update(units).set(updateData).where(eq(units.id, unit.id));
+      await this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set(updateData)
+        .where(eq(units.id, unit.id));
     }
 
     logger.info(`Applied action result for unit ${unit.id}`, {
