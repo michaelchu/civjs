@@ -14,6 +14,7 @@ import { GameLifecycleManager } from './managers/GameLifecycleManager';
 import { GameStateManager } from './managers/GameStateManager';
 import { PlayerConnectionManager } from './managers/PlayerConnectionManager';
 import { ServiceRegistry } from './managers/ServiceRegistry';
+import { UnitManagementService } from './managers/UnitManagementService';
 
 // Keep existing imports for delegation
 import { CityManager } from './CityManager';
@@ -102,6 +103,7 @@ export class GameManager {
   private playerConnectionManager!: PlayerConnectionManager;
   private gameLifecycleManager!: GameLifecycleManager;
   private gameBroadcastManager!: GameBroadcastManager;
+  private unitManagementService!: UnitManagementService;
 
   private constructor(io: SocketServer) {
     this.io = io;
@@ -141,11 +143,17 @@ export class GameManager {
       this.gameBroadcastManager.broadcastMapData.bind(this.gameBroadcastManager)
     );
 
+    this.unitManagementService = new UnitManagementService(
+      this.games,
+      this.broadcastToGame.bind(this)
+    );
+
     // Register services
     this.serviceRegistry.register('GameStateManager', this.gameStateManager);
     this.serviceRegistry.register('PlayerConnectionManager', this.playerConnectionManager);
     this.serviceRegistry.register('GameLifecycleManager', this.gameLifecycleManager);
     this.serviceRegistry.register('GameBroadcastManager', this.gameBroadcastManager);
+    this.serviceRegistry.register('UnitManagementService', this.unitManagementService);
 
     // Set cross-references
     this.gameBroadcastManager.setGamesReference(this.games);
@@ -1187,7 +1195,7 @@ export class GameManager {
     return false; // Waiting for other players
   }
 
-  // Unit management methods
+  // Unit management methods - delegates to UnitManagementService
   public async createUnit(
     gameId: string,
     playerId: string,
@@ -1195,40 +1203,7 @@ export class GameManager {
     x: number,
     y: number
   ): Promise<string> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    if (gameInstance.state !== 'active') {
-      throw new Error('Cannot create units unless game is active');
-    }
-
-    const player = gameInstance.players.get(playerId);
-    if (!player) {
-      throw new Error('Player not found in game');
-    }
-
-    const unit = await gameInstance.unitManager.createUnit(playerId, unitType, x, y);
-
-    // Update visibility for the player
-    gameInstance.visibilityManager.onUnitCreated(playerId);
-
-    // Broadcast unit creation to all players
-    this.broadcastToGame(gameId, 'unit_created', {
-      gameId,
-      unit: {
-        id: unit.id,
-        playerId: unit.playerId,
-        unitType: unit.unitTypeId,
-        x: unit.x,
-        y: unit.y,
-        health: unit.health,
-        movementLeft: unit.movementLeft,
-      },
-    });
-
-    return unit.id;
+    return this.unitManagementService.createUnit(gameId, playerId, unitType, x, y);
   }
 
   public async moveUnit(
@@ -1238,40 +1213,7 @@ export class GameManager {
     x: number,
     y: number
   ): Promise<boolean> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    if (gameInstance.state !== 'active') {
-      throw new Error('Cannot move units unless game is active');
-    }
-
-    // Verify unit belongs to player
-    const unit = gameInstance.unitManager.getUnit(unitId);
-    if (!unit || unit.playerId !== playerId) {
-      throw new Error('Unit not found or does not belong to player');
-    }
-
-    const moved = await gameInstance.unitManager.moveUnit(unitId, x, y);
-
-    if (moved) {
-      const updatedUnit = gameInstance.unitManager.getUnit(unitId)!;
-
-      // Update visibility for the player
-      gameInstance.visibilityManager.onUnitMoved(playerId);
-
-      // Broadcast unit movement to all players
-      this.broadcastToGame(gameId, 'unit_moved', {
-        gameId,
-        unitId,
-        x: updatedUnit.x,
-        y: updatedUnit.y,
-        movementLeft: updatedUnit.movementLeft,
-      });
-    }
-
-    return moved;
+    return this.unitManagementService.moveUnit(gameId, playerId, unitId, x, y);
   }
 
   public async attackUnit(
@@ -1280,83 +1222,19 @@ export class GameManager {
     attackerUnitId: string,
     defenderUnitId: string
   ) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    if (gameInstance.state !== 'active') {
-      throw new Error('Cannot attack unless game is active');
-    }
-
-    // Verify attacking unit belongs to player
-    const attackerUnit = gameInstance.unitManager.getUnit(attackerUnitId);
-    if (!attackerUnit || attackerUnit.playerId !== playerId) {
-      throw new Error('Attacking unit not found or does not belong to player');
-    }
-
-    const combatResult = await gameInstance.unitManager.attackUnit(attackerUnitId, defenderUnitId);
-
-    // Update visibility for relevant players if units were destroyed
-    if (combatResult.attackerDestroyed) {
-      gameInstance.visibilityManager.onUnitDestroyed(playerId);
-    }
-    if (combatResult.defenderDestroyed) {
-      // Find the defender's player
-      const defenderUnit = gameInstance.unitManager.getUnit(defenderUnitId);
-      if (defenderUnit) {
-        gameInstance.visibilityManager.onUnitDestroyed(defenderUnit.playerId);
-      }
-    }
-
-    // Broadcast combat result to all players
-    this.broadcastToGame(gameId, 'unit_combat', {
-      gameId,
-      combatResult,
-    });
-
-    return combatResult;
+    return this.unitManagementService.attackUnit(gameId, playerId, attackerUnitId, defenderUnitId);
   }
 
   public async fortifyUnit(gameId: string, playerId: string, unitId: string): Promise<void> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    // Verify unit belongs to player
-    const unit = gameInstance.unitManager.getUnit(unitId);
-    if (!unit || unit.playerId !== playerId) {
-      throw new Error('Unit not found or does not belong to player');
-    }
-
-    await gameInstance.unitManager.fortifyUnit(unitId);
-
-    // Broadcast fortification to all players
-    this.broadcastToGame(gameId, 'unit_fortified', {
-      gameId,
-      unitId,
-    });
+    return this.unitManagementService.fortifyUnit(gameId, playerId, unitId);
   }
 
   public getPlayerUnits(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.unitManager.getPlayerUnits(playerId);
+    return this.unitManagementService.getPlayerUnits(gameId, playerId);
   }
 
   public getVisibleUnits(gameId: string, playerId: string, visibleTiles?: Set<string>) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    // Use visibility manager if no visibleTiles provided
-    const tiles = visibleTiles || gameInstance.visibilityManager.getVisibleTiles(playerId);
-    return gameInstance.unitManager.getVisibleUnits(playerId, tiles);
+    return this.unitManagementService.getVisibleUnits(gameId, playerId, visibleTiles);
   }
 
   public getPlayerMapView(gameId: string, playerId: string) {
