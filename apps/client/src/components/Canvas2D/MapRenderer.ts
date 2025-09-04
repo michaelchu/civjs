@@ -78,9 +78,6 @@ export class MapRenderer {
   }
 
   render(state: RenderState) {
-    // Always setup canvas to ensure settings are preserved after canvas resize
-    this.setupCanvas();
-    
     // Reset tile map cache if tiles data has changed
     const currentGlobalTiles = (window as any).tiles;
     if (currentGlobalTiles && currentGlobalTiles !== this.lastGlobalTiles) {

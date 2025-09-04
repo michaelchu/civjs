@@ -90,30 +90,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Check if dimensions actually changed to avoid unnecessary operations
-    const dimensionsChanged = canvas.width !== width || canvas.height !== height;
-    
-    if (dimensionsChanged) {
-      canvas.width = width;
-      canvas.height = height;
+    canvas.width = width;
+    canvas.height = height;
 
-      setViewport({ width, height });
-      
-      // Canvas is cleared when dimensions change, so force an immediate render
-      // to prevent flickering/disappearing content
-      if (rendererRef.current) {
-        const state = useGameStore.getState();
-        rendererRef.current.render({
-          viewport: state.viewport,
-          map: state.map,
-          units: state.units,
-          cities: state.cities,
-          selectedUnitId: state.selectedUnitId,
-          gotoPath: gotoMode.currentPath,
-        });
-      }
-    }
-  }, [width, height, setViewport, gotoMode]);
+    setViewport({ width, height });
+  }, [width, height, setViewport]);
 
   // Extract complex expressions to satisfy ESLint rule
   const unitsCount = Object.keys(units).length;
