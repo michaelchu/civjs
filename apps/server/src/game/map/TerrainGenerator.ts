@@ -165,22 +165,9 @@ export class TerrainGenerator {
           let land = 0;
 
           // Count adjacent ocean/land for shallow connection prevention
-          for (let dx = -1; dx <= 1; dx++) {
-            for (let dy = -1; dy <= 1; dy++) {
-              if (dx === 0 && dy === 0) continue; // Skip center tile
-              const nx = x + dx;
-              const ny = y + dy;
-              if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-                // CRITICAL FIX: Use tile elevation instead of potentially corrupted heightMap
-                if (tiles[nx][ny].elevation < hmap_shore_level) {
-                  ocean++;
-                } else {
-                  land++;
-                  break; // Exit early if any land found
-                }
-              }
-            }
-          }
+          const neighborCount = this.countOceanLandNeighbors(tiles, x, y, hmap_shore_level);
+          ocean = neighborCount.ocean;
+          land = neighborCount.land;
 
           // Adjust depth based on neighbors
           depth += (30 * (ocean - land)) / Math.max(1, ocean + land);
@@ -523,28 +510,90 @@ export class TerrainGenerator {
   }
 
   /**
+   * Count ocean and land neighbors for ocean depth calculation
+   * @param tiles Map tiles array
+   * @param x Current x coordinate
+   * @param y Current y coordinate
+   * @param hmap_shore_level Shore level threshold
+   * @returns Object with ocean and land neighbor counts
+   */
+  private countOceanLandNeighbors(
+    tiles: MapTile[][],
+    x: number,
+    y: number,
+    hmap_shore_level: number
+  ): { ocean: number; land: number } {
+    let ocean = 0;
+    let land = 0;
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue; // Skip center tile
+
+        const nx = x + dx;
+        const ny = y + dy;
+
+        if (this.isValidCoordinate(nx, ny)) {
+          if (tiles[nx][ny].elevation < hmap_shore_level) {
+            ocean++;
+          } else {
+            land++;
+            break; // Exit early if any land found
+          }
+        }
+      }
+    }
+
+    return { ocean, land };
+  }
+
+  /**
+   * Check if coordinates are within map bounds
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @returns true if coordinates are valid
+   */
+  private isValidCoordinate(x: number, y: number): boolean {
+    return x >= 0 && x < this.width && y >= 0 && y < this.height;
+  }
+
+  /**
    * Calculate distance to nearest coast for island generator
    * @reference Task 10: Island maps emphasize coastal terrain
    */
   private calculateDistanceToCoast(tiles: MapTile[][], x: number, y: number): number {
     // Simple implementation: check in expanding squares until ocean is found
     for (let radius = 1; radius <= 5; radius++) {
-      for (let dx = -radius; dx <= radius; dx++) {
-        for (let dy = -radius; dy <= radius; dy++) {
-          // Only check the border of the current radius square
-          if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
-
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-            if (isOceanTerrain(tiles[nx][ny].terrain)) {
-              return radius;
-            }
-          }
-        }
+      if (this.hasOceanAtRadius(tiles, x, y, radius)) {
+        return radius;
       }
     }
     return 5; // Max distance checked
+  }
+
+  /**
+   * Check if there's an ocean tile at the given radius from position
+   * @param tiles Map tiles array
+   * @param x Center x coordinate
+   * @param y Center y coordinate
+   * @param radius Distance to check
+   * @returns true if ocean found at radius
+   */
+  private hasOceanAtRadius(tiles: MapTile[][], x: number, y: number, radius: number): boolean {
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        // Only check the border of the current radius square
+        if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+
+        const nx = x + dx;
+        const ny = y + dy;
+
+        if (this.isValidCoordinate(nx, ny) && isOceanTerrain(tiles[nx][ny].terrain)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   /**
@@ -758,25 +807,25 @@ export class TerrainGenerator {
       for (let dy = -2; dy <= 2; dy++) {
         const nx = x + dx;
         const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const index = ny * this.width + nx;
-          const neighborHeight = heightMap[index];
 
-          // If any neighbor is above threshold, area is not flat
-          if (neighborHeight > thill) {
-            return false;
+        if (!this.isValidCoordinate(nx, ny)) continue;
+
+        const neighborHeight = heightMap[ny * this.width + nx];
+
+        // Early return if neighbor is above threshold - area is not flat
+        if (neighborHeight > thill) {
+          return false;
+        }
+
+        // Check if neighbor is higher than current tile
+        if (neighborHeight > my_height) {
+          const distance = Math.abs(dx) + Math.abs(dy);
+          if (distance === 1) {
+            return false; // Adjacent tile is higher
           }
-
-          // Count neighbors higher than current tile
-          if (neighborHeight > my_height) {
-            const distance = Math.abs(dx) + Math.abs(dy);
-            if (distance === 1) {
-              return false; // Adjacent tile is higher
-            }
-            higher_than_me++;
-            if (higher_than_me > 2) {
-              return false;
-            }
+          higher_than_me++;
+          if (higher_than_me > 2) {
+            return false;
           }
         }
       }
