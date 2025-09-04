@@ -403,46 +403,144 @@ export class FractalHeightGenerator {
     for (let pass = 0; pass < passes; pass++) {
       // Horizontal pass
       const tempMap = [...this.heightMap];
-      for (let y = 0; y < this.height; y++) {
-        for (let x = 0; x < this.width; x++) {
-          let weightedSum = 0;
-          let totalWeight = 0;
-
-          for (let i = -2; i <= 2; i++) {
-            const nx = x + i;
-            if (nx >= 0 && nx < this.width) {
-              weightedSum += this.getHeight(nx, y) * weights[i + 2];
-              totalWeight += weights[i + 2];
-            }
-          }
-
-          if (totalWeight > 0) {
-            tempMap[y * this.width + x] = Math.floor(weightedSum / totalWeight);
-          }
-        }
-      }
+      this.applyHorizontalSmoothing(tempMap, weights);
 
       // Vertical pass
       this.heightMap = [...tempMap];
+      this.applyVerticalSmoothing(tempMap, weights);
+    }
+  }
+
+  /**
+   * Apply horizontal smoothing pass
+   * @param tempMap Temporary map to store results
+   * @param weights Gaussian weights array
+   */
+  private applyHorizontalSmoothing(tempMap: number[], weights: number[]): void {
+    for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
-        for (let y = 0; y < this.height; y++) {
-          let weightedSum = 0;
-          let totalWeight = 0;
-
-          for (let i = -2; i <= 2; i++) {
-            const ny = y + i;
-            if (ny >= 0 && ny < this.height) {
-              weightedSum += tempMap[ny * this.width + x] * weights[i + 2];
-              totalWeight += weights[i + 2];
-            }
-          }
-
-          if (totalWeight > 0) {
-            this.heightMap[y * this.width + x] = Math.floor(weightedSum / totalWeight);
-          }
+        const smoothedValue = this.calculateSmoothedValue(x, y, weights, true);
+        if (smoothedValue !== null) {
+          tempMap[y * this.width + x] = smoothedValue;
         }
       }
     }
+  }
+
+  /**
+   * Apply vertical smoothing pass
+   * @param tempMap Temporary map to read from
+   * @param weights Gaussian weights array
+   */
+  private applyVerticalSmoothing(tempMap: number[], weights: number[]): void {
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const smoothedValue = this.calculateSmoothedValueFromMap(x, y, weights, false, tempMap);
+        if (smoothedValue !== null) {
+          this.heightMap[y * this.width + x] = smoothedValue;
+        }
+      }
+    }
+  }
+
+  /**
+   * Calculate smoothed value for a position using current heightMap
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @param weights Gaussian weights
+   * @param horizontal True for horizontal smoothing, false for vertical
+   * @returns Smoothed value or null if no valid neighbors
+   */
+  private calculateSmoothedValue(
+    x: number,
+    y: number,
+    weights: number[],
+    horizontal: boolean
+  ): number | null {
+    let weightedSum = 0;
+    let totalWeight = 0;
+
+    for (let i = -2; i <= 2; i++) {
+      const nx = horizontal ? x + i : x;
+      const ny = horizontal ? y : y + i;
+
+      if (this.isValidCoordinate(nx, ny)) {
+        weightedSum += this.getHeight(nx, ny) * weights[i + 2];
+        totalWeight += weights[i + 2];
+      }
+    }
+
+    return totalWeight > 0 ? Math.floor(weightedSum / totalWeight) : null;
+  }
+
+  /**
+   * Calculate smoothed value for a position using provided map
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @param weights Gaussian weights
+   * @param horizontal True for horizontal smoothing, false for vertical
+   * @param sourceMap Source map to read from
+   * @returns Smoothed value or null if no valid neighbors
+   */
+  private calculateSmoothedValueFromMap(
+    x: number,
+    y: number,
+    weights: number[],
+    horizontal: boolean,
+    sourceMap: number[]
+  ): number | null {
+    let weightedSum = 0;
+    let totalWeight = 0;
+
+    for (let i = -2; i <= 2; i++) {
+      const nx = horizontal ? x + i : x;
+      const ny = horizontal ? y : y + i;
+
+      if (this.isValidCoordinate(nx, ny)) {
+        weightedSum += sourceMap[ny * this.width + nx] * weights[i + 2];
+        totalWeight += weights[i + 2];
+      }
+    }
+
+    return totalWeight > 0 ? Math.floor(weightedSum / totalWeight) : null;
+  }
+
+  /**
+   * Check if coordinates are within map bounds
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @returns true if coordinates are valid
+   */
+  private isValidCoordinate(x: number, y: number): boolean {
+    return x >= 0 && x < this.width && y >= 0 && y < this.height;
+  }
+
+  /**
+   * Apply smoothing kernel for smoothIntMap function
+   * @param indexMapper Function to map i offset to neighbor index (-1 if out of bounds)
+   * @param sourceMap Source data map
+   * @param weight Kernel weights
+   * @returns Object with numerator and denominator for smoothing calculation
+   */
+  private applySmoothingKernel(
+    indexMapper: (i: number) => number,
+    sourceMap: number[],
+    weight: number[]
+  ): { numerator: number; denominator: number } {
+    let numerator = 0;
+    let denominator = 0;
+
+    for (let i = -2; i <= 2; i++) {
+      const neighborIndex = indexMapper(i);
+
+      if (neighborIndex >= 0) {
+        const kernelWeight = weight[i + 2];
+        denominator += kernelWeight;
+        numerator += kernelWeight * sourceMap[neighborIndex];
+      }
+    }
+
+    return { numerator, denominator };
   }
 
   /**
@@ -478,32 +576,22 @@ export class FractalHeightGenerator {
           let D = 0; // Denominator (total weight)
 
           // Apply 5-point kernel in current axis direction
-          for (let i = -2; i <= 2; i++) {
-            let neighborIndex = 0;
-            let inBounds = false;
-
-            if (axe) {
-              // X-axis smoothing
-              const nx = x + i;
-              if (nx >= 0 && nx < width) {
-                neighborIndex = y * width + nx;
-                inBounds = true;
+          const smoothingResult = this.applySmoothingKernel(
+            i => {
+              if (axe) {
+                const nx = x + i;
+                return nx >= 0 && nx < width ? y * width + nx : -1;
+              } else {
+                const ny = y + i;
+                return ny >= 0 && ny < height ? ny * width + x : -1;
               }
-            } else {
-              // Y-axis smoothing
-              const ny = y + i;
-              if (ny >= 0 && ny < height) {
-                neighborIndex = ny * width + x;
-                inBounds = true;
-              }
-            }
+            },
+            sourceMap,
+            weight
+          );
 
-            if (inBounds) {
-              const kernelWeight = weight[i + 2];
-              D += kernelWeight;
-              N += kernelWeight * sourceMap[neighborIndex];
-            }
-          }
+          N = smoothingResult.numerator;
+          D = smoothingResult.denominator;
 
           // Handle edge conditions
           if (zeroesAtEdges) {
