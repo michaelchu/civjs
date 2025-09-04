@@ -118,11 +118,9 @@ export class UnitSupportManager {
       throw new Error(`City not found: ${cityId}`);
     }
 
-    // Provide defaults for testing when called with just cityId
-    const effectivePlayerId = playerId || 'test-player';
-    const effectiveGovernment = currentGovernment || 'despotism';
-    const effectivePopulation = cityPopulation || 1;
-    const effectiveUnits = unitsSupported || [];
+    // Resolve effective inputs and context
+    const { effectivePlayerId, effectiveGovernment, effectivePopulation, effectiveUnits } =
+      this.resolveInputs(cityId, playerId, currentGovernment, cityPopulation, unitsSupported);
 
     const context: EffectContext = {
       playerId: effectivePlayerId,
@@ -139,83 +137,32 @@ export class UnitSupportManager {
       happinessEffect: 0,
     };
 
-    // Calculate free unit support per city by government
-    // For integration tests, use government-based defaults if no effects manager
-    const freeShieldUnits = this.effectsManager
-      ? this.effectsManager.calculateUnitSupport(
-          { ...context, outputType: OutputType.SHIELD },
-          OutputType.SHIELD,
-          effectiveUnits.length
-        )
-      : this.getGovernmentFreeUnits(effectiveGovernment, 'shield');
+    // Compute free support allowances
+    const free = this.computeFreeSupport(context, effectiveUnits.length, effectiveGovernment);
 
-    const freeFoodUnits = this.effectsManager
-      ? this.effectsManager.calculateUnitSupport(
-          { ...context, outputType: OutputType.FOOD },
-          OutputType.FOOD,
-          effectiveUnits.length
-        )
-      : this.getGovernmentFreeUnits(effectiveGovernment, 'food');
+    // Tally unit requirements and unhappiness
+    const reqs = this.tallyUnitRequirements(
+      effectiveUnits,
+      this.shouldCityPayGoldUpkeep(),
+      context
+    );
 
-    const freeGoldUnits = this.effectsManager
-      ? this.effectsManager.calculateUnitSupport(
-          { ...context, outputType: OutputType.GOLD },
-          OutputType.GOLD,
-          effectiveUnits.length
-        )
-      : this.getGovernmentFreeUnits(effectiveGovernment, 'gold');
-
-    // Calculate upkeep costs for each unit
-    let shieldUnitsRequiringSupport = 0;
-    let foodUnitsRequiringSupport = 0;
-    let goldUnitsRequiringSupport = 0;
-    let militaryUnhappiness = 0;
-
-    for (const unit of effectiveUnits) {
-      // Count units requiring shield support
-      if (unit.upkeep.shield > 0) {
-        shieldUnitsRequiringSupport++;
-      }
-
-      // Count units requiring food support
-      if (unit.upkeep.food > 0) {
-        foodUnitsRequiringSupport++;
-      }
-
-      // Count units requiring gold support (depends on upkeep style)
-      if (unit.upkeep.gold > 0 && this.shouldCityPayGoldUpkeep()) {
-        goldUnitsRequiringSupport++;
-      }
-
-      // Calculate military unhappiness from units away from home
-      if (unit.isMilitaryUnit && unit.isAwayFromHome) {
-        militaryUnhappiness += this.calculateMilitaryUnhappiness(context, unit.unitType);
-      }
-    }
-
-    // Apply free unit support
-    const shieldUnitsNeedingSupport = Math.max(0, shieldUnitsRequiringSupport - freeShieldUnits);
-    const foodUnitsNeedingSupport = Math.max(0, foodUnitsRequiringSupport - freeFoodUnits);
-    const goldUnitsNeedingSupport = Math.max(0, goldUnitsRequiringSupport - freeGoldUnits);
-
-    // Calculate total upkeep costs
-    result.upkeepCosts.shield = shieldUnitsNeedingSupport;
-    result.upkeepCosts.food = foodUnitsNeedingSupport;
-    result.upkeepCosts.gold = goldUnitsNeedingSupport;
+    // Apply free support
+    const costs = this.applyFreeSupportCounts(reqs, free);
 
     // Add citizen food consumption
-    result.upkeepCosts.food += effectivePopulation * this.foodCostPerCitizen;
+    costs.food += effectivePopulation * this.foodCostPerCitizen;
 
     // Apply government upkeep modifiers
-    result.upkeepCosts = this.applyGovernmentUpkeepModifiers(context, result.upkeepCosts);
+    result.upkeepCosts = this.applyGovernmentUpkeepModifiers(context, costs);
 
-    // Calculate free units supported
+    // Calculate free units supported and remaining
     result.freeUnitsSupported = Math.min(
       effectiveUnits.length,
-      Math.min(freeShieldUnits, Math.min(freeFoodUnits, freeGoldUnits))
+      Math.min(free.shield, Math.min(free.food, free.gold))
     );
     result.unitsRequiringUpkeep = effectiveUnits.length - result.freeUnitsSupported;
-    result.happinessEffect = militaryUnhappiness;
+    result.happinessEffect = reqs.militaryUnhappiness;
 
     // Return a promise if called with single argument (async test context)
     if (arguments.length === 1) {
@@ -233,13 +180,12 @@ export class UnitSupportManager {
     // Republic: 1 unhappy per military unit away from home
     // Democracy: 2 unhappy per military unit away from home
     // Other governments: 0 unhappy
-
-    if (context.government === 'republic') {
-      return 1;
-    } else if (context.government === 'democracy') {
-      return 2;
-    }
-    return 0;
+    const penaltyByGovernment: Record<string, number> = {
+      republic: 1,
+      democracy: 2,
+    };
+    const govKey = (context.government ?? '').toString();
+    return penaltyByGovernment[govKey] ?? 0;
   }
 
   /**
@@ -294,6 +240,105 @@ export class UnitSupportManager {
       this.goldUpkeepStyle === GoldUpkeepStyle.CITY ||
       this.goldUpkeepStyle === GoldUpkeepStyle.MIXED
     );
+  }
+
+  private resolveInputs(
+    _cityId: string,
+    playerId?: string,
+    currentGovernment?: string,
+    cityPopulation?: number,
+    unitsSupported?: UnitSupportData[]
+  ): {
+    effectivePlayerId: string;
+    effectiveGovernment: string;
+    effectivePopulation: number;
+    effectiveUnits: UnitSupportData[];
+  } {
+    return {
+      effectivePlayerId: playerId || 'test-player',
+      effectiveGovernment: currentGovernment || 'despotism',
+      effectivePopulation: cityPopulation || 1,
+      effectiveUnits: unitsSupported || [],
+    };
+  }
+
+  private computeFreeSupport(
+    context: EffectContext,
+    unitCount: number,
+    government: string
+  ): { shield: number; food: number; gold: number } {
+    const freeShieldUnits = this.effectsManager
+      ? this.effectsManager.calculateUnitSupport(
+          { ...context, outputType: OutputType.SHIELD },
+          OutputType.SHIELD,
+          unitCount
+        )
+      : this.getGovernmentFreeUnits(government, 'shield');
+
+    const freeFoodUnits = this.effectsManager
+      ? this.effectsManager.calculateUnitSupport(
+          { ...context, outputType: OutputType.FOOD },
+          OutputType.FOOD,
+          unitCount
+        )
+      : this.getGovernmentFreeUnits(government, 'food');
+
+    const freeGoldUnits = this.effectsManager
+      ? this.effectsManager.calculateUnitSupport(
+          { ...context, outputType: OutputType.GOLD },
+          OutputType.GOLD,
+          unitCount
+        )
+      : this.getGovernmentFreeUnits(government, 'gold');
+
+    return { shield: freeShieldUnits, food: freeFoodUnits, gold: freeGoldUnits };
+  }
+
+  private tallyUnitRequirements(
+    effectiveUnits: UnitSupportData[],
+    cityPaysGold: boolean,
+    context: EffectContext
+  ): {
+    shieldUnitsRequiringSupport: number;
+    foodUnitsRequiringSupport: number;
+    goldUnitsRequiringSupport: number;
+    militaryUnhappiness: number;
+  } {
+    let shieldUnitsRequiringSupport = 0;
+    let foodUnitsRequiringSupport = 0;
+    let goldUnitsRequiringSupport = 0;
+    let militaryUnhappiness = 0;
+
+    for (const unit of effectiveUnits) {
+      if (unit.upkeep.shield > 0) shieldUnitsRequiringSupport++;
+      if (unit.upkeep.food > 0) foodUnitsRequiringSupport++;
+      if (unit.upkeep.gold > 0 && cityPaysGold) goldUnitsRequiringSupport++;
+      if (unit.isMilitaryUnit && unit.isAwayFromHome) {
+        militaryUnhappiness += this.calculateMilitaryUnhappiness(context, unit.unitType);
+      }
+    }
+
+    return {
+      shieldUnitsRequiringSupport,
+      foodUnitsRequiringSupport,
+      goldUnitsRequiringSupport,
+      militaryUnhappiness,
+    };
+  }
+
+  private applyFreeSupportCounts(
+    reqs: {
+      shieldUnitsRequiringSupport: number;
+      foodUnitsRequiringSupport: number;
+      goldUnitsRequiringSupport: number;
+    },
+    free: { shield: number; food: number; gold: number }
+  ): UnitUpkeep {
+    return {
+      shield: Math.max(0, reqs.shieldUnitsRequiringSupport - free.shield),
+      food: Math.max(0, reqs.foodUnitsRequiringSupport - free.food),
+      gold: Math.max(0, reqs.goldUnitsRequiringSupport - free.gold),
+    };
   }
 
   /**
