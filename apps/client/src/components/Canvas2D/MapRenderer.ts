@@ -4,7 +4,6 @@ import { TilesetLoader } from './TilesetLoader';
 import { TerrainRenderer } from './renderers/TerrainRenderer';
 import { UnitRenderer } from './renderers/UnitRenderer';
 import { CityRenderer } from './renderers/CityRenderer';
-import { FeatureRenderer } from './renderers/FeatureRenderer';
 import { PathRenderer } from './renderers/PathRenderer';
 import type { RenderState } from './renderers/BaseRenderer';
 
@@ -27,7 +26,6 @@ export class MapRenderer {
   private terrainRenderer: TerrainRenderer;
   private unitRenderer: UnitRenderer;
   private cityRenderer: CityRenderer;
-  private featureRenderer: FeatureRenderer;
   private pathRenderer: PathRenderer;
 
   constructor(ctx: CanvasRenderingContext2D) {
@@ -44,12 +42,6 @@ export class MapRenderer {
     );
     this.unitRenderer = new UnitRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
     this.cityRenderer = new CityRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
-    this.featureRenderer = new FeatureRenderer(
-      ctx,
-      this.tilesetLoader,
-      this.tileWidth,
-      this.tileHeight
-    );
     this.pathRenderer = new PathRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
   }
 
@@ -65,7 +57,6 @@ export class MapRenderer {
       this.terrainRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.unitRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.cityRenderer.updateTileSize(this.tileWidth, this.tileHeight);
-      this.featureRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.pathRenderer.updateTileSize(this.tileWidth, this.tileHeight);
 
       this.isInitialized = true;
@@ -130,11 +121,8 @@ export class MapRenderer {
 
     const visibleTiles = this.getVisibleTilesFromGlobal(state.viewport, globalMap, globalTiles);
 
-    // Render terrain layer
+    // Render terrain layer (includes rivers and resources per-tile to maintain z-order)
     this.terrainRenderer.renderTerrain(state, visibleTiles);
-
-    // Render features (rivers, resources) layer
-    this.featureRenderer.renderFeatures(state, visibleTiles);
 
     // Render selection outline after terrain but before units
     this.unitRenderer.renderUnitSelection(state);
@@ -492,8 +480,9 @@ export class MapRenderer {
    * @param cityScale - Scale factor for city sprites (0.1 to 2.0)
    */
   setSpriteScales(resourceScale?: number, cityScale?: number) {
+    // Note: resourceScale is now fixed at 0.7 in TerrainRenderer for consistency
     if (resourceScale !== undefined) {
-      this.featureRenderer.setResourceScale(resourceScale);
+      console.warn('Resource scale is now fixed in terrain rendering for performance');
     }
     if (cityScale !== undefined) {
       this.cityRenderer.setCityScale(cityScale);
@@ -505,7 +494,7 @@ export class MapRenderer {
    */
   getSpriteScales() {
     return {
-      resourceScale: this.featureRenderer.getResourceScale(),
+      resourceScale: 0.7, // Fixed value as per original implementation
       cityScale: this.cityRenderer.getCityScale(),
     };
   }
