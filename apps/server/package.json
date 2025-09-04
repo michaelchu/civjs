@@ -32,8 +32,7 @@
     "db:studio": "drizzle-kit studio",
     "docker:up": "docker-compose -f docker-compose.dev.yml up -d",
     "docker:down": "docker-compose -f docker-compose.dev.yml down",
-    "docker:logs": "docker-compose -f docker-compose.dev.yml logs -f",
-    "prepare": "is-ci || husky"
+    "docker:logs": "docker-compose -f docker-compose.dev.yml logs -f"
   },
   "keywords": [
     "game",

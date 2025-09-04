@@ -1,11 +1,19 @@
 echo "🔍 Running pre-commit checks..."
 
-# Run linter for client only (since we're working on client)
-echo "📝 Running client linter..."
-(cd apps/client && npm run lint)
+# Run formatters first to auto-fix formatting issues
+echo "💄 Running formatters..."
+npm run format
 
-# Run type checking for client only
-echo "🔎 Running client type check..."
-(cd apps/client && npm run type-check)
+# Run linters with auto-fix
+echo "📝 Running linters with auto-fix..."
+npm run lint:fix
+
+# Run type checking for all projects
+echo "🔎 Running type checks..."
+npm run typecheck
+
+# Stage any auto-fixed files
+echo "📦 Staging auto-fixed files..."
+git add -u
 
 echo "✅ Pre-commit checks passed!"
