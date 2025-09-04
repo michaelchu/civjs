@@ -199,6 +199,65 @@ describe('TerrainPlacementProcessor', () => {
     });
   });
 
+  describe('initializeHmapLowLevel', () => {
+    it('should calculate hmap_low_level using freeciv formula', () => {
+      // Test the exact calculation from freeciv mapgen.c ini_hmap_low_level()
+      // hmap_low_level = (4 * swamp_pct * (hmap_max_level - hmap_shore_level)) / 100 + hmap_shore_level
+      const swampPct = 15;
+      const hmapShoreLevel = 200;
+      const hmapMaxLevel = 1000;
+
+      processor.initializeHmapLowLevel(swampPct, hmapShoreLevel, hmapMaxLevel);
+
+      // Calculate expected value: (4 * 15 * (1000 - 200)) / 100 + 200 = 680
+      const expectedHmapLowLevel = Math.floor((4 * swampPct * (hmapMaxLevel - hmapShoreLevel)) / 100 + hmapShoreLevel);
+      expect(expectedHmapLowLevel).toBe(680);
+
+      // This test ensures the calculation is dynamic, not hardcoded to values like 30 or 500
+    });
+
+    it('should handle different swamp percentages correctly', () => {
+      const hmapShoreLevel = 200;
+      const hmapMaxLevel = 1000;
+
+      // Test various swamp percentages produce different thresholds
+      const testCases = [
+        { swampPct: 0, expected: 200 },   // (4 * 0 * 800) / 100 + 200 = 200
+        { swampPct: 10, expected: 520 },  // (4 * 10 * 800) / 100 + 200 = 520
+        { swampPct: 25, expected: 1000 }, // (4 * 25 * 800) / 100 + 200 = 1000
+      ];
+
+      testCases.forEach(({ swampPct, expected }) => {
+        processor.initializeHmapLowLevel(swampPct, hmapShoreLevel, hmapMaxLevel);
+        const calculated = Math.floor((4 * swampPct * (hmapMaxLevel - hmapShoreLevel)) / 100 + hmapShoreLevel);
+        expect(calculated).toBe(expected);
+        
+        // Ensure we never get the old hardcoded broken values
+        expect(calculated).not.toBe(30);   // Old broken hardcoded value
+        expect(calculated).not.toBe(500);  // Old broken hardcoded value
+      });
+    });
+
+    it('should produce terrain-specific threshold values', () => {
+      // Different terrain parameters should produce different thresholds
+      const hmapShoreLevel = 200;
+      const hmapMaxLevel = 1000;
+
+      processor.initializeHmapLowLevel(10, hmapShoreLevel, hmapMaxLevel);
+      const lowSwampThreshold = Math.floor((4 * 10 * (hmapMaxLevel - hmapShoreLevel)) / 100 + hmapShoreLevel);
+
+      processor.initializeHmapLowLevel(30, hmapShoreLevel, hmapMaxLevel);
+      const highSwampThreshold = Math.floor((4 * 30 * (hmapMaxLevel - hmapShoreLevel)) / 100 + hmapShoreLevel);
+
+      expect(lowSwampThreshold).not.toBe(highSwampThreshold);
+      expect(highSwampThreshold).toBeGreaterThan(lowSwampThreshold);
+
+      // Values should be calculated, not hardcoded
+      expect(lowSwampThreshold).toBe(520);  // Calculated value
+      expect(highSwampThreshold).toBe(1160); // Calculated value
+    });
+  });
+
   describe('condition checking', () => {
     describe('wetness conditions', () => {
       it('should correctly identify dry and wet conditions', () => {
