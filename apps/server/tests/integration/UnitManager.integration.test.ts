@@ -8,7 +8,7 @@ import {
   generateTestUUID,
 } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
-import { schema } from '../../src/database';
+import * as schema from '../../src/database/schema';
 
 describe('UnitManager - Integration Tests with Real Database', () => {
   let unitManager: UnitManager;
@@ -303,7 +303,27 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       const scenario = await createBasicGameScenario();
 
       // Create new unit manager instance
-      const newUnitManager = new UnitManager(scenario.game.id, mapWidth, mapHeight);
+      const testDbProvider = getTestDatabaseProvider();
+      const mockMapManager = {
+        getTileAt: () => ({ terrain: 'grassland' }),
+        getTerrainMovementCost: () => 1,
+      };
+
+      const mockGameManagerCallback = {
+        foundCity: async () => 'test-city-id',
+        requestPath: async () => ({ success: true }),
+        broadcastUnitMoved: () => {},
+        getCityAt: () => null,
+      };
+
+      const newUnitManager = new UnitManager(
+        scenario.game.id,
+        testDbProvider,
+        mapWidth,
+        mapHeight,
+        mockMapManager,
+        mockGameManagerCallback
+      );
 
       // Load units from database
       await newUnitManager.loadUnits();
@@ -419,8 +439,10 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         getCityAt: () => null,
       };
 
+      const testDbProvider = getTestDatabaseProvider();
       scenarioUnitManager = new UnitManager(
         scenario.game.id,
+        testDbProvider,
         mapWidth,
         mapHeight,
         mockMapManager,
@@ -473,8 +495,10 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         getCityAt: () => null,
       };
 
+      const testDbProvider = getTestDatabaseProvider();
       unitManager = new UnitManager(
         scenario.game.id,
+        testDbProvider,
         mapWidth,
         mapHeight,
         mockMapManager,

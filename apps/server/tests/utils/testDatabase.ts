@@ -188,8 +188,15 @@ export async function setupTestDatabase() {
 
     return testDb;
   } catch (error) {
-    logger.error('Failed to setup test database:', error);
-    throw error;
+    logger.error('Test database not available - integration tests will be skipped');
+    
+    // Create a mock database provider that throws helpful errors
+    const mockError = new Error(
+      'Integration tests require a PostgreSQL database. ' +
+      'Set TEST_DATABASE_URL environment variable or start local PostgreSQL with test database.'
+    );
+    
+    throw mockError;
   }
 }
 
