@@ -105,9 +105,14 @@ export interface EffectResult {
 export class EffectsManager {
   private effectsCache = new Map<string, Record<string, Effect>>();
   private rulesetName: string;
+  private requirementHandlers: Record<
+    string,
+    (req: Requirement, context: EffectContext) => RequirementResult
+  > = {};
 
   constructor(rulesetName: string = 'classic') {
     this.rulesetName = rulesetName;
+    this.initRequirementHandlers();
   }
 
   /**
@@ -381,77 +386,55 @@ export class EffectsManager {
   }
 
   /**
-   * Evaluate single requirement
+   * Evaluate single requirement via handler map (reduces cyclomatic complexity)
    * Reference: freeciv is_req_active() in common/requirements.c
    */
   private evaluateSingleRequirement(
     requirement: Requirement,
     context: EffectContext
   ): RequirementResult {
-    const isPresent = requirement.present !== false; // Default to true if not specified
-
-    switch (requirement.type) {
-      case 'Gov':
-      case 'Government': {
-        const hasGovernment = context.government === requirement.name;
-        if (hasGovernment !== isPresent) {
-          return {
-            satisfied: false,
-            reason: `Government requirement not met: ${requirement.name}`,
-          };
-        }
-        break;
-      }
-
-      case 'OutputType': {
-        const hasOutputType = context.outputType === requirement.name;
-        if (hasOutputType !== isPresent) {
-          return {
-            satisfied: false,
-            reason: `OutputType requirement not met: ${requirement.name}`,
-          };
-        }
-        break;
-      }
-
-      case 'UnitType': {
-        const hasUnitType = context.unitType === requirement.name;
-        if (hasUnitType !== isPresent) {
-          return {
-            satisfied: false,
-            reason: `UnitType requirement not met: ${requirement.name}`,
-          };
-        }
-        break;
-      }
-
-      case 'Building':
-        // TODO: Check if city has building when building system is integrated
-        break;
-
-      case 'Tech':
-        // TODO: Check if player has technology when integrated with research system
-        break;
-
-      case 'Player': {
-        const hasPlayer = context.playerId === requirement.name;
-        if (hasPlayer !== isPresent) {
-          return {
-            satisfied: false,
-            reason: `Player requirement not met: ${requirement.name}`,
-          };
-        }
-        break;
-      }
-
-      // Add more requirement types as needed
-      default:
-        logger.warn(`Unknown requirement type: ${requirement.type}`);
-        break;
-    }
-
-    return { satisfied: true };
+    const handler = this.requirementHandlers[requirement.type] || this.handleUnknownRequirement;
+    return handler(requirement, context);
   }
+
+  private initRequirementHandlers(): void {
+    const presentCheck = (actual: boolean, expectedPresent: boolean | undefined) =>
+      actual === (expectedPresent !== false);
+
+    this.requirementHandlers['Gov'] = (req, context) =>
+      presentCheck(context.government === req.name, req.present)
+        ? { satisfied: true }
+        : { satisfied: false, reason: `Government requirement not met: ${req.name}` };
+
+    this.requirementHandlers['Government'] = this.requirementHandlers['Gov'];
+
+    this.requirementHandlers['OutputType'] = (req, context) =>
+      presentCheck(context.outputType === req.name, req.present)
+        ? { satisfied: true }
+        : { satisfied: false, reason: `OutputType requirement not met: ${req.name}` };
+
+    this.requirementHandlers['UnitType'] = (req, context) =>
+      presentCheck(context.unitType === req.name, req.present)
+        ? { satisfied: true }
+        : { satisfied: false, reason: `UnitType requirement not met: ${req.name}` };
+
+    // TODO handlers (placeholders) - keep satisfied to maintain current behavior until integrated
+    this.requirementHandlers['Building'] = (_req, _context) => ({ satisfied: true });
+    this.requirementHandlers['Tech'] = (_req, _context) => ({ satisfied: true });
+
+    this.requirementHandlers['Player'] = (req, context) =>
+      presentCheck(context.playerId === req.name, req.present)
+        ? { satisfied: true }
+        : { satisfied: false, reason: `Player requirement not met: ${req.name}` };
+  }
+
+  private handleUnknownRequirement = (
+    req: Requirement,
+    _context: EffectContext
+  ): RequirementResult => {
+    logger.warn(`Unknown requirement type: ${req.type}`);
+    return { satisfied: true };
+  };
 
   /**
    * Apply multiplier to effect value (for civic policies)
