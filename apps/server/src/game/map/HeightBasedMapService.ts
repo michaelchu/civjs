@@ -274,13 +274,16 @@ export class HeightBasedMapService extends BaseMapGenerationService {
     for (let i = 0; i < fracturePoints.length; i++) {
       const point = fracturePoints[i];
       let size = 0;
+      let isOcean = false;
 
       if (i < borderPoints) {
         // Border points become ocean (size = 0 elevation)
         size = 0;
+        isOcean = true;
       } else {
         // Interior points become land of varying sizes
         size = Math.floor(this.random() * 30) + 10;
+        isOcean = false;
       }
 
       // Calculate landmass bounds
@@ -289,14 +292,12 @@ export class HeightBasedMapService extends BaseMapGenerationService {
         minY: Math.max(0, point.y - size),
         maxX: Math.min(this.width - 1, point.x + size),
         maxY: Math.min(this.height - 1, point.y + size),
-        elevation: i < borderPoints ? 0 : Math.floor(this.random() * 100) + 50,
+        elevation: isOcean ? 0 : Math.floor(this.random() * 100) + 50,
       };
 
       landmasses.push(landmass);
 
       // Apply fracture circle around each point
-      // Note: assignFractureCircle expects a different signature, we need to adapt this
-      // For now, directly set the tile elevation in the landmass area
       for (let dx = -size; dx <= size; dx++) {
         for (let dy = -size; dy <= size; dy++) {
           const x = point.x + dx;
@@ -305,9 +306,8 @@ export class HeightBasedMapService extends BaseMapGenerationService {
             const distance = Math.sqrt(dx * dx + dy * dy);
             if (distance <= size) {
               tiles[x][y].elevation = landmass.elevation;
-              if (landmass.elevation === 0) {
-                tiles[x][y].terrain = 'ocean';
-              }
+              // Only set elevation - let makeLand() handle terrain and continent assignment
+              // based on elevation values, just like FRACTAL and RANDOM generators
             }
           }
         }
