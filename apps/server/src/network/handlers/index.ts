@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 // Export all socket handlers for clean imports
 export { SocketHandler, BaseSocketHandler } from './BaseSocketHandler';
 export { ConnectionHandler } from './ConnectionHandler';

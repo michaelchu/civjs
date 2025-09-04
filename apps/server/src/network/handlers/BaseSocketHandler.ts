@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Server, Socket } from 'socket.io';
 import { PacketType } from '../../types/packet';
 import { PacketHandler } from '../PacketHandler';

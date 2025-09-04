@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Server, Socket } from 'socket.io';
 import { logger } from '../../utils/logger';
 import { PacketHandler } from '../PacketHandler';
@@ -385,7 +384,7 @@ export class UnitActionHandler extends BaseSocketHandler {
   private async handleUnitActionEvent(
     socket: Socket,
     data: any,
-    callback: Function,
+    callback: (response: any) => void,
     io: Server
   ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
@@ -475,7 +474,7 @@ export class UnitActionHandler extends BaseSocketHandler {
   private async handlePathRequestEvent(
     socket: Socket,
     data: any,
-    callback: Function
+    callback: (response: any) => void
   ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
