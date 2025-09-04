@@ -1,0 +1,214 @@
+[
+  {
+    "file": "src/shared/data/rulesets/RulesetLoader.ts",
+    "functionComplexities": [
+      {
+        "name": "anonymous: evaluateRequirement",
+        "complexity": 86,
+        "line": 544
+      },
+      {
+        "name": "anonymous: pickTerrain",
+        "complexity": 28,
+        "line": 81
+      },
+      {
+        "name": "anonymous: loadTerrainRuleset",
+        "complexity": 5,
+        "line": 34
+      },
+      {
+        "name": "anonymous: loadBuildingsRuleset",
+        "complexity": 5,
+        "line": 170
+      },
+      {
+        "name": "anonymous: loadTechsRuleset",
+        "complexity": 5,
+        "line": 216
+      },
+      {
+        "name": "anonymous: loadUnitsRuleset",
+        "complexity": 5,
+        "line": 262
+      },
+      {
+        "name": "anonymous: loadGovernmentsRuleset",
+        "complexity": 5,
+        "line": 308
+      },
+      {
+        "name": "anonymous: loadGameRulesRuleset",
+        "complexity": 5,
+        "line": 363
+      },
+      {
+        "name": "anonymous: loadEffectsRuleset",
+        "complexity": 5,
+        "line": 422
+      },
+      {
+        "name": "anonymous: loadNationsRuleset",
+        "complexity": 5,
+        "line": 469
+      },
+      {
+        "name": "anonymous: getTerrainProperties",
+        "complexity": 4,
+        "line": 143
+      },
+      {
+        "name": "anonymous: terrainHasProperty",
+        "complexity": 4,
+        "line": 152
+      },
+      {
+        "name": "anonymous: getTerrain",
+        "complexity": 3,
+        "line": 68
+      },
+      {
+        "name": "anonymous: getBuilding",
+        "complexity": 3,
+        "line": 204
+      },
+      {
+        "name": "anonymous: getTech",
+        "complexity": 3,
+        "line": 250
+      },
+      {
+        "name": "anonymous: getUnit",
+        "complexity": 3,
+        "line": 296
+      },
+      {
+        "name": "anonymous: getGovernment",
+        "complexity": 3,
+        "line": 343
+      },
+      {
+        "name": "anonymous: getEffect",
+        "complexity": 3,
+        "line": 457
+      },
+      {
+        "name": "anonymous: getNation",
+        "complexity": 3,
+        "line": 504
+      },
+      {
+        "name": "anonymous: evaluateRequirements",
+        "complexity": 3,
+        "line": 533
+      },
+      {
+        "name": "RulesetLoader",
+        "complexity": 2,
+        "line": 12
+      },
+      {
+        "name": "anonymous: getInstance",
+        "complexity": 2,
+        "line": 25
+      },
+      {
+        "name": "anonymous: getTerrains",
+        "complexity": 2,
+        "line": 60
+      },
+      {
+        "name": "anonymous: getTerrainTransform",
+        "complexity": 2,
+        "line": 162
+      },
+      {
+        "name": "anonymous: getBuildings",
+        "complexity": 2,
+        "line": 196
+      },
+      {
+        "name": "anonymous: getTechs",
+        "complexity": 2,
+        "line": 242
+      },
+      {
+        "name": "anonymous: getUnits",
+        "complexity": 2,
+        "line": 288
+      },
+      {
+        "name": "anonymous: getGovernments",
+        "complexity": 2,
+        "line": 335
+      },
+      {
+        "name": "anonymous: getRevolutionGovernment",
+        "complexity": 2,
+        "line": 355
+      },
+      {
+        "name": "anonymous: getGameParameters",
+        "complexity": 2,
+        "line": 390
+      },
+      {
+        "name": "anonymous: getCivstyle",
+        "complexity": 2,
+        "line": 398
+      },
+      {
+        "name": "anonymous: getGameOptions",
+        "complexity": 2,
+        "line": 406
+      },
+      {
+        "name": "anonymous: getCapabilities",
+        "complexity": 2,
+        "line": 414
+      },
+      {
+        "name": "anonymous: getEffects",
+        "complexity": 2,
+        "line": 449
+      },
+      {
+        "name": "anonymous: getNations",
+        "complexity": 2,
+        "line": 496
+      },
+      {
+        "name": "anonymous: getDefaultTraits",
+        "complexity": 2,
+        "line": 516
+      },
+      {
+        "name": "anonymous: getNationsCompatibility",
+        "complexity": 2,
+        "line": 524
+      },
+      {
+        "name": "anonymous: RulesetLoader",
+        "complexity": 1,
+        "line": 11
+      },
+      {
+        "name": "anonymous: every",
+        "complexity": 1,
+        "line": 539
+      },
+      {
+        "name": "anonymous: clearCache",
+        "complexity": 1,
+        "line": 612
+      },
+      {
+        "name": "global",
+        "complexity": 0,
+        "line": 0
+      }
+    ],
+    "complexityLevel": "error",
+    "complexitySum": 223
+  }
+]

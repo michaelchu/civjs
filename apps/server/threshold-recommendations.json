@@ -1,0 +1,61 @@
+{
+  "current": {
+    "complexity": 10,
+    "maxDepth": 4
+  },
+  "statistics": {
+    "min": 11,
+    "max": 52,
+    "median": 13,
+    "avg": 15
+  },
+  "distribution": {
+    "11-15": 53,
+    "16-20": 10,
+    "21-25": 7,
+    "26+": 4
+  },
+  "recommendations": {
+    "algorithmic": {
+      "complexity": 20,
+      "maxDepth": 5,
+      "rationale": "Algorithmic code (map generation, terrain processing) often requires complex logic. Higher thresholds with mandatory documentation and unit tests.",
+      "requirements": [
+        "Unit tests required",
+        "Documentation comments required",
+        "Code review mandatory"
+      ]
+    },
+    "application": {
+      "complexity": 12,
+      "maxDepth": 4,
+      "rationale": "Application logic should remain simple and readable. Slightly higher than current for flexibility.",
+      "requirements": [
+        "Refactor when exceeded",
+        "Consider extracting helper methods"
+      ]
+    },
+    "test": {
+      "complexity": "off",
+      "maxDepth": "off",
+      "rationale": "Test files often have setup complexity and multiple scenarios. Disable to avoid false positives.",
+      "requirements": [
+        "Focus on test clarity over complexity metrics"
+      ]
+    },
+    "other": {
+      "complexity": 15,
+      "maxDepth": 4,
+      "rationale": "General purpose code with moderate complexity allowance.",
+      "requirements": [
+        "Case-by-case review"
+      ]
+    }
+  },
+  "expectedImpact": {
+    "totalViolations": 74,
+    "resolvedViolations": 50,
+    "remainingViolations": 24,
+    "reductionPercentage": 68
+  }
+}
