@@ -411,21 +411,148 @@ export class BiomeProcessor {
     // Apply regional consistency
     for (let dx = -regionSize; dx <= regionSize; dx++) {
       for (let dy = -regionSize; dy <= regionSize; dy++) {
-        const x = centerX + dx;
-        const y = centerY + dy;
-        if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-          const tile = tiles[x][y];
-          if (!this.isValidTerrainForBiome(tile.terrain, dominantBiome) && this.random() < 0.3) {
-            const suitableTerrains = this.getValidTerrainsForBiome(dominantBiome);
-            if (suitableTerrains.length > 0) {
-              newTerrain[x][y].terrain = suitableTerrains[
-                Math.floor(this.random() * suitableTerrains.length)
-              ] as TerrainType;
-            }
-          }
-        }
+        this.applyRegionalConsistencyToTile(
+          tiles,
+          newTerrain,
+          centerX + dx,
+          centerY + dy,
+          dominantBiome
+        );
       }
     }
+  }
+
+  /**
+   * Apply regional consistency to a single tile
+   * @param tiles Original tile array
+   * @param newTerrain New terrain array
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @param dominantBiome The dominant biome for the region
+   */
+  private applyRegionalConsistencyToTile(
+    tiles: MapTile[][],
+    newTerrain: MapTile[][],
+    x: number,
+    y: number,
+    dominantBiome: string
+  ): void {
+    if (!this.isValidCoordinate(x, y)) return;
+
+    const tile = tiles[x][y];
+    if (this.isValidTerrainForBiome(tile.terrain, dominantBiome) || this.random() >= 0.3) {
+      return;
+    }
+
+    const suitableTerrains = this.getValidTerrainsForBiome(dominantBiome);
+    if (suitableTerrains.length > 0) {
+      newTerrain[x][y].terrain = suitableTerrains[
+        Math.floor(this.random() * suitableTerrains.length)
+      ] as TerrainType;
+    }
+  }
+
+  /**
+   * Check if coordinates are within map bounds
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @returns true if coordinates are valid
+   */
+  private isValidCoordinate(x: number, y: number): boolean {
+    return x >= 0 && x < this.width && y >= 0 && y < this.height;
+  }
+
+  /**
+   * Apply smoothing logic to a single tile
+   * @param tiles Original tile array
+   * @param newTerrain New terrain array to modify
+   * @param x X coordinate
+   * @param y Y coordinate
+   * @returns Number of changes applied (0 or 1)
+   */
+  private applySingleTileSmoothing(
+    tiles: MapTile[][],
+    newTerrain: MapTile[][],
+    x: number,
+    y: number
+  ): number {
+    const tile = tiles[x][y];
+    const closeNeighbors = this.getNeighborTerrain(tiles, x, y, 1);
+    const neighbors = this.getNeighborTerrain(tiles, x, y, 2);
+
+    // Smooth isolated desert tiles
+    if (tile.terrain === 'desert') {
+      return this.smoothDesertTile(newTerrain, x, y, closeNeighbors, neighbors);
+    }
+
+    // Smooth forest transitions
+    if (tile.terrain === 'forest') {
+      return this.smoothForestTile(newTerrain, x, y, closeNeighbors);
+    }
+
+    // Create forest buffers
+    if (['grassland', 'plains'].includes(tile.terrain)) {
+      return this.createForestBuffer(newTerrain, x, y, neighbors);
+    }
+
+    return 0;
+  }
+
+  /**
+   * Smooth isolated desert tiles
+   */
+  private smoothDesertTile(
+    newTerrain: MapTile[][],
+    x: number,
+    y: number,
+    closeNeighbors: string[],
+    neighbors: string[]
+  ): number {
+    const desertNeighbors = closeNeighbors.filter(t => t === 'desert').length;
+    const forestNeighbors = neighbors.filter(t => t === 'forest').length;
+
+    if (desertNeighbors === 0 && forestNeighbors >= 4) {
+      newTerrain[x][y].terrain = 'plains';
+      setTerrainGameProperties(newTerrain[x][y]);
+      return 1;
+    }
+    return 0;
+  }
+
+  /**
+   * Smooth forest transitions
+   */
+  private smoothForestTile(
+    newTerrain: MapTile[][],
+    x: number,
+    y: number,
+    closeNeighbors: string[]
+  ): number {
+    const forestNeighbors = closeNeighbors.filter(t => t === 'forest').length;
+    if (forestNeighbors <= 1) {
+      newTerrain[x][y].terrain = 'plains';
+      setTerrainGameProperties(newTerrain[x][y]);
+      return 1;
+    }
+    return 0;
+  }
+
+  /**
+   * Create forest buffers around forest areas
+   */
+  private createForestBuffer(
+    newTerrain: MapTile[][],
+    x: number,
+    y: number,
+    neighbors: string[]
+  ): number {
+    const forestNeighbors = neighbors.filter(t => t === 'forest').length;
+    if (forestNeighbors >= 5 && this.random() < 0.4) {
+      newTerrain[x][y].terrain = 'forest';
+      setTerrainGameProperties(newTerrain[x][y]);
+      return 1;
+    }
+    return 0;
   }
 
   /**
@@ -477,42 +604,8 @@ export class BiomeProcessor {
           const tile = tiles[x][y];
           if (isOceanTerrain(tile.terrain)) continue;
 
-          const closeNeighbors = this.getNeighborTerrain(tiles, x, y, 1);
-          const neighbors = this.getNeighborTerrain(tiles, x, y, 2);
-
-          // Smooth isolated desert tiles
-          if (tile.terrain === 'desert') {
-            const desertNeighbors = closeNeighbors.filter(t => t === 'desert').length;
-            const forestNeighbors = neighbors.filter(t => t === 'forest').length;
-
-            if (desertNeighbors === 0 && forestNeighbors >= 4) {
-              newTerrain[x][y].terrain = 'plains';
-              setTerrainGameProperties(newTerrain[x][y]);
-              changesApplied++;
-            }
-          }
-
-          // Smooth forest transitions
-          if (tile.terrain === 'forest') {
-            const forestNeighbors = closeNeighbors.filter(t => t === 'forest').length;
-            if (forestNeighbors <= 1) {
-              newTerrain[x][y].terrain = 'plains';
-              setTerrainGameProperties(newTerrain[x][y]);
-              changesApplied++;
-            }
-          }
-
-          // Create forest buffers
-          if (['grassland', 'plains'].includes(tile.terrain)) {
-            const forestNeighbors = neighbors.filter(t => t === 'forest').length;
-            // const jungleNeighbors = neighbors.filter(t => t === 'jungle').length;
-
-            if (forestNeighbors >= 5 && this.random() < 0.4) {
-              newTerrain[x][y].terrain = 'forest';
-              setTerrainGameProperties(newTerrain[x][y]);
-              changesApplied++;
-            }
-          }
+          const smoothingResult = this.applySingleTileSmoothing(tiles, newTerrain, x, y);
+          changesApplied += smoothingResult;
         }
       }
 

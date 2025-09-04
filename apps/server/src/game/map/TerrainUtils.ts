@@ -258,6 +258,42 @@ export function setTerrainGameProperties(tile: MapTile): void {
 }
 
 /**
+ * Check if coordinates are within map boundaries
+ */
+function isCoordinateInBounds(x: number, y: number, width: number, height: number): boolean {
+  return x >= 0 && x < width && y >= 0 && y < height;
+}
+
+/**
+ * Calculate averaged value for a single tile using 8-directional neighbors
+ */
+function calculateSmoothedValue(
+  heightMap: number[],
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): number {
+  let sum = 0;
+  let count = 0;
+
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      const nx = x + dx;
+      const ny = y + dy;
+
+      if (isCoordinateInBounds(nx, ny, width, height)) {
+        const nindex = ny * width + nx;
+        sum += heightMap[nindex];
+        count++;
+      }
+    }
+  }
+
+  return Math.floor(sum / count);
+}
+
+/**
  * Smooth height map values using 8-directional averaging
  * @reference freeciv/server/generator/mapgen_utils.c smooth_int_map()
  * @deprecated Use smoothIntMap() for full freeciv parity
@@ -268,30 +304,104 @@ export function smoothHeightMap(heightMap: number[], width: number, height: numb
   for (let x = 0; x < width; x++) {
     for (let y = 0; y < height; y++) {
       const index = y * width + x;
-      let sum = 0;
-      let count = 0;
-
-      // Check all adjacent cells (8-directional)
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          const nx = x + dx;
-          const ny = y + dy;
-
-          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-            const nindex = ny * width + nx;
-            sum += heightMap[nindex];
-            count++;
-          }
-        }
-      }
-
-      smoothed[index] = Math.floor(sum / count);
+      smoothed[index] = calculateSmoothedValue(heightMap, x, y, width, height);
     }
   }
 
   // Copy smoothed values back
   for (let i = 0; i < heightMap.length; i++) {
     heightMap[i] = smoothed[i];
+  }
+}
+
+/**
+ * Get neighbor index for smoothing kernel in specified axis direction
+ */
+function getNeighborIndex(
+  x: number,
+  y: number,
+  i: number,
+  width: number,
+  height: number,
+  axe: boolean
+): { index: number; inBounds: boolean } {
+  if (axe) {
+    // X-axis smoothing
+    const nx = x + i;
+    if (nx >= 0 && nx < width) {
+      return { index: y * width + nx, inBounds: true };
+    }
+  } else {
+    // Y-axis smoothing
+    const ny = y + i;
+    if (ny >= 0 && ny < height) {
+      return { index: ny * width + x, inBounds: true };
+    }
+  }
+  return { index: 0, inBounds: false };
+}
+
+/**
+ * Apply Gaussian kernel smoothing for a single tile
+ */
+function applyGaussianKernel(
+  sourceMap: number[],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  weight: number[],
+  axe: boolean,
+  zeroesAtEdges: boolean
+): number {
+  let N = 0; // Numerator (weighted sum)
+  let D = 0; // Denominator (total weight)
+
+  // Apply 5-point kernel in current axis direction
+  for (let i = -2; i <= 2; i++) {
+    const { index: neighborIndex, inBounds } = getNeighborIndex(x, y, i, width, height, axe);
+
+    if (inBounds) {
+      const kernelWeight = weight[i + 2];
+      D += kernelWeight;
+      N += kernelWeight * sourceMap[neighborIndex];
+    }
+  }
+
+  // Handle edge conditions
+  if (zeroesAtEdges) {
+    D = 1; // Normalize by 1 instead of actual weight sum
+  }
+
+  return D > 0 ? N / D : 0;
+}
+
+/**
+ * Perform single pass of Gaussian smoothing
+ */
+function performSmoothingPass(
+  sourceMap: number[],
+  targetMap: number[],
+  width: number,
+  height: number,
+  weight: number[],
+  axe: boolean,
+  zeroesAtEdges: boolean
+): void {
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const currentIndex = y * width + x;
+      targetMap[currentIndex] = applyGaussianKernel(
+        sourceMap,
+        x,
+        y,
+        width,
+        height,
+        weight,
+        axe,
+        zeroesAtEdges
+      );
+    }
   }
 }
 
@@ -321,48 +431,7 @@ export function smoothIntMap(
   let sourceMap = intMap;
 
   do {
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const currentIndex = y * width + x;
-        let N = 0; // Numerator (weighted sum)
-        let D = 0; // Denominator (total weight)
-
-        // Apply 5-point kernel in current axis direction
-        for (let i = -2; i <= 2; i++) {
-          let neighborIndex = 0;
-          let inBounds = false;
-
-          if (axe) {
-            // X-axis smoothing
-            const nx = x + i;
-            if (nx >= 0 && nx < width) {
-              neighborIndex = y * width + nx;
-              inBounds = true;
-            }
-          } else {
-            // Y-axis smoothing
-            const ny = y + i;
-            if (ny >= 0 && ny < height) {
-              neighborIndex = ny * width + x;
-              inBounds = true;
-            }
-          }
-
-          if (inBounds) {
-            const kernelWeight = weight[i + 2];
-            D += kernelWeight;
-            N += kernelWeight * sourceMap[neighborIndex];
-          }
-        }
-
-        // Handle edge conditions
-        if (zeroesAtEdges) {
-          D = 1; // Normalize by 1 instead of actual weight sum
-        }
-
-        targetMap[currentIndex] = D > 0 ? N / D : 0;
-      }
-    }
+    performSmoothingPass(sourceMap, targetMap, width, height, weight, axe, zeroesAtEdges);
 
     // Switch axis for next pass
     axe = !axe;

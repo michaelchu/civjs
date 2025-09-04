@@ -23,6 +23,68 @@ export class OceanProcessor {
   }
 
   /**
+   * Process a single tile for ocean type assignment based on depth
+   */
+  private processOceanTileByDepth(tile: MapTile): void {
+    if (!isOceanTerrain(tile.terrain)) {
+      return;
+    }
+
+    // Calculate depth based on elevation (lower elevation = deeper)
+    const elevation = tile.elevation || 0;
+    const depth = Math.max(0, 255 - elevation);
+
+    // Determine if tile should be frozen
+    const isFrozen = isFrozenTerrain(tile.terrain);
+    const newOceanType = this.pickOcean(depth, isFrozen);
+
+    if (newOceanType && newOceanType !== tile.terrain) {
+      tile.terrain = newOceanType as TerrainType;
+    }
+  }
+
+  /**
+   * Process a single tile for ocean type smoothing
+   */
+  private processOceanTileSmoothing(tiles: MapTile[][], x: number, y: number): void {
+    const tile = tiles[x][y];
+
+    if (!isOceanTerrain(tile.terrain)) {
+      return;
+    }
+
+    const mostCommonAdjacentOcean = this.getMostAdjacentOceanType(tiles, x, y);
+    if (!mostCommonAdjacentOcean || mostCommonAdjacentOcean === tile.terrain) {
+      return;
+    }
+
+    // Apply smoothing with some randomness to avoid uniform patches
+    if (this.random() < 0.6) {
+      tile.terrain = mostCommonAdjacentOcean as TerrainType;
+    }
+  }
+
+  /**
+   * Process a single tile for distance-based ocean type assignment
+   */
+  private processOceanTileDistanceBased(tiles: MapTile[][], x: number, y: number): void {
+    const tile = tiles[x][y];
+
+    if (!isOceanTerrain(tile.terrain)) {
+      return;
+    }
+
+    const distanceToCoast = this.calculateDistanceToCoast(tiles, x, y);
+
+    // Deep ocean should be further from coast
+    if (distanceToCoast > 3 && tile.terrain === 'coast' && this.random() < 0.4) {
+      tile.terrain = 'ocean' as TerrainType;
+    } else if (distanceToCoast > 6 && tile.terrain === 'ocean' && this.random() < 0.3) {
+      tile.terrain = 'deep_ocean' as TerrainType;
+    }
+  }
+
+  /**
    * Smooth water depth for realistic ocean depth transitions
    * @reference freeciv/server/generator/mapgen.c ocean depth processing
    */
@@ -33,64 +95,21 @@ export class OceanProcessor {
       // Pass 1: Set ocean types based on depth
       for (let x = 0; x < this.width; x++) {
         for (let y = 0; y < this.height; y++) {
-          const tile = tiles[x][y];
-
-          // Skip non-ocean tiles
-          if (!isOceanTerrain(tile.terrain)) {
-            continue;
-          }
-
-          // Calculate depth based on elevation (lower elevation = deeper)
-          const elevation = tile.elevation || 0;
-          const depth = Math.max(0, 255 - elevation);
-
-          // Determine if tile should be frozen
-          const isFrozen = isFrozenTerrain(tile.terrain);
-          const newOceanType = this.pickOcean(depth, isFrozen);
-
-          if (newOceanType && newOceanType !== tile.terrain) {
-            tile.terrain = newOceanType as TerrainType;
-          }
+          this.processOceanTileByDepth(tiles[x][y]);
         }
       }
 
       // Pass 2: Smooth transitions between adjacent ocean types
       for (let x = 0; x < this.width; x++) {
         for (let y = 0; y < this.height; y++) {
-          const tile = tiles[x][y];
-
-          // Skip non-ocean tiles
-          if (!isOceanTerrain(tile.terrain)) {
-            continue;
-          }
-
-          const mostCommonAdjacentOcean = this.getMostAdjacentOceanType(tiles, x, y);
-          if (mostCommonAdjacentOcean && mostCommonAdjacentOcean !== tile.terrain) {
-            // Apply smoothing with some randomness to avoid uniform patches
-            if (this.random() < 0.6) {
-              tile.terrain = mostCommonAdjacentOcean as TerrainType;
-            }
-          }
+          this.processOceanTileSmoothing(tiles, x, y);
         }
       }
 
       // Pass 3: Distance-based smoothing from coast
       for (let x = 0; x < this.width; x++) {
         for (let y = 0; y < this.height; y++) {
-          const tile = tiles[x][y];
-
-          if (!isOceanTerrain(tiles[x][y].terrain)) {
-            continue;
-          }
-
-          const distanceToCoast = this.calculateDistanceToCoast(tiles, x, y);
-
-          // Deep ocean should be further from coast
-          if (distanceToCoast > 3 && tile.terrain === 'coast' && this.random() < 0.4) {
-            tile.terrain = 'ocean' as TerrainType;
-          } else if (distanceToCoast > 6 && tile.terrain === 'ocean' && this.random() < 0.3) {
-            tile.terrain = 'deep_ocean' as TerrainType;
-          }
+          this.processOceanTileDistanceBased(tiles, x, y);
         }
       }
     }
@@ -117,28 +136,51 @@ export class OceanProcessor {
   }
 
   /**
+   * Check if there's land at the given coordinates
+   */
+  private isCoordinateInBoundsWithLand(tiles: MapTile[][], x: number, y: number): boolean {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+      return false;
+    }
+    return isLandTile(tiles[x][y].terrain);
+  }
+
+  /**
+   * Check if land exists at perimeter of search square at given distance
+   */
+  private findLandAtDistance(
+    tiles: MapTile[][],
+    centerX: number,
+    centerY: number,
+    distance: number
+  ): boolean {
+    for (let dx = -distance; dx <= distance; dx++) {
+      for (let dy = -distance; dy <= distance; dy++) {
+        // Only check perimeter of search square
+        if (Math.abs(dx) !== distance && Math.abs(dy) !== distance) {
+          continue;
+        }
+
+        const nx = centerX + dx;
+        const ny = centerY + dy;
+
+        if (this.isCoordinateInBoundsWithLand(tiles, nx, ny)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
    * Calculate distance to nearest coastal land
    */
   private calculateDistanceToCoast(tiles: MapTile[][], x: number, y: number): number {
     const maxSearchDistance = 10;
 
     for (let distance = 1; distance <= maxSearchDistance; distance++) {
-      for (let dx = -distance; dx <= distance; dx++) {
-        for (let dy = -distance; dy <= distance; dy++) {
-          // Only check perimeter of search square
-          if (Math.abs(dx) !== distance && Math.abs(dy) !== distance) {
-            continue;
-          }
-
-          const nx = x + dx;
-          const ny = y + dy;
-
-          if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-            if (isLandTile(tiles[nx][ny].terrain)) {
-              return distance;
-            }
-          }
-        }
+      if (this.findLandAtDistance(tiles, x, y, distance)) {
+        return distance;
       }
     }
 
