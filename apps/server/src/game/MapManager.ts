@@ -249,7 +249,6 @@ export class MapManager {
     // @reference freeciv/server/generator/mapgen.c:1381
     this.terrainGenerator.regenerateLakes(tiles);
 
-
     // Phase 2 fix: Temperature map and rivers already handled inside makeLand()
     // Only convert to enum format for compatibility
     this.terrainGenerator.convertTemperatureToEnum(tiles);
@@ -931,7 +930,6 @@ export class MapManager {
     // @reference freeciv/server/generator/mapgen.c:1381
     this.terrainGenerator.regenerateLakes(tiles);
 
-
     // Phase 2 fix: Temperature map and rivers already handled inside makeLand()
     // Only convert to enum format for compatibility
     this.terrainGenerator.convertTemperatureToEnum(tiles);
@@ -1133,7 +1131,6 @@ export class MapManager {
     // Turn small oceans into lakes (like freeciv regenerate_lakes())
     // @reference freeciv/server/generator/mapgen.c:1381
     this.terrainGenerator.regenerateLakes(tiles);
-
 
     // Phase 2 fix: Temperature map and rivers already handled inside makeLand()
     // Only convert to enum format for compatibility

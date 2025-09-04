@@ -243,8 +243,8 @@ export class TerrainGenerator {
     // Initialize hmap_low_level for mountain conditions before terrain placement
     const hmap_max_level = 1000;
     this.terrainPlacementProcessor.initializeHmapLowLevel(
-      terrainParams.swamp_pct, 
-      hmap_shore_level, 
+      terrainParams.swamp_pct,
+      hmap_shore_level,
       hmap_max_level
     );
     this.terrainPlacementProcessor.makeTerrains(tiles, terrainParams);
@@ -869,7 +869,6 @@ export class TerrainGenerator {
   /**
    * Create base map tile with default terrain properties
    */
-
 
   /**
    * Regenerate all oceanic tiles for small water bodies as lakes

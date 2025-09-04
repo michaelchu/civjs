@@ -56,13 +56,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     x: number,
     y: number
   ) => Promise<string>;
-  private onRequestPath?: (
-    gameId: string,
-    startX: number,
-    startY: number,
-    endX: number,
-    endY: number
-  ) => Promise<any>;
+  // private _onRequestPath - removed, delegating to GameManager instead
   private onBroadcastMapData?: (gameId: string, mapData: any) => void;
 
   constructor(
@@ -87,13 +81,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       x: number,
       y: number
     ) => Promise<string>,
-    onRequestPath?: (
-      gameId: string,
-      startX: number,
-      startY: number,
-      endX: number,
-      endY: number
-    ) => Promise<any>,
+    // _onRequestPath removed - delegating to GameManager instead
     onBroadcastMapData?: (gameId: string, mapData: any) => void
   ) {
     super(logger);
@@ -103,7 +91,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     this.onPersistMapData = onPersistMapData;
     this.onCreateStartingUnits = onCreateStartingUnits;
     this.onFoundCity = onFoundCity;
-    this.onRequestPath = onRequestPath;
+    // this._onRequestPath removed - delegating to GameManager instead
     this.onBroadcastMapData = onBroadcastMapData;
   }
 
@@ -330,12 +318,53 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         ? (gameId: string, playerId: string, name: string, x: number, y: number) =>
             this.onFoundCity!(gameId, playerId, name, x, y)
         : async () => '',
-      requestPath: async (_playerId: string, _unitId: string, targetX: number, targetY: number) => {
-        if (this.onRequestPath) {
-          const result = await this.onRequestPath(gameId, targetX, targetY, targetX, targetY);
-          return { success: !!result, path: result };
+      requestPath: async (playerId: string, unitId: string, targetX: number, targetY: number) => {
+        // Delegate to the main GameManager's requestPath method
+        // We need access to the GameManager instance that created this lifecycle manager
+
+        // For now, we'll use a direct approach through the games map
+        // This should be the same GameManager instance that created us
+        const gameInstance = this.games.get(gameId);
+        if (!gameInstance) {
+          return { success: false, error: 'Game instance not found' };
         }
-        return { success: false, error: 'No path handler available' };
+
+        // Use the GameManager's pathfinding directly via the game instance
+        try {
+          const unit = gameInstance.unitManager.getUnit(unitId);
+          if (!unit) {
+            return { success: false, error: 'Unit not found' };
+          }
+
+          if (unit.playerId !== playerId) {
+            return { success: false, error: 'Unit does not belong to player' };
+          }
+
+          // Call PathfindingManager directly
+          const pathResult = await gameInstance.pathfindingManager.findPath(unit, targetX, targetY);
+
+          const tiles = Array.isArray(pathResult?.path) ? pathResult.path : [];
+          const isValid = pathResult?.valid && tiles.length > 0;
+
+          return {
+            success: isValid,
+            path: isValid
+              ? {
+                  unitId,
+                  targetX,
+                  targetY,
+                  tiles: tiles,
+                  totalCost: pathResult.totalCost || 0,
+                  estimatedTurns: pathResult.estimatedTurns || 0,
+                  valid: isValid,
+                }
+              : undefined,
+            error: isValid ? undefined : 'No valid path found',
+          };
+        } catch (error) {
+          logger.error('Error in GameLifecycleManager requestPath delegation:', error);
+          return { success: false, error: 'Pathfinding error' };
+        }
       },
       broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
         this.onBroadcast?.(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });

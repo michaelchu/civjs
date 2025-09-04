@@ -40,7 +40,11 @@ export class TerrainPlacementProcessor {
    * @reference freeciv/server/generator/mapgen.c ini_hmap_low_level()
    * Must be called before makeTerrains() with proper shore and max levels
    */
-  public initializeHmapLowLevel(swampPct: number, hmapShoreLevel: number, hmapMaxLevel: number): void {
+  public initializeHmapLowLevel(
+    swampPct: number,
+    hmapShoreLevel: number,
+    hmapMaxLevel: number
+  ): void {
     // @reference freeciv/server/generator/mapgen.c:120-123
     // hmap_low_level = (4 * swamp_pct * (hmap_max_level - hmap_shore_level)) / 100 + hmap_shore_level;
     this.hmapLowLevel = Math.floor(

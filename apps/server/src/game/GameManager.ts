@@ -138,7 +138,6 @@ export class GameManager {
       this.persistMapDataToDatabase.bind(this),
       this.createStartingUnits.bind(this),
       this.foundCity.bind(this),
-      this.requestPathForLifecycle.bind(this),
       this.gameBroadcastManager.broadcastMapData.bind(this.gameBroadcastManager)
     );
 
@@ -165,22 +164,7 @@ export class GameManager {
     return this.gameStateManager.persistMapData(gameId, mapData, terrainSettings);
   }
 
-  /**
-   * Request path helper for lifecycle manager - matches expected signature
-   */
-  private async requestPathForLifecycle(
-    gameId: string,
-    _startX: number,
-    _startY: number,
-    _endX: number,
-    _endY: number
-  ): Promise<any> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) return null;
-    // TODO: PathfindingManager.findPath needs a Unit object, not coordinates
-    // This is a placeholder for the lifecycle manager callback
-    return { path: [], success: false };
-  }
+  // requestPathForLifecycle removed - GameLifecycleManager now delegates to main requestPath method
 
   /**
    * Get games map reference for sharing with extracted services
@@ -1803,17 +1787,24 @@ export class GameManager {
         pathLength: pathResult.path.length,
       });
 
+      // Handle the case where pathResult might have unexpected structure
+      const tiles = Array.isArray(pathResult.path) ? pathResult.path : [];
+      const isValid = pathResult.valid && tiles.length > 0;
+
       return {
-        success: true,
-        path: {
-          unitId,
-          targetX,
-          targetY,
-          tiles: pathResult.path,
-          totalCost: pathResult.totalCost,
-          estimatedTurns: pathResult.estimatedTurns,
-          valid: pathResult.valid,
-        },
+        success: isValid,
+        path: isValid
+          ? {
+              unitId,
+              targetX,
+              targetY,
+              tiles: tiles,
+              totalCost: pathResult.totalCost || 0,
+              estimatedTurns: pathResult.estimatedTurns || 0,
+              valid: isValid,
+            }
+          : undefined,
+        error: isValid ? undefined : 'No valid path found',
       };
     } catch (error) {
       logger.error('Error processing pathfinding request', {

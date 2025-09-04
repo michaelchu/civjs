@@ -789,8 +789,8 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
         );
 
         if (moved) {
-          const gameForUnit = await gameManager.getGame(connection.gameId);
-          const unit = gameForUnit?.unitManager.getUnit(data.unitId);
+          const gameInstance = gameManager.getGameInstance(connection.gameId);
+          const unit = gameInstance?.unitManager.getUnit(data.unitId);
           handler.send(socket, PacketType.UNIT_MOVE_REPLY, {
             success: true,
             unitId: data.unitId,

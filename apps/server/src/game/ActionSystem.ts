@@ -487,8 +487,16 @@ export class ActionSystem {
       !pathResult ||
       !pathResult.success ||
       !pathResult.path ||
+      !pathResult.path.tiles ||
       pathResult.path.tiles.length < 2
     ) {
+      logger.warn('Pathfinding failed for unit movement', {
+        unitId: unit.id,
+        from: { x: unit.x, y: unit.y },
+        to: { x: targetX, y: targetY },
+        error: pathResult?.error,
+      });
+
       return {
         success: false,
         message: pathResult?.error || 'No valid path to target',

@@ -43,17 +43,25 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   broadcastToGame(gameId: string, event: string, data: any): void {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) {
-      this.logger.warn('Attempted to broadcast to non-existent game', { gameId, event });
-      return;
+      // Don't return early - still try to broadcast for compatibility
+      this.logger.warn(
+        'Broadcasting to game without local instance (might be normal during transitions)',
+        {
+          gameId,
+          event,
+          gamesCount: this.games.size,
+          availableGameIds: Array.from(this.games.keys()),
+        }
+      );
     }
 
-    // Broadcast to all sockets in the specific game room
+    // Always broadcast to all sockets in the specific game room (like original code)
     this.io.to(`game:${gameId}`).emit(event, data);
 
     this.logger.debug('Broadcasted event to game room', {
       gameId,
       event,
-      playerCount: gameInstance.players.size,
+      playerCount: gameInstance?.players.size || 'unknown',
       dataSize: JSON.stringify(data).length,
     });
   }
