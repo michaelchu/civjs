@@ -78,11 +78,27 @@ export class MapRenderer {
   }
 
   render(state: RenderState) {
-    // Reset tile map cache if tiles data has changed
+    // Reset tile map cache if tiles data has changed - with React Strict Mode resilience
     const currentGlobalTiles = (window as any).tiles;
     if (currentGlobalTiles && currentGlobalTiles !== this.lastGlobalTiles) {
-      this.tileMapBuilt = false;
-      this.lastGlobalTiles = currentGlobalTiles;
+      // Additional validation to avoid unnecessary cache invalidation
+      const isValidNewArray = Array.isArray(currentGlobalTiles) && currentGlobalTiles.length > 0;
+      const previousWasValid = Array.isArray(this.lastGlobalTiles) && this.lastGlobalTiles.length > 0;
+      
+      // Only invalidate if we have a legitimately new, populated tiles array
+      if (isValidNewArray && (!previousWasValid || currentGlobalTiles.length !== this.lastGlobalTiles.length)) {
+        console.log('MapRenderer: Invalidating tile cache due to new tiles array', {
+          newLength: currentGlobalTiles.length,
+          previousLength: this.lastGlobalTiles?.length || 0,
+          strictModeResilient: true
+        });
+        this.tileMapBuilt = false;
+        this.lastGlobalTiles = currentGlobalTiles;
+      } else if (isValidNewArray && previousWasValid) {
+        // Same array size - likely React Strict Mode double render, update reference but keep cache
+        console.log('MapRenderer: Updating tiles array reference without cache invalidation (likely React Strict Mode)');
+        this.lastGlobalTiles = currentGlobalTiles;
+      }
     }
 
     if (!this.isInitialized) {
@@ -696,15 +712,31 @@ export class MapRenderer {
     if (this.tileMapBuilt) return;
 
     const globalTiles = (window as any).tiles;
-    if (!globalTiles) return;
+    if (!globalTiles || !Array.isArray(globalTiles)) {
+      console.log('MapRenderer: buildTileMap called but no valid global tiles array');
+      return;
+    }
 
+    // Validate that tiles array is populated before building cache
+    if (globalTiles.length === 0) {
+      console.log('MapRenderer: buildTileMap called with empty tiles array, deferring');
+      return;
+    }
+
+    console.log(`MapRenderer: Building tile map cache with ${globalTiles.length} tiles (React Strict Mode fix active)`);
+    
     this.tileMap.clear();
+    let validTileCount = 0;
+    
     for (const tile of globalTiles) {
-      if (tile) {
+      if (tile && Object.prototype.hasOwnProperty.call(tile, 'x') && Object.prototype.hasOwnProperty.call(tile, 'y')) {
         const key = `${tile.x},${tile.y}`;
         this.tileMap.set(key, tile);
+        validTileCount++;
       }
     }
+    
+    console.log(`MapRenderer: Tile map cache built with ${validTileCount} valid tiles`);
     this.tileMapBuilt = true;
   }
 

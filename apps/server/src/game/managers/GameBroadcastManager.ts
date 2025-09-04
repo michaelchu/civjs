@@ -115,10 +115,19 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       return;
     }
 
+    // DEBUG: Check map data completeness before broadcasting
+    const tilesComplete = mapData && mapData.tiles && mapData.tiles.length > 0;
+    const firstTileComplete = tilesComplete && mapData.tiles[0] && mapData.tiles[0].length > 0;
+    const sampleTile = firstTileComplete ? mapData.tiles[0][0] : null;
+    
     this.logger.info('Broadcasting map data to players', {
       gameId,
       mapSize: `${mapData.width}x${mapData.height}`,
       playerCount: gameInstance.players.size,
+      tilesComplete,
+      firstTileComplete,
+      sampleTileTerrain: sampleTile?.terrain || 'undefined',
+      sampleTileElevation: sampleTile?.elevation || 'undefined',
     });
 
     // Broadcast to each player individually to provide player-specific data
@@ -176,6 +185,22 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         const BATCH_SIZE = 100;
         for (let i = 0; i < visibleTiles.length; i += BATCH_SIZE) {
           const batch = visibleTiles.slice(i, i + BATCH_SIZE);
+          
+          // DEBUG: Check first tile in batch for completeness
+          if (i === 0 && batch.length > 0) {
+            this.logger.info('First TILE_INFO batch sample:', {
+              firstTile: {
+                tile: batch[0].tile,
+                x: batch[0].x, 
+                y: batch[0].y,
+                terrain: batch[0].terrain,
+                elevation: batch[0].elevation,
+                known: batch[0].known,
+                seen: batch[0].seen
+              }
+            });
+          }
+          
           this.broadcastPacketToGame(gameId, PacketType.TILE_INFO, {
             tiles: batch,
             startIndex: i,
