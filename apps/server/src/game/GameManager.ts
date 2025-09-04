@@ -14,6 +14,11 @@ import { GameLifecycleManager } from './managers/GameLifecycleManager';
 import { GameStateManager } from './managers/GameStateManager';
 import { PlayerConnectionManager } from './managers/PlayerConnectionManager';
 import { ServiceRegistry } from './managers/ServiceRegistry';
+import { UnitManagementService } from './managers/UnitManagementService';
+import { CityManagementService } from './managers/CityManagementService';
+import { ResearchManagementService } from './managers/ResearchManagementService';
+import { VisibilityMapService } from './managers/VisibilityMapService';
+import { GameInstanceRecoveryService } from './managers/GameInstanceRecoveryService';
 
 // Keep existing imports for delegation
 import { CityManager } from './CityManager';
@@ -102,6 +107,11 @@ export class GameManager {
   private playerConnectionManager!: PlayerConnectionManager;
   private gameLifecycleManager!: GameLifecycleManager;
   private gameBroadcastManager!: GameBroadcastManager;
+  private unitManagementService!: UnitManagementService;
+  private cityManagementService!: CityManagementService;
+  private researchManagementService!: ResearchManagementService;
+  private visibilityMapService!: VisibilityMapService;
+  private gameInstanceRecoveryService!: GameInstanceRecoveryService;
 
   private constructor(io: SocketServer) {
     this.io = io;
@@ -141,11 +151,43 @@ export class GameManager {
       this.gameBroadcastManager.broadcastMapData.bind(this.gameBroadcastManager)
     );
 
+    this.unitManagementService = new UnitManagementService(
+      this.games,
+      this.broadcastToGame.bind(this)
+    );
+
+    this.cityManagementService = new CityManagementService(
+      this.games,
+      this.broadcastToGame.bind(this)
+    );
+
+    this.researchManagementService = new ResearchManagementService(
+      this.games,
+      this.broadcastToGame.bind(this)
+    );
+
+    this.visibilityMapService = new VisibilityMapService(this.games);
+
+    this.gameInstanceRecoveryService = new GameInstanceRecoveryService(
+      this.games,
+      this.playerToGame,
+      this.io,
+      this.foundCity.bind(this),
+      this.requestPath.bind(this),
+      this.createUnit.bind(this),
+      this.broadcastToGame.bind(this)
+    );
+
     // Register services
     this.serviceRegistry.register('GameStateManager', this.gameStateManager);
     this.serviceRegistry.register('PlayerConnectionManager', this.playerConnectionManager);
     this.serviceRegistry.register('GameLifecycleManager', this.gameLifecycleManager);
     this.serviceRegistry.register('GameBroadcastManager', this.gameBroadcastManager);
+    this.serviceRegistry.register('UnitManagementService', this.unitManagementService);
+    this.serviceRegistry.register('CityManagementService', this.cityManagementService);
+    this.serviceRegistry.register('ResearchManagementService', this.researchManagementService);
+    this.serviceRegistry.register('VisibilityMapService', this.visibilityMapService);
+    this.serviceRegistry.register('GameInstanceRecoveryService', this.gameInstanceRecoveryService);
 
     // Set cross-references
     this.gameBroadcastManager.setGamesReference(this.games);
@@ -663,265 +705,9 @@ export class GameManager {
    * Recover game instance from database when not found in memory
    * This handles cases where the server restarted and game instances were lost
    */
+  // Game recovery methods - delegates to GameInstanceRecoveryService
   public async recoverGameInstance(gameId: string): Promise<GameInstance | null> {
-    try {
-      logger.info('Attempting to recover game instance from database', { gameId });
-
-      // Get game from database with all related data
-      const game = await db.query.games.findFirst({
-        where: eq(games.id, gameId),
-        with: {
-          players: true,
-        },
-      });
-
-      if (!game || game.status !== 'active') {
-        logger.warn('Game not found or not active, cannot recover', {
-          gameId,
-          found: !!game,
-          status: game?.status,
-        });
-        return null;
-      }
-
-      // Check if map data exists in database
-      if (!game.mapData || !game.mapSeed) {
-        logger.warn('No map data found in database, cannot recover game instance', { gameId });
-        return null;
-      }
-
-      logger.info('Recovering game instance with map data', {
-        gameId,
-        playerCount: game.players.length,
-        mapSize: `${game.mapWidth}x${game.mapHeight}`,
-      });
-
-      // Reconstruct player state map
-      const players = new Map<string, PlayerState>();
-      for (const dbPlayer of game.players) {
-        players.set(dbPlayer.id, {
-          id: dbPlayer.id,
-          userId: dbPlayer.userId,
-          playerNumber: dbPlayer.playerNumber,
-          civilization: dbPlayer.civilization,
-          isReady: dbPlayer.isReady || false,
-          hasEndedTurn: dbPlayer.hasEndedTurn || false,
-          isConnected: dbPlayer.connectionStatus === 'connected',
-          lastSeen: new Date(),
-        });
-
-        // Track player to game mapping
-        this.playerToGame.set(dbPlayer.id, gameId);
-      }
-
-      // Extract terrain settings from stored game state
-      const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
-      const temperatureParam = storedTerrainSettings?.temperature ?? 50;
-
-      // Create MapManager and restore map data from database
-      const mapManager = new MapManager(
-        game.mapWidth,
-        game.mapHeight,
-        undefined,
-        'recovered',
-        undefined,
-        undefined,
-        false,
-        temperatureParam
-      );
-      await this.restoreMapDataToManager(mapManager, game.mapData as any, game.mapSeed!);
-
-      // Initialize managers (now that mapManager is available)
-      const turnManager = new TurnManager(gameId, this.io);
-      const unitManager = new UnitManager(gameId, game.mapWidth, game.mapHeight, mapManager, {
-        foundCity: this.foundCity.bind(this),
-        requestPath: this.requestPath.bind(this),
-        broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
-          this.broadcastToGame(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
-        },
-        getCityAt: (x: number, y: number) => {
-          const city = cityManager.getCityAt(x, y);
-          return city ? { playerId: city.playerId } : null;
-        },
-      });
-
-      // Initialize turn system with existing player IDs
-      const playerIds = Array.from(players.keys());
-      await turnManager.initializeTurn(playerIds);
-      const cityManager = new CityManager(gameId, undefined, {
-        createUnit: (playerId: string, unitType: string, x: number, y: number) =>
-          this.createUnit(gameId, playerId, unitType, x, y),
-      });
-      const researchManager = new ResearchManager(gameId);
-      const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
-
-      const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
-
-      // Create recovered game instance
-      const gameInstance: GameInstance = {
-        id: gameId,
-        config: {
-          name: game.name,
-          hostId: game.hostId,
-          maxPlayers: game.maxPlayers,
-          mapWidth: game.mapWidth,
-          mapHeight: game.mapHeight,
-          ruleset: game.ruleset || 'classic',
-          turnTimeLimit: game.turnTimeLimit || undefined,
-          victoryConditions: (game.victoryConditions as string[]) || [
-            'conquest',
-            'science',
-            'culture',
-          ],
-        },
-        state: 'active',
-        currentTurn: game.currentTurn,
-        turnPhase: game.turnPhase as TurnPhase,
-        players,
-        turnManager,
-        mapManager,
-        unitManager,
-        visibilityManager,
-        cityManager,
-        researchManager,
-        pathfindingManager,
-        lastActivity: new Date(),
-      };
-
-      // Store the recovered game instance
-      this.games.set(gameId, gameInstance);
-
-      // Load data from database into managers
-      await cityManager.loadCities();
-      await unitManager.loadUnits();
-
-      // Initialize research and visibility for all players
-      for (const player of players.values()) {
-        await researchManager.initializePlayerResearch(player.id);
-        visibilityManager.initializePlayerVisibility(player.id);
-        // Grant initial visibility around starting position
-        visibilityManager.updatePlayerVisibility(player.id);
-      }
-
-      logger.info('Game instance recovered successfully', { gameId });
-      return gameInstance;
-    } catch (error) {
-      logger.error('Failed to recover game instance:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Restore map data from database to MapManager
-   */
-  private async restoreMapDataToManager(
-    mapManager: MapManager,
-    mapData: any,
-    mapSeed: string
-  ): Promise<void> {
-    try {
-      // Reconstruct full MapData from serialized database storage
-      const restoredMapData = {
-        width: mapData.width,
-        height: mapData.height,
-        seed: mapSeed,
-        generatedAt: new Date(mapData.generatedAt),
-        startingPositions: mapData.startingPositions || [],
-        tiles: this.deserializeMapTiles(mapData.tiles, mapData.width, mapData.height),
-      };
-
-      // Set the restored map data directly in MapManager
-      // This bypasses generation and uses the stored data
-      (mapManager as any).mapData = restoredMapData;
-
-      logger.info('Map data restored to manager', {
-        width: restoredMapData.width,
-        height: restoredMapData.height,
-        startingPositions: restoredMapData.startingPositions.length,
-      });
-    } catch (error) {
-      logger.error('Failed to restore map data to manager:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Deserialize compressed map tiles from database storage
-   */
-  private deserializeMapTiles(compressedTiles: any, width: number, height: number): any[][] {
-    // Create empty tile array filled with ocean tiles - match generation pattern [x][y]
-    const tiles: any[][] = [];
-
-    for (let x = 0; x < width; x++) {
-      tiles[x] = [];
-      for (let y = 0; y < height; y++) {
-        // Default ocean tile
-        tiles[x][y] = {
-          x,
-          y,
-          terrain: 'ocean',
-          elevation: 0,
-          riverMask: 0,
-          continentId: 0,
-          isExplored: false,
-          isVisible: false,
-          hasRoad: false,
-          hasRailroad: false,
-          improvements: [],
-          unitIds: [],
-          properties: {},
-          temperature: 4, // TEMPERATE
-          wetness: 50,
-        };
-      }
-    }
-
-    // Restore non-ocean tiles from compressed storage
-    if (compressedTiles) {
-      for (const [key, tileData] of Object.entries(compressedTiles)) {
-        const [x, y] = key.split(',').map(Number);
-        if (
-          x >= 0 &&
-          x < width &&
-          y >= 0 &&
-          y < height &&
-          tileData &&
-          typeof tileData === 'object'
-        ) {
-          tiles[x][y] = {
-            ...tiles[x][y], // Keep default values
-            ...(tileData as any), // Override with stored data
-          };
-        }
-      }
-    }
-
-    return tiles;
-  }
-
-  /**
-   * Convert string generator type to MapGeneratorType enum
-   * @param generator String generator identifier from client
-   * @returns MapGeneratorType enum value for MapManager
-   */
-  private convertGeneratorType(generator: string): MapGeneratorType {
-    switch (generator.toLowerCase()) {
-      case 'fair':
-        return 'FAIR';
-      case 'island':
-        return 'ISLAND';
-      case 'random':
-        return 'RANDOM';
-      case 'fracture':
-        return 'FRACTURE';
-      case 'fractal':
-        return 'FRACTAL';
-      case 'scenario':
-        return 'SCENARIO';
-      default:
-        logger.warn('Unknown generator type, defaulting to FRACTAL', { generator });
-        return 'FRACTAL';
-    }
+    return this.gameInstanceRecoveryService.recoverGameInstance(gameId);
   }
 
   public async getGame(gameId: string): Promise<any | null> {
@@ -936,19 +722,8 @@ export class GameManager {
     return this.gameLifecycleManager.getAllGameInstances();
   }
 
-  /**
-   * Load a game from database into memory for testing purposes
-   * This is similar to recoverGameInstance but specifically for integration tests
-   */
   public async loadGame(gameId: string): Promise<GameInstance | null> {
-    // Check if game is already loaded
-    const existingInstance = this.games.get(gameId);
-    if (existingInstance) {
-      return existingInstance;
-    }
-
-    // Try to recover from database
-    return await this.recoverGameInstance(gameId);
+    return this.gameInstanceRecoveryService.loadGame(gameId);
   }
 
   public getActiveGameInstances(): GameInstance[] {
@@ -1187,7 +962,7 @@ export class GameManager {
     return false; // Waiting for other players
   }
 
-  // Unit management methods
+  // Unit management methods - delegates to UnitManagementService
   public async createUnit(
     gameId: string,
     playerId: string,
@@ -1195,40 +970,7 @@ export class GameManager {
     x: number,
     y: number
   ): Promise<string> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    if (gameInstance.state !== 'active') {
-      throw new Error('Cannot create units unless game is active');
-    }
-
-    const player = gameInstance.players.get(playerId);
-    if (!player) {
-      throw new Error('Player not found in game');
-    }
-
-    const unit = await gameInstance.unitManager.createUnit(playerId, unitType, x, y);
-
-    // Update visibility for the player
-    gameInstance.visibilityManager.onUnitCreated(playerId);
-
-    // Broadcast unit creation to all players
-    this.broadcastToGame(gameId, 'unit_created', {
-      gameId,
-      unit: {
-        id: unit.id,
-        playerId: unit.playerId,
-        unitType: unit.unitTypeId,
-        x: unit.x,
-        y: unit.y,
-        health: unit.health,
-        movementLeft: unit.movementLeft,
-      },
-    });
-
-    return unit.id;
+    return this.unitManagementService.createUnit(gameId, playerId, unitType, x, y);
   }
 
   public async moveUnit(
@@ -1238,40 +980,7 @@ export class GameManager {
     x: number,
     y: number
   ): Promise<boolean> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    if (gameInstance.state !== 'active') {
-      throw new Error('Cannot move units unless game is active');
-    }
-
-    // Verify unit belongs to player
-    const unit = gameInstance.unitManager.getUnit(unitId);
-    if (!unit || unit.playerId !== playerId) {
-      throw new Error('Unit not found or does not belong to player');
-    }
-
-    const moved = await gameInstance.unitManager.moveUnit(unitId, x, y);
-
-    if (moved) {
-      const updatedUnit = gameInstance.unitManager.getUnit(unitId)!;
-
-      // Update visibility for the player
-      gameInstance.visibilityManager.onUnitMoved(playerId);
-
-      // Broadcast unit movement to all players
-      this.broadcastToGame(gameId, 'unit_moved', {
-        gameId,
-        unitId,
-        x: updatedUnit.x,
-        y: updatedUnit.y,
-        movementLeft: updatedUnit.movementLeft,
-      });
-    }
-
-    return moved;
+    return this.unitManagementService.moveUnit(gameId, playerId, unitId, x, y);
   }
 
   public async attackUnit(
@@ -1280,171 +989,43 @@ export class GameManager {
     attackerUnitId: string,
     defenderUnitId: string
   ) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    if (gameInstance.state !== 'active') {
-      throw new Error('Cannot attack unless game is active');
-    }
-
-    // Verify attacking unit belongs to player
-    const attackerUnit = gameInstance.unitManager.getUnit(attackerUnitId);
-    if (!attackerUnit || attackerUnit.playerId !== playerId) {
-      throw new Error('Attacking unit not found or does not belong to player');
-    }
-
-    const combatResult = await gameInstance.unitManager.attackUnit(attackerUnitId, defenderUnitId);
-
-    // Update visibility for relevant players if units were destroyed
-    if (combatResult.attackerDestroyed) {
-      gameInstance.visibilityManager.onUnitDestroyed(playerId);
-    }
-    if (combatResult.defenderDestroyed) {
-      // Find the defender's player
-      const defenderUnit = gameInstance.unitManager.getUnit(defenderUnitId);
-      if (defenderUnit) {
-        gameInstance.visibilityManager.onUnitDestroyed(defenderUnit.playerId);
-      }
-    }
-
-    // Broadcast combat result to all players
-    this.broadcastToGame(gameId, 'unit_combat', {
-      gameId,
-      combatResult,
-    });
-
-    return combatResult;
+    return this.unitManagementService.attackUnit(gameId, playerId, attackerUnitId, defenderUnitId);
   }
 
   public async fortifyUnit(gameId: string, playerId: string, unitId: string): Promise<void> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    // Verify unit belongs to player
-    const unit = gameInstance.unitManager.getUnit(unitId);
-    if (!unit || unit.playerId !== playerId) {
-      throw new Error('Unit not found or does not belong to player');
-    }
-
-    await gameInstance.unitManager.fortifyUnit(unitId);
-
-    // Broadcast fortification to all players
-    this.broadcastToGame(gameId, 'unit_fortified', {
-      gameId,
-      unitId,
-    });
+    return this.unitManagementService.fortifyUnit(gameId, playerId, unitId);
   }
 
   public getPlayerUnits(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.unitManager.getPlayerUnits(playerId);
+    return this.unitManagementService.getPlayerUnits(gameId, playerId);
   }
 
   public getVisibleUnits(gameId: string, playerId: string, visibleTiles?: Set<string>) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    // Use visibility manager if no visibleTiles provided
-    const tiles = visibleTiles || gameInstance.visibilityManager.getVisibleTiles(playerId);
-    return gameInstance.unitManager.getVisibleUnits(playerId, tiles);
+    return this.unitManagementService.getVisibleUnits(gameId, playerId, visibleTiles);
   }
 
+  // Visibility and map methods - delegates to VisibilityMapService
   public getPlayerMapView(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.visibilityManager.getPlayerMapView(playerId);
+    return this.visibilityMapService.getPlayerMapView(gameId, playerId);
   }
 
   public getTileVisibility(gameId: string, playerId: string, x: number, y: number) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.visibilityManager.getTileVisibility(playerId, x, y);
+    return this.visibilityMapService.getTileVisibility(gameId, playerId, x, y);
   }
 
   public updatePlayerVisibility(gameId: string, playerId: string): void {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    gameInstance.visibilityManager.updatePlayerVisibility(playerId);
+    this.visibilityMapService.updatePlayerVisibility(gameId, playerId);
   }
 
   public getMapData(gameId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found in memory - the game may need to be restarted');
-    }
-
-    const mapData = gameInstance.mapManager.getMapData();
-    if (!mapData) {
-      throw new Error('Map not generated yet');
-    }
-
-    return {
-      width: mapData.width,
-      height: mapData.height,
-      startingPositions: mapData.startingPositions,
-      seed: mapData.seed,
-      generatedAt: mapData.generatedAt,
-    };
+    return this.visibilityMapService.getMapData(gameId);
   }
 
   public getPlayerVisibleTiles(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    // Get player's starting position if they don't have units yet
-    const mapData = gameInstance.mapManager.getMapData();
-    const startPos = mapData?.startingPositions.find(pos => pos.playerId === playerId);
-
-    if (!startPos) {
-      throw new Error('Player starting position not found');
-    }
-
-    const visibleTiles = gameInstance.mapManager.getVisibleTiles(
-      startPos.x,
-      startPos.y,
-      2 // Initial sight radius
-    );
-
-    return visibleTiles.map(tile => ({
-      x: tile.x,
-      y: tile.y,
-      terrain: tile.terrain,
-      resource: tile.resource,
-      elevation: tile.elevation,
-      riverMask: tile.riverMask,
-      continentId: tile.continentId,
-      isExplored: true,
-      isVisible: true,
-      hasRoad: tile.hasRoad,
-      hasRailroad: tile.hasRailroad,
-      improvements: tile.improvements,
-      cityId: tile.cityId,
-      unitIds: tile.unitIds,
-    }));
+    return this.visibilityMapService.getPlayerVisibleTiles(gameId, playerId);
   }
 
-  // City management methods
+  // City management methods - delegates to CityManagementService
   public async foundCity(
     gameId: string,
     playerId: string,
@@ -1452,48 +1033,7 @@ export class GameManager {
     x: number,
     y: number
   ): Promise<string> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    if (gameInstance.state !== 'active') {
-      throw new Error('Cannot found cities unless game is active');
-    }
-
-    const player = gameInstance.players.get(playerId);
-    if (!player) {
-      throw new Error('Player not found in game');
-    }
-
-    // Check if there's already a city at this position
-    const existingCity = gameInstance.cityManager.getCityAt(x, y);
-    if (existingCity) {
-      throw new Error('There is already a city at this location');
-    }
-
-    const cityId = await gameInstance.cityManager.foundCity(
-      playerId,
-      name,
-      x,
-      y,
-      gameInstance.currentTurn
-    );
-
-    // Broadcast city founding to all players
-    this.broadcastToGame(gameId, 'city_founded', {
-      gameId,
-      city: {
-        id: cityId,
-        playerId,
-        name,
-        x,
-        y,
-        population: 1,
-      },
-    });
-
-    return cityId;
+    return this.cityManagementService.foundCity(gameId, playerId, name, x, y);
   }
 
   public async setCityProduction(
@@ -1503,157 +1043,40 @@ export class GameManager {
     production: string,
     type: 'unit' | 'building'
   ): Promise<void> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    const city = gameInstance.cityManager.getCity(cityId);
-    if (!city) {
-      throw new Error('City not found');
-    }
-
-    if (city.playerId !== playerId) {
-      throw new Error('City does not belong to player');
-    }
-
-    await gameInstance.cityManager.setCityProduction(cityId, production, type);
-
-    // Broadcast production change to all players
-    this.broadcastToGame(gameId, 'city_production_changed', {
-      gameId,
-      cityId,
-      production,
-      type,
-    });
+    return this.cityManagementService.setCityProduction(gameId, playerId, cityId, production, type);
   }
 
   public getPlayerCities(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.cityManager.getPlayerCities(playerId);
+    return this.cityManagementService.getPlayerCities(gameId, playerId);
   }
 
   public getCity(gameId: string, cityId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.cityManager.getCity(cityId);
+    return this.cityManagementService.getCity(gameId, cityId);
   }
 
-  // Research management methods
+  // Research management methods - delegates to ResearchManagementService
   public async setPlayerResearch(gameId: string, playerId: string, techId: string): Promise<void> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    const player = gameInstance.players.get(playerId);
-    if (!player) {
-      throw new Error('Player not found in game');
-    }
-
-    await gameInstance.researchManager.setCurrentResearch(playerId, techId);
-
-    // Broadcast research change to the player
-    this.broadcastToGame(gameId, 'research_changed', {
-      gameId,
-      playerId,
-      techId,
-      availableTechs: gameInstance.researchManager.getAvailableTechnologies(playerId),
-    });
+    return this.researchManagementService.setPlayerResearch(gameId, playerId, techId);
   }
 
   public async setResearchGoal(gameId: string, playerId: string, techId: string): Promise<void> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    const player = gameInstance.players.get(playerId);
-    if (!player) {
-      throw new Error('Player not found in game');
-    }
-
-    await gameInstance.researchManager.setResearchGoal(playerId, techId);
-
-    // Broadcast goal change to the player
-    this.broadcastToGame(gameId, 'research_goal_changed', {
-      gameId,
-      playerId,
-      techGoal: techId,
-    });
+    return this.researchManagementService.setResearchGoal(gameId, playerId, techId);
   }
 
   public getPlayerResearch(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.researchManager.getPlayerResearch(playerId);
+    return this.researchManagementService.getPlayerResearch(gameId, playerId);
   }
 
   public getAvailableTechnologies(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.researchManager.getAvailableTechnologies(playerId);
+    return this.researchManagementService.getAvailableTechnologies(gameId, playerId);
   }
 
   public getResearchProgress(gameId: string, playerId: string) {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    return gameInstance.researchManager.getResearchProgress(playerId);
+    return this.researchManagementService.getResearchProgress(gameId, playerId);
   }
 
   public async processResearchTurn(gameId: string): Promise<void> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    // Process research for each player
-    for (const [playerId, player] of gameInstance.players) {
-      if (!player.isConnected) continue;
-
-      // Get science output from cities
-      const playerCities = gameInstance.cityManager.getPlayerCities(playerId);
-      let totalScience = 0;
-
-      for (const city of playerCities) {
-        totalScience += city.sciencePerTurn || 0;
-      }
-
-      // Add research points and check for completed techs
-      const completedTech = await gameInstance.researchManager.addResearchPoints(
-        playerId,
-        totalScience
-      );
-
-      if (completedTech) {
-        // Broadcast tech completion to all players
-        this.broadcastToGame(gameId, 'tech_completed', {
-          gameId,
-          playerId,
-          techId: completedTech,
-          playerName: player.civilization,
-          availableTechs: gameInstance.researchManager.getAvailableTechnologies(playerId),
-        });
-
-        logger.info('Technology completed', { gameId, playerId, techId: completedTech });
-      }
-    }
+    return this.researchManagementService.processResearchTurn(gameId);
   }
 
   /**
@@ -1816,6 +1239,31 @@ export class GameManager {
       });
 
       return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
+   * Convert string generator type to MapGeneratorType enum
+   * @param generator String generator identifier from client
+   * @returns MapGeneratorType enum value for MapManager
+   */
+  private convertGeneratorType(generator: string): MapGeneratorType {
+    switch (generator.toLowerCase()) {
+      case 'fair':
+        return 'FAIR';
+      case 'island':
+        return 'ISLAND';
+      case 'random':
+        return 'RANDOM';
+      case 'fracture':
+        return 'FRACTURE';
+      case 'fractal':
+        return 'FRACTAL';
+      case 'scenario':
+        return 'SCENARIO';
+      default:
+        logger.warn('Unknown generator type, defaulting to FRACTAL', { generator });
+        return 'FRACTAL';
     }
   }
 }
