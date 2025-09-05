@@ -28,11 +28,11 @@ export class CityManagementHandler extends BaseSocketHandler {
     this.gameManager = gameManager;
   }
 
-  register(handler: PacketHandler, _io: Server, socket: Socket): void {
+  register(handler: PacketHandler, io: Server, socket: Socket): void {
     handler.register(
       PacketType.CITY_FOUND,
       async (socket, data) => {
-        await this.handleCityFound(handler, socket, data);
+        await this.handleCityFound(handler, io, socket, data);
       },
       CityFoundSchema
     );
@@ -48,7 +48,7 @@ export class CityManagementHandler extends BaseSocketHandler {
     logger.debug(`${this.handlerName} registered handlers for socket ${socket.id}`);
   }
 
-  private async handleCityFound(handler: PacketHandler, socket: Socket, data: any): Promise<void> {
+  private async handleCityFound(handler: PacketHandler, io: Server, socket: Socket, data: any): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
       handler.send(socket, PacketType.CITY_FOUND_REPLY, {
@@ -79,6 +79,35 @@ export class CityManagementHandler extends BaseSocketHandler {
         return;
       }
 
+      // If unitId is provided, verify the unit exists and belongs to the player
+      if (data.unitId) {
+        const gameInstance = this.gameManager.getGameInstance(connection.gameId!);
+        if (gameInstance) {
+          const unit = gameInstance.unitManager.getUnit(data.unitId);
+          if (!unit) {
+            handler.send(socket, PacketType.CITY_FOUND_REPLY, {
+              success: false,
+              message: 'Settler unit not found',
+            });
+            return;
+          }
+          if (unit.playerId !== player.id) {
+            handler.send(socket, PacketType.CITY_FOUND_REPLY, {
+              success: false,
+              message: 'Unit does not belong to player',
+            });
+            return;
+          }
+          if (unit.unitTypeId !== 'settler') {
+            handler.send(socket, PacketType.CITY_FOUND_REPLY, {
+              success: false,
+              message: 'Only settlers can found cities',
+            });
+            return;
+          }
+        }
+      }
+
       const cityId = await this.gameManager.foundCity(
         connection.gameId!,
         player.id,
@@ -86,6 +115,29 @@ export class CityManagementHandler extends BaseSocketHandler {
         data.x,
         data.y
       );
+
+      // Remove the settler unit if unitId was provided
+      if (data.unitId) {
+        const gameInstance = this.gameManager.getGameInstance(connection.gameId!);
+        if (gameInstance) {
+          const unit = gameInstance.unitManager.getUnit(data.unitId);
+          if (unit) {
+            gameInstance.unitManager.removeUnit(data.unitId);
+            
+            // Broadcast unit destruction to all players
+            io.to(`game:${connection.gameId}`).emit('unit_destroyed', {
+              gameId: connection.gameId,
+              unitId: data.unitId,
+            });
+            
+            logger.debug('Settler unit consumed by city founding', {
+              unitId: data.unitId,
+              cityId,
+              playerId: player.id,
+            });
+          }
+        }
+      }
 
       handler.send(socket, PacketType.CITY_FOUND_REPLY, {
         success: true,
@@ -98,6 +150,7 @@ export class CityManagementHandler extends BaseSocketHandler {
         cityId,
         name: data.name,
         position: { x: data.x, y: data.y },
+        settlerConsumed: !!data.unitId,
       });
     } catch (error) {
       logger.error('Error founding city:', error);

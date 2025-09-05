@@ -215,6 +215,28 @@ class GameClient {
         pathfindingService.clearUnitPaths(data.unitId);
       }
     });
+
+    // Handle unit destruction (e.g., settler consumed by city founding)
+    this.socket.on('unit_destroyed', data => {
+      console.log('Unit destroyed:', data);
+      const { units } = useGameStore.getState();
+      if (units[data.unitId]) {
+        const newUnits = { ...units };
+        delete newUnits[data.unitId];
+        useGameStore.getState().updateGameState({
+          units: newUnits,
+        });
+
+        // Clear selected unit if this unit was selected
+        const { selectedUnitId } = useGameStore.getState();
+        if (selectedUnitId === data.unitId) {
+          useGameStore.getState().selectUnit(null);
+        }
+
+        // Clear cached paths for this unit
+        pathfindingService.clearUnitPaths(data.unitId);
+      }
+    });
   }
 
   private handlePacket(packet: Packet) {
@@ -556,20 +578,45 @@ class GameClient {
     this.socket.emit('packet', packet);
   }
 
-  foundCity(name: string, x: number, y: number) {
-    if (!this.socket) return;
+  foundCity(name: string, x: number, y: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Socket not connected'));
+        return;
+      }
 
-    const packet: Packet = {
-      type: PacketType.CITY_FOUND,
-      data: {
-        name,
-        x,
-        y,
-      },
-      timestamp: Date.now(),
-    };
+      const packet: Packet = {
+        type: PacketType.CITY_FOUND,
+        data: {
+          name,
+          x,
+          y,
+        },
+        timestamp: Date.now(),
+      };
 
-    this.socket.emit('packet', packet);
+      // Set up a one-time listener for the reply
+      const responseHandler = (replyPacket: any) => {
+        if (replyPacket.type === PacketType.CITY_FOUND_REPLY) {
+          this.socket?.off('packet', responseHandler);
+          if (replyPacket.data.success) {
+            resolve(replyPacket.data.cityId || 'unknown');
+          } else {
+            reject(new Error(replyPacket.data.message || 'Failed to found city'));
+          }
+        }
+      };
+
+      this.socket.on('packet', responseHandler);
+
+      // Set a timeout to prevent hanging
+      setTimeout(() => {
+        this.socket?.off('packet', responseHandler);
+        reject(new Error('City founding request timed out'));
+      }, 10000); // 10 second timeout
+
+      this.socket.emit('packet', packet);
+    });
   }
 
   setResearch(techId: string) {
@@ -1026,9 +1073,54 @@ class GameClient {
   }
 
   /**
-   * Request unit found city action (legacy compatibility)
+   * Found city with specific unit ID (includes unit for destruction)
    */
-  foundCityWithUnit(unitId: string): Promise<boolean> {
+  foundCityWithUnit(unitId: string, name: string, x: number, y: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Socket not connected'));
+        return;
+      }
+
+      const packet: Packet = {
+        type: PacketType.CITY_FOUND,
+        data: {
+          unitId, // Include unit ID so server can remove the settler
+          name,
+          x,
+          y,
+        },
+        timestamp: Date.now(),
+      };
+
+      // Set up a one-time listener for the reply
+      const responseHandler = (replyPacket: any) => {
+        if (replyPacket.type === PacketType.CITY_FOUND_REPLY) {
+          this.socket?.off('packet', responseHandler);
+          if (replyPacket.data.success) {
+            resolve(replyPacket.data.cityId || 'unknown');
+          } else {
+            reject(new Error(replyPacket.data.message || 'Failed to found city'));
+          }
+        }
+      };
+
+      this.socket.on('packet', responseHandler);
+
+      // Set a timeout to prevent hanging
+      setTimeout(() => {
+        this.socket?.off('packet', responseHandler);
+        reject(new Error('City founding request timed out'));
+      }, 10000); // 10 second timeout
+
+      this.socket.emit('packet', packet);
+    });
+  }
+
+  /**
+   * Request unit found city action (legacy compatibility) 
+   */
+  foundCityWithUnitLegacy(unitId: string): Promise<boolean> {
     return this.requestUnitAction(unitId, ActionType.FOUND_CITY);
   }
 }

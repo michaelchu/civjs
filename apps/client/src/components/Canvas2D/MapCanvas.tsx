@@ -3,6 +3,7 @@ import { useGameStore } from '../../store/gameStore';
 import { MapRenderer } from './MapRenderer';
 import { TileHoverOverlay } from './TileHoverOverlay';
 import { UnitContextMenu } from '../GameUI/UnitContextMenu';
+import { CityNameDialog } from '../GameUI/CityNameDialog';
 import type { Unit } from '../../types';
 import { ActionType } from '../../types/shared/actions';
 import { gameClient } from '../../services/GameClient';
@@ -29,6 +30,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     unit: Unit;
     position: { x: number; y: number };
   } | null>(null);
+
+  // City naming dialog state
+  const [cityNameDialog, setCityNameDialog] = useState<{
+    isOpen: boolean;
+    unit: Unit | null;
+  }>({
+    isOpen: false,
+    unit: null,
+  });
 
   // Goto mode state (similar to freeciv-web's goto_active)
   // @reference freeciv-web/freeciv-web/src/main/webapp/javascript/control.js - goto_active variable
@@ -785,6 +795,18 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         return;
       }
 
+      // Special handling for FOUND_CITY action - open city naming dialog
+      if (action === ActionType.FOUND_CITY) {
+        console.log(`Opening city naming dialog for unit ${selectedUnit.id}`);
+        setCityNameDialog({
+          isOpen: true,
+          unit: selectedUnit,
+        });
+        // Close context menu since we're opening the dialog
+        setContextMenu(null);
+        return;
+      }
+
       console.log(`Selected action ${action} for unit ${selectedUnit.id}`, {
         unitId: selectedUnit.id,
         action,
@@ -828,6 +850,33 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const handleCloseContextMenu = useCallback(() => {
     setContextMenu(null);
   }, []);
+
+  // Handle city naming dialog
+  const handleCloseCityNameDialog = useCallback(() => {
+    setCityNameDialog({
+      isOpen: false,
+      unit: null,
+    });
+  }, []);
+
+  const handleFoundCity = useCallback(async (cityName: string) => {
+    if (!cityNameDialog.unit) return;
+    
+    console.log(`Founding city "${cityName}" with unit ${cityNameDialog.unit.id}`);
+    
+    try {
+      // Use the promise-based foundCity method for proper error handling
+      const cityId = await gameClient.foundCityWithUnit(cityNameDialog.unit.id, cityName, cityNameDialog.unit.x, cityNameDialog.unit.y);
+      
+      console.log(`Successfully founded city: ${cityName} (ID: ${cityId})`);
+      // Deselect the unit since it will be destroyed after founding the city
+      selectUnit(null);
+      setSelectedUnit(null);
+    } catch (error) {
+      console.error('Error founding city:', error);
+      throw error; // Re-throw so dialog can handle loading state
+    }
+  }, [cityNameDialog.unit, selectUnit]);
 
   // Global keyboard handler for ESC key to exit goto mode
   useEffect(() => {
@@ -916,6 +965,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           onActionSelect={handleActionSelect}
         />
       )}
+      
+      <CityNameDialog
+        isOpen={cityNameDialog.isOpen}
+        unit={cityNameDialog.unit}
+        onClose={handleCloseCityNameDialog}
+        onFoundCity={handleFoundCity}
+      />
     </div>
   );
 };
