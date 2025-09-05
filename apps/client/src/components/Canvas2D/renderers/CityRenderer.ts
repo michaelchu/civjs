@@ -60,10 +60,15 @@ export class CityRenderer extends BaseRenderer {
 
   /**
    * Render all cities visible in the viewport.
+   * After initialization, this is synchronous for better performance.
    */
-  async renderCities(state: RenderState): Promise<void> {
-    // Initialize city styles if not already loaded
-    await this.initializeCityStyles();
+  renderCities(state: RenderState): void {
+    // If styles aren't loaded yet, skip rendering cities this frame
+    // They will be rendered on the next frame after initialization completes
+    if (!this.stylesLoaded) {
+      this.initializeCityStyles(); // Start async loading in background
+      return;
+    }
 
     Object.values(state.cities).forEach(city => {
       if (this.isInViewport(city.x, city.y, state.viewport)) {
