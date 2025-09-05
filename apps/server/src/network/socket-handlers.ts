@@ -1141,7 +1141,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
         if (!game || game.status !== 'active') {
           handler.send(socket, PacketType.CITY_FOUND_REPLY, {
             success: false,
-            message: 'Game is not active',
+            message: `Game is not active (current status: ${game?.status || 'not found'})`,
           });
           return;
         }
