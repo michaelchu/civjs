@@ -53,7 +53,7 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
   describe('Phase 1 Fix 1: Temperature Map Creation Integration', () => {
     it('should create temperature map internally within makeLand', async () => {
       // Create a map with fractal generator (calls makeLand)
-      await mapManager.generateMapFractal(testPlayers);
+      await mapManager.generateMap(testPlayers, 'FRACTAL');
 
       const mapData = mapManager.getMapData()!;
 
@@ -87,13 +87,13 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
 
         switch (genType) {
           case 'fractal':
-            await testMap.generateMapFractal(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTAL');
             break;
           case 'random':
-            await testMap.generateMapRandom(testPlayers);
+            await testMap.generateMap(testPlayers, 'RANDOM');
             break;
           case 'fracture':
-            await testMap.generateMapFracture(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTURE');
             break;
         }
 
@@ -117,7 +117,7 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
     it('should generate rivers internally within makeLand', async () => {
       // Use larger map for better river generation
       const largerMap = new MapManager(50, 40, 'river-integration-test');
-      await largerMap.generateMapFractal(testPlayers);
+      await largerMap.generateMap(testPlayers, 'FRACTAL');
 
       const mapData = largerMap.getMapData()!;
 
@@ -147,13 +147,13 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
 
         switch (genType) {
           case 'fractal':
-            await testMap.generateMapFractal(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTAL');
             break;
           case 'random':
-            await testMap.generateMapRandom(testPlayers);
+            await testMap.generateMap(testPlayers, 'RANDOM');
             break;
           case 'fracture':
-            await testMap.generateMapFracture(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTURE');
             break;
         }
 
@@ -176,7 +176,7 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
     it('should apply pole renormalization internally within makeLand', async () => {
       // Create larger map for better pole effects
       const poleMap = new MapManager(40, 30, 'pole-renorm-test');
-      await poleMap.generateMapFractal(testPlayers);
+      await poleMap.generateMap(testPlayers, 'FRACTAL');
 
       const mapData = poleMap.getMapData()!;
       const height = mapData.height;
@@ -221,13 +221,13 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
 
         switch (genType) {
           case 'fractal':
-            await testMap.generateMapFractal(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTAL');
             break;
           case 'random':
-            await testMap.generateMapRandom(testPlayers);
+            await testMap.generateMap(testPlayers, 'RANDOM');
             break;
           case 'fracture':
-            await testMap.generateMapFracture(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTURE');
             break;
         }
 
@@ -265,7 +265,7 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
 
   describe('Phase 1 Fix 4: Continent Assignment Order', () => {
     it('should assign continents after removing tiny islands', async () => {
-      await mapManager.generateMapFractal(testPlayers);
+      await mapManager.generateMap(testPlayers, 'FRACTAL');
 
       const mapData = mapManager.getMapData()!;
       const continentCounts = new Map<number, number>();
@@ -306,9 +306,9 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
 
     it('should maintain correct continent assignment order across all generators', async () => {
       const generators = [
-        { name: 'fractal', fn: (map: MapManager) => map.generateMapFractal(testPlayers) },
-        { name: 'random', fn: (map: MapManager) => map.generateMapRandom(testPlayers) },
-        { name: 'fracture', fn: (map: MapManager) => map.generateMapFracture(testPlayers) },
+        { name: 'fractal', fn: (map: MapManager) => map.generateMap(testPlayers, 'FRACTAL') },
+        { name: 'random', fn: (map: MapManager) => map.generateMap(testPlayers, 'RANDOM') },
+        { name: 'fracture', fn: (map: MapManager) => map.generateMap(testPlayers, 'FRACTURE') },
       ];
 
       for (const { name, fn } of generators) {
@@ -345,7 +345,7 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
     it('should complete full terrain generation flow with correct sequence', async () => {
       const startTime = Date.now();
 
-      await mapManager.generateMapFractal(testPlayers);
+      await mapManager.generateMap(testPlayers, 'FRACTAL');
 
       const endTime = Date.now();
       const generationTime = endTime - startTime;
@@ -409,8 +409,8 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
       const map1 = new MapManager(20, 15, seed);
       const map2 = new MapManager(20, 15, seed);
 
-      await map1.generateMapFractal(testPlayers);
-      await map2.generateMapFractal(testPlayers);
+      await map1.generateMap(testPlayers, 'FRACTAL');
+      await map2.generateMap(testPlayers, 'FRACTAL');
 
       const data1 = map1.getMapData()!;
       const data2 = map2.getMapData()!;
@@ -479,7 +479,7 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
         const testMap = new MapManager(width, height, `perf-${width}x${height}`);
 
         const startTime = Date.now();
-        await testMap.generateMapFractal(testPlayers);
+        await testMap.generateMap(testPlayers, 'FRACTAL');
         const endTime = Date.now();
 
         const generationTime = endTime - startTime;
@@ -498,7 +498,7 @@ describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
 
       for (let i = 0; i < 5; i++) {
         const testMap = new MapManager(30, 20, `memory-test-${i}`);
-        await testMap.generateMapFractal(testPlayers);
+        await testMap.generateMap(testPlayers, 'FRACTAL');
 
         // Force garbage collection if available
         if (global.gc) {
@@ -554,7 +554,7 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
   describe('Phase 3 Feature 1: Expanded makeLand() Scope', () => {
     it('should execute all steps within makeLand() according to freeciv sequence', async () => {
       // Test that makeLand() handles complete flow internally
-      await mapManager.generateMapFractal(testPlayers);
+      await mapManager.generateMap(testPlayers, 'FRACTAL');
 
       const mapData = mapManager.getMapData()!;
 
@@ -621,13 +621,13 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
 
         switch (genType) {
           case 'fractal':
-            await testMap.generateMapFractal(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTAL');
             break;
           case 'random':
-            await testMap.generateMapRandom(testPlayers);
+            await testMap.generateMap(testPlayers, 'RANDOM');
             break;
           case 'fracture':
-            await testMap.generateMapFracture(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTURE');
             break;
         }
 
@@ -683,9 +683,9 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
       // by ensuring all generators can pass their dependencies successfully
 
       const generators = [
-        { name: 'fractal', fn: (map: MapManager) => map.generateMapFractal(testPlayers) },
-        { name: 'random', fn: (map: MapManager) => map.generateMapRandom(testPlayers) },
-        { name: 'fracture', fn: (map: MapManager) => map.generateMapFracture(testPlayers) },
+        { name: 'fractal', fn: (map: MapManager) => map.generateMap(testPlayers, 'FRACTAL') },
+        { name: 'random', fn: (map: MapManager) => map.generateMap(testPlayers, 'RANDOM') },
+        { name: 'fracture', fn: (map: MapManager) => map.generateMap(testPlayers, 'FRACTURE') },
       ];
 
       for (const { name, fn } of generators) {
@@ -735,7 +735,7 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
       // Test that makeLand() can handle missing optional parameters
       // This would require access to TerrainGenerator directly, which we test indirectly
 
-      await mapManager.generateMapFractal(testPlayers);
+      await mapManager.generateMap(testPlayers, 'FRACTAL');
       const mapData = mapManager.getMapData()!;
 
       // Even with potential missing parameters, should produce valid maps
@@ -765,7 +765,7 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
   describe('Phase 3 Feature 3: Freeciv Compliance Validation', () => {
     it('should match freeciv make_land() step sequence exactly', async () => {
       // Test complete freeciv compliance by verifying all expected freeciv steps
-      await mapManager.generateMapFractal(testPlayers);
+      await mapManager.generateMap(testPlayers, 'FRACTAL');
 
       const mapData = mapManager.getMapData()!;
 
@@ -849,13 +849,13 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
 
         switch (genType) {
           case 'fractal':
-            await testMap.generateMapFractal(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTAL');
             break;
           case 'random':
-            await testMap.generateMapRandom(testPlayers);
+            await testMap.generateMap(testPlayers, 'RANDOM');
             break;
           case 'fracture':
-            await testMap.generateMapFracture(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTURE');
             break;
         }
 
@@ -935,13 +935,13 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
 
         switch (genType) {
           case 'fractal':
-            await testMap.generateMapFractal(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTAL');
             break;
           case 'random':
-            await testMap.generateMapRandom(testPlayers);
+            await testMap.generateMap(testPlayers, 'RANDOM');
             break;
           case 'fracture':
-            await testMap.generateMapFracture(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTURE');
             break;
         }
 
@@ -1018,8 +1018,8 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
       const map1 = new MapManager(25, 20, seed);
       const map2 = new MapManager(25, 20, seed);
 
-      await map1.generateMapFractal(testPlayers);
-      await map2.generateMapFractal(testPlayers);
+      await map1.generateMap(testPlayers, 'FRACTAL');
+      await map2.generateMap(testPlayers, 'FRACTAL');
 
       const data1 = map1.getMapData()!;
       const data2 = map2.getMapData()!;
@@ -1067,13 +1067,13 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
 
         switch (genType) {
           case 'fractal':
-            await testMap.generateMapFractal(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTAL');
             break;
           case 'random':
-            await testMap.generateMapRandom(testPlayers);
+            await testMap.generateMap(testPlayers, 'RANDOM');
             break;
           case 'fracture':
-            await testMap.generateMapFracture(testPlayers);
+            await testMap.generateMap(testPlayers, 'FRACTURE');
             break;
         }
 
@@ -1134,7 +1134,7 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
         const testMap = new MapManager(size.w, size.h, `phase3-perf-${size.w}x${size.h}`);
 
         const startTime = Date.now();
-        await testMap.generateMapFractal(testPlayers);
+        await testMap.generateMap(testPlayers, 'FRACTAL');
         const endTime = Date.now();
 
         const generationTime = endTime - startTime;
