@@ -37,6 +37,10 @@ import {
   type TraitRange,
   type NationsCompatibility,
   type Requirement,
+  CitiesRulesetFileSchema,
+  type CitiesRulesetFile,
+  type CityStyle,
+  type CityFoundingRules,
 } from './schemas';
 import { logger } from '@utils/logger';
 
@@ -50,6 +54,7 @@ export class RulesetLoader {
   private gameRulesCache = new Map<string, GameRulesetFile>();
   private effectsCache = new Map<string, EffectsRulesetFile>();
   private nationsCache = new Map<string, NationsRulesetFile>();
+  private citiesCache = new Map<string, CitiesRulesetFile>();
   private readonly baseDir: string;
 
   constructor(baseDir?: string) {
@@ -683,6 +688,65 @@ export class RulesetLoader {
   }
 
   /**
+   * Load cities ruleset for a specific ruleset variant (e.g., 'classic', 'civ2')
+   */
+  loadCitiesRuleset(rulesetName: string = 'classic'): CitiesRulesetFile {
+    // Check cache first
+    const cached = this.citiesCache.get(rulesetName);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const filePath = join(this.baseDir, rulesetName, 'cities.json');
+      const fileContent = readFileSync(filePath, 'utf8');
+      const rawData = JSON.parse(fileContent);
+
+      // Validate using Zod schema
+      const citiesRuleset = CitiesRulesetFileSchema.parse(rawData);
+
+      // Cache and return
+      this.citiesCache.set(rulesetName, citiesRuleset);
+      return citiesRuleset;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to load cities ruleset '${rulesetName}': ${error.message}`);
+      }
+      throw new Error(`Failed to load cities ruleset '${rulesetName}': Unknown error`);
+    }
+  }
+
+  /**
+   * Get all city styles from a ruleset
+   */
+  getCityStyles(rulesetName: string = 'classic'): Record<string, CityStyle> {
+    const ruleset = this.loadCitiesRuleset(rulesetName);
+    return ruleset.city_styles;
+  }
+
+  /**
+   * Get a specific city style from a ruleset
+   */
+  getCityStyle(styleId: string, rulesetName: string = 'classic'): CityStyle {
+    const styles = this.getCityStyles(rulesetName);
+    const style = styles[styleId];
+
+    if (!style) {
+      throw new Error(`City style '${styleId}' not found in ruleset '${rulesetName}'`);
+    }
+
+    return style;
+  }
+
+  /**
+   * Get city founding rules from a ruleset
+   */
+  getCityFoundingRules(rulesetName: string = 'classic'): CityFoundingRules {
+    const ruleset = this.loadCitiesRuleset(rulesetName);
+    return ruleset.founding_rules;
+  }
+
+  /**
    * Clear all cached rulesets (useful for testing)
    */
   clearCache(): void {
@@ -694,6 +758,7 @@ export class RulesetLoader {
     this.gameRulesCache.clear();
     this.effectsCache.clear();
     this.nationsCache.clear();
+    this.citiesCache.clear();
   }
 }
 

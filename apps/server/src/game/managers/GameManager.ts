@@ -811,9 +811,10 @@ export class GameManager {
     playerId: string,
     name: string,
     x: number,
-    y: number
+    y: number,
+    unit?: any
   ): Promise<string> {
-    return this.cityManagementService.foundCity(gameId, playerId, name, x, y);
+    return this.cityManagementService.foundCity(gameId, playerId, name, x, y, unit);
   }
 
   public async setCityProduction(

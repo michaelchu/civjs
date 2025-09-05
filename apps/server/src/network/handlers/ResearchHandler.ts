@@ -87,7 +87,7 @@ export class ResearchHandler extends BaseSocketHandler {
 
     try {
       const game = await this.resolveGame(connection);
-      if (!game || game.state !== 'active') {
+      if (!game || game.status !== 'active') {
         handler.send(socket, PacketType.RESEARCH_SET_REPLY, {
           success: false,
           message: 'Game is not active',
@@ -146,7 +146,7 @@ export class ResearchHandler extends BaseSocketHandler {
 
     try {
       const game = await this.resolveGame(connection);
-      if (!game || game.state !== 'active') {
+      if (!game || game.status !== 'active') {
         handler.send(socket, PacketType.RESEARCH_GOAL_SET_REPLY, {
           success: false,
           message: 'Game is not active',
