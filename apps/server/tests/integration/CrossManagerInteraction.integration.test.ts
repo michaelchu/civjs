@@ -3,7 +3,7 @@ import { getTestDatabase } from '../utils/testDatabase';
 import { TestGameScenario } from '../fixtures/gameFixtures';
 import { setupGameManagerWithScenario, cleanupGameManager } from '../utils/gameTestUtils';
 
-describe.skip('Cross-Manager Integration Tests - Real Database Interactions', () => {
+describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
   let gameManager: GameManager;
   let scenario: TestGameScenario;
 
