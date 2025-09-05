@@ -5,6 +5,13 @@
 
 import { PolicyManager } from '@game/managers/PolicyManager';
 import { GovernmentManager } from '@game/managers/GovernmentManager';
+import {
+  generateTestUUID,
+  getTestDatabase,
+  clearAllTables,
+  getTestDatabaseProvider,
+} from '../utils/testDatabase';
+import * as schema from '@database/schema';
 
 // Mock logger to reduce test noise
 jest.mock('../../src/utils/logger', () => ({
@@ -16,24 +23,64 @@ jest.mock('../../src/utils/logger', () => ({
   },
 }));
 
-// Mock database provider
-const mockDatabaseProvider = {
-  getDatabase: () => ({
-    update: jest.fn().mockResolvedValue({}),
-    select: jest.fn().mockResolvedValue([]),
-  }),
-};
+// Use real test database provider instead of mock
 
 describe('Policy and Government Manager Integration', () => {
   let policyManager: PolicyManager;
   let governmentManager: GovernmentManager;
-  const gameId = 'test-game';
-  const playerId = 'player-1';
+  let gameId: string;
+  let playerId: string;
+  let userId: string;
 
   beforeEach(async () => {
-    // Initialize managers with sophisticated architecture
+    // Clear database before each test
+    await clearAllTables();
+
+    // Generate UUIDs for this test
+    gameId = generateTestUUID('5001');
+    playerId = generateTestUUID('5002');
+    userId = generateTestUUID('5003');
+
+    const db = getTestDatabase();
+    const testDbProvider = getTestDatabaseProvider();
+
+    // Create user first
+    await db.insert(schema.users).values({
+      id: userId,
+      username: `TestUser_${Date.now()}`,
+      email: `test_${Date.now()}@example.com`,
+      passwordHash: 'test-hash',
+    });
+
+    // Create game
+    await db.insert(schema.games).values({
+      id: gameId,
+      name: 'Policy Government Test Game',
+      hostId: userId,
+      maxPlayers: 2,
+      mapWidth: 20,
+      mapHeight: 20,
+      ruleset: 'classic',
+    });
+
+    // Create player
+    await db.insert(schema.players).values({
+      id: playerId,
+      gameId: gameId,
+      userId: userId,
+      playerNumber: 0,
+      nation: 'roman',
+      civilization: 'Roman',
+      leaderName: 'Caesar',
+      color: { r: 255, g: 0, b: 0 },
+      government: 'despotism',
+      isReady: false,
+      isAlive: true,
+    });
+
+    // Initialize managers with real test database
     policyManager = new PolicyManager(gameId, null as any);
-    governmentManager = new GovernmentManager(gameId, mockDatabaseProvider as any);
+    governmentManager = new GovernmentManager(gameId, testDbProvider);
 
     // Initialize player data
     await policyManager.initializePlayerPolicies(playerId);
