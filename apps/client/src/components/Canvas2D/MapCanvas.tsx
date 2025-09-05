@@ -389,6 +389,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   // Deactivate goto mode
   const deactivateGotoMode = useCallback(() => {
     console.log('Deactivating goto mode - clearing path immediately');
+    console.log('Current goto mode before clearing:', gotoMode);
 
     // Clear the goto state
     setGotoMode({
@@ -398,14 +399,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       currentPath: null,
     });
 
-    console.log('Goto mode deactivated - React will re-render');
+    console.log('setGotoMode called with null state - React should trigger state change');
 
     // Reset cursor
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.style.cursor = 'crosshair'; // Default canvas cursor
     }
-  }, []);
+  }, [gotoMode]);
 
   // Request path for goto mode preview (similar to freeciv-web's check_request_goto_path)
   const requestGotoPath = useCallback(
