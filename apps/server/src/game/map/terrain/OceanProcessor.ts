@@ -206,7 +206,7 @@ export class OceanProcessor {
     for (const terrain of oceanTerrains) {
       if (depth >= terrain.minDepth && depth <= terrain.maxDepth) {
         const score =
-          Math.random() * 100 +
+          this.random() * 100 +
           (terrain.maxDepth - Math.abs(depth - (terrain.minDepth + terrain.maxDepth) / 2));
         if (score > bestScore) {
           bestScore = score;
