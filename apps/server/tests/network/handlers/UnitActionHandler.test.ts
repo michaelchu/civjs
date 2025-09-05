@@ -1,7 +1,7 @@
 import { UnitActionHandler } from '../../../src/network/handlers/UnitActionHandler';
 import { PacketHandler } from '../../../src/network/PacketHandler';
 import { PacketType } from '../../../src/types/packet';
-import { GameManager } from '../../../src/game/GameManager';
+import { GameManager } from '@game/managers/GameManager';
 import { Server, Socket } from 'socket.io';
 
 // Mock dependencies

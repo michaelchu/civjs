@@ -1,4 +1,4 @@
-import { ResearchManager, TECHNOLOGIES } from '../../src/game/ResearchManager';
+import { ResearchManager, TECHNOLOGIES } from '@game/managers/ResearchManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('ResearchManager', () => {

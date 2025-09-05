@@ -1,8 +1,8 @@
 import { getTestDatabase, generateTestUUID } from '../utils/testDatabase';
 import * as schema from '../../src/database/schema';
 import { eq, inArray } from 'drizzle-orm';
-import { MapManager } from '../../src/game/MapManager';
-import { PlayerState } from '../../src/game/GameManager';
+import { MapManager } from '@game/managers/MapManager';
+import { PlayerState } from '@game/managers/GameManager';
 
 export interface TestGameScenario {
   game: typeof schema.games.$inferSelect;

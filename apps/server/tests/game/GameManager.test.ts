@@ -1,4 +1,4 @@
-import { GameManager, GameConfig } from '../../src/game/GameManager';
+import { GameManager, GameConfig } from '@game/managers/GameManager';
 import { Server as SocketServer } from 'socket.io';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 

@@ -1,6 +1,6 @@
-import { ActionSystem } from '../../src/game/ActionSystem';
+import { ActionSystem } from '@game/systems/ActionSystem';
 import { ActionType } from '../../src/types/shared/actions';
-import type { Unit } from '../../src/game/UnitManager';
+import type { Unit } from '@game/managers/UnitManager';
 
 describe('ActionSystem - Goto Actions', () => {
   let actionSystem: ActionSystem;

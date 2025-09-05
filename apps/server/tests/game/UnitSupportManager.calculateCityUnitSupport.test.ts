@@ -2,7 +2,7 @@ import {
   UnitSupportManager,
   GoldUpkeepStyle,
   UnitSupportData,
-} from '../../src/game/UnitSupportManager';
+} from '@game/managers/UnitSupportManager';
 
 function makeUnit(overrides?: Partial<UnitSupportData>): UnitSupportData {
   return {

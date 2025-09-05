@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { MapValidator, Position } from '../../../src/game/map/MapValidator';
 import { MapTile, TerrainType, TemperatureType } from '../../../src/game/map/MapTypes';
-import { PlayerState } from '../../../src/game/GameManager';
+import { PlayerState } from '@game/managers/GameManager';
 
 describe('MapValidator', () => {
   let validator: MapValidator;

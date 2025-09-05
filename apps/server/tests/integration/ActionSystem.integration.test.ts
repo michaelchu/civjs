@@ -1,5 +1,5 @@
-import { ActionSystem } from '../../src/game/ActionSystem';
-import { GameManager } from '../../src/game/GameManager';
+import { ActionSystem } from '@game/systems/ActionSystem';
+import { GameManager } from '@game/managers/GameManager';
 import { ActionType } from '../../src/types/shared/actions';
 import { clearAllTables } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';

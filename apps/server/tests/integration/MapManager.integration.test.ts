@@ -1,5 +1,5 @@
-import { MapManager } from '../../src/game/MapManager';
-import { GameManager } from '../../src/game/GameManager';
+import { MapManager } from '@game/managers/MapManager';
+import { GameManager } from '@game/managers/GameManager';
 import { MapTile } from '../../src/game/map/MapTypes';
 import { clearAllTables, createTestGameAndPlayer } from '../utils/testDatabase';
 import { createMockSocketServer } from '../utils/gameTestUtils';

@@ -1,4 +1,4 @@
-import { UnitManager } from '../../src/game/UnitManager';
+import { UnitManager } from '@game/managers/UnitManager';
 import { UNIT_TYPES } from '../../src/game/constants/UnitConstants';
 import {
   getTestDatabase,

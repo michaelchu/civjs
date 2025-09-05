@@ -1,12 +1,12 @@
 import { beforeAll } from '@jest/globals';
-import { PlayerState } from '../../src/game/GameManager';
+import { PlayerState } from '@game/managers/GameManager';
 import {
   MapManager,
   ResourceType,
   TemperatureType,
   TerrainProperty,
   TerrainType,
-} from '../../src/game/MapManager';
+} from '@game/managers/MapManager';
 // import { MapStartpos } from '../../src/game/map/MapTypes'; // Commented out - used in disabled tests
 
 // Mock island terrain functions for tests

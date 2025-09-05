@@ -1,4 +1,4 @@
-import { CityManager, BUILDING_TYPES } from '../../src/game/CityManager';
+import { CityManager, BUILDING_TYPES } from '@game/managers/CityManager';
 import { UNIT_TYPES } from '../../src/game/constants/UnitConstants';
 import {
   getTestDatabase,

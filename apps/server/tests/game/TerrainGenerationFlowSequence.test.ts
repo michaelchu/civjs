@@ -7,8 +7,8 @@
  * Phase 3: Complete makeLand() restructuring with full freeciv compliance
  */
 import { beforeAll } from '@jest/globals';
-import { MapManager, TemperatureType } from '../../src/game/MapManager';
-import { PlayerState } from '../../src/game/GameManager';
+import { MapManager, TemperatureType } from '@game/managers/MapManager';
+import { PlayerState } from '@game/managers/GameManager';
 
 describe('Phase 1: Terrain Generation Flow Sequence Compliance', () => {
   let mapManager: MapManager;

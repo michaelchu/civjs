@@ -9,6 +9,17 @@ module.exports = {
   transform: {
     '^.+\\.ts$': 'ts-jest',
   },
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@config$': '<rootDir>/src/config',
+    '^@database$': '<rootDir>/src/database/index',
+    '^@database/(.*)$': '<rootDir>/src/database/$1',
+    '^@game/(.*)$': '<rootDir>/src/game/$1',
+    '^@network/(.*)$': '<rootDir>/src/network/$1',
+    '^@app-types/(.*)$': '<rootDir>/src/types/$1',
+    '^@utils/(.*)$': '<rootDir>/src/utils/$1',
+    '^@shared/(.*)$': '<rootDir>/src/shared/$1',
+  },
   coverageDirectory: 'coverage',
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts', '!src/index.ts'],
   coverageReporters: ['text', 'lcov', 'json-summary'],

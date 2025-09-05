@@ -1,7 +1,7 @@
 import { beforeAll } from '@jest/globals';
-import { VisibilityManager } from '../../src/game/VisibilityManager';
-import { UnitManager } from '../../src/game/UnitManager';
-import { MapManager } from '../../src/game/MapManager';
+import { VisibilityManager } from '@game/managers/VisibilityManager';
+import { UnitManager } from '@game/managers/UnitManager';
+import { MapManager } from '@game/managers/MapManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('VisibilityManager', () => {

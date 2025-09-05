@@ -1,4 +1,4 @@
-import { GameManager } from '../../src/game/GameManager';
+import { GameManager } from '@game/managers/GameManager';
 import { generateTestUUID, getTestDatabase, clearAllTables } from '../utils/testDatabase';
 import * as schema from '../../src/database/schema';
 import { createMockSocketServer } from '../utils/gameTestUtils';
