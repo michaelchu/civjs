@@ -474,6 +474,141 @@ This document tracks the major areas still missing from the CivJS port compared 
 
 ---
 
+## 🎬 Animation Systems (Complete Gap)
+
+### 25. Unit Movement Animations
+- [ ] 8-step smooth unit movement system (ANIM_STEPS = 8)
+- [ ] Unit animation offset calculations for smooth transitions
+- [ ] Multi-unit animation queue management (30 concurrent units max)
+- [ ] Movement interpolation between tiles
+- [ ] Animation state tracking per unit (anim_list system)
+- [ ] Unit transport animation handling
+- [ ] Movement direction-based animation
+- [ ] Animation performance optimization
+- [ ] Unit animation cleanup on completion
+- [ ] Animation synchronization with server state
+
+**Reference:** `/reference/freeciv-web/.../unit.js:get_unit_anim_offset()`, `ANIM_STEPS = 8`, `anim_units_max = 30`  
+**Current State:** Static units only - `getUnitAnimOffset()` returns `{x: 0, y: 0}` with TODO comment  
+**Impact:** Units teleport between tiles instead of smooth movement, poor visual feedback
+
+### 26. Unit Explosion Animations  
+- [ ] 5-frame explosion death sequences (explode.unit_0 through explode.unit_4)
+- [ ] Explosion animation timer system (explosion_anim_map)
+- [ ] Combat death visual feedback
+- [ ] Explosion sprite rendering integration
+- [ ] Animation cleanup after completion
+- [ ] Multiple concurrent explosion support
+- [ ] Explosion positioning and offset handling
+- [ ] Animation frame timing control
+- [ ] Explosion sound effect integration
+- [ ] Nuclear explosion animations
+
+**Reference:** `/reference/freeciv-web/.../tilespec.js:explosion_anim_map`, `/reference/freeciv-web/.../packhand.js:1013-1016`  
+**Current State:** No explosion animations - We have explosion sprites in `/apps/server/public/sprites/amplio2/explosions.spec` but unused  
+**Impact:** No visual feedback for unit deaths, poor combat experience
+
+### 27. Global Animation Management
+- [ ] Central animation timer system (advance_global_anim_state)
+- [ ] Animation frame synchronization across all elements
+- [ ] Global animation enable/disable controls
+- [ ] Animation state management and cleanup
+- [ ] Animation timing coordination
+- [ ] Performance-based animation throttling
+- [ ] Animation priority system
+- [ ] Memory management for animations
+- [ ] Animation debugging tools
+- [ ] Cross-component animation synchronization
+
+**Reference:** `/reference/freeciv/client/tilespec.c:6771`, `/reference/freeciv/client/client_main.c:1202-1205`  
+**Current State:** No global animation system - Only individual component animations  
+**Impact:** Disconnected animation timing, no centralized control
+
+### 28. Combat Animations
+- [ ] Unit health bar animations during combat
+- [ ] Combat step timing system (smooth_combat_step_msec)
+- [ ] Attack/defense visual effects  
+- [ ] Combat result animations
+- [ ] Unit damage visual feedback
+- [ ] Combat animation preferences
+- [ ] Veterancy level visual indicators
+- [ ] Combat odds display animations
+- [ ] Battle result popup animations
+- [ ] Combat log visual effects
+
+**Reference:** `/reference/freeciv-web/.../options.js:52` (`do_combat_animation`), `/reference/freeciv/client/options.c:2254-2258`  
+**Current State:** Static combat - No visual combat feedback beyond unit disappearance  
+**Impact:** Poor combat experience, no tactical feedback
+
+### 29. Cursor Animations
+- [ ] 6-frame animated cursor system (NUM_CURSOR_FRAMES)
+- [ ] Context-specific cursor animations (goto, attack, invalid, etc.)
+- [ ] Cursor animation state management
+- [ ] Action-specific cursor visual feedback
+- [ ] Cursor animation performance optimization
+- [ ] Custom cursor loading system
+- [ ] Cursor hot-spot management
+- [ ] Cursor animation timing controls
+- [ ] Accessibility cursor options
+- [ ] Cursor animation disable settings
+
+**Reference:** `/reference/freeciv/client/tilespec.h:305`, `/reference/freeciv/client/tilespec.c:7208`  
+**Current State:** Static cursors only  
+**Impact:** Poor action feedback, less intuitive interface
+
+### 30. Map/Camera Animations
+- [ ] Smooth mapview panning/sliding animations
+- [ ] Zoom transition animations  
+- [ ] Camera movement interpolation
+- [ ] Viewport animation timing controls
+- [ ] Map scroll animation system
+- [ ] Focus unit animation (smooth centering)
+- [ ] Map transition effects
+- [ ] Minimap animation synchronization
+- [ ] Animation performance optimization
+- [ ] User-configurable animation speeds
+
+**Reference:** `/reference/freeciv-web/.../mapview_common.js:522`, `/reference/freeciv/client/zoom.c:154`  
+**Current State:** Instant camera movements  
+**Impact:** Jarring camera transitions, poor spatial awareness
+
+### 31. Focus Unit Animations
+- [ ] Unit selection pulsating animations (implemented but isolated)
+- [ ] Focus unit blinking system
+- [ ] Unit highlight animations
+- [ ] Focus transition animations
+- [ ] Multi-unit selection animations
+- [ ] Focus animation timing controls
+- [ ] Focus unit toggle timeout system
+- [ ] Focus animation state management
+- [ ] Focus unit combat animations
+- [ ] Focus unit activity animations
+
+**Reference:** `/reference/freeciv/client/tilespec.c:6725` (`get_focus_unit_toggle_timeout`), `toggle_focus_unit_state`  
+**Current State:** ✅ **PARTIAL** - Basic pulsating selection animation in UnitRenderer.ts, but isolated from global system  
+**Impact:** 🔄 **Some visual feedback** - Selection works but not integrated with global animation system
+
+### 32. Animation Configuration System
+- [ ] User animation preference controls
+- [ ] Animation timing settings (do_combat_animation, smooth_move_unit_msec, etc.)
+- [ ] Performance-based animation scaling
+- [ ] Animation quality settings
+- [ ] Animation disable options for accessibility
+- [ ] Animation memory usage controls  
+- [ ] Custom animation speed settings
+- [ ] Animation category toggles
+- [ ] Animation performance monitoring
+- [ ] Animation settings persistence
+
+**Reference:** `/reference/freeciv-web/.../options.js:50-52`, `/reference/freeciv/client/options.c:2241-2258`  
+**Current State:** No animation preferences system  
+**Impact:** No user control over animations, poor accessibility
+
+**Animation Systems Priority:** **Medium Priority** - Significant visual polish and user experience impact  
+**Overall Animation State:** ⬜ **5% Complete (1/70+ animation features)** - Only basic unit selection animation implemented
+
+---
+
 ## 🔊 Audio & Polish
 
 ### 20. Audio System
@@ -579,18 +714,19 @@ This document tracks the major areas still missing from the CivJS port compared 
 10. **[x] Government System** - ✅ **Political progression** *(2025-01-01)*
 
 ### 🔧 Medium Priority (Polish & Enhancement)
-11. **[ ] Audio System** - Game polish
-12. **[ ] Help System** - User experience
-13. **[ ] Save/Load System** - Game persistence  
-14. **[ ] Advanced UI Dialogs** - Feature completeness
-15. **[ ] Borders & Culture** - Territory mechanics
+11. **[ ] Animation Systems** - Visual polish and user experience
+12. **[ ] Audio System** - Game polish
+13. **[ ] Help System** - User experience
+14. **[ ] Save/Load System** - Game persistence  
+15. **[ ] Advanced UI Dialogs** - Feature completeness
+16. **[ ] Borders & Culture** - Territory mechanics
 
 ### 🎨 Low Priority (Nice to Have)
-16. **[ ] Advanced Networking** - Connection reliability
-17. **[ ] Game Mode Variants** - Additional play styles
-18. **[ ] Advanced Audio** - Enhanced immersion
-19. **[ ] Performance Optimizations** - Better performance
-20. **[ ] Accessibility Features** - Inclusive design
+17. **[ ] Advanced Networking** - Connection reliability
+18. **[ ] Game Mode Variants** - Additional play styles
+19. **[ ] Advanced Audio** - Enhanced immersion
+20. **[ ] Performance Optimizations** - Better performance
+21. **[ ] Accessibility Features** - Inclusive design
 
 ---
 
@@ -605,10 +741,11 @@ This document tracks the major areas still missing from the CivJS port compared 
 - **Economic Systems:** ⬜ 0% Complete (0/20 items)
 - **Map & World:** ⬜ 15% Complete (3/20 items)
 - **Victory & End Game:** ⬜ 0% Complete (0/20 items)
+- **Animation Systems:** ⬜ 5% Complete (1/70 items) *Only basic unit selection animation*
 - **Audio & Polish:** ⬜ 0% Complete (0/20 items)
 - **Development & Multiplayer:** ⬜ 10% Complete (2/20 items)
 
-**Total Progress: 🔄 ~33% Complete (56/250 major items)** *Government system milestone achieved*
+**Total Progress: 🔄 ~30% Complete (57/320 major items)** *Animation gap analysis completed*
 
 ---
 
