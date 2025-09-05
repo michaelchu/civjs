@@ -30,4 +30,6 @@ module.exports = {
   restoreMocks: true,
   // Run tests serially to avoid database conflicts
   maxWorkers: 1,
+  // Force Jest to exit after tests complete (needed for integration tests with DB connections)
+  forceExit: true,
 };

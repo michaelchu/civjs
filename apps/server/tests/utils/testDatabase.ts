@@ -202,10 +202,16 @@ export async function setupTestDatabase() {
 
 export async function cleanupTestDatabase() {
   if (testQueryClient) {
-    await testQueryClient.end();
-    testQueryClient = null;
-    testDb = null;
-    logger.info('Test database connection closed');
+    try {
+      // Close all connections immediately
+      await testQueryClient.end({ timeout: 5 });
+    } catch (error) {
+      logger.error('Error during test database cleanup:', error);
+    } finally {
+      testQueryClient = null;
+      testDb = null;
+      logger.info('Test database connection closed');
+    }
   }
 }
 
