@@ -154,11 +154,43 @@ export class PathfindingManager {
     goal: { x: number; y: number },
     unit: Unit
   ): AStarNode[] | null {
+    const { openSet, closedSet, nodes } = this.initializeAStarSearch(start, goal);
+
+    let iterations = 0;
+    const maxIterations = this.mapWidth * this.mapHeight;
+
+    while (openSet.length > 0 && iterations < maxIterations) {
+      iterations++;
+
+      const current = this.processCurrentNode(openSet, closedSet);
+
+      if (current.x === goal.x && current.y === goal.y) {
+        return this.reconstructPath(current);
+      }
+
+      this.processNeighbors(current, goal, unit, openSet, closedSet, nodes);
+    }
+
+    // No path found
+    logger.warn('A* pathfinding failed to find path', {
+      unitId: unit.id,
+      from: start,
+      to: goal,
+      iterations,
+      maxIterations,
+    });
+
+    return null;
+  }
+
+  /**
+   * Initialize A* search data structures
+   */
+  private initializeAStarSearch(start: { x: number; y: number }, goal: { x: number; y: number }) {
     const openSet: AStarNode[] = [];
     const closedSet = new Set<string>();
     const nodes = new Map<string, AStarNode>();
 
-    // Create start node
     const startNode: AStarNode = {
       x: start.x,
       y: start.y,
@@ -173,85 +205,114 @@ export class PathfindingManager {
     openSet.push(startNode);
     nodes.set(`${start.x},${start.y}`, startNode);
 
-    let iterations = 0;
-    const maxIterations = this.mapWidth * this.mapHeight; // Prevent infinite loops
+    return { openSet, closedSet, nodes };
+  }
 
-    while (openSet.length > 0 && iterations < maxIterations) {
-      iterations++;
+  /**
+   * Process current node in A* algorithm
+   */
+  private processCurrentNode(openSet: AStarNode[], closedSet: Set<string>): AStarNode {
+    const current = this.getLowestFCostNode(openSet);
+    const currentIndex = openSet.indexOf(current);
+    openSet.splice(currentIndex, 1);
+    closedSet.add(`${current.x},${current.y}`);
+    return current;
+  }
 
-      // Find node with lowest fCost
-      const current = this.getLowestFCostNode(openSet);
-      const currentIndex = openSet.indexOf(current);
-      openSet.splice(currentIndex, 1);
+  /**
+   * Process neighbors of current node in A* algorithm
+   */
+  private processNeighbors(
+    current: AStarNode,
+    goal: { x: number; y: number },
+    unit: Unit,
+    openSet: AStarNode[],
+    closedSet: Set<string>,
+    nodes: Map<string, AStarNode>
+  ) {
+    const neighbors = this.getNeighbors(current.x, current.y);
 
-      closedSet.add(`${current.x},${current.y}`);
+    for (const neighbor of neighbors) {
+      this.processNeighborNode(current, neighbor, goal, unit, openSet, closedSet, nodes);
+    }
+  }
 
-      // Check if we reached the goal
-      if (current.x === goal.x && current.y === goal.y) {
-        return this.reconstructPath(current);
-      }
+  /**
+   * Process individual neighbor node
+   */
+  private processNeighborNode(
+    current: AStarNode,
+    neighbor: { x: number; y: number },
+    goal: { x: number; y: number },
+    unit: Unit,
+    openSet: AStarNode[],
+    closedSet: Set<string>,
+    nodes: Map<string, AStarNode>
+  ) {
+    const neighborKey = `${neighbor.x},${neighbor.y}`;
 
-      // Check all neighbors
-      const neighbors = this.getNeighbors(current.x, current.y);
-
-      for (const neighbor of neighbors) {
-        const neighborKey = `${neighbor.x},${neighbor.y}`;
-
-        // Skip if in closed set
-        if (closedSet.has(neighborKey)) {
-          continue;
-        }
-
-        // Check if neighbor is walkable
-        const moveCost = this.getMovementCost(current.x, current.y, neighbor.x, neighbor.y, unit);
-
-        if (moveCost < 0) {
-          continue; // Unwalkable terrain
-        }
-
-        const tentativeGCost = current.gCost + moveCost;
-
-        let neighborNode = nodes.get(neighborKey);
-        if (!neighborNode) {
-          // Create new node
-          neighborNode = {
-            x: neighbor.x,
-            y: neighbor.y,
-            gCost: tentativeGCost,
-            hCost: this.heuristic(neighbor.x, neighbor.y, goal.x, goal.y),
-            fCost: 0,
-            parent: current,
-            moveCost,
-          };
-          neighborNode.fCost = neighborNode.gCost + neighborNode.hCost;
-
-          nodes.set(neighborKey, neighborNode);
-          openSet.push(neighborNode);
-        } else if (tentativeGCost < neighborNode.gCost) {
-          // Found better path to this neighbor
-          neighborNode.gCost = tentativeGCost;
-          neighborNode.fCost = neighborNode.gCost + neighborNode.hCost;
-          neighborNode.parent = current;
-          neighborNode.moveCost = moveCost;
-
-          // Add to open set if not already there
-          if (!openSet.includes(neighborNode)) {
-            openSet.push(neighborNode);
-          }
-        }
-      }
+    if (closedSet.has(neighborKey)) {
+      return;
     }
 
-    // No path found
-    logger.warn('A* pathfinding failed to find path', {
-      unitId: unit.id,
-      from: start,
-      to: goal,
-      iterations,
-      maxIterations,
-    });
+    const moveCost = this.getMovementCost(current.x, current.y, neighbor.x, neighbor.y, unit);
+    if (moveCost < 0) {
+      return; // Unwalkable terrain
+    }
 
-    return null;
+    const tentativeGCost = current.gCost + moveCost;
+    let neighborNode = nodes.get(neighborKey);
+
+    if (!neighborNode) {
+      neighborNode = this.createNeighborNode(neighbor, tentativeGCost, goal, current, moveCost);
+      nodes.set(neighborKey, neighborNode);
+      openSet.push(neighborNode);
+    } else if (tentativeGCost < neighborNode.gCost) {
+      this.updateNeighborNode(neighborNode, tentativeGCost, current, moveCost, openSet);
+    }
+  }
+
+  /**
+   * Create new neighbor node
+   */
+  private createNeighborNode(
+    neighbor: { x: number; y: number },
+    gCost: number,
+    goal: { x: number; y: number },
+    parent: AStarNode,
+    moveCost: number
+  ): AStarNode {
+    const neighborNode: AStarNode = {
+      x: neighbor.x,
+      y: neighbor.y,
+      gCost,
+      hCost: this.heuristic(neighbor.x, neighbor.y, goal.x, goal.y),
+      fCost: 0,
+      parent,
+      moveCost,
+    };
+    neighborNode.fCost = neighborNode.gCost + neighborNode.hCost;
+    return neighborNode;
+  }
+
+  /**
+   * Update existing neighbor node with better path
+   */
+  private updateNeighborNode(
+    neighborNode: AStarNode,
+    gCost: number,
+    parent: AStarNode,
+    moveCost: number,
+    openSet: AStarNode[]
+  ) {
+    neighborNode.gCost = gCost;
+    neighborNode.fCost = neighborNode.gCost + neighborNode.hCost;
+    neighborNode.parent = parent;
+    neighborNode.moveCost = moveCost;
+
+    if (!openSet.includes(neighborNode)) {
+      openSet.push(neighborNode);
+    }
   }
 
   /**
@@ -414,16 +475,18 @@ export class PathfindingManager {
     const dy = toY - fromY;
 
     // Freeciv directions: 0=North, 1=NE, 2=East, 3=SE, 4=South, 5=SW, 6=West, 7=NW
-    if (dx === 0 && dy === -1) return 0; // North
-    if (dx === 1 && dy === -1) return 1; // NE
-    if (dx === 1 && dy === 0) return 2; // East
-    if (dx === 1 && dy === 1) return 3; // SE
-    if (dx === 0 && dy === 1) return 4; // South
-    if (dx === -1 && dy === 1) return 5; // SW
-    if (dx === -1 && dy === 0) return 6; // West
-    if (dx === -1 && dy === -1) return 7; // NW
+    const directionMap: Record<string, number> = {
+      '0,-1': 0, // North
+      '1,-1': 1, // NE
+      '1,0': 2, // East
+      '1,1': 3, // SE
+      '0,1': 4, // South
+      '-1,1': 5, // SW
+      '-1,0': 6, // West
+      '-1,-1': 7, // NW
+    };
 
-    return 2; // Default to east
+    return directionMap[`${dx},${dy}`] ?? 2; // Default to east
   }
 
   /**

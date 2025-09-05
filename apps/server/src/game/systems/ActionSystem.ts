@@ -229,43 +229,97 @@ export class ActionSystem {
       return false;
     }
 
-    // Check basic requirements
+    if (!this.checkBasicRequirements(unit, actionDef, targetX, targetY)) {
+      return false;
+    }
+
+    return this.checkActionSpecificConditions(unit, actionType, targetX, targetY);
+  }
+
+  /**
+   * Check basic action requirements
+   */
+  private checkBasicRequirements(
+    unit: Unit,
+    actionDef: ActionDefinition,
+    targetX?: number,
+    targetY?: number
+  ): boolean {
     for (const req of actionDef.requirements) {
       if (!this.checkRequirement(unit, req, targetX, targetY)) {
         return false;
       }
     }
+    return true;
+  }
 
-    // Check action-specific conditions
+  /**
+   * Check action-specific conditions
+   */
+  private checkActionSpecificConditions(
+    unit: Unit,
+    actionType: ActionType,
+    targetX?: number,
+    targetY?: number
+  ): boolean {
     switch (actionType) {
       case ActionType.FORTIFY:
-        // Can only fortify if not already fortified and has movement
-        return !unit.fortified && unit.movementLeft > 0;
+        return this.canFortify(unit);
 
       case ActionType.SENTRY:
-        // Can sentry if has movement
-        return unit.movementLeft > 0;
+        return this.canSentry(unit);
 
       case ActionType.MOVE:
       case ActionType.GOTO:
-        // Need target coordinates and movement points
-        return targetX !== undefined && targetY !== undefined && unit.movementLeft > 0;
+        return this.canMove(unit, targetX, targetY);
 
       case ActionType.FOUND_CITY:
-        // Check if settler and has movement points
-        if (unit.unitTypeId !== 'settler' || unit.movementLeft <= 0) {
-          return false;
-        }
-        // Additional validation would be done in executeFoundCity
-        return this.canFoundCityAtLocation(unit, unit.x, unit.y);
+        return this.canFoundCity(unit);
 
       case ActionType.BUILD_ROAD:
-        // Check if worker
-        return unit.unitTypeId === 'worker';
+        return this.canBuildRoad(unit);
 
       default:
         return true;
     }
+  }
+
+  /**
+   * Check if unit can fortify
+   */
+  private canFortify(unit: Unit): boolean {
+    return !unit.fortified && unit.movementLeft > 0;
+  }
+
+  /**
+   * Check if unit can sentry
+   */
+  private canSentry(unit: Unit): boolean {
+    return unit.movementLeft > 0;
+  }
+
+  /**
+   * Check if unit can move
+   */
+  private canMove(unit: Unit, targetX?: number, targetY?: number): boolean {
+    return targetX !== undefined && targetY !== undefined && unit.movementLeft > 0;
+  }
+
+  /**
+   * Check if unit can found a city
+   */
+  private canFoundCity(unit: Unit): boolean {
+    if (unit.unitTypeId !== 'settler' || unit.movementLeft <= 0) {
+      return false;
+    }
+    return this.canFoundCityAtLocation(unit, unit.x, unit.y);
+  }
+
+  /**
+   * Check if unit can build a road
+   */
+  private canBuildRoad(unit: Unit): boolean {
+    return unit.unitTypeId === 'worker';
   }
 
   /**
