@@ -95,8 +95,8 @@ describe('TerrainPlacementProcessor', () => {
               temperature: isFrozen
                 ? TemperatureType.FROZEN
                 : isTropical
-                  ? TemperatureType.TROPICAL
-                  : TemperatureType.TEMPERATE,
+                ? TemperatureType.TROPICAL
+                : TemperatureType.TEMPERATE,
               wetness: isDry ? 30 : 70, // Dry (30) or wet (70)
             };
           })

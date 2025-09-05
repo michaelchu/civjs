@@ -23,10 +23,7 @@ export class MapVisibilityHandler extends BaseSocketHandler {
 
   protected handlerName = 'MapVisibilityHandler';
 
-  constructor(
-    private activeConnections: Map<string, any>,
-    private gameManager: GameManager
-  ) {
+  constructor(private activeConnections: Map<string, any>, private gameManager: GameManager) {
     super();
   }
 
