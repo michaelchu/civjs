@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { DatabaseProvider } from '@database';
 import { games } from '@database/schema';
-import { GameInstance, PlayerState, TurnPhase } from '@game/managers/GameManager';
+import { GameInstance, PlayerState, TurnPhase, GameState } from '@game/managers/GameManager';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { logger } from '@utils/logger';
 import { CityManager } from '@game/managers/CityManager';
@@ -241,7 +241,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
           'culture',
         ],
       },
-      state: 'active',
+      state: game.status as GameState,
       currentTurn: game.currentTurn,
       turnPhase: game.turnPhase as TurnPhase,
       players,
