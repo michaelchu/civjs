@@ -160,7 +160,7 @@ export class RulesetLoader {
   }
 
   private computeTerrainWeight(ruleset: TerrainRuleset, target: MapgenTerrainProperty): number {
-    return target !== 'MG_UNUSED' ? ruleset.properties?.[target] ?? 0 : 1;
+    return target !== 'MG_UNUSED' ? (ruleset.properties?.[target] ?? 0) : 1;
   }
 
   private relaxPickConstraints(
@@ -672,7 +672,7 @@ export class RulesetLoader {
       NationGroup: (n, ctx) => ctx.player?.nationGroups?.includes(n) ?? false,
       Age: (n, ctx) => (ctx.unit?.age ?? 0) >= parseInt(n),
       Activity: (n, ctx) => ctx.unit?.activity === n,
-      CityTile: (n, ctx) => (n === 'Center' ? ctx.tile?.isCity ?? false : false),
+      CityTile: (n, ctx) => (n === 'Center' ? (ctx.tile?.isCity ?? false) : false),
       Extra: (n, ctx) => ctx.tile?.extras?.includes(n) ?? false,
       UnitClassFlag: (n, ctx) => ctx.unit?.classFlags?.includes(n) ?? false,
       UnitTypeFlag: (n, ctx) => ctx.unit?.typeFlags?.includes(n) ?? false,

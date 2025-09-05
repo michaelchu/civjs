@@ -6,9 +6,9 @@ import { PlayerState } from '@game/managers/GameManager';
 
 export interface TestGameScenario {
   game: typeof schema.games.$inferSelect;
-  players: typeof schema.players.$inferSelect[];
-  cities: typeof schema.cities.$inferSelect[];
-  units: typeof schema.units.$inferSelect[];
+  players: (typeof schema.players.$inferSelect)[];
+  cities: (typeof schema.cities.$inferSelect)[];
+  units: (typeof schema.units.$inferSelect)[];
 }
 
 async function generateMapDataForTests(
@@ -77,7 +77,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
   const { mapData, mapSeed } = await generateMapDataForTests(20, 20, playersMap);
 
   // Create test users (ensure they exist)
-  let users: typeof schema.users.$inferSelect[];
+  let users: (typeof schema.users.$inferSelect)[];
   try {
     users = await db
       .insert(schema.users)
