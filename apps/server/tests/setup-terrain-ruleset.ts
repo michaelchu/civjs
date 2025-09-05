@@ -3,7 +3,7 @@
  * Import this in any test file that uses terrain-related functionality
  */
 
-import { rulesetLoader } from '../src/game/map/TerrainRuleset';
+import { rulesetLoader } from '@game/map/TerrainRuleset';
 
 export function setupTerrainRuleset(): void {
   // No setup needed - terrain rulesets are loaded synchronously on first access

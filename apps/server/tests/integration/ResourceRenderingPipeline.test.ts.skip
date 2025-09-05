@@ -10,7 +10,7 @@
  * - Phase 3: Client sprite mapping works correctly
  */
 
-import { GameManager } from '../../src/game/GameManager';
+import { GameManager } from '@game/managers/GameManager';
 import { mockDatabase } from '../fixtures/databaseMocks';
 
 describe('Resource Rendering Pipeline Integration', () => {

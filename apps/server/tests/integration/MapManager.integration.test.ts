@@ -1,6 +1,6 @@
 import { MapManager } from '@game/managers/MapManager';
 import { GameManager } from '@game/managers/GameManager';
-import { MapTile } from '../../src/game/map/MapTypes';
+import { MapTile } from '@game/map/MapTypes';
 import { clearAllTables, createTestGameAndPlayer } from '../utils/testDatabase';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 

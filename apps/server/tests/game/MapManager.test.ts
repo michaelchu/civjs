@@ -7,7 +7,7 @@ import {
   TerrainProperty,
   TerrainType,
 } from '@game/managers/MapManager';
-// import { MapStartpos } from '../../src/game/map/MapTypes'; // Commented out - used in disabled tests
+// import { MapStartpos } from '@game/map/MapTypes'; // Commented out - used in disabled tests
 
 // Mock island terrain functions for tests
 jest.mock('../../src/game/map/TerrainUtils', () => {
