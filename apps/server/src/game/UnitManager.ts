@@ -181,27 +181,49 @@ export class UnitManager {
 
     const unitType = UNIT_TYPES[unit.unitTypeId];
 
-    // Check if position is valid
+    this.validateMoveTarget(newX, newY);
+
+    const movementCost = this.calculateTerrainMovementCost(unit, unit.x, unit.y, newX, newY);
+    this.ensureSufficientMovement(unit, movementCost);
+
+    const targetUnit = this.getUnitAt(newX, newY);
+    this.validateDestination(unit, unitType, targetUnit, newX, newY);
+
+    // Update unit state
+    unit.x = newX;
+    unit.y = newY;
+    unit.movementLeft -= movementCost;
+    unit.fortified = false; // Moving breaks fortification
+
+    await this.updateUnitPositionInDb(unitId, unit);
+
+    logger.info(`Unit ${unitId} moved to (${newX}, ${newY})`);
+    return true;
+  }
+
+  private validateMoveTarget(newX: number, newY: number): void {
     if (!this.isValidPosition(newX, newY)) {
       throw new Error(`Invalid position: ${newX}, ${newY}`);
     }
+  }
 
-    // Calculate movement cost using terrain-based system
-    // @reference freeciv/common/movement.c map_move_cost_unit()
-    const movementCost = this.calculateTerrainMovementCost(unit, unit.x, unit.y, newX, newY);
-
-    // Check if unit has enough movement
+  private ensureSufficientMovement(unit: Unit, movementCost: number): void {
     if (unit.movementLeft < movementCost) {
       throw new Error('Not enough movement points');
     }
+  }
 
-    // Check for enemy units at destination
-    const targetUnit = this.getUnitAt(newX, newY);
+  private validateDestination(
+    unit: Unit,
+    unitType: UnitType,
+    targetUnit: Unit | undefined,
+    newX: number,
+    newY: number
+  ): void {
     if (targetUnit && targetUnit.playerId !== unit.playerId) {
       throw new Error('Cannot move to tile occupied by enemy unit');
     }
 
-    // Check for enemy cities at destination
     if (this.gameManagerCallback?.getCityAt) {
       const targetCity = this.gameManagerCallback.getCityAt(newX, newY);
       if (targetCity && targetCity.playerId !== unit.playerId) {
@@ -209,30 +231,17 @@ export class UnitManager {
       }
     }
 
-    // Check stacking rules
     if (targetUnit && unitType.unitClass === 'civilian') {
       throw new Error('Cannot stack civilian units');
     }
+  }
 
-    // Update unit position
-    unit.x = newX;
-    unit.y = newY;
-    unit.movementLeft -= movementCost;
-    unit.fortified = false; // Moving breaks fortification
-
-    // Update database
+  private async updateUnitPositionInDb(unitId: string, unit: Unit): Promise<void> {
     await this.databaseProvider
       .getDatabase()
       .update(units)
-      .set({
-        x: unit.x,
-        y: unit.y,
-        movementPoints: unit.movementLeft.toString(),
-      })
+      .set({ x: unit.x, y: unit.y, movementPoints: unit.movementLeft.toString() })
       .where(eq(units.id, unitId));
-
-    logger.info(`Unit ${unitId} moved to (${newX}, ${newY})`);
-    return true;
   }
 
   /**
@@ -647,14 +656,11 @@ export class UnitManager {
 
     switch (actionType) {
       case ActionType.FORTIFY:
-        unit.fortified = true;
-        unit.movementLeft = 0;
-        updateData = { isFortified: true, movementPoints: '0' };
+        updateData = this.handleFortify(unit);
         break;
 
       case ActionType.SENTRY:
-        unit.movementLeft = 0;
-        updateData = { movementPoints: '0' };
+        updateData = this.handleSentry(unit);
         break;
 
       case ActionType.WAIT:
@@ -662,47 +668,20 @@ export class UnitManager {
         break;
 
       case ActionType.GOTO:
-        if (result.newPosition) {
-          // Move unit and deduct proper movement cost
-          unit.x = result.newPosition.x;
-          unit.y = result.newPosition.y;
-          const movementCost = result.movementCost || 1;
-          unit.movementLeft = Math.max(0, unit.movementLeft - movementCost);
-          updateData = {
-            x: unit.x,
-            y: unit.y,
-            movementPoints: unit.movementLeft.toString(),
-            orders: JSON.stringify(unit.orders || []), // Persist orders to database
-          };
-
-          // Broadcast unit movement to all players
-          if (this.gameManagerCallback?.broadcastUnitMoved) {
-            this.gameManagerCallback.broadcastUnitMoved(
-              this.gameId,
-              unit.id,
-              unit.x,
-              unit.y,
-              unit.movementLeft
-            );
-          }
-        }
+        updateData = this.handleGoto(unit, result);
         break;
 
-      case ActionType.FOUND_CITY:
-        if (result.unitDestroyed) {
-          // Unit would be destroyed when founding city
-          await this.destroyUnit(unit.id);
-          return;
-        }
+      case ActionType.FOUND_CITY: {
+        const destroyed = await this.handleFoundCity(unit, result);
+        if (destroyed) return;
         break;
+      }
 
       case ActionType.BUILD_ROAD:
-        unit.movementLeft = 0;
-        updateData = { movementPoints: '0' };
+        updateData = this.handleBuildRoad(unit);
         break;
     }
 
-    // Update database if there are changes
     if (Object.keys(updateData).length > 0) {
       await this.databaseProvider
         .getDatabase()
@@ -717,6 +696,54 @@ export class UnitManager {
       result: result.success,
       updateData,
     });
+  }
+
+  private handleFortify(unit: Unit): any {
+    unit.fortified = true;
+    unit.movementLeft = 0;
+    return { isFortified: true, movementPoints: '0' };
+  }
+
+  private handleSentry(unit: Unit): any {
+    unit.movementLeft = 0;
+    return { movementPoints: '0' };
+  }
+
+  private handleGoto(unit: Unit, result: ActionResult): any {
+    if (!result.newPosition) return {};
+    unit.x = result.newPosition.x;
+    unit.y = result.newPosition.y;
+    const movementCost = result.movementCost || 1;
+    unit.movementLeft = Math.max(0, unit.movementLeft - movementCost);
+    const updateData = {
+      x: unit.x,
+      y: unit.y,
+      movementPoints: unit.movementLeft.toString(),
+      orders: JSON.stringify(unit.orders || []),
+    };
+    if (this.gameManagerCallback?.broadcastUnitMoved) {
+      this.gameManagerCallback.broadcastUnitMoved(
+        this.gameId,
+        unit.id,
+        unit.x,
+        unit.y,
+        unit.movementLeft
+      );
+    }
+    return updateData;
+  }
+
+  private async handleFoundCity(unit: Unit, result: ActionResult): Promise<boolean> {
+    if (result.unitDestroyed) {
+      await this.destroyUnit(unit.id);
+      return true;
+    }
+    return false;
+  }
+
+  private handleBuildRoad(unit: Unit): any {
+    unit.movementLeft = 0;
+    return { movementPoints: '0' };
   }
 
   /**

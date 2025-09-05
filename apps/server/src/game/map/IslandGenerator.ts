@@ -433,63 +433,119 @@ export class IslandGenerator {
     const tries = islandMass * (2 + Math.floor(islandMass / 20)) + 99;
     let remainingMass = islandMass - 1;
 
-    // Clear height map
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        state.heightMap[x][y] = 0;
-      }
-    }
+    // Reset generation state
+    this.resetHeightMap(state);
+    this.initializeCenterAndBounds(state);
 
-    // Start from center
-    const centerX = Math.floor(this.width / 2);
-    const centerY = Math.floor(this.height / 2);
-    state.heightMap[centerX][centerY] = 1;
-
-    // Initialize bounds
-    state.n = centerY - 1;
-    state.s = centerY + 2;
-    state.w = centerX - 1;
-    state.e = centerX + 2;
-
+    // Place tiles iteratively within bounds
     let attempts = tries;
     while (remainingMass > 0 && attempts > 0) {
-      // Pick random position within current bounds
-      const x = Math.floor(this.random() * (state.e - state.w)) + state.w;
-      const y = Math.floor(this.random() * (state.s - state.n)) + state.n;
+      const { x, y } = this.randomPositionWithinBounds(state);
 
-      if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-        if (state.heightMap[x][y] === 0 && this.countAdjacentElevatedTiles(x, y, state) > 0) {
-          state.heightMap[x][y] = 1;
-          remainingMass--;
-
-          // Expand bounds if necessary
-          if (y >= state.s - 1 && state.s < this.height - 2) state.s++;
-          if (x >= state.e - 1 && state.e < this.width - 2) state.e++;
-          if (y <= state.n && state.n > 2) state.n--;
-          if (x <= state.w && state.w > 2) state.w--;
-        }
+      if (this.isWithinMap(x, y) && this.canPlaceAt(x, y, state)) {
+        this.placeTileAndExpandBounds(x, y, state);
+        remainingMass--;
       }
 
       // Fill holes when getting close to completion
-      if (remainingMass < Math.floor(islandMass / 10)) {
-        remainingMass = this.fillIslandHoles(remainingMass, state);
-      }
+      remainingMass = this.fillIslandHolesIfNeeded(remainingMass, islandMass, state);
 
       attempts--;
     }
 
     // Apply the island to the actual tile map
+    this.applyIslandToMap(state, tiles);
+
+    return remainingMass <= 0;
+  }
+
+  /**
+   * Reset height map to zeros
+   */
+  private resetHeightMap(state: IslandGeneratorState): void {
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        state.heightMap[x][y] = 0;
+      }
+    }
+  }
+
+  /**
+   * Initialize center seed and bounds
+   */
+  private initializeCenterAndBounds(state: IslandGeneratorState): void {
+    const centerX = Math.floor(this.width / 2);
+    const centerY = Math.floor(this.height / 2);
+    state.heightMap[centerX][centerY] = 1;
+
+    state.n = centerY - 1;
+    state.s = centerY + 2;
+    state.w = centerX - 1;
+    state.e = centerX + 2;
+  }
+
+  /**
+   * Pick a random position within current bounds
+   */
+  private randomPositionWithinBounds(state: IslandGeneratorState): { x: number; y: number } {
+    const x = Math.floor(this.random() * (state.e - state.w)) + state.w;
+    const y = Math.floor(this.random() * (state.s - state.n)) + state.n;
+    return { x, y };
+  }
+
+  /**
+   * Bounds check for map coordinates
+   */
+  private isWithinMap(x: number, y: number): boolean {
+    return x >= 0 && x < this.width && y >= 0 && y < this.height;
+  }
+
+  /**
+   * Check if we can place land at (x,y)
+   */
+  private canPlaceAt(x: number, y: number, state: IslandGeneratorState): boolean {
+    return state.heightMap[x][y] === 0 && this.countAdjacentElevatedTiles(x, y, state) > 0;
+  }
+
+  /**
+   * Place land and expand bounds accordingly
+   */
+  private placeTileAndExpandBounds(x: number, y: number, state: IslandGeneratorState): void {
+    state.heightMap[x][y] = 1;
+
+    if (y >= state.s - 1 && state.s < this.height - 2) state.s++;
+    if (x >= state.e - 1 && state.e < this.width - 2) state.e++;
+    if (y <= state.n && state.n > 2) state.n--;
+    if (x <= state.w && state.w > 2) state.w--;
+  }
+
+  /**
+   * Optionally fill holes when nearing completion
+   */
+  private fillIslandHolesIfNeeded(
+    remainingMass: number,
+    islandMass: number,
+    state: IslandGeneratorState
+  ): number {
+    if (remainingMass < Math.floor(islandMass / 10)) {
+      return this.fillIslandHoles(remainingMass, state);
+    }
+    return remainingMass;
+  }
+
+  /**
+   * Apply the generated island to the real tile map
+   */
+  private applyIslandToMap(state: IslandGeneratorState, tiles: MapTile[][]): void {
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         if (state.heightMap[x][y] > 0) {
-          tiles[x][y].terrain = 'grassland'; // Default land terrain
+          tiles[x][y].terrain = 'grassland';
           tiles[x][y].continentId = state.isleIndex;
-          tiles[x][y].elevation = 128; // Mid-level elevation
+          tiles[x][y].elevation = 128;
         }
       }
     }
-
-    return remainingMass <= 0;
   }
 
   /**

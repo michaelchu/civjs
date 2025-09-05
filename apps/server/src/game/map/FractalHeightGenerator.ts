@@ -630,28 +630,44 @@ export class FractalHeightGenerator {
     maxValue: number,
     filter?: (x: number, y: number) => boolean
   ): void {
-    const intMapDelta = maxValue - minValue;
+    const { minVal, maxVal, total } = this.determineMinMax(intMap, filter);
+    if (total === 0) return;
+
+    if (minVal === maxVal) {
+      this.fillUniform(intMap, minValue, filter);
+      return;
+    }
+
+    const size = 1 + maxVal - minVal;
+    if (size < 1) return;
+
+    if (size > 1000000) {
+      this.convertAllToIntegers(intMap, filter);
+      return this.adjustIntMapFiltered(intMap, minValue, maxValue, filter);
+    }
+
+    const frequencies = this.buildHistogram(intMap, minVal, size, filter);
+    this.buildCdfInPlace(frequencies, minValue, maxValue - minValue, total);
+    this.applyLinearization(intMap, frequencies, filter);
+  }
+
+  private determineMinMax(
+    intMap: number[],
+    filter?: (x: number, y: number) => boolean
+  ): { minVal: number; maxVal: number; total: number } {
     let minVal = 0;
     let maxVal = 0;
     let total = 0;
     let first = true;
-
-    // Pass 1: Determine minimum and maximum values
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
-        if (filter && !filter(x, y)) {
-          continue; // Skip tiles that don't pass the filter
-        }
-
+        if (filter && !filter(x, y)) continue;
         const index = y * this.width + x;
         let value = intMap[index];
-
-        // Convert fractional values to integers (freeciv expects integers)
         if (!Number.isInteger(value)) {
           value = Math.floor(value);
           intMap[index] = value;
         }
-
         if (first) {
           minVal = value;
           maxVal = value;
@@ -663,76 +679,72 @@ export class FractalHeightGenerator {
         total++;
       }
     }
+    return { minVal, maxVal, total };
+  }
 
-    if (total === 0) {
-      return; // No tiles to process
-    }
-
-    // Special case: if all values are the same, handle directly
-    if (minVal === maxVal) {
-      for (let y = 0; y < this.height; y++) {
-        for (let x = 0; x < this.width; x++) {
-          if (filter && !filter(x, y)) {
-            continue;
-          }
-          const index = y * this.width + x;
-          intMap[index] = minValue; // Set to minValue for uniform distribution
-        }
-      }
-      return;
-    }
-
-    const size = 1 + maxVal - minVal;
-
-    // Prevent invalid array sizes (this shouldn't happen with proper integer inputs)
-    if (size < 1) {
-      return; // No range to process
-    }
-    if (size > 1000000) {
-      // This indicates fractional inputs that create huge ranges
-      // Convert to integers to match freeciv's integer-only processing
-      for (let y = 0; y < this.height; y++) {
-        for (let x = 0; x < this.width; x++) {
-          if (filter && !filter(x, y)) {
-            continue;
-          }
-          const index = y * this.width + x;
-          intMap[index] = Math.floor(intMap[index]);
-        }
-      }
-      // Recalculate with integer values
-      return this.adjustIntMapFiltered(intMap, minValue, maxValue, filter);
-    }
-
-    const frequencies = new Array(size).fill(0);
-
-    // Pass 2: Translate values and build frequency histogram
+  private fillUniform(
+    intMap: number[],
+    minValue: number,
+    filter?: (x: number, y: number) => boolean
+  ): void {
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
-        if (filter && !filter(x, y)) {
-          continue;
-        }
-
+        if (filter && !filter(x, y)) continue;
         const index = y * this.width + x;
-        intMap[index] -= minVal; // Translate so minimum value is 0
+        intMap[index] = minValue;
+      }
+    }
+  }
+
+  private convertAllToIntegers(intMap: number[], filter?: (x: number, y: number) => boolean): void {
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (filter && !filter(x, y)) continue;
+        const index = y * this.width + x;
+        intMap[index] = Math.floor(intMap[index]);
+      }
+    }
+  }
+
+  private buildHistogram(
+    intMap: number[],
+    minVal: number,
+    size: number,
+    filter?: (x: number, y: number) => boolean
+  ): number[] {
+    const frequencies = new Array(size).fill(0);
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (filter && !filter(x, y)) continue;
+        const index = y * this.width + x;
+        intMap[index] -= minVal;
         frequencies[intMap[index]]++;
       }
     }
+    return frequencies;
+  }
 
-    // Pass 3: Create cumulative distribution function (linearize function)
+  private buildCdfInPlace(
+    frequencies: number[],
+    minValue: number,
+    intMapDelta: number,
+    total: number
+  ): void {
     let count = 0;
-    for (let i = 0; i < size; i++) {
+    for (let i = 0; i < frequencies.length; i++) {
       count += frequencies[i];
       frequencies[i] = minValue + Math.floor((count * intMapDelta) / total);
     }
+  }
 
-    // Pass 4: Apply the linearization function
+  private applyLinearization(
+    intMap: number[],
+    frequencies: number[],
+    filter?: (x: number, y: number) => boolean
+  ): void {
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
-        if (filter && !filter(x, y)) {
-          continue;
-        }
-
+        if (filter && !filter(x, y)) continue;
         const index = y * this.width + x;
         intMap[index] = frequencies[intMap[index]];
       }

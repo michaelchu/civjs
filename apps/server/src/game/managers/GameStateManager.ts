@@ -120,11 +120,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
         with: {
           game: {
             with: {
-              host: {
-                columns: {
-                  username: true,
-                },
-              },
+              host: { columns: { username: true } },
               players: true,
             },
           },
@@ -132,24 +128,26 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       });
 
       if (!player?.game) return null;
-
-      const game = player.game;
-      return {
-        id: game.id,
-        name: game.name,
-        hostName: game.host?.username || 'Unknown',
-        status: game.status,
-        currentPlayers: game.players?.length || 0,
-        maxPlayers: game.maxPlayers,
-        currentTurn: game.currentTurn,
-        mapSize: `${game.mapWidth}x${game.mapHeight}`,
-        createdAt: game.createdAt.toISOString(),
-        canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
-      };
+      return this.formatGameSummary(player.game);
     } catch (error) {
       this.logger.error('Error fetching game by player ID:', error);
       return null;
     }
+  }
+
+  private formatGameSummary(game: any): any {
+    return {
+      id: game.id,
+      name: game.name,
+      hostName: game.host?.username || 'Unknown',
+      status: game.status,
+      currentPlayers: game.players?.length || 0,
+      maxPlayers: game.maxPlayers,
+      currentTurn: game.currentTurn,
+      mapSize: `${game.mapWidth}x${game.mapHeight}`,
+      createdAt: game.createdAt.toISOString(),
+      canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
+    };
   }
 
   /**
@@ -160,46 +158,56 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
     try {
       const gamesQuery = await this.databaseProvider.getDatabase().query.games.findMany({
         with: {
-          host: {
-            columns: {
-              username: true,
-            },
-          },
+          host: { columns: { username: true } },
           players: {
-            columns: {
-              id: true,
-              userId: true,
-              civilization: true,
-              connectionStatus: true,
-            },
+            columns: { id: true, userId: true, civilization: true, connectionStatus: true },
           },
         },
         orderBy: (games, { desc }) => [desc(games.createdAt)],
       });
 
-      return gamesQuery.map(game => ({
-        id: game.id,
-        name: game.name,
-        hostName: game.host?.username || 'Unknown',
-        status: game.status,
-        currentPlayers: game.players?.length || 0,
-        maxPlayers: game.maxPlayers,
-        currentTurn: game.currentTurn,
-        mapSize: `${game.mapWidth}x${game.mapHeight}`,
-        createdAt: game.createdAt.toISOString(),
-        canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
-        isPlayer: userId ? game.players?.some(p => p.userId === userId) : false,
-        players:
-          game.players?.map(p => ({
-            id: p.id,
-            civilization: p.civilization,
-            isConnected: p.connectionStatus === 'connected',
-          })) || [],
-      }));
+      return gamesQuery.map(game => this.formatGameRow(game, userId));
     } catch (error) {
       this.logger.error('Error fetching games from database:', error);
       return [];
     }
+  }
+
+  private formatGameRow(game: any, userId?: string | null): any {
+    return {
+      id: game.id,
+      name: game.name,
+      hostName: game.host?.username || 'Unknown',
+      status: game.status,
+      currentPlayers: game.players?.length || 0,
+      maxPlayers: game.maxPlayers,
+      currentTurn: game.currentTurn,
+      mapSize: `${game.mapWidth}x${game.mapHeight}`,
+      createdAt: game.createdAt.toISOString(),
+      canJoin: this.isJoinable(game),
+      isPlayer: this.isUserPlayer(game, userId),
+      players: this.mapPlayersForRow(game.players),
+    };
+  }
+
+  private isJoinable(game: any): boolean {
+    const count = game.players?.length || 0;
+    return game.status === 'waiting' && count < game.maxPlayers;
+  }
+
+  private isUserPlayer(game: any, userId?: string | null): boolean {
+    if (!userId) return false;
+    return game.players?.some((p: any) => p.userId === userId) || false;
+  }
+
+  private mapPlayersForRow(players?: any[]): any[] {
+    return (
+      players?.map((p: any) => ({
+        id: p.id,
+        civilization: p.civilization,
+        isConnected: p.connectionStatus === 'connected',
+      })) || []
+    );
   }
 
   /**
@@ -307,26 +315,27 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
    */
   private serializeMapTiles(tiles: any[][]): any {
     try {
-      const serializedTiles = tiles.map(row =>
-        row.map(tile => ({
-          terrain: tile.terrain,
-          resource: tile.resource || null,
-          improvement: tile.improvement || null,
-          altitude: tile.altitude || 0,
-          temperature: tile.temperature || 0,
-          moisture: tile.moisture || 0,
-          riverMask: tile.riverMask || 0,
-          special: tile.special || null,
-          x: tile.x,
-          y: tile.y,
-        }))
-      );
-
+      const serializedTiles = tiles.map(row => row.map(tile => this.serializeTile(tile)));
       return serializedTiles;
     } catch (error) {
       this.logger.error('Error serializing map tiles:', error);
       throw error;
     }
+  }
+
+  private serializeTile(tile: any): any {
+    return {
+      terrain: tile.terrain,
+      resource: tile.resource || null,
+      improvement: tile.improvement || null,
+      altitude: tile.altitude || 0,
+      temperature: tile.temperature || 0,
+      moisture: tile.moisture || 0,
+      riverMask: tile.riverMask || 0,
+      special: tile.special || null,
+      x: tile.x,
+      y: tile.y,
+    };
   }
 
   /**
@@ -342,18 +351,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
 
       // Restore tile objects with all properties
       const tiles = compressedTiles.map((row: any[]) =>
-        row.map((tileData: any) => ({
-          terrain: tileData.terrain || 'ocean',
-          resource: tileData.resource || null,
-          improvement: tileData.improvement || null,
-          altitude: tileData.altitude || 0,
-          temperature: tileData.temperature || 0,
-          moisture: tileData.moisture || 0,
-          riverMask: tileData.riverMask || 0,
-          special: tileData.special || null,
-          x: tileData.x || 0,
-          y: tileData.y || 0,
-        }))
+        row.map((tileData: any) => this.deserializeTile(tileData))
       );
 
       this.logger.debug('Deserialized map tiles successfully', {
@@ -367,6 +365,51 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       this.logger.info('Creating empty tile array as fallback');
       return this.createEmptyTileArray(width, height);
     }
+  }
+
+  private deserializeTile(tileData: any): any {
+    const d = this.sanitizeTileData(tileData);
+    return {
+      terrain: d.terrain,
+      resource: d.resource,
+      improvement: d.improvement,
+      altitude: d.altitude,
+      temperature: d.temperature,
+      moisture: d.moisture,
+      riverMask: d.riverMask,
+      special: d.special,
+      x: d.x,
+      y: d.y,
+    };
+  }
+
+  // Reduce complexity by isolating defaulting logic into helpers (behavior preserved)
+  private sanitizeTileData(tileData: any): any {
+    const t = tileData || {};
+    return {
+      terrain: this.toStringOr(t.terrain, 'ocean'),
+      resource: this.toNullableString(t.resource),
+      improvement: this.toNullableString(t.improvement),
+      altitude: this.toNumberOr(t.altitude, 0),
+      temperature: this.toNumberOr(t.temperature, 0),
+      moisture: this.toNumberOr(t.moisture, 0),
+      riverMask: this.toNumberOr(t.riverMask, 0),
+      special: this.toNullableString(t.special),
+      x: this.toNumberOr(t.x, 0),
+      y: this.toNumberOr(t.y, 0),
+    };
+  }
+
+  private toNumberOr(value: any, fallback: number): number {
+    return typeof value === 'number' ? value : fallback;
+  }
+
+  private toStringOr(value: any, fallback: string): string {
+    return typeof value === 'string' && value.length > 0 ? value : fallback;
+  }
+
+  private toNullableString(value: any): string | null {
+    return typeof value === 'string' && value.length > 0 ? value : null;
   }
 
   /**

@@ -66,28 +66,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
     try {
       logger.info('Attempting to recover game instance from database', { gameId });
 
-      // Get game from database with all related data
-      const game = await this.databaseProvider.getDatabase().query.games.findFirst({
-        where: eq(games.id, gameId),
-        with: {
-          players: true,
-        },
-      });
-
-      if (!game || game.status !== 'active') {
-        logger.warn('Game not found or not active, cannot recover', {
-          gameId,
-          found: !!game,
-          status: game?.status,
-        });
-        return null;
-      }
-
-      // Check if map data exists in database
-      if (!game.mapData || !game.mapSeed) {
-        logger.warn('No map data found in database, cannot recover game instance', { gameId });
-        return null;
-      }
+      const game = await this.fetchGameRecord(gameId);
+      if (!game) return null;
 
       logger.info('Recovering game instance with map data', {
         gameId,
@@ -95,125 +75,207 @@ export class GameInstanceRecoveryService extends BaseGameService {
         mapSize: `${game.mapWidth}x${game.mapHeight}`,
       });
 
-      // Reconstruct player state map
-      const players = new Map<string, PlayerState>();
-      for (const dbPlayer of game.players) {
-        players.set(dbPlayer.id, {
-          id: dbPlayer.id,
-          userId: dbPlayer.userId,
-          playerNumber: dbPlayer.playerNumber,
-          civilization: dbPlayer.civilization,
-          isReady: dbPlayer.isReady || false,
-          hasEndedTurn: dbPlayer.hasEndedTurn || false,
-          isConnected: dbPlayer.connectionStatus === 'connected',
-          lastSeen: new Date(),
-        });
+      const players = this.buildPlayersMap(game, gameId);
 
-        // Track player to game mapping
-        this.playerToGame.set(dbPlayer.id, gameId);
-      }
+      const mapManager = await this.createAndRestoreMapManager(game);
 
-      // Extract terrain settings from stored game state
-      const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
-      const temperatureParam = storedTerrainSettings?.temperature ?? 50;
+      const managers = await this.createManagers(gameId, game, mapManager, players);
 
-      // Create MapManager and restore map data from database
-      const mapManager = new MapManager(
-        game.mapWidth,
-        game.mapHeight,
-        undefined,
-        'recovered',
-        undefined,
-        undefined,
-        false,
-        temperatureParam
-      );
-      await this.restoreMapDataToManager(mapManager, game.mapData as any, game.mapSeed!);
+      const gameInstance = this.buildRecoveredGameInstance(gameId, game, players, managers);
 
-      // Initialize managers (now that mapManager is available)
-      const turnManager = new TurnManager(gameId, this.databaseProvider, this.io);
-      const unitManager = new UnitManager(
-        gameId,
-        this.databaseProvider,
-        game.mapWidth,
-        game.mapHeight,
-        mapManager,
-        {
-          foundCity: this.foundCity.bind(this),
-          requestPath: this.requestPath.bind(this),
-          broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
-            this.broadcastToGame(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
-          },
-          getCityAt: (x: number, y: number) => {
-            const city = cityManager.getCityAt(x, y);
-            return city ? { playerId: city.playerId } : null;
-          },
-        }
-      );
-
-      // Initialize turn system with existing player IDs
-      const playerIds = Array.from(players.keys());
-      await turnManager.initializeTurn(playerIds);
-      const cityManager = new CityManager(gameId, this.databaseProvider, undefined, {
-        createUnit: (playerId: string, unitType: string, x: number, y: number) =>
-          this.createUnit(gameId, playerId, unitType, x, y),
-      });
-      const researchManager = new ResearchManager(gameId, this.databaseProvider);
-      const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
-
-      const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
-
-      // Create recovered game instance
-      const gameInstance: GameInstance = {
-        id: gameId,
-        config: {
-          name: game.name,
-          hostId: game.hostId,
-          maxPlayers: game.maxPlayers,
-          mapWidth: game.mapWidth,
-          mapHeight: game.mapHeight,
-          ruleset: game.ruleset || 'classic',
-          turnTimeLimit: game.turnTimeLimit || undefined,
-          victoryConditions: (game.victoryConditions as string[]) || [
-            'conquest',
-            'science',
-            'culture',
-          ],
-        },
-        state: 'active',
-        currentTurn: game.currentTurn,
-        turnPhase: game.turnPhase as TurnPhase,
-        players,
-        turnManager,
-        mapManager,
-        unitManager,
-        visibilityManager,
-        cityManager,
-        researchManager,
-        pathfindingManager,
-        lastActivity: new Date(),
-      };
-
-      // Store the recovered game instance
       this.games.set(gameId, gameInstance);
 
-      // Load data from database into managers
-      await cityManager.loadCities();
-      await unitManager.loadUnits();
+      await this.loadDataIntoManagers(managers);
 
-      // Initialize research and visibility for all players
-      for (const player of players.values()) {
-        await researchManager.initializePlayerResearch(player.id);
-        visibilityManager.initializePlayerVisibility(player.id);
-        // Grant initial visibility around starting position
-        visibilityManager.updatePlayerVisibility(player.id);
-      }
+      await this.initializeResearchAndVisibility(
+        players,
+        managers.researchManager,
+        managers.visibilityManager
+      );
 
       logger.info('Game instance recovered successfully', { gameId });
       return gameInstance;
     } catch (error) {
       logger.error('Failed to recover game instance:', error);
       return null;
+    }
+  }
+
+  private async fetchGameRecord(gameId: string): Promise<any | null> {
+    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
+      where: eq(games.id, gameId),
+      with: { players: true },
+    });
+
+    if (!game || game.status !== 'active') {
+      logger.warn('Game not found or not active, cannot recover', {
+        gameId,
+        found: !!game,
+        status: game?.status,
+      });
+      return null;
+    }
+
+    if (!game.mapData || !game.mapSeed) {
+      logger.warn('No map data found in database, cannot recover game instance', { gameId });
+      return null;
+    }
+    return game;
+  }
+
+  private buildPlayersMap(game: any, gameId: string): Map<string, PlayerState> {
+    const players = new Map<string, PlayerState>();
+    for (const dbPlayer of game.players) {
+      players.set(dbPlayer.id, {
+        id: dbPlayer.id,
+        userId: dbPlayer.userId,
+        playerNumber: dbPlayer.playerNumber,
+        civilization: dbPlayer.civilization,
+        isReady: dbPlayer.isReady || false,
+        hasEndedTurn: dbPlayer.hasEndedTurn || false,
+        isConnected: dbPlayer.connectionStatus === 'connected',
+        lastSeen: new Date(),
+      });
+      this.playerToGame.set(dbPlayer.id, gameId);
+    }
+    return players;
+  }
+
+  private async createAndRestoreMapManager(game: any): Promise<MapManager> {
+    const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
+    const temperatureParam = storedTerrainSettings?.temperature ?? 50;
+    const mapManager = new MapManager(
+      game.mapWidth,
+      game.mapHeight,
+      undefined,
+      'recovered',
+      undefined,
+      undefined,
+      false,
+      temperatureParam
+    );
+    await this.restoreMapDataToManager(mapManager, game.mapData as any, game.mapSeed!);
+    return mapManager;
+  }
+
+  private async createManagers(
+    gameId: string,
+    game: any,
+    mapManager: MapManager,
+    players: Map<string, PlayerState>
+  ): Promise<{
+    turnManager: TurnManager;
+    unitManager: UnitManager;
+    cityManager: CityManager;
+    researchManager: ResearchManager;
+    pathfindingManager: PathfindingManager;
+    visibilityManager: VisibilityManager;
+  }> {
+    const turnManager = new TurnManager(gameId, this.databaseProvider, this.io);
+    const unitManager = new UnitManager(
+      gameId,
+      this.databaseProvider,
+      game.mapWidth,
+      game.mapHeight,
+      mapManager,
+      {
+        foundCity: this.foundCity.bind(this),
+        requestPath: this.requestPath.bind(this),
+        broadcastUnitMoved: (gid, unitId, x, y, movementLeft) => {
+          this.broadcastToGame(gid, 'unit_moved', { gameId: gid, unitId, x, y, movementLeft });
+        },
+        getCityAt: (x: number, y: number) => {
+          const city = cityManager.getCityAt(x, y);
+          return city ? { playerId: city.playerId } : null;
+        },
+      }
+    );
+
+    const playerIds = Array.from(players.keys());
+    await turnManager.initializeTurn(playerIds);
+
+    const cityManager = new CityManager(gameId, this.databaseProvider, undefined, {
+      createUnit: (playerId: string, unitType: string, x: number, y: number) =>
+        this.createUnit(gameId, playerId, unitType, x, y),
+    });
+    const researchManager = new ResearchManager(gameId, this.databaseProvider);
+    const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
+    const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
+
+    return {
+      turnManager,
+      unitManager,
+      cityManager,
+      researchManager,
+      pathfindingManager,
+      visibilityManager,
+    };
+  }
+
+  private buildRecoveredGameInstance(
+    gameId: string,
+    game: any,
+    players: Map<string, PlayerState>,
+    managers: {
+      turnManager: TurnManager;
+      unitManager: UnitManager;
+      cityManager: CityManager;
+      researchManager: ResearchManager;
+      pathfindingManager: PathfindingManager;
+      visibilityManager: VisibilityManager;
+    }
+  ): GameInstance {
+    return {
+      id: gameId,
+      config: {
+        name: game.name,
+        hostId: game.hostId,
+        maxPlayers: game.maxPlayers,
+        mapWidth: game.mapWidth,
+        mapHeight: game.mapHeight,
+        ruleset: game.ruleset || 'classic',
+        turnTimeLimit: game.turnTimeLimit || undefined,
+        victoryConditions: (game.victoryConditions as string[]) || [
+          'conquest',
+          'science',
+          'culture',
+        ],
+      },
+      state: 'active',
+      currentTurn: game.currentTurn,
+      turnPhase: game.turnPhase as TurnPhase,
+      players,
+      turnManager: managers.turnManager,
+      mapManager:
+        (managers.unitManager as any).mapManager ||
+        (managers as any).mapManager ||
+        managers.turnManager, // placeholder, mapManager is referenced separately
+      unitManager: managers.unitManager,
+      visibilityManager: managers.visibilityManager,
+      cityManager: managers.cityManager,
+      researchManager: managers.researchManager,
+      pathfindingManager: managers.pathfindingManager,
+      lastActivity: new Date(),
+    } as unknown as GameInstance;
+  }
+
+  private async loadDataIntoManagers(managers: {
+    cityManager: CityManager;
+    unitManager: UnitManager;
+  }): Promise<void> {
+    await managers.cityManager.loadCities();
+    await managers.unitManager.loadUnits();
+  }
+
+  private async initializeResearchAndVisibility(
+    players: Map<string, PlayerState>,
+    researchManager: ResearchManager,
+    visibilityManager: VisibilityManager
+  ): Promise<void> {
+    for (const player of players.values()) {
+      await researchManager.initializePlayerResearch(player.id);
+      visibilityManager.initializePlayerVisibility(player.id);
+      visibilityManager.updatePlayerVisibility(player.id);
     }
   }
 
@@ -278,24 +340,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
     for (let x = 0; x < width; x++) {
       tiles[x] = [];
       for (let y = 0; y < height; y++) {
-        // Default ocean tile
-        tiles[x][y] = {
-          x,
-          y,
-          terrain: 'ocean',
-          elevation: 0,
-          riverMask: 0,
-          continentId: 0,
-          isExplored: false,
-          isVisible: false,
-          hasRoad: false,
-          hasRailroad: false,
-          improvements: [],
-          unitIds: [],
-          properties: {},
-          temperature: 4, // TEMPERATE
-          wetness: 50,
-        };
+        tiles[x][y] = this.createDefaultTile(x, y);
       }
     }
 
@@ -303,22 +348,53 @@ export class GameInstanceRecoveryService extends BaseGameService {
     if (compressedTiles) {
       for (const [key, tileData] of Object.entries(compressedTiles)) {
         const [x, y] = key.split(',').map(Number);
-        if (
-          x >= 0 &&
-          x < width &&
-          y >= 0 &&
-          y < height &&
-          tileData &&
-          typeof tileData === 'object'
-        ) {
-          tiles[x][y] = {
-            ...tiles[x][y], // Keep default values
-            ...(tileData as any), // Override with stored data
-          };
+        if (this.isValidTileKey(x, y, width, height, tileData)) {
+          tiles[x][y] = this.applyTileData(tiles[x][y], tileData as any);
         }
       }
     }
 
     return tiles;
+  }
+
+  private createDefaultTile(x: number, y: number): any {
+    return {
+      x,
+      y,
+      terrain: 'ocean',
+      elevation: 0,
+      riverMask: 0,
+      continentId: 0,
+      isExplored: false,
+      isVisible: false,
+      hasRoad: false,
+      hasRailroad: false,
+      improvements: [],
+      unitIds: [],
+      properties: {},
+      temperature: 4, // TEMPERATE
+      wetness: 50,
+    };
+  }
+
+  private isValidTileKey(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    tileData: unknown
+  ): boolean {
+    return this.isWithinBounds(x, y, width, height) && !!tileData && typeof tileData === 'object';
+  }
+
+  private isWithinBounds(x: number, y: number, width: number, height: number): boolean {
+    return x >= 0 && x < width && y >= 0 && y < height;
+  }
+
+  private applyTileData(baseTile: any, tileData: any): any {
+    return {
+      ...baseTile, // Keep default values
+      ...tileData, // Override with stored data
+    };
   }
 }

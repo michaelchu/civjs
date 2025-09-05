@@ -123,86 +123,27 @@ export class TerrainGenerator {
     riverGenerator?: any
   ): Promise<void> {
     // Store dependencies for internal use
-    this.heightGenerator = heightGenerator;
-    this.temperatureMap = temperatureMap;
-    this.riverGenerator = riverGenerator;
-    // Constants from freeciv
-    const TERRAIN_OCEAN_DEPTH_MAXIMUM = 100; // From freeciv
+    this.setGenerationDependencies(heightGenerator, temperatureMap, riverGenerator);
 
-    // Step 1: HAS_POLES - normalize height map at poles to prevent excessive land
-    // @reference freeciv/server/generator/mapgen.c:899-901 normalize_hmap_poles()
-    if (this.heightMapProcessor.hasPoles()) {
-      this.heightMapProcessor.normalizeHmapPoles(heightMap, tiles);
-    }
+    // Step 1: Normalize poles if present
+    this.normalizePolesIfNeeded(heightMap, tiles);
 
-    // Step 2: Pick a non-ocean terrain for land_fill (temporary land terrain)
-    const land_fill = 'grassland'; // Simple default - in freeciv this searches terrain types
+    // Step 2: temporary land fill terrain (as in freeciv)
+    const land_fill: TerrainType = 'grassland';
 
-    // Step 3: Set shore level based on landpercent
-    // CRITICAL FIX: Use shore level from height generator (already in correct 0-255 scale)
-    // instead of calculating in 0-1000 scale which doesn't match normalized heights
-    const hmap_shore_level =
-      heightGenerator?.getShoreLevel?.() || Math.floor((255 * (100 - params.landpercent)) / 100);
+    // Step 3: Compute shore level
+    const hmap_shore_level = this.computeShoreLevel(heightGenerator, params.landpercent);
 
-    // Step 4: ini_hmap_low_level() - calculate low level for swamps
-    // hmap_low_level = (4 * swamp_pct * (hmap_max_level - hmap_shore_level)) / 100 + hmap_shore_level;
-    // const hmap_low_level = (4 * terrainParams.swamp_pct * (hmap_max_level - hmap_shore_level)) / 100 + hmap_shore_level;
+    // Step 5: Classify tiles into ocean/land (with neighbor-aware ocean depth)
+    this.classifyLandAndOcean(tiles, hmap_shore_level, land_fill);
 
-    // Step 5: Main iteration - set terrain based on height
+    // Step 6: Renormalize poles post land classification
+    this.renormalizePolesIfNeeded(heightMap, tiles);
 
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        // CRITICAL FIX: Use tile elevation instead of potentially corrupted heightMap
-        const tileHeight = tiles[x][y].elevation;
+    // Step 8: Initialize placement map and mark ocean tiles as placed
+    this.initializePlacementMapForOceans(tiles);
 
-        // Set as unknown first (freeciv: tile_set_terrain(ptile, T_UNKNOWN))
-        tiles[x][y].terrain = 'ocean'; // We'll use ocean as default
-
-        if (tileHeight < hmap_shore_level) {
-          // This tile should be ocean
-          let depth = ((hmap_shore_level - tileHeight) * 100) / hmap_shore_level;
-          let ocean = 0;
-          let land = 0;
-
-          // Count adjacent ocean/land for shallow connection prevention
-          const neighborCount = this.countOceanLandNeighbors(tiles, x, y, hmap_shore_level);
-          ocean = neighborCount.ocean;
-          land = neighborCount.land;
-
-          // Adjust depth based on neighbors
-          depth += (30 * (ocean - land)) / Math.max(1, ocean + land);
-          depth = Math.min(depth, TERRAIN_OCEAN_DEPTH_MAXIMUM);
-
-          // Generate sea ice based on temperature (simplified - freeciv has complex logic)
-          // For now, just set ocean depth-based terrain
-          if (depth > 50) {
-            tiles[x][y].terrain = 'deep_ocean';
-          } else {
-            tiles[x][y].terrain = 'ocean';
-          }
-        } else {
-          // This tile should be land - set to land_fill temporarily
-          tiles[x][y].terrain = land_fill;
-        }
-      }
-    }
-
-    // Step 6: HAS_POLES - renormalize height map and create polar land
-    // @reference freeciv/server/generator/mapgen.c:928-932
-    if (this.heightMapProcessor.hasPoles()) {
-      this.heightMapProcessor.renormalizeHmapPoles(heightMap, tiles);
-      // Note: make_polar_land() creates additional land at poles - not implemented yet
-    }
-
-    // Step 7: Temperature map is created here in freeciv
-    // destroy_tmap(); create_tmap(TRUE); - we handle this elsewhere
-
-    // Step 8: Create placed_map and set ocean tiles as placed
-    // @reference freeciv/server/generator/mapgen.c:939 create_placed_map()
-    this.placementMap.createPlacedMap();
-    this.placementMap.setAllOceanTilesPlaced(tiles);
-
-    // Get terrain parameters using freeciv algorithm
+    // Terrain parameter calculation (freeciv algorithm)
     const terrainParams = this.adjustTerrainParam(
       params.landpercent,
       params.steepness,
@@ -210,24 +151,118 @@ export class TerrainGenerator {
       params.temperature
     );
 
-    // Step 9: Relief generation
+    // Step 9: Relief generation (fracture vs standard)
+    this.generateRelief(tiles, heightMap, hmap_shore_level, terrainParams.mountain_pct);
+
+    // Step 9.5: Temperature map before terrain selection
+    this.createTemperatureIfAvailable(tiles, heightMap);
+
+    // Step 10: Place forests/deserts/etc. (requires hmap_low_level init)
+    this.placeTerrains(tiles, terrainParams, hmap_shore_level);
+
+    // Step 10.5: Continent assignment
+    this.finalizeContinents(tiles, this.generator === 'random');
+
+    // Step 11: Cleanup placement map
+    this.cleanupPlacementMap();
+
+    // Step 12: Final pole renormalization
+    this.finalPoleRenormalization();
+
+    // Step 14: River generation
+    await this.generateRiversIfAvailable(tiles);
+
+    // Debug sampling preserved (no side effects)
+    this.debugSampleTiles(tiles);
+  }
+
+  // --- Extracted helpers from makeLand ---
+
+  private setGenerationDependencies(
+    heightGenerator?: any,
+    temperatureMap?: TemperatureMap,
+    riverGenerator?: any
+  ): void {
+    this.heightGenerator = heightGenerator;
+    this.temperatureMap = temperatureMap;
+    this.riverGenerator = riverGenerator;
+  }
+
+  private normalizePolesIfNeeded(heightMap: number[], tiles: MapTile[][]): void {
+    if (this.heightMapProcessor.hasPoles()) {
+      this.heightMapProcessor.normalizeHmapPoles(heightMap, tiles);
+    }
+  }
+
+  private computeShoreLevel(heightGenerator: any | undefined, landpercent: number): number {
+    return heightGenerator?.getShoreLevel?.() || Math.floor((255 * (100 - landpercent)) / 100);
+  }
+
+  private classifyLandAndOcean(
+    tiles: MapTile[][],
+    hmap_shore_level: number,
+    land_fill: TerrainType
+  ): void {
+    const TERRAIN_OCEAN_DEPTH_MAXIMUM = 100; // From freeciv
+
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const tileHeight = tiles[x][y].elevation;
+        tiles[x][y].terrain = 'ocean';
+
+        if (tileHeight < hmap_shore_level) {
+          let depth = ((hmap_shore_level - tileHeight) * 100) / hmap_shore_level;
+          const neighborCount = this.countOceanLandNeighbors(tiles, x, y, hmap_shore_level);
+          const ocean = neighborCount.ocean;
+          const land = neighborCount.land;
+
+          depth += (30 * (ocean - land)) / Math.max(1, ocean + land);
+          depth = Math.min(depth, TERRAIN_OCEAN_DEPTH_MAXIMUM);
+
+          tiles[x][y].terrain = depth > 50 ? 'deep_ocean' : 'ocean';
+        } else {
+          tiles[x][y].terrain = land_fill;
+        }
+      }
+    }
+  }
+
+  private renormalizePolesIfNeeded(heightMap: number[], tiles: MapTile[][]): void {
+    if (this.heightMapProcessor.hasPoles()) {
+      this.heightMapProcessor.renormalizeHmapPoles(heightMap, tiles);
+      // Note: make_polar_land() is not implemented
+    }
+  }
+
+  private initializePlacementMapForOceans(tiles: MapTile[][]): void {
+    this.placementMap.createPlacedMap();
+    this.placementMap.setAllOceanTilesPlaced(tiles);
+  }
+
+  private generateRelief(
+    tiles: MapTile[][],
+    heightMap: number[],
+    hmap_shore_level: number,
+    mountain_pct: number
+  ): void {
     if (this.generator === 'fracture') {
-      // make_fracture_relief(); - special relief for fracture maps
       this.makeFractureRelief(tiles, heightMap, hmap_shore_level);
     } else {
-      // make_relief(); - standard relief (mountains/hills)
-      this.makeRelief(tiles, heightMap, hmap_shore_level, terrainParams.mountain_pct);
+      this.makeRelief(tiles, heightMap, hmap_shore_level, mountain_pct);
     }
+  }
 
-    // Step 9.5: Temperature map creation BEFORE terrain selection (CRITICAL FIX)
-    // @reference freeciv/server/generator/mapgen.c:1133 create_tmap(TRUE)
-    // MOVED EARLIER: Terrain selection needs temperature data!
+  private createTemperatureIfAvailable(tiles: MapTile[][], heightMap: number[]): void {
     if (this.temperatureMap) {
       this.createTemperatureMapInternal(tiles, heightMap);
     }
+  }
 
-    // Step 10: make_terrains() - place forests, deserts, etc. (NOW WITH PROPER TEMPERATURES)
-    // Initialize hmap_low_level for mountain conditions before terrain placement
+  private placeTerrains(
+    tiles: MapTile[][],
+    terrainParams: TerrainParams,
+    hmap_shore_level: number
+  ): void {
     const hmap_max_level = 1000;
     this.terrainPlacementProcessor.initializeHmapLowLevel(
       terrainParams.swamp_pct,
@@ -235,35 +270,33 @@ export class TerrainGenerator {
       hmap_max_level
     );
     this.terrainPlacementProcessor.makeTerrains(tiles, terrainParams);
+  }
 
-    // Step 10.5: Continent assignment in correct order (Phase 1 fix)
-    // @reference freeciv/server/generator/mapgen.c:1370-1377 sequence
-    // First remove tiny islands, then assign continent numbers
-    // CALIBRATION FIX: Make tiny island removal less aggressive for Random mode
-    const isRandomMode = this.generator === 'random';
+  private finalizeContinents(tiles: MapTile[][], isRandomMode: boolean): void {
     this.continentProcessor.removeTinyIslands(tiles, isRandomMode);
     this.continentProcessor.generateContinents(tiles);
+  }
 
-    // Step 11: destroy_placed_map() - cleanup
-    // @reference freeciv/server/generator/mapgen.c:1045 destroy_placed_map()
+  private cleanupPlacementMap(): void {
     this.placementMap.destroyPlacedMap();
+  }
 
-    // Step 12: Final pole renormalization (freeciv line 1128 equivalent)
-    // @reference freeciv/server/generator/mapgen.c:1127-1129
+  private finalPoleRenormalization(): void {
     if (this.heightGenerator) {
       this.heightGenerator.renormalizeHeightMapPoles();
     }
+  }
 
-    // Step 14: River generation (freeciv line 1150 equivalent)
-    // @reference freeciv/server/generator/mapgen.c:1150 make_rivers()
+  private async generateRiversIfAvailable(tiles: MapTile[][]): Promise<void> {
     if (this.riverGenerator) {
       await this.makeRivers(tiles);
     }
+  }
 
-    // DEBUG: Check tile completeness after terrain generation
+  private debugSampleTiles(tiles: MapTile[][]): void {
     let _completeCount = 0;
     let _incompleteCount = 0;
-    let sampleTile = null;
+    let sampleTile: MapTile | null = null;
 
     for (let x = 0; x < this.width && x < 5; x++) {
       for (let y = 0; y < this.height && y < 5; y++) {
@@ -276,6 +309,10 @@ export class TerrainGenerator {
         }
       }
     }
+    // Debug counters are intentionally unused; kept to preserve original diagnostics
+    void _completeCount;
+    void _incompleteCount;
+    void sampleTile;
   }
 
   /**
@@ -608,6 +645,111 @@ export class TerrainGenerator {
     hmap_shore_level: number
   ): void {
     // Calculate land area for mountain percentage calculations
+    const landarea = this.computeLandAreaAboveShore(heightMap, hmap_shore_level);
+
+    // Standard fracture relief parameters matching freeciv exactly
+    // @reference freeciv/server/generator/fracture_map.c:335
+    const hmap_max_level = 1000;
+    const hmap_mountain_level = (hmap_max_level + hmap_shore_level) / 2;
+
+    // First iteration: Place mountains and hills based on local elevation
+    // @reference freeciv/server/generator/fracture_map.c:313-338
+    const total_mtns_after_first = this.processFractureReliefFirstPass(
+      tiles,
+      heightMap,
+      hmap_mountain_level,
+      hmap_shore_level
+    );
+
+    // Second iteration: Ensure minimum mountain percentage based on steepness
+    // @reference freeciv/server/generator/fracture_map.c:340-366
+    const steepness = 30; // Default steepness setting (equivalent to wld.map.server.steepness)
+    const min_mountains = (landarea * steepness) / 100;
+
+    // Ensure we meet minimum mountains; return value unused, kept for clarity
+    void this.ensureMinimumMountains(
+      tiles,
+      heightMap,
+      hmap_shore_level,
+      total_mtns_after_first,
+      min_mountains
+    );
+  }
+
+  private shouldChooseMountain(
+    tileHeight: number,
+    localAvg: number,
+    tiles: MapTile[][],
+    heightMap: number[],
+    x: number,
+    y: number,
+    hmap_mountain_level: number,
+    hmap_shore_level: number
+  ): boolean {
+    return (
+      tileHeight > localAvg * 1.2 ||
+      (this.areaIsTooFlat(
+        tiles,
+        heightMap,
+        x,
+        y,
+        hmap_mountain_level,
+        tileHeight,
+        hmap_shore_level
+      ) &&
+        this.random() < 0.4)
+    );
+  }
+
+  private shouldChooseHill(
+    tileHeight: number,
+    localAvg: number,
+    tiles: MapTile[][],
+    heightMap: number[],
+    x: number,
+    y: number,
+    hmap_mountain_level: number,
+    hmap_shore_level: number
+  ): boolean {
+    return (
+      tileHeight > localAvg * 1.1 ||
+      (this.areaIsTooFlat(
+        tiles,
+        heightMap,
+        x,
+        y,
+        hmap_mountain_level,
+        tileHeight,
+        hmap_shore_level
+      ) &&
+        this.random() < 0.4)
+    );
+  }
+
+  private placeMountainTerrain(tile: MapTile, x: number, y: number): void {
+    tile.terrain = pickTerrain(
+      MapgenTerrainPropertyEnum.MOUNTAINOUS,
+      MapgenTerrainPropertyEnum.UNUSED,
+      MapgenTerrainPropertyEnum.GREEN,
+      this.random
+    );
+    this.placementMap.setPlaced(x, y);
+    this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
+  }
+
+  private placeHillTerrain(tile: MapTile, x: number, y: number): void {
+    tile.terrain = pickTerrain(
+      MapgenTerrainPropertyEnum.MOUNTAINOUS,
+      MapgenTerrainPropertyEnum.GREEN,
+      MapgenTerrainPropertyEnum.UNUSED,
+      this.random
+    );
+    this.placementMap.setPlaced(x, y);
+    this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
+  }
+
+  // Helper methods for fracture relief, extracted to reduce complexity of makeFractureRelief
+  private computeLandAreaAboveShore(heightMap: number[], hmap_shore_level: number): number {
     let landarea = 0;
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
@@ -617,14 +759,15 @@ export class TerrainGenerator {
         }
       }
     }
+    return landarea;
+  }
 
-    // Standard fracture relief parameters matching freeciv exactly
-    // @reference freeciv/server/generator/fracture_map.c:335
-    const hmap_max_level = 1000;
-    const hmap_mountain_level = (hmap_max_level + hmap_shore_level) / 2;
-
-    // First iteration: Place mountains and hills based on local elevation
-    // @reference freeciv/server/generator/fracture_map.c:313-338
+  private processFractureReliefFirstPass(
+    tiles: MapTile[][],
+    heightMap: number[],
+    hmap_mountain_level: number,
+    hmap_shore_level: number
+  ): number {
     let total_mtns = 0;
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
@@ -640,72 +783,54 @@ export class TerrainGenerator {
         // Calculate local average elevation
         const localAvg = this.heightMapProcessor.localAveElevation(heightMap, x, y);
 
-        // Exact freeciv mountain placement thresholds
-        // @reference freeciv/server/generator/fracture_map.c:317-321
-        const choose_mountain =
-          tileHeight > localAvg * 1.2 ||
-          (this.areaIsTooFlat(
-            tiles,
-            heightMap,
-            x,
-            y,
-            hmap_mountain_level,
-            tileHeight,
-            hmap_shore_level
-          ) &&
-            this.random() < 0.4);
+        // Exact freeciv thresholds
+        const choose_mountain = this.shouldChooseMountain(
+          tileHeight,
+          localAvg,
+          tiles,
+          heightMap,
+          x,
+          y,
+          hmap_mountain_level,
+          hmap_shore_level
+        );
 
-        const choose_hill =
-          tileHeight > localAvg * 1.1 ||
-          (this.areaIsTooFlat(
-            tiles,
-            heightMap,
-            x,
-            y,
-            hmap_mountain_level,
-            tileHeight,
-            hmap_shore_level
-          ) &&
-            this.random() < 0.4);
+        const choose_hill = this.shouldChooseHill(
+          tileHeight,
+          localAvg,
+          tiles,
+          heightMap,
+          x,
+          y,
+          hmap_mountain_level,
+          hmap_shore_level
+        );
 
-        // Exact freeciv coastal avoidance - ZERO EXCEPTIONS
-        // @reference freeciv/server/generator/fracture_map.c:322-326
-        // "The following avoids hills and mountains directly along the coast."
+        // Avoid coast
         if (this.oceanProcessor.hasOceanNeighbor(tiles, x, y)) {
-          continue; // choose_mountain = FALSE; choose_hill = FALSE;
+          continue;
         }
 
-        // Exact freeciv terrain placement logic
-        // @reference freeciv/server/generator/fracture_map.c:327-337
         if (choose_mountain) {
           total_mtns++;
-          tile.terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.MOUNTAINOUS,
-            MapgenTerrainPropertyEnum.UNUSED,
-            MapgenTerrainPropertyEnum.GREEN,
-            this.random
-          );
-          this.placementMap.setPlaced(x, y);
-          this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
+          this.placeMountainTerrain(tile, x, y);
         } else if (choose_hill) {
           total_mtns++;
-          tile.terrain = pickTerrain(
-            MapgenTerrainPropertyEnum.MOUNTAINOUS,
-            MapgenTerrainPropertyEnum.GREEN,
-            MapgenTerrainPropertyEnum.UNUSED,
-            this.random
-          );
-          this.placementMap.setPlaced(x, y);
-          this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
+          this.placeHillTerrain(tile, x, y);
         }
       }
     }
+    return total_mtns;
+  }
 
-    // Second iteration: Ensure minimum mountain percentage based on steepness
-    // @reference freeciv/server/generator/fracture_map.c:340-366
-    const steepness = 30; // Default steepness setting (equivalent to wld.map.server.steepness)
-    const min_mountains = (landarea * steepness) / 100;
-
+  private ensureMinimumMountains(
+    tiles: MapTile[][],
+    heightMap: number[],
+    hmap_shore_level: number,
+    total_mtns_start: number,
+    min_mountains: number
+  ): number {
+    let total_mtns = total_mtns_start;
     for (let iter = 0; total_mtns < min_mountains && iter < 50; iter++) {
       for (let x = 0; x < this.width; x++) {
         for (let y = 0; y < this.height; y++) {
@@ -714,30 +839,15 @@ export class TerrainGenerator {
           const tileHeight = heightMap[index];
 
           if (this.placementMap.notPlaced(x, y) && tileHeight > hmap_shore_level) {
-            // Exact freeciv random placement (lines 349-350)
             const choose_mountain = this.random() * 10000 < 10;
             const choose_hill = this.random() * 10000 < 10;
 
             if (choose_mountain) {
               total_mtns++;
-              tile.terrain = pickTerrain(
-                MapgenTerrainPropertyEnum.MOUNTAINOUS,
-                MapgenTerrainPropertyEnum.UNUSED,
-                MapgenTerrainPropertyEnum.GREEN,
-                this.random
-              );
-              this.placementMap.setPlaced(x, y);
-              this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
+              this.placeMountainTerrain(tile, x, y);
             } else if (choose_hill) {
               total_mtns++;
-              tile.terrain = pickTerrain(
-                MapgenTerrainPropertyEnum.MOUNTAINOUS,
-                MapgenTerrainPropertyEnum.GREEN,
-                MapgenTerrainPropertyEnum.UNUSED,
-                this.random
-              );
-              this.placementMap.setPlaced(x, y);
-              this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
+              this.placeHillTerrain(tile, x, y);
             }
           }
 
@@ -750,6 +860,7 @@ export class TerrainGenerator {
         }
       }
     }
+    return total_mtns;
   }
 
   /**

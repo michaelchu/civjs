@@ -111,7 +111,6 @@ export class MapManager {
     players: Map<string, PlayerState>,
     generatorType?: MapGeneratorType
   ): Promise<void> {
-    // Use provided generator type or fall back to instance default (matches freeciv behavior)
     const generator = generatorType || this.defaultGeneratorType;
 
     logger.info('Generating map', {
@@ -122,55 +121,12 @@ export class MapManager {
       reference: 'freeciv/server/generator/mapgen.c:1268-1427',
     });
 
-    let mapData: MapData;
-
     try {
-      // Implement freeciv's map_fractal_generate() routing logic
-      // @reference freeciv/server/generator/mapgen.c:1315-1358
-      // Handle FAIR generator with explicit fallback logic (matches freeciv behavior)
-      if (generator === 'FAIR') {
-        try {
-          // Attempt fair islands generation, fallback to ISLAND if failed
-          mapData = await this.fairIslandsService.generateMap(players);
-        } catch (error) {
-          if (error instanceof Error && error.message === 'FALLBACK_TO_ISLAND') {
-            logger.info('Fair islands generation failed, falling back to ISLAND generator');
-            // Explicit fallback to ISLAND (matches freeciv mapgen.c:1315-1318)
-            // Use 'ALL' startpos mode for fair island fallback (maps to mapGenerator4)
-            mapData = await this.islandMapService.generateMap(players, MapStartpos.ALL);
-          } else {
-            throw error;
-          }
-        }
-      } else {
-        // Handle other generators with standard routing
-        switch (generator) {
-          case 'ISLAND':
-            // Use instance default startpos mode for island generation
-            mapData = await this.islandMapService.generateMap(players, this.defaultStartPosMode);
-            break;
+      const mapData =
+        generator === 'FAIR'
+          ? await this.generateFairMap(players)
+          : await this.generateByType(players, generator);
 
-          case 'RANDOM':
-            mapData = await this.heightBasedMapService.generateMap(players, 'RANDOM');
-            break;
-
-          case 'FRACTURE':
-            mapData = await this.heightBasedMapService.generateMap(players, 'FRACTURE');
-            break;
-
-          case 'SCENARIO':
-            throw new Error(
-              'SCENARIO generator not implemented - scenarios should be loaded from file'
-            );
-
-          case 'FRACTAL':
-          default:
-            mapData = await this.heightBasedMapService.generateMap(players, 'FRACTAL');
-            break;
-        }
-      }
-
-      // Set the map data in the access service for API compatibility
       this.mapAccessService.setMapData(mapData);
 
       logger.info('Map generation completed successfully', {
@@ -185,6 +141,39 @@ export class MapManager {
         error: error instanceof Error ? error.message : error,
       });
       throw error;
+    }
+  }
+
+  private async generateFairMap(players: Map<string, PlayerState>): Promise<MapData> {
+    try {
+      return await this.fairIslandsService.generateMap(players);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'FALLBACK_TO_ISLAND') {
+        logger.info('Fair islands generation failed, falling back to ISLAND generator');
+        return await this.islandMapService.generateMap(players, MapStartpos.ALL);
+      }
+      throw error;
+    }
+  }
+
+  private async generateByType(
+    players: Map<string, PlayerState>,
+    generator: MapGeneratorType
+  ): Promise<MapData> {
+    switch (generator) {
+      case 'ISLAND':
+        return await this.islandMapService.generateMap(players, this.defaultStartPosMode);
+      case 'RANDOM':
+        return await this.heightBasedMapService.generateMap(players, 'RANDOM');
+      case 'FRACTURE':
+        return await this.heightBasedMapService.generateMap(players, 'FRACTURE');
+      case 'SCENARIO':
+        throw new Error(
+          'SCENARIO generator not implemented - scenarios should be loaded from file'
+        );
+      case 'FRACTAL':
+      default:
+        return await this.heightBasedMapService.generateMap(players, 'FRACTAL');
     }
   }
 

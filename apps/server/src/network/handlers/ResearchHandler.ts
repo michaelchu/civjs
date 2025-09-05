@@ -86,7 +86,7 @@ export class ResearchHandler extends BaseSocketHandler {
     }
 
     try {
-      const game = await this.gameManager.getGame(connection.gameId!);
+      const game = await this.resolveGame(connection);
       if (!game || game.state !== 'active') {
         handler.send(socket, PacketType.RESEARCH_SET_REPLY, {
           success: false,
@@ -95,9 +95,7 @@ export class ResearchHandler extends BaseSocketHandler {
         return;
       }
 
-      const player = Array.from(game.players.values()).find(
-        (p: any) => p.userId === connection.userId
-      ) as any;
+      const player = this.resolvePlayer(connection, game);
       if (!player) {
         handler.send(socket, PacketType.RESEARCH_SET_REPLY, {
           success: false,
@@ -115,13 +113,7 @@ export class ResearchHandler extends BaseSocketHandler {
 
       handler.send(socket, PacketType.RESEARCH_SET_REPLY, {
         success: true,
-        availableTechs: availableTechs.map(tech => ({
-          id: tech.id,
-          name: tech.name,
-          cost: tech.cost,
-          requirements: tech.requirements,
-          description: tech.description,
-        })),
+        availableTechs: this.mapTechs(availableTechs),
       });
 
       logger.debug('Research set', {
@@ -153,7 +145,7 @@ export class ResearchHandler extends BaseSocketHandler {
     }
 
     try {
-      const game = await this.gameManager.getGame(connection.gameId!);
+      const game = await this.resolveGame(connection);
       if (!game || game.state !== 'active') {
         handler.send(socket, PacketType.RESEARCH_GOAL_SET_REPLY, {
           success: false,
@@ -162,9 +154,7 @@ export class ResearchHandler extends BaseSocketHandler {
         return;
       }
 
-      const player = Array.from(game.players.values()).find(
-        (p: any) => p.userId === connection.userId
-      ) as any;
+      const player = this.resolvePlayer(connection, game);
       if (!player) {
         handler.send(socket, PacketType.RESEARCH_GOAL_SET_REPLY, {
           success: false,
@@ -204,12 +194,10 @@ export class ResearchHandler extends BaseSocketHandler {
     }
 
     try {
-      const game = await this.gameManager.getGame(connection.gameId!);
+      const game = await this.resolveGame(connection);
       if (!game) return;
 
-      const player = Array.from(game.players.values()).find(
-        (p: any) => p.userId === connection.userId
-      ) as any;
+      const player = this.resolvePlayer(connection, game);
       if (!player) return;
 
       const availableTechs = this.gameManager.getAvailableTechnologies(
@@ -219,13 +207,7 @@ export class ResearchHandler extends BaseSocketHandler {
       const playerResearch = this.gameManager.getPlayerResearch(connection.gameId!, player.id);
 
       handler.send(socket, PacketType.RESEARCH_LIST_REPLY, {
-        availableTechs: availableTechs.map(tech => ({
-          id: tech.id,
-          name: tech.name,
-          cost: tech.cost,
-          requirements: tech.requirements,
-          description: tech.description,
-        })),
+        availableTechs: this.mapTechs(availableTechs),
         researchedTechs: playerResearch ? Array.from(playerResearch.researchedTechs) : [],
       });
 
@@ -251,24 +233,18 @@ export class ResearchHandler extends BaseSocketHandler {
     }
 
     try {
-      const game = await this.gameManager.getGame(connection.gameId!);
-      if (!game) return;
-
-      const player = Array.from(game.players.values()).find(
-        (p: any) => p.userId === connection.userId
-      ) as any;
-      if (!player) return;
+      const ctx = await this.resolveProgressContext(connection);
+      if (!ctx) return;
+      const { player } = ctx;
 
       const playerResearch = this.gameManager.getPlayerResearch(connection.gameId!, player.id);
       const progress = this.gameManager.getResearchProgress(connection.gameId!, player.id);
 
-      handler.send(socket, PacketType.RESEARCH_PROGRESS_REPLY, {
-        currentTech: playerResearch?.currentTech,
-        techGoal: playerResearch?.techGoal,
-        current: progress?.current || 0,
-        required: progress?.required || 0,
-        turnsRemaining: progress?.turnsRemaining || -1,
-      });
+      handler.send(
+        socket,
+        PacketType.RESEARCH_PROGRESS_REPLY,
+        this.buildProgressReply(playerResearch, progress)
+      );
 
       logger.debug('Sent research progress', {
         gameId: connection.gameId,
@@ -279,5 +255,47 @@ export class ResearchHandler extends BaseSocketHandler {
     } catch (error) {
       logger.error('Error getting research progress:', error);
     }
+  }
+
+  private async resolveGame(connection: any): Promise<any | null> {
+    if (!connection?.gameId) return null;
+    return this.gameManager.getGame(connection.gameId);
+  }
+
+  private resolvePlayer(connection: any, game: any): any | null {
+    if (!connection?.userId || !game?.players) return null;
+    return (
+      Array.from(game.players.values()).find((p: any) => p.userId === connection.userId) || null
+    );
+  }
+
+  private async resolveProgressContext(
+    connection: any
+  ): Promise<{ game: any; player: any } | null> {
+    const game = await this.resolveGame(connection);
+    if (!game) return null;
+    const player = this.resolvePlayer(connection, game);
+    if (!player) return null;
+    return { game, player };
+  }
+
+  private buildProgressReply(playerResearch: any | undefined, progress: any | undefined) {
+    return {
+      currentTech: playerResearch?.currentTech,
+      techGoal: playerResearch?.techGoal,
+      current: progress?.current || 0,
+      required: progress?.required || 0,
+      turnsRemaining: progress?.turnsRemaining || -1,
+    };
+  }
+
+  private mapTechs(techs: any[]): any[] {
+    return techs.map(tech => ({
+      id: tech.id,
+      name: tech.name,
+      cost: tech.cost,
+      requirements: tech.requirements,
+      description: tech.description,
+    }));
   }
 }

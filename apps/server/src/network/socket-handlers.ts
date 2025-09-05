@@ -1642,7 +1642,9 @@ async function sendObserverMapData(
   }
 
   logger.debug(
-    `Sent ${allTiles.length} tiles in ${Math.ceil(allTiles.length / BATCH_SIZE)} batches to observer`
+    `Sent ${allTiles.length} tiles in ${Math.ceil(
+      allTiles.length / BATCH_SIZE
+    )} batches to observer`
   );
 }
 

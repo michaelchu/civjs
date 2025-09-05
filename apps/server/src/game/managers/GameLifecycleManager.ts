@@ -168,84 +168,22 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       throw new Error('Game not found');
     }
 
-    if (game.hostId !== hostId) {
-      throw new Error('Only the host can start the game');
-    }
-
-    // Different minimum requirements for single vs multiplayer
-    const minPlayers = game.gameType === 'single' ? 1 : serverConfig.game.minPlayersToStart;
-    if (game.players.length < minPlayers) {
-      throw new Error(`Need at least ${minPlayers} players to start`);
-    }
-
-    if (game.status !== 'waiting') {
-      throw new Error('Game is not in waiting state');
-    }
+    // Validate start conditions (preserves exact error messages)
+    this.validateStartConditions(game, hostId);
 
     this.logger.info('Starting game', { gameId, playerCount: game.players.length });
 
     // Update database to active state
-    await this.databaseProvider
-      .getDatabase()
-      .update(games)
-      .set({
-        status: 'active',
-        startedAt: new Date(),
-        currentTurn: 1,
-      })
-      .where(eq(games.id, gameId));
+    await this.activateGameRecord(gameId);
 
     // Update Redis cache
-    await gameState.setGameState(gameId, {
-      state: 'active',
-      currentTurn: 1,
-      turnPhase: 'movement',
-      playerCount: game.players.length,
-    });
+    await this.updateRedisForGameStart(gameId, game.players.length);
 
     // Create a preliminary game instance with players to enable broadcasts during initialization
-    const preliminaryPlayers = new Map<string, PlayerState>();
-    for (const dbPlayer of game.players) {
-      preliminaryPlayers.set(dbPlayer.id, {
-        id: dbPlayer.id,
-        userId: dbPlayer.userId,
-        playerNumber: dbPlayer.playerNumber,
-        civilization: dbPlayer.civilization,
-        isReady: false,
-        hasEndedTurn: false,
-        isConnected: true,
-        lastSeen: new Date(),
-      });
-    }
+    const preliminaryPlayers = this.buildPlayersMapFromDb(game.players);
 
     // Store preliminary instance to enable broadcasts during initialization
-    const preliminaryInstance: GameInstance = {
-      id: gameId,
-      config: {
-        name: game.name,
-        hostId: game.hostId,
-        gameType: game.gameType as 'single' | 'multiplayer' | undefined,
-        maxPlayers: game.maxPlayers ?? undefined,
-        mapWidth: game.mapWidth ?? undefined,
-        mapHeight: game.mapHeight ?? undefined,
-        ruleset: game.ruleset ?? undefined,
-        turnTimeLimit: game.turnTimeLimit ?? undefined,
-        victoryConditions: game.victoryConditions as string[] | undefined,
-        terrainSettings: (game.gameState as any)?.terrainSettings,
-      },
-      state: 'active',
-      currentTurn: 1,
-      turnPhase: 'movement',
-      players: preliminaryPlayers,
-      turnManager: null as any,
-      mapManager: null as any,
-      unitManager: null as any,
-      visibilityManager: null as any,
-      cityManager: null as any,
-      researchManager: null as any,
-      pathfindingManager: null as any,
-      lastActivity: new Date(),
-    };
+    const preliminaryInstance = this.buildPreliminaryInstance(gameId, game, preliminaryPlayers);
     this.games.set(gameId, preliminaryInstance);
 
     // Initialize the full game instance with map generation
@@ -279,147 +217,25 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     this.logger.info('Initializing game instance', { gameId });
 
     // Create player state map
-    const players = new Map<string, PlayerState>();
-    for (const dbPlayer of game.players) {
-      players.set(dbPlayer.id, {
-        id: dbPlayer.id,
-        userId: dbPlayer.userId,
-        playerNumber: dbPlayer.playerNumber,
-        civilization: dbPlayer.civilization,
-        isReady: false,
-        hasEndedTurn: false,
-        isConnected: true,
-        lastSeen: new Date(),
-      });
-    }
+    const players = this.buildPlayersMapFromDb(game.players);
 
-    // Initialize managers with terrain settings
-    const mapGenerator = terrainSettings?.generator || 'random';
-    const temperatureParam = terrainSettings?.temperature ?? 50;
-    const mapManager = new MapManager(
-      game.mapWidth,
-      game.mapHeight,
-      undefined,
-      mapGenerator,
-      undefined,
-      undefined,
-      false,
-      temperatureParam
-    );
-
-    const turnManager = new TurnManager(gameId, this.databaseProvider, this.io);
-
-    // Initialize turn system with player IDs
-    const playerIds = Array.from(players.keys());
-    await turnManager.initializeTurn(playerIds);
-
-    // Create cityManager first to avoid circular dependency
-    const cityManager = new CityManager(gameId, this.databaseProvider, undefined, {
-      createUnit: (_playerId: string, _unitType: string, _x: number, _y: number) =>
-        // This callback will be handled by the main GameManager
-        Promise.resolve(''),
-    });
-
-    // Create UnitManager with proper dependencies
-    const unitManager = new UnitManager(
-      gameId,
-      this.databaseProvider,
-      game.mapWidth,
-      game.mapHeight,
-      mapManager,
-      {
-        foundCity: this.onFoundCity
-          ? (gameId: string, playerId: string, name: string, x: number, y: number) =>
-              this.onFoundCity!(gameId, playerId, name, x, y)
-          : async () => '',
-        requestPath: async (playerId: string, unitId: string, targetX: number, targetY: number) => {
-          // Delegate to the main GameManager's requestPath method
-          // We need access to the GameManager instance that created this lifecycle manager
-
-          // For now, we'll use a direct approach through the games map
-          // This should be the same GameManager instance that created us
-          const gameInstance = this.games.get(gameId);
-          if (!gameInstance) {
-            return { success: false, error: 'Game instance not found' };
-          }
-
-          // Use the GameManager's pathfinding directly via the game instance
-          try {
-            const unit = gameInstance.unitManager.getUnit(unitId);
-            if (!unit) {
-              return { success: false, error: 'Unit not found' };
-            }
-
-            if (unit.playerId !== playerId) {
-              return { success: false, error: 'Unit does not belong to player' };
-            }
-
-            // Call PathfindingManager directly
-            const pathResult = await gameInstance.pathfindingManager.findPath(
-              unit,
-              targetX,
-              targetY
-            );
-
-            const tiles = Array.isArray(pathResult?.path) ? pathResult.path : [];
-            const isValid = pathResult?.valid && tiles.length > 0;
-
-            return {
-              success: isValid,
-              path: isValid
-                ? {
-                    unitId,
-                    targetX,
-                    targetY,
-                    tiles: tiles,
-                    totalCost: pathResult.totalCost || 0,
-                    estimatedTurns: pathResult.estimatedTurns || 0,
-                    valid: isValid,
-                  }
-                : undefined,
-              error: isValid ? undefined : 'No valid path found',
-            };
-          } catch (error) {
-            logger.error('Error in GameLifecycleManager requestPath delegation:', error);
-            return { success: false, error: 'Pathfinding error' };
-          }
-        },
-        broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
-          this.onBroadcast?.(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
-        },
-        getCityAt: (x: number, y: number) => {
-          const city = cityManager.getCityAt(x, y);
-          return city ? { playerId: city.playerId } : null;
-        },
-      }
-    );
-
-    const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
-
-    const researchManager = new ResearchManager(gameId, this.databaseProvider);
-    const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
+    // Create managers
+    const mapManager = this.createMapManager(game, terrainSettings);
+    const turnManager = await this.createTurnManagerAndInitialize(gameId, players);
+    const cityManager = this.createCityManager(gameId);
+    const unitManager = this.createUnitManager(gameId, game, mapManager, cityManager);
+    const visibilityManager = this.createVisibilityManager(gameId, unitManager, mapManager);
+    const researchManager = this.createResearchManager(gameId);
+    const pathfindingManager = this.createPathfindingManager(game, mapManager);
 
     // Generate the map with starting positions based on terrain settings
     await this.generateGameMap(gameId, mapManager, players, terrainSettings, unitManager);
 
     // Create game instance
-    const gameInstance: GameInstance = {
-      id: gameId,
-      config: {
-        name: game.name,
-        hostId: game.hostId,
-        gameType: game.gameType,
-        maxPlayers: game.maxPlayers,
-        mapWidth: game.mapWidth,
-        mapHeight: game.mapHeight,
-        ruleset: game.ruleset,
-        turnTimeLimit: game.turnTimeLimit,
-        victoryConditions: game.victoryConditions,
-        terrainSettings: terrainSettings,
-      },
-      state: 'active',
-      currentTurn: 1,
-      turnPhase: 'movement',
+    const gameInstance: GameInstance = this.buildGameInstance(
+      gameId,
+      game,
+      terrainSettings,
       players,
       turnManager,
       mapManager,
@@ -427,9 +243,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       visibilityManager,
       cityManager,
       researchManager,
-      pathfindingManager,
-      lastActivity: new Date(),
-    };
+      pathfindingManager
+    );
 
     this.logger.info('Game instance initialized successfully', {
       gameId,
@@ -549,59 +364,111 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     this.logger.debug('Map generation starting', { terrainSettings, generator, startpos });
 
     const generatorType = this.convertGeneratorType(generator);
-    let generationAttempted = false;
-    let lastError: Error | null = null;
 
+    const generated = await this.tryGenerate(mapManager, players, generator, generatorType);
+
+    // Emergency fallback sequence (defensive addition, not in freeciv)
+    if (!generated || !mapManager.getMapData()) {
+      await this.performEmergencyFallback(mapManager, players, generatorType);
+    }
+
+    await this.persistAndBroadcast(
+      gameId,
+      mapManager,
+      terrainSettings,
+      unitManager,
+      players,
+      generatorType
+    );
+  }
+
+  /**
+   * Convert generator string to MapGeneratorType
+   * @reference Original GameManager.ts:1104-1123 convertGeneratorType()
+   */
+  private convertGeneratorType(generator: string): MapGeneratorType {
+    switch (generator.toLowerCase()) {
+      case 'random':
+        return 'RANDOM';
+      case 'fractal':
+        return 'FRACTAL';
+      case 'island':
+        return 'ISLAND';
+      case 'fair':
+        return 'FAIR';
+      case 'scenario':
+        return 'SCENARIO';
+      default:
+        this.logger.warn(`Unknown generator type: ${generator}, defaulting to RANDOM`);
+        return 'RANDOM';
+    }
+  }
+
+  private async tryGenerate(
+    mapManager: MapManager,
+    players: Map<string, PlayerState>,
+    generator: string,
+    generatorType: MapGeneratorType
+  ): Promise<boolean> {
     try {
       this.logger.info('Delegating to restructured MapManager', {
         generator,
         generatorType,
         reference: 'apps/server/src/game/MapManager.ts:97-138',
       });
-
-      // Delegate to restructured MapManager system
       await mapManager.generateMap(players, generatorType);
-      generationAttempted = true;
+      return true;
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
+      const lastError = error instanceof Error ? error : new Error(String(error));
       this.logger.error('Map generation failed, attempting emergency recovery', {
         generator: generatorType,
         error: lastError.message,
       });
+      return false;
     }
+  }
 
-    // Emergency fallback sequence (defensive addition, not in freeciv)
-    if (!generationAttempted || !mapManager.getMapData()) {
-      this.logger.warn('Initiating emergency fallback sequence (defensive extension)');
+  private async performEmergencyFallback(
+    mapManager: MapManager,
+    players: Map<string, PlayerState>,
+    generatorType: MapGeneratorType
+  ): Promise<void> {
+    this.logger.warn('Initiating emergency fallback sequence (defensive extension)');
+
+    try {
+      this.logger.info('Emergency fallback: MAPGEN_FRACTAL');
+      await mapManager.generateMap(players, 'FRACTAL');
+      return;
+    } catch (error) {
+      this.logger.error('Emergency fractal failed, trying final MAPGEN_RANDOM fallback', {
+        error: error instanceof Error ? error.message : error,
+      });
 
       try {
-        this.logger.info('Emergency fallback: MAPGEN_FRACTAL');
-        await mapManager.generateMap(players, 'FRACTAL');
-        generationAttempted = true;
+        this.logger.info('Final emergency fallback: MAPGEN_RANDOM');
+        await mapManager.generateMap(players, 'RANDOM');
+        return;
       } catch (error) {
-        this.logger.error('Emergency fractal failed, trying final MAPGEN_RANDOM fallback', {
-          error: error instanceof Error ? error.message : error,
+        const finalError = error instanceof Error ? error : new Error(String(error));
+        this.logger.error('All generation methods exhausted', {
+          originalError: `initial generator: ${generatorType}`,
+          finalError: finalError.message,
         });
-
-        try {
-          this.logger.info('Final emergency fallback: MAPGEN_RANDOM');
-          await mapManager.generateMap(players, 'RANDOM');
-          generationAttempted = true;
-        } catch (error) {
-          const finalError = error instanceof Error ? error : new Error(String(error));
-          this.logger.error('All generation methods exhausted', {
-            originalError: lastError?.message,
-            finalError: finalError.message,
-          });
-          throw new Error(
-            `Complete map generation failure. Original: ${
-              lastError?.message || 'unknown'
-            }, Final: ${finalError.message}`
-          );
-        }
+        throw new Error(
+          `Complete map generation failure. Original: initial generator: ${generatorType}, Final: ${finalError.message}`
+        );
       }
     }
+  }
 
+  private async persistAndBroadcast(
+    gameId: string,
+    mapManager: MapManager,
+    terrainSettings: TerrainSettings | undefined,
+    unitManager: UnitManager | undefined,
+    players: Map<string, PlayerState>,
+    generatorType: MapGeneratorType
+  ): Promise<void> {
     const mapData = mapManager.getMapData();
     if (!mapData) {
       throw new Error('Map generation failed - no map data available');
@@ -630,25 +497,267 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     });
   }
 
-  /**
-   * Convert generator string to MapGeneratorType
-   * @reference Original GameManager.ts:1104-1123 convertGeneratorType()
-   */
-  private convertGeneratorType(generator: string): MapGeneratorType {
-    switch (generator.toLowerCase()) {
-      case 'random':
-        return 'RANDOM';
-      case 'fractal':
-        return 'FRACTAL';
-      case 'island':
-        return 'ISLAND';
-      case 'fair':
-        return 'FAIR';
-      case 'scenario':
-        return 'SCENARIO';
-      default:
-        this.logger.warn(`Unknown generator type: ${generator}, defaulting to RANDOM`);
-        return 'RANDOM';
+  private buildPathResponse(
+    pathResult: any,
+    unitId: string,
+    targetX: number,
+    targetY: number
+  ): { success: boolean; path?: any; error?: string } {
+    const tiles = Array.isArray(pathResult?.path) ? pathResult.path : [];
+    const isValid = pathResult?.valid && tiles.length > 0;
+    return {
+      success: isValid,
+      path: isValid
+        ? {
+            unitId,
+            targetX,
+            targetY,
+            tiles: tiles,
+            totalCost: pathResult.totalCost || 0,
+            estimatedTurns: pathResult.estimatedTurns || 0,
+            valid: isValid,
+          }
+        : undefined,
+      error: isValid ? undefined : 'No valid path found',
+    };
+  }
+
+  private validatePathRequest(
+    gameId: string,
+    playerId: string,
+    unitId: string
+  ): { gameInstance: GameInstance | null; unit?: any; error?: string } {
+    const gameInstance = this.games.get(gameId) || null;
+    if (!gameInstance) return { gameInstance, error: 'Game instance not found' };
+    const unit = gameInstance.unitManager.getUnit(unitId);
+    if (!unit) return { gameInstance, error: 'Unit not found' };
+    if (unit.playerId !== playerId)
+      return { gameInstance, error: 'Unit does not belong to player' };
+    return { gameInstance, unit };
+  }
+  private validateStartConditions(game: any, hostId: string): void {
+    if (game.hostId !== hostId) {
+      throw new Error('Only the host can start the game');
+    }
+    const minPlayers = game.gameType === 'single' ? 1 : serverConfig.game.minPlayersToStart;
+    if (game.players.length < minPlayers) {
+      throw new Error(`Need at least ${minPlayers} players to start`);
+    }
+    if (game.status !== 'waiting') {
+      throw new Error('Game is not in waiting state');
+    }
+  }
+
+  private async activateGameRecord(gameId: string): Promise<void> {
+    await this.databaseProvider
+      .getDatabase()
+      .update(games)
+      .set({
+        status: 'active',
+        startedAt: new Date(),
+        currentTurn: 1,
+      })
+      .where(eq(games.id, gameId));
+  }
+
+  private async updateRedisForGameStart(gameId: string, playerCount: number): Promise<void> {
+    await gameState.setGameState(gameId, {
+      state: 'active',
+      currentTurn: 1,
+      turnPhase: 'movement',
+      playerCount,
+    });
+  }
+
+  private buildPlayersMapFromDb(dbPlayers: any[]): Map<string, PlayerState> {
+    const players = new Map<string, PlayerState>();
+    for (const dbPlayer of dbPlayers) {
+      players.set(dbPlayer.id, {
+        id: dbPlayer.id,
+        userId: dbPlayer.userId,
+        playerNumber: dbPlayer.playerNumber,
+        civilization: dbPlayer.civilization,
+        isReady: false,
+        hasEndedTurn: false,
+        isConnected: true,
+        lastSeen: new Date(),
+      });
+    }
+    return players;
+  }
+
+  private buildPreliminaryInstance(
+    gameId: string,
+    game: any,
+    preliminaryPlayers: Map<string, PlayerState>
+  ): GameInstance {
+    return {
+      id: gameId,
+      config: {
+        name: game.name,
+        hostId: game.hostId,
+        gameType: game.gameType as 'single' | 'multiplayer' | undefined,
+        maxPlayers: game.maxPlayers ?? undefined,
+        mapWidth: game.mapWidth ?? undefined,
+        mapHeight: game.mapHeight ?? undefined,
+        ruleset: game.ruleset ?? undefined,
+        turnTimeLimit: game.turnTimeLimit ?? undefined,
+        victoryConditions: game.victoryConditions as string[] | undefined,
+        terrainSettings: (game.gameState as any)?.terrainSettings,
+      },
+      state: 'active',
+      currentTurn: 1,
+      turnPhase: 'movement',
+      players: preliminaryPlayers,
+      turnManager: null as any,
+      mapManager: null as any,
+      unitManager: null as any,
+      visibilityManager: null as any,
+      cityManager: null as any,
+      researchManager: null as any,
+      pathfindingManager: null as any,
+      lastActivity: new Date(),
+    } as GameInstance;
+  }
+
+  private createMapManager(game: any, terrainSettings?: TerrainSettings): MapManager {
+    const mapGenerator = terrainSettings?.generator || 'random';
+    const temperatureParam = terrainSettings?.temperature ?? 50;
+    return new MapManager(
+      game.mapWidth,
+      game.mapHeight,
+      undefined,
+      mapGenerator,
+      undefined,
+      undefined,
+      false,
+      temperatureParam
+    );
+  }
+
+  private async createTurnManagerAndInitialize(
+    gameId: string,
+    players: Map<string, PlayerState>
+  ): Promise<TurnManager> {
+    const tm = new TurnManager(gameId, this.databaseProvider, this.io);
+    const playerIds = Array.from(players.keys());
+    await tm.initializeTurn(playerIds);
+    return tm;
+  }
+
+  private createCityManager(gameId: string): CityManager {
+    return new CityManager(gameId, this.databaseProvider, undefined, {
+      createUnit: (_playerId: string, _unitType: string, _x: number, _y: number) =>
+        Promise.resolve(''),
+    });
+  }
+
+  private createUnitManager(
+    gameId: string,
+    game: any,
+    mapManager: MapManager,
+    cityManager: CityManager
+  ): UnitManager {
+    return new UnitManager(
+      gameId,
+      this.databaseProvider,
+      game.mapWidth,
+      game.mapHeight,
+      mapManager,
+      {
+        foundCity: this.onFoundCity
+          ? (gameId: string, playerId: string, name: string, x: number, y: number) =>
+              this.onFoundCity!(gameId, playerId, name, x, y)
+          : async () => '',
+        requestPath: (playerId: string, unitId: string, targetX: number, targetY: number) =>
+          this.requestPathDelegate(gameId, playerId, unitId, targetX, targetY),
+        broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
+          this.onBroadcast?.(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
+        },
+        getCityAt: (x: number, y: number) => {
+          const city = cityManager.getCityAt(x, y);
+          return city ? { playerId: city.playerId } : null;
+        },
+      }
+    );
+  }
+
+  private createVisibilityManager(
+    gameId: string,
+    unitManager: UnitManager,
+    mapManager: MapManager
+  ): VisibilityManager {
+    return new VisibilityManager(gameId, unitManager, mapManager);
+  }
+
+  private createResearchManager(gameId: string): ResearchManager {
+    return new ResearchManager(gameId, this.databaseProvider);
+  }
+
+  private createPathfindingManager(game: any, mapManager: MapManager): PathfindingManager {
+    return new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
+  }
+
+  private buildGameInstance(
+    gameId: string,
+    game: any,
+    terrainSettings: TerrainSettings | undefined,
+    players: Map<string, PlayerState>,
+    turnManager: TurnManager,
+    mapManager: MapManager,
+    unitManager: UnitManager,
+    visibilityManager: VisibilityManager,
+    cityManager: CityManager,
+    researchManager: ResearchManager,
+    pathfindingManager: PathfindingManager
+  ): GameInstance {
+    return {
+      id: gameId,
+      config: {
+        name: game.name,
+        hostId: game.hostId,
+        gameType: game.gameType,
+        maxPlayers: game.maxPlayers,
+        mapWidth: game.mapWidth,
+        mapHeight: game.mapHeight,
+        ruleset: game.ruleset,
+        turnTimeLimit: game.turnTimeLimit,
+        victoryConditions: game.victoryConditions,
+        terrainSettings: terrainSettings,
+      },
+      state: 'active',
+      currentTurn: 1,
+      turnPhase: 'movement',
+      players,
+      turnManager,
+      mapManager,
+      unitManager,
+      visibilityManager,
+      cityManager,
+      researchManager,
+      pathfindingManager,
+      lastActivity: new Date(),
+    };
+  }
+
+  private async requestPathDelegate(
+    gameId: string,
+    playerId: string,
+    unitId: string,
+    targetX: number,
+    targetY: number
+  ): Promise<{ success: boolean; path?: any; error?: string }> {
+    try {
+      const { gameInstance, unit, error } = this.validatePathRequest(gameId, playerId, unitId);
+      if (error || !gameInstance || !unit) {
+        return { success: false, error: error || 'Pathfinding error' };
+      }
+
+      const pathResult = await gameInstance.pathfindingManager.findPath(unit, targetX, targetY);
+      return this.buildPathResponse(pathResult, unitId, targetX, targetY);
+    } catch (error) {
+      logger.error('Error in GameLifecycleManager requestPath delegation:', error);
+      return { success: false, error: 'Pathfinding error' };
     }
   }
 }

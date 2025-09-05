@@ -43,62 +43,7 @@ export function createDatabaseMocks() {
       const query: any = (mockDb.values as any).mock.calls[
         (mockDb.values as any).mock.calls.length - 1
       ]?.[0];
-
-      if (query && query.hostId) {
-        // Game insertion
-        const newGame: any = {
-          id: `game-${++gameCounter}`,
-          name: query.name,
-          hostId: query.hostId,
-        };
-
-        // Update mock game data with new game info
-        mockGameData = {
-          ...mockGameData,
-          id: newGame.id,
-          name: newGame.name,
-          hostId: newGame.hostId,
-          maxPlayers: query.maxPlayers || 2,
-          mapWidth: query.mapWidth || 20,
-          mapHeight: query.mapHeight || 20,
-          players: [],
-        };
-
-        return Promise.resolve([newGame]);
-      } else if (query && query.userId) {
-        // Player insertion
-        const newPlayer: any = {
-          id: `player-${++playerCounter}`,
-          gameId: query.gameId,
-          userId: query.userId,
-          playerNumber: query.playerNumber,
-          civilization: query.civilization,
-        };
-
-        // Update mock game data
-        mockGameData.players.push(newPlayer);
-
-        return Promise.resolve([newPlayer]);
-      } else if (query && query.name && query.x !== undefined) {
-        // City insertion
-        return Promise.resolve([
-          {
-            id: `city-${++cityCounter}`,
-            ...query,
-          },
-        ]);
-      } else if (query && query.unitType) {
-        // Unit insertion
-        return Promise.resolve([
-          {
-            id: `unit-${++unitCounter}`,
-            ...query,
-          },
-        ]);
-      }
-
-      // Default fallback
-      return Promise.resolve([{ id: `default-${Date.now()}` }]);
+      return handleReturning(query);
     }),
     update: jest.fn().mockReturnThis(),
     set: jest.fn().mockReturnThis(),
@@ -131,6 +76,77 @@ export function createDatabaseMocks() {
   const updateMockGameData = (updates: Partial<MockGameData>) => {
     mockGameData = { ...mockGameData, ...updates };
   };
+
+  function handleReturning(query: any): Promise<any[]> {
+    if (isGameInsert(query)) {
+      const newGame: any = buildNewGame(query);
+      mockGameData = updateGameDataFromInsert(mockGameData, newGame, query);
+      return Promise.resolve([newGame]);
+    }
+
+    if (isPlayerInsert(query)) {
+      const newPlayer: any = buildNewPlayer(query);
+      mockGameData.players.push(newPlayer);
+      return Promise.resolve([newPlayer]);
+    }
+
+    if (isCityInsert(query)) {
+      return Promise.resolve([{ id: `city-${++cityCounter}`, ...query }]);
+    }
+
+    if (isUnitInsert(query)) {
+      return Promise.resolve([{ id: `unit-${++unitCounter}`, ...query }]);
+    }
+
+    return Promise.resolve([{ id: `default-${Date.now()}` }]);
+  }
+
+  function isGameInsert(query: any): boolean {
+    return !!(query && query.hostId);
+  }
+
+  function isPlayerInsert(query: any): boolean {
+    return !!(query && query.userId);
+  }
+
+  function isCityInsert(query: any): boolean {
+    return !!(query && query.name && query.x !== undefined);
+  }
+
+  function isUnitInsert(query: any): boolean {
+    return !!(query && query.unitType);
+  }
+
+  function buildNewGame(query: any): any {
+    return {
+      id: `game-${++gameCounter}`,
+      name: query.name,
+      hostId: query.hostId,
+    };
+  }
+
+  function updateGameDataFromInsert(current: MockGameData, newGame: any, query: any): MockGameData {
+    return {
+      ...current,
+      id: newGame.id,
+      name: newGame.name,
+      hostId: newGame.hostId,
+      maxPlayers: query.maxPlayers || 2,
+      mapWidth: query.mapWidth || 20,
+      mapHeight: query.mapHeight || 20,
+      players: [],
+    };
+  }
+
+  function buildNewPlayer(query: any): any {
+    return {
+      id: `player-${++playerCounter}`,
+      gameId: query.gameId,
+      userId: query.userId,
+      playerNumber: query.playerNumber,
+      civilization: query.civilization,
+    };
+  }
 
   return {
     mockDb,
