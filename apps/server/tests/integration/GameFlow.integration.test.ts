@@ -1,6 +1,6 @@
 import { GameManager } from '@game/managers/GameManager';
 import { generateTestUUID, getTestDatabase, clearAllTables } from '../utils/testDatabase';
-import * as schema from '../../src/database/schema';
+import * as schema from '@database/schema';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 
 // Integration test to verify full game flow

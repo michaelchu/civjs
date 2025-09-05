@@ -1,4 +1,4 @@
-import { DatabaseProvider } from '../../src/database/DatabaseProvider';
+import { DatabaseProvider } from '@database/DatabaseProvider';
 
 /**
  * Mock database provider for unit tests

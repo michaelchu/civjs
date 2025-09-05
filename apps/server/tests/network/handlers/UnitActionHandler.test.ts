@@ -1,6 +1,6 @@
-import { UnitActionHandler } from '../../../src/network/handlers/UnitActionHandler';
-import { PacketHandler } from '../../../src/network/PacketHandler';
-import { PacketType } from '../../../src/types/packet';
+import { UnitActionHandler } from '@network/handlers/UnitActionHandler';
+import { PacketHandler } from '@network/PacketHandler';
+import { PacketType } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
 import { Server, Socket } from 'socket.io';
 

@@ -8,7 +8,7 @@ import {
   generateTestUUID,
 } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
-import * as schema from '../../src/database/schema';
+import * as schema from '@database/schema';
 
 describe('UnitManager - Integration Tests with Real Database', () => {
   let unitManager: UnitManager;

@@ -1,6 +1,6 @@
-import { GameManagementHandler } from '../../../src/network/handlers/GameManagementHandler';
-import { PacketHandler } from '../../../src/network/PacketHandler';
-import { PacketType } from '../../../src/types/packet';
+import { GameManagementHandler } from '@network/handlers/GameManagementHandler';
+import { PacketHandler } from '@network/PacketHandler';
+import { PacketType } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
 import { Server, Socket } from 'socket.io';
 

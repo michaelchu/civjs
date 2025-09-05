@@ -7,7 +7,7 @@ import {
   generateTestUUID,
   createTestGameAndPlayer,
 } from '../utils/testDatabase';
-import * as schema from '../../src/database/schema';
+import * as schema from '@database/schema';
 import {
   createBasicGameScenario,
   createCityGrowthScenario,

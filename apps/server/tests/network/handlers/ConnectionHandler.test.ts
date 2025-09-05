@@ -1,9 +1,9 @@
-import { ConnectionHandler } from '../../../src/network/handlers/ConnectionHandler';
-import { PacketHandler } from '../../../src/network/PacketHandler';
-import { PacketType } from '../../../src/types/packet';
+import { ConnectionHandler } from '@network/handlers/ConnectionHandler';
+import { PacketHandler } from '@network/PacketHandler';
+import { PacketType } from '@app-types/packet';
 import { Server, Socket } from 'socket.io';
-import { sessionCache } from '../../../src/database/redis';
-import { db } from '../../../src/database';
+import { sessionCache } from '@database/redis';
+import { db } from '@database';
 
 // Mock dependencies
 jest.mock('../../../src/database/redis');

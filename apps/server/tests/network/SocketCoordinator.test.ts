@@ -1,7 +1,7 @@
-import { SocketCoordinator, setupSocketHandlers } from '../../src/network/SocketCoordinator';
+import { SocketCoordinator, setupSocketHandlers } from '@network/SocketCoordinator';
 import { GameManager } from '@game/managers/GameManager';
 import { Server, Socket } from 'socket.io';
-import { PacketType } from '../../src/types/packet';
+import { PacketType } from '@app-types/packet';
 
 // Mock dependencies
 jest.mock('../../src/utils/logger', () => {
