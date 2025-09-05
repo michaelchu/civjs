@@ -111,7 +111,7 @@ export class CityManagementHandler extends BaseSocketHandler {
       if (!game || game.status !== 'active') {
         handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {
           success: false,
-          message: 'Game is not active',
+          message: `Game is not active (current status: ${game?.status || 'not found'})`,
         });
         return;
       }
@@ -164,7 +164,7 @@ export class CityManagementHandler extends BaseSocketHandler {
     if (!game || game.status !== 'active') {
       handler.send(socket, PacketType.CITY_FOUND_REPLY, {
         success: false,
-        message: 'Game is not active',
+        message: `Game is not active (current status: ${game?.status || 'not found'})`,
       });
       return { game: null, player: null };
     }
