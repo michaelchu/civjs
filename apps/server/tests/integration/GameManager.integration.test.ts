@@ -8,7 +8,7 @@ import {
 } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
 import { createMockSocketServer } from '../utils/gameTestUtils';
-import * as schema from '../../src/database/schema';
+import * as schema from '@database/schema';
 
 describe('GameManager - Integration Tests with Real Database', () => {
   let gameManager: GameManager;

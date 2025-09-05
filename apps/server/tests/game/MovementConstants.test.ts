@@ -6,7 +6,7 @@ import {
   getTerrainMovementCost,
   canUnitEnterTerrain,
   calculateMovementCost,
-} from '../../src/game/constants/MovementConstants';
+} from '@game/constants/MovementConstants';
 
 describe('MovementConstants', () => {
   describe('basic constants', () => {

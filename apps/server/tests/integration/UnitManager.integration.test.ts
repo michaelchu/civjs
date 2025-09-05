@@ -1,5 +1,5 @@
 import { UnitManager } from '@game/managers/UnitManager';
-import { UNIT_TYPES } from '../../src/game/constants/UnitConstants';
+import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import {
   getTestDatabase,
   getTestDatabaseProvider,
@@ -8,7 +8,7 @@ import {
   generateTestUUID,
 } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
-import * as schema from '../../src/database/schema';
+import * as schema from '@database/schema';
 
 describe('UnitManager - Integration Tests with Real Database', () => {
   let unitManager: UnitManager;

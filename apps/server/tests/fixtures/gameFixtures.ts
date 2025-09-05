@@ -1,5 +1,5 @@
 import { getTestDatabase, generateTestUUID } from '../utils/testDatabase';
-import * as schema from '../../src/database/schema';
+import * as schema from '@database/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { MapManager } from '@game/managers/MapManager';
 import { PlayerState } from '@game/managers/GameManager';

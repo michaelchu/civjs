@@ -1,5 +1,5 @@
 import { ActionSystem } from '@game/systems/ActionSystem';
-import { ActionType } from '../../src/types/shared/actions';
+import { ActionType } from '@app-types/shared/actions';
 import type { Unit } from '@game/managers/UnitManager';
 
 describe('ActionSystem - Goto Actions', () => {

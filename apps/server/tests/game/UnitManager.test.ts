@@ -1,5 +1,5 @@
 import { UnitManager } from '@game/managers/UnitManager';
-import { UNIT_TYPES } from '../../src/game/constants/UnitConstants';
+import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('UnitManager', () => {

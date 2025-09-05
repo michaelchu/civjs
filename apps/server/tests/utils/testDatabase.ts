@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import * as schema from '../../src/database/schema';
+import * as schema from '@database/schema';
 // Import logger with fallback for mocked scenarios
 let logger: {
   info: (...args: unknown[]) => void;
@@ -30,7 +30,7 @@ try {
   };
 }
 
-import { DatabaseProvider } from '../../src/database/DatabaseProvider';
+import { DatabaseProvider } from '@database/DatabaseProvider';
 
 /**
  * Test database provider for integration tests

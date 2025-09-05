@@ -4,8 +4,8 @@
  * @reference freeciv/server/generator/mapgen.c validation functions
  */
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { MapValidator, Position } from '../../../src/game/map/MapValidator';
-import { MapTile, TerrainType, TemperatureType } from '../../../src/game/map/MapTypes';
+import { MapValidator, Position } from '@game/map/MapValidator';
+import { MapTile, TerrainType, TemperatureType } from '@game/map/MapTypes';
 import { PlayerState } from '@game/managers/GameManager';
 
 describe('MapValidator', () => {

@@ -1,5 +1,5 @@
 import { CityManager, BUILDING_TYPES } from '@game/managers/CityManager';
-import { UNIT_TYPES } from '../../src/game/constants/UnitConstants';
+import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import {
   getTestDatabase,
   getTestDatabaseProvider,
@@ -7,7 +7,7 @@ import {
   generateTestUUID,
   createTestGameAndPlayer,
 } from '../utils/testDatabase';
-import * as schema from '../../src/database/schema';
+import * as schema from '@database/schema';
 import {
   createBasicGameScenario,
   createCityGrowthScenario,

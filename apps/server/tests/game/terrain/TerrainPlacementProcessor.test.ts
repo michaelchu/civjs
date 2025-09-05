@@ -6,9 +6,9 @@
 import {
   TerrainPlacementProcessor,
   TerrainParams,
-} from '../../../src/game/map/terrain/TerrainPlacementProcessor';
-import { MapTile, TemperatureType, TerrainType } from '../../../src/game/map/MapTypes';
-import { PlacementMap } from '../../../src/game/map/TerrainUtils';
+} from '@game/map/terrain/TerrainPlacementProcessor';
+import { MapTile, TemperatureType, TerrainType } from '@game/map/MapTypes';
+import { PlacementMap } from '@game/map/TerrainUtils';
 
 // Mock the random function for predictable testing
 let mockRandomValue = 0.5;

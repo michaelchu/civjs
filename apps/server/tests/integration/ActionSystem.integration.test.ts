@@ -1,6 +1,6 @@
 import { ActionSystem } from '@game/systems/ActionSystem';
 import { GameManager } from '@game/managers/GameManager';
-import { ActionType } from '../../src/types/shared/actions';
+import { ActionType } from '@app-types/shared/actions';
 import { clearAllTables } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
 import { createMockSocketServer } from '../utils/gameTestUtils';

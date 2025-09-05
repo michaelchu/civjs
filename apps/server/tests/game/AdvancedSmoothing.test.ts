@@ -4,8 +4,8 @@
  * @reference freeciv/server/generator/mapgen_utils.c
  */
 
-import { FractalHeightGenerator } from '../../src/game/map/FractalHeightGenerator';
-import { smoothIntMap, adjustIntMapFiltered } from '../../src/game/map/TerrainUtils';
+import { FractalHeightGenerator } from '@game/map/FractalHeightGenerator';
+import { smoothIntMap, adjustIntMapFiltered } from '@game/map/TerrainUtils';
 
 describe('Advanced Smoothing System', () => {
   let random: () => number;

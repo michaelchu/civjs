@@ -3,8 +3,8 @@
  * Validates height map processing algorithms extracted from TerrainGenerator
  */
 import { beforeEach, describe, expect, it } from '@jest/globals';
-import { MapTile, TemperatureType } from '../../../src/game/map/MapTypes';
-import { HeightMapProcessor } from '../../../src/game/map/terrain/HeightMapProcessor';
+import { MapTile, TemperatureType } from '@game/map/MapTypes';
+import { HeightMapProcessor } from '@game/map/terrain/HeightMapProcessor';
 
 describe('HeightMapProcessor', () => {
   let processor: HeightMapProcessor;
