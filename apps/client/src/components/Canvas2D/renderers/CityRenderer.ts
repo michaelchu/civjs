@@ -41,7 +41,7 @@ import { rulesetService, type CityStyle } from '../../../services/RulesetService
  */
 export class CityRenderer extends BaseRenderer {
   // Sprite scaling factors for visual size control
-  private cityScale = 0.8; // Make cities 20% smaller
+  private cityScale = 1.3; // Larger cities for better visibility
   private cityStyles: Record<string, CityStyle> = {};
   private stylesLoaded = false;
 
@@ -88,11 +88,13 @@ export class CityRenderer extends BaseRenderer {
     for (const spriteInfo of citySprites) {
       const sprite = this.tilesetLoader.getSprite(spriteInfo.key);
       if (sprite) {
-        // Scale and center the sprite
+        // Scale and position the sprite
         const scaledWidth = sprite.width * this.cityScale;
         const scaledHeight = sprite.height * this.cityScale;
         const offsetX = (this.tileWidth - scaledWidth) / 2;
-        const offsetY = (this.tileHeight - scaledHeight) / 2;
+        // Use authentic Freeciv city positioning: center + unit_offset_y
+        // Cities use offset_y: -unit_offset_y (-14), which moves them UP by 14 pixels from center
+        const offsetY = (this.tileHeight - scaledHeight) / 2 + -14;
 
         this.ctx.drawImage(
           sprite,
@@ -243,16 +245,12 @@ export class CityRenderer extends BaseRenderer {
   private renderCityFallback(city: City, screenPos: { x: number; y: number }): void {
     const scaledWidth = (this.tileWidth - 10) * this.cityScale;
     const scaledHeight = (this.tileHeight - 10) * this.cityScale;
-    const offsetX = (this.tileWidth - 10 - scaledWidth) / 2;
-    const offsetY = (this.tileHeight - 10 - scaledHeight) / 2;
+    const offsetX = (this.tileWidth - scaledWidth) / 2;
+    // Use authentic Freeciv city positioning: center + unit_offset_y
+    const offsetY = (this.tileHeight - scaledHeight) / 2 + -14;
 
     this.ctx.fillStyle = this.getPlayerColor(city.playerId);
-    this.ctx.fillRect(
-      screenPos.x + 5 + offsetX,
-      screenPos.y + 5 + offsetY,
-      scaledWidth,
-      scaledHeight
-    );
+    this.ctx.fillRect(screenPos.x + offsetX, screenPos.y + offsetY, scaledWidth, scaledHeight);
   }
 
   /**
