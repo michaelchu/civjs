@@ -1,5 +1,6 @@
 import type { City, MapViewport } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
+import { rulesetService, type CityStyle } from '../../../services/RulesetService';
 
 /**
  * CityRenderer - Authentic Freeciv-compliant city sprite rendering
@@ -41,11 +42,26 @@ import { BaseRenderer, type RenderState } from './BaseRenderer';
 export class CityRenderer extends BaseRenderer {
   // Sprite scaling factors for visual size control
   private cityScale = 0.8; // Make cities 20% smaller
+  private cityStyles: Record<string, CityStyle> = {};
+  private stylesLoaded = false;
+
+  /**
+   * Initialize city styles from ruleset
+   */
+  private async initializeCityStyles(): Promise<void> {
+    if (!this.stylesLoaded) {
+      this.cityStyles = await rulesetService.getCityStyles('classic');
+      this.stylesLoaded = true;
+    }
+  }
 
   /**
    * Render all cities visible in the viewport.
    */
-  renderCities(state: RenderState): void {
+  async renderCities(state: RenderState): Promise<void> {
+    // Initialize city styles if not already loaded
+    await this.initializeCityStyles();
+
     Object.values(state.cities).forEach(city => {
       if (this.isInViewport(city.x, city.y, state.viewport)) {
         this.renderCity(city, state.viewport);
@@ -140,31 +156,36 @@ export class CityRenderer extends BaseRenderer {
 
   /**
    * Get authentic Freeciv city style graphic based on player's nation and tech level
+   * Uses ruleset data instead of hardcoded values
    * Reference: freeciv/data/classic/styles.ruleset citystyle definitions
    * Reference: freeciv-web client/player.js city style logic
    */
   private getCityStyleGraphic(city: City): string {
-    // TODO: This should eventually use actual player tech level and nation data
-    // For now, implement a more realistic distribution of city styles
+    // Get available city styles from ruleset
+    const styleNames = Object.keys(this.cityStyles);
+    if (styleNames.length === 0) {
+      return 'city.european'; // Fallback
+    }
 
     // Default style graphic based on player ID (simulating different nations)
     const playerNum = parseInt(city.playerId.replace(/\D/g, '')) || 0;
 
-    // Distribute players across the classic city styles
-    const classicStyles = [
-      'city.european', // European style (default)
-      'city.classical', // Classical (Roman/Greek)
-      'city.tropical', // Tropical
-      'city.asian', // Asian style
-      'city.babylonian', // Babylonian
-      'city.celtic', // Celtic
-    ];
+    // Filter to classic/base styles (no tech requirements)
+    const baseStyles = styleNames.filter(styleName => !this.cityStyles[styleName].techreq);
 
-    // Use modulo to distribute players across classic styles
-    const styleIndex = playerNum % classicStyles.length;
-    return classicStyles[styleIndex];
+    if (baseStyles.length === 0) {
+      return 'city.european'; // Fallback
+    }
+
+    // Use modulo to distribute players across available base styles
+    const styleIndex = playerNum % baseStyles.length;
+    const selectedStyleName = baseStyles[styleIndex];
+
+    return this.cityStyles[selectedStyleName].graphic;
 
     // TODO: Add tech-based evolution:
+    // - Check player's tech level against techreq field
+    // - Use replaced_by field for style upgrades
     // - Industrial style when player has Railroad tech
     // - Electric Age style when player has Automobile tech
     // - Modern style when player has Rocketry tech

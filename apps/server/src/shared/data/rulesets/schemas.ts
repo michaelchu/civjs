@@ -501,3 +501,50 @@ export type TraitRange = z.infer<typeof TraitRangeSchema>;
 export type NationRuleset = z.infer<typeof NationRulesetSchema>;
 export type NationsCompatibility = z.infer<typeof NationsCompatibilitySchema>;
 export type NationsRulesetFile = z.infer<typeof NationsRulesetFileSchema>;
+
+// Cities ruleset schemas - for city styles and founding rules
+export const CityStyleSchema = z.object({
+  name: z.string(),
+  graphic: z.string(),
+  graphic_alt: z.string().optional(),
+  citizens_graphic: z.string().optional(),
+  citizens_graphic_alt: z.string().optional(),
+  techreq: z.string().optional(), // Technology requirement
+  replaced_by: z.string().optional(), // Which style replaces this one
+  oceanic_city_style: z.boolean().optional(),
+});
+
+export const CityFoundingRulesSchema = z.object({
+  // Terrain restrictions for city founding
+  no_cities_terrains: z.array(TerrainTypeSchema).default([]),
+
+  // Units allowed to found cities
+  founding_units: z.array(z.string()).default(['Settlers']),
+
+  // Whether cities can be founded on foreign territory
+  allow_foreign_territory: z.boolean().default(false),
+
+  // Whether enemy units block city founding
+  enemy_units_block: z.boolean().default(true),
+
+  // Minimum exploration requirement (0 = none, 1 = tile must be seen, 2 = tile must be explored)
+  exploration_requirement: z.number().min(0).max(2).default(1),
+});
+
+export const CitiesRulesetFileSchema = z.object({
+  datafile: z.object({
+    description: z.string(),
+    options: z.string(),
+    format_version: z.number(),
+  }),
+  about: z.object({
+    name: z.string(),
+    summary: z.string(),
+  }),
+  city_styles: z.record(z.string(), CityStyleSchema),
+  founding_rules: CityFoundingRulesSchema,
+});
+
+export type CityStyle = z.infer<typeof CityStyleSchema>;
+export type CityFoundingRules = z.infer<typeof CityFoundingRulesSchema>;
+export type CitiesRulesetFile = z.infer<typeof CitiesRulesetFileSchema>;

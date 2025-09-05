@@ -210,7 +210,13 @@ export class CityManager {
     this.mapManager = mapManager;
 
     if (this.mapManager) {
-      this.validationService = new CityFoundingValidationService(this.mapManager);
+      // TODO: Get ruleset name from game configuration
+      const rulesetName = 'classic';
+      this.validationService = new CityFoundingValidationService(
+        this.mapManager,
+        GAME_DEFAULT_CITYMINDIST,
+        rulesetName
+      );
     }
   }
 

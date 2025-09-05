@@ -1,0 +1,96 @@
+{
+  "datafile": {
+    "description": "Classic cities data for CivJS (ported from Freeciv)",
+    "options": "+CivJS-ruleset-1.0.0 freeciv-compatible",
+    "format_version": 1
+  },
+  "about": {
+    "name": "Classic Cities Ruleset",
+    "summary": "City styles and founding rules based on Freeciv classic ruleset"
+  },
+  "city_styles": {
+    "european": {
+      "name": "European",
+      "graphic": "city.european",
+      "graphic_alt": "city.classical",
+      "citizens_graphic": "city.european_citizens",
+      "citizens_graphic_alt": "city.generic_citizens"
+    },
+    "classical": {
+      "name": "Classical",
+      "graphic": "city.classical",
+      "graphic_alt": "city.european",
+      "citizens_graphic": "city.classical_citizens",
+      "citizens_graphic_alt": "city.generic_citizens"
+    },
+    "tropical": {
+      "name": "Tropical",
+      "graphic": "city.tropical",
+      "graphic_alt": "city.european",
+      "citizens_graphic": "city.tropical_citizens",
+      "citizens_graphic_alt": "city.generic_citizens"
+    },
+    "asian": {
+      "name": "Asian",
+      "graphic": "city.asian",
+      "graphic_alt": "city.classical",
+      "citizens_graphic": "city.asian_citizens",
+      "citizens_graphic_alt": "city.generic_citizens"
+    },
+    "babylonian": {
+      "name": "Babylonian",
+      "graphic": "city.babylonian",
+      "graphic_alt": "city.classical",
+      "citizens_graphic": "city.babylonian_citizens",
+      "citizens_graphic_alt": "city.generic_citizens"
+    },
+    "celtic": {
+      "name": "Celtic",
+      "graphic": "city.celtic",
+      "graphic_alt": "city.european",
+      "citizens_graphic": "city.celtic_citizens",
+      "citizens_graphic_alt": "city.generic_citizens"
+    },
+    "industrial": {
+      "name": "Industrial",
+      "graphic": "city.industrial",
+      "graphic_alt": "city.european",
+      "citizens_graphic": "city.industrial_citizens",
+      "citizens_graphic_alt": "city.generic_citizens",
+      "techreq": "Railroad"
+    },
+    "electricage": {
+      "name": "ElectricAge",
+      "graphic": "city.electricage",
+      "graphic_alt": "city.industrial",
+      "citizens_graphic": "city.electricage_citizens",
+      "citizens_graphic_alt": "city.generic_citizens",
+      "techreq": "Automobile",
+      "replaced_by": "modern"
+    },
+    "modern": {
+      "name": "Modern",
+      "graphic": "city.modern",
+      "graphic_alt": "city.electricage",
+      "citizens_graphic": "city.modern_citizens",
+      "citizens_graphic_alt": "city.generic_citizens",
+      "techreq": "Rocketry",
+      "replaced_by": "postmodern"
+    },
+    "postmodern": {
+      "name": "PostModern",
+      "graphic": "city.postmodern",
+      "graphic_alt": "city.modern",
+      "citizens_graphic": "city.postmodern_citizens",
+      "citizens_graphic_alt": "city.generic_citizens",
+      "techreq": "Laser"
+    }
+  },
+  "founding_rules": {
+    "no_cities_terrains": ["deep_ocean"],
+    "founding_units": ["Settlers", "Engineers"],
+    "allow_foreign_territory": false,
+    "enemy_units_block": true,
+    "exploration_requirement": 1
+  }
+}

@@ -8,14 +8,8 @@ import { MapTile, TerrainType } from '@game/map/MapTypes';
 import type { Unit } from '@game/managers/UnitManager';
 import type { CityState } from '@game/managers/CityManager';
 import type { MapManager } from '@game/managers/MapManager';
-
-// Terrain flags from freeciv reference - terrains that don't allow cities
-// Reference: freeciv/data/classic/terrain.ruleset TER_NO_CITIES flag
-const NO_CITIES_TERRAINS: Set<TerrainType> = new Set([
-  'deep_ocean', // Deep ocean cannot support cities
-  // Note: In classic ruleset, only deep ocean has TER_NO_CITIES flag
-  // Other terrains like mountains can have cities in most rulesets
-]);
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import type { CityFoundingRules } from '@shared/data/rulesets/schemas';
 
 // Game constants from freeciv reference
 // Reference: freeciv/common/game.h:492-494
@@ -57,10 +51,19 @@ export enum CityFoundingErrorCode {
 export class CityFoundingValidationService {
   private mapManager: MapManager;
   private citymindist: number;
+  private rulesetName: string;
+  private foundingRules: CityFoundingRules;
 
-  constructor(mapManager: MapManager, citymindist: number = GAME_DEFAULT_CITYMINDIST) {
+  constructor(
+    mapManager: MapManager,
+    citymindist: number = GAME_DEFAULT_CITYMINDIST,
+    rulesetName: string = 'classic'
+  ) {
     this.mapManager = mapManager;
     this.citymindist = Math.max(GAME_MIN_CITYMINDIST, Math.min(GAME_MAX_CITYMINDIST, citymindist));
+    this.rulesetName = rulesetName;
+    this.foundingRules = rulesetLoader.getCityFoundingRules(rulesetName);
+    logger.debug(`CityFoundingValidationService initialized with ruleset: ${rulesetName}`);
   }
 
   /**
@@ -136,9 +139,9 @@ export class CityFoundingValidationService {
       };
     }
 
-    // Check for TER_NO_CITIES flag
+    // Check for TER_NO_CITIES flag using ruleset
     // Reference: freeciv/common/city.c:1563-1566
-    if (this.terrainHasFlag(tile.terrain, 'TER_NO_CITIES')) {
+    if (this.foundingRules.no_cities_terrains.includes(tile.terrain)) {
       return {
         canFound: false,
         errorMessage: `Cannot found city on ${tile.terrain} terrain - terrain does not support cities`,
@@ -307,7 +310,7 @@ export class CityFoundingValidationService {
   }
 
   /**
-   * Validate enemy units preventing city founding
+   * Validate enemy units preventing city founding using ruleset
    * Reference: freeciv/server/citytools.c:580 (create_city_for_player)
    */
   public validateNoEnemyUnits(
@@ -316,6 +319,11 @@ export class CityFoundingValidationService {
     playerId: string,
     allUnits: Map<string, Unit>
   ): CityFoundingValidationResult {
+    // If ruleset allows enemy units, skip this check
+    if (!this.foundingRules.enemy_units_block) {
+      return { canFound: true };
+    }
+
     const tile = this.mapManager.getTile(x, y);
     if (!tile) {
       return {
@@ -342,7 +350,7 @@ export class CityFoundingValidationService {
   }
 
   /**
-   * Validate tile exploration/visibility for city founding
+   * Validate tile exploration/visibility for city founding using ruleset
    * Cities must be founded on tiles that have been explored by the player
    */
   private validateTileExploration(
@@ -350,6 +358,11 @@ export class CityFoundingValidationService {
     y: number,
     _playerId: string
   ): CityFoundingValidationResult {
+    // Skip exploration check if ruleset doesn't require it
+    if (this.foundingRules.exploration_requirement === 0) {
+      return { canFound: true };
+    }
+
     const tile = this.mapManager.getTile(x, y);
     if (!tile) {
       return {
@@ -359,10 +372,9 @@ export class CityFoundingValidationService {
       };
     }
 
-    // In a full implementation, this would check player-specific tile exploration
-    // For now, we assume all tiles are explored if they exist
-    // TODO: Integrate with VisibilityManager for proper player visibility checks
-    if (!tile.isExplored) {
+    // Check exploration requirement level
+    // 1 = tile must be seen, 2 = tile must be explored
+    if (this.foundingRules.exploration_requirement >= 1 && !tile.isExplored) {
       return {
         canFound: false,
         errorMessage: `Cannot found city at (${x}, ${y}) - tile has not been explored`,
@@ -371,17 +383,6 @@ export class CityFoundingValidationService {
     }
 
     return { canFound: true };
-  }
-
-  /**
-   * Check if terrain has a specific flag (like TER_NO_CITIES)
-   * Reference: freeciv/common/terrain.h terrain_has_flag()
-   */
-  private terrainHasFlag(terrain: TerrainType, flag: string): boolean {
-    if (flag === 'TER_NO_CITIES') {
-      return NO_CITIES_TERRAINS.has(terrain);
-    }
-    return false;
   }
 
   /**
@@ -416,8 +417,10 @@ export class CityFoundingValidationService {
    */
   private unitCanDoAction(unit: Unit, action: ActionType): boolean {
     if (action === ActionType.FOUND_CITY) {
-      // Only settlers can found cities in most rulesets
-      return unit.unitTypeId === 'settler' || unit.unitTypeId === 'engineer';
+      // Check against ruleset founding units
+      return this.foundingRules.founding_units.some(
+        allowedUnit => unit.unitTypeId.toLowerCase() === allowedUnit.toLowerCase()
+      );
     }
     return false;
   }
@@ -432,12 +435,12 @@ export class CityFoundingValidationService {
   }
 
   /**
-   * Check if unit can found city on foreign territory
+   * Check if unit can found city on foreign territory using ruleset
    * Reference: freeciv/common/city.c:1539-1541 can_utype_do_act_if_tgt_diplrel
    */
   private canUnitFoundCityOnForeignTile(_unit: Unit): boolean {
-    // Most rulesets don't allow this - cities must be founded on owned/neutral territory
-    return false;
+    // Check ruleset setting for foreign territory founding
+    return this.foundingRules.allow_foreign_territory;
   }
 
   /**
@@ -505,5 +508,12 @@ export class CityFoundingValidationService {
    */
   public getCityMinDist(): number {
     return this.citymindist;
+  }
+
+  /**
+   * Get current ruleset name
+   */
+  public getRulesetName(): string {
+    return this.rulesetName;
   }
 }

@@ -77,7 +77,7 @@ export class MapRenderer {
     this.ctx.font = '14px Arial, sans-serif';
   }
 
-  render(state: RenderState) {
+  async render(state: RenderState) {
     // Invalidate terrain cache if tiles data has changed
     this.terrainRenderer.invalidateTileCache();
 
@@ -131,7 +131,7 @@ export class MapRenderer {
     this.unitRenderer.renderUnits(state);
 
     // Render cities layer
-    this.cityRenderer.renderCities(state);
+    await this.cityRenderer.renderCities(state);
 
     // Render paths and overlays
     this.pathRenderer.renderPaths(state);
