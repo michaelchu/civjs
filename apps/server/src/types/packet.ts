@@ -273,6 +273,7 @@ export const CityFoundSchema = z.object({
   name: z.string().min(1).max(100),
   x: z.number(),
   y: z.number(),
+  unitId: z.string().optional(), // Optional settler unit ID for city founding
 });
 
 export const CityInfoSchema = z.object({

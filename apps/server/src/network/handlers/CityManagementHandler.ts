@@ -116,9 +116,7 @@ export class CityManagementHandler extends BaseSocketHandler {
         return;
       }
 
-      const player = Array.from(game.players.values()).find(
-        (p: any) => p.userId === connection.userId
-      ) as any;
+      const player = game.players?.find((p: any) => p.userId === connection.userId) as any;
       if (!player) {
         handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {
           success: false,
@@ -160,19 +158,44 @@ export class CityManagementHandler extends BaseSocketHandler {
     socket: Socket,
     connection: any
   ): Promise<{ game: any; player: any } | { game: null; player: null }> {
-    const game = await this.gameManager.getGame(connection.gameId!);
-    if (!game || game.status !== 'active') {
+    // First check database game status
+    const dbGame = await this.gameManager.getGame(connection.gameId!);
+    if (!dbGame || dbGame.status !== 'active') {
       handler.send(socket, PacketType.CITY_FOUND_REPLY, {
         success: false,
-        message: `Game is not active (current status: ${game?.status || 'not found'})`,
+        message: `Game is not active (current status: ${dbGame?.status || 'not found'})`,
       });
       return { game: null, player: null };
     }
 
-    const player = Array.from(game.players.values()).find(
+    // For active games, use the game instance which has current player state
+    const gameInstance = this.gameManager.getGameInstance(connection.gameId!);
+    if (!gameInstance) {
+      handler.send(socket, PacketType.CITY_FOUND_REPLY, {
+        success: false,
+        message: 'Game instance not found',
+      });
+      return { game: null, player: null };
+    }
+
+    logger.debug('Validating player in game instance', {
+      gameId: connection.gameId,
+      connectionUserId: connection.userId,
+      gamePlayersCount: gameInstance.players.size,
+      gamePlayers: Array.from(gameInstance.players.values()).map((p: any) => ({
+        id: p.id,
+        userId: p.userId,
+      })),
+    });
+
+    const player = Array.from(gameInstance.players.values()).find(
       (p: any) => p.userId === connection.userId
     ) as any;
     if (!player) {
+      logger.debug('Player not found in game instance - detailed info', {
+        connectionUserId: connection.userId,
+        availablePlayerUserIds: Array.from(gameInstance.players.values()).map((p: any) => p.userId),
+      });
       handler.send(socket, PacketType.CITY_FOUND_REPLY, {
         success: false,
         message: 'Player not found in game',
@@ -180,7 +203,7 @@ export class CityManagementHandler extends BaseSocketHandler {
       return { game: null, player: null };
     }
 
-    return { game, player };
+    return { game: dbGame, player };
   }
 
   private validateSettlerUnit(

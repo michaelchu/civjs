@@ -237,6 +237,28 @@ class GameClient {
         pathfindingService.clearUnitPaths(data.unitId);
       }
     });
+
+    // Handle city founding
+    this.socket.on('city_founded', data => {
+      console.log('City founded:', data);
+      const { cities } = useGameStore.getState();
+      const newCities = { ...cities };
+      newCities[data.city.id] = {
+        id: data.city.id,
+        playerId: data.city.playerId,
+        name: data.city.name,
+        x: data.city.x,
+        y: data.city.y,
+        size: data.city.population || 1,
+        food: 0,
+        shields: 0,
+        trade: 0,
+        buildings: [],
+      };
+      useGameStore.getState().updateGameState({
+        cities: newCities,
+      });
+    });
   }
 
   private handlePacket(packet: Packet) {
