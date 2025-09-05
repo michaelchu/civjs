@@ -106,7 +106,7 @@ describe('UnitActionHandler', () => {
 
     it('should move unit successfully', async () => {
       const mockGame = {
-        state: 'active',
+        status: 'active',
         players: new Map([[mockPlayerId, { id: mockPlayerId, userId: mockUserId }]]),
       };
       const mockGameInstance = {
@@ -195,7 +195,7 @@ describe('UnitActionHandler', () => {
 
     it('should attack unit successfully', async () => {
       const mockGame = {
-        state: 'active',
+        status: 'active',
         players: new Map([[mockPlayerId, { id: mockPlayerId, userId: mockUserId }]]),
       };
       const mockCombatResult = {
