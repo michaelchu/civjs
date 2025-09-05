@@ -1,4 +1,4 @@
-import { GameManager } from '../../src/game/GameManager';
+import { GameManager } from '@game/managers/GameManager';
 import { Server as SocketServer } from 'socket.io';
 import { createBasicGameScenario, TestGameScenario } from '../fixtures/gameFixtures';
 import { clearAllTables } from './testDatabase';

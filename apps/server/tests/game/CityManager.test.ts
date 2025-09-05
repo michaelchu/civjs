@@ -1,4 +1,4 @@
-import { CityManager, BUILDING_TYPES } from '../../src/game/CityManager';
+import { CityManager, BUILDING_TYPES } from '@game/managers/CityManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('CityManager', () => {

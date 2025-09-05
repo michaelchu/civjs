@@ -1,5 +1,5 @@
 import { SocketCoordinator, setupSocketHandlers } from '../../src/network/SocketCoordinator';
-import { GameManager } from '../../src/game/GameManager';
+import { GameManager } from '@game/managers/GameManager';
 import { Server, Socket } from 'socket.io';
 import { PacketType } from '../../src/types/packet';
 
@@ -29,7 +29,7 @@ jest.mock('../../src/network/PacketHandler', () => {
   };
 });
 
-jest.mock('../../src/game/GameManager');
+jest.mock('@game/managers/GameManager');
 
 describe('SocketCoordinator', () => {
   let coordinator: SocketCoordinator;

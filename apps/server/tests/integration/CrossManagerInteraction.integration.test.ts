@@ -1,4 +1,4 @@
-import { GameManager } from '../../src/game/GameManager';
+import { GameManager } from '@game/managers/GameManager';
 import { getTestDatabase } from '../utils/testDatabase';
 import { TestGameScenario } from '../fixtures/gameFixtures';
 import { setupGameManagerWithScenario, cleanupGameManager } from '../utils/gameTestUtils';

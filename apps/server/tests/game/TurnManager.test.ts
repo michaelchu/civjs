@@ -1,4 +1,4 @@
-import { TurnManager } from '../../src/game/TurnManager';
+import { TurnManager } from '@game/managers/TurnManager';
 import { Server as SocketServer } from 'socket.io';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 

@@ -1,4 +1,4 @@
-import { GameLifecycleManager } from '../../../src/game/managers/GameLifecycleManager';
+import { GameLifecycleManager } from '@game/orchestrators/GameLifecycleManager';
 
 // Minimal stubs for dependencies
 const stubIo = {} as any;

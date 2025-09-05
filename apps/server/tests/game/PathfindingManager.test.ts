@@ -1,5 +1,5 @@
-import { PathfindingManager } from '../../src/game/PathfindingManager';
-import type { Unit } from '../../src/game/UnitManager';
+import { PathfindingManager } from '@game/managers/PathfindingManager';
+import type { Unit } from '@game/managers/UnitManager';
 
 describe('PathfindingManager', () => {
   let pathfindingManager: PathfindingManager;
