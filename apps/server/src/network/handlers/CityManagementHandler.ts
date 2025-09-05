@@ -1,9 +1,9 @@
 import { Server, Socket } from 'socket.io';
-import { logger } from '../../utils/logger';
+import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
-import { PacketType, CityFoundSchema, CityProductionChangeSchema } from '../../types/packet';
-import { GameManager } from '../../game/GameManager';
+import { PacketType, CityFoundSchema, CityProductionChangeSchema } from '@app-types/packet';
+import { GameManager } from '@game/managers/GameManager';
 
 /**
  * Handles city management packets: founding cities, production changes

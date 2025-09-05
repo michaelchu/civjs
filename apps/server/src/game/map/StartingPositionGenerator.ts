@@ -14,9 +14,9 @@
  * @reference freeciv/server/generator/startpos.c
  */
 
-import { logger } from '../../utils/logger';
+import { logger } from '@utils/logger';
 import { MapTile, TerrainType, TemperatureType, MapStartpos } from './MapTypes';
-import { PlayerState } from '../GameManager';
+import { PlayerState } from '@game/managers/GameManager';
 
 /**
  * Island data structure matching freeciv's islands_data_type

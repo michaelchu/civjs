@@ -1,5 +1,5 @@
 import { Server, Socket } from 'socket.io';
-import { logger } from '../../utils/logger';
+import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
 import {
@@ -8,8 +8,8 @@ import {
   ResearchGoalSetSchema,
   ResearchListSchema,
   ResearchProgressSchema,
-} from '../../types/packet';
-import { GameManager } from '../../game/GameManager';
+} from '@app-types/packet';
+import { GameManager } from '@game/managers/GameManager';
 
 /**
  * Handles research-related packets: setting research, research goals, progress tracking

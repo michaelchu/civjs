@@ -1,11 +1,11 @@
-import { DatabaseProvider } from '../database';
-import { units } from '../database/schema/units';
+import { DatabaseProvider } from '@database';
+import { units } from '@database/schema/units';
 import { eq } from 'drizzle-orm';
-import { logger } from '../utils/logger';
-import { getTerrainMovementCost } from './constants/MovementConstants';
-import { UNIT_TYPES, getUnitType, UnitType } from './constants/UnitConstants';
-import { ActionSystem } from './ActionSystem';
-import { ActionType, ActionResult } from '../types/shared/actions';
+import { logger } from '@utils/logger';
+import { getTerrainMovementCost } from '@game/constants/MovementConstants';
+import { UNIT_TYPES, getUnitType, UnitType } from '@game/constants/UnitConstants';
+import { ActionSystem } from '@game/systems/ActionSystem';
+import { ActionType, ActionResult } from '@app-types/shared/actions';
 
 export interface Unit {
   id: string;

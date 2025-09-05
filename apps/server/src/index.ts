@@ -73,7 +73,7 @@ app.use('/js', express.static('public/js'));
 app.use('/sprites', express.static('public/sprites'));
 
 // Health check endpoint
-app.get('/health', (_req, res) => {
+app.get('/health', (_req: any, res: any) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -85,7 +85,7 @@ app.get('/health', (_req, res) => {
 app.use('/api', apiRouter);
 
 // API info endpoint
-app.get('/api/info', (_req, res) => {
+app.get('/api/info', (_req: any, res: any) => {
   res.json({
     name: 'CivJS Game Server',
     version: '1.0.0',
@@ -95,7 +95,7 @@ app.get('/api/info', (_req, res) => {
 });
 
 // Root endpoint with basic info
-app.get('/', (_req, res) => {
+app.get('/', (_req: any, res: any) => {
   res.json({
     service: 'CivJS Game Server',
     version: '1.0.0',

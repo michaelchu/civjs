@@ -1,6 +1,6 @@
 import { MapTile, TerrainType } from './MapTypes';
-import { PlayerState } from '../GameManager';
-import { logger } from '../../utils/logger';
+import { PlayerState } from '@game/managers/GameManager';
+import { logger } from '@utils/logger';
 
 export interface ValidationResult {
   passed: boolean;

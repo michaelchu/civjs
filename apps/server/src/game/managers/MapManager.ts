@@ -1,17 +1,17 @@
-import { logger } from '../utils/logger';
-import { PlayerState } from './GameManager';
-import { MapData, MapTile, MapStartpos } from './map/MapTypes';
-import { HeightBasedMapService } from './map/HeightBasedMapService';
-import { IslandMapService } from './map/IslandMapService';
-import { FairIslandsService } from './map/FairIslandsService';
-import { MapAccessService } from './map/MapAccessService';
-import { ValidationResult } from './map/MapValidator';
+import { logger } from '@utils/logger';
+import { PlayerState } from '@game/managers/GameManager';
+import { MapData, MapTile, MapStartpos } from '@game/map/MapTypes';
+import { HeightBasedMapService } from '@game/map/HeightBasedMapService';
+import { IslandMapService } from '@game/map/IslandMapService';
+import { FairIslandsService } from '@game/map/FairIslandsService';
+import { MapAccessService } from '@game/map/MapAccessService';
+import { ValidationResult } from '@game/map/MapValidator';
 
 // Generator types based on freeciv map_generator enum
 export type MapGeneratorType = 'FRACTAL' | 'ISLAND' | 'RANDOM' | 'FAIR' | 'FRACTURE' | 'SCENARIO';
 
 // Re-export MapStartpos from MapTypes for backward compatibility
-export { MapStartpos } from './map/MapTypes';
+export { MapStartpos } from '@game/map/MapTypes';
 
 // Legacy type alias - prefer MapStartpos
 export type StartPosMode = MapStartpos;
@@ -24,7 +24,7 @@ export {
   TemperatureType,
   TerrainProperty,
   ResourceType,
-} from './map/MapTypes';
+} from '@game/map/MapTypes';
 
 /**
  * Refactored MapManager that coordinates specialized map generation services

@@ -1,5 +1,5 @@
-import { DatabaseProvider } from '../database';
-import { research as researchTable, playerTechs } from '../database/schema';
+import { DatabaseProvider } from '@database';
+import { research as researchTable, playerTechs } from '@database/schema';
 import { eq, and } from 'drizzle-orm';
 
 export interface Technology {

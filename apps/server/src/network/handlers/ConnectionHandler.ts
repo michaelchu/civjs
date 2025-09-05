@@ -1,11 +1,11 @@
 import { Server, Socket } from 'socket.io';
-import { logger } from '../../utils/logger';
+import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
-import { PacketType, ServerJoinReqSchema } from '../../types/packet';
-import { sessionCache } from '../../database/redis';
-import { db } from '../../database';
-import { users } from '../../database/schema';
+import { PacketType, ServerJoinReqSchema } from '@app-types/packet';
+import { sessionCache } from '@database/redis';
+import { db } from '@database';
+import { users } from '@database/schema';
 import { eq } from 'drizzle-orm';
 
 /**

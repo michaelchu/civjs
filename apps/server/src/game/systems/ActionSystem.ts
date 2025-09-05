@@ -1,4 +1,4 @@
-import { logger } from '../utils/logger';
+import { logger } from '@utils/logger';
 import {
   ActionType,
   ActionDefinition,
@@ -7,9 +7,9 @@ import {
   ActionCategory,
   ActionTargetType,
   ActionMovesActor,
-} from '../types/shared/actions';
-import { Unit, UnitOrder } from './UnitManager';
-import { SINGLE_MOVE } from './constants/MovementConstants';
+} from '@app-types/shared/actions';
+import { Unit, UnitOrder } from '@game/managers/UnitManager';
+import { SINGLE_MOVE } from '@game/constants/MovementConstants';
 
 // Action definitions based on freeciv classic ruleset
 // @reference freeciv/common/actions.c

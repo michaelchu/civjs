@@ -38,7 +38,7 @@ import {
   type NationsCompatibility,
   type Requirement,
 } from './schemas';
-import { logger } from '../../../utils/logger';
+import { logger } from '@utils/logger';
 
 export class RulesetLoader {
   private static instance: RulesetLoader;

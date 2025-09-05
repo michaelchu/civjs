@@ -3,7 +3,7 @@
  * @reference docs/refactor/REFACTORING_ARCHITECTURE_PATTERNS.md Service Layer Organization
  */
 
-import { logger as baseLogger } from '../../utils/logger';
+import { logger as baseLogger } from '@utils/logger';
 
 export interface GameService {
   /**

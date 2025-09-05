@@ -3,7 +3,7 @@
  * @reference docs/refactor/REFACTORING_ARCHITECTURE_PATTERNS.md Service Registration Pattern
  */
 
-import { GameService } from './GameService';
+import { GameService } from '@game/orchestrators/GameService';
 
 export class ServiceRegistry {
   private services = new Map<string, GameService>();

@@ -1,11 +1,11 @@
 import { Server, Socket } from 'socket.io';
-import { logger } from '../../utils/logger';
+import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
-import { PacketType, TileVisibilityReqSchema } from '../../types/packet';
-import { GameManager } from '../../game/GameManager';
-import { db } from '../../database';
-import { games } from '../../database/schema';
+import { PacketType, TileVisibilityReqSchema } from '@app-types/packet';
+import { GameManager } from '@game/managers/GameManager';
+import { db } from '@database';
+import { games } from '@database/schema';
 import { eq } from 'drizzle-orm';
 
 /**

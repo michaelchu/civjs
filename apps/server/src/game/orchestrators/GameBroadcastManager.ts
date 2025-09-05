@@ -5,10 +5,10 @@
  */
 
 import { BaseGameService } from './GameService';
-import { logger } from '../../utils/logger';
+import { logger } from '@utils/logger';
 import type { Server as SocketServer } from 'socket.io';
-import { PacketType, PACKET_NAMES } from '../../types/packet';
-import type { GameInstance } from '../GameManager';
+import { PacketType, PACKET_NAMES } from '@app-types/packet';
+import type { GameInstance } from '@game/managers/GameManager';
 
 export interface BroadcastService {
   broadcastToGame(gameId: string, event: string, data: any): void;

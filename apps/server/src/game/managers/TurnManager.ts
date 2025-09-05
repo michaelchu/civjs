@@ -1,10 +1,10 @@
-import { logger } from '../utils/logger';
-import { DatabaseProvider } from '../database';
-import { gameState } from '../database/redis';
-import { gameTurns, games, players } from '../database/schema';
+import { logger } from '@utils/logger';
+import { DatabaseProvider } from '@database';
+import { gameState } from '@database/redis';
+import { gameTurns, games, players } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { Server as SocketServer } from 'socket.io';
-import { PacketType } from '../types/packet';
+import { PacketType } from '@app-types/packet';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';

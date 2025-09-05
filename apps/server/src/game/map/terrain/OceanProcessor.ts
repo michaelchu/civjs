@@ -3,8 +3,8 @@
  * @reference freeciv/server/generator/mapgen.c ocean and water processing
  * Handles ocean depth smoothing, ocean type selection, and water body identification
  */
-import { MapTile, TerrainType } from '../MapTypes';
-import { isOceanTerrain, isFrozenTerrain, isLandTile } from '../TerrainUtils';
+import { MapTile, TerrainType } from '@game/map/MapTypes';
+import { isOceanTerrain, isFrozenTerrain, isLandTile } from '@game/map/TerrainUtils';
 
 /**
  * Handles ocean depth processing, water body identification, and ocean terrain selection

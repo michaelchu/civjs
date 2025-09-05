@@ -1,9 +1,9 @@
 import { Server, Socket } from 'socket.io';
-import { logger } from '../../utils/logger';
+import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
-import { PacketType } from '../../types/packet';
-import { GameManager } from '../../game/GameManager';
+import { PacketType } from '@app-types/packet';
+import { GameManager } from '@game/managers/GameManager';
 
 /**
  * Handles turn management packets: ending turns, turn processing

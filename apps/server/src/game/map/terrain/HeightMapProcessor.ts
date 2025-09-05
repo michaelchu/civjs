@@ -6,8 +6,8 @@
  * This class handles height map to tile conversion, pole normalization,
  * and height-based terrain processing algorithms from freeciv.
  */
-import { MapTile } from '../MapTypes';
-import { TemperatureMap } from '../TemperatureMap';
+import { MapTile } from '@game/map/MapTypes';
+import { TemperatureMap } from '@game/map/TemperatureMap';
 
 export class HeightMapProcessor {
   private width: number;

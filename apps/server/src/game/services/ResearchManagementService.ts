@@ -1,6 +1,6 @@
-import { GameInstance } from '../GameManager';
-import { BaseGameService } from './GameService';
-import { logger } from '../../utils/logger';
+import { GameInstance } from '@game/managers/GameManager';
+import { BaseGameService } from '@game/orchestrators/GameService';
+import { logger } from '@utils/logger';
 
 /**
  * ResearchManagementService - Extracted research operations from GameManager

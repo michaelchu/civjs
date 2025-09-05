@@ -1,5 +1,5 @@
-import { logger } from '../../utils/logger';
-import { PlayerState } from '../GameManager';
+import { logger } from '@utils/logger';
+import { PlayerState } from '@game/managers/GameManager';
 import { MapData, MapTile } from './MapTypes';
 import { BaseMapGenerationService } from './BaseMapGenerationService';
 // import { assignFractureCircle } from './TerrainUtils'; // Not used in current implementation

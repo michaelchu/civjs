@@ -1,7 +1,7 @@
-import { logger } from '../utils/logger';
-import { UnitManager } from './UnitManager';
-import { UNIT_TYPES } from './constants/UnitConstants';
-import { MapManager } from './MapManager';
+import { logger } from '@utils/logger';
+import { UnitManager } from '@game/managers/UnitManager';
+import { UNIT_TYPES } from '@game/constants/UnitConstants';
+import { MapManager } from '@game/managers/MapManager';
 
 export interface PlayerVisibility {
   playerId: string;

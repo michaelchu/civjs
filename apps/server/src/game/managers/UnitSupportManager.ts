@@ -11,8 +11,8 @@
  * Reference: /reference/freeciv/common/city.c city_support()
  */
 
-import { logger } from '../utils/logger';
-import { EffectsManager, EffectType, OutputType, EffectContext } from './EffectsManager';
+import { logger } from '@utils/logger';
+import { EffectsManager, EffectType, OutputType, EffectContext } from '@game/managers/EffectsManager';
 
 // Unit upkeep cost structure - matches freeciv O_LAST output types
 export interface UnitUpkeep {

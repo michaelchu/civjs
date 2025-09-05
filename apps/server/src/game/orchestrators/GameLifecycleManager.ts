@@ -5,22 +5,27 @@
  */
 
 import { BaseGameService } from './GameService';
-import { logger } from '../../utils/logger';
-import { DatabaseProvider } from '../../database';
-import { gameState } from '../../database/redis';
-import { games } from '../../database/schema';
+import { logger } from '@utils/logger';
+import { DatabaseProvider } from '@database';
+import { gameState } from '@database/redis';
+import { games } from '@database/schema';
 import { eq } from 'drizzle-orm';
-import serverConfig from '../../config';
-import { TurnManager } from '../TurnManager';
-import { MapManager, MapGeneratorType } from '../MapManager';
-import { UnitManager } from '../UnitManager';
-import { VisibilityManager } from '../VisibilityManager';
-import { CityManager } from '../CityManager';
-import { ResearchManager } from '../ResearchManager';
-import { PathfindingManager } from '../PathfindingManager';
-import { MapStartpos } from '../map/MapTypes';
+import serverConfig from '@config';
+import { TurnManager } from '@game/managers/TurnManager';
+import { MapManager, MapGeneratorType } from '@game/managers/MapManager';
+import { UnitManager } from '@game/managers/UnitManager';
+import { VisibilityManager } from '@game/managers/VisibilityManager';
+import { CityManager } from '@game/managers/CityManager';
+import { ResearchManager } from '@game/managers/ResearchManager';
+import { PathfindingManager } from '@game/managers/PathfindingManager';
+import { MapStartpos } from '@game/map/MapTypes';
 import type { Server as SocketServer } from 'socket.io';
-import type { GameConfig, GameInstance, PlayerState, TerrainSettings } from '../GameManager';
+import type {
+  GameConfig,
+  GameInstance,
+  PlayerState,
+  TerrainSettings,
+} from '@game/managers/GameManager';
 
 export interface GameLifecycleService {
   createGame(gameConfig: GameConfig): Promise<string>;

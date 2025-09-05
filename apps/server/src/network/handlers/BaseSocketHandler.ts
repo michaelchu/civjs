@@ -1,5 +1,5 @@
 import { Server, Socket } from 'socket.io';
-import { PacketType } from '../../types/packet';
+import { PacketType } from '@app-types/packet';
 import { PacketHandler } from '../PacketHandler';
 
 /**

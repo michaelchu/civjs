@@ -3,9 +3,9 @@
  * @reference freeciv/server/generator/mapgen.c make_terrains(), place_terrain(), rand_map_pos_characteristic()
  * Exact copies of freeciv terrain placement algorithms
  */
-import { MapTile, TemperatureType, TerrainType } from '../MapTypes';
-import { isOceanTerrain, PlacementMap } from '../TerrainUtils';
-import { MapgenTerrainPropertyEnum, pickTerrain, getTerrainProperties } from '../TerrainRuleset';
+import { MapTile, TemperatureType, TerrainType } from '@game/map/MapTypes';
+import { isOceanTerrain, PlacementMap } from '@game/map/TerrainUtils';
+import { MapgenTerrainPropertyEnum, pickTerrain, getTerrainProperties } from '@game/map/TerrainRuleset';
 
 export interface TerrainParams {
   mountain_pct: number;

@@ -3,8 +3,8 @@
  * @reference freeciv/server/generator/mapgen.c biome and wetness processing
  * Handles biome-based terrain grouping, natural transitions, and wetness calculations
  */
-import { MapTile, TemperatureType, TerrainType } from '../MapTypes';
-import { isOceanTerrain, isLandTile, setTerrainGameProperties } from '../TerrainUtils';
+import { MapTile, TemperatureType, TerrainType } from '@game/map/MapTypes';
+import { isOceanTerrain, isLandTile, setTerrainGameProperties } from '@game/map/TerrainUtils';
 
 /**
  * Handles biome identification, wetness calculation, and biome-based terrain transitions

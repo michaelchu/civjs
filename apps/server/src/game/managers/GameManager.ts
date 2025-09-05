@@ -1,34 +1,34 @@
 /* eslint-disable complexity */
 import { eq } from 'drizzle-orm';
 import { Server as SocketServer } from 'socket.io';
-import serverConfig from '../config';
-import { DatabaseProvider, productionDatabaseProvider } from '../database';
-import { gameState } from '../database/redis';
-import { games, players } from '../database/schema';
-import { PacketType } from '../types/packet';
-import { logger } from '../utils/logger';
+import serverConfig from '@config';
+import { DatabaseProvider, productionDatabaseProvider } from '@database';
+import { gameState } from '@database/redis';
+import { games, players } from '@database/schema';
+import { PacketType } from '@app-types/packet';
+import { logger } from '@utils/logger';
 
 // Extracted managers following refactoring patterns
-import { GameBroadcastManager } from './managers/GameBroadcastManager';
-import { GameLifecycleManager } from './managers/GameLifecycleManager';
-import { GameStateManager } from './managers/GameStateManager';
-import { PlayerConnectionManager } from './managers/PlayerConnectionManager';
-import { ServiceRegistry } from './managers/ServiceRegistry';
-import { UnitManagementService } from './managers/UnitManagementService';
-import { CityManagementService } from './managers/CityManagementService';
-import { ResearchManagementService } from './managers/ResearchManagementService';
-import { VisibilityMapService } from './managers/VisibilityMapService';
-import { GameInstanceRecoveryService } from './managers/GameInstanceRecoveryService';
+import { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
+import { GameLifecycleManager } from '@game/orchestrators/GameLifecycleManager';
+import { GameStateManager } from '@game/orchestrators/GameStateManager';
+import { PlayerConnectionManager } from '@game/orchestrators/PlayerConnectionManager';
+import { ServiceRegistry } from '@game/services/ServiceRegistry';
+import { UnitManagementService } from '@game/services/UnitManagementService';
+import { CityManagementService } from '@game/services/CityManagementService';
+import { ResearchManagementService } from '@game/services/ResearchManagementService';
+import { VisibilityMapService } from '@game/services/VisibilityMapService';
+import { GameInstanceRecoveryService } from '@game/services/GameInstanceRecoveryService';
 
 // Keep existing imports for delegation
-import { CityManager } from './CityManager';
-import { MapGeneratorType, MapManager } from './MapManager';
-import { PathfindingManager } from './PathfindingManager';
-import { ResearchManager } from './ResearchManager';
-import { TurnManager } from './TurnManager';
-import { UnitManager } from './UnitManager';
-import { VisibilityManager } from './VisibilityManager';
-import { MapStartpos } from './map/MapTypes';
+import { CityManager } from '@game/managers/CityManager';
+import { MapGeneratorType, MapManager } from '@game/managers/MapManager';
+import { PathfindingManager } from '@game/managers/PathfindingManager';
+import { ResearchManager } from '@game/managers/ResearchManager';
+import { TurnManager } from '@game/managers/TurnManager';
+import { UnitManager } from '@game/managers/UnitManager';
+import { VisibilityManager } from '@game/managers/VisibilityManager';
+import { MapStartpos } from '@game/map/MapTypes';
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';

@@ -1,7 +1,7 @@
 import { Server, Socket } from 'socket.io';
 import { logger } from '../utils/logger';
 import { PacketHandler } from './PacketHandler';
-import { GameManager } from '../game/GameManager';
+import { GameManager } from '../game/managers/GameManager';
 import {
   SocketHandler,
   ConnectionHandler,

@@ -3,8 +3,8 @@
  * @reference freeciv/server/generator/mapgen.c continent generation
  * Handles continent assignment, tiny island removal, and landmass processing
  */
-import { MapTile, TerrainType } from '../MapTypes';
-import { isOceanTerrain, isLandTile, isTinyIsland, isFrozenTerrain } from '../TerrainUtils';
+import { MapTile, TerrainType } from '@game/map/MapTypes';
+import { isOceanTerrain, isLandTile, isTinyIsland, isFrozenTerrain } from '@game/map/TerrainUtils';
 
 /**
  * Handles continent identification, tiny island removal, and landmass processing

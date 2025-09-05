@@ -24,7 +24,7 @@ import { sessionCache } from '../database/redis';
 import { db } from '../database';
 import { users, games } from '../database/schema';
 import { eq } from 'drizzle-orm';
-import { GameManager } from '../game/GameManager';
+import { GameManager } from '../game/managers/GameManager';
 import { RulesetLoader } from '../shared/data/rulesets/RulesetLoader';
 
 // Store active connections

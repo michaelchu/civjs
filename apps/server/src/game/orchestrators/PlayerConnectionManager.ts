@@ -5,13 +5,13 @@
  */
 
 import { BaseGameService } from './GameService';
-import { logger } from '../../utils/logger';
-import { DatabaseProvider } from '../../database';
-import { gameState } from '../../database/redis';
-import { games, players } from '../../database/schema';
+import { logger } from '@utils/logger';
+import { DatabaseProvider } from '@database';
+import { gameState } from '@database/redis';
+import { games, players } from '@database/schema';
 import { eq } from 'drizzle-orm';
-import { RulesetLoader } from '../../shared/data/rulesets/RulesetLoader';
-import serverConfig from '../../config';
+import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import serverConfig from '@config';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {

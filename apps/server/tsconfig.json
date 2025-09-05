@@ -20,7 +20,19 @@
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "types": ["node", "jest"]
+    "types": ["node", "jest"],
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"],
+      "@config": ["config"],
+      "@database": ["database/index"],
+      "@database/*": ["database/*"],
+      "@game/*": ["game/*"],
+      "@network/*": ["network/*"],
+      "@app-types/*": ["types/*"],
+      "@utils/*": ["utils/*"],
+      "@shared/*": ["shared/*"]
+    }
   },
   "include": ["src/**/*", "tests/**/*", "../shared/**/*"],
   "exclude": ["node_modules", "dist", "../../reference"]

@@ -14,9 +14,9 @@
 // import { db } from '../database';
 // import { players as playersTable } from '../database/schema';
 // import { eq, and } from 'drizzle-orm';
-import { logger } from '../utils/logger';
-import type { Requirement } from '../shared/data/rulesets/schemas';
-// import { EffectsManager, EffectContext } from './EffectsManager';
+import { logger } from '@utils/logger';
+import type { Requirement } from '@shared/data/rulesets/schemas';
+// import { EffectsManager, EffectContext } from '@game/managers/EffectsManager';
 
 // Policy definition - direct port of freeciv struct multiplier
 export interface Policy {

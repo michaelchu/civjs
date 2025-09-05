@@ -1,16 +1,16 @@
 import { eq } from 'drizzle-orm';
-import { DatabaseProvider } from '../../database';
-import { games } from '../../database/schema';
-import { GameInstance, PlayerState, TurnPhase } from '../GameManager';
-import { BaseGameService } from './GameService';
-import { logger } from '../../utils/logger';
-import { CityManager } from '../CityManager';
-import { MapManager } from '../MapManager';
-import { PathfindingManager } from '../PathfindingManager';
-import { ResearchManager } from '../ResearchManager';
-import { TurnManager } from '../TurnManager';
-import { UnitManager } from '../UnitManager';
-import { VisibilityManager } from '../VisibilityManager';
+import { DatabaseProvider } from '@database';
+import { games } from '@database/schema';
+import { GameInstance, PlayerState, TurnPhase } from '@game/managers/GameManager';
+import { BaseGameService } from '@game/orchestrators/GameService';
+import { logger } from '@utils/logger';
+import { CityManager } from '@game/managers/CityManager';
+import { MapManager } from '@game/managers/MapManager';
+import { PathfindingManager } from '@game/managers/PathfindingManager';
+import { ResearchManager } from '@game/managers/ResearchManager';
+import { TurnManager } from '@game/managers/TurnManager';
+import { UnitManager } from '@game/managers/UnitManager';
+import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { Server as SocketServer } from 'socket.io';
 
 /**

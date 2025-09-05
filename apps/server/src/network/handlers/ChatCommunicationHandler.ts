@@ -1,8 +1,8 @@
 import { Server, Socket } from 'socket.io';
-import { logger } from '../../utils/logger';
+import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
-import { PacketType, ChatMsgSchema } from '../../types/packet';
+import { PacketType, ChatMsgSchema } from '@app-types/packet';
 
 /**
  * Handles chat and communication packets

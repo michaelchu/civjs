@@ -12,9 +12,9 @@
  * Reference: /reference/freeciv/common/effects.c
  */
 
-import { rulesetLoader } from '../shared/data/rulesets/RulesetLoader';
-import { logger } from '../utils/logger';
-import type { Effect, Requirement } from '../shared/data/rulesets/schemas';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { logger } from '@utils/logger';
+import type { Effect, Requirement } from '@shared/data/rulesets/schemas';
 
 // Core effect types from freeciv - directly ported from effects_enums.def
 export enum EffectType {

@@ -1,5 +1,5 @@
-import { logger } from '../../utils/logger';
-import { PlayerState } from '../GameManager';
+import { logger } from '@utils/logger';
+import { PlayerState } from '@game/managers/GameManager';
 import { MapData, MapTile, MapStartpos } from './MapTypes';
 import { FractalHeightGenerator } from './FractalHeightGenerator';
 import { TemperatureMap } from './TemperatureMap';

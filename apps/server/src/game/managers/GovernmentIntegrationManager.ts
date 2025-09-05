@@ -11,12 +11,12 @@
  * Ensures all government mechanics work together seamlessly.
  */
 
-import { logger } from '../utils/logger';
-import { GovernmentManager } from './GovernmentManager';
-import { EffectsManager } from './EffectsManager';
-import { PolicyManager } from './PolicyManager';
-import { CityManager } from './CityManager';
-import { UnitSupportManager, UnitSupportData } from './UnitSupportManager';
+import { logger } from '@utils/logger';
+import { GovernmentManager } from '@game/managers/GovernmentManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
+import { PolicyManager } from '@game/managers/PolicyManager';
+import { CityManager } from '@game/managers/CityManager';
+import { UnitSupportManager, UnitSupportData } from '@game/managers/UnitSupportManager';
 
 export interface GovernmentIntegrationConfig {
   gameId: string;

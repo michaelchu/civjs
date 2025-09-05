@@ -5,12 +5,12 @@
  */
 
 import { BaseGameService } from './GameService';
-import { DatabaseProvider } from '../../database';
-import { gameState } from '../../database/redis';
-import { games, players } from '../../database/schema';
+import { DatabaseProvider } from '@database';
+import { gameState } from '@database/redis';
+import { games, players } from '@database/schema';
 import { eq } from 'drizzle-orm';
-import type { TerrainSettings } from '../GameManager';
-import type { MapManager } from '../MapManager';
+import type { TerrainSettings } from '@game/managers/GameManager';
+import type { MapManager } from '@game/managers/MapManager';
 
 export interface GameStateRepository {
   createGameInDatabase(gameData: any): Promise<any>;
