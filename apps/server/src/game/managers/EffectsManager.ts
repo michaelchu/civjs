@@ -79,6 +79,8 @@ export interface EffectContext {
   outputType?: OutputType;
   specialist?: string;
   unitType?: string;
+  playerTechs?: Set<string>;  // Player's researched technologies
+  cityBuildings?: Set<string>; // Buildings in the city
 }
 
 // Requirement evaluation result
@@ -239,6 +241,66 @@ export class EffectsManager {
   }
 
   /**
+   * Calculate comprehensive city happiness effects from government
+   * Reference: freeciv city_happiness() in common/city.c
+   */
+  public calculateGovernmentHappiness(
+    cityContext: EffectContext,
+    cityPopulation: number,
+    militaryUnitsInCity: number = 0,
+    militaryUnitsAwayFromHome: number = 0
+  ): {
+    happyEffect: number;
+    unhappyEffect: number;
+    martialLawBonus: number;
+    revolutionPenalty: number;
+    sizeUnhappiness: number;
+  } {
+    // Base happiness effects from government
+    const makeHappy = this.calculateEffect(EffectType.MAKE_HAPPY, cityContext);
+    const makeContent = this.calculateEffect(EffectType.MAKE_CONTENT, cityContext);
+    const forceContent = this.calculateEffect(EffectType.FORCE_CONTENT, cityContext);
+    const noUnhappy = this.calculateEffect(EffectType.NO_UNHAPPY, cityContext);
+
+    // Revolution unhappiness during anarchy
+    const revolutionUnhappy = this.calculateEffect(EffectType.REVOLUTION_UNHAPPINESS, cityContext);
+
+    // City size unhappiness (affects larger cities under certain governments)
+    const cityUnhappySize = this.calculateEffect(EffectType.CITY_UNHAPPY_SIZE, cityContext);
+    const sizeUnhappiness = cityPopulation > cityUnhappySize.value ? 
+      (cityPopulation - cityUnhappySize.value) : 0;
+
+    // Military units unhappiness (Republic/Democracy)
+    const unhappyFactor = this.calculateEffect(EffectType.UNHAPPY_FACTOR, cityContext);
+    const militaryUnhappiness = militaryUnitsAwayFromHome * unhappyFactor.value;
+
+    // Martial law happiness bonus
+    const martialLaw = this.calculateMartialLaw(cityContext, militaryUnitsInCity);
+
+    // Calculate total effects
+    let happyEffect = makeHappy.value + makeContent.value;
+    let unhappyEffect = sizeUnhappiness + militaryUnhappiness + revolutionUnhappy.value;
+
+    // Apply force content (prevents unhappiness)
+    if (forceContent.value > 0) {
+      unhappyEffect = Math.max(0, unhappyEffect - forceContent.value);
+    }
+
+    // Apply no unhappy (eliminates all unhappiness)
+    if (noUnhappy.value > 0) {
+      unhappyEffect = 0;
+    }
+
+    return {
+      happyEffect,
+      unhappyEffect,
+      martialLawBonus: martialLaw.happyBonus,
+      revolutionPenalty: revolutionUnhappy.value,
+      sizeUnhappiness,
+    };
+  }
+
+  /**
    * Calculate unit support costs
    * Reference: freeciv city_support() calculations
    */
@@ -372,7 +434,7 @@ export class EffectsManager {
    * Evaluate requirements for an effect
    * Reference: freeciv are_reqs_active() in common/requirements.c
    */
-  private evaluateRequirements(
+  public evaluateRequirements(
     requirements: Requirement[],
     context: EffectContext
   ): RequirementResult {
@@ -418,9 +480,50 @@ export class EffectsManager {
         ? { satisfied: true }
         : { satisfied: false, reason: `UnitType requirement not met: ${req.name}` };
 
-    // TODO handlers (placeholders) - keep satisfied to maintain current behavior until integrated
-    this.requirementHandlers['Building'] = (_req, _context) => ({ satisfied: true });
-    this.requirementHandlers['Tech'] = (_req, _context) => ({ satisfied: true });
+    // Building requirement handler
+    this.requirementHandlers['Building'] = (req, context) => {
+      if (!context.cityBuildings) {
+        // If no building context provided, assume requirement is not met
+        return { 
+          satisfied: req.present === false, // Only satisfied if requirement is "NOT present"
+          reason: req.present !== false ? `Building requirement cannot be evaluated: ${req.name}` : undefined
+        };
+      }
+      
+      const hasBuilding = context.cityBuildings.has(req.name);
+      return presentCheck(hasBuilding, req.present)
+        ? { satisfied: true }
+        : { satisfied: false, reason: `Building requirement not met: ${req.name}` };
+    };
+
+    // Technology requirement handler
+    this.requirementHandlers['Tech'] = (req, context) => {
+      if (!context.playerTechs) {
+        // If no tech context provided, assume requirement is not met
+        return { 
+          satisfied: req.present === false, // Only satisfied if requirement is "NOT present"
+          reason: req.present !== false ? `Tech requirement cannot be evaluated: ${req.name}` : undefined
+        };
+      }
+      
+      // Map requirement names to our tech IDs (like in GovernmentManager)
+      const techNameMap: Record<string, string> = {
+        'Monarchy': 'monarchy',
+        'The Republic': 'the_republic',
+        'Communism': 'communism',
+        'Democracy': 'democracy',
+        'Code of Laws': 'code_of_laws',
+        'Ceremonial Burial': 'ceremonial_burial',
+        'Mysticism': 'mysticism',
+      };
+      
+      const techId = techNameMap[req.name] || req.name.toLowerCase().replace(/\s+/g, '_');
+      const hasTech = context.playerTechs.has(techId);
+      
+      return presentCheck(hasTech, req.present)
+        ? { satisfied: true }
+        : { satisfied: false, reason: `Tech requirement not met: ${req.name}` };
+    };
 
     this.requirementHandlers['Player'] = (req, context) =>
       presentCheck(context.playerId === req.name, req.present)
@@ -472,13 +575,69 @@ export class EffectsManager {
   }
 
   /**
-   * Get all government centers (Palace, Courthouse) for corruption calculations
+   * Check if a city is a government center (has Palace, Courthouse, etc.)
+   * Reference: freeciv is_gov_center() in common/city.c
+   */
+  public isGovernmentCenter(cityContext: EffectContext): boolean {
+    const govCenterEffect = this.calculateEffect(EffectType.GOV_CENTER, cityContext);
+    return govCenterEffect.value > 0;
+  }
+
+  /**
+   * Calculate distance to nearest government center for corruption calculation
    * Reference: freeciv nearest_gov_center() in common/city.c
    */
-  public getGovernmentCenters(_playerContext: EffectContext): string[] {
-    // TODO: This will be implemented when integrated with CityManager
-    // Should return list of cities with Gov_Center effect
-    return [];
+  public calculateDistanceToGovCenter(
+    cityContext: EffectContext,
+    playerCities?: Array<{ id: string; x: number; y: number; buildings?: Set<string> }>
+  ): number {
+    // If the city itself is a government center, distance is 0
+    if (this.isGovernmentCenter(cityContext)) {
+      return 0;
+    }
+
+    if (!playerCities || !cityContext.tileX || !cityContext.tileY) {
+      return 10; // Default high distance if no city data available
+    }
+
+    let nearestDistance = Number.MAX_SAFE_INTEGER;
+    
+    for (const city of playerCities) {
+      // Check if this city is a government center
+      const otherCityContext: EffectContext = {
+        ...cityContext,
+        cityId: city.id,
+        tileX: city.x,
+        tileY: city.y,
+        cityBuildings: city.buildings,
+      };
+      
+      if (this.isGovernmentCenter(otherCityContext)) {
+        // Calculate Manhattan distance (freeciv uses this for corruption)
+        const distance = Math.abs(cityContext.tileX - city.x) + Math.abs(cityContext.tileY - city.y);
+        nearestDistance = Math.min(nearestDistance, distance);
+      }
+    }
+
+    return nearestDistance === Number.MAX_SAFE_INTEGER ? 10 : nearestDistance;
+  }
+
+  /**
+   * Calculate corruption for a city based on government and distance
+   * Reference: freeciv city_corruption() in common/city.c
+   */
+  public calculateCityCorruption(
+    cityContext: EffectContext,
+    tradeOutput: number,
+    playerCities?: Array<{ id: string; x: number; y: number; buildings?: Set<string> }>
+  ): { corruption: number; distanceToGovCenter: number } {
+    const distanceToGovCenter = this.calculateDistanceToGovCenter(cityContext, playerCities);
+    const corruption = this.calculateWaste(cityContext, OutputType.TRADE, tradeOutput, distanceToGovCenter);
+    
+    return {
+      corruption,
+      distanceToGovCenter,
+    };
   }
 }
 
