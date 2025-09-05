@@ -1,7 +1,6 @@
 /* eslint-disable complexity */
 import { eq } from 'drizzle-orm';
 import { Server as SocketServer } from 'socket.io';
-import serverConfig from '@config';
 import { DatabaseProvider, productionDatabaseProvider } from '@database';
 import { gameState } from '@database/redis';
 import { games, players } from '@database/schema';
@@ -22,13 +21,12 @@ import { GameInstanceRecoveryService } from '@game/services/GameInstanceRecovery
 
 // Keep existing imports for delegation
 import { CityManager } from '@game/managers/CityManager';
-import { MapGeneratorType, MapManager } from '@game/managers/MapManager';
+import { MapManager } from '@game/managers/MapManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
 import { TurnManager } from '@game/managers/TurnManager';
 import { UnitManager } from '@game/managers/UnitManager';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
-import { MapStartpos } from '@game/map/MapTypes';
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
@@ -270,266 +268,6 @@ export class GameManager {
   public async startGame(gameId: string, hostId: string): Promise<void> {
     await this.gameLifecycleManager.startGame(gameId, hostId);
     // Note: GameLifecycleManager handles the game instance creation internally
-  }
-
-  /**
-   * Legacy start game method - now delegates to GameLifecycleManager
-   */
-  public async startGameLegacy(gameId: string, hostId: string): Promise<void> {
-    // Get game from database
-    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
-      where: eq(games.id, gameId),
-      with: {
-        players: true,
-      },
-    });
-
-    if (!game) {
-      throw new Error('Game not found');
-    }
-
-    if (game.hostId !== hostId) {
-      throw new Error('Only the host can start the game');
-    }
-
-    // Different minimum requirements for single vs multiplayer
-    const minPlayers = game.gameType === 'single' ? 1 : serverConfig.game.minPlayersToStart;
-    if (game.players.length < minPlayers) {
-      throw new Error(`Need at least ${minPlayers} players to start`);
-    }
-
-    if (game.status !== 'waiting') {
-      throw new Error('Game is not in waiting state');
-    }
-
-    logger.info('Starting game', { gameId, playerCount: game.players.length });
-
-    // Update database to active state
-    await this.databaseProvider
-      .getDatabase()
-      .update(games)
-      .set({
-        status: 'active',
-        startedAt: new Date(),
-        currentTurn: 1,
-      })
-      .where(eq(games.id, gameId));
-
-    // Update Redis cache
-    await gameState.setGameState(gameId, {
-      state: 'active',
-      currentTurn: 1,
-      turnPhase: 'movement',
-      playerCount: game.players.length,
-    });
-
-    // Initialize the in-memory game instance with map generation
-    const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
-    await this.initializeGameInstance(gameId, game, storedTerrainSettings);
-
-    // Notify all players that the game has started
-    this.broadcastToGame(gameId, 'game-started', {
-      gameId,
-      currentTurn: 1,
-    });
-
-    logger.info('Game started successfully', { gameId });
-  }
-
-  private async initializeGameInstance(
-    gameId: string,
-    game: any,
-    terrainSettings?: TerrainSettings
-  ): Promise<void> {
-    logger.info('Initializing game instance', { gameId });
-
-    // Create player state map
-    const players = new Map<string, PlayerState>();
-    for (const dbPlayer of game.players) {
-      players.set(dbPlayer.id, {
-        id: dbPlayer.id,
-        userId: dbPlayer.userId,
-        playerNumber: dbPlayer.playerNumber,
-        civilization: dbPlayer.civilization,
-        isReady: false,
-        hasEndedTurn: false,
-        isConnected: true,
-        lastSeen: new Date(),
-      });
-
-      // Track player to game mapping
-      this.playerToGame.set(dbPlayer.id, gameId);
-    }
-
-    // Initialize managers with terrain settings
-    const mapGenerator = terrainSettings?.generator || 'random';
-    const temperatureParam = terrainSettings?.temperature ?? 50;
-    const mapManager = new MapManager(
-      game.mapWidth,
-      game.mapHeight,
-      undefined,
-      mapGenerator,
-      undefined,
-      undefined,
-      false,
-      temperatureParam
-    );
-    const turnManager = new TurnManager(gameId, this.databaseProvider, this.io);
-    const unitManager = new UnitManager(
-      gameId,
-      this.databaseProvider,
-      game.mapWidth,
-      game.mapHeight,
-      mapManager,
-      {
-        foundCity: this.foundCity.bind(this),
-        requestPath: this.requestPath.bind(this),
-        broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
-          this.broadcastToGame(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
-        },
-        getCityAt: (x: number, y: number) => {
-          const city = cityManager.getCityAt(x, y);
-          return city ? { playerId: city.playerId } : null;
-        },
-      }
-    );
-
-    // Initialize turn system with player IDs
-    const playerIds = Array.from(players.keys());
-    await turnManager.initializeTurn(playerIds);
-    const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
-    const cityManager = new CityManager(gameId, this.databaseProvider, undefined, {
-      createUnit: (playerId: string, unitType: string, x: number, y: number) =>
-        this.createUnit(gameId, playerId, unitType, x, y),
-    });
-    const researchManager = new ResearchManager(gameId, this.databaseProvider);
-    const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
-
-    // Generate the map with starting positions based on terrain settings
-    const generator = terrainSettings?.generator || 'random';
-    // Get startpos setting for island-based generators (from fix-map-duplicate-creation branch)
-    const startpos = terrainSettings?.startpos ?? MapStartpos.DEFAULT;
-    logger.debug('Map generation starting', { terrainSettings, generator, startpos });
-
-    // Use restructured MapManager with proper generator routing
-    // @reference freeciv/server/generator/mapgen.c:1315-1341
-    // Delegates to MapManager's restructured generateMap() with fallback logic
-    const generatorType = this.convertGeneratorType(generator);
-    let generationAttempted = false;
-    let lastError: Error | null = null;
-
-    try {
-      logger.info('Delegating to restructured MapManager', {
-        generator,
-        generatorType,
-        reference: 'apps/server/src/game/MapManager.ts:97-138',
-      });
-
-      // Delegate to restructured MapManager system
-      await mapManager.generateMap(players, generatorType);
-      generationAttempted = true;
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      logger.error('Map generation failed, attempting emergency recovery', {
-        generator: generatorType,
-        error: lastError.message,
-      });
-    }
-
-    // Emergency fallback sequence (defensive addition, not in freeciv)
-    if (!generationAttempted || !mapManager.getMapData()) {
-      logger.warn('Initiating emergency fallback sequence (defensive extension)');
-
-      try {
-        logger.info('Emergency fallback: MAPGEN_FRACTAL');
-        await mapManager.generateMap(players, 'FRACTAL');
-        generationAttempted = true;
-      } catch (error) {
-        logger.error('Emergency fractal failed, trying final MAPGEN_RANDOM fallback', {
-          error: error instanceof Error ? error.message : error,
-        });
-
-        try {
-          logger.info('Final emergency fallback: MAPGEN_RANDOM');
-          await mapManager.generateMap(players, 'RANDOM');
-          generationAttempted = true;
-        } catch (error) {
-          const finalError = error instanceof Error ? error : new Error(String(error));
-          logger.error('All generation methods exhausted', {
-            originalError: lastError?.message,
-            finalError: finalError.message,
-          });
-          throw new Error(
-            `Complete map generation failure. Original: ${
-              lastError?.message || 'unknown'
-            }, Final: ${finalError.message}`
-          );
-        }
-      }
-    }
-
-    const mapData = mapManager.getMapData();
-    if (!mapData) {
-      throw new Error('Failed to generate map data');
-    }
-
-    logger.info('Map generated successfully', {
-      gameId,
-      mapSize: `${mapData.width}x${mapData.height}`,
-      startingPositions: mapData.startingPositions.length,
-    });
-
-    // Create game instance
-    const gameInstance: GameInstance = {
-      id: gameId,
-      config: {
-        name: game.name,
-        hostId: game.hostId,
-        maxPlayers: game.maxPlayers,
-        mapWidth: game.mapWidth,
-        mapHeight: game.mapHeight,
-        ruleset: game.ruleset,
-        turnTimeLimit: game.turnTimeLimit,
-        victoryConditions: game.victoryConditions || ['conquest', 'science', 'culture'],
-      },
-      state: 'active',
-      currentTurn: 1,
-      turnPhase: 'movement',
-      players,
-      turnManager,
-      mapManager,
-      unitManager,
-      visibilityManager,
-      cityManager,
-      researchManager,
-      pathfindingManager,
-      lastActivity: new Date(),
-    };
-
-    // Store the game instance
-    this.games.set(gameId, gameInstance);
-
-    // Persist map data to database for recovery after server restarts
-    await this.persistMapDataToDatabase(gameId, mapData, terrainSettings);
-
-    // Initialize research and visibility for all players
-    for (const player of players.values()) {
-      await researchManager.initializePlayerResearch(player.id);
-      visibilityManager.initializePlayerVisibility(player.id);
-      // Grant initial visibility around starting position
-      visibilityManager.updatePlayerVisibility(player.id);
-    }
-
-    // Create starting units for all players (settler + warrior)
-    // @reference freeciv/server/plrhand.c:player_init() - create_start_unit()
-    await this.createStartingUnits(gameId, mapData, unitManager, players);
-
-    // Update visibility after units are created to reveal starting positions
-    for (const player of players.values()) {
-      visibilityManager.updatePlayerVisibility(player.id);
-    }
-
-    // Map data will be broadcast after full game initialization via GameLifecycleManager
   }
 
   // Moved to GameBroadcastManager - this method is no longer used
@@ -1282,31 +1020,6 @@ export class GameManager {
       });
 
       return { success: false, error: 'Internal server error' };
-    }
-  }
-
-  /**
-   * Convert string generator type to MapGeneratorType enum
-   * @param generator String generator identifier from client
-   * @returns MapGeneratorType enum value for MapManager
-   */
-  private convertGeneratorType(generator: string): MapGeneratorType {
-    switch (generator.toLowerCase()) {
-      case 'fair':
-        return 'FAIR';
-      case 'island':
-        return 'ISLAND';
-      case 'random':
-        return 'RANDOM';
-      case 'fracture':
-        return 'FRACTURE';
-      case 'fractal':
-        return 'FRACTAL';
-      case 'scenario':
-        return 'SCENARIO';
-      default:
-        logger.warn('Unknown generator type, defaulting to FRACTAL', { generator });
-        return 'FRACTAL';
     }
   }
 }

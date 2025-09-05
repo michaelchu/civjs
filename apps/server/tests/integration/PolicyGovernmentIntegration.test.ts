@@ -99,7 +99,7 @@ describe('Policy and Government Manager Integration', () => {
     });
 
     it('should provide available policies with proper freeciv compliance', () => {
-      // Test the freeciv-compliant method
+      // Test the core method - policies are available through getAvailablePolicies
       const availablePolicies = policyManager.getAvailablePolicies();
 
       expect(Array.isArray(availablePolicies)).toBe(true);
@@ -119,28 +119,35 @@ describe('Policy and Government Manager Integration', () => {
     });
 
     it('should allow policy adoption with sophisticated validation', async () => {
-      // Test the existing adoptPolicy method with rich functionality
-      const result = await policyManager.adoptPolicy(playerId, 'tax_rate', 150, 1);
+      // Test the core changePolicyValue method with rich functionality
+      const result = await policyManager.changePolicyValue(
+        playerId,
+        'tax_rate',
+        150,
+        1,
+        new Set<string>()
+      );
 
-      expect(typeof result).toBe('boolean');
+      expect(typeof result.success).toBe('boolean');
       // The sophisticated implementation validates ranges, steps, and turn restrictions
     });
 
-    it('should provide convenient array access methods', () => {
-      // Test convenience methods for API compatibility
-      const policiesArray = policyManager.getAvailablePoliciesArray(playerId);
-      expect(Array.isArray(policiesArray)).toBe(true);
+    it('should provide policy data through core methods', () => {
+      // Test core methods - policies available through direct access
+      const availablePolicies = policyManager.getAvailablePolicies();
+      expect(Array.isArray(availablePolicies)).toBe(true);
 
-      const playerPoliciesArray = policyManager.getPlayerPoliciesArray(playerId);
-      expect(Array.isArray(playerPoliciesArray)).toBe(true);
+      const playerPolicies = policyManager.getPlayerPolicies(playerId);
+      expect(playerPolicies).toBeDefined();
 
-      if (playerPoliciesArray.length > 0) {
-        const policyInfo = playerPoliciesArray[0];
-        expect(policyInfo).toHaveProperty('id');
-        expect(policyInfo).toHaveProperty('name');
-        expect(policyInfo).toHaveProperty('currentValue');
-        expect(policyInfo).toHaveProperty('targetValue');
-        expect(policyInfo).toHaveProperty('canChange');
+      if (availablePolicies.length > 0) {
+        const policy = availablePolicies[0];
+        expect(policy).toHaveProperty('id');
+        expect(policy).toHaveProperty('name');
+
+        // Test that we can get policy values for the player
+        const policyValue = policyManager.getPlayerPolicyValue(playerId, policy.id);
+        expect(typeof policyValue).toBe('number');
       }
     });
 
