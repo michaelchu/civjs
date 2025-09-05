@@ -700,6 +700,84 @@ export class PolicyManager {
         return [];
     }
   }
+
+  /**
+   * Get available policies as simple array (convenience method)
+   * Returns array of Policy objects that the player can currently adopt
+   * Reference: freeciv policy availability checking
+   */
+  public getAvailablePoliciesArray(
+    playerId: string,
+    playerTechs: Set<string> = new Set()
+  ): Policy[] {
+    const playerPolicies = this.playerPolicies.get(playerId);
+    if (!playerPolicies) {
+      return [];
+    }
+
+    const availablePolicies: Policy[] = [];
+    for (const policy of this.availablePolicies.values()) {
+      // Check if policy requirements are met
+      if (this.canPlayerUsePolicy(policy, playerTechs)) {
+        availablePolicies.push(policy);
+      }
+    }
+
+    return availablePolicies;
+  }
+
+  /**
+   * Check if player meets requirements for a policy
+   * Reference: freeciv requirement checking
+   */
+  private canPlayerUsePolicy(policy: Policy, playerTechs: Set<string>): boolean {
+    if (!policy.reqs || policy.reqs.length === 0) {
+      return true;
+    }
+
+    // Simplified requirement checking - in full implementation would use EffectsManager
+    for (const requirement of policy.reqs) {
+      if (requirement.type === 'tech' && !playerTechs.has(requirement.name)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Get simplified policy list for API compatibility
+   * Returns array of policies with current values for a player
+   */
+  public getPlayerPoliciesArray(playerId: string): Array<{
+    id: string;
+    name: string;
+    currentValue: number;
+    targetValue: number;
+    canChange: boolean;
+  }> {
+    const playerPolicies = this.playerPolicies.get(playerId);
+    if (!playerPolicies) {
+      return [];
+    }
+
+    const result = [];
+    for (const [policyId, policy] of this.availablePolicies) {
+      const policyValue = playerPolicies.policies.get(policyId);
+      const currentValue = policyValue?.value ?? policy.default;
+      const targetValue = policyValue?.targetValue ?? policy.default;
+
+      result.push({
+        id: policyId,
+        name: policy.name,
+        currentValue,
+        targetValue,
+        canChange: true, // Simplified - would check turn restrictions in full implementation
+      });
+    }
+
+    return result;
+  }
 }
 
 // Export types (already exported above)

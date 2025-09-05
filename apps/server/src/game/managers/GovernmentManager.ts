@@ -535,60 +535,6 @@ export class GovernmentManager {
   }
 
   /**
-   * Get government effects on specific unit
-   * Reference: freeciv unit government effects
-   */
-  public getUnitGovernmentEffects(playerId: string, _unitId: string): UnitGovernmentEffects {
-    const playerGov = this.playerGovernments.get(playerId);
-    if (!playerGov) {
-      return { attackBonus: 0, defenseBonus: 0, supportCost: 1 };
-    }
-
-    // Government-specific unit effects
-    switch (playerGov.currentGovernment) {
-      case 'despotism':
-        return { attackBonus: 0, defenseBonus: 0, supportCost: 1 };
-      case 'monarchy':
-        return { attackBonus: 5, defenseBonus: 0, supportCost: 1 };
-      case 'republic':
-        return { attackBonus: 0, defenseBonus: 5, supportCost: 2 };
-      case 'democracy':
-        return { attackBonus: -10, defenseBonus: 10, supportCost: 2 };
-      case 'anarchy':
-        return { attackBonus: -20, defenseBonus: -20, supportCost: 3 };
-      default:
-        return { attackBonus: 0, defenseBonus: 0, supportCost: 1 };
-    }
-  }
-
-  /**
-   * Get government effects on city happiness
-   * Reference: freeciv happiness calculations in common/city.c
-   */
-  public getCityHappinessEffects(playerId: string, _cityId: string): CityHappinessEffects {
-    const playerGov = this.playerGovernments.get(playerId);
-    if (!playerGov) {
-      return { baseHappiness: 0, warWeariness: 0, luxuryBonus: 0 };
-    }
-
-    // Government-specific happiness effects
-    switch (playerGov.currentGovernment) {
-      case 'despotism':
-        return { baseHappiness: -1, warWeariness: 0, luxuryBonus: 0 };
-      case 'monarchy':
-        return { baseHappiness: 1, warWeariness: 0, luxuryBonus: 5 };
-      case 'republic':
-        return { baseHappiness: 0, warWeariness: 2, luxuryBonus: 10 };
-      case 'democracy':
-        return { baseHappiness: 2, warWeariness: 4, luxuryBonus: 15 };
-      case 'anarchy':
-        return { baseHappiness: -5, warWeariness: 0, luxuryBonus: -10 };
-      default:
-        return { baseHappiness: 0, warWeariness: 0, luxuryBonus: 0 };
-    }
-  }
-
-  /**
    * Load player governments from database
    * Reference: Integration test requirement for game reloads
    */
@@ -664,7 +610,7 @@ export class GovernmentManager {
 
   /**
    * Calculate government maintenance costs
-   * Reference: freeciv government upkeep calculations
+   * Reference: freeciv government maintenance in common/effects.c
    */
   public calculateGovernmentMaintenance(playerId: string): number {
     const playerGov = this.playerGovernments.get(playerId);
@@ -672,21 +618,174 @@ export class GovernmentManager {
       return 0;
     }
 
-    // Government-specific maintenance costs based on freeciv
+    try {
+      // During revolution (anarchy), no maintenance costs
+      if (playerGov.revolutionTurns > 0) {
+        return 0;
+      }
+
+      // Basic maintenance calculation based on government type
+      // In full implementation, this would use EffectsManager and city count
+      switch (playerGov.currentGovernment) {
+        case 'despotism':
+          return 0; // No maintenance for despotism
+        case 'monarchy':
+          return 1; // Flat 1 gold per turn for monarchy
+        case 'republic':
+          return 2; // Higher maintenance for republic
+        case 'democracy':
+          return 3; // Highest maintenance for democracy
+        default:
+          return 1;
+      }
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * Get government effects on units
+   * Reference: freeciv unit government effects
+   */
+  public getUnitGovernmentEffects(
+    playerId: string,
+    unitType: string
+  ): Array<{
+    type: string;
+    value: number;
+    description: string;
+  }> {
+    const playerGov = this.playerGovernments.get(playerId);
+    if (!playerGov) {
+      return [];
+    }
+
+    // During revolution, units get penalties
+    if (playerGov.revolutionTurns > 0) {
+      return [
+        {
+          type: 'movement_penalty',
+          value: -1,
+          description: 'Anarchy movement penalty',
+        },
+      ];
+    }
+
+    // Government-specific unit effects
+    return this.getUnitEffectsForGovernment(playerGov.currentGovernment, unitType);
+  }
+
+  /**
+   * Get unit effects for specific government type (helper method)
+   */
+  private getUnitEffectsForGovernment(
+    governmentType: string,
+    unitType: string
+  ): Array<{ type: string; value: number; description: string }> {
+    const isMilitaryUnit = unitType === 'warrior' || unitType === 'phalanx';
+
+    switch (governmentType) {
+      case 'despotism':
+        return isMilitaryUnit
+          ? [
+              {
+                type: 'away_unhappiness',
+                value: 1,
+                description: 'Military units away from home cause unhappiness under Despotism',
+              },
+            ]
+          : [];
+
+      case 'republic':
+      case 'democracy':
+        return isMilitaryUnit
+          ? [
+              {
+                type: 'away_unhappiness',
+                value: 2,
+                description:
+                  'Military units away from home cause unhappiness under Republic/Democracy',
+              },
+            ]
+          : [];
+
+      case 'monarchy':
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * Get government happiness effects on cities
+   * Reference: freeciv happiness system
+   */
+  public getCityHappinessEffects(
+    playerId: string,
+    cityPopulation: number
+  ): Array<{
+    type: string;
+    value: number;
+    description: string;
+  }> {
+    const playerGov = this.playerGovernments.get(playerId);
+    if (!playerGov) {
+      return [];
+    }
+
+    const effects = [];
+
+    // During revolution, cities get unhappiness
+    if (playerGov.revolutionTurns > 0) {
+      effects.push({
+        type: 'anarchy_unhappiness',
+        value: -2,
+        description: 'Anarchy causes widespread unhappiness',
+      });
+      return effects;
+    }
+
+    // Government-specific happiness effects
     switch (playerGov.currentGovernment) {
       case 'despotism':
-        return 0; // No maintenance cost
+        // Large cities under despotism have unhappiness
+        if (cityPopulation > 4) {
+          effects.push({
+            type: 'size_unhappiness',
+            value: -(cityPopulation - 4),
+            description: 'Large cities are unhappy under Despotism',
+          });
+        }
+        break;
+
       case 'monarchy':
-        return 1; // Minimal cost
+        // Monarchy reduces unhappiness
+        effects.push({
+          type: 'monarchy_happiness',
+          value: 1,
+          description: 'Monarchy provides stability bonus',
+        });
+        break;
+
       case 'republic':
-        return 2; // Moderate cost for democratic institutions
+        // Republic provides trade bonus but some instability
+        effects.push({
+          type: 'trade_bonus',
+          value: 1,
+          description: 'Republic increases trade',
+        });
+        break;
+
       case 'democracy':
-        return 4; // Higher cost for complex government
-      case 'anarchy':
-        return 0; // No organized government to maintain
-      default:
-        return 1;
+        // Democracy provides happiness but expensive
+        effects.push({
+          type: 'democracy_happiness',
+          value: 2,
+          description: 'Democracy provides happiness bonus',
+        });
+        break;
     }
+
+    return effects;
   }
 
   /**
