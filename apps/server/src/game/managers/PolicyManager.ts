@@ -16,7 +16,12 @@
 // import { eq, and } from 'drizzle-orm';
 import { logger } from '@utils/logger';
 import type { Requirement } from '@shared/data/rulesets/schemas';
-import { EffectsManager, EffectContext, EffectType, OutputType } from '@game/managers/EffectsManager';
+import {
+  EffectsManager,
+  EffectContext,
+  EffectType,
+  OutputType,
+} from '@game/managers/EffectsManager';
 
 // Policy definition - direct port of freeciv struct multiplier
 export interface Policy {
@@ -517,23 +522,23 @@ export class PolicyManager {
 
     // Apply multipliers to base effects
     const scienceEffect = this.effectsManager.calculateEffect(
-      EffectType.OUTPUT_BONUS, 
-      scienceContext, 
+      EffectType.OUTPUT_BONUS,
+      scienceContext,
       taxRateMultiplier
     );
     const goldEffect = this.effectsManager.calculateEffect(
-      EffectType.OUTPUT_BONUS, 
-      goldContext, 
+      EffectType.OUTPUT_BONUS,
+      goldContext,
       taxRateMultiplier
     );
     const luxuryEffect = this.effectsManager.calculateEffect(
-      EffectType.OUTPUT_BONUS, 
-      luxuryContext, 
+      EffectType.OUTPUT_BONUS,
+      luxuryContext,
       taxRateMultiplier
     );
     const productionEffect = this.effectsManager.calculateEffect(
-      EffectType.OUTPUT_BONUS, 
-      productionContext, 
+      EffectType.OUTPUT_BONUS,
+      productionContext,
       economicFocusMultiplier
     );
 

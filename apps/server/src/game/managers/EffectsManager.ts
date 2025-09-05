@@ -79,7 +79,7 @@ export interface EffectContext {
   outputType?: OutputType;
   specialist?: string;
   unitType?: string;
-  playerTechs?: Set<string>;  // Player's researched technologies
+  playerTechs?: Set<string>; // Player's researched technologies
   cityBuildings?: Set<string>; // Buildings in the city
 }
 
@@ -267,8 +267,8 @@ export class EffectsManager {
 
     // City size unhappiness (affects larger cities under certain governments)
     const cityUnhappySize = this.calculateEffect(EffectType.CITY_UNHAPPY_SIZE, cityContext);
-    const sizeUnhappiness = cityPopulation > cityUnhappySize.value ? 
-      (cityPopulation - cityUnhappySize.value) : 0;
+    const sizeUnhappiness =
+      cityPopulation > cityUnhappySize.value ? cityPopulation - cityUnhappySize.value : 0;
 
     // Military units unhappiness (Republic/Democracy)
     const unhappyFactor = this.calculateEffect(EffectType.UNHAPPY_FACTOR, cityContext);
@@ -278,7 +278,7 @@ export class EffectsManager {
     const martialLaw = this.calculateMartialLaw(cityContext, militaryUnitsInCity);
 
     // Calculate total effects
-    let happyEffect = makeHappy.value + makeContent.value;
+    const happyEffect = makeHappy.value + makeContent.value;
     let unhappyEffect = sizeUnhappiness + militaryUnhappiness + revolutionUnhappy.value;
 
     // Apply force content (prevents unhappiness)
@@ -484,12 +484,15 @@ export class EffectsManager {
     this.requirementHandlers['Building'] = (req, context) => {
       if (!context.cityBuildings) {
         // If no building context provided, assume requirement is not met
-        return { 
+        return {
           satisfied: req.present === false, // Only satisfied if requirement is "NOT present"
-          reason: req.present !== false ? `Building requirement cannot be evaluated: ${req.name}` : undefined
+          reason:
+            req.present !== false
+              ? `Building requirement cannot be evaluated: ${req.name}`
+              : undefined,
         };
       }
-      
+
       const hasBuilding = context.cityBuildings.has(req.name);
       return presentCheck(hasBuilding, req.present)
         ? { satisfied: true }
@@ -500,26 +503,27 @@ export class EffectsManager {
     this.requirementHandlers['Tech'] = (req, context) => {
       if (!context.playerTechs) {
         // If no tech context provided, assume requirement is not met
-        return { 
+        return {
           satisfied: req.present === false, // Only satisfied if requirement is "NOT present"
-          reason: req.present !== false ? `Tech requirement cannot be evaluated: ${req.name}` : undefined
+          reason:
+            req.present !== false ? `Tech requirement cannot be evaluated: ${req.name}` : undefined,
         };
       }
-      
+
       // Map requirement names to our tech IDs (like in GovernmentManager)
       const techNameMap: Record<string, string> = {
-        'Monarchy': 'monarchy',
+        Monarchy: 'monarchy',
         'The Republic': 'the_republic',
-        'Communism': 'communism',
-        'Democracy': 'democracy',
+        Communism: 'communism',
+        Democracy: 'democracy',
         'Code of Laws': 'code_of_laws',
         'Ceremonial Burial': 'ceremonial_burial',
-        'Mysticism': 'mysticism',
+        Mysticism: 'mysticism',
       };
-      
+
       const techId = techNameMap[req.name] || req.name.toLowerCase().replace(/\s+/g, '_');
       const hasTech = context.playerTechs.has(techId);
-      
+
       return presentCheck(hasTech, req.present)
         ? { satisfied: true }
         : { satisfied: false, reason: `Tech requirement not met: ${req.name}` };
@@ -601,7 +605,7 @@ export class EffectsManager {
     }
 
     let nearestDistance = Number.MAX_SAFE_INTEGER;
-    
+
     for (const city of playerCities) {
       // Check if this city is a government center
       const otherCityContext: EffectContext = {
@@ -611,10 +615,11 @@ export class EffectsManager {
         tileY: city.y,
         cityBuildings: city.buildings,
       };
-      
+
       if (this.isGovernmentCenter(otherCityContext)) {
         // Calculate Manhattan distance (freeciv uses this for corruption)
-        const distance = Math.abs(cityContext.tileX - city.x) + Math.abs(cityContext.tileY - city.y);
+        const distance =
+          Math.abs(cityContext.tileX - city.x) + Math.abs(cityContext.tileY - city.y);
         nearestDistance = Math.min(nearestDistance, distance);
       }
     }
@@ -632,8 +637,13 @@ export class EffectsManager {
     playerCities?: Array<{ id: string; x: number; y: number; buildings?: Set<string> }>
   ): { corruption: number; distanceToGovCenter: number } {
     const distanceToGovCenter = this.calculateDistanceToGovCenter(cityContext, playerCities);
-    const corruption = this.calculateWaste(cityContext, OutputType.TRADE, tradeOutput, distanceToGovCenter);
-    
+    const corruption = this.calculateWaste(
+      cityContext,
+      OutputType.TRADE,
+      tradeOutput,
+      distanceToGovCenter
+    );
+
     return {
       corruption,
       distanceToGovCenter,

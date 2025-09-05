@@ -225,7 +225,7 @@ export class GovernmentManager {
         government: governmentId,
         playerTechs: playerResearchedTechs,
       };
-      
+
       const result = this.effectsManager.evaluateRequirements(government.reqs, context);
       if (!result.satisfied) {
         return { allowed: false, reason: result.reason };
@@ -289,18 +289,6 @@ export class GovernmentManager {
 
     // Standard revolution time
     return 3;
-  }
-
-  private getTechIdFromName(techName: string): string | null {
-    // Map government requirement names to our tech IDs
-    const techNameMap: Record<string, string> = {
-      Monarchy: 'monarchy',
-      'The Republic': 'the_republic',
-      Communism: 'communism',
-      Democracy: 'democracy',
-    };
-
-    return techNameMap[techName] || null;
   }
 
   public getAllGovernments(): Record<string, Government> {
@@ -513,15 +501,33 @@ export class GovernmentManager {
     const foodCostContext = { ...context, outputType: OutputType.FOOD };
     const shieldCostContext = { ...context, outputType: OutputType.SHIELD };
 
-    const goldCostEffect = this.effectsManager.calculateEffect(EffectType.UPKEEP_PCT, goldCostContext);
-    const foodCostEffect = this.effectsManager.calculateEffect(EffectType.UPKEEP_PCT, foodCostContext);
-    const shieldCostEffect = this.effectsManager.calculateEffect(EffectType.UPKEEP_PCT, shieldCostContext);
+    const goldCostEffect = this.effectsManager.calculateEffect(
+      EffectType.UPKEEP_PCT,
+      goldCostContext
+    );
+    const foodCostEffect = this.effectsManager.calculateEffect(
+      EffectType.UPKEEP_PCT,
+      foodCostContext
+    );
+    const shieldCostEffect = this.effectsManager.calculateEffect(
+      EffectType.UPKEEP_PCT,
+      shieldCostContext
+    );
 
     return {
       freeUnits: Math.max(0, freeUnitsEffect.value),
-      goldPerUnit: Math.max(1, Math.floor((goldCostEffect.value || 100) * upkeepMultiplier / 100)),
-      foodPerUnit: Math.max(1, Math.floor((foodCostEffect.value || 100) * upkeepMultiplier / 100)),
-      shieldPerUnit: Math.max(1, Math.floor((shieldCostEffect.value || 100) * upkeepMultiplier / 100)),
+      goldPerUnit: Math.max(
+        1,
+        Math.floor(((goldCostEffect.value || 100) * upkeepMultiplier) / 100)
+      ),
+      foodPerUnit: Math.max(
+        1,
+        Math.floor(((foodCostEffect.value || 100) * upkeepMultiplier) / 100)
+      ),
+      shieldPerUnit: Math.max(
+        1,
+        Math.floor(((shieldCostEffect.value || 100) * upkeepMultiplier) / 100)
+      ),
     };
   }
 
@@ -542,21 +548,27 @@ export class GovernmentManager {
 
     // Calculate trade effects using EffectsManager for proper freeciv compliance
     const corruptionContext = { ...context, outputType: OutputType.TRADE };
-    const wasteEffect = this.effectsManager.calculateEffect(EffectType.OUTPUT_WASTE, corruptionContext);
-    const wastePctEffect = this.effectsManager.calculateEffect(EffectType.OUTPUT_WASTE_PCT, corruptionContext);
+    const wasteEffect = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_WASTE,
+      corruptionContext
+    );
+    const wastePctEffect = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_WASTE_PCT,
+      corruptionContext
+    );
 
     // Calculate corruption and waste levels
     const baseCorruption = wasteEffect.value;
     const baseWaste = wasteEffect.value;
 
     // Apply waste percentage modifier
-    const corruptionLevel = wastePctEffect.value > 0 ? 
-      Math.floor(baseCorruption * wastePctEffect.value / 100) : 
-      baseCorruption;
-    
-    const wasteLevel = wastePctEffect.value > 0 ? 
-      Math.floor(baseWaste * wastePctEffect.value / 100) : 
-      baseWaste;
+    const corruptionLevel =
+      wastePctEffect.value > 0
+        ? Math.floor((baseCorruption * wastePctEffect.value) / 100)
+        : baseCorruption;
+
+    const wasteLevel =
+      wastePctEffect.value > 0 ? Math.floor((baseWaste * wastePctEffect.value) / 100) : baseWaste;
 
     // Default trade routes calculation (could be enhanced with effects in the future)
     let maxTradeRoutes = 2;
@@ -603,14 +615,26 @@ export class GovernmentManager {
     const goldContext = { ...context, outputType: OutputType.GOLD };
     const scienceContext = { ...context, outputType: OutputType.SCIENCE };
 
-    const productionEffect = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, productionContext);
+    const productionEffect = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_BONUS,
+      productionContext
+    );
     const goldEffect = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, goldContext);
-    const scienceEffect = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, scienceContext);
+    const scienceEffect = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_BONUS,
+      scienceContext
+    );
 
     // Additional bonus effects
-    const productionEffect2 = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS_2, productionContext);
+    const productionEffect2 = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_BONUS_2,
+      productionContext
+    );
     const goldEffect2 = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS_2, goldContext);
-    const scienceEffect2 = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS_2, scienceContext);
+    const scienceEffect2 = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_BONUS_2,
+      scienceContext
+    );
 
     return {
       productionBonus: productionEffect.value + productionEffect2.value,
