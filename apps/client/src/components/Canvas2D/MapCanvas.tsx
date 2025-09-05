@@ -424,7 +424,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       } catch (error) {
         console.error('Error executing goto action:', error);
       } finally {
-        // Always deactivate goto mode after execution attempt
+        // Always deactivate goto mode after execution attempt (clears path immediately)
         deactivateGotoMode();
         // Deselect the unit after goto destination is clicked
         selectUnit(null);
