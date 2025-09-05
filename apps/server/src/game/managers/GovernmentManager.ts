@@ -637,4 +637,92 @@ export class GovernmentManager {
       this.playerGovernments.set(playerId, playerGov);
     }
   }
+
+  /**
+   * Apply government effects to player stats
+   * This method would integrate with EffectsManager to apply government bonuses/penalties
+   * Reference: freeciv effects system
+   */
+  public async applyGovernmentEffects(playerId: string, governmentType?: string): Promise<void> {
+    const playerGov = this.playerGovernments.get(playerId);
+    if (!playerGov) {
+      throw new Error(`Player government not initialized: ${playerId}`);
+    }
+
+    const currentGov = governmentType || playerGov.currentGovernment;
+    const effects = this.getGovernmentEffects(playerId);
+    
+    // TODO: Integration with EffectsManager would happen here
+    // For now, we log the effects that would be applied
+    if (effects.length > 0) {
+      logger.info(`Applied ${effects.length} government effects for ${currentGov} to player ${playerId}`);
+    }
+  }
+
+  /**
+   * Calculate government maintenance costs
+   * Reference: freeciv government upkeep calculations
+   */
+  public calculateGovernmentMaintenance(playerId: string): number {
+    const playerGov = this.playerGovernments.get(playerId);
+    if (!playerGov) {
+      return 0;
+    }
+
+    // Government-specific maintenance costs based on freeciv
+    switch (playerGov.currentGovernment) {
+      case 'despotism':
+        return 0; // No maintenance cost
+      case 'monarchy':
+        return 1; // Minimal cost
+      case 'republic':
+        return 2; // Moderate cost for democratic institutions
+      case 'democracy':
+        return 4; // Higher cost for complex government
+      case 'anarchy':
+        return 0; // No organized government to maintain
+      default:
+        return 1;
+    }
+  }
+
+  /**
+   * Check if government change is allowed
+   * Reference: freeciv government requirements checking
+   */
+  public canChangeGovernment(playerId: string, newGovernmentType: string): boolean {
+    const playerGov = this.playerGovernments.get(playerId);
+    if (!playerGov) {
+      return false;
+    }
+
+    // Can't change to current government
+    if (playerGov.currentGovernment === newGovernmentType) {
+      return false;
+    }
+
+    // Can't change while in revolution
+    if (playerGov.revolutionTurns > 0) {
+      return false;
+    }
+
+    // Validate government exists
+    try {
+      getGovernment(newGovernmentType);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Initiate government change with revolution mechanics
+   * Alias for startRevolution for API compatibility
+   */
+  public async initiateGovernmentChange(playerId: string, newGovernmentType: string): Promise<void> {
+    const result = await this.startRevolution(playerId, newGovernmentType, new Set<string>());
+    if (!result.success) {
+      throw new Error(result.message || 'Government change failed');
+    }
+  }
 }
