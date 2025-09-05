@@ -14,7 +14,7 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@config$': '<rootDir>/src/config',
-    '^@database/schema$': '<rootDir>/src/database/schema/index',
+    '^@database/schema$': '<rootDir>/src/database/schema/index.ts',
     '^@database$': '<rootDir>/src/database/index',
     '^@database/(.*)$': '<rootDir>/src/database/$1',
     '^@game/(.*)$': '<rootDir>/src/game/$1',
