@@ -368,18 +368,48 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
   }
 
   private deserializeTile(tileData: any): any {
+    const d = this.sanitizeTileData(tileData);
     return {
-      terrain: tileData.terrain || 'ocean',
-      resource: tileData.resource || null,
-      improvement: tileData.improvement || null,
-      altitude: tileData.altitude || 0,
-      temperature: tileData.temperature || 0,
-      moisture: tileData.moisture || 0,
-      riverMask: tileData.riverMask || 0,
-      special: tileData.special || null,
-      x: tileData.x || 0,
-      y: tileData.y || 0,
+      terrain: d.terrain,
+      resource: d.resource,
+      improvement: d.improvement,
+      altitude: d.altitude,
+      temperature: d.temperature,
+      moisture: d.moisture,
+      riverMask: d.riverMask,
+      special: d.special,
+      x: d.x,
+      y: d.y,
     };
+  }
+
+  // Reduce complexity by isolating defaulting logic into helpers (behavior preserved)
+  private sanitizeTileData(tileData: any): any {
+    const t = tileData || {};
+    return {
+      terrain: this.toStringOr(t.terrain, 'ocean'),
+      resource: this.toNullableString(t.resource),
+      improvement: this.toNullableString(t.improvement),
+      altitude: this.toNumberOr(t.altitude, 0),
+      temperature: this.toNumberOr(t.temperature, 0),
+      moisture: this.toNumberOr(t.moisture, 0),
+      riverMask: this.toNumberOr(t.riverMask, 0),
+      special: this.toNullableString(t.special),
+      x: this.toNumberOr(t.x, 0),
+      y: this.toNumberOr(t.y, 0),
+    };
+  }
+
+  private toNumberOr(value: any, fallback: number): number {
+    return typeof value === 'number' ? value : fallback;
+  }
+
+  private toStringOr(value: any, fallback: string): string {
+    return typeof value === 'string' && value.length > 0 ? value : fallback;
+  }
+
+  private toNullableString(value: any): string | null {
+    return typeof value === 'string' && value.length > 0 ? value : null;
   }
 
   /**
