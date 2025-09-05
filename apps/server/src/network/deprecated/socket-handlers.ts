@@ -1,3 +1,17 @@
+/**
+ * @deprecated This file has been replaced by the modular SocketCoordinator architecture.
+ *
+ * The new architecture uses specialized handlers:
+ * - CityManagementHandler for city operations
+ * - UnitActionHandler for unit actions
+ * - ResearchHandler for technology research
+ * - GameManagementHandler for game lifecycle
+ *
+ * See: apps/server/src/network/SocketCoordinator.ts and apps/server/src/network/handlers/
+ *
+ * This file is kept for reference only and should not be imported.
+ */
+
 /* eslint-disable complexity */
 import { Server, Socket } from 'socket.io';
 import { logger } from '../utils/logger';

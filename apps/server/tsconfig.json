@@ -35,5 +35,5 @@
     }
   },
   "include": ["src/**/*", "tests/**/*", "../shared/**/*"],
-  "exclude": ["node_modules", "dist", "../../reference"]
+  "exclude": ["node_modules", "dist", "../../reference", "src/network/deprecated/**/*"]
 }
