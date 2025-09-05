@@ -113,6 +113,9 @@ afterAll(async () => {
   if (testDbInitialized) {
     await cleanupTestDatabase();
   }
+
+  // Give Jest a moment to clean up any pending async operations
+  await new Promise(resolve => setTimeout(resolve, 100));
 }, 10000); // 10 second timeout for cleanup
 
 // Export mocks for use in tests
