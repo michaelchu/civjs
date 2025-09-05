@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Tests for TerrainPlacementProcessor
  * Validates terrain placement, distribution, and spatial allocation algorithms

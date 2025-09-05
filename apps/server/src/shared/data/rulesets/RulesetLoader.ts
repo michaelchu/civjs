@@ -38,6 +38,7 @@ import {
   type NationsCompatibility,
   type Requirement,
 } from './schemas';
+import { logger } from '../../../utils/logger';
 
 export class RulesetLoader {
   private static instance: RulesetLoader;
@@ -652,7 +653,8 @@ export class RulesetLoader {
     const evaluators = this.getRequirementEvaluators();
     const fn = evaluators[type];
     if (!fn) {
-      console.warn(`Unknown requirement type: ${type}`);
+      // Use central logger instead of console to satisfy lint rules
+      logger.warn(`Unknown requirement type: ${type}`);
       return false;
     }
     return fn(name, context);

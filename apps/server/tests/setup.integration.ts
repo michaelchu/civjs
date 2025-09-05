@@ -97,6 +97,8 @@ jest.mock('socket.io', () => ({
 // Setup and teardown for integration tests
 let testDbInitialized = false;
 
+/* eslint-disable no-console */
+
 beforeAll(async () => {
   try {
     await setupTestDatabase();
