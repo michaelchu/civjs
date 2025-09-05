@@ -78,13 +78,17 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         const gameState = useGameStore.getState();
 
         if (rendererRef.current) {
-          rendererRef.current.render({
-            viewport: gameState.viewport,
-            map: gameState.map,
-            units: gameState.units,
-            cities: gameState.cities,
-            selectedUnitId: gameState.selectedUnitId,
-          });
+          rendererRef.current
+            .render({
+              viewport: gameState.viewport,
+              map: gameState.map,
+              units: gameState.units,
+              cities: gameState.cities,
+              selectedUnitId: gameState.selectedUnitId,
+            })
+            .catch(error => {
+              console.error('Error during initialization render:', error);
+            });
         }
       } catch (error) {
         console.error('Failed to initialize MapRenderer:', error);
@@ -226,14 +230,19 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     // Only render if we have the global tiles data that MapRenderer uses
     if (rendererRef.current && globalTiles && globalMap) {
       console.log('Executing render with global tiles count:', globalTiles.length);
-      rendererRef.current.render({
-        viewport,
-        map, // Keep using store map for compatibility, but trigger based on global data
-        units,
-        cities,
-        selectedUnitId: useGameStore.getState().selectedUnitId,
-        gotoPath: gotoMode.currentPath,
-      });
+      // Handle async render - we don't need to await since this is a fire-and-forget operation
+      rendererRef.current
+        .render({
+          viewport,
+          map, // Keep using store map for compatibility, but trigger based on global data
+          units,
+          cities,
+          selectedUnitId: useGameStore.getState().selectedUnitId,
+          gotoPath: gotoMode.currentPath,
+        })
+        .catch(error => {
+          console.error('Error during render:', error);
+        });
     }
   }, [viewport, map, units, cities, gotoMode.currentPath, globalTilesVersion]); // Include map for React Hook dependency
 
@@ -306,14 +315,18 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       const intervalId = setInterval(() => {
         // Double-check we're still not dragging
         if (rendererRef.current && !isDragging) {
-          rendererRef.current.render({
-            viewport,
-            map,
-            units,
-            cities,
-            selectedUnitId: currentSelectedUnitId,
-            gotoPath: gotoMode.currentPath,
-          });
+          rendererRef.current
+            .render({
+              viewport,
+              map,
+              units,
+              cities,
+              selectedUnitId: currentSelectedUnitId,
+              gotoPath: gotoMode.currentPath,
+            })
+            .catch(error => {
+              console.error('Error during selection render:', error);
+            });
         }
       }, 100); // 10fps for smooth pulsing without interfering with scrolling
 
@@ -321,27 +334,35 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         clearInterval(intervalId);
         // Force a final render without selection to clear the outline
         if (rendererRef.current) {
-          rendererRef.current.render({
+          rendererRef.current
+            .render({
+              viewport,
+              map,
+              units,
+              cities,
+              selectedUnitId: null,
+              gotoPath: gotoMode.currentPath,
+            })
+            .catch(error => {
+              console.error('Error during cleanup render:', error);
+            });
+        }
+      };
+    } else if (!isDragging) {
+      // Force a render without selection to clear any lingering outline (but not while dragging)
+      if (rendererRef.current) {
+        rendererRef.current
+          .render({
             viewport,
             map,
             units,
             cities,
             selectedUnitId: null,
             gotoPath: gotoMode.currentPath,
+          })
+          .catch(error => {
+            console.error('Error during deselection render:', error);
           });
-        }
-      };
-    } else if (!isDragging) {
-      // Force a render without selection to clear any lingering outline (but not while dragging)
-      if (rendererRef.current) {
-        rendererRef.current.render({
-          viewport,
-          map,
-          units,
-          cities,
-          selectedUnitId: null,
-          gotoPath: gotoMode.currentPath,
-        });
       }
     }
   }, [gameState.selectedUnitId, viewport, map, units, cities, gotoMode.currentPath, isDragging]);
@@ -356,6 +377,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   // Deactivate goto mode
   const deactivateGotoMode = useCallback(() => {
     console.log('Deactivating goto mode - clearing path immediately');
+
+    // Clear the goto state - this should trigger a re-render via gotoMode.currentPath dependency
     setGotoMode({
       active: false,
       unit: null,
@@ -363,28 +386,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       currentPath: null,
     });
 
-    // Force an immediate render to clear the path visually
-    if (
-      rendererRef.current &&
-      (window as unknown as Record<string, unknown>).tiles &&
-      (window as unknown as Record<string, unknown>).map
-    ) {
-      console.log('Forcing immediate render to clear goto path');
-      rendererRef.current.render({
-        viewport,
-        map,
-        units,
-        cities,
-        selectedUnitId: useGameStore.getState().selectedUnitId,
-        gotoPath: null, // Explicitly pass null to ensure path is cleared
-      });
-    }
     // Reset cursor
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.style.cursor = 'crosshair'; // Default canvas cursor
     }
-  }, [viewport, map, units, cities]);
+  }, []);
 
   // Request path for goto mode preview (similar to freeciv-web's check_request_goto_path)
   const requestGotoPath = useCallback(
@@ -563,14 +570,18 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       // Directly render without any state updates during drag - use requestAnimationFrame for smoothness
       requestAnimationFrame(() => {
         if (rendererRef.current) {
-          rendererRef.current.render({
-            viewport: newViewport,
-            map: useGameStore.getState().map,
-            units: useGameStore.getState().units,
-            cities: useGameStore.getState().cities,
-            selectedUnitId: useGameStore.getState().selectedUnitId,
-            gotoPath: gotoMode.currentPath,
-          });
+          rendererRef.current
+            .render({
+              viewport: newViewport,
+              map: useGameStore.getState().map,
+              units: useGameStore.getState().units,
+              cities: useGameStore.getState().cities,
+              selectedUnitId: useGameStore.getState().selectedUnitId,
+              gotoPath: gotoMode.currentPath,
+            })
+            .catch(error => {
+              console.error('Error during drag render:', error);
+            });
         }
       });
     },
@@ -703,14 +714,18 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       // Directly render without any state updates during drag
       requestAnimationFrame(() => {
         if (rendererRef.current) {
-          rendererRef.current.render({
-            viewport: newViewport,
-            map: useGameStore.getState().map,
-            units: useGameStore.getState().units,
-            cities: useGameStore.getState().cities,
-            selectedUnitId: useGameStore.getState().selectedUnitId,
-            gotoPath: gotoMode.currentPath,
-          });
+          rendererRef.current
+            .render({
+              viewport: newViewport,
+              map: useGameStore.getState().map,
+              units: useGameStore.getState().units,
+              cities: useGameStore.getState().cities,
+              selectedUnitId: useGameStore.getState().selectedUnitId,
+              gotoPath: gotoMode.currentPath,
+            })
+            .catch(error => {
+              console.error('Error during wheel render:', error);
+            });
         }
       });
 
