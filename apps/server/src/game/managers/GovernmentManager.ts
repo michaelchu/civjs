@@ -6,8 +6,6 @@ import type { GovernmentRuleset } from '@shared/data/rulesets/schemas';
 import { logger } from '@utils/logger';
 import { EffectsManager, EffectType, OutputType, type EffectContext } from './EffectsManager';
 
-// Re-export types from schema for backwards compatibility
-export type GovernmentRequirement = import('@shared/data/rulesets/schemas').GovernmentRequirement;
 export type Government = GovernmentRuleset;
 
 // Government effect interfaces for integration tests
@@ -895,19 +893,5 @@ export class GovernmentManager {
     }
 
     return effects;
-  }
-
-  /**
-   * Initiate government change with revolution mechanics
-   * Alias for startRevolution for API compatibility
-   */
-  public async initiateGovernmentChange(
-    playerId: string,
-    newGovernmentType: string
-  ): Promise<void> {
-    const result = await this.startRevolution(playerId, newGovernmentType, new Set<string>());
-    if (!result.success) {
-      throw new Error(result.message || 'Government change failed');
-    }
   }
 }

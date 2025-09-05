@@ -69,7 +69,7 @@ This document tracks the major areas still missing from the CivJS port compared 
 - [x] Government corruption mechanics *(2025-09-05 - EffectsManager applies corruption effects)*
 - [x] Government unit support costs *(2025-09-05 - EffectsManager handles unit upkeep)*
 - [x] Government dialog UI *(2025-01-01 - RevolutionDialog and GovernmentPanel components)*
-- [x] Backward-compatible APIs *(2025-09-05 - Legacy methods for existing code)*
+- [x] Clean, modern API architecture *(2025-09-05 - Removed all backward-compatible legacy methods)*
 - [x] Integration tests *(2025-09-05 - Comprehensive test coverage)*
 
 **Reference:** `/reference/freeciv/common/government.c`, `/reference/freeciv-web/javascript/government.js`  

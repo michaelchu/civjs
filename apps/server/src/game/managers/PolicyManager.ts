@@ -324,7 +324,7 @@ export class PolicyManager {
   }
 
   /**
-   * Get all available policies as array (for integration test compatibility)
+   * Get all available policies as array
    * Reference: freeciv multipliers_iterate in common/multipliers.h:61-69
    */
   public getAvailablePolicies(): Policy[] {
@@ -433,19 +433,6 @@ export class PolicyManager {
     }
 
     return { allowed: true };
-  }
-
-  /**
-   * Adjust policy value (alias for changePolicyValue)
-   * Reference: freeciv multiplier adjustment
-   */
-  public async adjustPolicy(
-    playerId: string,
-    policyId: string,
-    newValue: number
-  ): Promise<{ success: boolean; message?: string }> {
-    // For integration tests, use a high turn number to bypass minimum turn restrictions
-    return this.changePolicyValue(playerId, policyId, newValue, 1000, new Set());
   }
 
   /**
@@ -669,67 +656,6 @@ export class PolicyManager {
   }
 
   /**
-   * Adopt a policy (convenience method for simple policy adoption)
-   * This is a wrapper around changePolicyValue for API compatibility with tests
-   * Reference: Integration test compatibility
-   */
-  public async adoptPolicy(
-    playerId: string,
-    policyId: string,
-    value?: number,
-    currentTurn?: number
-  ): Promise<boolean> {
-    const policy = this.availablePolicies.get(policyId);
-    if (!policy) {
-      logger.warn(`Policy ${policyId} not found`);
-      return false;
-    }
-
-    // Use provided value or policy default
-    const policyValue = value !== undefined ? value : policy.default;
-    const turn = currentTurn || 1;
-
-    try {
-      const result = await this.changePolicyValue(
-        playerId,
-        policyId,
-        policyValue,
-        turn,
-        new Set<string>()
-      );
-      return result.success;
-    } catch (error) {
-      logger.error(`Failed to adopt policy ${policyId} for player ${playerId}:`, error);
-      return false;
-    }
-  }
-
-  /**
-   * Get player policies as array (convenience method for test compatibility)
-   * Returns array of Policy objects with current values
-   */
-  public getPlayerPoliciesAsArray(playerId: string): Policy[] {
-    const playerPolicies = this.playerPolicies.get(playerId);
-    if (!playerPolicies) {
-      return [];
-    }
-
-    const policies: Policy[] = [];
-    for (const [policyId, policyValue] of playerPolicies.policies) {
-      const policy = this.availablePolicies.get(policyId);
-      if (policy) {
-        // Create a copy with current value
-        policies.push({
-          ...policy,
-          default: policyValue.value, // Show current value as default for display
-        });
-      }
-    }
-
-    return policies;
-  }
-
-  /**
    * Get policy effects for a player (placeholder for effects integration)
    */
   public getPolicyEffects(
@@ -753,84 +679,6 @@ export class PolicyManager {
       default:
         return [];
     }
-  }
-
-  /**
-   * Get available policies as simple array (convenience method)
-   * Returns array of Policy objects that the player can currently adopt
-   * Reference: freeciv policy availability checking
-   */
-  public getAvailablePoliciesArray(
-    playerId: string,
-    playerTechs: Set<string> = new Set()
-  ): Policy[] {
-    const playerPolicies = this.playerPolicies.get(playerId);
-    if (!playerPolicies) {
-      return [];
-    }
-
-    const availablePolicies: Policy[] = [];
-    for (const policy of this.availablePolicies.values()) {
-      // Check if policy requirements are met
-      if (this.canPlayerUsePolicy(policy, playerTechs)) {
-        availablePolicies.push(policy);
-      }
-    }
-
-    return availablePolicies;
-  }
-
-  /**
-   * Check if player meets requirements for a policy
-   * Reference: freeciv requirement checking
-   */
-  private canPlayerUsePolicy(policy: Policy, playerTechs: Set<string>): boolean {
-    if (!policy.reqs || policy.reqs.length === 0) {
-      return true;
-    }
-
-    // Simplified requirement checking - in full implementation would use EffectsManager
-    for (const requirement of policy.reqs) {
-      if (requirement.type === 'tech' && !playerTechs.has(requirement.name)) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Get simplified policy list for API compatibility
-   * Returns array of policies with current values for a player
-   */
-  public getPlayerPoliciesArray(playerId: string): Array<{
-    id: string;
-    name: string;
-    currentValue: number;
-    targetValue: number;
-    canChange: boolean;
-  }> {
-    const playerPolicies = this.playerPolicies.get(playerId);
-    if (!playerPolicies) {
-      return [];
-    }
-
-    const result = [];
-    for (const [policyId, policy] of this.availablePolicies) {
-      const policyValue = playerPolicies.policies.get(policyId);
-      const currentValue = policyValue?.value ?? policy.default;
-      const targetValue = policyValue?.targetValue ?? policy.default;
-
-      result.push({
-        id: policyId,
-        name: policy.name,
-        currentValue,
-        targetValue,
-        canChange: true, // Simplified - would check turn restrictions in full implementation
-      });
-    }
-
-    return result;
   }
 }
 

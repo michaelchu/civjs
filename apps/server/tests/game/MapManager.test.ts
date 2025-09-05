@@ -571,8 +571,8 @@ describe('MapManager', () => {
       expect(mapData!.startingPositions.length).toBeGreaterThan(0);
     });
 
-    it('should maintain backward compatibility with deprecated methods', async () => {
-      await serviceMapManager.generateMapFractal(testPlayers);
+    it('should generate maps using new unified API', async () => {
+      await serviceMapManager.generateMap(testPlayers, 'FRACTAL');
 
       const mapData = serviceMapManager.getMapData();
       expect(mapData).toBeDefined();

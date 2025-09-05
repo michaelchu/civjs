@@ -10,14 +10,8 @@ import { ValidationResult } from '@game/map/MapValidator';
 // Generator types based on freeciv map_generator enum
 export type MapGeneratorType = 'FRACTAL' | 'ISLAND' | 'RANDOM' | 'FAIR' | 'FRACTURE' | 'SCENARIO';
 
-// Re-export MapStartpos from MapTypes for backward compatibility
-export { MapStartpos } from '@game/map/MapTypes';
-
-// Legacy type alias - prefer MapStartpos
-export type StartPosMode = MapStartpos;
-
-// Re-export commonly used types for backward compatibility
 export {
+  MapStartpos,
   MapData,
   MapTile,
   TerrainType,
@@ -29,7 +23,7 @@ export {
 /**
  * Refactored MapManager that coordinates specialized map generation services
  * This is the main coordinator class that delegates to appropriate services
- * Maintains 100% API compatibility with the original MapManager
+ * Refactored MapManager with modern service-based architecture
  * @reference freeciv/server/generator/mapgen.c:1268-1427 map_fractal_generate()
  */
 export class MapManager {
@@ -174,73 +168,6 @@ export class MapManager {
       case 'FRACTAL':
       default:
         return await this.heightBasedMapService.generateMap(players, 'FRACTAL');
-    }
-  }
-
-  /**
-   * Fractal height-based map generation (backward compatibility method)
-   * @deprecated Use generateMap() with 'FRACTAL' type instead
-   */
-  public async generateMapFractal(players: Map<string, PlayerState>): Promise<void> {
-    logger.warn('generateMapFractal() is deprecated, use generateMap() with FRACTAL type');
-    return this.generateMap(players, 'FRACTAL');
-  }
-
-  /**
-   * Island-based map generation (backward compatibility method)
-   * @deprecated Use generateMap() with 'ISLAND' type instead
-   */
-  public async generateMapWithIslands(
-    players: Map<string, PlayerState>,
-    startPosMode: StartPosMode = MapStartpos.ALL
-  ): Promise<void> {
-    logger.warn('generateMapWithIslands() is deprecated, use generateMap() with ISLAND type');
-
-    // Temporarily update the default start pos mode for this generation
-    const originalStartPosMode = this.defaultStartPosMode;
-    this.defaultStartPosMode = startPosMode;
-
-    try {
-      await this.generateMap(players, 'ISLAND');
-    } finally {
-      // Restore original start pos mode
-      this.defaultStartPosMode = originalStartPosMode;
-    }
-  }
-
-  /**
-   * Pure random map generation (backward compatibility method)
-   * @deprecated Use generateMap() with 'RANDOM' type instead
-   */
-  public async generateMapRandom(players: Map<string, PlayerState>): Promise<void> {
-    logger.warn('generateMapRandom() is deprecated, use generateMap() with RANDOM type');
-    return this.generateMap(players, 'RANDOM');
-  }
-
-  /**
-   * Fracture map generation (backward compatibility method)
-   * @deprecated Use generateMap() with 'FRACTURE' type instead
-   */
-  public async generateMapFracture(players: Map<string, PlayerState>): Promise<void> {
-    logger.warn('generateMapFracture() is deprecated, use generateMap() with FRACTURE type');
-    return this.generateMap(players, 'FRACTURE');
-  }
-
-  /**
-   * Attempt fair islands generation (backward compatibility method)
-   * @deprecated Use generateMap() with 'FAIR' type instead
-   */
-  public async attemptFairIslandsGeneration(players: Map<string, PlayerState>): Promise<boolean> {
-    logger.warn('attemptFairIslandsGeneration() is deprecated, use generateMap() with FAIR type');
-
-    try {
-      await this.generateMap(players, 'FAIR');
-      return true;
-    } catch (error) {
-      logger.warn('Fair islands generation failed', {
-        error: error instanceof Error ? error.message : error,
-      });
-      return false;
     }
   }
 
