@@ -41,6 +41,10 @@ export class MapRenderer {
   private resourceScale = 0.7; // Make resources 30% smaller
   private cityScale = 0.8; // Make cities 20% smaller
 
+  // Text rendering constants
+  private static readonly BASE_FONT_SIZE = 10; // Base font size for city text
+  private static readonly DEBUG_FONT_SIZE = 10; // Font size for debug overlays
+
   // Animation state for unit selection
   private selectionAnimationStartTime: number | null = null;
   private lastSelectedUnitId: string | null = null;
@@ -1155,7 +1159,7 @@ export class MapRenderer {
     );
 
     this.ctx.fillStyle = 'white';
-    this.ctx.font = `${Math.floor(10 * this.cityScale)}px Arial`; // Scale font size too
+    this.ctx.font = `${Math.floor(MapRenderer.BASE_FONT_SIZE * this.cityScale)}px Arial`; // Scale font size too
     this.ctx.textAlign = 'center';
     this.ctx.fillText(city.name, screenPos.x + this.tileWidth / 2, screenPos.y - 5);
 
@@ -1452,7 +1456,7 @@ export class MapRenderer {
     this.ctx.save();
     this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
     this.ctx.lineWidth = 1;
-    this.ctx.font = '10px Arial';
+    this.ctx.font = `${MapRenderer.DEBUG_FONT_SIZE}px Arial`;
     this.ctx.fillStyle = 'red';
     this.ctx.textAlign = 'center';
 

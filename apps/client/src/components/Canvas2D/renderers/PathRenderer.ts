@@ -3,6 +3,8 @@ import type { MapViewport } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 
 export class PathRenderer extends BaseRenderer {
+  // Debug text rendering constants
+  private static readonly DEBUG_FONT_SIZE = 10; // Font size for debug overlays
   /**
    * Render goto path and debug overlays.
    */
@@ -126,7 +128,7 @@ export class PathRenderer extends BaseRenderer {
     this.ctx.save();
     this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
     this.ctx.lineWidth = 1;
-    this.ctx.font = '10px Arial';
+    this.ctx.font = `${PathRenderer.DEBUG_FONT_SIZE}px Arial`;
     this.ctx.fillStyle = 'red';
     this.ctx.textAlign = 'center';
 

@@ -45,6 +45,9 @@ export class CityRenderer extends BaseRenderer {
   private cityStyles: Record<string, CityStyle> = {};
   private stylesLoaded = false;
 
+  // Text rendering constants
+  private static readonly BASE_FONT_SIZE = 10; // Base font size in pixels before scaling
+
   /**
    * Initialize city styles from ruleset
    */
@@ -254,7 +257,7 @@ export class CityRenderer extends BaseRenderer {
     this.ctx.fillStyle = 'white';
     this.ctx.strokeStyle = 'black';
     this.ctx.lineWidth = 2;
-    this.ctx.font = `${Math.floor(10 * this.cityScale)}px Arial, sans-serif`;
+    this.ctx.font = `${Math.floor(CityRenderer.BASE_FONT_SIZE * this.cityScale)}px Arial, sans-serif`;
     this.ctx.textAlign = 'center';
 
     // City name with outline for better visibility
