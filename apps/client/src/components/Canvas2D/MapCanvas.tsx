@@ -355,19 +355,36 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   // Deactivate goto mode
   const deactivateGotoMode = useCallback(() => {
-    console.log('Deactivating goto mode');
+    console.log('Deactivating goto mode - clearing path immediately');
     setGotoMode({
       active: false,
       unit: null,
       targetTile: null,
       currentPath: null,
     });
+
+    // Force an immediate render to clear the path visually
+    if (
+      rendererRef.current &&
+      (window as unknown as Record<string, unknown>).tiles &&
+      (window as unknown as Record<string, unknown>).map
+    ) {
+      console.log('Forcing immediate render to clear goto path');
+      rendererRef.current.render({
+        viewport,
+        map,
+        units,
+        cities,
+        selectedUnitId: useGameStore.getState().selectedUnitId,
+        gotoPath: null, // Explicitly pass null to ensure path is cleared
+      });
+    }
     // Reset cursor
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.style.cursor = 'crosshair'; // Default canvas cursor
     }
-  }, []);
+  }, [viewport, map, units, cities]);
 
   // Request path for goto mode preview (similar to freeciv-web's check_request_goto_path)
   const requestGotoPath = useCallback(
