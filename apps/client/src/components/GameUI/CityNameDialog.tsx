@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -29,33 +29,49 @@ export const CityNameDialog: React.FC<CityNameDialogProps> = ({
   const [cityName, setCityName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Generate a default city name based on location
+  const generateDefaultName = useCallback((): string => {
+    if (!unit) return 'New City';
+
+    const cityNames = [
+      'New Rome',
+      'Alexandria',
+      'Byzantium',
+      'Carthage',
+      'Babylon',
+      'Memphis',
+      'Thebes',
+      'Damascus',
+      'Antioch',
+      'Palmyra',
+      'New Athens',
+      'Corinth',
+      'Sparta',
+      'Troy',
+      'Marathon',
+      'New York',
+      'Boston',
+      'Philadelphia',
+      'Charleston',
+      'Savannah',
+    ];
+
+    // Use position to semi-deterministically pick a name
+    const index = (unit.x + unit.y * 17) % cityNames.length;
+    return cityNames[index];
+  }, [unit]);
+
   // Reset form when dialog opens
   useEffect(() => {
     if (isOpen) {
       setCityName(suggestedName || generateDefaultName());
       setIsLoading(false);
     }
-  }, [isOpen, suggestedName]);
-
-  // Generate a default city name based on location
-  const generateDefaultName = (): string => {
-    if (!unit) return 'New City';
-    
-    const cityNames = [
-      'New Rome', 'Alexandria', 'Byzantium', 'Carthage', 'Babylon', 
-      'Memphis', 'Thebes', 'Damascus', 'Antioch', 'Palmyra',
-      'New Athens', 'Corinth', 'Sparta', 'Troy', 'Marathon',
-      'New York', 'Boston', 'Philadelphia', 'Charleston', 'Savannah'
-    ];
-    
-    // Use position to semi-deterministically pick a name
-    const index = (unit.x + unit.y * 17) % cityNames.length;
-    return cityNames[index];
-  };
+  }, [isOpen, suggestedName, generateDefaultName]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const trimmedName = cityName.trim();
     if (!trimmedName) {
       // Focus back to input if empty
@@ -65,7 +81,7 @@ export const CityNameDialog: React.FC<CityNameDialogProps> = ({
     }
 
     setIsLoading(true);
-    
+
     try {
       await onFoundCity(trimmedName);
       onClose();
@@ -112,7 +128,7 @@ export const CityNameDialog: React.FC<CityNameDialogProps> = ({
               <Input
                 id="city-name"
                 value={cityName}
-                onChange={(e) => setCityName(e.target.value)}
+                onChange={e => setCityName(e.target.value)}
                 placeholder="Enter city name..."
                 maxLength={50}
                 autoFocus
@@ -123,18 +139,10 @@ export const CityNameDialog: React.FC<CityNameDialogProps> = ({
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleCancel}
-              disabled={isLoading}
-            >
+            <Button type="button" variant="outline" onClick={handleCancel} disabled={isLoading}>
               Cancel
             </Button>
-            <Button 
-              type="submit" 
-              disabled={isLoading || !cityName.trim()}
-            >
+            <Button type="submit" disabled={isLoading || !cityName.trim()}>
               {isLoading ? 'Founding...' : 'Found City'}
             </Button>
           </DialogFooter>

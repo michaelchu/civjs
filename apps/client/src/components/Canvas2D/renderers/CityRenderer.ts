@@ -79,17 +79,17 @@ export class CityRenderer extends BaseRenderer {
 
     // Determine city style based on nation (simplified - could be expanded)
     const cityStyle = this.getCityStyle(city.playerId);
-    
+
     // Map city population to sprite index (population 1-5+ maps to sprites 0-4)
     const sizeIndex = Math.min(Math.max(city.size - 1, 0), 4);
-    
+
     // Check if city has walls (simplified - could check actual buildings)
     const hasWalls = this.cityHasWalls(city);
-    
+
     // Generate sprite key
     const spriteType = hasWalls ? 'wall' : 'city';
     const spriteKey = `city.${cityStyle}_${spriteType}_${sizeIndex}`;
-    
+
     sprites.push({
       key: spriteKey,
       offset_x: 0,
@@ -145,7 +145,7 @@ export class CityRenderer extends BaseRenderer {
     this.ctx.lineWidth = 2;
     this.ctx.font = `${Math.floor(10 * this.cityScale)}px Arial, sans-serif`;
     this.ctx.textAlign = 'center';
-    
+
     // City name with outline for better visibility
     const nameY = screenPos.y - 5;
     this.ctx.strokeText(city.name, screenPos.x + this.tileWidth / 2, nameY);

@@ -1118,7 +1118,7 @@ class GameClient {
   }
 
   /**
-   * Request unit found city action (legacy compatibility) 
+   * Request unit found city action (legacy compatibility)
    */
   foundCityWithUnitLegacy(unitId: string): Promise<boolean> {
     return this.requestUnitAction(unitId, ActionType.FOUND_CITY);

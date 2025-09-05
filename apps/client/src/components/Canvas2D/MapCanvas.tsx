@@ -859,24 +859,32 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     });
   }, []);
 
-  const handleFoundCity = useCallback(async (cityName: string) => {
-    if (!cityNameDialog.unit) return;
-    
-    console.log(`Founding city "${cityName}" with unit ${cityNameDialog.unit.id}`);
-    
-    try {
-      // Use the promise-based foundCity method for proper error handling
-      const cityId = await gameClient.foundCityWithUnit(cityNameDialog.unit.id, cityName, cityNameDialog.unit.x, cityNameDialog.unit.y);
-      
-      console.log(`Successfully founded city: ${cityName} (ID: ${cityId})`);
-      // Deselect the unit since it will be destroyed after founding the city
-      selectUnit(null);
-      setSelectedUnit(null);
-    } catch (error) {
-      console.error('Error founding city:', error);
-      throw error; // Re-throw so dialog can handle loading state
-    }
-  }, [cityNameDialog.unit, selectUnit]);
+  const handleFoundCity = useCallback(
+    async (cityName: string) => {
+      if (!cityNameDialog.unit) return;
+
+      console.log(`Founding city "${cityName}" with unit ${cityNameDialog.unit.id}`);
+
+      try {
+        // Use the promise-based foundCity method for proper error handling
+        const cityId = await gameClient.foundCityWithUnit(
+          cityNameDialog.unit.id,
+          cityName,
+          cityNameDialog.unit.x,
+          cityNameDialog.unit.y
+        );
+
+        console.log(`Successfully founded city: ${cityName} (ID: ${cityId})`);
+        // Deselect the unit since it will be destroyed after founding the city
+        selectUnit(null);
+        setSelectedUnit(null);
+      } catch (error) {
+        console.error('Error founding city:', error);
+        throw error; // Re-throw so dialog can handle loading state
+      }
+    },
+    [cityNameDialog.unit, selectUnit]
+  );
 
   // Global keyboard handler for ESC key to exit goto mode
   useEffect(() => {
@@ -965,7 +973,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           onActionSelect={handleActionSelect}
         />
       )}
-      
+
       <CityNameDialog
         isOpen={cityNameDialog.isOpen}
         unit={cityNameDialog.unit}
