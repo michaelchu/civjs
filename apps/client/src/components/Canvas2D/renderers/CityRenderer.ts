@@ -41,7 +41,7 @@ import { rulesetService, type CityStyle } from '../../../services/RulesetService
  */
 export class CityRenderer extends BaseRenderer {
   // Sprite scaling factors for visual size control
-  private cityScale = 1.3; // Larger cities for better visibility
+  private cityScale = 1.0; // Normal size cities
   private cityStyles: Record<string, CityStyle> = {};
   private stylesLoaded = false;
 
@@ -254,24 +254,45 @@ export class CityRenderer extends BaseRenderer {
   }
 
   /**
-   * Render city name and population text
+   * Render city name and population as a styled overlay banner
    */
   private renderCityText(city: City, screenPos: { x: number; y: number }): void {
-    this.ctx.fillStyle = 'white';
-    this.ctx.strokeStyle = 'black';
-    this.ctx.lineWidth = 2;
-    this.ctx.font = `${Math.floor(CityRenderer.BASE_FONT_SIZE * this.cityScale)}px Arial, sans-serif`;
+    const centerX = screenPos.x + this.tileWidth / 2;
+    const bannerY = screenPos.y + this.tileHeight - 2;
+
+    // Prepare text content with larger scaling
+    const cityText = `${city.name.toUpperCase()} ${city.size}`;
+    const labelScale = 1.2; // Scale up the entire label
+    const fontSize = Math.floor(CityRenderer.BASE_FONT_SIZE * this.cityScale * labelScale);
+    this.ctx.font = `bold ${fontSize}px Arial, sans-serif`;
     this.ctx.textAlign = 'center';
 
-    // City name with outline for better visibility
-    const nameY = screenPos.y - 5;
-    this.ctx.strokeText(city.name, screenPos.x + this.tileWidth / 2, nameY);
-    this.ctx.fillText(city.name, screenPos.x + this.tileWidth / 2, nameY);
+    // Measure text to size the banner with better padding
+    const textMetrics = this.ctx.measureText(cityText);
+    const textWidth = textMetrics.width;
+    const horizontalPadding = 10;
+    const verticalPadding = 4; // More padding above and below text
+    const bannerWidth = textWidth + horizontalPadding * 2;
+    const bannerHeight = fontSize + verticalPadding * 2;
 
-    // City size with outline
-    const sizeY = screenPos.y + this.tileHeight + 15;
-    const sizeText = city.size.toString();
-    this.ctx.strokeText(sizeText, screenPos.x + this.tileWidth / 2, sizeY);
-    this.ctx.fillText(sizeText, screenPos.x + this.tileWidth / 2, sizeY);
+    // Draw banner background (dark green with slight transparency)
+    this.ctx.fillStyle = 'rgba(34, 70, 34, 0.9)';
+    this.ctx.fillRect(centerX - bannerWidth / 2, bannerY - 2, bannerWidth, bannerHeight);
+
+    // Draw banner border (lighter green)
+    this.ctx.strokeStyle = 'rgba(80, 120, 80, 0.8)';
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(centerX - bannerWidth / 2, bannerY - 2, bannerWidth, bannerHeight);
+
+    // Draw text (white with subtle shadow) - properly centered in banner
+    const textY = bannerY + verticalPadding + fontSize - 2;
+
+    // Text shadow
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    this.ctx.fillText(cityText, centerX + 1, textY + 1);
+
+    // Main text
+    this.ctx.fillStyle = 'white';
+    this.ctx.fillText(cityText, centerX, textY);
   }
 }
