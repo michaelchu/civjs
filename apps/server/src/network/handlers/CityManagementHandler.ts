@@ -67,48 +67,22 @@ export class CityManagementHandler extends BaseSocketHandler {
       const { game, player } = await this.validateGameAndPlayer(handler, socket, connection);
       if (!game || !player) return;
 
-      // Validate settler unit if provided
-      if (data.unitId) {
-        const validationResult = this.validateSettlerUnit(
-          data.unitId,
-          player.id,
-          connection.gameId!
-        );
-        if (!validationResult.isValid) {
-          handler.send(socket, PacketType.CITY_FOUND_REPLY, {
-            success: false,
-            message: validationResult.errorMessage!,
-          });
-          return;
-        }
-      }
+      // Process settler unit validation and retrieval
+      const settlerUnit = await this.processSettlerUnit(handler, socket, data, player, connection);
+      if (settlerUnit === null) return; // Validation failed, error already sent
 
+      // Found city with comprehensive Freeciv-based validation
       const cityId = await this.gameManager.foundCity(
         connection.gameId!,
         player.id,
         data.name,
         data.x,
-        data.y
+        data.y,
+        settlerUnit // Pass unit for validation
       );
 
-      // Remove the settler unit if unitId was provided
-      if (data.unitId) {
-        this.removeSettlerUnit(io, connection.gameId!, data.unitId, cityId, player.id);
-      }
-
-      handler.send(socket, PacketType.CITY_FOUND_REPLY, {
-        success: true,
-        cityId,
-      });
-
-      logger.debug('City founded', {
-        gameId: connection.gameId,
-        playerId: player.id,
-        cityId,
-        name: data.name,
-        position: { x: data.x, y: data.y },
-        settlerConsumed: !!data.unitId,
-      });
+      // Handle settler unit consumption and send success response
+      this.handlePostCityFoundingActions(io, handler, socket, data, connection, player, cityId);
     } catch (error) {
       logger.error('Error founding city:', error);
       handler.send(socket, PacketType.CITY_FOUND_REPLY, {
@@ -260,6 +234,71 @@ export class CityManagementHandler extends BaseSocketHandler {
       unitId,
       cityId,
       playerId,
+    });
+  }
+
+  /**
+   * Process settler unit validation and retrieval
+   * Returns undefined for no unit, Unit for valid unit, or null for validation failure
+   */
+  private async processSettlerUnit(
+    handler: PacketHandler,
+    socket: Socket,
+    data: any,
+    player: any,
+    connection: any
+  ): Promise<any | undefined | null> {
+    if (!data.unitId) {
+      return undefined; // No unit provided
+    }
+
+    const unitValidationResult = this.validateSettlerUnit(
+      data.unitId,
+      player.id,
+      connection.gameId!
+    );
+
+    if (!unitValidationResult.isValid) {
+      handler.send(socket, PacketType.CITY_FOUND_REPLY, {
+        success: false,
+        message: unitValidationResult.errorMessage!,
+      });
+      return null; // Validation failed
+    }
+
+    const gameInstance = this.gameManager.getGameInstance(connection.gameId!);
+    return gameInstance?.unitManager.getUnit(data.unitId);
+  }
+
+  /**
+   * Handle post city founding actions: unit removal, response, and logging
+   */
+  private handlePostCityFoundingActions(
+    io: Server,
+    handler: PacketHandler,
+    socket: Socket,
+    data: any,
+    connection: any,
+    player: any,
+    cityId: string
+  ): void {
+    // Remove the settler unit if unitId was provided
+    if (data.unitId) {
+      this.removeSettlerUnit(io, connection.gameId!, data.unitId, cityId, player.id);
+    }
+
+    handler.send(socket, PacketType.CITY_FOUND_REPLY, {
+      success: true,
+      cityId,
+    });
+
+    logger.debug('City founded', {
+      gameId: connection.gameId,
+      playerId: player.id,
+      cityId,
+      name: data.name,
+      position: { x: data.x, y: data.y },
+      settlerConsumed: !!data.unitId,
     });
   }
 }

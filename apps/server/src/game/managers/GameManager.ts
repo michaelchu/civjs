@@ -21,12 +21,12 @@ import { VisibilityMapService } from '@game/services/VisibilityMapService';
 import { GameInstanceRecoveryService } from '@game/services/GameInstanceRecoveryService';
 
 // Keep existing imports for delegation
-import { CityManager } from '@game/managers/CityManager';
 import { MapGeneratorType, MapManager } from '@game/managers/MapManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
 import { TurnManager } from '@game/managers/TurnManager';
-import { UnitManager } from '@game/managers/UnitManager';
+import { UnitManager, Unit } from '@game/managers/UnitManager';
+import { CityManager, CityState } from '@game/managers/CityManager';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { MapStartpos } from '@game/map/MapTypes';
 
@@ -375,7 +375,7 @@ export class GameManager {
       temperatureParam
     );
     const turnManager = new TurnManager(gameId, this.databaseProvider, this.io);
-    const unitManager = new UnitManager(
+    const unitManager: UnitManager = new UnitManager(
       gameId,
       this.databaseProvider,
       game.mapWidth,
@@ -387,8 +387,8 @@ export class GameManager {
         broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
           this.broadcastToGame(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
         },
-        getCityAt: (x: number, y: number) => {
-          const city = cityManager.getCityAt(x, y);
+        getCityAt: (x: number, y: number): { playerId: string } | null => {
+          const city: CityState | null = cityManager.getCityAt(x, y);
           return city ? { playerId: city.playerId } : null;
         },
       }
@@ -398,10 +398,18 @@ export class GameManager {
     const playerIds = Array.from(players.keys());
     await turnManager.initializeTurn(playerIds);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
-    const cityManager = new CityManager(gameId, this.databaseProvider, undefined, {
-      createUnit: (playerId: string, unitType: string, x: number, y: number) =>
-        this.createUnit(gameId, playerId, unitType, x, y),
-    });
+    const cityManager: CityManager = new CityManager(
+      gameId,
+      this.databaseProvider,
+      undefined,
+      {
+        createUnit: (playerId: string, unitType: string, x: number, y: number) =>
+          this.createUnit(gameId, playerId, unitType, x, y),
+        getUnit: (unitId: string): Unit | undefined => unitManager.getUnit(unitId),
+        getAllUnits: () => unitManager.getAllUnits(),
+      },
+      mapManager
+    );
     const researchManager = new ResearchManager(gameId, this.databaseProvider);
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
 
@@ -1073,9 +1081,10 @@ export class GameManager {
     playerId: string,
     name: string,
     x: number,
-    y: number
+    y: number,
+    unit?: any
   ): Promise<string> {
-    return this.cityManagementService.foundCity(gameId, playerId, name, x, y);
+    return this.cityManagementService.foundCity(gameId, playerId, name, x, y, unit);
   }
 
   public async setCityProduction(

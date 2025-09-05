@@ -595,6 +595,13 @@ export class UnitManager {
   }
 
   /**
+   * Get all units in the game
+   */
+  getAllUnits(): Map<string, Unit> {
+    return this.units;
+  }
+
+  /**
    * Get unit type definition by ID
    */
   getUnitType(unitTypeId: string): UnitType | undefined {

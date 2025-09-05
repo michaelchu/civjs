@@ -28,6 +28,7 @@ export const CityNameDialog: React.FC<CityNameDialogProps> = ({
 }) => {
   const [cityName, setCityName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Generate a default city name based on location
   const generateDefaultName = useCallback((): string => {
@@ -66,6 +67,7 @@ export const CityNameDialog: React.FC<CityNameDialogProps> = ({
     if (isOpen) {
       setCityName(suggestedName || generateDefaultName());
       setIsLoading(false);
+      setErrorMessage(null);
     }
   }, [isOpen, suggestedName, generateDefaultName]);
 
@@ -81,12 +83,15 @@ export const CityNameDialog: React.FC<CityNameDialogProps> = ({
     }
 
     setIsLoading(true);
+    setErrorMessage(null);
 
     try {
       await onFoundCity(trimmedName);
       onClose();
     } catch (error) {
       console.error('Error founding city:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to found city';
+      setErrorMessage(errorMsg);
       setIsLoading(false);
     }
   };
@@ -136,6 +141,11 @@ export const CityNameDialog: React.FC<CityNameDialogProps> = ({
                 className="w-full"
               />
             </div>
+            {errorMessage && (
+              <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">
+                <strong>Cannot found city:</strong> {errorMessage}
+              </div>
+            )}
           </div>
 
           <DialogFooter>

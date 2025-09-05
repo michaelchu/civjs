@@ -25,15 +25,17 @@ export class CityManagementService extends BaseGameService {
   }
 
   /**
-   * Found a new city for a player
+   * Found a new city for a player with comprehensive Freeciv-based validation
    * @reference Original GameManager.foundCity()
+   * @reference freeciv/common/city.c:1487-1551 city_can_be_built_here()
    */
   public async foundCity(
     gameId: string,
     playerId: string,
     name: string,
     x: number,
-    y: number
+    y: number,
+    unit?: any
   ): Promise<string> {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) {
@@ -60,7 +62,8 @@ export class CityManagementService extends BaseGameService {
       name,
       x,
       y,
-      gameInstance.currentTurn
+      gameInstance.currentTurn,
+      unit
     );
 
     // Broadcast city founding to all players

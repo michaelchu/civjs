@@ -11,6 +11,13 @@ import {
   EffectContext,
 } from '@game/managers/EffectsManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
+import {
+  CityFoundingValidationService,
+  CityFoundingValidationResult,
+  CityFoundingErrorCode,
+} from '@game/services/CityFoundingValidationService';
+import type { Unit } from '@game/managers/UnitManager';
+import type { MapManager } from '@game/managers/MapManager';
 
 // Following original Freeciv city radius logic
 export const CITY_MAP_DEFAULT_RADIUS = 2;
@@ -175,6 +182,8 @@ export interface HappinessResult {
 
 export interface CityManagerCallbacks {
   createUnit?: (playerId: string, unitType: string, x: number, y: number) => Promise<string>;
+  getUnit?: (unitId: string) => Unit | undefined;
+  getAllUnits?: () => Map<string, Unit>;
 }
 
 export class CityManager {
@@ -184,17 +193,25 @@ export class CityManager {
   private effectsManager: EffectsManager;
   private governmentManager?: GovernmentManager;
   private callbacks: CityManagerCallbacks;
+  private mapManager?: MapManager;
+  private validationService?: CityFoundingValidationService;
 
   constructor(
     gameId: string,
     databaseProvider: DatabaseProvider,
     effectsManager?: EffectsManager,
-    callbacks?: CityManagerCallbacks
+    callbacks?: CityManagerCallbacks,
+    mapManager?: MapManager
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
     this.effectsManager = effectsManager || new EffectsManager();
     this.callbacks = callbacks || {};
+    this.mapManager = mapManager;
+
+    if (this.mapManager) {
+      this.validationService = new CityFoundingValidationService(this.mapManager);
+    }
   }
 
   /**
@@ -225,22 +242,74 @@ export class CityManager {
   }
 
   /**
-   * Found a new city following Freeciv logic
+   * Comprehensive city founding validation using Freeciv reference implementation
+   * Reference: freeciv/common/city.c:1487-1551 city_can_be_built_here()
+   * Reference: freeciv/server/citytools.c:580 create_city_for_player()
+   */
+  private validateCityFounding(
+    x: number,
+    y: number,
+    unit: Unit | undefined,
+    playerId: string
+  ): CityFoundingValidationResult {
+    if (!this.validationService) {
+      logger.warn('CityFoundingValidationService not available - using basic validation');
+      // Fallback to basic validation
+      if (this.citymindistPreventsCityOnTile(x, y)) {
+        return {
+          canFound: false,
+          errorMessage: `Cannot found city at (${x}, ${y}): too close to existing city (citymindist=${GAME_DEFAULT_CITYMINDIST})`,
+          errorCode: CityFoundingErrorCode.CITYMINDIST_VIOLATION,
+        };
+      }
+      return { canFound: true };
+    }
+
+    // Check for enemy units blocking city founding
+    // Reference: freeciv/server/citytools.c:580
+    if (this.callbacks.getAllUnits) {
+      const allUnits = this.callbacks.getAllUnits();
+      const enemyUnitValidation = this.validationService.validateNoEnemyUnits(
+        x,
+        y,
+        playerId,
+        allUnits
+      );
+      if (!enemyUnitValidation.canFound) {
+        return enemyUnitValidation;
+      }
+    }
+
+    // Main city founding validation
+    return this.validationService.validateCityFounding(
+      x,
+      y,
+      unit || null,
+      playerId,
+      this.cities,
+      false // not hut test
+    );
+  }
+
+  /**
+   * Found a new city following Freeciv logic with comprehensive validation
+   * Reference: freeciv/common/city.c:1487-1551 city_can_be_built_here()
+   * Reference: freeciv/server/citytools.c:580 create_city_for_player()
    */
   async foundCity(
     playerId: string,
     name: string,
     x: number,
     y: number,
-    foundedTurn: number
+    foundedTurn: number,
+    unit?: Unit
   ): Promise<string> {
-    logger.info('Founding new city', { name, x, y, playerId });
+    logger.info('Founding new city', { name, x, y, playerId, unitId: unit?.id });
 
-    // Validate city can be founded here (reference: freeciv/common/city.c:1487-1551 city_can_be_built_here())
-    if (this.citymindistPreventsCityOnTile(x, y)) {
-      throw new Error(
-        `Cannot found city at (${x}, ${y}): too close to existing city (citymindist=${GAME_DEFAULT_CITYMINDIST})`
-      );
+    // Comprehensive validation using Freeciv-based validation service
+    const validationResult = this.validateCityFounding(x, y, unit, playerId);
+    if (!validationResult.canFound) {
+      throw new Error(validationResult.errorMessage || 'Cannot found city at this location');
     }
 
     // Create city in database following Freeciv initial values
