@@ -2,6 +2,7 @@ import { logger } from '@utils/logger';
 import { PlayerState } from '@game/managers/GameManager';
 import { MapData, MapTile } from './MapTypes';
 import { MapValidator, ValidationResult } from './MapValidator';
+import { getTerrainMovementCost } from '@game/constants/MovementConstants';
 
 /**
  * Map access and utility service
@@ -174,33 +175,8 @@ export class MapAccessService {
     const tile = this.getTile(x, y);
     if (!tile) return -1;
 
-    // Basic movement cost based on terrain type
-    // This is a simplified version - full implementation would use MovementConstants
-    const baseCosts: Record<string, number> = {
-      ocean: 3,
-      coast: 3,
-      deep_ocean: 3,
-      lake: 3,
-      plains: 3,
-      grassland: 3,
-      desert: 3,
-      tundra: 3,
-      hills: 6,
-      forest: 6,
-      jungle: 6,
-      swamp: 6,
-      mountains: -1, // impassable for most units
-    };
-
-    const baseCost = baseCosts[tile.terrain] ?? 3;
-
-    // Apply unit-specific modifiers if needed
-    if (unitTypeId) {
-      // This would normally lookup unit-specific movement rules
-      // For now, return base cost
-    }
-
-    return baseCost;
+    // Use proper MovementConstants implementation
+    return getTerrainMovementCost(tile.terrain, unitTypeId);
   }
 
   /**

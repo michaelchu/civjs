@@ -1,7 +1,7 @@
 import { GameManager } from '@game/managers/GameManager';
 import { Server as SocketServer } from 'socket.io';
 import { createBasicGameScenario, TestGameScenario } from '../fixtures/gameFixtures';
-import { clearAllTables } from './testDatabase';
+import { clearAllTables, getTestDatabaseProvider } from './testDatabase';
 
 /**
  * Creates a mock Socket.IO server for tests
@@ -54,8 +54,9 @@ export async function setupGameManagerWithScenario(): Promise<{
   // Create mock socket server
   const mockIo = createMockSocketServer();
 
-  // Create game manager
-  const gameManager = GameManager.getInstance(mockIo);
+  // Create game manager with test database provider
+  const testDbProvider = getTestDatabaseProvider();
+  const gameManager = GameManager.getInstance(mockIo, testDbProvider);
 
   // Create test scenario with map data
   const scenario = await createBasicGameScenario();

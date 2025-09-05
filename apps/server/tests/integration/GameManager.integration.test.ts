@@ -63,6 +63,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
     });
 
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
+    // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     it.skip('should create and persist game to database', async () => {
       const gameId = await gameManager.createGame(testConfig);
 
@@ -153,6 +154,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
     });
 
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
+    // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     it.skip('should join players and persist to database', async () => {
       const userId1 = generateTestUUID('0011');
       const userId2 = generateTestUUID('0012');
@@ -196,6 +198,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
       expect(dbPlayers.some(p => p.nation === 'greeks')).toBe(true);
     });
 
+    // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     it.skip('should reject players when game is full', async () => {
       // Fill game to capacity
@@ -285,6 +288,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
     });
 
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
+    // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     it.skip('should start game and initialize all managers', async () => {
       const gameConfig: GameConfig = {
         name: 'Lifecycle Test Game',
@@ -327,6 +331,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
     });
 
     // TODO: Fix in separate PR - game state transition logic issues
+    // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     it.skip('should prevent non-host from starting game', async () => {
       const gameConfig: GameConfig = {
         name: 'Non-Host Test Game',
@@ -387,6 +392,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
     });
 
     // TODO: Fix in separate PR - visibility system not working after DI refactoring
+    // TODO: Fix in separate PR - visibility system integration
     it.skip('should create units and update visibility', async () => {
       const unitId = await gameManager.createUnit(gameId, playerId, 'warrior', 12, 12);
 
@@ -456,6 +462,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
   describe('game state consistency', () => {
     // TODO: Fix in separate PR - game loading and manager initialization issues
+    // TODO: Fix in separate PR - game loading and state recovery
     it.skip('should maintain consistency after manager reload', async () => {
       const scenario = await createBasicGameScenario();
 

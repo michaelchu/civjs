@@ -63,16 +63,18 @@ This document tracks the major areas still missing from the CivJS port compared 
 - [x] Government effects on cities and units *(2025-01-01 - GovernmentManager with effects system)*
 - [x] Revolution system *(2025-01-01 - Revolution mechanics in GovernmentManager)*
 - [x] Government transition mechanics *(2025-01-01 - Revolution turns and anarchy period)*
-- [ ] Civic policies and effects
-- [ ] Government-specific building requirements
-- [ ] Government happiness effects
-- [ ] Government corruption mechanics
-- [ ] Government unit support costs
+- [x] Policy system with effects *(2025-09-05 - PolicyManager with complete effects integration)*
+- [x] Government-specific building requirements *(2025-09-05 - EffectsManager handles requirements)*
+- [x] Government happiness effects *(2025-09-05 - EffectsManager calculates happiness modifiers)*
+- [x] Government corruption mechanics *(2025-09-05 - EffectsManager applies corruption effects)*
+- [x] Government unit support costs *(2025-09-05 - EffectsManager handles unit upkeep)*
 - [x] Government dialog UI *(2025-01-01 - RevolutionDialog and GovernmentPanel components)*
+- [x] Clean, modern API architecture *(2025-09-05 - Removed all backward-compatible legacy methods)*
+- [x] Integration tests *(2025-09-05 - Comprehensive test coverage)*
 
 **Reference:** `/reference/freeciv/common/government.c`, `/reference/freeciv-web/javascript/government.js`  
-**Current State:** ✅ **CORE IMPLEMENTED** - Basic government system with revolution mechanics  
-**Impact:** ✅ **Significant progress** - Government changes and revolution system functional
+**Current State:** ✅ **FULLY IMPLEMENTED** - Complete government system with policies and effects  
+**Impact:** ✅ **Major milestone completed** - Full Freeciv-compliant government mechanics
 
 ### 5. Actions & Orders System
 - [x] Unit action framework *(2025-01-01 - ActionSystem with comprehensive action definitions)*
@@ -595,7 +597,7 @@ This document tracks the major areas still missing from the CivJS port compared 
 ## 📈 Progress Tracking
 
 **Overall Completion Status:**
-- **Core Game Systems:** ✅ 100% Complete (14/14 items) *Complete RulesetLoader + City Founding system*
+- **Core Game Systems:** ✅ 100% Complete (18/18 items) *Government system fully implemented with policies*
 - **Simplified Features:** 🔄 0% Complete (0/10 items) *New category for simplified implementations*
 - **AI Systems:** ⬜ 0% Complete (0/20 items)
 - **Client UI:** 🔄 25% Complete (15/60 items) *+Technology UI, Government UI*
@@ -606,7 +608,7 @@ This document tracks the major areas still missing from the CivJS port compared 
 - **Audio & Polish:** ⬜ 0% Complete (0/20 items)
 - **Development & Multiplayer:** ⬜ 10% Complete (2/20 items)
 
-**Total Progress: 🔄 ~32% Complete (52/250 major items)** *Unit Movement System milestone achieved*
+**Total Progress: 🔄 ~33% Complete (56/250 major items)** *Government system milestone achieved*
 
 ---
 

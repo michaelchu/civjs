@@ -31,4 +31,6 @@ module.exports = {
   clearMocks: true,
   resetMocks: true,
   restoreMocks: true,
+  // Force Jest to exit after tests complete (needed for integration tests with DB connections)
+  forceExit: true,
 };
