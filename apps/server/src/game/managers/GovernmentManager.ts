@@ -5,8 +5,7 @@ import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { GovernmentRuleset } from '@shared/data/rulesets/schemas';
 
 // Re-export types from schema for backwards compatibility
-export type GovernmentRequirement =
-  import('@shared/data/rulesets/schemas').GovernmentRequirement;
+export type GovernmentRequirement = import('@shared/data/rulesets/schemas').GovernmentRequirement;
 export type Government = GovernmentRuleset;
 
 // Government effect interfaces for integration tests

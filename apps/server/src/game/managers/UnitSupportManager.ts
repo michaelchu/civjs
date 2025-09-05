@@ -12,7 +12,12 @@
  */
 
 import { logger } from '@utils/logger';
-import { EffectsManager, EffectType, OutputType, EffectContext } from '@game/managers/EffectsManager';
+import {
+  EffectsManager,
+  EffectType,
+  OutputType,
+  EffectContext,
+} from '@game/managers/EffectsManager';
 
 // Unit upkeep cost structure - matches freeciv O_LAST output types
 export interface UnitUpkeep {

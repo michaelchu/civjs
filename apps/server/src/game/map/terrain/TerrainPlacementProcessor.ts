@@ -5,7 +5,11 @@
  */
 import { MapTile, TemperatureType, TerrainType } from '@game/map/MapTypes';
 import { isOceanTerrain, PlacementMap } from '@game/map/TerrainUtils';
-import { MapgenTerrainPropertyEnum, pickTerrain, getTerrainProperties } from '@game/map/TerrainRuleset';
+import {
+  MapgenTerrainPropertyEnum,
+  pickTerrain,
+  getTerrainProperties,
+} from '@game/map/TerrainRuleset';
 
 export interface TerrainParams {
   mountain_pct: number;
