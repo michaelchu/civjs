@@ -4,6 +4,7 @@ import { eq, and } from 'drizzle-orm';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { GovernmentRuleset } from '@shared/data/rulesets/schemas';
 import { logger } from '@utils/logger';
+import { EffectsManager, EffectType, OutputType, type EffectContext } from './EffectsManager';
 
 // Re-export types from schema for backwards compatibility
 export type GovernmentRequirement = import('@shared/data/rulesets/schemas').GovernmentRequirement;
@@ -79,10 +80,12 @@ export class GovernmentManager {
   private playerGovernments: Map<string, PlayerGovernment> = new Map();
   private gameId: string;
   private databaseProvider: DatabaseProvider;
+  private effectsManager: EffectsManager;
 
-  constructor(gameId: string, databaseProvider: DatabaseProvider) {
+  constructor(gameId: string, databaseProvider: DatabaseProvider, effectsManager?: EffectsManager) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
+    this.effectsManager = effectsManager || new EffectsManager();
   }
 
   public async initializePlayerGovernment(playerId: string): Promise<void> {
@@ -216,15 +219,16 @@ export class GovernmentManager {
       return { allowed: true };
     }
 
-    // Check technology requirements
+    // Use EffectsManager to evaluate requirements properly
     if (government.reqs) {
-      for (const req of government.reqs) {
-        if (req.type === 'tech') {
-          const techId = this.getTechIdFromName(req.name);
-          if (!techId || !playerResearchedTechs.has(techId)) {
-            return { allowed: false, reason: `Requires ${req.name} technology` };
-          }
-        }
+      const context: EffectContext = {
+        government: governmentId,
+        playerTechs: playerResearchedTechs,
+      };
+
+      const result = this.effectsManager.evaluateRequirements(government.reqs, context);
+      if (!result.satisfied) {
+        return { allowed: false, reason: result.reason };
       }
     }
 
@@ -285,18 +289,6 @@ export class GovernmentManager {
 
     // Standard revolution time
     return 3;
-  }
-
-  private getTechIdFromName(techName: string): string | null {
-    // Map government requirement names to our tech IDs
-    const techNameMap: Record<string, string> = {
-      Monarchy: 'monarchy',
-      'The Republic': 'the_republic',
-      Communism: 'communism',
-      Democracy: 'democracy',
-    };
-
-    return techNameMap[techName] || null;
   }
 
   public getAllGovernments(): Record<string, Government> {
@@ -396,7 +388,7 @@ export class GovernmentManager {
   }
 
   /**
-   * Get government effects for a player
+   * Get government effects for a player using EffectsManager
    * Reference: freeciv effects system in common/effects.c
    */
   public getGovernmentEffects(playerId: string): GovernmentEffect[] {
@@ -407,54 +399,81 @@ export class GovernmentManager {
 
     try {
       getGovernment(playerGov.currentGovernment); // Validate government exists
+      const context: EffectContext = {
+        playerId,
+        government: playerGov.currentGovernment,
+      };
+
       const effects: GovernmentEffect[] = [];
 
-      // Add government-specific effects based on freeciv government effects
-      // Note: effects property doesn't exist in current ruleset schema, using default effects
+      // Calculate effects using EffectsManager for proper freeciv compliance
+      const wasteEffect = this.effectsManager.calculateEffect(EffectType.OUTPUT_WASTE, context);
+      if (wasteEffect.value > 0) {
+        effects.push({
+          type: 'corruption',
+          value: -wasteEffect.value,
+          description: `${wasteEffect.value}% corruption`,
+        });
+      }
 
-      // Add default effects for known governments
-      switch (playerGov.currentGovernment) {
-        case 'despotism':
-          effects.push({ type: 'corruption', value: -20, description: 'High corruption' });
+      const unitSupportEffect = this.effectsManager.calculateEffect(
+        EffectType.UNIT_UPKEEP_FREE_PER_CITY,
+        context
+      );
+      if (unitSupportEffect.value > 0) {
+        effects.push({
+          type: 'military_support',
+          value: unitSupportEffect.value,
+          description: `${unitSupportEffect.value} free military units per city`,
+        });
+      }
+
+      const happinessEffect = this.effectsManager.calculateEffect(EffectType.MAKE_HAPPY, context);
+      if (happinessEffect.value !== 0) {
+        effects.push({
+          type: 'happiness',
+          value: happinessEffect.value,
+          description: `${happinessEffect.value > 0 ? '+' : ''}${happinessEffect.value} happiness`,
+        });
+      }
+
+      const revolutionEffect = this.effectsManager.calculateEffect(
+        EffectType.REVOLUTION_UNHAPPINESS,
+        context
+      );
+      if (revolutionEffect.value !== 0) {
+        effects.push({
+          type: 'revolution_unhappiness',
+          value: revolutionEffect.value,
+          description: 'Revolution causes unhappiness',
+        });
+      }
+
+      // Add all effects from EffectsManager for this government
+      for (const effectResult of wasteEffect.effects.concat(
+        unitSupportEffect.effects,
+        happinessEffect.effects,
+        revolutionEffect.effects
+      )) {
+        // Convert EffectsManager format to GovernmentEffect format
+        if (!effects.some(e => e.type === effectResult.type && e.value === effectResult.value)) {
           effects.push({
-            type: 'military_support',
-            value: 2,
-            description: 'Free military units per city',
+            type: effectResult.type,
+            value: effectResult.value,
+            description: effectResult.source,
           });
-          break;
-        case 'monarchy':
-          effects.push({ type: 'corruption', value: -10, description: 'Medium corruption' });
-          effects.push({
-            type: 'military_support',
-            value: 3,
-            description: 'Free military units per city',
-          });
-          break;
-        case 'republic':
-          effects.push({ type: 'corruption', value: -5, description: 'Low corruption' });
-          effects.push({ type: 'trade_bonus', value: 10, description: 'Trade bonus' });
-          break;
-        case 'democracy':
-          effects.push({ type: 'corruption', value: 0, description: 'No corruption' });
-          effects.push({ type: 'science_bonus', value: 15, description: 'Science bonus' });
-          break;
-        case 'anarchy':
-          effects.push({
-            type: 'production_penalty',
-            value: -50,
-            description: 'Severe production penalty',
-          });
-          break;
+        }
       }
 
       return effects;
-    } catch {
+    } catch (error) {
+      logger.warn(`Error getting government effects for player ${playerId}:`, error);
       return [];
     }
   }
 
   /**
-   * Get unit support rules for current government
+   * Get unit support rules for current government using EffectsManager
    * Reference: freeciv city_support() in common/city.c:3100-3200
    */
   public getUnitSupportRules(playerId: string): UnitSupportRules {
@@ -463,25 +482,57 @@ export class GovernmentManager {
       return { freeUnits: 0, goldPerUnit: 1, foodPerUnit: 1, shieldPerUnit: 1 };
     }
 
-    // Government-specific unit support rules based on freeciv
-    switch (playerGov.currentGovernment) {
-      case 'despotism':
-        return { freeUnits: 2, goldPerUnit: 1, foodPerUnit: 1, shieldPerUnit: 1 };
-      case 'monarchy':
-        return { freeUnits: 3, goldPerUnit: 1, foodPerUnit: 1, shieldPerUnit: 1 };
-      case 'republic':
-        return { freeUnits: 0, goldPerUnit: 1, foodPerUnit: 1, shieldPerUnit: 1 };
-      case 'democracy':
-        return { freeUnits: 0, goldPerUnit: 2, foodPerUnit: 1, shieldPerUnit: 1 };
-      case 'anarchy':
-        return { freeUnits: 1, goldPerUnit: 2, foodPerUnit: 2, shieldPerUnit: 2 };
-      default:
-        return { freeUnits: 1, goldPerUnit: 1, foodPerUnit: 1, shieldPerUnit: 1 };
-    }
+    const context: EffectContext = {
+      playerId,
+      government: playerGov.currentGovernment,
+    };
+
+    // Calculate support rules using EffectsManager for proper freeciv compliance
+    const freeUnitsEffect = this.effectsManager.calculateEffect(
+      EffectType.UNIT_UPKEEP_FREE_PER_CITY,
+      context
+    );
+
+    const upkeepPctEffect = this.effectsManager.calculateEffect(EffectType.UPKEEP_PCT, context);
+    const upkeepMultiplier = upkeepPctEffect.value > 0 ? upkeepPctEffect.value / 100 : 1;
+
+    // Calculate costs for different resource types
+    const goldCostContext = { ...context, outputType: OutputType.GOLD };
+    const foodCostContext = { ...context, outputType: OutputType.FOOD };
+    const shieldCostContext = { ...context, outputType: OutputType.SHIELD };
+
+    const goldCostEffect = this.effectsManager.calculateEffect(
+      EffectType.UPKEEP_PCT,
+      goldCostContext
+    );
+    const foodCostEffect = this.effectsManager.calculateEffect(
+      EffectType.UPKEEP_PCT,
+      foodCostContext
+    );
+    const shieldCostEffect = this.effectsManager.calculateEffect(
+      EffectType.UPKEEP_PCT,
+      shieldCostContext
+    );
+
+    return {
+      freeUnits: Math.max(0, freeUnitsEffect.value),
+      goldPerUnit: Math.max(
+        1,
+        Math.floor(((goldCostEffect.value || 100) * upkeepMultiplier) / 100)
+      ),
+      foodPerUnit: Math.max(
+        1,
+        Math.floor(((foodCostEffect.value || 100) * upkeepMultiplier) / 100)
+      ),
+      shieldPerUnit: Math.max(
+        1,
+        Math.floor(((shieldCostEffect.value || 100) * upkeepMultiplier) / 100)
+      ),
+    };
   }
 
   /**
-   * Get trade effects for current government
+   * Get trade effects for current government using EffectsManager
    * Reference: freeciv corruption and trade calculations
    */
   public getTradeEffects(playerId: string): TradeEffects {
@@ -490,48 +541,106 @@ export class GovernmentManager {
       return { corruptionLevel: 50, wasteLevel: 50, maxTradeRoutes: 2 };
     }
 
-    // Government-specific trade effects based on freeciv
+    const context: EffectContext = {
+      playerId,
+      government: playerGov.currentGovernment,
+    };
+
+    // Calculate trade effects using EffectsManager for proper freeciv compliance
+    const corruptionContext = { ...context, outputType: OutputType.TRADE };
+    const wasteEffect = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_WASTE,
+      corruptionContext
+    );
+    const wastePctEffect = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_WASTE_PCT,
+      corruptionContext
+    );
+
+    // Calculate corruption and waste levels
+    const baseCorruption = wasteEffect.value;
+    const baseWaste = wasteEffect.value;
+
+    // Apply waste percentage modifier
+    const corruptionLevel =
+      wastePctEffect.value > 0
+        ? Math.floor((baseCorruption * wastePctEffect.value) / 100)
+        : baseCorruption;
+
+    const wasteLevel =
+      wastePctEffect.value > 0 ? Math.floor((baseWaste * wastePctEffect.value) / 100) : baseWaste;
+
+    // Default trade routes calculation (could be enhanced with effects in the future)
+    let maxTradeRoutes = 2;
     switch (playerGov.currentGovernment) {
-      case 'despotism':
-        return { corruptionLevel: 30, wasteLevel: 30, maxTradeRoutes: 2 };
       case 'monarchy':
-        return { corruptionLevel: 20, wasteLevel: 20, maxTradeRoutes: 3 };
+        maxTradeRoutes = 3;
+        break;
       case 'republic':
-        return { corruptionLevel: 10, wasteLevel: 15, maxTradeRoutes: 4 };
+        maxTradeRoutes = 4;
+        break;
       case 'democracy':
-        return { corruptionLevel: 5, wasteLevel: 10, maxTradeRoutes: 6 };
+        maxTradeRoutes = 6;
+        break;
       case 'anarchy':
-        return { corruptionLevel: 80, wasteLevel: 80, maxTradeRoutes: 1 };
-      default:
-        return { corruptionLevel: 50, wasteLevel: 50, maxTradeRoutes: 2 };
+        maxTradeRoutes = 1;
+        break;
     }
+
+    return {
+      corruptionLevel: Math.max(0, Math.min(100, corruptionLevel)),
+      wasteLevel: Math.max(0, Math.min(100, wasteLevel)),
+      maxTradeRoutes,
+    };
   }
 
   /**
-   * Get government bonus effects on city
+   * Get government bonus effects on city using EffectsManager
    * Reference: freeciv government city bonuses
    */
-  public getCityGovernmentBonus(playerId: string, _cityId: string): CityGovernmentBonus {
+  public getCityGovernmentBonus(playerId: string, cityId: string): CityGovernmentBonus {
     const playerGov = this.playerGovernments.get(playerId);
     if (!playerGov) {
       return { productionBonus: 0, goldBonus: 0, scienceBonus: 0 };
     }
 
-    // Government-specific city bonuses
-    switch (playerGov.currentGovernment) {
-      case 'despotism':
-        return { productionBonus: -10, goldBonus: -5, scienceBonus: -10 };
-      case 'monarchy':
-        return { productionBonus: 0, goldBonus: 5, scienceBonus: 0 };
-      case 'republic':
-        return { productionBonus: 5, goldBonus: 10, scienceBonus: 10 };
-      case 'democracy':
-        return { productionBonus: 10, goldBonus: 15, scienceBonus: 20 };
-      case 'anarchy':
-        return { productionBonus: -50, goldBonus: -50, scienceBonus: -50 };
-      default:
-        return { productionBonus: 0, goldBonus: 0, scienceBonus: 0 };
-    }
+    const context: EffectContext = {
+      playerId,
+      cityId,
+      government: playerGov.currentGovernment,
+    };
+
+    // Calculate city bonuses using EffectsManager for different output types
+    const productionContext = { ...context, outputType: OutputType.SHIELD };
+    const goldContext = { ...context, outputType: OutputType.GOLD };
+    const scienceContext = { ...context, outputType: OutputType.SCIENCE };
+
+    const productionEffect = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_BONUS,
+      productionContext
+    );
+    const goldEffect = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, goldContext);
+    const scienceEffect = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_BONUS,
+      scienceContext
+    );
+
+    // Additional bonus effects
+    const productionEffect2 = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_BONUS_2,
+      productionContext
+    );
+    const goldEffect2 = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS_2, goldContext);
+    const scienceEffect2 = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_BONUS_2,
+      scienceContext
+    );
+
+    return {
+      productionBonus: productionEffect.value + productionEffect2.value,
+      goldBonus: goldEffect.value + goldEffect2.value,
+      scienceBonus: scienceEffect.value + scienceEffect2.value,
+    };
   }
 
   /**

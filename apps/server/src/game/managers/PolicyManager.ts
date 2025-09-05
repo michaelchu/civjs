@@ -16,7 +16,12 @@
 // import { eq, and } from 'drizzle-orm';
 import { logger } from '@utils/logger';
 import type { Requirement } from '@shared/data/rulesets/schemas';
-// import { EffectsManager, EffectContext } from '@game/managers/EffectsManager';
+import {
+  EffectsManager,
+  EffectContext,
+  EffectType,
+  OutputType,
+} from '@game/managers/EffectsManager';
 
 // Policy definition - direct port of freeciv struct multiplier
 export interface Policy {
@@ -54,8 +59,10 @@ export interface PlayerPolicies {
 export class PolicyManager {
   private playerPolicies = new Map<string, PlayerPolicies>();
   private availablePolicies: Map<string, Policy> = new Map();
+  private effectsManager?: EffectsManager;
 
-  constructor(_gameId: string, _effectsManager: any) {
+  constructor(_gameId: string, effectsManager?: EffectsManager) {
+    this.effectsManager = effectsManager;
     this.initializePolicies();
   }
 
@@ -471,28 +478,75 @@ export class PolicyManager {
   }
 
   /**
-   * Get policy effects on city
+   * Get policy effects on city using EffectsManager multiplier system
    * Reference: freeciv policy effects on cities
    */
   public getCityPolicyEffects(
     playerId: string,
-    _cityId: string
+    cityId: string
   ): {
     scienceModifier: number;
     goldModifier: number;
     luxuryModifier: number;
     productionModifier: number;
   } {
-    const scienceBonus = this.getPolicyBonus(playerId, 'science');
-    const goldBonus = this.getPolicyBonus(playerId, 'gold');
-    const luxuryBonus = this.getPolicyBonus(playerId, 'luxury');
-    const productionBonus = this.getPolicyBonus(playerId, 'production');
+    if (!this.effectsManager) {
+      // Fallback to original implementation if no EffectsManager
+      const scienceBonus = this.getPolicyBonus(playerId, 'science');
+      const goldBonus = this.getPolicyBonus(playerId, 'gold');
+      const luxuryBonus = this.getPolicyBonus(playerId, 'luxury');
+      const productionBonus = this.getPolicyBonus(playerId, 'production');
+
+      return {
+        scienceModifier: scienceBonus,
+        goldModifier: goldBonus,
+        luxuryModifier: luxuryBonus,
+        productionModifier: productionBonus,
+      };
+    }
+
+    const context: EffectContext = {
+      playerId,
+      cityId,
+    };
+
+    // Calculate policy effects using EffectsManager with multipliers
+    const scienceContext = { ...context, outputType: OutputType.SCIENCE };
+    const goldContext = { ...context, outputType: OutputType.GOLD };
+    const luxuryContext = { ...context, outputType: OutputType.LUXURY };
+    const productionContext = { ...context, outputType: OutputType.SHIELD };
+
+    // Get policy multiplier values
+    const taxRateMultiplier = this.getEffectivePolicyValue(playerId, 'tax_rates');
+    const economicFocusMultiplier = this.getEffectivePolicyValue(playerId, 'economic_focus');
+
+    // Apply multipliers to base effects
+    const scienceEffect = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_BONUS,
+      scienceContext,
+      taxRateMultiplier
+    );
+    const goldEffect = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_BONUS,
+      goldContext,
+      taxRateMultiplier
+    );
+    const luxuryEffect = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_BONUS,
+      luxuryContext,
+      taxRateMultiplier
+    );
+    const productionEffect = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_BONUS,
+      productionContext,
+      economicFocusMultiplier
+    );
 
     return {
-      scienceModifier: scienceBonus,
-      goldModifier: goldBonus,
-      luxuryModifier: luxuryBonus,
-      productionModifier: productionBonus,
+      scienceModifier: scienceEffect.value,
+      goldModifier: goldEffect.value,
+      luxuryModifier: luxuryEffect.value,
+      productionModifier: productionEffect.value,
     };
   }
 
