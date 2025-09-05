@@ -148,7 +148,7 @@ export class UnitActionHandler extends BaseSocketHandler {
 
   private async resolveActiveGame(connection: any): Promise<any | null> {
     const game = await this.gameManager.getGame(connection.gameId!);
-    if (!game || game.state !== 'active') return null;
+    if (!game || game.status !== 'active') return null;
     return game;
   }
 
@@ -217,7 +217,7 @@ export class UnitActionHandler extends BaseSocketHandler {
 
     try {
       const game = await this.gameManager.getGame(connection.gameId!);
-      if (!game || game.state !== 'active') {
+      if (!game || game.status !== 'active') {
         handler.send(socket, PacketType.UNIT_ATTACK_REPLY, {
           success: false,
           message: 'Game is not active',
@@ -285,7 +285,7 @@ export class UnitActionHandler extends BaseSocketHandler {
 
     try {
       const game = await this.gameManager.getGame(connection.gameId!);
-      if (!game || game.state !== 'active') {
+      if (!game || game.status !== 'active') {
         handler.send(socket, PacketType.UNIT_FORTIFY_REPLY, {
           success: false,
           unitId: data.unitId,
@@ -348,7 +348,7 @@ export class UnitActionHandler extends BaseSocketHandler {
 
     try {
       const game = await this.gameManager.getGame(connection.gameId!);
-      if (!game || game.state !== 'active') {
+      if (!game || game.status !== 'active') {
         handler.send(socket, PacketType.UNIT_CREATE_REPLY, {
           success: false,
           message: 'Game is not active',

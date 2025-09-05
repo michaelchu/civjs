@@ -778,7 +778,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
 
       try {
         const game = await gameManager.getGame(connection.gameId);
-        if (!game || game.state !== 'active') {
+        if (!game || game.status !== 'active') {
           handler.send(socket, PacketType.UNIT_MOVE_REPLY, {
             success: false,
             unitId: data.unitId,
@@ -858,7 +858,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
 
       try {
         const game = await gameManager.getGame(connection.gameId);
-        if (!game || game.state !== 'active') {
+        if (!game || game.status !== 'active') {
           handler.send(socket, PacketType.UNIT_ATTACK_REPLY, {
             success: false,
             message: 'Game is not active',
@@ -922,7 +922,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
 
       try {
         const game = await gameManager.getGame(connection.gameId);
-        if (!game || game.state !== 'active') {
+        if (!game || game.status !== 'active') {
           handler.send(socket, PacketType.UNIT_FORTIFY_REPLY, {
             success: false,
             unitId: data.unitId,
@@ -981,7 +981,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
 
       try {
         const game = await gameManager.getGame(connection.gameId);
-        if (!game || game.state !== 'active') {
+        if (!game || game.status !== 'active') {
           handler.send(socket, PacketType.UNIT_CREATE_REPLY, {
             success: false,
             message: 'Game is not active',
@@ -1138,7 +1138,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
 
       try {
         const game = await gameManager.getGame(connection.gameId);
-        if (!game || game.state !== 'active') {
+        if (!game || game.status !== 'active') {
           handler.send(socket, PacketType.CITY_FOUND_REPLY, {
             success: false,
             message: 'Game is not active',
@@ -1202,7 +1202,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
 
       try {
         const game = await gameManager.getGame(connection.gameId);
-        if (!game || game.state !== 'active') {
+        if (!game || game.status !== 'active') {
           handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {
             success: false,
             message: 'Game is not active',
@@ -1266,7 +1266,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
 
       try {
         const game = await gameManager.getGame(connection.gameId);
-        if (!game || game.state !== 'active') {
+        if (!game || game.status !== 'active') {
           handler.send(socket, PacketType.RESEARCH_SET_REPLY, {
             success: false,
             message: 'Game is not active',
@@ -1330,7 +1330,7 @@ function registerHandlers(handler: PacketHandler, io: Server, socket: Socket) {
 
       try {
         const game = await gameManager.getGame(connection.gameId);
-        if (!game || game.state !== 'active') {
+        if (!game || game.status !== 'active') {
           handler.send(socket, PacketType.RESEARCH_GOAL_SET_REPLY, {
             success: false,
             message: 'Game is not active',

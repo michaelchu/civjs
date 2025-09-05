@@ -108,7 +108,7 @@ export class CityManagementHandler extends BaseSocketHandler {
 
     try {
       const game = await this.gameManager.getGame(connection.gameId!);
-      if (!game || game.state !== 'active') {
+      if (!game || game.status !== 'active') {
         handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {
           success: false,
           message: 'Game is not active',
@@ -161,7 +161,7 @@ export class CityManagementHandler extends BaseSocketHandler {
     connection: any
   ): Promise<{ game: any; player: any } | { game: null; player: null }> {
     const game = await this.gameManager.getGame(connection.gameId!);
-    if (!game || game.state !== 'active') {
+    if (!game || game.status !== 'active') {
       handler.send(socket, PacketType.CITY_FOUND_REPLY, {
         success: false,
         message: 'Game is not active',
