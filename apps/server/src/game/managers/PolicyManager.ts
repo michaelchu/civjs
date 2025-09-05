@@ -352,7 +352,7 @@ export class PolicyManager {
     const result = [];
 
     for (const [policyId, policy] of this.availablePolicies) {
-      const currentValue = this.getPlayerPolicyValue(playerId, policyId);
+      const _currentValue = this.getPlayerPolicyValue(playerId, policyId);
       const targetValue = this.getPlayerPolicyTargetValue(playerId, policyId);
       const changeCheck = await this.canChangePolicyValue(
         playerId,
@@ -363,7 +363,7 @@ export class PolicyManager {
 
       result.push({
         policy,
-        currentValue,
+        currentValue: _currentValue,
         targetValue,
         canChange: changeCheck.allowed,
         reason: changeCheck.reason,
@@ -620,8 +620,8 @@ export class PolicyManager {
    * Reference: Integration test compatibility
    */
   public async adoptPolicy(
-    playerId: string, 
-    policyId: string, 
+    playerId: string,
+    policyId: string,
     value?: number,
     currentTurn?: number
   ): Promise<boolean> {
@@ -636,27 +636,18 @@ export class PolicyManager {
     const turn = currentTurn || 1;
 
     try {
-      const result = await this.changePolicyValue(playerId, policyId, policyValue, turn, new Set<string>());
+      const result = await this.changePolicyValue(
+        playerId,
+        policyId,
+        policyValue,
+        turn,
+        new Set<string>()
+      );
       return result.success;
     } catch (error) {
       logger.error(`Failed to adopt policy ${policyId} for player ${playerId}:`, error);
       return false;
     }
-  }
-
-  /**
-   * Get available policies for a specific player (simplified API)
-   * Returns array of Policy objects that the player can adopt
-   */
-  public getAvailablePoliciesForPlayer(playerId: string): Policy[] {
-    // For now, return all available policies
-    // In a more sophisticated implementation, this would filter by requirements
-    const playerPolicies = this.playerPolicies.get(playerId);
-    if (!playerPolicies) {
-      return [];
-    }
-
-    return Array.from(this.availablePolicies.values());
   }
 
   /**
@@ -685,30 +676,12 @@ export class PolicyManager {
   }
 
   /**
-   * Check if a player can adopt a specific policy
-   * Simplified API for requirement checking
-   */
-  public canAdoptPolicy(playerId: string, policyId: string): boolean {
-    const policy = this.availablePolicies.get(policyId);
-    if (!policy) {
-      return false;
-    }
-
-    const playerPolicies = this.playerPolicies.get(playerId);
-    if (!playerPolicies) {
-      return false;
-    }
-
-    // For now, return true if policy exists and player is initialized
-    // In a more sophisticated implementation, this would check requirements
-    return true;
-  }
-
-  /**
    * Get policy effects for a player (placeholder for effects integration)
    */
-  public getPolicyEffects(playerId: string, policyId: string): Array<{type: string; value: number}> {
-    const currentValue = this.getPolicyValue(playerId, policyId);
+  public getPolicyEffects(
+    playerId: string,
+    policyId: string
+  ): Array<{ type: string; value: number }> {
     const effectValue = this.getEffectivePolicyValue(playerId, policyId);
 
     // Return simple effect structure based on policy type
@@ -716,12 +689,12 @@ export class PolicyManager {
       case 'tax_rate':
         return [
           { type: 'gold_bonus', value: effectValue * 0.1 },
-          { type: 'science_penalty', value: -effectValue * 0.05 }
+          { type: 'science_penalty', value: -effectValue * 0.05 },
         ];
       case 'economic_focus':
         return [
           { type: 'production_bonus', value: effectValue * 0.1 },
-          { type: 'military_penalty', value: -effectValue * 0.05 }
+          { type: 'military_penalty', value: -effectValue * 0.05 },
         ];
       default:
         return [];

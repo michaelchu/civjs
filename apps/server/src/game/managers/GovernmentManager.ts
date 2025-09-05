@@ -3,6 +3,7 @@ import { players as playersTable } from '@database/schema';
 import { eq, and } from 'drizzle-orm';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { GovernmentRuleset } from '@shared/data/rulesets/schemas';
+import { logger } from '@utils/logger';
 
 // Re-export types from schema for backwards compatibility
 export type GovernmentRequirement = import('@shared/data/rulesets/schemas').GovernmentRequirement;
@@ -651,11 +652,13 @@ export class GovernmentManager {
 
     const currentGov = governmentType || playerGov.currentGovernment;
     const effects = this.getGovernmentEffects(playerId);
-    
+
     // TODO: Integration with EffectsManager would happen here
     // For now, we log the effects that would be applied
     if (effects.length > 0) {
-      logger.info(`Applied ${effects.length} government effects for ${currentGov} to player ${playerId}`);
+      logger.info(
+        `Applied ${effects.length} government effects for ${currentGov} to player ${playerId}`
+      );
     }
   }
 
@@ -687,39 +690,13 @@ export class GovernmentManager {
   }
 
   /**
-   * Check if government change is allowed
-   * Reference: freeciv government requirements checking
-   */
-  public canChangeGovernment(playerId: string, newGovernmentType: string): boolean {
-    const playerGov = this.playerGovernments.get(playerId);
-    if (!playerGov) {
-      return false;
-    }
-
-    // Can't change to current government
-    if (playerGov.currentGovernment === newGovernmentType) {
-      return false;
-    }
-
-    // Can't change while in revolution
-    if (playerGov.revolutionTurns > 0) {
-      return false;
-    }
-
-    // Validate government exists
-    try {
-      getGovernment(newGovernmentType);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
    * Initiate government change with revolution mechanics
    * Alias for startRevolution for API compatibility
    */
-  public async initiateGovernmentChange(playerId: string, newGovernmentType: string): Promise<void> {
+  public async initiateGovernmentChange(
+    playerId: string,
+    newGovernmentType: string
+  ): Promise<void> {
     const result = await this.startRevolution(playerId, newGovernmentType, new Set<string>());
     if (!result.success) {
       throw new Error(result.message || 'Government change failed');
