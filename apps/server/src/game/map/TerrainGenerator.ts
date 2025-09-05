@@ -645,15 +645,7 @@ export class TerrainGenerator {
     hmap_shore_level: number
   ): void {
     // Calculate land area for mountain percentage calculations
-    let landarea = 0;
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const index = y * this.width + x;
-        if (heightMap[index] > hmap_shore_level) {
-          landarea++;
-        }
-      }
-    }
+    const landarea = this.computeLandAreaAboveShore(heightMap, hmap_shore_level);
 
     // Standard fracture relief parameters matching freeciv exactly
     // @reference freeciv/server/generator/fracture_map.c:335
@@ -662,99 +654,26 @@ export class TerrainGenerator {
 
     // First iteration: Place mountains and hills based on local elevation
     // @reference freeciv/server/generator/fracture_map.c:313-338
-    let total_mtns = 0;
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const tile = tiles[x][y];
-        const index = y * this.width + x;
-        const tileHeight = heightMap[index];
-
-        // Only process unplaced land tiles
-        if (!this.placementMap.notPlaced(x, y) || tileHeight <= hmap_shore_level) {
-          continue;
-        }
-
-        // Calculate local average elevation
-        const localAvg = this.heightMapProcessor.localAveElevation(heightMap, x, y);
-
-        // Exact freeciv mountain placement thresholds
-        // @reference freeciv/server/generator/fracture_map.c:317-321
-        const choose_mountain = this.shouldChooseMountain(
-          tileHeight,
-          localAvg,
-          tiles,
-          heightMap,
-          x,
-          y,
-          hmap_mountain_level,
-          hmap_shore_level
-        );
-
-        const choose_hill = this.shouldChooseHill(
-          tileHeight,
-          localAvg,
-          tiles,
-          heightMap,
-          x,
-          y,
-          hmap_mountain_level,
-          hmap_shore_level
-        );
-
-        // Exact freeciv coastal avoidance - ZERO EXCEPTIONS
-        // @reference freeciv/server/generator/fracture_map.c:322-326
-        // "The following avoids hills and mountains directly along the coast."
-        if (this.oceanProcessor.hasOceanNeighbor(tiles, x, y)) {
-          continue; // choose_mountain = FALSE; choose_hill = FALSE;
-        }
-
-        // Exact freeciv terrain placement logic
-        // @reference freeciv/server/generator/fracture_map.c:327-337
-        if (choose_mountain) {
-          total_mtns++;
-          this.placeMountainTerrain(tile, x, y);
-        } else if (choose_hill) {
-          total_mtns++;
-          this.placeHillTerrain(tile, x, y);
-        }
-      }
-    }
+    const total_mtns_after_first = this.processFractureReliefFirstPass(
+      tiles,
+      heightMap,
+      hmap_mountain_level,
+      hmap_shore_level
+    );
 
     // Second iteration: Ensure minimum mountain percentage based on steepness
     // @reference freeciv/server/generator/fracture_map.c:340-366
     const steepness = 30; // Default steepness setting (equivalent to wld.map.server.steepness)
     const min_mountains = (landarea * steepness) / 100;
 
-    for (let iter = 0; total_mtns < min_mountains && iter < 50; iter++) {
-      for (let x = 0; x < this.width; x++) {
-        for (let y = 0; y < this.height; y++) {
-          const tile = tiles[x][y];
-          const index = y * this.width + x;
-          const tileHeight = heightMap[index];
-
-          if (this.placementMap.notPlaced(x, y) && tileHeight > hmap_shore_level) {
-            // Exact freeciv random placement (lines 349-350)
-            const choose_mountain = this.random() * 10000 < 10;
-            const choose_hill = this.random() * 10000 < 10;
-
-            if (choose_mountain) {
-              total_mtns++;
-              this.placeMountainTerrain(tile, x, y);
-            } else if (choose_hill) {
-              total_mtns++;
-              this.placeHillTerrain(tile, x, y);
-            }
-          }
-
-          if (total_mtns >= min_mountains) {
-            break;
-          }
-        }
-        if (total_mtns >= min_mountains) {
-          break;
-        }
-      }
-    }
+    // Ensure we meet minimum mountains; return value unused, kept for clarity
+    void this.ensureMinimumMountains(
+      tiles,
+      heightMap,
+      hmap_shore_level,
+      total_mtns_after_first,
+      min_mountains
+    );
   }
 
   private shouldChooseMountain(
@@ -827,6 +746,121 @@ export class TerrainGenerator {
     );
     this.placementMap.setPlaced(x, y);
     this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
+  }
+
+  // Helper methods for fracture relief, extracted to reduce complexity of makeFractureRelief
+  private computeLandAreaAboveShore(heightMap: number[], hmap_shore_level: number): number {
+    let landarea = 0;
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const index = y * this.width + x;
+        if (heightMap[index] > hmap_shore_level) {
+          landarea++;
+        }
+      }
+    }
+    return landarea;
+  }
+
+  private processFractureReliefFirstPass(
+    tiles: MapTile[][],
+    heightMap: number[],
+    hmap_mountain_level: number,
+    hmap_shore_level: number
+  ): number {
+    let total_mtns = 0;
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const tile = tiles[x][y];
+        const index = y * this.width + x;
+        const tileHeight = heightMap[index];
+
+        // Only process unplaced land tiles
+        if (!this.placementMap.notPlaced(x, y) || tileHeight <= hmap_shore_level) {
+          continue;
+        }
+
+        // Calculate local average elevation
+        const localAvg = this.heightMapProcessor.localAveElevation(heightMap, x, y);
+
+        // Exact freeciv thresholds
+        const choose_mountain = this.shouldChooseMountain(
+          tileHeight,
+          localAvg,
+          tiles,
+          heightMap,
+          x,
+          y,
+          hmap_mountain_level,
+          hmap_shore_level
+        );
+
+        const choose_hill = this.shouldChooseHill(
+          tileHeight,
+          localAvg,
+          tiles,
+          heightMap,
+          x,
+          y,
+          hmap_mountain_level,
+          hmap_shore_level
+        );
+
+        // Avoid coast
+        if (this.oceanProcessor.hasOceanNeighbor(tiles, x, y)) {
+          continue;
+        }
+
+        if (choose_mountain) {
+          total_mtns++;
+          this.placeMountainTerrain(tile, x, y);
+        } else if (choose_hill) {
+          total_mtns++;
+          this.placeHillTerrain(tile, x, y);
+        }
+      }
+    }
+    return total_mtns;
+  }
+
+  private ensureMinimumMountains(
+    tiles: MapTile[][],
+    heightMap: number[],
+    hmap_shore_level: number,
+    total_mtns_start: number,
+    min_mountains: number
+  ): number {
+    let total_mtns = total_mtns_start;
+    for (let iter = 0; total_mtns < min_mountains && iter < 50; iter++) {
+      for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < this.height; y++) {
+          const tile = tiles[x][y];
+          const index = y * this.width + x;
+          const tileHeight = heightMap[index];
+
+          if (this.placementMap.notPlaced(x, y) && tileHeight > hmap_shore_level) {
+            const choose_mountain = this.random() * 10000 < 10;
+            const choose_hill = this.random() * 10000 < 10;
+
+            if (choose_mountain) {
+              total_mtns++;
+              this.placeMountainTerrain(tile, x, y);
+            } else if (choose_hill) {
+              total_mtns++;
+              this.placeHillTerrain(tile, x, y);
+            }
+          }
+
+          if (total_mtns >= min_mountains) {
+            break;
+          }
+        }
+        if (total_mtns >= min_mountains) {
+          break;
+        }
+      }
+    }
+    return total_mtns;
   }
 
   /**
