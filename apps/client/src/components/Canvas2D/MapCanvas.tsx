@@ -54,6 +54,16 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     currentPath: null,
   });
 
+  // Debug: Log goto mode changes
+  useEffect(() => {
+    console.log('Goto mode state changed:', {
+      active: gotoMode.active,
+      hasUnit: !!gotoMode.unit,
+      hasPath: !!gotoMode.currentPath,
+      pathTiles: gotoMode.currentPath ? gotoMode.currentPath.tiles.length : 0,
+    });
+  }, [gotoMode]);
+
   const { viewport, map, units, cities, setViewport, selectUnit } = useGameStore();
   const gameState = useGameStore();
 
@@ -225,6 +235,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       viewport,
       dataSourceMismatch:
         globalTiles && map ? globalTiles.length !== Object.keys(map.tiles).length : false,
+      gotoModeActive: gotoMode.active,
+      gotoPath: gotoMode.currentPath ? `${gotoMode.currentPath.tiles.length} tiles` : 'null',
     });
 
     // Only render if we have the global tiles data that MapRenderer uses
@@ -244,7 +256,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           console.error('Error during render:', error);
         });
     }
-  }, [viewport, map, units, cities, gotoMode.currentPath, globalTilesVersion]); // Include map for React Hook dependency
+  }, [viewport, map, units, cities, gotoMode.active, gotoMode.currentPath, globalTilesVersion]); // Include map for React Hook dependency
 
   // Monitor global tiles changes and trigger canvas reinitialization (like window resize)
   useEffect(() => {
@@ -378,13 +390,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const deactivateGotoMode = useCallback(() => {
     console.log('Deactivating goto mode - clearing path immediately');
 
-    // Clear the goto state - this should trigger a re-render via gotoMode.currentPath dependency
+    // Clear the goto state
     setGotoMode({
       active: false,
       unit: null,
       targetTile: null,
       currentPath: null,
     });
+
+    console.log('Goto mode deactivated - React will re-render');
 
     // Reset cursor
     const canvas = canvasRef.current;

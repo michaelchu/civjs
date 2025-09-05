@@ -5,6 +5,7 @@ import { BaseRenderer, type RenderState } from './BaseRenderer';
 export class PathRenderer extends BaseRenderer {
   // Debug text rendering constants
   private static readonly DEBUG_FONT_SIZE = 10; // Font size for debug overlays
+
   /**
    * Render goto path and debug overlays.
    */
