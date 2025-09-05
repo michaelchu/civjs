@@ -54,16 +54,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     currentPath: null,
   });
 
-  // Debug: Log goto mode changes
-  useEffect(() => {
-    console.log('Goto mode state changed:', {
-      active: gotoMode.active,
-      hasUnit: !!gotoMode.unit,
-      hasPath: !!gotoMode.currentPath,
-      pathTiles: gotoMode.currentPath ? gotoMode.currentPath.tiles.length : 0,
-    });
-  }, [gotoMode]);
-
   const { viewport, map, units, cities, setViewport, selectUnit } = useGameStore();
   const gameState = useGameStore();
 
@@ -241,7 +231,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
     // Only render if we have the global tiles data that MapRenderer uses
     if (rendererRef.current && globalTiles && globalMap) {
-      console.log('Executing render with global tiles count:', globalTiles.length);
+      console.log(
+        'Executing render with global tiles count:',
+        globalTiles.length,
+        'gotoPath:',
+        gotoMode.currentPath
+      );
       // Handle async render - we don't need to await since this is a fire-and-forget operation
       rendererRef.current
         .render({
@@ -388,9 +383,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   // Deactivate goto mode
   const deactivateGotoMode = useCallback(() => {
-    console.log('Deactivating goto mode - clearing path immediately');
-    console.log('Current goto mode before clearing:', gotoMode);
-
     // Clear the goto state
     setGotoMode({
       active: false,
@@ -398,8 +390,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       targetTile: null,
       currentPath: null,
     });
-
-    console.log('setGotoMode called with null state - React should trigger state change');
 
     // Reset cursor
     const canvas = canvasRef.current;

@@ -10,14 +10,17 @@ export class PathRenderer extends BaseRenderer {
    * Render goto path and debug overlays.
    */
   renderPaths(state: RenderState): void {
+    // Debug: Log what path data is being received
+    console.log('PathRenderer.renderPaths called with gotoPath:', state.gotoPath);
+
     // Render goto path if available (similar to freeciv-web's path rendering)
     if (state.gotoPath && state.gotoPath.tiles.length > 1) {
-      if (import.meta.env.DEV) {
-        console.log('Rendering goto path:', state.gotoPath);
-      }
+      console.log('DRAWING path with', state.gotoPath.tiles.length, 'tiles');
       this.renderGotoPath(state.gotoPath, state.viewport);
-    } else if (import.meta.env.DEV && state.gotoPath) {
-      console.log('Goto path available but not rendered:', state.gotoPath);
+    } else if (state.gotoPath) {
+      console.log('Path exists but not drawing - too short:', state.gotoPath.tiles.length);
+    } else {
+      console.log('NO PATH - should be clear');
     }
 
     if (import.meta.env.DEV) {
