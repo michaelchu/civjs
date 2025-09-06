@@ -15,22 +15,7 @@ import apiRouter from './routes/api';
 // Load environment variables
 dotenv.config();
 
-// Create Express app
-const app = express();
-const httpServer = createServer(app);
-
-// Create Socket.IO server
-const io = new Server(httpServer, {
-  cors: {
-    origin: config.server.corsOrigin,
-    methods: ['GET', 'POST'],
-    credentials: true,
-  },
-  pingTimeout: 60000,
-  pingInterval: 25000,
-});
-
-// CORS configuration to handle multiple origins including Vercel previews
+// CORS configuration to handle multiple origins including Railway previews
 const corsOrigins = (
   origin: string | undefined,
   callback: (err: Error | null, allow?: boolean) => void
@@ -41,20 +26,33 @@ const corsOrigins = (
   const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3001',
-    'https://civjs-client.vercel.app',
-    'https://civjs.vercel.app',
     config.server.corsOrigin,
   ];
 
-  // Allow all Vercel preview deployments for civjs-client or civjs
-  const isVercelPreview = origin.match(/^https:\/\/civjs(-client)?-.*\.vercel\.app$/);
+  // Allow all Railway preview deployments
+  const isRailwayPreview = origin.match(/^https:\/\/.*\.up\.railway\.app$/);
 
-  if (allowedOrigins.indexOf(origin) !== -1 || isVercelPreview) {
+  if (allowedOrigins.indexOf(origin) !== -1 || isRailwayPreview) {
     callback(null, true);
   } else {
     callback(new Error('Not allowed by CORS'));
   }
 };
+
+// Create Express app
+const app = express();
+const httpServer = createServer(app);
+
+// Create Socket.IO server
+const io = new Server(httpServer, {
+  cors: {
+    origin: corsOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+});
 
 // Middleware
 app.use(
