@@ -147,14 +147,24 @@ class GameClient {
 
     // Keep compatibility events for game management
     this.socket.on('game_created', data => {
-      console.log('Game created:', data);
+      console.log('GameClient: game_created event data:', data);
+      console.log('GameClient: assignedNation from server:', data.assignedNation);
 
       // Initialize mock player state since server automatically joins creator as player
       if (data.playerId) {
+        // Always use the server-assigned nation, never store 'random' as the final value
+        let finalNation = data.assignedNation;
+        if (!finalNation || finalNation === 'random') {
+          // If server didn't provide a specific nation, default to 'american'
+          // (this should not happen in normal operation)
+          finalNation = 'american';
+          console.warn('GameClient: Server did not provide assignedNation, using fallback');
+        }
+        console.log('GameClient: final nation for game creation:', finalNation);
         const mockPlayer = {
           id: data.playerId,
           name: 'Player', // We don't have the name here, will be updated later
-          nation: data.assignedNation || 'random',
+          nation: finalNation,
           color: '#0066cc',
           gold: 50,
           science: 0,
@@ -849,7 +859,16 @@ class GameClient {
           // Initialize mock player state for turn system to work
           console.log('GameClient: join response:', response);
           console.log('GameClient: selectedNation param:', selectedNation);
-          const finalNation = response.assignedNation || selectedNation;
+          // Always use the server-assigned nation, never store 'random' as the final value
+          let finalNation = response.assignedNation || selectedNation;
+          if (finalNation === 'random') {
+            // If we still have 'random' at this point, default to 'american'
+            // (this should not happen if server is working correctly)
+            finalNation = 'american';
+            console.warn(
+              'GameClient: Still have random nation after server response, using fallback'
+            );
+          }
           console.log('GameClient: final nation value:', finalNation);
           const mockPlayer = {
             id: response.playerId,

@@ -286,7 +286,7 @@ describe('GameManagementHandler', () => {
       expect(mockCallback).toHaveBeenCalledWith({
         success: true,
         playerId: mockPlayerId,
-        assignedNation: 'random',
+        assignedNation: 'american',
       });
     });
 

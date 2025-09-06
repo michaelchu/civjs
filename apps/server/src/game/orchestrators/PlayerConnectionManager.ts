@@ -79,9 +79,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     const playerNumber = game.players.length + 1;
 
     // Validate and select nation
-    console.log('PlayerConnectionManager: input civilization:', civilization);
     const selectedNation = await this.validateAndSelectNation(civilization, game.players);
-    console.log('PlayerConnectionManager: selectedNation result:', selectedNation);
 
     const playerData = {
       gameId,
@@ -291,6 +289,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
 
     // Handle random nation selection
     let selectedNation = civilization || 'american';
+
     if (civilization === 'random') {
       try {
         const loader = RulesetLoader.getInstance();
@@ -299,6 +298,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         if (nationsRuleset) {
           // Get playable nations (exclude barbarian and already taken nations)
           const takenNations = new Set(existingPlayers.map(p => p.civilization));
+
           const playableNations = Object.values(nationsRuleset.nations)
             .filter(nation => nation.id !== 'barbarian' && !takenNations.has(nation.id))
             .map(nation => nation.id);

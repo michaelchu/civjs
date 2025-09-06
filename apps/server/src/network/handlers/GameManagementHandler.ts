@@ -150,18 +150,26 @@ export class GameManagementHandler extends BaseSocketHandler {
       // Get the player data to return the assigned nation
       const playerData = await this.gameManager.getPlayerById(playerId);
 
+      // Determine the assigned nation, never send 'random' as final result
+      let assignedNation = playerData?.nation || data.selectedNation || 'american';
+      if (assignedNation === 'random') {
+        // If we still have 'random' at this point, it means the random selection failed
+        // Default to 'american' so client never gets 'random' as the final nation
+        assignedNation = 'american';
+      }
+
       socket.emit('game_created', {
         gameId,
         maxPlayers: data.maxPlayers,
         playerId, // Include playerId so client can initialize player state
-        assignedNation: playerData?.nation || data.selectedNation || 'random',
+        assignedNation,
       });
 
       handler.send(socket, PacketType.GAME_CREATE_REPLY, {
         success: true,
         gameId,
         message: 'Game created successfully',
-        assignedNation: playerData?.nation || data.selectedNation || 'random',
+        assignedNation,
       });
 
       logger.info(`Game created by ${connection.username}`, { gameId });
@@ -250,7 +258,6 @@ export class GameManagementHandler extends BaseSocketHandler {
     }
 
     try {
-      console.log('GameManagementHandler: joining game with selectedNation:', data.selectedNation);
       const playerId = await this.gameManager.joinGame(
         data.gameId,
         connection.userId!,
@@ -263,7 +270,6 @@ export class GameManagementHandler extends BaseSocketHandler {
 
       // Get the player data to return the assigned nation
       const playerData = await this.gameManager.getPlayerById(playerId);
-      console.log('GameManagementHandler: playerData after join:', playerData);
 
       // Send map data to the player if the game has started
       try {
@@ -272,10 +278,18 @@ export class GameManagementHandler extends BaseSocketHandler {
         logger.warn('Could not send map data to player:', mapError);
       }
 
+      // Determine the assigned nation, never send 'random' as final result
+      let assignedNation = playerData?.nation || data.selectedNation || 'american';
+      if (assignedNation === 'random') {
+        // If we still have 'random' at this point, it means the random selection failed
+        // Default to 'american' so client never gets 'random' as the final nation
+        assignedNation = 'american';
+      }
+
       callback({
         success: true,
         playerId,
-        assignedNation: playerData?.nation || data.selectedNation || 'random',
+        assignedNation,
       });
       logger.info(`${connection?.username || 'Unknown'} joined game ${data.gameId}`, { playerId });
     } catch (error) {
