@@ -54,6 +54,8 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     userId: string,
     civilization?: string
   ): Promise<{ playerId: string; assignedNation: string }> {
+    console.log('=== PLAYER CONNECTION MANAGER JOIN GAME ===');
+    console.log('Parameters received:', { gameId, userId, civilization });
     // Get game from database
     const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
@@ -71,10 +73,12 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     if (existingPlayer) {
       // Track player to game mapping for existing player
       this.playerToGame.set(existingPlayer.id, gameId);
-      return {
+      const existingResult = {
         playerId: existingPlayer.id,
         assignedNation: existingPlayer.nation || existingPlayer.civilization || 'american',
-      }; // Already joined - allow rejoining at any game status
+      };
+      console.log('Player already exists, returning:', existingResult);
+      return existingResult; // Already joined - allow rejoining at any game status
     }
 
     // Only allow new players in waiting games
@@ -90,7 +94,9 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     const playerNumber = game.players.length + 1;
 
     // Validate and select nation
+    console.log('About to call validateAndSelectNation with:', civilization);
     const selectedNation = await this.validateAndSelectNation(civilization, game.players);
+    console.log('validateAndSelectNation returned:', selectedNation);
 
     const playerData = {
       gameId,
@@ -136,10 +142,12 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     // Handle auto-start logic
     await this.handleAutoStart(gameId);
 
-    return {
+    const finalResult = {
       playerId: newPlayer.id,
       assignedNation: selectedNation,
     };
+    console.log('PlayerConnectionManager joinGame final result:', finalResult);
+    return finalResult;
   }
 
   /**
