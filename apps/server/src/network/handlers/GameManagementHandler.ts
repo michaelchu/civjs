@@ -253,7 +253,7 @@ export class GameManagementHandler extends BaseSocketHandler {
       const playerId = await this.gameManager.joinGame(
         data.gameId,
         connection.userId!,
-        data.selectedNation
+        data.selectedNation || 'random'
       );
 
       connection.gameId = data.gameId;
