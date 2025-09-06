@@ -4,7 +4,8 @@ import { MapRenderer } from './MapRenderer';
 import { TileHoverOverlay } from './TileHoverOverlay';
 import { UnitContextMenu } from '../GameUI/UnitContextMenu';
 import { CityNameDialog } from '../GameUI/CityNameDialog';
-import type { Unit } from '../../types';
+import { CityInfoOverlay } from '../GameUI/CityInfoOverlay';
+import type { Unit, City } from '../../types';
 import { ActionType } from '../../types/shared/actions';
 import { gameClient } from '../../services/GameClient';
 import { pathfindingService, type GotoPath } from '../../services/PathfindingService';
@@ -38,6 +39,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   }>({
     isOpen: false,
     unit: null,
+  });
+
+  // City info overlay state
+  const [cityInfoOverlay, setCityInfoOverlay] = useState<{
+    isOpen: boolean;
+    city: City | null;
+  }>({
+    isOpen: false,
+    city: null,
   });
 
   // Goto mode state (similar to freeciv-web's goto_active)
@@ -769,6 +779,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         unit => unit.x === tileX && unit.y === tileY
       );
 
+      // Find city at right-clicked position
+      const cityAtPosition = Object.values(cities).find(
+        city => city.x === tileX && city.y === tileY
+      );
+
       if (unitAtPosition) {
         // Show context menu for the unit
         setContextMenu({
@@ -777,9 +792,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         });
         selectUnit(unitAtPosition.id);
         setSelectedUnit(unitAtPosition as Unit);
+      } else if (cityAtPosition) {
+        // Show info overlay for the city
+        setCityInfoOverlay({
+          isOpen: true,
+          city: cityAtPosition as City,
+        });
       }
     },
-    [selectUnit, units, viewport, gotoMode.active, deactivateGotoMode]
+    [selectUnit, units, cities, viewport, gotoMode.active, deactivateGotoMode]
   );
 
   // Handle unit action selection
@@ -865,6 +886,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     setCityNameDialog({
       isOpen: false,
       unit: null,
+    });
+  }, []);
+
+  const handleCloseCityInfoOverlay = useCallback(() => {
+    setCityInfoOverlay({
+      isOpen: false,
+      city: null,
     });
   }, []);
 
@@ -988,6 +1016,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         unit={cityNameDialog.unit}
         onClose={handleCloseCityNameDialog}
         onFoundCity={handleFoundCity}
+      />
+
+      <CityInfoOverlay
+        city={cityInfoOverlay.city}
+        isOpen={cityInfoOverlay.isOpen}
+        onClose={handleCloseCityInfoOverlay}
       />
     </div>
   );
