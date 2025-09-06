@@ -172,10 +172,12 @@ class GameClient {
 
       // Initialize mock player state since server automatically joins creator as player
       if (data.playerId) {
+        const selectedNation = data.selectedNation || 'american';
+
         const mockPlayer = {
           id: data.playerId,
           name: 'Player', // We don't have the name here, will be updated later
-          nation: data.selectedNation || 'random', // Use actual selected nation from server
+          nation: selectedNation, // Use actual selected nation from server
           color: '#0066cc',
           gold: 50,
           science: 0,
@@ -863,12 +865,16 @@ class GameClient {
         if (response.success) {
           this.currentGameId = gameId;
 
+          // Get existing player data to preserve nation selection
+          const { players } = useGameStore.getState();
+          const existingPlayer = players[response.playerId];
+
           // Initialize mock player state for turn system to work
           const mockPlayer = {
             id: response.playerId,
             name: playerName,
-            nation: 'random',
-            color: '#0066cc',
+            nation: existingPlayer?.nation || 'american', // Preserve existing nation or use default
+            color: existingPlayer?.color || '#0066cc',
             gold: 50,
             science: 0,
             government: 'despotism', // Default starting government
