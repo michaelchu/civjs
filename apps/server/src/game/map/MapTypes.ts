@@ -135,6 +135,8 @@ export interface MapTile {
   properties: TerrainProperties;
   temperature: TemperatureType;
   wetness: number; // 0-100, higher = more wet
+  // Border/ownership system
+  ownerId?: string; // Player ID who owns this tile (for city borders)
 }
 
 export interface MapData {

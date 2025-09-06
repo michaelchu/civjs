@@ -8,3 +8,4 @@ export * from './game-turns';
 export * from './research';
 export * from './player-policies';
 export * from './government-changes';
+export * from './tile-ownership';

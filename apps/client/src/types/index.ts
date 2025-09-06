@@ -10,6 +10,7 @@ export interface Tile {
   resource?: string;
   elevation?: number;
   riverMask?: number; // River connection bitmask: N=1, E=2, S=4, W=8
+  ownerId?: string; // Player ID who owns this tile (for city borders)
 }
 
 export interface Unit {

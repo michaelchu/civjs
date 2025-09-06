@@ -18,6 +18,7 @@ import {
 } from '@game/services/CityFoundingValidationService';
 import type { Unit } from '@game/managers/UnitManager';
 import type { MapManager } from '@game/managers/MapManager';
+import type { BorderManager } from '@game/managers/BorderManager';
 
 // Following original Freeciv city radius logic
 export const CITY_MAP_DEFAULT_RADIUS = 2;
@@ -194,6 +195,7 @@ export class CityManager {
   private governmentManager?: GovernmentManager;
   private callbacks: CityManagerCallbacks;
   private mapManager?: MapManager;
+  private borderManager?: BorderManager;
   private validationService?: CityFoundingValidationService;
 
   constructor(
@@ -373,6 +375,16 @@ export class CityManager {
     };
 
     this.cities.set(dbCity.id, cityState);
+
+    // Claim borders around the new city
+    if (this.borderManager) {
+      this.borderManager.addCityBorderSource(cityState);
+    } else {
+      logger.warn('BorderManager not set - city borders will not be claimed', { 
+        cityId: dbCity.id 
+      });
+    }
+
     logger.info('City founded successfully', { cityId: dbCity.id, name });
 
     return dbCity.id;
@@ -464,10 +476,22 @@ export class CityManager {
     // Handle growth following Freeciv granary logic
     const foodNeededForGrowth = (city.population + 1) * 10; // Simplified
     if (city.foodStock >= foodNeededForGrowth && city.foodPerTurn > 0) {
+      const oldPopulation = city.population;
       city.population++;
       city.foodStock = 0; // Reset food stock after growth
       city.lastGrowthTurn = currentTurn;
-      logger.info('City grew', { cityId, newSize: city.population });
+      
+      // Update borders when city grows (borders expand with population)
+      if (this.borderManager) {
+        this.borderManager.addCityBorderSource(city); // This will recalculate borders
+      }
+      
+      logger.info('City grew', { 
+        cityId, 
+        oldSize: oldPopulation, 
+        newSize: city.population,
+        bordersUpdated: !!this.borderManager
+      });
     }
 
     // Handle starvation following Freeciv
@@ -718,6 +742,13 @@ export class CityManager {
    */
   setGovernmentManager(governmentManager: GovernmentManager): void {
     this.governmentManager = governmentManager;
+  }
+
+  /**
+   * Set border manager for border-related calculations
+   */
+  setBorderManager(borderManager: BorderManager): void {
+    this.borderManager = borderManager;
   }
 
   /**
