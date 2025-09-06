@@ -86,7 +86,10 @@ describe('GameManagementHandler - Nation Selection', () => {
       };
 
       mockGameManager.createGame.mockResolvedValue(mockGameId);
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'american',
+      });
       mockGameManager.getPlayerById.mockResolvedValue({
         nation: 'american',
         civilization: 'american',
@@ -127,7 +130,10 @@ describe('GameManagementHandler - Nation Selection', () => {
       };
 
       mockGameManager.createGame.mockResolvedValue(mockGameId);
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'chinese',
+      });
       // Mock that server assigned a random nation
       mockGameManager.getPlayerById.mockResolvedValue({
         nation: 'chinese',
@@ -168,7 +174,10 @@ describe('GameManagementHandler - Nation Selection', () => {
       };
 
       mockGameManager.createGame.mockResolvedValue(mockGameId);
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'roman',
+      });
       mockGameManager.getPlayerById.mockResolvedValue({
         nation: 'roman',
         civilization: 'roman',
@@ -204,7 +213,10 @@ describe('GameManagementHandler - Nation Selection', () => {
         selectedNation: 'german',
       };
 
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'german',
+      });
       mockGameManager.getPlayerById.mockResolvedValue({
         nation: 'german',
         civilization: 'german',
@@ -238,7 +250,10 @@ describe('GameManagementHandler - Nation Selection', () => {
         // No selectedNation
       };
 
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'french',
+      });
       mockGameManager.getPlayerById.mockResolvedValue({
         nation: 'french',
         civilization: 'french',
@@ -275,7 +290,10 @@ describe('GameManagementHandler - Nation Selection', () => {
         selectedNation: 'random',
       };
 
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'japanese',
+      });
       // Mock that server randomly assigned a nation
       mockGameManager.getPlayerById.mockResolvedValue({
         nation: 'japanese',
@@ -309,7 +327,10 @@ describe('GameManagementHandler - Nation Selection', () => {
         selectedNation: 'viking',
       };
 
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'viking',
+      });
       mockGameManager.getPlayerById.mockResolvedValue(null); // Player not found
 
       const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(
@@ -337,7 +358,10 @@ describe('GameManagementHandler - Nation Selection', () => {
         selectedNation: 'egyptian',
       };
 
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'egyptian',
+      });
       mockGameManager.getPlayerById.mockResolvedValue({}); // Player data without nation
 
       const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(

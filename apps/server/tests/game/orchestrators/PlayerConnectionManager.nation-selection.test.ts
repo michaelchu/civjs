@@ -254,10 +254,10 @@ describe('PlayerConnectionManager - Nation Selection', () => {
       });
 
       // Act
-      const playerId = await playerManager.joinGame(mockGameId, mockUserId, civilization);
+      const result = await playerManager.joinGame(mockGameId, mockUserId, civilization);
 
       // Assert
-      expect(playerId).toBe('new-player-id');
+      expect(result).toEqual({ playerId: 'new-player-id', assignedNation: 'chinese' });
 
       // Verify insert was called with correct nation data
       const insertCall = mockDatabase.insert.mock.calls[0];
@@ -294,10 +294,10 @@ describe('PlayerConnectionManager - Nation Selection', () => {
       Math.random = jest.fn(() => 0.0); // Select first available
 
       // Act
-      const playerId = await playerManager.joinGame(mockGameId, mockUserId, civilization);
+      const result = await playerManager.joinGame(mockGameId, mockUserId, civilization);
 
       // Assert
-      expect(playerId).toBe('new-player-id');
+      expect(result).toEqual({ playerId: 'new-player-id', assignedNation: 'american' });
 
       const valuesCall = mockDatabase.insert().values.mock.calls[0][0];
       expect(valuesCall.nation).not.toBe('random');

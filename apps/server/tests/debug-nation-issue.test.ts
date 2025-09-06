@@ -85,7 +85,10 @@ describe('Debug Nation Issue', () => {
       };
 
       mockGameManager.createGame.mockResolvedValue(mockGameId);
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'american',
+      });
 
       // SIMULATE THE ISSUE: getPlayerById returns null (database timing issue)
       mockGameManager.getPlayerById.mockResolvedValue(null);
@@ -132,7 +135,10 @@ describe('Debug Nation Issue', () => {
       };
 
       mockGameManager.createGame.mockResolvedValue(mockGameId);
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'american',
+      });
 
       // SIMULATE THE ISSUE: getPlayerById returns null AND selectedNation is random
       mockGameManager.getPlayerById.mockResolvedValue(null);
@@ -182,7 +188,10 @@ describe('Debug Nation Issue', () => {
       };
 
       mockGameManager.createGame.mockResolvedValue(mockGameId);
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'chinese',
+      });
 
       // CORRECT BEHAVIOR: getPlayerById returns the actual assigned nation
       mockGameManager.getPlayerById.mockResolvedValue({
