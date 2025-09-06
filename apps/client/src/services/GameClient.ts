@@ -154,7 +154,7 @@ class GameClient {
         const mockPlayer = {
           id: data.playerId,
           name: 'Player', // We don't have the name here, will be updated later
-          nation: 'random',
+          nation: data.assignedNation || 'random',
           color: '#0066cc',
           gold: 50,
           science: 0,
@@ -829,7 +829,7 @@ class GameClient {
     this.socket.emit('join_game', { playerName });
   }
 
-  async joinSpecificGame(gameId: string, playerName: string): Promise<void> {
+  async joinSpecificGame(gameId: string, playerName: string, selectedNation: string = 'random'): Promise<void> {
     await this.authenticatePlayer(playerName);
 
     return new Promise((resolve, reject) => {
@@ -838,7 +838,7 @@ class GameClient {
         return;
       }
 
-      this.socket.emit('join_game', { gameId, playerName }, (response: any) => {
+      this.socket.emit('join_game', { gameId, playerName, selectedNation }, (response: any) => {
         if (response.success) {
           this.currentGameId = gameId;
 
@@ -846,7 +846,7 @@ class GameClient {
           const mockPlayer = {
             id: response.playerId,
             name: playerName,
-            nation: 'random',
+            nation: response.assignedNation || selectedNation,
             color: '#0066cc',
             gold: 50,
             science: 0,

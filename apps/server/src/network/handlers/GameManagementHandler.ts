@@ -147,16 +147,23 @@ export class GameManagementHandler extends BaseSocketHandler {
       );
       await this.gameManager.updatePlayerConnection(playerId, true);
 
+      // Get the player data to return the assigned nation
+      const playerData = await this.gameManager.getDatabase().query.players.findFirst({
+        where: (players, { eq }) => eq(players.id, playerId)
+      });
+
       socket.emit('game_created', {
         gameId,
         maxPlayers: data.maxPlayers,
         playerId, // Include playerId so client can initialize player state
+        assignedNation: playerData?.nation || data.selectedNation || 'random'
       });
 
       handler.send(socket, PacketType.GAME_CREATE_REPLY, {
         success: true,
         gameId,
         message: 'Game created successfully',
+        assignedNation: playerData?.nation || data.selectedNation || 'random'
       });
 
       logger.info(`Game created by ${connection.username}`, { gameId });
@@ -245,11 +252,16 @@ export class GameManagementHandler extends BaseSocketHandler {
     }
 
     try {
-      const playerId = await this.gameManager.joinGame(data.gameId, connection.userId!, 'random');
+      const playerId = await this.gameManager.joinGame(data.gameId, connection.userId!, data.selectedNation);
 
       connection.gameId = data.gameId;
       socket.join(`game:${data.gameId}`);
       await this.gameManager.updatePlayerConnection(playerId, true);
+
+      // Get the player data to return the assigned nation
+      const playerData = await this.gameManager.getDatabase().query.players.findFirst({
+        where: (players, { eq }) => eq(players.id, playerId)
+      });
 
       // Send map data to the player if the game has started
       try {
@@ -258,7 +270,11 @@ export class GameManagementHandler extends BaseSocketHandler {
         logger.warn('Could not send map data to player:', mapError);
       }
 
-      callback({ success: true, playerId });
+      callback({ 
+        success: true, 
+        playerId,
+        assignedNation: playerData?.nation || data.selectedNation || 'random'
+      });
       logger.info(`${connection?.username || 'Unknown'} joined game ${data.gameId}`, { playerId });
     } catch (error) {
       logger.error('Error joining game:', error);
