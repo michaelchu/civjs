@@ -80,6 +80,10 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
 
     // Validate and select nation
     const selectedNation = await this.validateAndSelectNation(civilization, game.players);
+    console.log('Selected nation for player:', {
+      requested: civilization,
+      selected: selectedNation,
+    });
 
     const playerData = {
       gameId,
@@ -115,12 +119,14 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     this.logger.info('Player joined game', { gameId, playerId: newPlayer.id, userId });
 
     // Notify all players in the game
-    this.onBroadcast?.(gameId, 'player-joined', {
+    const broadcastData = {
       playerId: newPlayer.id,
       playerNumber,
       civilization: playerData.civilization,
       playerCount: game.players.length + 1,
-    });
+    };
+    console.log('Broadcasting player-joined event:', broadcastData);
+    this.onBroadcast?.(gameId, 'player-joined', broadcastData);
 
     // Handle auto-start logic
     await this.handleAutoStart(gameId);

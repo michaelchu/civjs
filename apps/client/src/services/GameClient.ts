@@ -149,10 +149,15 @@ class GameClient {
 
     // Handle player joined events to update nation information
     this.socket.on('player-joined', data => {
+      console.log('Player joined event received:', data);
       const { players, currentPlayerId } = useGameStore.getState();
+      console.log('Current state:', { currentPlayerId, playersKeys: Object.keys(players) });
 
       // Update the current player's nation if this is the current player
       if (currentPlayerId === data.playerId && players[data.playerId]) {
+        console.log(
+          `Updating player ${data.playerId} nation from "${players[data.playerId].nation}" to "${data.civilization}"`
+        );
         const updatedPlayer = {
           ...players[data.playerId],
           nation: data.civilization, // Update nation from "random" to actual selected nation
@@ -163,6 +168,11 @@ class GameClient {
             ...players,
             [data.playerId]: updatedPlayer,
           },
+        });
+      } else {
+        console.log('Not updating nation - condition not met:', {
+          currentPlayerIdMatch: currentPlayerId === data.playerId,
+          playerExists: !!players[data.playerId],
         });
       }
     });
