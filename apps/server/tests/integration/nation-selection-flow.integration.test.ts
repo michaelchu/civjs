@@ -8,7 +8,7 @@ import { PacketHandler } from '@network/PacketHandler';
 import { PacketType } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
 import { Server, Socket } from 'socket.io';
-import { setupTestDatabase } from '../utils/testDatabase';
+import { getTestDatabaseProvider, clearAllTables } from '../utils/testDatabase';
 
 // Mock logger to reduce noise
 jest.mock('../../src/utils/logger', () => ({
@@ -32,25 +32,16 @@ describe('Nation Selection Flow - Integration', () => {
   const mockUserId = 'test-user-id';
   const mockUsername = 'testuser';
 
-  beforeAll(async () => {
-    // This will skip if no database is available
-    try {
-      await setupTestDatabase();
-      // Create mock SocketServer for GameManager
-      const mockIo = {} as Server;
-      // Create GameManager instance for integration tests
-      gameManager = GameManager.getInstance(mockIo);
-    } catch {
-      console.log('Skipping integration test - no database available');
-      return;
-    }
-  });
+  beforeEach(async () => {
+    // Clear database before each test
+    await clearAllTables();
 
-  beforeEach(() => {
-    if (!gameManager) {
-      // Skip test setup if database not available
-      return;
-    }
+    // Reset GameManager singleton for testing
+    (GameManager as any).instance = null;
+
+    // Create GameManager with test database provider
+    const testDbProvider = getTestDatabaseProvider();
+    gameManager = GameManager.getInstance({} as Server, testDbProvider);
 
     jest.clearAllMocks();
 
@@ -82,11 +73,6 @@ describe('Nation Selection Flow - Integration', () => {
 
   describe('Game Creation with Nation Selection', () => {
     it('should create game and assign specific nation to creator', async () => {
-      if (!gameManager) {
-        console.log('Skipping test - no database available');
-        return;
-      }
-
       // Arrange
       const gameData = {
         name: 'Integration Test Game',
@@ -126,11 +112,6 @@ describe('Nation Selection Flow - Integration', () => {
     });
 
     it('should create game and assign random nation when requested', async () => {
-      if (!gameManager) {
-        console.log('Skipping test - no database available');
-        return;
-      }
-
       // Arrange
       const gameData = {
         name: 'Random Test Game',
@@ -168,8 +149,6 @@ describe('Nation Selection Flow - Integration', () => {
     let testGameId: string;
 
     beforeEach(async () => {
-      if (!gameManager) return;
-
       // Create a test game first
       const gameConfig = {
         name: 'Join Test Game',
@@ -182,11 +161,6 @@ describe('Nation Selection Flow - Integration', () => {
     });
 
     it('should join game with specific nation selection', async () => {
-      if (!gameManager) {
-        console.log('Skipping test - no database available');
-        return;
-      }
-
       // Arrange
       const joinData = {
         gameId: testGameId,
@@ -227,11 +201,6 @@ describe('Nation Selection Flow - Integration', () => {
     });
 
     it('should handle random nation selection for second player', async () => {
-      if (!gameManager) {
-        console.log('Skipping test - no database available');
-        return;
-      }
-
       // Arrange - first player joins with a specific nation
       await gameManager.joinGame(testGameId, 'first-user', 'american');
 
