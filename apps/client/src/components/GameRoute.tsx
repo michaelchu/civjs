@@ -50,10 +50,10 @@ export const GameRoute: React.FC = () => {
 
     try {
       await gameClient.joinSpecificGame(gameId, playerName, selectedNation);
-      
+
       // Store the username after successful join for future login convenience
       storeUsername(playerName);
-      
+
       setShowNationDialog(false);
       setClientState('running');
     } catch (joinError) {
@@ -67,9 +67,9 @@ export const GameRoute: React.FC = () => {
         setShowNationDialog(false);
         setClientState('running');
       } catch {
-        setError(`Cannot access game: ${
-          joinError instanceof Error ? joinError.message : 'Unknown error'
-        }`);
+        setError(
+          `Cannot access game: ${joinError instanceof Error ? joinError.message : 'Unknown error'}`
+        );
       }
     } finally {
       setIsJoining(false);
@@ -165,7 +165,7 @@ export const GameRoute: React.FC = () => {
           )}
         </div>
       </div>
-      
+
       <NationSelectionDialog
         isOpen={showNationDialog}
         onClose={handleNationDialogClose}

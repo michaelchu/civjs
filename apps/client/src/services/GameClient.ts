@@ -829,7 +829,11 @@ class GameClient {
     this.socket.emit('join_game', { playerName });
   }
 
-  async joinSpecificGame(gameId: string, playerName: string, selectedNation: string = 'random'): Promise<void> {
+  async joinSpecificGame(
+    gameId: string,
+    playerName: string,
+    selectedNation: string = 'random'
+  ): Promise<void> {
     await this.authenticatePlayer(playerName);
 
     return new Promise((resolve, reject) => {
