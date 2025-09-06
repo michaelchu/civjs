@@ -147,18 +147,23 @@ class GameClient {
 
     // Keep compatibility events for game management
     this.socket.on('game_created', data => {
+      console.log('=== GAME CREATED DEBUG ===');
       console.log('GameClient: game_created event data:', data);
       console.log('GameClient: assignedNation from server:', data.assignedNation);
+      console.log('GameClient: assignedNation type:', typeof data.assignedNation);
+      console.log('GameClient: assignedNation is falsy?:', !data.assignedNation);
 
       // Initialize mock player state since server automatically joins creator as player
       if (data.playerId) {
         // Always use the server-assigned nation, never store 'random' as the final value
         let finalNation = data.assignedNation;
+        console.log('GameClient: finalNation before check:', finalNation);
         if (!finalNation || finalNation === 'random') {
           // If server didn't provide a specific nation, default to 'american'
           // (this should not happen in normal operation)
           finalNation = 'american';
           console.warn('GameClient: Server did not provide assignedNation, using fallback');
+          console.warn('GameClient: Original assignedNation was:', data.assignedNation);
         }
         console.log('GameClient: final nation for game creation:', finalNation);
         const mockPlayer = {
@@ -857,10 +862,14 @@ class GameClient {
           this.currentGameId = gameId;
 
           // Initialize mock player state for turn system to work
+          console.log('=== JOIN GAME DEBUG ===');
           console.log('GameClient: join response:', response);
           console.log('GameClient: selectedNation param:', selectedNation);
+          console.log('GameClient: response.assignedNation:', response.assignedNation);
+          console.log('GameClient: assignedNation type:', typeof response.assignedNation);
           // Always use the server-assigned nation, never store 'random' as the final value
           let finalNation = response.assignedNation || selectedNation;
+          console.log('GameClient: finalNation after fallback:', finalNation);
           if (finalNation === 'random') {
             // If we still have 'random' at this point, default to 'american'
             // (this should not happen if server is working correctly)
