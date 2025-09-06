@@ -175,7 +175,7 @@ class GameClient {
         const mockPlayer = {
           id: data.playerId,
           name: 'Player', // We don't have the name here, will be updated later
-          nation: 'random',
+          nation: data.selectedNation || 'random', // Use actual selected nation from server
           color: '#0066cc',
           gold: 50,
           science: 0,
