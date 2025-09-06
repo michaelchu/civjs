@@ -4,6 +4,7 @@ import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
 import { PacketType } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
+import { eq } from 'drizzle-orm';
 
 /**
  * Handles game management packets: creation, joining, starting, listing, deletion
@@ -147,10 +148,29 @@ export class GameManagementHandler extends BaseSocketHandler {
       );
       await this.gameManager.updatePlayerConnection(playerId, true);
 
+      // Get the actual player data to include selected nation
+      // We need to access the DatabaseProvider to get player data
+      // This is a temporary solution - ideally GameManager would provide this method
+      const databaseProvider = this.gameManager['databaseProvider']; // Access private property
+      let selectedNation = 'random';
+
+      if (databaseProvider) {
+        try {
+          const { players } = await import('@database/schema');
+          const player = await databaseProvider.getDatabase().query.players.findFirst({
+            where: eq(players.id, playerId),
+          });
+          selectedNation = player?.nation || player?.civilization || 'random';
+        } catch (error) {
+          logger.warn('Failed to fetch player nation:', error);
+        }
+      }
+
       socket.emit('game_created', {
         gameId,
         maxPlayers: data.maxPlayers,
         playerId, // Include playerId so client can initialize player state
+        selectedNation, // Include actual selected nation
       });
 
       handler.send(socket, PacketType.GAME_CREATE_REPLY, {
