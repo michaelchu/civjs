@@ -146,6 +146,30 @@ class GameClient {
     // Legacy event handlers removed - now handled via structured packets
 
     // Keep compatibility events for game management
+    
+    // Handle player joined events to update nation information
+    this.socket.on('player-joined', data => {
+      console.log('Player joined:', data);
+      const { players, currentPlayerId } = useGameStore.getState();
+      
+      // Update the current player's nation if this is the current player
+      if (currentPlayerId === data.playerId && players[data.playerId]) {
+        const updatedPlayer = {
+          ...players[data.playerId],
+          nation: data.civilization, // Update nation from "random" to actual selected nation
+        };
+        
+        useGameStore.getState().updateGameState({
+          players: {
+            ...players,
+            [data.playerId]: updatedPlayer,
+          },
+        });
+        
+        console.log(`Updated player ${data.playerId} nation from "${players[data.playerId].nation}" to "${data.civilization}"`);
+      }
+    });
+
     this.socket.on('game_created', data => {
       console.log('Game created:', data);
 
