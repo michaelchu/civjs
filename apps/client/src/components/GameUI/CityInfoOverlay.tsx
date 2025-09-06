@@ -1,22 +1,8 @@
 import React from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
-import {
-  Building2,
-  Users,
-  Wheat,
-  Shield,
-  TrendingUp,
-  Hammer,
-  MapPin,
-} from 'lucide-react';
+import { Building2, Users, Wheat, Shield, TrendingUp, Hammer, MapPin } from 'lucide-react';
 import type { City } from '../../types';
 
 interface CityInfoOverlayProps {
@@ -27,7 +13,7 @@ interface CityInfoOverlayProps {
 
 /**
  * CityInfoOverlay displays detailed information about a city when right-clicked.
- * 
+ *
  * Based on freeciv-web's show_city_dialog functionality:
  * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/city.js:138-226
  * - Shows city name and size in title
@@ -35,11 +21,7 @@ interface CityInfoOverlayProps {
  * - Lists buildings and current production
  * - Shows city position
  */
-export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
-  city,
-  isOpen,
-  onClose,
-}) => {
+export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({ city, isOpen, onClose }) => {
   if (!city) {
     return null;
   }
@@ -130,7 +112,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                     <div className="text-xs text-muted-foreground">
                       {Math.max(
                         0,
-                        Math.ceil((city.production.cost - city.production.progress) / Math.max(1, city.shields))
+                        Math.ceil(
+                          (city.production.cost - city.production.progress) /
+                            Math.max(1, city.shields)
+                        )
                       )}{' '}
                       turns remaining
                     </div>
