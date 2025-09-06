@@ -520,6 +520,18 @@ export class GameManager {
     }
   }
 
+  public async getPlayerById(playerId: string): Promise<any | null> {
+    try {
+      const player = await this.databaseProvider.getDatabase().query.players.findFirst({
+        where: eq(players.id, playerId),
+      });
+      return player;
+    } catch (error) {
+      logger.error('Failed to get player by ID:', error);
+      return null;
+    }
+  }
+
   public async getAllGames(): Promise<any[]> {
     return await this.getAllGamesFromDatabase(null);
   }

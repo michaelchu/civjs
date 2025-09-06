@@ -1,6 +1,18 @@
 import React from 'react';
 import { useGameStore } from '../../store/gameStore';
 
+const formatNationName = (nation: string): string => {
+  console.log('StatusPanel: formatNationName called with:', nation);
+  if (nation === 'random') {
+    return 'Random';
+  }
+  // Capitalize first letter of each word
+  return nation
+    .split(/[\s_-]+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
 export const StatusPanel: React.FC = () => {
   const { turn, getCurrentPlayer } = useGameStore();
   const currentPlayer = getCurrentPlayer();
@@ -40,7 +52,7 @@ export const StatusPanel: React.FC = () => {
           className="w-4 h-4 rounded border border-gray-500"
           style={{ backgroundColor: currentPlayer.color }}
         />
-        <span className="font-medium text-white">{currentPlayer.nation}</span>
+        <span className="font-medium text-white">{formatNationName(currentPlayer.nation)}</span>
       </div>
     </div>
   );

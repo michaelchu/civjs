@@ -44,6 +44,7 @@ describe('GameManagementHandler', () => {
       getGameListForLobby: jest.fn(),
       deleteGame: jest.fn(),
       updatePlayerConnection: jest.fn(),
+      getPlayerById: jest.fn(),
     } as any;
 
     // Create handler
@@ -163,6 +164,7 @@ describe('GameManagementHandler', () => {
 
       mockGameManager.createGame.mockResolvedValue(mockGameId);
       mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.getPlayerById.mockResolvedValue({ nation: 'romans' });
 
       // Get the registered handler function for GAME_CREATE
       const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls.find(
@@ -189,6 +191,7 @@ describe('GameManagementHandler', () => {
           success: true,
           gameId: mockGameId,
           message: 'Game created successfully',
+          assignedNation: 'romans',
         }
       );
     });
@@ -269,6 +272,7 @@ describe('GameManagementHandler', () => {
 
     it('should handle join_game event successfully', async () => {
       mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.getPlayerById.mockResolvedValue({ nation: 'random' });
 
       // Get the join_game event handler
       const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(
@@ -282,6 +286,7 @@ describe('GameManagementHandler', () => {
       expect(mockCallback).toHaveBeenCalledWith({
         success: true,
         playerId: mockPlayerId,
+        assignedNation: 'american',
       });
     });
 
