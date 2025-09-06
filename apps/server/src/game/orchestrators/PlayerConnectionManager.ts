@@ -292,19 +292,32 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     civilization: string | undefined,
     existingPlayers: any[]
   ): Promise<string> {
+    console.log('=== VALIDATE AND SELECT NATION DEBUG ===');
+    console.log('validateAndSelectNation called with:', civilization);
+    console.log(
+      'existingPlayers:',
+      existingPlayers.map(p => p.civilization)
+    );
+
     // Validate nation is not already taken (reference: freeciv/server/plrhand.c:2129)
     if (civilization && civilization !== 'random') {
+      console.log('Non-random civilization selected:', civilization);
       const existingPlayerWithNation = existingPlayers.find(p => p.civilization === civilization);
       if (existingPlayerWithNation) {
+        console.log('Nation already taken by player:', existingPlayerWithNation.id);
         throw new Error('That nation is already in use.');
       }
+      console.log('Nation available, returning:', civilization);
       return civilization;
     }
 
     // Handle random nation selection
+    console.log('Handling random or undefined nation selection');
     let selectedNation = civilization || 'american';
+    console.log('selectedNation before random logic:', selectedNation);
 
     if (civilization === 'random') {
+      console.log('Processing random nation selection');
       try {
         const loader = RulesetLoader.getInstance();
         const nationsRuleset = loader.loadNationsRuleset('classic');
@@ -324,11 +337,13 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
           }
         }
       } catch (error) {
+        console.log('Error in random nation selection:', error);
         this.logger.warn('Failed to load nations for random selection, using default', error);
         selectedNation = 'american';
       }
     }
 
+    console.log('validateAndSelectNation final result:', selectedNation);
     return selectedNation;
   }
 

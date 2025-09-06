@@ -145,6 +145,10 @@ export class GameManagementHandler extends BaseSocketHandler {
         connection.userId!,
         data.selectedNation
       );
+      console.log('=== GAME CREATION JOIN RESULT ===');
+      console.log('data.selectedNation:', data.selectedNation);
+      console.log('joinGame result:', result);
+      console.log('result.assignedNation:', result.assignedNation);
       await this.gameManager.updatePlayerConnection(result.playerId, true);
 
       socket.emit('game_created', {
