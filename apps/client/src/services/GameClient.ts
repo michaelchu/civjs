@@ -149,7 +149,6 @@ class GameClient {
 
     // Handle player joined events to update nation information
     this.socket.on('player-joined', data => {
-      console.log('Player joined:', data);
       const { players, currentPlayerId } = useGameStore.getState();
 
       // Update the current player's nation if this is the current player
@@ -165,10 +164,6 @@ class GameClient {
             [data.playerId]: updatedPlayer,
           },
         });
-
-        console.log(
-          `Updated player ${data.playerId} nation from "${players[data.playerId].nation}" to "${data.civilization}"`
-        );
       }
     });
 
