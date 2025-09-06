@@ -847,10 +847,14 @@ class GameClient {
           this.currentGameId = gameId;
 
           // Initialize mock player state for turn system to work
+          console.log('GameClient: join response:', response);
+          console.log('GameClient: selectedNation param:', selectedNation);
+          const finalNation = response.assignedNation || selectedNation;
+          console.log('GameClient: final nation value:', finalNation);
           const mockPlayer = {
             id: response.playerId,
             name: playerName,
-            nation: response.assignedNation || selectedNation,
+            nation: finalNation,
             color: '#0066cc',
             gold: 50,
             science: 0,

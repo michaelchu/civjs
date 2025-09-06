@@ -250,6 +250,7 @@ export class GameManagementHandler extends BaseSocketHandler {
     }
 
     try {
+      console.log('GameManagementHandler: joining game with selectedNation:', data.selectedNation);
       const playerId = await this.gameManager.joinGame(
         data.gameId,
         connection.userId!,
@@ -262,6 +263,7 @@ export class GameManagementHandler extends BaseSocketHandler {
 
       // Get the player data to return the assigned nation
       const playerData = await this.gameManager.getPlayerById(playerId);
+      console.log('GameManagementHandler: playerData after join:', playerData);
 
       // Send map data to the player if the game has started
       try {

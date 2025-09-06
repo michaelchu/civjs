@@ -79,7 +79,9 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     const playerNumber = game.players.length + 1;
 
     // Validate and select nation
+    console.log('PlayerConnectionManager: input civilization:', civilization);
     const selectedNation = await this.validateAndSelectNation(civilization, game.players);
+    console.log('PlayerConnectionManager: selectedNation result:', selectedNation);
 
     const playerData = {
       gameId,
