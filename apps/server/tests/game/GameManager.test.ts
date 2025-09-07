@@ -150,17 +150,23 @@ describe('GameManager', () => {
     });
 
     it('should allow player to join game', async () => {
-      const playerId = await gameManager.joinGame(gameId, 'user-123', 'Romans');
+      const result = await gameManager.joinGame(gameId, 'user-123', 'Romans');
 
-      expect(playerId).toBe('player-id-1');
+      expect(result).toEqual({
+        playerId: 'player-id-1',
+        assignedNation: 'Romans',
+      });
       // Should have been called for both game creation and player creation
       expect(mockDb.insert).toHaveBeenCalledTimes(2); // Game + Player
     });
 
     it('should assign default civilization if not provided', async () => {
-      const playerId = await gameManager.joinGame(gameId, 'user-123');
+      const result = await gameManager.joinGame(gameId, 'user-123');
 
-      expect(playerId).toBe('player-id-1');
+      expect(result).toEqual({
+        playerId: 'player-id-1',
+        assignedNation: 'american',
+      });
       // Check that a player was successfully created
       expect(mockDb.insert).toHaveBeenCalledTimes(2); // Game + Player
       expect(mockDb.returning).toHaveBeenCalled();
@@ -168,7 +174,7 @@ describe('GameManager', () => {
 
     it('should return existing player ID if user already in game', async () => {
       // First join
-      const playerId1 = await gameManager.joinGame(gameId, 'user-123', 'Romans');
+      const result1 = await gameManager.joinGame(gameId, 'user-123', 'Romans');
 
       // Mock database to return existing player for second join
       mockDb.query.games.findFirst.mockResolvedValueOnce({
@@ -188,10 +194,13 @@ describe('GameManager', () => {
       });
 
       // Second join with same user
-      const playerId2 = await gameManager.joinGame(gameId, 'user-123', 'Greeks');
+      const result2 = await gameManager.joinGame(gameId, 'user-123', 'Greeks');
 
-      expect(playerId1).toBe(playerId2);
-      expect(playerId1).toBe('player-id-1');
+      expect(result1).toStrictEqual(result2);
+      expect(result1).toEqual({
+        playerId: 'player-id-1',
+        assignedNation: 'Romans',
+      });
     });
 
     it('should reject joining if game is not in waiting state', async () => {

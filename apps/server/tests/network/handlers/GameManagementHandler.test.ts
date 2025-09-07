@@ -163,7 +163,10 @@ describe('GameManagementHandler', () => {
       };
 
       mockGameManager.createGame.mockResolvedValue(mockGameId);
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'romans',
+      });
       mockGameManager.getPlayerById.mockResolvedValue({ nation: 'romans' });
 
       // Get the registered handler function for GAME_CREATE
@@ -244,7 +247,10 @@ describe('GameManagementHandler', () => {
 
     it('should join game successfully', async () => {
       const joinData = { gameId: mockGameId, civilization: 'greeks' };
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'greeks',
+      });
 
       const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls.find(
         call => call[0] === PacketType.GAME_JOIN
@@ -271,7 +277,10 @@ describe('GameManagementHandler', () => {
     });
 
     it('should handle join_game event successfully', async () => {
-      mockGameManager.joinGame.mockResolvedValue(mockPlayerId);
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'romans',
+      });
       mockGameManager.getPlayerById.mockResolvedValue({ nation: 'random' });
 
       // Get the join_game event handler
@@ -286,7 +295,7 @@ describe('GameManagementHandler', () => {
       expect(mockCallback).toHaveBeenCalledWith({
         success: true,
         playerId: mockPlayerId,
-        assignedNation: 'american',
+        assignedNation: 'romans',
       });
     });
 

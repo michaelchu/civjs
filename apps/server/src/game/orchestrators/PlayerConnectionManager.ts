@@ -54,8 +54,6 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     userId: string,
     civilization?: string
   ): Promise<{ playerId: string; assignedNation: string }> {
-    console.log('=== PLAYER CONNECTION MANAGER JOIN GAME ===');
-    console.log('Parameters received:', { gameId, userId, civilization });
     // Get game from database
     const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
@@ -77,7 +75,6 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         playerId: existingPlayer.id,
         assignedNation: existingPlayer.nation || existingPlayer.civilization || 'american',
       };
-      console.log('Player already exists, returning:', existingResult);
       return existingResult; // Already joined - allow rejoining at any game status
     }
 
@@ -94,9 +91,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     const playerNumber = game.players.length + 1;
 
     // Validate and select nation
-    console.log('About to call validateAndSelectNation with:', civilization);
     const selectedNation = await this.validateAndSelectNation(civilization, game.players);
-    console.log('validateAndSelectNation returned:', selectedNation);
 
     const playerData = {
       gameId,
@@ -146,7 +141,6 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       playerId: newPlayer.id,
       assignedNation: selectedNation,
     };
-    console.log('PlayerConnectionManager joinGame final result:', finalResult);
     return finalResult;
   }
 
@@ -300,32 +294,19 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     civilization: string | undefined,
     existingPlayers: any[]
   ): Promise<string> {
-    console.log('=== VALIDATE AND SELECT NATION DEBUG ===');
-    console.log('validateAndSelectNation called with:', civilization);
-    console.log(
-      'existingPlayers:',
-      existingPlayers.map(p => p.civilization)
-    );
-
     // Validate nation is not already taken (reference: freeciv/server/plrhand.c:2129)
     if (civilization && civilization !== 'random') {
-      console.log('Non-random civilization selected:', civilization);
       const existingPlayerWithNation = existingPlayers.find(p => p.civilization === civilization);
       if (existingPlayerWithNation) {
-        console.log('Nation already taken by player:', existingPlayerWithNation.id);
         throw new Error('That nation is already in use.');
       }
-      console.log('Nation available, returning:', civilization);
       return civilization;
     }
 
     // Handle random nation selection
-    console.log('Handling random or undefined nation selection');
     let selectedNation = civilization || 'american';
-    console.log('selectedNation before random logic:', selectedNation);
 
     if (civilization === 'random') {
-      console.log('Processing random nation selection');
       try {
         const loader = RulesetLoader.getInstance();
         const nationsRuleset = loader.loadNationsRuleset('classic');
@@ -345,13 +326,11 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
           }
         }
       } catch (error) {
-        console.log('Error in random nation selection:', error);
         this.logger.warn('Failed to load nations for random selection, using default', error);
         selectedNation = 'american';
       }
     }
 
-    console.log('validateAndSelectNation final result:', selectedNation);
     return selectedNation;
   }
 
