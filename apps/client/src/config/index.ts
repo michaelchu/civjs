@@ -15,12 +15,16 @@ const getServerUrl = (): string => {
 
   // If we're on a Railway preview domain (contains 'railway.app')
   if (currentDomain.includes('railway.app')) {
-    // Extract the service name pattern and construct backend URL
-    // Railway preview URLs follow pattern: servicename-projectname-hash.up.railway.app
+    // Railway preview URLs follow pattern: civjs-frontend-civjs-pr-XXX.up.railway.app
+    // We need to replace 'frontend' with 'backend'
+    if (currentDomain.includes('frontend')) {
+      return `https://${currentDomain.replace('frontend', 'backend')}`;
+    }
+
+    // Fallback: try replacing 'client' with 'server' for other patterns
     const parts = currentDomain.split('-');
     if (parts.length >= 3) {
-      // Replace the first part (assumed to be 'client' or frontend service name) with 'server'
-      parts[0] = 'server';
+      parts[0] = parts[0].replace('client', 'server');
       return `https://${parts.join('-')}`;
     }
   }
