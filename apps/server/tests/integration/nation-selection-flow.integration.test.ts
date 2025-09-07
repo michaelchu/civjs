@@ -8,7 +8,13 @@ import { PacketHandler } from '@network/PacketHandler';
 import { PacketType } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
 import { Server, Socket } from 'socket.io';
-import { getTestDatabaseProvider, clearAllTables } from '../utils/testDatabase';
+import {
+  getTestDatabaseProvider,
+  clearAllTables,
+  generateTestUUID,
+  getTestDatabase,
+} from '../utils/testDatabase';
+import * as schema from '@database/schema';
 
 // Mock logger to reduce noise
 jest.mock('../../src/utils/logger', () => ({
@@ -29,7 +35,7 @@ describe('Nation Selection Flow - Integration', () => {
   let activeConnections: Map<string, any>;
 
   const mockSocketId = 'test-socket-id';
-  const mockUserId = 'test-user-id';
+  const mockUserId = generateTestUUID('1001');
   const mockUsername = 'testuser';
 
   beforeEach(async () => {
@@ -73,6 +79,15 @@ describe('Nation Selection Flow - Integration', () => {
 
   describe('Game Creation with Nation Selection', () => {
     it('should create game and assign specific nation to creator', async () => {
+      // Create user in database first
+      const db = getTestDatabase();
+      await db.insert(schema.users).values({
+        id: mockUserId,
+        username: mockUsername,
+        email: `${mockUsername}@test.com`,
+        passwordHash: 'test-hash',
+      });
+
       // Arrange
       const gameData = {
         name: 'Integration Test Game',
@@ -112,6 +127,15 @@ describe('Nation Selection Flow - Integration', () => {
     });
 
     it('should create game and assign random nation when requested', async () => {
+      // Create user in database first
+      const db = getTestDatabase();
+      await db.insert(schema.users).values({
+        id: mockUserId,
+        username: mockUsername,
+        email: `${mockUsername}@test.com`,
+        passwordHash: 'test-hash',
+      });
+
       // Arrange
       const gameData = {
         name: 'Random Test Game',
@@ -149,6 +173,15 @@ describe('Nation Selection Flow - Integration', () => {
     let testGameId: string;
 
     beforeEach(async () => {
+      // Create user in database first
+      const db = getTestDatabase();
+      await db.insert(schema.users).values({
+        id: mockUserId,
+        username: mockUsername,
+        email: `${mockUsername}@test.com`,
+        passwordHash: 'test-hash',
+      });
+
       // Create a test game first
       const gameConfig = {
         name: 'Join Test Game',
@@ -161,14 +194,22 @@ describe('Nation Selection Flow - Integration', () => {
     });
 
     it('should join game with specific nation selection', async () => {
+      // Create second user in database first
+      const newUserId = generateTestUUID('1002');
+      const db = getTestDatabase();
+      await db.insert(schema.users).values({
+        id: newUserId,
+        username: 'SecondPlayer',
+        email: 'secondplayer@test.com',
+        passwordHash: 'test-hash',
+      });
+
       // Arrange
       const joinData = {
         gameId: testGameId,
         playerName: 'SecondPlayer',
         selectedNation: 'chinese',
       };
-
-      const newUserId = 'second-user-id';
       const newSocketId = 'second-socket-id';
       const newMockSocket = {
         id: newSocketId,
@@ -201,16 +242,31 @@ describe('Nation Selection Flow - Integration', () => {
     });
 
     it('should handle random nation selection for second player', async () => {
-      // Arrange - first player joins with a specific nation
-      await gameManager.joinGame(testGameId, 'first-user', 'american');
+      // Create first user and join with specific nation
+      const firstUserId = generateTestUUID('1003');
+      const db = getTestDatabase();
+      await db.insert(schema.users).values({
+        id: firstUserId,
+        username: 'FirstPlayer',
+        email: 'firstplayer@test.com',
+        passwordHash: 'test-hash',
+      });
+      await gameManager.joinGame(testGameId, firstUserId, 'american');
+
+      // Create second user for random nation selection
+      const newUserId = generateTestUUID('1004');
+      await db.insert(schema.users).values({
+        id: newUserId,
+        username: 'RandomPlayer',
+        email: 'randomplayer@test.com',
+        passwordHash: 'test-hash',
+      });
 
       const joinData = {
         gameId: testGameId,
         playerName: 'RandomPlayer',
         selectedNation: 'random',
       };
-
-      const newUserId = 'random-user-id';
       const newSocketId = 'random-socket-id';
       const newMockSocket = {
         id: newSocketId,
