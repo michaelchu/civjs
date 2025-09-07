@@ -1,10 +1,5 @@
 // Helper function to construct dynamic server URL for Railway previews
 const getServerUrl = (): string => {
-  // If VITE_SERVER_URL is explicitly set, use it
-  if (import.meta.env.VITE_SERVER_URL) {
-    return import.meta.env.VITE_SERVER_URL;
-  }
-
   // Development mode - use localhost
   if (import.meta.env.DEV) {
     return 'http://localhost:3001';
@@ -13,6 +8,11 @@ const getServerUrl = (): string => {
   // Railway preview environments - use PREVIEW_BACKEND_URL if available
   if (import.meta.env.VITE_PREVIEW_BACKEND_URL) {
     return import.meta.env.VITE_PREVIEW_BACKEND_URL;
+  }
+
+  // If VITE_SERVER_URL is explicitly set, use it
+  if (import.meta.env.VITE_SERVER_URL) {
+    return import.meta.env.VITE_SERVER_URL;
   }
 
   // Fallback to production URL
