@@ -82,12 +82,17 @@ describe('Game Integration Flow', () => {
       expect(gameId).toBeDefined();
 
       // Join players
-      const hostPlayerId = await gameManager.joinGame(gameId, hostUserId, 'romans');
-      const guestPlayerId = await gameManager.joinGame(gameId, guestUserId, 'greeks');
+      const hostResult = await gameManager.joinGame(gameId, hostUserId, 'romans');
+      const guestResult = await gameManager.joinGame(gameId, guestUserId, 'greeks');
 
-      expect(hostPlayerId).toBeDefined();
-      expect(guestPlayerId).toBeDefined();
-      expect(hostPlayerId).not.toBe(guestPlayerId);
+      expect(hostResult.playerId).toBeDefined();
+      expect(guestResult.playerId).toBeDefined();
+      expect(hostResult.playerId).not.toBe(guestResult.playerId);
+      expect(hostResult.assignedNation).toBe('romans');
+      expect(guestResult.assignedNation).toBe('greeks');
+
+      const hostPlayerId = hostResult.playerId;
+      const guestPlayerId = guestResult.playerId;
 
       // Game should have auto-started when 2nd player joined
       const game = gameManager.getGameInstance(gameId);
@@ -172,8 +177,10 @@ describe('Game Integration Flow', () => {
       ]);
 
       const gameId = await gameManager.createGame(gameConfig);
-      const playerId = await gameManager.joinGame(gameId, user1Id, 'romans');
+      const playerResult = await gameManager.joinGame(gameId, user1Id, 'romans');
       await gameManager.joinGame(gameId, user2Id, 'greeks'); // Need 2 players to start, game will auto-start
+
+      const playerId = playerResult.playerId;
 
       // Create city and unit at same location
       const cityId = await gameManager.foundCity(gameId, playerId, 'Capital', 5, 5);
