@@ -254,45 +254,95 @@ export class CityRenderer extends BaseRenderer {
   }
 
   /**
-   * Render city name and population as a styled overlay banner
+   * Render city label with population highlight and two-row layout
+   * Format: [POP] | CITY NAME
+   *               | PRODUCTION (empty for now)
    */
   private renderCityText(city: City, screenPos: { x: number; y: number }): void {
     const centerX = screenPos.x + this.tileWidth / 2;
     const bannerY = screenPos.y + this.tileHeight - 2;
 
-    // Prepare text content with larger scaling
-    const cityText = `${city.name.toUpperCase()} ${city.size}`;
-    const labelScale = 1.2; // Scale up the entire label
+    // Prepare text content
+    const cityName = city.name.toUpperCase();
+    const cityPop = city.size.toString();
+    const labelScale = 1.2;
     const fontSize = Math.floor(CityRenderer.BASE_FONT_SIZE * this.cityScale * labelScale);
     this.ctx.font = `bold ${fontSize}px Arial, sans-serif`;
-    this.ctx.textAlign = 'center';
 
-    // Measure text to size the banner with better padding
-    const textMetrics = this.ctx.measureText(cityText);
-    const textWidth = textMetrics.width;
-    const horizontalPadding = 10;
-    const verticalPadding = 4; // More padding above and below text
-    const bannerWidth = textWidth + horizontalPadding * 2;
-    const bannerHeight = fontSize + verticalPadding * 2;
+    // Measure text dimensions
+    const nameMetrics = this.ctx.measureText(cityName);
+    
+    // Layout constants
+    const popSquareSize = fontSize + 8; // Square size for population
+    const textPadding = 6;
+    const rowHeight = fontSize + 4;
+    const rightSectionWidth = Math.max(nameMetrics.width, 80) + textPadding * 2; // Min width for production
+    const totalWidth = popSquareSize + rightSectionWidth;
+    const totalHeight = rowHeight * 2;
 
-    // Draw banner background (dark green with slight transparency)
-    this.ctx.fillStyle = 'rgba(34, 70, 34, 0.9)';
-    this.ctx.fillRect(centerX - bannerWidth / 2, bannerY - 2, bannerWidth, bannerHeight);
+    // Calculate positions
+    const bannerX = centerX - totalWidth / 2;
+    const popSquareX = bannerX;
+    const rightSectionX = bannerX + popSquareSize;
 
-    // Draw banner border (lighter green)
-    this.ctx.strokeStyle = 'rgba(80, 120, 80, 0.8)';
+    // Draw main background (dark teal/green like in reference)
+    this.ctx.fillStyle = 'rgba(40, 80, 80, 0.9)';
+    this.ctx.fillRect(bannerX, bannerY, totalWidth, totalHeight);
+
+    // Draw highlighted population square using player's nation color
+    const playerColor = this.getPlayerColor(city.playerId);
+    this.ctx.fillStyle = playerColor;
+    this.ctx.fillRect(popSquareX, bannerY, popSquareSize, totalHeight);
+
+    // Draw border around entire label
+    this.ctx.strokeStyle = 'rgba(120, 140, 120, 0.8)';
     this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(centerX - bannerWidth / 2, bannerY - 2, bannerWidth, bannerHeight);
+    this.ctx.strokeRect(bannerX, bannerY, totalWidth, totalHeight);
 
-    // Draw text (white with subtle shadow) - properly centered in banner
-    const textY = bannerY + verticalPadding + fontSize - 2;
+    // Draw horizontal separator between rows
+    this.ctx.strokeStyle = 'rgba(120, 140, 120, 0.6)';
+    this.ctx.beginPath();
+    this.ctx.moveTo(rightSectionX, bannerY + rowHeight);
+    this.ctx.lineTo(bannerX + totalWidth, bannerY + rowHeight);
+    this.ctx.stroke();
 
-    // Text shadow
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    this.ctx.fillText(cityText, centerX + 1, textY + 1);
+    // Draw vertical separator between population and text
+    this.ctx.beginPath();
+    this.ctx.moveTo(rightSectionX, bannerY);
+    this.ctx.lineTo(rightSectionX, bannerY + totalHeight);
+    this.ctx.stroke();
 
-    // Main text
+    // Draw population number (centered in colored square)
+    const popCenterX = popSquareX + popSquareSize / 2;
+    const popCenterY = bannerY + totalHeight / 2;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    
+    // Population shadow
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    this.ctx.fillText(cityPop, popCenterX + 1, popCenterY + 1);
+    
+    // Main population text (contrasting color for readability)
     this.ctx.fillStyle = 'white';
-    this.ctx.fillText(cityText, centerX, textY);
+    this.ctx.fillText(cityPop, popCenterX, popCenterY);
+
+    // Draw city name (top right section)
+    const nameX = rightSectionX + textPadding;
+    const nameY = bannerY + fontSize;
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'alphabetic';
+    
+    // Name shadow
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    this.ctx.fillText(cityName, nameX + 1, nameY + 1);
+    
+    // Main name text (white)
+    this.ctx.fillStyle = 'white';
+    this.ctx.fillText(cityName, nameX, nameY);
+
+    // Bottom right section is reserved for production (empty for now)
+    // When implemented, production text would go at:
+    // const productionY = bannerY + rowHeight + fontSize;
+    // this.ctx.fillText(production, nameX, productionY);
   }
 }
