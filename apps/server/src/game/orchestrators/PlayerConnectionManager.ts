@@ -15,7 +15,11 @@ import serverConfig from '@config';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {
-  joinGame(gameId: string, userId: string, civilization?: string): Promise<string>;
+  joinGame(
+    gameId: string,
+    userId: string,
+    civilization?: string
+  ): Promise<{ playerId: string; assignedNation: string }>;
   updatePlayerConnection(playerId: string, isConnected: boolean): Promise<void>;
   ensureMinimumPlayers(gameId: string): Promise<void>;
 }
@@ -45,7 +49,11 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
    * Handle player joining a game with nation selection and validation
    * @reference Original GameManager.ts:138-285 joinGame()
    */
-  async joinGame(gameId: string, userId: string, civilization?: string): Promise<string> {
+  async joinGame(
+    gameId: string,
+    userId: string,
+    civilization?: string
+  ): Promise<{ playerId: string; assignedNation: string }> {
     // Get game from database
     const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
@@ -63,7 +71,11 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     if (existingPlayer) {
       // Track player to game mapping for existing player
       this.playerToGame.set(existingPlayer.id, gameId);
-      return existingPlayer.id; // Already joined - allow rejoining at any game status
+      const existingResult = {
+        playerId: existingPlayer.id,
+        assignedNation: existingPlayer.nation || existingPlayer.civilization || 'american',
+      };
+      return existingResult; // Already joined - allow rejoining at any game status
     }
 
     // Only allow new players in waiting games
@@ -125,7 +137,11 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     // Handle auto-start logic
     await this.handleAutoStart(gameId);
 
-    return newPlayer.id;
+    const finalResult = {
+      playerId: newPlayer.id,
+      assignedNation: selectedNation,
+    };
+    return finalResult;
   }
 
   /**
@@ -289,6 +305,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
 
     // Handle random nation selection
     let selectedNation = civilization || 'american';
+
     if (civilization === 'random') {
       try {
         const loader = RulesetLoader.getInstance();
@@ -297,6 +314,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         if (nationsRuleset) {
           // Get playable nations (exclude barbarian and already taken nations)
           const takenNations = new Set(existingPlayers.map(p => p.civilization));
+
           const playableNations = Object.values(nationsRuleset.nations)
             .filter(nation => nation.id !== 'barbarian' && !takenNations.has(nation.id))
             .map(nation => nation.id);

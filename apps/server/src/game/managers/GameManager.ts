@@ -255,11 +255,15 @@ export class GameManager {
   /**
    * Join a game - delegates to PlayerConnectionManager
    */
-  public async joinGame(gameId: string, userId: string, civilization?: string): Promise<string> {
-    const playerId = await this.playerConnectionManager.joinGame(gameId, userId, civilization);
+  public async joinGame(
+    gameId: string,
+    userId: string,
+    civilization?: string
+  ): Promise<{ playerId: string; assignedNation: string }> {
+    const result = await this.playerConnectionManager.joinGame(gameId, userId, civilization);
     // Sync player-to-game mapping
-    this.playerToGame.set(playerId, gameId);
-    return playerId;
+    this.playerToGame.set(result.playerId, gameId);
+    return result;
   }
 
   /**
@@ -516,6 +520,18 @@ export class GameManager {
       };
     } catch (error) {
       logger.error('Error fetching game by player ID:', error);
+      return null;
+    }
+  }
+
+  public async getPlayerById(playerId: string): Promise<any | null> {
+    try {
+      const player = await this.databaseProvider.getDatabase().query.players.findFirst({
+        where: eq(players.id, playerId),
+      });
+      return player;
+    } catch (error) {
+      logger.error('Failed to get player by ID:', error);
       return null;
     }
   }

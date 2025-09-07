@@ -140,23 +140,25 @@ export class GameManagementHandler extends BaseSocketHandler {
       connection.gameId = gameId;
       socket.join(`game:${gameId}`);
 
-      const playerId = await this.gameManager.joinGame(
+      const result = await this.gameManager.joinGame(
         gameId,
         connection.userId!,
         data.selectedNation
       );
-      await this.gameManager.updatePlayerConnection(playerId, true);
+      await this.gameManager.updatePlayerConnection(result.playerId, true);
 
       socket.emit('game_created', {
         gameId,
         maxPlayers: data.maxPlayers,
-        playerId, // Include playerId so client can initialize player state
+        playerId: result.playerId, // Include playerId so client can initialize player state
+        assignedNation: result.assignedNation,
       });
 
       handler.send(socket, PacketType.GAME_CREATE_REPLY, {
         success: true,
         gameId,
         message: 'Game created successfully',
+        assignedNation: result.assignedNation,
       });
 
       logger.info(`Game created by ${connection.username}`, { gameId });
@@ -183,7 +185,7 @@ export class GameManagementHandler extends BaseSocketHandler {
     }
 
     try {
-      const playerId = await this.gameManager.joinGame(
+      const result = await this.gameManager.joinGame(
         data.gameId,
         connection.userId!,
         data.civilization
@@ -191,15 +193,18 @@ export class GameManagementHandler extends BaseSocketHandler {
 
       connection.gameId = data.gameId;
       socket.join(`game:${data.gameId}`);
-      await this.gameManager.updatePlayerConnection(playerId, true);
+      await this.gameManager.updatePlayerConnection(result.playerId, true);
 
       handler.send(socket, PacketType.GAME_JOIN_REPLY, {
         success: true,
-        playerId,
+        playerId: result.playerId,
         message: 'Joined game successfully',
       });
 
-      logger.info(`${connection.username} joined game`, { gameId: data.gameId, playerId });
+      logger.info(`${connection.username} joined game`, {
+        gameId: data.gameId,
+        playerId: result.playerId,
+      });
     } catch (error) {
       logger.error('Error joining game:', error);
       handler.send(socket, PacketType.GAME_JOIN_REPLY, {
@@ -245,21 +250,31 @@ export class GameManagementHandler extends BaseSocketHandler {
     }
 
     try {
-      const playerId = await this.gameManager.joinGame(data.gameId, connection.userId!, 'random');
+      const result = await this.gameManager.joinGame(
+        data.gameId,
+        connection.userId!,
+        data.selectedNation || 'random'
+      );
 
       connection.gameId = data.gameId;
       socket.join(`game:${data.gameId}`);
-      await this.gameManager.updatePlayerConnection(playerId, true);
+      await this.gameManager.updatePlayerConnection(result.playerId, true);
 
       // Send map data to the player if the game has started
       try {
-        await this.sendPlayerMapData(data.gameId, playerId, socket);
+        await this.sendPlayerMapData(data.gameId, result.playerId, socket);
       } catch (mapError) {
         logger.warn('Could not send map data to player:', mapError);
       }
 
-      callback({ success: true, playerId });
-      logger.info(`${connection?.username || 'Unknown'} joined game ${data.gameId}`, { playerId });
+      callback({
+        success: true,
+        playerId: result.playerId,
+        assignedNation: result.assignedNation,
+      });
+      logger.info(`${connection?.username || 'Unknown'} joined game ${data.gameId}`, {
+        playerId: result.playerId,
+      });
     } catch (error) {
       logger.error('Error joining game:', error);
       callback({

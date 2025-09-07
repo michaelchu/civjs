@@ -176,12 +176,14 @@ describe('GameManager - Integration Tests with Real Database', () => {
         },
       ]);
 
-      const playerId1 = await gameManager.joinGame(gameId, userId1, 'romans');
-      const playerId2 = await gameManager.joinGame(gameId, userId2, 'greeks');
+      const result1 = await gameManager.joinGame(gameId, userId1, 'romans');
+      const result2 = await gameManager.joinGame(gameId, userId2, 'greeks');
 
-      expect(playerId1).toBeTruthy();
-      expect(playerId2).toBeTruthy();
-      expect(playerId1).not.toBe(playerId2);
+      expect(result1.playerId).toBeTruthy();
+      expect(result2.playerId).toBeTruthy();
+      expect(result1.playerId).not.toBe(result2.playerId);
+      expect(result1.assignedNation).toBe('romans');
+      expect(result2.assignedNation).toBe('greeks');
 
       // Verify players in memory
       const game = gameManager.getGameInstance(gameId);
