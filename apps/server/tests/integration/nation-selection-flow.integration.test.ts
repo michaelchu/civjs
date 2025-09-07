@@ -14,6 +14,7 @@ import {
   generateTestUUID,
   getTestDatabase,
 } from '../utils/testDatabase';
+import { createMockSocketServer } from '../utils/gameTestUtils';
 import * as schema from '@database/schema';
 
 // Mock logger to reduce noise
@@ -45,9 +46,10 @@ describe('Nation Selection Flow - Integration', () => {
     // Reset GameManager singleton for testing
     (GameManager as any).instance = null;
 
-    // Create GameManager with test database provider
+    // Create GameManager with properly mocked Socket.IO server
+    mockIo = createMockSocketServer();
     const testDbProvider = getTestDatabaseProvider();
-    gameManager = GameManager.getInstance({} as Server, testDbProvider);
+    gameManager = GameManager.getInstance(mockIo, testDbProvider);
 
     jest.clearAllMocks();
 
@@ -68,9 +70,6 @@ describe('Nation Selection Flow - Integration', () => {
       emit: jest.fn(),
       data: {},
     } as any;
-
-    // Mock Server
-    mockIo = {} as any;
 
     // Create handler
     handler = new GameManagementHandler(activeConnections, gameManager);
