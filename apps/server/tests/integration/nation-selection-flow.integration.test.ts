@@ -32,7 +32,7 @@ describe('Nation Selection Flow - Integration', () => {
   let handler: GameManagementHandler;
   let mockPacketHandler: jest.Mocked<PacketHandler>;
   let mockSocket: jest.Mocked<Socket>;
-  let mockIo: jest.Mocked<Server>;
+  let mockIo: Server;
   let activeConnections: Map<string, any>;
 
   const mockSocketId = 'test-socket-id';
