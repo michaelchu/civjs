@@ -460,6 +460,11 @@ export const PlayerInfoSchema = z.object({
   culture: z.number(),
   government: z.string(),
   alive: z.boolean(),
+  color: z.object({
+    r: z.number(),
+    g: z.number(),
+    b: z.number(),
+  }),
 });
 
 export const PlayerRemoveSchema = z.object({
