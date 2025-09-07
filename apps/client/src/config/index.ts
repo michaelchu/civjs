@@ -10,24 +10,9 @@ const getServerUrl = (): string => {
     return 'http://localhost:3001';
   }
 
-  // Production/Preview mode - try to construct dynamic URL
-  const currentDomain = window.location.hostname;
-
-  // Detect Railway preview environments by checking for PR pattern in the domain
-  // Preview URLs contain "-pr-" while production URLs don't
-  if (currentDomain.includes('railway.app') && currentDomain.includes('-pr-')) {
-    // Railway preview URLs follow pattern: civjs-frontend-civjs-pr-XXX.up.railway.app
-    // We need to replace 'frontend' with 'backend'
-    if (currentDomain.includes('frontend')) {
-      return `https://${currentDomain.replace('frontend', 'backend')}`;
-    }
-
-    // Fallback: try replacing 'client' with 'server' for other patterns
-    const parts = currentDomain.split('-');
-    if (parts.length >= 3) {
-      parts[0] = parts[0].replace('client', 'server');
-      return `https://${parts.join('-')}`;
-    }
+  // Railway preview environments - use PREVIEW_BACKEND_URL if available
+  if (import.meta.env.VITE_PREVIEW_BACKEND_URL) {
+    return import.meta.env.VITE_PREVIEW_BACKEND_URL;
   }
 
   // Fallback to production URL
