@@ -568,6 +568,11 @@ export class RulesetLoader {
 
     try {
       const filePath = join(this.baseDir, rulesetName, 'nations.json');
+      logger.info(`Loading nations ruleset from: ${filePath}`);
+      logger.info(`Base directory: ${this.baseDir}`);
+      logger.info(`Working directory: ${process.cwd()}`);
+      logger.info(`__dirname: ${__dirname}`);
+
       const fileContent = readFileSync(filePath, 'utf8');
       const rawData = JSON.parse(fileContent);
 
@@ -578,10 +583,26 @@ export class RulesetLoader {
       this.nationsCache.set(rulesetName, nationsRuleset);
       return nationsRuleset;
     } catch (error) {
+      // Add debug information to error
+      const filePath = join(this.baseDir, rulesetName, 'nations.json');
+      const debugInfo = {
+        baseDir: this.baseDir,
+        filePath,
+        cwd: process.cwd(),
+        dirname: __dirname,
+        error: error instanceof Error ? error.message : String(error),
+      };
+
+      logger.error('Failed to load nations ruleset:', debugInfo);
+
       if (error instanceof Error) {
-        throw new Error(`Failed to load nations ruleset '${rulesetName}': ${error.message}`);
+        throw new Error(
+          `Failed to load nations ruleset '${rulesetName}': ${error.message}. Debug info: ${JSON.stringify(debugInfo)}`
+        );
       }
-      throw new Error(`Failed to load nations ruleset '${rulesetName}': Unknown error`);
+      throw new Error(
+        `Failed to load nations ruleset '${rulesetName}': Unknown error. Debug info: ${JSON.stringify(debugInfo)}`
+      );
     }
   }
 
