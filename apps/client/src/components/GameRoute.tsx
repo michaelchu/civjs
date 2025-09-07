@@ -4,15 +4,12 @@ import { useGameStore } from '../store/gameStore';
 import { gameClient } from '../services/GameClient';
 import { ConnectionDialog } from './ConnectionDialog';
 import { GameLayout } from './GameUI/GameLayout';
-import { NationSelectionDialog } from './NationSelectionDialog';
 import { getStoredUsername, storeUsername } from '../utils/gameSession';
 
 export const GameRoute: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
   const [error, setError] = useState('');
-  const [showNationDialog, setShowNationDialog] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
-  const [playerName, setPlayerName] = useState('');
   const navigate = useNavigate();
 
   const { clientState, setClientState } = useGameStore();
@@ -24,6 +21,7 @@ export const GameRoute: React.FC = () => {
     }
 
     setError('');
+    setIsJoining(true);
 
     try {
       await gameClient.connect();
@@ -32,29 +30,14 @@ export const GameRoute: React.FC = () => {
       // Use stored username or generate fallback name based on gameId
       const storedUsername = getStoredUsername();
       const username = storedUsername || `Player_${gameId?.slice(-8) || 'default'}`;
-      setPlayerName(username);
 
-      // Show nation selection dialog instead of immediately joining
-      setShowNationDialog(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect to server');
-      setClientState('initial');
-    }
-  }, [gameId, setClientState]);
-
-  const handleNationSelection = async (selectedNation: string) => {
-    if (!gameId || !playerName) return;
-
-    setIsJoining(true);
-    setError('');
-
-    try {
-      await gameClient.joinSpecificGame(gameId, playerName, selectedNation);
+      // For single player games, join with 'random' nation selection
+      // The server will assign the appropriate nation based on game settings
+      await gameClient.joinSpecificGame(gameId, username, 'random');
 
       // Store the username after successful join for future login convenience
-      storeUsername(playerName);
+      storeUsername(username);
 
-      setShowNationDialog(false);
       setClientState('running');
     } catch (joinError) {
       console.log('Could not join as player:', joinError);
@@ -64,22 +47,17 @@ export const GameRoute: React.FC = () => {
       try {
         await gameClient.observeGame(gameId);
         console.log('Joined as observer');
-        setShowNationDialog(false);
         setClientState('running');
       } catch {
         setError(
           `Cannot access game: ${joinError instanceof Error ? joinError.message : 'Unknown error'}`
         );
+        setClientState('initial');
       }
     } finally {
       setIsJoining(false);
     }
-  };
-
-  const handleNationDialogClose = () => {
-    setShowNationDialog(false);
-    navigate('/browse-games');
-  };
+  }, [gameId, setClientState]);
 
   useEffect(() => {
     if (!gameId) {
@@ -157,6 +135,11 @@ export const GameRoute: React.FC = () => {
                 </a>
               </div>
             </div>
+          ) : isJoining ? (
+            <div>
+              <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p>Joining game...</p>
+            </div>
           ) : (
             <div>
               <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
@@ -165,14 +148,6 @@ export const GameRoute: React.FC = () => {
           )}
         </div>
       </div>
-
-      <NationSelectionDialog
-        isOpen={showNationDialog}
-        onClose={handleNationDialogClose}
-        onConfirm={handleNationSelection}
-        playerName={playerName}
-        loading={isJoining}
-      />
     </>
   );
 };
