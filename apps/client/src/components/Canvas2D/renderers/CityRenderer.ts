@@ -1,6 +1,7 @@
 import type { City, MapViewport } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 import { rulesetService, type CityStyle } from '../../../services/RulesetService';
+import { useGameStore } from '../../../store/gameStore';
 
 /**
  * CityRenderer - Authentic Freeciv-compliant city sprite rendering
@@ -267,7 +268,7 @@ export class CityRenderer extends BaseRenderer {
     const cityPop = city.size.toString();
     const labelScale = 1.2;
     const fontSize = Math.floor(CityRenderer.BASE_FONT_SIZE * this.cityScale * labelScale);
-    this.ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    this.ctx.font = `${fontSize}px Arial, sans-serif`;
 
     // Measure text dimensions
     const nameMetrics = this.ctx.measureText(cityName);
@@ -289,8 +290,10 @@ export class CityRenderer extends BaseRenderer {
     this.ctx.fillStyle = 'rgba(40, 80, 80, 0.9)';
     this.ctx.fillRect(bannerX, bannerY, totalWidth, totalHeight);
 
-    // Draw highlighted population square using player's nation color
-    const playerColor = this.getPlayerColor(city.playerId);
+    // Draw highlighted population square using player's actual nation color
+    const gameState = useGameStore.getState();
+    const player = gameState.players[city.playerId];
+    const playerColor = player?.color || this.getPlayerColor(city.playerId); // Fallback to BaseRenderer method
     this.ctx.fillStyle = playerColor;
     this.ctx.fillRect(popSquareX, bannerY, popSquareSize, totalHeight);
 
