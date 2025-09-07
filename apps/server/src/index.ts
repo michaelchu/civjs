@@ -15,7 +15,7 @@ import apiRouter from './routes/api';
 // Load environment variables
 dotenv.config();
 
-// CORS configuration to handle multiple origins including Railway previews
+// CORS configuration to handle multiple origins including Railway previews and internal domains
 const corsOrigins = (
   origin: string | undefined,
   callback: (err: Error | null, allow?: boolean) => void
@@ -29,10 +29,11 @@ const corsOrigins = (
     config.server.corsOrigin,
   ];
 
-  // Allow all Railway preview deployments
+  // Allow all Railway deployments (both preview and internal domains)
   const isRailwayPreview = origin.match(/^https:\/\/.*\.up\.railway\.app$/);
+  const isRailwayInternal = origin.match(/^https:\/\/.*\.railway\.internal$/);
 
-  if (allowedOrigins.indexOf(origin) !== -1 || isRailwayPreview) {
+  if (allowedOrigins.indexOf(origin) !== -1 || isRailwayPreview || isRailwayInternal) {
     callback(null, true);
   } else {
     callback(new Error('Not allowed by CORS'));
