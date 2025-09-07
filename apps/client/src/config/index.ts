@@ -13,8 +13,9 @@ const getServerUrl = (): string => {
   // Production/Preview mode - try to construct dynamic URL
   const currentDomain = window.location.hostname;
 
-  // If we're on a Railway preview domain (contains 'railway.app')
-  if (currentDomain.includes('railway.app')) {
+  // Detect Railway preview environments by checking for PR pattern in the domain
+  // Preview URLs contain "-pr-" while production URLs don't
+  if (currentDomain.includes('railway.app') && currentDomain.includes('-pr-')) {
     // Railway preview URLs follow pattern: civjs-frontend-civjs-pr-XXX.up.railway.app
     // We need to replace 'frontend' with 'backend'
     if (currentDomain.includes('frontend')) {
