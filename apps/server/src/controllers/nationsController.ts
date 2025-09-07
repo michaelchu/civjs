@@ -31,13 +31,10 @@ export class NationsController {
       try {
         nationsRuleset = loader.loadNationsRuleset(ruleset);
         nations = loader.getNations(ruleset);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(`Failed to load ruleset ${ruleset}:`, errorMessage);
+      } catch {
         res.status(404).json({
           error: 'Ruleset not found',
           message: `No nations found for ruleset: ${ruleset}`,
-          debug: errorMessage.includes('Debug info') ? errorMessage : undefined,
         });
         return;
       }
