@@ -271,7 +271,7 @@ export class CityRenderer extends BaseRenderer {
 
     // Measure text dimensions
     const nameMetrics = this.ctx.measureText(cityName);
-    
+
     // Layout constants
     const popSquareSize = fontSize + 8; // Square size for population
     const textPadding = 6;
@@ -317,11 +317,11 @@ export class CityRenderer extends BaseRenderer {
     const popCenterY = bannerY + totalHeight / 2;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-    
+
     // Population shadow
     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
     this.ctx.fillText(cityPop, popCenterX + 1, popCenterY + 1);
-    
+
     // Main population text (contrasting color for readability)
     this.ctx.fillStyle = 'white';
     this.ctx.fillText(cityPop, popCenterX, popCenterY);
@@ -331,11 +331,11 @@ export class CityRenderer extends BaseRenderer {
     const nameY = bannerY + fontSize;
     this.ctx.textAlign = 'left';
     this.ctx.textBaseline = 'alphabetic';
-    
+
     // Name shadow
     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     this.ctx.fillText(cityName, nameX + 1, nameY + 1);
-    
+
     // Main name text (white)
     this.ctx.fillStyle = 'white';
     this.ctx.fillText(cityName, nameX, nameY);
