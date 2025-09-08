@@ -91,6 +91,6 @@
     "founding_units": ["Settlers", "Engineers"],
     "allow_foreign_territory": false,
     "enemy_units_block": true,
-    "exploration_requirement": 1
+    "exploration_requirement": 0
   }
 }
