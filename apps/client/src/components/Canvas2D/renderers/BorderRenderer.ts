@@ -65,11 +65,9 @@ export class BorderRenderer extends BaseRenderer {
       return; // No players data available
     }
 
-    console.log('[BorderRenderer] Starting border render with:', {
+    console.log('[BorderRenderer] Starting border render:', {
       tilesCount: Object.keys(tiles).length,
       playersCount: Object.keys(players).length,
-      sampleTile: Object.values(tiles)[0],
-      samplePlayer: Object.values(players)[0],
     });
 
     // TEMPORARY TEST: Add fake ownership to some tiles to test border rendering
@@ -90,7 +88,6 @@ export class BorderRenderer extends BaseRenderer {
         const tileKey = `${tile.x},${tile.y}`;
         testTiles[tileKey] = { ...tile, owner };
       }
-      console.log('[BorderRenderer] TEMP: Added checkerboard ownership pattern for testing');
     }
 
     // Add fake players if they don't exist
@@ -163,8 +160,6 @@ export class BorderRenderer extends BaseRenderer {
     console.log('[BorderRenderer] Border rendering complete:', {
       tilesWithOwners,
       bordersDrawn,
-      totalTiles: Object.keys(testTiles).length,
-      originalTilesCount: Object.keys(tiles).length,
       ownershipStats,
     });
   }
@@ -236,14 +231,16 @@ export class BorderRenderer extends BaseRenderer {
       }
     }
 
-    // Log debug info for tiles with borders or first few tiles to diagnose issues
-    if (bordersDrawn > 0 || debugInfo.some(d => d.shouldDrawBorder) || (tile.x < 5 && tile.y < 5)) {
+    // Log debug info only for tiles that should have borders but don't, or first few tiles for diagnosis
+    if (
+      bordersDrawn > 0 ||
+      (debugInfo.some(d => d.shouldDrawBorder) && bordersDrawn === 0) ||
+      (tile.x < 3 && tile.y < 3)
+    ) {
       console.log(`[BorderRenderer] Tile (${tile.x},${tile.y}) owner=${tile.owner}:`, {
         bordersDrawn,
-        playerColor: this.playerColors.get(tile.owner || ''),
-        playerExists: !!players[tile.owner || ''],
-        debugInfo,
-        hasAnyNeighborWithDifferentOwner: debugInfo.some(
+        shouldHaveBorder: debugInfo.some(d => d.shouldDrawBorder),
+        hasNeighborWithDifferentOwner: debugInfo.some(
           d => d.neighborExists && d.neighborOwner && d.neighborOwner !== tile.owner
         ),
       });
@@ -271,14 +268,6 @@ export class BorderRenderer extends BaseRenderer {
     // These offsets center the border lines within the isometric tile shape
     const x = screenPos.x + tileWidth * 0.49; // 47/96 ≈ 0.49 for 96px tiles
     const y = screenPos.y + 3;
-
-    console.log(`[BorderRenderer] Drawing ${side} border at screen pos:`, {
-      originalPos: screenPos,
-      adjustedPos: { x, y },
-      tileSize: { tileWidth, tileHeight },
-      strokeStyle: ctx.strokeStyle,
-      lineWidth: ctx.lineWidth,
-    });
 
     ctx.beginPath();
 
