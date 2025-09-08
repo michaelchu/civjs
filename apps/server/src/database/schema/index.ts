@@ -4,6 +4,7 @@ export * from './games';
 export * from './players';
 export * from './cities';
 export * from './units';
+export * from './tiles';
 export * from './game-turns';
 export * from './research';
 export * from './player-policies';

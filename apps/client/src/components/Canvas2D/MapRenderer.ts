@@ -5,6 +5,7 @@ import { TerrainRenderer } from './renderers/TerrainRenderer';
 import { UnitRenderer } from './renderers/UnitRenderer';
 import { CityRenderer } from './renderers/CityRenderer';
 import { PathRenderer } from './renderers/PathRenderer';
+import { BorderRenderer } from './renderers/BorderRenderer';
 import type { RenderState } from './renderers/BaseRenderer';
 
 declare global {
@@ -27,6 +28,7 @@ export class MapRenderer {
   private unitRenderer: UnitRenderer;
   private cityRenderer: CityRenderer;
   private pathRenderer: PathRenderer;
+  private borderRenderer: BorderRenderer;
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
@@ -43,6 +45,7 @@ export class MapRenderer {
     this.unitRenderer = new UnitRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
     this.cityRenderer = new CityRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
     this.pathRenderer = new PathRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
+    this.borderRenderer = new BorderRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
   }
 
   async initialize(): Promise<void> {
@@ -58,6 +61,7 @@ export class MapRenderer {
       this.unitRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.cityRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.pathRenderer.updateTileSize(this.tileWidth, this.tileHeight);
+      this.borderRenderer.updateTileSize(this.tileWidth, this.tileHeight);
 
       this.isInitialized = true;
     } catch (error) {
@@ -124,7 +128,47 @@ export class MapRenderer {
     // Render terrain layer (includes rivers and resources per-tile to maintain z-order)
     this.terrainRenderer.renderTerrain(state, visibleTiles);
 
-    // Render selection outline after terrain but before units
+    // Render borders after terrain but before units
+    // Ported from reference/freeciv-web border rendering logic
+    const globalPlayers = (window as any).players;
+    
+    if (globalPlayers) {
+      // Use modern options store with fallback to global options for compatibility
+      let borderOptions;
+      try {
+        // Try to use modern options store
+        const { useGameOptionsStore } = await import('../../stores/gameOptionsStore');
+        const gameOptionsStore = useGameOptionsStore.getState();
+        borderOptions = gameOptionsStore.getBorderRenderOptions();
+      } catch {
+        // Fallback to legacy global options
+        const globalOptions = (window as any).client_options;
+        borderOptions = {
+          showBorders: globalOptions?.draw_borders ?? true,
+          borderWidth: 2,
+          borderAlpha: 0.8,
+          borderStyle: 'solid' as const
+        };
+      }
+      
+      if (borderOptions.showBorders) {
+        // Convert global tiles to our tile format for border rendering
+        const tilesRecord: Record<string, any> = {};
+        visibleTiles.forEach((tile: any) => {
+          tilesRecord[`${tile.x},${tile.y}`] = {
+            x: tile.x,
+            y: tile.y,
+            visible: true,
+            owner: tile.owner, // This will need to be populated from border calculations
+            terrain: tile.terrain
+          };
+        });
+        
+        this.borderRenderer.render(tilesRecord, globalPlayers, state, borderOptions);
+      }
+    }
+
+    // Render selection outline after borders but before units
     this.unitRenderer.renderUnitSelection(state);
 
     // Render units layer

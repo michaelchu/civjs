@@ -1,3 +1,11 @@
+// Border configuration enums - ported from reference/freeciv/common/game.h
+export enum BorderMode {
+  DISABLED = 0,
+  ENABLED = 1,
+  SEE_INSIDE = 2,
+  EXPAND = 3
+}
+
 // Basic game types
 export interface Tile {
   x: number;
@@ -10,6 +18,10 @@ export interface Tile {
   resource?: string;
   elevation?: number;
   riverMask?: number; // River connection bitmask: N=1, E=2, S=4, W=8
+  // Border system properties - ported from reference/freeciv/server/maphand.c
+  owner?: string; // playerId that owns this tile
+  claimer?: string; // cityId or baseId that claims this tile for borders
+  borderStrength?: number; // Border strength at this tile for conflict resolution
 }
 
 export interface Unit {
@@ -95,6 +107,24 @@ export interface Government {
   helptext: string;
 }
 
+// Border configuration - ported from reference/freeciv/server/settings.c
+export interface BorderConfiguration {
+  borderMode: BorderMode; // Overall border system mode
+  borderCityRadiusSquared: number; // Base radius for city borders
+  borderSizeEffect: number; // How much city size affects border radius
+  borderVision: boolean; // Whether borders provide vision
+  borderStrengthPct: number; // Base border strength percentage
+  happyBorders: boolean; // Whether crossing borders affects happiness
+}
+
+// Base/Extra types for territory claiming - ported from reference/freeciv/common/extra.h
+export interface Extra {
+  id: string;
+  name: string;
+  borderSquared?: number; // Border radius if this extra claims territory (-1 = no claiming)
+  visionRadius?: number; // Vision radius provided
+}
+
 export interface GameState {
   turn: number;
   phase: 'movement' | 'research' | 'production';
@@ -113,6 +143,9 @@ export interface GameState {
   technologies: Record<string, Technology>;
   research?: ResearchState;
   governments: Record<string, Government>;
+  // Border system configuration - ported from reference/freeciv/server/settings.c
+  borders?: BorderConfiguration;
+  extras?: Record<string, Extra>;
   mapData?: {
     width: number;
     height: number;

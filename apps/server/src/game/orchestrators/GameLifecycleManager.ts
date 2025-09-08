@@ -18,6 +18,7 @@ import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { CityManager } from '@game/managers/CityManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
+import { BorderManager } from '@game/managers/BorderManager';
 import { MapStartpos } from '@game/map/MapTypes';
 import type { Server as SocketServer } from 'socket.io';
 import type {
@@ -232,6 +233,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     const visibilityManager = this.createVisibilityManager(gameId, unitManager, mapManager);
     const researchManager = this.createResearchManager(gameId);
     const pathfindingManager = this.createPathfindingManager(game, mapManager);
+    const borderManager = this.createBorderManager(game, mapManager);
 
     // Generate the map with starting positions based on terrain settings
     await this.generateGameMap(gameId, mapManager, players, terrainSettings, unitManager);
@@ -248,7 +250,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       visibilityManager,
       cityManager,
       researchManager,
-      pathfindingManager
+      pathfindingManager,
+      borderManager
     );
 
     this.logger.info('Game instance initialized successfully', {
@@ -621,6 +624,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       cityManager: null as any,
       researchManager: null as any,
       pathfindingManager: null as any,
+      borderManager: null as any,
       lastActivity: new Date(),
     } as GameInstance;
   }
@@ -703,6 +707,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
   }
 
+  private createBorderManager(game: any, mapManager: MapManager): BorderManager {
+    const config = BorderManager.createDefaultConfig(game.mapWidth, game.mapHeight);
+    return new BorderManager(config);
+  }
+
   private buildGameInstance(
     gameId: string,
     game: any,
@@ -714,7 +723,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     visibilityManager: VisibilityManager,
     cityManager: CityManager,
     researchManager: ResearchManager,
-    pathfindingManager: PathfindingManager
+    pathfindingManager: PathfindingManager,
+    borderManager: BorderManager
   ): GameInstance {
     return {
       id: gameId,
@@ -741,6 +751,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       cityManager,
       researchManager,
       pathfindingManager,
+      borderManager,
       lastActivity: new Date(),
     };
   }
