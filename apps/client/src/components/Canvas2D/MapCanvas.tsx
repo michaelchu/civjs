@@ -71,6 +71,23 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [hoveredTile, setHoveredTile] = useState<string | null>(null);
 
+  // Debug render frequency
+  const renderCount = useRef(0);
+  const lastRenderTime = useRef(Date.now());
+
+  const trackRender = (source: string) => {
+    renderCount.current++;
+    const now = Date.now();
+    const timeSince = now - lastRenderTime.current;
+    if (timeSince < 50) {
+      // If renders are happening very frequently
+      console.warn(
+        `[MapCanvas] Frequent render from ${source}: ${timeSince}ms since last render, total: ${renderCount.current}`
+      );
+    }
+    lastRenderTime.current = now;
+  };
+
   // Initialize renderer and load tileset - only once, not on viewport changes!
   useEffect(() => {
     const initRenderer = async () => {
@@ -245,6 +262,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         gotoMode.currentPath
       );
       // Render is now synchronous for better performance and no race conditions
+      trackRender('main-useEffect');
       rendererRef.current.render({
         viewport,
         map, // Keep using store map for compatibility, but trigger based on global data
@@ -323,55 +341,56 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   // Optimized animation for selection pulsing - use a simple timer instead of continuous animation loop
   useEffect(() => {
-    const currentSelectedUnitId = gameState.selectedUnitId;
-
+    // TEMPORARILY DISABLED: Animation loop was causing unit sprite flickering
+    // TODO: Re-implement unit selection animation with better synchronization
+    // const currentSelectedUnitId = gameState.selectedUnitId;
     // Don't run animation while dragging to prevent conflicts
-    if (currentSelectedUnitId && rendererRef.current && !isDragging) {
-      // Use setInterval with a reasonable refresh rate to avoid stuttering during scrolling
-      const intervalId = setInterval(() => {
-        // Double-check we're still not dragging
-        if (rendererRef.current && !isDragging) {
-          rendererRef.current.render({
-            viewport,
-            map,
-            units,
-            cities,
-            players,
-            selectedUnitId: currentSelectedUnitId,
-            gotoPath: gotoMode.currentPath,
-          });
-        }
-      }, 100); // 10fps for smooth pulsing without interfering with scrolling
-
-      return () => {
-        clearInterval(intervalId);
-        // Force a final render without selection to clear the outline
-        if (rendererRef.current) {
-          rendererRef.current.render({
-            viewport,
-            map,
-            units,
-            cities,
-            players,
-            selectedUnitId: null,
-            gotoPath: gotoMode.currentPath,
-          });
-        }
-      };
-    } else if (!isDragging) {
-      // Force a render without selection to clear any lingering outline (but not while dragging)
-      if (rendererRef.current) {
-        rendererRef.current.render({
-          viewport,
-          map,
-          units,
-          cities,
-          players,
-          selectedUnitId: null,
-          gotoPath: gotoMode.currentPath,
-        });
-      }
-    }
+    // if (currentSelectedUnitId && rendererRef.current && !isDragging) {
+    //   // Use setInterval with a reasonable refresh rate to avoid stuttering during scrolling
+    //   const intervalId = setInterval(() => {
+    //     // Double-check we're still not dragging
+    //     if (rendererRef.current && !isDragging) {
+    //       trackRender('animation-loop');
+    //       rendererRef.current.render({
+    //         viewport,
+    //         map,
+    //         units,
+    //         cities,
+    //         players,
+    //         selectedUnitId: currentSelectedUnitId,
+    //         gotoPath: gotoMode.currentPath,
+    //       });
+    //     }
+    //   }, 100); // 10fps for smooth pulsing without interfering with scrolling
+    //   return () => {
+    //     clearInterval(intervalId);
+    //     // Force a final render without selection to clear the outline
+    //     if (rendererRef.current) {
+    //       rendererRef.current.render({
+    //         viewport,
+    //         map,
+    //         units,
+    //         cities,
+    //         players,
+    //         selectedUnitId: null,
+    //         gotoPath: gotoMode.currentPath,
+    //       });
+    //     }
+    //   };
+    // } else if (!isDragging) {
+    //   // Force a render without selection to clear any lingering outline (but not while dragging)
+    //   if (rendererRef.current) {
+    //     rendererRef.current.render({
+    //       viewport,
+    //       map,
+    //       units,
+    //       cities,
+    //       players,
+    //       selectedUnitId: null,
+    //       gotoPath: gotoMode.currentPath,
+    //     });
+    //   }
+    // }
   }, [
     gameState.selectedUnitId,
     viewport,
@@ -587,6 +606,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       // Directly render without any state updates during drag - use requestAnimationFrame for smoothness
       requestAnimationFrame(() => {
         if (rendererRef.current) {
+          trackRender('drag-mouse');
           rendererRef.current.render({
             viewport: newViewport,
             map: useGameStore.getState().map,

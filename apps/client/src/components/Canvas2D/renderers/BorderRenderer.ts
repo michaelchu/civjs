@@ -61,24 +61,92 @@ export class BorderRenderer extends BaseRenderer {
 
     const players = renderState.players;
     if (!players || Object.keys(players).length === 0) {
+      console.log('[BorderRenderer] No players data available:', { players });
       return; // No players data available
     }
 
+    console.log('[BorderRenderer] Starting border render with:', {
+      tilesCount: Object.keys(tiles).length,
+      playersCount: Object.keys(players).length,
+      sampleTile: Object.values(tiles)[0],
+      samplePlayer: Object.values(players)[0],
+    });
+
+    // TEMPORARY TEST: Add fake ownership to some tiles to test border rendering
+    const testTiles = { ...tiles };
+    const tileValues = Object.values(testTiles);
+    if (tileValues.length > 10) {
+      // Give first 5 tiles to player 1, next 5 to player 2
+      for (let i = 0; i < Math.min(5, tileValues.length); i++) {
+        testTiles[Object.keys(testTiles)[i]] = { ...tileValues[i], owner: 'player1' };
+      }
+      for (let i = 5; i < Math.min(10, tileValues.length); i++) {
+        testTiles[Object.keys(testTiles)[i]] = { ...tileValues[i], owner: 'player2' };
+      }
+      console.log('[BorderRenderer] TEMP: Added fake ownership for testing');
+    }
+
+    // Add fake players if they don't exist
+    const testPlayers = { ...players };
+    if (!testPlayers.player1) {
+      testPlayers.player1 = {
+        id: 'player1',
+        name: 'Test Player 1',
+        color: '#FF0000',
+        nation: 'test',
+        gold: 100,
+        science: 50,
+        government: 'Despotism',
+        isHuman: false,
+        isActive: true,
+      };
+    }
+    if (!testPlayers.player2) {
+      testPlayers.player2 = {
+        id: 'player2',
+        name: 'Test Player 2',
+        color: '#0000FF',
+        nation: 'test',
+        gold: 100,
+        science: 50,
+        government: 'Despotism',
+        isHuman: false,
+        isActive: true,
+      };
+    }
+
     // Update player colors if players changed
-    if (this.playerColors.size === 0 || Object.keys(players).length !== this.playerColors.size) {
-      this.setPlayerColors(players);
+    if (
+      this.playerColors.size === 0 ||
+      Object.keys(testPlayers).length !== this.playerColors.size
+    ) {
+      this.setPlayerColors(testPlayers);
     }
 
     // Render borders between tiles with different owners
-    for (const tileKey in tiles) {
-      const tile = tiles[tileKey];
+    let tilesWithOwners = 0;
+    let bordersDrawn = 0;
+
+    for (const tileKey in testTiles) {
+      const tile = testTiles[tileKey];
       if (!tile.visible || !tile.owner) continue;
+
+      tilesWithOwners++;
 
       const screenPos = this.mapToScreen(tile.x, tile.y, renderState.viewport);
       if (!this.isInViewport(tile.x, tile.y, renderState.viewport)) continue;
 
-      this.renderTileBorders(tile, tiles, screenPos, renderState, opts);
+      const testRenderState = { ...renderState, players: testPlayers };
+      const borderCount = this.renderTileBorders(tile, testTiles, screenPos, testRenderState, opts);
+      bordersDrawn += borderCount;
     }
+
+    console.log('[BorderRenderer] Border rendering complete:', {
+      tilesWithOwners,
+      bordersDrawn,
+      totalTiles: Object.keys(testTiles).length,
+      originalTilesCount: Object.keys(tiles).length,
+    });
   }
 
   /**
@@ -91,11 +159,12 @@ export class BorderRenderer extends BaseRenderer {
     screenPos: { x: number; y: number },
     renderState: RenderState,
     options: BorderRenderOptions
-  ): void {
+  ): number {
     const ctx = this.ctx;
-    if (!ctx || !tile.owner) return;
+    if (!ctx || !tile.owner) return 0;
 
     const players = renderState.players;
+    let bordersDrawn = 0;
 
     const tileWidth = this.tileWidth;
     const tileHeight = this.tileHeight;
@@ -115,6 +184,7 @@ export class BorderRenderer extends BaseRenderer {
     }
 
     // Check all four cardinal neighbors for border lines - exactly like freeciv-web
+    const debugInfo = [];
     for (let i = 0; i < CARDINAL_TILESET_DIRS.length; i++) {
       const dir = CARDINAL_TILESET_DIRS[i];
       const neighborCoords = this.getNeighborCoords(tile.x, tile.y, dir);
@@ -130,14 +200,35 @@ export class BorderRenderer extends BaseRenderer {
         tile.owner !== UNOWNED_TILE.toString() && // Convert to string since our owner field is string
         players[tile.owner] != null;
 
+      debugInfo.push({
+        dir,
+        neighborExists: !!neighborTile,
+        neighborOwner: neighborTile?.owner,
+        tileOwner: tile.owner,
+        playersHasOwner: !!players[tile.owner],
+        shouldDrawBorder,
+      });
+
       if (shouldDrawBorder) {
         const side = this.directionToSide(dir);
         this.drawBorderSide(ctx, screenPos, side, tileWidth, tileHeight);
+        bordersDrawn++;
       }
+    }
+
+    // Log debug info for first few tiles
+    if (bordersDrawn > 0 || (tile.x < 5 && tile.y < 5)) {
+      console.log(`[BorderRenderer] Tile (${tile.x},${tile.y}) owner=${tile.owner}:`, {
+        bordersDrawn,
+        playerColor: this.playerColors.get(tile.owner),
+        debugInfo,
+      });
     }
 
     ctx.globalAlpha = 1.0;
     ctx.setLineDash([]);
+
+    return bordersDrawn;
   }
 
   /**
@@ -156,6 +247,14 @@ export class BorderRenderer extends BaseRenderer {
     // These offsets center the border lines within the isometric tile shape
     const x = screenPos.x + tileWidth * 0.49; // 47/96 ≈ 0.49 for 96px tiles
     const y = screenPos.y + 3;
+
+    console.log(`[BorderRenderer] Drawing ${side} border at screen pos:`, {
+      originalPos: screenPos,
+      adjustedPos: { x, y },
+      tileSize: { tileWidth, tileHeight },
+      strokeStyle: ctx.strokeStyle,
+      lineWidth: ctx.lineWidth,
+    });
 
     ctx.beginPath();
 
