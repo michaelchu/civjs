@@ -66,6 +66,41 @@ export class CityManagementService extends BaseGameService {
       unit
     );
 
+    // Update borders after city founding
+    const city = gameInstance.cityManager.getCity(cityId);
+    if (city && gameInstance.borderManager) {
+      try {
+        const cityData = {
+          id: cityId,
+          name,
+          playerId,
+          x,
+          y,
+          size: 1,
+        };
+
+        const cities: Record<string, any> = {};
+        cities[cityId] = cityData;
+
+        const updatedTiles = await gameInstance.borderManager.onCityFounded(
+          cityData,
+          {}, // Empty tiles object - BorderManager will get real tiles from MapManager
+          cities
+        );
+
+        logger.info('Borders updated for new city', {
+          cityId,
+          cityName: name,
+          tilesUpdated: Object.keys(updatedTiles).length,
+        });
+      } catch (error) {
+        logger.error('Failed to update borders for new city', {
+          cityId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
     // Broadcast city founding to all players
     this.broadcastToGame(gameId, 'city_founded', {
       gameId,

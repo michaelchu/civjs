@@ -276,7 +276,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       return null;
     }
 
-    // Format tile in exact freeciv-web format
+    // Format tile in exact freeciv-web format with border data
     return {
       tile: index, // This is the key - tile index used by freeciv-web
       x: x,
@@ -290,6 +290,10 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       player: null,
       worked: null,
       extras: 0, // BitVector for extras
+      // Border system data - ported from reference/freeciv border system
+      owner: serverTile.owner || null, // playerId that owns this tile
+      claimer: serverTile.claimer || null, // cityId that claims this tile
+      borderStrength: serverTile.borderStrength || 0, // Border strength for conflict resolution
     };
   }
 

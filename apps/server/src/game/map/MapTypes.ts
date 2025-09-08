@@ -135,6 +135,10 @@ export interface MapTile {
   properties: TerrainProperties;
   temperature: TemperatureType;
   wetness: number; // 0-100, higher = more wet
+  // Border system properties - ported from reference/freeciv/server/maphand.c
+  owner?: string; // playerId that owns this tile
+  claimer?: string; // cityId or baseId that claims this tile for borders
+  borderStrength?: number; // Border strength at this tile for conflict resolution
 }
 
 export interface MapData {

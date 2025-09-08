@@ -6,11 +6,13 @@
 import { logger } from '@utils/logger';
 import { BorderService, BorderSource } from '../services/BorderService';
 import { BorderMode, BorderConfiguration, Tile, City, Extra } from '../../types/common';
+import { MapManager } from './MapManager';
 
 export interface BorderManagerConfig {
   borderConfig: BorderConfiguration;
   mapWidth: number;
   mapHeight: number;
+  mapManager?: MapManager;
 }
 
 export class BorderManager {
@@ -77,7 +79,34 @@ export class BorderManager {
       type: 'city',
     };
 
-    return this.borderService.claimBorders(source, tiles, cities, city.size, -1, extras);
+    // Get radius for this city
+    const radiusSquared = this.borderService.calculateBorderSourceRadiusSquared(
+      source,
+      city.size,
+      extras
+    );
+    const radius = Math.ceil(Math.sqrt(radiusSquared));
+
+    // Get actual map tiles in the border radius
+    const mapTiles = this.mapTilesToBorderTiles(radius, city.x, city.y);
+
+    // Merge with provided tiles (in case they have additional data)
+    const allTiles = { ...mapTiles, ...tiles };
+
+    // Calculate borders
+    const updatedTiles = this.borderService.claimBorders(
+      source,
+      allTiles,
+      cities,
+      city.size,
+      -1,
+      extras
+    );
+
+    // Update the actual map with border data
+    this.updateMapTiles(updatedTiles);
+
+    return updatedTiles;
   }
 
   /**
@@ -282,5 +311,85 @@ export class BorderManager {
     const tileKey = `${tileX},${tileY}`;
     const tile = tiles[tileKey];
     return tile?.borderStrength ?? 0;
+  }
+
+  /**
+   * Convert MapTiles to BorderService tile format
+   */
+  private mapTilesToBorderTiles(
+    radius: number,
+    centerX: number,
+    centerY: number
+  ): Record<string, Tile> {
+    const tiles: Record<string, Tile> = {};
+
+    if (!this.config.mapManager) {
+      return tiles;
+    }
+
+    const mapManager = this.config.mapManager;
+
+    // Get tiles in radius around city
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        const x = centerX + dx;
+        const y = centerY + dy;
+
+        if (dx * dx + dy * dy <= radius * radius) {
+          const mapTile = mapManager.getTile(x, y);
+          if (mapTile) {
+            const tileKey = `${x},${y}`;
+            tiles[tileKey] = {
+              x: mapTile.x,
+              y: mapTile.y,
+              terrain: mapTile.terrain,
+              visible: mapTile.isVisible,
+              known: mapTile.isExplored,
+              resource: mapTile.resource,
+              elevation: mapTile.elevation,
+              riverMask: mapTile.riverMask,
+              owner: mapTile.owner,
+              claimer: mapTile.claimer,
+              borderStrength: mapTile.borderStrength,
+            };
+
+            // Add city reference if present
+            if (mapTile.cityId) {
+              tiles[tileKey].city = mapTile.cityId;
+            }
+          }
+        }
+      }
+    }
+
+    return tiles;
+  }
+
+  /**
+   * Update actual map tiles with border data
+   */
+  private updateMapTiles(updatedTiles: Record<string, Tile>): void {
+    if (!this.config.mapManager) {
+      return;
+    }
+
+    const mapManager = this.config.mapManager;
+
+    for (const [, tile] of Object.entries(updatedTiles)) {
+      // Update border properties on the actual map tile
+      if (tile.owner !== undefined) {
+        mapManager.updateTileProperty(tile.x, tile.y, 'owner', tile.owner);
+      }
+      if (tile.claimer !== undefined) {
+        mapManager.updateTileProperty(tile.x, tile.y, 'claimer', tile.claimer);
+      }
+      if (tile.borderStrength !== undefined) {
+        mapManager.updateTileProperty(tile.x, tile.y, 'borderStrength', tile.borderStrength);
+      }
+    }
+
+    logger.debug('Updated map tiles with border data', {
+      tilesUpdated: Object.keys(updatedTiles).length,
+    });
   }
 }
