@@ -315,6 +315,14 @@ export class CityManagementHandler extends BaseSocketHandler {
       cityId,
     });
 
+    // Broadcast updated map data to all players to show border changes
+    const gameInstance = this.gameManager.getGameInstance(connection.gameId!);
+    if (gameInstance) {
+      const mapData = gameInstance.mapManager.getMapData();
+      this.gameManager.broadcastMapData(connection.gameId!, mapData);
+      logger.debug('Broadcasted map data after city founding for border updates');
+    }
+
     logger.debug('City founded', {
       gameId: connection.gameId,
       playerId: player.id,

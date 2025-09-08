@@ -228,7 +228,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     // Create managers
     const mapManager = this.createMapManager(game, terrainSettings);
     const turnManager = await this.createTurnManagerAndInitialize(gameId, players);
-    const cityManager = this.createCityManager(gameId);
+    const cityManager = this.createCityManager(gameId, mapManager);
     const unitManager = this.createUnitManager(gameId, game, mapManager, cityManager);
     const visibilityManager = this.createVisibilityManager(gameId, unitManager, mapManager);
     const researchManager = this.createResearchManager(gameId);
@@ -654,11 +654,17 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return tm;
   }
 
-  private createCityManager(gameId: string): CityManager {
-    return new CityManager(gameId, this.databaseProvider, undefined, {
-      createUnit: (_playerId: string, _unitType: string, _x: number, _y: number) =>
-        Promise.resolve(''),
-    });
+  private createCityManager(gameId: string, mapManager: MapManager): CityManager {
+    return new CityManager(
+      gameId,
+      this.databaseProvider,
+      undefined,
+      {
+        createUnit: (_playerId: string, _unitType: string, _x: number, _y: number) =>
+          Promise.resolve(''),
+      },
+      mapManager
+    );
   }
 
   private createUnitManager(

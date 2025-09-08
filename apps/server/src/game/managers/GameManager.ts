@@ -1041,4 +1041,11 @@ export class GameManager {
       return { success: false, error: 'Internal server error' };
     }
   }
+
+  /**
+   * Broadcast map data to all players in game - delegates to GameBroadcastManager
+   */
+  public broadcastMapData(gameId: string, mapData: any): void {
+    this.gameBroadcastManager.broadcastMapData(gameId, mapData);
+  }
 }
