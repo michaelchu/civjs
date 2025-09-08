@@ -9,8 +9,8 @@
     "summary": "All 52 unit types from freeciv classic ruleset with exact stats, classes, roles, flags, and technology requirements"
   },
   "units": {
-    "settlers": {
-      "id": "settlers",
+    "settler": {
+      "id": "settler",
       "name": "Settlers",
       "cost": 40,
       "movement": 1,

@@ -455,7 +455,7 @@ export class CityFoundingValidationService {
   // Helper methods for unit type classification
   private isLandUnit(unit: Unit): boolean {
     return [
-      'settlers',
+      'settler',
       'warrior',
       'phalanx',
       'archer',

@@ -31,8 +31,8 @@ export const UNIT_TYPES: Record<string, UnitType> = {
     canBuildImprovements: false,
     unitClass: 'military',
   },
-  settlers: {
-    id: 'settlers',
+  settler: {
+    id: 'settler',
     name: 'Settler',
     cost: 80,
     movement: 2 * SINGLE_MOVE, // 2 movement points = 6 fragments

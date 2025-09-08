@@ -309,7 +309,7 @@ export class ActionSystem {
    * Check if unit can found a city
    */
   private canFoundCity(unit: Unit): boolean {
-    if (unit.unitTypeId !== 'settlers' || unit.movementLeft <= 0) {
+    if (unit.unitTypeId !== 'settler' || unit.movementLeft <= 0) {
       return false;
     }
     return this.canFoundCityAtLocation(unit, unit.x, unit.y);
@@ -453,7 +453,7 @@ export class ActionSystem {
         // This would check unit capabilities from ruleset data
         // For now, simplified check based on unit type
         if (requirement.value === 'canFoundCity') {
-          return unit.unitTypeId === 'settlers';
+          return unit.unitTypeId === 'settler';
         }
         if (requirement.value === 'canBuildImprovements') {
           return unit.unitTypeId === 'worker';
@@ -581,7 +581,7 @@ export class ActionSystem {
     }
 
     // Validate that it's a settler
-    if (unit.unitTypeId !== 'settlers') {
+    if (unit.unitTypeId !== 'settler') {
       return {
         success: false,
         message: 'Only settlers can found cities',

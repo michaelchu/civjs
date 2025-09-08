@@ -380,7 +380,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
         expect(city.workingTiles.length).toBeGreaterThanOrEqual(1);
 
         // Create unit near city
-        const unitId = await gameManager.createUnit(gameId, playerId, 'settlers', 13, 12);
+        const unitId = await gameManager.createUnit(gameId, playerId, 'settler', 13, 12);
 
         // Unit should be able to move (not blocked by city growth)
         const moveResult = await game.unitManager.moveUnit(unitId, 14, 12);
@@ -409,7 +409,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
         gameManager.foundCity(gameId, playerId, 'City1', 5, 5),
         gameManager.foundCity(gameId, playerId, 'City2', 18, 18), // Avoid conflict with Athens at 15,15
         gameManager.createUnit(gameId, playerId, 'warrior', 6, 6),
-        gameManager.createUnit(gameId, playerId, 'settlers', 16, 16),
+        gameManager.createUnit(gameId, playerId, 'settler', 16, 16),
         gameManager.setPlayerResearch(gameId, playerId, 'pottery'),
       ]);
 

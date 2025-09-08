@@ -474,7 +474,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
       // Make some changes
       const cityId = await gameManager.foundCity(gameId, scenario.players[0].id, 'NewCity', 8, 8);
-      const unitId = await gameManager.createUnit(gameId, scenario.players[0].id, 'settlers', 9, 9);
+      const unitId = await gameManager.createUnit(gameId, scenario.players[0].id, 'settler', 9, 9);
 
       // Create new GameManager instance
       (GameManager as any).instance = null;
@@ -494,7 +494,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
       expect(city).toBeDefined();
       expect(city!.name).toBe('NewCity');
       expect(unit).toBeDefined();
-      expect(unit!.unitTypeId).toBe('settlers');
+      expect(unit!.unitTypeId).toBe('settler');
 
       newGameManager['games'].clear();
       newGameManager['playerToGame'].clear();

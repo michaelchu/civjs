@@ -383,7 +383,7 @@ export class GameManager {
           // @reference freeciv/server/plrhand.c - UTYF_CITYFOUNDATION flag
           const settler = await unitManager.createUnit(
             player.id,
-            'settlers',
+            'settler',
             startingPos.x,
             startingPos.y
           );

@@ -88,7 +88,7 @@
   },
   "founding_rules": {
     "no_cities_terrains": ["deep_ocean"],
-    "founding_units": ["Settlers", "Engineers"],
+    "founding_units": ["Settler", "Engineers"],
     "allow_foreign_territory": false,
     "enemy_units_block": true,
     "exploration_requirement": 0
