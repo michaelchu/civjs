@@ -129,10 +129,12 @@ export class BorderRenderer extends BaseRenderer {
     const tileHeight = this.tileHeight;
     const playerColor = this.playerColors.get(tile.owner) || '#FFFFFF';
 
-    // Set border style
-    ctx.strokeStyle = playerColor;
-    ctx.lineWidth = options.borderWidth;
-    ctx.globalAlpha = options.borderAlpha;
+    // Set border style - make borders more visible
+    // Use a bright test color for debugging - remove this when borders are working
+    ctx.strokeStyle = '#FF0000'; // Bright red for testing
+    // ctx.strokeStyle = playerColor;
+    ctx.lineWidth = 4; // Extra thick for testing
+    ctx.globalAlpha = 1.0; // Fully opaque for testing
 
     if (options.borderStyle === 'dashed') {
       ctx.setLineDash([5, 3]);
@@ -161,16 +163,17 @@ export class BorderRenderer extends BaseRenderer {
       const neighborKey = `${neighbor.x},${neighbor.y}`;
       const neighborTile = allTiles[neighborKey];
 
-      // Draw border if neighbor is different owner or no neighbor exists (map edge)
+      // Draw border only if neighbor has different owner (matching freeciv-web logic)
+      // Don't draw on map edges or visibility boundaries for now
       const shouldDrawBorder =
-        !neighborTile || neighborTile.owner !== tile.owner || !neighborTile.visible;
+        neighborTile && neighborTile.owner && neighborTile.owner !== tile.owner;
 
       debugInfo.push({
         side: neighbor.side,
         neighborExists: !!neighborTile,
         neighborOwner: neighborTile?.owner,
-        neighborVisible: neighborTile?.visible,
-        shouldDrawBorder,
+        neighborVisible: neighborTile?.visible ?? false,
+        shouldDrawBorder: !!shouldDrawBorder,
       });
 
       if (shouldDrawBorder) {
@@ -196,7 +199,7 @@ export class BorderRenderer extends BaseRenderer {
 
   /**
    * Draw a border line on one side of a tile
-   * Based on isometric tile geometry from freeciv-web
+   * Based on freeciv-web's mapview_put_border_line function
    */
   private drawBorderSide(
     ctx: CanvasRenderingContext2D,
@@ -205,38 +208,32 @@ export class BorderRenderer extends BaseRenderer {
     tileWidth: number,
     tileHeight: number
   ): void {
-    const centerX = screenPos.x + tileWidth / 2;
-    const centerY = screenPos.y + tileHeight / 2;
-    const halfWidth = tileWidth / 2;
-    const halfHeight = tileHeight / 2;
+    // Reference coordinates based on freeciv-web (adjusted for our tile size)
+    const x = screenPos.x + tileWidth * 0.5; // Roughly equivalent to canvas_x + 47
+    const y = screenPos.y + tileHeight * 0.1; // Roughly equivalent to canvas_y + 3
 
     ctx.beginPath();
 
+    // Simplified line drawing based on freeciv-web reference
     switch (side) {
       case 'north':
-        // Top edge of diamond
-        ctx.moveTo(centerX - halfWidth, centerY);
-        ctx.lineTo(centerX, centerY - halfHeight);
-        ctx.lineTo(centerX + halfWidth, centerY);
+        ctx.moveTo(x, y - 2);
+        ctx.lineTo(x + tileWidth / 2, y + tileHeight / 2 - 2);
         break;
 
       case 'east':
-        // Right edge of diamond
-        ctx.moveTo(centerX + halfWidth, centerY);
-        ctx.lineTo(centerX, centerY + halfHeight);
+        ctx.moveTo(x - 3, y + tileHeight - 3);
+        ctx.lineTo(x + tileWidth / 2 - 3, y + tileHeight / 2 - 3);
         break;
 
       case 'south':
-        // Bottom edge of diamond
-        ctx.moveTo(centerX + halfWidth, centerY);
-        ctx.lineTo(centerX, centerY + halfHeight);
-        ctx.lineTo(centerX - halfWidth, centerY);
+        ctx.moveTo(x - tileWidth / 2 + 3, y + tileHeight / 2 - 3);
+        ctx.lineTo(x + 3, y + tileHeight - 3);
         break;
 
       case 'west':
-        // Left edge of diamond
-        ctx.moveTo(centerX - halfWidth, centerY);
-        ctx.lineTo(centerX, centerY - halfHeight);
+        ctx.moveTo(x - tileWidth / 2 + 3, y + tileHeight / 2 - 3);
+        ctx.lineTo(x + 3, y - 3);
         break;
     }
 
