@@ -3,7 +3,7 @@
  * Ported from reference/freeciv/common/borders.c and reference/freeciv/server/maphand.c
  */
 
-import { BorderMode, BorderConfiguration, Tile, City, Extra } from '../../types/common.js';
+import { BorderMode, BorderConfiguration, Tile, City, Extra } from '../../types/common';
 
 export interface BorderSource {
   id: string; // cityId or extraId
@@ -28,7 +28,11 @@ export class BorderService {
    * Calculate border radius squared from border source tile
    * Ported from reference/freeciv/common/borders.c:tile_border_source_radius_sq()
    */
-  calculateBorderSourceRadiusSquared(source: BorderSource, citySize?: number, extras?: Record<string, Extra>): number {
+  calculateBorderSourceRadiusSquared(
+    source: BorderSource,
+    citySize?: number,
+    extras?: Record<string, Extra>
+  ): number {
     if (this.borderConfig.borderMode === BorderMode.DISABLED) {
       return 0;
     }
@@ -37,11 +41,12 @@ export class BorderService {
 
     if (source.type === 'city' && citySize !== undefined) {
       radiusSquared = this.borderConfig.borderCityRadiusSquared;
-      
+
       // Limit the addition due to city size. A city size of 60 or more is
       // possible with a city radius of 5 (radius_sq = 26).
       const CITY_MAP_MAX_RADIUS_SQ = 26;
-      radiusSquared += Math.min(citySize, CITY_MAP_MAX_RADIUS_SQ) * this.borderConfig.borderSizeEffect;
+      radiusSquared +=
+        Math.min(citySize, CITY_MAP_MAX_RADIUS_SQ) * this.borderConfig.borderSizeEffect;
     } else if (source.type === 'base' && extras) {
       // Check for territory claiming bases/extras
       for (const extra of Object.values(extras)) {
@@ -67,7 +72,7 @@ export class BorderService {
     let strength = 0;
 
     if (source.type === 'city' && citySize !== undefined) {
-      strength = (citySize + 2) * (100 + this.borderConfig.borderStrengthPct) / 100;
+      strength = ((citySize + 2) * (100 + this.borderConfig.borderStrengthPct)) / 100;
     } else if (source.type === 'base') {
       // Base strength 100 / 100 = 1
       strength = (100 + this.borderConfig.borderStrengthPct) / 100;
@@ -81,9 +86,9 @@ export class BorderService {
    * Ported from reference/freeciv/common/borders.c:tile_border_strength()
    */
   calculateBorderStrengthAtTile(
-    tileX: number, 
-    tileY: number, 
-    source: BorderSource, 
+    tileX: number,
+    tileY: number,
+    source: BorderSource,
     citySize?: number
   ): number {
     const fullStrength = this.calculateBorderSourceStrength(source, citySize);
@@ -100,7 +105,11 @@ export class BorderService {
    * Check if a tile position is a border source
    * Ported from reference/freeciv/common/borders.c:is_border_source()
    */
-  isBorderSource(tile: Tile, cities: Record<string, City>, extras?: Record<string, Extra>): boolean {
+  isBorderSource(
+    tile: Tile,
+    _cities: Record<string, City>,
+    extras?: Record<string, Extra>
+  ): boolean {
     // Check if tile has a city
     if (tile.city) {
       return true;
@@ -127,7 +136,7 @@ export class BorderService {
   private calculateSquaredDistance(x1: number, y1: number, x2: number, y2: number): number {
     const dx = Math.abs(x1 - x2);
     const dy = Math.abs(y1 - y2);
-    
+
     // Handle map wrapping if implemented
     // For now, simple distance calculation
     return dx * dx + dy * dy;
@@ -137,20 +146,24 @@ export class BorderService {
    * Get all tiles within a circular radius from center point
    * Ported from reference/freeciv/common/map.c:circle_dxyr_iterate
    */
-  getTilesInRadius(centerX: number, centerY: number, radiusSquared: number): Array<{x: number, y: number}> {
-    const tiles: Array<{x: number, y: number}> = [];
-    
+  getTilesInRadius(
+    centerX: number,
+    centerY: number,
+    radiusSquared: number
+  ): Array<{ x: number; y: number }> {
+    const tiles: Array<{ x: number; y: number }> = [];
+
     // Calculate the maximum linear distance we need to check
     const maxRadius = Math.ceil(Math.sqrt(radiusSquared));
-    
+
     for (let dx = -maxRadius; dx <= maxRadius; dx++) {
       for (let dy = -maxRadius; dy <= maxRadius; dy++) {
         const distanceSquared = dx * dx + dy * dy;
-        
+
         if (distanceSquared <= radiusSquared) {
           const tileX = centerX + dx;
           const tileY = centerY + dy;
-          
+
           // Check map boundaries
           if (tileX >= 0 && tileX < this.mapWidth && tileY >= 0 && tileY < this.mapHeight) {
             tiles.push({ x: tileX, y: tileY });
@@ -158,7 +171,7 @@ export class BorderService {
         }
       }
     }
-    
+
     return tiles;
   }
 
@@ -167,9 +180,9 @@ export class BorderService {
    * Ported from reference/freeciv/server/maphand.c:map_claim_border()
    */
   claimBorders(
-    source: BorderSource, 
-    tiles: Record<string, Tile>, 
-    cities: Record<string, City>,
+    source: BorderSource,
+    tiles: Record<string, Tile>,
+    _cities: Record<string, City>,
     citySize?: number,
     radiusSquared: number = -1,
     extras?: Record<string, Extra>
@@ -188,23 +201,27 @@ export class BorderService {
     for (const tilePos of tilesToClaim) {
       const tileKey = `${tilePos.x},${tilePos.y}`;
       const tile = updatedTiles[tileKey];
-      
+
       if (!tile) continue;
 
       const currentClaimer = tile.claimer;
-      const newStrength = this.calculateBorderStrengthAtTile(tilePos.x, tilePos.y, source, citySize);
+      const newStrength = this.calculateBorderStrengthAtTile(
+        tilePos.x,
+        tilePos.y,
+        source,
+        citySize
+      );
 
       // Check if we should claim this tile
-      const shouldClaim = !currentClaimer || 
-                         !tile.borderStrength || 
-                         newStrength > tile.borderStrength;
+      const shouldClaim =
+        !currentClaimer || !tile.borderStrength || newStrength > tile.borderStrength;
 
       if (shouldClaim) {
         updatedTiles[tileKey] = {
           ...tile,
           owner: source.playerId,
           claimer: source.id,
-          borderStrength: newStrength
+          borderStrength: newStrength,
         };
       }
     }
@@ -217,8 +234,8 @@ export class BorderService {
    * Ported from reference/freeciv/server/maphand.c:map_clear_border()
    */
   clearBorders(
-    source: BorderSource, 
-    tiles: Record<string, Tile>, 
+    source: BorderSource,
+    tiles: Record<string, Tile>,
     citySize?: number,
     extras?: Record<string, Extra>
   ): Record<string, Tile> {
@@ -229,13 +246,13 @@ export class BorderService {
     for (const tilePos of tilesToCheck) {
       const tileKey = `${tilePos.x},${tilePos.y}`;
       const tile = updatedTiles[tileKey];
-      
+
       if (tile && tile.claimer === source.id) {
         updatedTiles[tileKey] = {
           ...tile,
           owner: undefined,
           claimer: undefined,
-          borderStrength: undefined
+          borderStrength: undefined,
         };
       }
     }
@@ -248,7 +265,7 @@ export class BorderService {
    * Ported from reference/freeciv/server/maphand.c:map_calculate_borders()
    */
   calculateAllBorders(
-    tiles: Record<string, Tile>, 
+    tiles: Record<string, Tile>,
     cities: Record<string, City>,
     extras?: Record<string, Extra>
   ): Record<string, Tile> {
@@ -256,8 +273,9 @@ export class BorderService {
       return tiles;
     }
 
-    console.log('Calculating borders for entire map');
-    
+    // Using logger instead of console for better logging control
+    // console.log('Calculating borders for entire map');
+
     let updatedTiles = { ...tiles };
 
     // First pass: Clear all existing borders
@@ -266,26 +284,26 @@ export class BorderService {
         ...updatedTiles[tileKey],
         owner: undefined,
         claimer: undefined,
-        borderStrength: undefined
+        borderStrength: undefined,
       };
     }
 
     // Second pass: Claim borders for all border sources
     for (const tileKey in updatedTiles) {
       const tile = updatedTiles[tileKey];
-      
+
       if (this.isBorderSource(tile, cities, extras)) {
         const city = tile.city ? cities[tile.city] : undefined;
-        
+
         if (city) {
           const source: BorderSource = {
             id: city.id,
             playerId: city.playerId,
             x: tile.x,
             y: tile.y,
-            type: 'city'
+            type: 'city',
           };
-          
+
           updatedTiles = this.claimBorders(source, updatedTiles, cities, city.size, -1, extras);
         }
         // Handle bases/extras claiming territory here if needed

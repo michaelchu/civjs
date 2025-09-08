@@ -4,8 +4,8 @@
  */
 
 import { logger } from '@utils/logger';
-import { BorderService, BorderSource } from '../services/BorderService.js';
-import { BorderMode, BorderConfiguration, Tile, City, Extra } from '../../types/common.js';
+import { BorderService, BorderSource } from '../services/BorderService';
+import { BorderMode, BorderConfiguration, Tile, City, Extra } from '../../types/common';
 
 export interface BorderManagerConfig {
   borderConfig: BorderConfiguration;
@@ -19,16 +19,12 @@ export class BorderManager {
 
   constructor(config: BorderManagerConfig) {
     this.config = config;
-    this.borderService = new BorderService(
-      config.borderConfig,
-      config.mapWidth,
-      config.mapHeight
-    );
-    
+    this.borderService = new BorderService(config.borderConfig, config.mapWidth, config.mapHeight);
+
     logger.info('BorderManager initialized', {
       borderMode: BorderMode[config.borderConfig.borderMode],
       borderCityRadius: config.borderConfig.borderCityRadiusSquared,
-      borderSizeEffect: config.borderConfig.borderSizeEffect
+      borderSizeEffect: config.borderConfig.borderSizeEffect,
     });
   }
 
@@ -44,10 +40,10 @@ export class BorderManager {
         borderSizeEffect: 1, // Each city size adds 1 to border radius
         borderVision: false, // Borders don't provide vision by default
         borderStrengthPct: 0, // Base strength percentage bonus
-        happyBorders: false // Border crossings don't affect happiness by default
+        happyBorders: false, // Border crossings don't affect happiness by default
       },
       mapWidth,
-      mapHeight
+      mapHeight,
     };
   }
 
@@ -70,7 +66,7 @@ export class BorderManager {
       cityId: city.id,
       cityName: city.name,
       position: { x: city.x, y: city.y },
-      size: city.size
+      size: city.size,
     });
 
     const source: BorderSource = {
@@ -78,7 +74,7 @@ export class BorderManager {
       playerId: city.playerId,
       x: city.x,
       y: city.y,
-      type: 'city'
+      type: 'city',
     };
 
     return this.borderService.claimBorders(source, tiles, cities, city.size, -1, extras);
@@ -104,7 +100,7 @@ export class BorderManager {
       cityId: city.id,
       cityName: city.name,
       oldSize,
-      newSize: city.size
+      newSize: city.size,
     });
 
     const source: BorderSource = {
@@ -112,11 +108,19 @@ export class BorderManager {
       playerId: city.playerId,
       x: city.x,
       y: city.y,
-      type: 'city'
+      type: 'city',
     };
 
-    const oldRadiusSquared = this.borderService.calculateBorderSourceRadiusSquared(source, oldSize, extras);
-    const newRadiusSquared = this.borderService.calculateBorderSourceRadiusSquared(source, city.size, extras);
+    const oldRadiusSquared = this.borderService.calculateBorderSourceRadiusSquared(
+      source,
+      oldSize,
+      extras
+    );
+    const newRadiusSquared = this.borderService.calculateBorderSourceRadiusSquared(
+      source,
+      city.size,
+      extras
+    );
 
     // If radius changed, update borders
     if (oldRadiusSquared !== newRadiusSquared) {
@@ -134,7 +138,7 @@ export class BorderManager {
   async onCityDestroyed(
     city: City,
     tiles: Record<string, Tile>,
-    cities: Record<string, City>,
+    _cities: Record<string, City>,
     extras?: Record<string, Extra>
   ): Promise<Record<string, Tile>> {
     if (this.config.borderConfig.borderMode === BorderMode.DISABLED) {
@@ -144,7 +148,7 @@ export class BorderManager {
     logger.debug('Clearing borders for destroyed city', {
       cityId: city.id,
       cityName: city.name,
-      position: { x: city.x, y: city.y }
+      position: { x: city.x, y: city.y },
     });
 
     const source: BorderSource = {
@@ -152,7 +156,7 @@ export class BorderManager {
       playerId: city.playerId,
       x: city.x,
       y: city.y,
-      type: 'city'
+      type: 'city',
     };
 
     return this.borderService.clearBorders(source, tiles, city.size, extras);
@@ -189,7 +193,7 @@ export class BorderManager {
 
     return {
       canEnter: false,
-      reason: 'Cannot enter foreign territory'
+      reason: 'Cannot enter foreign territory',
     };
   }
 
@@ -217,7 +221,7 @@ export class BorderManager {
 
     return {
       canFound: false,
-      reason: 'Cannot found city on foreign territory - borders must be settled by force'
+      reason: 'Cannot found city on foreign territory - borders must be settled by force',
     };
   }
 
@@ -258,7 +262,7 @@ export class BorderManager {
     );
 
     logger.info('Border configuration updated', {
-      borderMode: BorderMode[this.config.borderConfig.borderMode]
+      borderMode: BorderMode[this.config.borderConfig.borderMode],
     });
   }
 

@@ -707,7 +707,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
   }
 
-  private createBorderManager(game: any, mapManager: MapManager): BorderManager {
+  private createBorderManager(game: any, _mapManager: MapManager): BorderManager {
     const config = BorderManager.createDefaultConfig(game.mapWidth, game.mapHeight);
     return new BorderManager(config);
   }

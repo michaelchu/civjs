@@ -4,7 +4,7 @@
  */
 
 import { BorderService, BorderSource } from '../BorderService';
-import { BorderMode, BorderConfiguration, City } from '../../types/common';
+import { BorderMode, BorderConfiguration, City } from '../../../types/common';
 
 describe('BorderService', () => {
   const mockBorderConfig: BorderConfiguration = {
@@ -13,7 +13,7 @@ describe('BorderService', () => {
     borderSizeEffect: 1, // Each city size adds 1 to radius
     borderVision: false,
     borderStrengthPct: 0,
-    happyBorders: false
+    happyBorders: false,
   };
 
   let borderService: BorderService;
@@ -30,11 +30,11 @@ describe('BorderService', () => {
         playerId: 'player1',
         x: 10,
         y: 10,
-        type: 'city'
+        type: 'city',
       };
 
       const radiusSquared = borderService.calculateBorderSourceRadiusSquared(source, 1);
-      
+
       // Expected: base radius (17) + city size effect (1 * 1) = 18
       expect(radiusSquared).toBe(18);
     });
@@ -45,11 +45,11 @@ describe('BorderService', () => {
         playerId: 'player1',
         x: 10,
         y: 10,
-        type: 'city'
+        type: 'city',
       };
 
       const radiusSquared = borderService.calculateBorderSourceRadiusSquared(source, 5);
-      
+
       // Expected: base radius (17) + city size effect (5 * 1) = 22
       expect(radiusSquared).toBe(22);
     });
@@ -60,12 +60,12 @@ describe('BorderService', () => {
         playerId: 'player1',
         x: 10,
         y: 10,
-        type: 'city'
+        type: 'city',
       };
 
       // Test very large city size (should be capped)
       const radiusSquared = borderService.calculateBorderSourceRadiusSquared(source, 100);
-      
+
       // Expected: base radius (17) + max city size effect (26 * 1) = 43
       // Reference: CITY_MAP_MAX_RADIUS_SQ = 26
       expect(radiusSquared).toBe(43);
@@ -74,7 +74,7 @@ describe('BorderService', () => {
     it('should return 0 when borders are disabled', () => {
       const disabledConfig: BorderConfiguration = {
         ...mockBorderConfig,
-        borderMode: BorderMode.DISABLED
+        borderMode: BorderMode.DISABLED,
       };
       const disabledService = new BorderService(disabledConfig, 50, 50);
 
@@ -83,7 +83,7 @@ describe('BorderService', () => {
         playerId: 'player1',
         x: 10,
         y: 10,
-        type: 'city'
+        type: 'city',
       };
 
       const radiusSquared = disabledService.calculateBorderSourceRadiusSquared(source, 5);
@@ -99,11 +99,11 @@ describe('BorderService', () => {
         playerId: 'player1',
         x: 10,
         y: 10,
-        type: 'city'
+        type: 'city',
       };
 
       const strength = borderService.calculateBorderSourceStrength(source, 5);
-      
+
       // Expected: (city_size + 2) * (100 + strength_pct) / 100
       // (5 + 2) * (100 + 0) / 100 = 7
       expect(strength).toBe(7);
@@ -112,7 +112,7 @@ describe('BorderService', () => {
     it('should apply strength percentage bonuses', () => {
       const bonusConfig: BorderConfiguration = {
         ...mockBorderConfig,
-        borderStrengthPct: 50 // 50% bonus
+        borderStrengthPct: 50, // 50% bonus
       };
       const bonusService = new BorderService(bonusConfig, 50, 50);
 
@@ -121,11 +121,11 @@ describe('BorderService', () => {
         playerId: 'player1',
         x: 10,
         y: 10,
-        type: 'city'
+        type: 'city',
       };
 
       const strength = bonusService.calculateBorderSourceStrength(source, 5);
-      
+
       // Expected: (5 + 2) * (100 + 50) / 100 = 10.5
       expect(strength).toBe(10.5);
     });
@@ -137,7 +137,7 @@ describe('BorderService', () => {
         playerId: 'player1',
         x: 10,
         y: 10,
-        type: 'city'
+        type: 'city',
       };
 
       const strengthAtSource = borderService.calculateBorderStrengthAtTile(10, 10, source, 5);
@@ -145,7 +145,7 @@ describe('BorderService', () => {
 
       // Strength at source should be maximum (infinity in original)
       expect(strengthAtSource).toBe(Number.MAX_SAFE_INTEGER);
-      
+
       // Strength should decrease with distance
       expect(strengthNearby).toBeLessThan(strengthAtSource);
       expect(strengthNearby).toBeGreaterThan(0);
@@ -155,20 +155,20 @@ describe('BorderService', () => {
   describe('Tile Radius Calculation', () => {
     it('should return tiles within circular radius', () => {
       const tiles = borderService.getTilesInRadius(10, 10, 5);
-      
+
       // Should include center tile
       expect(tiles).toContainEqual({ x: 10, y: 10 });
-      
+
       // Should include tiles at distance sqrt(5) or less
       expect(tiles).toContainEqual({ x: 12, y: 11 }); // distance^2 = 5
-      
+
       // Should not include tiles outside radius
       expect(tiles).not.toContainEqual({ x: 13, y: 13 }); // distance^2 = 18
     });
 
     it('should respect map boundaries', () => {
       const tiles = borderService.getTilesInRadius(1, 1, 10);
-      
+
       // Should not return tiles with negative coordinates
       const negativeTiles = tiles.filter(tile => tile.x < 0 || tile.y < 0);
       expect(negativeTiles).toHaveLength(0);
@@ -182,7 +182,7 @@ describe('BorderService', () => {
         playerId: 'player1',
         x: 10,
         y: 10,
-        type: 'city'
+        type: 'city',
       };
 
       const initialTiles = {
@@ -192,14 +192,14 @@ describe('BorderService', () => {
       };
 
       const cities = {
-        'city1': {
+        city1: {
           id: 'city1',
           name: 'TestCity',
           playerId: 'player1',
           x: 10,
           y: 10,
-          size: 1
-        } as City
+          size: 1,
+        } as City,
       };
 
       const updatedTiles = borderService.claimBorders(source, initialTiles, cities, 1, -1);
@@ -217,7 +217,7 @@ describe('BorderService', () => {
         playerId: 'player1',
         x: 10,
         y: 10,
-        type: 'city'
+        type: 'city',
       };
 
       const source2: BorderSource = {
@@ -225,7 +225,7 @@ describe('BorderService', () => {
         playerId: 'player2',
         x: 12,
         y: 10,
-        type: 'city'
+        type: 'city',
       };
 
       const initialTiles = {
@@ -233,13 +233,13 @@ describe('BorderService', () => {
       };
 
       const cities = {
-        'city1': { id: 'city1', name: 'City1', playerId: 'player1', x: 10, y: 10, size: 1 } as City,
-        'city2': { id: 'city2', name: 'City2', playerId: 'player2', x: 12, y: 10, size: 3 } as City
+        city1: { id: 'city1', name: 'City1', playerId: 'player1', x: 10, y: 10, size: 1 } as City,
+        city2: { id: 'city2', name: 'City2', playerId: 'player2', x: 12, y: 10, size: 3 } as City,
       };
 
       // First city claims
       let updatedTiles = borderService.claimBorders(source1, initialTiles, cities, 1, -1);
-      
+
       // Second (larger) city claims - should override due to higher strength
       updatedTiles = borderService.claimBorders(source2, updatedTiles, cities, 3, -1);
 
@@ -253,13 +253,13 @@ describe('BorderService', () => {
     it('should match reference implementation defaults', () => {
       // Test against known freeciv default values
       // Reference: freeciv/server/settings.c default border settings
-      
+
       const source: BorderSource = {
         id: 'city1',
         playerId: 'player1',
         x: 25,
         y: 25,
-        type: 'city'
+        type: 'city',
       };
 
       // Size 1 city with default settings

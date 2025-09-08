@@ -3,7 +3,7 @@ export enum BorderMode {
   DISABLED = 0,
   ENABLED = 1,
   SEE_INSIDE = 2,
-  EXPAND = 3
+  EXPAND = 3,
 }
 
 // Basic game types

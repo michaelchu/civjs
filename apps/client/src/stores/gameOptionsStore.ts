@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import { BorderRenderOptions } from '../components/Canvas2D/renderers/BorderRenderer';
+import type { BorderRenderOptions } from '../components/Canvas2D/renderers/BorderRenderer';
 
 export interface GameOptions {
   // Border display options - ported from reference/freeciv-web/options.js:96
@@ -12,7 +12,7 @@ export interface GameOptions {
   borderWidth: number;
   borderAlpha: number;
   borderStyle: 'solid' | 'dashed';
-  
+
   // Other rendering options for future expansion
   drawCities: boolean;
   drawUnits: boolean;
@@ -43,16 +43,16 @@ const DEFAULT_OPTIONS: GameOptions = {
 
 export const useGameOptionsStore = create<GameOptionsState>((set, get) => ({
   options: DEFAULT_OPTIONS,
-  
+
   updateOption: <K extends keyof GameOptions>(key: K, value: GameOptions[K]) => {
-    set((state) => ({
+    set(state => ({
       options: {
         ...state.options,
         [key]: value,
       },
     }));
   },
-  
+
   getBorderRenderOptions: () => {
     const { options } = get();
     return {
@@ -62,7 +62,7 @@ export const useGameOptionsStore = create<GameOptionsState>((set, get) => ({
       borderStyle: options.borderStyle,
     };
   },
-  
+
   resetToDefaults: () => {
     set({ options: DEFAULT_OPTIONS });
   },
@@ -71,25 +71,27 @@ export const useGameOptionsStore = create<GameOptionsState>((set, get) => ({
 // Helper function to integrate with legacy freeciv-web global options
 // This maintains compatibility while providing modern state management
 export const syncWithFreecivWebOptions = () => {
-  const globalOptions = (window as any).client_options;
+  const globalOptions = (window as unknown as { client_options?: Record<string, unknown> })
+    .client_options;
   if (globalOptions) {
     const store = useGameOptionsStore.getState();
-    
+
     // Update our store with freeciv-web options if they exist
-    if (typeof globalOptions.draw_borders !== 'undefined') {
-      store.updateOption('drawBorders', globalOptions.draw_borders);
+    const options = globalOptions as Record<string, unknown>;
+    if (typeof options.draw_borders !== 'undefined') {
+      store.updateOption('drawBorders', options.draw_borders as boolean);
     }
-    if (typeof globalOptions.draw_cities !== 'undefined') {
-      store.updateOption('drawCities', globalOptions.draw_cities);
+    if (typeof options.draw_cities !== 'undefined') {
+      store.updateOption('drawCities', options.draw_cities as boolean);
     }
-    if (typeof globalOptions.draw_units !== 'undefined') {
-      store.updateOption('drawUnits', globalOptions.draw_units);
+    if (typeof options.draw_units !== 'undefined') {
+      store.updateOption('drawUnits', options.draw_units as boolean);
     }
-    if (typeof globalOptions.draw_fog_of_war !== 'undefined') {
-      store.updateOption('drawFogOfWar', globalOptions.draw_fog_of_war);
+    if (typeof options.draw_fog_of_war !== 'undefined') {
+      store.updateOption('drawFogOfWar', options.draw_fog_of_war as boolean);
     }
-    if (typeof globalOptions.draw_resources !== 'undefined') {
-      store.updateOption('drawResources', globalOptions.draw_resources);
+    if (typeof options.draw_resources !== 'undefined') {
+      store.updateOption('drawResources', options.draw_resources as boolean);
     }
   }
 };

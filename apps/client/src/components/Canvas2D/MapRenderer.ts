@@ -45,7 +45,12 @@ export class MapRenderer {
     this.unitRenderer = new UnitRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
     this.cityRenderer = new CityRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
     this.pathRenderer = new PathRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
-    this.borderRenderer = new BorderRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
+    this.borderRenderer = new BorderRenderer(
+      ctx,
+      this.tilesetLoader,
+      this.tileWidth,
+      this.tileHeight
+    );
   }
 
   async initialize(): Promise<void> {
@@ -81,7 +86,7 @@ export class MapRenderer {
     this.ctx.font = '14px Arial, sans-serif';
   }
 
-  render(state: RenderState) {
+  async render(state: RenderState) {
     // Invalidate terrain cache if tiles data has changed
     this.terrainRenderer.invalidateTileCache();
 
@@ -131,7 +136,7 @@ export class MapRenderer {
     // Render borders after terrain but before units
     // Ported from reference/freeciv-web border rendering logic
     const globalPlayers = (window as any).players;
-    
+
     if (globalPlayers) {
       // Use modern options store with fallback to global options for compatibility
       let borderOptions;
@@ -147,10 +152,10 @@ export class MapRenderer {
           showBorders: globalOptions?.draw_borders ?? true,
           borderWidth: 2,
           borderAlpha: 0.8,
-          borderStyle: 'solid' as const
+          borderStyle: 'solid' as const,
         };
       }
-      
+
       if (borderOptions.showBorders) {
         // Convert global tiles to our tile format for border rendering
         const tilesRecord: Record<string, any> = {};
@@ -160,10 +165,10 @@ export class MapRenderer {
             y: tile.y,
             visible: true,
             owner: tile.owner, // This will need to be populated from border calculations
-            terrain: tile.terrain
+            terrain: tile.terrain,
           };
         });
-        
+
         this.borderRenderer.render(tilesRecord, globalPlayers, state, borderOptions);
       }
     }
