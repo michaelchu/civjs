@@ -93,7 +93,22 @@ export class BorderRenderer extends BaseRenderer {
 
     let bordersDrawn = 0;
 
-    // Render borders between tiles with different owners
+    // DEBUG: Temporarily force test borders for debugging
+    // Create fake ownership data to test border rendering
+    const visibleTiles = Object.values(tiles)
+      .filter(tile => tile.visible)
+      .slice(0, 20);
+    if (visibleTiles.length > 3) {
+      // Force ownership on some tiles for testing
+      for (let i = 0; i < Math.min(5, visibleTiles.length); i++) {
+        const tile = visibleTiles[i];
+        const ownedTile = { ...tile, owner: i < 3 ? 'player1' : 'player2' };
+        tiles[`${tile.x},${tile.y}`] = ownedTile;
+      }
+      console.log('[BorderRenderer] DEBUG: Added fake ownership to first 5 visible tiles');
+    }
+
+    // Render actual borders between tiles with different owners
     for (const tileKey in tiles) {
       const tile = tiles[tileKey];
       if (!tile.visible || !tile.owner) continue;
@@ -208,36 +223,43 @@ export class BorderRenderer extends BaseRenderer {
     tileWidth: number,
     tileHeight: number
   ): void {
-    // Reference coordinates based on freeciv-web (adjusted for our tile size)
-    const x = screenPos.x + tileWidth * 0.5; // Roughly equivalent to canvas_x + 47
-    const y = screenPos.y + tileHeight * 0.1; // Roughly equivalent to canvas_y + 3
+    // DEBUG: Draw a very obvious border that we can't miss
+    // Just draw a simple rectangle around the tile for now
+    const x = screenPos.x;
+    const y = screenPos.y;
 
     ctx.beginPath();
+    ctx.strokeStyle = '#FF0000'; // Bright red
+    ctx.lineWidth = 8; // Very thick
+    ctx.globalAlpha = 1.0; // Fully opaque
 
-    // Simplified line drawing based on freeciv-web reference
+    // Draw a simple rectangle around the tile
     switch (side) {
       case 'north':
-        ctx.moveTo(x, y - 2);
-        ctx.lineTo(x + tileWidth / 2, y + tileHeight / 2 - 2);
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + tileWidth, y);
         break;
 
       case 'east':
-        ctx.moveTo(x - 3, y + tileHeight - 3);
-        ctx.lineTo(x + tileWidth / 2 - 3, y + tileHeight / 2 - 3);
+        ctx.moveTo(x + tileWidth, y);
+        ctx.lineTo(x + tileWidth, y + tileHeight);
         break;
 
       case 'south':
-        ctx.moveTo(x - tileWidth / 2 + 3, y + tileHeight / 2 - 3);
-        ctx.lineTo(x + 3, y + tileHeight - 3);
+        ctx.moveTo(x + tileWidth, y + tileHeight);
+        ctx.lineTo(x, y + tileHeight);
         break;
 
       case 'west':
-        ctx.moveTo(x - tileWidth / 2 + 3, y + tileHeight / 2 - 3);
-        ctx.lineTo(x + 3, y - 3);
+        ctx.moveTo(x, y + tileHeight);
+        ctx.lineTo(x, y);
         break;
     }
 
     ctx.stroke();
+    console.log(
+      `[BorderRenderer] Drew ${side} border at (${x},${y}) with size ${tileWidth}x${tileHeight}`
+    );
   }
 
   /**

@@ -175,6 +175,40 @@ export class MapRenderer {
           }
         });
 
+        // Debug: Log sample tiles to see what data we have
+        console.log('[MapRenderer] Sample tile data for border debugging:', {
+          sampleTiles: visibleTiles.slice(0, 3).map((tile: any) => ({
+            x: tile.x,
+            y: tile.y,
+            owner: tile.owner,
+            claimer: tile.claimer,
+            borderStrength: tile.borderStrength,
+            terrain: tile.terrain,
+            keys: Object.keys(tile).sort(),
+          })),
+          globalTilesWithOwnershipData: visibleTiles.filter((tile: any) => tile.owner).length,
+          totalVisibleTiles: visibleTiles.length,
+        });
+
+        // Also check the raw global tiles array structure
+        console.log('[MapRenderer] Raw global tiles sample:', {
+          firstTileKeys: globalTiles[0] ? Object.keys(globalTiles[0]).sort() : 'no tiles',
+          firstThreeTiles: globalTiles.slice(0, 3).map((tile: any) => ({
+            x: tile?.x,
+            y: tile?.y,
+            owner: tile?.owner,
+            claimer: tile?.claimer,
+            borderStrength: tile?.borderStrength,
+            allProps: tile
+              ? Object.keys(tile)
+                  .filter(
+                    key => key.includes('owner') || key.includes('border') || key.includes('claim')
+                  )
+                  .sort()
+              : [],
+          })),
+        });
+
         console.log('[MapRenderer] border rendering data:', {
           visibleTilesCount: visibleTiles.length,
           tilesWithOwners,
