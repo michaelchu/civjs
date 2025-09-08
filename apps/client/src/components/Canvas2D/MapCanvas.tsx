@@ -370,6 +370,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const currentRenderViewport = useRef(viewport);
   const dragStartTime = useRef<number>(0);
   const DRAG_THRESHOLD = 5; // pixels
+  const LONG_PRESS_MS = 500; // touch and hold duration to emulate right-click
+  const longPressTimeoutRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef<boolean>(false);
 
   // Deactivate goto mode
   const deactivateGotoMode = useCallback(() => {
@@ -651,7 +654,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     [isDragging, setViewport, selectUnit, units, viewport, gotoMode.active, executeGoto]
   );
 
-  // Touch event handlers for mobile panning
+  // Touch event handlers for mobile panning + actions
   const handleTouchStart = useCallback(
     (event: React.TouchEvent<HTMLCanvasElement>) => {
       if (event.touches.length !== 1) return; // Only handle single touch
@@ -664,21 +667,72 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       const canvasX = touch.clientX - rect.left;
       const canvasY = touch.clientY - rect.top;
 
-      // Start dragging - same logic as mouse
-      setIsDragging(true);
+      // Close any open context menu
+      setContextMenu(null);
+
+      // Prepare drag like mouse: don't set dragging until we move beyond threshold
+      setIsDragging(false);
       dragStart.current = { x: canvasX, y: canvasY };
       dragStartViewport.current = viewport;
       currentRenderViewport.current = viewport;
+      dragStartTime.current = Date.now();
+
+      longPressFiredRef.current = false;
+      // Schedule long-press to emulate right click/context menu
+      if (longPressTimeoutRef.current) {
+        window.clearTimeout(longPressTimeoutRef.current);
+      }
+      longPressTimeoutRef.current = window.setTimeout(() => {
+        // If finger hasn't moved far, trigger long-press
+        const movedDistance = Math.hypot(
+          dragStart.current.x - (touch.clientX - rect.left),
+          dragStart.current.y - (touch.clientY - rect.top)
+        );
+        if (movedDistance <= DRAG_THRESHOLD) {
+          longPressFiredRef.current = true;
+
+          // If in goto mode, emulate right-click -> cancel goto
+          if (gotoMode.active) {
+            deactivateGotoMode();
+          } else if (rendererRef.current) {
+            // Open unit context menu or city info at touch position
+            const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+            const tileX = Math.floor(mapPos.mapX);
+            const tileY = Math.floor(mapPos.mapY);
+
+            const unitAtPosition = Object.values(units).find(
+              unit => unit.x === tileX && unit.y === tileY
+            );
+            const cityAtPosition = Object.values(cities).find(
+              city => city.x === tileX && city.y === tileY
+            );
+
+            if (unitAtPosition) {
+              setContextMenu({
+                unit: unitAtPosition as Unit,
+                position: { x: touch.clientX, y: touch.clientY },
+              });
+              selectUnit(unitAtPosition.id);
+              setSelectedUnit(unitAtPosition as Unit);
+            } else if (cityAtPosition) {
+              setCityInfoOverlay({
+                isOpen: true,
+                city: cityAtPosition as City,
+              });
+            }
+          }
+        }
+      }, LONG_PRESS_MS);
 
       // Prevent default to avoid page scrolling
       event.preventDefault();
     },
-    [viewport]
+    [viewport, gotoMode.active, deactivateGotoMode, units, cities, selectUnit]
   );
 
   const handleTouchMove = useCallback(
     (event: React.TouchEvent<HTMLCanvasElement>) => {
-      if (!isDragging || !rendererRef.current || event.touches.length !== 1) return;
+      if (!rendererRef.current || event.touches.length !== 1) return;
 
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -687,6 +741,22 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       const rect = canvas.getBoundingClientRect();
       const canvasX = touch.clientX - rect.left;
       const canvasY = touch.clientY - rect.top;
+
+      // Decide if we should start dragging
+      if (!isDragging) {
+        const dragDistance = Math.hypot(
+          canvasX - dragStart.current.x,
+          canvasY - dragStart.current.y
+        );
+        if (dragDistance > DRAG_THRESHOLD) {
+          setIsDragging(true);
+          // Cancel long-press if we start dragging
+          if (longPressTimeoutRef.current) {
+            window.clearTimeout(longPressTimeoutRef.current);
+            longPressTimeoutRef.current = null;
+          }
+        }
+      }
 
       // Calculate total movement from drag start (same as mouse logic)
       const totalDiffX = (dragStart.current.x - canvasX) * 2;
@@ -702,53 +772,143 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       // Store current render viewport
       currentRenderViewport.current = newViewport;
 
-      // Directly render without any state updates during drag
-      requestAnimationFrame(() => {
-        if (rendererRef.current) {
-          rendererRef.current.render({
-            viewport: newViewport,
-            map: useGameStore.getState().map,
-            units: useGameStore.getState().units,
-            cities: useGameStore.getState().cities,
-            selectedUnitId: useGameStore.getState().selectedUnitId,
-            gotoPath: gotoMode.currentPath,
-          });
+      if (isDragging) {
+        // Directly render without any state updates during drag
+        requestAnimationFrame(() => {
+          if (rendererRef.current) {
+            rendererRef.current.render({
+              viewport: newViewport,
+              map: useGameStore.getState().map,
+              units: useGameStore.getState().units,
+              cities: useGameStore.getState().cities,
+              selectedUnitId: useGameStore.getState().selectedUnitId,
+              gotoPath: gotoMode.currentPath,
+            });
+          }
+        });
+      } else {
+        // Not dragging: if in goto mode, show live path preview under finger
+        if (gotoMode.active) {
+          const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+          const tileX = Math.floor(mapPos.mapX);
+          const tileY = Math.floor(mapPos.mapY);
+          if (
+            !gotoMode.targetTile ||
+            gotoMode.targetTile.x !== tileX ||
+            gotoMode.targetTile.y !== tileY
+          ) {
+            requestGotoPath(tileX, tileY);
+          }
         }
-      });
+      }
 
       // Prevent default to avoid page scrolling
       event.preventDefault();
     },
-    [isDragging, gotoMode.currentPath]
+    [
+      isDragging,
+      gotoMode.currentPath,
+      gotoMode.active,
+      gotoMode.targetTile,
+      requestGotoPath,
+      viewport,
+    ]
   );
 
   const handleTouchEnd = useCallback(
     (event: React.TouchEvent<HTMLCanvasElement>) => {
-      if (!isDragging || !rendererRef.current) return;
+      if (longPressTimeoutRef.current) {
+        window.clearTimeout(longPressTimeoutRef.current);
+        longPressTimeoutRef.current = null;
+      }
 
-      // Apply boundary constraints to the final viewport position
-      const constrainedPosition = rendererRef.current.setMapviewOrigin(
-        currentRenderViewport.current.x,
-        currentRenderViewport.current.y,
-        currentRenderViewport.current.width,
-        currentRenderViewport.current.height
-      );
+      if (!rendererRef.current) return;
 
-      const finalViewport = {
-        ...currentRenderViewport.current,
-        x: constrainedPosition.x,
-        y: constrainedPosition.y,
-      };
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-      // Update state with the constrained final position
-      setViewport(finalViewport);
-      setIsDragging(false);
+      const rect = canvas.getBoundingClientRect();
+      // Use changedTouches if available; fallback to touches (ended)
+      const touch = (event.changedTouches && event.changedTouches[0]) || undefined;
 
-      // Prevent default to avoid unwanted click events
+      // If we were dragging, finish the drag similar to mouse
+      if (isDragging) {
+        const constrainedPosition = rendererRef.current.setMapviewOrigin(
+          currentRenderViewport.current.x,
+          currentRenderViewport.current.y,
+          currentRenderViewport.current.width,
+          currentRenderViewport.current.height
+        );
+
+        const finalViewport = {
+          ...currentRenderViewport.current,
+          x: constrainedPosition.x,
+          y: constrainedPosition.y,
+        };
+
+        setViewport(finalViewport);
+        setIsDragging(false);
+      } else if (!longPressFiredRef.current && dragStartTime.current > 0) {
+        // Treat as a tap/click
+        const tapClientX = touch ? touch.clientX : dragStart.current.x + rect.left;
+        const tapClientY = touch ? touch.clientY : dragStart.current.y + rect.top;
+        const canvasX = tapClientX - rect.left;
+        const canvasY = tapClientY - rect.top;
+
+        const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+        const tileX = Math.floor(mapPos.mapX);
+        const tileY = Math.floor(mapPos.mapY);
+
+        if (gotoMode.active) {
+          // Show path briefly, then execute goto
+          requestGotoPath(tileX, tileY);
+          window.setTimeout(() => {
+            executeGoto(tileX, tileY);
+          }, 150);
+        } else {
+          // Normal selection
+          const unitAtPosition = Object.values(units).find(
+            unit => unit.x === tileX && unit.y === tileY
+          );
+
+          if (unitAtPosition) {
+            selectUnit(unitAtPosition.id);
+            setSelectedUnit(unitAtPosition as Unit);
+          } else {
+            selectUnit(null);
+            setSelectedUnit(null);
+          }
+        }
+      }
+
+      // Reset drag tracking and long-press state
+      dragStartTime.current = 0;
+      longPressFiredRef.current = false;
+
+      // Prevent default to avoid unwanted synthetic mouse events
       event.preventDefault();
     },
-    [isDragging, setViewport]
+    [
+      isDragging,
+      setViewport,
+      viewport,
+      gotoMode.active,
+      requestGotoPath,
+      executeGoto,
+      selectUnit,
+      units,
+    ]
   );
+
+  // Cleanup any pending long-press timer on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimeoutRef.current) {
+        window.clearTimeout(longPressTimeoutRef.current);
+        longPressTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Handle right-click context menu
   const handleContextMenu = useCallback(
