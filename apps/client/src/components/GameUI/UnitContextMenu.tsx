@@ -120,7 +120,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     }
 
     // Settler actions
-    if (unit.unitTypeId === 'settler') {
+    if (unit.unitTypeId === 'settlers') {
       actions.push(
         { separator: true },
         {
