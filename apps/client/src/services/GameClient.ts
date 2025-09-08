@@ -5,6 +5,7 @@ import { useGameStore } from '../store/gameStore';
 import { PacketType, PACKET_NAMES, type Packet } from '../types/packets';
 import { ActionType } from '../types/shared/actions';
 import { pathfindingService } from './PathfindingService';
+import { playerColorToHex } from '../utils/playerColors';
 
 // Mock government data for development
 const getMockGovernments = () => ({
@@ -287,6 +288,30 @@ class GameClient {
         });
         useGameStore.getState().setClientState('running');
         break;
+
+      case PacketType.PLAYER_INFO: {
+        console.log('Player info received:', packet.data);
+        const { players } = useGameStore.getState();
+        const updatedPlayer = {
+          id: packet.data.id,
+          name: packet.data.name,
+          nation: packet.data.nation,
+          color: playerColorToHex(packet.data.color), // Convert RGB to hex
+          gold: packet.data.gold,
+          science: packet.data.science,
+          government: packet.data.government,
+          isHuman: true, // Assume human for now, could be sent from server
+          isActive: packet.data.alive,
+        };
+
+        useGameStore.getState().updateGameState({
+          players: {
+            ...players,
+            [packet.data.id]: updatedPlayer,
+          },
+        });
+        break;
+      }
 
       case PacketType.TURN_START:
         console.log('Turn started:', packet.data);

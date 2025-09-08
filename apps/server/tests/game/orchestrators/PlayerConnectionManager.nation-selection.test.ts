@@ -280,7 +280,12 @@ describe('PlayerConnectionManager - Nation Selection', () => {
         id: mockGameId,
         status: 'waiting',
         maxPlayers: 4,
-        players: [{ civilization: 'american' }], // One nation taken
+        players: [
+          {
+            civilization: 'american',
+            color: { r: 255, g: 0, b: 0 },
+          },
+        ], // One nation taken with color
       });
 
       mockDatabase.insert.mockReturnValue({
@@ -318,7 +323,10 @@ describe('PlayerConnectionManager - Nation Selection', () => {
         status: 'waiting',
         maxPlayers: 4,
         players: [
-          { civilization: 'roman' }, // Nation already taken
+          {
+            civilization: 'roman',
+            color: { r: 0, g: 255, b: 0 },
+          }, // Nation already taken
         ],
       });
 

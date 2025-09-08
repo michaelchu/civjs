@@ -12,6 +12,7 @@ import { games, players } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import serverConfig from '@config';
+import { getNextPlayerColor, type PlayerColor } from '../../utils/playerColors';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {
@@ -93,6 +94,10 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     // Validate and select nation
     const selectedNation = await this.validateAndSelectNation(civilization, game.players);
 
+    // Get next available color from predefined palette
+    const usedColors = game.players.map(p => p.color as PlayerColor);
+    const assignedColor = getNextPlayerColor(usedColors);
+
     const playerData = {
       gameId,
       userId,
@@ -100,11 +105,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       nation: selectedNation,
       civilization: selectedNation || `Civilization${playerNumber}`,
       leaderName: `Leader${playerNumber}`,
-      color: {
-        r: Math.floor(Math.random() * 255),
-        g: Math.floor(Math.random() * 255),
-        b: Math.floor(Math.random() * 255),
-      },
+      color: assignedColor,
     };
 
     const [newPlayer] = await this.databaseProvider
@@ -223,6 +224,10 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       const playerNumber = game.players.length + i + 1;
       const aiNation = availableNations[i];
 
+      // Get next available color for AI player
+      const currentUsedColors = game.players.map(p => p.color as PlayerColor);
+      const aiColor = getNextPlayerColor(currentUsedColors);
+
       const aiPlayerData = {
         gameId,
         userId: null, // AI players have null userId
@@ -230,11 +235,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         nation: aiNation,
         civilization: aiNation,
         leaderName: `AI Leader ${playerNumber}`,
-        color: {
-          r: Math.floor(Math.random() * 255),
-          g: Math.floor(Math.random() * 255),
-          b: Math.floor(Math.random() * 255),
-        },
+        color: aiColor,
         connectionStatus: 'connected',
         isReady: true,
       };
