@@ -93,6 +93,9 @@ export class CityManagementService extends BaseGameService {
           cityName: name,
           tilesUpdated: Object.keys(updatedTiles).length,
         });
+
+        // Broadcast updated tile ownership data to all players
+        this.broadcastTileUpdates(gameId, updatedTiles);
       } catch (error) {
         logger.error('Failed to update borders for new city', {
           cityId,
@@ -115,6 +118,50 @@ export class CityManagementService extends BaseGameService {
     });
 
     return cityId;
+  }
+
+  /**
+   * Broadcast tile ownership updates to clients after border changes
+   */
+  private broadcastTileUpdates(gameId: string, updatedTiles: Record<string, any>): void {
+    const tileUpdates = Object.values(updatedTiles).map((tile: any) => {
+      // Convert tile data to the format expected by client TILE_INFO handler
+      const tileIndex = tile.x + tile.y * 80; // Assuming 80 width, should get from map data
+      return {
+        tile: tileIndex,
+        x: tile.x,
+        y: tile.y,
+        terrain: tile.terrain,
+        elevation: tile.elevation || 0,
+        known: tile.known ? 1 : 0,
+        seen: tile.visible ? 1 : 0,
+        player: tile.owner || null,
+        worked: tile.claimer || null,
+        extras: 0,
+        owner: tile.owner || null,
+        claimer: tile.claimer || null,
+        borderStrength: tile.borderStrength || 0,
+      };
+    });
+
+    // Send tiles in batches to avoid overwhelming the client
+    const BATCH_SIZE = 20; // Smaller batches for border updates
+    for (let i = 0; i < tileUpdates.length; i += BATCH_SIZE) {
+      const batch = tileUpdates.slice(i, i + BATCH_SIZE);
+      this.broadcastToGame(gameId, 'tile_info', {
+        tiles: batch,
+        startIndex: i,
+        endIndex: Math.min(i + BATCH_SIZE, tileUpdates.length),
+        total: tileUpdates.length,
+        type: 'border_update', // Add type to distinguish from initial map load
+      });
+    }
+
+    this.logger.debug('Broadcasted tile ownership updates after city founding', {
+      gameId,
+      tilesUpdated: tileUpdates.length,
+      batches: Math.ceil(tileUpdates.length / BATCH_SIZE),
+    });
   }
 
   /**

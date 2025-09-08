@@ -70,69 +70,17 @@ export class BorderRenderer extends BaseRenderer {
       playersCount: Object.keys(players).length,
     });
 
-    // TEMPORARY TEST: Add fake ownership to some tiles to test border rendering
-    // Create adjacent tiles with different owners to ensure borders are drawn
-    const testTiles = { ...tiles };
-    const tileValues = Object.values(testTiles).filter(t => t.visible);
-
-    if (tileValues.length > 10) {
-      // Find some adjacent tiles by looking for tiles with consecutive coordinates
-      const sortedTiles = tileValues
-        .sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x))
-        .slice(0, 20); // Work with first 20 tiles
-
-      // Create a checkerboard pattern to ensure adjacent tiles have different owners
-      for (let i = 0; i < Math.min(sortedTiles.length, 20); i++) {
-        const tile = sortedTiles[i];
-        const owner = (tile.x + tile.y) % 2 === 0 ? 'player1' : 'player2';
-        const tileKey = `${tile.x},${tile.y}`;
-        testTiles[tileKey] = { ...tile, owner };
-      }
-    }
-
-    // Add fake players if they don't exist
-    const testPlayers = { ...players };
-    if (!testPlayers.player1) {
-      testPlayers.player1 = {
-        id: 'player1',
-        name: 'Test Player 1',
-        color: '#FF0000',
-        nation: 'test',
-        gold: 100,
-        science: 50,
-        government: 'Despotism',
-        isHuman: false,
-        isActive: true,
-      };
-    }
-    if (!testPlayers.player2) {
-      testPlayers.player2 = {
-        id: 'player2',
-        name: 'Test Player 2',
-        color: '#0000FF',
-        nation: 'test',
-        gold: 100,
-        science: 50,
-        government: 'Despotism',
-        isHuman: false,
-        isActive: true,
-      };
-    }
-
     // Update player colors if players changed
-    if (
-      this.playerColors.size === 0 ||
-      Object.keys(testPlayers).length !== this.playerColors.size
-    ) {
-      this.setPlayerColors(testPlayers);
+    if (this.playerColors.size === 0 || Object.keys(players).length !== this.playerColors.size) {
+      this.setPlayerColors(players);
     }
 
     // Render borders between tiles with different owners
     let tilesWithOwners = 0;
     let bordersDrawn = 0;
 
-    for (const tileKey in testTiles) {
-      const tile = testTiles[tileKey];
+    for (const tileKey in tiles) {
+      const tile = tiles[tileKey];
       if (!tile.visible || !tile.owner) continue;
 
       tilesWithOwners++;
@@ -140,13 +88,12 @@ export class BorderRenderer extends BaseRenderer {
       const screenPos = this.mapToScreen(tile.x, tile.y, renderState.viewport);
       if (!this.isInViewport(tile.x, tile.y, renderState.viewport)) continue;
 
-      const testRenderState = { ...renderState, players: testPlayers };
-      const borderCount = this.renderTileBorders(tile, testTiles, screenPos, testRenderState, opts);
+      const borderCount = this.renderTileBorders(tile, tiles, screenPos, renderState, opts);
       bordersDrawn += borderCount;
     }
 
-    // Count actual ownership distribution after test modifications
-    const ownershipStats = Object.values(testTiles).reduce(
+    // Count actual ownership distribution
+    const ownershipStats = Object.values(tiles).reduce(
       (stats, tile) => {
         if (tile.owner) {
           stats[tile.owner] = (stats[tile.owner] || 0) + 1;

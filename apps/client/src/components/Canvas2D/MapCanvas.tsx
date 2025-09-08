@@ -18,6 +18,7 @@ interface MapCanvasProps {
 export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<MapRenderer | null>(null);
+  const renderInProgress = useRef<boolean>(false);
 
   // Track initial centering to prevent multiple centering events (freeciv-web compliance)
   const [hasInitiallyCentered, setHasInitiallyCentered] = useState(false);
@@ -604,20 +605,25 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       currentRenderViewport.current = newViewport;
 
       // Directly render without any state updates during drag - use requestAnimationFrame for smoothness
-      requestAnimationFrame(() => {
-        if (rendererRef.current) {
-          trackRender('drag-mouse');
-          rendererRef.current.render({
-            viewport: newViewport,
-            map: useGameStore.getState().map,
-            units: useGameStore.getState().units,
-            cities: useGameStore.getState().cities,
-            players: useGameStore.getState().players,
-            selectedUnitId: useGameStore.getState().selectedUnitId,
-            gotoPath: gotoMode.currentPath,
-          });
-        }
-      });
+      // Prevent overlapping renders during rapid panning
+      if (!renderInProgress.current) {
+        renderInProgress.current = true;
+        requestAnimationFrame(() => {
+          if (rendererRef.current) {
+            trackRender('drag-mouse');
+            rendererRef.current.render({
+              viewport: newViewport,
+              map: useGameStore.getState().map,
+              units: useGameStore.getState().units,
+              cities: useGameStore.getState().cities,
+              players: useGameStore.getState().players,
+              selectedUnitId: useGameStore.getState().selectedUnitId,
+              gotoPath: gotoMode.currentPath,
+            });
+          }
+          renderInProgress.current = false;
+        });
+      }
     },
     [
       isDragging,
@@ -814,19 +820,24 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
       if (isDragging) {
         // Directly render without any state updates during drag
-        requestAnimationFrame(() => {
-          if (rendererRef.current) {
-            rendererRef.current.render({
-              viewport: newViewport,
-              map: useGameStore.getState().map,
-              units: useGameStore.getState().units,
-              cities: useGameStore.getState().cities,
-              players: useGameStore.getState().players,
-              selectedUnitId: useGameStore.getState().selectedUnitId,
-              gotoPath: gotoMode.currentPath,
-            });
-          }
-        });
+        // Prevent overlapping renders during rapid panning
+        if (!renderInProgress.current) {
+          renderInProgress.current = true;
+          requestAnimationFrame(() => {
+            if (rendererRef.current) {
+              rendererRef.current.render({
+                viewport: newViewport,
+                map: useGameStore.getState().map,
+                units: useGameStore.getState().units,
+                cities: useGameStore.getState().cities,
+                players: useGameStore.getState().players,
+                selectedUnitId: useGameStore.getState().selectedUnitId,
+                gotoPath: gotoMode.currentPath,
+              });
+            }
+            renderInProgress.current = false;
+          });
+        }
       } else {
         // Not dragging: if in goto mode, show live path preview under finger
         if (gotoMode.active) {
