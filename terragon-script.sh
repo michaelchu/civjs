@@ -100,11 +100,6 @@ cd apps/server
 npm run db:migrate
 cd ../..
 
-# 9) Run linter and type checks
-echo "==> Running linter and type checks..."
-npm run lint
-npm run typecheck
-
 echo "==> Environment setup complete!"
 echo "    DATABASE_URL: $DATABASE_URL"
 echo "    REDIS_URL: $REDIS_URL"
