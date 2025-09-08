@@ -12,7 +12,7 @@ import { games, players } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import serverConfig from '@config';
-import { getNextPlayerColor, type PlayerColor } from '../../../shared/constants/playerColors';
+import { getNextPlayerColor, type PlayerColor } from '../../utils/playerColors';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {
