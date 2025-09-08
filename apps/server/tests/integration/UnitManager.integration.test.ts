@@ -60,9 +60,9 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       expect(UNIT_TYPES.warrior.movement).toBe(6); // 2 movement points = 6 fragments
       expect(UNIT_TYPES.warrior.combat).toBe(20);
 
-      expect(UNIT_TYPES.settler).toBeDefined();
-      expect(UNIT_TYPES.settler.canFoundCity).toBe(true);
-      expect(UNIT_TYPES.settler.combat).toBe(0);
+      expect(UNIT_TYPES.settlers).toBeDefined();
+      expect(UNIT_TYPES.settlers.canFoundCity).toBe(true);
+      expect(UNIT_TYPES.settlers.combat).toBe(0);
 
       expect(UNIT_TYPES.worker).toBeDefined();
       expect(UNIT_TYPES.worker.canBuildImprovements).toBe(true);
@@ -132,7 +132,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
     it('should prevent stacking civilian units', async () => {
       // Create first civilian unit
-      await unitManager.createUnit(testData.player.id, 'settler', 10, 10);
+      await unitManager.createUnit(testData.player.id, 'settlers', 10, 10);
 
       // Try to create another civilian at same position (should fail)
       await expect(unitManager.createUnit(testData.player.id, 'worker', 10, 10)).rejects.toThrow(
@@ -145,7 +145,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         where: (units, { eq }) => eq(units.gameId, testData.game.id),
       });
       expect(dbUnits).toHaveLength(1);
-      expect(dbUnits[0].unitType).toBe('settler');
+      expect(dbUnits[0].unitType).toBe('settlers');
     });
   });
 

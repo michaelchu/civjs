@@ -251,7 +251,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         id: unitId2,
         gameId: game.id,
         playerId: players[0].id,
-        unitType: 'settler',
+        unitType: 'settlers',
         x: 9,
         y: 10,
         health: 100,

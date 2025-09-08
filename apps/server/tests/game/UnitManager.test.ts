@@ -21,9 +21,9 @@ describe('UnitManager', () => {
       expect(UNIT_TYPES.warrior.movement).toBe(6); // 2 movement points = 6 fragments
       expect(UNIT_TYPES.warrior.combat).toBe(20);
 
-      expect(UNIT_TYPES.settler).toBeDefined();
-      expect(UNIT_TYPES.settler.canFoundCity).toBe(true);
-      expect(UNIT_TYPES.settler.combat).toBe(0);
+      expect(UNIT_TYPES.settlers).toBeDefined();
+      expect(UNIT_TYPES.settlers.canFoundCity).toBe(true);
+      expect(UNIT_TYPES.settlers.combat).toBe(0);
 
       expect(UNIT_TYPES.worker).toBeDefined();
       expect(UNIT_TYPES.worker.canBuildImprovements).toBe(true);
@@ -64,7 +64,7 @@ describe('UnitManager', () => {
 
     it('should reject stacking civilian units', async () => {
       // First create a settler
-      await unitManager.createUnit('player-123', 'settler', 10, 10);
+      await unitManager.createUnit('player-123', 'settlers', 10, 10);
 
       // Try to create another settler at same position
       await expect(unitManager.createUnit('player-123', 'worker', 10, 10)).rejects.toThrow(
@@ -262,7 +262,7 @@ describe('UnitManager', () => {
   describe('unit queries', () => {
     beforeEach(async () => {
       await unitManager.createUnit('player-123', 'warrior', 10, 10);
-      await unitManager.createUnit('player-123', 'settler', 11, 10);
+      await unitManager.createUnit('player-123', 'settlers', 11, 10);
       await unitManager.createUnit('player-456', 'warrior', 12, 10);
     });
 
@@ -299,7 +299,7 @@ describe('UnitManager', () => {
     beforeEach(async () => {
       await unitManager.createUnit('player-123', 'warrior', 10, 10);
       await unitManager.createUnit('player-456', 'warrior', 11, 10);
-      await unitManager.createUnit('player-456', 'settler', 20, 20);
+      await unitManager.createUnit('player-456', 'settlers', 20, 20);
     });
 
     it('should return visible units for player', () => {
