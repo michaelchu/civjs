@@ -281,12 +281,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             height: currentHeight,
           });
 
-          // Force complete canvas context reset by setting dimensions
-          // This clears any corrupted rendering state that might cause visual glitches
-          canvas.width = currentWidth;
-          canvas.height = currentHeight;
-
-          // Reinitialize the renderer context (important!)
+          // Instead of clearing the canvas completely, just update the context state
+          // and viewport which will trigger a normal re-render without flashing
           const ctx = canvas.getContext('2d');
           if (ctx) {
             // Reset any canvas context state that might be corrupted
@@ -297,8 +293,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             ctx.font = '14px Arial, sans-serif';
           }
 
-          // Update viewport to trigger full re-render
-          setViewport({ width: currentWidth, height: currentHeight });
+          // Just update the viewport state to trigger a smooth re-render without clearing
+          setViewport({ ...viewport, width: currentWidth, height: currentHeight });
         }
 
         setGlobalTilesVersion(prev => prev + 1);

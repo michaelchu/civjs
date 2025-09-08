@@ -45,70 +45,16 @@ export class BorderRenderer extends BaseRenderer {
   ): void {
     const opts = { ...this.defaultOptions, ...options };
 
-    // Debug logging
-    console.log('[BorderRenderer] render called with:', {
-      tileCount: Object.keys(tiles).length,
-      playerCount: Object.keys(players).length,
-      showBorders: opts.showBorders,
-      hasContext: !!this.ctx,
-    });
-
-    if (!opts.showBorders) {
-      console.log('[BorderRenderer] showBorders is false, skipping render');
-      return;
-    }
-
-    const ctx = this.ctx;
-    if (!ctx) {
-      console.log('[BorderRenderer] no canvas context, skipping render');
+    if (!opts.showBorders || !this.ctx) {
       return;
     }
 
     // Update player colors if players changed
     if (this.playerColors.size === 0 || Object.keys(players).length !== this.playerColors.size) {
       this.setPlayerColors(players);
-      console.log(
-        '[BorderRenderer] updated player colors:',
-        Array.from(this.playerColors.entries())
-      );
     }
 
-    // Count tiles with owners for debugging
-    const tilesWithOwners = Object.values(tiles).filter(tile => tile.owner);
-    const visibleTilesWithOwners = tilesWithOwners.filter(tile => tile.visible);
-    console.log('[BorderRenderer] tiles analysis:', {
-      totalTiles: Object.keys(tiles).length,
-      tilesWithOwners: tilesWithOwners.length,
-      visibleTilesWithOwners: visibleTilesWithOwners.length,
-      sampleTileWithOwner:
-        tilesWithOwners.length > 0
-          ? {
-              x: tilesWithOwners[0].x,
-              y: tilesWithOwners[0].y,
-              owner: tilesWithOwners[0].owner,
-              visible: tilesWithOwners[0].visible,
-            }
-          : null,
-    });
-
-    let bordersDrawn = 0;
-
-    // DEBUG: Temporarily force test borders for debugging
-    // Create fake ownership data to test border rendering
-    const visibleTiles = Object.values(tiles)
-      .filter(tile => tile.visible)
-      .slice(0, 20);
-    if (visibleTiles.length > 3) {
-      // Force ownership on some tiles for testing
-      for (let i = 0; i < Math.min(5, visibleTiles.length); i++) {
-        const tile = visibleTiles[i];
-        const ownedTile = { ...tile, owner: i < 3 ? 'player1' : 'player2' };
-        tiles[`${tile.x},${tile.y}`] = ownedTile;
-      }
-      console.log('[BorderRenderer] DEBUG: Added fake ownership to first 5 visible tiles');
-    }
-
-    // Render actual borders between tiles with different owners
+    // Render borders between tiles with different owners
     for (const tileKey in tiles) {
       const tile = tiles[tileKey];
       if (!tile.visible || !tile.owner) continue;
@@ -117,13 +63,7 @@ export class BorderRenderer extends BaseRenderer {
       if (!this.isInViewport(tile.x, tile.y, renderState.viewport)) continue;
 
       this.renderTileBorders(tile, tiles, screenPos, renderState, opts);
-      bordersDrawn++;
     }
-
-    console.log('[BorderRenderer] render completed:', {
-      bordersDrawn,
-      playerColorsCount: this.playerColors.size,
-    });
   }
 
   /**
@@ -142,12 +82,10 @@ export class BorderRenderer extends BaseRenderer {
 
     const tileWidth = this.tileWidth;
     const tileHeight = this.tileHeight;
-    const playerColor = this.playerColors.get(tile.owner) || '#FFFFFF';
 
     // Set border style - make borders more visible
     // Use a bright test color for debugging - remove this when borders are working
     ctx.strokeStyle = '#FF0000'; // Bright red for testing
-    // ctx.strokeStyle = playerColor;
     ctx.lineWidth = 4; // Extra thick for testing
     ctx.globalAlpha = 1.0; // Fully opaque for testing
 
@@ -165,15 +103,6 @@ export class BorderRenderer extends BaseRenderer {
       { x: tile.x - 1, y: tile.y, side: 'west' }, // West
     ];
 
-    let sidesDrawn = 0;
-    const debugInfo: Array<{
-      side: string;
-      neighborExists: boolean;
-      neighborOwner?: string;
-      neighborVisible?: boolean;
-      shouldDrawBorder: boolean;
-    }> = [];
-
     for (const neighbor of neighbors) {
       const neighborKey = `${neighbor.x},${neighbor.y}`;
       const neighborTile = allTiles[neighborKey];
@@ -183,29 +112,9 @@ export class BorderRenderer extends BaseRenderer {
       const shouldDrawBorder =
         neighborTile && neighborTile.owner && neighborTile.owner !== tile.owner;
 
-      debugInfo.push({
-        side: neighbor.side,
-        neighborExists: !!neighborTile,
-        neighborOwner: neighborTile?.owner,
-        neighborVisible: neighborTile?.visible ?? false,
-        shouldDrawBorder: !!shouldDrawBorder,
-      });
-
       if (shouldDrawBorder) {
         this.drawBorderSide(ctx, screenPos, neighbor.side, tileWidth, tileHeight);
-        sidesDrawn++;
       }
-    }
-
-    if (sidesDrawn > 0) {
-      console.log(`[BorderRenderer] drew borders for tile (${tile.x},${tile.y}):`, {
-        owner: tile.owner,
-        playerColor,
-        sidesDrawn,
-        screenPos,
-        tileSize: { width: tileWidth, height: tileHeight },
-        debugInfo,
-      });
     }
 
     ctx.globalAlpha = 1.0;
@@ -257,9 +166,6 @@ export class BorderRenderer extends BaseRenderer {
     }
 
     ctx.stroke();
-    console.log(
-      `[BorderRenderer] Drew ${side} border at (${x},${y}) with size ${tileWidth}x${tileHeight}`
-    );
   }
 
   /**
