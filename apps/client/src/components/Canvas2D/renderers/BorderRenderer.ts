@@ -88,6 +88,13 @@ export class BorderRenderer extends BaseRenderer {
       const screenPos = this.mapToScreen(tile.x, tile.y, renderState.viewport);
       if (!this.isInViewport(tile.x, tile.y, renderState.viewport)) continue;
 
+      // Debug: Log details for first few tiles that have borders to verify terrain vs ownership
+      if (tilesWithOwners <= 3) {
+        console.log(
+          `[BorderRenderer] Tile (${tile.x},${tile.y}): owner=${tile.owner}, terrain=${tile.terrain}`
+        );
+      }
+
       const borderCount = this.renderTileBorders(tile, tiles, screenPos, renderState, opts);
       bordersDrawn += borderCount;
     }
@@ -135,7 +142,15 @@ export class BorderRenderer extends BaseRenderer {
     const playerColor = this.playerColors.get(tile.owner) || DEFAULT_BORDER_COLOR;
 
     // Set border style using nation colors
-    ctx.strokeStyle = playerColor;
+    // DEBUG: Use different colors based on terrain to help identify coordinate issues
+    let debugColor = playerColor;
+    if (tile.terrain === 'ocean' || tile.terrain === 'deep_ocean') {
+      debugColor = '#00FFFF'; // Cyan for ocean tiles (shouldn't normally have borders)
+    } else if (tile.terrain === 'grassland' || tile.terrain === 'plains') {
+      debugColor = '#00FF00'; // Green for land tiles
+    }
+
+    ctx.strokeStyle = debugColor;
     ctx.lineWidth = options.borderWidth;
     ctx.globalAlpha = options.borderAlpha;
 
@@ -173,24 +188,24 @@ export class BorderRenderer extends BaseRenderer {
 
       if (shouldDrawBorder) {
         const side = this.directionToSide(dir);
+
+        // Debug: Log a few border draws to verify positioning
+        if (bordersDrawn < 2) {
+          console.log(
+            `[BorderRenderer] Drawing ${side} border: tile(${tile.x},${tile.y}), terrain=${tile.terrain}, coords=(${screenPos.x + tileWidth / 2 - 1},${screenPos.y + 3})`
+          );
+        }
+
         this.drawBorderSide(ctx, screenPos, side, tileWidth, tileHeight);
         bordersDrawn++;
       }
     }
 
-    // Log debug info only for tiles that should have borders but don't, or first few tiles for diagnosis
-    if (
-      bordersDrawn > 0 ||
-      (debugInfo.some(d => d.shouldDrawBorder) && bordersDrawn === 0) ||
-      (tile.x < 3 && tile.y < 3)
-    ) {
-      console.log(`[BorderRenderer] Tile (${tile.x},${tile.y}) owner=${tile.owner}:`, {
-        bordersDrawn,
-        shouldHaveBorder: debugInfo.some(d => d.shouldDrawBorder),
-        hasNeighborWithDifferentOwner: debugInfo.some(
-          d => d.neighborExists && d.neighborOwner && d.neighborOwner !== tile.owner
-        ),
-      });
+    // Simplified debug info - only log problematic tiles
+    if (debugInfo.some(d => d.shouldDrawBorder) && bordersDrawn === 0) {
+      console.log(
+        `[BorderRenderer] No borders drawn for tile (${tile.x},${tile.y}) owner=${tile.owner} terrain=${tile.terrain}`
+      );
     }
 
     ctx.globalAlpha = 1.0;
@@ -211,36 +226,32 @@ export class BorderRenderer extends BaseRenderer {
     tileWidth: number,
     tileHeight: number
   ): void {
-    // Match freeciv-web's coordinate system: canvas_x + 47, canvas_y + 3
-    // These offsets center the border lines within the isometric tile shape
-    const x = screenPos.x + tileWidth * 0.49; // 47/96 ≈ 0.49 for 96px tiles
-    const y = screenPos.y + 3;
+    // Calculate correct offsets based on actual tile dimensions
+    // For isometric tiles, the border should be centered within the tile
+    const x = screenPos.x + tileWidth / 2 - 1; // Center minus 1 pixel like freeciv-web
+    const y = screenPos.y + 3; // Keep the Y offset from reference
 
     ctx.beginPath();
 
     // Draw isometric border lines matching freeciv-web exactly
-    // Reference coordinates from freeciv-web mapview_put_border_line
+    // Using tileset_tile_width and tileset_tile_height like the reference
     switch (side) {
       case 'north':
-        // North edge: diagonal line from center-left to center-right of top edge
         ctx.moveTo(x, y - 2);
         ctx.lineTo(x + tileWidth / 2, y + tileHeight / 2 - 2);
         break;
 
       case 'east':
-        // East edge: diagonal line from center-top to center-bottom of right edge
         ctx.moveTo(x - 3, y + tileHeight - 3);
         ctx.lineTo(x + tileWidth / 2 - 3, y + tileHeight / 2 - 3);
         break;
 
       case 'south':
-        // South edge: diagonal line from center-left to center-right of bottom edge
         ctx.moveTo(x - tileWidth / 2 + 3, y + tileHeight / 2 - 3);
         ctx.lineTo(x + 3, y + tileHeight - 3);
         break;
 
       case 'west':
-        // West edge: diagonal line from center-top to center-bottom of left edge
         ctx.moveTo(x - tileWidth / 2 + 3, y + tileHeight / 2 - 3);
         ctx.lineTo(x + 3, y - 3);
         break;
