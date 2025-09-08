@@ -135,9 +135,9 @@ export class MapRenderer {
 
     // Render borders after terrain but before units
     // Ported from reference/freeciv-web border rendering logic
-    const globalPlayers = (window as any).players;
+    const players = state.players;
 
-    if (globalPlayers) {
+    if (players && Object.keys(players).length > 0) {
       // Use modern options store with fallback to global options for compatibility
       let borderOptions;
       try {
@@ -222,11 +222,11 @@ export class MapRenderer {
                   hasOwner: !!visibleTiles[0].owner,
                 }
               : null,
-          globalPlayersCount: Object.keys(globalPlayers).length,
+          playersCount: Object.keys(players).length,
           borderOptions,
         });
 
-        this.borderRenderer.render(tilesRecord, globalPlayers, state, borderOptions);
+        this.borderRenderer.render(tilesRecord, state, borderOptions);
       }
     }
 

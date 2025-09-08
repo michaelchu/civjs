@@ -1,4 +1,4 @@
-import type { MapViewport, Unit, City } from '../../../types';
+import type { MapViewport, Unit, City, Player } from '../../../types';
 import type { GotoPath } from '../../../services/PathfindingService';
 import type { TilesetLoader } from '../TilesetLoader';
 
@@ -7,6 +7,7 @@ export interface RenderState {
   map: unknown; // Global map object
   units: Record<string, Unit>;
   cities: Record<string, City>;
+  players: Record<string, Player>; // Added players data for border rendering
   selectedUnitId?: string | null;
   gotoPath?: GotoPath | null;
 }

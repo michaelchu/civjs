@@ -5,6 +5,17 @@
 
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 import type { Tile, Player } from '../../../types';
+import {
+  UNOWNED_TILE,
+  CARDINAL_TILESET_DIRS,
+  DIR8_NORTH,
+  DIR8_EAST,
+  DIR8_SOUTH,
+  DIR8_WEST,
+  BORDER_LINE_WIDTH,
+  BORDER_ALPHA,
+  DEFAULT_BORDER_COLOR,
+} from '../../../constants/freeciv';
 
 export interface BorderRenderOptions {
   showBorders: boolean;
@@ -16,8 +27,8 @@ export interface BorderRenderOptions {
 export class BorderRenderer extends BaseRenderer {
   private defaultOptions: BorderRenderOptions = {
     showBorders: true,
-    borderWidth: 2,
-    borderAlpha: 0.8,
+    borderWidth: BORDER_LINE_WIDTH,
+    borderAlpha: BORDER_ALPHA,
     borderStyle: 'solid',
   };
 
@@ -39,7 +50,6 @@ export class BorderRenderer extends BaseRenderer {
    */
   render(
     tiles: Record<string, Tile>,
-    players: Record<string, Player>,
     renderState: RenderState,
     options: Partial<BorderRenderOptions> = {}
   ): void {
@@ -47,6 +57,11 @@ export class BorderRenderer extends BaseRenderer {
 
     if (!opts.showBorders || !this.ctx) {
       return;
+    }
+
+    const players = renderState.players;
+    if (!players || Object.keys(players).length === 0) {
+      return; // No players data available
     }
 
     // Update player colors if players changed
@@ -74,20 +89,24 @@ export class BorderRenderer extends BaseRenderer {
     tile: Tile,
     allTiles: Record<string, Tile>,
     screenPos: { x: number; y: number },
-    _renderState: RenderState,
+    renderState: RenderState,
     options: BorderRenderOptions
   ): void {
     const ctx = this.ctx;
     if (!ctx || !tile.owner) return;
 
+    const players = renderState.players;
+
     const tileWidth = this.tileWidth;
     const tileHeight = this.tileHeight;
 
-    // Set border style - make borders more visible
-    // Use a bright test color for debugging - remove this when borders are working
-    ctx.strokeStyle = '#FF0000'; // Bright red for testing
-    ctx.lineWidth = 4; // Extra thick for testing
-    ctx.globalAlpha = 1.0; // Fully opaque for testing
+    // Get player color for this tile owner
+    const playerColor = this.playerColors.get(tile.owner) || DEFAULT_BORDER_COLOR;
+
+    // Set border style using nation colors
+    ctx.strokeStyle = playerColor;
+    ctx.lineWidth = options.borderWidth;
+    ctx.globalAlpha = options.borderAlpha;
 
     if (options.borderStyle === 'dashed') {
       ctx.setLineDash([5, 3]);
@@ -95,25 +114,25 @@ export class BorderRenderer extends BaseRenderer {
       ctx.setLineDash([]);
     }
 
-    // Check all four neighboring tiles for border lines
-    const neighbors = [
-      { x: tile.x, y: tile.y - 1, side: 'north' }, // North
-      { x: tile.x + 1, y: tile.y, side: 'east' }, // East
-      { x: tile.x, y: tile.y + 1, side: 'south' }, // South
-      { x: tile.x - 1, y: tile.y, side: 'west' }, // West
-    ];
-
-    for (const neighbor of neighbors) {
-      const neighborKey = `${neighbor.x},${neighbor.y}`;
+    // Check all four cardinal neighbors for border lines - exactly like freeciv-web
+    for (let i = 0; i < CARDINAL_TILESET_DIRS.length; i++) {
+      const dir = CARDINAL_TILESET_DIRS[i];
+      const neighborCoords = this.getNeighborCoords(tile.x, tile.y, dir);
+      const neighborKey = `${neighborCoords.x},${neighborCoords.y}`;
       const neighborTile = allTiles[neighborKey];
 
-      // Draw border only if neighbor has different owner (matching freeciv-web logic)
-      // Don't draw on map edges or visibility boundaries for now
+      // Reference-compliant border detection logic from freeciv-web tilespec.js:877-881
       const shouldDrawBorder =
-        neighborTile && neighborTile.owner && neighborTile.owner !== tile.owner;
+        neighborTile != null &&
+        neighborTile.owner != null &&
+        tile.owner != null &&
+        tile.owner !== neighborTile.owner &&
+        tile.owner !== UNOWNED_TILE.toString() && // Convert to string since our owner field is string
+        players[tile.owner] != null;
 
       if (shouldDrawBorder) {
-        this.drawBorderSide(ctx, screenPos, neighbor.side, tileWidth, tileHeight);
+        const side = this.directionToSide(dir);
+        this.drawBorderSide(ctx, screenPos, side, tileWidth, tileHeight);
       }
     }
 
@@ -124,6 +143,7 @@ export class BorderRenderer extends BaseRenderer {
   /**
    * Draw a border line on one side of a tile
    * Based on freeciv-web's mapview_put_border_line function
+   * Reference: freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:355-377
    */
   private drawBorderSide(
     ctx: CanvasRenderingContext2D,
@@ -132,40 +152,78 @@ export class BorderRenderer extends BaseRenderer {
     tileWidth: number,
     tileHeight: number
   ): void {
-    // DEBUG: Draw a very obvious border that we can't miss
-    // Just draw a simple rectangle around the tile for now
-    const x = screenPos.x;
-    const y = screenPos.y;
+    // Match freeciv-web's coordinate system: canvas_x + 47, canvas_y + 3
+    // These offsets center the border lines within the isometric tile shape
+    const x = screenPos.x + tileWidth * 0.49; // 47/96 ≈ 0.49 for 96px tiles
+    const y = screenPos.y + 3;
 
     ctx.beginPath();
-    ctx.strokeStyle = '#FF0000'; // Bright red
-    ctx.lineWidth = 8; // Very thick
-    ctx.globalAlpha = 1.0; // Fully opaque
 
-    // Draw a simple rectangle around the tile
+    // Draw isometric border lines matching freeciv-web exactly
+    // Reference coordinates from freeciv-web mapview_put_border_line
     switch (side) {
       case 'north':
-        ctx.moveTo(x, y);
-        ctx.lineTo(x + tileWidth, y);
+        // North edge: diagonal line from center-left to center-right of top edge
+        ctx.moveTo(x, y - 2);
+        ctx.lineTo(x + tileWidth / 2, y + tileHeight / 2 - 2);
         break;
 
       case 'east':
-        ctx.moveTo(x + tileWidth, y);
-        ctx.lineTo(x + tileWidth, y + tileHeight);
+        // East edge: diagonal line from center-top to center-bottom of right edge
+        ctx.moveTo(x - 3, y + tileHeight - 3);
+        ctx.lineTo(x + tileWidth / 2 - 3, y + tileHeight / 2 - 3);
         break;
 
       case 'south':
-        ctx.moveTo(x + tileWidth, y + tileHeight);
-        ctx.lineTo(x, y + tileHeight);
+        // South edge: diagonal line from center-left to center-right of bottom edge
+        ctx.moveTo(x - tileWidth / 2 + 3, y + tileHeight / 2 - 3);
+        ctx.lineTo(x + 3, y + tileHeight - 3);
         break;
 
       case 'west':
-        ctx.moveTo(x, y + tileHeight);
-        ctx.lineTo(x, y);
+        // West edge: diagonal line from center-top to center-bottom of left edge
+        ctx.moveTo(x - tileWidth / 2 + 3, y + tileHeight / 2 - 3);
+        ctx.lineTo(x + 3, y - 3);
         break;
     }
 
     ctx.stroke();
+  }
+
+  /**
+   * Get neighbor coordinates based on direction (freeciv-web mapstep equivalent)
+   */
+  private getNeighborCoords(x: number, y: number, dir: number): { x: number; y: number } {
+    switch (dir) {
+      case DIR8_NORTH:
+        return { x, y: y - 1 };
+      case DIR8_EAST:
+        return { x: x + 1, y };
+      case DIR8_SOUTH:
+        return { x, y: y + 1 };
+      case DIR8_WEST:
+        return { x: x - 1, y };
+      default:
+        return { x, y }; // Unknown direction, return same position
+    }
+  }
+
+  /**
+   * Convert DIR8 direction to side string for drawing
+   */
+  private directionToSide(dir: number): string {
+    switch (dir) {
+      case DIR8_NORTH:
+        return 'north';
+      case DIR8_EAST:
+        return 'east';
+      case DIR8_SOUTH:
+        return 'south';
+      case DIR8_WEST:
+        return 'west';
+      default:
+        return 'north'; // Default fallback
+    }
   }
 
   /**

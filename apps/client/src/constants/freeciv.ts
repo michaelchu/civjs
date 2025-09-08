@@ -39,11 +39,30 @@ export const FreecivConstants = {
 export const NUM_CARDINAL_DIRS = 4;
 export const NUM_CORNER_DIRS = 4;
 
+// Direction constants - ported from freeciv-web for exact compatibility
+export const DIR8_NORTH = 0;
+export const DIR8_NORTHEAST = 1;
+export const DIR8_EAST = 2;
+export const DIR8_SOUTHEAST = 3;
+export const DIR8_SOUTH = 4;
+export const DIR8_SOUTHWEST = 5;
+export const DIR8_WEST = 6;
+export const DIR8_NORTHWEST = 7;
+
 // Direction mappings - N, S, E, W for CELL_CORNER sprite mapping
-export const DIR4_TO_DIR8 = [0, 4, 2, 6] as const;
+export const DIR4_TO_DIR8 = [DIR8_NORTH, DIR8_SOUTH, DIR8_EAST, DIR8_WEST] as const;
 
 // Cardinal directions for MATCH_SAME and dithering - N, E, S, W
-export const CARDINAL_TILESET_DIRS = [0, 2, 4, 6] as const;
+export const CARDINAL_TILESET_DIRS = [DIR8_NORTH, DIR8_EAST, DIR8_SOUTH, DIR8_WEST] as const;
+
+// Tile ownership constants - ported from freeciv reference
+export const UNOWNED_TILE = 255; // Special constant for tiles not owned by anyone (freeciv standard)
+
+// Border rendering constants
+export const BORDER_LINE_WIDTH = 2;
+export const BORDER_ALPHA = 0.8;
+export const DEFAULT_BORDER_COLOR = '#FFFFFF';
+export const DEBUG_BORDER_COLOR = '#FF0000';
 
 // Expose constants globally for compatibility with freeciv-web tileset scripts
 // This ensures that dynamically loaded JavaScript files from the server can access these constants
