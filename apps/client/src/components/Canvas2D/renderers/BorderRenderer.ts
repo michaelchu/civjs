@@ -73,17 +73,24 @@ export class BorderRenderer extends BaseRenderer {
     });
 
     // TEMPORARY TEST: Add fake ownership to some tiles to test border rendering
+    // Create adjacent tiles with different owners to ensure borders are drawn
     const testTiles = { ...tiles };
-    const tileValues = Object.values(testTiles);
+    const tileValues = Object.values(testTiles).filter(t => t.visible);
+
     if (tileValues.length > 10) {
-      // Give first 5 tiles to player 1, next 5 to player 2
-      for (let i = 0; i < Math.min(5, tileValues.length); i++) {
-        testTiles[Object.keys(testTiles)[i]] = { ...tileValues[i], owner: 'player1' };
+      // Find some adjacent tiles by looking for tiles with consecutive coordinates
+      const sortedTiles = tileValues
+        .sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x))
+        .slice(0, 20); // Work with first 20 tiles
+
+      // Create a checkerboard pattern to ensure adjacent tiles have different owners
+      for (let i = 0; i < Math.min(sortedTiles.length, 20); i++) {
+        const tile = sortedTiles[i];
+        const owner = (tile.x + tile.y) % 2 === 0 ? 'player1' : 'player2';
+        const tileKey = `${tile.x},${tile.y}`;
+        testTiles[tileKey] = { ...tile, owner };
       }
-      for (let i = 5; i < Math.min(10, tileValues.length); i++) {
-        testTiles[Object.keys(testTiles)[i]] = { ...tileValues[i], owner: 'player2' };
-      }
-      console.log('[BorderRenderer] TEMP: Added fake ownership for testing');
+      console.log('[BorderRenderer] TEMP: Added checkerboard ownership pattern for testing');
     }
 
     // Add fake players if they don't exist
@@ -141,11 +148,24 @@ export class BorderRenderer extends BaseRenderer {
       bordersDrawn += borderCount;
     }
 
+    // Count actual ownership distribution after test modifications
+    const ownershipStats = Object.values(testTiles).reduce(
+      (stats, tile) => {
+        if (tile.owner) {
+          stats[tile.owner] = (stats[tile.owner] || 0) + 1;
+          stats.total++;
+        }
+        return stats;
+      },
+      { total: 0 } as Record<string, number>
+    );
+
     console.log('[BorderRenderer] Border rendering complete:', {
       tilesWithOwners,
       bordersDrawn,
       totalTiles: Object.keys(testTiles).length,
       originalTilesCount: Object.keys(tiles).length,
+      ownershipStats,
     });
   }
 
@@ -216,12 +236,16 @@ export class BorderRenderer extends BaseRenderer {
       }
     }
 
-    // Log debug info for first few tiles
-    if (bordersDrawn > 0 || (tile.x < 5 && tile.y < 5)) {
+    // Log debug info for tiles with borders or first few tiles to diagnose issues
+    if (bordersDrawn > 0 || debugInfo.some(d => d.shouldDrawBorder) || (tile.x < 5 && tile.y < 5)) {
       console.log(`[BorderRenderer] Tile (${tile.x},${tile.y}) owner=${tile.owner}:`, {
         bordersDrawn,
-        playerColor: this.playerColors.get(tile.owner),
+        playerColor: this.playerColors.get(tile.owner || ''),
+        playerExists: !!players[tile.owner || ''],
         debugInfo,
+        hasAnyNeighborWithDifferentOwner: debugInfo.some(
+          d => d.neighborExists && d.neighborOwner && d.neighborOwner !== tile.owner
+        ),
       });
     }
 
