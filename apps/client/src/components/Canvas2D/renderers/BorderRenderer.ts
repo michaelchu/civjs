@@ -45,17 +45,53 @@ export class BorderRenderer extends BaseRenderer {
   ): void {
     const opts = { ...this.defaultOptions, ...options };
 
+    // Debug logging
+    console.log('[BorderRenderer] render called with:', {
+      tileCount: Object.keys(tiles).length,
+      playerCount: Object.keys(players).length,
+      showBorders: opts.showBorders,
+      hasContext: !!this.ctx,
+    });
+
     if (!opts.showBorders) {
+      console.log('[BorderRenderer] showBorders is false, skipping render');
       return;
     }
 
     const ctx = this.ctx;
-    if (!ctx) return;
+    if (!ctx) {
+      console.log('[BorderRenderer] no canvas context, skipping render');
+      return;
+    }
 
     // Update player colors if players changed
     if (this.playerColors.size === 0 || Object.keys(players).length !== this.playerColors.size) {
       this.setPlayerColors(players);
+      console.log(
+        '[BorderRenderer] updated player colors:',
+        Array.from(this.playerColors.entries())
+      );
     }
+
+    // Count tiles with owners for debugging
+    const tilesWithOwners = Object.values(tiles).filter(tile => tile.owner);
+    const visibleTilesWithOwners = tilesWithOwners.filter(tile => tile.visible);
+    console.log('[BorderRenderer] tiles analysis:', {
+      totalTiles: Object.keys(tiles).length,
+      tilesWithOwners: tilesWithOwners.length,
+      visibleTilesWithOwners: visibleTilesWithOwners.length,
+      sampleTileWithOwner:
+        tilesWithOwners.length > 0
+          ? {
+              x: tilesWithOwners[0].x,
+              y: tilesWithOwners[0].y,
+              owner: tilesWithOwners[0].owner,
+              visible: tilesWithOwners[0].visible,
+            }
+          : null,
+    });
+
+    let bordersDrawn = 0;
 
     // Render borders between tiles with different owners
     for (const tileKey in tiles) {
@@ -66,7 +102,13 @@ export class BorderRenderer extends BaseRenderer {
       if (!this.isInViewport(tile.x, tile.y, renderState.viewport)) continue;
 
       this.renderTileBorders(tile, tiles, screenPos, renderState, opts);
+      bordersDrawn++;
     }
+
+    console.log('[BorderRenderer] render completed:', {
+      bordersDrawn,
+      playerColorsCount: this.playerColors.size,
+    });
   }
 
   /**
@@ -106,6 +148,15 @@ export class BorderRenderer extends BaseRenderer {
       { x: tile.x - 1, y: tile.y, side: 'west' }, // West
     ];
 
+    let sidesDrawn = 0;
+    const debugInfo: Array<{
+      side: string;
+      neighborExists: boolean;
+      neighborOwner?: string;
+      neighborVisible?: boolean;
+      shouldDrawBorder: boolean;
+    }> = [];
+
     for (const neighbor of neighbors) {
       const neighborKey = `${neighbor.x},${neighbor.y}`;
       const neighborTile = allTiles[neighborKey];
@@ -114,9 +165,29 @@ export class BorderRenderer extends BaseRenderer {
       const shouldDrawBorder =
         !neighborTile || neighborTile.owner !== tile.owner || !neighborTile.visible;
 
+      debugInfo.push({
+        side: neighbor.side,
+        neighborExists: !!neighborTile,
+        neighborOwner: neighborTile?.owner,
+        neighborVisible: neighborTile?.visible,
+        shouldDrawBorder,
+      });
+
       if (shouldDrawBorder) {
         this.drawBorderSide(ctx, screenPos, neighbor.side, tileWidth, tileHeight);
+        sidesDrawn++;
       }
+    }
+
+    if (sidesDrawn > 0) {
+      console.log(`[BorderRenderer] drew borders for tile (${tile.x},${tile.y}):`, {
+        owner: tile.owner,
+        playerColor,
+        sidesDrawn,
+        screenPos,
+        tileSize: { width: tileWidth, height: tileHeight },
+        debugInfo,
+      });
     }
 
     ctx.globalAlpha = 1.0;

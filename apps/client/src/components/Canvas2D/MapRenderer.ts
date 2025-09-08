@@ -159,6 +159,8 @@ export class MapRenderer {
       if (borderOptions.showBorders) {
         // Convert global tiles to our tile format for border rendering
         const tilesRecord: Record<string, any> = {};
+        let tilesWithOwners = 0;
+
         visibleTiles.forEach((tile: any) => {
           tilesRecord[`${tile.x},${tile.y}`] = {
             x: tile.x,
@@ -167,6 +169,27 @@ export class MapRenderer {
             owner: tile.owner, // This will need to be populated from border calculations
             terrain: tile.terrain,
           };
+
+          if (tile.owner) {
+            tilesWithOwners++;
+          }
+        });
+
+        console.log('[MapRenderer] border rendering data:', {
+          visibleTilesCount: visibleTiles.length,
+          tilesWithOwners,
+          sampleTile:
+            visibleTiles.length > 0
+              ? {
+                  x: visibleTiles[0].x,
+                  y: visibleTiles[0].y,
+                  owner: visibleTiles[0].owner,
+                  terrain: visibleTiles[0].terrain,
+                  hasOwner: !!visibleTiles[0].owner,
+                }
+              : null,
+          globalPlayersCount: Object.keys(globalPlayers).length,
+          borderOptions,
         });
 
         this.borderRenderer.render(tilesRecord, globalPlayers, state, borderOptions);

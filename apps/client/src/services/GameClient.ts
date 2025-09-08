@@ -514,6 +514,9 @@ class GameClient {
       y: data.y,
       terrain: data.terrain,
       elevation: data.elevation,
+      owner: data.owner,
+      claimer: data.claimer,
+      borderStrength: data.borderStrength,
     });
 
     if ((window as any).tiles && data.tile !== undefined) {
@@ -533,6 +536,10 @@ class GameClient {
           known: data.seen > 0,
           units: [],
           city: undefined,
+          // Border system properties - ported from reference/freeciv border system
+          owner: data.owner || undefined,
+          claimer: data.claimer || undefined,
+          borderStrength: data.borderStrength || 0,
         },
       };
 
@@ -570,6 +577,9 @@ class GameClient {
             y: data.tiles[0].y,
             terrain: data.tiles[0].terrain,
             elevation: data.tiles[0].elevation,
+            owner: data.tiles[0].owner,
+            claimer: data.tiles[0].claimer,
+            borderStrength: data.tiles[0].borderStrength,
           }
         : 'none',
     });
@@ -593,6 +603,10 @@ class GameClient {
         units: [],
         city: undefined,
         resource: tileData.resource,
+        // Border system properties - ported from reference/freeciv border system
+        owner: tileData.owner || undefined,
+        claimer: tileData.claimer || undefined,
+        borderStrength: tileData.borderStrength || 0,
       };
     }
 
