@@ -177,7 +177,6 @@ export class GameManager {
       this.io,
       this.foundCity.bind(this),
       this.requestPath.bind(this),
-      this.createUnit.bind(this),
       this.broadcastToGame.bind(this)
     );
 

@@ -651,9 +651,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   }
 
   private createCityManager(gameId: string): CityManager {
-    return new CityManager(gameId, this.databaseProvider, undefined, {
-      createUnit: (_playerId: string, _unitType: string, _x: number, _y: number) =>
-        Promise.resolve(''),
+    return new CityManager(gameId, this.databaseProvider, {} as any, {
+      // Remove invalid callback property
     });
   }
 
