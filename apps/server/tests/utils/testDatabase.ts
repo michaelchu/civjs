@@ -94,6 +94,140 @@ export function generateTestUUID(): string {
   ].join('-');
 }
 
+// Helper function to create a test user with raw SQL
+async function createUserWithRawSQL(userId: string, username: string, email: string) {
+  if (!testQueryClient) {
+    throw new Error('Test database client not available');
+  }
+
+  const rawResult = await testQueryClient`
+    INSERT INTO users (id, username, email, password_hash, is_guest, is_active, last_seen, created_at, updated_at, games_played, games_won, total_score, settings)
+    VALUES (${userId}, ${username}, ${email}, 'test-hash', false, true, now(), now(), now(), 0, 0, 0, '{}'::jsonb)
+    RETURNING *
+  `;
+
+  if (rawResult && rawResult.length > 0) {
+    return rawResult[0] as typeof schema.users.$inferSelect;
+  }
+  return undefined;
+}
+
+// Helper function to handle user creation error on final attempt
+async function handleFinalUserCreationError(
+  error: unknown,
+  userId: string,
+  username: string,
+  email: string,
+  maxRetries: number
+) {
+  if (!testDb) throw new Error('Test database not initialized');
+
+  // Try to find the user in case of unique constraint violation
+  const retryUser = await testDb.query.users.findFirst({
+    where: (users, { eq }) => eq(users.id, userId),
+  });
+
+  if (retryUser) {
+    logger.info('Found existing user after constraint violations, proceeding');
+    return retryUser;
+  }
+
+  // Provide diagnostic information
+  const usernameConflict = await testDb.query.users.findFirst({
+    where: (users, { eq }) => eq(users.username, username),
+  });
+  const emailConflict = await testDb.query.users.findFirst({
+    where: (users, { eq }) => eq(users.email, email),
+  });
+
+  const diagnosticInfo = {
+    userId,
+    username,
+    email,
+    usernameConflict: !!usernameConflict,
+    emailConflict: !!emailConflict,
+    errorMessage: error instanceof Error ? error.message : String(error),
+    attempts: maxRetries,
+  };
+
+  logger.error(
+    'Unable to create or find test user after all attempts - diagnostic info:',
+    diagnosticInfo
+  );
+  throw new Error(
+    `Failed to create or find test user after ${maxRetries} attempts: ${error instanceof Error ? error.message : String(error)}\nDiagnostic: ${JSON.stringify(diagnosticInfo)}`
+  );
+}
+
+// Helper function to try creating a user once
+async function tryCreateUser(userId: string, attempt: number, maxRetries: number) {
+  // Use crypto-based UUID for username - cryptographically secure and collision-proof
+  const usernameId = generateTestUUID().split('-')[0]; // First part of UUID (8 chars)
+  const emailId = generateTestUUID().split('-')[0];
+
+  const username = `user_${usernameId}`; // Clean: user_a1b2c3d4
+  const email = `test_${emailId}@example.com`;
+
+  try {
+    const user = await createUserWithRawSQL(userId, username, email);
+    if (user) {
+      logger.debug(`Successfully created test user on attempt ${attempt}`);
+      return user;
+    }
+    return undefined;
+  } catch (error) {
+    logger.error(`Failed to create test user (attempt ${attempt}/${maxRetries}):`, {
+      userId,
+      username,
+      email,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      code: (error as any)?.code,
+      detail: (error as any)?.detail,
+      constraint: (error as any)?.constraint,
+      name: (error as any)?.name,
+      severity: (error as any)?.severity,
+      file: (error as any)?.file,
+      line: (error as any)?.line,
+      routine: (error as any)?.routine,
+      original: error,
+    });
+
+    // On final attempt, try to find existing user or provide detailed error
+    if (attempt === maxRetries) {
+      return await handleFinalUserCreationError(error, userId, username, email, maxRetries);
+    }
+
+    return undefined;
+  }
+}
+
+// Helper function to create or find a test user
+async function createOrFindTestUser(userId: string) {
+  if (!testDb) throw new Error('Test database not initialized');
+
+  // First try to find existing user by ID
+  const existingUser = await testDb.query.users.findFirst({
+    where: (users, { eq }) => eq(users.id, userId),
+  });
+
+  if (existingUser) {
+    return existingUser;
+  }
+
+  // Create user with UUID-based username (collision-proof)
+  const maxRetries = 2; // Reduced retries since UUIDs prevent collisions
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const user = await tryCreateUser(userId, attempt, maxRetries);
+    if (user) {
+      return user;
+    }
+  }
+
+  throw new Error('Failed to create or find test user - user is undefined');
+}
+
 // Create test game and player for unit tests
 export async function createTestGameAndPlayer() {
   if (!testDb) throw new Error('Test database not initialized');
@@ -102,109 +236,8 @@ export async function createTestGameAndPlayer() {
   const playerId = generateTestUUID();
   const userId = generateTestUUID();
 
-  // Create test user (handle duplicates in CI/CD)
-  let user: typeof schema.users.$inferSelect | undefined;
-
-  // First try to find existing user by ID
-  const existingUser = await testDb.query.users.findFirst({
-    where: (users, { eq }) => eq(users.id, userId),
-  });
-
-  if (existingUser) {
-    user = existingUser;
-  } else {
-    // Create user with UUID-based username (collision-proof)
-    const maxRetries = 2; // Reduced retries since UUIDs prevent collisions
-
-    for (let attempt = 1; attempt <= maxRetries && !user; attempt++) {
-      // Use crypto-based UUID for username - cryptographically secure and collision-proof
-      const usernameId = generateTestUUID().split('-')[0]; // First part of UUID (8 chars)
-      const emailId = generateTestUUID().split('-')[0];
-
-      const username = `user_${usernameId}`; // Clean: user_a1b2c3d4
-      const email = `test_${emailId}@example.com`;
-
-      try {
-        // Use raw SQL for reliable user creation in tests
-        if (testQueryClient) {
-          const rawResult = await testQueryClient`
-            INSERT INTO users (id, username, email, password_hash, is_guest, is_active, last_seen, created_at, updated_at, games_played, games_won, total_score, settings)
-            VALUES (${userId}, ${username}, ${email}, 'test-hash', false, true, now(), now(), now(), 0, 0, 0, '{}'::jsonb)
-            RETURNING *
-          `;
-
-          if (rawResult && rawResult.length > 0) {
-            user = rawResult[0] as typeof schema.users.$inferSelect;
-            logger.debug(`Successfully created test user on attempt ${attempt}`);
-            break;
-          }
-        } else {
-          throw new Error('Test database client not available');
-        }
-      } catch (error) {
-        logger.error(`Failed to create test user (attempt ${attempt}/${maxRetries}):`, {
-          userId,
-          username,
-          email,
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-          code: (error as any)?.code,
-          detail: (error as any)?.detail,
-          constraint: (error as any)?.constraint,
-          name: (error as any)?.name,
-          severity: (error as any)?.severity,
-          file: (error as any)?.file,
-          line: (error as any)?.line,
-          routine: (error as any)?.routine,
-          original: error,
-        });
-
-        // On final attempt, try to find existing user or provide detailed error
-        if (attempt === maxRetries) {
-          // Try to find the user in case of unique constraint violation
-          const retryUser = await testDb.query.users.findFirst({
-            where: (users, { eq }) => eq(users.id, userId),
-          });
-
-          if (retryUser) {
-            user = retryUser;
-            logger.info('Found existing user after constraint violations, proceeding');
-          } else {
-            // Provide diagnostic information
-            const usernameConflict = await testDb.query.users.findFirst({
-              where: (users, { eq }) => eq(users.username, username),
-            });
-            const emailConflict = await testDb.query.users.findFirst({
-              where: (users, { eq }) => eq(users.email, email),
-            });
-
-            const diagnosticInfo = {
-              userId,
-              username,
-              email,
-              usernameConflict: !!usernameConflict,
-              emailConflict: !!emailConflict,
-              errorMessage: error instanceof Error ? error.message : String(error),
-              attempts: maxRetries,
-            };
-
-            logger.error(
-              'Unable to create or find test user after all attempts - diagnostic info:',
-              diagnosticInfo
-            );
-            throw new Error(
-              `Failed to create or find test user after ${maxRetries} attempts: ${error instanceof Error ? error.message : String(error)}\nDiagnostic: ${JSON.stringify(diagnosticInfo)}`
-            );
-          }
-        }
-      }
-    }
-  }
-
-  // Ensure user was created or found
-  if (!user) {
-    throw new Error('Failed to create or find test user - user is undefined');
-  }
+  // Create or find test user
+  const user = await createOrFindTestUser(userId);
 
   // Create test game
   const [game] = await testDb

@@ -53,7 +53,7 @@ describe('Policy and Government Manager Integration', () => {
         passwordHash: 'test-hash',
       });
     } catch (error) {
-      console.log('User creation error (may be expected in test):', error);
+      // User creation error (may be expected in test)
       // Try to find existing user or create with different values
       const existing = await db.query.users.findFirst({
         where: (users, { eq }) => eq(users.id, userId),

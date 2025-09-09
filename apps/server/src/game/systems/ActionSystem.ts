@@ -371,6 +371,28 @@ export class ActionSystem {
   }
 
   /**
+   * Map of action condition checkers
+   */
+  private readonly actionConditionCheckers: Map<
+    ActionType,
+    (unit: Unit, targetX?: number, targetY?: number) => boolean
+  > = new Map([
+    [ActionType.FORTIFY, unit => this.canFortify(unit)],
+    [ActionType.SENTRY, unit => this.canSentry(unit)],
+    [ActionType.MOVE, (unit, targetX, targetY) => this.canMove(unit, targetX, targetY)],
+    [ActionType.GOTO, (unit, targetX, targetY) => this.canMove(unit, targetX, targetY)],
+    [ActionType.FOUND_CITY, unit => this.canFoundCity(unit)],
+    [ActionType.BUILD_ROAD, unit => this.canBuildRoad(unit)],
+    [ActionType.BUILD_RAILROAD, unit => this.canBuildRailroad(unit)],
+    [ActionType.BUILD_IRRIGATION, unit => this.canBuildIrrigation(unit)],
+    [ActionType.BUILD_MINE, unit => this.canBuildMine(unit)],
+    [ActionType.PILLAGE, unit => this.canPillage(unit)],
+    [ActionType.TRANSFORM_TERRAIN, unit => this.canTransformTerrain(unit)],
+    [ActionType.DISBAND_UNIT, unit => this.canDisbandUnit(unit)],
+    [ActionType.PATROL, (unit, targetX, targetY) => this.canPatrol(unit, targetX, targetY)],
+  ]);
+
+  /**
    * Check action-specific conditions
    */
   private checkActionSpecificConditions(
@@ -379,47 +401,8 @@ export class ActionSystem {
     targetX?: number,
     targetY?: number
   ): boolean {
-    switch (actionType) {
-      case ActionType.FORTIFY:
-        return this.canFortify(unit);
-
-      case ActionType.SENTRY:
-        return this.canSentry(unit);
-
-      case ActionType.MOVE:
-      case ActionType.GOTO:
-        return this.canMove(unit, targetX, targetY);
-
-      case ActionType.FOUND_CITY:
-        return this.canFoundCity(unit);
-
-      case ActionType.BUILD_ROAD:
-        return this.canBuildRoad(unit);
-
-      case ActionType.BUILD_RAILROAD:
-        return this.canBuildRailroad(unit);
-
-      case ActionType.BUILD_IRRIGATION:
-        return this.canBuildIrrigation(unit);
-
-      case ActionType.BUILD_MINE:
-        return this.canBuildMine(unit);
-
-      case ActionType.PILLAGE:
-        return this.canPillage(unit);
-
-      case ActionType.TRANSFORM_TERRAIN:
-        return this.canTransformTerrain(unit);
-
-      case ActionType.DISBAND_UNIT:
-        return this.canDisbandUnit(unit);
-
-      case ActionType.PATROL:
-        return this.canPatrol(unit, targetX, targetY);
-
-      default:
-        return true;
-    }
+    const checker = this.actionConditionCheckers.get(actionType);
+    return checker ? checker(unit, targetX, targetY) : true;
   }
 
   /**
@@ -603,6 +586,31 @@ export class ActionSystem {
   }
 
   /**
+   * Map of action executors
+   */
+  private readonly actionExecutors: Map<
+    ActionType,
+    (unit: Unit, targetX?: number, targetY?: number) => Promise<ActionResult>
+  > = new Map([
+    [ActionType.FORTIFY, async unit => this.executeFortify(unit)],
+    [ActionType.SENTRY, async unit => this.executeSentry(unit)],
+    [ActionType.WAIT, async unit => this.executeWait(unit)],
+    [ActionType.GOTO, async (unit, targetX, targetY) => this.executeGoto(unit, targetX!, targetY!)],
+    [ActionType.FOUND_CITY, async unit => this.executeFoundCity(unit)],
+    [ActionType.BUILD_ROAD, async unit => this.executeBuildRoad(unit)],
+    [ActionType.BUILD_RAILROAD, async unit => this.executeBuildRailroad(unit)],
+    [ActionType.BUILD_IRRIGATION, async unit => this.executeBuildIrrigation(unit)],
+    [ActionType.BUILD_MINE, async unit => this.executeBuildMine(unit)],
+    [ActionType.PILLAGE, async unit => this.executePillage(unit)],
+    [ActionType.TRANSFORM_TERRAIN, async unit => this.executeTransformTerrain(unit)],
+    [ActionType.DISBAND_UNIT, async unit => this.executeDisbandUnit(unit)],
+    [
+      ActionType.PATROL,
+      async (unit, targetX, targetY) => this.executePatrol(unit, targetX!, targetY!),
+    ],
+  ]);
+
+  /**
    * Execute action for unit
    */
   async executeAction(
@@ -634,52 +642,15 @@ export class ActionSystem {
     });
 
     // Execute action-specific logic
-    switch (actionType) {
-      case ActionType.FORTIFY:
-        return await this.executeFortify(unit);
-
-      case ActionType.SENTRY:
-        return await this.executeSentry(unit);
-
-      case ActionType.WAIT:
-        return await this.executeWait(unit);
-
-      case ActionType.GOTO:
-        return await this.executeGoto(unit, targetX!, targetY!);
-
-      case ActionType.FOUND_CITY:
-        return await this.executeFoundCity(unit);
-
-      case ActionType.BUILD_ROAD:
-        return await this.executeBuildRoad(unit);
-
-      case ActionType.BUILD_RAILROAD:
-        return await this.executeBuildRailroad(unit);
-
-      case ActionType.BUILD_IRRIGATION:
-        return await this.executeBuildIrrigation(unit);
-
-      case ActionType.BUILD_MINE:
-        return await this.executeBuildMine(unit);
-
-      case ActionType.PILLAGE:
-        return await this.executePillage(unit);
-
-      case ActionType.TRANSFORM_TERRAIN:
-        return await this.executeTransformTerrain(unit);
-
-      case ActionType.DISBAND_UNIT:
-        return await this.executeDisbandUnit(unit);
-
-      case ActionType.PATROL:
-        return await this.executePatrol(unit, targetX!, targetY!);
-
-      default:
-        return {
-          success: false,
-          message: `Action ${actionType} not yet implemented`,
-        };
+    const executor = this.actionExecutors.get(actionType);
+    if (executor) {
+      return await executor(unit, targetX, targetY);
     }
+
+    return {
+      success: false,
+      message: `Action ${actionType} not yet implemented`,
+    };
   }
 
   /**
