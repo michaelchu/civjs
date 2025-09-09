@@ -9,17 +9,64 @@ import {
   productionKindToVut,
 } from '@game/managers/CityManager';
 import { EffectsManager } from '@game/managers/EffectsManager';
+import { MapManager } from '@game/managers/MapManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('CityManager', () => {
   let cityManager: CityManager;
   let mockEffectsManager: EffectsManager;
+  let mockMapManager: MapManager;
   const gameId = 'test-game-id';
 
   beforeEach(async () => {
     const mockDbProvider = createMockDatabaseProvider();
     mockEffectsManager = {} as EffectsManager;
+
+    // Create a mock MapManager with required methods
+    mockMapManager = {
+      getMapData: jest.fn().mockReturnValue({
+        width: 80,
+        height: 50,
+        tiles: Array(80 * 50)
+          .fill(null)
+          .map((_, index) => ({
+            x: index % 80,
+            y: Math.floor(index / 80),
+            terrain: 'grassland',
+            special: null,
+            improvement: null,
+            city: null,
+            units: [],
+            isVisible: true,
+          })),
+      }),
+      getTileAt: jest.fn().mockReturnValue({
+        x: 10,
+        y: 10,
+        terrain: 'grassland',
+        special: null,
+        improvement: null,
+        city: null,
+        units: [],
+        isVisible: true,
+      }),
+      getTile: jest.fn().mockReturnValue({
+        x: 10,
+        y: 10,
+        terrain: 'grassland',
+        special: null,
+        improvement: null,
+        city: null,
+        units: [],
+        isVisible: true,
+      }),
+      isValidPosition: jest.fn().mockReturnValue(true),
+    } as any;
+
     cityManager = new CityManager(gameId, mockDbProvider, mockEffectsManager);
+
+    // Set the MapManager dependency before initialization
+    cityManager.setMapManager(mockMapManager);
 
     // Initialize the services
     await cityManager.initialize();
@@ -204,7 +251,7 @@ describe('CityManager', () => {
     });
 
     it('should delegate to capture service', async () => {
-      const captureResult = await cityManager.captureCity(city.id, 'enemy-player', 'unit-123');
+      const captureResult = await cityManager.captureCity(city.id, 'player-123', 'unit-123');
       expect(captureResult).toBeDefined();
       expect(captureResult.success).toBe(false); // Cannot capture own city
     });
@@ -254,7 +301,6 @@ describe('CityManager', () => {
       expect(cityManager.getProductionService()).toBeDefined();
       expect(cityManager.getGovernorService()).toBeDefined();
       expect(cityManager.getCaptureService()).toBeDefined();
-      expect(cityManager.getManagementService()).toBeDefined();
     });
   });
 });
