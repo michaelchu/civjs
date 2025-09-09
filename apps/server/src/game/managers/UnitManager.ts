@@ -1350,6 +1350,43 @@ export class UnitManager {
   }
 
   /**
+   * Check if a unit can deboard (unload) from its transport
+   * @reference freeciv-web/javascript/unit.js unit_can_deboard()
+   */
+  canUnloadUnit(unitId: string): boolean {
+    const unit = this.units.get(unitId);
+    if (!unit || !unit.transportedBy) {
+      return false; // Not transported, cannot deboard
+    }
+
+    const transport = this.units.get(unit.transportedBy);
+    if (!transport) {
+      return false; // Transport not found
+    }
+
+    // Always can deboard in cities (placeholder logic)
+    // TODO: Add proper city detection when CityManager is available
+    // if (tile_has_city) return true;
+
+    // For now, allow deboarding on land tiles for ground units
+    // This is a simplified version - the original has complex ruleset logic
+    const unitType = UNIT_TYPES[unit.unitTypeId];
+    const transportType = UNIT_TYPES[transport.unitTypeId];
+
+    if (unitType.unitClass === 'naval' && transportType.unitClass === 'naval') {
+      return true; // Naval units can always deboard from naval transports
+    }
+
+    if (unitType.unitClass !== 'naval' && transportType.unitClass === 'naval') {
+      // Ground/air units need to be on coast or in port
+      // TODO: Add proper terrain checking when MapManager is integrated
+      return true; // Simplified - allow for now
+    }
+
+    return true; // Default allow - will be refined with proper terrain/city checks
+  }
+
+  /**
    * Check if unit can load another unit
    */
   canLoadUnit(transportId: string, cargoId: string): boolean {
