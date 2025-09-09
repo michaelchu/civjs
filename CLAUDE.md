@@ -120,7 +120,7 @@ This is a port from freeciv-web (the original web client) to a modern React/Type
 
 The `reference/` folder contains the original source repositories we are porting from:
 - **freeciv/**: The original Freeciv game (C-based backend) - reference for game mechanics, rules, and server logic
-- **freeciv-web/**: The web client implementation - reference for frontend rendering, UI components, and client-side game logic
+- **freeciv-web/**: The actual freeciv-web game files downloaded directly from the browser while playing the live game at play.freeciv.org. This contains the complete client-side implementation including JavaScript, CSS, sprites, tilesets, and all assets. **Use this folder as the primary reference for all frontend/client-side development needs** - it represents the exact working implementation that we are porting to modern TypeScript/React.
 
 When implementing features or fixing issues, consult these reference repositories to understand the original implementation and ensure compatibility with established game mechanics.
 - Always copy and reference original code when generating ports. Cite the source (file/path/lines). Only if reuse is impossible, explain why and stop. Do not write new code until the user explicitly approves.
