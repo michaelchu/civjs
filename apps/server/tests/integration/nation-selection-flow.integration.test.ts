@@ -36,7 +36,7 @@ describe('Nation Selection Flow - Integration', () => {
   let activeConnections: Map<string, any>;
 
   const mockSocketId = 'test-socket-id';
-  const mockUserId = generateTestUUID('1001');
+  const mockUserId = generateTestUUID();
   const mockUsername = 'testuser';
 
   beforeEach(async () => {
@@ -80,12 +80,23 @@ describe('Nation Selection Flow - Integration', () => {
     it('should create game and assign specific nation to creator', async () => {
       // Create user in database first
       const db = getTestDatabase();
-      await db.insert(schema.users).values({
-        id: mockUserId,
-        username: mockUsername,
-        email: `${mockUsername}@test.com`,
-        passwordHash: 'test-hash',
-      });
+      try {
+        const uniqueId = generateTestUUID().substring(0, 8);
+        await db.insert(schema.users).values({
+          id: mockUserId,
+          username: `testuser_${uniqueId}`,
+          email: `testuser_${uniqueId}@test.com`,
+          passwordHash: 'test-hash',
+        });
+      } catch (error) {
+        // Handle potential unique constraint violations
+        const existing = await db.query.users.findFirst({
+          where: (users, { eq }) => eq(users.id, mockUserId),
+        });
+        if (!existing) {
+          throw new Error(`Failed to create test user: ${error}`);
+        }
+      }
 
       // Arrange
       const gameData = {
@@ -128,12 +139,23 @@ describe('Nation Selection Flow - Integration', () => {
     it('should create game and assign random nation when requested', async () => {
       // Create user in database first
       const db = getTestDatabase();
-      await db.insert(schema.users).values({
-        id: mockUserId,
-        username: mockUsername,
-        email: `${mockUsername}@test.com`,
-        passwordHash: 'test-hash',
-      });
+      try {
+        const uniqueId = generateTestUUID().substring(0, 8);
+        await db.insert(schema.users).values({
+          id: mockUserId,
+          username: `testuser_${uniqueId}`,
+          email: `testuser_${uniqueId}@test.com`,
+          passwordHash: 'test-hash',
+        });
+      } catch (error) {
+        // Handle potential unique constraint violations
+        const existing = await db.query.users.findFirst({
+          where: (users, { eq }) => eq(users.id, mockUserId),
+        });
+        if (!existing) {
+          throw new Error(`Failed to create test user: ${error}`);
+        }
+      }
 
       // Arrange
       const gameData = {
@@ -174,12 +196,23 @@ describe('Nation Selection Flow - Integration', () => {
     beforeEach(async () => {
       // Create user in database first
       const db = getTestDatabase();
-      await db.insert(schema.users).values({
-        id: mockUserId,
-        username: mockUsername,
-        email: `${mockUsername}@test.com`,
-        passwordHash: 'test-hash',
-      });
+      try {
+        const uniqueId = generateTestUUID().substring(0, 8);
+        await db.insert(schema.users).values({
+          id: mockUserId,
+          username: `testuser_${uniqueId}`,
+          email: `testuser_${uniqueId}@test.com`,
+          passwordHash: 'test-hash',
+        });
+      } catch (error) {
+        // Handle potential unique constraint violations
+        const existing = await db.query.users.findFirst({
+          where: (users, { eq }) => eq(users.id, mockUserId),
+        });
+        if (!existing) {
+          throw new Error(`Failed to create test user: ${error}`);
+        }
+      }
 
       // Create a test game first
       const gameConfig = {
@@ -194,14 +227,24 @@ describe('Nation Selection Flow - Integration', () => {
 
     it('should join game with specific nation selection', async () => {
       // Create second user in database first
-      const newUserId = generateTestUUID('1002');
+      const newUserId = generateTestUUID();
       const db = getTestDatabase();
-      await db.insert(schema.users).values({
-        id: newUserId,
-        username: 'SecondPlayer',
-        email: 'secondplayer@test.com',
-        passwordHash: 'test-hash',
-      });
+      try {
+        const uniqueId = generateTestUUID().substring(0, 8);
+        await db.insert(schema.users).values({
+          id: newUserId,
+          username: `secondplayer_${uniqueId}`,
+          email: `secondplayer_${uniqueId}@test.com`,
+          passwordHash: 'test-hash',
+        });
+      } catch (error) {
+        const existing = await db.query.users.findFirst({
+          where: (users, { eq }) => eq(users.id, newUserId),
+        });
+        if (!existing) {
+          throw new Error(`Failed to create second test user: ${error}`);
+        }
+      }
 
       // Arrange
       const joinData = {
@@ -242,24 +285,44 @@ describe('Nation Selection Flow - Integration', () => {
 
     it('should handle random nation selection for second player', async () => {
       // Create first user and join with specific nation
-      const firstUserId = generateTestUUID('1003');
+      const firstUserId = generateTestUUID();
       const db = getTestDatabase();
-      await db.insert(schema.users).values({
-        id: firstUserId,
-        username: 'FirstPlayer',
-        email: 'firstplayer@test.com',
-        passwordHash: 'test-hash',
-      });
+      try {
+        const uniqueId = generateTestUUID().substring(0, 8);
+        await db.insert(schema.users).values({
+          id: firstUserId,
+          username: `firstplayer_${uniqueId}`,
+          email: `firstplayer_${uniqueId}@test.com`,
+          passwordHash: 'test-hash',
+        });
+      } catch (error) {
+        const existing = await db.query.users.findFirst({
+          where: (users, { eq }) => eq(users.id, firstUserId),
+        });
+        if (!existing) {
+          throw new Error(`Failed to create first test user: ${error}`);
+        }
+      }
       await gameManager.joinGame(testGameId, firstUserId, 'american');
 
       // Create second user for random nation selection
-      const newUserId = generateTestUUID('1004');
-      await db.insert(schema.users).values({
-        id: newUserId,
-        username: 'RandomPlayer',
-        email: 'randomplayer@test.com',
-        passwordHash: 'test-hash',
-      });
+      const newUserId = generateTestUUID();
+      try {
+        const uniqueId = generateTestUUID().substring(0, 8);
+        await db.insert(schema.users).values({
+          id: newUserId,
+          username: `randomplayer_${uniqueId}`,
+          email: `randomplayer_${uniqueId}@test.com`,
+          passwordHash: 'test-hash',
+        });
+      } catch (error) {
+        const existing = await db.query.users.findFirst({
+          where: (users, { eq }) => eq(users.id, newUserId),
+        });
+        if (!existing) {
+          throw new Error(`Failed to create random test user: ${error}`);
+        }
+      }
 
       const joinData = {
         gameId: testGameId,

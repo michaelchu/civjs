@@ -49,7 +49,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
     beforeEach(async () => {
       // Create a user first for the host
-      const hostData = await createTestGameAndPlayer('9001', '9002');
+      const hostData = await createTestGameAndPlayer();
       testHostId = hostData.user.id;
       testConfig = {
         name: 'Integration Test Game',
@@ -71,8 +71,8 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
       // Create additional users for players
       const testDb = getTestDatabase();
-      const user1Id = generateTestUUID('1001');
-      const user2Id = generateTestUUID('1002');
+      const user1Id = generateTestUUID();
+      const user2Id = generateTestUUID();
 
       await testDb.insert(schema.users).values([
         {
@@ -116,7 +116,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
     });
 
     it('should apply defaults for minimal game config', async () => {
-      const minimalHostData = await createTestGameAndPlayer('9003', '9004');
+      const minimalHostData = await createTestGameAndPlayer();
       const minimalConfig: GameConfig = {
         name: 'Minimal Game',
         hostId: minimalHostData.user.id,
@@ -144,7 +144,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
     let gameId: string;
 
     beforeEach(async () => {
-      const hostData = await createTestGameAndPlayer('9005', '9006');
+      const hostData = await createTestGameAndPlayer();
       const gameConfig: GameConfig = {
         name: 'Player Test Game',
         hostId: hostData.user.id,
@@ -156,8 +156,8 @@ describe('GameManager - Integration Tests with Real Database', () => {
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     it.skip('should join players and persist to database', async () => {
-      const userId1 = generateTestUUID('0011');
-      const userId2 = generateTestUUID('0012');
+      const userId1 = generateTestUUID();
+      const userId2 = generateTestUUID();
 
       // Create users first
       const testDb = getTestDatabase();
@@ -204,9 +204,9 @@ describe('GameManager - Integration Tests with Real Database', () => {
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     it.skip('should reject players when game is full', async () => {
       // Fill game to capacity
-      const userId1 = generateTestUUID('0021');
-      const userId2 = generateTestUUID('0022');
-      const userId3 = generateTestUUID('0023');
+      const userId1 = generateTestUUID();
+      const userId2 = generateTestUUID();
+      const userId3 = generateTestUUID();
 
       // Create users first
       const testDb = getTestDatabase();
@@ -246,8 +246,8 @@ describe('GameManager - Integration Tests with Real Database', () => {
     });
 
     it('should prevent duplicate nations', async () => {
-      const userId1 = generateTestUUID('0031');
-      const userId2 = generateTestUUID('0032');
+      const userId1 = generateTestUUID();
+      const userId2 = generateTestUUID();
 
       // Create users first
       const testDb = getTestDatabase();
@@ -285,8 +285,8 @@ describe('GameManager - Integration Tests with Real Database', () => {
     let user2Data: { game: any; player: any; user: any };
 
     beforeEach(async () => {
-      hostData = await createTestGameAndPlayer('9007', '9008');
-      user2Data = await createTestGameAndPlayer('9009', '9010');
+      hostData = await createTestGameAndPlayer();
+      user2Data = await createTestGameAndPlayer();
     });
 
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status

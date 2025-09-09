@@ -32,16 +32,16 @@ async function generateMapDataForTests(
 export async function createBasicGameScenario(): Promise<TestGameScenario> {
   const db = getTestDatabase();
 
-  const userId1 = generateTestUUID('1001');
-  const userId2 = generateTestUUID('1002');
-  const gameId = generateTestUUID('2001');
-  const playerId1 = generateTestUUID('3001');
-  const playerId2 = generateTestUUID('3002');
-  const cityId1 = generateTestUUID('4001');
-  const cityId2 = generateTestUUID('4002');
-  const unitId1 = generateTestUUID('5001');
-  const unitId2 = generateTestUUID('5002');
-  const unitId3 = generateTestUUID('5003');
+  const userId1 = generateTestUUID();
+  const userId2 = generateTestUUID();
+  const gameId = generateTestUUID();
+  const playerId1 = generateTestUUID();
+  const playerId2 = generateTestUUID();
+  const cityId1 = generateTestUUID();
+  const cityId2 = generateTestUUID();
+  const unitId1 = generateTestUUID();
+  const unitId2 = generateTestUUID();
+  const unitId3 = generateTestUUID();
 
   // Create players map for map generation
   const playersMap = new Map<string, PlayerState>([

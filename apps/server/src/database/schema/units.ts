@@ -47,6 +47,7 @@ export const units = pgTable('units', {
 
   // Special
   cargoUnits: jsonb('cargo_units').default([]).notNull(), // for transports
+  transportedBy: uuid('transported_by'), // ID of unit transporting this unit
   homeCityId: uuid('home_city_id'),
 
   // Timestamps

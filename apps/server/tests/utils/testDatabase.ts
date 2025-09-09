@@ -1,12 +1,14 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import { randomBytes } from 'crypto';
 import * as schema from '@database/schema';
 // Import logger with fallback for mocked scenarios
 let logger: {
   info: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
   debug: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
 };
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
@@ -26,6 +28,10 @@ try {
     debug: (...args: unknown[]) => {
       // eslint-disable-next-line no-console
       console.debug('[TEST DEBUG]', ...args);
+    },
+    warn: (...args: unknown[]) => {
+      // eslint-disable-next-line no-console
+      console.warn('[TEST WARN]', ...args);
     },
   };
 }
@@ -68,60 +74,177 @@ export class TestDatabaseProvider implements DatabaseProvider {
   }
 }
 
-// UUID generator for tests
-export function generateTestUUID(suffix: string): string {
-  // Generate a valid UUID with better randomness
-  const timestamp = Date.now().toString(16).slice(-6); // Last 6 hex digits
-  const random = Math.floor(Math.random() * 0xffffff)
-    .toString(16)
-    .padStart(6, '0'); // 6 hex digits
-  const paddedSuffix = suffix.padStart(2, '0');
-  // Format: 550e8400-e29b-41d4-a716-ssttttttrrrrrrr (12 chars total after last dash)
-  return `550e8400-e29b-41d4-a716-${paddedSuffix}${timestamp}${random}`.slice(0, 36);
+// UUID generator for tests - uses crypto for guaranteed uniqueness
+export function generateTestUUID(): string {
+  // Generate a UUID v4 using crypto - cryptographically secure and collision-proof
+  const bytes = randomBytes(16);
+
+  // Set version (4) and variant bits
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // Version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // Variant 10
+
+  // Format as UUID string
+  const hex = bytes.toString('hex');
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join('-');
 }
 
-// Create test game and player for unit tests
-export async function createTestGameAndPlayer(
-  gameIdSuffix: string = '0001',
-  playerIdSuffix: string = '0002'
+// Helper function to create a test user with raw SQL
+async function createUserWithRawSQL(userId: string, username: string, email: string) {
+  if (!testQueryClient) {
+    throw new Error('Test database client not available');
+  }
+
+  const rawResult = await testQueryClient`
+    INSERT INTO users (id, username, email, password_hash, is_guest, is_active, last_seen, created_at, updated_at, games_played, games_won, total_score, settings)
+    VALUES (${userId}, ${username}, ${email}, 'test-hash', false, true, now(), now(), now(), 0, 0, 0, '{}'::jsonb)
+    RETURNING *
+  `;
+
+  if (rawResult && rawResult.length > 0) {
+    return rawResult[0] as typeof schema.users.$inferSelect;
+  }
+  return undefined;
+}
+
+// Helper function to handle user creation error on final attempt
+async function handleFinalUserCreationError(
+  error: unknown,
+  userId: string,
+  username: string,
+  email: string,
+  maxRetries: number
 ) {
   if (!testDb) throw new Error('Test database not initialized');
 
-  const gameId = generateTestUUID(gameIdSuffix);
-  const playerId = generateTestUUID(playerIdSuffix);
-  const userId = generateTestUUID(playerIdSuffix.replace('2', '1')); // Derive user ID from player ID
+  // Try to find the user in case of unique constraint violation
+  const retryUser = await testDb.query.users.findFirst({
+    where: (users, { eq }) => eq(users.id, userId),
+  });
 
-  // Create test user (handle duplicates in CI/CD)
-  let user: typeof schema.users.$inferSelect;
+  if (retryUser) {
+    logger.info('Found existing user after constraint violations, proceeding');
+    return retryUser;
+  }
+
+  // Provide diagnostic information
+  const usernameConflict = await testDb.query.users.findFirst({
+    where: (users, { eq }) => eq(users.username, username),
+  });
+  const emailConflict = await testDb.query.users.findFirst({
+    where: (users, { eq }) => eq(users.email, email),
+  });
+
+  const diagnosticInfo = {
+    userId,
+    username,
+    email,
+    usernameConflict: !!usernameConflict,
+    emailConflict: !!emailConflict,
+    errorMessage: error instanceof Error ? error.message : String(error),
+    attempts: maxRetries,
+  };
+
+  logger.error(
+    'Unable to create or find test user after all attempts - diagnostic info:',
+    diagnosticInfo
+  );
+  throw new Error(
+    `Failed to create or find test user after ${maxRetries} attempts: ${error instanceof Error ? error.message : String(error)}\nDiagnostic: ${JSON.stringify(diagnosticInfo)}`
+  );
+}
+
+// Helper function to try creating a user once
+async function tryCreateUser(userId: string, attempt: number, maxRetries: number) {
+  // Use crypto-based UUID for username - cryptographically secure and collision-proof
+  const usernameId = generateTestUUID().split('-')[0]; // First part of UUID (8 chars)
+  const emailId = generateTestUUID().split('-')[0];
+
+  const username = `user_${usernameId}`; // Clean: user_a1b2c3d4
+  const email = `test_${emailId}@example.com`;
+
   try {
-    [user] = await testDb
-      .insert(schema.users)
-      .values({
-        id: userId,
-        username: `TestUser${playerIdSuffix}_${Date.now()}`,
-        email: `test${playerIdSuffix}_${Date.now()}@example.com`,
-        passwordHash: 'test-hash',
-      })
-      .returning();
+    const user = await createUserWithRawSQL(userId, username, email);
+    if (user) {
+      logger.debug(`Successfully created test user on attempt ${attempt}`);
+      return user;
+    }
+    return undefined;
   } catch (error) {
-    // Try to find existing user
-    const existing = await testDb.query.users.findFirst({
-      where: (users, { eq }) => eq(users.id, userId),
+    logger.error(`Failed to create test user (attempt ${attempt}/${maxRetries}):`, {
+      userId,
+      username,
+      email,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      code: (error as any)?.code,
+      detail: (error as any)?.detail,
+      constraint: (error as any)?.constraint,
+      name: (error as any)?.name,
+      severity: (error as any)?.severity,
+      file: (error as any)?.file,
+      line: (error as any)?.line,
+      routine: (error as any)?.routine,
+      original: error,
     });
 
-    if (existing) {
-      user = existing;
-    } else {
-      throw new Error(`Failed to create or find test user: ${error}`);
+    // On final attempt, try to find existing user or provide detailed error
+    if (attempt === maxRetries) {
+      return await handleFinalUserCreationError(error, userId, username, email, maxRetries);
+    }
+
+    return undefined;
+  }
+}
+
+// Helper function to create or find a test user
+async function createOrFindTestUser(userId: string) {
+  if (!testDb) throw new Error('Test database not initialized');
+
+  // First try to find existing user by ID
+  const existingUser = await testDb.query.users.findFirst({
+    where: (users, { eq }) => eq(users.id, userId),
+  });
+
+  if (existingUser) {
+    return existingUser;
+  }
+
+  // Create user with UUID-based username (collision-proof)
+  const maxRetries = 2; // Reduced retries since UUIDs prevent collisions
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const user = await tryCreateUser(userId, attempt, maxRetries);
+    if (user) {
+      return user;
     }
   }
+
+  throw new Error('Failed to create or find test user - user is undefined');
+}
+
+// Create test game and player for unit tests
+export async function createTestGameAndPlayer() {
+  if (!testDb) throw new Error('Test database not initialized');
+
+  const gameId = generateTestUUID();
+  const playerId = generateTestUUID();
+  const userId = generateTestUUID();
+
+  // Create or find test user
+  const user = await createOrFindTestUser(userId);
 
   // Create test game
   const [game] = await testDb
     .insert(schema.games)
     .values({
       id: gameId,
-      name: `Test Game ${gameIdSuffix}`,
+      name: `Test Game`,
       hostId: user.id, // Use actual user.id instead of userId
       status: 'active',
       maxPlayers: 4,
@@ -158,7 +281,7 @@ export async function createTestGameAndPlayer(
 
 // Test database connection string
 const testConnectionString =
-  process.env.TEST_DATABASE_URL || 'postgresql://civjs_test:civjs_test@localhost:5432/civjs_test';
+  process.env.DATABASE_URL || 'postgresql://civjs:civjs_secret@localhost:5432/civjs_test';
 
 // Create test database connection
 let testQueryClient: postgres.Sql | null = null;
@@ -234,20 +357,54 @@ export async function clearAllTables() {
   if (!testDb) return;
 
   try {
-    // Clear all tables in dependency order (child tables first, then parent tables)
-    await testDb.delete(schema.units);
-    await testDb.delete(schema.cities);
-    await testDb.delete(schema.playerTechs);
-    await testDb.delete(schema.research);
-    await testDb.delete(schema.players);
-    await testDb.delete(schema.gameTurns);
-    await testDb.delete(schema.games);
-    await testDb.delete(schema.users);
+    if (testQueryClient) {
+      // Use TRUNCATE CASCADE to completely reset all tables regardless of foreign key constraints
+      // This is the most reliable way to clear the test database
+      const tables = [
+        'units',
+        'cities',
+        'player_techs',
+        'research',
+        'player_policies',
+        'government_changes',
+        'players',
+        'game_turns',
+        'games',
+        'users',
+      ];
 
-    logger.debug('All test database tables cleared');
+      // TRUNCATE CASCADE will handle all foreign key constraints automatically
+      for (const table of tables) {
+        await testQueryClient`TRUNCATE TABLE ${testQueryClient.unsafe(table)} CASCADE`;
+      }
+
+      logger.debug('All test database tables truncated with CASCADE');
+    } else {
+      logger.error('Test query client not available');
+      throw new Error('Test query client not available for table cleanup');
+    }
   } catch (error) {
-    logger.error('Failed to clear test database tables:', error);
-    throw error;
+    logger.error('Failed to clear test database tables with TRUNCATE:', error);
+
+    // If TRUNCATE fails, try individual DELETE operations in dependency order
+    logger.warn('Attempting individual DELETE operations as fallback...');
+    try {
+      // Clear all tables in dependency order (child tables first, then parent tables)
+      await testDb.delete(schema.units);
+      await testDb.delete(schema.cities);
+      await testDb.delete(schema.playerTechs);
+      await testDb.delete(schema.research);
+      await testDb.delete(schema.playerPolicies);
+      await testDb.delete(schema.governmentChanges);
+      await testDb.delete(schema.players);
+      await testDb.delete(schema.gameTurns);
+      await testDb.delete(schema.games);
+      await testDb.delete(schema.users);
+      logger.debug('DELETE fallback completed successfully');
+    } catch (deleteError) {
+      logger.error('DELETE fallback also failed:', deleteError);
+      throw deleteError;
+    }
   }
 }
 

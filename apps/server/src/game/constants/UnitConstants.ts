@@ -12,6 +12,7 @@ export interface UnitType {
   canBuildImprovements: boolean;
   unitClass: 'military' | 'civilian' | 'naval' | 'air';
   requiredTech?: string;
+  transport_capacity?: number;
 }
 
 /**
@@ -67,6 +68,19 @@ export const UNIT_TYPES: Record<string, UnitType> = {
     canBuildImprovements: true,
     unitClass: 'civilian',
   },
+  engineer: {
+    id: 'engineer',
+    name: 'Engineer',
+    cost: 100,
+    movement: 3 * SINGLE_MOVE, // 3 movement points = 9 fragments
+    combat: 0,
+    range: 0,
+    sight: 2,
+    canFoundCity: false,
+    canBuildImprovements: true,
+    unitClass: 'civilian',
+    requiredTech: 'engineering',
+  },
   archer: {
     id: 'archer',
     name: 'Archer',
@@ -92,6 +106,32 @@ export const UNIT_TYPES: Record<string, UnitType> = {
     canBuildImprovements: false,
     unitClass: 'military',
     requiredTech: 'bronzeWorking',
+  },
+  diplomat: {
+    id: 'diplomat',
+    name: 'Diplomat',
+    cost: 30,
+    movement: 2 * SINGLE_MOVE, // 2 movement points = 6 fragments
+    combat: 0,
+    range: 1,
+    sight: 2,
+    canFoundCity: false,
+    canBuildImprovements: false,
+    unitClass: 'civilian',
+    requiredTech: 'writing',
+  },
+  caravan: {
+    id: 'caravan',
+    name: 'Caravan',
+    cost: 50,
+    movement: 1 * SINGLE_MOVE, // 1 movement point = 3 fragments
+    combat: 0,
+    range: 0,
+    sight: 1,
+    canFoundCity: false,
+    canBuildImprovements: false,
+    unitClass: 'civilian',
+    requiredTech: 'currency',
   },
 };
 

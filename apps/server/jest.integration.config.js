@@ -24,12 +24,13 @@ module.exports = {
   coverageDirectory: 'coverage',
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts', '!src/index.ts'],
   setupFilesAfterEnv: ['<rootDir>/tests/setup.integration.ts'],
-  testTimeout: 30000, // Longer timeout for integration tests
+  testTimeout: 30000,
   clearMocks: true,
   resetMocks: true,
   restoreMocks: true,
-  // Run tests serially to avoid database conflicts
-  maxWorkers: 1,
   // Force Jest to exit after tests complete (needed for integration tests with DB connections)
   forceExit: true,
+  // Optimize for CI environments
+  verbose: false,
+  silent: false,
 };

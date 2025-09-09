@@ -37,20 +37,31 @@ describe('Policy and Government Manager Integration', () => {
     await clearAllTables();
 
     // Generate UUIDs for this test
-    gameId = generateTestUUID('5001');
-    playerId = generateTestUUID('5002');
-    userId = generateTestUUID('5003');
+    gameId = generateTestUUID();
+    playerId = generateTestUUID();
+    userId = generateTestUUID();
 
     const db = getTestDatabase();
     const testDbProvider = getTestDatabaseProvider();
 
-    // Create user first
-    await db.insert(schema.users).values({
-      id: userId,
-      username: `TestUser_${Date.now()}`,
-      email: `test_${Date.now()}@example.com`,
-      passwordHash: 'test-hash',
-    });
+    // Create user first (handle potential conflicts)
+    try {
+      await db.insert(schema.users).values({
+        id: userId,
+        username: `TestUser_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        email: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}@example.com`,
+        passwordHash: 'test-hash',
+      });
+    } catch (error) {
+      // User creation error (may be expected in test)
+      // Try to find existing user or create with different values
+      const existing = await db.query.users.findFirst({
+        where: (users, { eq }) => eq(users.id, userId),
+      });
+      if (!existing) {
+        throw new Error(`Failed to create test user: ${error}`);
+      }
+    }
 
     // Create game
     await db.insert(schema.games).values({

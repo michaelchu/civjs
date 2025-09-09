@@ -101,10 +101,9 @@ jobs:
         run: cd apps/server && npm run test:unit -- --ci --coverage --maxWorkers=2
       
       - name: Run integration tests
-        run: cd apps/server && npm run test:integration -- --ci --coverage --maxWorkers=1
+        run: cd apps/server && npm run test:integration:ci -- --ci --coverage
         env:
           DATABASE_URL: postgresql://ci_test_user:ci_test_password_123@localhost:5432/civjs_test
-          TEST_DATABASE_URL: postgresql://ci_test_user:ci_test_password_123@localhost:5432/civjs_test
           REDIS_URL: redis://localhost:6379
           MIN_PLAYERS_TO_START: 2
 
