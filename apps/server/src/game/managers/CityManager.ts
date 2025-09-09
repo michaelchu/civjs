@@ -30,6 +30,83 @@ export const GAME_DEFAULT_CITYMINDIST = 2;
 export const GAME_MIN_CITYMINDIST = 1;
 export const GAME_MAX_CITYMINDIST = 11;
 
+// Following Freeciv specialist types
+// Reference: freeciv-web/javascript/city.js:99 and specialists data
+export enum SpecialistType {
+  SCIENTIST = 0, // Science specialist
+  TAX_COLLECTOR = 1, // Gold specialist
+  ENTERTAINER = 2, // Luxury specialist
+  // Extended specialists (require Adam Smith's Trading Company)
+  WORKER = 3, // Food specialist
+  ENGINEER = 4, // Shield specialist
+  MERCHANT = 5, // Trade specialist
+}
+
+export interface SpecialistDefinition {
+  id: SpecialistType;
+  name: string;
+  pluralName: string;
+  shortName: string;
+  outputType: 'science' | 'gold' | 'luxury' | 'food' | 'shield' | 'trade';
+  outputAmount: number;
+  requiredWonder?: string; // Some specialists require specific wonders
+}
+
+// Following Freeciv specialist definitions
+export const SPECIALIST_TYPES: Record<SpecialistType, SpecialistDefinition> = {
+  [SpecialistType.SCIENTIST]: {
+    id: SpecialistType.SCIENTIST,
+    name: 'Scientist',
+    pluralName: 'Scientists',
+    shortName: 'Sci',
+    outputType: 'science',
+    outputAmount: 3, // Base science output
+  },
+  [SpecialistType.TAX_COLLECTOR]: {
+    id: SpecialistType.TAX_COLLECTOR,
+    name: 'Tax Collector',
+    pluralName: 'Tax Collectors',
+    shortName: 'Tax',
+    outputType: 'gold',
+    outputAmount: 3, // Base gold output
+  },
+  [SpecialistType.ENTERTAINER]: {
+    id: SpecialistType.ENTERTAINER,
+    name: 'Entertainer',
+    pluralName: 'Entertainers',
+    shortName: 'Ent',
+    outputType: 'luxury',
+    outputAmount: 3, // Base luxury output
+  },
+  [SpecialistType.WORKER]: {
+    id: SpecialistType.WORKER,
+    name: 'Worker',
+    pluralName: 'Workers',
+    shortName: 'Wkr',
+    outputType: 'food',
+    outputAmount: 2, // Base food output
+    requiredWonder: "Adam Smith's Trading Company",
+  },
+  [SpecialistType.ENGINEER]: {
+    id: SpecialistType.ENGINEER,
+    name: 'Engineer',
+    pluralName: 'Engineers',
+    shortName: 'Eng',
+    outputType: 'shield',
+    outputAmount: 2, // Base shield output
+    requiredWonder: "Adam Smith's Trading Company",
+  },
+  [SpecialistType.MERCHANT]: {
+    id: SpecialistType.MERCHANT,
+    name: 'Merchant',
+    pluralName: 'Merchants',
+    shortName: 'Mer',
+    outputType: 'trade',
+    outputAmount: 2, // Base trade output
+    requiredWonder: "Adam Smith's Trading Company",
+  },
+};
+
 // Following Freeciv building types
 export interface BuildingType {
   id: string;
@@ -117,6 +194,15 @@ export const BUILDING_TYPES: Record<string, BuildingType> = {
   },
 };
 
+// Production queue item following Freeciv worklist system
+// Reference: freeciv-web/javascript/city.js:3136 populate_worklist_production_choices
+export interface ProductionItem {
+  kind: 'unit' | 'building'; // VUT_UTYPE or VUT_IMPROVEMENT
+  value: string; // unit type id or building id
+  name: string;
+  cost: number; // shield cost
+}
+
 // City interface following Freeciv structure
 export interface CityState {
   id: string;
@@ -130,6 +216,7 @@ export interface CityState {
   population: number; // city size
   foodStock: number; // accumulated food
   foodPerTurn: number; // food surplus/deficit
+  granaryTurns: number; // turns to grow/starve (-1 = starvation next turn)
 
   // Production (following Freeciv shield system)
   productionStock: number; // accumulated shields
@@ -137,21 +224,36 @@ export interface CityState {
   currentProduction?: string | null; // what's being built
   productionType?: 'unit' | 'building' | null; // type of production
   turnsToComplete: number;
+  worklist: ProductionItem[]; // production queue following Freeciv worklist
 
   // Economy (following Freeciv trade system)
   goldPerTurn: number;
   sciencePerTurn: number;
   culturePerTurn: number;
+  luxuryPerTurn: number; // luxury for happiness
 
   // Buildings and improvements
   buildings: string[]; // building IDs
   workingTiles: Array<{ x: number; y: number }>; // tiles being worked
+
+  // Specialists following Freeciv system
+  // Reference: freeciv-web/javascript/city.js:2556-2626
+  specialists: Record<SpecialistType, number>; // count of each specialist type
 
   // Status
   isCapital: boolean;
   defenseStrength: number;
   happinessLevel: number; // 0-100
   healthLevel: number; // 0-100
+
+  // Detailed happiness breakdown following Freeciv
+  // Reference: freeciv-web/javascript/city.js:2728-2819 show_city_happy_tab
+  happiness: {
+    happy: number; // happy citizens
+    content: number; // content citizens
+    unhappy: number; // unhappy citizens
+    angry: number; // angry citizens
+  };
 
   // Turn tracking
   foundedTurn: number;
@@ -357,17 +459,35 @@ export class CityManager {
       population: 1,
       foodStock: 0,
       foodPerTurn: 2,
+      granaryTurns: this.calculateGranaryTurns(1, 0, 2), // Initial calculation
       productionStock: 0,
       productionPerTurn: 1,
       goldPerTurn: 0,
       sciencePerTurn: 0,
       culturePerTurn: 1,
+      luxuryPerTurn: 0,
       buildings: [],
       workingTiles: [{ x, y }],
+      // Initialize specialists - new cities start with no specialists
+      specialists: {
+        [SpecialistType.SCIENTIST]: 0,
+        [SpecialistType.TAX_COLLECTOR]: 0,
+        [SpecialistType.ENTERTAINER]: 0,
+        [SpecialistType.WORKER]: 0,
+        [SpecialistType.ENGINEER]: 0,
+        [SpecialistType.MERCHANT]: 0,
+      },
+      worklist: [], // Empty production queue
       isCapital: false,
       defenseStrength: 1,
       happinessLevel: 50,
       healthLevel: 100,
+      happiness: {
+        happy: 1, // Size 1 city starts content
+        content: 0,
+        unhappy: 0,
+        angry: 0,
+      },
       foundedTurn,
       turnsToComplete: 0,
     };
@@ -379,7 +499,8 @@ export class CityManager {
   }
 
   /**
-   * Refresh city following Freeciv city_refresh logic
+   * Refresh city following Freeciv city_refresh logic with specialist support
+   * Reference: freeciv-web/javascript/city.js refreshCity functions
    */
   refreshCity(cityId: string): void {
     const city = this.cities.get(cityId);
@@ -406,6 +527,47 @@ export class CityManager {
       }
     }
 
+    // Add specialist outputs following Freeciv specialist system
+    // Reference: freeciv-web/javascript/city.js specialist calculations
+    let specialistFood = 0;
+    let specialistShields = 0;
+    let specialistTrade = 0;
+    let specialistGold = 0;
+    let specialistScience = 0;
+    let specialistLuxury = 0;
+
+    for (const [specialistTypeKey, count] of Object.entries(city.specialists)) {
+      const specialistType = parseInt(specialistTypeKey) as SpecialistType;
+      const specialist = SPECIALIST_TYPES[specialistType];
+      const output = specialist.outputAmount * count;
+
+      switch (specialist.outputType) {
+        case 'food':
+          specialistFood += output;
+          break;
+        case 'shield':
+          specialistShields += output;
+          break;
+        case 'trade':
+          specialistTrade += output;
+          break;
+        case 'gold':
+          specialistGold += output;
+          break;
+        case 'science':
+          specialistScience += output;
+          break;
+        case 'luxury':
+          specialistLuxury += output;
+          break;
+      }
+    }
+
+    // Total base outputs including specialists
+    foodOutput += specialistFood;
+    shieldOutput += specialistShields;
+    tradeOutput += specialistTrade;
+
     // Calculate building bonuses
     let scienceBonus = 0;
     let goldBonus = 0;
@@ -425,23 +587,40 @@ export class CityManager {
     }
 
     // Apply bonuses (following Freeciv percentage system)
-    city.sciencePerTurn = Math.floor((tradeOutput * (100 + scienceBonus)) / 100);
-    city.goldPerTurn = Math.floor((tradeOutput * (100 + goldBonus)) / 100);
+    // Trade gets converted to science/gold/luxury based on tax rates
+    // For now use 50/50 split - TODO: integrate with PolicyManager for tax rates
+    const tradeAfterBonus = Math.floor((tradeOutput * (100 + goldBonus + scienceBonus)) / 100);
+    city.sciencePerTurn = Math.floor(tradeAfterBonus / 2) + specialistScience;
+    city.goldPerTurn = Math.floor(tradeAfterBonus / 2) + specialistGold;
+    city.luxuryPerTurn = specialistLuxury; // Luxury comes from specialists mainly
+
     city.defenseStrength = Math.floor((1 * (100 + defenseBonus)) / 100);
-    city.happinessLevel = Math.min(100, 50 + happinessBonus);
 
     // Calculate food and production surplus (following Freeciv upkeep)
     const populationUpkeep = city.population * 2; // Each citizen eats 2 food
     city.foodPerTurn = Math.floor((foodOutput * (100 + foodBonus)) / 100) - populationUpkeep;
     city.productionPerTurn = shieldOutput;
 
-    logger.debug('City refreshed', {
+    // Update granary turns calculation
+    city.granaryTurns = this.calculateGranaryTurns(
+      city.population,
+      city.foodStock,
+      city.foodPerTurn
+    );
+
+    // Basic happiness calculation - will be enhanced with full happiness system
+    city.happinessLevel = Math.min(100, 50 + happinessBonus + specialistLuxury * 10);
+
+    logger.debug('City refreshed with specialists', {
       cityId,
       population: city.population,
       foodPerTurn: city.foodPerTurn,
       productionPerTurn: city.productionPerTurn,
       goldPerTurn: city.goldPerTurn,
       sciencePerTurn: city.sciencePerTurn,
+      luxuryPerTurn: city.luxuryPerTurn,
+      specialists: city.specialists,
+      granaryTurns: city.granaryTurns,
     });
   }
 
@@ -461,20 +640,60 @@ export class CityManager {
     // Process food (growth/starvation) following Freeciv
     city.foodStock += city.foodPerTurn;
 
-    // Handle growth following Freeciv granary logic
-    const foodNeededForGrowth = (city.population + 1) * 10; // Simplified
-    if (city.foodStock >= foodNeededForGrowth && city.foodPerTurn > 0) {
-      city.population++;
-      city.foodStock = 0; // Reset food stock after growth
-      city.lastGrowthTurn = currentTurn;
-      logger.info('City grew', { cityId, newSize: city.population });
-    }
+    // Handle growth and starvation following Freeciv granary logic
+    // Reference: freeciv-web/javascript/city.js granary calculations
+    const foodNeededForGrowth = (city.population + 1) * 10; // Simplified granary requirement
 
-    // Handle starvation following Freeciv
-    if (city.foodStock < 0 && city.population > 1) {
-      city.population--;
-      city.foodStock = 0;
-      logger.info('City starved', { cityId, newSize: city.population });
+    if (city.foodPerTurn > 0 && city.foodStock >= foodNeededForGrowth) {
+      // City grows
+      city.population++;
+
+      // Check if granary exists to preserve food
+      const hasGranary = city.buildings.includes('granary');
+      if (hasGranary) {
+        // Granary preserves 50% of food when growing
+        city.foodStock = Math.floor(foodNeededForGrowth / 2);
+      } else {
+        // No granary - start fresh
+        city.foodStock = 0;
+      }
+
+      city.lastGrowthTurn = currentTurn;
+      city.granaryTurns = this.calculateGranaryTurns(
+        city.population,
+        city.foodStock,
+        city.foodPerTurn
+      );
+
+      logger.info('City grew', {
+        cityId,
+        newSize: city.population,
+        hasGranary,
+        foodPreserved: city.foodStock,
+      });
+    } else if (city.foodPerTurn < 0 && city.foodStock < 0) {
+      // City starves (loses population)
+      if (city.population > 1) {
+        city.population--;
+        city.foodStock = 0; // Reset food stock after starvation
+        city.granaryTurns = this.calculateGranaryTurns(
+          city.population,
+          city.foodStock,
+          city.foodPerTurn
+        );
+
+        logger.info('City starved', { cityId, newSize: city.population });
+      } else {
+        // Cannot starve below size 1 - just reset food
+        city.foodStock = 0;
+      }
+    } else {
+      // Update granary turns for UI display
+      city.granaryTurns = this.calculateGranaryTurns(
+        city.population,
+        city.foodStock,
+        city.foodPerTurn
+      );
     }
 
     // Process production following Freeciv shield system
@@ -508,7 +727,8 @@ export class CityManager {
   }
 
   /**
-   * Complete current production following Freeciv logic
+   * Complete current production and advance worklist following Freeciv logic
+   * Reference: freeciv-web/javascript/city.js production completion
    */
   private async completeProduction(cityId: string): Promise<void> {
     const city = this.cities.get(cityId);
@@ -541,14 +761,243 @@ export class CityManager {
       });
     }
 
-    // Reset production
+    // Reset current production
     city.productionStock = 0;
     city.currentProduction = null;
     city.productionType = null;
     city.turnsToComplete = 0;
 
+    // Advance to next item in worklist (following Freeciv worklist logic)
+    if (city.worklist.length > 0) {
+      const nextItem = city.worklist.shift()!;
+
+      // Check if we can still build this item (requirements may have changed)
+      if (this.canCityQueueItem(city, nextItem.kind, nextItem.value)) {
+        city.currentProduction = nextItem.value;
+        city.productionType = nextItem.kind;
+
+        // Calculate turns to complete for new production
+        let productionCost = 0;
+        if (nextItem.kind === 'unit') {
+          const unitType = UNIT_TYPES[nextItem.value];
+          productionCost = unitType?.cost || 0;
+        } else {
+          const building = BUILDING_TYPES[nextItem.value];
+          productionCost = building?.cost || 0;
+        }
+
+        if (city.productionPerTurn > 0) {
+          city.turnsToComplete = Math.ceil(productionCost / city.productionPerTurn);
+        }
+
+        logger.info('Started next worklist item', {
+          cityId,
+          production: nextItem.name,
+          type: nextItem.kind,
+          turnsToComplete: city.turnsToComplete,
+        });
+      } else {
+        logger.warn('Skipped invalid worklist item', {
+          cityId,
+          production: nextItem.name,
+          reason: 'Requirements no longer met',
+        });
+
+        // Try next item in worklist
+        if (city.worklist.length > 0) {
+          await this.completeProduction(cityId); // Recursive call to try next item
+          return;
+        }
+      }
+    }
+
     // Refresh city to apply new building effects
     this.refreshCity(cityId);
+  }
+
+  /**
+   * Calculate granary turns to growth/starvation following Freeciv logic
+   * Reference: freeciv-web/javascript/city.js:2320-2338 city_turns_to_growth_text
+   */
+  private calculateGranaryTurns(
+    population: number,
+    foodStock: number,
+    foodPerTurn: number
+  ): number {
+    if (foodPerTurn === 0) {
+      return 0; // blocked
+    }
+
+    // Food needed for next growth level (simplified Freeciv formula)
+    const foodNeededForGrowth = (population + 1) * 10;
+    const foodDeficit = foodNeededForGrowth - foodStock;
+
+    if (foodPerTurn > 0) {
+      // Positive food surplus - growing
+      if (foodStock >= foodNeededForGrowth) {
+        return 1; // Ready to grow next turn
+      }
+      return Math.ceil(foodDeficit / foodPerTurn);
+    } else if (foodPerTurn < 0) {
+      // Negative food - starving
+      if (population <= 1) {
+        return 1000000; // Cannot starve below size 1
+      }
+      return Math.floor(foodStock / Math.abs(foodPerTurn));
+    }
+
+    return 0; // No change
+  }
+
+  /**
+   * Change specialist assignment following Freeciv logic
+   * Reference: freeciv-web/javascript/city.js:2580-2626 city_change_specialist
+   */
+  async changeSpecialist(
+    cityId: string,
+    fromSpecialist: SpecialistType,
+    toSpecialist: SpecialistType,
+    playerId: string
+  ): Promise<void> {
+    const city = this.cities.get(cityId);
+    if (!city) {
+      throw new Error('City not found');
+    }
+
+    if (city.playerId !== playerId) {
+      throw new Error('Not your city');
+    }
+
+    // Validate we have a specialist of the from type to convert
+    if (city.specialists[fromSpecialist] <= 0) {
+      throw new Error(`No ${SPECIALIST_TYPES[fromSpecialist].name} to reassign`);
+    }
+
+    // Check if target specialist type is available (some require wonders)
+    const targetSpecialist = SPECIALIST_TYPES[toSpecialist];
+    if (targetSpecialist.requiredWonder) {
+      // TODO: Check if player has required wonder when WonderManager is integrated
+      // For now, allow all specialist types
+    }
+
+    // Make the change
+    city.specialists[fromSpecialist]--;
+    city.specialists[toSpecialist]++;
+
+    // Refresh city to recalculate outputs with new specialist distribution
+    this.refreshCity(cityId);
+
+    // Save to database
+    await this.saveCityToDatabase(city);
+
+    logger.info('Specialist changed', {
+      cityId,
+      from: SPECIALIST_TYPES[fromSpecialist].name,
+      to: SPECIALIST_TYPES[toSpecialist].name,
+    });
+  }
+
+  /**
+   * Add to city production worklist following Freeciv logic
+   * Reference: freeciv-web/javascript/city.js:3628-3645 city_add_to_worklist
+   */
+  async addToWorklist(cityId: string, items: ProductionItem[]): Promise<void> {
+    const city = this.cities.get(cityId);
+    if (!city) {
+      throw new Error('City not found');
+    }
+
+    // Validate all items can be queued
+    for (const item of items) {
+      if (!this.canCityQueueItem(city, item.kind, item.value)) {
+        throw new Error(`Cannot queue ${item.name}: requirements not met`);
+      }
+    }
+
+    // Add to worklist
+    city.worklist.push(...items);
+
+    // If city has no current production, start first item from worklist
+    if (!city.currentProduction && city.worklist.length > 0) {
+      const firstItem = city.worklist.shift()!;
+      await this.setCityProduction(cityId, firstItem.value, firstItem.kind);
+    }
+
+    await this.saveCityToDatabase(city);
+    logger.info('Items added to worklist', { cityId, itemCount: items.length });
+  }
+
+  /**
+   * Check if city can queue a production item
+   * Reference: freeciv-web/javascript/city.js:1745-1765 can_city_queue_item
+   */
+  private canCityQueueItem(city: CityState, kind: 'unit' | 'building', value: string): boolean {
+    if (kind === 'building') {
+      // Cannot queue building if already built or already in queue
+      if (city.buildings.includes(value)) {
+        return false;
+      }
+
+      // Check if already in worklist
+      const inWorklist = city.worklist.some(
+        item => item.kind === 'building' && item.value === value
+      );
+      if (inWorklist) {
+        return false;
+      }
+
+      // Check current production
+      if (city.currentProduction === value && city.productionType === 'building') {
+        return false;
+      }
+    }
+
+    // TODO: Add technology requirements check when TechnologyManager is integrated
+    // TODO: Add government requirements check when GovernmentManager is integrated
+
+    return true;
+  }
+
+  /**
+   * Generate available production options for city following Freeciv logic
+   * Reference: freeciv-web/javascript/city.js:1589-1680 generate_production_list
+   */
+  getAvailableProductions(cityId: string): ProductionItem[] {
+    const city = this.cities.get(cityId);
+    if (!city) return [];
+
+    const productionList: ProductionItem[] = [];
+
+    // Add available units
+    for (const [unitId, unitType] of Object.entries(UNIT_TYPES)) {
+      // TODO: Add unit requirement checks (tech, government, resources) when integrated
+      if (this.canCityQueueItem(city, 'unit', unitId)) {
+        productionList.push({
+          kind: 'unit',
+          value: unitId,
+          name: unitType.name,
+          cost: unitType.cost,
+        });
+      }
+    }
+
+    // Add available buildings
+    for (const [buildingId, building] of Object.entries(BUILDING_TYPES)) {
+      // TODO: Add building requirement checks (tech, obsolescence) when integrated
+      if (this.canCityQueueItem(city, 'building', buildingId)) {
+        productionList.push({
+          kind: 'building',
+          value: buildingId,
+          name: building.name,
+          cost: building.cost,
+        });
+      }
+    }
+
+    // Sort by cost for better UX
+    productionList.sort((a, b) => a.cost - b.cost);
+
+    return productionList;
   }
 
   /**
@@ -636,25 +1085,50 @@ export class CityManager {
         population: dbCity.population,
         foodStock: dbCity.food,
         foodPerTurn: dbCity.foodPerTurn,
+        granaryTurns: this.calculateGranaryTurns(
+          dbCity.population,
+          dbCity.food,
+          dbCity.foodPerTurn
+        ),
         productionStock: dbCity.production,
         productionPerTurn: dbCity.productionPerTurn,
         currentProduction: dbCity.currentProduction || null,
+        worklist: [], // TODO: Load from database when worklist persistence is added
         goldPerTurn: dbCity.goldPerTurn,
         sciencePerTurn: dbCity.sciencePerTurn,
         culturePerTurn: dbCity.culturePerTurn,
+        luxuryPerTurn: 0, // Will be calculated in refreshCity
         buildings: Array.isArray(dbCity.buildings) ? (dbCity.buildings as string[]) : [],
         workingTiles: Array.isArray(dbCity.workedTiles)
           ? (dbCity.workedTiles as Array<{ x: number; y: number }>)
           : [{ x: dbCity.x, y: dbCity.y }],
+        // Initialize specialists - TODO: Load from database when specialist persistence is added
+        specialists: {
+          [SpecialistType.SCIENTIST]: 0,
+          [SpecialistType.TAX_COLLECTOR]: 0,
+          [SpecialistType.ENTERTAINER]: 0,
+          [SpecialistType.WORKER]: 0,
+          [SpecialistType.ENGINEER]: 0,
+          [SpecialistType.MERCHANT]: 0,
+        },
         isCapital: dbCity.isCapital,
         defenseStrength: dbCity.defenseStrength,
         happinessLevel: dbCity.happiness,
         healthLevel: dbCity.health,
+        happiness: {
+          happy: 1, // Will be recalculated in refreshCity
+          content: 0,
+          unhappy: 0,
+          angry: 0,
+        },
         foundedTurn: dbCity.foundedTurn,
         turnsToComplete: 0,
       };
 
       this.cities.set(dbCity.id, cityState);
+
+      // Refresh city to recalculate all outputs with current data
+      this.refreshCity(dbCity.id);
     }
 
     logger.info(`Loaded ${this.cities.size} cities for game ${this.gameId}`);
@@ -833,18 +1307,19 @@ export class CityManager {
   }
 
   /**
-   * Calculate happiness for a city
+   * Calculate detailed happiness for a city following Freeciv logic
+   * Reference: freeciv-web/javascript/city.js:2728-2819 show_city_happy_tab
    * Reference: freeciv happiness calculations in common/city.c
    */
-  public calculateHappiness(
+  public calculateDetailedHappiness(
     cityId: string,
     currentGovernment: string,
-    militaryUnitsInCity: number
-  ): HappinessResult {
+    militaryUnitsInCity: number = 0
+  ): HappinessResult & { breakdown: any } {
     const city = this.cities.get(cityId);
     if (!city) {
       logger.warn(`City ${cityId} not found for happiness calculation`);
-      const population = 0; // City not found
+      const population = 0;
       return {
         baseHappy: 0,
         baseContent: population,
@@ -854,59 +1329,172 @@ export class CityManager {
         finalHappy: 0,
         finalContent: population,
         finalUnhappy: 0,
+        breakdown: {},
       };
     }
 
-    const context: EffectContext = {
-      playerId: city.playerId,
-      cityId: city.id,
-      government: currentGovernment,
-    };
+    let happy = 0;
+    let content = city.population;
+    let unhappy = 0;
+    const angry = 0;
 
-    // Base unhappy citizens from city size
-    const unhappySizeEffect = this.effectsManager.calculateEffect(
-      EffectType.CITY_UNHAPPY_SIZE,
-      context
-    );
-    const baseUnhappy = Math.max(0, city.population - unhappySizeEffect.value);
+    // Step 1: Base citizens (all start as content)
+    // Reference: freeciv FEELING_BASE
+    const baseHappy = 0;
+    const baseContent = city.population;
+    const baseUnhappy = 0;
 
-    // Government-specific base unhappy citizens
-    const revolutionUnhappyEffect = this.effectsManager.calculateEffect(
-      EffectType.REVOLUTION_UNHAPPINESS,
-      context
-    );
-    const govUnhappy = revolutionUnhappyEffect.value;
+    // Step 2: Apply luxury effects
+    // Reference: freeciv FEELING_LUXURY
+    const luxuryEffect = Math.floor(city.luxuryPerTurn / 2); // 2 luxury = 1 happy citizen
+    happy += luxuryEffect;
+    content = Math.max(0, content - luxuryEffect);
 
-    // Martial law from military units
-    const martialLawResult = this.effectsManager.calculateMartialLaw(context, militaryUnitsInCity);
-
-    // Building happiness bonuses
-    let buildingBonus = 0;
+    // Step 3: Apply building effects
+    // Reference: freeciv FEELING_EFFECT
+    let buildingHappiness = 0;
     for (const buildingId of city.buildings) {
       const building = BUILDING_TYPES[buildingId];
       if (building?.effects.happinessBonus) {
-        buildingBonus += building.effects.happinessBonus;
+        buildingHappiness += building.effects.happinessBonus;
       }
     }
+    happy += buildingHappiness;
+    content = Math.max(0, content - buildingHappiness);
 
-    // Calculate final happiness distribution
-    const finalUnhappy = Math.max(
-      0,
-      baseUnhappy + govUnhappy - martialLawResult.happyBonus - buildingBonus
-    );
-    const finalHappy = buildingBonus + martialLawResult.happyBonus;
-    const finalContent = Math.max(0, city.population - finalUnhappy - finalHappy);
+    // Step 4: Martial law effects
+    // Reference: freeciv FEELING_MARTIAL
+    // Each military unit can pacify up to 2 unhappy citizens (simplified)
+    const martialLawEffect = Math.min(militaryUnitsInCity * 2, unhappy);
 
-    return {
-      baseHappy: 0,
-      baseContent: city.population,
-      baseUnhappy: baseUnhappy + govUnhappy,
-      martialLawBonus: martialLawResult.happyBonus,
-      buildingBonus,
-      finalHappy,
-      finalContent,
-      finalUnhappy,
+    // Step 5: Government-based unhappiness
+    // Different governments have different unhappiness thresholds
+    let govUnhappiness = 0;
+    switch (currentGovernment) {
+      case 'anarchy':
+        govUnhappiness = Math.max(0, city.population - 1); // All but 1 citizen unhappy
+        break;
+      case 'despotism':
+        govUnhappiness = Math.max(0, city.population - 3); // Size 4+ cities get unhappy
+        break;
+      case 'monarchy':
+        govUnhappiness = Math.max(0, city.population - 4); // Size 5+ cities get unhappy
+        break;
+      case 'republic':
+      case 'democracy':
+        govUnhappiness = Math.max(0, city.population - 5); // Size 6+ cities get unhappy
+        break;
+      default:
+        govUnhappiness = Math.max(0, city.population - 3);
+    }
+
+    // Convert some content citizens to unhappy based on government
+    unhappy += govUnhappiness;
+    content = Math.max(0, content - govUnhappiness);
+
+    // Apply martial law reduction
+    unhappy = Math.max(0, unhappy - martialLawEffect);
+    content += Math.min(martialLawEffect, govUnhappiness);
+
+    // Step 6: Final adjustments - any remaining citizens are content
+    // Citizens can be: happy, content, unhappy, or angry
+    // Angry citizens cause disorder (not implemented yet)
+
+    const result = {
+      baseHappy,
+      baseContent: baseContent,
+      baseUnhappy,
+      martialLawBonus: martialLawEffect,
+      buildingBonus: buildingHappiness,
+      finalHappy: happy,
+      finalContent: content,
+      finalUnhappy: unhappy,
+      breakdown: {
+        luxuryEffect,
+        buildingHappiness,
+        govUnhappiness,
+        martialLawEffect,
+        militaryUnitsInCity,
+      },
     };
+
+    // Update city's happiness breakdown
+    city.happiness = {
+      happy,
+      content,
+      unhappy,
+      angry, // Will be used for disorder calculations
+    };
+
+    return result;
+  }
+
+  /**
+   * Calculate happiness for a city (simplified version for backwards compatibility)
+   * Reference: freeciv happiness calculations in common/city.c
+   */
+  public calculateHappiness(
+    cityId: string,
+    currentGovernment: string,
+    militaryUnitsInCity: number
+  ): HappinessResult {
+    const detailed = this.calculateDetailedHappiness(
+      cityId,
+      currentGovernment,
+      militaryUnitsInCity
+    );
+    return {
+      baseHappy: detailed.baseHappy,
+      baseContent: detailed.baseContent,
+      baseUnhappy: detailed.baseUnhappy,
+      martialLawBonus: detailed.martialLawBonus,
+      buildingBonus: detailed.buildingBonus,
+      finalHappy: detailed.finalHappy,
+      finalContent: detailed.finalContent,
+      finalUnhappy: detailed.finalUnhappy,
+    };
+  }
+
+  /**
+   * Check if city is in disorder (unhappy citizens > happy citizens)
+   * Reference: freeciv-web/javascript/city.js:5110-5118 city_unhappy
+   */
+  public isCityUnhappy(cityId: string): boolean {
+    const city = this.cities.get(cityId);
+    if (!city) return false;
+
+    // City is unhappy if unhappy + angry citizens > happy citizens
+    return city.happiness.unhappy + city.happiness.angry * 2 > city.happiness.happy;
+  }
+
+  /**
+   * Get city state description following Freeciv logic
+   * Reference: freeciv-web/javascript/city.js:5120-5135 get_city_state
+   */
+  public getCityStateDescription(cityId: string): string {
+    const city = this.cities.get(cityId);
+    if (!city) return 'Unknown';
+
+    // Check for starvation
+    if (city.foodPerTurn < 0 && city.population > 1) {
+      return 'Famine';
+    }
+
+    // Check for celebration (requires happiness and sufficient size)
+    const celebrateSize = 3; // Minimum size for celebration
+    if (
+      city.happiness.happy > city.happiness.unhappy + city.happiness.angry &&
+      city.population >= celebrateSize
+    ) {
+      return 'Celebrating';
+    }
+
+    // Check for disorder
+    if (this.isCityUnhappy(cityId)) {
+      return 'Disorder';
+    }
+
+    return 'Peace';
   }
 
   /**
@@ -991,7 +1579,7 @@ export class CityManager {
   }
 
   /**
-   * Apply happiness calculations to city
+   * Apply happiness calculations to city with detailed tracking
    * Updates city happiness level based on government and buildings
    */
   public applyCityHappiness(cityId: string, currentGovernment: string): void {
@@ -1003,17 +1591,25 @@ export class CityManager {
     // Count military units in city (placeholder - will be integrated with UnitManager)
     const militaryUnitsInCity = 0; // TODO: Get from UnitManager
 
-    const happinessResult = this.calculateHappiness(cityId, currentGovernment, militaryUnitsInCity);
+    // Use detailed happiness calculation
+    const happinessResult = this.calculateDetailedHappiness(
+      cityId,
+      currentGovernment,
+      militaryUnitsInCity
+    );
 
-    // Update city happiness (scale to 0-100)
+    // Update city happiness level (scale to 0-100)
     const totalCitizens = city.population;
     if (totalCitizens > 0) {
-      const happinessScore = (happinessResult.finalHappy * 100) / totalCitizens;
+      // Happiness score based on the proportion of happy vs unhappy citizens
+      const happinessScore =
+        ((happinessResult.finalHappy - happinessResult.finalUnhappy) * 50) / totalCitizens + 50;
       city.happinessLevel = Math.min(100, Math.max(0, happinessScore));
     }
 
     logger.debug(
-      `Applied happiness to city ${city.name}: happy=${happinessResult.finalHappy}, content=${happinessResult.finalContent}, unhappy=${happinessResult.finalUnhappy}`
+      `Applied detailed happiness to city ${city.name}: happy=${happinessResult.finalHappy}, content=${happinessResult.finalContent}, unhappy=${happinessResult.finalUnhappy}, state=${this.getCityStateDescription(cityId)}`,
+      happinessResult.breakdown
     );
   }
 
