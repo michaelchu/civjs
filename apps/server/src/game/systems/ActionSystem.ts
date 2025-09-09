@@ -109,6 +109,123 @@ const ACTION_DEFINITIONS = {
     moves_actor: ActionMovesActor.STAYS,
   },
 
+  [ActionType.BUILD_RAILROAD]: {
+    id: ActionType.BUILD_RAILROAD,
+    name: 'Build Railroad',
+    description: 'Build a railroad on this tile',
+    hotkey: 'L',
+    category: ActionCategory.BUILD,
+    requirements: [{ type: 'unit_flag', value: 'canBuildImprovements', present: true }],
+    targetType: ActionTargetType.NONE,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.BUILD_IRRIGATION]: {
+    id: ActionType.BUILD_IRRIGATION,
+    name: 'Build Irrigation',
+    description: 'Irrigate this tile to increase food production',
+    hotkey: 'I',
+    category: ActionCategory.BUILD,
+    requirements: [{ type: 'unit_flag', value: 'canBuildImprovements', present: true }],
+    targetType: ActionTargetType.NONE,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.BUILD_MINE]: {
+    id: ActionType.BUILD_MINE,
+    name: 'Build Mine',
+    description: 'Build a mine on this tile to increase shield production',
+    hotkey: 'M',
+    category: ActionCategory.BUILD,
+    requirements: [{ type: 'unit_flag', value: 'canBuildImprovements', present: true }],
+    targetType: ActionTargetType.NONE,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.PILLAGE]: {
+    id: ActionType.PILLAGE,
+    name: 'Pillage',
+    description: 'Destroy improvements on this tile',
+    hotkey: 'P',
+    category: ActionCategory.MILITARY,
+    requirements: [{ type: 'unit_flag', value: 'canPillage', present: true }],
+    targetType: ActionTargetType.NONE,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.TRANSFORM_TERRAIN]: {
+    id: ActionType.TRANSFORM_TERRAIN,
+    name: 'Transform Terrain',
+    description: 'Transform the terrain type (e.g., forest to plains)',
+    hotkey: 'O',
+    category: ActionCategory.BUILD,
+    requirements: [{ type: 'unit_flag', value: 'canBuildImprovements', present: true }],
+    targetType: ActionTargetType.NONE,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.DISBAND_UNIT]: {
+    id: ActionType.DISBAND_UNIT,
+    name: 'Disband Unit',
+    description: 'Disband this unit',
+    hotkey: 'D',
+    category: ActionCategory.MANAGEMENT,
+    requirements: [],
+    targetType: ActionTargetType.SELF,
+    consumes_actor: true,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.PATROL]: {
+    id: ActionType.PATROL,
+    name: 'Patrol',
+    description: 'Set up patrol between current position and target',
+    hotkey: 'Q',
+    category: ActionCategory.MILITARY,
+    requirements: [],
+    targetType: ActionTargetType.TILE,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.ESTABLISH_EMBASSY]: {
+    id: ActionType.ESTABLISH_EMBASSY,
+    name: 'Establish Embassy',
+    description: 'Establish diplomatic relations with target city',
+    category: ActionCategory.DIPLOMACY,
+    requirements: [{ type: 'unit_type', value: ['diplomat'], present: true }],
+    targetType: ActionTargetType.CITY,
+    consumes_actor: true,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.INVESTIGATE_CITY]: {
+    id: ActionType.INVESTIGATE_CITY,
+    name: 'Investigate City',
+    description: 'Gather intelligence about target city',
+    category: ActionCategory.ESPIONAGE,
+    requirements: [{ type: 'unit_type', value: ['diplomat'], present: true }],
+    targetType: ActionTargetType.CITY,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.TRADE_ROUTE]: {
+    id: ActionType.TRADE_ROUTE,
+    name: 'Establish Trade Route',
+    description: 'Establish trade route between cities',
+    category: ActionCategory.TRADE,
+    requirements: [{ type: 'unit_type', value: ['caravan'], present: true }],
+    targetType: ActionTargetType.CITY,
+    consumes_actor: true,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
   [ActionType.AUTO_EXPLORE]: {
     id: ActionType.AUTO_EXPLORE,
     name: 'Auto Explore',
@@ -279,6 +396,27 @@ export class ActionSystem {
       case ActionType.BUILD_ROAD:
         return this.canBuildRoad(unit);
 
+      case ActionType.BUILD_RAILROAD:
+        return this.canBuildRailroad(unit);
+
+      case ActionType.BUILD_IRRIGATION:
+        return this.canBuildIrrigation(unit);
+
+      case ActionType.BUILD_MINE:
+        return this.canBuildMine(unit);
+
+      case ActionType.PILLAGE:
+        return this.canPillage(unit);
+
+      case ActionType.TRANSFORM_TERRAIN:
+        return this.canTransformTerrain(unit);
+
+      case ActionType.DISBAND_UNIT:
+        return this.canDisbandUnit(unit);
+
+      case ActionType.PATROL:
+        return this.canPatrol(unit, targetX, targetY);
+
       default:
         return true;
     }
@@ -317,9 +455,119 @@ export class ActionSystem {
 
   /**
    * Check if unit can build a road
+   * @reference freeciv-web/javascript/unit.js unit activity validation
    */
   private canBuildRoad(unit: Unit): boolean {
-    return unit.unitTypeId === 'worker';
+    return this.canBuildImprovement(unit) && unit.movementLeft > 0;
+  }
+
+  /**
+   * Check if unit can build a railroad
+   */
+  private canBuildRailroad(unit: Unit): boolean {
+    return this.canBuildImprovement(unit) && unit.movementLeft > 0;
+    // TODO: Check if tile already has road (railroad requires road first)
+  }
+
+  /**
+   * Check if unit can build irrigation
+   * @reference freeciv/server/unittools.c can_unit_do_activity_at()
+   */
+  private canBuildIrrigation(unit: Unit): boolean {
+    if (!this.canBuildImprovement(unit) || unit.movementLeft <= 0) {
+      return false;
+    }
+
+    // TODO: Check terrain compatibility and water source
+    // For now, allow irrigation on grassland, plains, desert
+    const validTerrains = ['grassland', 'plains', 'desert'];
+    const terrainType = this.getTerrainAt(unit.x, unit.y);
+    return validTerrains.includes(terrainType);
+  }
+
+  /**
+   * Check if unit can build mine
+   * @reference freeciv/server/unittools.c can_unit_do_activity_at()
+   */
+  private canBuildMine(unit: Unit): boolean {
+    if (!this.canBuildImprovement(unit) || unit.movementLeft <= 0) {
+      return false;
+    }
+
+    // TODO: Check terrain compatibility
+    // For now, allow mining on hills, mountains, forest
+    const validTerrains = ['hills', 'mountains', 'forest'];
+    const terrainType = this.getTerrainAt(unit.x, unit.y);
+    return validTerrains.includes(terrainType);
+  }
+
+  /**
+   * Check if unit can pillage
+   * @reference freeciv-web/javascript/unit.js get_what_can_unit_pillage_from()
+   */
+  private canPillage(unit: Unit): boolean {
+    if (unit.movementLeft <= 0) {
+      return false;
+    }
+
+    // TODO: Check if tile has improvements to pillage
+    // For now, assume there are always improvements that can be pillaged
+    return this.hasPillageableImprovements(unit.x, unit.y);
+  }
+
+  /**
+   * Get terrain type at coordinates
+   */
+  private getTerrainAt(_x: number, _y: number): string {
+    // TODO: Integrate with MapManager to get actual terrain
+    // For now, return a default terrain type
+    return 'grassland';
+  }
+
+  /**
+   * Check if tile has improvements that can be pillaged
+   */
+  private hasPillageableImprovements(_x: number, _y: number): boolean {
+    // TODO: Check with MapManager for tile improvements
+    // For now, assume some tiles have improvements
+    return Math.random() > 0.5; // 50% chance for testing
+  }
+
+  /**
+   * Check if unit can transform terrain
+   * @reference freeciv/server/unittools.c can_unit_do_activity_at()
+   */
+  private canTransformTerrain(unit: Unit): boolean {
+    if (!this.canBuildImprovement(unit) || unit.movementLeft <= 0) {
+      return false;
+    }
+
+    // TODO: Check available terrain transformations
+    // For now, allow transformation on most terrain types
+    const terrainType = this.getTerrainAt(unit.x, unit.y);
+    const transformableTerrains = ['forest', 'jungle', 'swamp', 'desert', 'tundra'];
+    return transformableTerrains.includes(terrainType);
+  }
+
+  /**
+   * Check if unit can be disbanded
+   */
+  private canDisbandUnit(_unit: Unit): boolean {
+    return true; // Most units can be disbanded
+  }
+
+  /**
+   * Check if unit can patrol
+   */
+  private canPatrol(unit: Unit, targetX?: number, targetY?: number): boolean {
+    return targetX !== undefined && targetY !== undefined && unit.movementLeft > 0;
+  }
+
+  /**
+   * Helper method to check if unit can build improvements
+   */
+  private canBuildImprovement(unit: Unit): boolean {
+    return unit.unitTypeId === 'worker' || unit.unitTypeId === 'engineer';
   }
 
   /**
@@ -405,6 +653,27 @@ export class ActionSystem {
       case ActionType.BUILD_ROAD:
         return await this.executeBuildRoad(unit);
 
+      case ActionType.BUILD_RAILROAD:
+        return await this.executeBuildRailroad(unit);
+
+      case ActionType.BUILD_IRRIGATION:
+        return await this.executeBuildIrrigation(unit);
+
+      case ActionType.BUILD_MINE:
+        return await this.executeBuildMine(unit);
+
+      case ActionType.PILLAGE:
+        return await this.executePillage(unit);
+
+      case ActionType.TRANSFORM_TERRAIN:
+        return await this.executeTransformTerrain(unit);
+
+      case ActionType.DISBAND_UNIT:
+        return await this.executeDisbandUnit(unit);
+
+      case ActionType.PATROL:
+        return await this.executePatrol(unit, targetX!, targetY!);
+
       default:
         return {
           success: false,
@@ -456,7 +725,12 @@ export class ActionSystem {
           return unit.unitTypeId === 'settler';
         }
         if (requirement.value === 'canBuildImprovements') {
-          return unit.unitTypeId === 'worker';
+          return unit.unitTypeId === 'worker' || unit.unitTypeId === 'engineer';
+        }
+        if (requirement.value === 'canPillage') {
+          // Most military units can pillage, civilians generally cannot
+          const militaryUnits = ['warrior', 'archer', 'spearman', 'horsemen', 'knight'];
+          return militaryUnits.includes(unit.unitTypeId);
         }
         return true;
 
@@ -709,9 +983,133 @@ export class ActionSystem {
   }
 
   private async executeBuildRoad(unit: Unit): Promise<ActionResult> {
+    // TODO: Integrate with MapManager to actually add road to tile
     return {
       success: true,
-      message: `${unit.unitTypeId} building road`,
+      message: `${unit.unitTypeId} started building road`,
+    };
+  }
+
+  private async executeBuildRailroad(unit: Unit): Promise<ActionResult> {
+    // TODO: Check for existing road, integrate with MapManager
+    return {
+      success: true,
+      message: `${unit.unitTypeId} started building railroad`,
+    };
+  }
+
+  private async executeBuildIrrigation(unit: Unit): Promise<ActionResult> {
+    const terrainType = this.getTerrainAt(unit.x, unit.y);
+
+    // Validate terrain type
+    if (!this.canBuildIrrigation(unit)) {
+      return {
+        success: false,
+        message: `Cannot irrigate ${terrainType} terrain`,
+      };
+    }
+
+    // TODO: Integrate with MapManager to add irrigation improvement
+    return {
+      success: true,
+      message: `${unit.unitTypeId} started irrigation on ${terrainType}`,
+    };
+  }
+
+  private async executeBuildMine(unit: Unit): Promise<ActionResult> {
+    const terrainType = this.getTerrainAt(unit.x, unit.y);
+
+    // Validate terrain type
+    if (!this.canBuildMine(unit)) {
+      return {
+        success: false,
+        message: `Cannot build mine on ${terrainType} terrain`,
+      };
+    }
+
+    // TODO: Integrate with MapManager to add mine improvement
+    return {
+      success: true,
+      message: `${unit.unitTypeId} started building mine on ${terrainType}`,
+    };
+  }
+
+  private async executePillage(unit: Unit): Promise<ActionResult> {
+    if (!this.hasPillageableImprovements(unit.x, unit.y)) {
+      return {
+        success: false,
+        message: 'No improvements to pillage on this tile',
+      };
+    }
+
+    const improvementTypes = this.getPillageableImprovements(unit.x, unit.y);
+    const targetImprovement = improvementTypes[0]; // Pillage first available
+
+    // TODO: Integrate with MapManager to remove improvement
+    return {
+      success: true,
+      message: `${unit.unitTypeId} pillaged ${targetImprovement}`,
+    };
+  }
+
+  /**
+   * Get list of improvements that can be pillaged on a tile
+   */
+  private getPillageableImprovements(_x: number, _y: number): string[] {
+    // TODO: Get from MapManager
+    // For now, return mock improvements
+    const mockImprovements = ['road', 'irrigation', 'mine', 'railroad'];
+    return mockImprovements.filter(() => Math.random() > 0.7); // Random subset
+  }
+
+  private async executeTransformTerrain(unit: Unit): Promise<ActionResult> {
+    const currentTerrain = this.getTerrainAt(unit.x, unit.y);
+    const targetTerrain = this.getTransformationTarget(currentTerrain);
+
+    if (!targetTerrain) {
+      return {
+        success: false,
+        message: `Cannot transform ${currentTerrain} terrain`,
+      };
+    }
+
+    // TODO: Integrate with MapManager to transform terrain
+    return {
+      success: true,
+      message: `${unit.unitTypeId} started transforming ${currentTerrain} to ${targetTerrain}`,
+    };
+  }
+
+  /**
+   * Get terrain transformation target
+   * @reference freeciv/common/terrain.h terrain transformations
+   */
+  private getTransformationTarget(currentTerrain: string): string | null {
+    const transformations: Record<string, string> = {
+      forest: 'grassland',
+      jungle: 'grassland',
+      swamp: 'grassland',
+      desert: 'grassland',
+      tundra: 'grassland',
+      hills: 'grassland',
+    };
+
+    return transformations[currentTerrain] || null;
+  }
+
+  private async executeDisbandUnit(unit: Unit): Promise<ActionResult> {
+    return {
+      success: true,
+      message: `${unit.unitTypeId} disbanded`,
+      unitDestroyed: true,
+    };
+  }
+
+  private async executePatrol(unit: Unit, targetX: number, targetY: number): Promise<ActionResult> {
+    // TODO: Set up patrol orders between current position and target
+    return {
+      success: true,
+      message: `${unit.unitTypeId} started patrolling to (${targetX}, ${targetY})`,
     };
   }
 }

@@ -17,16 +17,65 @@ export interface Unit {
   movementLeft: number;
   health: number;
   veteranLevel: number;
+  experience: number;
   fortified: boolean;
   orders?: UnitOrder[];
+  activity?: UnitActivity;
+  sentryUntil?: 'turn_start' | 'enemy_sighted' | 'manual';
+  autoExploreTarget?: { x: number; y: number };
+  transportedBy?: string; // ID of unit transporting this unit
+  cargoUnits?: string[]; // IDs of units being transported by this unit
+}
+
+export interface VeteranLevel {
+  name: string;
+  powerFactor: number; // Multiplier for attack/defense strength
+  moveBonus: number; // Additional movement points
+  experienceRequired: number; // Experience points needed to reach this level
 }
 
 export interface UnitOrder {
-  type: 'move' | 'attack' | 'fortify' | 'foundCity' | 'buildImprovement';
+  type:
+    | 'move'
+    | 'attack'
+    | 'fortify'
+    | 'foundCity'
+    | 'buildImprovement'
+    | 'pillage'
+    | 'patrol'
+    | 'irrigate'
+    | 'mine'
+    | 'road'
+    | 'railroad'
+    | 'transform'
+    | 'sentry'
+    | 'wait'
+    | 'disband';
   targetX?: number;
   targetY?: number;
   targetId?: string;
   improvementType?: string;
+  activity?: UnitActivity;
+  patrolStart?: { x: number; y: number };
+  patrolEnd?: { x: number; y: number };
+  activityTurnsLeft?: number;
+  priority?: number;
+}
+
+export interface UnitActivity {
+  type:
+    | 'idle'
+    | 'building_road'
+    | 'building_railroad'
+    | 'irrigating'
+    | 'mining'
+    | 'pillaging'
+    | 'transforming'
+    | 'fortifying'
+    | 'patrolling';
+  turnsRemaining: number;
+  totalTurns: number;
+  target?: { x: number; y: number };
 }
 
 export interface CombatResult {
@@ -36,6 +85,10 @@ export interface CombatResult {
   defenderDamage: number;
   attackerDestroyed: boolean;
   defenderDestroyed: boolean;
+  experienceGained?: {
+    attacker: number;
+    defender: number;
+  };
 }
 
 export class UnitManager {
@@ -161,6 +214,7 @@ export class UnitManager {
       movementLeft: unitType.movement,
       health: 100,
       veteranLevel: 0,
+      experience: 0,
       fortified: false,
     };
 
@@ -291,6 +345,35 @@ export class UnitManager {
     const attackerDestroyed = attacker.health <= 0;
     const defenderDestroyed = defender.health <= 0;
 
+    // Award experience based on combat outcome
+    let attackerExp = 0;
+    let defenderExp = 0;
+
+    if (attackerDestroyed) {
+      // Defender won
+      defenderExp = this.calculateCombatExperience(defender, attacker, true);
+      if (defenderExp > 0) {
+        await this.awardExperience(defenderId, defenderExp);
+      }
+    } else if (defenderDestroyed) {
+      // Attacker won
+      attackerExp = this.calculateCombatExperience(attacker, defender, true);
+      if (attackerExp > 0) {
+        await this.awardExperience(attackerId, attackerExp);
+      }
+    } else {
+      // Both survived - award minimal experience
+      attackerExp = this.calculateCombatExperience(attacker, defender, false);
+      defenderExp = this.calculateCombatExperience(defender, attacker, false);
+
+      if (attackerExp > 0) {
+        await this.awardExperience(attackerId, attackerExp);
+      }
+      if (defenderExp > 0) {
+        await this.awardExperience(defenderId, defenderExp);
+      }
+    }
+
     // Handle unit destruction
     if (attackerDestroyed) {
       await this.destroyUnit(attackerId);
@@ -329,6 +412,10 @@ export class UnitManager {
       defenderDamage: damageToDefender,
       attackerDestroyed,
       defenderDestroyed,
+      experienceGained: {
+        attacker: attackerExp,
+        defender: defenderExp,
+      },
     };
 
     logger.info(`Combat: ${attackerId} vs ${defenderId}`, result);
@@ -457,6 +544,7 @@ export class UnitManager {
         movementLeft: Math.min(parseFloat(dbUnit.movementPoints) || 0, unitType.movement),
         health: dbUnit.health,
         veteranLevel: dbUnit.veteranLevel,
+        experience: dbUnit.experience || 0,
         fortified: dbUnit.isFortified,
         orders:
           dbUnit.orders && typeof dbUnit.orders === 'string' && dbUnit.orders.trim()
@@ -470,23 +558,163 @@ export class UnitManager {
   }
 
   /**
-   * Calculate combat strength
+   * Calculate combat strength with veteran bonuses
+   * @reference freeciv/common/combat.c get_total_attack_power()
    */
   private calculateCombatStrength(unit: Unit, unitType: UnitType): number {
     let strength = unitType.combat;
 
-    // Veteran bonus
-    strength += unit.veteranLevel * 5;
+    // Veteran bonus - more sophisticated calculation
+    const veteranLevel = this.getVeteranLevel(unit.veteranLevel);
+    strength = Math.floor(strength * veteranLevel.powerFactor);
 
     // Fortification bonus
     if (unit.fortified) {
-      strength *= 1.5;
+      strength = Math.floor(strength * 1.5);
     }
 
     // Health modifier
-    strength *= unit.health / 100;
+    strength = Math.floor(strength * (unit.health / 100));
 
-    return strength;
+    return Math.max(1, strength);
+  }
+
+  /**
+   * Get veteran level definition
+   * @reference freeciv/common/unittype.h veteran levels
+   */
+  private getVeteranLevel(level: number): VeteranLevel {
+    const veteranLevels: VeteranLevel[] = [
+      { name: 'Green', powerFactor: 1.0, moveBonus: 0, experienceRequired: 0 },
+      { name: 'Veteran', powerFactor: 1.5, moveBonus: 0, experienceRequired: 20 },
+      { name: 'Hardened', powerFactor: 1.75, moveBonus: 1, experienceRequired: 40 },
+      { name: 'Elite', powerFactor: 2.0, moveBonus: 1, experienceRequired: 80 },
+    ];
+
+    return veteranLevels[Math.min(level, veteranLevels.length - 1)];
+  }
+
+  /**
+   * Award experience to unit and check for promotion
+   * @reference freeciv/server/unittools.c unit_versus_unit()
+   */
+  async awardExperience(unitId: string, experiencePoints: number): Promise<boolean> {
+    const unit = this.units.get(unitId);
+    if (!unit) {
+      return false;
+    }
+
+    const oldLevel = unit.veteranLevel;
+    unit.experience += experiencePoints;
+
+    // Check for promotion
+    const newLevel = this.calculateVeteranLevelFromExperience(unit.experience);
+
+    if (newLevel > oldLevel) {
+      unit.veteranLevel = newLevel;
+
+      // Update movement points for veteran bonus
+      const veteranLevel = this.getVeteranLevel(newLevel);
+      const unitType = UNIT_TYPES[unit.unitTypeId];
+      const maxMovement = unitType.movement + veteranLevel.moveBonus;
+
+      // If unit hasn't moved this turn, give them bonus movement
+      if (unit.movementLeft === unitType.movement) {
+        unit.movementLeft = maxMovement;
+      }
+
+      // Update database
+      await this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set({
+          veteranLevel: unit.veteranLevel,
+          experience: unit.experience,
+          movementPoints: unit.movementLeft.toString(),
+        })
+        .where(eq(units.id, unitId));
+
+      logger.info(`Unit ${unitId} promoted to ${this.getVeteranLevel(newLevel).name}!`, {
+        unitId,
+        oldLevel,
+        newLevel,
+        experience: unit.experience,
+        experienceAwarded: experiencePoints,
+      });
+
+      return true; // Unit was promoted
+    } else {
+      // Just update experience
+      await this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set({ experience: unit.experience })
+        .where(eq(units.id, unitId));
+    }
+
+    return false; // No promotion
+  }
+
+  /**
+   * Calculate veteran level from total experience
+   */
+  private calculateVeteranLevelFromExperience(experience: number): number {
+    const veteranLevels = [
+      { level: 0, required: 0 }, // Green
+      { level: 1, required: 20 }, // Veteran
+      { level: 2, required: 40 }, // Hardened
+      { level: 3, required: 80 }, // Elite
+    ];
+
+    let level = 0;
+    for (const vet of veteranLevels) {
+      if (experience >= vet.required) {
+        level = vet.level;
+      } else {
+        break;
+      }
+    }
+
+    return level;
+  }
+
+  /**
+   * Calculate experience gained from combat
+   * @reference freeciv/server/unittools.c unit_versus_unit()
+   */
+  calculateCombatExperience(attacker: Unit, defender: Unit, attackerWon: boolean): number {
+    const attackerType = UNIT_TYPES[attacker.unitTypeId];
+    const defenderType = UNIT_TYPES[defender.unitTypeId];
+
+    if (!attackerType || !defenderType) {
+      return 0;
+    }
+
+    // Base experience depends on relative unit strength
+    const attackerStr = attackerType.combat;
+    const defenderStr = defenderType.combat;
+
+    let baseExp: number;
+
+    if (attackerWon) {
+      // Winner gets more experience for defeating stronger units
+      if (defenderStr >= attackerStr) {
+        baseExp = 2 + Math.floor(defenderStr / attackerStr);
+      } else {
+        baseExp = 1;
+      }
+    } else {
+      // Loser gets minimal experience for surviving
+      baseExp = 1;
+    }
+
+    // Bonus for veteran level difference
+    const levelDiff = defender.veteranLevel - attacker.veteranLevel;
+    if (levelDiff > 0) {
+      baseExp += levelDiff;
+    }
+
+    return Math.max(1, Math.min(10, baseExp)); // Cap at 10 experience points
   }
 
   /**
@@ -765,6 +993,7 @@ export class UnitManager {
 
   /**
    * Process a single unit's pending order
+   * @reference freeciv-web/javascript/unit.js unit order processing
    */
   private async processUnitOrder(unit: Unit, playerId: string): Promise<void> {
     // Early return if unit doesn't belong to player or has no valid orders
@@ -773,19 +1002,51 @@ export class UnitManager {
     }
 
     const order = unit.orders![0];
-    await this.processMoveOrder(unit, order);
+
+    // Process different types of orders
+    switch (order.type) {
+      case 'move':
+        await this.processMoveOrder(unit, order);
+        break;
+      case 'patrol':
+        await this.processPatrolOrder(unit, order);
+        break;
+      case 'road':
+      case 'railroad':
+      case 'irrigate':
+      case 'mine':
+      case 'transform':
+        await this.processActivityOrder(unit, order);
+        break;
+      case 'fortify':
+        await this.processFortifyOrder(unit, order);
+        break;
+      case 'sentry':
+        await this.processSentryOrder(unit, order);
+        break;
+      default:
+        logger.warn(`Unknown order type: ${order.type} for unit ${unit.id}`);
+        this.removeCurrentOrder(unit);
+    }
   }
 
   /**
    * Check if a unit's order should be processed
    */
   private shouldProcessUnitOrder(unit: Unit, playerId: string): boolean {
-    return (
-      unit.playerId === playerId &&
-      unit.orders !== undefined &&
-      unit.orders.length > 0 &&
-      unit.movementLeft > 0
-    );
+    if (unit.playerId !== playerId) return false;
+    if (!unit.orders || unit.orders.length === 0) return false;
+
+    const currentOrder = unit.orders[0];
+
+    // Activity orders can continue even without movement points
+    const activityOrders = ['road', 'railroad', 'irrigate', 'mine', 'transform', 'pillage'];
+    if (activityOrders.includes(currentOrder.type)) {
+      return true;
+    }
+
+    // Movement orders require movement points
+    return unit.movementLeft > 0;
   }
 
   /**
@@ -836,6 +1097,217 @@ export class UnitManager {
   }
 
   /**
+   * Process patrol order - move between two points repeatedly
+   */
+  private async processPatrolOrder(unit: Unit, order: UnitOrder): Promise<void> {
+    if (!order.patrolStart || !order.patrolEnd) {
+      logger.warn(`Invalid patrol order for unit ${unit.id}: missing patrol points`);
+      this.removeCurrentOrder(unit);
+      return;
+    }
+
+    // Determine next target based on current position
+    const { patrolStart, patrolEnd } = order;
+    const isAtStart = unit.x === patrolStart.x && unit.y === patrolStart.y;
+    const isAtEnd = unit.x === patrolEnd.x && unit.y === patrolEnd.y;
+
+    let targetX: number, targetY: number;
+
+    if (isAtStart) {
+      targetX = patrolEnd.x;
+      targetY = patrolEnd.y;
+    } else if (isAtEnd) {
+      targetX = patrolStart.x;
+      targetY = patrolStart.y;
+    } else {
+      // Moving toward start point if not at either end
+      targetX = patrolStart.x;
+      targetY = patrolStart.y;
+    }
+
+    // Execute movement toward target
+    const result = await this.actionSystem.executeAction(unit, ActionType.GOTO, targetX, targetY);
+
+    if (result.success) {
+      await this.applyActionResult(unit, ActionType.GOTO, result);
+      logger.info(`Unit ${unit.id} patrolling toward (${targetX}, ${targetY})`);
+    } else {
+      logger.warn(`Patrol failed for unit ${unit.id}: ${result.message}`);
+      this.removeCurrentOrder(unit);
+    }
+  }
+
+  /**
+   * Process activity order (road, mine, irrigate, etc.)
+   */
+  private async processActivityOrder(unit: Unit, order: UnitOrder): Promise<void> {
+    // Initialize activity if not already started
+    if (!unit.activity || unit.activity.type === 'idle') {
+      const activityType = this.getActivityTypeFromOrder(order.type);
+      const turnsRequired = this.getActivityDuration(order.type, unit);
+
+      unit.activity = {
+        type: activityType,
+        turnsRemaining: turnsRequired,
+        totalTurns: turnsRequired,
+        target: { x: unit.x, y: unit.y },
+      };
+
+      logger.info(`Unit ${unit.id} started ${activityType} activity (${turnsRequired} turns)`);
+    }
+
+    // Process turn of activity
+    unit.activity.turnsRemaining--;
+
+    if (unit.activity.turnsRemaining <= 0) {
+      // Activity completed
+      await this.completeActivity(unit, order);
+      unit.activity = { type: 'idle', turnsRemaining: 0, totalTurns: 0 };
+      this.removeCurrentOrder(unit);
+      logger.info(`Unit ${unit.id} completed ${unit.activity.type} activity`);
+    }
+
+    // Activities consume all movement
+    unit.movementLeft = 0;
+  }
+
+  /**
+   * Process fortify order
+   */
+  private async processFortifyOrder(unit: Unit, _order: UnitOrder): Promise<void> {
+    const result = await this.actionSystem.executeAction(unit, ActionType.FORTIFY);
+    if (result.success) {
+      await this.applyActionResult(unit, ActionType.FORTIFY, result);
+      this.removeCurrentOrder(unit);
+      logger.info(`Unit ${unit.id} fortified`);
+    } else {
+      logger.warn(`Failed to fortify unit ${unit.id}: ${result.message}`);
+      this.removeCurrentOrder(unit);
+    }
+  }
+
+  /**
+   * Process sentry order
+   */
+  private async processSentryOrder(unit: Unit, _order: UnitOrder): Promise<void> {
+    unit.sentryUntil = 'enemy_sighted'; // Default sentry behavior
+    unit.movementLeft = 0; // Sentry consumes all movement
+    this.removeCurrentOrder(unit);
+    logger.info(`Unit ${unit.id} on sentry duty`);
+  }
+
+  /**
+   * Remove the current order from unit's queue
+   */
+  private removeCurrentOrder(unit: Unit): void {
+    if (unit.orders && unit.orders.length > 0) {
+      unit.orders.shift();
+    }
+  }
+
+  /**
+   * Get activity type from order type
+   */
+  private getActivityTypeFromOrder(orderType: string): UnitActivity['type'] {
+    const activityMap: Record<string, UnitActivity['type']> = {
+      road: 'building_road',
+      railroad: 'building_railroad',
+      irrigate: 'irrigating',
+      mine: 'mining',
+      transform: 'transforming',
+      pillage: 'pillaging',
+    };
+    return activityMap[orderType] || 'idle';
+  }
+
+  /**
+   * Get activity duration in turns
+   * @reference freeciv ruleset activity times
+   */
+  private getActivityDuration(orderType: string, unit: Unit): number {
+    // Base activity times (in turns)
+    const baseTimes: Record<string, number> = {
+      road: 3,
+      railroad: 3,
+      irrigate: 5,
+      mine: 5,
+      transform: 24, // Very long activity
+      pillage: 1,
+    };
+
+    let baseTurns = baseTimes[orderType] || 1;
+
+    // Engineer units work twice as fast as workers
+    if (unit.unitTypeId === 'engineer') {
+      baseTurns = Math.ceil(baseTurns / 2);
+    }
+
+    return Math.max(1, baseTurns);
+  }
+
+  /**
+   * Complete an activity and apply its effects
+   */
+  private async completeActivity(unit: Unit, order: UnitOrder): Promise<void> {
+    // TODO: Integrate with MapManager to apply terrain/improvement changes
+    logger.info(`Activity ${order.type} completed by unit ${unit.id} at (${unit.x}, ${unit.y})`);
+  }
+
+  /**
+   * Add order to unit's queue
+   */
+  addOrderToUnit(unitId: string, order: UnitOrder): boolean {
+    const unit = this.units.get(unitId);
+    if (!unit) {
+      return false;
+    }
+
+    if (!unit.orders) {
+      unit.orders = [];
+    }
+
+    unit.orders.push(order);
+    logger.info(`Added ${order.type} order to unit ${unitId}`);
+    return true;
+  }
+
+  /**
+   * Clear all orders for a unit
+   */
+  clearUnitOrders(unitId: string): boolean {
+    const unit = this.units.get(unitId);
+    if (!unit) {
+      return false;
+    }
+
+    unit.orders = [];
+    unit.activity = { type: 'idle', turnsRemaining: 0, totalTurns: 0 };
+    logger.info(`Cleared all orders for unit ${unitId}`);
+    return true;
+  }
+
+  /**
+   * Get unit's current activity progress
+   */
+  getUnitActivityProgress(
+    unitId: string
+  ): { activity: string; progress: number; turnsLeft: number } | null {
+    const unit = this.units.get(unitId);
+    if (!unit || !unit.activity || unit.activity.type === 'idle') {
+      return null;
+    }
+
+    const progress =
+      ((unit.activity.totalTurns - unit.activity.turnsRemaining) / unit.activity.totalTurns) * 100;
+
+    return {
+      activity: unit.activity.type,
+      progress: Math.round(progress),
+      turnsLeft: unit.activity.turnsRemaining,
+    };
+  }
+
+  /**
    * Get visible units for a player (considering fog of war)
    */
   getVisibleUnits(playerId: string, visibleTiles: Set<string>): Unit[] {
@@ -847,5 +1319,138 @@ export class UnitManager {
       const tileKey = `${unit.x},${unit.y}`;
       return visibleTiles.has(tileKey);
     });
+  }
+
+  /**
+   * Get transport capacity remaining for a unit
+   * @reference freeciv-web/javascript/unit.js unit_cargo_room()
+   */
+  getTransportCapacityRemaining(transportId: string): number {
+    const transport = this.units.get(transportId);
+    if (!transport) {
+      return 0;
+    }
+
+    const transportType = UNIT_TYPES[transport.unitTypeId];
+    if (!transportType || !transportType.transport_capacity) {
+      return 0;
+    }
+
+    const currentCargo = transport.cargoUnits ? transport.cargoUnits.length : 0;
+    return Math.max(0, transportType.transport_capacity - currentCargo);
+  }
+
+  /**
+   * Check if unit has cargo
+   * @reference freeciv-web/javascript/unit.js unit_has_cargo()
+   */
+  unitHasCargo(unitId: string): boolean {
+    const unit = this.units.get(unitId);
+    return !!(unit?.cargoUnits && unit.cargoUnits.length > 0);
+  }
+
+  /**
+   * Check if unit can load another unit
+   */
+  canLoadUnit(transportId: string, cargoId: string): boolean {
+    const transport = this.units.get(transportId);
+    const cargo = this.units.get(cargoId);
+
+    if (!transport || !cargo) {
+      return false;
+    }
+
+    // Units must be on the same tile
+    if (transport.x !== cargo.x || transport.y !== cargo.y) {
+      return false;
+    }
+
+    // Unit can't transport itself
+    if (transportId === cargoId) {
+      return false;
+    }
+
+    // Cargo must not already be transported
+    if (cargo.transportedBy) {
+      return false;
+    }
+
+    // Transport must have capacity
+    if (this.getTransportCapacityRemaining(transportId) <= 0) {
+      return false;
+    }
+
+    // Check transport compatibility
+    return this.isValidTransportCombination(transport.unitTypeId, cargo.unitTypeId);
+  }
+
+  /**
+   * Check if transport and cargo combination is valid
+   * @reference freeciv-web/javascript/unit.js unit_could_possibly_load()
+   */
+  private isValidTransportCombination(transportType: string, cargoType: string): boolean {
+    // Simplified transport rules - in a full implementation this would check
+    // the ruleset's cargo capacity and allowed unit classes
+
+    const transportRules: Record<string, string[]> = {
+      trireme: ['warrior', 'archer', 'settler', 'diplomat'],
+      caravel: ['warrior', 'archer', 'settler', 'diplomat', 'musketeer'],
+      galleon: ['warrior', 'archer', 'settler', 'diplomat', 'musketeer', 'riflemen'],
+      transport: [
+        'warrior',
+        'archer',
+        'settler',
+        'diplomat',
+        'musketeer',
+        'riflemen',
+        'cavalry',
+        'armor',
+      ],
+      carrier: ['fighter', 'bomber'],
+      submarine: [],
+    };
+
+    const allowedCargo = transportRules[transportType] || [];
+    return allowedCargo.includes(cargoType);
+  }
+
+  /**
+   * Load a unit onto a transport
+   */
+  async loadUnitOntoTransport(transportId: string, cargoId: string): Promise<boolean> {
+    if (!this.canLoadUnit(transportId, cargoId)) {
+      return false;
+    }
+
+    const transport = this.units.get(transportId)!;
+    const cargo = this.units.get(cargoId)!;
+
+    // Update cargo unit
+    cargo.transportedBy = transportId;
+    cargo.movementLeft = 0; // Loading consumes movement
+
+    // Update transport unit
+    if (!transport.cargoUnits) {
+      transport.cargoUnits = [];
+    }
+    transport.cargoUnits.push(cargoId);
+
+    // Update database
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({
+        transportedBy: transportId,
+        movementPoints: '0',
+      })
+      .where(eq(units.id, cargoId));
+
+    logger.info(`Unit ${cargoId} loaded onto transport ${transportId}`, {
+      transportType: transport.unitTypeId,
+      cargoType: cargo.unitTypeId,
+      location: { x: transport.x, y: transport.y },
+    });
+
+    return true;
   }
 }
