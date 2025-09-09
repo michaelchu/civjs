@@ -22,29 +22,8 @@ export class TilesetLoader {
   private sprites: Record<string, HTMLCanvasElement> = {};
   private isLoaded = false;
 
-  // Toggleable base paths (legacy vs new)
-  private baseJsPath = '/js/2dcanvas/new';
-  private baseTilesetPath = '/tilesets/new';
-
-  constructor() {
-    // Determine tileset variant from ENV only; default to 'new' if not set
-    try {
-      const env = (import.meta as any).env?.VITE_TILESET_VARIANT as string | undefined;
-      const variant = env && env.toLowerCase() === 'legacy' ? 'legacy' : 'new';
-
-      if (variant === 'legacy') {
-        this.baseJsPath = '/js/2dcanvas';
-        this.baseTilesetPath = '/tilesets';
-      } else {
-        this.baseJsPath = '/js/2dcanvas/new';
-        this.baseTilesetPath = '/tilesets/new';
-      }
-    } catch {
-      // Default to new if anything goes wrong (e.g., non-browser env)
-      this.baseJsPath = '/js/2dcanvas/new';
-      this.baseTilesetPath = '/tilesets/new';
-    }
-  }
+  private baseJsPath = '/js/2dcanvas';
+  private baseTilesetPath = '/tilesets';
 
   async loadTileset(): Promise<void> {
     try {
