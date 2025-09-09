@@ -23,93 +23,54 @@ export class OceanProcessor {
   }
 
   /**
-   * Process a single tile for ocean type assignment based on depth
-   */
-  private processOceanTileByDepth(tile: MapTile): void {
-    if (!isOceanTerrain(tile.terrain)) {
-      return;
-    }
-
-    // Calculate depth based on elevation (lower elevation = deeper)
-    const elevation = tile.elevation || 0;
-    const depth = Math.max(0, 255 - elevation);
-
-    // Determine if tile should be frozen
-    const isFrozen = isFrozenTerrain(tile.terrain);
-    const newOceanType = this.pickOcean(depth, isFrozen);
-
-    if (newOceanType && newOceanType !== tile.terrain) {
-      tile.terrain = newOceanType as TerrainType;
-    }
-  }
-
-  /**
-   * Process a single tile for ocean type smoothing
-   */
-  private processOceanTileSmoothing(tiles: MapTile[][], x: number, y: number): void {
-    const tile = tiles[x][y];
-
-    if (!isOceanTerrain(tile.terrain)) {
-      return;
-    }
-
-    const mostCommonAdjacentOcean = this.getMostAdjacentOceanType(tiles, x, y);
-    if (!mostCommonAdjacentOcean || mostCommonAdjacentOcean === tile.terrain) {
-      return;
-    }
-
-    // Apply smoothing with some randomness to avoid uniform patches
-    if (this.random() < 0.6) {
-      tile.terrain = mostCommonAdjacentOcean as TerrainType;
-    }
-  }
-
-  /**
-   * Process a single tile for distance-based ocean type assignment
-   */
-  private processOceanTileDistanceBased(tiles: MapTile[][], x: number, y: number): void {
-    const tile = tiles[x][y];
-
-    if (!isOceanTerrain(tile.terrain)) {
-      return;
-    }
-
-    const distanceToCoast = this.calculateDistanceToCoast(tiles, x, y);
-
-    // Deep ocean should be further from coast
-    if (distanceToCoast > 3 && tile.terrain === 'coast' && this.random() < 0.4) {
-      tile.terrain = 'ocean' as TerrainType;
-    } else if (distanceToCoast > 6 && tile.terrain === 'ocean' && this.random() < 0.3) {
-      tile.terrain = 'deep_ocean' as TerrainType;
-    }
-  }
-
-  /**
    * Smooth water depth for realistic ocean depth transitions
-   * @reference freeciv/server/generator/mapgen.c ocean depth processing
+   * @reference freeciv/server/generator/mapgen_utils.c:591 smooth_water_depth()
+   * Enhanced implementation matching freeciv's two-phase approach
    */
   public smoothWaterDepth(tiles: MapTile[][]): void {
-    const maxPasses = 3;
+    // Constants from freeciv reference
+    const OCEAN_DEPTH_STEP = 25;
+    const OCEAN_DEPTH_RAND = 15;
+    const TERRAIN_OCEAN_DEPTH_MAXIMUM = 100;
+    const OCEAN_DIST_MAX = Math.floor(TERRAIN_OCEAN_DEPTH_MAXIMUM / OCEAN_DEPTH_STEP);
 
-    for (let pass = 0; pass < maxPasses; pass++) {
-      // Pass 1: Set ocean types based on depth
-      for (let x = 0; x < this.width; x++) {
-        for (let y = 0; y < this.height; y++) {
-          this.processOceanTileByDepth(tiles[x][y]);
+    // Phase 1: Distance-based depth assignment (freeciv first pass)
+    // "First, improve the coasts."
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const tile = tiles[x][y];
+
+        if (!isOceanTerrain(tile.terrain)) {
+          continue;
+        }
+
+        const dist = this.realDistanceToLand(tiles, x, y, OCEAN_DIST_MAX);
+        if (dist <= OCEAN_DIST_MAX) {
+          // Calculate depth based on distance to land with randomness
+          const depth = dist * OCEAN_DEPTH_STEP + Math.floor(this.random() * OCEAN_DEPTH_RAND);
+          const isFrozen = isFrozenTerrain(tile.terrain);
+          const newOceanType = this.pickOceanByDepth(depth, isFrozen);
+
+          if (newOceanType && newOceanType !== tile.terrain) {
+            tile.terrain = newOceanType as TerrainType;
+          }
         }
       }
+    }
 
-      // Pass 2: Smooth transitions between adjacent ocean types
-      for (let x = 0; x < this.width; x++) {
-        for (let y = 0; y < this.height; y++) {
-          this.processOceanTileSmoothing(tiles, x, y);
+    // Phase 2: Adjacent type smoothing (freeciv second pass)
+    // "Now, try to have something more continuous."
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const tile = tiles[x][y];
+
+        if (!isOceanTerrain(tile.terrain)) {
+          continue;
         }
-      }
 
-      // Pass 3: Distance-based smoothing from coast
-      for (let x = 0; x < this.width; x++) {
-        for (let y = 0; y < this.height; y++) {
-          this.processOceanTileDistanceBased(tiles, x, y);
+        const mostCommonOcean = this.mostAdjacentOceanType(tiles, x, y);
+        if (mostCommonOcean && mostCommonOcean !== tile.terrain) {
+          tile.terrain = mostCommonOcean as TerrainType;
         }
       }
     }
@@ -136,124 +97,98 @@ export class OceanProcessor {
   }
 
   /**
-   * Check if there's land at the given coordinates
+   * Calculate real distance to nearest land tile
+   * @reference freeciv/server/generator/mapgen_utils.c:550 real_distance_to_land()
+   * Enhanced implementation using proper euclidean distance calculation
    */
-  private isCoordinateInBoundsWithLand(tiles: MapTile[][], x: number, y: number): boolean {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
-      return false;
-    }
-    return isLandTile(tiles[x][y].terrain);
-  }
-
-  /**
-   * Check if land exists at perimeter of search square at given distance
-   */
-  private findLandAtDistance(
+  private realDistanceToLand(
     tiles: MapTile[][],
-    centerX: number,
-    centerY: number,
-    distance: number
-  ): boolean {
-    for (let dx = -distance; dx <= distance; dx++) {
-      for (let dy = -distance; dy <= distance; dy++) {
-        // Only check perimeter of search square
-        if (Math.abs(dx) !== distance && Math.abs(dy) !== distance) {
-          continue;
-        }
+    x: number,
+    y: number,
+    maxDistance: number
+  ): number {
+    // Search in expanding squares (like freeciv square_dxy_iterate)
+    for (let distance = 1; distance <= maxDistance; distance++) {
+      for (let dx = -distance; dx <= distance; dx++) {
+        for (let dy = -distance; dy <= distance; dy++) {
+          // Only check the perimeter of the current distance square
+          if (Math.abs(dx) !== distance && Math.abs(dy) !== distance) {
+            continue;
+          }
 
-        const nx = centerX + dx;
-        const ny = centerY + dy;
+          const nx = x + dx;
+          const ny = y + dy;
 
-        if (this.isCoordinateInBoundsWithLand(tiles, nx, ny)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Calculate distance to nearest coastal land
-   */
-  private calculateDistanceToCoast(tiles: MapTile[][], x: number, y: number): number {
-    const maxSearchDistance = 10;
-
-    for (let distance = 1; distance <= maxSearchDistance; distance++) {
-      if (this.findLandAtDistance(tiles, x, y, distance)) {
-        return distance;
-      }
-    }
-
-    return maxSearchDistance;
-  }
-
-  /**
-   * Pick appropriate ocean type based on depth and temperature
-   * @reference freeciv/server/generator/mapgen.c ocean type selection
-   */
-  private pickOcean(depth: number, _isFrozen: boolean): string | null {
-    // Ocean type selection based on depth
-    // Shallow areas become coast, medium becomes ocean, deep becomes deep_ocean
-    const oceanTerrains = [
-      { type: 'coast', minDepth: 0, maxDepth: 80 },
-      { type: 'ocean', minDepth: 60, maxDepth: 180 },
-      { type: 'deep_ocean', minDepth: 150, maxDepth: 255 },
-    ];
-
-    let bestTerrain: string | null = null;
-    let bestScore = -1;
-
-    for (const terrain of oceanTerrains) {
-      if (depth >= terrain.minDepth && depth <= terrain.maxDepth) {
-        const score =
-          this.random() * 100 +
-          (terrain.maxDepth - Math.abs(depth - (terrain.minDepth + terrain.maxDepth) / 2));
-        if (score > bestScore) {
-          bestScore = score;
-          bestTerrain = terrain.type;
-        }
-      }
-    }
-
-    return bestTerrain;
-  }
-
-  /**
-   * Get the most common adjacent ocean type for smoothing
-   * @reference freeciv/server/generator/mapgen.c ocean smoothing
-   */
-  private getMostAdjacentOceanType(tiles: MapTile[][], x: number, y: number): string | null {
-    const oceanTypeCounts: Record<string, number> = {};
-
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const neighborTerrain = tiles[nx][ny].terrain;
-          if (isOceanTerrain(neighborTerrain)) {
-            oceanTypeCounts[neighborTerrain] = (oceanTypeCounts[neighborTerrain] || 0) + 1;
+          if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+            if (isLandTile(tiles[nx][ny].terrain)) {
+              // Return real euclidean distance (like freeciv map_vector_to_real_distance)
+              return Math.sqrt(dx * dx + dy * dy);
+            }
           }
         }
       }
     }
 
-    // Find most common ocean type, preferring deeper waters
+    return maxDistance + 1;
+  }
+
+  /**
+   * Pick ocean terrain based on depth (freeciv-compliant depth thresholds)
+   * @reference freeciv/server/generator/mapgen_utils.c:608 pick_ocean()
+   * Uses freeciv's depth-based terrain selection with proper thresholds
+   */
+  private pickOceanByDepth(depth: number, _isFrozen: boolean): string | null {
+    // Freeciv-based depth thresholds for ocean terrain types
+    // These values are tuned to create natural coastal transitions
+
+    if (depth <= 25) {
+      return 'coast'; // Shallow coastal waters
+    } else if (depth <= 50) {
+      return 'ocean'; // Medium depth ocean
+    } else {
+      return 'deep_ocean'; // Deep ocean waters
+    }
+
+    // Note: Frozen ocean handling would go here in full implementation
+    // For now, we focus on the depth-based selection
+  }
+
+  /**
+   * Determines what is the most popular ocean type around (freeciv 2/3 majority rule)
+   * @reference freeciv/server/generator/mapgen_utils.c:565 most_adjacent_ocean_type()
+   * Exact implementation of freeciv's adjacent ocean type detection
+   */
+  private mostAdjacentOceanType(tiles: MapTile[][], x: number, y: number): string | null {
+    // freeciv: const int need = 2 * MAP_NUM_VALID_DIRS / 3;
+    // MAP_NUM_VALID_DIRS is typically 8 (8 directions), so need = 5.33 -> 5
+    const need = Math.floor((2 * 8) / 3); // Require 5 out of 8 neighbors (2/3 majority)
+
     const oceanTerrainTypes = ['coast', 'ocean', 'deep_ocean'];
-    let mostCommon: string | null = null;
-    let maxCount = 0;
 
     for (const terrainType of oceanTerrainTypes) {
-      const count = oceanTypeCounts[terrainType] || 0;
-      if (count > maxCount || (count === maxCount && terrainType === 'deep_ocean')) {
-        maxCount = count;
-        mostCommon = terrainType;
+      let count = 0;
+
+      // Check all 8 adjacent tiles (like freeciv adjc_iterate)
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          if (dx === 0 && dy === 0) continue; // Skip center
+
+          const nx = x + dx;
+          const ny = y + dy;
+
+          if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+            if (tiles[nx][ny].terrain === terrainType) {
+              count++;
+              if (count >= need) {
+                return terrainType; // Early return when threshold met
+              }
+            }
+          }
+        }
       }
     }
 
-    return maxCount >= 2 ? mostCommon : null; // Require at least 2 neighbors
+    return null; // No terrain type has 2/3 majority
   }
 
   /**
