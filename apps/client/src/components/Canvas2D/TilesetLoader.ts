@@ -22,17 +22,35 @@ export class TilesetLoader {
   private sprites: Record<string, HTMLCanvasElement> = {};
   private isLoaded = false;
 
+  // Toggleable base paths (legacy vs new)
+  private baseJsPath = '/js/2dcanvas/new';
+  private baseTilesetPath = '/tilesets/new';
+
   constructor() {
-    // Constants are now defined at module load time
+    // Determine tileset variant from ENV only; default to 'new' if not set
+    try {
+      const env = (import.meta as any).env?.VITE_TILESET_VARIANT as string | undefined;
+      const variant = env && env.toLowerCase() === 'legacy' ? 'legacy' : 'new';
+
+      if (variant === 'legacy') {
+        this.baseJsPath = '/js/2dcanvas';
+        this.baseTilesetPath = '/tilesets';
+      } else {
+        this.baseJsPath = '/js/2dcanvas/new';
+        this.baseTilesetPath = '/tilesets/new';
+      }
+    } catch {
+      // Default to new if anything goes wrong (e.g., non-browser env)
+      this.baseJsPath = '/js/2dcanvas/new';
+      this.baseTilesetPath = '/tilesets/new';
+    }
   }
 
   async loadTileset(): Promise<void> {
     try {
-      // Load tileset files from client's domain instead of server URL
-      // This fixes issues with separate client/server deployments on Railway
-      await this.loadConfig(`/js/2dcanvas/tileset_config_amplio2.js`);
-
-      await this.loadSpec(`/js/2dcanvas/tileset_spec_amplio2.js`);
+      // Load tileset files from client's domain
+      await this.loadConfig(`${this.baseJsPath}/tileset_config_amplio2.js`);
+      await this.loadSpec(`${this.baseJsPath}/tileset_spec_amplio2.js`);
       await this.loadSpriteSheets();
 
       this.cacheSprites();
@@ -103,10 +121,12 @@ export class TilesetLoader {
     for (let i = 0; i < this.config.tileset_image_count; i++) {
       const promise = new Promise<void>((resolve, reject) => {
         const img = new Image();
+        // Allow cross-origin use if assets are ever served from a different origin
+        img.crossOrigin = 'anonymous';
         img.onload = () => resolve();
         img.onerror = () => reject(new Error(`Failed to load sprite sheet ${i}`));
 
-        img.src = `/tilesets/freeciv-web-tileset-${this.config!.tileset_name}-${i}.png`;
+        img.src = `${this.baseTilesetPath}/freeciv-web-tileset-${this.config!.tileset_name}-${i}.png`;
         this.spriteSheets[i] = img;
       });
 
@@ -150,7 +170,20 @@ export class TilesetLoader {
   }
 
   getSprite(tag: string): HTMLCanvasElement | null {
-    return this.sprites[tag] || null;
+    // Try exact match first
+    if (this.sprites[tag]) {
+      return this.sprites[tag];
+    }
+
+    // Try without :0 suffix for new tileset format compatibility
+    if (tag.endsWith(':0')) {
+      const tagWithoutSuffix = tag.slice(0, -2);
+      if (this.sprites[tagWithoutSuffix]) {
+        return this.sprites[tagWithoutSuffix];
+      }
+    }
+
+    return null;
   }
 
   isReady(): boolean {
@@ -188,8 +221,8 @@ export class TilesetLoader {
       'road.river_outlet_e',
     ];
 
-    const available = requiredRiverSprites.filter(key => this.sprites[key + ':0']);
-    const missing = requiredRiverSprites.filter(key => !this.sprites[key + ':0']);
+    const available = requiredRiverSprites.filter(key => this.getSprite(key + ':0') !== null);
+    const missing = requiredRiverSprites.filter(key => this.getSprite(key + ':0') === null);
 
     // Check if required global variables are loaded
     const globalVarsLoaded =
