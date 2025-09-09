@@ -34,6 +34,10 @@ export class BorderRenderer extends BaseRenderer {
 
   private playerColors = new Map<string, string>();
 
+  // Border caching system to prevent unnecessary redraws
+  private lastOwnershipHash = '';
+  private cachedBorderPaths = new Map<string, Path2D>();
+
   /**
    * Initialize player colors for border rendering
    */
@@ -45,8 +49,22 @@ export class BorderRenderer extends BaseRenderer {
   }
 
   /**
-   * Render borders for all visible tiles
-   * Ported from reference/freeciv-web border drawing logic
+   * Check if border cache needs updating by hashing ownership data
+   */
+  private generateOwnershipHash(tiles: Record<string, Tile>): string {
+    const ownershipData: string[] = [];
+    for (const tileKey in tiles) {
+      const tile = tiles[tileKey];
+      if (tile.owner) {
+        ownershipData.push(`${tile.x},${tile.y}:${tile.owner}`);
+      }
+    }
+    return ownershipData.join('|');
+  }
+
+  /**
+   * Render borders for all visible tiles with caching to eliminate flicker
+   * Based on reference/freeciv-web border rendering but optimized for smooth performance
    */
   render(
     tiles: Record<string, Tile>,
@@ -61,203 +79,21 @@ export class BorderRenderer extends BaseRenderer {
 
     const players = renderState.players;
     if (!players || Object.keys(players).length === 0) {
-      console.log('[BorderRenderer] No players data available:', { players });
-      return; // No players data available
+      return; // No players data available - don't spam logs
     }
 
-    console.log('[BorderRenderer] Starting border render:', {
-      tilesCount: Object.keys(tiles).length,
-      playersCount: Object.keys(players).length,
-    });
+    // Check if we need to update the border cache
+    const currentOwnershipHash = this.generateOwnershipHash(tiles);
+    const ownershipChanged = currentOwnershipHash !== this.lastOwnershipHash;
 
-    // Update player colors if players changed
-    if (this.playerColors.size === 0 || Object.keys(players).length !== this.playerColors.size) {
-      this.setPlayerColors(players);
+    if (ownershipChanged) {
+      console.log('[BorderRenderer] Ownership changed, updating border cache');
+      this.updateBorderCache(tiles, renderState);
+      this.lastOwnershipHash = currentOwnershipHash;
     }
 
-    // Render borders between tiles with different owners
-    let tilesWithOwners = 0;
-    let bordersDrawn = 0;
-
-    for (const tileKey in tiles) {
-      const tile = tiles[tileKey];
-      if (!tile.visible || !tile.owner) continue;
-
-      tilesWithOwners++;
-
-      const screenPos = this.mapToScreen(tile.x, tile.y, renderState.viewport);
-      if (!this.isInViewport(tile.x, tile.y, renderState.viewport)) continue;
-
-      // Debug: Log details for first few tiles that have borders to verify terrain vs ownership
-      if (tilesWithOwners <= 3) {
-        console.log(
-          `[BorderRenderer] Tile (${tile.x},${tile.y}): owner=${tile.owner}, terrain=${tile.terrain}`
-        );
-      }
-
-      const borderCount = this.renderTileBorders(tile, tiles, screenPos, renderState, opts);
-      bordersDrawn += borderCount;
-    }
-
-    // Count actual ownership distribution
-    const ownershipStats = Object.values(tiles).reduce(
-      (stats, tile) => {
-        if (tile.owner) {
-          stats[tile.owner] = (stats[tile.owner] || 0) + 1;
-          stats.total++;
-        }
-        return stats;
-      },
-      { total: 0 } as Record<string, number>
-    );
-
-    console.log('[BorderRenderer] Border rendering complete:', {
-      tilesWithOwners,
-      bordersDrawn,
-      ownershipStats,
-    });
-  }
-
-  /**
-   * Render border lines for a specific tile
-   * Based on freeciv-web's border drawing approach
-   */
-  private renderTileBorders(
-    tile: Tile,
-    allTiles: Record<string, Tile>,
-    screenPos: { x: number; y: number },
-    renderState: RenderState,
-    options: BorderRenderOptions
-  ): number {
-    const ctx = this.ctx;
-    if (!ctx || !tile.owner) return 0;
-
-    const players = renderState.players;
-    let bordersDrawn = 0;
-
-    const tileWidth = this.tileWidth;
-    const tileHeight = this.tileHeight;
-
-    // Get player color for this tile owner
-    const playerColor = this.playerColors.get(tile.owner) || DEFAULT_BORDER_COLOR;
-
-    // Set border style using nation colors
-    // DEBUG: Use different colors based on terrain to help identify coordinate issues
-    let debugColor = playerColor;
-    if (tile.terrain === 'ocean' || tile.terrain === 'deep_ocean') {
-      debugColor = '#00FFFF'; // Cyan for ocean tiles (shouldn't normally have borders)
-    } else if (tile.terrain === 'grassland' || tile.terrain === 'plains') {
-      debugColor = '#00FF00'; // Green for land tiles
-    }
-
-    ctx.strokeStyle = debugColor;
-    ctx.lineWidth = options.borderWidth;
-    ctx.globalAlpha = options.borderAlpha;
-
-    if (options.borderStyle === 'dashed') {
-      ctx.setLineDash([5, 3]);
-    } else {
-      ctx.setLineDash([]);
-    }
-
-    // Check all four cardinal neighbors for border lines - exactly like freeciv-web
-    const debugInfo = [];
-    for (let i = 0; i < CARDINAL_TILESET_DIRS.length; i++) {
-      const dir = CARDINAL_TILESET_DIRS[i];
-      const neighborCoords = this.getNeighborCoords(tile.x, tile.y, dir);
-      const neighborKey = `${neighborCoords.x},${neighborCoords.y}`;
-      const neighborTile = allTiles[neighborKey];
-
-      // Reference-compliant border detection logic from freeciv-web tilespec.js:877-881
-      const shouldDrawBorder =
-        neighborTile != null &&
-        neighborTile.owner != null &&
-        tile.owner != null &&
-        tile.owner !== neighborTile.owner &&
-        tile.owner !== UNOWNED_TILE.toString() && // Convert to string since our owner field is string
-        players[tile.owner] != null;
-
-      debugInfo.push({
-        dir,
-        neighborExists: !!neighborTile,
-        neighborOwner: neighborTile?.owner,
-        tileOwner: tile.owner,
-        playersHasOwner: !!players[tile.owner],
-        shouldDrawBorder,
-      });
-
-      if (shouldDrawBorder) {
-        const side = this.directionToSide(dir);
-
-        // Debug: Log a few border draws to verify positioning
-        if (bordersDrawn < 2) {
-          console.log(
-            `[BorderRenderer] Drawing ${side} border: tile(${tile.x},${tile.y}), terrain=${tile.terrain}, coords=(${screenPos.x + tileWidth / 2 - 1},${screenPos.y + 3})`
-          );
-        }
-
-        this.drawBorderSide(ctx, screenPos, side, tileWidth, tileHeight);
-        bordersDrawn++;
-      }
-    }
-
-    // Simplified debug info - only log problematic tiles
-    if (debugInfo.some(d => d.shouldDrawBorder) && bordersDrawn === 0) {
-      console.log(
-        `[BorderRenderer] No borders drawn for tile (${tile.x},${tile.y}) owner=${tile.owner} terrain=${tile.terrain}`
-      );
-    }
-
-    ctx.globalAlpha = 1.0;
-    ctx.setLineDash([]);
-
-    return bordersDrawn;
-  }
-
-  /**
-   * Draw a border line on one side of a tile
-   * Based on freeciv-web's mapview_put_border_line function
-   * Reference: freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:355-377
-   */
-  private drawBorderSide(
-    ctx: CanvasRenderingContext2D,
-    screenPos: { x: number; y: number },
-    side: string,
-    tileWidth: number,
-    tileHeight: number
-  ): void {
-    // Calculate correct offsets based on actual tile dimensions
-    // For isometric tiles, the border should be centered within the tile
-    const x = screenPos.x + tileWidth / 2 - 1; // Center minus 1 pixel like freeciv-web
-    const y = screenPos.y + 3; // Keep the Y offset from reference
-
-    ctx.beginPath();
-
-    // Draw isometric border lines matching freeciv-web exactly
-    // Using tileset_tile_width and tileset_tile_height like the reference
-    switch (side) {
-      case 'north':
-        ctx.moveTo(x, y - 2);
-        ctx.lineTo(x + tileWidth / 2, y + tileHeight / 2 - 2);
-        break;
-
-      case 'east':
-        ctx.moveTo(x - 3, y + tileHeight - 3);
-        ctx.lineTo(x + tileWidth / 2 - 3, y + tileHeight / 2 - 3);
-        break;
-
-      case 'south':
-        ctx.moveTo(x - tileWidth / 2 + 3, y + tileHeight / 2 - 3);
-        ctx.lineTo(x + 3, y + tileHeight - 3);
-        break;
-
-      case 'west':
-        ctx.moveTo(x - tileWidth / 2 + 3, y + tileHeight / 2 - 3);
-        ctx.lineTo(x + 3, y - 3);
-        break;
-    }
-
-    ctx.stroke();
+    // Render cached borders
+    this.renderCachedBorders(opts);
   }
 
   /**
@@ -403,5 +239,143 @@ export class BorderRenderer extends BaseRenderer {
       owner,
       isBorder,
     };
+  }
+
+  /**
+   * Update the border cache when ownership changes
+   */
+  private updateBorderCache(tiles: Record<string, Tile>, renderState: RenderState): void {
+    this.cachedBorderPaths.clear();
+
+    // Create paths for each player's borders
+    const playerBorders = new Map<string, Path2D>();
+
+    for (const tileKey in tiles) {
+      const tile = tiles[tileKey];
+      if (!tile.owner || !tile.visible) continue;
+
+      // Get or create path for this player
+      if (!playerBorders.has(tile.owner)) {
+        playerBorders.set(tile.owner, new Path2D());
+      }
+
+      const path = playerBorders.get(tile.owner)!;
+
+      // Add border segments for this tile
+      this.addTileBordersToPath(tile, tiles, renderState, path);
+    }
+
+    // Store the completed paths
+    this.cachedBorderPaths = playerBorders;
+  }
+
+  /**
+   * Add border segments for a tile to a Path2D
+   */
+  private addTileBordersToPath(
+    tile: Tile,
+    allTiles: Record<string, Tile>,
+    renderState: RenderState,
+    path: Path2D
+  ): void {
+    const players = renderState.players;
+    if (!tile.owner || !players[tile.owner]) return;
+
+    // Calculate screen position once
+    const screenPos = this.mapToScreen(tile.x, tile.y, renderState.viewport);
+
+    // Check all four cardinal neighbors for border lines
+    for (let i = 0; i < CARDINAL_TILESET_DIRS.length; i++) {
+      const dir = CARDINAL_TILESET_DIRS[i];
+      const neighborCoords = this.getNeighborCoords(tile.x, tile.y, dir);
+      const neighborKey = `${neighborCoords.x},${neighborCoords.y}`;
+      const neighborTile = allTiles[neighborKey];
+
+      // Same border detection logic as before
+      const shouldDrawBorder =
+        neighborTile != null &&
+        neighborTile.owner != null &&
+        tile.owner != null &&
+        tile.owner !== neighborTile.owner &&
+        tile.owner !== UNOWNED_TILE.toString() &&
+        players[tile.owner] != null;
+
+      if (shouldDrawBorder) {
+        const side = this.directionToSide(dir) as 'top' | 'right' | 'bottom' | 'left';
+        this.addBorderSideToPath(path, screenPos, side, this.tileWidth, this.tileHeight);
+      }
+    }
+  }
+
+  /**
+   * Add a border side to a Path2D instead of drawing directly
+   */
+  private addBorderSideToPath(
+    path: Path2D,
+    screenPos: { x: number; y: number },
+    side: 'top' | 'right' | 'bottom' | 'left',
+    tileWidth: number,
+    tileHeight: number
+  ): void {
+    const centerX = screenPos.x + tileWidth / 2;
+    const centerY = screenPos.y + tileHeight / 2;
+
+    // Isometric border positioning (reference: freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js)
+    switch (side) {
+      case 'top': // North border
+        path.moveTo(centerX - 1, screenPos.y + 3);
+        path.lineTo(centerX + 1, screenPos.y + 3);
+        break;
+      case 'right': // East border
+        path.moveTo(screenPos.x + tileWidth - 3, centerY - 1);
+        path.lineTo(screenPos.x + tileWidth - 3, centerY + 1);
+        break;
+      case 'bottom': // South border
+        path.moveTo(centerX - 1, screenPos.y + tileHeight - 3);
+        path.lineTo(centerX + 1, screenPos.y + tileHeight - 3);
+        break;
+      case 'left': // West border
+        path.moveTo(screenPos.x + 3, centerY - 1);
+        path.lineTo(screenPos.x + 3, centerY + 1);
+        break;
+    }
+  }
+
+  /**
+   * Render the cached border paths
+   */
+  private renderCachedBorders(options: BorderRenderOptions): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+
+    ctx.lineWidth = options.borderWidth;
+    ctx.globalAlpha = options.borderAlpha;
+
+    if (options.borderStyle === 'dashed') {
+      ctx.setLineDash([5, 3]);
+    } else {
+      ctx.setLineDash([]);
+    }
+
+    let bordersDrawn = 0;
+
+    // Draw borders for each player using cached paths
+    for (const [playerId, path] of this.cachedBorderPaths.entries()) {
+      const playerColor = this.playerColors.get(playerId) || DEFAULT_BORDER_COLOR;
+      ctx.strokeStyle = playerColor;
+      ctx.stroke(path);
+      bordersDrawn++;
+    }
+
+    // Only log when there are actual borders to show
+    if (bordersDrawn > 0) {
+      console.log('[BorderRenderer] Cached border rendering complete:', {
+        playersWithBorders: bordersDrawn,
+        totalPaths: this.cachedBorderPaths.size,
+      });
+    }
+
+    // Reset alpha
+    ctx.globalAlpha = 1.0;
   }
 }
