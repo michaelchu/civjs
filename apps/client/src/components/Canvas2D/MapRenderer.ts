@@ -175,55 +175,25 @@ export class MapRenderer {
           }
         });
 
-        // Debug: Log sample tiles to see what data we have
-        console.log('[MapRenderer] Sample tile data for border debugging:', {
-          sampleTiles: visibleTiles.slice(0, 3).map((tile: any) => ({
-            x: tile.x,
-            y: tile.y,
-            owner: tile.owner,
-            claimer: tile.claimer,
-            borderStrength: tile.borderStrength,
-            terrain: tile.terrain,
-            keys: Object.keys(tile).sort(),
-          })),
-          globalTilesWithOwnershipData: visibleTiles.filter((tile: any) => tile.owner).length,
-          totalVisibleTiles: visibleTiles.length,
-        });
-
-        // Also check the raw global tiles array structure
-        console.log('[MapRenderer] Raw global tiles sample:', {
-          firstTileKeys: globalTiles[0] ? Object.keys(globalTiles[0]).sort() : 'no tiles',
-          firstThreeTiles: globalTiles.slice(0, 3).map((tile: any) => ({
-            x: tile?.x,
-            y: tile?.y,
-            owner: tile?.owner,
-            claimer: tile?.claimer,
-            borderStrength: tile?.borderStrength,
-            allProps: tile
-              ? Object.keys(tile)
-                  .filter(
-                    key => key.includes('owner') || key.includes('border') || key.includes('claim')
-                  )
-                  .sort()
-              : [],
-          })),
-        });
-
-        console.log('[MapRenderer] border rendering data:', {
-          visibleTilesCount: visibleTiles.length,
-          tilesWithOwners,
-          sampleTile:
-            visibleTiles.length > 0
-              ? {
-                  x: visibleTiles[0].x,
-                  y: visibleTiles[0].y,
-                  owner: visibleTiles[0].owner,
-                  terrain: visibleTiles[0].terrain,
-                  hasOwner: !!visibleTiles[0].owner,
-                }
-              : null,
+        // Debug border data - always log a summary for first 30 seconds
+        const debugOwnedTiles = visibleTiles
+          .filter((tile: any) => tile.owner && tile.owner !== null)
+          .slice(0, 5);
+        console.log('[MapRenderer] Border debug summary:', {
+          tilesWithOwnership: tilesWithOwners,
+          totalVisible: visibleTiles.length,
+          ownedTilesSample:
+            debugOwnedTiles.length > 0
+              ? debugOwnedTiles.map(t => ({ x: t.x, y: t.y, owner: t.owner, claimer: t.claimer }))
+              : 'none',
           playersCount: Object.keys(players).length,
-          borderOptions,
+          globalTilesFirstOwned: globalTiles.find((t: any) => t?.owner && t.owner !== null)
+            ? {
+                x: globalTiles.find((t: any) => t?.owner && t.owner !== null)?.x,
+                y: globalTiles.find((t: any) => t?.owner && t.owner !== null)?.y,
+                owner: globalTiles.find((t: any) => t?.owner && t.owner !== null)?.owner,
+              }
+            : 'none',
         });
 
         this.borderRenderer.render(tilesRecord, state, borderOptions);

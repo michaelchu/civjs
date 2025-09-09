@@ -537,8 +537,8 @@ class GameClient {
           units: [],
           city: undefined,
           // Border system properties - ported from reference/freeciv border system
-          owner: data.owner || undefined,
-          claimer: data.claimer || undefined,
+          owner: data.owner,
+          claimer: data.claimer,
           borderStrength: data.borderStrength || 0,
         },
       };
@@ -604,8 +604,8 @@ class GameClient {
         city: undefined,
         resource: tileData.resource,
         // Border system properties - ported from reference/freeciv border system
-        owner: tileData.owner || undefined,
-        claimer: tileData.claimer || undefined,
+        owner: tileData.owner,
+        claimer: tileData.claimer,
         borderStrength: tileData.borderStrength || 0,
       };
     }

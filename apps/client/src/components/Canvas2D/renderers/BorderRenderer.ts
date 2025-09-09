@@ -53,12 +53,25 @@ export class BorderRenderer extends BaseRenderer {
    */
   private generateOwnershipHash(tiles: Record<string, Tile>): string {
     const ownershipData: string[] = [];
+    let tilesWithOwner = 0;
     for (const tileKey in tiles) {
       const tile = tiles[tileKey];
-      if (tile.owner) {
+      if (tile.owner && tile.owner !== null) {
         ownershipData.push(`${tile.x},${tile.y}:${tile.owner}`);
+        tilesWithOwner++;
       }
     }
+
+    // Debug: Log ownership data periodically
+    if (tilesWithOwner > 0) {
+      console.log('[BorderRenderer] Found owned tiles in hash generation:', {
+        tilesWithOwner,
+        totalTiles: Object.keys(tiles).length,
+        firstThreeOwned: ownershipData.slice(0, 3),
+        hashLength: ownershipData.join('|').length,
+      });
+    }
+
     return ownershipData.join('|');
   }
 
@@ -90,6 +103,9 @@ export class BorderRenderer extends BaseRenderer {
       console.log('[BorderRenderer] Ownership changed, updating border cache');
       this.updateBorderCache(tiles, renderState);
       this.lastOwnershipHash = currentOwnershipHash;
+    } else if (this.cachedBorderPaths.size === 0 && currentOwnershipHash === '') {
+      // No ownership data yet - don't render anything
+      return;
     }
 
     // Render cached borders
@@ -249,10 +265,13 @@ export class BorderRenderer extends BaseRenderer {
 
     // Create paths for each player's borders
     const playerBorders = new Map<string, Path2D>();
+    let ownedTilesProcessed = 0;
 
     for (const tileKey in tiles) {
       const tile = tiles[tileKey];
       if (!tile.owner || !tile.visible) continue;
+
+      ownedTilesProcessed++;
 
       // Get or create path for this player
       if (!playerBorders.has(tile.owner)) {
@@ -267,6 +286,13 @@ export class BorderRenderer extends BaseRenderer {
 
     // Store the completed paths
     this.cachedBorderPaths = playerBorders;
+
+    console.log('[BorderRenderer] Border cache updated:', {
+      ownedTilesProcessed,
+      totalTiles: Object.keys(tiles).length,
+      playersWithBorders: playerBorders.size,
+      playerIds: Array.from(playerBorders.keys()),
+    });
   }
 
   /**
