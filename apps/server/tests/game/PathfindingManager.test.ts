@@ -13,16 +13,17 @@ describe('PathfindingManager', () => {
 
   // Mock unit for testing
   const mockUnit: Unit = {
-    id: 'test-unit-1',
-    gameId: 'test-game-123',
-    playerId: 'player-1',
+    id: 'test-unit',
+    gameId: 'test-game',
+    playerId: 'test-player',
     unitTypeId: 'warrior',
-    x: 10,
-    y: 10,
+    x: 5,
+    y: 5,
     health: 100,
-    movementLeft: 3,
+    movementLeft: 6,
     fortified: false,
     veteranLevel: 0,
+    experience: 0,
   };
 
   beforeEach(() => {
@@ -57,13 +58,13 @@ describe('PathfindingManager', () => {
     it('should find path to adjacent tile', async () => {
       // Mock terrain for path tiles
       mockMapManager.getTile.mockImplementation((x: number, y: number) => {
-        if ((x === 10 && y === 10) || (x === 11 && y === 10)) {
+        if ((x === 5 && y === 5) || (x === 6 && y === 5)) {
           return { x, y, terrain: 'grassland' };
         }
         return null;
       });
 
-      const result = await pathfindingManager.findPath(mockUnit, 11, 10);
+      const result = await pathfindingManager.findPath(mockUnit, 6, 5);
 
       expect(result.valid).toBe(true);
       expect(result.path.length).toBeGreaterThan(1);
@@ -72,21 +73,21 @@ describe('PathfindingManager', () => {
         y: mockUnit.y,
         moveCost: 0,
       });
-      expect(result.path[result.path.length - 1].x).toBe(11);
-      expect(result.path[result.path.length - 1].y).toBe(10);
+      expect(result.path[result.path.length - 1].x).toBe(6);
+      expect(result.path[result.path.length - 1].y).toBe(5);
       expect(result.totalCost).toBeGreaterThan(0);
     });
 
     it('should handle diagonal movement', async () => {
       // Mock terrain for diagonal path
       mockMapManager.getTile.mockImplementation((x: number, y: number) => {
-        if ((x === 10 && y === 10) || (x === 11 && y === 11)) {
+        if ((x === 5 && y === 5) || (x === 6 && y === 6)) {
           return { x, y, terrain: 'grassland' };
         }
         return null;
       });
 
-      const result = await pathfindingManager.findPath(mockUnit, 11, 11);
+      const result = await pathfindingManager.findPath(mockUnit, 6, 6);
 
       expect(result.valid).toBe(true);
       expect(result.totalCost).toBeGreaterThan(3); // Should cost more than straight movement
