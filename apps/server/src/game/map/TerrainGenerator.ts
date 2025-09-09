@@ -575,7 +575,8 @@ export class TerrainGenerator {
             ocean++;
           } else {
             land++;
-            break; // Exit early if any land found
+            // REMOVED: Early break that was causing rectangular ocean blocks
+            // The freeciv algorithm counts ALL neighbors for proper depth calculation
           }
         }
       }
