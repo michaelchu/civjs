@@ -610,6 +610,7 @@ export class MapRenderer {
           elevation: tile.elevation || 0,
           resource: tile.resource || undefined,
           riverMask: tile.riverMask || tile.river_mask || 0, // Support both naming conventions
+          owner: tile.owner || null, // Include owner property for border rendering
         });
       }
     }
