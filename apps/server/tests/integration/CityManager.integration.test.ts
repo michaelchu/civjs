@@ -23,7 +23,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
     await clearAllTables();
 
     // Create test game and player
-    testData = await createTestGameAndPlayer('0010', '0020');
+    testData = await createTestGameAndPlayer();
 
     // Initialize CityManager with test database provider
     const testDbProvider = getTestDatabaseProvider();
@@ -284,7 +284,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
     it('should handle corrupted database data gracefully', async () => {
       // Insert invalid data directly into database
       const db = getTestDatabase();
-      const corruptCityId = generateTestUUID('9999');
+      const corruptCityId = generateTestUUID();
       await db.insert(schema.cities).values({
         id: corruptCityId,
         gameId: testData.game.id,

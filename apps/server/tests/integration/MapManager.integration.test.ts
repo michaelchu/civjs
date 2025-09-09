@@ -29,8 +29,8 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
   describe('map generation with real terrain algorithms', () => {
     it('should generate complete map with all terrain types', async () => {
       // Create test players for map generation
-      const player1Data = await createTestGameAndPlayer('0001', '0002');
-      const player2Data = await createTestGameAndPlayer('0003', '0004');
+      const player1Data = await createTestGameAndPlayer();
+      const player2Data = await createTestGameAndPlayer();
 
       const players = new Map([
         [
@@ -99,7 +99,7 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
     });
 
     it('should generate different maps with different seeds', async () => {
-      const player1Data = await createTestGameAndPlayer('0005', '0006');
+      const player1Data = await createTestGameAndPlayer();
       const players = new Map([
         [
           player1Data.player.id,
@@ -148,7 +148,7 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
     });
 
     it('should generate reproducible maps with same seed', async () => {
-      const player1Data = await createTestGameAndPlayer('0007', '0008');
+      const player1Data = await createTestGameAndPlayer();
       const players = new Map([
         [
           player1Data.player.id,
@@ -198,7 +198,7 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
       // Create a simple test with MapManager only (not full GameManager integration)
       const testMapManager = new MapManager(20, 20, 'test-seed-persist');
 
-      const player1Data = await createTestGameAndPlayer('0005', '0006');
+      const player1Data = await createTestGameAndPlayer();
       const players = new Map([
         [
           player1Data.player.id,
@@ -253,7 +253,7 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
       const testMapManager1 = new MapManager(15, 15, seed);
       const testMapManager2 = new MapManager(15, 15, seed);
 
-      const player1Data = await createTestGameAndPlayer('0007', '0008');
+      const player1Data = await createTestGameAndPlayer();
       const players = new Map([
         [
           player1Data.player.id,
@@ -303,7 +303,7 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
     beforeEach(async () => {
       testMapManager = new MapManager(20, 20, 'tile-query-test-seed');
 
-      const player1Data = await createTestGameAndPlayer('0009', '0010');
+      const player1Data = await createTestGameAndPlayer();
       const players = new Map([
         [
           player1Data.player.id,
@@ -377,7 +377,7 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
     beforeEach(async () => {
       testMapManager = new MapManager(20, 20, 'terrain-update-test-seed');
 
-      const player1Data = await createTestGameAndPlayer('0011', '0012');
+      const player1Data = await createTestGameAndPlayer();
       const players = new Map([
         [
           player1Data.player.id,
@@ -455,7 +455,7 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
     beforeEach(async () => {
       testMapManager = new MapManager(20, 20, 'pathfinding-test-seed');
 
-      const player1Data = await createTestGameAndPlayer('0013', '0014');
+      const player1Data = await createTestGameAndPlayer();
       const players = new Map([
         [
           player1Data.player.id,
@@ -542,7 +542,7 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
 
   describe('map validation and quality checks', () => {
     it('should validate generated map meets quality standards', async () => {
-      const player1Data = await createTestGameAndPlayer('0009', '0010');
+      const player1Data = await createTestGameAndPlayer();
       const players = new Map([
         [
           player1Data.player.id,
@@ -574,7 +574,7 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
     it('should identify problematic map configurations', async () => {
       // Create a very small map that might have issues
       const smallMapManager = new MapManager(3, 3, 'small-test');
-      const player1Data = await createTestGameAndPlayer('0011', '0012');
+      const player1Data = await createTestGameAndPlayer();
 
       const players = new Map([
         [

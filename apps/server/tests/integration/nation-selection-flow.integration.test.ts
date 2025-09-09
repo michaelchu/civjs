@@ -36,7 +36,7 @@ describe('Nation Selection Flow - Integration', () => {
   let activeConnections: Map<string, any>;
 
   const mockSocketId = 'test-socket-id';
-  const mockUserId = generateTestUUID('1001');
+  const mockUserId = generateTestUUID();
   const mockUsername = 'testuser';
 
   beforeEach(async () => {
@@ -224,7 +224,7 @@ describe('Nation Selection Flow - Integration', () => {
 
     it('should join game with specific nation selection', async () => {
       // Create second user in database first
-      const newUserId = generateTestUUID('1002');
+      const newUserId = generateTestUUID();
       const db = getTestDatabase();
       try {
         await db.insert(schema.users).values({
@@ -281,7 +281,7 @@ describe('Nation Selection Flow - Integration', () => {
 
     it('should handle random nation selection for second player', async () => {
       // Create first user and join with specific nation
-      const firstUserId = generateTestUUID('1003');
+      const firstUserId = generateTestUUID();
       const db = getTestDatabase();
       try {
         await db.insert(schema.users).values({
@@ -301,7 +301,7 @@ describe('Nation Selection Flow - Integration', () => {
       await gameManager.joinGame(testGameId, firstUserId, 'american');
 
       // Create second user for random nation selection
-      const newUserId = generateTestUUID('1004');
+      const newUserId = generateTestUUID();
       try {
         await db.insert(schema.users).values({
           id: newUserId,

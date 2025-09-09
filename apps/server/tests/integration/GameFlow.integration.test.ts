@@ -46,8 +46,8 @@ describe('Game Integration Flow', () => {
       const db = getTestDatabase();
 
       // Create users directly in the database
-      const hostUserId = generateTestUUID('0001');
-      const guestUserId = generateTestUUID('0002');
+      const hostUserId = generateTestUUID();
+      const guestUserId = generateTestUUID();
 
       await db
         .insert(schema.users)
@@ -138,7 +138,7 @@ describe('Game Integration Flow', () => {
       const db = getTestDatabase();
 
       // Create host user for consistency test
-      const hostUserId = generateTestUUID('0003');
+      const hostUserId = generateTestUUID();
       const [hostUser] = await db
         .insert(schema.users)
         .values({
@@ -158,8 +158,8 @@ describe('Game Integration Flow', () => {
       };
 
       // Create additional users for the players
-      const user1Id = generateTestUUID('2001');
-      const user2Id = generateTestUUID('2002');
+      const user1Id = generateTestUUID();
+      const user2Id = generateTestUUID();
 
       await db.insert(schema.users).values([
         {

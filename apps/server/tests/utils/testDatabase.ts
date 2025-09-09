@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import { randomBytes } from 'crypto';
 import * as schema from '@database/schema';
 // Import logger with fallback for mocked scenarios
 let logger: {
@@ -68,31 +69,36 @@ export class TestDatabaseProvider implements DatabaseProvider {
   }
 }
 
-// UUID generator for tests
-export function generateTestUUID(suffix: string): string {
-  // Generate a valid UUID with better randomness
-  const timestamp = Date.now().toString(16).slice(-6); // Last 6 hex digits
-  const random = Math.floor(Math.random() * 0xffffff)
-    .toString(16)
-    .padStart(6, '0'); // 6 hex digits
-  const paddedSuffix = suffix.padStart(2, '0');
-  // Format: 550e8400-e29b-41d4-a716-ssttttttrrrrrrr (12 chars total after last dash)
-  return `550e8400-e29b-41d4-a716-${paddedSuffix}${timestamp}${random}`.slice(0, 36);
+// UUID generator for tests - uses crypto for guaranteed uniqueness
+export function generateTestUUID(): string {
+  // Generate a UUID v4 using crypto - cryptographically secure and collision-proof
+  const bytes = randomBytes(16);
+
+  // Set version (4) and variant bits
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // Version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // Variant 10
+
+  // Format as UUID string
+  const hex = bytes.toString('hex');
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join('-');
 }
 
 // Create test game and player for unit tests
-export async function createTestGameAndPlayer(
-  gameIdSuffix: string = '0001',
-  playerIdSuffix: string = '0002'
-) {
+export async function createTestGameAndPlayer() {
   if (!testDb) throw new Error('Test database not initialized');
 
-  const gameId = generateTestUUID(gameIdSuffix);
-  const playerId = generateTestUUID(playerIdSuffix);
-  const userId = generateTestUUID(playerIdSuffix.replace('2', '1')); // Derive user ID from player ID
+  const gameId = generateTestUUID();
+  const playerId = generateTestUUID();
+  const userId = generateTestUUID();
 
   // Create test user (handle duplicates in CI/CD)
-  let user: typeof schema.users.$inferSelect;
+  let user: typeof schema.users.$inferSelect | undefined;
 
   // First try to find existing user by ID
   const existingUser = await testDb.query.users.findFirst({
@@ -102,33 +108,97 @@ export async function createTestGameAndPlayer(
   if (existingUser) {
     user = existingUser;
   } else {
-    // Create new user with highly unique identifiers
-    const timestamp = Date.now();
-    const randomId = Math.random().toString(36).substr(2, 9);
+    // Create user with UUID-based username (collision-proof)
+    const maxRetries = 2; // Reduced retries since UUIDs prevent collisions
 
-    try {
-      [user] = await testDb
-        .insert(schema.users)
-        .values({
-          id: userId,
-          username: `TestUser${playerIdSuffix}_${timestamp}_${randomId}`,
-          email: `test${playerIdSuffix}_${timestamp}_${randomId}@example.com`,
-          passwordHash: 'test-hash',
-        })
-        .returning();
-    } catch (error) {
-      // If still failing, there might be a race condition with the same UUID
-      // Try one more time to find the user
-      const retryUser = await testDb.query.users.findFirst({
-        where: (users, { eq }) => eq(users.id, userId),
-      });
+    for (let attempt = 1; attempt <= maxRetries && !user; attempt++) {
+      // Use crypto-based UUID for username - cryptographically secure and collision-proof
+      const usernameId = generateTestUUID().split('-')[0]; // First part of UUID (8 chars)
+      const emailId = generateTestUUID().split('-')[0];
 
-      if (retryUser) {
-        user = retryUser;
-      } else {
-        throw new Error(`Failed to create or find test user after retry: ${error}`);
+      const username = `user_${usernameId}`; // Clean: user_a1b2c3d4
+      const email = `test_${emailId}@example.com`;
+
+      try {
+        // Use raw SQL for reliable user creation in tests
+        if (testQueryClient) {
+          const rawResult = await testQueryClient`
+            INSERT INTO users (id, username, email, password_hash, is_guest, is_active, last_seen, created_at, updated_at, games_played, games_won, total_score, settings)
+            VALUES (${userId}, ${username}, ${email}, 'test-hash', false, true, now(), now(), now(), 0, 0, 0, '{}'::jsonb)
+            RETURNING *
+          `;
+
+          if (rawResult && rawResult.length > 0) {
+            user = rawResult[0] as typeof schema.users.$inferSelect;
+            logger.debug(`Successfully created test user on attempt ${attempt}`);
+            break;
+          }
+        } else {
+          throw new Error('Test database client not available');
+        }
+      } catch (error) {
+        logger.error(`Failed to create test user (attempt ${attempt}/${maxRetries}):`, {
+          userId,
+          username,
+          email,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          code: (error as any)?.code,
+          detail: (error as any)?.detail,
+          constraint: (error as any)?.constraint,
+          name: (error as any)?.name,
+          severity: (error as any)?.severity,
+          file: (error as any)?.file,
+          line: (error as any)?.line,
+          routine: (error as any)?.routine,
+          original: error,
+        });
+
+        // On final attempt, try to find existing user or provide detailed error
+        if (attempt === maxRetries) {
+          // Try to find the user in case of unique constraint violation
+          const retryUser = await testDb.query.users.findFirst({
+            where: (users, { eq }) => eq(users.id, userId),
+          });
+
+          if (retryUser) {
+            user = retryUser;
+            logger.info('Found existing user after constraint violations, proceeding');
+          } else {
+            // Provide diagnostic information
+            const usernameConflict = await testDb.query.users.findFirst({
+              where: (users, { eq }) => eq(users.username, username),
+            });
+            const emailConflict = await testDb.query.users.findFirst({
+              where: (users, { eq }) => eq(users.email, email),
+            });
+
+            const diagnosticInfo = {
+              userId,
+              username,
+              email,
+              usernameConflict: !!usernameConflict,
+              emailConflict: !!emailConflict,
+              errorMessage: error instanceof Error ? error.message : String(error),
+              attempts: maxRetries,
+            };
+
+            logger.error(
+              'Unable to create or find test user after all attempts - diagnostic info:',
+              diagnosticInfo
+            );
+            throw new Error(
+              `Failed to create or find test user after ${maxRetries} attempts: ${error instanceof Error ? error.message : String(error)}\nDiagnostic: ${JSON.stringify(diagnosticInfo)}`
+            );
+          }
+        }
       }
     }
+  }
+
+  // Ensure user was created or found
+  if (!user) {
+    throw new Error('Failed to create or find test user - user is undefined');
   }
 
   // Create test game
@@ -136,7 +206,7 @@ export async function createTestGameAndPlayer(
     .insert(schema.games)
     .values({
       id: gameId,
-      name: `Test Game ${gameIdSuffix}`,
+      name: `Test Game`,
       hostId: user.id, // Use actual user.id instead of userId
       status: 'active',
       maxPlayers: 4,
@@ -173,7 +243,7 @@ export async function createTestGameAndPlayer(
 
 // Test database connection string
 const testConnectionString =
-  process.env.TEST_DATABASE_URL || 'postgresql://civjs_test:civjs_test@localhost:5432/civjs_test';
+  process.env.DATABASE_URL || 'postgresql://civjs:civjs_secret@localhost:5432/civjs_test';
 
 // Create test database connection
 let testQueryClient: postgres.Sql | null = null;

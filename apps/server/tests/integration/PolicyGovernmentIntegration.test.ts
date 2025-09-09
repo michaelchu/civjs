@@ -37,9 +37,9 @@ describe('Policy and Government Manager Integration', () => {
     await clearAllTables();
 
     // Generate UUIDs for this test
-    gameId = generateTestUUID('5001');
-    playerId = generateTestUUID('5002');
-    userId = generateTestUUID('5003');
+    gameId = generateTestUUID();
+    playerId = generateTestUUID();
+    userId = generateTestUUID();
 
     const db = getTestDatabase();
     const testDbProvider = getTestDatabaseProvider();
