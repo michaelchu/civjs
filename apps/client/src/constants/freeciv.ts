@@ -12,6 +12,7 @@ export const MATCH_NONE = 0;
 export const MATCH_SAME = 1;
 export const MATCH_PAIR = 2;
 export const MATCH_FULL = 3;
+export const MATCH_RANDOM = 4; // Random match for terrain variation
 
 // Cell rendering types
 export const CELL_WHOLE = 0;
@@ -22,7 +23,8 @@ export type MatchType =
   | typeof MATCH_NONE
   | typeof MATCH_SAME
   | typeof MATCH_PAIR
-  | typeof MATCH_FULL;
+  | typeof MATCH_FULL
+  | typeof MATCH_RANDOM;
 export type CellType = typeof CELL_WHOLE | typeof CELL_CORNER;
 
 // Export all constants as a single object for easier importing
@@ -31,6 +33,7 @@ export const FreecivConstants = {
   MATCH_SAME,
   MATCH_PAIR,
   MATCH_FULL,
+  MATCH_RANDOM,
   CELL_WHOLE,
   CELL_CORNER,
 } as const;
@@ -53,6 +56,7 @@ declare global {
     MATCH_SAME: number;
     MATCH_PAIR: number;
     MATCH_FULL: number;
+    MATCH_RANDOM: number;
     CELL_WHOLE: number;
     CELL_CORNER: number;
   }
@@ -64,6 +68,7 @@ if (typeof window !== 'undefined') {
   window.MATCH_SAME = MATCH_SAME;
   window.MATCH_PAIR = MATCH_PAIR;
   window.MATCH_FULL = MATCH_FULL;
+  window.MATCH_RANDOM = MATCH_RANDOM;
   window.CELL_WHOLE = CELL_WHOLE;
   window.CELL_CORNER = CELL_CORNER;
 }

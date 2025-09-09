@@ -1,5 +1,5 @@
 /**********************************************************************
-    Freeciv-web - the web version of Freeciv. https://www.freeciv.org/
+    Freeciv-web - the web version of Freeciv. http://play.freeciv.org/
     Copyright (C) 2009-2015  The Freeciv-web project
 
     This program is free software: you can redistribute it and/or modify
@@ -48,6 +48,7 @@ var roadstyle = 0;
 var fogstyle = 2;
 var darkness_style = 4;
 
+// OFFSETS FOR SPRITE PLACEMENTS ON MAP --------------------------------------------
 // offset the flags by this amount when drawing units
 var unit_flag_offset_x = 25;
 var unit_flag_offset_y = 16;
@@ -57,12 +58,19 @@ var city_flag_offset_y = 9;
 var city_size_offset_x = 0;
 var city_size_offset_y = 20;
 
+var buoy_flag_offset_x = 24;
+var buoy_flag_offset_y = -4;
+
 var unit_activity_offset_x = 55;
 var unit_activity_offset_y = 25;
 
 // offset the units by this amount when drawing units
-var unit_offset_x = 19;
-var unit_offset_y = 14;
+var unit_offset_x = 25; //19
+var unit_offset_y = 18; //14
+
+// since more than just units are using unit_offset for placement, these 2 vars are the specific adjustments for UNITS ONLY
+var unit_offset_adj_x = -9; //-3
+var unit_offset_adj_y = -7; //-3
 
 // Enable citybar
 var is_full_citybar = 1;
@@ -77,7 +85,7 @@ var tilelabel_offset_x = 0;
 
 var dither_offset_x = [normal_tile_width / 2, 0, normal_tile_width / 2, 0];
 var dither_offset_y = [0, normal_tile_height / 2, normal_tile_height / 2, 0];
-
+// ------------------------------------------------------------------------------------
 var ts_layer = [];
 
 //[layer0]
@@ -134,11 +142,19 @@ ts_tiles['arctic']['layer1_match_type'] = 'ice';
 ts_tiles['arctic']['layer2_match_type'] = 'ice';
 ts_tiles['arctic']['mine_sprite'] = 'tx.oil_mine';
 
+ts_tiles['arctic'] = {};
+ts_tiles['arctic']['is_blended'] = 1;
+ts_tiles['arctic']['num_layers'] = 1;
+ts_tiles['arctic']['layer0_match_type'] = 'land';
+ts_tiles['arctic']['mine_sprite'] = 'tx.oil_mine';
+
 ts_tiles['desert'] = {};
 ts_tiles['desert']['is_blended'] = 1;
-ts_tiles['desert']['num_layers'] = 1;
+ts_tiles['desert']['num_layers'] = 2;
 ts_tiles['desert']['layer0_match_type'] = 'land';
 ts_tiles['desert']['mine_sprite'] = 'tx.oil_mine';
+ts_tiles['desert']['layer1_match_type'] = 'desert';
+ts_tiles['desert']['layer1_match_with'] = ['desert'];
 
 ts_tiles['forest'] = {};
 ts_tiles['forest']['is_blended'] = 1;
@@ -149,8 +165,10 @@ ts_tiles['forest']['layer1_match_with'] = ['forest'];
 
 ts_tiles['grassland'] = {};
 ts_tiles['grassland']['is_blended'] = 1;
-ts_tiles['grassland']['num_layers'] = 1;
+ts_tiles['grassland']['num_layers'] = 2;
 ts_tiles['grassland']['layer0_match_type'] = 'land';
+ts_tiles['grassland']['layer1_match_type'] = 'grassland';
+ts_tiles['grassland']['layer1_match_with'] = ['grassland'];
 
 ts_tiles['hills'] = {};
 ts_tiles['hills']['is_blended'] = 1;
@@ -177,13 +195,17 @@ ts_tiles['mountains']['mine_sprite'] = 'tx.mine';
 
 ts_tiles['plains'] = {};
 ts_tiles['plains']['is_blended'] = 1;
-ts_tiles['plains']['num_layers'] = 1;
+ts_tiles['plains']['num_layers'] = 2;
 ts_tiles['plains']['layer0_match_type'] = 'land';
+ts_tiles['plains']['layer1_match_type'] = 'plains';
+ts_tiles['plains']['layer1_match_with'] = ['plains'];
 
 ts_tiles['swamp'] = {};
 ts_tiles['swamp']['is_blended'] = 1;
-ts_tiles['swamp']['num_layers'] = 1;
+ts_tiles['swamp']['num_layers'] = 2;
 ts_tiles['swamp']['layer0_match_type'] = 'land';
+ts_tiles['swamp']['layer1_match_type'] = 'swamp';
+ts_tiles['swamp']['layer1_match_with'] = ['swamp'];
 
 ts_tiles['tundra'] = {};
 ts_tiles['tundra']['is_blended'] = 1;
@@ -236,13 +258,14 @@ var tile_types_setup = {
     match_index: [3, 4],
     dither: false,
   },
+  //"l0.arctic":	{"match_style":MATCH_NONE,"sprite_type":CELL_WHOLE,"mine_tag":"tx.oil_mine","match_indices":1,"match_index":[0],"dither":false},
   'l0.arctic': {
     match_style: MATCH_NONE,
     sprite_type: CELL_WHOLE,
     mine_tag: 'tx.oil_mine',
     match_indices: 1,
-    match_index: [0],
-    dither: false,
+    match_index: [2],
+    dither: true,
   },
   'l0.desert': {
     match_style: MATCH_NONE,
@@ -251,6 +274,14 @@ var tile_types_setup = {
     match_indices: 1,
     match_index: [2],
     dither: true,
+  },
+  'l1.desert': {
+    match_style: MATCH_RANDOM,
+    sprite_type: CELL_WHOLE,
+    mine_tag: 'tx.oil_mine',
+    match_indices: 2,
+    match_index: [2, 2],
+    dither: false,
   },
   'l0.forest': {
     match_style: MATCH_NONE,
@@ -275,6 +306,14 @@ var tile_types_setup = {
     match_indices: 1,
     match_index: [2],
     dither: true,
+  },
+  'l1.grassland': {
+    match_style: MATCH_RANDOM,
+    sprite_type: CELL_WHOLE,
+    mine_tag: '(null)',
+    match_indices: 2,
+    match_index: [2, 2],
+    dither: false,
   },
   'l0.hills': {
     match_style: MATCH_NONE,
@@ -332,6 +371,14 @@ var tile_types_setup = {
     match_index: [2],
     dither: true,
   },
+  'l1.plains': {
+    match_style: MATCH_RANDOM,
+    sprite_type: CELL_WHOLE,
+    mine_tag: '(null)',
+    match_indices: 2,
+    match_index: [2, 2],
+    dither: false,
+  },
   'l0.swamp': {
     match_style: MATCH_NONE,
     sprite_type: CELL_WHOLE,
@@ -339,6 +386,14 @@ var tile_types_setup = {
     match_indices: 1,
     match_index: [2],
     dither: true,
+  },
+  'l1.swamp': {
+    match_style: MATCH_RANDOM,
+    sprite_type: CELL_WHOLE,
+    mine_tag: '(null)',
+    match_indices: 2,
+    match_index: [2, 2],
+    dither: false,
   },
   'l0.tundra': {
     match_style: MATCH_NONE,
@@ -357,6 +412,8 @@ var tile_types_setup = {
     dither: false,
   },
 };
+// TERRIBLE HACK to replace unconfigured ice cliffs with coastal shore. TODO: something better
+//tile_types_setup["l0.arctic"].match_index[0]=2;
 
 var cellgroup_map = {
   'coast.0': 't.l0.cellgroup_s_s_s_s',
@@ -575,4 +632,39 @@ var cellgroup_map = {
   'floor.105': 't.l0.cellgroup_d_l_l_l',
   'floor.106': 't.l0.cellgroup_l_l_l_d',
   'floor.107': 't.l0.cellgroup_l_d_l_l',
+};
+
+var icegroup_map = {
+  'arctic.1': 't.l1.coast_cell_d_i_i_i',
+  'arctic.2': 't.l1.coast_cell_d_i_i_w',
+  'arctic.3': 't.l1.coast_cell_d_i_w_i',
+  'arctic.4': 't.l1.coast_cell_d_i_w_w',
+  'arctic.5': 't.l1.coast_cell_d_w_i_i',
+  'arctic.6': 't.l1.coast_cell_d_w_i_w',
+  'arctic.7': 't.l1.coast_cell_d_w_w_i',
+  'arctic.8': 't.l1.coast_cell_d_w_w_w',
+  'arctic.9': 't.l1.coast_cell_l_i_i_i',
+  'arctic.10': 't.l1.coast_cell_l_i_i_w',
+  'arctic.11': 't.l1.coast_cell_l_i_w_i',
+  'arctic.12': 't.l1.coast_cell_l_i_w_w',
+  'arctic.13': 't.l1.coast_cell_l_w_i_i',
+  'arctic.14': 't.l1.coast_cell_l_w_i_w',
+  'arctic.15': 't.l1.coast_cell_l_w_w_i',
+  'arctic.16': 't.l1.coast_cell_l_w_w_w',
+  'arctic.17': 't.l1.coast_cell_r_i_i_i',
+  'arctic.18': 't.l1.coast_cell_r_i_i_w',
+  'arctic.19': 't.l1.coast_cell_r_i_w_i',
+  'arctic.20': 't.l1.coast_cell_r_i_w_w',
+  'arctic.21': 't.l1.coast_cell_r_w_i_i',
+  'arctic.22': 't.l1.coast_cell_r_w_i_w',
+  'arctic.23': 't.l1.coast_cell_r_w_w_i',
+  'arctic.24': 't.l1.coast_cell_r_w_w_w',
+  'arctic.25': 't.l1.coast_cell_u_i_i_i',
+  'arctic.26': 't.l1.coast_cell_u_i_i_w',
+  'arctic.27': 't.l1.coast_cell_u_i_w_i',
+  'arctic.28': 't.l1.coast_cell_u_i_w_w',
+  'arctic.29': 't.l1.coast_cell_u_w_i_i',
+  'arctic.30': 't.l1.coast_cell_u_w_i_w',
+  'arctic.31': 't.l1.coast_cell_u_w_w_i',
+  'arctic.32': 't.l1.coast_cell_u_w_w_w',
 };
