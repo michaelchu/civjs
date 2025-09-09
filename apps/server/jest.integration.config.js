@@ -28,8 +28,6 @@ module.exports = {
   clearMocks: true,
   resetMocks: true,
   restoreMocks: true,
-  // Run tests sequentially to avoid database conflicts
-  maxWorkers: 1,
   // Force Jest to exit after tests complete (needed for integration tests with DB connections)
   forceExit: true,
   // Optimize for CI environments
