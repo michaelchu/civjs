@@ -28,7 +28,7 @@ module.exports = {
   clearMocks: true,
   resetMocks: true,
   restoreMocks: true,
-  // Run tests serially to avoid database conflicts
+  // Run tests sequentially to avoid database conflicts (runInBand passed via CLI)
   maxWorkers: 1,
   // Force Jest to exit after tests complete (needed for integration tests with DB connections)
   forceExit: true,

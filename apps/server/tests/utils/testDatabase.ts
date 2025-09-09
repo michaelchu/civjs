@@ -8,6 +8,7 @@ let logger: {
   info: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
   debug: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
 };
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
@@ -27,6 +28,10 @@ try {
     debug: (...args: unknown[]) => {
       // eslint-disable-next-line no-console
       console.debug('[TEST DEBUG]', ...args);
+    },
+    warn: (...args: unknown[]) => {
+      // eslint-disable-next-line no-console
+      console.warn('[TEST WARN]', ...args);
     },
   };
 }
@@ -319,23 +324,54 @@ export async function clearAllTables() {
   if (!testDb) return;
 
   try {
-    // Clear all tables in dependency order (child tables first, then parent tables)
-    // Order is critical to avoid foreign key constraint violations
-    await testDb.delete(schema.units);
-    await testDb.delete(schema.cities);
-    await testDb.delete(schema.playerTechs);
-    await testDb.delete(schema.research);
-    await testDb.delete(schema.playerPolicies);
-    await testDb.delete(schema.governmentChanges);
-    await testDb.delete(schema.players);
-    await testDb.delete(schema.gameTurns);
-    await testDb.delete(schema.games);
-    await testDb.delete(schema.users);
+    if (testQueryClient) {
+      // Use TRUNCATE CASCADE to completely reset all tables regardless of foreign key constraints
+      // This is the most reliable way to clear the test database
+      const tables = [
+        'units',
+        'cities',
+        'player_techs',
+        'research',
+        'player_policies',
+        'government_changes',
+        'players',
+        'game_turns',
+        'games',
+        'users',
+      ];
 
-    logger.debug('All test database tables cleared');
+      // TRUNCATE CASCADE will handle all foreign key constraints automatically
+      for (const table of tables) {
+        await testQueryClient`TRUNCATE TABLE ${testQueryClient.unsafe(table)} CASCADE`;
+      }
+
+      logger.debug('All test database tables truncated with CASCADE');
+    } else {
+      logger.error('Test query client not available');
+      throw new Error('Test query client not available for table cleanup');
+    }
   } catch (error) {
-    logger.error('Failed to clear test database tables:', error);
-    throw error;
+    logger.error('Failed to clear test database tables with TRUNCATE:', error);
+
+    // If TRUNCATE fails, try individual DELETE operations in dependency order
+    logger.warn('Attempting individual DELETE operations as fallback...');
+    try {
+      // Clear all tables in dependency order (child tables first, then parent tables)
+      await testDb.delete(schema.units);
+      await testDb.delete(schema.cities);
+      await testDb.delete(schema.playerTechs);
+      await testDb.delete(schema.research);
+      await testDb.delete(schema.playerPolicies);
+      await testDb.delete(schema.governmentChanges);
+      await testDb.delete(schema.players);
+      await testDb.delete(schema.gameTurns);
+      await testDb.delete(schema.games);
+      await testDb.delete(schema.users);
+      logger.debug('DELETE fallback completed successfully');
+    } catch (deleteError) {
+      logger.error('DELETE fallback also failed:', deleteError);
+      throw deleteError;
+    }
   }
 }
 

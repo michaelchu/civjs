@@ -81,10 +81,11 @@ describe('Nation Selection Flow - Integration', () => {
       // Create user in database first
       const db = getTestDatabase();
       try {
+        const uniqueId = generateTestUUID().substring(0, 8);
         await db.insert(schema.users).values({
           id: mockUserId,
-          username: `${mockUsername}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          email: `${mockUsername}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}@test.com`,
+          username: `testuser_${uniqueId}`,
+          email: `testuser_${uniqueId}@test.com`,
           passwordHash: 'test-hash',
         });
       } catch (error) {
@@ -139,10 +140,11 @@ describe('Nation Selection Flow - Integration', () => {
       // Create user in database first
       const db = getTestDatabase();
       try {
+        const uniqueId = generateTestUUID().substring(0, 8);
         await db.insert(schema.users).values({
           id: mockUserId,
-          username: `${mockUsername}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          email: `${mockUsername}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}@test.com`,
+          username: `testuser_${uniqueId}`,
+          email: `testuser_${uniqueId}@test.com`,
           passwordHash: 'test-hash',
         });
       } catch (error) {
@@ -195,10 +197,11 @@ describe('Nation Selection Flow - Integration', () => {
       // Create user in database first
       const db = getTestDatabase();
       try {
+        const uniqueId = generateTestUUID().substring(0, 8);
         await db.insert(schema.users).values({
           id: mockUserId,
-          username: `${mockUsername}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          email: `${mockUsername}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}@test.com`,
+          username: `testuser_${uniqueId}`,
+          email: `testuser_${uniqueId}@test.com`,
           passwordHash: 'test-hash',
         });
       } catch (error) {
@@ -227,10 +230,11 @@ describe('Nation Selection Flow - Integration', () => {
       const newUserId = generateTestUUID();
       const db = getTestDatabase();
       try {
+        const uniqueId = generateTestUUID().substring(0, 8);
         await db.insert(schema.users).values({
           id: newUserId,
-          username: `SecondPlayer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          email: `secondplayer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}@test.com`,
+          username: `secondplayer_${uniqueId}`,
+          email: `secondplayer_${uniqueId}@test.com`,
           passwordHash: 'test-hash',
         });
       } catch (error) {
@@ -284,10 +288,11 @@ describe('Nation Selection Flow - Integration', () => {
       const firstUserId = generateTestUUID();
       const db = getTestDatabase();
       try {
+        const uniqueId = generateTestUUID().substring(0, 8);
         await db.insert(schema.users).values({
           id: firstUserId,
-          username: `FirstPlayer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          email: `firstplayer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}@test.com`,
+          username: `firstplayer_${uniqueId}`,
+          email: `firstplayer_${uniqueId}@test.com`,
           passwordHash: 'test-hash',
         });
       } catch (error) {
@@ -303,10 +308,11 @@ describe('Nation Selection Flow - Integration', () => {
       // Create second user for random nation selection
       const newUserId = generateTestUUID();
       try {
+        const uniqueId = generateTestUUID().substring(0, 8);
         await db.insert(schema.users).values({
           id: newUserId,
-          username: `RandomPlayer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          email: `randomplayer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}@test.com`,
+          username: `randomplayer_${uniqueId}`,
+          email: `randomplayer_${uniqueId}@test.com`,
           passwordHash: 'test-hash',
         });
       } catch (error) {
