@@ -324,7 +324,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           }
 
           // Just update the viewport state to trigger a smooth re-render without clearing
-          setViewport({ ...viewport, width: currentWidth, height: currentHeight });
+          setViewport({ width: currentWidth, height: currentHeight });
         }
 
         setGlobalTilesVersion(prev => prev + 1);
@@ -703,6 +703,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   // Touch event handlers for mobile panning + actions
   const handleTouchStart = useCallback(
     (event: React.TouchEvent<HTMLCanvasElement>) => {
+      console.log('[TouchEvents] Touch start detected, touches:', event.touches.length);
       if (event.touches.length !== 1) return; // Only handle single touch
 
       const canvas = canvasRef.current;
@@ -729,16 +730,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         window.clearTimeout(longPressTimeoutRef.current);
       }
       longPressTimeoutRef.current = window.setTimeout(() => {
-        // If finger hasn't moved far, trigger long-press
-        const movedDistance = Math.hypot(
-          dragStart.current.x - (touch.clientX - rect.left),
-          dragStart.current.y - (touch.clientY - rect.top)
-        );
-        if (movedDistance <= DRAG_THRESHOLD) {
+        // Only trigger if we haven't moved far and haven't started dragging
+        if (!isDragging) {
+          console.log('[TouchEvents] Long press triggered - opening context menu/city info');
           longPressFiredRef.current = true;
 
           // If in goto mode, emulate right-click -> cancel goto
           if (gotoMode.active) {
+            console.log('[TouchEvents] Canceling goto mode due to long press');
             deactivateGotoMode();
           } else if (rendererRef.current) {
             // Open unit context menu or city info at touch position
@@ -773,7 +772,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       // Prevent default to avoid page scrolling
       event.preventDefault();
     },
-    [viewport, gotoMode.active, deactivateGotoMode, units, cities, selectUnit]
+    [viewport, gotoMode.active, deactivateGotoMode, units, cities, selectUnit, isDragging]
   );
 
   const handleTouchMove = useCallback(
@@ -795,6 +794,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           canvasY - dragStart.current.y
         );
         if (dragDistance > DRAG_THRESHOLD) {
+          console.log('[TouchEvents] Starting drag, canceling long press');
           setIsDragging(true);
           // Cancel long-press if we start dragging
           if (longPressTimeoutRef.current) {
