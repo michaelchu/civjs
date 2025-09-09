@@ -30,6 +30,20 @@ export const GAME_DEFAULT_CITYMINDIST = 2;
 export const GAME_MIN_CITYMINDIST = 1;
 export const GAME_MAX_CITYMINDIST = 11;
 
+// Following Freeciv VUT (Value Universal Type) constants
+// Reference: freeciv-web/javascript/city.js production system
+export const VUT_UTYPE = 0; // Unit type
+export const VUT_IMPROVEMENT = 1; // Building/improvement
+
+// Following Freeciv happiness feeling stages
+// Reference: freeciv-web/javascript/city.js:92-97
+export const FEELING_BASE = 0; // before any of the modifiers below
+export const FEELING_LUXURY = 1; // after luxury
+export const FEELING_EFFECT = 2; // after building effects
+export const FEELING_NATIONALITY = 3; // after citizen nationality effects
+export const FEELING_MARTIAL = 4; // after units enforce martial order
+export const FEELING_FINAL = 5; // after wonders (final result)
+
 // Following Freeciv specialist types
 // Reference: freeciv-web/javascript/city.js:99 and specialists data
 export enum SpecialistType {
@@ -197,10 +211,23 @@ export const BUILDING_TYPES: Record<string, BuildingType> = {
 // Production queue item following Freeciv worklist system
 // Reference: freeciv-web/javascript/city.js:3136 populate_worklist_production_choices
 export interface ProductionItem {
-  kind: 'unit' | 'building'; // VUT_UTYPE or VUT_IMPROVEMENT
+  kind: 'unit' | 'building'; // String types for compatibility, maps to VUT_UTYPE/VUT_IMPROVEMENT
   value: string; // unit type id or building id
   name: string;
   cost: number; // shield cost
+  vutKind?: number; // Optional VUT constant for freeciv-web compatibility
+}
+
+// Type helpers for production
+export type ProductionKind = 'unit' | 'building';
+
+// Helper function to convert between VUT constants and string types
+export function vutToProductionKind(vut: number): ProductionKind {
+  return vut === VUT_UTYPE ? 'unit' : 'building';
+}
+
+export function productionKindToVut(kind: ProductionKind): number {
+  return kind === 'unit' ? VUT_UTYPE : VUT_IMPROVEMENT;
 }
 
 // City interface following Freeciv structure
@@ -214,8 +241,9 @@ export interface CityState {
 
   // Population and growth (following Freeciv)
   population: number; // city size
-  foodStock: number; // accumulated food
+  foodStock: number; // accumulated food (matches pcity['food_stock'])
   foodPerTurn: number; // food surplus/deficit
+  granarySize: number; // food needed for next growth (matches pcity['granary_size'])
   granaryTurns: number; // turns to grow/starve (-1 = starvation next turn)
 
   // Production (following Freeciv shield system)
@@ -459,6 +487,7 @@ export class CityManager {
       population: 1,
       foodStock: 0,
       foodPerTurn: 2,
+      granarySize: this.calculateGranarySize(1), // Initial granary size calculation
       granaryTurns: this.calculateGranaryTurns(1, 0, 2), // Initial calculation
       productionStock: 0,
       productionPerTurn: 1,
@@ -601,7 +630,8 @@ export class CityManager {
     city.foodPerTurn = Math.floor((foodOutput * (100 + foodBonus)) / 100) - populationUpkeep;
     city.productionPerTurn = shieldOutput;
 
-    // Update granary turns calculation
+    // Update granary size and turns calculation
+    city.granarySize = this.calculateGranarySize(city.population);
     city.granaryTurns = this.calculateGranaryTurns(
       city.population,
       city.foodStock,
@@ -642,7 +672,7 @@ export class CityManager {
 
     // Handle growth and starvation following Freeciv granary logic
     // Reference: freeciv-web/javascript/city.js granary calculations
-    const foodNeededForGrowth = (city.population + 1) * 10; // Simplified granary requirement
+    const foodNeededForGrowth = city.granarySize; // Use actual granary size
 
     if (city.foodPerTurn > 0 && city.foodStock >= foodNeededForGrowth) {
       // City grows
@@ -816,7 +846,17 @@ export class CityManager {
   }
 
   /**
-   * Calculate granary turns to growth/starvation following Freeciv logic
+   * Calculate granary size following Freeciv formula
+   * Reference: freeciv-web matches granary size calculations
+   */
+  private calculateGranarySize(population: number): number {
+    // Following classic Freeciv granary size formula
+    // Granary size increases with city size: 10 * (population + 1)
+    return (population + 1) * 10;
+  }
+
+  /**
+   * Calculate granary turns to growth/starvation following exact Freeciv logic
    * Reference: freeciv-web/javascript/city.js:2320-2338 city_turns_to_growth_text
    */
   private calculateGranaryTurns(
@@ -825,39 +865,43 @@ export class CityManager {
     foodPerTurn: number
   ): number {
     if (foodPerTurn === 0) {
-      return 0; // blocked
+      return 0; // blocked - matches original "blocked" return
     }
 
-    // Food needed for next growth level (simplified Freeciv formula)
-    const foodNeededForGrowth = (population + 1) * 10;
-    const foodDeficit = foodNeededForGrowth - foodStock;
+    const granarySize = this.calculateGranarySize(population);
 
     if (foodPerTurn > 0) {
       // Positive food surplus - growing
-      if (foodStock >= foodNeededForGrowth) {
+      if (foodStock >= granarySize) {
         return 1; // Ready to grow next turn
       }
-      return Math.ceil(foodDeficit / foodPerTurn);
+      const foodNeeded = granarySize - foodStock;
+      return Math.ceil(foodNeeded / foodPerTurn);
     } else if (foodPerTurn < 0) {
       // Negative food - starving
       if (population <= 1) {
-        return 1000000; // Cannot starve below size 1
+        return 1000000; // Cannot starve below size 1 - matches original logic
       }
-      return Math.floor(foodStock / Math.abs(foodPerTurn));
+
+      // Calculate turns until starvation
+      const turnsToStarvation = Math.ceil(foodStock / Math.abs(foodPerTurn));
+      return turnsToStarvation === 1 ? -1 : -turnsToStarvation; // -1 for immediate starvation
     }
 
     return 0; // No change
   }
 
   /**
-   * Change specialist assignment following Freeciv logic
+   * Change specialist assignment following exact Freeciv logic
    * Reference: freeciv-web/javascript/city.js:2580-2626 city_change_specialist
    */
   async changeSpecialist(
     cityId: string,
     fromSpecialist: SpecialistType,
-    toSpecialist: SpecialistType,
-    playerId: string
+    toSpecialist: SpecialistType | -1, // -1 means auto-cycle
+    playerId: string,
+    hasAdamSmith: boolean = false,
+    modifierKeyPressed: boolean = false
   ): Promise<void> {
     const city = this.cities.get(cityId);
     if (!city) {
@@ -873,16 +917,36 @@ export class CityManager {
       throw new Error(`No ${SPECIALIST_TYPES[fromSpecialist].name} to reassign`);
     }
 
-    // Check if target specialist type is available (some require wonders)
-    const targetSpecialist = SPECIALIST_TYPES[toSpecialist];
-    if (targetSpecialist.requiredWonder) {
-      // TODO: Check if player has required wonder when WonderManager is integrated
-      // For now, allow all specialist types
+    let finalToSpecialist: SpecialistType;
+
+    // Following exact freeciv-web specialist cycling logic
+    if (toSpecialist === -1) {
+      // Auto-cycle behavior - matches freeciv-web logic exactly
+      if (!hasAdamSmith) {
+        // Standard rules: cycle through first 3 specialists only
+        finalToSpecialist = ((fromSpecialist + 1) % 3) as SpecialistType;
+      } else {
+        // Adam Smith rules: can access all 6 specialists
+        finalToSpecialist = ((fromSpecialist + 1) % 6) as SpecialistType;
+
+        // CTRL/ALT/CMD key optionally bypasses extended specialists 3-5
+        if (modifierKeyPressed && finalToSpecialist >= 3) {
+          finalToSpecialist = SpecialistType.SCIENTIST; // Reset to first specialist
+        }
+      }
+    } else {
+      // Specific specialist selected
+      finalToSpecialist = toSpecialist;
+
+      // Validate accessibility based on Adam Smith wonder
+      if (finalToSpecialist >= 3 && !hasAdamSmith) {
+        throw new Error("Extended specialists require Adam Smith's Trading Company");
+      }
     }
 
     // Make the change
     city.specialists[fromSpecialist]--;
-    city.specialists[toSpecialist]++;
+    city.specialists[finalToSpecialist]++;
 
     // Refresh city to recalculate outputs with new specialist distribution
     this.refreshCity(cityId);
@@ -890,10 +954,12 @@ export class CityManager {
     // Save to database
     await this.saveCityToDatabase(city);
 
-    logger.info('Specialist changed', {
+    logger.info('Specialist changed (freeciv-web compliant)', {
       cityId,
       from: SPECIALIST_TYPES[fromSpecialist].name,
-      to: SPECIALIST_TYPES[toSpecialist].name,
+      to: SPECIALIST_TYPES[finalToSpecialist].name,
+      hasAdamSmith,
+      modifierKeyPressed,
     });
   }
 
@@ -977,6 +1043,7 @@ export class CityManager {
           value: unitId,
           name: unitType.name,
           cost: unitType.cost,
+          vutKind: VUT_UTYPE, // Add VUT constant for freeciv-web compatibility
         });
       }
     }
@@ -990,6 +1057,7 @@ export class CityManager {
           value: buildingId,
           name: building.name,
           cost: building.cost,
+          vutKind: VUT_IMPROVEMENT, // Add VUT constant for freeciv-web compatibility
         });
       }
     }
@@ -1085,6 +1153,7 @@ export class CityManager {
         population: dbCity.population,
         foodStock: dbCity.food,
         foodPerTurn: dbCity.foodPerTurn,
+        granarySize: this.calculateGranarySize(dbCity.population),
         granaryTurns: this.calculateGranaryTurns(
           dbCity.population,
           dbCity.food,
