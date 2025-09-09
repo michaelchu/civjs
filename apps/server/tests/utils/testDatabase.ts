@@ -93,26 +93,41 @@ export async function createTestGameAndPlayer(
 
   // Create test user (handle duplicates in CI/CD)
   let user: typeof schema.users.$inferSelect;
-  try {
-    [user] = await testDb
-      .insert(schema.users)
-      .values({
-        id: userId,
-        username: `TestUser${playerIdSuffix}_${Date.now()}`,
-        email: `test${playerIdSuffix}_${Date.now()}@example.com`,
-        passwordHash: 'test-hash',
-      })
-      .returning();
-  } catch (error) {
-    // Try to find existing user
-    const existing = await testDb.query.users.findFirst({
-      where: (users, { eq }) => eq(users.id, userId),
-    });
 
-    if (existing) {
-      user = existing;
-    } else {
-      throw new Error(`Failed to create or find test user: ${error}`);
+  // First try to find existing user by ID
+  const existingUser = await testDb.query.users.findFirst({
+    where: (users, { eq }) => eq(users.id, userId),
+  });
+
+  if (existingUser) {
+    user = existingUser;
+  } else {
+    // Create new user with highly unique identifiers
+    const timestamp = Date.now();
+    const randomId = Math.random().toString(36).substr(2, 9);
+
+    try {
+      [user] = await testDb
+        .insert(schema.users)
+        .values({
+          id: userId,
+          username: `TestUser${playerIdSuffix}_${timestamp}_${randomId}`,
+          email: `test${playerIdSuffix}_${timestamp}_${randomId}@example.com`,
+          passwordHash: 'test-hash',
+        })
+        .returning();
+    } catch (error) {
+      // If still failing, there might be a race condition with the same UUID
+      // Try one more time to find the user
+      const retryUser = await testDb.query.users.findFirst({
+        where: (users, { eq }) => eq(users.id, userId),
+      });
+
+      if (retryUser) {
+        user = retryUser;
+      } else {
+        throw new Error(`Failed to create or find test user after retry: ${error}`);
+      }
     }
   }
 
@@ -235,10 +250,13 @@ export async function clearAllTables() {
 
   try {
     // Clear all tables in dependency order (child tables first, then parent tables)
+    // Order is critical to avoid foreign key constraint violations
     await testDb.delete(schema.units);
     await testDb.delete(schema.cities);
     await testDb.delete(schema.playerTechs);
     await testDb.delete(schema.research);
+    await testDb.delete(schema.playerPolicies);
+    await testDb.delete(schema.governmentChanges);
     await testDb.delete(schema.players);
     await testDb.delete(schema.gameTurns);
     await testDb.delete(schema.games);
