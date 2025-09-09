@@ -17,6 +17,7 @@ describe('ActionSystem - Goto Actions', () => {
     movementLeft: 9, // 3 movement points in fragments
     fortified: false,
     veteranLevel: 0,
+    experience: 0,
   };
 
   // Mock gameManagerCallback for pathfinding

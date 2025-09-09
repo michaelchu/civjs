@@ -1,5 +1,5 @@
-import type { Config } from 'drizzle-kit';
 import dotenv from 'dotenv';
+import type { Config } from 'drizzle-kit';
 
 dotenv.config({ path: '.env.test' });
 
@@ -8,7 +8,7 @@ const config: Config = {
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.TEST_DATABASE_URL || 'postgresql://civjs_test:civjs_test@localhost:5432/civjs_test',
+    url: process.env.DATABASE_URL,
   },
   verbose: true,
   strict: true,

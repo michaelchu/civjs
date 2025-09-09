@@ -92,6 +92,32 @@ export class CityManagementHandler extends BaseSocketHandler {
     }
   }
 
+  private async validateCityProductionChangeRequest(
+    handler: PacketHandler,
+    socket: Socket,
+    connection: any
+  ): Promise<{ game: any; player: any } | null> {
+    const game = await this.gameManager.getGame(connection.gameId!);
+    if (!game || game.status !== 'active') {
+      handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {
+        success: false,
+        message: `Game is not active (current status: ${game?.status || 'not found'})`,
+      });
+      return null;
+    }
+
+    const player = game.players?.find((p: any) => p.userId === connection.userId) as any;
+    if (!player) {
+      handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {
+        success: false,
+        message: 'Player not found in game',
+      });
+      return null;
+    }
+
+    return { game, player };
+  }
+
   private async handleCityProductionChange(
     handler: PacketHandler,
     socket: Socket,
@@ -107,23 +133,14 @@ export class CityManagementHandler extends BaseSocketHandler {
     }
 
     try {
-      const game = await this.gameManager.getGame(connection.gameId!);
-      if (!game || game.status !== 'active') {
-        handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {
-          success: false,
-          message: `Game is not active (current status: ${game?.status || 'not found'})`,
-        });
-        return;
-      }
+      const validation = await this.validateCityProductionChangeRequest(
+        handler,
+        socket,
+        connection
+      );
+      if (!validation) return;
 
-      const player = game.players?.find((p: any) => p.userId === connection.userId) as any;
-      if (!player) {
-        handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {
-          success: false,
-          message: 'Player not found in game',
-        });
-        return;
-      }
+      const { player } = validation;
 
       await this.gameManager.setCityProduction(
         connection.gameId!,

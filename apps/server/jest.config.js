@@ -31,6 +31,8 @@ module.exports = {
   clearMocks: true,
   resetMocks: true,
   restoreMocks: true,
+  // Run tests in parallel for performance, but integration tests use their own config
+  maxWorkers: '50%',
   // Force Jest to exit after tests complete (needed for integration tests with DB connections)
   forceExit: true,
 };

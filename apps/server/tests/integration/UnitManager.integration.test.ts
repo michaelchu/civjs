@@ -21,7 +21,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
     await clearAllTables();
 
     // Then create test game and player with proper UUIDs
-    testData = await createTestGameAndPlayer('0010', '0020');
+    testData = await createTestGameAndPlayer();
 
     // Initialize UnitManager with the test game ID and mock dependencies
     const mockMapManager = {
@@ -203,7 +203,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
     it('should prevent moves to enemy unit positions', async () => {
       // Create enemy player first
-      const enemyData = await createTestGameAndPlayer('0011', '0456');
+      const enemyData = await createTestGameAndPlayer();
 
       // Create enemy unit
       const enemyUnit = await unitManager.createUnit(enemyData.player.id, 'warrior', 11, 10);
@@ -238,7 +238,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       const attacker = await unitManager.createUnit(testData.player.id, 'warrior', 10, 10);
 
       // Create enemy player first
-      const enemyData = await createTestGameAndPlayer('0012', '0457');
+      const enemyData = await createTestGameAndPlayer();
       const defender = await unitManager.createUnit(enemyData.player.id, 'warrior', 11, 10);
       attackerUnitId = attacker.id;
       defenderUnitId = defender.id;
@@ -347,7 +347,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       // Insert corrupted data directly into database
       const db = getTestDatabase();
       // Create a valid UUID for the test
-      const corruptUnitId = generateTestUUID('9999');
+      const corruptUnitId = generateTestUUID();
 
       // Use existing test data instead of creating new records
       await db.insert(schema.units).values({

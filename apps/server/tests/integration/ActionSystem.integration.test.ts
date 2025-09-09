@@ -88,8 +88,9 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
         movementLeft: 3,
         health: 100,
         veteranLevel: 0,
+        experience: 0,
         fortified: false,
-        activity: 'idle',
+        activity: { type: 'idle' as const, turnsRemaining: 0, totalTurns: 0 },
         orders: [],
       };
 
@@ -124,8 +125,9 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
         movementLeft: 1,
         health: 100,
         veteranLevel: 0,
+        experience: 0,
         fortified: false,
-        activity: 'idle',
+        activity: { type: 'idle' as const, turnsRemaining: 0, totalTurns: 0 },
         orders: [],
       };
 
@@ -158,8 +160,9 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
         movementLeft: 3,
         health: 100,
         veteranLevel: 0,
+        experience: 0,
         fortified: false,
-        activity: 'idle',
+        activity: { type: 'idle' as const, turnsRemaining: 0, totalTurns: 0 },
         orders: [],
       };
 
@@ -186,8 +189,9 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
         movementLeft: 1,
         health: 100,
         veteranLevel: 0,
+        experience: 0,
         fortified: false,
-        activity: 'idle',
+        activity: { type: 'idle' as const, turnsRemaining: 0, totalTurns: 0 },
         orders: [],
       };
 
@@ -210,8 +214,9 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
         movementLeft: 3,
         health: 100,
         veteranLevel: 0,
+        experience: 0,
         fortified: false,
-        activity: 'idle',
+        activity: { type: 'idle' as const, turnsRemaining: 0, totalTurns: 0 },
         orders: [],
       };
 
@@ -241,8 +246,9 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
         movementLeft: 3,
         health: 100,
         veteranLevel: 0,
+        experience: 0,
         fortified: false,
-        activity: 'idle',
+        activity: { type: 'idle' as const, turnsRemaining: 0, totalTurns: 0 },
         orders: [],
       };
 
@@ -264,8 +270,9 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
         movementLeft: 1,
         health: 100,
         veteranLevel: 0,
+        experience: 0,
         fortified: false,
-        activity: 'idle',
+        activity: { type: 'idle' as const, turnsRemaining: 0, totalTurns: 0 },
         orders: [],
       };
 
@@ -290,8 +297,9 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
         movementLeft: 1,
         health: 100,
         veteranLevel: 0,
+        experience: 0,
         fortified: false,
-        activity: 'idle',
+        activity: { type: 'idle' as const, turnsRemaining: 0, totalTurns: 0 },
         orders: [],
       };
 
@@ -323,8 +331,9 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
         movementLeft: 3,
         health: 100,
         veteranLevel: 0,
+        experience: 0,
         fortified: false,
-        activity: 'idle',
+        activity: { type: 'idle' as const, turnsRemaining: 0, totalTurns: 0 },
         orders: [],
       };
 
