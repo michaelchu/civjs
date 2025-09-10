@@ -116,11 +116,13 @@ export class BorderNetworkService {
 
     this.io.to(gameId).emit('packet', borderUpdateStructuredPacket);
 
-    logger.debug('Broadcasted border update to game', {
+    logger.info('📡 Broadcasting border update packet', {
       gameId,
+      packetType: PacketType.BORDER_UPDATE,
       tilesUpdated: updatePacket.tiles.length,
       sourcesChanged: borderUpdate.sources.length + borderUpdate.removedSources.length,
       affectedPlayers: borderUpdate.affectedPlayers,
+      sampleTiles: updatePacket.tiles.slice(0, 3), // Show first 3 tiles for debugging
     });
   }
 

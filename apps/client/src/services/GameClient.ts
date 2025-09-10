@@ -280,6 +280,11 @@ class GameClient {
   private handlePacket(packet: Packet) {
     const packetName = PACKET_NAMES[packet.type] || `UNKNOWN_${packet.type}`;
 
+    // Debug log for border packets
+    if (packet.type >= 240 && packet.type <= 244) {
+      console.log(`📡 Received border packet: ${packetName} (${packet.type})`, packet.data);
+    }
+
     switch (packet.type) {
       case PacketType.GAME_INFO:
         useGameStore.getState().updateGameState({
