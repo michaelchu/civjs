@@ -5,6 +5,7 @@ import { GameInstance, PlayerState, TurnPhase, GameState } from '@game/managers/
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { logger } from '@utils/logger';
 import { CityManager } from '@game/managers/CityManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
 import { MapManager } from '@game/managers/MapManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
@@ -189,7 +190,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
     const playerIds = Array.from(players.keys());
     await turnManager.initializeTurn(playerIds);
 
-    const cityManager = new CityManager(gameId, this.databaseProvider, {} as any, {});
+    const effectsManager = new EffectsManager();
+    const cityManager = new CityManager(gameId, this.databaseProvider, effectsManager, {});
     const researchManager = new ResearchManager(gameId, this.databaseProvider);
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);

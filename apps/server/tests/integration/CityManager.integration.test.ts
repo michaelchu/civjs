@@ -1,4 +1,5 @@
 import { CityManager, BUILDING_TYPES } from '@game/managers/CityManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import {
   getTestDatabase,
@@ -16,6 +17,7 @@ import {
 
 describe('CityManager - Integration Tests with Real Database', () => {
   let cityManager: CityManager;
+  let effectsManager: EffectsManager;
   let testData: { game: any; player: any; user: any };
 
   beforeEach(async () => {
@@ -25,9 +27,12 @@ describe('CityManager - Integration Tests with Real Database', () => {
     // Create test game and player
     testData = await createTestGameAndPlayer();
 
+    // Initialize EffectsManager
+    effectsManager = new EffectsManager();
+
     // Initialize CityManager with test database provider
     const testDbProvider = getTestDatabaseProvider();
-    cityManager = new CityManager(testData.game.id, testDbProvider, {} as any);
+    cityManager = new CityManager(testData.game.id, testDbProvider, effectsManager, {});
   });
 
   afterEach(async () => {
@@ -152,7 +157,8 @@ describe('CityManager - Integration Tests with Real Database', () => {
 
       // Initialize cityManager with the scenario's game ID and database provider
       const testDbProvider = getTestDatabaseProvider();
-      cityManager = new CityManager(scenario.game.id, testDbProvider, {} as any);
+      effectsManager = new EffectsManager();
+      cityManager = new CityManager(scenario.game.id, testDbProvider, effectsManager, {});
 
       // Load cities from database
       await cityManager.loadCities();
@@ -212,7 +218,8 @@ describe('CityManager - Integration Tests with Real Database', () => {
 
       // Initialize cityManager with the scenario's game ID and database provider
       const testDbProvider = getTestDatabaseProvider();
-      cityManager = new CityManager(scenario.game.id, testDbProvider, {} as any);
+      effectsManager = new EffectsManager();
+      cityManager = new CityManager(scenario.game.id, testDbProvider, effectsManager, {});
       await cityManager.loadCities();
 
       const cityId = scenario.cities[0].id;
@@ -266,7 +273,13 @@ describe('CityManager - Integration Tests with Real Database', () => {
 
       // Create a new city manager instance with database provider
       const testDbProvider = getTestDatabaseProvider();
-      const newCityManager = new CityManager(scenario.game.id, testDbProvider, {} as any);
+      const newEffectsManager = new EffectsManager();
+      const newCityManager = new CityManager(
+        scenario.game.id,
+        testDbProvider,
+        newEffectsManager,
+        {}
+      );
 
       // Load cities from database
       await newCityManager.loadCities();
