@@ -17,7 +17,7 @@ export const players = pgTable('players', {
   nation: varchar('nation', { length: 50 }).notNull(), // Nation ID (e.g., 'american', 'roman')
   civilization: varchar('civilization', { length: 50 }).notNull(), // Display name (e.g., 'American', 'Roman')
   leaderName: varchar('leader_name', { length: 100 }).notNull(), // Selected leader name
-  colorTheme: jsonb('color_theme').notNull(), // {primary: {r, g, b}, secondary: {r, g, b}, tertiary: {r, g, b}, name: string}
+  color: jsonb('color').notNull(), // {r, g, b} - TODO: migrate to colorTheme
 
   // Status
   isAlive: boolean('is_alive').default(true).notNull(),

@@ -472,23 +472,10 @@ export const PlayerInfoSchema = z.object({
   culture: z.number(),
   government: z.string(),
   alive: z.boolean(),
-  colorTheme: z.object({
-    primary: z.object({
-      r: z.number(),
-      g: z.number(),
-      b: z.number(),
-    }),
-    secondary: z.object({
-      r: z.number(),
-      g: z.number(),
-      b: z.number(),
-    }),
-    tertiary: z.object({
-      r: z.number(),
-      g: z.number(),
-      b: z.number(),
-    }),
-    name: z.string(),
+  color: z.object({
+    r: z.number(),
+    g: z.number(),
+    b: z.number(),
   }),
 });
 

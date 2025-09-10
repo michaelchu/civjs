@@ -12,7 +12,7 @@ import { games, players } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import serverConfig from '@config';
-import { getNextPlayerColorTheme, type NationColorTheme } from '../../utils/playerColors';
+import { getNextPlayerColorTheme, type PlayerColor } from '../../utils/playerColors';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {
@@ -95,8 +95,13 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     const selectedNation = await this.validateAndSelectNation(civilization, game.players);
 
     // Get next available color theme from predefined palette
+    // For backward compatibility, we store the primary color in the old 'color' field
     const usedThemes = game.players
-      .map(p => p.colorTheme as NationColorTheme)
+      .map(p => {
+        const color = p.color as PlayerColor;
+        // Convert old single color to theme format for comparison
+        return { primary: color, secondary: {r: 255, g: 255, b: 255}, tertiary: {r: 0, g: 0, b: 0}, name: 'Legacy' };
+      })
       .filter(theme => theme && theme.primary); // Filter out invalid themes
     const assignedTheme = getNextPlayerColorTheme(usedThemes);
 
@@ -107,7 +112,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       nation: selectedNation,
       civilization: selectedNation || `Civilization${playerNumber}`,
       leaderName: `Leader${playerNumber}`,
-      colorTheme: assignedTheme,
+      color: assignedTheme.primary, // Store primary color for backward compatibility
     };
 
     const [newPlayer] = await this.databaseProvider
@@ -228,7 +233,11 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
 
       // Get next available color theme for AI player
       const currentUsedThemes = game.players
-        .map(p => p.colorTheme as NationColorTheme)
+        .map(p => {
+          const color = p.color as PlayerColor;
+          // Convert old single color to theme format for comparison
+          return { primary: color, secondary: {r: 255, g: 255, b: 255}, tertiary: {r: 0, g: 0, b: 0}, name: 'Legacy' };
+        })
         .filter(theme => theme && theme.primary); // Filter out invalid themes
       const aiTheme = getNextPlayerColorTheme(currentUsedThemes);
 
@@ -239,7 +248,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         nation: aiNation,
         civilization: aiNation,
         leaderName: `AI Leader ${playerNumber}`,
-        colorTheme: aiTheme,
+        color: aiTheme.primary, // Store primary color for backward compatibility
         connectionStatus: 'connected',
         isReady: true,
       };
