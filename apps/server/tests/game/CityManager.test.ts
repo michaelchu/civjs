@@ -118,9 +118,9 @@ describe('CityManager', () => {
       await cityManager.foundCity(10, 10, 'FirstCity', 'player-123');
 
       // Try to found a city too close (within minimum distance)
-      const secondCity = await cityManager.foundCity(11, 11, 'SecondCity', 'player-123');
-
-      expect(secondCity).toBeNull();
+      await expect(cityManager.foundCity(11, 11, 'SecondCity', 'player-123')).rejects.toThrow(
+        'Too close to existing city'
+      );
     });
   });
 
