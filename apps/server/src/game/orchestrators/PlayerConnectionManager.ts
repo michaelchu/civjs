@@ -100,7 +100,12 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       .map(p => {
         const color = p.color as PlayerColor;
         // Convert old single color to theme format for comparison
-        return { primary: color, secondary: {r: 255, g: 255, b: 255}, tertiary: {r: 0, g: 0, b: 0}, name: 'Legacy' };
+        return {
+          primary: color,
+          secondary: { r: 255, g: 255, b: 255 },
+          tertiary: { r: 0, g: 0, b: 0 },
+          name: 'Legacy',
+        };
       })
       .filter(theme => theme && theme.primary); // Filter out invalid themes
     const assignedTheme = getNextPlayerColorTheme(usedThemes);
@@ -236,7 +241,12 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         .map(p => {
           const color = p.color as PlayerColor;
           // Convert old single color to theme format for comparison
-          return { primary: color, secondary: {r: 255, g: 255, b: 255}, tertiary: {r: 0, g: 0, b: 0}, name: 'Legacy' };
+          return {
+            primary: color,
+            secondary: { r: 255, g: 255, b: 255 },
+            tertiary: { r: 0, g: 0, b: 0 },
+            name: 'Legacy',
+          };
         })
         .filter(theme => theme && theme.primary); // Filter out invalid themes
       const aiTheme = getNextPlayerColorTheme(currentUsedThemes);

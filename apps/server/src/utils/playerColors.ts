@@ -151,7 +151,8 @@ export function getNextPlayerColorTheme(usedThemes: NationColorTheme[]): NationC
   for (const theme of NATION_COLOR_THEMES) {
     const isUsed = usedThemes.some(
       used =>
-        used && used.primary &&
+        used &&
+        used.primary &&
         used.primary.r === theme.primary.r &&
         used.primary.g === theme.primary.g &&
         used.primary.b === theme.primary.b
