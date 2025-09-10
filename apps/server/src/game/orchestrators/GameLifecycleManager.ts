@@ -229,6 +229,27 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     const turnManager = await this.createTurnManagerAndInitialize(gameId, players);
     const cityManager = this.createCityManager(gameId);
     const unitManager = this.createUnitManager(gameId, game, mapManager, cityManager);
+
+    // Set up dependencies after all managers are created
+    cityManager.setMapManager(mapManager);
+    await cityManager.initialize();
+
+    // Set up the production completion callback after both managers are created
+    cityManager.setCallbacks({
+      onCityProductionComplete: (city, item) => {
+        if (item.kind === 'unit') {
+          // Create unit at city location
+          unitManager.createUnit(city.playerId, item.value, city.x, city.y);
+          this.logger.info(`Unit ${item.value} created at city ${city.name}`, {
+            cityId: city.id,
+            playerId: city.playerId,
+            unitType: item.value,
+            x: city.x,
+            y: city.y,
+          });
+        }
+      },
+    });
     const visibilityManager = this.createVisibilityManager(gameId, unitManager, mapManager);
     const researchManager = this.createResearchManager(gameId);
     const pathfindingManager = this.createPathfindingManager(game, mapManager);
@@ -651,9 +672,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   }
 
   private createCityManager(gameId: string): CityManager {
-    return new CityManager(gameId, this.databaseProvider, {} as any, {
-      // Remove invalid callback property
-    });
+    return new CityManager(gameId, this.databaseProvider, {} as any, {});
   }
 
   private createUnitManager(

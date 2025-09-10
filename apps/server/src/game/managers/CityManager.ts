@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { EffectsManager } from '@game/managers/EffectsManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
+import { randomUUID } from 'crypto';
 import {
   CityFoundingValidationService,
   CityFoundingValidationResult,
@@ -314,6 +315,14 @@ export const BUILDING_TYPES: Record<string, BuildingType> = {
       productionBonus: 50, // 50% bonus to production
     },
   },
+  palace: {
+    id: 'palace',
+    name: 'Palace',
+    cost: 100,
+    effects: {
+      defenseBonus: 100, // 100% defense bonus
+    },
+  },
 };
 
 // Callback interface for events
@@ -363,6 +372,13 @@ export class CityManager {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
     this.callbacks = callbacks;
+  }
+
+  /**
+   * Set or update callbacks after initialization
+   */
+  setCallbacks(newCallbacks: Partial<CityManagerCallbacks>): void {
+    this.callbacks = { ...this.callbacks, ...newCallbacks };
   }
 
   /**
@@ -507,7 +523,7 @@ export class CityManager {
       return null;
     }
 
-    const cityId = `city_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const cityId = randomUUID();
     const currentTurn = 1; // This would come from game state
 
     const city: CityState = {
@@ -659,8 +675,8 @@ export class CityManager {
     }
 
     const productionPerTurn = city.productionPerTurn || 0;
-    const currentShieldStock = city.shieldStock || 0;
-    const newShieldStock = currentShieldStock + productionPerTurn;
+    const currentProductionStock = city.productionStock || 0;
+    const newProductionStock = currentProductionStock + productionPerTurn;
 
     let productionCost = 0;
 
@@ -672,13 +688,13 @@ export class CityManager {
       productionCost = building?.cost || 0;
     }
 
-    if (newShieldStock >= productionCost) {
+    if (newProductionStock >= productionCost) {
       // Production completed
       await this.completeProduction(city.id);
     } else {
-      city.shieldStock = newShieldStock;
+      city.productionStock = newProductionStock;
       city.turnsToComplete = Math.ceil(
-        (productionCost - newShieldStock) / Math.max(1, productionPerTurn)
+        (productionCost - newProductionStock) / Math.max(1, productionPerTurn)
       );
     }
   }
@@ -694,13 +710,10 @@ export class CityManager {
       value: city.currentProduction,
     };
 
-    if (city.productionType === 'building' && this.buildingService) {
-      // Handle building completion through service
-      const success = await this.buildingService.startBuildingConstruction(
-        cityId,
-        city.currentProduction
-      );
-      if (success) {
+    if (city.productionType === 'building') {
+      // Add the building to the city
+      if (!city.buildings.includes(city.currentProduction)) {
+        city.buildings.push(city.currentProduction);
         logger.info(`Building ${city.currentProduction} completed in city ${city.name}`);
       }
     } else if (city.productionType === 'unit') {
@@ -711,7 +724,7 @@ export class CityManager {
     // Reset production
     city.currentProduction = null;
     city.productionType = null;
-    city.shieldStock = 0;
+    city.productionStock = 0;
     city.turnsToComplete = 0;
 
     // Trigger callback
@@ -811,16 +824,25 @@ export class CityManager {
   ): Promise<boolean> {
     const city = this.cities.get(cityId);
     if (!city) {
-      return false;
+      throw new Error('City not found');
     }
 
     if (city.playerId !== playerId) {
-      return false;
+      throw new Error('City does not belong to player');
     }
 
-    // Validate production choice
-    if (!this.canCityQueueItem(city, productionType, productionId)) {
-      return false;
+    // Validate production choice with specific error messages
+    if (productionType === 'building') {
+      if (city.buildings.includes(productionId)) {
+        throw new Error(`Building already exists: ${productionId}`);
+      }
+      if (!BUILDING_TYPES[productionId]) {
+        throw new Error(`Unknown building type: ${productionId}`);
+      }
+    } else if (productionType === 'unit') {
+      if (!Object.values(UNIT_TYPES).some(unitType => unitType.id === productionId)) {
+        throw new Error(`Unknown unit type: ${productionId}`);
+      }
     }
 
     let productionCost = 0;
@@ -874,7 +896,7 @@ export class CityManager {
           foodPerTurn: record.foodPerTurn || 0,
           productionPerTurn: record.productionPerTurn || 0,
           tradePerTurn: 0, // Will be calculated from trade routes
-          shieldStock: record.production || 0,
+          productionStock: record.production || 0,
           buildings: (record.buildings as string[]) || [],
           specialists: (record.specialists as Record<SpecialistType, number>) || {
             [SpecialistType.SCIENTIST]: 0,
@@ -929,7 +951,7 @@ export class CityManager {
         currentProduction: city.currentProduction,
         food: city.foodStock || 0,
         foodPerTurn: city.foodPerTurn || 0,
-        production: city.shieldStock || 0,
+        production: city.productionStock || 0,
         productionPerTurn: city.productionPerTurn || 0,
         goldPerTurn: 0, // Will be calculated
         sciencePerTurn: 0, // Will be calculated
