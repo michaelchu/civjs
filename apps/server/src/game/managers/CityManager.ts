@@ -1,4 +1,5 @@
 /* eslint-disable complexity */
+import { randomUUID } from 'crypto';
 import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
 import { cities } from '@database/schema';
@@ -507,7 +508,7 @@ export class CityManager {
       return null;
     }
 
-    const cityId = `city_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const cityId = randomUUID();
     const currentTurn = 1; // This would come from game state
 
     const city: CityState = {
