@@ -106,7 +106,7 @@ export class BorderNetworkService {
         data: sourcePacket,
       };
 
-      this.io.to(gameId).emit('packet', borderSourceStructuredPacket);
+      this.io.to(`game:${gameId}`).emit('packet', borderSourceStructuredPacket);
     }
 
     const borderUpdateStructuredPacket: Packet<BorderUpdatePacket> = {
@@ -114,13 +114,15 @@ export class BorderNetworkService {
       data: updatePacket,
     };
 
-    this.io.to(gameId).emit('packet', borderUpdateStructuredPacket);
+    this.io.to(`game:${gameId}`).emit('packet', borderUpdateStructuredPacket);
 
-    logger.debug('Broadcasted border update to game', {
+    logger.info('📡 Broadcasting border update packet', {
       gameId,
+      packetType: PacketType.BORDER_UPDATE,
       tilesUpdated: updatePacket.tiles.length,
       sourcesChanged: borderUpdate.sources.length + borderUpdate.removedSources.length,
       affectedPlayers: borderUpdate.affectedPlayers,
+      sampleTiles: updatePacket.tiles.slice(0, 3), // Show first 3 tiles for debugging
     });
   }
 
@@ -144,7 +146,7 @@ export class BorderNetworkService {
       sourceRemoved,
     };
 
-    this.io.to(gameId).emit('border_change_notification', notification);
+    this.io.to(`game:${gameId}`).emit('border_change_notification', notification);
 
     logger.info('Sent border change notification', {
       gameId,

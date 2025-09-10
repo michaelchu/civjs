@@ -110,7 +110,11 @@ class GameClient {
       try {
         this.socket = io(this.serverUrl, {
           transports: ['websocket'],
-          timeout: 10000,
+          timeout: 20000, // Increased timeout
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+          forceNew: false,
+          autoConnect: true,
         });
 
         this.socket.on('connect', () => {
@@ -127,6 +131,28 @@ class GameClient {
         this.socket.on('connect_error', error => {
           console.error('Connection error:', error);
           reject(error);
+        });
+
+        this.socket.on('reconnect', attemptNumber => {
+          console.log(`Reconnected to server after ${attemptNumber} attempts`);
+        });
+
+        this.socket.on('reconnect_error', error => {
+          console.warn('Reconnection failed:', error);
+        });
+
+        // Handle browser visibility changes to prevent disconnection on tab switch
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'hidden') {
+            console.log('Tab hidden - maintaining connection');
+            // Keep connection alive when tab is hidden
+          } else if (document.visibilityState === 'visible') {
+            console.log('Tab visible - connection status:', this.socket?.connected);
+            // Optionally ping server to ensure connection is still alive
+            if (this.socket?.connected) {
+              this.socket.emit('ping');
+            }
+          }
         });
 
         this.setupGameHandlers();
@@ -279,6 +305,11 @@ class GameClient {
 
   private handlePacket(packet: Packet) {
     const packetName = PACKET_NAMES[packet.type] || `UNKNOWN_${packet.type}`;
+
+    // Debug log for border packets
+    if (packet.type >= 240 && packet.type <= 244) {
+      console.log(`📡 Received border packet: ${packetName} (${packet.type})`, packet.data);
+    }
 
     switch (packet.type) {
       case PacketType.GAME_INFO:
@@ -638,20 +669,86 @@ class GameClient {
     }
   }
 
-  moveUnit(unitId: string, _fromX: number, _fromY: number, toX: number, toY: number) {
-    if (!this.socket) return;
+  /**
+   * Move unit method for keyboard controls
+   */
+  async moveUnit(unitId: string, toX: number, toY: number): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Socket not connected'));
+        return;
+      }
 
-    const packet: Packet = {
-      type: PacketType.UNIT_MOVE,
-      data: {
-        unitId,
-        x: toX, // Server expects x, y as destination
-        y: toY,
-      },
-      timestamp: Date.now(),
-    };
+      const packet: Packet = {
+        type: PacketType.UNIT_MOVE,
+        data: {
+          unitId,
+          x: toX,
+          y: toY,
+        },
+        timestamp: Date.now(),
+      };
 
-    this.socket.emit('packet', packet);
+      // Set up response handler
+      const responseHandler = (replyPacket: any) => {
+        if (replyPacket.type === PacketType.UNIT_MOVE_REPLY && replyPacket.data.unitId === unitId) {
+          this.socket?.off('packet', responseHandler);
+          if (replyPacket.data.success) {
+            resolve(true);
+          } else {
+            reject(new Error(replyPacket.data.message || 'Failed to move unit'));
+          }
+        }
+      };
+
+      this.socket.on('packet', responseHandler);
+
+      // Set timeout
+      setTimeout(() => {
+        this.socket?.off('packet', responseHandler);
+        reject(new Error('Move request timed out'));
+      }, 5000);
+
+      this.socket.emit('packet', packet);
+    });
+  }
+
+  /**
+   * Execute a unit action via socket event
+   */
+  async executeUnitAction(
+    unitId: string,
+    actionType: string,
+    targetX?: number,
+    targetY?: number
+  ): Promise<boolean> {
+    console.log('GameClient.executeUnitAction called:', { unitId, actionType, targetX, targetY });
+
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        console.error('GameClient.executeUnitAction: Socket not connected');
+        reject(new Error('Socket not connected'));
+        return;
+      }
+
+      this.socket.emit(
+        'unit_action',
+        {
+          unitId,
+          actionType,
+          targetX,
+          targetY,
+        },
+        (response: any) => {
+          console.log('GameClient.executeUnitAction response:', response);
+          if (response.success) {
+            resolve(true);
+          } else {
+            reject(new Error(response.error || 'Action failed'));
+          }
+        }
+      );
+    });
   }
 
   foundCity(name: string, x: number, y: number): Promise<string> {
@@ -1265,7 +1362,7 @@ class GameClient {
           tiles: updatedTiles,
         },
       });
-      console.log(`Updated ownership for ${updatedCount} tiles`);
+      console.log(`🎯 Updated ownership for ${updatedCount} tiles - Border system active!`);
     }
   }
 

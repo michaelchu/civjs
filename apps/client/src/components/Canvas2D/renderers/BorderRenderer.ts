@@ -101,19 +101,70 @@ export class BorderRenderer extends BaseRenderer {
   }
 
   /**
-   * Get player colors by player ID
+   * Get player colors by player ID from game state (like freeciv-web nations[players[owner]['nation']])
+   * @reference freeciv-web uses pnation.color, pnation.color2, pnation.color3 from nation data
    */
-  private getPlayerColors(playerId: string): {
+  private getPlayerColors(
+    playerId: string,
+    players?: Record<string, { color: string; name: string; nation: string }>
+  ): {
     primary: string;
     secondary: string;
     tertiary: string;
   } {
-    return (
-      this.playerColors.get(playerId) || {
-        primary: '#808080',
-        secondary: '#606060',
-        tertiary: '#404040',
+    // Try to get from cached colors first
+    const cached = this.playerColors.get(playerId);
+    if (cached) {
+      return cached;
+    }
+
+    // Try to get from game state players (like freeciv-web nations[players[owner]['nation']])
+    if (players && players[playerId]) {
+      const playerColor = players[playerId].color;
+      if (playerColor) {
+        // Use player's nation color as primary, generate darker variations for secondary/tertiary
+        const colors = {
+          primary: playerColor,
+          secondary: this.darkenColor(playerColor, 0.2),
+          tertiary: this.darkenColor(playerColor, 0.4),
+        };
+        // Cache the colors for performance
+        this.playerColors.set(playerId, colors);
+        return colors;
       }
+    }
+
+    // Fallback to default colors if no player data available
+    return {
+      primary: '#808080',
+      secondary: '#606060',
+      tertiary: '#404040',
+    };
+  }
+
+  /**
+   * Darken a hex color by a percentage (for secondary/tertiary border colors)
+   */
+  private darkenColor(hex: string, factor: number): string {
+    // Remove # if present
+    const color = hex.replace('#', '');
+
+    // Convert to RGB
+    const r = parseInt(color.substr(0, 2), 16);
+    const g = parseInt(color.substr(2, 2), 16);
+    const b = parseInt(color.substr(4, 2), 16);
+
+    // Darken each component
+    const darkR = Math.round(r * (1 - factor));
+    const darkG = Math.round(g * (1 - factor));
+    const darkB = Math.round(b * (1 - factor));
+
+    // Convert back to hex
+    return (
+      '#' +
+      darkR.toString(16).padStart(2, '0') +
+      darkG.toString(16).padStart(2, '0') +
+      darkB.toString(16).padStart(2, '0')
     );
   }
 
@@ -152,24 +203,35 @@ export class BorderRenderer extends BaseRenderer {
   }
 
   /**
-   * Generate border sprites for a tile
+   * Generate border sprites for a tile - EXACTLY matches freeciv-web logic
    * @reference freeciv-web/javascript/2dcanvas/tilespec.js:1208-1226 get_border_line_sprites
    */
-  private getBorderLineSprites(tile: Tile, map: any): BorderSprite[] {
+  private getBorderLineSprites(
+    tile: Tile,
+    map: any,
+    players?: Record<string, { color: string; name: string; nation: string }>
+  ): BorderSprite[] {
     const result: BorderSprite[] = [];
 
-    // Logic compliance: tile must have an owner to generate borders
-    if (!tile.owner) {
-      return result;
-    }
-
-    // Check each cardinal direction for borders
+    // Generate border sprites following our working logic for map edges and unowned neighbors
     for (const dir of CARDINAL_DIRS) {
       const neighbor = this.getNeighborTile(tile, dir, map);
 
-      // Generate border if neighbor exists and has different owner
-      if (neighbor && neighbor.owner && tile.owner !== neighbor.owner) {
-        const colors = this.getPlayerColors(tile.owner);
+      // Logic compliance: tile must have an owner to generate borders
+      if (!tile.owner) {
+        continue;
+      }
+
+      // Generate border in these cases:
+      // 1. Neighbor exists and has different owner (including null owner)
+      // 2. No neighbor (map edge)
+      const shouldDrawBorder =
+        !neighbor || // No neighbor (map edge)
+        (neighbor && tile.owner !== neighbor.owner); // Different owner (including unowned neighbor)
+
+      if (shouldDrawBorder) {
+        // Get nation colors - in freeciv-web this comes from nations[players[owner]['nation']]
+        const colors = this.getPlayerColors(tile.owner, players);
         result.push({
           key: 'border',
           dir,
@@ -198,6 +260,9 @@ export class BorderRenderer extends BaseRenderer {
     const ctx = this.ctx;
     const { drawDashedBorders, drawTertiaryColors, drawThickBorders, drawMovingBorders } =
       this.options;
+
+    // Save canvas state before modifying any properties
+    ctx.save();
 
     // Use exact freeciv-web coordinates (canvas_x + 47, canvas_y + 3)
     // @reference freeciv-web/javascript/2dcanvas/mapview.js:707-708
@@ -231,83 +296,135 @@ export class BorderRenderer extends BaseRenderer {
     // @reference freeciv-web/javascript/2dcanvas/mapview.js:738-820
     switch (dir) {
       case Direction.DIR8_NORTH:
-        // @reference freeciv-web line 741-742: pcanvas.moveTo(x, y - 2, x + (tileset_tile_width / 2));
+        // @reference freeciv-web line 741-742: exact coordinates
         ctx.moveTo(x, y - 2);
         ctx.lineTo(x + this.tileWidth / 2, y + this.tileHeight / 2 - 2);
         break;
 
       case Direction.DIR8_EAST:
-        // @reference freeciv-web line 761-762: East direction coordinates
+        // @reference freeciv-web line 761-762: exact coordinates
         ctx.moveTo(x - 3, y + this.tileHeight - 3);
         ctx.lineTo(x + this.tileWidth / 2 - 3, y + this.tileHeight / 2 - 3);
         break;
 
       case Direction.DIR8_SOUTH:
-        // @reference freeciv-web line 780-781: South direction coordinates
-        ctx.moveTo(x + this.tileWidth / 2 - 3, y + this.tileHeight / 2 - 3);
-        ctx.lineTo(x, y + this.tileHeight - 3);
+        // @reference freeciv-web line 781-782: CORRECTED coordinates
+        ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+        ctx.lineTo(x + 3, y + this.tileHeight - 3);
         break;
 
       case Direction.DIR8_WEST:
-        // @reference freeciv-web line 799-800: West direction coordinates
-        ctx.moveTo(x, y - 3);
-        ctx.lineTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+        // @reference freeciv-web line 801-802: CORRECTED coordinates
+        ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+        ctx.lineTo(x + 3, y - 3);
         break;
     }
 
     ctx.stroke();
 
-    // Draw secondary color if not using dashed borders
+    // Draw secondary and tertiary colors following freeciv-web pattern
     if (!drawDashedBorders) {
+      // Secondary color layer
       ctx.strokeStyle = color2;
       ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+
+      // Redraw the same path for secondary color
+      switch (dir) {
+        case Direction.DIR8_NORTH:
+          ctx.moveTo(x, y - 2);
+          ctx.lineTo(x + this.tileWidth / 2, y + this.tileHeight / 2 - 2);
+          break;
+        case Direction.DIR8_EAST:
+          ctx.moveTo(x - 3, y + this.tileHeight - 3);
+          ctx.lineTo(x + this.tileWidth / 2 - 3, y + this.tileHeight / 2 - 3);
+          break;
+        case Direction.DIR8_SOUTH:
+          ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+          ctx.lineTo(x + 3, y + this.tileHeight - 3);
+          break;
+        case Direction.DIR8_WEST:
+          ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+          ctx.lineTo(x + 3, y - 3);
+          break;
+      }
       ctx.stroke();
 
-      // Draw tertiary color if enabled
+      // Tertiary color layer if enabled
       if (drawTertiaryColors) {
         ctx.strokeStyle = color;
         ctx.setLineDash([6, 18]);
+        ctx.beginPath();
+
+        // Redraw the same path for tertiary color
+        switch (dir) {
+          case Direction.DIR8_NORTH:
+            ctx.moveTo(x, y - 2);
+            ctx.lineTo(x + this.tileWidth / 2, y + this.tileHeight / 2 - 2);
+            break;
+          case Direction.DIR8_EAST:
+            ctx.moveTo(x - 3, y + this.tileHeight - 3);
+            ctx.lineTo(x + this.tileWidth / 2 - 3, y + this.tileHeight / 2 - 3);
+            break;
+          case Direction.DIR8_SOUTH:
+            ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+            ctx.lineTo(x + 3, y + this.tileHeight - 3);
+            break;
+          case Direction.DIR8_WEST:
+            ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+            ctx.lineTo(x + 3, y - 3);
+            break;
+        }
         ctx.stroke();
       }
     }
 
-    // Reset line dash
-    ctx.setLineDash([]);
+    // Restore canvas state to avoid affecting subsequent renders
+    ctx.restore();
   }
 
   /**
-   * Fill territory with nation color
+   * Fill territory with nation color - EXACT freeciv-web coordinates
    * @reference freeciv-web/javascript/2dcanvas/mapview.js:825-840 mapview_territory_fill
    */
   private drawTerritoryFill(color: string, canvasX: number, canvasY: number): void {
     const ctx = this.ctx;
-    const x = canvasX + this.tileWidth / 2;
-    const y = canvasY + this.tileHeight / 2;
+
+    // Save canvas state
+    ctx.save();
+    // Use exact freeciv-web coordinates (canvas_x + 47, canvas_y + 25)
+    const x = canvasX + 47;
+    const y = canvasY + 25;
 
     ctx.beginPath();
-    ctx.fillStyle = color + '20'; // Add transparency
+    ctx.fillStyle = color + '20'; // Add transparency (not in original but useful)
 
-    // Draw diamond shape for isometric tile
-    ctx.moveTo(x, y - this.tileHeight / 2);
-    ctx.lineTo(x + this.tileWidth / 2, y);
-    ctx.lineTo(x, y + this.tileHeight / 2);
+    // EXACT freeciv-web diamond coordinates (lines 832-836)
+    ctx.moveTo(x, y + this.tileHeight / 2);
     ctx.lineTo(x - this.tileWidth / 2, y);
-    ctx.closePath();
+    ctx.lineTo(x, y - this.tileHeight / 2);
+    ctx.lineTo(x + this.tileWidth / 2, y);
+    ctx.lineTo(x, y + this.tileHeight / 2); // explicit close line like freeciv-web
 
+    ctx.closePath();
     ctx.fill();
+
+    // Restore canvas state
+    ctx.restore();
   }
 
   /**
-   * Main render method for borders
+   * Main render method for borders - follows freeciv-web mapview pattern
+   * @reference freeciv-web/javascript/2dcanvas/mapview.js calling pattern
    */
   public render(state: RenderState): void {
     if (!this.options.drawBorders) {
       return;
     }
 
-    const { viewport, map } = state;
+    const { viewport, map, players } = state;
 
-    // Iterate through visible tiles
+    // Iterate through visible tiles following freeciv-web pattern
     for (const tileKey in (map as any).tiles) {
       const tile = (map as any).tiles[tileKey] as Tile;
 
@@ -319,14 +436,14 @@ export class BorderRenderer extends BaseRenderer {
       // Calculate screen position
       const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
 
-      // Draw territory fill if enabled
+      // Draw territory fill if enabled (matches freeciv-web mapview_territory_fill)
       if (this.options.drawTerritoryFill && tile.owner) {
-        const colors = this.getPlayerColors(tile.owner);
+        const colors = this.getPlayerColors(tile.owner, players);
         this.drawTerritoryFill(colors.primary, screenPos.x, screenPos.y);
       }
 
-      // Get and draw border sprites
-      const borderSprites = this.getBorderLineSprites(tile, map);
+      // Get and draw border sprites - uses real player colors from game state
+      const borderSprites = this.getBorderLineSprites(tile, map, players);
       for (const sprite of borderSprites) {
         this.drawBorderLine(
           sprite.dir,
