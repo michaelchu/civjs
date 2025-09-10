@@ -163,9 +163,13 @@ export class BorderRenderer extends BaseRenderer {
       return result;
     }
 
+    let debugInfo = '';
+
     // Check each cardinal direction for borders
     for (const dir of CARDINAL_DIRS) {
       const neighbor = this.getNeighborTile(tile, dir, map);
+
+      debugInfo += `[${Direction[dir]}: ${neighbor ? neighbor.owner || 'null' : 'none'}] `;
 
       // Generate border if neighbor exists and has different owner
       if (neighbor && neighbor.owner && tile.owner !== neighbor.owner) {
@@ -177,7 +181,23 @@ export class BorderRenderer extends BaseRenderer {
           color2: colors.secondary,
           color3: colors.tertiary,
         });
+      } else if (neighbor && !neighbor.owner && tile.owner) {
+        // Also draw border against unowned tiles
+        const colors = this.getPlayerColors(tile.owner);
+        result.push({
+          key: 'border',
+          dir,
+          color: colors.primary,
+          color2: colors.secondary,
+          color3: colors.tertiary,
+        });
       }
+    }
+
+    if (result.length > 0 && Math.random() < 0.1) {
+      console.log(
+        `🔍 Tile (${tile.x},${tile.y}) owner:${tile.owner} neighbors: ${debugInfo} → ${result.length} borders`
+      );
     }
 
     return result;
@@ -302,14 +322,30 @@ export class BorderRenderer extends BaseRenderer {
    */
   public render(state: RenderState): void {
     if (!this.options.drawBorders) {
+      console.log('🚫 BorderRenderer: drawBorders option is disabled');
       return;
     }
 
     const { viewport, map } = state;
+    console.log(
+      '🎨 BorderRenderer: Starting render with',
+      Object.keys((map as any).tiles || {}).length,
+      'tiles'
+    );
+
+    let tilesWithOwners = 0;
+    let bordersDrawn = 0;
 
     // Iterate through visible tiles
     for (const tileKey in (map as any).tiles) {
       const tile = (map as any).tiles[tileKey] as Tile;
+
+      if (tile.owner) {
+        tilesWithOwners++;
+        if (tilesWithOwners <= 3) {
+          console.log(`🏴 Tile (${tile.x},${tile.y}) owned by: ${tile.owner}`);
+        }
+      }
 
       // Skip if not in viewport
       if (!this.isInViewport(tile.x, tile.y, viewport)) {
@@ -327,6 +363,14 @@ export class BorderRenderer extends BaseRenderer {
 
       // Get and draw border sprites
       const borderSprites = this.getBorderLineSprites(tile, map);
+      if (borderSprites.length > 0) {
+        bordersDrawn += borderSprites.length;
+        if (bordersDrawn <= 5) {
+          console.log(
+            `🎯 Drawing ${borderSprites.length} border sprites for tile (${tile.x},${tile.y})`
+          );
+        }
+      }
       for (const sprite of borderSprites) {
         this.drawBorderLine(
           sprite.dir,
@@ -338,6 +382,10 @@ export class BorderRenderer extends BaseRenderer {
         );
       }
     }
+
+    console.log(
+      `🎨 BorderRenderer: Completed render - ${tilesWithOwners} tiles with owners, ${bordersDrawn} border sprites drawn`
+    );
   }
 
   /**
