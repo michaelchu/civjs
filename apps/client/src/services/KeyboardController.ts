@@ -58,6 +58,11 @@ export class KeyboardController {
       description: 'Sentry/Sleep unit',
     });
 
+    this.keyBindings.set('ctrl+p', {
+      action: ActionType.PATROL,
+      description: 'Patrol unit',
+    });
+
     this.keyBindings.set('h', {
       action: ActionType.CHANGE_HOME_CITY,
       description: 'Set home city',
@@ -267,6 +272,20 @@ export class KeyboardController {
     // Look up key binding
     const binding = this.keyBindings.get(keyString) || this.keyBindings.get(event.key);
 
+    // Debug logging for key events
+    console.log('KeyboardController - Key pressed:', {
+      key: event.key,
+      keyString,
+      binding: binding
+        ? {
+            action: binding.action,
+            specialAction: binding.specialAction,
+            description: binding.description,
+          }
+        : null,
+      modifiers,
+    });
+
     if (binding) {
       event.preventDefault();
       this.executeKeyBinding(binding, modifiers);
@@ -339,6 +358,8 @@ export class KeyboardController {
    * Execute unit actions
    */
   private executeUnitAction(action: ActionType, modifiers: KeyModifiers): void {
+    console.log('KeyboardController - Dispatching unit action:', action, modifiers);
+
     // Dispatch custom events for unit actions
     const event = new CustomEvent('keyboard-unit-action', {
       detail: { action, modifiers },

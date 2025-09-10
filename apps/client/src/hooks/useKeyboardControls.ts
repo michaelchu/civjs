@@ -117,9 +117,8 @@ export function useKeyboardControls() {
       console.log('Unit action:', action, modifiers);
 
       // Get focused units or primary unit
-      const unitsToCommand = modifiers.shift
-        ? focusedUnits
-        : [getPrimaryFocusedUnit()?.id].filter(Boolean);
+      const primaryUnit = getPrimaryFocusedUnit();
+      const unitsToCommand = modifiers.shift ? focusedUnits : primaryUnit ? [primaryUnit.id] : [];
 
       if (unitsToCommand.length === 0) {
         console.log('No units focused for action:', action);
@@ -129,7 +128,34 @@ export function useKeyboardControls() {
       // Execute action for all focused units
       for (const unitId of unitsToCommand) {
         try {
-          await gameClient.executeUnitAction(unitId!, action);
+          // Use specific GameClient methods when available
+          switch (action) {
+            case ActionType.FORTIFY: {
+              await gameClient.fortifyUnit(unitId);
+              break;
+            }
+
+            case ActionType.SENTRY: {
+              await gameClient.sentryUnit(unitId);
+              break;
+            }
+
+            case ActionType.FOUND_CITY: {
+              // For found city, we need to get the unit's position and use a default name
+              const unit = primaryUnit || useGameStore.getState().units[unitId];
+              if (unit) {
+                const cityName = `New City ${Date.now()}`; // Simple default name
+                await gameClient.foundCityWithUnit(unitId, cityName, unit.x, unit.y);
+              }
+              break;
+            }
+
+            default: {
+              // Fall back to generic executeUnitAction for other actions
+              await gameClient.executeUnitAction(unitId, action);
+              break;
+            }
+          }
         } catch (error) {
           console.error(`Failed to execute ${action} for unit ${unitId}:`, error);
         }

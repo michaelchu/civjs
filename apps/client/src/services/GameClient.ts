@@ -677,8 +677,11 @@ class GameClient {
     targetX?: number,
     targetY?: number
   ): Promise<boolean> {
+    console.log('GameClient.executeUnitAction called:', { unitId, actionType, targetX, targetY });
+
     return new Promise((resolve, reject) => {
       if (!this.socket) {
+        console.error('GameClient.executeUnitAction: Socket not connected');
         reject(new Error('Socket not connected'));
         return;
       }
@@ -692,6 +695,7 @@ class GameClient {
           targetY,
         },
         (response: any) => {
+          console.log('GameClient.executeUnitAction response:', response);
           if (response.success) {
             resolve(true);
           } else {
