@@ -207,7 +207,7 @@ export class BorderManager {
     for (const [, source] of this.borderSources) {
       const distance = this.getSquaredDistance(x, y, source.x, source.y);
       const sourceRadius = this.getBorderSourceRadius(source);
-      const withinRadius = distance <= sourceRadius;
+      const withinRadius = distance <= sourceRadius * sourceRadius; // Fix: compare squared distance with squared radius
 
       if (withinRadius) {
         const tileStrength = this.getTileBorderStrength(x, y, source);
@@ -234,12 +234,27 @@ export class BorderManager {
       claimedBy: strongestSource,
     };
 
-    // Log detailed calculation for city center and immediate surroundings
-    if (debugInfo.length > 0 && (maxStrength > 0 || this.borderSources.size > 0)) {
-      logger.debug('🧮 Tile ownership calculation', {
+    // Log detailed calculation for tiles around cities
+    const distanceFromAnyCity =
+      this.borderSources.size > 0
+        ? Math.min(
+            ...Array.from(this.borderSources.values()).map(source =>
+              this.getSquaredDistance(x, y, source.x, source.y)
+            )
+          )
+        : Infinity;
+
+    if (this.borderSources.size > 0 && (distanceFromAnyCity <= 25 || maxStrength > 0)) {
+      logger.info('🧮 Tile ownership calculation', {
         tile: { x, y },
         borderSourcesCount: this.borderSources.size,
+        distanceFromNearestCity: Math.sqrt(distanceFromAnyCity),
         candidateSources: debugInfo,
+        allSources: Array.from(this.borderSources.values()).map(s => ({
+          pos: { x: s.x, y: s.y },
+          radius: this.getBorderSourceRadius(s),
+          strength: this.getBorderSourceStrength(s),
+        })),
         result: {
           owner: result.playerId,
           strength: result.strength,
@@ -290,7 +305,8 @@ export class BorderManager {
       const distance = this.getSquaredDistance(x, y, source.x, source.y);
       const sourceRadius = this.getBorderSourceRadius(source);
 
-      if (distance <= sourceRadius) {
+      if (distance <= sourceRadius * sourceRadius) {
+        // Fix: compare squared distance with squared radius
         sources.push(source);
       }
     }
