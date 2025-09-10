@@ -9,6 +9,12 @@ import type { Unit, City } from '../../types';
 import { ActionType } from '../../types/shared/actions';
 import { gameClient } from '../../services/GameClient';
 import { pathfindingService, type GotoPath } from '../../services/PathfindingService';
+import {
+  determineMapClickAction,
+  getUnitsAtTile,
+  shouldIgnoreClick,
+  type ClickOptions,
+} from '../../utils/mapInteraction';
 
 interface MapCanvasProps {
   width: number;
@@ -64,8 +70,67 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     currentPath: null,
   });
 
-  const { viewport, map, units, cities, players, setViewport, selectUnit } = useGameStore();
+  const {
+    viewport,
+    map,
+    units,
+    cities,
+    players,
+    currentPlayerId,
+    focusedUnits,
+    setViewport,
+    selectUnit,
+    addToFocus,
+  } = useGameStore();
   const gameState = useGameStore();
+
+  // Track click state for multi-select
+  const lastClickTime = useRef<number>(0);
+  const lastClickTile = useRef<{ x: number; y: number } | null>(null);
+
+  // Handle keyboard-triggered actions
+  useEffect(() => {
+    const handleActivateGoto = (event: CustomEvent) => {
+      const { unit } = event.detail;
+      if (unit && focusedUnits.includes(unit.id)) {
+        setGotoMode({
+          active: true,
+          unit,
+          targetTile: null,
+          currentPath: null,
+        });
+        console.log('Goto mode activated via keyboard for unit:', unit.id);
+      }
+    };
+
+    const handleShowActionDialog = (event: CustomEvent) => {
+      const { unit } = event.detail;
+      // TODO: Show action selection dialog
+      console.log('Action dialog requested for unit:', unit.id);
+    };
+
+    const handleShowCityNameDialog = (event: CustomEvent) => {
+      const { unit } = event.detail;
+      console.log('City name dialog requested for unit:', unit.id);
+      setCityNameDialog({
+        isOpen: true,
+        unit: unit,
+      });
+    };
+
+    document.addEventListener('activate-goto-mode', handleActivateGoto as EventListener);
+    document.addEventListener('show-action-dialog', handleShowActionDialog as EventListener);
+    document.addEventListener('show-city-name-dialog', handleShowCityNameDialog as EventListener);
+
+    return () => {
+      document.removeEventListener('activate-goto-mode', handleActivateGoto as EventListener);
+      document.removeEventListener('show-action-dialog', handleShowActionDialog as EventListener);
+      document.removeEventListener(
+        'show-city-name-dialog',
+        handleShowCityNameDialog as EventListener
+      );
+    };
+  }, [focusedUnits, setGotoMode]);
 
   // Handle mouse and touch events - copied from freeciv-web 2D canvas behavior
   const [isDragging, setIsDragging] = useState(false);
@@ -95,6 +160,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             cities: gameState.cities,
             players: gameState.players,
             selectedUnitId: gameState.selectedUnitId,
+            focusedUnits: gameState.focusedUnits,
           });
         }
       } catch (error) {
@@ -252,6 +318,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         cities,
         players,
         selectedUnitId: useGameStore.getState().selectedUnitId,
+        focusedUnits: useGameStore.getState().focusedUnits,
         gotoPath: gotoMode.currentPath,
       });
     }
@@ -261,6 +328,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     units,
     cities,
     players,
+    focusedUnits,
     gotoMode.active,
     gotoMode.currentPath,
     globalTilesVersion,
@@ -320,6 +388,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
               cities: useGameStore.getState().cities,
               players: useGameStore.getState().players,
               selectedUnitId: useGameStore.getState().selectedUnitId,
+              focusedUnits: useGameStore.getState().focusedUnits,
               gotoPath: gotoMode.currentPath,
             },
             true
@@ -357,6 +426,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
               cities,
               players,
               selectedUnitId: currentSelectedUnitId,
+              focusedUnits,
               gotoPath: gotoMode.currentPath,
             },
             true
@@ -376,6 +446,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
               cities,
               players,
               selectedUnitId: null,
+              focusedUnits,
               gotoPath: gotoMode.currentPath,
             },
             true
@@ -393,6 +464,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             cities,
             players,
             selectedUnitId: null,
+            focusedUnits,
             gotoPath: gotoMode.currentPath,
           },
           true
@@ -622,6 +694,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
               cities: useGameStore.getState().cities,
               players: useGameStore.getState().players,
               selectedUnitId: useGameStore.getState().selectedUnitId,
+              focusedUnits: useGameStore.getState().focusedUnits,
               gotoPath: gotoMode.currentPath,
             },
             true
@@ -684,24 +757,77 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           return;
         }
 
-        // Normal unit selection logic
-        const unitAtPosition = Object.values(units).find(
-          unit => unit.x === tileX && unit.y === tileY
+        // Enhanced unit selection with multi-select support
+        const clickOptions: ClickOptions = {
+          shiftKey: event.shiftKey,
+          ctrlKey: event.ctrlKey,
+          altKey: event.altKey,
+          button: event.button,
+          isGotoMode: false,
+        };
+
+        // Check click cooldown to prevent rapid clicking
+        if (
+          shouldIgnoreClick(lastClickTime.current, lastClickTile.current, { x: tileX, y: tileY })
+        ) {
+          dragStartTime.current = 0;
+          return;
+        }
+
+        const unitsAtTile = getUnitsAtTile(units, tileX, tileY);
+        const clickResult = determineMapClickAction(
+          tileX,
+          tileY,
+          unitsAtTile,
+          currentPlayerId,
+          focusedUnits,
+          clickOptions
         );
 
-        if (unitAtPosition) {
-          selectUnit(unitAtPosition.id);
-          setSelectedUnit(unitAtPosition as Unit);
-        } else {
-          selectUnit(null);
-          setSelectedUnit(null);
+        // Update click tracking
+        lastClickTime.current = Date.now();
+        lastClickTile.current = { x: tileX, y: tileY };
+
+        // Handle the click result
+        switch (clickResult.action) {
+          case 'select':
+            if (clickResult.unitIds.length > 0) {
+              selectUnit(clickResult.unitIds[0]);
+              setSelectedUnit(units[clickResult.unitIds[0]] as Unit);
+            } else {
+              selectUnit(null);
+              setSelectedUnit(null);
+            }
+            break;
+
+          case 'focus':
+            if (clickResult.unitIds.length > 0) {
+              addToFocus(clickResult.unitIds[0], true);
+              setSelectedUnit(units[clickResult.unitIds[0]] as Unit);
+            }
+            break;
+
+          case 'none':
+            // No action needed
+            break;
         }
       }
 
       // Reset drag tracking
       dragStartTime.current = 0;
     },
-    [isDragging, setViewport, selectUnit, units, viewport, gotoMode.active, executeGoto]
+    [
+      isDragging,
+      setViewport,
+      selectUnit,
+      addToFocus,
+      units,
+      viewport,
+      gotoMode.active,
+      executeGoto,
+      currentPlayerId,
+      focusedUnits,
+    ]
   );
 
   // Touch event handlers for mobile panning + actions
@@ -834,6 +960,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
                 cities: useGameStore.getState().cities,
                 players: useGameStore.getState().players,
                 selectedUnitId: useGameStore.getState().selectedUnitId,
+                focusedUnits: useGameStore.getState().focusedUnits,
                 gotoPath: gotoMode.currentPath,
               },
               true
