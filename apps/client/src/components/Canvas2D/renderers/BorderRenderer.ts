@@ -152,30 +152,31 @@ export class BorderRenderer extends BaseRenderer {
   }
 
   /**
-   * Generate border sprites for a tile
+   * Generate border sprites for a tile - EXACTLY matches freeciv-web logic
    * @reference freeciv-web/javascript/2dcanvas/tilespec.js:1208-1226 get_border_line_sprites
    */
-  private getBorderLineSprites(tile: Tile, map: any): BorderSprite[] {
+  private getBorderLineSprites(tile: Tile, map: any, players?: any): BorderSprite[] {
     const result: BorderSprite[] = [];
 
-    // Logic compliance: tile must have an owner to generate borders
-    if (!tile.owner) {
-      return result;
-    }
-
-    // Check each cardinal direction for borders
+    // Direct port of freeciv-web logic - MUST have exact same conditions
     for (const dir of CARDINAL_DIRS) {
       const neighbor = this.getNeighborTile(tile, dir, map);
 
-      // Generate border in these cases:
-      // 1. Neighbor exists and has different owner
-      // 2. Neighbor exists but has no owner (unowned tile)
-      // 3. No neighbor (map edge)
-      const shouldDrawBorder =
-        !neighbor || // No neighbor (map edge)
-        (neighbor && tile.owner !== neighbor.owner); // Different owner or unowned neighbor
-
-      if (shouldDrawBorder && tile.owner) {
+      // freeciv-web conditions (lines 1215-1219):
+      // 1. checktile != null && checktile['owner'] != null
+      // 2. && ptile['owner'] != null
+      // 3. && ptile['owner'] != checktile['owner']
+      // 4. && ptile['owner'] != 255 (special constant for unowned)
+      // 5. && players[ptile['owner']] != null
+      if (
+        neighbor != null &&
+        neighbor.owner != null &&
+        tile.owner != null &&
+        tile.owner !== neighbor.owner &&
+        tile.owner !== '255' && // 255 is special constant for unowned tiles
+        (!players || players[tile.owner] != null) // Validate player exists if players available
+      ) {
+        // Get nation colors - in freeciv-web this comes from nations[players[owner]['nation']]
         const colors = this.getPlayerColors(tile.owner);
         result.push({
           key: 'border',
@@ -186,8 +187,6 @@ export class BorderRenderer extends BaseRenderer {
         });
       }
     }
-
-    // Performance: Removed random debug logging that was causing frame drops
 
     return result;
   }
@@ -328,29 +327,32 @@ export class BorderRenderer extends BaseRenderer {
   }
 
   /**
-   * Fill territory with nation color
+   * Fill territory with nation color - EXACT freeciv-web coordinates
    * @reference freeciv-web/javascript/2dcanvas/mapview.js:825-840 mapview_territory_fill
    */
   private drawTerritoryFill(color: string, canvasX: number, canvasY: number): void {
     const ctx = this.ctx;
-    const x = canvasX + this.tileWidth / 2;
-    const y = canvasY + this.tileHeight / 2;
+    // Use exact freeciv-web coordinates (canvas_x + 47, canvas_y + 25)
+    const x = canvasX + 47;
+    const y = canvasY + 25;
 
     ctx.beginPath();
-    ctx.fillStyle = color + '20'; // Add transparency
+    ctx.fillStyle = color + '20'; // Add transparency (not in original but useful)
 
-    // Draw diamond shape for isometric tile
-    ctx.moveTo(x, y - this.tileHeight / 2);
-    ctx.lineTo(x + this.tileWidth / 2, y);
-    ctx.lineTo(x, y + this.tileHeight / 2);
+    // EXACT freeciv-web diamond coordinates (lines 832-836)
+    ctx.moveTo(x, y + this.tileHeight / 2);
     ctx.lineTo(x - this.tileWidth / 2, y);
-    ctx.closePath();
+    ctx.lineTo(x, y - this.tileHeight / 2);
+    ctx.lineTo(x + this.tileWidth / 2, y);
+    ctx.lineTo(x, y + this.tileHeight / 2); // explicit close line like freeciv-web
 
+    ctx.closePath();
     ctx.fill();
   }
 
   /**
-   * Main render method for borders
+   * Main render method for borders - follows freeciv-web mapview pattern
+   * @reference freeciv-web/javascript/2dcanvas/mapview.js calling pattern
    */
   public render(state: RenderState): void {
     if (!this.options.drawBorders) {
@@ -358,6 +360,8 @@ export class BorderRenderer extends BaseRenderer {
     }
 
     const { viewport, map } = state;
+    // Get players data if available from game state for validation
+    const players = (state as any).players || undefined;
 
     // Iterate through visible tiles following freeciv-web pattern
     for (const tileKey in (map as any).tiles) {
@@ -371,14 +375,14 @@ export class BorderRenderer extends BaseRenderer {
       // Calculate screen position
       const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
 
-      // Draw territory fill if enabled
+      // Draw territory fill if enabled (matches freeciv-web mapview_territory_fill)
       if (this.options.drawTerritoryFill && tile.owner) {
         const colors = this.getPlayerColors(tile.owner);
         this.drawTerritoryFill(colors.primary, screenPos.x, screenPos.y);
       }
 
-      // Get and draw border sprites
-      const borderSprites = this.getBorderLineSprites(tile, map);
+      // Get and draw border sprites - now with player validation like freeciv-web
+      const borderSprites = this.getBorderLineSprites(tile, map, players);
       for (const sprite of borderSprites) {
         this.drawBorderLine(
           sprite.dir,
