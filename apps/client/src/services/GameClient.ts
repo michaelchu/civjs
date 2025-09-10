@@ -1265,7 +1265,7 @@ class GameClient {
           tiles: updatedTiles,
         },
       });
-      console.log(`Updated ownership for ${updatedCount} tiles`);
+      console.log(`🎯 Updated ownership for ${updatedCount} tiles - Border system active!`);
     }
   }
 
