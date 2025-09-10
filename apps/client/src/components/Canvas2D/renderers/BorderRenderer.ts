@@ -55,6 +55,7 @@ export class BorderRenderer extends BaseRenderer {
   private borderAnim: number = 0;
   private options: BorderRenderOptions;
   private playerColors: Map<string, { primary: string; secondary: string; tertiary: string }>;
+  private renderCount: number = 0;
 
   constructor(
     ctx: CanvasRenderingContext2D,
@@ -163,13 +164,9 @@ export class BorderRenderer extends BaseRenderer {
       return result;
     }
 
-    let debugInfo = '';
-
     // Check each cardinal direction for borders
     for (const dir of CARDINAL_DIRS) {
       const neighbor = this.getNeighborTile(tile, dir, map);
-
-      debugInfo += `[${Direction[dir]}: ${neighbor ? neighbor.owner || 'null' : 'none'}] `;
 
       // Generate border in these cases:
       // 1. Neighbor exists and has different owner
@@ -191,11 +188,7 @@ export class BorderRenderer extends BaseRenderer {
       }
     }
 
-    if (result.length > 0 && Math.random() < 0.1) {
-      console.log(
-        `🔍 Tile (${tile.x},${tile.y}) owner:${tile.owner} neighbors: ${debugInfo} → ${result.length} borders`
-      );
-    }
+    // Performance: Removed random debug logging that was causing frame drops
 
     return result;
   }
@@ -362,34 +355,40 @@ export class BorderRenderer extends BaseRenderer {
    */
   public render(state: RenderState): void {
     if (!this.options.drawBorders) {
-      console.log('🚫 BorderRenderer: drawBorders option is disabled');
       return;
     }
 
+    this.renderCount++;
     const { viewport, map } = state;
-    console.log(
-      '🎨 BorderRenderer: Starting render with',
-      Object.keys((map as any).tiles || {}).length,
-      'tiles'
-    );
+
+    // Throttle performance-heavy operations
+    if (this.renderCount % 5 !== 0) {
+      // Skip every 4 out of 5 renders to reduce performance impact
+      return;
+    }
+
+    // Throttle debug logging to reduce performance impact
+    const shouldLog = this.renderCount % 20 === 0;
+
+    if (shouldLog) {
+      console.log('🎨 BorderRenderer: Render #' + this.renderCount);
+    }
 
     let tilesWithOwners = 0;
     let bordersDrawn = 0;
 
-    // Iterate through visible tiles
-    for (const tileKey in (map as any).tiles) {
-      const tile = (map as any).tiles[tileKey] as Tile;
+    // Only iterate through tiles that are in the viewport
+    const allTiles = (map as any).tiles;
+    for (const tileKey in allTiles) {
+      const tile = allTiles[tileKey] as Tile;
+
+      // Skip if not in viewport (early return for performance)
+      if (!this.isInViewport(tile.x, tile.y, viewport)) {
+        continue;
+      }
 
       if (tile.owner) {
         tilesWithOwners++;
-        if (tilesWithOwners <= 3) {
-          console.log(`🏴 Tile (${tile.x},${tile.y}) owned by: ${tile.owner}`);
-        }
-      }
-
-      // Skip if not in viewport
-      if (!this.isInViewport(tile.x, tile.y, viewport)) {
-        continue;
       }
 
       // Calculate screen position
@@ -403,14 +402,8 @@ export class BorderRenderer extends BaseRenderer {
 
       // Get and draw border sprites
       const borderSprites = this.getBorderLineSprites(tile, map);
-      if (borderSprites.length > 0) {
-        bordersDrawn += borderSprites.length;
-        if (bordersDrawn <= 5) {
-          console.log(
-            `🎯 Drawing ${borderSprites.length} border sprites for tile (${tile.x},${tile.y})`
-          );
-        }
-      }
+      bordersDrawn += borderSprites.length;
+
       for (const sprite of borderSprites) {
         this.drawBorderLine(
           sprite.dir,
@@ -423,9 +416,11 @@ export class BorderRenderer extends BaseRenderer {
       }
     }
 
-    console.log(
-      `🎨 BorderRenderer: Completed render - ${tilesWithOwners} tiles with owners, ${bordersDrawn} border sprites drawn`
-    );
+    if (shouldLog) {
+      console.log(
+        `🎨 BorderRenderer: Completed - ${tilesWithOwners} owners, ${bordersDrawn} borders`
+      );
+    }
   }
 
   /**
