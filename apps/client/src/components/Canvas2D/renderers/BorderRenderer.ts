@@ -171,18 +171,15 @@ export class BorderRenderer extends BaseRenderer {
 
       debugInfo += `[${Direction[dir]}: ${neighbor ? neighbor.owner || 'null' : 'none'}] `;
 
-      // Generate border if neighbor exists and has different owner
-      if (neighbor && neighbor.owner && tile.owner !== neighbor.owner) {
-        const colors = this.getPlayerColors(tile.owner);
-        result.push({
-          key: 'border',
-          dir,
-          color: colors.primary,
-          color2: colors.secondary,
-          color3: colors.tertiary,
-        });
-      } else if (neighbor && !neighbor.owner && tile.owner) {
-        // Also draw border against unowned tiles
+      // Generate border in these cases:
+      // 1. Neighbor exists and has different owner
+      // 2. Neighbor exists but has no owner (unowned tile)
+      // 3. No neighbor (map edge)
+      const shouldDrawBorder =
+        !neighbor || // No neighbor (map edge)
+        (neighbor && tile.owner !== neighbor.owner); // Different owner or unowned neighbor
+
+      if (shouldDrawBorder && tile.owner) {
         const colors = this.getPlayerColors(tile.owner);
         result.push({
           key: 'border',

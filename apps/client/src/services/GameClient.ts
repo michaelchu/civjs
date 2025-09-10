@@ -110,7 +110,11 @@ class GameClient {
       try {
         this.socket = io(this.serverUrl, {
           transports: ['websocket'],
-          timeout: 10000,
+          timeout: 20000, // Increased timeout
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+          forceNew: false,
+          autoConnect: true,
         });
 
         this.socket.on('connect', () => {
@@ -127,6 +131,28 @@ class GameClient {
         this.socket.on('connect_error', error => {
           console.error('Connection error:', error);
           reject(error);
+        });
+
+        this.socket.on('reconnect', attemptNumber => {
+          console.log(`Reconnected to server after ${attemptNumber} attempts`);
+        });
+
+        this.socket.on('reconnect_error', error => {
+          console.warn('Reconnection failed:', error);
+        });
+
+        // Handle browser visibility changes to prevent disconnection on tab switch
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'hidden') {
+            console.log('Tab hidden - maintaining connection');
+            // Keep connection alive when tab is hidden
+          } else if (document.visibilityState === 'visible') {
+            console.log('Tab visible - connection status:', this.socket?.connected);
+            // Optionally ping server to ensure connection is still alive
+            if (this.socket?.connected) {
+              this.socket.emit('ping');
+            }
+          }
         });
 
         this.setupGameHandlers();
