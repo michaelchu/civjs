@@ -25,6 +25,16 @@ export interface Unit {
   veteranLevel: number;
 }
 
+export interface ProductionOption {
+  id: string;
+  name: string;
+  type: 'unit' | 'building' | 'wonder';
+  cost: number;
+  description?: string;
+  requirements?: string[];
+  available: boolean;
+}
+
 export interface City {
   id: string;
   name: string;

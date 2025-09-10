@@ -328,7 +328,17 @@ class GameClient {
         buildings: [],
         presentUnits: [],
         supportedUnits: [],
-        worklist: [],
+        worklist: [
+          { target: 'Warrior', type: 'unit', cost: 10 },
+          { target: 'Granary', type: 'building', cost: 60 },
+        ],
+        production: {
+          target: 'Settler',
+          type: 'unit',
+          progress: 5,
+          cost: 30,
+          turnsToComplete: 5,
+        },
         tradeRoutes: [],
         celebrating: false,
         disorder: false,
