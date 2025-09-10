@@ -8,6 +8,7 @@ import { TurnDoneButton } from './TurnDoneButton';
 import { TurnStatusOverlay } from './TurnStatusOverlay';
 import { TechnologyTree } from '../Research/TechnologyTree';
 import { GovernmentPanel } from './GovernmentPanel';
+import { useKeyboardControls } from '../../hooks/useKeyboardControls';
 
 export const GameLayout: React.FC = () => {
   const [dimensions, setDimensions] = useState({
@@ -16,6 +17,9 @@ export const GameLayout: React.FC = () => {
   });
 
   const { activeTab, clientState } = useGameStore();
+
+  // Initialize keyboard controls
+  useKeyboardControls();
 
   // Handle window resize
   useEffect(() => {
