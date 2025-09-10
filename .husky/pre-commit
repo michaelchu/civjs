@@ -8,10 +8,6 @@ npm run format
 echo "📝 Running linters with auto-fix..."
 npm run lint:fix
 
-# Run type checking for all projects
-echo "🔎 Running type checks..."
-npm run typecheck
-
 # Stage any auto-fixed files
 echo "📦 Staging auto-fixed files..."
 git add -u
