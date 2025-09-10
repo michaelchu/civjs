@@ -95,6 +95,13 @@ export enum PacketType {
   RESEARCH_PROGRESS = 225,
   RESEARCH_PROGRESS_REPLY = 226,
   TURN_PROCESSING_STEP = 227,
+
+  // Border system packets (240-245) - avoiding conflict with server government packets
+  BORDER_UPDATE = 240,
+  BORDER_SOURCE_UPDATE = 241,
+  BORDER_INFO_REQUEST = 242,
+  BORDER_INFO_RESPONSE = 243,
+  BORDER_CHANGE_NOTIFICATION = 244,
 }
 
 // Debug helper for development - maps numeric types to readable names
@@ -130,6 +137,11 @@ export const PACKET_NAMES: Record<number, string> = {
   [PacketType.RESEARCH_SET]: 'RESEARCH_SET',
   [PacketType.RESEARCH_SET_REPLY]: 'RESEARCH_SET_REPLY',
   [PacketType.TURN_PROCESSING_STEP]: 'TURN_PROCESSING_STEP',
+  [PacketType.BORDER_UPDATE]: 'BORDER_UPDATE',
+  [PacketType.BORDER_SOURCE_UPDATE]: 'BORDER_SOURCE_UPDATE',
+  [PacketType.BORDER_INFO_REQUEST]: 'BORDER_INFO_REQUEST',
+  [PacketType.BORDER_INFO_RESPONSE]: 'BORDER_INFO_RESPONSE',
+  [PacketType.BORDER_CHANGE_NOTIFICATION]: 'BORDER_CHANGE_NOTIFICATION',
 };
 
 // Base packet interface matching server

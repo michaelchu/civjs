@@ -19,6 +19,8 @@ import { CityManager } from '@game/managers/CityManager';
 import { EffectsManager } from '@game/managers/EffectsManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
+import { BorderManager } from '@game/managers/BorderManager';
+import { BorderNetworkService } from '@game/services/BorderNetworkService';
 import { MapStartpos } from '@game/map/MapTypes';
 import type { Server as SocketServer } from 'socket.io';
 import type {
@@ -65,6 +67,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   ) => Promise<string>;
   // private _onRequestPath - removed, delegating to GameManager instead
   private onBroadcastMapData?: (gameId: string, mapData: any) => void;
+  private borderNetworkService?: BorderNetworkService;
 
   constructor(
     io: SocketServer,
@@ -229,6 +232,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     const mapManager = this.createMapManager(game, terrainSettings);
     const turnManager = await this.createTurnManagerAndInitialize(gameId, players);
     const cityManager = this.createCityManager(gameId);
+    const borderManager = this.createBorderManager(mapManager, cityManager);
+    this.borderNetworkService = this.createBorderNetworkService(borderManager);
     const unitManager = this.createUnitManager(gameId, game, mapManager, cityManager);
 
     // Set up dependencies after all managers are created
@@ -276,6 +281,61 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           });
         }
       },
+      onCityFounded: city => {
+        // Create border source for the new city
+        const borderSource = {
+          x: city.x,
+          y: city.y,
+          playerId: city.playerId,
+          type: 'city' as const,
+          strength: 0, // Will be calculated by BorderManager
+          radius: 0, // Will be calculated by BorderManager
+          cityId: city.id,
+        };
+
+        // Calculate actual values
+        borderSource.radius = borderManager.getBorderSourceRadius(borderSource);
+        borderSource.strength = borderManager.getBorderSourceStrength(borderSource);
+
+        // Add to border manager
+        borderManager.addBorderSource(borderSource);
+
+        this.logger.info(`Border source added for city ${city.name}`, {
+          cityId: city.id,
+          x: city.x,
+          y: city.y,
+          playerId: city.playerId,
+        });
+      },
+    });
+
+    // Set up BorderManager callbacks to broadcast network updates
+    borderManager.setCallbacks({
+      onBorderUpdate: update => {
+        // Send border update to all players in the game
+        this.borderNetworkService!.broadcastBorderUpdate(gameId, update);
+        this.logger.debug('Border update broadcasted', {
+          gameId,
+          tilesUpdated: update.tiles.length,
+          affectedPlayers: update.affectedPlayers?.length || 0,
+        });
+      },
+      onBorderSourceAdded: source => {
+        this.logger.debug('Border source added', {
+          gameId,
+          x: source.x,
+          y: source.y,
+          playerId: source.playerId,
+          type: source.type,
+        });
+      },
+      onBorderSourceRemoved: (x, y) => {
+        this.logger.debug('Border source removed', {
+          gameId,
+          x,
+          y,
+        });
+      },
     });
 
     // Generate the map with starting positions based on terrain settings
@@ -293,7 +353,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       visibilityManager,
       cityManager,
       researchManager,
-      pathfindingManager
+      pathfindingManager,
+      borderManager
     );
 
     this.logger.info('Game instance initialized successfully', {
@@ -700,6 +761,14 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return new CityManager(gameId, this.databaseProvider, effectsManager, {});
   }
 
+  private createBorderManager(mapManager: MapManager, cityManager: CityManager): BorderManager {
+    return new BorderManager(mapManager, cityManager);
+  }
+
+  private createBorderNetworkService(borderManager: BorderManager): BorderNetworkService {
+    return new BorderNetworkService(this.io, borderManager);
+  }
+
   private createUnitManager(
     gameId: string,
     game: any,
@@ -757,7 +826,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     visibilityManager: VisibilityManager,
     cityManager: CityManager,
     researchManager: ResearchManager,
-    pathfindingManager: PathfindingManager
+    pathfindingManager: PathfindingManager,
+    borderManager: BorderManager
   ): GameInstance {
     return {
       id: gameId,
@@ -784,6 +854,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       cityManager,
       researchManager,
       pathfindingManager,
+      borderManager,
       lastActivity: new Date(),
     };
   }

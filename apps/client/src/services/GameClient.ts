@@ -110,7 +110,11 @@ class GameClient {
       try {
         this.socket = io(this.serverUrl, {
           transports: ['websocket'],
-          timeout: 10000,
+          timeout: 20000, // Increased timeout
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+          forceNew: false,
+          autoConnect: true,
         });
 
         this.socket.on('connect', () => {
@@ -127,6 +131,28 @@ class GameClient {
         this.socket.on('connect_error', error => {
           console.error('Connection error:', error);
           reject(error);
+        });
+
+        this.socket.on('reconnect', attemptNumber => {
+          console.log(`Reconnected to server after ${attemptNumber} attempts`);
+        });
+
+        this.socket.on('reconnect_error', error => {
+          console.warn('Reconnection failed:', error);
+        });
+
+        // Handle browser visibility changes to prevent disconnection on tab switch
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'hidden') {
+            console.log('Tab hidden - maintaining connection');
+            // Keep connection alive when tab is hidden
+          } else if (document.visibilityState === 'visible') {
+            console.log('Tab visible - connection status:', this.socket?.connected);
+            // Optionally ping server to ensure connection is still alive
+            if (this.socket?.connected) {
+              this.socket.emit('ping');
+            }
+          }
         });
 
         this.setupGameHandlers();
@@ -279,6 +305,11 @@ class GameClient {
 
   private handlePacket(packet: Packet) {
     const packetName = PACKET_NAMES[packet.type] || `UNKNOWN_${packet.type}`;
+
+    // Debug log for border packets
+    if (packet.type >= 240 && packet.type <= 244) {
+      console.log(`📡 Received border packet: ${packetName} (${packet.type})`, packet.data);
+    }
 
     switch (packet.type) {
       case PacketType.GAME_INFO:
@@ -475,6 +506,20 @@ class GameClient {
 
       case PacketType.TURN_PROCESSING_STEP:
         this.handleTurnProcessingStep(packet.data);
+        break;
+
+      // Border system packets
+      // @reference freeciv-web border synchronization similar to tile updates
+      case PacketType.BORDER_UPDATE:
+        this.handleBorderUpdate(packet.data);
+        break;
+
+      case PacketType.BORDER_SOURCE_UPDATE:
+        this.handleBorderSourceUpdate(packet.data);
+        break;
+
+      case PacketType.BORDER_CHANGE_NOTIFICATION:
+        this.handleBorderChangeNotification(packet.data);
         break;
 
       default:
@@ -1271,6 +1316,80 @@ class GameClient {
    */
   foundCityWithUnitLegacy(unitId: string): Promise<boolean> {
     return this.requestUnitAction(unitId, ActionType.FOUND_CITY);
+  }
+
+  /**
+   * Handle border update packets - updates tile ownership
+   * @reference freeciv-web tile info handling pattern
+   */
+  private handleBorderUpdate(data: any): void {
+    console.log('Border update received:', data);
+
+    if (!data.tiles || !Array.isArray(data.tiles)) {
+      console.warn('Invalid border update data - no tiles array');
+      return;
+    }
+
+    const gameState = useGameStore.getState();
+    const { map } = gameState;
+
+    if (!map || !map.tiles) {
+      console.warn('No map data available for border update');
+      return;
+    }
+
+    // Update tile ownership data
+    const updatedTiles = { ...map.tiles };
+    let updatedCount = 0;
+
+    for (const tileUpdate of data.tiles) {
+      const tileKey = `${tileUpdate.x},${tileUpdate.y}`;
+      const existingTile = updatedTiles[tileKey];
+
+      if (existingTile) {
+        updatedTiles[tileKey] = {
+          ...existingTile,
+          owner: tileUpdate.owner || undefined,
+        };
+        updatedCount++;
+      }
+    }
+
+    if (updatedCount > 0) {
+      useGameStore.getState().updateGameState({
+        map: {
+          ...map,
+          tiles: updatedTiles,
+        },
+      });
+      console.log(`🎯 Updated ownership for ${updatedCount} tiles - Border system active!`);
+    }
+  }
+
+  /**
+   * Handle border source update packets - updates cities/forts that generate borders
+   */
+  private handleBorderSourceUpdate(data: any): void {
+    console.log('Border source update received:', data);
+    // Border sources are typically handled via city/fort updates
+    // This would be used for more advanced border mechanics
+  }
+
+  /**
+   * Handle border change notifications - territory gained/lost events
+   */
+  private handleBorderChangeNotification(data: any): void {
+    console.log('Border change notification:', data);
+
+    if (data.playerId && data.tilesGained?.length > 0) {
+      console.log(`Player ${data.playerId} gained ${data.tilesGained.length} tiles`);
+    }
+
+    if (data.playerId && data.tilesLost?.length > 0) {
+      console.log(`Player ${data.playerId} lost ${data.tilesLost.length} tiles`);
+    }
+
+    // Could show UI notifications here for territory changes
   }
 }
 

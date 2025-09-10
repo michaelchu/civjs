@@ -58,7 +58,7 @@ describe('TerrainGenerator - Relief Generation System', () => {
           elevation: heightMap[index],
           temperature: TemperatureType.TEMPERATE,
           wetness: 50,
-          owner: null,
+          owner: undefined,
           city: null,
           units: [],
           unitIds: [],
