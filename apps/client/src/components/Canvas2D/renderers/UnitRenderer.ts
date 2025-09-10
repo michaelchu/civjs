@@ -21,10 +21,20 @@ export class UnitRenderer extends BaseRenderer {
    * Render unit selection outline.
    */
   renderUnitSelection(state: RenderState): void {
-    if (state.selectedUnitId) {
+    // Render all focused units with selection outlines
+    const focusedUnits = state.focusedUnits || [];
+    if (focusedUnits.length > 0) {
+      focusedUnits.forEach((unitId, index) => {
+        const unit = state.units[unitId];
+        if (unit && this.isInViewport(unit.x, unit.y, state.viewport)) {
+          this.renderUnitSelectionOutline(unit, state.viewport, index === 0);
+        }
+      });
+    } else if (state.selectedUnitId) {
+      // Fallback to legacy single selection
       const selectedUnit = state.units[state.selectedUnitId];
       if (selectedUnit && this.isInViewport(selectedUnit.x, selectedUnit.y, state.viewport)) {
-        this.renderUnitSelectionOutline(selectedUnit, state.viewport);
+        this.renderUnitSelectionOutline(selectedUnit, state.viewport, true);
       }
     } else {
       // Reset animation state when no unit is selected
@@ -238,7 +248,11 @@ export class UnitRenderer extends BaseRenderer {
    * Render pulsating diamond selection outline for selected unit
    * Renders on main canvas between terrain and units for proper layering
    */
-  private renderUnitSelectionOutline(unit: Unit, viewport: MapViewport): void {
+  private renderUnitSelectionOutline(
+    unit: Unit,
+    viewport: MapViewport,
+    isPrimary: boolean = true
+  ): void {
     const screenPos = this.mapToScreen(unit.x, unit.y, viewport);
 
     // Reset animation when unit selection changes
@@ -277,8 +291,9 @@ export class UnitRenderer extends BaseRenderer {
     const halfWidth = this.tileWidth / 2;
     const halfHeight = this.tileHeight / 2;
 
-    // Draw the diamond outline with pulsating yellow stroke
-    this.ctx.strokeStyle = `rgba(255, 255, 0, ${opacity})`;
+    // Draw the diamond outline with pulsating stroke - different colors for multi-select
+    const baseColor = isPrimary ? '255, 255, 0' : '0, 255, 255'; // Yellow for primary, cyan for secondary
+    this.ctx.strokeStyle = `rgba(${baseColor}, ${opacity})`;
     this.ctx.lineWidth = lineWidth;
     this.ctx.beginPath();
     this.ctx.moveTo(centerX, centerY - halfHeight); // Top

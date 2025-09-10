@@ -624,20 +624,82 @@ class GameClient {
     }
   }
 
-  moveUnit(unitId: string, _fromX: number, _fromY: number, toX: number, toY: number) {
-    if (!this.socket) return;
+  /**
+   * Move unit method for keyboard controls
+   */
+  async moveUnit(unitId: string, toX: number, toY: number): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Socket not connected'));
+        return;
+      }
 
-    const packet: Packet = {
-      type: PacketType.UNIT_MOVE,
-      data: {
-        unitId,
-        x: toX, // Server expects x, y as destination
-        y: toY,
-      },
-      timestamp: Date.now(),
-    };
+      const packet: Packet = {
+        type: PacketType.UNIT_MOVE,
+        data: {
+          unitId,
+          x: toX,
+          y: toY,
+        },
+        timestamp: Date.now(),
+      };
 
-    this.socket.emit('packet', packet);
+      // Set up response handler
+      const responseHandler = (replyPacket: any) => {
+        if (replyPacket.type === PacketType.UNIT_MOVE_REPLY && replyPacket.data.unitId === unitId) {
+          this.socket?.off('packet', responseHandler);
+          if (replyPacket.data.success) {
+            resolve(true);
+          } else {
+            reject(new Error(replyPacket.data.message || 'Failed to move unit'));
+          }
+        }
+      };
+
+      this.socket.on('packet', responseHandler);
+
+      // Set timeout
+      setTimeout(() => {
+        this.socket?.off('packet', responseHandler);
+        reject(new Error('Move request timed out'));
+      }, 5000);
+
+      this.socket.emit('packet', packet);
+    });
+  }
+
+  /**
+   * Execute a unit action via socket event
+   */
+  async executeUnitAction(
+    unitId: string,
+    actionType: string,
+    targetX?: number,
+    targetY?: number
+  ): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Socket not connected'));
+        return;
+      }
+
+      this.socket.emit(
+        'unit_action',
+        {
+          unitId,
+          actionType,
+          targetX,
+          targetY,
+        },
+        (response: any) => {
+          if (response.success) {
+            resolve(true);
+          } else {
+            reject(new Error(response.error || 'Action failed'));
+          }
+        }
+      );
+    });
   }
 
   foundCity(name: string, x: number, y: number): Promise<string> {

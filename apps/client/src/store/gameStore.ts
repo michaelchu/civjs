@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import type { GameState, ClientState, GameTab, MapViewport, ResearchState } from '../types';
+import type { GameState, ClientState, GameTab, MapViewport, ResearchState, Unit } from '../types';
+import {
+  findBestFocusCandidate,
+  addUnitToFocus,
+  removeUnitFromFocus,
+  addToUrgentFocus,
+  getVisuallyFocusedUnits,
+  canFocusUnit,
+} from '../utils/focusManagement';
 
 export type TurnProcessingState = 'idle' | 'processing' | 'completed' | 'error';
 
@@ -17,8 +25,14 @@ interface GameStore extends GameState {
   currentGameId: string | null;
   activeTab: GameTab;
   viewport: MapViewport;
+  // Legacy single selection (maintained for backward compatibility)
   selectedUnitId: string | null;
   selectedCityId: string | null;
+
+  // Multi-unit focus system
+  focusedUnits: string[];
+  urgentFocusQueue: string[];
+  lastFocusedUnit: string | null;
 
   // Turn processing state
   turnProcessingState: TurnProcessingState;
@@ -31,6 +45,13 @@ interface GameStore extends GameState {
   setViewport: (viewport: Partial<MapViewport>) => void;
   selectUnit: (unitId: string | null) => void;
   selectCity: (cityId: string | null) => void;
+
+  // Multi-unit focus actions
+  addToFocus: (unitId: string, multiSelect?: boolean) => void;
+  removeFromFocus: (unitId: string) => void;
+  clearFocus: () => void;
+  advanceUnitFocus: (sameType?: boolean) => void;
+  setUrgentFocus: (unitId: string) => void;
 
   // Research actions
   updateResearchState: (researchState: Partial<ResearchState>) => void;
@@ -52,6 +73,8 @@ interface GameStore extends GameState {
   getCurrentPlayer: () => ReturnType<typeof getCurrentPlayer>;
   getSelectedUnit: () => ReturnType<typeof getSelectedUnit>;
   getSelectedCity: () => ReturnType<typeof getSelectedCity>;
+  getFocusedUnits: () => Unit[];
+  getPrimaryFocusedUnit: () => Unit | null;
 }
 
 // Helper functions for computed values
@@ -65,6 +88,14 @@ const getSelectedUnit = (state: GameStore) => {
 
 const getSelectedCity = (state: GameStore) => {
   return state.selectedCityId ? state.cities[state.selectedCityId] || null : null;
+};
+
+const getFocusedUnits = (state: GameStore): Unit[] => {
+  return getVisuallyFocusedUnits(state.units, state.focusedUnits);
+};
+
+const getPrimaryFocusedUnit = (state: GameStore): Unit | null => {
+  return state.focusedUnits.length > 0 ? state.units[state.focusedUnits[0]] || null : null;
 };
 
 export const useGameStore = create<GameStore>()(
@@ -103,6 +134,11 @@ export const useGameStore = create<GameStore>()(
     selectedUnitId: null,
     selectedCityId: null,
 
+    // Multi-unit focus initial state
+    focusedUnits: [],
+    urgentFocusQueue: [],
+    lastFocusedUnit: null,
+
     // Turn processing initial state
     turnProcessingState: 'idle',
     turnProcessingSteps: [],
@@ -127,7 +163,11 @@ export const useGameStore = create<GameStore>()(
     },
 
     selectUnit: (unitId: string | null) => {
-      set({ selectedUnitId: unitId });
+      set({
+        selectedUnitId: unitId,
+        // Sync with focus system for backward compatibility
+        focusedUnits: unitId ? [unitId] : [],
+      });
     },
 
     selectCity: (cityId: string | null) => {
@@ -208,9 +248,75 @@ export const useGameStore = create<GameStore>()(
       console.log('Starting revolution to:', requestedGovernment);
     },
 
+    // Multi-unit focus actions
+    addToFocus: (unitId: string, multiSelect: boolean = false) => {
+      const state = get();
+      const unit = state.units[unitId];
+      if (!canFocusUnit(unit, state.currentPlayerId)) return;
+
+      const newFocus = addUnitToFocus(state.focusedUnits, unitId, multiSelect);
+      set({
+        focusedUnits: newFocus,
+        selectedUnitId: newFocus[0] || null, // Keep legacy field synced
+        lastFocusedUnit: state.focusedUnits.length > 0 ? state.focusedUnits[0] : null,
+      });
+    },
+
+    removeFromFocus: (unitId: string) => {
+      const state = get();
+      const { focus, urgentQueue } = removeUnitFromFocus(
+        state.focusedUnits,
+        state.urgentFocusQueue,
+        unitId
+      );
+      set({
+        focusedUnits: focus,
+        urgentFocusQueue: urgentQueue,
+        selectedUnitId: focus[0] || null, // Keep legacy field synced
+      });
+    },
+
+    clearFocus: () => {
+      set({
+        focusedUnits: [],
+        selectedUnitId: null,
+        lastFocusedUnit: get().focusedUnits[0] || null,
+      });
+    },
+
+    advanceUnitFocus: (sameType: boolean = false) => {
+      const state = get();
+      const candidate = findBestFocusCandidate(
+        state.units,
+        state.currentPlayerId,
+        false,
+        sameType,
+        state.focusedUnits
+      );
+
+      if (candidate) {
+        set({
+          focusedUnits: [candidate.id],
+          selectedUnitId: candidate.id,
+          lastFocusedUnit: state.focusedUnits[0] || null,
+        });
+      } else {
+        // No candidate found - clear focus
+        get().clearFocus();
+      }
+    },
+
+    setUrgentFocus: (unitId: string) => {
+      set(state => ({
+        urgentFocusQueue: addToUrgentFocus(state.urgentFocusQueue, unitId),
+      }));
+    },
+
     // Computed getters
     getCurrentPlayer: () => getCurrentPlayer(get()),
     getSelectedUnit: () => getSelectedUnit(get()),
     getSelectedCity: () => getSelectedCity(get()),
+    getFocusedUnits: () => getFocusedUnits(get()),
+    getPrimaryFocusedUnit: () => getPrimaryFocusedUnit(get()),
   }))
 );

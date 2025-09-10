@@ -8,6 +8,7 @@ export interface RenderState {
   units: Record<string, Unit>;
   cities: Record<string, City>;
   selectedUnitId?: string | null;
+  focusedUnits?: string[];
   gotoPath?: GotoPath | null;
 }
 
