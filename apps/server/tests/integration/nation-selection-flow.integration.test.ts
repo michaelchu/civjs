@@ -283,7 +283,7 @@ describe('Nation Selection Flow - Integration', () => {
       });
     });
 
-    it.skip('should handle random nation selection for second player', async () => {
+    it('should handle random nation selection for second player', async () => {
       // Create first user and join with specific nation
       const firstUserId = generateTestUUID();
       const db = getTestDatabase();
