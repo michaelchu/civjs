@@ -23,6 +23,9 @@ export class MapRenderer {
   private tilesetLoader: TilesetLoader;
   private isInitialized = false;
 
+  // Flag to force immediate render bypassing timing checks
+  private forceImmediateRender = false;
+
   // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:27-36
   // Performance timing system ported from freeciv-web
   private lastRedrawTime = 0;
@@ -103,14 +106,20 @@ export class MapRenderer {
     this.ctx.font = '14px Arial, sans-serif';
   }
 
-  render(state: RenderState) {
+  render(state: RenderState, immediate = false) {
     // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:688-700
     // Implement freeciv-web's performance timing system
     const currentTime = new Date().getTime();
     const timeSinceLastRender = currentTime - this.lastRedrawTime;
 
     // Skip render if not enough time has passed (freeciv-web timing logic)
-    if (this.lastRedrawTime > 0 && timeSinceLastRender < this.MAPVIEW_REFRESH_INTERVAL) {
+    // Unless immediate render is requested (for critical updates like goto paths)
+    if (
+      !immediate &&
+      !this.forceImmediateRender &&
+      this.lastRedrawTime > 0 &&
+      timeSinceLastRender < this.MAPVIEW_REFRESH_INTERVAL
+    ) {
       return;
     }
 
@@ -164,6 +173,7 @@ export class MapRenderer {
 
     // Render borders after terrain but before units (following freeciv-web layer order)
     // @reference freeciv-web/javascript/2dcanvas/mapview.js:580-720 - Border rendering in layer order
+    // Note: BorderRenderer now properly saves/restores canvas state to avoid affecting subsequent layers
     this.borderRenderer.render(state);
 
     // Render selection outline after terrain but before units
@@ -198,6 +208,14 @@ export class MapRenderer {
         this.MAPVIEW_REFRESH_INTERVAL = Math.max(40, Math.min(140, this.MAPVIEW_REFRESH_INTERVAL));
       }
     }
+  }
+
+  /**
+   * Enable or disable immediate rendering mode
+   * When enabled, renders bypass timing checks for immediate updates
+   */
+  setImmediateRenderMode(enabled: boolean): void {
+    this.forceImmediateRender = enabled;
   }
 
   private clearCanvas(fillBackground = true, backgroundColor = '#4682B4') {

@@ -261,6 +261,9 @@ export class BorderRenderer extends BaseRenderer {
     const { drawDashedBorders, drawTertiaryColors, drawThickBorders, drawMovingBorders } =
       this.options;
 
+    // Save canvas state before modifying any properties
+    ctx.save();
+
     // Use exact freeciv-web coordinates (canvas_x + 47, canvas_y + 3)
     // @reference freeciv-web/javascript/2dcanvas/mapview.js:707-708
     const x = canvasX + 47; // Fixed offset matching freeciv-web
@@ -376,8 +379,8 @@ export class BorderRenderer extends BaseRenderer {
       }
     }
 
-    // Reset line dash
-    ctx.setLineDash([]);
+    // Restore canvas state to avoid affecting subsequent renders
+    ctx.restore();
   }
 
   /**
@@ -386,6 +389,9 @@ export class BorderRenderer extends BaseRenderer {
    */
   private drawTerritoryFill(color: string, canvasX: number, canvasY: number): void {
     const ctx = this.ctx;
+
+    // Save canvas state
+    ctx.save();
     // Use exact freeciv-web coordinates (canvas_x + 47, canvas_y + 25)
     const x = canvasX + 47;
     const y = canvasY + 25;
@@ -402,6 +408,9 @@ export class BorderRenderer extends BaseRenderer {
 
     ctx.closePath();
     ctx.fill();
+
+    // Restore canvas state
+    ctx.restore();
   }
 
   /**
