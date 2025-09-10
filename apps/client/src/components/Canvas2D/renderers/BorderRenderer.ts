@@ -251,42 +251,85 @@ export class BorderRenderer extends BaseRenderer {
     // @reference freeciv-web/javascript/2dcanvas/mapview.js:738-820
     switch (dir) {
       case Direction.DIR8_NORTH:
-        // @reference freeciv-web line 741-742: pcanvas.moveTo(x, y - 2, x + (tileset_tile_width / 2));
+        // @reference freeciv-web line 741-742: exact coordinates
         ctx.moveTo(x, y - 2);
         ctx.lineTo(x + this.tileWidth / 2, y + this.tileHeight / 2 - 2);
         break;
 
       case Direction.DIR8_EAST:
-        // @reference freeciv-web line 761-762: East direction coordinates
+        // @reference freeciv-web line 761-762: exact coordinates
         ctx.moveTo(x - 3, y + this.tileHeight - 3);
         ctx.lineTo(x + this.tileWidth / 2 - 3, y + this.tileHeight / 2 - 3);
         break;
 
       case Direction.DIR8_SOUTH:
-        // @reference freeciv-web line 780-781: South direction coordinates
-        ctx.moveTo(x + this.tileWidth / 2 - 3, y + this.tileHeight / 2 - 3);
-        ctx.lineTo(x, y + this.tileHeight - 3);
+        // @reference freeciv-web line 781-782: CORRECTED coordinates
+        ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+        ctx.lineTo(x + 3, y + this.tileHeight - 3);
         break;
 
       case Direction.DIR8_WEST:
-        // @reference freeciv-web line 799-800: West direction coordinates
-        ctx.moveTo(x, y - 3);
-        ctx.lineTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+        // @reference freeciv-web line 801-802: CORRECTED coordinates
+        ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+        ctx.lineTo(x + 3, y - 3);
         break;
     }
 
     ctx.stroke();
 
-    // Draw secondary color if not using dashed borders
+    // Draw secondary and tertiary colors following freeciv-web pattern
     if (!drawDashedBorders) {
+      // Secondary color layer
       ctx.strokeStyle = color2;
       ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+
+      // Redraw the same path for secondary color
+      switch (dir) {
+        case Direction.DIR8_NORTH:
+          ctx.moveTo(x, y - 2);
+          ctx.lineTo(x + this.tileWidth / 2, y + this.tileHeight / 2 - 2);
+          break;
+        case Direction.DIR8_EAST:
+          ctx.moveTo(x - 3, y + this.tileHeight - 3);
+          ctx.lineTo(x + this.tileWidth / 2 - 3, y + this.tileHeight / 2 - 3);
+          break;
+        case Direction.DIR8_SOUTH:
+          ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+          ctx.lineTo(x + 3, y + this.tileHeight - 3);
+          break;
+        case Direction.DIR8_WEST:
+          ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+          ctx.lineTo(x + 3, y - 3);
+          break;
+      }
       ctx.stroke();
 
-      // Draw tertiary color if enabled
+      // Tertiary color layer if enabled
       if (drawTertiaryColors) {
         ctx.strokeStyle = color;
         ctx.setLineDash([6, 18]);
+        ctx.beginPath();
+
+        // Redraw the same path for tertiary color
+        switch (dir) {
+          case Direction.DIR8_NORTH:
+            ctx.moveTo(x, y - 2);
+            ctx.lineTo(x + this.tileWidth / 2, y + this.tileHeight / 2 - 2);
+            break;
+          case Direction.DIR8_EAST:
+            ctx.moveTo(x - 3, y + this.tileHeight - 3);
+            ctx.lineTo(x + this.tileWidth / 2 - 3, y + this.tileHeight / 2 - 3);
+            break;
+          case Direction.DIR8_SOUTH:
+            ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+            ctx.lineTo(x + 3, y + this.tileHeight - 3);
+            break;
+          case Direction.DIR8_WEST:
+            ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
+            ctx.lineTo(x + 3, y - 3);
+            break;
+        }
         ctx.stroke();
       }
     }
