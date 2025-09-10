@@ -135,6 +135,9 @@ export interface MapTile {
   properties: TerrainProperties;
   temperature: TemperatureType;
   wetness: number; // 0-100, higher = more wet
+  // Border system - tile ownership
+  owner?: string; // Player ID who owns this tile (null for unclaimed)
+  claimer?: string; // Player ID who claimed this tile (for diplomacy)
 }
 
 export interface MapData {
