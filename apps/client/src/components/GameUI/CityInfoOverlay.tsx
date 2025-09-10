@@ -299,7 +299,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="sm:max-w-4xl w-full h-[85vh] max-h-[800px] min-h-[600px] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Building2 className="h-6 w-6" />
@@ -323,7 +323,11 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="w-full flex flex-col flex-1 min-h-0"
+        >
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="main" className="flex items-center gap-2">
               <Home className="h-4 w-4" />
@@ -339,7 +343,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="main" className="space-y-4 max-h-[60vh] overflow-y-auto">
+          <TabsContent value="main" className="space-y-4 flex-1 overflow-y-auto min-h-0 p-1">
             {/* Population Status */}
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 border rounded-lg bg-blue-50">
@@ -540,7 +544,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   <Building2 className="h-4 w-4" />
                   Buildings ({cityData.buildings.length})
                 </h3>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
+                <div className="space-y-2 h-40 overflow-y-auto">
                   {cityData.buildings.map((building, index) => (
                     <div
                       key={index}
@@ -571,7 +575,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                         <Home className="h-4 w-4" />
                         Present Units ({presentUnits.length})
                       </h3>
-                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                      <div className="space-y-2 h-32 overflow-y-auto">
                         {presentUnits.map(unit => (
                           <div
                             key={unit.id}
@@ -595,7 +599,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                         <Sword className="h-4 w-4" />
                         Supported Units ({supportedUnits.length})
                       </h3>
-                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                      <div className="space-y-2 h-32 overflow-y-auto">
                         {supportedUnits.map(unit => (
                           <div
                             key={unit.id}
@@ -616,7 +620,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
             )}
           </TabsContent>
 
-          <TabsContent value="production" className="space-y-4 max-h-[60vh] overflow-y-auto">
+          <TabsContent value="production" className="space-y-4 flex-1 overflow-y-auto min-h-0 p-1">
             {/* Current Production */}
             {city.production && (
               <div className="p-4 border rounded-lg bg-purple-50">
@@ -835,73 +839,77 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
               </div>
 
               {/* Queue Items */}
-              {cityData.worklist.length > 0 ? (
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {cityData.worklist.map((item, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded border hover:bg-gray-100 transition-colors group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex flex-col gap-1">
+              <div className="h-48 overflow-hidden">
+                {cityData.worklist.length > 0 ? (
+                  <div className="space-y-2 h-full overflow-y-auto">
+                    {cityData.worklist.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded border hover:bg-gray-100 transition-colors group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex flex-col gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() =>
+                                onQueueReorder?.(city.id, index, Math.max(0, index - 1))
+                              }
+                              disabled={index === 0}
+                            >
+                              <ArrowUp className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() =>
+                                onQueueReorder?.(
+                                  city.id,
+                                  index,
+                                  Math.min(cityData.worklist.length - 1, index + 1)
+                                )
+                              }
+                              disabled={index === cityData.worklist.length - 1}
+                            >
+                              <ArrowDown className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <span className="text-xs bg-gray-200 rounded-full w-6 h-6 flex items-center justify-center font-medium">
+                            {index + 1}
+                          </span>
+                          <div>
+                            <span className="font-medium">{item.target}</span>
+                            <div className="text-xs text-gray-500">{item.cost} shields</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="capitalize text-xs">
+                            {item.type}
+                          </Badge>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => onQueueReorder?.(city.id, index, Math.max(0, index - 1))}
-                            disabled={index === 0}
+                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => onQueueRemove?.(city.id, index)}
                           >
-                            <ArrowUp className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() =>
-                              onQueueReorder?.(
-                                city.id,
-                                index,
-                                Math.min(cityData.worklist.length - 1, index + 1)
-                              )
-                            }
-                            disabled={index === cityData.worklist.length - 1}
-                          >
-                            <ArrowDown className="h-3 w-3" />
+                            <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
-                        <span className="text-xs bg-gray-200 rounded-full w-6 h-6 flex items-center justify-center font-medium">
-                          {index + 1}
-                        </span>
-                        <div>
-                          <span className="font-medium">{item.target}</span>
-                          <div className="text-xs text-gray-500">{item.cost} shields</div>
-                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="capitalize text-xs">
-                          {item.type}
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => onQueueRemove?.(city.id, index)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No items in production queue</p>
-                  <p className="text-xs text-muted-foreground">
-                    Add items to queue using the button above
-                  </p>
-                </div>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No items in production queue</p>
+                    <p className="text-xs text-muted-foreground">
+                      Add items to queue using the button above
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Trade Routes */}
@@ -935,7 +943,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
             )}
           </TabsContent>
 
-          <TabsContent value="happiness" className="space-y-4 max-h-[60vh] overflow-y-auto">
+          <TabsContent value="happiness" className="space-y-4 flex-1 overflow-y-auto min-h-0 p-1">
             {/* Citizens Overview */}
             {cityData.citizens && (
               <div>
