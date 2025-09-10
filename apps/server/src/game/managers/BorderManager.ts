@@ -201,14 +201,23 @@ export class BorderManager {
 
     let strongestSource: BorderSource | null = null;
     let maxStrength = 0;
+    const debugInfo: any[] = [];
 
     // Check all border sources that could reach this tile
     for (const [, source] of this.borderSources) {
       const distance = this.getSquaredDistance(x, y, source.x, source.y);
       const sourceRadius = this.getBorderSourceRadius(source);
+      const withinRadius = distance <= sourceRadius * sourceRadius; // Fix: compare squared distance with squared radius
 
-      if (distance <= sourceRadius) {
+      if (withinRadius) {
         const tileStrength = this.getTileBorderStrength(x, y, source);
+        debugInfo.push({
+          sourcePos: { x: source.x, y: source.y },
+          distance,
+          radius: sourceRadius,
+          strength: tileStrength,
+          isStrongest: tileStrength > maxStrength,
+        });
 
         if (tileStrength > maxStrength) {
           maxStrength = tileStrength;
@@ -217,13 +226,44 @@ export class BorderManager {
       }
     }
 
-    return {
+    const result = {
       x,
       y,
       playerId: strongestSource?.playerId || null,
       strength: maxStrength,
       claimedBy: strongestSource,
     };
+
+    // Log detailed calculation for tiles around cities
+    const distanceFromAnyCity =
+      this.borderSources.size > 0
+        ? Math.min(
+            ...Array.from(this.borderSources.values()).map(source =>
+              this.getSquaredDistance(x, y, source.x, source.y)
+            )
+          )
+        : Infinity;
+
+    if (this.borderSources.size > 0 && (distanceFromAnyCity <= 25 || maxStrength > 0)) {
+      logger.info('🧮 Tile ownership calculation', {
+        tile: { x, y },
+        borderSourcesCount: this.borderSources.size,
+        distanceFromNearestCity: Math.sqrt(distanceFromAnyCity),
+        candidateSources: debugInfo,
+        allSources: Array.from(this.borderSources.values()).map(s => ({
+          pos: { x: s.x, y: s.y },
+          radius: this.getBorderSourceRadius(s),
+          strength: this.getBorderSourceStrength(s),
+        })),
+        result: {
+          owner: result.playerId,
+          strength: result.strength,
+          claimedBy: result.claimedBy ? { x: result.claimedBy.x, y: result.claimedBy.y } : null,
+        },
+      });
+    }
+
+    return result;
   }
 
   /**
@@ -265,7 +305,8 @@ export class BorderManager {
       const distance = this.getSquaredDistance(x, y, source.x, source.y);
       const sourceRadius = this.getBorderSourceRadius(source);
 
-      if (distance <= sourceRadius) {
+      if (distance <= sourceRadius * sourceRadius) {
+        // Fix: compare squared distance with squared radius
         sources.push(source);
       }
     }
@@ -321,11 +362,34 @@ export class BorderManager {
 
     this.borderSources.set(key, source);
 
-    logger.debug('Added border source', { source });
+    logger.info('🏘️ Adding border source for city', {
+      source,
+      bordersEnabled: this.areBordersEnabled(),
+      gameSettings: this.gameSettings,
+    });
+
+    // Calculate radius and strength for debugging
+    const actualRadius = this.getBorderSourceRadius(source);
+    const actualStrength = this.getBorderSourceStrength(source);
+    logger.info('🔍 Border source calculations', {
+      x: source.x,
+      y: source.y,
+      providedRadius: source.radius,
+      calculatedRadius: actualRadius,
+      providedStrength: source.strength,
+      calculatedStrength: actualStrength,
+      citySize: this.getCitySize(source.x, source.y),
+    });
 
     // Update borders around this source and collect changes
-    const borderUpdate = this.updateBordersAroundTileWithUpdate(source.x, source.y, source.radius);
+    const borderUpdate = this.updateBordersAroundTileWithUpdate(source.x, source.y, actualRadius);
     borderUpdate.sources = [source];
+
+    logger.info('🌍 Border update generated', {
+      tilesUpdated: borderUpdate.tiles.length,
+      affectedPlayers: borderUpdate.affectedPlayers,
+      sourcesCount: borderUpdate.sources.length,
+    });
 
     // Trigger callbacks
     this.callbacks.onBorderSourceAdded?.(source);
