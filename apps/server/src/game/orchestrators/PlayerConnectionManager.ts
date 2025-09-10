@@ -95,8 +95,15 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     const selectedNation = await this.validateAndSelectNation(civilization, game.players);
 
     // Get next available color from predefined palette
+    // TODO: Upgrade to use full 3-color themes when UI supports it
     const usedColors = game.players.map(p => p.color as PlayerColor);
     const assignedColor = getNextPlayerColor(usedColors);
+
+    // For future reference - how to get a full color theme:
+    // import { getNextPlayerColorTheme, type NationColorTheme } from '../../utils/playerColors';
+    // const usedThemes = game.players.map(p => ({ primary: p.color } as NationColorTheme));
+    // const assignedTheme = getNextPlayerColorTheme(usedThemes);
+    // const assignedColor = assignedTheme.primary;
 
     const playerData = {
       gameId,
