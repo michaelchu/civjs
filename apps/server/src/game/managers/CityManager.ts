@@ -1273,27 +1273,9 @@ export class CityManager {
 
       // Provide city center base output for any missing essential outputs
       // Cities should always have at least city center production values
-      if (tileOutputs.food < 2) {
-        logger.warn(
-          `City ${city.name} has insufficient food (${tileOutputs.food}), providing city center base`,
-          { cityId }
-        );
-        tileOutputs.food = Math.max(tileOutputs.food, 2);
-      }
-      if (tileOutputs.shields < 1) {
-        logger.warn(
-          `City ${city.name} has insufficient shields (${tileOutputs.shields}), providing city center base`,
-          { cityId }
-        );
-        tileOutputs.shields = Math.max(tileOutputs.shields, 1);
-      }
-      if (tileOutputs.trade < 1) {
-        logger.warn(
-          `City ${city.name} has insufficient trade (${tileOutputs.trade}), providing city center base`,
-          { cityId }
-        );
-        tileOutputs.trade = Math.max(tileOutputs.trade, 1);
-      }
+      tileOutputs.food = Math.max(tileOutputs.food, 2);
+      tileOutputs.shields = Math.max(tileOutputs.shields, 1);
+      tileOutputs.trade = Math.max(tileOutputs.trade, 1);
 
       let science = 0;
       let gold = 0;
@@ -1341,12 +1323,6 @@ export class CityManager {
       city.productionPerTurn = tileOutputs.shields || 0;
       city.tradePerTurn = tileOutputs.trade || 0;
       city.sciencePerTurn = science || 0;
-
-      logger.debug(`🏙️ Updated city outputs for ${city.name}:`, {
-        cityId,
-        tileOutputs: `food:${tileOutputs.food}, shields:${tileOutputs.shields}, trade:${tileOutputs.trade}`,
-        computed: `science:${science}, productionPerTurn:${city.productionPerTurn}, sciencePerTurn:${city.sciencePerTurn}`,
-      });
 
       return {
         food: tileOutputs.food,
