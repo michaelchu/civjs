@@ -11,6 +11,17 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
     const setup = await setupGameManagerWithScenario();
     gameManager = setup.gameManager;
     scenario = setup.scenario;
+
+    // Set up callbacks between CityManager and UnitManager for production completion
+    const gameInstance = gameManager.getGameInstance(scenario.game.id)!;
+    gameInstance.cityManager.setCallbacks({
+      onCityProductionComplete: (city, item) => {
+        if (item.kind === 'unit') {
+          // Create unit at city location
+          gameInstance.unitManager.createUnit(city.playerId, item.value, city.x, city.y);
+        }
+      },
+    });
   });
 
   afterEach(() => {
@@ -26,8 +37,10 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       gameId = scenario.game.id;
       playerId = scenario.players[0].id;
 
-      // Found a city for production
-      cityId = await gameManager.foundCity(gameId, playerId, 'ProductionCity', 5, 5);
+      // Found a city for production using the game instance's city manager
+      const game = gameManager.getGameInstance(gameId)!;
+      const city = await game.cityManager.foundCity(5, 5, 'ProductionCity', playerId);
+      cityId = city!.id;
     });
 
     it('should complete warrior production and create unit with proper database persistence', async () => {

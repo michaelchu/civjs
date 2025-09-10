@@ -33,6 +33,16 @@ describe('CityManager - Integration Tests with Real Database', () => {
     // Initialize CityManager with test database provider
     const testDbProvider = getTestDatabaseProvider();
     cityManager = new CityManager(testData.game.id, testDbProvider, effectsManager, {});
+
+    // Set up a mock MapManager and initialize the CityManager
+    const mockMapManager = {
+      getMapData: () => ({ width: 20, height: 20, tiles: [] }),
+      isValidPosition: () => true,
+      getTile: () => ({ terrain: 'grassland', resource: null }),
+    } as any;
+
+    cityManager.setMapManager(mockMapManager);
+    await cityManager.initialize();
   });
 
   afterEach(async () => {

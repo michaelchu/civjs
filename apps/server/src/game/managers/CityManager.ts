@@ -507,7 +507,7 @@ export class CityManager {
     name: string,
     playerId: string,
     settlerId?: string
-  ): Promise<CityState | null> {
+  ): Promise<CityState> {
     logger.info(`Attempting to found city "${name}" at (${x}, ${y}) for player ${playerId}`);
 
     // Validate city founding
@@ -520,7 +520,7 @@ export class CityManager {
         settlerId,
         errorCode: validation.errorCode,
       });
-      return null;
+      throw new Error(validation.errorMessage);
     }
 
     const cityId = randomUUID();
@@ -866,6 +866,9 @@ export class CityManager {
       turnsToComplete: city.turnsToComplete,
     });
 
+    // Save changes to database
+    await this.saveCityToDatabase(city);
+
     return true;
   }
 
@@ -922,6 +925,19 @@ export class CityManager {
         // Initialize workable tiles for loaded cities
         if (this.tileManagementService) {
           this.tileManagementService.initializeWorkableTiles(city);
+
+          // Restore worked tiles from database
+          const workedTiles = record.workedTiles as Array<{ x: number; y: number }> | null;
+          if (workedTiles && city.workableTiles) {
+            for (const workedTileCoord of workedTiles) {
+              const tile = city.workableTiles.find(
+                t => t.x === workedTileCoord.x && t.y === workedTileCoord.y
+              );
+              if (tile) {
+                tile.isWorked = true;
+              }
+            }
+          }
         }
       }
 
@@ -1206,6 +1222,15 @@ export class CityManager {
       let gold = 0;
       let luxury = 0;
 
+      // Convert trade to science and gold (simplified economics)
+      // In a full implementation, this would be based on government type and city settings
+      // Ensure at least 1 science for any city with trade
+      const tradeToScience =
+        tileOutputs.trade > 0 ? Math.max(1, Math.floor(tileOutputs.trade / 2)) : 0;
+      const tradeToGold = Math.max(0, tileOutputs.trade - tradeToScience);
+      science += tradeToScience;
+      gold += tradeToGold;
+
       // Add specialist outputs
       for (const [specialistType, count] of Object.entries(city.specialists)) {
         const type = parseInt(specialistType) as SpecialistType;
@@ -1238,6 +1263,7 @@ export class CityManager {
       city.foodPerTurn = tileOutputs.food;
       city.productionPerTurn = tileOutputs.shields;
       city.tradePerTurn = tileOutputs.trade;
+      city.sciencePerTurn = science;
 
       return {
         food: tileOutputs.food,
