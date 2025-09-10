@@ -58,7 +58,7 @@ export class KeyboardController {
       description: 'Sentry/Sleep unit',
     });
 
-    this.keyBindings.set('ctrl+p', {
+    this.keyBindings.set('p', {
       action: ActionType.PATROL,
       description: 'Patrol unit',
     });
@@ -99,7 +99,7 @@ export class KeyboardController {
       description: 'Transform terrain',
     });
 
-    this.keyBindings.set('p', {
+    this.keyBindings.set('shift+o', {
       action: ActionType.CLEAN_POLLUTION,
       description: 'Clean pollution',
     });

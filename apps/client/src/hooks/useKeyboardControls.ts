@@ -141,11 +141,14 @@ export function useKeyboardControls() {
             }
 
             case ActionType.FOUND_CITY: {
-              // For found city, we need to get the unit's position and use a default name
+              // For found city, dispatch a custom event to trigger the name dialog
               const unit = primaryUnit || useGameStore.getState().units[unitId];
               if (unit) {
-                const cityName = `New City ${Date.now()}`; // Simple default name
-                await gameClient.foundCityWithUnit(unitId, cityName, unit.x, unit.y);
+                const event = new CustomEvent('show-city-name-dialog', {
+                  detail: { unit },
+                });
+                document.dispatchEvent(event);
+                return; // Exit early since we want the dialog to handle the rest
               }
               break;
             }

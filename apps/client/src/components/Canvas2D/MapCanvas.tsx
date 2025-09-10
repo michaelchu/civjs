@@ -108,12 +108,26 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       console.log('Action dialog requested for unit:', unit.id);
     };
 
+    const handleShowCityNameDialog = (event: CustomEvent) => {
+      const { unit } = event.detail;
+      console.log('City name dialog requested for unit:', unit.id);
+      setCityNameDialog({
+        isOpen: true,
+        unit: unit,
+      });
+    };
+
     document.addEventListener('activate-goto-mode', handleActivateGoto as EventListener);
     document.addEventListener('show-action-dialog', handleShowActionDialog as EventListener);
+    document.addEventListener('show-city-name-dialog', handleShowCityNameDialog as EventListener);
 
     return () => {
       document.removeEventListener('activate-goto-mode', handleActivateGoto as EventListener);
       document.removeEventListener('show-action-dialog', handleShowActionDialog as EventListener);
+      document.removeEventListener(
+        'show-city-name-dialog',
+        handleShowCityNameDialog as EventListener
+      );
     };
   }, [focusedUnits, setGotoMode]);
 
