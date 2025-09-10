@@ -257,6 +257,12 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       },
       onCityTurnProcessed: city => {
         // Transfer city science output to research manager
+        this.logger.debug(`🔬 City turn processed callback for ${city.name}:`, {
+          cityId: city.id,
+          sciencePerTurn: city.sciencePerTurn,
+          playerId: city.playerId,
+        });
+
         if (city.sciencePerTurn && city.sciencePerTurn > 0) {
           const completedTech = researchManager.addResearchPoints(
             city.playerId,

@@ -1271,12 +1271,28 @@ export class CityManager {
         return { food: 0, shields: 0, trade: 0, science: 0, gold: 0, luxury: 0 };
       }
 
-      // Provide city center base output if tile outputs are all zero
-      if (tileOutputs.food === 0 && tileOutputs.shields === 0 && tileOutputs.trade === 0) {
-        logger.warn('Tile outputs are zero, providing city center base outputs', { cityId });
-        tileOutputs.food = 2;
-        tileOutputs.shields = 1;
-        tileOutputs.trade = 1;
+      // Provide city center base output for any missing essential outputs
+      // Cities should always have at least city center production values
+      if (tileOutputs.food < 2) {
+        logger.warn(
+          `City ${city.name} has insufficient food (${tileOutputs.food}), providing city center base`,
+          { cityId }
+        );
+        tileOutputs.food = Math.max(tileOutputs.food, 2);
+      }
+      if (tileOutputs.shields < 1) {
+        logger.warn(
+          `City ${city.name} has insufficient shields (${tileOutputs.shields}), providing city center base`,
+          { cityId }
+        );
+        tileOutputs.shields = Math.max(tileOutputs.shields, 1);
+      }
+      if (tileOutputs.trade < 1) {
+        logger.warn(
+          `City ${city.name} has insufficient trade (${tileOutputs.trade}), providing city center base`,
+          { cityId }
+        );
+        tileOutputs.trade = Math.max(tileOutputs.trade, 1);
       }
 
       let science = 0;
@@ -1326,6 +1342,12 @@ export class CityManager {
       city.tradePerTurn = tileOutputs.trade || 0;
       city.sciencePerTurn = science || 0;
 
+      logger.debug(`🏙️ Updated city outputs for ${city.name}:`, {
+        cityId,
+        tileOutputs: `food:${tileOutputs.food}, shields:${tileOutputs.shields}, trade:${tileOutputs.trade}`,
+        computed: `science:${science}, productionPerTurn:${city.productionPerTurn}, sciencePerTurn:${city.sciencePerTurn}`,
+      });
+
       return {
         food: tileOutputs.food,
         shields: tileOutputs.shields,
@@ -1339,13 +1361,17 @@ export class CityManager {
     // Fallback calculation when TileManagementService is not available
     const city = this.cities.get(cityId);
     if (city) {
-      // Apply fallback outputs directly to city state
+      // Apply fallback outputs directly to city state with science calculation
       city.foodPerTurn = 2;
       city.productionPerTurn = 1;
       city.tradePerTurn = 1;
-      city.sciencePerTurn = 0;
+
+      // Calculate science from trade even in fallback mode
+      const tradeToScience =
+        city.tradePerTurn > 0 ? Math.max(1, Math.floor(city.tradePerTurn / 2)) : 0;
+      city.sciencePerTurn = tradeToScience;
     }
-    return { food: 2, shields: 1, trade: 1, science: 0, gold: 0, luxury: 0 };
+    return { food: 2, shields: 1, trade: 1, science: 1, gold: 0, luxury: 0 };
   }
 
   public refreshCityWithGovernmentEffects(cityId: string): void {
