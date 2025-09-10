@@ -299,7 +299,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl w-full h-[650px] max-h-[90vh] min-h-[600px] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-4xl w-full h-[580px] max-h-[85vh] min-h-[500px] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Building2 className="h-6 w-6" />
@@ -544,7 +544,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   <Building2 className="h-4 w-4" />
                   Buildings ({cityData.buildings.length})
                 </h3>
-                <div className="space-y-2 h-44 overflow-y-auto">
+                <div className="space-y-2 h-36 overflow-y-auto">
                   {cityData.buildings.map((building, index) => (
                     <div
                       key={index}
@@ -575,7 +575,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                         <Home className="h-4 w-4" />
                         Present Units ({presentUnits.length})
                       </h3>
-                      <div className="space-y-2 h-36 overflow-y-auto">
+                      <div className="space-y-2 h-28 overflow-y-auto">
                         {presentUnits.map(unit => (
                           <div
                             key={unit.id}
@@ -599,7 +599,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                         <Sword className="h-4 w-4" />
                         Supported Units ({supportedUnits.length})
                       </h3>
-                      <div className="space-y-2 h-36 overflow-y-auto">
+                      <div className="space-y-2 h-28 overflow-y-auto">
                         {supportedUnits.map(unit => (
                           <div
                             key={unit.id}
@@ -839,7 +839,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
               </div>
 
               {/* Queue Items */}
-              <div className="h-56 overflow-hidden">
+              <div className="h-44 overflow-hidden">
                 {cityData.worklist.length > 0 ? (
                   <div className="space-y-2 h-full overflow-y-auto">
                     {cityData.worklist.map((item, index) => (
