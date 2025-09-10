@@ -1363,6 +1363,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         city={cityInfoOverlay.city}
         isOpen={cityInfoOverlay.isOpen}
         onClose={handleCloseCityInfoOverlay}
+        units={units}
       />
     </div>
   );

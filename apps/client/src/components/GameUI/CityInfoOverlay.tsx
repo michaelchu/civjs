@@ -1,106 +1,232 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
-import { Building2, Users, Wheat, Shield, TrendingUp, Hammer, MapPin } from 'lucide-react';
-import type { City } from '../../types';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
+import {
+  Building2,
+  Users,
+  Wheat,
+  Shield,
+  Hammer,
+  MapPin,
+  Heart,
+  Frown,
+  Smile,
+  Zap,
+  Coins,
+  FlaskConical,
+  Truck,
+  Clock,
+  BarChart3,
+  Package2,
+  Sword,
+  Home,
+} from 'lucide-react';
+import type { City, Unit } from '../../types';
 
 interface CityInfoOverlayProps {
   city: City | null;
   isOpen: boolean;
   onClose: () => void;
+  units?: Record<string, Unit>; // For displaying present/supported units
 }
 
 /**
- * CityInfoOverlay displays detailed information about a city when right-clicked.
+ * CityInfoOverlay displays comprehensive city information with tabbed interface.
  *
  * Based on freeciv-web's show_city_dialog functionality:
- * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/city.js:138-226
- * - Shows city name and size in title
- * - Displays resource output (food, shields, trade)
- * - Lists buildings and current production
- * - Shows city position
+ * @reference freeciv-web/javascript/city.js:277-990
+ * - Tabbed interface (Main, Production, Happy)
+ * - Detailed resource breakdown with surplus/deficit indicators
+ * - Population details (grain storage, growth time)
+ * - Buildings with upkeep costs
+ * - Units (present and supported)
+ * - Citizens/specialists visualization
+ *
+ * Modern implementation with beautiful styling while maintaining game functionality.
  */
-export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({ city, isOpen, onClose }) => {
+export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
+  city,
+  isOpen,
+  onClose,
+  units = {},
+}) => {
+  const [activeTab, setActiveTab] = useState('main');
   if (!city) {
     return null;
   }
 
+  // Helper functions for backward compatibility and data access
+  const getCityData = () => {
+    // Handle both old and new city data structures
+    const prod = city.prod || {
+      food: city.food,
+      shields: city.shields,
+      trade: city.trade,
+      gold: 0,
+      luxury: 0,
+      science: 0,
+    };
+
+    const surplus = city.surplus || {
+      food: city.food,
+      shields: city.shields,
+      trade: city.trade,
+      gold: 0,
+      luxury: 0,
+      science: 0,
+    };
+
+    const citizens = city.citizens || {
+      happy: Math.max(0, city.size - 2),
+      content: Math.min(2, city.size),
+      unhappy: 0,
+      angry: 0,
+      specialists: {},
+    };
+
+    const waste = city.waste || { shields: 0, trade: 0 };
+    const buildings = Array.isArray(city.buildings)
+      ? city.buildings.map(building =>
+          typeof building === 'string' ? { id: building, name: building, upkeep: 0 } : building
+        )
+      : [];
+
+    return {
+      prod,
+      surplus,
+      citizens,
+      waste,
+      buildings,
+      foodStock: city.foodStock || 0,
+      granarySize: city.granarySize || city.size * 2,
+      granaryTurns: city.granaryTurns || 5,
+      celebrating: city.celebrating || false,
+      disorder: city.disorder || false,
+      pollution: city.pollution || 0,
+      presentUnits: city.presentUnits || [],
+      supportedUnits: city.supportedUnits || [],
+      worklist: city.worklist || [],
+      tradeRoutes: city.tradeRoutes || [],
+      rallyPoint: city.rallyPoint,
+    };
+  };
+
+  const cityData = getCityData();
+
+  const getResourceColor = (value: number) => {
+    if (value > 0) return 'text-green-600';
+    if (value < 0) return 'text-red-600';
+    return 'text-gray-600';
+  };
+
+  const getResourceBgColor = (value: number) => {
+    if (value > 0) return 'bg-green-50 border-green-200';
+    if (value < 0) return 'bg-red-50 border-red-200';
+    return 'bg-gray-50 border-gray-200';
+  };
+
+  const formatGrowthText = () => {
+    if (!cityData.granaryTurns) return 'Unknown';
+    if (cityData.granaryTurns < 0) {
+      return `Starves in ${Math.abs(cityData.granaryTurns)} turns`;
+    }
+    return `Growth in ${cityData.granaryTurns} turns`;
+  };
+
+  const getCityStateInfo = () => {
+    if (cityData.celebrating) return { text: 'Celebrating', color: 'text-green-600', icon: Heart };
+    if (cityData.disorder) return { text: 'Disorder', color: 'text-red-600', icon: Frown };
+    return { text: 'Peace', color: 'text-blue-600', icon: Smile };
+  };
+
+  const presentUnits = cityData.presentUnits?.map(id => units[id]).filter(Boolean) || [];
+  const supportedUnits = cityData.supportedUnits?.map(id => units[id]).filter(Boolean) || [];
+  const stateInfo = getCityStateInfo();
+  const StateIcon = stateInfo.icon;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            {city.name}
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            <Building2 className="h-6 w-6" />
+            {city.name} ({city.size})
           </DialogTitle>
           <DialogDescription>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-6 text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
                 <MapPin className="h-4 w-4" />
                 Position ({city.x}, {city.y})
               </div>
               <div className="flex items-center gap-1">
                 <Users className="h-4 w-4" />
-                Size {city.size}
+                Population: {(city.size * 1000).toLocaleString()}
+              </div>
+              <div className={`flex items-center gap-1 ${stateInfo.color}`}>
+                <StateIcon className="h-4 w-4" />
+                {stateInfo.text}
               </div>
             </div>
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Resource Output Section */}
-          <div>
-            <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Resource Output
-            </h3>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="flex flex-col items-center p-3 bg-green-50 rounded-lg border">
-                <Wheat className="h-5 w-5 text-green-600 mb-1" />
-                <div className="text-lg font-semibold text-green-700">{city.food}</div>
-                <div className="text-xs text-green-600">Food</div>
-              </div>
-              <div className="flex flex-col items-center p-3 bg-blue-50 rounded-lg border">
-                <Shield className="h-5 w-5 text-blue-600 mb-1" />
-                <div className="text-lg font-semibold text-blue-700">{city.shields}</div>
-                <div className="text-xs text-blue-600">Shields</div>
-              </div>
-              <div className="flex flex-col items-center p-3 bg-yellow-50 rounded-lg border">
-                <TrendingUp className="h-5 w-5 text-yellow-600 mb-1" />
-                <div className="text-lg font-semibold text-yellow-700">{city.trade}</div>
-                <div className="text-xs text-yellow-600">Trade</div>
-              </div>
-            </div>
-          </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="main" className="flex items-center gap-2">
+              <Home className="h-4 w-4" />
+              Main
+            </TabsTrigger>
+            <TabsTrigger value="production" className="flex items-center gap-2">
+              <Package2 className="h-4 w-4" />
+              Production
+            </TabsTrigger>
+            <TabsTrigger value="happiness" className="flex items-center gap-2">
+              <Heart className="h-4 w-4" />
+              Happiness
+            </TabsTrigger>
+          </TabsList>
 
-          <Separator />
-
-          {/* Production Section */}
-          {city.production && (
-            <>
-              <div>
-                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-                  <Hammer className="h-4 w-4" />
-                  Current Production
+          <TabsContent value="main" className="space-y-4 max-h-[60vh] overflow-y-auto">
+            {/* Population Status */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 border rounded-lg bg-blue-50">
+                <h3 className="font-medium text-blue-800 mb-2 flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Population
                 </h3>
-                <div className="p-3 bg-gray-50 rounded-lg border">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium">{city.production.target}</span>
-                    <Badge variant="secondary" className="capitalize">
-                      {city.production.type}
-                    </Badge>
+                <div className="space-y-1 text-sm">
+                  <div>
+                    Size: <span className="font-semibold">{city.size}</span>
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span>Progress:</span>
-                      <span>
-                        {city.production.progress} / {city.production.cost}
-                      </span>
+                  <div>
+                    Granary:{' '}
+                    <span className="font-semibold">
+                      {city.foodStock || 0}/{city.granarySize || city.size * 2}
+                    </span>
+                  </div>
+                  <div className="text-xs text-blue-600">{formatGrowthText()}</div>
+                </div>
+              </div>
+
+              {/* Current Production */}
+              {city.production && (
+                <div className="p-4 border rounded-lg bg-purple-50">
+                  <h3 className="font-medium text-purple-800 mb-2 flex items-center gap-2">
+                    <Hammer className="h-4 w-4" />
+                    Production
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">{city.production.target}</span>
+                      <Badge variant="secondary" className="capitalize text-xs">
+                        {city.production.type}
+                      </Badge>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        className="bg-purple-600 h-2 rounded-full transition-all duration-300"
                         style={{
                           width: `${Math.min(
                             (city.production.progress / city.production.cost) * 100,
@@ -109,43 +235,447 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({ city, isOpen, 
                         }}
                       />
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {Math.max(
-                        0,
-                        Math.ceil(
-                          (city.production.cost - city.production.progress) /
-                            Math.max(1, city.shields)
-                        )
-                      )}{' '}
-                      turns remaining
+                    <div className="flex justify-between text-xs text-purple-600">
+                      <span>
+                        {city.production.progress}/{city.production.cost}
+                      </span>
+                      <span>
+                        {city.production.turnsToComplete ||
+                          Math.ceil(
+                            (city.production.cost - city.production.progress) /
+                              Math.max(1, cityData.surplus.shields)
+                          )}{' '}
+                        turns
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Resource Breakdown */}
+            <div>
+              <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Resource Output & Surplus
+              </h3>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                {/* Food */}
+                <div
+                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.food)}`}
+                >
+                  <Wheat className="h-5 w-5 mb-1" />
+                  <div
+                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus.food)}`}
+                  >
+                    {cityData.surplus.food > 0 ? '+' : ''}
+                    {cityData.surplus.food}
+                  </div>
+                  <div className="text-xs text-center">
+                    <div>Food</div>
+                    {cityData.prod.food !== cityData.surplus.food && (
+                      <div className="text-gray-500">({cityData.prod.food} base)</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Shields */}
+                <div
+                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.shields)}`}
+                >
+                  <Shield className="h-5 w-5 mb-1" />
+                  <div
+                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus.shields)}`}
+                  >
+                    {cityData.surplus.shields > 0 ? '+' : ''}
+                    {cityData.surplus.shields}
+                  </div>
+                  <div className="text-xs text-center">
+                    <div>Shields</div>
+                    {cityData.prod.shields !== cityData.surplus.shields && (
+                      <div className="text-gray-500">({cityData.prod.shields} base)</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Trade */}
+                <div
+                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.trade)}`}
+                >
+                  <Truck className="h-5 w-5 mb-1" />
+                  <div
+                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus.trade)}`}
+                  >
+                    {cityData.surplus.trade > 0 ? '+' : ''}
+                    {cityData.surplus.trade}
+                  </div>
+                  <div className="text-xs text-center">
+                    <div>Trade</div>
+                    {cityData.prod.trade !== cityData.surplus.trade && (
+                      <div className="text-gray-500">({cityData.prod.trade} base)</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Economic Output */}
+              <div className="grid grid-cols-3 gap-3">
+                <div
+                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.gold)}`}
+                >
+                  <Coins className="h-5 w-5 mb-1" />
+                  <div
+                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus.gold)}`}
+                  >
+                    {cityData.surplus.gold > 0 ? '+' : ''}
+                    {cityData.surplus.gold}
+                  </div>
+                  <div className="text-xs">Gold</div>
+                </div>
+                <div
+                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.luxury)}`}
+                >
+                  <Zap className="h-5 w-5 mb-1" />
+                  <div
+                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus.luxury)}`}
+                  >
+                    {cityData.surplus.luxury > 0 ? '+' : ''}
+                    {cityData.surplus.luxury}
+                  </div>
+                  <div className="text-xs">Luxury</div>
+                </div>
+                <div
+                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.science)}`}
+                >
+                  <FlaskConical className="h-5 w-5 mb-1" />
+                  <div
+                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus.science)}`}
+                  >
+                    {cityData.surplus.science > 0 ? '+' : ''}
+                    {cityData.surplus.science}
+                  </div>
+                  <div className="text-xs">Science</div>
+                </div>
+              </div>
+
+              {/* Waste/Corruption */}
+              {(cityData.waste.shields > 0 || cityData.waste.trade > 0) && (
+                <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <h4 className="text-sm font-medium text-orange-800 mb-2">Waste & Corruption</h4>
+                  <div className="flex gap-4 text-sm">
+                    {cityData.waste.shields > 0 && (
+                      <div>
+                        Shield waste:{' '}
+                        <span className="font-semibold text-red-600">{cityData.waste.shields}</span>
+                      </div>
+                    )}
+                    {cityData.waste.trade > 0 && (
+                      <div>
+                        Trade corruption:{' '}
+                        <span className="font-semibold text-red-600">{cityData.waste.trade}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Buildings Section */}
+            {cityData.buildings && cityData.buildings.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  Buildings ({cityData.buildings.length})
+                </h3>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {cityData.buildings.map((building, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded border hover:bg-gray-100 transition-colors"
+                    >
+                      <span className="text-sm font-medium">{building.name}</span>
+                      {building.upkeep > 0 && (
+                        <div className="flex items-center gap-1 text-xs text-red-600">
+                          <Coins className="h-3 w-3" />
+                          {building.upkeep}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Units Section */}
+            {(presentUnits.length > 0 || supportedUnits.length > 0) && (
+              <>
+                <Separator />
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Present Units */}
+                  {presentUnits.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <Home className="h-4 w-4" />
+                        Present Units ({presentUnits.length})
+                      </h3>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {presentUnits.map(unit => (
+                          <div
+                            key={unit.id}
+                            className="flex items-center justify-between p-2 bg-green-50 rounded border text-sm"
+                          >
+                            <span>{unit.unitTypeId}</span>
+                            <div className="flex items-center gap-2 text-xs text-green-600">
+                              <span>HP: {unit.hp}</span>
+                              <span>Moves: {unit.movesLeft}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Supported Units */}
+                  {supportedUnits.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <Sword className="h-4 w-4" />
+                        Supported Units ({supportedUnits.length})
+                      </h3>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {supportedUnits.map(unit => (
+                          <div
+                            key={unit.id}
+                            className="flex items-center justify-between p-2 bg-blue-50 rounded border text-sm"
+                          >
+                            <span>{unit.unitTypeId}</span>
+                            <div className="flex items-center gap-2 text-xs text-blue-600">
+                              <span>HP: {unit.hp}</span>
+                              <span>Vet: {unit.veteranLevel}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="production" className="space-y-4 max-h-[60vh] overflow-y-auto">
+            {/* Current Production */}
+            {city.production && (
+              <div className="p-4 border rounded-lg bg-purple-50">
+                <h3 className="font-medium text-purple-800 mb-3 flex items-center gap-2">
+                  <Hammer className="h-4 w-4" />
+                  Current Production
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{city.production.target}</span>
+                    <Badge variant="secondary" className="capitalize">
+                      {city.production.type}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Progress:</span>
+                      <span>
+                        {city.production.progress} / {city.production.cost}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div
+                        className="bg-purple-600 h-3 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(
+                            (city.production.progress / city.production.cost) * 100,
+                            100
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>
+                        Shields per turn:{' '}
+                        <span className="font-semibold">{cityData.surplus.shields}</span>
+                      </span>
+                      <span>
+                        Turns remaining:{' '}
+                        <span className="font-semibold">
+                          {city.production.turnsToComplete ||
+                            Math.ceil(
+                              (city.production.cost - city.production.progress) /
+                                Math.max(1, cityData.surplus.shields)
+                            )}
+                        </span>
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
-              <Separator />
-            </>
-          )}
+            )}
 
-          {/* Buildings Section */}
-          {city.buildings.length > 0 && (
-            <div>
-              <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                Buildings ({city.buildings.length})
-              </h3>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {city.buildings.map((building, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-2 bg-gray-50 rounded border"
-                  >
-                    <span className="text-sm">{building}</span>
+            {/* Worklist */}
+            {cityData.worklist && cityData.worklist.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Production Queue ({cityData.worklist.length})
+                </h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {cityData.worklist.map((item, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded border hover:bg-gray-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs bg-gray-200 rounded-full w-6 h-6 flex items-center justify-center font-medium">
+                          {index + 1}
+                        </span>
+                        <span className="font-medium">{item.target}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="capitalize text-xs">
+                          {item.type}
+                        </Badge>
+                        <span className="text-xs text-gray-500">{item.cost} shields</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Trade Routes */}
+            {cityData.tradeRoutes && cityData.tradeRoutes.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <Truck className="h-4 w-4" />
+                  Trade Routes ({cityData.tradeRoutes.length})
+                </h3>
+                <div className="space-y-2">
+                  {cityData.tradeRoutes.map((route, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-yellow-50 rounded border"
+                    >
+                      <div>
+                        <span className="font-medium">Partner City</span>
+                        <div className="text-xs text-gray-600">{route.goods}</div>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-semibold text-yellow-600">+{route.value}</span>
+                        <div className="text-xs text-gray-600">trade/turn</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="happiness" className="space-y-4 max-h-[60vh] overflow-y-auto">
+            {/* Citizens Overview */}
+            {cityData.citizens && (
+              <div>
+                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Citizens
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    {/* Happy Citizens */}
+                    <div className="flex items-center justify-between p-3 bg-green-50 rounded border">
+                      <div className="flex items-center gap-2">
+                        <Heart className="h-4 w-4 text-green-600" />
+                        <span className="text-sm font-medium">Happy</span>
+                      </div>
+                      <span className="font-semibold text-green-600">
+                        {cityData.citizens.happy}
+                      </span>
+                    </div>
+
+                    {/* Content Citizens */}
+                    <div className="flex items-center justify-between p-3 bg-blue-50 rounded border">
+                      <div className="flex items-center gap-2">
+                        <Smile className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm font-medium">Content</span>
+                      </div>
+                      <span className="font-semibold text-blue-600">
+                        {cityData.citizens.content}
+                      </span>
+                    </div>
                   </div>
-                ))}
+
+                  <div className="space-y-3">
+                    {/* Unhappy Citizens */}
+                    <div className="flex items-center justify-between p-3 bg-orange-50 rounded border">
+                      <div className="flex items-center gap-2">
+                        <Frown className="h-4 w-4 text-orange-600" />
+                        <span className="text-sm font-medium">Unhappy</span>
+                      </div>
+                      <span className="font-semibold text-orange-600">
+                        {cityData.citizens.unhappy}
+                      </span>
+                    </div>
+
+                    {/* Angry Citizens */}
+                    <div className="flex items-center justify-between p-3 bg-red-50 rounded border">
+                      <div className="flex items-center gap-2">
+                        <Frown className="h-4 w-4 text-red-600" />
+                        <span className="text-sm font-medium">Angry</span>
+                      </div>
+                      <span className="font-semibold text-red-600">{cityData.citizens.angry}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Specialists */}
+                {cityData.citizens.specialists &&
+                  Object.keys(cityData.citizens.specialists).length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium mb-2">Specialists</h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        {Object.entries(cityData.citizens.specialists).map(([type, count]) => (
+                          <div
+                            key={type}
+                            className="flex items-center justify-between p-2 bg-purple-50 rounded border text-sm"
+                          >
+                            <span className="capitalize">{type}</span>
+                            <span className="font-semibold text-purple-600">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+              </div>
+            )}
+
+            {/* City Status */}
+            <div className="p-4 border rounded-lg bg-gray-50">
+              <h3 className="font-medium mb-3 flex items-center gap-2">
+                <StateIcon className={`h-4 w-4 ${stateInfo.color}`} />
+                City Status
+              </h3>
+              <div className="space-y-2 text-sm">
+                <div className={`font-medium ${stateInfo.color}`}>{stateInfo.text}</div>
+                {cityData.pollution > 0 && (
+                  <div className="text-orange-600">Pollution: {cityData.pollution}</div>
+                )}
+                {cityData.rallyPoint && (
+                  <div className="text-blue-600">
+                    Rally Point: ({cityData.rallyPoint.x}, {cityData.rallyPoint.y})
+                    {cityData.rallyPoint.persistent && ' (Persistent)'}
+                  </div>
+                )}
               </div>
             </div>
-          )}
-        </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
