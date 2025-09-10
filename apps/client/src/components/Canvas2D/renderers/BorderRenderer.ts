@@ -55,7 +55,6 @@ export class BorderRenderer extends BaseRenderer {
   private borderAnim: number = 0;
   private options: BorderRenderOptions;
   private playerColors: Map<string, { primary: string; secondary: string; tertiary: string }>;
-  private renderCount: number = 0;
 
   constructor(
     ctx: CanvasRenderingContext2D,
@@ -358,37 +357,15 @@ export class BorderRenderer extends BaseRenderer {
       return;
     }
 
-    this.renderCount++;
     const { viewport, map } = state;
 
-    // Throttle performance-heavy operations
-    if (this.renderCount % 5 !== 0) {
-      // Skip every 4 out of 5 renders to reduce performance impact
-      return;
-    }
+    // Iterate through visible tiles following freeciv-web pattern
+    for (const tileKey in (map as any).tiles) {
+      const tile = (map as any).tiles[tileKey] as Tile;
 
-    // Throttle debug logging to reduce performance impact
-    const shouldLog = this.renderCount % 20 === 0;
-
-    if (shouldLog) {
-      console.log('🎨 BorderRenderer: Render #' + this.renderCount);
-    }
-
-    let tilesWithOwners = 0;
-    let bordersDrawn = 0;
-
-    // Only iterate through tiles that are in the viewport
-    const allTiles = (map as any).tiles;
-    for (const tileKey in allTiles) {
-      const tile = allTiles[tileKey] as Tile;
-
-      // Skip if not in viewport (early return for performance)
+      // Skip if not in viewport
       if (!this.isInViewport(tile.x, tile.y, viewport)) {
         continue;
-      }
-
-      if (tile.owner) {
-        tilesWithOwners++;
       }
 
       // Calculate screen position
@@ -402,8 +379,6 @@ export class BorderRenderer extends BaseRenderer {
 
       // Get and draw border sprites
       const borderSprites = this.getBorderLineSprites(tile, map);
-      bordersDrawn += borderSprites.length;
-
       for (const sprite of borderSprites) {
         this.drawBorderLine(
           sprite.dir,
@@ -414,12 +389,6 @@ export class BorderRenderer extends BaseRenderer {
           screenPos.y
         );
       }
-    }
-
-    if (shouldLog) {
-      console.log(
-        `🎨 BorderRenderer: Completed - ${tilesWithOwners} owners, ${bordersDrawn} borders`
-      );
     }
   }
 

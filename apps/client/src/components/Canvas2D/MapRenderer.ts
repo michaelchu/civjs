@@ -23,6 +23,16 @@ export class MapRenderer {
   private tilesetLoader: TilesetLoader;
   private isInitialized = false;
 
+  // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:27-36
+  // Performance timing system ported from freeciv-web
+  private lastRedrawTime = 0;
+  private MAPVIEW_REFRESH_INTERVAL = 35; // Default 35ms (~28 FPS)
+  private totalDraws = 0;
+  private meanTime = 0;
+  private stopChecking = false;
+  private calibrateThreshold = 1000000000; // 1 billion for calibration
+  private isSmallScreen = false;
+
   // Specialized renderers
   private terrainRenderer: TerrainRenderer;
   private unitRenderer: UnitRenderer;
@@ -34,6 +44,13 @@ export class MapRenderer {
     this.ctx = ctx;
     this.tilesetLoader = new TilesetLoader();
     this.setupCanvas();
+
+    // @reference freeciv-web/javascript/2dcanvas/mapview.js:3796
+    // Screen size optimization from freeciv-web
+    this.isSmallScreen = window.innerWidth <= 640 || window.innerHeight <= 590;
+    if (this.isSmallScreen) {
+      this.MAPVIEW_REFRESH_INTERVAL = 12; // Higher refresh rate for small screens
+    }
 
     // Initialize specialized renderers
     this.terrainRenderer = new TerrainRenderer(
@@ -87,6 +104,18 @@ export class MapRenderer {
   }
 
   render(state: RenderState) {
+    // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:688-700
+    // Implement freeciv-web's performance timing system
+    const currentTime = new Date().getTime();
+    const timeSinceLastRender = currentTime - this.lastRedrawTime;
+
+    // Skip render if not enough time has passed (freeciv-web timing logic)
+    if (this.lastRedrawTime > 0 && timeSinceLastRender < this.MAPVIEW_REFRESH_INTERVAL) {
+      return;
+    }
+
+    const renderStart = performance.now();
+
     // Invalidate terrain cache if tiles data has changed
     this.terrainRenderer.invalidateTileCache();
 
@@ -148,6 +177,27 @@ export class MapRenderer {
 
     // Render paths and overlays
     this.pathRenderer.renderPaths(state);
+
+    // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:522-540
+    // Complete timing measurement and adjust refresh interval
+    const renderEnd = performance.now();
+    const elapsed = renderEnd - renderStart;
+
+    this.lastRedrawTime = currentTime;
+    this.totalDraws++;
+    this.meanTime = (this.meanTime * (this.totalDraws - 1) + elapsed) / this.totalDraws;
+
+    // Dynamic performance calibration from freeciv-web
+    if (!this.stopChecking && this.totalDraws % 100 === 0) {
+      this.MAPVIEW_REFRESH_INTERVAL = Math.max(12, Math.min(140, this.meanTime + 10));
+
+      if (this.totalDraws > this.calibrateThreshold) {
+        this.stopChecking = true;
+        // Additional adjustment for short-turn games (like freeciv-web)
+        this.MAPVIEW_REFRESH_INTERVAL *= 2.2;
+        this.MAPVIEW_REFRESH_INTERVAL = Math.max(40, Math.min(140, this.MAPVIEW_REFRESH_INTERVAL));
+      }
+    }
   }
 
   private clearCanvas(fillBackground = true, backgroundColor = '#4682B4') {
@@ -516,7 +566,50 @@ export class MapRenderer {
     if (!this.isInitialized) return;
   }
 
+  /**
+   * @reference freeciv-web/javascript/2dcanvas/mapview_common.js:696-700
+   * Start the requestAnimationFrame-based render loop like freeciv-web
+   */
+  private animationFrameId: number | null = null;
+  private renderState: RenderState | null = null;
+
+  startRenderLoop(initialState: RenderState) {
+    this.renderState = initialState;
+    this.updateMapCanvasCheck();
+  }
+
+  updateRenderState(newState: RenderState) {
+    this.renderState = newState;
+  }
+
+  stopRenderLoop() {
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+  }
+
+  private updateMapCanvasCheck = () => {
+    // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:688-700
+    // requestAnimationFrame-based render loop from freeciv-web
+    try {
+      if (this.renderState && typeof window.requestAnimationFrame === 'function') {
+        // Render with timing check (will skip if too soon)
+        this.render(this.renderState);
+
+        // Schedule next frame
+        this.animationFrameId = requestAnimationFrame(this.updateMapCanvasCheck);
+      }
+    } catch (e: any) {
+      if (e.name === 'NS_ERROR_NOT_AVAILABLE') {
+        // Fallback to setTimeout for older browsers
+        setTimeout(this.updateMapCanvasCheck, 100);
+      }
+    }
+  };
+
   cleanup() {
+    this.stopRenderLoop();
     this.tilesetLoader.cleanup();
     this.isInitialized = false;
   }
