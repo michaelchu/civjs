@@ -106,7 +106,7 @@ export class BorderRenderer extends BaseRenderer {
    */
   private getPlayerColors(
     playerId: string,
-    players?: any
+    players?: Record<string, { color: string; name: string; nation: string }>
   ): {
     primary: string;
     secondary: string;
@@ -206,27 +206,30 @@ export class BorderRenderer extends BaseRenderer {
    * Generate border sprites for a tile - EXACTLY matches freeciv-web logic
    * @reference freeciv-web/javascript/2dcanvas/tilespec.js:1208-1226 get_border_line_sprites
    */
-  private getBorderLineSprites(tile: Tile, map: any, players?: any): BorderSprite[] {
+  private getBorderLineSprites(
+    tile: Tile,
+    map: any,
+    players?: Record<string, { color: string; name: string; nation: string }>
+  ): BorderSprite[] {
     const result: BorderSprite[] = [];
 
-    // Direct port of freeciv-web logic - MUST have exact same conditions
+    // Generate border sprites following our working logic for map edges and unowned neighbors
     for (const dir of CARDINAL_DIRS) {
       const neighbor = this.getNeighborTile(tile, dir, map);
 
-      // freeciv-web conditions (lines 1215-1219):
-      // 1. checktile != null && checktile['owner'] != null
-      // 2. && ptile['owner'] != null
-      // 3. && ptile['owner'] != checktile['owner']
-      // 4. && ptile['owner'] != 255 (special constant for unowned)
-      // 5. && players[ptile['owner']] != null
-      if (
-        neighbor != null &&
-        neighbor.owner != null &&
-        tile.owner != null &&
-        tile.owner !== neighbor.owner &&
-        tile.owner !== '255' && // 255 is special constant for unowned tiles
-        (!players || players[tile.owner] != null) // Validate player exists if players available
-      ) {
+      // Logic compliance: tile must have an owner to generate borders
+      if (!tile.owner) {
+        continue;
+      }
+
+      // Generate border in these cases:
+      // 1. Neighbor exists and has different owner (including null owner)
+      // 2. No neighbor (map edge)
+      const shouldDrawBorder =
+        !neighbor || // No neighbor (map edge)
+        (neighbor && tile.owner !== neighbor.owner); // Different owner (including unowned neighbor)
+
+      if (shouldDrawBorder) {
         // Get nation colors - in freeciv-web this comes from nations[players[owner]['nation']]
         const colors = this.getPlayerColors(tile.owner, players);
         result.push({
@@ -410,9 +413,7 @@ export class BorderRenderer extends BaseRenderer {
       return;
     }
 
-    const { viewport, map } = state;
-    // Get players data if available from game state for validation
-    const players = (state as any).players || undefined;
+    const { viewport, map, players } = state;
 
     // Iterate through visible tiles following freeciv-web pattern
     for (const tileKey in (map as any).tiles) {
@@ -432,7 +433,7 @@ export class BorderRenderer extends BaseRenderer {
         this.drawTerritoryFill(colors.primary, screenPos.x, screenPos.y);
       }
 
-      // Get and draw border sprites - now with player validation like freeciv-web
+      // Get and draw border sprites - uses real player colors from game state
       const borderSprites = this.getBorderLineSprites(tile, map, players);
       for (const sprite of borderSprites) {
         this.drawBorderLine(

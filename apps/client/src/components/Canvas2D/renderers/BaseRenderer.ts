@@ -7,6 +7,7 @@ export interface RenderState {
   map: unknown; // Global map object
   units: Record<string, Unit>;
   cities: Record<string, City>;
+  players: Record<string, { color: string; name: string; nation: string }>; // Player data for border colors and validation
   selectedUnitId?: string | null;
   gotoPath?: GotoPath | null;
 }

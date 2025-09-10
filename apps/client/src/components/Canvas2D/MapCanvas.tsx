@@ -64,7 +64,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     currentPath: null,
   });
 
-  const { viewport, map, units, cities, setViewport, selectUnit } = useGameStore();
+  const { viewport, map, units, cities, players, setViewport, selectUnit } = useGameStore();
   const gameState = useGameStore();
 
   // Handle mouse and touch events - copied from freeciv-web 2D canvas behavior
@@ -93,6 +93,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             map: gameState.map,
             units: gameState.units,
             cities: gameState.cities,
+            players: gameState.players,
             selectedUnitId: gameState.selectedUnitId,
           });
         }
@@ -249,11 +250,21 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         map, // Keep using store map for compatibility, but trigger based on global data
         units,
         cities,
+        players,
         selectedUnitId: useGameStore.getState().selectedUnitId,
         gotoPath: gotoMode.currentPath,
       });
     }
-  }, [viewport, map, units, cities, gotoMode.active, gotoMode.currentPath, globalTilesVersion]); // Include map for React Hook dependency
+  }, [
+    viewport,
+    map,
+    units,
+    cities,
+    players,
+    gotoMode.active,
+    gotoMode.currentPath,
+    globalTilesVersion,
+  ]); // Include map for React Hook dependency
 
   // Monitor global tiles changes and trigger canvas reinitialization (like window resize)
   useEffect(() => {
@@ -329,6 +340,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             map,
             units,
             cities,
+            players,
             selectedUnitId: currentSelectedUnitId,
             gotoPath: gotoMode.currentPath,
           });
@@ -344,6 +356,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             map,
             units,
             cities,
+            players,
             selectedUnitId: null,
             gotoPath: gotoMode.currentPath,
           });
@@ -357,12 +370,22 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           map,
           units,
           cities,
+          players,
           selectedUnitId: null,
           gotoPath: gotoMode.currentPath,
         });
       }
     }
-  }, [gameState.selectedUnitId, viewport, map, units, cities, gotoMode.currentPath, isDragging]);
+  }, [
+    gameState.selectedUnitId,
+    viewport,
+    map,
+    units,
+    cities,
+    players,
+    gotoMode.currentPath,
+    isDragging,
+  ]);
 
   // Drag tracking refs
   const dragStart = useRef({ x: 0, y: 0 });
@@ -573,6 +596,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             map: useGameStore.getState().map,
             units: useGameStore.getState().units,
             cities: useGameStore.getState().cities,
+            players: useGameStore.getState().players,
             selectedUnitId: useGameStore.getState().selectedUnitId,
             gotoPath: gotoMode.currentPath,
           });
@@ -781,6 +805,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
               map: useGameStore.getState().map,
               units: useGameStore.getState().units,
               cities: useGameStore.getState().cities,
+              players: useGameStore.getState().players,
               selectedUnitId: useGameStore.getState().selectedUnitId,
               gotoPath: gotoMode.currentPath,
             });
