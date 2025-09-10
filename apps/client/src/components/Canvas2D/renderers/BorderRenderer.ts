@@ -101,19 +101,70 @@ export class BorderRenderer extends BaseRenderer {
   }
 
   /**
-   * Get player colors by player ID
+   * Get player colors by player ID from game state (like freeciv-web nations[players[owner]['nation']])
+   * @reference freeciv-web uses pnation.color, pnation.color2, pnation.color3 from nation data
    */
-  private getPlayerColors(playerId: string): {
+  private getPlayerColors(
+    playerId: string,
+    players?: any
+  ): {
     primary: string;
     secondary: string;
     tertiary: string;
   } {
-    return (
-      this.playerColors.get(playerId) || {
-        primary: '#808080',
-        secondary: '#606060',
-        tertiary: '#404040',
+    // Try to get from cached colors first
+    const cached = this.playerColors.get(playerId);
+    if (cached) {
+      return cached;
+    }
+
+    // Try to get from game state players (like freeciv-web nations[players[owner]['nation']])
+    if (players && players[playerId]) {
+      const playerColor = players[playerId].color;
+      if (playerColor) {
+        // Use player's nation color as primary, generate darker variations for secondary/tertiary
+        const colors = {
+          primary: playerColor,
+          secondary: this.darkenColor(playerColor, 0.2),
+          tertiary: this.darkenColor(playerColor, 0.4),
+        };
+        // Cache the colors for performance
+        this.playerColors.set(playerId, colors);
+        return colors;
       }
+    }
+
+    // Fallback to default colors if no player data available
+    return {
+      primary: '#808080',
+      secondary: '#606060',
+      tertiary: '#404040',
+    };
+  }
+
+  /**
+   * Darken a hex color by a percentage (for secondary/tertiary border colors)
+   */
+  private darkenColor(hex: string, factor: number): string {
+    // Remove # if present
+    const color = hex.replace('#', '');
+
+    // Convert to RGB
+    const r = parseInt(color.substr(0, 2), 16);
+    const g = parseInt(color.substr(2, 2), 16);
+    const b = parseInt(color.substr(4, 2), 16);
+
+    // Darken each component
+    const darkR = Math.round(r * (1 - factor));
+    const darkG = Math.round(g * (1 - factor));
+    const darkB = Math.round(b * (1 - factor));
+
+    // Convert back to hex
+    return (
+      '#' +
+      darkR.toString(16).padStart(2, '0') +
+      darkG.toString(16).padStart(2, '0') +
+      darkB.toString(16).padStart(2, '0')
     );
   }
 
@@ -177,7 +228,7 @@ export class BorderRenderer extends BaseRenderer {
         (!players || players[tile.owner] != null) // Validate player exists if players available
       ) {
         // Get nation colors - in freeciv-web this comes from nations[players[owner]['nation']]
-        const colors = this.getPlayerColors(tile.owner);
+        const colors = this.getPlayerColors(tile.owner, players);
         result.push({
           key: 'border',
           dir,
@@ -377,7 +428,7 @@ export class BorderRenderer extends BaseRenderer {
 
       // Draw territory fill if enabled (matches freeciv-web mapview_territory_fill)
       if (this.options.drawTerritoryFill && tile.owner) {
-        const colors = this.getPlayerColors(tile.owner);
+        const colors = this.getPlayerColors(tile.owner, players);
         this.drawTerritoryFill(colors.primary, screenPos.x, screenPos.y);
       }
 
