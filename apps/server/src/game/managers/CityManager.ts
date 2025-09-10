@@ -1,4 +1,5 @@
 /* eslint-disable complexity */
+import { randomUUID } from 'crypto';
 import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
 import { cities } from '@database/schema';
@@ -6,7 +7,6 @@ import { eq } from 'drizzle-orm';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { EffectsManager } from '@game/managers/EffectsManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
-import { randomUUID } from 'crypto';
 import {
   CityFoundingValidationService,
   CityFoundingValidationResult,

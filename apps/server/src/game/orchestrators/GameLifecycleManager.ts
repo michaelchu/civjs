@@ -16,6 +16,7 @@ import { MapManager, MapGeneratorType } from '@game/managers/MapManager';
 import { UnitManager } from '@game/managers/UnitManager';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { CityManager } from '@game/managers/CityManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { MapStartpos } from '@game/map/MapTypes';
@@ -672,7 +673,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   }
 
   private createCityManager(gameId: string): CityManager {
-    return new CityManager(gameId, this.databaseProvider, {} as any, {});
+    const effectsManager = new EffectsManager();
+    return new CityManager(gameId, this.databaseProvider, effectsManager, {});
   }
 
   private createUnitManager(
