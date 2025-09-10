@@ -101,10 +101,20 @@ export class BorderNetworkService {
         removed: borderUpdate.removedSources,
       };
 
-      this.io.to(gameId).emit('border_source_update', sourcePacket);
+      const borderSourceStructuredPacket: Packet<BorderSourcePacket> = {
+        type: PacketType.BORDER_SOURCE_UPDATE,
+        data: sourcePacket,
+      };
+
+      this.io.to(gameId).emit('packet', borderSourceStructuredPacket);
     }
 
-    this.io.to(gameId).emit('border_update', updatePacket);
+    const borderUpdateStructuredPacket: Packet<BorderUpdatePacket> = {
+      type: PacketType.BORDER_UPDATE,
+      data: updatePacket,
+    };
+
+    this.io.to(gameId).emit('packet', borderUpdateStructuredPacket);
 
     logger.debug('Broadcasted border update to game', {
       gameId,
