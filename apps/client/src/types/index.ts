@@ -10,6 +10,8 @@ export interface Tile {
   resource?: string;
   elevation?: number;
   riverMask?: number; // River connection bitmask: N=1, E=2, S=4, W=8
+  owner?: string; // Player ID who owns this tile
+  claimer?: string; // Player ID who is claiming this tile
 }
 
 export interface Unit {
@@ -160,3 +162,49 @@ export interface MapViewport {
 }
 
 export type GameTab = 'map' | 'government' | 'research' | 'nations' | 'cities' | 'options';
+
+// Border system types
+export interface BorderSource {
+  x: number;
+  y: number;
+  strength: number;
+  radius: number;
+  playerId: string;
+  type: 'city' | 'fort' | 'fortress';
+  cityId?: string;
+}
+
+export interface TileOwnership {
+  x: number;
+  y: number;
+  playerId: string | null;
+  strength: number;
+}
+
+// Border packet types
+export interface BorderUpdatePacket {
+  type: 'border_update';
+  tiles: Array<{
+    x: number;
+    y: number;
+    owner: string | null;
+    strength: number;
+  }>;
+  updateType: 'full_update' | 'incremental' | 'player_specific';
+  affectedPlayers?: string[];
+}
+
+export interface BorderSourcePacket {
+  type: 'border_source_update';
+  sources: BorderSource[];
+  removed: Array<{ x: number; y: number }>;
+}
+
+export interface BorderChangeNotificationPacket {
+  type: 'border_change_notification';
+  playerId: string;
+  tilesGained: Array<{ x: number; y: number }>;
+  tilesLost: Array<{ x: number; y: number }>;
+  sourceAdded?: BorderSource;
+  sourceRemoved?: { x: number; y: number };
+}

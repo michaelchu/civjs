@@ -5,6 +5,7 @@ import { TerrainRenderer } from './renderers/TerrainRenderer';
 import { UnitRenderer } from './renderers/UnitRenderer';
 import { CityRenderer } from './renderers/CityRenderer';
 import { PathRenderer } from './renderers/PathRenderer';
+import { BorderRenderer } from './renderers/BorderRenderer';
 import type { RenderState } from './renderers/BaseRenderer';
 
 declare global {
@@ -27,6 +28,7 @@ export class MapRenderer {
   private unitRenderer: UnitRenderer;
   private cityRenderer: CityRenderer;
   private pathRenderer: PathRenderer;
+  private borderRenderer: BorderRenderer;
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
@@ -43,6 +45,12 @@ export class MapRenderer {
     this.unitRenderer = new UnitRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
     this.cityRenderer = new CityRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
     this.pathRenderer = new PathRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
+    this.borderRenderer = new BorderRenderer(
+      ctx,
+      this.tilesetLoader,
+      this.tileWidth,
+      this.tileHeight
+    );
   }
 
   async initialize(): Promise<void> {
@@ -58,6 +66,7 @@ export class MapRenderer {
       this.unitRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.cityRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.pathRenderer.updateTileSize(this.tileWidth, this.tileHeight);
+      this.borderRenderer.updateTileSize(this.tileWidth, this.tileHeight);
 
       this.isInitialized = true;
     } catch (error) {
@@ -123,6 +132,10 @@ export class MapRenderer {
 
     // Render terrain layer (includes rivers and resources per-tile to maintain z-order)
     this.terrainRenderer.renderTerrain(state, visibleTiles);
+
+    // Render borders after terrain but before units (following freeciv-web layer order)
+    // @reference freeciv-web/javascript/2dcanvas/mapview.js:580-720 - Border rendering in layer order
+    this.borderRenderer.render(state);
 
     // Render selection outline after terrain but before units
     this.unitRenderer.renderUnitSelection(state);

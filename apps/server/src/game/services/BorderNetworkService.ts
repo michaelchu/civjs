@@ -7,6 +7,7 @@
 import { logger } from '@utils/logger';
 import type { Server as SocketServer, Socket } from 'socket.io';
 import type { BorderManager } from '@game/managers/BorderManager';
+import { PacketType, type Packet } from '../../types/packet';
 import type {
   BorderUpdatePacket,
   BorderSourcePacket,
@@ -56,8 +57,19 @@ export class BorderNetworkService {
       removed: [],
     };
 
-    socket.emit('border_update', updatePacket);
-    socket.emit('border_source_update', sourcePacket);
+    // Send structured packets matching client expectations
+    const borderUpdatePacket: Packet<BorderUpdatePacket> = {
+      type: PacketType.BORDER_UPDATE,
+      data: updatePacket,
+    };
+
+    const borderSourcePacket: Packet<BorderSourcePacket> = {
+      type: PacketType.BORDER_SOURCE_UPDATE,
+      data: sourcePacket,
+    };
+
+    socket.emit('packet', borderUpdatePacket);
+    socket.emit('packet', borderSourcePacket);
 
     logger.debug('Sent full border update to client', {
       playerId,
@@ -163,7 +175,11 @@ export class BorderNetworkService {
         ownership: ownership,
       };
 
-      socket.emit('border_info_response', response);
+      const packet: Packet<BorderInfoResponsePacket> = {
+        type: PacketType.BORDER_INFO_RESPONSE,
+        data: response,
+      };
+      socket.emit('packet', packet);
 
       logger.debug('Handled border info request', {
         gameId,
