@@ -147,7 +147,7 @@ cd ../..
 
 echo "==> Setting up test database schema..."
 cd apps/server
-DATABASE_URL="$TEST_DATABASE_URL" npm run db:push
+DATABASE_URL="$TEST_DATABASE_URL" npm run db:push:force
 cd ../..
 
 echo "==> Environment setup complete!"
