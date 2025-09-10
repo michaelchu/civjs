@@ -1,4 +1,5 @@
 import { CityManager, BUILDING_TYPES } from '@game/managers/CityManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import {
   getTestDatabase,
@@ -16,6 +17,7 @@ import {
 
 describe('CityManager - Integration Tests with Real Database', () => {
   let cityManager: CityManager;
+  let effectsManager: EffectsManager;
   let testData: { game: any; player: any; user: any };
 
   beforeEach(async () => {
@@ -25,9 +27,26 @@ describe('CityManager - Integration Tests with Real Database', () => {
     // Create test game and player
     testData = await createTestGameAndPlayer();
 
+    // Initialize EffectsManager
+    effectsManager = new EffectsManager();
+
     // Initialize CityManager with test database provider
     const testDbProvider = getTestDatabaseProvider();
-    cityManager = new CityManager(testData.game.id, testDbProvider);
+    cityManager = new CityManager(testData.game.id, testDbProvider, effectsManager, {});
+
+    // Set up a mock MapManager and initialize the CityManager
+    const mockMapManager = {
+      getMapData: () => ({
+        width: 20,
+        height: 20,
+        tiles: Array(400).fill({ terrain: 'grassland', resource: null }), // 20x20 = 400 tiles
+      }),
+      isValidPosition: (x: number, y: number) => x >= 0 && x < 20 && y >= 0 && y < 20,
+      getTile: (_x: number, _y: number) => ({ terrain: 'grassland', resource: null }),
+    } as any;
+
+    cityManager.setMapManager(mockMapManager);
+    await cityManager.initialize();
   });
 
   afterEach(async () => {
@@ -53,12 +72,13 @@ describe('CityManager - Integration Tests with Real Database', () => {
 
   describe('city founding with real database', () => {
     it('should found a city and persist to database', async () => {
-      const cityId = await cityManager.foundCity(testData.player.id, 'TestCity', 10, 10, 1);
+      const city = await cityManager.foundCity(10, 10, 'TestCity', testData.player.id);
+      const cityId = city?.id;
 
       expect(cityId).toBeTruthy();
+      expect(city).toBeTruthy();
 
       // Verify city exists in memory
-      const city = cityManager.getCity(cityId);
       expect(city).toBeDefined();
       expect(city!.name).toBe('TestCity');
       expect(city!.population).toBe(1);
@@ -81,10 +101,10 @@ describe('CityManager - Integration Tests with Real Database', () => {
 
     it('should prevent founding cities too close together', async () => {
       // Found first city
-      await cityManager.foundCity(testData.player.id, 'City1', 10, 10, 1);
+      await cityManager.foundCity(10, 10, 'City1', testData.player.id);
 
       // Try to found second city too close (should fail)
-      await expect(cityManager.foundCity(testData.player.id, 'City2', 11, 10, 1)).rejects.toThrow();
+      await expect(cityManager.foundCity(11, 10, 'City2', testData.player.id)).rejects.toThrow();
     });
   });
 
@@ -92,12 +112,13 @@ describe('CityManager - Integration Tests with Real Database', () => {
     let cityId: string;
 
     beforeEach(async () => {
-      cityId = await cityManager.foundCity(testData.player.id, 'TestCity', 10, 10, 1);
+      const city = await cityManager.foundCity(10, 10, 'TestCity', testData.player.id);
+      cityId = city!.id;
     });
 
     it('should calculate basic city outputs and persist changes', async () => {
-      // Initial refresh
-      cityManager.refreshCity(cityId);
+      // Initial refresh with government effects
+      cityManager.refreshCityWithGovernmentEffects(cityId);
 
       const city = cityManager.getCity(cityId);
       expect(city).toBeDefined();
@@ -106,7 +127,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
       expect(city!.foodPerTurn).toBeGreaterThanOrEqual(0);
       expect(city!.productionPerTurn).toBeGreaterThanOrEqual(1);
       expect(city!.sciencePerTurn).toBeGreaterThanOrEqual(0);
-      expect(city!.goldPerTurn).toBeGreaterThanOrEqual(0);
+      expect(city!.tradePerTurn).toBeGreaterThanOrEqual(0);
 
       // Process a turn to trigger database update
       await cityManager.processCityTurn(cityId, 2);
@@ -129,7 +150,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
       city.buildings.push('library'); // +50% science
       city.buildings.push('marketplace'); // +50% gold
 
-      cityManager.refreshCity(cityId);
+      cityManager.refreshCityWithGovernmentEffects(cityId);
 
       // Process turn to save changes
       await cityManager.processCityTurn(cityId, 2);
@@ -150,7 +171,8 @@ describe('CityManager - Integration Tests with Real Database', () => {
 
       // Initialize cityManager with the scenario's game ID and database provider
       const testDbProvider = getTestDatabaseProvider();
-      cityManager = new CityManager(scenario.game.id, testDbProvider);
+      effectsManager = new EffectsManager();
+      cityManager = new CityManager(scenario.game.id, testDbProvider, effectsManager, {});
 
       // Load cities from database
       await cityManager.loadCities();
@@ -165,7 +187,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
       await cityManager.processCityTurn(cityId, 2);
 
       // Check if city grew
-      if (city!.foodPerTurn > city!.population * 2) {
+      if (city!.foodPerTurn && city!.foodPerTurn > city!.population * 2) {
         expect(city!.population).toBeGreaterThan(initialPopulation);
       }
 
@@ -183,12 +205,13 @@ describe('CityManager - Integration Tests with Real Database', () => {
     let cityId: string;
 
     beforeEach(async () => {
-      cityId = await cityManager.foundCity(testData.player.id, 'TestCity', 10, 10, 1);
+      const city = await cityManager.foundCity(10, 10, 'TestCity', testData.player.id);
+      cityId = city!.id;
     });
 
     it('should set and persist production choices', async () => {
       // Set unit production
-      await cityManager.setCityProduction(cityId, 'warrior', 'unit');
+      await cityManager.setCityProduction(cityId, 'unit', 'warrior', testData.player.id);
 
       const city = cityManager.getCity(cityId)!;
       expect(city.currentProduction).toBe('warrior');
@@ -209,7 +232,8 @@ describe('CityManager - Integration Tests with Real Database', () => {
 
       // Initialize cityManager with the scenario's game ID and database provider
       const testDbProvider = getTestDatabaseProvider();
-      cityManager = new CityManager(scenario.game.id, testDbProvider);
+      effectsManager = new EffectsManager();
+      cityManager = new CityManager(scenario.game.id, testDbProvider, effectsManager, {});
       await cityManager.loadCities();
 
       const cityId = scenario.cities[0].id;
@@ -238,12 +262,12 @@ describe('CityManager - Integration Tests with Real Database', () => {
     });
 
     it('should reject invalid production choices', async () => {
-      await expect(cityManager.setCityProduction(cityId, 'invalid-unit', 'unit')).rejects.toThrow(
-        'Unknown unit type: invalid-unit'
-      );
+      await expect(
+        cityManager.setCityProduction(cityId, 'unit', 'invalid-unit', testData.player.id)
+      ).rejects.toThrow('Unknown unit type: invalid-unit');
 
       await expect(
-        cityManager.setCityProduction(cityId, 'invalid-building', 'building')
+        cityManager.setCityProduction(cityId, 'building', 'invalid-building', testData.player.id)
       ).rejects.toThrow('Unknown building type: invalid-building');
     });
 
@@ -251,9 +275,9 @@ describe('CityManager - Integration Tests with Real Database', () => {
       const city = cityManager.getCity(cityId)!;
       city.buildings.push('granary');
 
-      await expect(cityManager.setCityProduction(cityId, 'granary', 'building')).rejects.toThrow(
-        'Building already exists: granary'
-      );
+      await expect(
+        cityManager.setCityProduction(cityId, 'building', 'granary', testData.player.id)
+      ).rejects.toThrow('Building already exists: granary');
     });
   });
 
@@ -263,7 +287,13 @@ describe('CityManager - Integration Tests with Real Database', () => {
 
       // Create a new city manager instance with database provider
       const testDbProvider = getTestDatabaseProvider();
-      const newCityManager = new CityManager(scenario.game.id, testDbProvider);
+      const newEffectsManager = new EffectsManager();
+      const newCityManager = new CityManager(
+        scenario.game.id,
+        testDbProvider,
+        newEffectsManager,
+        {}
+      );
 
       // Load cities from database
       await newCityManager.loadCities();
@@ -316,7 +346,9 @@ describe('CityManager - Integration Tests with Real Database', () => {
       const city = cityManager.getCity(corruptCityId);
       expect(city).toBeDefined();
       expect(city!.buildings).toEqual([]); // Should default to empty array
-      expect(city!.workingTiles).toEqual([{ x: 5, y: 5 }]); // Should default to city center
+      expect(city!.workableTiles?.filter(t => t.isWorked) || []).toContainEqual(
+        expect.objectContaining({ x: 5, y: 5 })
+      ); // Should include worked city center
     });
   });
 

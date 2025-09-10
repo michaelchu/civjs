@@ -11,6 +11,23 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
     const setup = await setupGameManagerWithScenario();
     gameManager = setup.gameManager;
     scenario = setup.scenario;
+
+    // Set up callbacks between CityManager and other managers
+    const gameInstance = gameManager.getGameInstance(scenario.game.id)!;
+    gameInstance.cityManager.setCallbacks({
+      onCityProductionComplete: (city, item) => {
+        if (item.kind === 'unit') {
+          // Create unit at city location
+          gameInstance.unitManager.createUnit(city.playerId, item.value, city.x, city.y);
+        }
+      },
+      onCityTurnProcessed: city => {
+        // Transfer city science output to research manager
+        if (city.sciencePerTurn && city.sciencePerTurn > 0) {
+          gameInstance.researchManager.addResearchPoints(city.playerId, city.sciencePerTurn);
+        }
+      },
+    });
   });
 
   afterEach(() => {
@@ -26,15 +43,17 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       gameId = scenario.game.id;
       playerId = scenario.players[0].id;
 
-      // Found a city for production
-      cityId = await gameManager.foundCity(gameId, playerId, 'ProductionCity', 5, 5);
+      // Found a city for production using the game instance's city manager
+      const game = gameManager.getGameInstance(gameId)!;
+      const city = await game.cityManager.foundCity(5, 5, 'ProductionCity', playerId);
+      cityId = city!.id;
     });
 
     it('should complete warrior production and create unit with proper database persistence', async () => {
       const game = gameManager.getGameInstance(gameId)!;
 
       // Set city to produce a warrior
-      await game.cityManager.setCityProduction(cityId, 'warrior', 'unit');
+      await game.cityManager.setCityProduction(cityId, 'unit', 'warrior', playerId);
 
       // Simulate production progress by setting production stock high
       const city = game.cityManager.getCity(cityId)!;
@@ -79,7 +98,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       const game = gameManager.getGameInstance(gameId)!;
 
       // Set city to produce granary
-      await game.cityManager.setCityProduction(cityId, 'granary', 'building');
+      await game.cityManager.setCityProduction(cityId, 'building', 'granary', playerId);
 
       const city = game.cityManager.getCity(cityId)!;
       city.productionStock = 60; // Granary costs 60 shields
@@ -91,8 +110,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       expect(city.buildings).toContain('granary');
       expect(city.currentProduction).toBeNull();
 
-      // Refresh city to apply building effects
-      game.cityManager.refreshCity(cityId);
+      // Apply building effects with government system
+      game.cityManager.refreshCityWithGovernmentEffects(cityId);
 
       // Granary should provide food bonus
       const initialFoodPerTurn = city.foodPerTurn;
@@ -243,7 +262,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
 
       // Should now be able to produce spearmen (requires bronze working)
       await expect(
-        game.cityManager.setCityProduction(cityId, 'spearman', 'unit')
+        game.cityManager.setCityProduction(cityId, 'unit', 'spearman', playerId)
       ).resolves.not.toThrow();
 
       const city = game.cityManager.getCity(cityId)!;
@@ -280,7 +299,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       const unitId = await gameManager.createUnit(gameId, playerId1, 'warrior', 7, 7);
 
       // Set city production
-      await game.cityManager.setCityProduction(cityId, 'warrior', 'unit');
+      await game.cityManager.setCityProduction(cityId, 'unit', 'warrior', playerId1);
 
       // Set research
       await gameManager.setPlayerResearch(gameId, playerId1, 'pottery');
@@ -377,7 +396,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
         expect(city.population).toBeGreaterThan(1);
 
         // City might work more tiles now
-        expect(city.workingTiles.length).toBeGreaterThanOrEqual(1);
+        expect(city.workableTiles?.length || 0).toBeGreaterThanOrEqual(1);
 
         // Create unit near city
         const unitId = await gameManager.createUnit(gameId, playerId, 'settler', 13, 12);

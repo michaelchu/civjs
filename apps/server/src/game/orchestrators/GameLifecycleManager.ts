@@ -16,6 +16,7 @@ import { MapManager, MapGeneratorType } from '@game/managers/MapManager';
 import { UnitManager } from '@game/managers/UnitManager';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { CityManager } from '@game/managers/CityManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { MapStartpos } from '@game/map/MapTypes';
@@ -229,9 +230,53 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     const turnManager = await this.createTurnManagerAndInitialize(gameId, players);
     const cityManager = this.createCityManager(gameId);
     const unitManager = this.createUnitManager(gameId, game, mapManager, cityManager);
+
+    // Set up dependencies after all managers are created
+    cityManager.setMapManager(mapManager);
+    await cityManager.initialize();
+
+    // Create additional managers
     const visibilityManager = this.createVisibilityManager(gameId, unitManager, mapManager);
     const researchManager = this.createResearchManager(gameId);
     const pathfindingManager = this.createPathfindingManager(game, mapManager);
+
+    // Set up callbacks after all managers are created
+    cityManager.setCallbacks({
+      onCityProductionComplete: (city, item) => {
+        if (item.kind === 'unit') {
+          // Create unit at city location
+          unitManager.createUnit(city.playerId, item.value, city.x, city.y);
+          this.logger.info(`Unit ${item.value} created at city ${city.name}`, {
+            cityId: city.id,
+            playerId: city.playerId,
+            unitType: item.value,
+            x: city.x,
+            y: city.y,
+          });
+        }
+      },
+      onCityTurnProcessed: city => {
+        // Transfer city science output to research manager
+        this.logger.debug(`🔬 City turn processed callback for ${city.name}:`, {
+          cityId: city.id,
+          sciencePerTurn: city.sciencePerTurn,
+          playerId: city.playerId,
+        });
+
+        if (city.sciencePerTurn && city.sciencePerTurn > 0) {
+          const completedTech = researchManager.addResearchPoints(
+            city.playerId,
+            city.sciencePerTurn
+          );
+          this.logger.debug(`Science accumulated from city ${city.name}`, {
+            cityId: city.id,
+            playerId: city.playerId,
+            scienceAdded: city.sciencePerTurn,
+            completedTech: completedTech || 'none',
+          });
+        }
+      },
+    });
 
     // Generate the map with starting positions based on terrain settings
     await this.generateGameMap(gameId, mapManager, players, terrainSettings, unitManager);
@@ -651,10 +696,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   }
 
   private createCityManager(gameId: string): CityManager {
-    return new CityManager(gameId, this.databaseProvider, undefined, {
-      createUnit: (_playerId: string, _unitType: string, _x: number, _y: number) =>
-        Promise.resolve(''),
-    });
+    const effectsManager = new EffectsManager();
+    return new CityManager(gameId, this.databaseProvider, effectsManager, {});
   }
 
   private createUnitManager(

@@ -5,6 +5,7 @@ import { GameInstance, PlayerState, TurnPhase, GameState } from '@game/managers/
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { logger } from '@utils/logger';
 import { CityManager } from '@game/managers/CityManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
 import { MapManager } from '@game/managers/MapManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
@@ -42,13 +43,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       targetX: number,
       targetY: number
     ) => Promise<any>,
-    private createUnit: (
-      gameId: string,
-      playerId: string,
-      unitType: string,
-      x: number,
-      y: number
-    ) => Promise<string>,
+    // Note: createUnit callback removed as it's not currently used
+    // private createUnit: (gameId: string, playerId: string, unitType: string, x: number, y: number) => Promise<string>,
     private broadcastToGame: (gameId: string, event: string, data: any) => void
   ) {
     super(logger);
@@ -194,10 +190,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
     const playerIds = Array.from(players.keys());
     await turnManager.initializeTurn(playerIds);
 
-    const cityManager = new CityManager(gameId, this.databaseProvider, undefined, {
-      createUnit: (playerId: string, unitType: string, x: number, y: number) =>
-        this.createUnit(gameId, playerId, unitType, x, y),
-    });
+    const effectsManager = new EffectsManager();
+    const cityManager = new CityManager(gameId, this.databaseProvider, effectsManager, {});
     const researchManager = new ResearchManager(gameId, this.databaseProvider);
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
