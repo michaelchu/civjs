@@ -95,7 +95,9 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     const selectedNation = await this.validateAndSelectNation(civilization, game.players);
 
     // Get next available color theme from predefined palette
-    const usedThemes = game.players.map(p => p.colorTheme as NationColorTheme);
+    const usedThemes = game.players
+      .map(p => p.colorTheme as NationColorTheme)
+      .filter(theme => theme && theme.primary); // Filter out invalid themes
     const assignedTheme = getNextPlayerColorTheme(usedThemes);
 
     const playerData = {
@@ -225,7 +227,9 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       const aiNation = availableNations[i];
 
       // Get next available color theme for AI player
-      const currentUsedThemes = game.players.map(p => p.colorTheme as NationColorTheme);
+      const currentUsedThemes = game.players
+        .map(p => p.colorTheme as NationColorTheme)
+        .filter(theme => theme && theme.primary); // Filter out invalid themes
       const aiTheme = getNextPlayerColorTheme(currentUsedThemes);
 
       const aiPlayerData = {
