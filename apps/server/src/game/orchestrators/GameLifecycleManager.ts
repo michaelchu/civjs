@@ -235,7 +235,12 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     cityManager.setMapManager(mapManager);
     await cityManager.initialize();
 
-    // Set up the production completion callback after both managers are created
+    // Create additional managers
+    const visibilityManager = this.createVisibilityManager(gameId, unitManager, mapManager);
+    const researchManager = this.createResearchManager(gameId);
+    const pathfindingManager = this.createPathfindingManager(game, mapManager);
+
+    // Set up callbacks after all managers are created
     cityManager.setCallbacks({
       onCityProductionComplete: (city, item) => {
         if (item.kind === 'unit') {
@@ -250,10 +255,22 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           });
         }
       },
+      onCityTurnProcessed: city => {
+        // Transfer city science output to research manager
+        if (city.sciencePerTurn && city.sciencePerTurn > 0) {
+          const completedTech = researchManager.addResearchPoints(
+            city.playerId,
+            city.sciencePerTurn
+          );
+          this.logger.debug(`Science accumulated from city ${city.name}`, {
+            cityId: city.id,
+            playerId: city.playerId,
+            scienceAdded: city.sciencePerTurn,
+            completedTech: completedTech || 'none',
+          });
+        }
+      },
     });
-    const visibilityManager = this.createVisibilityManager(gameId, unitManager, mapManager);
-    const researchManager = this.createResearchManager(gameId);
-    const pathfindingManager = this.createPathfindingManager(game, mapManager);
 
     // Generate the map with starting positions based on terrain settings
     await this.generateGameMap(gameId, mapManager, players, terrainSettings, unitManager);

@@ -331,6 +331,7 @@ export interface CityManagerCallbacks {
   onCityGrowth?: (city: CityState, oldSize: number) => void;
   onCityProductionComplete?: (city: CityState, item: ProductionItem) => void;
   onCityDestroyed?: (city: CityState) => void;
+  onCityTurnProcessed?: (city: CityState) => void;
 }
 
 /**
@@ -442,6 +443,14 @@ export class CityManager {
    */
   setMapManager(mapManager: MapManager): void {
     this.mapManager = mapManager;
+    // Re-initialize services that depend on MapManager if they exist
+    if (this.tileManagementService) {
+      this.tileManagementService = new CityTileManagementService(
+        this.cities,
+        this.mapManager,
+        CITY_MAP_DEFAULT_RADIUS_SQ
+      );
+    }
   }
 
   /**
@@ -543,6 +552,7 @@ export class CityManager {
       foodPerTurn: 2, // Base city center food
       productionPerTurn: 1, // Base city center production
       tradePerTurn: 1, // Base city center trade
+      sciencePerTurn: 0, // Will be calculated
       buildings: [],
       specialists: {
         [SpecialistType.SCIENTIST]: 0,
@@ -568,7 +578,25 @@ export class CityManager {
     // Initialize workable tiles using the service
     if (this.tileManagementService) {
       this.tileManagementService.initializeWorkableTiles(city);
+    } else {
+      // Fallback if service is not available
+      logger.warn('TileManagementService not available, providing fallback workable tiles', {
+        cityId,
+      });
+      city.workableTiles = [
+        {
+          x: city.x,
+          y: city.y,
+          isCenter: true,
+          isWorked: true,
+          isBlocked: false,
+          outputs: { food: 2, shields: 1, trade: 1 },
+        },
+      ];
     }
+
+    // Calculate city outputs to ensure science and other values are properly set
+    this.calculateCityOutputs(cityId);
 
     // Save to database
     await this.saveCityToDatabase(city);
@@ -611,6 +639,11 @@ export class CityManager {
 
       // Calculate city outputs
       this.calculateCityOutputs(cityId);
+
+      // Trigger callback for city turn processing (science accumulation)
+      if (this.callbacks.onCityTurnProcessed) {
+        this.callbacks.onCityTurnProcessed(city);
+      }
 
       // Process food and growth
       await this.processFoodAndGrowth(city, currentTurn);
@@ -899,6 +932,7 @@ export class CityManager {
           foodPerTurn: record.foodPerTurn || 0,
           productionPerTurn: record.productionPerTurn || 0,
           tradePerTurn: 0, // Will be calculated from trade routes
+          sciencePerTurn: record.sciencePerTurn || 0, // Will be recalculated
           productionStock: record.production || 0,
           buildings: (record.buildings as string[]) || [],
           specialists: (record.specialists as Record<SpecialistType, number>) || {
@@ -938,7 +972,26 @@ export class CityManager {
               }
             }
           }
+        } else {
+          // Fallback if service is not available
+          logger.warn(
+            'TileManagementService not available for loaded city, providing fallback workable tiles',
+            { cityId: city.id }
+          );
+          city.workableTiles = [
+            {
+              x: city.x,
+              y: city.y,
+              isCenter: true,
+              isWorked: true,
+              isBlocked: false,
+              outputs: { food: 2, shields: 1, trade: 1 },
+            },
+          ];
         }
+
+        // Calculate city outputs to ensure all values are properly set
+        this.calculateCityOutputs(city.id);
       }
 
       logger.info(`Loaded ${this.cities.size} cities from database`);
@@ -1218,6 +1271,14 @@ export class CityManager {
         return { food: 0, shields: 0, trade: 0, science: 0, gold: 0, luxury: 0 };
       }
 
+      // Provide city center base output if tile outputs are all zero
+      if (tileOutputs.food === 0 && tileOutputs.shields === 0 && tileOutputs.trade === 0) {
+        logger.warn('Tile outputs are zero, providing city center base outputs', { cityId });
+        tileOutputs.food = 2;
+        tileOutputs.shields = 1;
+        tileOutputs.trade = 1;
+      }
+
       let science = 0;
       let gold = 0;
       let luxury = 0;
@@ -1259,11 +1320,11 @@ export class CityManager {
         }
       }
 
-      // Update city state
-      city.foodPerTurn = tileOutputs.food;
-      city.productionPerTurn = tileOutputs.shields;
-      city.tradePerTurn = tileOutputs.trade;
-      city.sciencePerTurn = science;
+      // Update city state with defensive programming to ensure no undefined values
+      city.foodPerTurn = tileOutputs.food || 0;
+      city.productionPerTurn = tileOutputs.shields || 0;
+      city.tradePerTurn = tileOutputs.trade || 0;
+      city.sciencePerTurn = science || 0;
 
       return {
         food: tileOutputs.food,
@@ -1275,13 +1336,25 @@ export class CityManager {
       };
     }
 
-    // Fallback calculation
+    // Fallback calculation when TileManagementService is not available
+    const city = this.cities.get(cityId);
+    if (city) {
+      // Apply fallback outputs directly to city state
+      city.foodPerTurn = 2;
+      city.productionPerTurn = 1;
+      city.tradePerTurn = 1;
+      city.sciencePerTurn = 0;
+    }
     return { food: 2, shields: 1, trade: 1, science: 0, gold: 0, luxury: 0 };
   }
 
   public refreshCityWithGovernmentEffects(cityId: string): void {
     // In a full implementation, this would get the current government from the game state
     const defaultGovernment = 'despotism';
+
+    // Recalculate city outputs first to ensure they're current
+    this.calculateCityOutputs(cityId);
+
     this.applyCityCorruption(cityId, defaultGovernment);
     this.applyCityHappiness(cityId, defaultGovernment);
   }

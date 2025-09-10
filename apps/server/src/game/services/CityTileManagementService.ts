@@ -49,9 +49,40 @@ export class CityTileManagementService extends BaseGameService {
    * @reference Original CityManager.initializeWorkableTiles()
    */
   public initializeWorkableTiles(city: CityState): void {
+    if (!this.mapManager) {
+      logger.warn('Cannot initialize workable tiles: MapManager not available, using fallback', {
+        cityId: city.id,
+      });
+      // Provide fallback workable tiles with just city center
+      city.workableTiles = [
+        {
+          x: city.x,
+          y: city.y,
+          isCenter: true,
+          isWorked: true,
+          isBlocked: false,
+          outputs: { food: 2, shields: 1, trade: 1 },
+        },
+      ];
+      return;
+    }
+
     const mapData = this.mapManager.getMapData();
     if (!mapData) {
-      logger.warn('Cannot initialize workable tiles: no map data available', { cityId: city.id });
+      logger.warn('Cannot initialize workable tiles: no map data available, using fallback', {
+        cityId: city.id,
+      });
+      // Provide fallback workable tiles with just city center
+      city.workableTiles = [
+        {
+          x: city.x,
+          y: city.y,
+          isCenter: true,
+          isWorked: true,
+          isBlocked: false,
+          outputs: { food: 2, shields: 1, trade: 1 },
+        },
+      ];
       return;
     }
 

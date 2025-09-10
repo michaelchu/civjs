@@ -12,13 +12,19 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
     gameManager = setup.gameManager;
     scenario = setup.scenario;
 
-    // Set up callbacks between CityManager and UnitManager for production completion
+    // Set up callbacks between CityManager and other managers
     const gameInstance = gameManager.getGameInstance(scenario.game.id)!;
     gameInstance.cityManager.setCallbacks({
       onCityProductionComplete: (city, item) => {
         if (item.kind === 'unit') {
           // Create unit at city location
           gameInstance.unitManager.createUnit(city.playerId, item.value, city.x, city.y);
+        }
+      },
+      onCityTurnProcessed: city => {
+        // Transfer city science output to research manager
+        if (city.sciencePerTurn && city.sciencePerTurn > 0) {
+          gameInstance.researchManager.addResearchPoints(city.playerId, city.sciencePerTurn);
         }
       },
     });

@@ -36,9 +36,13 @@ describe('CityManager - Integration Tests with Real Database', () => {
 
     // Set up a mock MapManager and initialize the CityManager
     const mockMapManager = {
-      getMapData: () => ({ width: 20, height: 20, tiles: [] }),
-      isValidPosition: () => true,
-      getTile: () => ({ terrain: 'grassland', resource: null }),
+      getMapData: () => ({
+        width: 20,
+        height: 20,
+        tiles: Array(400).fill({ terrain: 'grassland', resource: null }), // 20x20 = 400 tiles
+      }),
+      isValidPosition: (x: number, y: number) => x >= 0 && x < 20 && y >= 0 && y < 20,
+      getTile: (_x: number, _y: number) => ({ terrain: 'grassland', resource: null }),
     } as any;
 
     cityManager.setMapManager(mockMapManager);
