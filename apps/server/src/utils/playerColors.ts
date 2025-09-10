@@ -120,9 +120,6 @@ export const NATION_COLOR_THEMES: NationColorTheme[] = [
   },
 ];
 
-// Legacy support - primary colors only for backward compatibility
-export const PLAYER_COLORS: PlayerColor[] = NATION_COLOR_THEMES.map(theme => theme.primary);
-
 /**
  * Convert PlayerColor object to CSS hex string
  */
@@ -165,26 +162,6 @@ export function getNextPlayerColorTheme(usedThemes: NationColorTheme[]): NationC
 
   // If all predefined themes are used, return a random one from the palette
   return NATION_COLOR_THEMES[Math.floor(Math.random() * NATION_COLOR_THEMES.length)];
-}
-
-/**
- * Legacy function - Get the next available primary color for a new player
- * @param usedColors - Array of colors already in use
- * @returns Next available color, or a random color if all are used
- */
-export function getNextPlayerColor(usedColors: PlayerColor[]): PlayerColor {
-  // Find the first unused color
-  for (const color of PLAYER_COLORS) {
-    const isUsed = usedColors.some(
-      used => used.r === color.r && used.g === color.g && used.b === color.b
-    );
-    if (!isUsed) {
-      return color;
-    }
-  }
-
-  // If all predefined colors are used, return a random one from the palette
-  return PLAYER_COLORS[Math.floor(Math.random() * PLAYER_COLORS.length)];
 }
 
 /**

@@ -12,7 +12,7 @@ import { games, players } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import serverConfig from '@config';
-import { getNextPlayerColor, type PlayerColor } from '../../utils/playerColors';
+import { getNextPlayerColorTheme, type NationColorTheme } from '../../utils/playerColors';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {
@@ -94,16 +94,9 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     // Validate and select nation
     const selectedNation = await this.validateAndSelectNation(civilization, game.players);
 
-    // Get next available color from predefined palette
-    // TODO: Upgrade to use full 3-color themes when UI supports it
-    const usedColors = game.players.map(p => p.color as PlayerColor);
-    const assignedColor = getNextPlayerColor(usedColors);
-
-    // For future reference - how to get a full color theme:
-    // import { getNextPlayerColorTheme, type NationColorTheme } from '../../utils/playerColors';
-    // const usedThemes = game.players.map(p => ({ primary: p.color } as NationColorTheme));
-    // const assignedTheme = getNextPlayerColorTheme(usedThemes);
-    // const assignedColor = assignedTheme.primary;
+    // Get next available color theme from predefined palette
+    const usedThemes = game.players.map(p => p.colorTheme as NationColorTheme);
+    const assignedTheme = getNextPlayerColorTheme(usedThemes);
 
     const playerData = {
       gameId,
@@ -112,7 +105,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       nation: selectedNation,
       civilization: selectedNation || `Civilization${playerNumber}`,
       leaderName: `Leader${playerNumber}`,
-      color: assignedColor,
+      colorTheme: assignedTheme,
     };
 
     const [newPlayer] = await this.databaseProvider
@@ -231,9 +224,9 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       const playerNumber = game.players.length + i + 1;
       const aiNation = availableNations[i];
 
-      // Get next available color for AI player
-      const currentUsedColors = game.players.map(p => p.color as PlayerColor);
-      const aiColor = getNextPlayerColor(currentUsedColors);
+      // Get next available color theme for AI player
+      const currentUsedThemes = game.players.map(p => p.colorTheme as NationColorTheme);
+      const aiTheme = getNextPlayerColorTheme(currentUsedThemes);
 
       const aiPlayerData = {
         gameId,
@@ -242,7 +235,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         nation: aiNation,
         civilization: aiNation,
         leaderName: `AI Leader ${playerNumber}`,
-        color: aiColor,
+        colorTheme: aiTheme,
         connectionStatus: 'connected',
         isReady: true,
       };
