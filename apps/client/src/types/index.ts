@@ -25,6 +25,16 @@ export interface Unit {
   veteranLevel: number;
 }
 
+export interface ProductionOption {
+  id: string;
+  name: string;
+  type: 'unit' | 'building' | 'wonder';
+  cost: number;
+  description?: string;
+  requirements?: string[];
+  available: boolean;
+}
+
 export interface City {
   id: string;
   name: string;
@@ -32,15 +42,83 @@ export interface City {
   x: number;
   y: number;
   size: number;
+  // Current output
   food: number;
   shields: number;
   trade: number;
-  buildings: string[];
+  // Production breakdown (total production before usage)
+  prod: {
+    food: number;
+    shields: number;
+    trade: number;
+    gold: number;
+    luxury: number;
+    science: number;
+  };
+  // Net surplus/deficit after consumption
+  surplus: {
+    food: number;
+    shields: number;
+    trade: number;
+    gold: number;
+    luxury: number;
+    science: number;
+  };
+  // Waste/corruption
+  waste: {
+    shields: number;
+    trade: number;
+  };
+  // Population details
+  foodStock: number;
+  granarySize: number;
+  granaryTurns: number; // positive = growth, negative = starvation
+  // Citizens
+  citizens: {
+    happy: number;
+    content: number;
+    unhappy: number;
+    angry: number;
+    specialists: Record<string, number>; // specialist type -> count
+  };
+  // Buildings with upkeep
+  buildings: Array<{
+    id: string;
+    name: string;
+    upkeep: number;
+  }>;
+  // Units
+  presentUnits: string[]; // Unit IDs in the city
+  supportedUnits: string[]; // Unit IDs supported by this city
+  // Production
   production?: {
     target: string;
     type: 'unit' | 'building' | 'wonder';
     progress: number;
     cost: number;
+    turnsToComplete: number;
+  };
+  // Worklist
+  worklist: Array<{
+    target: string;
+    type: 'unit' | 'building' | 'wonder';
+    cost: number;
+  }>;
+  // Trade routes
+  tradeRoutes: Array<{
+    partnerId: string;
+    goods: string;
+    value: number;
+  }>;
+  // City state
+  celebrating: boolean;
+  disorder: boolean;
+  pollution: number;
+  // Rally point (if any)
+  rallyPoint?: {
+    x: number;
+    y: number;
+    persistent: boolean;
   };
 }
 

@@ -1363,6 +1363,23 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         city={cityInfoOverlay.city}
         isOpen={cityInfoOverlay.isOpen}
         onClose={handleCloseCityInfoOverlay}
+        units={units}
+        onProductionChange={(cityId, productionId, type) => {
+          console.log('Production change:', { cityId, productionId, type });
+          // TODO: Implement production change action
+        }}
+        onQueueAdd={(cityId, productionId, type) => {
+          console.log('Queue add:', { cityId, productionId, type });
+          // TODO: Implement queue add action
+        }}
+        onQueueRemove={(cityId, index) => {
+          console.log('Queue remove:', { cityId, index });
+          // TODO: Implement queue remove action
+        }}
+        onQueueReorder={(cityId, fromIndex, toIndex) => {
+          console.log('Queue reorder:', { cityId, fromIndex, toIndex });
+          // TODO: Implement queue reorder action
+        }}
       />
     </div>
   );

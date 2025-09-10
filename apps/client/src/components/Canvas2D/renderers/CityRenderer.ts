@@ -237,7 +237,9 @@ export class CityRenderer extends BaseRenderer {
       'citadel', // Citadel
     ];
 
-    return wallBuildings.some(building => city.buildings.includes(building));
+    return wallBuildings.some(building =>
+      city.buildings.some(b => (typeof b === 'string' ? b === building : b.name === building))
+    );
   }
 
   /**
