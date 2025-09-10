@@ -957,38 +957,10 @@ export class CityManager {
         this.cities.set(city.id, city);
 
         // Initialize workable tiles for loaded cities
-        if (this.tileManagementService) {
-          this.tileManagementService.initializeWorkableTiles(city);
-
-          // Restore worked tiles from database
-          const workedTiles = record.workedTiles as Array<{ x: number; y: number }> | null;
-          if (workedTiles && city.workableTiles) {
-            for (const workedTileCoord of workedTiles) {
-              const tile = city.workableTiles.find(
-                t => t.x === workedTileCoord.x && t.y === workedTileCoord.y
-              );
-              if (tile) {
-                tile.isWorked = true;
-              }
-            }
-          }
-        } else {
-          // Fallback if service is not available
-          logger.warn(
-            'TileManagementService not available for loaded city, providing fallback workable tiles',
-            { cityId: city.id }
-          );
-          city.workableTiles = [
-            {
-              x: city.x,
-              y: city.y,
-              isCenter: true,
-              isWorked: true,
-              isBlocked: false,
-              outputs: { food: 2, shields: 1, trade: 1 },
-            },
-          ];
-        }
+        this.initializeWorkableTilesForLoadedCity(
+          city,
+          record.workedTiles as Array<{ x: number; y: number }> | null
+        );
 
         // Calculate city outputs to ensure all values are properly set
         this.calculateCityOutputs(city.id);
@@ -1652,5 +1624,61 @@ export class CityManager {
       }
     }
     return null;
+  }
+
+  /**
+   * Initializes workable tiles for a city loaded from database
+   */
+  private initializeWorkableTilesForLoadedCity(
+    city: CityState,
+    workedTiles: Array<{ x: number; y: number }> | null
+  ): void {
+    if (this.tileManagementService) {
+      this.tileManagementService.initializeWorkableTiles(city);
+      this.restoreWorkedTilesFromDatabase(city, workedTiles);
+    } else {
+      this.createFallbackWorkableTiles(city);
+    }
+  }
+
+  /**
+   * Restores worked tiles from database for a city
+   */
+  private restoreWorkedTilesFromDatabase(
+    city: CityState,
+    workedTiles: Array<{ x: number; y: number }> | null
+  ): void {
+    if (!workedTiles || !city.workableTiles) {
+      return;
+    }
+
+    for (const workedTileCoord of workedTiles) {
+      const tile = city.workableTiles.find(
+        t => t.x === workedTileCoord.x && t.y === workedTileCoord.y
+      );
+      if (tile) {
+        tile.isWorked = true;
+      }
+    }
+  }
+
+  /**
+   * Creates fallback workable tiles when tile management service is unavailable
+   */
+  private createFallbackWorkableTiles(city: CityState): void {
+    logger.warn(
+      'TileManagementService not available for loaded city, providing fallback workable tiles',
+      { cityId: city.id }
+    );
+    city.workableTiles = [
+      {
+        x: city.x,
+        y: city.y,
+        isCenter: true,
+        isWorked: true,
+        isBlocked: false,
+        outputs: { food: 2, shields: 1, trade: 1 },
+      },
+    ];
   }
 }
