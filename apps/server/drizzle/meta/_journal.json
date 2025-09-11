@@ -5,57 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1733961600000,
-      "tag": "0000_omniscient_franklin_richards",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1756745304183,
-      "tag": "0001_right_scream",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1756788869910,
-      "tag": "0002_good_roxanne_simpson",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1756855918311,
-      "tag": "0003_closed_spiral",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1756860991769,
-      "tag": "0004_steady_vampiro",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1757439949927,
-      "tag": "0005_strange_pyro",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1757624088313,
-      "tag": "0006_colossal_firedrake",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1757624246161,
-      "tag": "0007_yummy_guardsmen",
+      "when": 1757632409732,
+      "tag": "0000_square_logan",
       "breakpoints": true
     }
   ]
