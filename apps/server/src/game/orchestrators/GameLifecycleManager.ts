@@ -21,6 +21,7 @@ import { ResearchManager } from '@game/managers/ResearchManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { BorderManager } from '@game/managers/BorderManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
+import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
 import { MapStartpos } from '@game/map/MapTypes';
 import type { Server as SocketServer } from 'socket.io';
 import type {
@@ -306,6 +307,35 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           y: city.y,
           playerId: city.playerId,
         });
+      },
+      onCityGrowth: (city, oldSize) => {
+        // Update border radius when city grows (population-based expansion)
+        this.logger.info(`City ${city.name} grew from size ${oldSize} to ${city.size}`, {
+          cityId: city.id,
+          x: city.x,
+          y: city.y,
+          oldSize,
+          newSize: city.size,
+        });
+
+        // Recalculate borders around the city due to potential radius change
+        const oldRadiusSq = calculateCityBorderRadiusSq(oldSize);
+        const newRadiusSq = calculateCityBorderRadiusSq(city.size);
+
+        if (newRadiusSq !== oldRadiusSq) {
+          this.logger.info(`City border radius changed for ${city.name}`, {
+            cityId: city.id,
+            oldRadiusSq,
+            newRadiusSq,
+            oldRadius: Math.sqrt(oldRadiusSq),
+            newRadius: Math.sqrt(newRadiusSq),
+          });
+
+          // Update borders around the city with the new radius
+          // Use the larger radius to ensure we recalculate all potentially affected tiles
+          const updateRadius = Math.max(oldRadiusSq, newRadiusSq);
+          borderManager.updateBordersAroundTile(city.x, city.y, updateRadius);
+        }
       },
     });
 

@@ -16,8 +16,8 @@ import {
   BORDER_DEFAULT_CITY_RADIUS_SQ,
   BORDER_DEFAULT_SIZE_EFFECT,
   BORDER_DEFAULT_STRENGTH_PCT,
-  CITY_MAP_MAX_RADIUS_SQ,
   FC_INFINITY,
+  calculateCityBorderRadiusSq,
 } from '@game/constants/BorderConstants';
 import type { BorderSource, TileOwnership, BorderUpdate } from '../../types/shared/BorderTypes';
 
@@ -131,16 +131,17 @@ export class BorderManager {
     let radiusSq = 0;
 
     if (source.type === 'city') {
-      // Base city radius from game settings
-      radiusSq = this.gameSettings.borderCityRadiusSq;
-
-      // Additional radius based on city size, limited by max radius
+      // Use progressive radius calculation based on city population
       const citySize = this.getCitySize(source.x, source.y);
-      if (citySize > 0) {
-        const sizeBonus =
-          Math.min(citySize, CITY_MAP_MAX_RADIUS_SQ) * this.gameSettings.borderSizeEffect;
-        radiusSq += sizeBonus;
-      }
+      radiusSq = calculateCityBorderRadiusSq(citySize);
+
+      logger.debug('🏘️ City border radius calculation', {
+        x: source.x,
+        y: source.y,
+        citySize,
+        radiusSq,
+        effectiveRadius: Math.sqrt(radiusSq),
+      });
     } else if (source.type === 'fort' || source.type === 'extra') {
       // TODO: Implement when extras system is available
       // Would get radius from base/extra definition
