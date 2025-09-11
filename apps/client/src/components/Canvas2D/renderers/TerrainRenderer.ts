@@ -611,6 +611,9 @@ export class TerrainRenderer extends BaseRenderer {
       hills: '#8B4513',
       mountains: '#696969',
       ocean: '#4682B4',
+      lake: '#2E5B8C', // Darker blue for lakes (freshwater)
+      coast: '#4682B4',
+      deep_ocean: '#1e3a5f',
       swamp: '#556B2F',
     };
 
