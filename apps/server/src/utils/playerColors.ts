@@ -144,11 +144,11 @@ export function hexToPlayerColor(hex: string): PlayerColor {
 /**
  * Get the next available color theme for a new player
  * @param usedThemes - Array of color themes already in use
- * @returns Next available color theme, or a random one if all are used
+ * @returns Randomly selected available color theme, or a random one if all are used
  */
 export function getNextPlayerColorTheme(usedThemes: NationColorTheme[]): NationColorTheme {
-  // Find the first unused theme
-  for (const theme of NATION_COLOR_THEMES) {
+  // Filter to get all unused themes
+  const availableThemes = NATION_COLOR_THEMES.filter(theme => {
     const isUsed = usedThemes.some(
       used =>
         used &&
@@ -157,9 +157,13 @@ export function getNextPlayerColorTheme(usedThemes: NationColorTheme[]): NationC
         used.primary.g === theme.primary.g &&
         used.primary.b === theme.primary.b
     );
-    if (!isUsed) {
-      return theme;
-    }
+    return !isUsed;
+  });
+
+  // If there are available themes, randomly select one
+  if (availableThemes.length > 0) {
+    const randomIndex = Math.floor(Math.random() * availableThemes.length);
+    return availableThemes[randomIndex];
   }
 
   // If all predefined themes are used, return a random one from the palette
