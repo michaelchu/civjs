@@ -166,8 +166,12 @@ export class RiverGenerator {
       riverMap.ok.add(tileIndex);
       length++;
 
+      logger.debug(`River tile ${length} placed at (${currentX}, ${currentY})`);
+
       // Test if the river is done (Freeciv termination conditions)
-      if (this.shouldTerminateRiver(currentX, currentY, tiles)) {
+      // This checks AFTER placing the current tile, like Freeciv
+      if (this.shouldTerminateRiver(currentX, currentY, tiles, riverMap)) {
+        logger.debug(`River terminated at (${currentX}, ${currentY}) after ${length} tiles`);
         break;
       }
 
@@ -176,6 +180,7 @@ export class RiverGenerator {
 
       if (!nextPos) {
         // No valid directions found - river ends here
+        logger.debug(`River ended naturally at (${currentX}, ${currentY}) - no valid directions`);
         break;
       }
 
@@ -540,14 +545,26 @@ export class RiverGenerator {
    * Check if river should terminate (port of Freeciv termination conditions)
    * @reference freeciv/server/generator/mapgen.c:812-816
    */
-  private shouldTerminateRiver(x: number, y: number, tiles: MapTile[][]): boolean {
-    // 1. Check if river connects to existing river
-    if (this.countRiverNearTile(x, y, tiles) > 0) {
+  private shouldTerminateRiver(
+    x: number,
+    y: number,
+    tiles: MapTile[][],
+    _riverMap: RiverMapState
+  ): boolean {
+    const riverCount = this.countRiverNearTile(x, y, tiles);
+    const oceanCount = this.countOceanNearTile(x, y, tiles);
+
+    logger.debug(`Termination check at (${x}, ${y}): rivers=${riverCount}, ocean=${oceanCount}`);
+
+    // 1. Check if river connects to existing river (not including tiles in current river)
+    if (riverCount > 0) {
+      logger.debug(`River terminating: connects to existing river`);
       return true;
     }
 
     // 2. Check if river reaches ocean
-    if (this.countOceanNearTile(x, y, tiles) > 0) {
+    if (oceanCount > 0) {
+      logger.debug(`River terminating: reaches ocean`);
       return true;
     }
 
@@ -704,8 +721,16 @@ export class RiverGenerator {
     // Don't start a river on a tile surrounded by > 1 river + ocean tile
     const nearbyRivers = this.countRiverNearTile(x, y, tiles);
     const nearbyOcean = this.countOceanNearTile(x, y, tiles);
+
+    // Allow starting positions further from ocean - be more permissive initially
     if (nearbyRivers + nearbyOcean > 1) {
       return false;
+    }
+
+    // Additional check: prefer starting positions that are not immediately adjacent to ocean
+    // This helps prevent 1-tile rivers
+    if (nearbyOcean > 0 && iterationCounter < (maxTries / 10) * 3) {
+      return false; // Early iterations: avoid starting next to ocean
     }
 
     // Don't start a river on a tile surrounded by hills/mountains (unless desperate)
@@ -725,6 +750,12 @@ export class RiverGenerator {
     // Don't start a river on desert unless desperate
     if (tile.terrain === 'desert' && iterationCounter < (maxTries / 10) * 9) {
       return false;
+    }
+
+    // Prefer starting rivers at higher elevations (mountains flow to sea)
+    // Only enforce this in early iterations to allow fallback
+    if (tile.elevation < 50 && iterationCounter < (maxTries / 10) * 2) {
+      return false; // Early iterations: prefer high elevation starts
     }
 
     return true;
