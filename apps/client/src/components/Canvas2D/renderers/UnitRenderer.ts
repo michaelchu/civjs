@@ -7,12 +7,29 @@ export class UnitRenderer extends BaseRenderer {
   private lastSelectedUnitId: string | null = null;
 
   /**
-   * Render all units visible in the viewport.
+   * Render all units visible in the viewport with proper stacking behavior.
+   * Only renders the first unit on each tile (freeciv-web stacking behavior).
    */
   renderUnits(state: RenderState): void {
+    // Group units by position to handle stacking
+    const unitsAtPosition = new Map<string, Unit[]>();
+
     Object.values(state.units).forEach(unit => {
       if (this.isInViewport(unit.x, unit.y, state.viewport)) {
-        this.renderUnit(unit, state.viewport);
+        const posKey = `${unit.x},${unit.y}`;
+        if (!unitsAtPosition.has(posKey)) {
+          unitsAtPosition.set(posKey, []);
+        }
+        unitsAtPosition.get(posKey)!.push(unit);
+      }
+    });
+
+    // Render only the first unit at each position (top of stack)
+    unitsAtPosition.forEach(unitsAtPos => {
+      if (unitsAtPos.length > 0) {
+        // Render the first unit (top of stack)
+        const topUnit = unitsAtPos[0];
+        this.renderUnit(topUnit, state.viewport, unitsAtPos.length);
       }
     });
   }
@@ -42,7 +59,7 @@ export class UnitRenderer extends BaseRenderer {
     }
   }
 
-  private renderUnit(unit: Unit, viewport: MapViewport): void {
+  private renderUnit(unit: Unit, viewport: MapViewport, stackSize: number = 1): void {
     const screenPos = this.mapToScreen(unit.x, unit.y, viewport);
 
     // Get unit animation offset for smooth movement
@@ -59,7 +76,7 @@ export class UnitRenderer extends BaseRenderer {
 
     // Render unit sprites using freeciv-web approach
     // @reference freeciv-web/.../tilespec.js:fill_unit_sprite_array()
-    const unitSprites = this.fillUnitSpriteArray(unit);
+    const unitSprites = this.fillUnitSpriteArray(unit, stackSize);
 
     for (const spriteInfo of unitSprites) {
       if (spriteInfo.key) {
@@ -107,7 +124,8 @@ export class UnitRenderer extends BaseRenderer {
    * @reference freeciv-web/.../tilespec.js:fill_unit_sprite_array()
    */
   private fillUnitSpriteArray(
-    unit: Unit
+    unit: Unit,
+    stackSize: number = 1
   ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
     const sprites: Array<{ key: string; offset_x?: number; offset_y?: number }> = [];
 
@@ -132,6 +150,17 @@ export class UnitRenderer extends BaseRenderer {
     const activitySprite = this.getUnitActivitySprite();
     if (activitySprite) {
       sprites.push(activitySprite);
+    }
+
+    // Add stack indicator if multiple units at same position
+    // @reference freeciv-web LAYER_UNIT switch case: handles stackSize display
+    if (stackSize > 1) {
+      const stackIndicator = Math.min(stackSize, 9); // Max 9 in freeciv-web
+      sprites.push({
+        key: `unit.stack_${stackIndicator}`,
+        offset_x: 0,
+        offset_y: 0,
+      });
     }
 
     return sprites;

@@ -168,24 +168,31 @@ export class MapRenderer {
 
     const visibleTiles = this.getVisibleTilesFromGlobal(state.viewport, globalMap, globalTiles);
 
-    // Render terrain layer (includes rivers and resources per-tile to maintain z-order)
+    // Follow freeciv-web layer order exactly:
+    // LAYER_TERRAIN1, LAYER_TERRAIN2, LAYER_TERRAIN3, LAYER_ROADS,
+    // LAYER_SPECIAL1, LAYER_CITY1, LAYER_SPECIAL2, LAYER_UNIT, LAYER_FOG...
+
+    // LAYER_TERRAIN1-3 + LAYER_ROADS: Render terrain layer (includes rivers)
     this.terrainRenderer.renderTerrain(state, visibleTiles);
 
-    // Render borders after terrain but before units (following freeciv-web layer order)
+    // LAYER_SPECIAL1: Render borders, specials, mines, etc. (but not resources)
     // @reference freeciv-web/javascript/2dcanvas/mapview.js:580-720 - Border rendering in layer order
     // Note: BorderRenderer now properly saves/restores canvas state to avoid affecting subsequent layers
     this.borderRenderer.render(state);
 
-    // Render selection outline after terrain but before units
-    this.unitRenderer.renderUnitSelection(state);
-
-    // Render units layer
-    this.unitRenderer.renderUnits(state);
-
-    // Render cities layer
+    // LAYER_CITY1: Render cities layer BEFORE units (freeciv-web order)
     this.cityRenderer.renderCities(state);
 
-    // Render paths and overlays
+    // LAYER_SPECIAL2: Render resources (but only if no city on the tile)
+    this.terrainRenderer.renderResources(state, visibleTiles);
+
+    // Render selection outline before units for proper layering
+    this.unitRenderer.renderUnitSelection(state);
+
+    // LAYER_UNIT: Render units layer ON TOP of cities
+    this.unitRenderer.renderUnits(state);
+
+    // Render paths and overlays on top of everything
     this.pathRenderer.renderPaths(state);
 
     // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:522-540

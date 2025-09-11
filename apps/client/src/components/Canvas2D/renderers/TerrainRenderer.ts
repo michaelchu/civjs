@@ -28,6 +28,58 @@ export class TerrainRenderer extends BaseRenderer {
   }
 
   /**
+   * Render resources for tiles without cities (LAYER_SPECIAL2 from freeciv-web).
+   * Resources should be hidden when a city exists on the same tile.
+   */
+  renderResources(state: RenderState, visibleTiles: Tile[]): void {
+    for (const tile of visibleTiles) {
+      // Only render resource if no city exists on this tile
+      if (tile.resource && !this.hasCityAtPosition(tile.x, tile.y, state)) {
+        this.renderTileResource(tile, state.viewport);
+      }
+    }
+  }
+
+  private hasCityAtPosition(x: number, y: number, state: RenderState): boolean {
+    return Object.values(state.cities).some(city => city.x === x && city.y === y);
+  }
+
+  private renderTileResource(tile: Tile, viewport: any): void {
+    const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
+    const resourceSprite = this.getTileResourceSprite(tile);
+
+    if (resourceSprite) {
+      const sprite = this.tilesetLoader.getSprite(resourceSprite.key);
+      if (sprite) {
+        // Apply resource scaling and center the scaled sprite on the tile
+        const resourceScale = 0.7; // Make resources 30% smaller (from original MapRenderer)
+        const scaledWidth = sprite.width * resourceScale;
+        const scaledHeight = sprite.height * resourceScale;
+        const offsetX = (sprite.width - scaledWidth) / 2;
+        const offsetY = (sprite.height - scaledHeight) / 2;
+
+        this.ctx.drawImage(
+          sprite,
+          screenPos.x + offsetX,
+          screenPos.y + offsetY,
+          scaledWidth,
+          scaledHeight
+        );
+
+        if (import.meta.env.DEV) {
+          console.debug(
+            `Resource sprite rendered: ${resourceSprite.key} at (${screenPos.x},${screenPos.y}) scale=${resourceScale}`
+          );
+        }
+      } else {
+        if (import.meta.env.DEV) {
+          console.warn(`Resource sprite not found: ${resourceSprite.key}`);
+        }
+      }
+    }
+  }
+
+  /**
    * Render ocean tiles beyond map boundaries to create seamless infinite world appearance.
    * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:305-380
    */
@@ -197,38 +249,6 @@ export class TerrainRenderer extends BaseRenderer {
       } else {
         if (import.meta.env.DEV) {
           console.warn(`River sprite not found: ${riverSprite.key}`);
-        }
-      }
-    }
-
-    // ADD: Resource rendering layer (matches freeciv-web LAYER_SPECIAL2)
-    const resourceSprite = this.getTileResourceSprite(tile);
-    if (resourceSprite) {
-      const sprite = this.tilesetLoader.getSprite(resourceSprite.key);
-      if (sprite) {
-        // Apply resource scaling and center the scaled sprite on the tile
-        const resourceScale = 0.7; // Make resources 30% smaller (from original MapRenderer)
-        const scaledWidth = sprite.width * resourceScale;
-        const scaledHeight = sprite.height * resourceScale;
-        const offsetX = (sprite.width - scaledWidth) / 2;
-        const offsetY = (sprite.height - scaledHeight) / 2;
-
-        this.ctx.drawImage(
-          sprite,
-          screenPos.x + offsetX,
-          screenPos.y + offsetY,
-          scaledWidth,
-          scaledHeight
-        );
-        hasAnySprites = true;
-        if (import.meta.env.DEV) {
-          console.debug(
-            `Resource sprite rendered: ${resourceSprite.key} at (${screenPos.x},${screenPos.y}) scale=${resourceScale}`
-          );
-        }
-      } else {
-        if (import.meta.env.DEV) {
-          console.warn(`Resource sprite not found: ${resourceSprite.key}`);
         }
       }
     }
