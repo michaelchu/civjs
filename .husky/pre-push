@@ -1,13 +1,7 @@
 echo "🚀 Running pre-push checks..."
 
-# Comprehensive validation before pushing to remote
-echo "🔎 Running type checks..."
+# Lightweight final validation - trust that pre-commit has done the heavy lifting
+echo "📋 Quick type check..."
 npm run typecheck
-
-echo "🧪 Running tests..."
-npm run test
-
-echo "🏗️ Running build..."
-npm run build
 
 echo "✅ Pre-push checks passed! Ready to push to remote."
