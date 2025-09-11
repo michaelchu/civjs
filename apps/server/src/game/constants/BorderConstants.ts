@@ -34,9 +34,9 @@ export function calculateCityBorderRadiusSq(citySize: number): number {
   if (citySize <= 0) {
     return 0; // No borders for invalid cities
   } else if (citySize <= 2) {
-    // Small cities (size 1-2): 1 tile radius like Civ 3
-    // radius = 1, radius_sq = 1² = 1
-    return 1;
+    // Small cities (size 1-2): 1 tile radius like Civ 3 (3x3 square)
+    // Need radius_sq = 2 to include diagonal tiles: √2 ≈ 1.41 <= √2
+    return 2;
   } else if (citySize <= 7) {
     // Medium cities (size 3-7): 2 tile radius
     // radius = 2, radius_sq = 2² = 4 (not 5, using proper squared distance)
