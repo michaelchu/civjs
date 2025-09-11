@@ -1311,7 +1311,7 @@ export class CityManager {
 
   }
 
-  public applyCityHappiness(cityId: string, currentGovernment: string): void {
+  public applyCityHappiness(cityId: string, _currentGovernment: string): void {
     const city = this.cities.get(cityId);
     if (!city) return;
 
@@ -1591,9 +1591,9 @@ export class CityManager {
   // === UTILITY METHODS ===
 
   private async updateTradeRoutesOnPlayerChange(
-    cityId: string,
-    newPlayerId: string,
-    oldPlayerId: string
+    _cityId: string,
+    _newPlayerId: string,
+    _oldPlayerId: string
   ): Promise<void> {
     if (this.tradeRouteService) {
       // This would be implemented in the trade route service
@@ -1634,7 +1634,6 @@ export class CityManager {
 
     if (city.playerId !== playerId) return false;
 
-    const oldName = city.name;
     city.name = newName;
 
     await this.saveCityToDatabase(city);
