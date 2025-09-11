@@ -269,28 +269,49 @@ export class RiverGenerator {
     tiles: MapTile[][],
     riverMap: RiverMapState
   ): number {
-    const riverPath: { x: number; y: number }[] = [];
+    const riverPath: { x: number; y: number; fromDirection?: number }[] = [];
     let currentX = startX;
     let currentY = startY;
     let length = 0;
     const maxLength = 30; // Prevent infinite loops
-    const visited = new Set<string>();
+    let prevX = -1;
+    let prevY = -1;
 
     while (length < maxLength) {
-      const key = `${currentX},${currentY}`;
+      // Store the previous position to track flow direction
+      const prevPosX = prevX;
+      const prevPosY = prevY;
+      prevX = currentX;
+      prevY = currentY;
 
-      // Avoid cycles
-      if (visited.has(key)) break;
-      visited.add(key);
+      // Mark current tile as river with temporary mask (will be recalculated based on flow)
+      tiles[currentX][currentY].riverMask = 1; // Will be properly set later
 
-      // Mark current tile as river
-      tiles[currentX][currentY].riverMask = 1; // Temporary value, will be recalculated
-      riverPath.push({ x: currentX, y: currentY });
+      // Store direction this segment came from for flow calculation
+      let fromDirection = -1;
+      if (prevPosX >= 0 && prevPosY >= 0) {
+        const dx = currentX - prevPosX;
+        const dy = currentY - prevPosY;
+        if (dy === -1)
+          fromDirection = 4; // came from South
+        else if (dx === 1)
+          fromDirection = 8; // came from West
+        else if (dy === 1)
+          fromDirection = 1; // came from North
+        else if (dx === -1) fromDirection = 2; // came from East
+      }
+
+      riverPath.push({ x: currentX, y: currentY, fromDirection });
       this.convertTerrainForRiver(tiles[currentX][currentY]);
       length++;
 
       // Try to find next position (flow downhill toward ocean)
-      const nextPos = this.findNextRiverPosition(currentX, currentY, tiles, visited);
+      const nextPos = this.findNextRiverPosition(
+        currentX,
+        currentY,
+        tiles,
+        new Set(riverPath.map(p => `${p.x},${p.y}`))
+      );
       if (!nextPos) break;
 
       currentX = nextPos.x;
@@ -301,6 +322,9 @@ export class RiverGenerator {
         break;
       }
     }
+
+    // Calculate proper river masks based on flow direction
+    this.calculateFlowBasedRiverMasks(tiles, riverPath);
 
     // Mark all positions in river map
     for (const pos of riverPath) {
@@ -379,13 +403,83 @@ export class RiverGenerator {
   }
 
   /**
+   * Calculate proper river masks based on flow direction for a river path
+   * This creates flowing river segments instead of grid patterns
+   */
+  private calculateFlowBasedRiverMasks(
+    tiles: MapTile[][],
+    riverPath: { x: number; y: number; fromDirection?: number }[]
+  ): void {
+    for (let i = 0; i < riverPath.length; i++) {
+      const current = riverPath[i];
+      const prev = i > 0 ? riverPath[i - 1] : null;
+      const next = i < riverPath.length - 1 ? riverPath[i + 1] : null;
+
+      let mask = 0;
+
+      // Connect to previous segment (where we came from)
+      if (prev) {
+        const dx = prev.x - current.x;
+        const dy = prev.y - current.y;
+        if (dy === -1)
+          mask |= 1; // North
+        else if (dx === 1)
+          mask |= 2; // East
+        else if (dy === 1)
+          mask |= 4; // South
+        else if (dx === -1) mask |= 8; // West
+      }
+
+      // Connect to next segment (where we're going)
+      if (next) {
+        const dx = next.x - current.x;
+        const dy = next.y - current.y;
+        if (dy === -1)
+          mask |= 1; // North
+        else if (dx === 1)
+          mask |= 2; // East
+        else if (dy === 1)
+          mask |= 4; // South
+        else if (dx === -1) mask |= 8; // West
+      }
+
+      // For river end that reaches ocean, connect to ocean tile
+      if (!next && i === riverPath.length - 1) {
+        // Find adjacent ocean tile
+        for (const dir of [
+          { dx: 0, dy: -1, mask: 1 }, // North
+          { dx: 1, dy: 0, mask: 2 }, // East
+          { dx: 0, dy: 1, mask: 4 }, // South
+          { dx: -1, dy: 0, mask: 8 }, // West
+        ]) {
+          const nx = current.x + dir.dx;
+          const ny = current.y + dir.dy;
+          if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+            if (!this.isLandTile(tiles[nx][ny].terrain)) {
+              mask |= dir.mask;
+              break; // Only connect to one ocean direction
+            }
+          }
+        }
+      }
+
+      tiles[current.x][current.y].riverMask = mask;
+    }
+  }
+
+  /**
    * Calculate river connection masks for all river tiles after network generation
    */
   private calculateRiverConnections(tiles: MapTile[][]): void {
+    // This method is now mainly used for cleanup/validation
+    // The main river mask calculation is done in calculateFlowBasedRiverMasks
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         if (tiles[x][y].riverMask > 0) {
-          tiles[x][y].riverMask = this.calculateRiverMaskForTile(tiles, x, y);
+          // Only recalculate if mask is the temporary value (1)
+          if (tiles[x][y].riverMask === 1) {
+            tiles[x][y].riverMask = this.calculateRiverMaskForTile(tiles, x, y);
+          }
         }
       }
     }
@@ -419,6 +513,7 @@ export class RiverGenerator {
 
   /**
    * Check if river should connect to neighbor tile
+   * Now more restrictive to avoid grid patterns - only connect along flow paths
    */
   private shouldConnectToNeighbor(tiles: MapTile[][], nx: number, ny: number): boolean {
     if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) {
@@ -427,7 +522,8 @@ export class RiverGenerator {
 
     const neighborTile = tiles[nx][ny];
 
-    // Connect to other rivers or ocean
-    return neighborTile.riverMask > 0 || !this.isLandTile(neighborTile.terrain);
+    // Only connect to ocean (river outlets) - don't auto-connect to other rivers
+    // River-to-river connections are now handled by flow-based calculation
+    return !this.isLandTile(neighborTile.terrain);
   }
 }
