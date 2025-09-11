@@ -126,8 +126,9 @@ export class BarbarianManager {
     });
 
     try {
-      // Calculate number of spawn attempts based on map size and rate (placeholder)
-      const mapSize = 10000; // await this.mapManager.getMapSize();
+      // Calculate number of spawn attempts based on map size and rate
+      // @reference freeciv/server/barbarian.c:751 n = map_num_tiles() / MAP_FACTOR;
+      const mapSize = 10000; // TODO: Replace with await this.mapManager.getMapSize() when available
       const mapFactor = Math.max(1, Math.floor(mapSize / BarbarianManager.MAP_FACTOR));
       const spawnAttempts = mapFactor * (this.config.rate - 1);
 

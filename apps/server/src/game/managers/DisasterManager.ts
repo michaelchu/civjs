@@ -91,7 +91,8 @@ export interface DisasterCheckResult {
 }
 
 // Constants from freeciv disaster system
-const DISASTER_BASE_RARITY = 10000; // Base rarity divisor for disaster probability
+// @reference freeciv/common/disaster.h:46 DISASTER_BASE_RARITY 1000000
+const DISASTER_BASE_RARITY = 1000000; // Base rarity divisor for disaster probability
 
 export class DisasterManager {
   private gameId: string;
