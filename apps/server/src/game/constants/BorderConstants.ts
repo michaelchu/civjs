@@ -37,17 +37,9 @@ export function calculateCityBorderRadiusSq(citySize: number): number {
     // Small cities (size 1-2): 1 tile radius like Civ 3 (3x3 square)
     // Need radius_sq = 2 to include diagonal tiles: √2 ≈ 1.41 <= √2
     return 2;
-  } else if (citySize <= 7) {
-    // Medium cities (size 3-7): 2 tile radius
-    // radius = 2, radius_sq = 2² = 4 (not 5, using proper squared distance)
-    return 4;
-  } else if (citySize <= 12) {
-    // Large cities (size 8-12): 2.5 tile radius
-    // radius_sq = 6 (allows some tiles at distance 2.4)
-    return 6;
   } else {
-    // Huge cities (size 13+): 3 tile radius
-    // radius = 3, radius_sq = 3² = 9
-    return 9;
+    // Medium+ cities (size 3+): 2 tile radius with 21 tiles (~2.2 radius)
+    // radius_sq = 5 (freeciv default, matches 21 tile pattern)
+    return 5;
   }
 }
