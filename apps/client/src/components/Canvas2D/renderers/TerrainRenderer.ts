@@ -20,6 +20,7 @@ export class TerrainRenderer extends BaseRenderer {
 
   /**
    * Render terrain for all visible tiles in the viewport.
+   * Includes rivers and resources in LAYER_SPECIAL1 (freeciv-web layer order).
    */
   renderTerrain(state: RenderState, visibleTiles: Tile[]): void {
     for (const tile of visibleTiles) {
@@ -28,55 +29,14 @@ export class TerrainRenderer extends BaseRenderer {
   }
 
   /**
-   * Render resources for tiles without cities (LAYER_SPECIAL2 from freeciv-web).
-   * Resources should be hidden when a city exists on the same tile.
+   * Resources are now rendered in the terrain layer (LAYER_SPECIAL1).
+   * This method is kept for backwards compatibility but does nothing.
+   * @deprecated Resources are rendered in renderTerrain() as per freeciv-web
    */
-  renderResources(state: RenderState, visibleTiles: Tile[]): void {
-    for (const tile of visibleTiles) {
-      // Only render resource if no city exists on this tile
-      if (tile.resource && !this.hasCityAtPosition(tile.x, tile.y, state)) {
-        this.renderTileResource(tile, state.viewport);
-      }
-    }
-  }
-
-  private hasCityAtPosition(x: number, y: number, state: RenderState): boolean {
-    return Object.values(state.cities).some(city => city.x === x && city.y === y);
-  }
-
-  private renderTileResource(tile: Tile, viewport: any): void {
-    const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
-    const resourceSprite = this.getTileResourceSprite(tile);
-
-    if (resourceSprite) {
-      const sprite = this.tilesetLoader.getSprite(resourceSprite.key);
-      if (sprite) {
-        // Apply resource scaling and center the scaled sprite on the tile
-        const resourceScale = 0.7; // Make resources 30% smaller (from original MapRenderer)
-        const scaledWidth = sprite.width * resourceScale;
-        const scaledHeight = sprite.height * resourceScale;
-        const offsetX = (sprite.width - scaledWidth) / 2;
-        const offsetY = (sprite.height - scaledHeight) / 2;
-
-        this.ctx.drawImage(
-          sprite,
-          screenPos.x + offsetX,
-          screenPos.y + offsetY,
-          scaledWidth,
-          scaledHeight
-        );
-
-        if (import.meta.env.DEV) {
-          console.debug(
-            `Resource sprite rendered: ${resourceSprite.key} at (${screenPos.x},${screenPos.y}) scale=${resourceScale}`
-          );
-        }
-      } else {
-        if (import.meta.env.DEV) {
-          console.warn(`Resource sprite not found: ${resourceSprite.key}`);
-        }
-      }
-    }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  renderResources(_state: RenderState, _visibleTiles: Tile[]): void {
+    // Resources are now rendered in renderTerrainLayers() as part of LAYER_SPECIAL1
+    // This matches authentic freeciv-web behavior where resources are not hidden by cities
   }
 
   /**
@@ -249,6 +209,39 @@ export class TerrainRenderer extends BaseRenderer {
       } else {
         if (import.meta.env.DEV) {
           console.warn(`River sprite not found: ${riverSprite.key}`);
+        }
+      }
+    }
+
+    // ADD: Resource rendering layer (matches freeciv-web LAYER_SPECIAL1)
+    // Resources render underneath cities in authentic freeciv-web
+    const resourceSprite = this.getTileResourceSprite(tile);
+    if (resourceSprite) {
+      const sprite = this.tilesetLoader.getSprite(resourceSprite.key);
+      if (sprite) {
+        // Apply resource scaling and center the scaled sprite on the tile
+        const resourceScale = 0.7; // Make resources 30% smaller (from original MapRenderer)
+        const scaledWidth = sprite.width * resourceScale;
+        const scaledHeight = sprite.height * resourceScale;
+        const offsetX = (sprite.width - scaledWidth) / 2;
+        const offsetY = (sprite.height - scaledHeight) / 2;
+
+        this.ctx.drawImage(
+          sprite,
+          screenPos.x + offsetX,
+          screenPos.y + offsetY,
+          scaledWidth,
+          scaledHeight
+        );
+        hasAnySprites = true;
+        if (import.meta.env.DEV) {
+          console.debug(
+            `Resource sprite rendered: ${resourceSprite.key} at (${screenPos.x},${screenPos.y}) scale=${resourceScale}`
+          );
+        }
+      } else {
+        if (import.meta.env.DEV) {
+          console.warn(`Resource sprite not found: ${resourceSprite.key}`);
         }
       }
     }

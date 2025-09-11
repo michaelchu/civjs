@@ -172,10 +172,11 @@ export class MapRenderer {
     // LAYER_TERRAIN1, LAYER_TERRAIN2, LAYER_TERRAIN3, LAYER_ROADS,
     // LAYER_SPECIAL1, LAYER_CITY1, LAYER_SPECIAL2, LAYER_UNIT, LAYER_FOG...
 
-    // LAYER_TERRAIN1-3 + LAYER_ROADS: Render terrain layer (includes rivers)
+    // LAYER_TERRAIN1-3 + LAYER_ROADS + LAYER_SPECIAL1: Render terrain layer (includes rivers + resources)
+    // Resources render in LAYER_SPECIAL1 in freeciv-web - they are NOT hidden by cities
     this.terrainRenderer.renderTerrain(state, visibleTiles);
 
-    // LAYER_SPECIAL1: Render borders, specials, mines, etc. (but not resources)
+    // LAYER_SPECIAL1: Render borders, specials, mines (after terrain but before cities)
     // @reference freeciv-web/javascript/2dcanvas/mapview.js:580-720 - Border rendering in layer order
     // Note: BorderRenderer now properly saves/restores canvas state to avoid affecting subsequent layers
     this.borderRenderer.render(state);
@@ -183,8 +184,8 @@ export class MapRenderer {
     // LAYER_CITY1: Render cities layer BEFORE units (freeciv-web order)
     this.cityRenderer.renderCities(state);
 
-    // LAYER_SPECIAL2: Render resources (but only if no city on the tile)
-    this.terrainRenderer.renderResources(state, visibleTiles);
+    // LAYER_SPECIAL2: Empty layer in our implementation (handled by specific renderers)
+    // In freeciv-web this handles airbase, buoy, etc. but not resources
 
     // Render selection outline before units for proper layering
     this.unitRenderer.renderUnitSelection(state);
