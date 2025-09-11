@@ -23,9 +23,11 @@ export class RiverGenerator {
 
   /**
    * Generate advanced river system with flowing networks
+   * Port of Freeciv's make_rivers() function - density-based approach
+   * @reference freeciv/server/generator/mapgen.c:make_rivers()
    */
   public async generateAdvancedRivers(tiles: MapTile[][]): Promise<void> {
-    logger.info('Starting advanced river generation');
+    logger.info('Starting Freeciv-style river generation');
     const startTime = Date.now();
 
     // Create river map state
@@ -34,55 +36,66 @@ export class RiverGenerator {
       ok: new Set<number>(),
     };
 
-    // Calculate number of river networks based on map size (fewer networks, longer rivers)
+    // Calculate target river density (port of Freeciv formula)
     const mapArea = this.width * this.height;
-    const targetNetworks = Math.max(3, Math.floor(Math.sqrt(mapArea) / 8)); // Scale with map size
+    const riverPct = 50; // Default river percentage (0-100)
+    const landPercent = this.calculateLandPercent(tiles);
 
-    let networksCreated = 0;
-    let totalRiverTiles = 0;
+    const desirableRiverLength = Math.floor(
+      (riverPct * mapArea * landPercent) / 5325 // Freeciv's magic number
+    );
 
-    // Generate river networks from high elevation to ocean
-    for (
-      let attempt = 0;
-      attempt < targetNetworks * 10 && networksCreated < targetNetworks;
-      attempt++
-    ) {
-      const startPos = this.findRiverStartPosition(tiles);
-      if (startPos) {
-        const networkLength = this.generateRiverNetwork(startPos.x, startPos.y, tiles, riverMap);
-        if (networkLength > 0) {
-          networksCreated++;
-          totalRiverTiles += networkLength;
-        }
+    let currentRiverLength = 0;
+    let iterationCounter = 0;
+    const maxTries = 32767; // RIVERS_MAXTRIES from Freeciv
+
+    logger.info(
+      `Target river density: ${desirableRiverLength} tiles (${riverPct}% of ${mapArea} tiles, ${landPercent}% land)`
+    );
+
+    // Main river generation loop (like Freeciv)
+    while (currentRiverLength < desirableRiverLength && iterationCounter < maxTries) {
+      // Find a suitable starting position (Freeciv's criteria)
+      const startPos = this.findFreecivRiverStartPosition(tiles, iterationCounter, maxTries);
+      if (!startPos) {
+        break; // No more suitable starting positions
       }
+
+      logger.debug(
+        `Found river start at (${startPos.x}, ${startPos.y}), iteration ${iterationCounter}`
+      );
+
+      // Reset river map for this river (like Freeciv)
+      riverMap.blocked.clear();
+      riverMap.ok.clear();
+
+      // Block existing rivers from different types (simplified - we only have one type)
+      this.blockExistingRivers(tiles, riverMap);
+
+      // Try to generate a river
+      const riverLength = this.generateRiverNetwork(startPos.x, startPos.y, tiles, riverMap);
+
+      if (riverLength > 0) {
+        // Apply river to map (like Freeciv)
+        this.applyRiverToMap(tiles, riverMap);
+        currentRiverLength += riverLength;
+        logger.debug(
+          `River applied: ${riverLength} tiles. Total: ${currentRiverLength}/${desirableRiverLength}`
+        );
+      } else {
+        logger.debug('River generation failed (stuck in helix or no valid path)');
+      }
+
+      iterationCounter++;
     }
 
-    // After generating networks, calculate connection masks for all river tiles
+    // After generating all rivers, calculate connection masks
     this.calculateRiverConnections(tiles);
 
     const endTime = Date.now();
     logger.info(
-      `Advanced river generation completed: ${networksCreated} networks with ${totalRiverTiles} total river tiles in ${
-        endTime - startTime
-      }ms`
+      `Freeciv-style river generation completed: ${currentRiverLength} river tiles (target: ${desirableRiverLength}) in ${iterationCounter} iterations, ${endTime - startTime}ms`
     );
-  }
-
-  /**
-   * Convert terrain to be more suitable for rivers
-   */
-  private convertTerrainForRiver(tile: MapTile): void {
-    // Convert desert near rivers to more fertile land
-    if (tile.terrain === 'desert') {
-      tile.terrain = 'plains';
-    }
-    // Swamps can stay as swamps (natural for rivers)
-    // Mountains become hills when rivers flow through
-    else if (tile.terrain === 'mountains') {
-      if (this.random() < 0.4) {
-        tile.terrain = 'hills';
-      }
-    }
   }
 
   /**
@@ -130,23 +143,6 @@ export class RiverGenerator {
    * Find suitable starting position for river network - port of Freeciv's approach
    * @reference freeciv/server/generator/mapgen.c:make_rivers()
    */
-  private findRiverStartPosition(tiles: MapTile[][]): { x: number; y: number } | null {
-    const maxTries = 100;
-
-    for (let attempt = 0; attempt < maxTries; attempt++) {
-      // Pick random position
-      const x = Math.floor(this.random() * this.width);
-      const y = Math.floor(this.random() * this.height);
-      const tile = tiles[x][y];
-
-      // Simple check: land tile with no existing river and reasonable elevation
-      if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 50) {
-        return { x, y };
-      }
-    }
-
-    return null; // No suitable position found
-  }
 
   /**
    * Generate a flowing river network from start position to ocean
@@ -165,11 +161,9 @@ export class RiverGenerator {
     const maxLength = 300; // Increased for longer rivers (Freeciv default)
 
     while (length < maxLength) {
-      // Mark the current tile as river (like Freeciv)
+      // Mark the current tile in river map (like Freeciv) - don't apply to map yet
       const tileIndex = currentY * this.width + currentX;
       riverMap.ok.add(tileIndex);
-      tiles[currentX][currentY].riverMask = 1; // Mark as river
-      this.convertTerrainForRiver(tiles[currentX][currentY]);
       length++;
 
       // Test if the river is done (Freeciv termination conditions)
@@ -638,6 +632,165 @@ export class RiverGenerator {
       if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
         const adjacentIndex = ny * this.width + nx;
         riverMap.blocked.add(adjacentIndex);
+      }
+    }
+  }
+
+  /**
+   * Calculate land percentage for river density formula
+   * @reference freeciv/server/generator/mapgen.c:920
+   */
+  private calculateLandPercent(tiles: MapTile[][]): number {
+    let landTiles = 0;
+    const totalTiles = this.width * this.height;
+
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        if (this.isLandTile(tiles[x][y].terrain)) {
+          landTiles++;
+        }
+      }
+    }
+
+    return Math.floor((landTiles * 100) / totalTiles);
+  }
+
+  /**
+   * Find suitable river starting position using Freeciv's complex criteria
+   * @reference freeciv/server/generator/mapgen.c:949-990
+   */
+  private findFreecivRiverStartPosition(
+    tiles: MapTile[][],
+    iterationCounter: number,
+    maxTries: number
+  ): { x: number; y: number } | null {
+    // Try up to 1000 random positions to find a suitable one
+    for (let attempt = 0; attempt < 1000; attempt++) {
+      const x = Math.floor(this.random() * this.width);
+      const y = Math.floor(this.random() * this.height);
+
+      // Check if this position meets Freeciv's criteria
+      if (this.isFreecivSuitableRiverStart(tiles, x, y, iterationCounter, maxTries)) {
+        return { x, y };
+      }
+    }
+
+    return null; // No suitable position found
+  }
+
+  /**
+   * Check if position is suitable for river start using Freeciv's exact criteria
+   * @reference freeciv/server/generator/mapgen.c:957-990
+   */
+  private isFreecivSuitableRiverStart(
+    tiles: MapTile[][],
+    x: number,
+    y: number,
+    iterationCounter: number,
+    maxTries: number
+  ): boolean {
+    const tile = tiles[x][y];
+
+    // Don't start a river on ocean
+    if (!this.isLandTile(tile.terrain)) {
+      return false;
+    }
+
+    // Don't start a river on existing river
+    if (tile.riverMask > 0) {
+      return false;
+    }
+
+    // Don't start a river on a tile surrounded by > 1 river + ocean tile
+    const nearbyRivers = this.countRiverNearTile(x, y, tiles);
+    const nearbyOcean = this.countOceanNearTile(x, y, tiles);
+    if (nearbyRivers + nearbyOcean > 1) {
+      return false;
+    }
+
+    // Don't start a river on a tile surrounded by hills/mountains (unless desperate)
+    const nearbyMountainous = this.countMountainousNearTile(x, y, tiles);
+    if (nearbyMountainous >= 90 && iterationCounter < (maxTries / 10) * 5) {
+      return false;
+    }
+
+    // Don't start a river on hills unless desperate
+    if (
+      (tile.terrain === 'hills' || tile.terrain === 'mountains') &&
+      iterationCounter < (maxTries / 10) * 6
+    ) {
+      return false;
+    }
+
+    // Don't start a river on desert unless desperate
+    if (tile.terrain === 'desert' && iterationCounter < (maxTries / 10) * 9) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Count mountainous terrain near tile
+   * @reference freeciv/server/generator/mapgen.c:973-975
+   */
+  private countMountainousNearTile(x: number, y: number, tiles: MapTile[][]): number {
+    let count = 0;
+    const allDirs = [
+      { dx: -1, dy: -1 },
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: -1 },
+      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 1 },
+      { dx: 0, dy: 1 },
+      { dx: 1, dy: 1 },
+    ];
+
+    for (const dir of allDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const tile = tiles[nx][ny];
+        if (tile.terrain === 'mountains' || tile.terrain === 'hills') {
+          count += 10; // Freeciv uses property values, we approximate
+        }
+      }
+    }
+
+    return count;
+  }
+
+  /**
+   * Block existing rivers from map (simplified for single river type)
+   * @reference freeciv/server/generator/mapgen.c:998-1006
+   */
+  private blockExistingRivers(_tiles: MapTile[][], _riverMap: RiverMapState): void {
+    // In Freeciv, this blocks other river types. We have only one type, so this is simplified.
+    // This function could be used to block existing rivers if we had multiple river types.
+  }
+
+  /**
+   * Apply generated river to the map
+   * @reference freeciv/server/generator/mapgen.c:1013-1030
+   */
+  private applyRiverToMap(tiles: MapTile[][], riverMap: RiverMapState): void {
+    for (const tileIndex of riverMap.ok) {
+      const y = Math.floor(tileIndex / this.width);
+      const x = tileIndex % this.width;
+
+      if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+        const tile = tiles[x][y];
+
+        // Change terrain if needed (like Freeciv)
+        if (tile.terrain === 'desert') {
+          tile.terrain = 'plains'; // Make terrain suitable for rivers
+        } else if (tile.terrain === 'mountains') {
+          tile.terrain = 'hills'; // Mountains become hills near rivers
+        }
+
+        // Mark as river
+        tile.riverMask = 1; // Will be properly calculated later
       }
     }
   }
