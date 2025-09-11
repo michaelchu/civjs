@@ -13,6 +13,7 @@ import { logger } from '@utils/logger';
 import type { TurnProcessingService } from './TurnProcessingService';
 import type { TurnCoordinationService } from './TurnCoordinationService';
 import type { TurnPacketService } from './TurnPacketService';
+import type { RandomEventsManager } from '@game/managers/RandomEventsManager';
 
 export enum TurnPhase {
   // Phase 0: Setup and preparation
@@ -82,6 +83,7 @@ export class TurnPhaseService {
   private turnProcessingService: TurnProcessingService;
   private turnCoordinationService: TurnCoordinationService;
   private turnPacketService: TurnPacketService;
+  private randomEventsManager?: RandomEventsManager;
 
   private currentPhase: TurnPhase | null = null;
   private phaseHistory: PhaseResult[] = [];
@@ -90,12 +92,14 @@ export class TurnPhaseService {
     gameId: string,
     turnProcessingService: TurnProcessingService,
     turnCoordinationService: TurnCoordinationService,
-    turnPacketService: TurnPacketService
+    turnPacketService: TurnPacketService,
+    randomEventsManager?: RandomEventsManager
   ) {
     this.gameId = gameId;
     this.turnProcessingService = turnProcessingService;
     this.turnCoordinationService = turnCoordinationService;
     this.turnPacketService = turnPacketService;
+    this.randomEventsManager = randomEventsManager;
   }
 
   /**
@@ -389,10 +393,53 @@ export class TurnPhaseService {
   ): Promise<void> {
     logger.debug('Processing random events phase', { gameId: context.gameId });
 
-    // Placeholder for Phase 2 random events implementation
-    // This will include barbarian spawning, disasters, goody huts, etc.
-    result.playersProcessed = context.playerIds.length;
-    result.itemsProcessed = 0; // Will be enhanced in next iteration
+    if (!this.randomEventsManager) {
+      logger.debug('RandomEventsManager not configured, skipping random events phase');
+      result.playersProcessed = context.playerIds.length;
+      result.itemsProcessed = 0;
+      return;
+    }
+
+    try {
+      // Execute Phase 3 random events using the RandomEventsManager
+      const eventsResult = await this.randomEventsManager.processRandomEvents(
+        context.turn,
+        context.year,
+        context.playerIds
+      );
+
+      result.playersProcessed = context.playerIds.length;
+      result.itemsProcessed = eventsResult.totalEvents;
+      result.data = {
+        duration: eventsResult.duration,
+        breakdown: {
+          barbarianEvents: eventsResult.barbarianEvents,
+          disasterEvents: eventsResult.disasterEvents,
+          unitMovements: eventsResult.unitMovements,
+          resourceChanges: eventsResult.resourceChanges,
+          goodyHutDiscoveries: eventsResult.goodyHutDiscoveries,
+        },
+        results: eventsResult.results,
+      };
+
+      logger.info('Random events phase completed', {
+        gameId: context.gameId,
+        turn: context.turn,
+        totalEvents: eventsResult.totalEvents,
+        duration: eventsResult.duration,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Error in random events phase', {
+        gameId: context.gameId,
+        turn: context.turn,
+        error: errorMessage,
+      });
+
+      result.playersProcessed = context.playerIds.length;
+      result.itemsProcessed = 0;
+      throw error; // Re-throw to be handled by phase processing
+    }
   }
 
   private async executeAIActionsPhase(context: PhaseContext, result: PhaseResult): Promise<void> {

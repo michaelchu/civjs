@@ -8,3 +8,6 @@ export * from './game-turns';
 export * from './research';
 export * from './player-policies';
 export * from './government-changes';
+export * from './barbarian-tribes';
+export * from './disasters';
+export * from './random-events';
