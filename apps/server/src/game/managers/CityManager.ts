@@ -434,7 +434,6 @@ export class CityManager {
     // Initialize high-level coordination service
     // Note: CityManagementService needs different constructor parameters
     // this.managementService = new CityManagementService(...);
-
   }
 
   /**
@@ -689,8 +688,6 @@ export class CityManager {
           currentProduction: city.currentProduction,
           productionType: city.productionType,
         });
-      } else {
-      }
     } catch (error) {
       const totalTime = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -889,7 +886,6 @@ export class CityManager {
     city.specialists[fromType] -= 1;
     city.specialists[toType] += 1;
 
-
     // Recalculate city outputs
     this.calculateCityOutputs(cityId);
   }
@@ -912,7 +908,6 @@ export class CityManager {
     });
 
     city.worklist.push(...validItems);
-
   }
 
   private canCityQueueItem(city: CityState, kind: 'unit' | 'building', value: string): boolean {
@@ -972,7 +967,6 @@ export class CityManager {
     city.currentProduction = productionId;
     city.productionType = productionType;
     city.turnsToComplete = Math.ceil(productionCost / Math.max(1, city.productionPerTurn || 1));
-
 
     // Save changes to database
     await this.saveCityToDatabase(city);
@@ -1040,7 +1034,6 @@ export class CityManager {
         // Calculate city outputs to ensure all values are properly set
         this.calculateCityOutputs(city.id);
       }
-
     } catch (error) {
       logger.error('Failed to load cities from database', {
         gameId: this.gameId,
@@ -1146,7 +1139,6 @@ export class CityManager {
   }
 
   async processAllCitiesTurn(currentTurn: number): Promise<void> {
-
     const cityPromises = Array.from(this.cities.keys()).map(cityId =>
       this.processCityTurn(cityId, currentTurn)
     );
@@ -1308,10 +1300,9 @@ export class CityManager {
     // Apply corruption to trade income (simplified)
     const originalTrade = city.tradePerTurn || 0;
     city.tradePerTurn = Math.max(0, originalTrade - corruption);
-
   }
 
-  public applyCityHappiness(cityId: string, _currentGovernment: string): void {
+  public applyCityHappiness(cityId: string): void {
     const city = this.cities.get(cityId);
     if (!city) return;
 
@@ -1323,7 +1314,6 @@ export class CityManager {
       unhappy: detailedHappiness.unhappy,
       angry: detailedHappiness.angry,
     };
-
   }
 
   private calculateSquaredDistance(x1: number, y1: number, x2: number, y2: number): number {
@@ -1436,7 +1426,7 @@ export class CityManager {
     this.calculateCityOutputs(cityId);
 
     this.applyCityCorruption(cityId, defaultGovernment);
-    this.applyCityHappiness(cityId, defaultGovernment);
+    this.applyCityHappiness(cityId);
   }
 
   // === SERVICE DELEGATION METHODS ===
@@ -1596,7 +1586,8 @@ export class CityManager {
     _oldPlayerId: string
   ): Promise<void> {
     if (this.tradeRouteService) {
-      // This would be implemented in the trade route service
+      // TODO: Implement trade route updates when service is available
+      // this.tradeRouteService.updateRoutesOnPlayerChange(cityId, newPlayerId, oldPlayerId);
     }
   }
 
