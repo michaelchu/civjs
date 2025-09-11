@@ -21,3 +21,25 @@ export type BorderSourceType = 'city' | 'fort' | 'extra';
 
 // Border calculation constants
 export const FC_INFINITY = 1000000; // From freeciv FC_INFINITY constant
+
+/**
+ * Calculate city border radius squared based on population/size
+ * Implements progressive expansion: small cities start with 1 tile radius,
+ * grow to medium radius, then large radius as population increases
+ *
+ * @param citySize - The population/size of the city
+ * @returns radius squared value for border calculations
+ */
+export function calculateCityBorderRadiusSq(citySize: number): number {
+  if (citySize <= 0) {
+    return 0; // No borders for invalid cities
+  } else if (citySize <= 2) {
+    // Small cities (size 1-2): 1 tile radius like Civ 3 (3x3 square)
+    // Need radius_sq = 2 to include diagonal tiles: √2 ≈ 1.41 <= √2
+    return 2;
+  } else {
+    // Medium+ cities (size 3+): 2 tile radius with 21 tiles (~2.2 radius)
+    // radius_sq = 5 (freeciv default, matches 21 tile pattern)
+    return 5;
+  }
+}

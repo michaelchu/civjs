@@ -28,12 +28,13 @@ export class CityTileManagementService extends BaseGameService {
 
   /**
    * Check if a tile is within the workable area of a city
-   * @reference Original CityManager.cityMapIncludesTile()
+   * @reference freeciv-web's city_map_includes_tile() and sq_map_distance()
    */
   private cityMapIncludesTile(tile: { x: number; y: number }, city: CityState): boolean {
     const dx = tile.x - city.x;
     const dy = tile.y - city.y;
     const distanceSq = dx * dx + dy * dy;
+    // Use <= comparison like freeciv-web: sq_map_distance(a,e) > c
     return distanceSq <= this.CITY_MAP_DEFAULT_RADIUS_SQ;
   }
 
@@ -89,8 +90,10 @@ export class CityTileManagementService extends BaseGameService {
     city.workableTiles = [];
 
     // Generate all possible tiles within city radius
-    for (let dx = -this.CITY_MAP_DEFAULT_RADIUS_SQ; dx <= this.CITY_MAP_DEFAULT_RADIUS_SQ; dx++) {
-      for (let dy = -this.CITY_MAP_DEFAULT_RADIUS_SQ; dy <= this.CITY_MAP_DEFAULT_RADIUS_SQ; dy++) {
+    // Calculate the linear radius from radius_sq, following freeciv-web's build_city_tile_map
+    const linearRadius = Math.floor(Math.sqrt(this.CITY_MAP_DEFAULT_RADIUS_SQ));
+    for (let dx = -linearRadius; dx <= linearRadius; dx++) {
+      for (let dy = -linearRadius; dy <= linearRadius; dy++) {
         const tileX = city.x + dx;
         const tileY = city.y + dy;
 

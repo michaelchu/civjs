@@ -16,8 +16,8 @@ import {
   BORDER_DEFAULT_CITY_RADIUS_SQ,
   BORDER_DEFAULT_SIZE_EFFECT,
   BORDER_DEFAULT_STRENGTH_PCT,
-  CITY_MAP_MAX_RADIUS_SQ,
   FC_INFINITY,
+  calculateCityBorderRadiusSq,
 } from '@game/constants/BorderConstants';
 import type { BorderSource, TileOwnership, BorderUpdate } from '../../types/shared/BorderTypes';
 
@@ -131,16 +131,17 @@ export class BorderManager {
     let radiusSq = 0;
 
     if (source.type === 'city') {
-      // Base city radius from game settings
-      radiusSq = this.gameSettings.borderCityRadiusSq;
-
-      // Additional radius based on city size, limited by max radius
+      // Use progressive radius calculation based on city population
       const citySize = this.getCitySize(source.x, source.y);
-      if (citySize > 0) {
-        const sizeBonus =
-          Math.min(citySize, CITY_MAP_MAX_RADIUS_SQ) * this.gameSettings.borderSizeEffect;
-        radiusSq += sizeBonus;
-      }
+      radiusSq = calculateCityBorderRadiusSq(citySize);
+
+      logger.debug('🏘️ City border radius calculation', {
+        x: source.x,
+        y: source.y,
+        citySize,
+        radiusSq,
+        effectiveRadius: Math.sqrt(radiusSq),
+      });
     } else if (source.type === 'fort' || source.type === 'extra') {
       // TODO: Implement when extras system is available
       // Would get radius from base/extra definition
@@ -206,15 +207,15 @@ export class BorderManager {
     // Check all border sources that could reach this tile
     for (const [, source] of this.borderSources) {
       const distance = this.getSquaredDistance(x, y, source.x, source.y);
-      const sourceRadius = this.getBorderSourceRadius(source);
-      const withinRadius = distance <= sourceRadius * sourceRadius; // Fix: compare squared distance with squared radius
+      const sourceRadiusSq = this.getBorderSourceRadius(source);
+      const withinRadius = distance <= sourceRadiusSq; // Compare squared distance with radius_sq directly
 
       if (withinRadius) {
         const tileStrength = this.getTileBorderStrength(x, y, source);
         debugInfo.push({
           sourcePos: { x: source.x, y: source.y },
           distance,
-          radius: sourceRadius,
+          radius: sourceRadiusSq,
           strength: tileStrength,
           isStrongest: tileStrength > maxStrength,
         });
@@ -303,10 +304,10 @@ export class BorderManager {
 
     for (const [, source] of this.borderSources) {
       const distance = this.getSquaredDistance(x, y, source.x, source.y);
-      const sourceRadius = this.getBorderSourceRadius(source);
+      const sourceRadiusSq = this.getBorderSourceRadius(source);
 
-      if (distance <= sourceRadius * sourceRadius) {
-        // Fix: compare squared distance with squared radius
+      if (distance <= sourceRadiusSq) {
+        // Compare squared distance with radius_sq directly
         sources.push(source);
       }
     }
@@ -425,8 +426,10 @@ export class BorderManager {
     const updatedTiles: TileOwnership[] = [];
 
     // Update ownership for all tiles within radius
-    for (let x = centerX - updateRadius; x <= centerX + updateRadius; x++) {
-      for (let y = centerY - updateRadius; y <= centerY + updateRadius; y++) {
+    // Convert radius_sq to linear radius for iteration bounds
+    const linearRadius = Math.floor(Math.sqrt(updateRadius));
+    for (let x = centerX - linearRadius; x <= centerX + linearRadius; x++) {
+      for (let y = centerY - linearRadius; y <= centerY + linearRadius; y++) {
         if (this.isValidCoordinate(x, y)) {
           const key = this.getTileKey(x, y);
           const newOwnership = this.calculateTileOwnership(x, y);
@@ -457,8 +460,10 @@ export class BorderManager {
     const affectedPlayers: Set<string> = new Set();
 
     // Update ownership for all tiles within radius
-    for (let x = centerX - updateRadius; x <= centerX + updateRadius; x++) {
-      for (let y = centerY - updateRadius; y <= centerY + updateRadius; y++) {
+    // Convert radius_sq to linear radius for iteration bounds
+    const linearRadius = Math.floor(Math.sqrt(updateRadius));
+    for (let x = centerX - linearRadius; x <= centerX + linearRadius; x++) {
+      for (let y = centerY - linearRadius; y <= centerY + linearRadius; y++) {
         if (this.isValidCoordinate(x, y)) {
           const key = this.getTileKey(x, y);
           const oldOwnership = this.tileOwnership.get(key);
