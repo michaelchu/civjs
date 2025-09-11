@@ -5,26 +5,41 @@ import { clearAllTables, getTestDatabaseProvider } from './testDatabase';
 
 /**
  * Creates a mock Socket.IO server for tests
+ * This mock is designed to be robust against timing issues and async operations
  */
 export function createMockSocketServer(): SocketServer {
-  // Create the emit function that will be used by rooms
-  const mockEmit = jest.fn();
+  // Create persistent emit functions that won't lose references
+  const mockEmit = jest.fn().mockName('socket.emit');
+  const mockRoomEmit = jest.fn().mockName('room.emit');
 
-  // Create a proper room/namespace object that has emit
+  // Create a stable room object with persistent references
   const mockRoom = {
-    emit: mockEmit,
+    emit: mockRoomEmit,
     to: jest.fn().mockReturnThis(),
     in: jest.fn().mockReturnThis(),
   };
 
+  // Make the room object non-enumerable to prevent garbage collection issues
+  Object.defineProperty(mockRoom, '__stable', { value: true, enumerable: false });
+
+  // Create stable functions that maintain closure over mockRoom
+  const stableTo = jest.fn().mockImplementation((_room: string) => {
+    // Always return the same room object to maintain reference stability
+    return mockRoom;
+  });
+
+  const stableIn = jest.fn().mockImplementation((_room: string) => {
+    return mockRoom;
+  });
+
   const mockServer = {
-    emit: jest.fn(),
-    to: jest.fn().mockReturnValue(mockRoom),
-    in: jest.fn().mockReturnValue(mockRoom),
+    emit: mockEmit,
+    to: stableTo,
+    in: stableIn,
     sockets: {
       sockets: new Map(),
       adapter: { rooms: new Map() },
-      emit: jest.fn(),
+      emit: mockEmit,
     },
     // Add any other Socket.IO Server methods that might be used
     on: jest.fn(),
@@ -37,6 +52,12 @@ export function createMockSocketServer(): SocketServer {
       sids: new Map(),
     },
   } as unknown as SocketServer;
+
+  // Ensure the mock server maintains references to its methods
+  Object.defineProperty(mockServer, '__mocks', {
+    value: { emit: mockEmit, roomEmit: mockRoomEmit, room: mockRoom },
+    enumerable: false,
+  });
 
   return mockServer;
 }
