@@ -16,37 +16,44 @@ import type { TurnPacketService } from './TurnPacketService';
 import type { RandomEventsManager } from '@game/managers/RandomEventsManager';
 
 export enum TurnPhase {
-  // Phase 0: Setup and preparation
-  PHASE_SETUP = 'setup',
-
   // Phase 1: Begin turn processing
+  // @reference freeciv/server/srv_main.c begin_turn()
   PHASE_BEGIN_TURN = 'begin_turn',
 
   // Phase 2: Process player actions from previous turn
+  // @reference freeciv/server/srv_main.c action processing
   PHASE_PLAYER_ACTIONS = 'player_actions',
 
   // Phase 3: Automated unit activities (GOTO, patrol, etc.)
+  // @reference freeciv/server/srv_main.c:1394 random_movements()
   PHASE_UNIT_ACTIVITIES = 'unit_activities',
 
   // Phase 4: City production and growth
+  // @reference freeciv/server/cityturn.c city_turn()
   PHASE_CITY_PRODUCTION = 'city_production',
 
   // Phase 5: Research and technology
+  // @reference freeciv/server/techtools.c tech advancement
   PHASE_RESEARCH = 'research',
 
-  // Phase 6: Random events and barbarians
-  PHASE_RANDOM_EVENTS = 'random_events',
-
-  // Phase 7: AI player actions (future enhancement)
+  // Phase 6: AI player actions
+  // @reference freeciv/server/srv_main.c AI player processing
   PHASE_AI_ACTIONS = 'ai_actions',
 
-  // Phase 8: Post-turn coordination
-  PHASE_COORDINATION = 'coordination',
+  // Phase 7: Random events and barbarians
+  // @reference freeciv/server/srv_main.c:1668 summon_barbarians(), 1684 check_disasters()
+  PHASE_RANDOM_EVENTS = 'random_events',
 
-  // Phase 9: Statistics and cleanup
-  PHASE_STATISTICS = 'statistics',
+  // Phase 8: Border calculation
+  // @reference freeciv/server/srv_main.c:end_turn() map_calculate_borders()
+  PHASE_BORDER_CALCULATION = 'border_calculation',
 
-  // Phase 10: Save and advance
+  // Phase 9: End turn cleanup
+  // @reference freeciv/server/srv_main.c end_turn()
+  PHASE_END_TURN = 'end_turn',
+
+  // Phase 10: Statistics and save
+  // @reference freeciv/server/srv_main.c turn advancement and save
   PHASE_SAVE_ADVANCE = 'save_advance',
 }
 
@@ -136,18 +143,18 @@ export class TurnPhaseService {
       playerCount: playerIds.length,
     });
 
-    // Define processing phases in order
+    // Define processing phases in freeciv-compliant order
+    // @reference freeciv/server/srv_main.c begin_turn() and end_turn() sequence
     const phases = [
-      TurnPhase.PHASE_SETUP,
       TurnPhase.PHASE_BEGIN_TURN,
       TurnPhase.PHASE_PLAYER_ACTIONS,
       TurnPhase.PHASE_UNIT_ACTIVITIES,
       TurnPhase.PHASE_CITY_PRODUCTION,
       TurnPhase.PHASE_RESEARCH,
-      TurnPhase.PHASE_RANDOM_EVENTS,
       TurnPhase.PHASE_AI_ACTIONS,
-      TurnPhase.PHASE_COORDINATION,
-      TurnPhase.PHASE_STATISTICS,
+      TurnPhase.PHASE_RANDOM_EVENTS,
+      TurnPhase.PHASE_BORDER_CALCULATION,
+      TurnPhase.PHASE_END_TURN,
       TurnPhase.PHASE_SAVE_ADVANCE,
     ];
 
@@ -225,10 +232,6 @@ export class TurnPhaseService {
       this.turnPacketService.sendProcessingStepPacket(phase, this.getPhaseLabel(phase), false);
 
       switch (phase) {
-        case TurnPhase.PHASE_SETUP:
-          await this.executeSetupPhase(context, phaseResult);
-          break;
-
         case TurnPhase.PHASE_BEGIN_TURN:
           await this.executeBeginTurnPhase(context, phaseResult);
           break;
@@ -249,20 +252,20 @@ export class TurnPhaseService {
           await this.executeResearchPhase(context, phaseResult);
           break;
 
-        case TurnPhase.PHASE_RANDOM_EVENTS:
-          await this.executeRandomEventsPhase(context, phaseResult);
-          break;
-
         case TurnPhase.PHASE_AI_ACTIONS:
           await this.executeAIActionsPhase(context, phaseResult);
           break;
 
-        case TurnPhase.PHASE_COORDINATION:
-          await this.executeCoordinationPhase(context, phaseResult);
+        case TurnPhase.PHASE_RANDOM_EVENTS:
+          await this.executeRandomEventsPhase(context, phaseResult);
           break;
 
-        case TurnPhase.PHASE_STATISTICS:
-          await this.executeStatisticsPhase(context, phaseResult);
+        case TurnPhase.PHASE_BORDER_CALCULATION:
+          await this.executeBorderCalculationPhase(context, phaseResult);
+          break;
+
+        case TurnPhase.PHASE_END_TURN:
+          await this.executeEndTurnPhase(context, phaseResult);
           break;
 
         case TurnPhase.PHASE_SAVE_ADVANCE:
@@ -296,26 +299,21 @@ export class TurnPhaseService {
   /**
    * Phase implementations
    */
-  private async executeSetupPhase(context: PhaseContext, result: PhaseResult): Promise<void> {
-    // Prepare for turn processing
-    logger.debug('Setting up turn processing', { gameId: context.gameId, turn: context.turn });
+  private async executeBeginTurnPhase(context: PhaseContext, result: PhaseResult): Promise<void> {
+    // Combined begin turn setup and initialization (freeciv begin_turn())
+    logger.debug('Executing begin turn phase', { gameId: context.gameId, turn: context.turn });
 
-    // Reset phase history
+    // Reset phase history for new turn
     this.phaseHistory = [];
 
     // Send freeze client to prevent interactions during processing
     this.turnPacketService.sendFreezeClientPacket('Processing turn...');
 
-    result.playersProcessed = context.playerIds.length;
-  }
-
-  private async executeBeginTurnPhase(context: PhaseContext, result: PhaseResult): Promise<void> {
-    logger.debug('Executing begin turn phase', { gameId: context.gameId, turn: context.turn });
-
     // Send NEW_YEAR and BEGIN_TURN packets
     this.turnPacketService.sendTurnStartSequence(context.turn, context.year, 0);
 
     result.playersProcessed = context.playerIds.length;
+    result.itemsProcessed = 1; // One turn initialized
   }
 
   private async executePlayerActionsPhase(
@@ -324,10 +322,37 @@ export class TurnPhaseService {
   ): Promise<void> {
     logger.debug('Processing player actions phase', { gameId: context.gameId });
 
-    // This would process queued player actions (already implemented in TurnProcessingService)
-    // For now, we'll just log that this phase is working
-    result.playersProcessed = context.playerIds.length;
-    result.itemsProcessed = 0; // Will be enhanced when action queuing is implemented
+    try {
+      // Initialize action queues if not already done
+      this.turnProcessingService.initializeActionQueues(context.playerIds);
+
+      // Process all queued player actions from the current turn
+      const actionResult = await this.turnProcessingService.processQueuedPlayerActions();
+
+      result.playersProcessed = context.playerIds.length;
+      result.itemsProcessed = actionResult.actionsProcessed;
+      result.errors = actionResult.errors.map(e => `${e.playerId}: ${e.error}`);
+      result.data = {
+        actionsProcessed: actionResult.actionsProcessed,
+        unitsProcessed: actionResult.unitsProcessed,
+        citiesProcessed: actionResult.citiesProcessed,
+        researchUpdated: actionResult.researchUpdated,
+      };
+
+      if (actionResult.errors.length > 0) {
+        logger.warn('Player action errors occurred', {
+          gameId: context.gameId,
+          errorCount: actionResult.errors.length,
+          errors: actionResult.errors,
+        });
+      }
+    } catch (error) {
+      logger.error('Error processing player actions phase', {
+        gameId: context.gameId,
+        error: error instanceof Error ? error.message : error,
+      });
+      throw error;
+    }
   }
 
   private async executeUnitActivitiesPhase(
@@ -451,24 +476,34 @@ export class TurnPhaseService {
     result.itemsProcessed = 0;
   }
 
-  private async executeCoordinationPhase(
+  private async executeBorderCalculationPhase(
     context: PhaseContext,
     result: PhaseResult
   ): Promise<void> {
-    logger.debug('Processing coordination phase', { gameId: context.gameId });
+    // Border recalculation - moved to correct freeciv timing (end_turn)
+    logger.debug('Processing border calculation phase', { gameId: context.gameId });
 
-    const coordinationResult = await this.turnCoordinationService.coordinatePostTurnUpdates(
-      context.playerIds
-    );
+    try {
+      const coordinationResult = await this.turnCoordinationService.coordinatePostTurnUpdates(
+        context.playerIds
+      );
 
-    result.playersProcessed = coordinationResult.playersProcessed.length;
-    result.itemsProcessed = coordinationResult.bordersRecalculated ? 1 : 0;
-    result.errors = coordinationResult.errors.map(e => e.error);
-    result.data = coordinationResult;
+      result.playersProcessed = coordinationResult.playersProcessed.length;
+      result.itemsProcessed = coordinationResult.bordersRecalculated ? 1 : 0;
+      result.errors = coordinationResult.errors.map(e => e.error);
+      result.data = { bordersRecalculated: coordinationResult.bordersRecalculated };
+    } catch (error) {
+      logger.error('Error in border calculation phase', {
+        gameId: context.gameId,
+        error: error instanceof Error ? error.message : error,
+      });
+      result.errors.push(`Border calculation failed: ${error}`);
+    }
   }
 
-  private async executeStatisticsPhase(context: PhaseContext, result: PhaseResult): Promise<void> {
-    logger.debug('Processing statistics phase', { gameId: context.gameId });
+  private async executeEndTurnPhase(context: PhaseContext, result: PhaseResult): Promise<void> {
+    // End turn cleanup and finalization (freeciv end_turn())
+    logger.debug('Processing end turn phase', { gameId: context.gameId });
 
     // Calculate and send turn statistics
     const statistics = {
@@ -483,17 +518,6 @@ export class TurnPhaseService {
 
     this.turnPacketService.sendTurnStatistics(statistics);
 
-    result.playersProcessed = context.playerIds.length;
-    result.itemsProcessed = 1; // One statistics report
-    result.data = statistics;
-  }
-
-  private async executeSaveAdvancePhase(context: PhaseContext, result: PhaseResult): Promise<void> {
-    logger.debug('Processing save and advance phase', { gameId: context.gameId });
-
-    // This phase handles database saving and advancing to next turn
-    // The actual implementation will be in TurnManager
-
     // Send END_TURN packet
     this.turnPacketService.sendEndTurnPacket(context.turn, context.year);
 
@@ -501,7 +525,25 @@ export class TurnPhaseService {
     this.turnPacketService.sendThawClientPacket('Turn processing complete');
 
     result.playersProcessed = context.playerIds.length;
-    result.itemsProcessed = 1; // One save operation
+    result.itemsProcessed = 1; // One end turn processed
+    result.data = statistics;
+  }
+
+  private async executeSaveAdvancePhase(context: PhaseContext, result: PhaseResult): Promise<void> {
+    logger.debug('Processing save and advance phase', { gameId: context.gameId });
+
+    // This phase handles database saving and turn advancement
+    // The actual saving will be handled by TurnManager after phase processing completes
+
+    logger.info('Turn phase processing completed', {
+      gameId: context.gameId,
+      turn: context.turn,
+      year: context.year,
+      totalDuration: Date.now() - context.startTime,
+    });
+
+    result.playersProcessed = context.playerIds.length;
+    result.itemsProcessed = 1; // One save/advance operation queued
   }
 
   /**
@@ -509,16 +551,15 @@ export class TurnPhaseService {
    */
   private getPhaseLabel(phase: TurnPhase): string {
     const labels: Record<TurnPhase, string> = {
-      [TurnPhase.PHASE_SETUP]: 'Setting up turn processing...',
       [TurnPhase.PHASE_BEGIN_TURN]: 'Starting new turn...',
       [TurnPhase.PHASE_PLAYER_ACTIONS]: 'Processing player actions...',
       [TurnPhase.PHASE_UNIT_ACTIVITIES]: 'Processing unit activities...',
       [TurnPhase.PHASE_CITY_PRODUCTION]: 'Processing city production...',
       [TurnPhase.PHASE_RESEARCH]: 'Processing research...',
-      [TurnPhase.PHASE_RANDOM_EVENTS]: 'Processing random events...',
       [TurnPhase.PHASE_AI_ACTIONS]: 'Processing AI actions...',
-      [TurnPhase.PHASE_COORDINATION]: 'Coordinating updates...',
-      [TurnPhase.PHASE_STATISTICS]: 'Calculating statistics...',
+      [TurnPhase.PHASE_RANDOM_EVENTS]: 'Processing random events...',
+      [TurnPhase.PHASE_BORDER_CALCULATION]: 'Calculating borders...',
+      [TurnPhase.PHASE_END_TURN]: 'Finalizing turn...',
       [TurnPhase.PHASE_SAVE_ADVANCE]: 'Saving and advancing...',
     };
 

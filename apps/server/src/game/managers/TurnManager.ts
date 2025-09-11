@@ -163,10 +163,14 @@ export class TurnManager {
     }
 
     const playerAction: PlayerAction = {
+      id: `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type: action.type,
       playerId,
+      priority: action.priority || 5, // Default priority
       data: action.data || action,
       timestamp: new Date(),
+      dependencies: action.dependencies,
+      status: 'queued' as const,
     };
 
     this.playerActions.get(playerId)!.push(playerAction);

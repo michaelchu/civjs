@@ -14,10 +14,21 @@ import type { CityManager } from '@game/managers/CityManager';
 import type { ResearchManager } from '@game/managers/ResearchManager';
 
 export interface PlayerAction {
+  id: string; // Unique action identifier
   type: 'unit_move' | 'unit_attack' | 'city_production' | 'research_selection' | 'unit_orders';
   playerId: string;
+  priority: number; // Action priority (0 = highest, higher numbers = lower priority)
   data: any;
   timestamp: Date;
+  dependencies?: string[]; // IDs of actions that must complete before this one
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+}
+
+export interface ActionQueue {
+  playerId: string;
+  actions: PlayerAction[];
+  isProcessing: boolean;
+  lastProcessedAt?: Date;
 }
 
 export interface TurnProcessingResult {
@@ -37,6 +48,8 @@ export class TurnProcessingService {
   private unitManager: UnitManager;
   private cityManager: CityManager;
   private researchManager: ResearchManager;
+  private actionQueues: Map<string, ActionQueue> = new Map(); // playerId -> ActionQueue
+  private actionHistory: Map<string, PlayerAction[]> = new Map(); // playerId -> completed actions
 
   constructor(
     gameId: string,
@@ -51,10 +64,135 @@ export class TurnProcessingService {
   }
 
   /**
+   * Initialize action queues for players
+   * @reference freeciv turn processing initialization
+   */
+  initializeActionQueues(playerIds: string[]): void {
+    logger.debug('Initializing action queues', {
+      gameId: this.gameId,
+      playerCount: playerIds.length,
+    });
+
+    for (const playerId of playerIds) {
+      if (!this.actionQueues.has(playerId)) {
+        this.actionQueues.set(playerId, {
+          playerId,
+          actions: [],
+          isProcessing: false,
+        });
+        this.actionHistory.set(playerId, []);
+      }
+    }
+  }
+
+  /**
+   * Queue a player action for processing during turn
+   * @reference freeciv action queuing system
+   */
+  queuePlayerAction(action: Omit<PlayerAction, 'id' | 'status'>): string {
+    const actionId = `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    const playerAction: PlayerAction = {
+      ...action,
+      id: actionId,
+      status: 'queued',
+    };
+
+    const queue = this.actionQueues.get(action.playerId);
+    if (!queue) {
+      throw new Error(`No action queue found for player ${action.playerId}`);
+    }
+
+    // Insert action in priority order
+    const insertIndex = this.findInsertionIndex(queue.actions, playerAction.priority);
+    queue.actions.splice(insertIndex, 0, playerAction);
+
+    logger.debug('Action queued', {
+      gameId: this.gameId,
+      playerId: action.playerId,
+      actionId,
+      actionType: action.type,
+      priority: action.priority,
+      queueLength: queue.actions.length,
+    });
+
+    return actionId;
+  }
+
+  /**
+   * Find the correct insertion index for priority-based insertion
+   */
+  private findInsertionIndex(actions: PlayerAction[], priority: number): number {
+    for (let i = 0; i < actions.length; i++) {
+      if (actions[i].priority > priority) {
+        return i;
+      }
+    }
+    return actions.length;
+  }
+
+  /**
+   * Get queued actions for a player
+   */
+  getPlayerActionQueue(playerId: string): PlayerAction[] {
+    const queue = this.actionQueues.get(playerId);
+    return queue?.actions.filter(a => a.status === 'queued') || [];
+  }
+
+  /**
+   * Cancel a queued action
+   */
+  cancelPlayerAction(playerId: string, actionId: string): boolean {
+    const queue = this.actionQueues.get(playerId);
+    if (!queue) return false;
+
+    const actionIndex = queue.actions.findIndex(a => a.id === actionId);
+    if (actionIndex === -1) return false;
+
+    const action = queue.actions[actionIndex];
+    if (action.status === 'processing') {
+      return false; // Cannot cancel processing actions
+    }
+
+    action.status = 'cancelled';
+    logger.debug('Action cancelled', {
+      gameId: this.gameId,
+      playerId,
+      actionId,
+      actionType: action.type,
+    });
+
+    return true;
+  }
+
+  /**
+   * Clear all queued actions for a player (e.g., on disconnection)
+   */
+  clearPlayerActionQueue(playerId: string): number {
+    const queue = this.actionQueues.get(playerId);
+    if (!queue) return 0;
+
+    const queuedActions = queue.actions.filter(a => a.status === 'queued');
+    const cancelledCount = queuedActions.length;
+
+    queuedActions.forEach(action => {
+      action.status = 'cancelled';
+    });
+
+    logger.debug('Player action queue cleared', {
+      gameId: this.gameId,
+      playerId,
+      cancelledActions: cancelledCount,
+    });
+
+    return cancelledCount;
+  }
+
+  /**
    * Process all queued player actions from the current turn
    * @reference freeciv-web/javascript/packhand.js handle_begin_turn()
    */
-  async processPlayerActions(actions: PlayerAction[]): Promise<TurnProcessingResult> {
+  async processQueuedPlayerActions(): Promise<TurnProcessingResult> {
     const result: TurnProcessingResult = {
       actionsProcessed: 0,
       unitsProcessed: 0,
@@ -63,38 +201,122 @@ export class TurnProcessingService {
       errors: [],
     };
 
-    logger.info('Processing player actions', {
+    const totalActions = Array.from(this.actionQueues.values()).reduce(
+      (sum, queue) => sum + queue.actions.filter(a => a.status === 'queued').length,
+      0
+    );
+
+    logger.info('Processing queued player actions', {
       gameId: this.gameId,
-      actionCount: actions.length,
+      totalActions,
+      playerCount: this.actionQueues.size,
     });
 
-    for (const action of actions) {
-      try {
-        await this.processPlayerAction(action);
-        result.actionsProcessed++;
-      } catch (error) {
-        logger.error('Error processing player action', {
-          gameId: this.gameId,
-          playerId: action.playerId,
-          actionType: action.type,
-          error: error instanceof Error ? error.message : error,
-        });
-
-        result.errors.push({
-          playerId: action.playerId,
-          action: action.type,
-          error: error instanceof Error ? error.message : String(error),
-        });
+    // Process actions for each player in priority order
+    for (const [playerId, queue] of this.actionQueues) {
+      if (queue.isProcessing) {
+        continue; // Skip if already processing
       }
+
+      queue.isProcessing = true;
+      queue.lastProcessedAt = new Date();
+
+      const queuedActions = queue.actions.filter(a => a.status === 'queued');
+
+      logger.debug('Processing player action queue', {
+        gameId: this.gameId,
+        playerId,
+        actionCount: queuedActions.length,
+      });
+
+      for (const action of queuedActions) {
+        try {
+          // Check dependencies
+          if (action.dependencies && !this.checkActionDependencies(action.dependencies)) {
+            logger.debug('Action dependencies not met, skipping', {
+              gameId: this.gameId,
+              actionId: action.id,
+              dependencies: action.dependencies,
+            });
+            continue;
+          }
+
+          action.status = 'processing';
+
+          await this.processPlayerAction(action);
+
+          action.status = 'completed';
+          result.actionsProcessed++;
+
+          // Move to history
+          const history = this.actionHistory.get(playerId) || [];
+          history.push(action);
+          this.actionHistory.set(playerId, history);
+        } catch (error) {
+          action.status = 'failed';
+
+          logger.error('Error processing player action', {
+            gameId: this.gameId,
+            playerId: action.playerId,
+            actionId: action.id,
+            actionType: action.type,
+            error: error instanceof Error ? error.message : error,
+          });
+
+          result.errors.push({
+            playerId: action.playerId,
+            action: action.type,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      // Clean up completed/failed actions from queue
+      queue.actions = queue.actions.filter(a => a.status === 'queued');
+      queue.isProcessing = false;
     }
 
-    logger.info('Player actions processed', {
+    logger.info('Queued player actions processed', {
       gameId: this.gameId,
       processed: result.actionsProcessed,
       errors: result.errors.length,
     });
 
     return result;
+  }
+
+  /**
+   * Legacy method for backward compatibility
+   */
+  async processPlayerActions(actions: PlayerAction[]): Promise<TurnProcessingResult> {
+    // Add actions to queue and process them
+    for (const action of actions) {
+      this.queuePlayerAction(action);
+    }
+
+    return this.processQueuedPlayerActions();
+  }
+
+  /**
+   * Check if action dependencies are satisfied
+   */
+  private checkActionDependencies(dependencyIds: string[]): boolean {
+    for (const dependencyId of dependencyIds) {
+      let found = false;
+
+      for (const history of this.actionHistory.values()) {
+        if (history.some(action => action.id === dependencyId && action.status === 'completed')) {
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**

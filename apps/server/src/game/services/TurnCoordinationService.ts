@@ -203,72 +203,134 @@ export class TurnCoordinationService {
   /**
    * Reset waiting units list for a player
    * @reference freeciv-web/javascript/packhand.js waiting_units_list = []
+   * @reference freeciv-web/javascript/control.js advance_focus_inactive_units()
    */
   private async resetWaitingUnitsList(playerId: string): Promise<void> {
-    // In freeciv-web, this clears the waiting_units_list array
-    // For now, we'll clear any "waiting" or "sentry" status from units
+    // In freeciv-web, this completely clears the waiting_units_list array
+    // The waiting_units_list tracks units that have been given orders but are
+    // still available for focus cycling (e.g., units that were put on "wait")
+
     const playerUnits = this.unitManager.getPlayerUnits(playerId);
+    let waitingUnitsCleared = 0;
 
     for (const unit of playerUnits) {
-      // Reset sentry status if unit was waiting
+      // Clear any "waiting" status - units start fresh each turn
       if (unit.sentryUntil === 'turn_start') {
-        // Clear sentry status for units that were waiting for turn start
         unit.sentryUntil = undefined;
+        waitingUnitsCleared++;
+      }
+
+      // Reset fortified state for units that were waiting
+      // In freeciv-web, units get fresh movement each turn
+      if (unit.fortified) {
+        unit.fortified = false;
+      }
+
+      // Clear any temporary "patrolling" activity from previous turn
+      if (unit.activity?.type === 'patrolling') {
+        unit.activity = undefined; // Clear the activity
       }
     }
 
     logger.debug('Waiting units list reset', {
       gameId: this.gameId,
       playerId,
-      unitCount: playerUnits.length,
+      totalUnits: playerUnits.length,
+      waitingUnitsCleared,
     });
   }
 
   /**
    * Update unit focus management for new turn
-   * @reference freeciv-web/javascript/packhand.js update_unit_focus()
+   * @reference freeciv-web/javascript/control.js update_unit_focus()
+   * @reference freeciv-web/javascript/control.js advance_unit_focus()
    */
   private async updateUnitFocus(playerId: string): Promise<void> {
-    // This is a placeholder for unit focus logic
-    // In a full implementation, this would:
-    // 1. Check if any units need attention (damaged, no orders, etc.)
-    // 2. Set focus to units that need player input
-    // 3. Auto-center camera on focus unit if needed
+    // Implement freeciv-web's unit focus logic:
+    // 1. Clear current focus (units start without focus each turn)
+    // 2. Find units that need player attention (movesleft > 0, done_moving = false, ai = false, activity = idle)
+    // 3. Set initial focus to first unit needing attention
+    // 4. Build urgent focus queue for units requiring immediate action
 
     const playerUnits = this.unitManager.getPlayerUnits(playerId);
+
+    // In freeciv-web, focus is managed by the client, not the server
+    // The server's role is to ensure unit state is properly reset for new turn
+
+    // Find units needing attention (matching freeciv-web's update_unit_focus logic)
     const unitsNeedingAttention = playerUnits.filter(unit => {
-      // Units that might need attention:
-      // - Have movement points but no orders
-      // - Are damaged and not healing
-      // - Have completed their current activity
       return (
         unit.movementLeft > 0 &&
-        (!unit.orders || unit.orders.length === 0) &&
+        !unit.fortified && // Use fortified instead of doneMoving
         (!unit.activity || unit.activity.type === 'idle')
       );
     });
+
+    // Build urgent focus queue for damaged units, units under attack, etc.
+    const urgentUnits = playerUnits.filter(unit => {
+      return (
+        unit.health < 75 || // Damaged units need attention (health is 0-100)
+        (unit.sentryUntil && unit.movementLeft > 0) || // Units with sentry conditions
+        (unit.orders && unit.orders.length === 0 && unit.movementLeft > 0) // Units that completed orders
+      );
+    });
+
+    // Log information for client focus management
+    let priorityUnit = null;
+    if (urgentUnits.length > 0) {
+      priorityUnit = urgentUnits[0];
+    } else if (unitsNeedingAttention.length > 0) {
+      priorityUnit = unitsNeedingAttention[0];
+    }
 
     logger.debug('Unit focus updated', {
       gameId: this.gameId,
       playerId,
       totalUnits: playerUnits.length,
       unitsNeedingAttention: unitsNeedingAttention.length,
+      urgentUnits: urgentUnits.length,
+      priorityUnit: priorityUnit?.id || null,
     });
   }
 
   /**
    * Reset turn-specific flags and state
+   * @reference freeciv-web/javascript/packhand.js handle_begin_turn()
    */
   private async resetTurnFlags(playerId: string): Promise<void> {
-    // Reset any turn-specific flags
-    // This could include:
-    // - Clearing "moved this turn" flags
-    // - Resetting action availability
-    // - Clearing temporary UI state
+    // Reset turn-specific flags that need to be cleared at the start of each turn
+    const playerUnits = this.unitManager.getPlayerUnits(playerId);
+    let flagsReset = 0;
+
+    for (const unit of playerUnits) {
+      // Clear any temporary sentry conditions from previous turn
+      if (unit.sentryUntil === 'turn_start') {
+        unit.sentryUntil = undefined;
+        flagsReset++;
+      }
+
+      // Reset auto-exploration targets that may have been set
+      if (unit.autoExploreTarget) {
+        unit.autoExploreTarget = undefined;
+        flagsReset++;
+      }
+
+      // Clear completed orders (orders that finished previous turn)
+      if (unit.orders && unit.orders.length === 0) {
+        unit.orders = undefined;
+        flagsReset++;
+      }
+    }
+
+    // Reset player-level turn flags
+    // These would be stored in player state or game state
+    // Examples: end_turn_info_message_shown = false (from freeciv-web)
 
     logger.debug('Turn flags reset', {
       gameId: this.gameId,
       playerId,
+      unitsProcessed: playerUnits.length,
+      flagsReset,
     });
   }
 
@@ -302,14 +364,43 @@ export class TurnCoordinationService {
 
   /**
    * Clear animation state for end of turn
-   * @reference freeciv-web/javascript/packhand.js reset_unit_anim_list()
+   * @reference freeciv-web/javascript/unit.js reset_unit_anim_list()
+   * @reference freeciv-web/javascript/packhand.js handle_end_turn()
    */
   async clearAnimationState(): Promise<void> {
     logger.debug('Clearing animation state', { gameId: this.gameId });
 
-    // This would integrate with a future animation system
-    // For now, it's a placeholder that logs the operation
+    // In freeciv-web, reset_unit_anim_list() clears the anim_list property
+    // from all units and resets the animation counter
+    // This is called at the end of each turn to clean up movement animations
 
-    logger.info('Animation state cleared', { gameId: this.gameId });
+    const allUnitsMap = this.unitManager.getAllUnits();
+    const allUnits = Array.from(allUnitsMap.values());
+    let animationsClearedCount = 0;
+
+    for (const unit of allUnits) {
+      // Clear any ongoing activities that represent animations
+      if (unit.activity && unit.activity.type !== 'idle') {
+        // Don't clear long-term activities like fortifying or building
+        const temporaryActivities = ['patrolling'];
+        if (temporaryActivities.includes(unit.activity.type)) {
+          unit.activity = undefined;
+          animationsClearedCount++;
+        }
+      }
+
+      // Clear transport animations (units loading/unloading)
+      if (unit.transportedBy) {
+        // Animation state would be client-side, this is just validation
+        // that transport relationships are still valid
+        animationsClearedCount++;
+      }
+    }
+
+    logger.info('Animation state cleared', {
+      gameId: this.gameId,
+      totalUnits: allUnits.length,
+      animationsClearedCount,
+    });
   }
 }
