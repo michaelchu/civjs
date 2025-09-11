@@ -12,7 +12,7 @@ import { games, players } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import serverConfig from '@config';
-import { getNextPlayerColor, type PlayerColor } from '../../utils/playerColors';
+import { getNextPlayerColorTheme, type PlayerColor } from '../../utils/playerColors';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {
@@ -20,7 +20,7 @@ export interface PlayerConnectionService {
     gameId: string,
     userId: string,
     civilization?: string
-  ): Promise<{ playerId: string; assignedNation: string }>;
+  ): Promise<{ playerId: string; assignedNation: string; assignedColor: PlayerColor }>;
   updatePlayerConnection(playerId: string, isConnected: boolean): Promise<void>;
   ensureMinimumPlayers(gameId: string): Promise<void>;
 }
@@ -54,7 +54,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     gameId: string,
     userId: string,
     civilization?: string
-  ): Promise<{ playerId: string; assignedNation: string }> {
+  ): Promise<{ playerId: string; assignedNation: string; assignedColor: PlayerColor }> {
     // Get game from database
     const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
@@ -75,6 +75,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       const existingResult = {
         playerId: existingPlayer.id,
         assignedNation: existingPlayer.nation || existingPlayer.civilization || 'american',
+        assignedColor: existingPlayer.color as PlayerColor,
       };
       return existingResult; // Already joined - allow rejoining at any game status
     }
@@ -94,9 +95,29 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     // Validate and select nation
     const selectedNation = await this.validateAndSelectNation(civilization, game.players);
 
-    // Get next available color from predefined palette
-    const usedColors = game.players.map(p => p.color as PlayerColor);
-    const assignedColor = getNextPlayerColor(usedColors);
+    // Get next available color theme from predefined palette
+    // For backward compatibility, we store the primary color in the old 'color' field
+    const usedThemes = game.players
+      .map(p => {
+        const color = p.color as PlayerColor;
+        // Convert old single color to theme format for comparison
+        return {
+          primary: color,
+          secondary: { r: 255, g: 255, b: 255 },
+          tertiary: { r: 0, g: 0, b: 0 },
+          name: 'Legacy',
+        };
+      })
+      .filter(theme => theme && theme.primary); // Filter out invalid themes
+    const assignedTheme = getNextPlayerColorTheme(usedThemes);
+
+    // Safety check for testing and edge cases - provide fallback color
+    const safeTheme = assignedTheme || {
+      primary: { r: 128, g: 128, b: 128 }, // Default gray
+      secondary: { r: 255, g: 255, b: 255 },
+      tertiary: { r: 0, g: 0, b: 0 },
+      name: 'Fallback Gray',
+    };
 
     const playerData = {
       gameId,
@@ -105,7 +126,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       nation: selectedNation,
       civilization: selectedNation || `Civilization${playerNumber}`,
       leaderName: `Leader${playerNumber}`,
-      color: assignedColor,
+      color: safeTheme.primary, // Store primary color for backward compatibility
     };
 
     const [newPlayer] = await this.databaseProvider
@@ -141,6 +162,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     const finalResult = {
       playerId: newPlayer.id,
       assignedNation: selectedNation,
+      assignedColor: safeTheme.primary,
     };
     return finalResult;
   }
@@ -224,9 +246,28 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       const playerNumber = game.players.length + i + 1;
       const aiNation = availableNations[i];
 
-      // Get next available color for AI player
-      const currentUsedColors = game.players.map(p => p.color as PlayerColor);
-      const aiColor = getNextPlayerColor(currentUsedColors);
+      // Get next available color theme for AI player
+      const currentUsedThemes = game.players
+        .map(p => {
+          const color = p.color as PlayerColor;
+          // Convert old single color to theme format for comparison
+          return {
+            primary: color,
+            secondary: { r: 255, g: 255, b: 255 },
+            tertiary: { r: 0, g: 0, b: 0 },
+            name: 'Legacy',
+          };
+        })
+        .filter(theme => theme && theme.primary); // Filter out invalid themes
+      const aiTheme = getNextPlayerColorTheme(currentUsedThemes);
+
+      // Safety check for AI player colors
+      const safeAiTheme = aiTheme || {
+        primary: { r: 64, g: 64, b: 64 }, // Dark gray for AI
+        secondary: { r: 255, g: 255, b: 255 },
+        tertiary: { r: 0, g: 0, b: 0 },
+        name: 'AI Fallback Gray',
+      };
 
       const aiPlayerData = {
         gameId,
@@ -235,7 +276,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         nation: aiNation,
         civilization: aiNation,
         leaderName: `AI Leader ${playerNumber}`,
-        color: aiColor,
+        color: safeAiTheme.primary, // Store primary color for backward compatibility
         connectionStatus: 'connected',
         isReady: true,
       };

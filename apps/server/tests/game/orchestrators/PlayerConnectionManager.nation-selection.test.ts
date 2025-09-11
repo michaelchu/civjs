@@ -1,3 +1,16 @@
+// Mock playerColors FIRST, before any imports
+jest.mock('@utils/playerColors', () => ({
+  getNextPlayerColorTheme: jest.fn(() => {
+    console.log('Mock getNextPlayerColorTheme called');
+    return {
+      primary: { r: 255, g: 0, b: 255 }, // Magenta for testing
+      secondary: { r: 255, g: 255, b: 255 },
+      tertiary: { r: 0, g: 0, b: 0 },
+      name: 'Test Theme',
+    };
+  }),
+}));
+
 import { PlayerConnectionManager } from '@game/orchestrators/PlayerConnectionManager';
 import { DatabaseProvider } from '@database';
 import { players } from '@database/schema';
@@ -257,7 +270,11 @@ describe('PlayerConnectionManager - Nation Selection', () => {
       const result = await playerManager.joinGame(mockGameId, mockUserId, civilization);
 
       // Assert
-      expect(result).toEqual({ playerId: 'new-player-id', assignedNation: 'chinese' });
+      expect(result).toEqual({
+        playerId: 'new-player-id',
+        assignedNation: 'chinese',
+        assignedColor: { r: 128, g: 128, b: 128 }, // Fallback color
+      });
 
       // Verify insert was called with correct nation data
       const insertCall = mockDatabase.insert.mock.calls[0];
@@ -302,7 +319,11 @@ describe('PlayerConnectionManager - Nation Selection', () => {
       const result = await playerManager.joinGame(mockGameId, mockUserId, civilization);
 
       // Assert
-      expect(result).toEqual({ playerId: 'new-player-id', assignedNation: 'american' });
+      expect(result).toEqual({
+        playerId: 'new-player-id',
+        assignedNation: 'american',
+        assignedColor: { r: 128, g: 128, b: 128 }, // Fallback color
+      });
 
       const valuesCall = mockDatabase.insert().values.mock.calls[0][0];
       expect(valuesCall.nation).not.toBe('random');

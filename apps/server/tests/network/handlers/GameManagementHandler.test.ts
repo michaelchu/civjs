@@ -166,6 +166,7 @@ describe('GameManagementHandler', () => {
       mockGameManager.joinGame.mockResolvedValue({
         playerId: mockPlayerId,
         assignedNation: 'romans',
+        assignedColor: { r: 255, g: 0, b: 0 },
       });
       mockGameManager.getPlayerById.mockResolvedValue({ nation: 'romans' });
 
@@ -250,6 +251,7 @@ describe('GameManagementHandler', () => {
       mockGameManager.joinGame.mockResolvedValue({
         playerId: mockPlayerId,
         assignedNation: 'greeks',
+        assignedColor: { r: 0, g: 255, b: 0 },
       });
 
       const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls.find(
@@ -280,6 +282,7 @@ describe('GameManagementHandler', () => {
       mockGameManager.joinGame.mockResolvedValue({
         playerId: mockPlayerId,
         assignedNation: 'romans',
+        assignedColor: { r: 255, g: 0, b: 0 },
       });
       mockGameManager.getPlayerById.mockResolvedValue({ nation: 'random' });
 
@@ -296,6 +299,7 @@ describe('GameManagementHandler', () => {
         success: true,
         playerId: mockPlayerId,
         assignedNation: 'romans',
+        assignedColor: { r: 255, g: 0, b: 0 },
       });
     });
 

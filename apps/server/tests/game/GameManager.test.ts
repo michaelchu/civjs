@@ -1,3 +1,13 @@
+// Mock playerColors to return consistent color
+jest.mock('@utils/playerColors', () => ({
+  getNextPlayerColorTheme: jest.fn(() => ({
+    primary: { r: 255, g: 20, b: 147 }, // Same color for consistent testing
+    secondary: { r: 255, g: 255, b: 255 },
+    tertiary: { r: 0, g: 0, b: 0 },
+    name: 'Test Theme',
+  })),
+}));
+
 import { GameManager, GameConfig } from '@game/managers/GameManager';
 import { Server as SocketServer } from 'socket.io';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
@@ -155,6 +165,7 @@ describe('GameManager', () => {
       expect(result).toEqual({
         playerId: 'player-id-1',
         assignedNation: 'Romans',
+        assignedColor: { r: 128, g: 128, b: 128 }, // Fallback color
       });
       // Should have been called for both game creation and player creation
       expect(mockDb.insert).toHaveBeenCalledTimes(2); // Game + Player
@@ -166,6 +177,7 @@ describe('GameManager', () => {
       expect(result).toEqual({
         playerId: 'player-id-1',
         assignedNation: 'american',
+        assignedColor: { r: 128, g: 128, b: 128 }, // Fallback color
       });
       // Check that a player was successfully created
       expect(mockDb.insert).toHaveBeenCalledTimes(2); // Game + Player
@@ -189,6 +201,7 @@ describe('GameManager', () => {
             userId: 'user-123',
             playerNumber: 1,
             civilization: 'Romans',
+            color: { r: 128, g: 128, b: 128 }, // Fallback color for consistency
           },
         ],
       });
@@ -200,6 +213,7 @@ describe('GameManager', () => {
       expect(result1).toEqual({
         playerId: 'player-id-1',
         assignedNation: 'Romans',
+        assignedColor: { r: 128, g: 128, b: 128 }, // Fallback color
       });
     });
 

@@ -152,6 +152,7 @@ export class GameManagementHandler extends BaseSocketHandler {
         maxPlayers: data.maxPlayers,
         playerId: result.playerId, // Include playerId so client can initialize player state
         assignedNation: result.assignedNation,
+        assignedColor: result.assignedColor,
       });
 
       handler.send(socket, PacketType.GAME_CREATE_REPLY, {
@@ -271,6 +272,7 @@ export class GameManagementHandler extends BaseSocketHandler {
         success: true,
         playerId: result.playerId,
         assignedNation: result.assignedNation,
+        assignedColor: result.assignedColor,
       });
       logger.info(`${connection?.username || 'Unknown'} joined game ${data.gameId}`, {
         playerId: result.playerId,

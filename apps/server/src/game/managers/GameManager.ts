@@ -260,7 +260,11 @@ export class GameManager {
     gameId: string,
     userId: string,
     civilization?: string
-  ): Promise<{ playerId: string; assignedNation: string }> {
+  ): Promise<{
+    playerId: string;
+    assignedNation: string;
+    assignedColor: import('../../utils/playerColors').PlayerColor;
+  }> {
     const result = await this.playerConnectionManager.joinGame(gameId, userId, civilization);
     // Sync player-to-game mapping
     this.playerToGame.set(result.playerId, gameId);
