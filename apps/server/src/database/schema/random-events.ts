@@ -8,7 +8,7 @@ import { games } from './games';
 
 export const randomEvents = pgTable('random_events', {
   id: uuid('id').defaultRandom().primaryKey(),
-  gameId: text('game_id')
+  gameId: uuid('game_id')
     .references(() => games.id)
     .notNull(),
 

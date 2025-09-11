@@ -9,10 +9,10 @@ import { cities } from './cities';
 
 export const disasters = pgTable('disasters', {
   id: uuid('id').defaultRandom().primaryKey(),
-  gameId: text('game_id')
+  gameId: uuid('game_id')
     .references(() => games.id)
     .notNull(),
-  cityId: text('city_id')
+  cityId: uuid('city_id')
     .references(() => cities.id)
     .notNull(),
 

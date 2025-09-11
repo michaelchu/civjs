@@ -11,6 +11,8 @@
 
 import { logger } from '@utils/logger';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
+import { db } from '@database/index';
+import { turnEvents, NewTurnEvent } from '@database/schema/turn-events';
 
 export enum GameEventType {
   // Turn-based events
@@ -130,6 +132,8 @@ export class GameEventService {
   private maxEventQueueSize = 1000;
   private maxRetries = 3;
 
+  private currentTurnId: string | null = null;
+
   constructor(gameId: string, broadcastManager: GameBroadcastManager) {
     this.gameId = gameId;
     this.broadcastManager = broadcastManager;
@@ -141,6 +145,134 @@ export class GameEventService {
       gameId: this.gameId,
       achievements: this.achievements.size,
     });
+  }
+
+  /**
+   * Set the current turn ID for database tracking
+   */
+  setCurrentTurnId(turnId: string): void {
+    this.currentTurnId = turnId;
+  }
+
+  /**
+   * Save an event to the database
+   */
+  private async saveEventToDatabase(event: GameEvent): Promise<void> {
+    if (!this.currentTurnId) {
+      // If no turn ID is set, we can't save to database but shouldn't block event processing
+      return;
+    }
+
+    try {
+      const eventRecord: NewTurnEvent = {
+        gameId: this.gameId,
+        turnId: this.currentTurnId,
+        playerId: event.data.playerId || null,
+        eventType: event.type,
+        eventCategory: this.getEventCategory(event.type),
+        occurredAt: new Date(event.createdAt),
+        title: this.getEventTitle(event),
+        description: this.getEventDescription(event),
+        eventData: event.data,
+        priority: event.priority,
+        isVisible: this.shouldEventBeVisible(event.type),
+        isAchievement: event.type === GameEventType.ACHIEVEMENT_UNLOCKED,
+        status: event.handled ? 'completed' : 'pending',
+        attempts: event.retryCount + 1,
+        lastError: null,
+        achievementId:
+          event.type === GameEventType.ACHIEVEMENT_UNLOCKED ? event.data.achievementId : null,
+        achievementUnlocked: event.type === GameEventType.ACHIEVEMENT_UNLOCKED,
+        locationX: event.data.x || null,
+        locationY: event.data.y || null,
+        relatedUnitId: event.data.unitId || null,
+        relatedCityId: event.data.cityId || null,
+        relatedPlayerId: event.data.targetPlayerId || null,
+      };
+
+      await db.insert(turnEvents).values(eventRecord);
+    } catch (error) {
+      // Log but don't throw - database issues shouldn't break event processing
+      logger.warn('Failed to save event to database', {
+        gameId: this.gameId,
+        eventId: event.id,
+        eventType: event.type,
+        error: error instanceof Error ? error.message : error,
+      });
+    }
+  }
+
+  /**
+   * Get event category for database classification
+   */
+  private getEventCategory(eventType: GameEventType): string {
+    const categoryMap: Record<string, string> = {
+      [GameEventType.TURN_BEGIN]: 'game',
+      [GameEventType.TURN_END]: 'game',
+      [GameEventType.PHASE_START]: 'game',
+      [GameEventType.PHASE_END]: 'game',
+      [GameEventType.CITY_FOUNDED]: 'city',
+      [GameEventType.CITY_GROWTH]: 'city',
+      [GameEventType.CITY_PRODUCTION_COMPLETE]: 'city',
+      [GameEventType.CITY_BUILDING_BUILT]: 'city',
+      [GameEventType.UNIT_CREATED]: 'unit',
+      [GameEventType.UNIT_DESTROYED]: 'unit',
+      [GameEventType.UNIT_PROMOTED]: 'unit',
+      [GameEventType.UNIT_MOVED]: 'unit',
+      [GameEventType.TECH_RESEARCHED]: 'research',
+      [GameEventType.RESEARCH_STARTED]: 'research',
+      [GameEventType.COMBAT_OCCURRED]: 'combat',
+      [GameEventType.UNIT_KILLED]: 'combat',
+      [GameEventType.ACHIEVEMENT_UNLOCKED]: 'achievement',
+      [GameEventType.MILESTONE_REACHED]: 'achievement',
+      [GameEventType.CUSTOM_EVENT]: 'custom',
+    };
+    return categoryMap[eventType] || 'other';
+  }
+
+  /**
+   * Get human-readable title for an event
+   */
+  private getEventTitle(event: GameEvent): string {
+    const titleMap: Record<string, (data: any) => string> = {
+      [GameEventType.CITY_FOUNDED]: data => `City "${data.cityName || 'Unknown'}" founded`,
+      [GameEventType.UNIT_CREATED]: data => `${data.unitType || 'Unit'} created`,
+      [GameEventType.TECH_RESEARCHED]: data => `${data.techName || 'Technology'} researched`,
+      [GameEventType.ACHIEVEMENT_UNLOCKED]: data =>
+        `Achievement: ${data.achievementName || 'Unknown'}`,
+      [GameEventType.TURN_BEGIN]: data => `Turn ${data.turn} began`,
+      [GameEventType.TURN_END]: data => `Turn ${data.turn} completed`,
+    };
+
+    const titleGenerator = titleMap[event.type];
+    if (titleGenerator) {
+      return titleGenerator(event.data);
+    }
+    return `${event.type} event`;
+  }
+
+  /**
+   * Get human-readable description for an event
+   */
+  private getEventDescription(_event: GameEvent): string | null {
+    // For most events, we don't need a separate description
+    // This could be expanded based on specific event types
+    return null;
+  }
+
+  /**
+   * Determine if an event should be visible to players
+   */
+  private shouldEventBeVisible(eventType: GameEventType): boolean {
+    const visibleEvents = [
+      GameEventType.CITY_FOUNDED,
+      GameEventType.CITY_GROWTH,
+      GameEventType.UNIT_CREATED,
+      GameEventType.TECH_RESEARCHED,
+      GameEventType.ACHIEVEMENT_UNLOCKED,
+      GameEventType.COMBAT_OCCURRED,
+    ];
+    return visibleEvents.includes(eventType);
   }
 
   /**
@@ -269,6 +401,9 @@ export class GameEventService {
 
           // Cache the event for potential replay/analysis
           this.cacheEvent(event);
+
+          // Save event to database for persistent history
+          await this.saveEventToDatabase(event);
 
           // Check for achievement unlocks
           const achievementsUnlocked = await this.checkAchievements(event);

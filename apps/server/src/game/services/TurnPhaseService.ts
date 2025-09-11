@@ -15,6 +15,9 @@ import type { TurnCoordinationService } from './TurnCoordinationService';
 import type { TurnPacketService } from './TurnPacketService';
 import type { RandomEventsManager } from '@game/managers/RandomEventsManager';
 import { GameEventService, GameEventType } from './GameEventService';
+import { db } from '@database/index';
+import { turnPhases, NewTurnPhase } from '@database/schema/turn-phases';
+import { eq } from 'drizzle-orm';
 
 export enum TurnPhase {
   // Phase 1: Begin turn processing
@@ -96,6 +99,7 @@ export class TurnPhaseService {
 
   private currentPhase: TurnPhase | null = null;
   private phaseHistory: PhaseResult[] = [];
+  private currentTurnId: string | null = null;
 
   constructor(
     gameId: string,
@@ -178,6 +182,68 @@ export class TurnPhaseService {
   }
 
   /**
+   * Set the current turn ID for database tracking
+   */
+  setCurrentTurnId(turnId: string): void {
+    this.currentTurnId = turnId;
+  }
+
+  /**
+   * Create a new turn phase record in the database
+   */
+  private async createPhaseRecord(phase: TurnPhase, phaseOrder: number): Promise<string> {
+    if (!this.currentTurnId) {
+      throw new Error('Turn ID must be set before creating phase records');
+    }
+
+    const phaseRecord: NewTurnPhase = {
+      gameId: this.gameId,
+      turnId: this.currentTurnId,
+      phase,
+      phaseOrder,
+      status: 'pending',
+      phaseData: {},
+      playersProcessed: 0,
+      unitsProcessed: 0,
+      citiesProcessed: 0,
+      actionsProcessed: 0,
+    };
+
+    const [inserted] = await db
+      .insert(turnPhases)
+      .values(phaseRecord)
+      .returning({ id: turnPhases.id });
+    return inserted.id;
+  }
+
+  /**
+   * Update a phase record with execution results
+   */
+  private async updatePhaseRecord(
+    phaseId: string,
+    result: PhaseResult,
+    startTime: Date,
+    endTime: Date
+  ): Promise<void> {
+    await db
+      .update(turnPhases)
+      .set({
+        status: result.success ? 'completed' : 'failed',
+        startedAt: startTime,
+        completedAt: endTime,
+        duration: result.duration,
+        success: result.success,
+        errorMessage: result.errors.join('; ') || null,
+        phaseData: result.data || {},
+        playersProcessed: result.playersProcessed,
+        unitsProcessed: result.data?.unitsProcessed || 0,
+        citiesProcessed: result.data?.citiesProcessed || 0,
+        actionsProcessed: result.data?.actionsProcessed || 0,
+      })
+      .where(eq(turnPhases.id, phaseId));
+  }
+
+  /**
    * Execute complete multi-phase turn processing
    * @reference freeciv/server/srv_main.c begin_turn()
    */
@@ -235,10 +301,24 @@ export class TurnPhaseService {
     ];
 
     try {
-      for (const phase of phases) {
+      for (let i = 0; i < phases.length; i++) {
+        const phase = phases[i];
         context.phaseStartTime = Date.now();
 
-        const phaseResult = await this.executePhase(phase, context);
+        // Create database record for this phase
+        let phaseId: string | null = null;
+        try {
+          phaseId = await this.createPhaseRecord(phase, i + 1);
+        } catch (error) {
+          logger.warn('Failed to create phase database record', {
+            gameId: this.gameId,
+            turn,
+            phase,
+            error: error instanceof Error ? error.message : error,
+          });
+        }
+
+        const phaseResult = await this.executePhase(phase, context, phaseId);
         result.phases.push(phaseResult);
 
         if (!phaseResult.success) {
@@ -312,7 +392,11 @@ export class TurnPhaseService {
   /**
    * Execute a specific turn phase
    */
-  private async executePhase(phase: TurnPhase, context: PhaseContext): Promise<PhaseResult> {
+  private async executePhase(
+    phase: TurnPhase,
+    context: PhaseContext,
+    phaseId?: string | null
+  ): Promise<PhaseResult> {
     this.currentPhase = phase;
 
     const phaseResult: PhaseResult = {
@@ -387,6 +471,20 @@ export class TurnPhaseService {
       phaseResult.success = true;
       phaseResult.duration = Date.now() - phaseStartTime;
 
+      // Update database record
+      if (phaseId) {
+        try {
+          await this.updatePhaseRecord(phaseId, phaseResult, new Date(phaseStartTime), new Date());
+        } catch (error) {
+          logger.warn('Failed to update phase database record', {
+            gameId: this.gameId,
+            turn: context.turn,
+            phase,
+            error: error instanceof Error ? error.message : error,
+          });
+        }
+      }
+
       // Emit phase end event
       // @reference freeciv/server/srv_main.c phase completion event hooks
       this.gameEventService.emitEvent(GameEventType.PHASE_END, {
@@ -406,6 +504,20 @@ export class TurnPhaseService {
       phaseResult.success = false;
       phaseResult.duration = Date.now() - phaseStartTime;
       phaseResult.errors.push(error instanceof Error ? error.message : String(error));
+
+      // Update database record with failure
+      if (phaseId) {
+        try {
+          await this.updatePhaseRecord(phaseId, phaseResult, new Date(phaseStartTime), new Date());
+        } catch (dbError) {
+          logger.warn('Failed to update failed phase database record', {
+            gameId: this.gameId,
+            turn: context.turn,
+            phase,
+            error: dbError instanceof Error ? dbError.message : dbError,
+          });
+        }
+      }
 
       this.turnPacketService.sendTurnProcessingError(
         phase,
