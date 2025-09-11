@@ -323,8 +323,7 @@ export class RiverGenerator {
       }
     }
 
-    // Calculate proper river masks based on flow direction
-    this.calculateFlowBasedRiverMasks(tiles, riverPath);
+    // River masks will be calculated later in calculateRiverConnections
 
     // Mark all positions in river map
     for (const pos of riverPath) {
@@ -337,6 +336,7 @@ export class RiverGenerator {
 
   /**
    * Find next position for river to flow (prefer downhill, toward ocean)
+   * Based on Freeciv's make_river algorithm with grid prevention
    */
   private findNextRiverPosition(
     x: number,
@@ -344,7 +344,6 @@ export class RiverGenerator {
     tiles: MapTile[][],
     visited: Set<string>
   ): { x: number; y: number } | null {
-    const currentElevation = tiles[x][y].elevation;
     const candidates: { x: number; y: number; score: number }[] = [];
 
     const directions = [
@@ -365,6 +364,11 @@ export class RiverGenerator {
         // Don't flow through existing rivers
         if (neighborTile.riverMask > 0) continue;
 
+        // CRITICAL: Prevent river grids - check if this would create >1 cardinal river connection
+        if (this.wouldCreateRiverGrid(nx, ny, tiles)) {
+          continue; // Skip positions that would create grid patterns
+        }
+
         let score = 0;
 
         // Prefer flowing toward ocean
@@ -372,6 +376,7 @@ export class RiverGenerator {
           score += 1000; // High priority for reaching ocean
         } else {
           // Prefer flowing downhill
+          const currentElevation = tiles[x][y].elevation;
           if (neighborTile.elevation < currentElevation) {
             score += (currentElevation - neighborTile.elevation) * 2;
           }
@@ -403,68 +408,40 @@ export class RiverGenerator {
   }
 
   /**
-   * Calculate proper river masks based on flow direction for a river path
-   * This creates flowing river segments instead of grid patterns
+   * Check if placing a river at this position would create a river grid pattern.
+   * Port of Freeciv's river_test_rivergrid() function.
+   * @reference freeciv/server/generator/mapgen.c:river_test_rivergrid()
+   * @param x - x coordinate to check
+   * @param y - y coordinate to check
+   * @param tiles - map tiles array
+   * @returns true if this would create a grid pattern (should be avoided)
    */
-  private calculateFlowBasedRiverMasks(
-    tiles: MapTile[][],
-    riverPath: { x: number; y: number; fromDirection?: number }[]
-  ): void {
-    for (let i = 0; i < riverPath.length; i++) {
-      const current = riverPath[i];
-      const prev = i > 0 ? riverPath[i - 1] : null;
-      const next = i < riverPath.length - 1 ? riverPath[i + 1] : null;
+  private wouldCreateRiverGrid(x: number, y: number, tiles: MapTile[][]): boolean {
+    // Count cardinal river connections if we place a river here
+    let riverConnections = 0;
 
-      let mask = 0;
+    const cardinalDirs = [
+      { dx: 0, dy: -1 }, // North
+      { dx: 1, dy: 0 }, // East
+      { dx: 0, dy: 1 }, // South
+      { dx: -1, dy: 0 }, // West
+    ];
 
-      // Connect to previous segment (where we came from)
-      if (prev) {
-        const dx = prev.x - current.x;
-        const dy = prev.y - current.y;
-        if (dy === -1)
-          mask |= 1; // North
-        else if (dx === 1)
-          mask |= 2; // East
-        else if (dy === 1)
-          mask |= 4; // South
-        else if (dx === -1) mask |= 8; // West
-      }
+    for (const dir of cardinalDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
 
-      // Connect to next segment (where we're going)
-      if (next) {
-        const dx = next.x - current.x;
-        const dy = next.y - current.y;
-        if (dy === -1)
-          mask |= 1; // North
-        else if (dx === 1)
-          mask |= 2; // East
-        else if (dy === 1)
-          mask |= 4; // South
-        else if (dx === -1) mask |= 8; // West
-      }
-
-      // For river end that reaches ocean, connect to ocean tile
-      if (!next && i === riverPath.length - 1) {
-        // Find adjacent ocean tile
-        for (const dir of [
-          { dx: 0, dy: -1, mask: 1 }, // North
-          { dx: 1, dy: 0, mask: 2 }, // East
-          { dx: 0, dy: 1, mask: 4 }, // South
-          { dx: -1, dy: 0, mask: 8 }, // West
-        ]) {
-          const nx = current.x + dir.dx;
-          const ny = current.y + dir.dy;
-          if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-            if (!this.isLandTile(tiles[nx][ny].terrain)) {
-              mask |= dir.mask;
-              break; // Only connect to one ocean direction
-            }
-          }
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const neighborTile = tiles[nx][ny];
+        // Count existing rivers (but not ocean)
+        if (neighborTile.riverMask > 0) {
+          riverConnections++;
         }
       }
-
-      tiles[current.x][current.y].riverMask = mask;
     }
+
+    // Freeciv rule: prevent more than 1 cardinal river connection to avoid grids
+    return riverConnections > 1;
   }
 
   /**
