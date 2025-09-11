@@ -364,33 +364,30 @@ export class RiverGenerator {
         // Don't flow through existing rivers
         if (neighborTile.riverMask > 0) continue;
 
-        // CRITICAL: Prevent river grids - check if this would create >1 cardinal river connection
-        if (this.wouldCreateRiverGrid(nx, ny, tiles)) {
-          continue; // Skip positions that would create grid patterns
-        }
+        // Note: Grid prevention is handled in the scoring system below, not as a hard block
 
+        // Freeciv-style scoring: lower is better (like the original algorithm)
         let score = 0;
 
-        // Prefer flowing toward ocean
+        // Test 1: Grid test (fatal if all directions create grids)
+        const gridScore = this.riverTestRivergrid(nx, ny, tiles);
+        score += gridScore * 1000; // High penalty for grids
+
+        // Test 2: Height/elevation preference (prefer downhill)
+        const currentElevation = tiles[x][y].elevation;
         if (!this.isLandTile(neighborTile.terrain)) {
-          score += 1000; // High priority for reaching ocean
+          // Ocean - excellent score
+          score += 0;
         } else {
-          // Prefer flowing downhill
-          const currentElevation = tiles[x][y].elevation;
-          if (neighborTile.elevation < currentElevation) {
-            score += (currentElevation - neighborTile.elevation) * 2;
+          // Land - prefer flowing downhill
+          if (neighborTile.elevation >= currentElevation) {
+            score += (neighborTile.elevation - currentElevation + 1) * 10;
           }
+        }
 
-          // Prefer suitable river terrain
-          if (this.isRiverSuitable(nx, ny, tiles)) {
-            score += 50;
-          }
-
-          // Avoid mountains unless coming from higher mountains
-          const mountainous = neighborTile.properties[TerrainProperty.MOUNTAINOUS] || 0;
-          if (mountainous > 80 && neighborTile.elevation >= currentElevation) {
-            continue; // Can't flow uphill into mountains
-          }
+        // Test 3: Terrain suitability
+        if (!this.isRiverSuitable(nx, ny, tiles)) {
+          score += 100; // Penalty for unsuitable terrain
         }
 
         candidates.push({ x: nx, y: ny, score });
@@ -399,24 +396,30 @@ export class RiverGenerator {
 
     if (candidates.length === 0) return null;
 
-    // Pick best candidate (highest score)
-    candidates.sort((a, b) => b.score - a.score);
+    // Freeciv logic: find the best (lowest) score
+    const bestScore = Math.min(...candidates.map(c => c.score));
 
-    // Add some randomness - pick from top 3 candidates
-    const topCandidates = candidates.slice(0, Math.min(3, candidates.length));
-    return topCandidates[Math.floor(this.random() * topCandidates.length)];
+    // Check for fatal conditions: if best score has grid penalty, abort river
+    if (bestScore >= 1000) {
+      return null; // All directions would create grids - abort river
+    }
+
+    // Get all candidates with the best score
+    const bestCandidates = candidates.filter(c => c.score === bestScore);
+
+    // Randomly pick from the best candidates
+    return bestCandidates[Math.floor(this.random() * bestCandidates.length)];
   }
 
   /**
-   * Check if placing a river at this position would create a river grid pattern.
-   * Port of Freeciv's river_test_rivergrid() function.
+   * River grid test - port of Freeciv's river_test_rivergrid() function.
    * @reference freeciv/server/generator/mapgen.c:river_test_rivergrid()
    * @param x - x coordinate to check
    * @param y - y coordinate to check
    * @param tiles - map tiles array
-   * @returns true if this would create a grid pattern (should be avoided)
+   * @returns 0 if no grid, 1 if grid would be formed
    */
-  private wouldCreateRiverGrid(x: number, y: number, tiles: MapTile[][]): boolean {
+  private riverTestRivergrid(x: number, y: number, tiles: MapTile[][]): number {
     // Count cardinal river connections if we place a river here
     let riverConnections = 0;
 
@@ -440,8 +443,8 @@ export class RiverGenerator {
       }
     }
 
-    // Freeciv rule: prevent more than 1 cardinal river connection to avoid grids
-    return riverConnections > 1;
+    // Return 1 if more than 1 cardinal river connection (grid pattern), 0 otherwise
+    return riverConnections > 1 ? 1 : 0;
   }
 
   /**
