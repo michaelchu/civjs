@@ -266,8 +266,8 @@ export class RiverGenerator {
   }
 
   /**
-   * Find next position for river to flow (prefer downhill, toward ocean)
-   * Based on Freeciv's make_river algorithm with grid prevention
+   * Find next position for river to flow - port of Freeciv's make_river algorithm
+   * @reference freeciv/server/generator/mapgen.c:make_river()
    */
   private findNextRiverPosition(
     x: number,
@@ -276,8 +276,6 @@ export class RiverGenerator {
     visited: Set<string>,
     currentLength: number
   ): { x: number; y: number } | null {
-    const candidates: { x: number; y: number; score: number }[] = [];
-
     const directions = [
       { dx: 0, dy: -1 }, // North
       { dx: 1, dy: 0 }, // East
@@ -285,62 +283,97 @@ export class RiverGenerator {
       { dx: -1, dy: 0 }, // West
     ];
 
-    for (const dir of directions) {
+    // Track valid directions (Freeciv style)
+    let validDirections: { x: number; y: number; dir: number }[] = [];
+
+    // Step 1: Mark all available cardinal directions as candidates
+    for (let i = 0; i < directions.length; i++) {
+      const dir = directions[i];
       const nx = x + dir.dx;
       const ny = y + dir.dy;
       const key = `${nx},${ny}`;
 
       if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height && !visited.has(key)) {
         const neighborTile = tiles[nx][ny];
-
         // Don't flow through existing rivers
-        if (neighborTile.riverMask > 0) continue;
-
-        // Note: Grid prevention is handled in the scoring system below, not as a hard block
-
-        // Freeciv-style scoring: lower is better (like the original algorithm)
-        let score = 0;
-
-        // Test 1: Grid test (fatal if all directions create grids)
-        const gridScore = this.riverTestRivergrid(nx, ny, tiles);
-        score += gridScore * 1000; // High penalty for grids
-
-        // Test 2: Height/elevation preference (prefer downhill on land)
-        const currentElevation = tiles[x][y].elevation;
-        if (!this.isLandTile(neighborTile.terrain)) {
-          // Ocean - only acceptable if river is long enough, otherwise discourage early ocean access
-          score += currentLength < 5 ? 500 : 0; // Discourage short rivers to ocean
-        } else {
-          // Land - prefer flowing downhill
-          if (neighborTile.elevation >= currentElevation) {
-            score += (neighborTile.elevation - currentElevation + 1) * 10;
-          }
+        if (neighborTile.riverMask === 0) {
+          validDirections.push({ x: nx, y: ny, dir: i });
         }
-
-        // Test 3: Terrain suitability
-        if (!this.isRiverSuitable(nx, ny, tiles)) {
-          score += 100; // Penalty for unsuitable terrain
-        }
-
-        candidates.push({ x: nx, y: ny, score });
       }
     }
 
-    if (candidates.length === 0) return null;
+    if (validDirections.length === 0) return null;
 
-    // Freeciv logic: find the best (lowest) score
-    const bestScore = Math.min(...candidates.map(c => c.score));
+    // Step 2: Apply FATAL tests - eliminate directions that fail
+    // Test 1: Grid test (FATAL in Freeciv)
+    validDirections = validDirections.filter(candidate => {
+      const gridResult = this.riverTestRivergrid(candidate.x, candidate.y, tiles);
+      return gridResult === 0; // Only keep directions that don't form grids
+    });
 
-    // Check for fatal conditions: if best score has grid penalty, abort river
-    if (bestScore >= 1000) {
+    if (validDirections.length === 0) {
       return null; // All directions would create grids - abort river
     }
 
-    // Get all candidates with the best score
-    const bestCandidates = candidates.filter(c => c.score === bestScore);
+    // Step 3: Apply NON-FATAL tests using Freeciv's approach
+    // For each test, find the best value and eliminate worse directions
 
-    // Randomly pick from the best candidates
-    return bestCandidates[Math.floor(this.random() * bestCandidates.length)];
+    // Test 2: Height preference (prefer downhill, or ocean if river is long enough)
+    const currentElevation = tiles[x][y].elevation;
+    let bestHeightScore = Number.MAX_SAFE_INTEGER;
+
+    for (const candidate of validDirections) {
+      const neighborTile = tiles[candidate.x][candidate.y];
+      let heightScore = 0;
+
+      if (!this.isLandTile(neighborTile.terrain)) {
+        // Ocean - penalize if river is too short
+        heightScore = currentLength < 5 ? 500 : 0;
+      } else {
+        // Land - prefer flowing downhill
+        if (neighborTile.elevation >= currentElevation) {
+          heightScore = neighborTile.elevation - currentElevation + 1;
+        }
+      }
+
+      bestHeightScore = Math.min(bestHeightScore, heightScore);
+    }
+
+    validDirections = validDirections.filter(candidate => {
+      const neighborTile = tiles[candidate.x][candidate.y];
+      let heightScore = 0;
+
+      if (!this.isLandTile(neighborTile.terrain)) {
+        heightScore = currentLength < 5 ? 500 : 0;
+      } else {
+        if (neighborTile.elevation >= currentElevation) {
+          heightScore = neighborTile.elevation - currentElevation + 1;
+        }
+      }
+
+      return heightScore === bestHeightScore;
+    });
+
+    if (validDirections.length === 0) return null;
+
+    // Test 3: Terrain suitability
+    let bestTerrainScore = Number.MAX_SAFE_INTEGER;
+
+    for (const candidate of validDirections) {
+      const terrainScore = this.isRiverSuitable(candidate.x, candidate.y, tiles) ? 0 : 1;
+      bestTerrainScore = Math.min(bestTerrainScore, terrainScore);
+    }
+
+    validDirections = validDirections.filter(candidate => {
+      const terrainScore = this.isRiverSuitable(candidate.x, candidate.y, tiles) ? 0 : 1;
+      return terrainScore === bestTerrainScore;
+    });
+
+    if (validDirections.length === 0) return null;
+
+    // Step 4: Randomly choose from remaining valid directions
+    const chosen = validDirections[Math.floor(this.random() * validDirections.length)];
+    return { x: chosen.x, y: chosen.y };
   }
 
   /**
