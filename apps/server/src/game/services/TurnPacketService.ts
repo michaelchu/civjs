@@ -249,15 +249,9 @@ export class TurnPacketService {
     // Send packets in the correct order
     this.sendNewYearPacket(turn, year, fragments);
 
-    // Small delay to ensure packet ordering (if needed)
-    // Skip delay in test environment to avoid timing issues
-    if (process.env.NODE_ENV === 'test') {
-      this.sendBeginTurnPacket(turn, year);
-    } else {
-      setTimeout(() => {
-        this.sendBeginTurnPacket(turn, year);
-      }, 10);
-    }
+    // Send BEGIN_TURN immediately after NEW_YEAR to avoid timing issues with turn overlay
+    // The original delay was causing BEGIN_TURN to be sent during city production processing
+    this.sendBeginTurnPacket(turn, year);
   }
 
   /**

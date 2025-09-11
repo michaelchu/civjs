@@ -626,46 +626,38 @@ export class CityManager {
       return;
     }
 
-    logger.info(`Processing turn for city ${city.name} (${cityId})`, { currentTurn });
+    logger.debug(`Processing turn for city ${city.name} (${cityId})`, { currentTurn });
 
     try {
-      logger.info(`Step 1: Apply government effects for city ${city.name}`);
       // Apply government effects first
       this.refreshCityWithGovernmentEffects(cityId);
 
-      logger.info(`Step 2: Apply governor automation for city ${city.name}`);
       // Apply automated governor if enabled
       if (this.governorService && city.governor?.isEnabled) {
         await this.governorService.applyGovernorAutomation(cityId);
       }
 
-      logger.info(`Step 3: Calculate city outputs for city ${city.name}`);
       // Calculate city outputs
       this.calculateCityOutputs(cityId);
 
-      logger.info(`Step 4: Trigger callbacks for city ${city.name}`);
       // Trigger callback for city turn processing (science accumulation)
       if (this.callbacks.onCityTurnProcessed) {
         this.callbacks.onCityTurnProcessed(city);
       }
 
-      logger.info(`Step 5: Process food and growth for city ${city.name}`);
       // Process food and growth
       await this.processFoodAndGrowth(city, currentTurn);
 
-      logger.info(`Step 6: Process production for city ${city.name}`);
       // Process production
       await this.processProduction(city, currentTurn);
 
-      logger.info(`Step 7: Calculate happiness for city ${city.name}`);
       // Process happiness
       this.calculateHappiness(cityId);
 
-      logger.info(`Step 8: Save city to database for city ${city.name}`);
       // Save changes to database
       await this.saveCityToDatabase(city);
 
-      logger.info(`Turn processing completed for city ${city.name}`, {
+      logger.debug(`Turn processing completed for city ${city.name}`, {
         cityId,
         population: city.population,
         currentProduction: city.currentProduction,
@@ -986,7 +978,6 @@ export class CityManager {
 
   private async saveCityToDatabase(city: CityState): Promise<void> {
     try {
-      logger.info(`Saving city ${city.name} to database`, { cityId: city.id });
       const db = this.databaseProvider.getDatabase();
 
       const cityData = {
@@ -1022,7 +1013,6 @@ export class CityManager {
           city.workableTiles?.filter(t => t.isWorked).map(t => ({ x: t.x, y: t.y })) || [],
       };
 
-      logger.info(`Executing database operation for city ${city.name}`, { cityId: city.id });
       const dbOperation = db.insert(cities).values([cityData]).onConflictDoUpdate({
         target: cities.id,
         set: cityData,
@@ -1038,9 +1028,8 @@ export class CityManager {
 
         await Promise.race([dbOperation, timeoutPromise]);
       } else {
-        // In production, just execute normally with enhanced logging
+        // In production, just execute normally
         await dbOperation;
-        logger.info(`Successfully saved city ${city.name} to database`, { cityId: city.id });
       }
     } catch (error) {
       logger.error('Failed to save city to database', {

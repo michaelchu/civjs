@@ -309,8 +309,8 @@ export class TurnPhaseService {
     // Send freeze client to prevent interactions during processing
     this.turnPacketService.sendFreezeClientPacket('Processing turn...');
 
-    // Send NEW_YEAR and BEGIN_TURN packets
-    this.turnPacketService.sendTurnStartSequence(context.turn, context.year, 0);
+    // Note: Turn start packets (NEW_YEAR, BEGIN_TURN) are sent by TurnManager after processing completes
+    // This avoids race conditions with the turn overlay UI
 
     result.playersProcessed = context.playerIds.length;
     result.itemsProcessed = 1; // One turn initialized

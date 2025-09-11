@@ -519,7 +519,7 @@ export class TurnProcessingService {
    * Delegates to CityManager.processProduction()
    */
   async processCityProduction(playerId: string, currentTurn?: number): Promise<number> {
-    logger.info('Processing city production for player', {
+    logger.debug('Processing city production for player', {
       gameId: this.gameId,
       playerId,
       currentTurn,
@@ -529,39 +529,17 @@ export class TurnProcessingService {
     const playerCities = await this.cityManager.getPlayerCities(playerId);
     let citiesProcessed = 0;
 
-    logger.info(`Player ${playerId} has ${playerCities.length} cities to process`, {
-      gameId: this.gameId,
-      playerId,
-      cityNames: playerCities.map(c => c.name),
-    });
-
-    for (let i = 0; i < playerCities.length; i++) {
-      const city = playerCities[i];
+    for (const city of playerCities) {
       try {
-        logger.info(`Processing city ${i + 1}/${playerCities.length}: ${city.name}`, {
-          gameId: this.gameId,
-          playerId,
-          cityId: city.id,
-        });
-
         // Process production for this city (method exists in CityManager)
         await this.cityManager.processCityTurn(city.id, currentTurn || 0);
         citiesProcessed++;
-
-        logger.info(`Completed processing city ${city.name} (${i + 1}/${playerCities.length})`, {
-          gameId: this.gameId,
-          playerId,
-          cityId: city.id,
-          citiesProcessed,
-        });
       } catch (error) {
         logger.error('Error processing city production', {
           gameId: this.gameId,
           playerId,
           cityId: city.id,
           cityName: city.name,
-          cityIndex: i + 1,
-          totalCities: playerCities.length,
           error: error instanceof Error ? error.message : error,
         });
       }
