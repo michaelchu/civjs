@@ -173,119 +173,21 @@ export class RiverGenerator {
    * @reference freeciv/server/generator/mapgen.c:make_rivers()
    */
   private findRiverStartPosition(tiles: MapTile[][]): { x: number; y: number } | null {
-    const maxTries = 1000;
+    const maxTries = 100;
 
     for (let attempt = 0; attempt < maxTries; attempt++) {
-      // Pick random position (equivalent to rand_map_pos_characteristic with MC_NLOW)
+      // Pick random position
       const x = Math.floor(this.random() * this.width);
       const y = Math.floor(this.random() * this.height);
+      const tile = tiles[x][y];
 
-      // Check if position is suitable (port of Freeciv's conditions)
-      if (this.isFreecivSuitableRiverStart(tiles, x, y, attempt, maxTries)) {
+      // Simple check: land tile with no existing river and reasonable elevation
+      if (this.isLandTile(tile.terrain) && tile.riverMask === 0 && tile.elevation > 50) {
         return { x, y };
       }
     }
 
     return null; // No suitable position found
-  }
-
-  /**
-   * Check if position is suitable for river start - port of Freeciv conditions
-   * @reference freeciv/server/generator/mapgen.c:make_rivers()
-   */
-  private isFreecivSuitableRiverStart(
-    tiles: MapTile[][],
-    x: number,
-    y: number,
-    attempt: number,
-    maxTries: number
-  ): boolean {
-    const tile = tiles[x][y];
-
-    // Don't start a river on ocean
-    if (!this.isLandTile(tile.terrain)) {
-      return false;
-    }
-
-    // Don't start a river on existing river
-    if (tile.riverMask > 0) {
-      return false;
-    }
-
-    // MC_NLOW equivalent: not low elevation (above certain threshold)
-    const lowThreshold = 100; // Adjust based on your elevation scale
-    if (tile.elevation <= lowThreshold) {
-      return false;
-    }
-
-    // Don't start near too many rivers/ocean (max 1 nearby)
-    const nearbyRivers = this.countNearbyRivers(tiles, x, y);
-    const nearbyOcean = this.countNearbyOcean(tiles, x, y);
-    if (nearbyRivers + nearbyOcean > 1) {
-      return false;
-    }
-
-    // Avoid starting in mountains unless we've tried many times
-    const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
-    if (mountainous > 0 && attempt < maxTries * 0.6) {
-      return false;
-    }
-
-    // Avoid starting in desert unless we've tried many times
-    const dry = tile.properties[TerrainProperty.DRY] || 0;
-    if (dry > 50 && attempt < maxTries * 0.9) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Count nearby rivers around a position
-   */
-  private countNearbyRivers(tiles: MapTile[][], x: number, y: number): number {
-    let count = 0;
-
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-
-        const nx = x + dx;
-        const ny = y + dy;
-
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          if (tiles[nx][ny].riverMask > 0) {
-            count++;
-          }
-        }
-      }
-    }
-
-    return count;
-  }
-
-  /**
-   * Count nearby ocean around a position
-   */
-  private countNearbyOcean(tiles: MapTile[][], x: number, y: number): number {
-    let count = 0;
-
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-
-        const nx = x + dx;
-        const ny = y + dy;
-
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          if (!this.isLandTile(tiles[nx][ny].terrain)) {
-            count++;
-          }
-        }
-      }
-    }
-
-    return count;
   }
 
   /**
