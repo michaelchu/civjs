@@ -7,16 +7,20 @@ import { clearAllTables, getTestDatabaseProvider } from './testDatabase';
  * Creates a mock Socket.IO server for tests
  */
 export function createMockSocketServer(): SocketServer {
-  const mockEmitter = {
-    emit: jest.fn(),
+  // Create the emit function that will be used by rooms
+  const mockEmit = jest.fn();
+
+  // Create a proper room/namespace object that has emit
+  const mockRoom = {
+    emit: mockEmit,
     to: jest.fn().mockReturnThis(),
     in: jest.fn().mockReturnThis(),
   };
 
   const mockServer = {
     emit: jest.fn(),
-    to: jest.fn().mockReturnValue(mockEmitter),
-    in: jest.fn().mockReturnValue(mockEmitter),
+    to: jest.fn().mockReturnValue(mockRoom),
+    in: jest.fn().mockReturnValue(mockRoom),
     sockets: {
       sockets: new Map(),
       adapter: { rooms: new Map() },
