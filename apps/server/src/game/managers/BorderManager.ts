@@ -206,15 +206,15 @@ export class BorderManager {
     // Check all border sources that could reach this tile
     for (const [, source] of this.borderSources) {
       const distance = this.getSquaredDistance(x, y, source.x, source.y);
-      const sourceRadius = this.getBorderSourceRadius(source);
-      const withinRadius = distance <= sourceRadius * sourceRadius; // Fix: compare squared distance with squared radius
+      const sourceRadiusSq = this.getBorderSourceRadius(source);
+      const withinRadius = distance <= sourceRadiusSq; // Compare squared distance with radius_sq directly
 
       if (withinRadius) {
         const tileStrength = this.getTileBorderStrength(x, y, source);
         debugInfo.push({
           sourcePos: { x: source.x, y: source.y },
           distance,
-          radius: sourceRadius,
+          radius: sourceRadiusSq,
           strength: tileStrength,
           isStrongest: tileStrength > maxStrength,
         });
@@ -303,10 +303,10 @@ export class BorderManager {
 
     for (const [, source] of this.borderSources) {
       const distance = this.getSquaredDistance(x, y, source.x, source.y);
-      const sourceRadius = this.getBorderSourceRadius(source);
+      const sourceRadiusSq = this.getBorderSourceRadius(source);
 
-      if (distance <= sourceRadius * sourceRadius) {
-        // Fix: compare squared distance with squared radius
+      if (distance <= sourceRadiusSq) {
+        // Compare squared distance with radius_sq directly
         sources.push(source);
       }
     }
@@ -425,8 +425,10 @@ export class BorderManager {
     const updatedTiles: TileOwnership[] = [];
 
     // Update ownership for all tiles within radius
-    for (let x = centerX - updateRadius; x <= centerX + updateRadius; x++) {
-      for (let y = centerY - updateRadius; y <= centerY + updateRadius; y++) {
+    // Convert radius_sq to linear radius for iteration bounds
+    const linearRadius = Math.floor(Math.sqrt(updateRadius));
+    for (let x = centerX - linearRadius; x <= centerX + linearRadius; x++) {
+      for (let y = centerY - linearRadius; y <= centerY + linearRadius; y++) {
         if (this.isValidCoordinate(x, y)) {
           const key = this.getTileKey(x, y);
           const newOwnership = this.calculateTileOwnership(x, y);
@@ -457,8 +459,10 @@ export class BorderManager {
     const affectedPlayers: Set<string> = new Set();
 
     // Update ownership for all tiles within radius
-    for (let x = centerX - updateRadius; x <= centerX + updateRadius; x++) {
-      for (let y = centerY - updateRadius; y <= centerY + updateRadius; y++) {
+    // Convert radius_sq to linear radius for iteration bounds
+    const linearRadius = Math.floor(Math.sqrt(updateRadius));
+    for (let x = centerX - linearRadius; x <= centerX + linearRadius; x++) {
+      for (let y = centerY - linearRadius; y <= centerY + linearRadius; y++) {
         if (this.isValidCoordinate(x, y)) {
           const key = this.getTileKey(x, y);
           const oldOwnership = this.tileOwnership.get(key);
