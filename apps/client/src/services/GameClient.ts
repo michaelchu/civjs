@@ -197,7 +197,7 @@ class GameClient {
           id: data.playerId,
           name: 'Player', // We don't have the name here, will be updated later
           nation: finalNation,
-          color: '#0066cc',
+          color: '#808080', // Temporary gray color, will be updated by PLAYER_INFO packet
           gold: 50,
           science: 0,
           government: 'despotism', // Default starting government
@@ -1019,7 +1019,7 @@ class GameClient {
             id: response.playerId,
             name: playerName,
             nation: finalNation,
-            color: '#0066cc',
+            color: '#808080', // Temporary gray color, will be updated by PLAYER_INFO packet
             gold: 50,
             science: 0,
             government: 'despotism', // Default starting government
