@@ -150,6 +150,8 @@ export class RiverGenerator {
 
   /**
    * Generate a flowing river network from start position to ocean
+   * Port of Freeciv's make_river function structure
+   * @reference freeciv/server/generator/mapgen.c:make_river()
    */
   private generateRiverNetwork(
     startX: number,
@@ -157,67 +159,37 @@ export class RiverGenerator {
     tiles: MapTile[][],
     riverMap: RiverMapState
   ): number {
-    const riverPath: { x: number; y: number; fromDirection?: number }[] = [];
     let currentX = startX;
     let currentY = startY;
     let length = 0;
-    const maxLength = 30; // Prevent infinite loops
-    let prevX = -1;
-    let prevY = -1;
+    const maxLength = 300; // Increased for longer rivers (Freeciv default)
 
     while (length < maxLength) {
-      // Store the previous position to track flow direction
-      const prevPosX = prevX;
-      const prevPosY = prevY;
-      prevX = currentX;
-      prevY = currentY;
-
-      // Mark current tile as river with temporary mask (will be recalculated based on flow)
-      tiles[currentX][currentY].riverMask = 1; // Will be properly set later
-
-      // Store direction this segment came from for flow calculation
-      let fromDirection = -1;
-      if (prevPosX >= 0 && prevPosY >= 0) {
-        const dx = currentX - prevPosX;
-        const dy = currentY - prevPosY;
-        if (dy === -1)
-          fromDirection = 4; // came from South
-        else if (dx === 1)
-          fromDirection = 8; // came from West
-        else if (dy === 1)
-          fromDirection = 1; // came from North
-        else if (dx === -1) fromDirection = 2; // came from East
-      }
-
-      riverPath.push({ x: currentX, y: currentY, fromDirection });
+      // Mark the current tile as river (like Freeciv)
+      const tileIndex = currentY * this.width + currentX;
+      riverMap.ok.add(tileIndex);
+      tiles[currentX][currentY].riverMask = 1; // Mark as river
       this.convertTerrainForRiver(tiles[currentX][currentY]);
       length++;
 
-      // Try to find next position (flow downhill toward ocean)
-      const nextPos = this.findNextRiverPosition(
-        currentX,
-        currentY,
-        tiles,
-        new Set(riverPath.map(p => `${p.x},${p.y}`)),
-        length
-      );
-      if (!nextPos) break;
+      // Test if the river is done (Freeciv termination conditions)
+      if (this.shouldTerminateRiver(currentX, currentY, tiles)) {
+        break;
+      }
+
+      // Try to find next position
+      const nextPos = this.findNextRiverPosition(currentX, currentY, tiles, riverMap, length);
+
+      if (!nextPos) {
+        // No valid directions found - river ends here
+        break;
+      }
+
+      // Block previous position to prevent backtracking (like Freeciv's river_blockmark)
+      this.riverBlockmark(riverMap, currentX, currentY);
 
       currentX = nextPos.x;
       currentY = nextPos.y;
-
-      // Stop if we reached ocean
-      if (!this.isLandTile(tiles[currentX][currentY].terrain)) {
-        break;
-      }
-    }
-
-    // River masks will be calculated later in calculateRiverConnections
-
-    // Mark all positions in river map
-    for (const pos of riverPath) {
-      const tileIndex = pos.y * this.width + pos.x;
-      riverMap.ok.add(tileIndex);
     }
 
     return length;
@@ -231,7 +203,7 @@ export class RiverGenerator {
     x: number,
     y: number,
     tiles: MapTile[][],
-    visited: Set<string>,
+    riverMap: RiverMapState,
     currentLength: number
   ): { x: number; y: number } | null {
     const directions = [
@@ -249,12 +221,11 @@ export class RiverGenerator {
       const dir = directions[i];
       const nx = x + dir.dx;
       const ny = y + dir.dy;
-      const key = `${nx},${ny}`;
 
-      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height && !visited.has(key)) {
-        const neighborTile = tiles[nx][ny];
-        // Don't flow through existing rivers
-        if (neighborTile.riverMask === 0) {
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const tileIndex = ny * this.width + nx;
+        // Don't flow through blocked positions (like Freeciv)
+        if (!riverMap.blocked.has(tileIndex)) {
           validDirections.push({ x: nx, y: ny, dir: i });
         }
       }
@@ -569,5 +540,105 @@ export class RiverGenerator {
 
     // For land tiles, return elevation directly (lower elevation = lower score = preferred)
     return Math.floor(tile.elevation);
+  }
+
+  /**
+   * Check if river should terminate (port of Freeciv termination conditions)
+   * @reference freeciv/server/generator/mapgen.c:812-816
+   */
+  private shouldTerminateRiver(x: number, y: number, tiles: MapTile[][]): boolean {
+    // 1. Check if river connects to existing river
+    if (this.countRiverNearTile(x, y, tiles) > 0) {
+      return true;
+    }
+
+    // 2. Check if river reaches ocean
+    if (this.countOceanNearTile(x, y, tiles) > 0) {
+      return true;
+    }
+
+    // 3. Polar regions (simplified - no polar logic in our implementation yet)
+    // if (tile_terrain(ptile)->property[MG_FROZEN] > 0 && map_colatitude(ptile) < 0.8 * COLD_LEVEL)
+
+    return false;
+  }
+
+  /**
+   * Count river tiles cardinally adjacent to this position
+   * @reference freeciv/common/road.c:count_river_near_tile
+   */
+  private countRiverNearTile(x: number, y: number, tiles: MapTile[][]): number {
+    let count = 0;
+    const cardinalDirs = [
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+    ];
+
+    for (const dir of cardinalDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (tiles[nx][ny].riverMask > 0) {
+          count++;
+        }
+      }
+    }
+
+    return count;
+  }
+
+  /**
+   * Count ocean tiles cardinally adjacent to this position
+   * @reference freeciv/server/generator/mapgen.c:813-814
+   */
+  private countOceanNearTile(x: number, y: number, tiles: MapTile[][]): number {
+    let count = 0;
+    const cardinalDirs = [
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+    ];
+
+    for (const dir of cardinalDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (!this.isLandTile(tiles[nx][ny].terrain)) {
+          count++;
+        }
+      }
+    }
+
+    return count;
+  }
+
+  /**
+   * Block mark for river generation (port of Freeciv's river_blockmark)
+   * @reference freeciv/server/generator/mapgen.c:river_blockmark
+   */
+  private riverBlockmark(riverMap: RiverMapState, x: number, y: number): void {
+    // Block the current tile
+    const tileIndex = y * this.width + x;
+    riverMap.blocked.add(tileIndex);
+
+    // Block all cardinal adjacent tiles
+    const cardinalDirs = [
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+    ];
+
+    for (const dir of cardinalDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const adjacentIndex = ny * this.width + nx;
+        riverMap.blocked.add(adjacentIndex);
+      }
+    }
   }
 }
