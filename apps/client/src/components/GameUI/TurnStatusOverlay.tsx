@@ -4,6 +4,11 @@ import { useGameStore } from '../../store/gameStore';
 export const TurnStatusOverlay: React.FC = () => {
   const { turnProcessingState, turnProcessingSteps } = useGameStore();
 
+  // Disable the overlay entirely since turn processing is very fast
+  // The turn button will be disabled instead for better UX
+  return null;
+
+  // Original code kept for reference but not executed
   if (!turnProcessingState || turnProcessingState === 'idle') {
     return null;
   }

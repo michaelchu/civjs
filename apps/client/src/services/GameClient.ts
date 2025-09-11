@@ -392,7 +392,6 @@ class GameClient {
       }
 
       case PacketType.NEW_YEAR:
-        console.log('NEW_YEAR packet received:', packet.data);
         // Update game state with new year and turn information
         // @reference freeciv-web/javascript/packhand.js handle_new_year()
         useGameStore.getState().updateGameState({
@@ -408,15 +407,21 @@ class GameClient {
         break;
 
       case PacketType.TURN_START:
+      case PacketType.BEGIN_TURN:
         console.log('Turn started:', packet.data);
-        console.log('Updating turn to:', packet.data.turn);
         useGameStore.getState().updateGameState({
           turn: packet.data.turn,
           phase: 'movement', // Reset phase to movement for new turn
           // Year should already be set by NEW_YEAR packet
         });
-        // Let turn processing complete naturally - don't reset immediately
-        console.log('Current game state turn after update:', useGameStore.getState().turn);
+        // Clear turn processing UI when new turn starts
+        useGameStore.getState().setTurnProcessingState('idle');
+        useGameStore.getState().updateTurnProcessingSteps([]);
+        break;
+
+      case PacketType.END_TURN:
+        // Server has finished processing the turn
+        // The THAW_CLIENT packet will handle clearing the UI
         break;
 
       case PacketType.UNIT_INFO:
@@ -542,18 +547,13 @@ class GameClient {
         break;
 
       case PacketType.PROCESSING_STARTED:
-        console.log('Server processing started');
         break;
 
       case PacketType.PROCESSING_FINISHED:
-        console.log('Server processing finished');
         break;
 
       case PacketType.TURN_END_REPLY:
-        console.log('Turn end reply:', packet.data);
-        if (packet.data.success) {
-          console.log('Turn ended successfully', { turnAdvanced: packet.data.turnAdvanced });
-        } else {
+        if (!packet.data.success) {
           console.error('Turn end failed:', packet.data.message);
         }
         break;
@@ -569,6 +569,17 @@ class GameClient {
 
       case PacketType.TURN_PROCESSING_STEP:
         this.handleTurnProcessingStep(packet.data);
+        break;
+
+      case PacketType.FREEZE_CLIENT:
+        // Set processing state to disable the turn button
+        useGameStore.getState().setTurnProcessingState('processing');
+        break;
+
+      case PacketType.THAW_CLIENT:
+        // Reset the turn processing state to re-enable the turn button
+        useGameStore.getState().setTurnProcessingState('idle');
+        useGameStore.getState().updateTurnProcessingSteps([]);
         break;
 
       // Border system packets
