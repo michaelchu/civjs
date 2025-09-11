@@ -29,17 +29,6 @@ export class TerrainRenderer extends BaseRenderer {
   }
 
   /**
-   * Resources are now rendered in the terrain layer (LAYER_SPECIAL1).
-   * This method is kept for backwards compatibility but does nothing.
-   * @deprecated Resources are rendered in renderTerrain() as per freeciv-web
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  renderResources(_state: RenderState, _visibleTiles: Tile[]): void {
-    // Resources are now rendered in renderTerrainLayers() as part of LAYER_SPECIAL1
-    // This matches authentic freeciv-web behavior where resources are not hidden by cities
-  }
-
-  /**
    * Render ocean tiles beyond map boundaries to create seamless infinite world appearance.
    * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:305-380
    */
