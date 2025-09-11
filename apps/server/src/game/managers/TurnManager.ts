@@ -13,7 +13,6 @@ import type { CityManager } from '@game/managers/CityManager';
 import type { ResearchManager } from '@game/managers/ResearchManager';
 import type { BorderManager } from '@game/managers/BorderManager';
 import type { VisibilityManager } from '@game/managers/VisibilityManager';
-import type { MapManager } from '@game/managers/MapManager';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -54,8 +53,7 @@ export class TurnManager {
     cityManager: CityManager,
     researchManager: ResearchManager,
     borderManager: BorderManager,
-    visibilityManager: VisibilityManager,
-    mapManager: MapManager
+    visibilityManager: VisibilityManager
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -72,8 +70,7 @@ export class TurnManager {
       gameId,
       borderManager,
       visibilityManager,
-      unitManager,
-      mapManager
+      unitManager
     );
     this.turnPacketService = new TurnPacketService(io, gameId);
   }
@@ -226,47 +223,6 @@ export class TurnManager {
     this.playerActions.clear();
   }
 
-  // This method is now handled by TurnProcessingService
-  // Keeping for backwards compatibility but delegating to service
-
-  private async processPlayerAction(playerId: string, action: any): Promise<void> {
-    const playerAction: PlayerAction = {
-      ...action,
-      playerId,
-      timestamp: action.timestamp || new Date(),
-    };
-
-    await this.turnProcessingService.processPlayerActions([playerAction]);
-  }
-
-  // Unit move processing now handled by TurnProcessingService
-
-  private async processUnitMove(playerId: string, moveData: any): Promise<void> {
-    const action: PlayerAction = {
-      type: 'unit_move',
-      playerId,
-      data: moveData,
-      timestamp: new Date(),
-    };
-
-    await this.turnProcessingService.processPlayerActions([action]);
-    this.addTurnEvent('unit_move', playerId, moveData);
-  }
-
-  // Unit attack processing now handled by TurnProcessingService
-
-  private async processUnitAttack(playerId: string, attackData: any): Promise<void> {
-    const action: PlayerAction = {
-      type: 'unit_attack',
-      playerId,
-      data: attackData,
-      timestamp: new Date(),
-    };
-
-    await this.turnProcessingService.processPlayerActions([action]);
-    this.addTurnEvent('combat', playerId, attackData);
-  }
-
   private async processCityProduction(): Promise<void> {
     logger.debug('Processing city production via service', { gameId: this.gameId });
 
@@ -290,18 +246,6 @@ export class TurnManager {
         });
       }
     }
-  }
-
-  private async processCityProductionOrder(playerId: string, productionData: any): Promise<void> {
-    const action: PlayerAction = {
-      type: 'city_production',
-      playerId,
-      data: productionData,
-      timestamp: new Date(),
-    };
-
-    await this.turnProcessingService.processPlayerActions([action]);
-    this.addTurnEvent('city_production', playerId, productionData);
   }
 
   private async processUnitActions(): Promise<void> {
@@ -357,18 +301,6 @@ export class TurnManager {
         });
       }
     }
-  }
-
-  private async processResearchSelection(playerId: string, researchData: any): Promise<void> {
-    const action: PlayerAction = {
-      type: 'research_selection',
-      playerId,
-      data: researchData,
-      timestamp: new Date(),
-    };
-
-    await this.turnProcessingService.processPlayerActions([action]);
-    this.addTurnEvent('research_complete', playerId, researchData);
   }
 
   private async processRandomEvents(): Promise<void> {
@@ -559,20 +491,6 @@ export class TurnManager {
       year: this.currentYear,
       startTime: this.turnStartTime,
     });
-  }
-
-  private broadcastProcessingStep(stepId: string, stepLabel: string): void {
-    // Delegate to TurnPacketService
-    this.turnPacketService.sendProcessingStepPacket(stepId, stepLabel, false);
-  }
-
-  private broadcastProcessingComplete(): void {
-    // Delegate to TurnPacketService
-    this.turnPacketService.sendProcessingCompletePacket();
-  }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   public getCurrentTurn(): number {

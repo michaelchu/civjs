@@ -253,8 +253,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       cityManager,
       researchManager,
       borderManager,
-      visibilityManager,
-      mapManager
+      visibilityManager
     );
 
     // Set up callbacks after all managers are created
@@ -794,8 +793,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     cityManager: CityManager,
     researchManager: ResearchManager,
     borderManager: BorderManager,
-    visibilityManager: VisibilityManager,
-    mapManager: MapManager
+    visibilityManager: VisibilityManager
   ): Promise<TurnManager> {
     const tm = new TurnManager(
       gameId,
@@ -805,8 +803,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       cityManager,
       researchManager,
       borderManager,
-      visibilityManager,
-      mapManager
+      visibilityManager
     );
     const playerIds = Array.from(players.keys());
     await tm.initializeTurn(playerIds);

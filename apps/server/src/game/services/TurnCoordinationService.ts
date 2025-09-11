@@ -12,7 +12,6 @@ import { logger } from '@utils/logger';
 import type { BorderManager } from '@game/managers/BorderManager';
 import type { VisibilityManager } from '@game/managers/VisibilityManager';
 import type { UnitManager } from '@game/managers/UnitManager';
-import type { MapManager } from '@game/managers/MapManager';
 
 export interface PostTurnUpdateResult {
   bordersRecalculated: boolean;
@@ -32,20 +31,16 @@ export class TurnCoordinationService {
   private visibilityManager: VisibilityManager;
   private unitManager: UnitManager;
 
-  private mapManager: MapManager; // TODO: Will be used in Phase 2 for map-related coordination
-
   constructor(
     gameId: string,
     borderManager: BorderManager,
     visibilityManager: VisibilityManager,
-    unitManager: UnitManager,
-    mapManager: MapManager
+    unitManager: UnitManager
   ) {
     this.gameId = gameId;
     this.borderManager = borderManager;
     this.visibilityManager = visibilityManager;
     this.unitManager = unitManager;
-    this.mapManager = mapManager;
   }
 
   /**

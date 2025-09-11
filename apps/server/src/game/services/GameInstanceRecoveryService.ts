@@ -208,8 +208,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       cityManager,
       researchManager,
       borderManager,
-      visibilityManager,
-      mapManager
+      visibilityManager
     );
 
     const playerIds = Array.from(players.keys());
