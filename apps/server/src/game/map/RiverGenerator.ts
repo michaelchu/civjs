@@ -169,95 +169,123 @@ export class RiverGenerator {
   }
 
   /**
-   * Find suitable starting position for river network (high elevation, away from existing rivers)
+   * Find suitable starting position for river network - port of Freeciv's approach
+   * @reference freeciv/server/generator/mapgen.c:make_rivers()
    */
   private findRiverStartPosition(tiles: MapTile[][]): { x: number; y: number } | null {
-    // Create randomized positions to eliminate spatial bias
-    const positions = this.getAllPositionsShuffled();
+    const maxTries = 1000;
 
-    // Primary strategy: mountainous candidates
-    let candidates = this.collectMountainCandidates(tiles, positions);
+    for (let attempt = 0; attempt < maxTries; attempt++) {
+      // Pick random position (equivalent to rand_map_pos_characteristic with MC_NLOW)
+      const x = Math.floor(this.random() * this.width);
+      const y = Math.floor(this.random() * this.height);
 
-    // Fallback: very high elevation
-    if (candidates.length === 0) {
-      candidates = this.collectHighElevationCandidates(tiles, positions, 180, 20);
-    }
-
-    // Last resort: high elevation
-    if (candidates.length === 0) {
-      candidates = this.collectHighElevationCandidates(tiles, positions, 160, 15);
-    }
-
-    if (candidates.length === 0) return null;
-
-    // Sort by elevation and pick from top candidates
-    candidates.sort((a, b) => b.elevation - a.elevation);
-    const topCandidates = candidates.slice(0, Math.min(10, candidates.length));
-    return topCandidates[Math.floor(this.random() * topCandidates.length)];
-  }
-
-  /**
-   * Generate all map positions and return them shuffled
-   */
-  private getAllPositionsShuffled(): { x: number; y: number }[] {
-    const all: { x: number; y: number }[] = [];
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        all.push({ x, y });
+      // Check if position is suitable (port of Freeciv's conditions)
+      if (this.isFreecivSuitableRiverStart(tiles, x, y, attempt, maxTries)) {
+        return { x, y };
       }
     }
-    for (let i = all.length - 1; i > 0; i--) {
-      const j = Math.floor(this.random() * (i + 1));
-      [all[i], all[j]] = [all[j], all[i]];
-    }
-    return all;
+
+    return null; // No suitable position found
   }
 
   /**
-   * Collect mountainous candidates with elevation preference
+   * Check if position is suitable for river start - port of Freeciv conditions
+   * @reference freeciv/server/generator/mapgen.c:make_rivers()
    */
-  private collectMountainCandidates(
+  private isFreecivSuitableRiverStart(
     tiles: MapTile[][],
-    positions: { x: number; y: number }[]
-  ): { x: number; y: number; elevation: number }[] {
-    const result: { x: number; y: number; elevation: number }[] = [];
-    for (const pos of positions) {
-      const tile = tiles[pos.x][pos.y];
-      if (this.isSuitableStartBase(tile) && tile.elevation > 150) {
-        const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
-        if (mountainous > 20) {
-          result.push({ x: pos.x, y: pos.y, elevation: tile.elevation + mountainous });
+    x: number,
+    y: number,
+    attempt: number,
+    maxTries: number
+  ): boolean {
+    const tile = tiles[x][y];
+
+    // Don't start a river on ocean
+    if (!this.isLandTile(tile.terrain)) {
+      return false;
+    }
+
+    // Don't start a river on existing river
+    if (tile.riverMask > 0) {
+      return false;
+    }
+
+    // MC_NLOW equivalent: not low elevation (above certain threshold)
+    const lowThreshold = 100; // Adjust based on your elevation scale
+    if (tile.elevation <= lowThreshold) {
+      return false;
+    }
+
+    // Don't start near too many rivers/ocean (max 1 nearby)
+    const nearbyRivers = this.countNearbyRivers(tiles, x, y);
+    const nearbyOcean = this.countNearbyOcean(tiles, x, y);
+    if (nearbyRivers + nearbyOcean > 1) {
+      return false;
+    }
+
+    // Avoid starting in mountains unless we've tried many times
+    const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
+    if (mountainous > 0 && attempt < maxTries * 0.6) {
+      return false;
+    }
+
+    // Avoid starting in desert unless we've tried many times
+    const dry = tile.properties[TerrainProperty.DRY] || 0;
+    if (dry > 50 && attempt < maxTries * 0.9) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Count nearby rivers around a position
+   */
+  private countNearbyRivers(tiles: MapTile[][], x: number, y: number): number {
+    let count = 0;
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+
+        const nx = x + dx;
+        const ny = y + dy;
+
+        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+          if (tiles[nx][ny].riverMask > 0) {
+            count++;
+          }
         }
       }
     }
-    return result;
+
+    return count;
   }
 
   /**
-   * Collect high elevation candidates with optional limit
+   * Count nearby ocean around a position
    */
-  private collectHighElevationCandidates(
-    tiles: MapTile[][],
-    positions: { x: number; y: number }[],
-    threshold: number,
-    limit: number
-  ): { x: number; y: number; elevation: number }[] {
-    const result: { x: number; y: number; elevation: number }[] = [];
-    for (const pos of positions) {
-      const tile = tiles[pos.x][pos.y];
-      if (this.isSuitableStartBase(tile) && tile.elevation > threshold) {
-        result.push({ x: pos.x, y: pos.y, elevation: tile.elevation });
-        if (result.length >= limit) break;
+  private countNearbyOcean(tiles: MapTile[][], x: number, y: number): number {
+    let count = 0;
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+
+        const nx = x + dx;
+        const ny = y + dy;
+
+        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+          if (!this.isLandTile(tiles[nx][ny].terrain)) {
+            count++;
+          }
+        }
       }
     }
-    return result;
-  }
 
-  /**
-   * Common suitability checks for river start
-   */
-  private isSuitableStartBase(tile: MapTile): boolean {
-    return this.isLandTile(tile.terrain) && tile.riverMask === 0;
+    return count;
   }
 
   /**
