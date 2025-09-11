@@ -111,6 +111,14 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       .filter(theme => theme && theme.primary); // Filter out invalid themes
     const assignedTheme = getNextPlayerColorTheme(usedThemes);
 
+    // Safety check for testing and edge cases - provide fallback color
+    const safeTheme = assignedTheme || {
+      primary: { r: 128, g: 128, b: 128 }, // Default gray
+      secondary: { r: 255, g: 255, b: 255 },
+      tertiary: { r: 0, g: 0, b: 0 },
+      name: 'Fallback Gray',
+    };
+
     const playerData = {
       gameId,
       userId,
@@ -118,7 +126,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       nation: selectedNation,
       civilization: selectedNation || `Civilization${playerNumber}`,
       leaderName: `Leader${playerNumber}`,
-      color: assignedTheme.primary, // Store primary color for backward compatibility
+      color: safeTheme.primary, // Store primary color for backward compatibility
     };
 
     const [newPlayer] = await this.databaseProvider
@@ -154,7 +162,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     const finalResult = {
       playerId: newPlayer.id,
       assignedNation: selectedNation,
-      assignedColor: assignedTheme.primary,
+      assignedColor: safeTheme.primary,
     };
     return finalResult;
   }
@@ -253,6 +261,14 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         .filter(theme => theme && theme.primary); // Filter out invalid themes
       const aiTheme = getNextPlayerColorTheme(currentUsedThemes);
 
+      // Safety check for AI player colors
+      const safeAiTheme = aiTheme || {
+        primary: { r: 64, g: 64, b: 64 }, // Dark gray for AI
+        secondary: { r: 255, g: 255, b: 255 },
+        tertiary: { r: 0, g: 0, b: 0 },
+        name: 'AI Fallback Gray',
+      };
+
       const aiPlayerData = {
         gameId,
         userId: null, // AI players have null userId
@@ -260,7 +276,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         nation: aiNation,
         civilization: aiNation,
         leaderName: `AI Leader ${playerNumber}`,
-        color: aiTheme.primary, // Store primary color for backward compatibility
+        color: safeAiTheme.primary, // Store primary color for backward compatibility
         connectionStatus: 'connected',
         isReady: true,
       };

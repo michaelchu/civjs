@@ -89,6 +89,7 @@ describe('GameManagementHandler - Nation Selection', () => {
       mockGameManager.joinGame.mockResolvedValue({
         playerId: mockPlayerId,
         assignedNation: 'american',
+        assignedColor: { r: 255, g: 0, b: 0 },
       });
       mockGameManager.getPlayerById.mockResolvedValue({
         nation: 'american',
@@ -133,6 +134,7 @@ describe('GameManagementHandler - Nation Selection', () => {
       mockGameManager.joinGame.mockResolvedValue({
         playerId: mockPlayerId,
         assignedNation: 'chinese',
+        assignedColor: { r: 0, g: 255, b: 0 },
       });
       // Mock that server assigned a random nation
       mockGameManager.getPlayerById.mockResolvedValue({
@@ -177,6 +179,7 @@ describe('GameManagementHandler - Nation Selection', () => {
       mockGameManager.joinGame.mockResolvedValue({
         playerId: mockPlayerId,
         assignedNation: 'roman',
+        assignedColor: { r: 0, g: 0, b: 255 },
       });
       mockGameManager.getPlayerById.mockResolvedValue({
         nation: 'roman',
@@ -216,6 +219,7 @@ describe('GameManagementHandler - Nation Selection', () => {
       mockGameManager.joinGame.mockResolvedValue({
         playerId: mockPlayerId,
         assignedNation: 'german',
+        assignedColor: { r: 255, g: 255, b: 0 },
       });
       mockGameManager.getPlayerById.mockResolvedValue({
         nation: 'german',
@@ -239,6 +243,7 @@ describe('GameManagementHandler - Nation Selection', () => {
         success: true,
         playerId: mockPlayerId,
         assignedNation: 'german',
+        assignedColor: { r: 255, g: 255, b: 0 },
       });
     });
 
@@ -253,6 +258,7 @@ describe('GameManagementHandler - Nation Selection', () => {
       mockGameManager.joinGame.mockResolvedValue({
         playerId: mockPlayerId,
         assignedNation: 'french',
+        assignedColor: { r: 255, g: 0, b: 255 },
       });
       mockGameManager.getPlayerById.mockResolvedValue({
         nation: 'french',
@@ -279,6 +285,7 @@ describe('GameManagementHandler - Nation Selection', () => {
         success: true,
         playerId: mockPlayerId,
         assignedNation: 'french',
+        assignedColor: { r: 255, g: 0, b: 255 },
       });
     });
 
@@ -293,6 +300,7 @@ describe('GameManagementHandler - Nation Selection', () => {
       mockGameManager.joinGame.mockResolvedValue({
         playerId: mockPlayerId,
         assignedNation: 'japanese',
+        assignedColor: { r: 0, g: 255, b: 255 },
       });
       // Mock that server randomly assigned a nation
       mockGameManager.getPlayerById.mockResolvedValue({
@@ -316,6 +324,7 @@ describe('GameManagementHandler - Nation Selection', () => {
         success: true,
         playerId: mockPlayerId,
         assignedNation: 'japanese', // Randomly assigned by server
+        assignedColor: { r: 0, g: 255, b: 255 },
       });
     });
 
@@ -330,6 +339,7 @@ describe('GameManagementHandler - Nation Selection', () => {
       mockGameManager.joinGame.mockResolvedValue({
         playerId: mockPlayerId,
         assignedNation: 'viking',
+        assignedColor: { r: 128, g: 128, b: 128 },
       });
       mockGameManager.getPlayerById.mockResolvedValue(null); // Player not found
 
@@ -347,6 +357,7 @@ describe('GameManagementHandler - Nation Selection', () => {
         success: true,
         playerId: mockPlayerId,
         assignedNation: 'viking', // Fallback to selectedNation
+        assignedColor: { r: 128, g: 128, b: 128 },
       });
     });
 
@@ -361,6 +372,7 @@ describe('GameManagementHandler - Nation Selection', () => {
       mockGameManager.joinGame.mockResolvedValue({
         playerId: mockPlayerId,
         assignedNation: 'egyptian',
+        assignedColor: { r: 255, g: 128, b: 0 },
       });
       mockGameManager.getPlayerById.mockResolvedValue({}); // Player data without nation
 
@@ -378,6 +390,7 @@ describe('GameManagementHandler - Nation Selection', () => {
         success: true,
         playerId: mockPlayerId,
         assignedNation: 'egyptian', // Fallback to selectedNation
+        assignedColor: { r: 255, g: 128, b: 0 },
       });
     });
   });

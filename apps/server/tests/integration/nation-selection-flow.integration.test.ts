@@ -280,6 +280,7 @@ describe('Nation Selection Flow - Integration', () => {
         success: true,
         playerId: expect.any(String),
         assignedNation: 'chinese',
+        assignedColor: expect.any(Object),
       });
     });
 
