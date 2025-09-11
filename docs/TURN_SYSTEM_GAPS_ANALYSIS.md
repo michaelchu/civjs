@@ -95,17 +95,21 @@ Key findings from freeciv C server:
 
 ### 3. **Incomplete Game Mechanics Processing**
 
-**Gap**: Many turn processing functions are TODO stubs
+**Gap**: Turn processing functions are stubs that don't call existing game systems
 
-**Missing implementations:**
-- `processUnitMove()` - Unit movement validation and processing
-- `processUnitAttack()` - Combat system integration
+**Already Working (but not integrated with turn processing):**
+- ✅ **Unit movement system** - Complete with movement cost calculation, pathfinding, and turn-based movement point reset (`UnitManager.resetMovement()`)
+- ✅ **Combat system** - Functional with damage calculation, experience, and veteran levels (`UnitManager.attackUnit()`)
+- ✅ **Unit orders processing** - GOTO, patrol, fortify, and activity orders work (`UnitManager.processUnitOrders()`)
+
+**Missing integrations:**
+- `TurnManager.processPlayerActions()` doesn't call existing `UnitManager` methods
 - `processCityProduction()` - City production queues and completion
-- `processResearch()` - Technology research progression
+- `processResearch()` - Technology research progression  
 - `processRandomEvents()` - Barbarians, disasters, goody huts
 - Real statistics calculation from game state
 
-**Impact**: Turn processing doesn't actually modify game state
+**Impact**: Game mechanics work independently but aren't coordinated through turn processing
 
 ### 4. **Map and Visibility Updates**
 
@@ -213,6 +217,11 @@ Key findings from freeciv C server:
 
 ## Conclusion
 
-Our current turn system provides a good foundation with modern architecture and real-time features, but lacks the core game mechanics processing that makes turns meaningful. The most critical gap is the implementation of actual game state changes during turn processing - without this, turns are purely cosmetic rather than functional.
+Our current turn system provides a good foundation with modern architecture and real-time features. **Unit movement, combat, and orders are already fully functional** - units do move and act when directed after each turn. The main gap is **integration** - the sophisticated `UnitManager`, `CityManager`, and other game systems exist but aren't properly called from the `TurnManager`'s processing pipeline.
 
-The reference implementations show that turn processing is the heart of the game engine, where all major game mechanics are coordinated and executed. Addressing these gaps is essential for creating a functional civilization game rather than just a turn-based interface.
+**Key Finding**: The game mechanics work, but the turn processing doesn't coordinate them. For example:
+- `UnitManager.resetMovement()` is called in `GameManager.endTurn()` ✅
+- `UnitManager.processUnitOrders()` exists but isn't called during turn processing ❌
+- `TurnManager.processPlayerActions()` is a stub instead of calling existing unit actions ❌
+
+This is more of an **orchestration gap** than a **missing functionality gap**. The core game systems are surprisingly complete - they just need to be wired together properly in the turn processing flow.
