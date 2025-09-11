@@ -20,6 +20,7 @@ export class TerrainRenderer extends BaseRenderer {
 
   /**
    * Render terrain for all visible tiles in the viewport.
+   * Includes rivers and resources in LAYER_SPECIAL1 (freeciv-web layer order).
    */
   renderTerrain(state: RenderState, visibleTiles: Tile[]): void {
     for (const tile of visibleTiles) {
@@ -201,7 +202,8 @@ export class TerrainRenderer extends BaseRenderer {
       }
     }
 
-    // ADD: Resource rendering layer (matches freeciv-web LAYER_SPECIAL2)
+    // ADD: Resource rendering layer (matches freeciv-web LAYER_SPECIAL1)
+    // Resources render underneath cities in authentic freeciv-web
     const resourceSprite = this.getTileResourceSprite(tile);
     if (resourceSprite) {
       const sprite = this.tilesetLoader.getSprite(resourceSprite.key);
