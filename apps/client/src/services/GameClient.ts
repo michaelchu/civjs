@@ -391,13 +391,29 @@ class GameClient {
         break;
       }
 
+      case PacketType.NEW_YEAR:
+        console.log('NEW_YEAR packet received:', packet.data);
+        // Update game state with new year and turn information
+        // @reference freeciv-web/javascript/packhand.js handle_new_year()
+        useGameStore.getState().updateGameState({
+          turn: packet.data.turn,
+          year: packet.data.year,
+          // TODO: Add calendar fragments support in Phase 2
+        });
+        console.log('Game state updated with new year:', {
+          turn: packet.data.turn,
+          year: packet.data.year,
+          fragments: packet.data.fragments,
+        });
+        break;
+
       case PacketType.TURN_START:
         console.log('Turn started:', packet.data);
         console.log('Updating turn to:', packet.data.turn);
         useGameStore.getState().updateGameState({
           turn: packet.data.turn,
           phase: 'movement', // Reset phase to movement for new turn
-          // TODO: Add year to GameState interface
+          // Year should already be set by NEW_YEAR packet
         });
         // Let turn processing complete naturally - don't reset immediately
         console.log('Current game state turn after update:', useGameStore.getState().turn);

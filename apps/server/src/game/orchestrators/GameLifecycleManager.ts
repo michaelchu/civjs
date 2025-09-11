@@ -229,9 +229,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     // Create player state map
     const players = this.buildPlayersMapFromDb(game.players);
 
-    // Create managers
+    // Create managers in dependency order
     const mapManager = this.createMapManager(game, terrainSettings);
-    const turnManager = await this.createTurnManagerAndInitialize(gameId, players);
     const cityManager = this.createCityManager(gameId);
     const borderManager = this.createBorderManager(mapManager, cityManager);
     this.borderNetworkService = this.createBorderNetworkService(borderManager);
@@ -245,6 +244,18 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     const visibilityManager = this.createVisibilityManager(gameId, unitManager, mapManager);
     const researchManager = this.createResearchManager(gameId);
     const pathfindingManager = this.createPathfindingManager(game, mapManager);
+
+    // Create TurnManager last since it depends on all other managers
+    const turnManager = await this.createTurnManagerAndInitialize(
+      gameId,
+      players,
+      unitManager,
+      cityManager,
+      researchManager,
+      borderManager,
+      visibilityManager,
+      mapManager
+    );
 
     // Set up callbacks after all managers are created
     cityManager.setCallbacks({
@@ -778,9 +789,25 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
   private async createTurnManagerAndInitialize(
     gameId: string,
-    players: Map<string, PlayerState>
+    players: Map<string, PlayerState>,
+    unitManager: UnitManager,
+    cityManager: CityManager,
+    researchManager: ResearchManager,
+    borderManager: BorderManager,
+    visibilityManager: VisibilityManager,
+    mapManager: MapManager
   ): Promise<TurnManager> {
-    const tm = new TurnManager(gameId, this.databaseProvider, this.io);
+    const tm = new TurnManager(
+      gameId,
+      this.databaseProvider,
+      this.io,
+      unitManager,
+      cityManager,
+      researchManager,
+      borderManager,
+      visibilityManager,
+      mapManager
+    );
     const playerIds = Array.from(players.keys());
     await tm.initializeTurn(playerIds);
     return tm;

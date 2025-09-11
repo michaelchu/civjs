@@ -177,6 +177,7 @@ export interface Government {
 
 export interface GameState {
   turn: number;
+  year?: number; // Game year (e.g., -4000, 1950, 2000)
   phase: 'movement' | 'research' | 'production';
   players: Record<string, Player>;
   currentPlayerId: string;

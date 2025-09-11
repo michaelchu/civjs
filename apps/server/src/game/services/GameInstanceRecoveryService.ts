@@ -167,7 +167,11 @@ export class GameInstanceRecoveryService extends BaseGameService {
     pathfindingManager: PathfindingManager;
     visibilityManager: VisibilityManager;
   }> {
-    const turnManager = new TurnManager(gameId, this.databaseProvider, this.io);
+    // Create managers in dependency order
+    const effectsManager = new EffectsManager();
+    const cityManager = new CityManager(gameId, this.databaseProvider, effectsManager, {});
+    const researchManager = new ResearchManager(gameId, this.databaseProvider);
+
     const unitManager = new UnitManager(
       gameId,
       this.databaseProvider,
@@ -187,14 +191,29 @@ export class GameInstanceRecoveryService extends BaseGameService {
       }
     );
 
-    const playerIds = Array.from(players.keys());
-    await turnManager.initializeTurn(playerIds);
-
-    const effectsManager = new EffectsManager();
-    const cityManager = new CityManager(gameId, this.databaseProvider, effectsManager, {});
-    const researchManager = new ResearchManager(gameId, this.databaseProvider);
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
+
+    // Create BorderManager placeholder
+    const borderManager = {
+      recalculateBordersForPlayer: () => {},
+    } as any; // TODO: Fix this with proper BorderManager instantiation
+
+    // Create TurnManager last with all dependencies
+    const turnManager = new TurnManager(
+      gameId,
+      this.databaseProvider,
+      this.io,
+      unitManager,
+      cityManager,
+      researchManager,
+      borderManager,
+      visibilityManager,
+      mapManager
+    );
+
+    const playerIds = Array.from(players.keys());
+    await turnManager.initializeTurn(playerIds);
 
     return {
       turnManager,

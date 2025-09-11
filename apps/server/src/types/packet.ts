@@ -60,15 +60,20 @@ export enum PacketType {
   UNIT_FORTIFY = 59,
   UNIT_CREATE = 60,
 
-  // Turn Management (80-90)
+  // Turn Management (80-90, 125-135)
   TURN_DONE = 80,
-  NEW_TURN = 81,
-  BEGIN_TURN = 82,
-  END_TURN = 83,
+  NEW_TURN = 81, // Legacy - keeping for compatibility
+  BEGIN_TURN = 82, // Legacy - keeping for compatibility
+  END_TURN = 83, // Legacy - keeping for compatibility
   TURN_END_REPLY = 84,
   TURN_START = 85,
   FREEZE_CLIENT = 86,
   THAW_CLIENT = 87,
+
+  // Freeciv-web compatible turn packets (matching reference protocol)
+  NEW_YEAR = 127, // @reference freeciv-web/javascript/packhand_gen.js case 127
+  // Note: BEGIN_TURN = 128, END_TURN = 129 in freeciv-web
+  // We use our existing 82, 83 for now and will phase these in
 
   // Custom for our implementation (200+)
   GAME_CREATE = 200,
@@ -140,6 +145,7 @@ export const PACKET_NAMES: Record<number, string> = {
   [PacketType.UNIT_CREATE]: 'UNIT_CREATE',
   [PacketType.TURN_START]: 'TURN_START',
   [PacketType.END_TURN]: 'END_TURN',
+  [PacketType.NEW_YEAR]: 'NEW_YEAR',
   [PacketType.GAME_CREATE]: 'GAME_CREATE',
   [PacketType.GAME_CREATE_REPLY]: 'GAME_CREATE_REPLY',
   [PacketType.GAME_JOIN]: 'GAME_JOIN',
@@ -677,6 +683,12 @@ export const EndTurnSchema = z.object({
   playerId: z.string(),
 });
 
+export const NewYearSchema = z.object({
+  turn: z.number(),
+  year: z.number(),
+  fragments: z.number().default(0), // Calendar fragments for sub-year precision
+});
+
 export const FreezeClientSchema = z.object({
   reason: z.string().optional(),
 });
@@ -868,5 +880,6 @@ export type TurnDone = z.infer<typeof TurnDoneSchema>;
 export type NewTurn = z.infer<typeof NewTurnSchema>;
 export type BeginTurn = z.infer<typeof BeginTurnSchema>;
 export type EndTurn = z.infer<typeof EndTurnSchema>;
+export type NewYear = z.infer<typeof NewYearSchema>;
 export type FreezeClient = z.infer<typeof FreezeClientSchema>;
 export type ThawClient = z.infer<typeof ThawClientSchema>;
