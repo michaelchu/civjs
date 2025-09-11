@@ -310,7 +310,8 @@ export class RiverGenerator {
         currentX,
         currentY,
         tiles,
-        new Set(riverPath.map(p => `${p.x},${p.y}`))
+        new Set(riverPath.map(p => `${p.x},${p.y}`)),
+        length
       );
       if (!nextPos) break;
 
@@ -342,7 +343,8 @@ export class RiverGenerator {
     x: number,
     y: number,
     tiles: MapTile[][],
-    visited: Set<string>
+    visited: Set<string>,
+    currentLength: number
   ): { x: number; y: number } | null {
     const candidates: { x: number; y: number; score: number }[] = [];
 
@@ -373,11 +375,11 @@ export class RiverGenerator {
         const gridScore = this.riverTestRivergrid(nx, ny, tiles);
         score += gridScore * 1000; // High penalty for grids
 
-        // Test 2: Height/elevation preference (prefer downhill)
+        // Test 2: Height/elevation preference (prefer downhill on land)
         const currentElevation = tiles[x][y].elevation;
         if (!this.isLandTile(neighborTile.terrain)) {
-          // Ocean - excellent score
-          score += 0;
+          // Ocean - only acceptable if river is long enough, otherwise discourage early ocean access
+          score += currentLength < 5 ? 500 : 0; // Discourage short rivers to ocean
         } else {
           // Land - prefer flowing downhill
           if (neighborTile.elevation >= currentElevation) {
