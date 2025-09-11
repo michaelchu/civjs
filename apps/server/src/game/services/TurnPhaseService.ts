@@ -14,6 +14,7 @@ import type { TurnProcessingService } from './TurnProcessingService';
 import type { TurnCoordinationService } from './TurnCoordinationService';
 import type { TurnPacketService } from './TurnPacketService';
 import type { RandomEventsManager } from '@game/managers/RandomEventsManager';
+import { GameEventService, GameEventType } from './GameEventService';
 
 export enum TurnPhase {
   // Phase 1: Begin turn processing
@@ -91,6 +92,7 @@ export class TurnPhaseService {
   private turnCoordinationService: TurnCoordinationService;
   private turnPacketService: TurnPacketService;
   private randomEventsManager?: RandomEventsManager;
+  private gameEventService: GameEventService;
 
   private currentPhase: TurnPhase | null = null;
   private phaseHistory: PhaseResult[] = [];
@@ -100,13 +102,79 @@ export class TurnPhaseService {
     turnProcessingService: TurnProcessingService,
     turnCoordinationService: TurnCoordinationService,
     turnPacketService: TurnPacketService,
+    gameEventService: GameEventService,
     randomEventsManager?: RandomEventsManager
   ) {
     this.gameId = gameId;
     this.turnProcessingService = turnProcessingService;
     this.turnCoordinationService = turnCoordinationService;
     this.turnPacketService = turnPacketService;
+    this.gameEventService = gameEventService;
     this.randomEventsManager = randomEventsManager;
+
+    // Register built-in event handlers for turn processing
+    this.registerBuiltInEventHandlers();
+  }
+
+  /**
+   * Register built-in event handlers for turn processing
+   * @reference freeciv/server/srv_main.c script hook registration
+   */
+  private registerBuiltInEventHandlers(): void {
+    // Turn begin handler - logs turn start
+    this.gameEventService.registerEventHandler({
+      id: 'turn_begin_logger',
+      eventType: GameEventType.TURN_BEGIN,
+      priority: 1, // Low priority
+      handler: async event => {
+        logger.info('Turn processing begun', {
+          gameId: this.gameId,
+          turn: event.data.turn,
+          year: event.data.year,
+          playerCount: event.data.playerIds?.length || 0,
+        });
+        return true;
+      },
+      description: 'Logs turn begin events for monitoring',
+    });
+
+    // Turn end handler - logs turn completion
+    this.gameEventService.registerEventHandler({
+      id: 'turn_end_logger',
+      eventType: GameEventType.TURN_END,
+      priority: 1, // Low priority
+      handler: async event => {
+        logger.info('Turn processing completed', {
+          gameId: this.gameId,
+          turn: event.data.turn,
+          year: event.data.year,
+          duration: event.data.processingDuration,
+          eventsProcessed: event.data.eventsProcessed,
+          achievementsUnlocked: event.data.achievementsUnlocked,
+        });
+        return true;
+      },
+      description: 'Logs turn end events for monitoring',
+    });
+
+    // Phase change handler - tracks phase transitions
+    this.gameEventService.registerEventHandler({
+      id: 'phase_transition_tracker',
+      eventType: GameEventType.PHASE_END,
+      priority: 2, // Normal priority
+      handler: async event => {
+        logger.debug('Phase completed', {
+          gameId: this.gameId,
+          turn: event.data.turn,
+          phase: event.data.phase,
+          duration: event.data.duration,
+          playersProcessed: event.data.playersProcessed,
+          itemsProcessed: event.data.itemsProcessed,
+        });
+        return true;
+      },
+      description: 'Tracks phase transitions for performance monitoring',
+    });
   }
 
   /**
@@ -141,6 +209,14 @@ export class TurnPhaseService {
       turn,
       year,
       playerCount: playerIds.length,
+    });
+
+    // Emit turn begin event
+    // @reference freeciv/server/srv_main.c script_server_signal_emit("turn_begin")
+    this.gameEventService.emitEvent(GameEventType.TURN_BEGIN, {
+      turn,
+      year,
+      playerIds,
     });
 
     // Define processing phases in freeciv-compliant order
@@ -188,12 +264,35 @@ export class TurnPhaseService {
 
       result.totalDuration = Date.now() - context.startTime;
 
+      // Process all queued events at the end of turn processing
+      // @reference freeciv/server/srv_main.c event processing and script hooks
+      const eventResult = await this.gameEventService.processQueuedEvents(turn, year);
+      logger.debug('Turn events processed', {
+        gameId: this.gameId,
+        turn,
+        ...eventResult,
+      });
+
+      // Emit turn end event
+      // @reference freeciv/server/srv_main.c script_server_signal_emit("turn_end")
+      this.gameEventService.emitEvent(GameEventType.TURN_END, {
+        turn,
+        year,
+        playerIds,
+        processingDuration: result.totalDuration,
+        phasesCompleted: result.phases.filter(p => p.success).length,
+        eventsProcessed: eventResult.eventsProcessed,
+        achievementsUnlocked: eventResult.achievementsUnlocked,
+      });
+
       logger.info('Multi-phase turn processing completed', {
         gameId: this.gameId,
         turn,
         success: result.success,
         totalDuration: result.totalDuration,
         phasesCompleted: result.phases.filter(p => p.success).length,
+        eventsProcessed: eventResult.eventsProcessed,
+        achievementsUnlocked: eventResult.achievementsUnlocked,
       });
     } catch (error) {
       result.success = false;
@@ -230,6 +329,15 @@ export class TurnPhaseService {
     try {
       // Send phase start notification
       this.turnPacketService.sendProcessingStepPacket(phase, this.getPhaseLabel(phase), false);
+
+      // Emit phase start event
+      // @reference freeciv/server/srv_main.c phase-specific event hooks
+      this.gameEventService.emitEvent(GameEventType.PHASE_START, {
+        turn: context.turn,
+        year: context.year,
+        phase,
+        phaseLabel: this.getPhaseLabel(phase),
+      });
 
       switch (phase) {
         case TurnPhase.PHASE_BEGIN_TURN:
@@ -278,6 +386,19 @@ export class TurnPhaseService {
 
       phaseResult.success = true;
       phaseResult.duration = Date.now() - phaseStartTime;
+
+      // Emit phase end event
+      // @reference freeciv/server/srv_main.c phase completion event hooks
+      this.gameEventService.emitEvent(GameEventType.PHASE_END, {
+        turn: context.turn,
+        year: context.year,
+        phase,
+        phaseLabel: this.getPhaseLabel(phase),
+        duration: phaseResult.duration,
+        playersProcessed: phaseResult.playersProcessed,
+        itemsProcessed: phaseResult.itemsProcessed,
+        success: true,
+      });
 
       // Send phase completion notification
       this.turnPacketService.sendProcessingStepPacket(phase, this.getPhaseLabel(phase), true);

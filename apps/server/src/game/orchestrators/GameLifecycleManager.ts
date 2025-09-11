@@ -795,6 +795,17 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     borderManager: BorderManager,
     visibilityManager: VisibilityManager
   ): Promise<TurnManager> {
+    // Create a simple broadcast manager for the TurnManager
+    // TODO: Proper dependency injection should be implemented
+    const mockBroadcastManager = {
+      broadcastToPlayer: (playerId: string, event: string, data: any) => {
+        this.io.to(`player:${playerId}`).emit(event, data);
+      },
+      broadcastToGame: (gameId: string, event: string, data: any) => {
+        this.io.to(`game:${gameId}`).emit(event, data);
+      },
+    } as any; // Cast to any to satisfy type requirements temporarily
+
     const tm = new TurnManager(
       gameId,
       this.databaseProvider,
@@ -803,7 +814,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       cityManager,
       researchManager,
       borderManager,
-      visibilityManager
+      visibilityManager,
+      mockBroadcastManager
     );
     const playerIds = Array.from(players.keys());
     await tm.initializeTurn(playerIds);

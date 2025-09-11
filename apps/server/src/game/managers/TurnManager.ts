@@ -9,11 +9,14 @@ import { TurnProcessingService, type PlayerAction } from '@game/services/TurnPro
 import { TurnCoordinationService } from '@game/services/TurnCoordinationService';
 import { TurnPacketService } from '@game/services/TurnPacketService';
 import { TurnPhaseService } from '@game/services/TurnPhaseService';
+import { GameEventService } from '@game/services/GameEventService';
+import { CalendarService } from '@game/services/CalendarService';
 import type { UnitManager } from '@game/managers/UnitManager';
 import type { CityManager } from '@game/managers/CityManager';
 import type { ResearchManager } from '@game/managers/ResearchManager';
 import type { BorderManager } from '@game/managers/BorderManager';
 import type { VisibilityManager } from '@game/managers/VisibilityManager';
+import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -45,7 +48,9 @@ export class TurnManager {
   private turnProcessingService: TurnProcessingService;
   private turnCoordinationService: TurnCoordinationService;
   private turnPacketService: TurnPacketService;
+  private gameEventService: GameEventService;
   private turnPhaseService: TurnPhaseService;
+  private calendarService: CalendarService;
 
   constructor(
     gameId: string,
@@ -55,7 +60,8 @@ export class TurnManager {
     cityManager: CityManager,
     researchManager: ResearchManager,
     borderManager: BorderManager,
-    visibilityManager: VisibilityManager
+    visibilityManager: VisibilityManager,
+    broadcastManager: GameBroadcastManager
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -76,19 +82,26 @@ export class TurnManager {
       cityManager
     );
     this.turnPacketService = new TurnPacketService(io, gameId);
+    this.gameEventService = new GameEventService(gameId, broadcastManager);
     this.turnPhaseService = new TurnPhaseService(
       gameId,
       this.turnProcessingService,
       this.turnCoordinationService,
-      this.turnPacketService
+      this.turnPacketService,
+      this.gameEventService
     );
+
+    // Initialize calendar service with default configuration
+    // Can be enhanced to support different calendar types in game settings
+    this.calendarService = new CalendarService(CalendarService.createDefaultConfig());
   }
 
   public async initializeTurn(playerIds: string[]): Promise<void> {
     logger.info('Initializing turn system', { gameId: this.gameId });
 
     this.currentTurn = 1;
-    this.currentYear = -4000;
+    // Initialize calendar with starting year, sync currentYear with calendar state
+    this.currentYear = this.calendarService.getState().year;
     this.turnStartTime = new Date();
 
     // Initialize player actions tracking
@@ -196,7 +209,16 @@ export class TurnManager {
 
   private async advanceToNextTurn(): Promise<void> {
     this.currentTurn++;
-    this.currentYear = this.calculateYearFromTurn(this.currentTurn);
+
+    // Use CalendarService for freeciv-compliant year calculation
+    // TODO: Get actual world bonuses from effects system when implemented
+    this.calendarService.advanceYear({
+      turnYears: this.getYearIncrementForTurn(this.currentTurn),
+      turnFragments: 0, // No fragments for default config
+      slowDownTimeline: 0, // No slowdown effect active
+    });
+    this.currentYear = this.calendarService.getState().year;
+
     this.turnStartTime = new Date();
     this.turnEvents = [];
 
@@ -237,20 +259,21 @@ export class TurnManager {
     });
   }
 
-  private calculateYearFromTurn(turn: number): number {
-    // Civilization-style year progression
-    if (turn <= 75) return -4000 + (turn - 1) * 40; // 40 years per turn (4000 BC - 1000 BC)
-    if (turn <= 175) return -1000 + (turn - 75) * 20; // 20 years per turn (1000 BC - 1000 AD)
-    if (turn <= 275) return 1000 + (turn - 175) * 10; // 10 years per turn (1000 AD - 2000 AD)
-    return 2000 + (turn - 275) * 5; // 5 years per turn (2000 AD+)
+  private getYearIncrementForTurn(turn: number): number {
+    // Civilization-style year progression - return increment per turn, not absolute year
+    if (turn <= 75) return 40; // 40 years per turn (4000 BC - 1000 BC)
+    if (turn <= 175) return 20; // 20 years per turn (1000 BC - 1000 AD)
+    if (turn <= 275) return 10; // 10 years per turn (1000 AD - 2000 AD)
+    return 5; // 5 years per turn (2000 AD+)
   }
 
   private broadcastTurnStart(): void {
-    // Use TurnPacketService for proper packet protocol
+    // Use TurnPacketService for proper packet protocol with calendar fragment support
+    const calendarState = this.calendarService.getState();
     this.turnPacketService.sendTurnStartSequence(
       this.currentTurn,
       this.currentYear,
-      0 // fragments - will be enhanced in Phase 2
+      calendarState.fragmentCount // fragments from CalendarService
     );
 
     // Keep legacy emit for backward compatibility
@@ -268,6 +291,18 @@ export class TurnManager {
 
   public getCurrentYear(): number {
     return this.currentYear;
+  }
+
+  public getGameEventService(): GameEventService {
+    return this.gameEventService;
+  }
+
+  public getCalendarService(): CalendarService {
+    return this.calendarService;
+  }
+
+  public getFormattedCalendar(): string {
+    return this.calendarService.formatCalendar();
   }
 
   public getTurnEvents(): TurnEvent[] {

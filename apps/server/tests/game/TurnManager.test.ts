@@ -91,6 +91,12 @@ describe.skip('TurnManager - Complex mocking required, temporarily skipped', () 
     mockEmit.mockClear();
     mockDatabase = createMockDatabaseProvider();
 
+    const mockBroadcastManager = {
+      broadcastToGame: jest.fn(),
+      broadcastToPlayer: jest.fn(),
+      broadcastToAllPlayers: jest.fn(),
+    } as any;
+
     turnManager = new TurnManager(
       'test-game-id',
       mockDatabase,
@@ -99,7 +105,8 @@ describe.skip('TurnManager - Complex mocking required, temporarily skipped', () 
       mockCityManager,
       mockResearchManager,
       mockBorderManager,
-      mockVisibilityManager
+      mockVisibilityManager,
+      mockBroadcastManager
     );
   });
 

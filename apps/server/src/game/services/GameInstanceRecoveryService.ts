@@ -199,6 +199,17 @@ export class GameInstanceRecoveryService extends BaseGameService {
       recalculateBordersForPlayer: () => {},
     } as any; // TODO: Fix this with proper BorderManager instantiation
 
+    // Create a simple broadcast manager for the TurnManager
+    // TODO: Proper dependency injection should be implemented
+    const mockBroadcastManager = {
+      broadcastToPlayer: (playerId: string, event: string, data: any) => {
+        this.io.to(`player:${playerId}`).emit(event, data);
+      },
+      broadcastToGame: (gameId: string, event: string, data: any) => {
+        this.io.to(`game:${gameId}`).emit(event, data);
+      },
+    } as any; // Cast to any to satisfy type requirements temporarily
+
     // Create TurnManager last with all dependencies
     const turnManager = new TurnManager(
       gameId,
@@ -208,7 +219,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       cityManager,
       researchManager,
       borderManager,
-      visibilityManager
+      visibilityManager,
+      mockBroadcastManager
     );
 
     const playerIds = Array.from(players.keys());
