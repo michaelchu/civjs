@@ -309,11 +309,29 @@ export class TurnPhaseService {
     // Send freeze client to prevent interactions during processing
     this.turnPacketService.sendFreezeClientPacket('Processing turn...');
 
+    // Reset movement points for all units at the start of the turn
+    // @reference freeciv/server/srv_main.c begin_turn() - unit movement point restoration
+    let totalUnitsReset = 0;
+    for (const playerId of context.playerIds) {
+      try {
+        const unitsReset = await this.turnProcessingService.resetPlayerUnitMovement(playerId);
+        totalUnitsReset += unitsReset;
+      } catch (error) {
+        result.errors.push(`Movement reset failed for player ${playerId}: ${error}`);
+      }
+    }
+
+    logger.debug('Unit movement points reset', {
+      gameId: context.gameId,
+      turn: context.turn,
+      totalUnitsReset,
+    });
+
     // Note: Turn start packets (NEW_YEAR, BEGIN_TURN) are sent by TurnManager after processing completes
     // This avoids race conditions with the turn overlay UI
 
     result.playersProcessed = context.playerIds.length;
-    result.itemsProcessed = 1; // One turn initialized
+    result.itemsProcessed = totalUnitsReset;
   }
 
   private async executePlayerActionsPhase(
@@ -547,15 +565,30 @@ export class TurnPhaseService {
     // End turn cleanup and finalization (freeciv end_turn())
     logger.debug('Processing end turn phase', { gameId: context.gameId });
 
-    // Calculate and send turn statistics
+    // Clear animation state for end of turn (freeciv-web compatibility)
+    try {
+      await this.turnCoordinationService.clearAnimationState();
+    } catch (error) {
+      logger.warn('Failed to clear animation state', {
+        gameId: context.gameId,
+        error: error instanceof Error ? error.message : error,
+      });
+    }
+
+    // Calculate real turn statistics from game managers
+    const basicStatistics = await this.turnCoordinationService.calculateTurnStatistics(
+      context.turn,
+      context.year,
+      context.playerIds,
+      this.phaseHistory.reduce((sum, phase) => sum + phase.itemsProcessed, 0),
+      Date.now() - context.startTime
+    );
+
+    // Add turn and year to statistics for packet service
     const statistics = {
       turn: context.turn,
       year: context.year,
-      playersActive: context.playerIds.length,
-      unitsTotal: 0, // TODO: Get from database
-      citiesTotal: 0, // TODO: Get from database
-      actionsProcessed: this.phaseHistory.reduce((sum, phase) => sum + phase.itemsProcessed, 0),
-      processingTimeMs: Date.now() - context.startTime,
+      ...basicStatistics,
     };
 
     this.turnPacketService.sendTurnStatistics(statistics);

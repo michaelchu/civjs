@@ -733,24 +733,9 @@ export class GameManager {
       .every(p => p.hasEndedTurn);
 
     if (allPlayersReady) {
-      // Process city production first
-      await gameInstance.cityManager.processAllCitiesTurn(gameInstance.currentTurn + 1);
-
-      // Process research
-      await this.processResearchTurn(gameId);
-
-      // Process the turn
+      // Process the turn using the comprehensive TurnManager system
+      // This now handles all aspects: movement reset, unit orders, city production, research, etc.
       await gameInstance.turnManager.processTurn();
-
-      // Reset movement points for all units at the start of the new turn
-      for (const player of gameInstance.players.values()) {
-        await gameInstance.unitManager.resetMovement(player.id);
-      }
-
-      // Process unit orders (multi-turn GOTO, etc.) after movement points are restored
-      for (const player of gameInstance.players.values()) {
-        await gameInstance.unitManager.processUnitOrders(player.id);
-      }
 
       // Reset player turn status for next turn
       for (const player of gameInstance.players.values()) {

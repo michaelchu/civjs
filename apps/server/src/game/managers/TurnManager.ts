@@ -72,7 +72,8 @@ export class TurnManager {
       gameId,
       borderManager,
       visibilityManager,
-      unitManager
+      unitManager,
+      cityManager
     );
     this.turnPacketService = new TurnPacketService(io, gameId);
     this.turnPhaseService = new TurnPhaseService(

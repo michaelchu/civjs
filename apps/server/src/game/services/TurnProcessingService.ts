@@ -488,6 +488,33 @@ export class TurnProcessingService {
   }
 
   /**
+   * Reset movement points for all units of a player
+   * Delegates to UnitManager.resetMovement()
+   * @reference freeciv/server/srv_main.c begin_turn() - unit movement restoration
+   */
+  async resetPlayerUnitMovement(playerId: string): Promise<number> {
+    logger.debug('Resetting unit movement for player', {
+      gameId: this.gameId,
+      playerId,
+    });
+
+    // Get unit count before reset for reporting
+    const playerUnits = this.unitManager.getPlayerUnits(playerId);
+    const unitCount = playerUnits.length;
+
+    // Delegate to existing UnitManager method
+    await this.unitManager.resetMovement(playerId);
+
+    logger.info('Unit movement reset completed', {
+      gameId: this.gameId,
+      playerId,
+      unitsReset: unitCount,
+    });
+
+    return unitCount;
+  }
+
+  /**
    * Process automated unit orders (GOTO, patrol, activities)
    * Delegates to UnitManager.processUnitOrders()
    */

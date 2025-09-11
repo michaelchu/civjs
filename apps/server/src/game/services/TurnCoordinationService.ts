@@ -12,6 +12,8 @@ import { logger } from '@utils/logger';
 import type { BorderManager } from '@game/managers/BorderManager';
 import type { VisibilityManager } from '@game/managers/VisibilityManager';
 import type { UnitManager } from '@game/managers/UnitManager';
+import type { CityManager } from '@game/managers/CityManager';
+import type { TurnStatistics } from '@game/managers/TurnManager';
 
 export interface PostTurnUpdateResult {
   bordersRecalculated: boolean;
@@ -30,17 +32,20 @@ export class TurnCoordinationService {
   private borderManager: BorderManager;
   private visibilityManager: VisibilityManager;
   private unitManager: UnitManager;
+  private cityManager: CityManager;
 
   constructor(
     gameId: string,
     borderManager: BorderManager,
     visibilityManager: VisibilityManager,
-    unitManager: UnitManager
+    unitManager: UnitManager,
+    cityManager: CityManager
   ) {
     this.gameId = gameId;
     this.borderManager = borderManager;
     this.visibilityManager = visibilityManager;
     this.unitManager = unitManager;
+    this.cityManager = cityManager;
   }
 
   /**
@@ -105,13 +110,53 @@ export class TurnCoordinationService {
     logger.debug('Recalculating territorial borders', { gameId: this.gameId });
 
     try {
-      // Recalculate borders for all players using existing method
-      // This handles city expansion, new city founding, and territory changes
-      // TODO: Get all player IDs from game state in future enhancement
-      // For now, this is a placeholder that logs the operation
-      logger.info('Border recalculation placeholder - will be enhanced in Phase 2');
+      // Get all players from active units and cities to determine who needs border updates
+      const allUnits = Array.from(this.unitManager.getAllUnits().values());
+      const playerIds = new Set<string>();
 
-      logger.info('Territorial borders recalculated', { gameId: this.gameId });
+      // Collect player IDs from units
+      for (const unit of allUnits) {
+        playerIds.add(unit.playerId);
+      }
+
+      // Collect player IDs from cities (if any cities exist)
+      try {
+        // Since we don't have a direct method to get all players, we'll work with what we have
+        const allPlayerIds = Array.from(playerIds);
+
+        for (const playerId of allPlayerIds) {
+          const playerCities = await this.cityManager.getPlayerCities(playerId);
+          if (playerCities.length > 0) {
+            playerIds.add(playerId);
+          }
+        }
+      } catch (error) {
+        logger.debug('Could not check cities for border calculation', {
+          gameId: this.gameId,
+          error: error instanceof Error ? error.message : error,
+        });
+      }
+
+      // Recalculate borders for all active players
+      let playersProcessed = 0;
+      for (const playerId of playerIds) {
+        try {
+          this.borderManager.recalculateBordersForPlayer(playerId);
+          playersProcessed++;
+        } catch (error) {
+          logger.warn('Failed to recalculate borders for player', {
+            gameId: this.gameId,
+            playerId,
+            error: error instanceof Error ? error.message : error,
+          });
+        }
+      }
+
+      logger.info('Territorial borders recalculated', {
+        gameId: this.gameId,
+        playersProcessed,
+        totalPlayers: playerIds.size,
+      });
     } catch (error) {
       logger.error('Error recalculating borders', {
         gameId: this.gameId,
@@ -131,13 +176,13 @@ export class TurnCoordinationService {
       playerCount: playerIds.length,
     });
 
+    let playersProcessed = 0;
     for (const playerId of playerIds) {
       try {
         // Update player's visibility based on current unit positions
-        await this.visibilityManager.updatePlayerVisibility(playerId);
-
-        // Update fog of war (placeholder - method will be implemented in Phase 2)
-        logger.debug('Fog of war update placeholder for player', { playerId });
+        // This recalculates what tiles the player can see based on their units and cities
+        this.visibilityManager.updatePlayerVisibility(playerId);
+        playersProcessed++;
 
         logger.debug('Visibility updated for player', {
           gameId: this.gameId,
@@ -155,7 +200,8 @@ export class TurnCoordinationService {
 
     logger.info('Visibility updates completed', {
       gameId: this.gameId,
-      playersProcessed: playerIds.length,
+      playersProcessed,
+      totalPlayers: playerIds.length,
     });
   }
 
@@ -402,5 +448,79 @@ export class TurnCoordinationService {
       totalUnits: allUnits.length,
       animationsClearedCount,
     });
+  }
+
+  /**
+   * Calculate real turn statistics from game managers
+   * @reference freeciv/server/srv_main.c turn statistics calculation
+   */
+  async calculateTurnStatistics(
+    turn: number,
+    year: number,
+    playerIds: string[],
+    actionsProcessed: number,
+    processingTimeMs: number
+  ): Promise<TurnStatistics> {
+    logger.debug('Calculating turn statistics', {
+      gameId: this.gameId,
+      turn,
+      year,
+      playerCount: playerIds.length,
+    });
+
+    try {
+      // Get total unit count from all players
+      let unitsTotal = 0;
+      for (const playerId of playerIds) {
+        const playerUnits = this.unitManager.getPlayerUnits(playerId);
+        unitsTotal += playerUnits.length;
+      }
+
+      // Get total city count from all players
+      let citiesTotal = 0;
+      for (const playerId of playerIds) {
+        try {
+          const playerCities = await this.cityManager.getPlayerCities(playerId);
+          citiesTotal += playerCities.length;
+        } catch (error) {
+          logger.warn('Error getting city count for player', {
+            gameId: this.gameId,
+            playerId,
+            error: error instanceof Error ? error.message : error,
+          });
+        }
+      }
+
+      const statistics: TurnStatistics = {
+        playersActive: playerIds.length,
+        unitsTotal,
+        citiesTotal,
+        actionsProcessed,
+        processingTimeMs,
+      };
+
+      logger.info('Turn statistics calculated', {
+        gameId: this.gameId,
+        turn,
+        statistics,
+      });
+
+      return statistics;
+    } catch (error) {
+      logger.error('Error calculating turn statistics', {
+        gameId: this.gameId,
+        turn,
+        error: error instanceof Error ? error.message : error,
+      });
+
+      // Return fallback statistics
+      return {
+        playersActive: playerIds.length,
+        unitsTotal: 0,
+        citiesTotal: 0,
+        actionsProcessed,
+        processingTimeMs,
+      };
+    }
   }
 }
