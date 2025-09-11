@@ -1,5 +1,5 @@
 import { logger } from '@utils/logger';
-import { MapTile, TerrainType, TerrainProperty } from './MapTypes';
+import { MapTile, TerrainType } from './MapTypes';
 
 /**
  * River map state tracking for sophisticated river generation
@@ -66,48 +66,6 @@ export class RiverGenerator {
         endTime - startTime
       }ms`
     );
-  }
-
-  /**
-   * Check if a tile is suitable for river placement
-   */
-  private isRiverSuitable(x: number, y: number, tiles: MapTile[][]): boolean {
-    const tile = tiles[x][y];
-
-    // Prefer mountainous terrain
-    const mountainous = tile.properties[TerrainProperty.MOUNTAINOUS] || 0;
-    if (mountainous > 30) {
-      return true;
-    }
-
-    // Avoid dry terrain unless it's near water
-    const dry = tile.properties[TerrainProperty.DRY] || 0;
-    if (dry > 70) {
-      return this.isNearWater(x, y, tiles);
-    }
-
-    // Generally suitable for temperate terrain
-    return tile.terrain === 'grassland' || tile.terrain === 'plains' || tile.terrain === 'forest';
-  }
-
-  /**
-   * Check if tile is near water
-   */
-  private isNearWater(x: number, y: number, tiles: MapTile[][]): boolean {
-    const radius = 2;
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const terrain = tiles[nx][ny].terrain;
-          if (!this.isLandTile(terrain)) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
   }
 
   /**
@@ -318,58 +276,34 @@ export class RiverGenerator {
     // Step 3: Apply NON-FATAL tests using Freeciv's approach
     // For each test, find the best value and eliminate worse directions
 
-    // Test 2: Height preference (prefer downhill, or ocean if river is long enough)
-    const currentElevation = tiles[x][y].elevation;
-    let bestHeightScore = Number.MAX_SAFE_INTEGER;
+    // Apply all non-fatal tests in sequence (matching Freeciv's test_funcs array)
+    const nonFatalTests = [
+      this.riverTestHighlands.bind(this),
+      this.riverTestAdjacentOcean.bind(this),
+      this.riverTestAdjacentRiver.bind(this),
+      this.riverTestAdjacentHighlands.bind(this),
+      this.riverTestSwamp.bind(this),
+      this.riverTestAdjacentSwamp.bind(this),
+      (x: number, y: number, tiles: MapTile[][]) =>
+        this.riverTestHeightMap(x, y, tiles, currentLength),
+    ];
 
-    for (const candidate of validDirections) {
-      const neighborTile = tiles[candidate.x][candidate.y];
-      let heightScore = 0;
+    for (const testFunc of nonFatalTests) {
+      if (validDirections.length === 0) break;
 
-      if (!this.isLandTile(neighborTile.terrain)) {
-        // Ocean - penalize if river is too short
-        heightScore = currentLength < 5 ? 500 : 0;
-      } else {
-        // Land - prefer flowing downhill
-        if (neighborTile.elevation >= currentElevation) {
-          heightScore = neighborTile.elevation - currentElevation + 1;
-        }
+      // Find best score for this test
+      let bestScore = Number.MAX_SAFE_INTEGER;
+      for (const candidate of validDirections) {
+        const score = testFunc(candidate.x, candidate.y, tiles);
+        bestScore = Math.min(bestScore, score);
       }
 
-      bestHeightScore = Math.min(bestHeightScore, heightScore);
+      // Filter to keep only directions with best score
+      validDirections = validDirections.filter(candidate => {
+        const score = testFunc(candidate.x, candidate.y, tiles);
+        return score === bestScore;
+      });
     }
-
-    validDirections = validDirections.filter(candidate => {
-      const neighborTile = tiles[candidate.x][candidate.y];
-      let heightScore = 0;
-
-      if (!this.isLandTile(neighborTile.terrain)) {
-        heightScore = currentLength < 5 ? 500 : 0;
-      } else {
-        if (neighborTile.elevation >= currentElevation) {
-          heightScore = neighborTile.elevation - currentElevation + 1;
-        }
-      }
-
-      return heightScore === bestHeightScore;
-    });
-
-    if (validDirections.length === 0) return null;
-
-    // Test 3: Terrain suitability
-    let bestTerrainScore = Number.MAX_SAFE_INTEGER;
-
-    for (const candidate of validDirections) {
-      const terrainScore = this.isRiverSuitable(candidate.x, candidate.y, tiles) ? 0 : 1;
-      bestTerrainScore = Math.min(bestTerrainScore, terrainScore);
-    }
-
-    validDirections = validDirections.filter(candidate => {
-      const terrainScore = this.isRiverSuitable(candidate.x, candidate.y, tiles) ? 0 : 1;
-      return terrainScore === bestTerrainScore;
-    });
-
-    if (validDirections.length === 0) return null;
 
     // Step 4: Randomly choose from remaining valid directions
     const chosen = validDirections[Math.floor(this.random() * validDirections.length)];
@@ -470,5 +404,170 @@ export class RiverGenerator {
     // Only connect to ocean (river outlets) - don't auto-connect to other rivers
     // River-to-river connections are now handled by flow-based calculation
     return !this.isLandTile(neighborTile.terrain);
+  }
+
+  // ========== FREECIV NON-FATAL TEST FUNCTIONS ==========
+
+  /**
+   * Port of Freeciv's river_test_highlands
+   * @reference freeciv/server/generator/mapgen.c:river_test_highlands
+   */
+  private riverTestHighlands(x: number, y: number, tiles: MapTile[][]): number {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return 1;
+    const tile = tiles[x][y];
+
+    // Return 1 for mountainous terrain, 0 for others (prefer non-mountains)
+    return tile.terrain === 'mountains' || tile.terrain === 'hills' ? 1 : 0;
+  }
+
+  /**
+   * Port of Freeciv's river_test_adjacent_ocean
+   * @reference freeciv/server/generator/mapgen.c:river_test_adjacent_ocean
+   */
+  private riverTestAdjacentOcean(x: number, y: number, tiles: MapTile[][]): number {
+    let oceanCount = 0;
+    const cardinalDirs = [
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+    ];
+
+    for (const dir of cardinalDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (!this.isLandTile(tiles[nx][ny].terrain)) {
+          oceanCount++;
+        }
+      }
+    }
+
+    // Return 100 - oceanCount to prefer tiles closer to ocean
+    return 100 - oceanCount;
+  }
+
+  /**
+   * Port of Freeciv's river_test_adjacent_river
+   * @reference freeciv/server/generator/mapgen.c:river_test_adjacent_river
+   */
+  private riverTestAdjacentRiver(x: number, y: number, tiles: MapTile[][]): number {
+    let riverCount = 0;
+    const cardinalDirs = [
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+    ];
+
+    for (const dir of cardinalDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        if (tiles[nx][ny].riverMask > 0) {
+          riverCount++;
+        }
+      }
+    }
+
+    // Return 100 - riverCount to prefer tiles closer to existing rivers
+    return 100 - riverCount;
+  }
+
+  /**
+   * Port of Freeciv's river_test_adjacent_highlands
+   * @reference freeciv/server/generator/mapgen.c:river_test_adjacent_highlands
+   */
+  private riverTestAdjacentHighlands(x: number, y: number, tiles: MapTile[][]): number {
+    let highlandSum = 0;
+    const allDirs = [
+      { dx: -1, dy: -1 },
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: -1 },
+      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 1 },
+      { dx: 0, dy: 1 },
+      { dx: 1, dy: 1 },
+    ];
+
+    for (const dir of allDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const tile = tiles[nx][ny];
+        if (tile.terrain === 'mountains' || tile.terrain === 'hills') {
+          highlandSum += 1;
+        }
+      }
+    }
+
+    return highlandSum;
+  }
+
+  /**
+   * Port of Freeciv's river_test_swamp
+   * @reference freeciv/server/generator/mapgen.c:river_test_swamp
+   */
+  private riverTestSwamp(x: number, y: number, tiles: MapTile[][]): number {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return 10000;
+    const tile = tiles[x][y];
+
+    // Prefer swamp terrain (return low value for swamp)
+    return tile.terrain === 'swamp' ? 0 : 1;
+  }
+
+  /**
+   * Port of Freeciv's river_test_adjacent_swamp
+   * @reference freeciv/server/generator/mapgen.c:river_test_adjacent_swamp
+   */
+  private riverTestAdjacentSwamp(x: number, y: number, tiles: MapTile[][]): number {
+    let swampSum = 0;
+    const allDirs = [
+      { dx: -1, dy: -1 },
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: -1 },
+      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 1 },
+      { dx: 0, dy: 1 },
+      { dx: 1, dy: 1 },
+    ];
+
+    for (const dir of allDirs) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+        const tile = tiles[nx][ny];
+        if (tile.terrain === 'swamp') {
+          swampSum += 1;
+        }
+      }
+    }
+
+    // Return high value minus swamp count to prefer areas near swamps
+    return 10000 - swampSum;
+  }
+
+  /**
+   * Port of Freeciv's river_test_height_map - MOST IMPORTANT for natural flow
+   * @reference freeciv/server/generator/mapgen.c:river_test_height_map
+   */
+  private riverTestHeightMap(
+    x: number,
+    y: number,
+    tiles: MapTile[][],
+    currentLength: number
+  ): number {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return 10000;
+    const tile = tiles[x][y];
+
+    // Ocean tiles get special handling - only allow if river is long enough
+    if (!this.isLandTile(tile.terrain)) {
+      return currentLength < 5 ? 500 : 0;
+    }
+
+    // For land tiles, return elevation directly (lower elevation = lower score = preferred)
+    return Math.floor(tile.elevation);
   }
 }
