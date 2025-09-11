@@ -82,7 +82,7 @@ export abstract class BaseRenderer {
       ocean: 'coast',
       deep_ocean: 'floor',
       coast: 'coast',
-      lake: 'lake',
+      lake: 'coast', // Lake uses coast graphics as fallback (matches freeciv-web behavior)
       // Land terrains
       grassland: 'grassland',
       plains: 'plains',
