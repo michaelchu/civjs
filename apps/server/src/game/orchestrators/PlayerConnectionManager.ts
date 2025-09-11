@@ -20,7 +20,7 @@ export interface PlayerConnectionService {
     gameId: string,
     userId: string,
     civilization?: string
-  ): Promise<{ playerId: string; assignedNation: string }>;
+  ): Promise<{ playerId: string; assignedNation: string; assignedColor: PlayerColor }>;
   updatePlayerConnection(playerId: string, isConnected: boolean): Promise<void>;
   ensureMinimumPlayers(gameId: string): Promise<void>;
 }
@@ -54,7 +54,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     gameId: string,
     userId: string,
     civilization?: string
-  ): Promise<{ playerId: string; assignedNation: string }> {
+  ): Promise<{ playerId: string; assignedNation: string; assignedColor: PlayerColor }> {
     // Get game from database
     const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
@@ -75,6 +75,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       const existingResult = {
         playerId: existingPlayer.id,
         assignedNation: existingPlayer.nation || existingPlayer.civilization || 'american',
+        assignedColor: existingPlayer.color as PlayerColor,
       };
       return existingResult; // Already joined - allow rejoining at any game status
     }
@@ -153,6 +154,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     const finalResult = {
       playerId: newPlayer.id,
       assignedNation: selectedNation,
+      assignedColor: assignedTheme.primary,
     };
     return finalResult;
   }

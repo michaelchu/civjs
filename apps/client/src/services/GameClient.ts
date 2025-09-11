@@ -193,11 +193,11 @@ class GameClient {
           console.warn('GameClient: Original assignedNation was:', data.assignedNation);
         }
         console.log('GameClient: final nation for game creation:', finalNation);
-        const mockPlayer = {
+        const initialPlayer = {
           id: data.playerId,
           name: 'Player', // We don't have the name here, will be updated later
           nation: finalNation,
-          color: '#808080', // Temporary gray color, will be updated by PLAYER_INFO packet
+          color: data.assignedColor ? playerColorToHex(data.assignedColor) : '#808080', // Use server-assigned color
           gold: 50,
           science: 0,
           government: 'despotism', // Default starting government
@@ -210,7 +210,7 @@ class GameClient {
         useGameStore.getState().updateGameState({
           currentPlayerId: data.playerId,
           players: {
-            [data.playerId]: mockPlayer,
+            [data.playerId]: initialPlayer,
           },
           governments: mockGovernments,
           turn: 1, // Initialize turn
@@ -1015,11 +1015,11 @@ class GameClient {
             );
           }
           console.log('GameClient: final nation value:', finalNation);
-          const mockPlayer = {
+          const initialPlayer = {
             id: response.playerId,
             name: playerName,
             nation: finalNation,
-            color: '#808080', // Temporary gray color, will be updated by PLAYER_INFO packet
+            color: response.assignedColor ? playerColorToHex(response.assignedColor) : '#808080', // Use server-assigned color
             gold: 50,
             science: 0,
             government: 'despotism', // Default starting government
@@ -1030,7 +1030,7 @@ class GameClient {
           useGameStore.getState().updateGameState({
             currentPlayerId: response.playerId,
             players: {
-              [response.playerId]: mockPlayer,
+              [response.playerId]: initialPlayer,
             },
             governments: getMockGovernments(),
             phase: 'movement', // Set phase to movement
