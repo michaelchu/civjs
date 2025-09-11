@@ -688,6 +688,7 @@ export class CityManager {
           currentProduction: city.currentProduction,
           productionType: city.productionType,
         });
+      }
     } catch (error) {
       const totalTime = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : String(error);
