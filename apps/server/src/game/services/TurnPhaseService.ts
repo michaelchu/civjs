@@ -384,7 +384,10 @@ export class TurnPhaseService {
     let totalCitiesProcessed = 0;
     for (const playerId of context.playerIds) {
       try {
-        const citiesProcessed = await this.turnProcessingService.processCityProduction(playerId);
+        const citiesProcessed = await this.turnProcessingService.processCityProduction(
+          playerId,
+          context.turn
+        );
         totalCitiesProcessed += citiesProcessed;
       } catch (error) {
         result.errors.push(`City production failed for player ${playerId}: ${error}`);

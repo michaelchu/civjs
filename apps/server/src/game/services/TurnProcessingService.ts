@@ -518,10 +518,11 @@ export class TurnProcessingService {
    * Process city production for all cities of a player
    * Delegates to CityManager.processProduction()
    */
-  async processCityProduction(playerId: string): Promise<number> {
+  async processCityProduction(playerId: string, currentTurn?: number): Promise<number> {
     logger.debug('Processing city production for player', {
       gameId: this.gameId,
       playerId,
+      currentTurn,
     });
 
     // Get all cities for the player
@@ -531,13 +532,14 @@ export class TurnProcessingService {
     for (const city of playerCities) {
       try {
         // Process production for this city (method exists in CityManager)
-        await this.cityManager.processCityTurn(city.id, 0); // TODO: Pass actual turn number
+        await this.cityManager.processCityTurn(city.id, currentTurn || 0);
         citiesProcessed++;
       } catch (error) {
         logger.error('Error processing city production', {
           gameId: this.gameId,
           playerId,
           cityId: city.id,
+          cityName: city.name,
           error: error instanceof Error ? error.message : error,
         });
       }
