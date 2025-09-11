@@ -626,46 +626,106 @@ export class CityManager {
       return;
     }
 
-    logger.debug(`Processing turn for city ${city.name} (${cityId})`, { currentTurn });
+    const startTime = Date.now();
+    logger.debug(`Processing turn for city ${city.name} (${cityId})`, {
+      currentTurn,
+      population: city.population,
+      currentProduction: city.currentProduction,
+      productionType: city.productionType,
+    });
+
+    const stepTimings: Array<{ step: string; duration: number }> = [];
+    let lastStepTime = startTime;
+
+    const recordStep = (step: string) => {
+      const now = Date.now();
+      stepTimings.push({
+        step,
+        duration: now - lastStepTime,
+      });
+      lastStepTime = now;
+    };
 
     try {
       // Apply government effects first
       this.refreshCityWithGovernmentEffects(cityId);
+      recordStep('government_effects');
 
       // Apply automated governor if enabled
       if (this.governorService && city.governor?.isEnabled) {
         await this.governorService.applyGovernorAutomation(cityId);
       }
+      recordStep('governor_automation');
 
       // Calculate city outputs
       this.calculateCityOutputs(cityId);
+      recordStep('calculate_outputs');
 
       // Trigger callback for city turn processing (science accumulation)
       if (this.callbacks.onCityTurnProcessed) {
         this.callbacks.onCityTurnProcessed(city);
       }
+      recordStep('callbacks');
 
       // Process food and growth
       await this.processFoodAndGrowth(city, currentTurn);
+      recordStep('food_growth');
 
       // Process production
       await this.processProduction(city, currentTurn);
+      recordStep('production');
 
       // Process happiness
       this.calculateHappiness(cityId);
+      recordStep('happiness');
 
       // Save changes to database
       await this.saveCityToDatabase(city);
+      recordStep('database_save');
 
-      logger.debug(`Turn processing completed for city ${city.name}`, {
+      const totalTime = Date.now() - startTime;
+
+      // Log performance details for slow cities or if total time is concerning
+      if (totalTime > 2000 || stepTimings.some(s => s.duration > 1000)) {
+        logger.warn(`Slow city turn processing detected for ${city.name}`, {
+          gameId: this.gameId,
+          cityId,
+          totalTime,
+          stepTimings,
+          population: city.population,
+          currentProduction: city.currentProduction,
+          productionType: city.productionType,
+        });
+      } else {
+        logger.debug(`Turn processing completed for city ${city.name}`, {
+          cityId,
+          totalTime,
+          population: city.population,
+          currentProduction: city.currentProduction,
+          majorSteps: stepTimings.filter(s => s.duration > 100), // Only log steps that took >100ms
+        });
+      }
+    } catch (error) {
+      const totalTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      logger.error(`Error processing turn for city ${city.name}`, {
+        gameId: this.gameId,
         cityId,
+        totalTime,
+        stepTimings,
+        error: errorMessage,
         population: city.population,
         currentProduction: city.currentProduction,
+        productionType: city.productionType,
       });
-    } catch (error) {
-      logger.error(`Error processing turn for city ${city.name}`, {
+
+      // Don't re-throw database errors during turn processing to avoid breaking the entire turn
+      // The error has already been logged above, and the turn processing should continue
+      logger.warn('City turn processing completed with database save error, continuing with turn', {
+        gameId: this.gameId,
         cityId,
-        error: error instanceof Error ? error.message : error,
+        cityName: city.name,
       });
     }
   }
@@ -704,6 +764,7 @@ export class CityManager {
 
   private async processProduction(city: CityState, _currentTurn: number): Promise<void> {
     if (!city.currentProduction) {
+      logger.debug(`Skipping production for city ${city.name} - no current production set`);
       return;
     }
 
@@ -712,13 +773,60 @@ export class CityManager {
     const newProductionStock = currentProductionStock + productionPerTurn;
 
     let productionCost = 0;
+    let productionIsValid = true;
 
     if (city.productionType === 'unit') {
       const unitType = UNIT_TYPES[city.currentProduction];
-      productionCost = unitType?.cost || 0;
+      if (!unitType) {
+        logger.error(`Invalid unit type in production for city ${city.name}`, {
+          cityId: city.id,
+          productionType: city.productionType,
+          currentProduction: city.currentProduction,
+          availableUnitTypes: Object.keys(UNIT_TYPES),
+        });
+        productionIsValid = false;
+      } else {
+        productionCost = unitType.cost || 0;
+      }
     } else if (city.productionType === 'building') {
       const building = BUILDING_TYPES[city.currentProduction];
-      productionCost = building?.cost || 0;
+      if (!building) {
+        logger.error(`Invalid building type in production for city ${city.name}`, {
+          cityId: city.id,
+          productionType: city.productionType,
+          currentProduction: city.currentProduction,
+          availableBuildingTypes: Object.keys(BUILDING_TYPES),
+        });
+        productionIsValid = false;
+      } else {
+        productionCost = building.cost || 0;
+      }
+    } else {
+      logger.error(`Unknown production type for city ${city.name}`, {
+        cityId: city.id,
+        productionType: city.productionType,
+        currentProduction: city.currentProduction,
+      });
+      productionIsValid = false;
+    }
+
+    if (!productionIsValid) {
+      logger.warn(`Clearing invalid production for city ${city.name}`);
+      city.currentProduction = null;
+      city.productionType = null;
+      city.productionStock = 0;
+      city.turnsToComplete = 0;
+      return;
+    }
+
+    if (productionCost <= 0) {
+      logger.warn(`Production cost is 0 or negative for city ${city.name}, setting to 1`, {
+        cityId: city.id,
+        productionType: city.productionType,
+        currentProduction: city.currentProduction,
+        originalCost: productionCost,
+      });
+      productionCost = 1;
     }
 
     if (newProductionStock >= productionCost) {
@@ -988,7 +1096,7 @@ export class CityManager {
         y: city.y,
         playerId: city.playerId,
         population: city.population,
-        foundedTurn: city.founded,
+        foundedTurn: city.founded || 1,
         currentProduction: city.currentProduction,
         food: city.foodStock || 0,
         foodPerTurn: city.foodPerTurn || 0,
@@ -1013,33 +1121,60 @@ export class CityManager {
           city.workableTiles?.filter(t => t.isWorked).map(t => ({ x: t.x, y: t.y })) || [],
       };
 
-      const dbOperation = db.insert(cities).values([cityData]).onConflictDoUpdate({
-        target: cities.id,
-        set: cityData,
+      // Use upsert pattern that works in both production and test environments
+      const dbOperation = async () => {
+        try {
+          // Try insert first
+          await db.insert(cities).values([cityData]);
+        } catch (error: any) {
+          // If constraint violation (PostgreSQL or SQLite), try update instead
+          if (
+            error?.code === 'SQLITE_CONSTRAINT' ||
+            error?.constraint === 'PRIMARY' ||
+            error?.code === '23505' || // PostgreSQL unique violation
+            (error?.message && error.message.includes('duplicate key'))
+          ) {
+            await db.update(cities).set(cityData).where(eq(cities.id, city.id));
+          } else {
+            throw error;
+          }
+        }
+      };
+
+      // Apply timeout in all environments to prevent database hangs
+      const DB_OPERATION_TIMEOUT = process.env.NODE_ENV === 'test' ? 5000 : 10000; // 5s for tests, 10s for production
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(
+            new Error(
+              `Database operation timed out for city ${city.id} after ${DB_OPERATION_TIMEOUT}ms`
+            )
+          );
+        }, DB_OPERATION_TIMEOUT);
       });
 
-      // Apply timeout only in test environment to prevent test hangs
-      if (process.env.NODE_ENV === 'test') {
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => {
-            reject(new Error(`Database operation timed out for city ${city.id}`));
-          }, 5000); // 5 second timeout
-        });
-
-        await Promise.race([dbOperation, timeoutPromise]);
-      } else {
-        // In production, just execute normally
-        await dbOperation;
-      }
+      await Promise.race([dbOperation(), timeoutPromise]);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
       logger.error('Failed to save city to database', {
         cityId: city.id,
         cityName: city.name,
-        error: error instanceof Error ? error.message : error,
+        gameId: this.gameId,
+        error: errorMessage,
+        isTimeout: errorMessage.includes('timed out'),
       });
-      // Don't throw in test environment to avoid hanging the test
-      if (process.env.NODE_ENV !== 'test') {
+
+      // In production, we should be more resilient - log the error but don't crash the turn processing
+      // Only throw in non-timeout cases that might be recoverable
+      if (!errorMessage.includes('timed out')) {
         throw error;
+      } else {
+        logger.warn('Database timeout occurred, continuing with turn processing', {
+          cityId: city.id,
+          cityName: city.name,
+        });
       }
     }
   }

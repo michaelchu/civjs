@@ -382,15 +382,54 @@ export class TurnPhaseService {
     logger.debug('Processing city production phase', { gameId: context.gameId });
 
     let totalCitiesProcessed = 0;
+    const CITY_PRODUCTION_TIMEOUT = 60000; // 60 second timeout per player
+
     for (const playerId of context.playerIds) {
+      const playerStartTime = Date.now();
+
       try {
-        const citiesProcessed = await this.turnProcessingService.processCityProduction(
+        // Create timeout promise
+        const timeoutPromise = new Promise<number>((_, reject) => {
+          setTimeout(() => {
+            reject(
+              new Error(
+                `City production processing timed out for player ${playerId} after ${CITY_PRODUCTION_TIMEOUT}ms`
+              )
+            );
+          }, CITY_PRODUCTION_TIMEOUT);
+        });
+
+        // Race between processing and timeout
+        const processingPromise = this.turnProcessingService.processCityProduction(
           playerId,
           context.turn
         );
+
+        const citiesProcessed = await Promise.race([processingPromise, timeoutPromise]);
         totalCitiesProcessed += citiesProcessed;
+
+        const processingTime = Date.now() - playerStartTime;
+        logger.debug('City production completed for player', {
+          gameId: context.gameId,
+          playerId,
+          citiesProcessed,
+          processingTime,
+        });
       } catch (error) {
-        result.errors.push(`City production failed for player ${playerId}: ${error}`);
+        const processingTime = Date.now() - playerStartTime;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        logger.error('City production failed for player', {
+          gameId: context.gameId,
+          playerId,
+          processingTime,
+          error: errorMessage,
+        });
+
+        result.errors.push(`City production failed for player ${playerId}: ${errorMessage}`);
+
+        // Continue processing other players even if one fails
+        continue;
       }
     }
 
@@ -525,7 +564,15 @@ export class TurnPhaseService {
     this.turnPacketService.sendEndTurnPacket(context.turn, context.year);
 
     // Thaw client to re-enable interactions
+    logger.info('About to send THAW_CLIENT packet', {
+      gameId: context.gameId,
+      turn: context.turn,
+    });
     this.turnPacketService.sendThawClientPacket('Turn processing complete');
+    logger.info('THAW_CLIENT packet sent', {
+      gameId: context.gameId,
+      turn: context.turn,
+    });
 
     result.playersProcessed = context.playerIds.length;
     result.itemsProcessed = 1; // One end turn processed

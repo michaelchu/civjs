@@ -528,21 +528,83 @@ export class TurnProcessingService {
     // Get all cities for the player
     const playerCities = await this.cityManager.getPlayerCities(playerId);
     let citiesProcessed = 0;
+    const failedCities: Array<{ cityId: string; cityName: string; error: string }> = [];
+    const CITY_PROCESSING_TIMEOUT = 10000; // 10 second timeout per city
+
+    if (playerCities.length === 0) {
+      logger.debug('No cities found for player', { gameId: this.gameId, playerId });
+      return 0;
+    }
+
+    logger.debug('Processing cities for player', {
+      gameId: this.gameId,
+      playerId,
+      cityCount: playerCities.length,
+    });
 
     for (const city of playerCities) {
+      const cityStartTime = Date.now();
+
       try {
-        // Process production for this city (method exists in CityManager)
-        await this.cityManager.processCityTurn(city.id, currentTurn || 0);
+        // Add per-city timeout to prevent individual cities from hanging the entire process
+        const timeoutPromise = new Promise<void>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`City processing timed out after ${CITY_PROCESSING_TIMEOUT}ms`));
+          }, CITY_PROCESSING_TIMEOUT);
+        });
+
+        // Race between city processing and timeout
+        const processingPromise = this.cityManager.processCityTurn(city.id, currentTurn || 0);
+
+        await Promise.race([processingPromise, timeoutPromise]);
         citiesProcessed++;
+
+        const processingTime = Date.now() - cityStartTime;
+        if (processingTime > 1000) {
+          // Log slow cities for monitoring
+          logger.warn('Slow city processing detected', {
+            gameId: this.gameId,
+            playerId,
+            cityId: city.id,
+            cityName: city.name,
+            processingTime,
+          });
+        }
       } catch (error) {
+        const processingTime = Date.now() - cityStartTime;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
         logger.error('Error processing city production', {
           gameId: this.gameId,
           playerId,
           cityId: city.id,
           cityName: city.name,
-          error: error instanceof Error ? error.message : error,
+          processingTime,
+          error: errorMessage,
+          isTimeout: errorMessage.includes('timed out'),
         });
+
+        failedCities.push({
+          cityId: city.id,
+          cityName: city.name,
+          error: errorMessage,
+        });
+
+        // Continue processing other cities - don't let one bad city break everything
+        continue;
       }
+    }
+
+    // Log summary with details about failures
+    if (failedCities.length > 0) {
+      logger.warn('Some cities failed to process', {
+        gameId: this.gameId,
+        playerId,
+        totalCities: playerCities.length,
+        citiesProcessed,
+        failedCities: failedCities.length,
+        failures: failedCities,
+      });
     }
 
     logger.info('City production processed', {
@@ -550,6 +612,7 @@ export class TurnProcessingService {
       playerId,
       totalCities: playerCities.length,
       citiesProcessed,
+      failedCities: failedCities.length,
     });
 
     return citiesProcessed;
