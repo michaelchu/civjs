@@ -414,11 +414,13 @@ export class CityDataService {
    */
   private static getProductionCost(itemId: string, type: string): number {
     if (type === 'unit') {
-      // Import here to avoid circular dependencies
+      // Dynamically import to avoid circular dependencies
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
       const { UNIT_TYPES } = require('@game/constants/UnitConstants');
       return UNIT_TYPES[itemId]?.cost || 10;
     } else if (type === 'building') {
-      // Import here to avoid circular dependencies
+      // Dynamically import to avoid circular dependencies
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
       const { BUILDING_TYPES } = require('@game/managers/CityManager');
       return BUILDING_TYPES[itemId]?.cost || 40;
     }
