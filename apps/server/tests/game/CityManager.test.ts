@@ -242,7 +242,7 @@ describe('CityManager', () => {
     it('should delegate to production service', () => {
       const buyCost = cityManager.calculateBuyCost(city.id);
       expect(buyCost).toBeDefined();
-      expect(buyCost.canBuy).toBe(false); // No production set
+      expect(buyCost.canBuy).toBe(true); // City now defaults to warrior production
     });
 
     it('should delegate to trade route service', () => {

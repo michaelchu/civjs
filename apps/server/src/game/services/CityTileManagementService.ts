@@ -137,11 +137,58 @@ export class CityTileManagementService extends BaseGameService {
       }
     }
 
+    // Auto-assign citizens to work the best tiles based on population
+    // Each citizen can work one tile (excluding the city center which is free)
+    this.autoAssignCitizensToTiles(city);
+
     logger.info('Initialized workable tiles for city', {
       cityId: city.id,
       cityName: city.name,
       tilesCount: city.workableTiles.length,
+      workedTiles: city.workableTiles.filter(t => t.isWorked).length,
     });
+  }
+
+  /**
+   * Reassign citizens after city growth
+   * Public method for CityManager to call when city grows
+   */
+  public reassignCitizensAfterGrowth(city: CityState): void {
+    this.autoAssignCitizensToTiles(city);
+  }
+
+  /**
+   * Automatically assign citizens to work the best available tiles
+   * Citizens = population, but city center is worked for free
+   */
+  private autoAssignCitizensToTiles(city: CityState): void {
+    if (!city.workableTiles) return;
+
+    // Get tile scoring weights from ruleset (could be expanded later)
+    // For now, we'll use a balanced approach that prioritizes growth
+    const getTileScore = (tile: WorkableTile): number => {
+      // Prioritize food for growth, then shields for production, then trade
+      // This reflects typical city management strategy
+      return tile.outputs.food * 3 + tile.outputs.shields * 2 + tile.outputs.trade;
+    };
+
+    // Sort tiles by total output (food + shields + trade), excluding city center
+    const availableTiles = city.workableTiles
+      .filter(t => !t.isCenter && !t.isBlocked)
+      .sort((a, b) => getTileScore(b) - getTileScore(a));
+
+    // Reset all non-center tiles to not worked
+    city.workableTiles.forEach(tile => {
+      if (!tile.isCenter) {
+        tile.isWorked = false;
+      }
+    });
+
+    // Assign citizens to best tiles (population - 1 because city center is free)
+    const citizensToAssign = Math.max(0, city.population - 1);
+    for (let i = 0; i < Math.min(citizensToAssign, availableTiles.length); i++) {
+      availableTiles[i].isWorked = true;
+    }
   }
 
   /**

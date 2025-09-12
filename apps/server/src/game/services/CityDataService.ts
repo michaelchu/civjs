@@ -9,6 +9,7 @@
  */
 
 import { SPECIALIST_TYPES, type CityState, type SpecialistType } from '@game/managers/CityManager';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 interface ClientCityData {
   id: string;
@@ -114,7 +115,7 @@ export class CityDataService {
   /**
    * Transform internal CityState to client-compatible format following freeciv-web patterns
    */
-  static transformCityForClient(city: CityState): ClientCityData {
+  static transformCityForClient(city: CityState, rulesetName: string = 'classic'): ClientCityData {
     // Use actual calculated values from CityManager
     const foodPerTurn = city.foodPerTurn || 2; // Default city center food
     const productionPerTurn = city.productionPerTurn || 1; // Default city center shields
@@ -164,7 +165,7 @@ export class CityDataService {
     };
 
     // Calculate granary size using freeciv formula
-    const granarySize = this.calculateGranarySize(city.population);
+    const granarySize = this.calculateGranarySize(city.population, rulesetName);
     const foodStock = city.foodStock || 0;
     const granaryTurns = this.calculateGranaryTurns(surplus.food, foodStock, granarySize);
 
@@ -238,11 +239,14 @@ export class CityDataService {
   /**
    * Transform multiple cities for client
    */
-  static transformCitiesForClient(cities: CityState[]): Record<string, ClientCityData> {
+  static transformCitiesForClient(
+    cities: CityState[],
+    rulesetName: string = 'classic'
+  ): Record<string, ClientCityData> {
     const result: Record<string, ClientCityData> = {};
 
     for (const city of cities) {
-      result[city.id] = this.transformCityForClient(city);
+      result[city.id] = this.transformCityForClient(city, rulesetName);
     }
 
     return result;
@@ -271,9 +275,20 @@ export class CityDataService {
 
   /**
    * Calculate granary size using freeciv formula
+   * @reference freeciv/common/city.c:2132 city_granary_size()
    */
-  private static calculateGranarySize(population: number): number {
-    return 10 + (population - 1) * 2;
+  private static calculateGranarySize(population: number, rulesetName: string = 'classic'): number {
+    try {
+      const civstyle = rulesetLoader.getCivstyle(rulesetName);
+      const granaryFoodIni = civstyle.granary_food_ini;
+      const granaryFoodInc = civstyle.granary_food_inc;
+
+      // Freeciv formula: base initial size + increment per additional population
+      return granaryFoodIni + (population - 1) * granaryFoodInc;
+    } catch {
+      // Fallback to classic values if ruleset loading fails
+      return 20 + (population - 1) * 10;
+    }
   }
 
   /**

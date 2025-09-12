@@ -22,6 +22,10 @@ import { CityTradeRouteService } from '@game/services/CityTradeRouteService';
 import { CityProductionService } from '@game/services/CityProductionService';
 import { CityGovernorService } from '@game/services/CityGovernorService';
 import { CityCaptureService } from '@game/services/CityCaptureService';
+import { CitizenManagementService } from '@game/systems/CitizenManagement/CitizenManagementService';
+import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
+import { OutputType } from '@game/constants/GameConstants';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 // Following original Freeciv city radius logic
 export const CITY_MAP_DEFAULT_RADIUS = 2;
@@ -363,6 +367,7 @@ export class CityManager {
   private productionService?: CityProductionService;
   private governorService?: CityGovernorService;
   private captureService?: CityCaptureService;
+  private citizenManagementService?: CitizenManagementService;
 
   constructor(
     gameId: string,
@@ -430,6 +435,10 @@ export class CityManager {
       this.cities,
       this.updateTradeRoutesOnPlayerChange.bind(this)
     );
+
+    // Initialize citizen management service
+    this.citizenManagementService = CitizenManagementService.getInstance();
+    await this.citizenManagementService.initialize();
 
     // Initialize high-level coordination service
     // Note: CityManagementService needs different constructor parameters
@@ -543,9 +552,10 @@ export class CityManager {
       size: 1,
       cityRadius: CITY_MAP_DEFAULT_RADIUS,
       founded: currentTurn,
-      currentProduction: null,
-      productionType: null,
-      turnsToComplete: 0,
+      currentProduction: 'warrior', // Default production following Freeciv
+      productionType: 'unit' as const,
+      turnsToComplete: 10, // Warrior cost, will be recalculated
+      productionStock: 0, // Shield stock for current production
       foodStock: 0,
       foodPerTurn: 2, // Base city center food
       productionPerTurn: 1, // Base city center production
@@ -576,6 +586,8 @@ export class CityManager {
     // Initialize workable tiles using the service
     if (this.tileManagementService) {
       this.tileManagementService.initializeWorkableTiles(city);
+      // Auto-assign citizens to best available tiles for new city
+      await this.optimizeCitizens(cityId);
     } else {
       // Fallback if service is not available
       logger.warn('TileManagementService not available, providing fallback workable tiles', {
@@ -648,6 +660,10 @@ export class CityManager {
         await this.governorService.applyGovernorAutomation(cityId);
       }
       recordStep('governor_automation');
+
+      // Optimize citizen assignments
+      await this.optimizeCitizens(cityId);
+      recordStep('citizen_optimization');
 
       // Calculate city outputs
       this.calculateCityOutputs(cityId);
@@ -729,6 +745,14 @@ export class CityManager {
       city.foodStock = newFoodStock - granarySize;
 
       logger.info(`City ${city.name} grew from size ${oldSize} to ${city.population}`);
+
+      // Automatically assign the new citizen to work the best available tile
+      if (this.tileManagementService && city.workableTiles) {
+        // Re-run auto-assignment to allocate the new citizen
+        this.tileManagementService.reassignCitizensAfterGrowth(city);
+      }
+      // Recalculate outputs after assigning new citizen
+      this.calculateCityOutputs(city.id);
 
       if (this.callbacks.onCityGrowth) {
         this.callbacks.onCityGrowth(city, oldSize);
@@ -855,8 +879,18 @@ export class CityManager {
     }
   }
 
-  private calculateGranarySize(population: number): number {
-    return 10 + (population - 1) * 2;
+  private calculateGranarySize(population: number, rulesetName: string = 'classic'): number {
+    try {
+      const civstyle = rulesetLoader.getCivstyle(rulesetName);
+      const granaryFoodIni = civstyle.granary_food_ini;
+      const granaryFoodInc = civstyle.granary_food_inc;
+
+      // Freeciv formula: base initial size + increment per additional population
+      return granaryFoodIni + (population - 1) * granaryFoodInc;
+    } catch {
+      // Fallback to classic values if ruleset loading fails
+      return 20 + (population - 1) * 10;
+    }
   }
 
   // === SPECIALIST MANAGEMENT ===
@@ -1341,10 +1375,18 @@ export class CityManager {
       }
 
       // Provide city center base output for any missing essential outputs
-      // Cities should always have at least city center production values
-      tileOutputs.food = Math.max(tileOutputs.food, 2);
-      tileOutputs.shields = Math.max(tileOutputs.shields, 1);
-      tileOutputs.trade = Math.max(tileOutputs.trade, 1);
+      // Cities should always have at least city center production values from ruleset
+      try {
+        const civstyle = rulesetLoader.getCivstyle('classic');
+        tileOutputs.food = Math.max(tileOutputs.food, civstyle.min_city_center_food);
+        tileOutputs.shields = Math.max(tileOutputs.shields, civstyle.min_city_center_shield);
+        tileOutputs.trade = Math.max(tileOutputs.trade, civstyle.min_city_center_trade);
+      } catch {
+        // Fallback to hardcoded values if ruleset loading fails
+        tileOutputs.food = Math.max(tileOutputs.food, 2);
+        tileOutputs.shields = Math.max(tileOutputs.shields, 1);
+        tileOutputs.trade = Math.max(tileOutputs.trade, 1);
+      }
 
       let science = 0;
       let gold = 0;
@@ -1406,15 +1448,33 @@ export class CityManager {
     // Fallback calculation when TileManagementService is not available
     const city = this.cities.get(cityId);
     if (city) {
-      // Apply fallback outputs directly to city state with science calculation
-      city.foodPerTurn = 2;
-      city.productionPerTurn = 1;
-      city.tradePerTurn = 1;
+      try {
+        const civstyle = rulesetLoader.getCivstyle('classic');
+        // Apply fallback outputs from ruleset
+        city.foodPerTurn = civstyle.min_city_center_food;
+        city.productionPerTurn = civstyle.min_city_center_shield;
+        city.tradePerTurn = civstyle.min_city_center_trade;
 
-      // Calculate science from trade even in fallback mode
-      const tradeToScience =
-        city.tradePerTurn > 0 ? Math.max(1, Math.floor(city.tradePerTurn / 2)) : 0;
-      city.sciencePerTurn = tradeToScience;
+        // Calculate science from trade even in fallback mode
+        const tradeToScience =
+          city.tradePerTurn > 0 ? Math.max(1, Math.floor(city.tradePerTurn / 2)) : 0;
+        city.sciencePerTurn = tradeToScience;
+
+        return {
+          food: civstyle.min_city_center_food,
+          shields: civstyle.min_city_center_shield,
+          trade: civstyle.min_city_center_trade,
+          science: tradeToScience,
+          gold: 0,
+          luxury: 0,
+        };
+      } catch {
+        // Double fallback to hardcoded classic values
+        city.foodPerTurn = 2;
+        city.productionPerTurn = 1;
+        city.tradePerTurn = 1;
+        city.sciencePerTurn = 1;
+      }
     }
     return { food: 2, shields: 1, trade: 1, science: 1, gold: 0, luxury: 0 };
   }
@@ -1428,6 +1488,148 @@ export class CityManager {
 
     this.applyCityCorruption(cityId, defaultGovernment);
     this.applyCityHappiness(cityId);
+  }
+
+  // === CITIZEN OPTIMIZATION METHODS ===
+
+  /**
+   * Optimize citizen assignments for a city using the CitizenManagement system
+   * @param cityId The city to optimize
+   * @param parameters Optional optimization parameters (uses default if not provided)
+   */
+  private async optimizeCitizens(cityId: string, parameters?: any): Promise<boolean> {
+    if (!this.citizenManagementService || !this.tileManagementService) {
+      logger.warn(`Cannot optimize citizens for city ${cityId} - services not available`);
+      return false;
+    }
+
+    const city = this.cities.get(cityId);
+    if (!city) {
+      logger.warn(`Cannot optimize citizens - city ${cityId} not found`);
+      return false;
+    }
+
+    try {
+      // Use provided parameters, or stored parameters, or default parameters
+      const optimizationParams =
+        parameters || this.getCitizenParameters(cityId) || CitizenParameterFactory.createDefault();
+
+      // Get workable tiles for the optimization
+      const workableTiles = this.tileManagementService.getWorkableTiles(cityId);
+      if (!workableTiles) {
+        logger.warn(`Cannot optimize citizens - no workable tiles for city ${cityId}`);
+        return false;
+      }
+
+      // Run the optimization
+      const result = this.citizenManagementService.queryResult(
+        city,
+        optimizationParams,
+        false // Don't allow negative surpluses
+      );
+
+      if (result.found_valid) {
+        // Apply the optimized assignments
+        if (city.workableTiles) {
+          // Update worked tile assignments
+          for (
+            let i = 0;
+            i < result.worker_positions.length && i < city.workableTiles.length;
+            i++
+          ) {
+            city.workableTiles[i].isWorked = result.worker_positions[i];
+          }
+        }
+
+        // Update specialist assignments
+        city.specialists = { ...result.specialists };
+
+        // Update output calculations based on optimized assignments
+        city.foodPerTurn = result.surplus[OutputType.FOOD];
+        city.productionPerTurn = result.surplus[OutputType.SHIELD];
+        city.tradePerTurn = result.surplus[OutputType.TRADE];
+        city.sciencePerTurn = result.surplus[OutputType.SCIENCE];
+
+        logger.debug(`Successfully optimized citizens for city ${city.name}`, {
+          cityId,
+          fitness: result.fitness,
+          workersCount: result.workers_count,
+          specialistsCount: result.specialists_count,
+        });
+
+        return true;
+      } else {
+        logger.warn(`Citizen optimization failed for city ${city.name}`, {
+          cityId,
+          aborted: result.aborted,
+        });
+        return false;
+      }
+    } catch (error) {
+      logger.error(`Error optimizing citizens for city ${city.name}`, {
+        cityId,
+        error: error instanceof Error ? error.message : error,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Public method to manually optimize a city's citizens
+   * @param cityId The city to optimize
+   * @param parameters Optional optimization parameters
+   */
+  async optimizeCityManually(cityId: string, parameters?: any): Promise<boolean> {
+    return this.optimizeCitizens(cityId, parameters);
+  }
+
+  /**
+   * Get citizen optimization parameters for a city (for UI configuration)
+   * @param cityId The city to get parameters for
+   */
+  getCitizenParameters(cityId: string): any | null {
+    const city = this.cities.get(cityId);
+    if (!city) return null;
+
+    // Check if city has stored citizen parameters
+    if (city.governor && (city.governor as any).citizenParameters) {
+      return (city.governor as any).citizenParameters;
+    }
+
+    // Return default parameters if none stored
+    return CitizenParameterFactory.createDefault();
+  }
+
+  /**
+   * Set citizen optimization parameters for a city
+   * @param cityId The city to set parameters for
+   * @param parameters The optimization parameters to set
+   */
+  setCitizenParameters(cityId: string, parameters: any): boolean {
+    const city = this.cities.get(cityId);
+    if (!city) return false;
+
+    // For now, we'll store parameters in the city's governor settings
+    // In the future, we might add a dedicated citizen management config
+    if (!city.governor) {
+      city.governor = {
+        isEnabled: false,
+        priority: GovernorPriority.BALANCED,
+        settings: {
+          autoManageSpecialists: true,
+          autoManageTiles: true,
+          autoManageProduction: false,
+          preventStarvation: true,
+          maintainHappiness: true,
+        },
+      };
+    }
+
+    // Store citizen parameters in a way that doesn't break the interface
+    // We'll extend the governor with additional data for now
+    (city.governor as any).citizenParameters = parameters;
+
+    return true;
   }
 
   // === SERVICE DELEGATION METHODS ===

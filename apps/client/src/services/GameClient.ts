@@ -285,65 +285,8 @@ class GameClient {
       console.log('City founded:', data);
       const { cities } = useGameStore.getState();
       const newCities = { ...cities };
-      newCities[data.city.id] = {
-        id: data.city.id,
-        playerId: data.city.playerId,
-        name: data.city.name,
-        x: data.city.x,
-        y: data.city.y,
-        size: data.city.population || 1,
-        food: 0,
-        shields: 0,
-        trade: 0,
-        prod: {
-          food: 0,
-          shields: 0,
-          trade: 0,
-          gold: 0,
-          luxury: 0,
-          science: 0,
-        },
-        surplus: {
-          food: 0,
-          shields: 0,
-          trade: 0,
-          gold: 0,
-          luxury: 0,
-          science: 0,
-        },
-        waste: {
-          shields: 0,
-          trade: 0,
-        },
-        foodStock: 0,
-        granarySize: (data.city.population || 1) * 2,
-        granaryTurns: 5,
-        citizens: {
-          happy: Math.max(0, (data.city.population || 1) - 2),
-          content: Math.min(2, data.city.population || 1),
-          unhappy: 0,
-          angry: 0,
-          specialists: {},
-        },
-        buildings: [],
-        presentUnits: [],
-        supportedUnits: [],
-        worklist: [
-          { target: 'Warrior', type: 'unit', cost: 10 },
-          { target: 'Granary', type: 'building', cost: 60 },
-        ],
-        production: {
-          target: 'Settler',
-          type: 'unit',
-          progress: 5,
-          cost: 30,
-          turnsToComplete: 5,
-        },
-        tradeRoutes: [],
-        celebrating: false,
-        disorder: false,
-        pollution: 0,
-      };
+      // Use the actual city data sent from the server
+      newCities[data.city.id] = data.city;
       useGameStore.getState().updateGameState({
         cities: newCities,
       });

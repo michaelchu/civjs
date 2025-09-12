@@ -25,9 +25,12 @@ npm run build            # Build all workspaces
 npm run build:client     # Build frontend only
 npm run build:server     # Build backend only
 
-npm run test             # Run all tests
+npm run test             # Run unit tests only (faster)
+npm run test:unit         # Run unit tests for client and server
+npm run test:integration  # Run integration tests (requires database)
+npm run test:all          # Run both unit and integration tests
 npm run test:client      # Test frontend only
-npm run test:server      # Test backend only
+npm run test:server      # Test backend unit tests only
 
 npm run lint             # Lint all workspaces
 npm run lint:fix         # Fix linting issues
@@ -51,6 +54,9 @@ npm run format:check     # Check formatting
 ```bash
 # Use root commands or cd to apps/server
 npm run type-check       # TypeScript type checking
+npm run test:unit        # Unit tests only
+npm run test:integration # Integration tests
+npm run test:integration:watch # Integration tests in watch mode  
 npm run test:watch       # Jest in watch mode
 npm run test:coverage    # Test with coverage
 npm run test:ci          # CI test mode

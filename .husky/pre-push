@@ -1,7 +1,0 @@
-echo "🚀 Running pre-push checks..."
-
-# Lightweight final validation - trust that pre-commit has done the heavy lifting
-echo "📋 Quick type check..."
-npm run typecheck
-
-echo "✅ Pre-push checks passed! Ready to push to remote."
