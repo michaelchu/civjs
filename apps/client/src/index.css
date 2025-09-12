@@ -9,6 +9,8 @@
   --color-civ-sage-light: oklch(0.924 0.012 80.9); /* #e4e8dd */
   --color-civ-sage: oklch(0.878 0.015 80.9); /* #e0d6c9 */
   --color-civ-green: oklch(0.516 0.095 145.7); /* #418845 */
+  --color-civ-yellow: oklch(0.828 0.189 84.429); /* Yellow accent color */
+  --color-civ-yellow-dark: oklch(0.8 0.2 84.429); /* Darker yellow for hover */
   --color-civ-brown: oklch(0.253 0.027 52.9); /* #3e2723 */
   --color-civ-brown-light: oklch(0.45 0.02 52.9); /* Lighter brown for muted text */
 }
@@ -92,6 +94,8 @@ canvas {
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -130,8 +134,10 @@ canvas {
   --chart-1: var(--color-civ-green); /* #418845 */
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-4: var(--color-civ-yellow); /* Use civ yellow */
   --chart-5: oklch(0.769 0.188 70.08);
+  --warning: var(--color-civ-yellow); /* Warning color using civ yellow */
+  --warning-foreground: var(--color-civ-brown); /* Brown text on yellow */
   --sidebar: var(--color-civ-cream-light); /* #fcfaf8 */
   --sidebar-foreground: var(--color-civ-brown); /* #3e2723 */
   --sidebar-primary: var(--color-civ-green); /* #418845 */
