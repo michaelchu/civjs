@@ -51,6 +51,7 @@ export class TurnManager {
   private gameEventService: GameEventService;
   private turnPhaseService: TurnPhaseService;
   private calendarService: CalendarService;
+  private broadcastManager: GameBroadcastManager;
 
   constructor(
     gameId: string,
@@ -83,6 +84,7 @@ export class TurnManager {
     );
     this.turnPacketService = new TurnPacketService(io, gameId);
     this.gameEventService = new GameEventService(gameId, broadcastManager);
+    this.broadcastManager = broadcastManager;
     this.turnPhaseService = new TurnPhaseService(
       gameId,
       this.turnProcessingService,
@@ -152,6 +154,9 @@ export class TurnManager {
 
         // Advance to next turn after successful processing
         await this.advanceToNextTurn();
+
+        // Broadcast updated city data to all players with current production rates
+        this.broadcastManager.broadcastCityData(this.gameId);
       } else {
         logger.error('Turn processing failed', {
           gameId: this.gameId,

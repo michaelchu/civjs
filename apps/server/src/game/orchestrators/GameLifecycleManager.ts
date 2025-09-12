@@ -18,6 +18,7 @@ import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { CityManager } from '@game/managers/CityManager';
 import { EffectsManager } from '@game/managers/EffectsManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
+import { CityDataService } from '@game/services/CityDataService';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { BorderManager } from '@game/managers/BorderManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
@@ -803,6 +804,75 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       },
       broadcastToGame: (gameId: string, event: string, data: any) => {
         this.io.to(`game:${gameId}`).emit(event, data);
+      },
+      broadcastPacketToGame: (gameId: string, packetType: any, data: any) => {
+        this.io.to(`game:${gameId}`).emit('packet', { type: packetType, data });
+      },
+      broadcastMapData: (gameId: string, mapData: any) => {
+        this.io.to(`game:${gameId}`).emit('map_data', mapData);
+      },
+      broadcastCityData: (gameId: string) => {
+        // Get game instance and broadcast real city data if available
+        const gameInstance = this.games.get(gameId);
+        if (gameInstance?.cityManager) {
+          const allCities = gameInstance.cityManager.getAllCities();
+          const clientCityData = CityDataService.transformCitiesForClient(allCities);
+
+          this.io.to(`game:${gameId}`).emit('cities_updated', {
+            gameId,
+            cities: clientCityData,
+            timestamp: Date.now(),
+          });
+        } else {
+          // Fallback to empty cities
+          this.io.to(`game:${gameId}`).emit('cities_updated', {
+            gameId,
+            cities: {},
+            timestamp: Date.now(),
+          });
+        }
+      },
+      broadcastCityDataToPlayer: (gameId: string, playerId: string) => {
+        // Get game instance and broadcast real city data if available
+        const gameInstance = this.games.get(gameId);
+        if (gameInstance?.cityManager) {
+          const allCities = gameInstance.cityManager.getAllCities();
+          const clientCityData = CityDataService.transformCitiesForClient(allCities);
+
+          this.io.to(`player:${playerId}`).emit('cities_updated', {
+            gameId,
+            cities: clientCityData,
+            timestamp: Date.now(),
+          });
+        } else {
+          // Fallback to empty cities
+          this.io.to(`player:${playerId}`).emit('cities_updated', {
+            gameId,
+            cities: {},
+            timestamp: Date.now(),
+          });
+        }
+      },
+      syncGameStateToPlayer: (gameId: string, playerId: string) => {
+        // Sync city data to player
+        const gameInstance = this.games.get(gameId);
+        if (gameInstance?.cityManager) {
+          const allCities = gameInstance.cityManager.getAllCities();
+          const clientCityData = CityDataService.transformCitiesForClient(allCities);
+
+          this.io.to(`player:${playerId}`).emit('cities_updated', {
+            gameId,
+            cities: clientCityData,
+            timestamp: Date.now(),
+          });
+        } else {
+          // Fallback to empty cities
+          this.io.to(`player:${playerId}`).emit('cities_updated', {
+            gameId,
+            cities: {},
+            timestamp: Date.now(),
+          });
+        }
       },
     } as any; // Cast to any to satisfy type requirements temporarily
 

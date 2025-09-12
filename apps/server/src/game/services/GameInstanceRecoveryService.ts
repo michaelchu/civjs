@@ -208,6 +208,36 @@ export class GameInstanceRecoveryService extends BaseGameService {
       broadcastToGame: (gameId: string, event: string, data: any) => {
         this.io.to(`game:${gameId}`).emit(event, data);
       },
+      broadcastPacketToGame: (gameId: string, packetType: any, data: any) => {
+        this.io.to(`game:${gameId}`).emit('packet', { type: packetType, data });
+      },
+      broadcastMapData: (gameId: string, mapData: any) => {
+        this.io.to(`game:${gameId}`).emit('map_data', mapData);
+      },
+      broadcastCityData: (gameId: string) => {
+        // Mock implementation - just emit empty cities for now
+        this.io.to(`game:${gameId}`).emit('cities_updated', {
+          gameId,
+          cities: {},
+          timestamp: Date.now(),
+        });
+      },
+      broadcastCityDataToPlayer: (gameId: string, playerId: string) => {
+        // Mock implementation
+        this.io.to(`player:${playerId}`).emit('cities_updated', {
+          gameId,
+          cities: {},
+          timestamp: Date.now(),
+        });
+      },
+      syncGameStateToPlayer: (gameId: string, playerId: string) => {
+        // Mock implementation - just broadcast empty city data
+        this.io.to(`player:${playerId}`).emit('cities_updated', {
+          gameId,
+          cities: {},
+          timestamp: Date.now(),
+        });
+      },
     } as any; // Cast to any to satisfy type requirements temporarily
 
     // Create TurnManager last with all dependencies

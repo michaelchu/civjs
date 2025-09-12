@@ -208,31 +208,38 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
     return null;
   }
 
-  // Helper functions for backward compatibility and data access
+  // Helper functions for data access with proper fallbacks to calculated values
   const getCityData = () => {
-    // Handle both old and new city data structures
+    // Use server-calculated values when available, otherwise compute sensible fallbacks
     const prod = city.prod || {
-      food: city.food,
-      shields: city.shields,
-      trade: city.trade,
+      food: city.food || 2, // City center base food
+      shields: city.shields || 1, // City center base shields
+      trade: city.trade || 1, // City center base trade
       gold: 0,
       luxury: 0,
-      science: 0,
+      science: Math.max(1, Math.floor((city.trade || 1) / 2)), // Calculate science from trade
     };
 
     const surplus = city.surplus || {
-      food: city.food,
-      shields: city.shields,
-      trade: city.trade,
-      gold: 0,
+      food: prod.food - city.size, // Food surplus = production - population consumption
+      shields: prod.shields, // All shields go to production (no consumption)
+      trade: prod.trade,
+      gold: Math.max(0, prod.trade - prod.science), // Gold = remaining trade after science
       luxury: 0,
-      science: 0,
+      science: prod.science,
     };
 
+    // Calculate realistic citizen happiness based on city size and buildings
+    const happyFromBuildings = Array.isArray(city.buildings)
+      ? city.buildings.filter(b => (typeof b === 'string' ? b === 'temple' : b.id === 'temple'))
+          .length * 2
+      : 0;
+    const baseUnhappy = Math.max(0, city.size - 4); // Cities > size 4 start getting unhappy
+    const actualUnhappy = Math.max(0, baseUnhappy - happyFromBuildings);
     const citizens = city.citizens || {
-      happy: Math.max(0, city.size - 2),
-      content: Math.min(2, city.size),
-      unhappy: 0,
+      happy: Math.min(happyFromBuildings, city.size),
+      content: Math.max(0, city.size - actualUnhappy - Math.min(happyFromBuildings, city.size)),
+      unhappy: actualUnhappy,
       angry: 0,
       specialists: {},
     };
@@ -244,15 +251,25 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
         )
       : [];
 
+    // Calculate granary size and growth time based on food surplus
+    const granarySize = city.granarySize || 10 + (city.size - 1) * 2; // Freeciv formula
+    const foodStock = city.foodStock || 0;
+    const granaryTurns =
+      surplus.food > 0
+        ? Math.ceil((granarySize - foodStock) / surplus.food)
+        : surplus.food < 0
+          ? Math.floor(foodStock / Math.abs(surplus.food)) * -1 // Negative for starvation
+          : city.granaryTurns || 999; // No growth if no surplus
+
     return {
       prod,
       surplus,
       citizens,
       waste,
       buildings,
-      foodStock: city.foodStock || 0,
-      granarySize: city.granarySize || city.size * 2,
-      granaryTurns: city.granaryTurns || 5,
+      foodStock,
+      granarySize,
+      granaryTurns,
       celebrating: city.celebrating || false,
       disorder: city.disorder || false,
       pollution: city.pollution || 0,

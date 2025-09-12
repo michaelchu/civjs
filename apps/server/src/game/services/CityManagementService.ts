@@ -1,5 +1,6 @@
 import { GameInstance } from '@game/managers/GameManager';
 import { BaseGameService } from '@game/orchestrators/GameService';
+import { CityDataService } from '@game/services/CityDataService';
 import { logger } from '@utils/logger';
 import type { CityState } from '@game/managers/CityManager';
 
@@ -62,26 +63,20 @@ export class CityManagementService extends BaseGameService {
       throw new Error('There is already a city at this location');
     }
 
-    const cityId = await gameInstance.cityManager.foundCity(x, y, name, playerId, unit?.id);
+    const cityData = await gameInstance.cityManager.foundCity(x, y, name, playerId, unit?.id);
 
-    if (!cityId) {
+    if (!cityData) {
       throw new Error('Failed to found city');
     }
 
-    // Broadcast city founding to all players
+    // Transform city data for client and broadcast to all players
+    const clientCityData = CityDataService.transformCityForClient(cityData);
     this.broadcastToGame(gameId, 'city_founded', {
       gameId,
-      city: {
-        id: cityId,
-        playerId,
-        name,
-        x,
-        y,
-        population: 1,
-      },
+      city: clientCityData,
     });
 
-    return typeof cityId === 'string' ? cityId : cityId.id;
+    return cityData.id;
   }
 
   /**
@@ -111,13 +106,17 @@ export class CityManagementService extends BaseGameService {
 
     await gameInstance.cityManager.setCityProduction(cityId, type, production, playerId);
 
-    // Broadcast production change to all players
-    this.broadcastToGame(gameId, 'city_production_changed', {
-      gameId,
-      cityId,
-      production,
-      type,
-    });
+    // Get updated city data and broadcast to all players
+    const cityData = gameInstance.cityManager.getCity(cityId);
+    if (cityData) {
+      const clientCityData = CityDataService.transformCityForClient(cityData);
+      this.broadcastToGame(gameId, 'city_production_changed', {
+        gameId,
+        city: clientCityData,
+        production,
+        type,
+      });
+    }
   }
 
   /**

@@ -348,6 +348,17 @@ class GameClient {
         cities: newCities,
       });
     });
+
+    // Handle bulk city data updates with calculated production rates
+    this.socket.on('cities_updated', data => {
+      console.log('Cities updated with production data:', data);
+
+      if (data.cities) {
+        useGameStore.getState().updateGameState({
+          cities: data.cities,
+        });
+      }
+    });
   }
 
   private handlePacket(packet: Packet) {

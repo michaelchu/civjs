@@ -5,6 +5,7 @@
  */
 
 import { BaseGameService } from './GameService';
+import { CityDataService } from '@game/services/CityDataService';
 import { logger } from '@utils/logger';
 import type { Server as SocketServer } from 'socket.io';
 import { PacketType, PACKET_NAMES } from '@app-types/packet';
@@ -14,6 +15,9 @@ export interface BroadcastService {
   broadcastToGame(gameId: string, event: string, data: any): void;
   broadcastPacketToGame(gameId: string, packetType: PacketType, data: any): void;
   broadcastMapData(gameId: string, mapData: any): void;
+  broadcastCityData(gameId: string): void;
+  broadcastCityDataToPlayer(gameId: string, playerId: string): void;
+  syncGameStateToPlayer(gameId: string, playerId: string): void;
 }
 
 export class GameBroadcastManager extends BaseGameService implements BroadcastService {
@@ -345,5 +349,100 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       fortified: unit.fortified || false,
       orders: unit.orders || null,
     };
+  }
+
+  /**
+   * Broadcast all city data to players in a game
+   * Sends cities with calculated production, surplus, and client-ready format
+   */
+  broadcastCityData(gameId: string): void {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) {
+      this.logger.warn('Attempted to broadcast city data to non-existent game', { gameId });
+      return;
+    }
+
+    // Get all cities and transform for client
+    const allCities = gameInstance.cityManager.getAllCities();
+    const clientCityData = CityDataService.transformCitiesForClient(allCities);
+
+    // Broadcast complete city data to all players
+    this.broadcastToGame(gameId, 'cities_updated', {
+      gameId,
+      cities: clientCityData,
+      timestamp: Date.now(),
+    });
+
+    this.logger.debug('Broadcasted city data to game', {
+      gameId,
+      cityCount: allCities.length,
+      playerCount: gameInstance.players.size,
+    });
+  }
+
+  /**
+   * Broadcast city data to a specific player
+   */
+  broadcastCityDataToPlayer(gameId: string, playerId: string): void {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) {
+      this.logger.warn('Attempted to broadcast city data to non-existent game', { gameId });
+      return;
+    }
+
+    // Get cities visible to this player (all cities for now, TODO: implement fog of war)
+    const allCities = gameInstance.cityManager.getAllCities();
+    const visibleCities = allCities.filter(() => {
+      // TODO: Check fog of war visibility based on city
+      return true; // For now, all cities are visible
+    });
+
+    const clientCityData = CityDataService.transformCitiesForClient(visibleCities);
+
+    this.broadcastToPlayer(playerId, 'cities_updated', {
+      gameId,
+      cities: clientCityData,
+      timestamp: Date.now(),
+    });
+
+    this.logger.debug('Broadcasted city data to player', {
+      gameId,
+      playerId,
+      cityCount: visibleCities.length,
+    });
+  }
+
+  /**
+   * Sync complete game state to a player (cities, units, research, etc.)
+   * Called when player joins or reconnects
+   */
+  syncGameStateToPlayer(gameId: string, playerId: string): void {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) {
+      this.logger.warn('Attempted to sync game state to non-existent game', { gameId });
+      return;
+    }
+
+    const player = gameInstance.players.get(playerId);
+    if (!player) {
+      this.logger.warn('Attempted to sync game state to non-existent player', { gameId, playerId });
+      return;
+    }
+
+    // Sync cities with calculated production data
+    this.broadcastCityDataToPlayer(gameId, playerId);
+
+    // TODO: Sync other game state components:
+    // - Units with positions and stats
+    // - Research progress
+    // - Diplomacy status
+    // - Game rules and settings
+    // - Turn information
+
+    this.logger.info('Synchronized complete game state to player', {
+      gameId,
+      playerId,
+      playerName: player.id, // Use player.id since name may not exist
+    });
   }
 }
