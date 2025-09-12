@@ -24,6 +24,7 @@ import { CityGovernorService } from '@game/services/CityGovernorService';
 import { CityCaptureService } from '@game/services/CityCaptureService';
 import { CitizenManagementService } from '@game/systems/CitizenManagement/CitizenManagementService';
 import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
+import { OutputType } from '@game/constants/GameConstants';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 // Following original Freeciv city radius logic
@@ -1544,10 +1545,10 @@ export class CityManager {
         city.specialists = { ...result.specialists };
 
         // Update output calculations based on optimized assignments
-        city.foodPerTurn = result.surplus.food;
-        city.productionPerTurn = result.surplus.shield;
-        city.tradePerTurn = result.surplus.trade;
-        city.sciencePerTurn = result.surplus.science;
+        city.foodPerTurn = result.surplus[OutputType.FOOD];
+        city.productionPerTurn = result.surplus[OutputType.SHIELD];
+        city.tradePerTurn = result.surplus[OutputType.TRADE];
+        city.sciencePerTurn = result.surplus[OutputType.SCIENCE];
 
         logger.debug(`Successfully optimized citizens for city ${city.name}`, {
           cityId,
