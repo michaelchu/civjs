@@ -51,6 +51,17 @@ export enum EffectType {
   OUTPUT_BONUS = 'Output_Bonus',
   OUTPUT_BONUS_2 = 'Output_Bonus_2',
 
+  // Culture system effects (freeciv culture.c and effects_enums.def)
+  PERFORMANCE = 'Performance', // EFT_PERFORMANCE (123) - Immediate culture boost
+  HISTORY = 'History', // EFT_HISTORY (124) - Culture generation per turn
+  NATION_PERFORMANCE = 'National_Performance', // EFT_NATION_PERFORMANCE (125) - National culture boost
+  NATION_HISTORY = 'National_History', // EFT_NATION_HISTORY (126) - National culture generation
+  CULTURE_PCT = 'Culture_Pct', // EFT_CULTURE_PCT (167) - Percentage modifier for culture
+
+  // Border and vision effects related to culture
+  BORDER_VISION = 'Border_Vision', // EFT_BORDER_VISION (136)
+  BORDER_STRENGTH_PCT = 'Border_Strength_Pct', // EFT_BORDER_STRENGTH_PCT (154)
+
   // General effects
   ANY_GOVERNMENT = 'Any_Government',
   NO_ANARCHY = 'No_Anarchy',

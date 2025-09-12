@@ -31,8 +31,10 @@ export const cities = pgTable('cities', {
   // Resources
   goldPerTurn: integer('gold_per_turn').default(0).notNull(),
   sciencePerTurn: integer('science_per_turn').default(0).notNull(),
-  culturePerTurn: integer('culture_per_turn').default(0).notNull(),
   faithPerTurn: integer('faith_per_turn').default(0).notNull(),
+
+  // Culture system (freeciv-based)
+  history: integer('history').default(0).notNull(), // Accumulated culture history
 
   // Buildings
   buildings: jsonb('buildings').default([]).notNull(), // array of building IDs

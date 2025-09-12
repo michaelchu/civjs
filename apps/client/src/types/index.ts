@@ -46,6 +46,8 @@ export interface City {
   food: number;
   shields: number;
   trade: number;
+  // Culture system (freeciv-based)
+  history: number; // Accumulated culture history
   // Production breakdown (total production before usage)
   prod: {
     food: number;
@@ -129,6 +131,8 @@ export interface Player {
   color: string;
   gold: number;
   science: number;
+  // Culture system (freeciv-based)
+  history: number; // National history accumulation
   government: string;
   revolutionTurns?: number;
   isHuman: boolean;

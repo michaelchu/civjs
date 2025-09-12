@@ -24,6 +24,9 @@ export const games = pgTable('games', {
   victoryConditions: jsonb('victory_conditions').default([]).notNull(),
   ruleset: varchar('ruleset', { length: 50 }).default('classic').notNull(),
 
+  // Culture system settings (freeciv-based)
+  historyInterestPml: integer('history_interest_pml').default(0).notNull(), // Per mille interest rate for culture compound growth
+
   // Map data
   mapSeed: varchar('map_seed', { length: 100 }),
   mapData: jsonb('map_data'), // Compressed map data
