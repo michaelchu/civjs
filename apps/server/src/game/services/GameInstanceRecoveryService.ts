@@ -172,10 +172,11 @@ export class GameInstanceRecoveryService extends BaseGameService {
   }> {
     // Create managers in dependency order
     const effectsManager = new EffectsManager();
-    
+
     // BorderNetworkService will be created after BorderManager
-    
+
     // Create CityManager with growth callback that will use BorderManager
+    // eslint-disable-next-line prefer-const
     let borderManager: BorderManager; // Declare first, initialize after managers are created
     const cityManager = new CityManager(gameId, this.databaseProvider, effectsManager, {
       onCityGrowth: (city, oldSize) => {
