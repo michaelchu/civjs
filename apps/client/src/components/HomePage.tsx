@@ -92,35 +92,12 @@ export const HomePage: React.FC = () => {
           <button
             onClick={handleQuickStart}
             disabled={isQuickStarting}
-            className="w-full py-4 px-6 font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-lg"
-            style={{
-              backgroundColor: isQuickStarting
-                ? 'oklch(0.828 0.189 84.429 / 0.5)'
-                : 'oklch(0.828 0.189 84.429)',
-              color: 'var(--color-civ-brown)',
-            }}
-            onMouseEnter={e => {
-              if (!isQuickStarting) {
-                e.currentTarget.style.backgroundColor = 'oklch(0.8 0.2 84.429)';
-              }
-            }}
-            onMouseLeave={e => {
-              if (!isQuickStarting) {
-                e.currentTarget.style.backgroundColor = 'oklch(0.828 0.189 84.429)';
-              }
-            }}
+            className="w-full py-4 px-6 bg-warning hover:bg-warning/90 disabled:bg-warning/50 text-warning-foreground font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-lg"
           >
             <div className="flex items-center justify-center">
               {isQuickStarting ? (
                 <>
-                  <div
-                    className="animate-spin w-5 h-5 mr-2 border-2 rounded-full"
-                    style={{
-                      borderColor: 'var(--color-civ-brown)',
-                      opacity: 0.3,
-                      borderTopColor: 'transparent',
-                    }}
-                  ></div>
+                  <div className="animate-spin w-5 h-5 mr-2 border-2 border-warning-foreground/30 border-t-transparent rounded-full"></div>
                   Creating Game...
                 </>
               ) : (
