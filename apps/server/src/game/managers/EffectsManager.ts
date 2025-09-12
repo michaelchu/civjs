@@ -158,8 +158,16 @@ export class EffectsManager {
     multiplierValue?: number
   ): EffectResult {
     const effects = this.getEffects();
+
+    // Set base values for intrinsic city effects (following Freeciv mechanics)
+    let baseValue = 0;
+    if (effectType === EffectType.HISTORY) {
+      // Every city generates at least 1 culture per turn (base history effect)
+      baseValue = 1;
+    }
+
     const result: EffectResult = {
-      value: 0,
+      value: baseValue,
       effects: [],
     };
 

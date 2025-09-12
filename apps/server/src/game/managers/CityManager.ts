@@ -231,6 +231,9 @@ export interface CityState {
   shieldStock?: number; // Stored shields
   sciencePerTurn?: number;
 
+  // Culture system (freeciv-based)
+  history: number; // Accumulated culture history
+
   // Buildings and specialists
   buildings: string[];
   specialists: Record<SpecialistType, number>;
@@ -554,6 +557,7 @@ export class CityManager {
       productionPerTurn: 1, // Base city center production
       tradePerTurn: 1, // Base city center trade
       sciencePerTurn: 0, // Will be calculated
+      history: 0, // Start with no culture history
       buildings: [],
       specialists: {
         [SpecialistType.SCIENTIST]: 0,
@@ -1033,6 +1037,7 @@ export class CityManager {
           productionPerTurn: record.productionPerTurn || 0,
           tradePerTurn: 0, // Will be calculated from trade routes
           sciencePerTurn: record.sciencePerTurn || 0, // Will be recalculated
+          history: record.history || 0, // Culture history
           productionStock: record.production || 0,
           buildings: (record.buildings as string[]) || [],
           specialists: (record.specialists as Record<SpecialistType, number>) || {
@@ -1096,6 +1101,7 @@ export class CityManager {
         sciencePerTurn: 0, // Will be calculated
         culturePerTurn: 0, // Will be calculated
         faithPerTurn: 0, // Will be calculated
+        history: city.history || 0, // Culture history
         buildings: city.buildings,
         specialists: city.specialists,
         productionQueue: city.worklist,
