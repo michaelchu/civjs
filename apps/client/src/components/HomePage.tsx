@@ -37,7 +37,7 @@ export const HomePage: React.FC = () => {
         playerName: `test-${hash}`,
         gameType: 'single' as const,
         maxPlayers: 4,
-        mapSize: 'standard',
+        mapSize: 'small',
         selectedNation: 'random',
         terrainSettings: {
           generator: 'random',
