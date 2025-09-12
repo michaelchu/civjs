@@ -89,46 +89,6 @@ export class CityManagementService extends BaseGameService {
   }
 
   /**
-   * Set city production type and target
-   * @reference Original GameManager.setCityProduction()
-   */
-  public async setCityProduction(
-    gameId: string,
-    playerId: string,
-    cityId: string,
-    production: string,
-    type: 'unit' | 'building'
-  ): Promise<void> {
-    const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
-      throw new Error('Game not found');
-    }
-
-    const city = gameInstance.cityManager.getCity(cityId);
-    if (!city) {
-      throw new Error('City not found');
-    }
-
-    if (city.playerId !== playerId) {
-      throw new Error('City does not belong to player');
-    }
-
-    await gameInstance.cityManager.setCityProduction(cityId, type, production, playerId);
-
-    // Get updated city data and broadcast to all players
-    const cityData = gameInstance.cityManager.getCity(cityId);
-    if (cityData) {
-      const clientCityData = CityDataService.transformCityForClient(cityData);
-      this.broadcastToGame(gameId, 'city_production_changed', {
-        gameId,
-        city: clientCityData,
-        production,
-        type,
-      });
-    }
-  }
-
-  /**
    * Get all cities owned by a player
    * @reference Original GameManager.getPlayerCities()
    */
@@ -152,6 +112,61 @@ export class CityManagementService extends BaseGameService {
     }
 
     return gameInstance.cityManager.getCity(cityId);
+  }
+
+  /**
+   * Set city production to a specific unit or building
+   * @reference freeciv-web city.js send_city_change() and city_change_production()
+   */
+  public async setCityProduction(
+    gameId: string,
+    playerId: string,
+    cityId: string,
+    production: string,
+    type: 'unit' | 'building' | 'wonder'
+  ): Promise<void> {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) {
+      throw new Error('Game not found');
+    }
+
+    const city = gameInstance.cityManager.getCity(cityId);
+    if (!city) {
+      throw new Error('City not found');
+    }
+
+    if (city.playerId !== playerId) {
+      throw new Error('City does not belong to player');
+    }
+
+    // Validate that the city can build this production
+    const canBuild = await gameInstance.cityManager.canCityBuild(cityId, production, type);
+    if (!canBuild) {
+      throw new Error(`City cannot build ${type} '${production}'`);
+    }
+
+    // Set the city production using CityManager
+    await gameInstance.cityManager.setCityProduction(cityId, production, type);
+
+    // Broadcast production change to all players
+    this.broadcastToGame(gameId, 'city_production_changed', {
+      gameId,
+      cityId,
+      playerId,
+      production,
+      type,
+      progress: city.shieldStock || 0,
+      timestamp: Date.now(),
+    });
+
+    logger.info('City production changed', {
+      gameId,
+      cityId,
+      playerId,
+      production,
+      type,
+      cityName: city.name,
+    });
   }
 
   /**

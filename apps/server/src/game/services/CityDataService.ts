@@ -149,11 +149,16 @@ export class CityDataService {
     };
 
     // Transform buildings to client format with proper upkeep
-    const buildings = city.buildings.map(buildingId => ({
-      id: buildingId,
-      name: this.getBuildingDisplayName(buildingId),
-      upkeep: this.getBuildingUpkeep(buildingId),
-    }));
+    const buildings: { id: string; name: string; upkeep: number }[] = city.buildings.map(
+      building => {
+        const buildingId = typeof building === 'string' ? building : building.id;
+        return {
+          id: buildingId,
+          name: this.getBuildingDisplayName(buildingId),
+          upkeep: this.getBuildingUpkeep(buildingId),
+        };
+      }
+    );
 
     // Use actual happiness data from city state
     const citizens = {

@@ -428,7 +428,7 @@ export class TurnProcessingService {
     }
 
     // Execute production change through CityManager
-    await this.cityManager.setCityProduction(cityId, type, production, playerId);
+    await this.cityManager.setCityProduction(cityId, production, type);
 
     logger.debug('Processed city production change', {
       gameId: this.gameId,

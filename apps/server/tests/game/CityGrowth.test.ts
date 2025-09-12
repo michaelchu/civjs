@@ -70,7 +70,7 @@ describe('City Population Growth', () => {
       city.foodStock = 19; // One turn away from growth
 
       // Call processFoodAndGrowth directly to test the core logic
-      await cityManager['processFoodAndGrowth'](city, 1);
+      await cityManager.processCityTurn(city.id, 1);
 
       // Should grow immediately because:
       // newFoodStock = 19 + 3 = 22 >= granarySize (20)
@@ -88,7 +88,7 @@ describe('City Population Growth', () => {
       city.foodStock = 19; // Almost full granary
 
       // Process one turn
-      await cityManager['processFoodAndGrowth'](city, 1);
+      await cityManager.processCityTurn(city.id, 1);
 
       // Should not grow because foodSurplus (0) is not > 0
       // newFoodStock = 19 + 0 = 19, but foodSurplus (0) is not > 0
@@ -109,17 +109,17 @@ describe('City Population Growth', () => {
 
       // Process food and growth directly to test starvation logic
       // Turn 1: foodStock = 5 + (-2) = 3
-      await cityManager['processFoodAndGrowth'](city, 1);
+      await cityManager.processCityTurn(city.id, 1);
       expect(city.population).toBe(2);
       expect(city.foodStock).toBe(3);
 
       // Turn 2: foodStock = 3 + (-2) = 1
-      await cityManager['processFoodAndGrowth'](city, 2);
+      await cityManager.processCityTurn(city.id, 2);
       expect(city.population).toBe(2);
       expect(city.foodStock).toBe(1);
 
       // Turn 3: foodStock = 1 + (-2) = -1, should trigger starvation
-      await cityManager['processFoodAndGrowth'](city, 3);
+      await cityManager.processCityTurn(city.id, 3);
       expect(city.population).toBe(1);
       expect(city.size).toBe(1);
       expect(city.foodStock).toBe(0); // Should be reset to 0 after starvation
@@ -136,7 +136,7 @@ describe('City Population Growth', () => {
       // Should grow in 20/3 ≈ 7 turns (ceiling)
       // Process food and growth directly to test the math
       for (let turn = 1; turn <= 7; turn++) {
-        await cityManager['processFoodAndGrowth'](city, turn);
+        await cityManager.processCityTurn(city.id, turn);
 
         if (turn < 7) {
           expect(city.population).toBe(1);
@@ -159,7 +159,7 @@ describe('City Population Growth', () => {
       // Should eventually grow but take 200 turns
       // Let's test first 50 turns to ensure no premature growth
       for (let turn = 1; turn <= 50; turn++) {
-        await cityManager['processFoodAndGrowth'](city, turn);
+        await cityManager.processCityTurn(city.id, turn);
 
         // Should still be growing slowly
         expect(city.population).toBe(1);
@@ -175,7 +175,7 @@ describe('City Population Growth', () => {
       city.foodStock = 19; // One away from threshold
 
       // Process one turn
-      await cityManager['processFoodAndGrowth'](city, 1);
+      await cityManager.processCityTurn(city.id, 1);
 
       // Should grow because foodStock (20) >= granarySize (20) AND foodSurplus (1) > 0
       expect(city.population).toBe(2);
@@ -190,7 +190,7 @@ describe('City Population Growth', () => {
       city.foodStock = 20; // Full granary
 
       // Call growth logic directly
-      await cityManager['processFoodAndGrowth'](city, 1);
+      await cityManager.processCityTurn(city.id, 1);
 
       // Should NOT grow because foodSurplus (0) is not > 0
       expect(city.population).toBe(1);

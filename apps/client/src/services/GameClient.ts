@@ -834,6 +834,89 @@ class GameClient {
     this.socket.emit('packet', packet);
   }
 
+  /**
+   * Change city production
+   * @reference freeciv-web city.js send_city_change()
+   */
+  async changeCityProduction(
+    cityId: string,
+    production: string,
+    type: 'unit' | 'building' | 'wonder'
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Socket not connected'));
+        return;
+      }
+
+      const packet: Packet = {
+        type: PacketType.CITY_PRODUCTION_CHANGE,
+        data: {
+          cityId,
+          production,
+          type,
+        },
+        timestamp: Date.now(),
+      };
+
+      // Set up a one-time listener for the reply
+      const handleReply = (replyPacket: Packet) => {
+        if (replyPacket.type === PacketType.CITY_PRODUCTION_CHANGE_REPLY && replyPacket.data) {
+          this.socket?.off('packet', handleReply);
+          if (replyPacket.data.success) {
+            resolve();
+          } else {
+            reject(new Error(replyPacket.data.message || 'Failed to change city production'));
+          }
+        }
+      };
+
+      this.socket.on('packet', handleReply);
+
+      // Set timeout
+      setTimeout(() => {
+        this.socket?.off('packet', handleReply);
+        reject(new Error('City production change request timed out'));
+      }, 5000);
+
+      this.socket.emit('packet', packet);
+    });
+  }
+
+  /**
+   * Add item to city production queue (worklist)
+   * @reference freeciv-web city.js send_city_worklist_add()
+   */
+  async addToCityQueue(
+    cityId: string,
+    production: string,
+    type: 'unit' | 'building' | 'wonder'
+  ): Promise<void> {
+    // TODO: Implement when CITY_WORKLIST packet is added to the system
+    console.log('Adding to city queue:', { cityId, production, type });
+    throw new Error('City queue management not yet implemented');
+  }
+
+  /**
+   * Remove item from city production queue
+   * @reference freeciv-web city.js send_city_worklist()
+   */
+  async removeFromCityQueue(cityId: string, index: number): Promise<void> {
+    // TODO: Implement when CITY_WORKLIST packet is added to the system
+    console.log('Removing from city queue:', { cityId, index });
+    throw new Error('City queue management not yet implemented');
+  }
+
+  /**
+   * Reorder items in city production queue
+   * @reference freeciv-web city.js send_city_worklist()
+   */
+  async reorderCityQueue(cityId: string, fromIndex: number, toIndex: number): Promise<void> {
+    // TODO: Implement when CITY_WORKLIST packet is added to the system
+    console.log('Reordering city queue:', { cityId, fromIndex, toIndex });
+    throw new Error('City queue management not yet implemented');
+  }
+
   async getMapData(): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.socket) {

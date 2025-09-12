@@ -204,14 +204,7 @@ describe('CityManager', () => {
     });
 
     it('should set city production', async () => {
-      const success = await cityManager.setCityProduction(
-        city.id,
-        'building',
-        'granary',
-        'player-123'
-      );
-
-      expect(success).toBe(true);
+      await cityManager.setCityProduction(city.id, 'granary', 'building');
       const updatedCity = cityManager.getCity(city.id);
       expect(updatedCity!.currentProduction).toBe('granary');
       expect(updatedCity!.productionType).toBe('building');

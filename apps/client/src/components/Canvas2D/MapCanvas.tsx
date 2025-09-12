@@ -1364,21 +1364,45 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         isOpen={cityInfoOverlay.isOpen}
         onClose={handleCloseCityInfoOverlay}
         units={units}
-        onProductionChange={(cityId, productionId, type) => {
-          console.log('Production change:', { cityId, productionId, type });
-          // TODO: Implement production change action
+        onProductionChange={async (cityId, productionId, type) => {
+          try {
+            console.log('Changing city production:', { cityId, productionId, type });
+            await gameClient.changeCityProduction(cityId, productionId, type);
+            console.log('City production changed successfully');
+          } catch (error) {
+            console.error('Failed to change city production:', error);
+            // TODO: Show error message to user in UI
+          }
         }}
-        onQueueAdd={(cityId, productionId, type) => {
-          console.log('Queue add:', { cityId, productionId, type });
-          // TODO: Implement queue add action
+        onQueueAdd={async (cityId, productionId, type) => {
+          try {
+            console.log('Adding to city queue:', { cityId, productionId, type });
+            await gameClient.addToCityQueue(cityId, productionId, type);
+            console.log('Added to city queue successfully');
+          } catch (error) {
+            console.error('Failed to add to city queue:', error);
+            // Note: This will show the "not yet implemented" error for now
+          }
         }}
-        onQueueRemove={(cityId, index) => {
-          console.log('Queue remove:', { cityId, index });
-          // TODO: Implement queue remove action
+        onQueueRemove={async (cityId, index) => {
+          try {
+            console.log('Removing from city queue:', { cityId, index });
+            await gameClient.removeFromCityQueue(cityId, index);
+            console.log('Removed from city queue successfully');
+          } catch (error) {
+            console.error('Failed to remove from city queue:', error);
+            // Note: This will show the "not yet implemented" error for now
+          }
         }}
-        onQueueReorder={(cityId, fromIndex, toIndex) => {
-          console.log('Queue reorder:', { cityId, fromIndex, toIndex });
-          // TODO: Implement queue reorder action
+        onQueueReorder={async (cityId, fromIndex, toIndex) => {
+          try {
+            console.log('Reordering city queue:', { cityId, fromIndex, toIndex });
+            await gameClient.reorderCityQueue(cityId, fromIndex, toIndex);
+            console.log('Reordered city queue successfully');
+          } catch (error) {
+            console.error('Failed to reorder city queue:', error);
+            // Note: This will show the "not yet implemented" error for now
+          }
         }}
       />
     </div>

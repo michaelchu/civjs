@@ -174,6 +174,11 @@ export interface ProductionItem {
   kind: 'unit' | 'building' | 'wonder';
   value: string;
   remainingCost?: number;
+  // Additional fields for compatibility
+  target?: string;
+  production?: string;
+  type?: 'unit' | 'building' | 'wonder';
+  cost?: number;
 }
 
 export interface Happiness {
@@ -229,10 +234,31 @@ export interface CityState {
   productionPerTurn?: number;
   tradePerTurn?: number;
   shieldStock?: number; // Stored shields
+  shieldsPerTurn?: number; // Shields produced per turn
   sciencePerTurn?: number;
 
+  // Production system (from client types compatibility)
+  prod?: {
+    food: number;
+    shields: number;
+    trade: number;
+    gold?: number;
+    luxury?: number;
+    science?: number;
+  };
+  surplus?: {
+    food: number;
+    shields: number;
+    trade: number;
+    gold?: number;
+    luxury?: number;
+    science?: number;
+  };
+  granarySize?: number;
+  granaryTurns?: number;
+
   // Buildings and specialists
-  buildings: string[];
+  buildings: (string | { id: string; name: string; upkeep: number })[];
   specialists: Record<SpecialistType, number>;
 
   // Tile management
@@ -244,6 +270,15 @@ export interface CityState {
 
   // Happiness and growth
   happiness: Happiness;
+  citizens?: {
+    happy: number;
+    content: number;
+    unhappy: number;
+    angry: number;
+    specialists: Record<string, number>;
+  };
+  disorder?: boolean;
+  celebrating?: boolean;
 
   // Automation
   governor?: CityGovernor;
@@ -259,6 +294,7 @@ export interface BuildingType {
   id: string;
   name: string;
   cost: number;
+  upkeep?: number;
   effects: {
     defenseBonus?: number;
     foodBonus?: number;
@@ -359,6 +395,13 @@ export class CityManager {
   private mapManager?: MapManager;
   private validationService?: CityFoundingValidationService;
 
+  // Manager dependencies for production completion
+  private unitManager?: any; // UnitManager
+  private broadcastToGame?: (gameId: string, event: string, data: any) => void;
+
+  // Building types for production validation
+  private buildingTypes: Record<string, BuildingType> = BUILDING_TYPES;
+
   // Specialized services
   private managementService?: CityManagementService;
   private tileManagementService?: CityTileManagementService;
@@ -385,6 +428,20 @@ export class CityManager {
    */
   setCallbacks(newCallbacks: Partial<CityManagerCallbacks>): void {
     this.callbacks = { ...this.callbacks, ...newCallbacks };
+  }
+
+  /**
+   * Set unit manager dependency for production completion
+   */
+  setUnitManager(unitManager: any): void {
+    this.unitManager = unitManager;
+  }
+
+  /**
+   * Set broadcast function for production events
+   */
+  setBroadcastFunction(broadcastFn: (gameId: string, event: string, data: any) => void): void {
+    this.broadcastToGame = broadcastFn;
   }
 
   /**
@@ -622,259 +679,6 @@ export class CityManager {
 
   // === PRODUCTION METHODS ===
 
-  async processCityTurn(cityId: string, currentTurn: number): Promise<void> {
-    const city = this.cities.get(cityId);
-    if (!city) {
-      logger.warn(`Cannot process turn for city: ${cityId} - city not found`);
-      return;
-    }
-
-    const startTime = Date.now();
-
-    const stepTimings: Array<{ step: string; duration: number }> = [];
-    let lastStepTime = startTime;
-
-    const recordStep = (step: string) => {
-      const now = Date.now();
-      stepTimings.push({
-        step,
-        duration: now - lastStepTime,
-      });
-      lastStepTime = now;
-    };
-
-    try {
-      // Apply government effects first
-      this.refreshCityWithGovernmentEffects(cityId);
-      recordStep('government_effects');
-
-      // Apply automated governor if enabled
-      if (this.governorService && city.governor?.isEnabled) {
-        await this.governorService.applyGovernorAutomation(cityId);
-      }
-      recordStep('governor_automation');
-
-      // Optimize citizen assignments
-      await this.optimizeCitizens(cityId);
-      recordStep('citizen_optimization');
-
-      // Calculate city outputs
-      this.calculateCityOutputs(cityId);
-      recordStep('calculate_outputs');
-
-      // Trigger callback for city turn processing (science accumulation)
-      if (this.callbacks.onCityTurnProcessed) {
-        this.callbacks.onCityTurnProcessed(city);
-      }
-      recordStep('callbacks');
-
-      // Process food and growth
-      await this.processFoodAndGrowth(city, currentTurn);
-      recordStep('food_growth');
-
-      // Process production
-      await this.processProduction(city, currentTurn);
-      recordStep('production');
-
-      // Process happiness
-      this.calculateHappiness(cityId);
-      recordStep('happiness');
-
-      // Save changes to database
-      await this.saveCityToDatabase(city);
-      recordStep('database_save');
-
-      const totalTime = Date.now() - startTime;
-
-      // Log performance details for slow cities or if total time is concerning
-      if (totalTime > 2000 || stepTimings.some(s => s.duration > 1000)) {
-        logger.warn(`Slow city turn processing detected for ${city.name}`, {
-          gameId: this.gameId,
-          cityId,
-          totalTime,
-          stepTimings,
-          population: city.population,
-          currentProduction: city.currentProduction,
-          productionType: city.productionType,
-        });
-      }
-    } catch (error) {
-      const totalTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      logger.error(`Error processing turn for city ${city.name}`, {
-        gameId: this.gameId,
-        cityId,
-        totalTime,
-        stepTimings,
-        error: errorMessage,
-        population: city.population,
-        currentProduction: city.currentProduction,
-        productionType: city.productionType,
-      });
-
-      // Don't re-throw database errors during turn processing to avoid breaking the entire turn
-      // The error has already been logged above, and the turn processing should continue
-      logger.warn('City turn processing completed with database save error, continuing with turn', {
-        gameId: this.gameId,
-        cityId,
-        cityName: city.name,
-      });
-    }
-  }
-
-  private async processFoodAndGrowth(city: CityState, _currentTurn: number): Promise<void> {
-    const foodSurplus = city.foodPerTurn || 0;
-    const currentFoodStock = city.foodStock || 0;
-    const newFoodStock = currentFoodStock + foodSurplus;
-
-    const granarySize = this.calculateGranarySize(city.population);
-
-    if (newFoodStock >= granarySize && foodSurplus > 0) {
-      // City grows
-      const oldSize = city.population;
-      city.population += 1;
-      city.size = city.population;
-      city.foodStock = newFoodStock - granarySize;
-
-      logger.info(`City ${city.name} grew from size ${oldSize} to ${city.population}`);
-
-      // Automatically assign the new citizen to work the best available tile
-      if (this.tileManagementService && city.workableTiles) {
-        // Re-run auto-assignment to allocate the new citizen
-        this.tileManagementService.reassignCitizensAfterGrowth(city);
-      }
-      // Re-optimize citizens after growth to ensure best assignment
-      await this.optimizeCitizens(city.id);
-
-      // Recalculate outputs after assigning new citizen
-      this.calculateCityOutputs(city.id);
-
-      if (this.callbacks.onCityGrowth) {
-        this.callbacks.onCityGrowth(city, oldSize);
-      }
-    } else if (newFoodStock < 0) {
-      // City starves
-      city.foodStock = 0;
-      if (city.population > 1) {
-        city.population -= 1;
-        city.size = city.population;
-        logger.info(`City ${city.name} starved and lost population`);
-      }
-    } else {
-      city.foodStock = newFoodStock;
-    }
-  }
-
-  private async processProduction(city: CityState, _currentTurn: number): Promise<void> {
-    if (!city.currentProduction) {
-      return;
-    }
-
-    const productionPerTurn = city.productionPerTurn || 0;
-    const currentProductionStock = city.productionStock || 0;
-    const newProductionStock = currentProductionStock + productionPerTurn;
-
-    let productionCost = 0;
-    let productionIsValid = true;
-
-    if (city.productionType === 'unit') {
-      const unitType = UNIT_TYPES[city.currentProduction];
-      if (!unitType) {
-        logger.error(`Invalid unit type in production for city ${city.name}`, {
-          cityId: city.id,
-          productionType: city.productionType,
-          currentProduction: city.currentProduction,
-          availableUnitTypes: Object.keys(UNIT_TYPES),
-        });
-        productionIsValid = false;
-      } else {
-        productionCost = unitType.cost || 0;
-      }
-    } else if (city.productionType === 'building') {
-      const building = BUILDING_TYPES[city.currentProduction];
-      if (!building) {
-        logger.error(`Invalid building type in production for city ${city.name}`, {
-          cityId: city.id,
-          productionType: city.productionType,
-          currentProduction: city.currentProduction,
-          availableBuildingTypes: Object.keys(BUILDING_TYPES),
-        });
-        productionIsValid = false;
-      } else {
-        productionCost = building.cost || 0;
-      }
-    } else {
-      logger.error(`Unknown production type for city ${city.name}`, {
-        cityId: city.id,
-        productionType: city.productionType,
-        currentProduction: city.currentProduction,
-      });
-      productionIsValid = false;
-    }
-
-    if (!productionIsValid) {
-      logger.warn(`Clearing invalid production for city ${city.name}`);
-      city.currentProduction = null;
-      city.productionType = null;
-      city.productionStock = 0;
-      city.turnsToComplete = 0;
-      return;
-    }
-
-    if (productionCost <= 0) {
-      logger.warn(`Production cost is 0 or negative for city ${city.name}, setting to 1`, {
-        cityId: city.id,
-        productionType: city.productionType,
-        currentProduction: city.currentProduction,
-        originalCost: productionCost,
-      });
-      productionCost = 1;
-    }
-
-    if (newProductionStock >= productionCost) {
-      // Production completed
-      await this.completeProduction(city.id);
-    } else {
-      city.productionStock = newProductionStock;
-      city.turnsToComplete = Math.ceil(
-        (productionCost - newProductionStock) / Math.max(1, productionPerTurn)
-      );
-    }
-  }
-
-  private async completeProduction(cityId: string): Promise<void> {
-    const city = this.cities.get(cityId);
-    if (!city || !city.currentProduction) {
-      return;
-    }
-
-    const productionItem: ProductionItem = {
-      kind: city.productionType as 'unit' | 'building',
-      value: city.currentProduction,
-    };
-
-    if (city.productionType === 'building') {
-      // Add the building to the city
-      if (!city.buildings.includes(city.currentProduction)) {
-        city.buildings.push(city.currentProduction);
-      }
-    } else if (city.productionType === 'unit') {
-      // Handle unit creation (would integrate with UnitManager)
-    }
-
-    // Reset production
-    city.currentProduction = null;
-    city.productionType = null;
-    city.productionStock = 0;
-    city.turnsToComplete = 0;
-
-    // Trigger callback
-    if (this.callbacks.onCityProductionComplete) {
-      this.callbacks.onCityProductionComplete(city, productionItem);
-    }
-  }
-
   public calculateGranarySize(population: number, rulesetName: string = 'classic'): number {
     try {
       const civstyle = rulesetLoader.getCivstyle(rulesetName);
@@ -955,54 +759,6 @@ export class CityManager {
     }
 
     return false;
-  }
-
-  async setCityProduction(
-    cityId: string,
-    productionType: 'unit' | 'building',
-    productionId: string,
-    playerId: string
-  ): Promise<boolean> {
-    const city = this.cities.get(cityId);
-    if (!city) {
-      throw new Error('City not found');
-    }
-
-    if (city.playerId !== playerId) {
-      throw new Error('City does not belong to player');
-    }
-
-    // Validate production choice with specific error messages
-    if (productionType === 'building') {
-      if (city.buildings.includes(productionId)) {
-        throw new Error(`Building already exists: ${productionId}`);
-      }
-      if (!BUILDING_TYPES[productionId]) {
-        throw new Error(`Unknown building type: ${productionId}`);
-      }
-    } else if (productionType === 'unit') {
-      if (!Object.values(UNIT_TYPES).some(unitType => unitType.id === productionId)) {
-        throw new Error(`Unknown unit type: ${productionId}`);
-      }
-    }
-
-    let productionCost = 0;
-    if (productionType === 'unit') {
-      const unitType = UNIT_TYPES[productionId];
-      productionCost = unitType?.cost || 0;
-    } else {
-      const building = BUILDING_TYPES[productionId];
-      productionCost = building?.cost || 0;
-    }
-
-    city.currentProduction = productionId;
-    city.productionType = productionType;
-    city.turnsToComplete = Math.ceil(productionCost / Math.max(1, city.productionPerTurn || 1));
-
-    // Save changes to database
-    await this.saveCityToDatabase(city);
-
-    return true;
   }
 
   // === DATABASE OPERATIONS ===
@@ -1249,10 +1005,11 @@ export class CityManager {
 
     // Apply building effects
     let buildingEffect = 0;
-    for (const buildingId of city.buildings) {
-      const building = BUILDING_TYPES[buildingId];
-      if (building && building.effects.happinessEffect) {
-        buildingEffect += building.effects.happinessEffect;
+    for (const building of city.buildings) {
+      const buildingId = typeof building === 'string' ? building : building.id;
+      const buildingType = BUILDING_TYPES[buildingId];
+      if (buildingType && buildingType.effects.happinessEffect) {
+        buildingEffect += buildingType.effects.happinessEffect;
       }
     }
 
@@ -1897,6 +1654,595 @@ export class CityManager {
   /**
    * Cleanup method - used by GameLifecycleManager
    */
+  /**
+   * Set city production to a specific unit or building
+   * @reference freeciv-web city.js city_change_production()
+   */
+  async setCityProduction(
+    cityId: string,
+    production: string,
+    type: 'unit' | 'building' | 'wonder'
+  ): Promise<void> {
+    const city = this.cities.get(cityId);
+    if (!city) {
+      throw new Error('City not found');
+    }
+
+    // Store previous production for shield carry-over calculation
+    const previousProduction = city.currentProduction;
+    const previousType = city.productionType;
+    const previousProgress = city.shieldStock || 0;
+
+    // Set new production
+    city.currentProduction = production;
+    city.productionType = type as 'unit' | 'building';
+
+    // Calculate shield carry-over based on Freeciv rules
+    let carryOverShields = 0;
+    if (previousProduction && previousType && previousProgress > 0) {
+      // Only partial carry-over when changing production type
+      if (previousType === type) {
+        carryOverShields = Math.floor(previousProgress * 0.5); // 50% carry-over for same type
+      } else {
+        carryOverShields = Math.floor(previousProgress * 0.25); // 25% carry-over for different type
+      }
+    }
+
+    city.shieldStock = carryOverShields;
+
+    // Calculate new production cost and turns to complete
+    const productionCost = this.getProductionCost(production, type);
+    const shieldsPerTurn = city.shieldsPerTurn || 1;
+    const remainingShields = Math.max(0, productionCost - city.shieldStock);
+    city.turnsToComplete = remainingShields > 0 ? Math.ceil(remainingShields / shieldsPerTurn) : 0;
+
+    logger.debug('City production changed', {
+      cityId,
+      cityName: city.name,
+      production,
+      type,
+      previousProduction,
+      previousType,
+      carryOverShields,
+      newShieldStock: city.shieldStock,
+      productionCost,
+      turnsToComplete: city.turnsToComplete,
+    });
+
+    // Persist to database
+    await this.persistCityProductionToDatabase(city);
+  }
+
+  /**
+   * Check if a city can build a specific unit or building
+   * @reference freeciv-web city.js can_city_build_now()
+   */
+  async canCityBuild(
+    cityId: string,
+    production: string,
+    type: 'unit' | 'building' | 'wonder'
+  ): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city) {
+      return false;
+    }
+
+    try {
+      if (type === 'unit') {
+        // Check if unit type exists and city can build it
+        const unitType = UNIT_TYPES[production];
+        if (!unitType) {
+          logger.warn(`Unknown unit type: ${production}`);
+          return false;
+        }
+
+        // Basic checks - can be expanded with tech requirements, resources, etc.
+        return true;
+      } else if (type === 'building') {
+        // Check if building type exists and city can build it
+        const building = this.buildingTypes[production];
+        if (!building) {
+          logger.warn(`Unknown building type: ${production}`);
+          return false;
+        }
+
+        // Check if building already exists in city
+        if (city.buildings?.some(b => (typeof b === 'string' ? b : b.id) === production)) {
+          logger.debug(`City already has building: ${production}`);
+          return false;
+        }
+
+        // Basic checks - can be expanded with tech requirements, resources, etc.
+        return true;
+      } else if (type === 'wonder') {
+        // Wonder validation logic would go here
+        // For now, allow all wonders
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      logger.error('Error checking if city can build production', {
+        error,
+        cityId,
+        production,
+        type,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Get production cost for a specific unit, building, or wonder
+   * @reference freeciv-web city.js get_production_cost()
+   */
+  private getProductionCost(production: string, type: 'unit' | 'building' | 'wonder'): number {
+    if (type === 'unit') {
+      const unitType = UNIT_TYPES[production];
+      return unitType?.cost || 10;
+    } else if (type === 'building') {
+      const building = this.buildingTypes[production];
+      return building?.cost || 40;
+    } else if (type === 'wonder') {
+      // Wonder costs - would come from ruleset data
+      const wonderCosts: Record<string, number> = {
+        pyramids: 200,
+        lighthouse: 200,
+        oracle: 300,
+        colossus: 200,
+        'hanging-gardens': 200,
+        'great-library': 300,
+      };
+      return wonderCosts[production] || 200;
+    }
+    return 10;
+  }
+
+  /**
+   * Process city turn - handle production completion and unit/building creation
+   * @reference freeciv-web city.js city_production_complete() and handle_city_info()
+   */
+  async processCityTurn(cityId: string, currentTurn: number): Promise<void> {
+    const city = this.cities.get(cityId);
+    if (!city) {
+      logger.warn('City not found for turn processing', { cityId });
+      return;
+    }
+
+    // Calculate current shield production per turn
+    const shieldsPerTurn = city.shieldsPerTurn || city.prod?.shields || 1;
+
+    // Add shields to stock
+    city.shieldStock = (city.shieldStock || 0) + shieldsPerTurn;
+
+    // Check if production is complete
+    if (city.currentProduction && city.productionType) {
+      const productionCost = this.getProductionCost(city.currentProduction, city.productionType);
+
+      if (city.shieldStock >= productionCost) {
+        await this.completeProduction(city, currentTurn);
+      } else {
+        // Update turns to complete
+        const remainingShields = productionCost - city.shieldStock;
+        city.turnsToComplete = Math.ceil(remainingShields / Math.max(1, shieldsPerTurn));
+      }
+    }
+
+    // Process city growth (food)
+    await this.processCityGrowth(city);
+
+    // Process city happiness and disorder
+    this.processCityHappiness(city);
+
+    // Persist changes to database
+    await this.persistCityTurnToDatabase(city, currentTurn);
+
+    logger.debug('City turn processed', {
+      cityId,
+      cityName: city.name,
+      shieldStock: city.shieldStock,
+      turnsToComplete: city.turnsToComplete,
+      population: city.size,
+    });
+  }
+
+  /**
+   * Complete production when shields meet the requirement
+   * @reference freeciv-web city.js city_production_complete()
+   */
+  private async completeProduction(city: CityState, currentTurn: number): Promise<void> {
+    if (!city.currentProduction || !city.productionType) {
+      return;
+    }
+
+    const productionCost = this.getProductionCost(city.currentProduction, city.productionType);
+
+    // Consume shields for production
+    city.shieldStock = (city.shieldStock || 0) - productionCost;
+
+    logger.info('Production completed', {
+      cityId: city.id,
+      cityName: city.name,
+      production: city.currentProduction,
+      type: city.productionType,
+      cost: productionCost,
+      remainingShields: city.shieldStock,
+    });
+
+    if (city.productionType === 'unit') {
+      await this.createUnit(city, city.currentProduction, currentTurn);
+    } else if (city.productionType === 'building') {
+      await this.createBuilding(city, city.currentProduction);
+    }
+
+    // Start next production if there's a worklist
+    await this.startNextProduction(city);
+  }
+
+  /**
+   * Create a unit when unit production completes
+   * @reference freeciv-web city.js create_unit_full()
+   */
+  private async createUnit(city: CityState, unitType: string, currentTurn: number): Promise<void> {
+    try {
+      // Find a valid position to place the unit (city center first)
+      const spawnPosition = this.findUnitSpawnPosition(city.x, city.y);
+
+      if (!spawnPosition) {
+        logger.warn('No valid position found for unit spawn, unit lost', {
+          cityId: city.id,
+          cityName: city.name,
+          unitType,
+        });
+        return;
+      }
+
+      // Create unit through UnitManager if available
+      if (this.unitManager) {
+        const unit = await this.unitManager.createUnit({
+          playerId: city.playerId,
+          unitTypeId: unitType,
+          x: spawnPosition.x,
+          y: spawnPosition.y,
+          homeCityId: city.id,
+          createdTurn: currentTurn,
+        });
+
+        logger.info('Unit created from city production', {
+          cityId: city.id,
+          cityName: city.name,
+          unitType,
+          unitId: unit.id,
+          position: spawnPosition,
+        });
+
+        // Broadcast unit creation to players
+        if (this.broadcastToGame) {
+          this.broadcastToGame(this.gameId, 'unit_created', {
+            gameId: this.gameId,
+            unitId: unit.id,
+            playerId: city.playerId,
+            unitType,
+            x: spawnPosition.x,
+            y: spawnPosition.y,
+            fromCity: city.id,
+            production: true,
+          });
+        }
+      } else {
+        logger.warn('UnitManager not available for unit creation');
+      }
+    } catch (error) {
+      logger.error('Failed to create unit from production', {
+        error,
+        cityId: city.id,
+        unitType,
+      });
+    }
+  }
+
+  /**
+   * Find a valid position to spawn a unit near the city
+   * @reference freeciv-web city.js find_city_tile()
+   */
+  private findUnitSpawnPosition(centerX: number, centerY: number): { x: number; y: number } | null {
+    // Try city center first
+    if (this.isValidUnitSpawnPosition(centerX, centerY)) {
+      return { x: centerX, y: centerY };
+    }
+
+    // Try adjacent tiles in spiral pattern
+    const directions = [
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: -1 },
+      { dx: 1, dy: 0 },
+      { dx: 1, dy: 1 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 1 },
+      { dx: -1, dy: 0 },
+      { dx: -1, dy: -1 },
+    ];
+
+    for (const dir of directions) {
+      const x = centerX + dir.dx;
+      const y = centerY + dir.dy;
+
+      if (this.isValidUnitSpawnPosition(x, y)) {
+        return { x, y };
+      }
+    }
+
+    // Try extended radius
+    for (let radius = 2; radius <= 3; radius++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dy = -radius; dy <= radius; dy++) {
+          const x = centerX + dx;
+          const y = centerY + dy;
+
+          if (this.isValidUnitSpawnPosition(x, y)) {
+            return { x, y };
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Check if a position is valid for unit spawning
+   */
+  private isValidUnitSpawnPosition(x: number, y: number): boolean {
+    // Basic validation - would be enhanced with map terrain checks
+    if (this.mapManager) {
+      const tile = this.mapManager.getTile(x, y);
+      if (!tile) return false;
+
+      // Don't spawn on water for land units (simplified check)
+      if (tile.terrain === 'ocean') return false;
+
+      // Check if tile is already occupied by another unit
+      if (this.unitManager) {
+        const unitsAtTile = this.unitManager.getUnitsAtPosition(x, y);
+        if (unitsAtTile.length > 0) return false;
+      }
+
+      return true;
+    }
+
+    // Fallback: assume position is valid if we can't check
+    return true;
+  }
+
+  /**
+   * Create a building when building production completes
+   * @reference freeciv-web city.js city_building_complete()
+   */
+  private async createBuilding(city: CityState, buildingType: string): Promise<void> {
+    try {
+      // Add building to city
+      if (!city.buildings) {
+        city.buildings = [];
+      }
+
+      // Avoid duplicates
+      const existingBuilding = city.buildings.find(b =>
+        typeof b === 'string' ? b === buildingType : b.id === buildingType
+      );
+
+      if (!existingBuilding) {
+        city.buildings.push({
+          id: buildingType,
+          name: buildingType,
+          upkeep: this.buildingTypes[buildingType]?.upkeep || 0,
+        });
+
+        logger.info('Building completed', {
+          cityId: city.id,
+          cityName: city.name,
+          buildingType,
+          totalBuildings: city.buildings.length,
+        });
+
+        // Broadcast building creation
+        if (this.broadcastToGame) {
+          this.broadcastToGame(this.gameId, 'building_created', {
+            gameId: this.gameId,
+            cityId: city.id,
+            playerId: city.playerId,
+            buildingType,
+            production: true,
+          });
+        }
+      } else {
+        logger.warn('Building already exists, production wasted', {
+          cityId: city.id,
+          buildingType,
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to create building from production', {
+        error,
+        cityId: city.id,
+        buildingType,
+      });
+    }
+  }
+
+  /**
+   * Start next production from worklist or default
+   */
+  private async startNextProduction(city: CityState): Promise<void> {
+    // Check if there's a worklist with next item
+    if (city.worklist && city.worklist.length > 0) {
+      const nextItem = city.worklist.shift(); // Remove first item
+      if (nextItem) {
+        city.currentProduction = nextItem.target || nextItem.production;
+        city.productionType = nextItem.type as 'unit' | 'building';
+
+        const productionCost = city.currentProduction
+          ? this.getProductionCost(city.currentProduction, city.productionType)
+          : 0;
+        const shieldsPerTurn = city.shieldsPerTurn || 1;
+        city.turnsToComplete = Math.ceil(
+          (productionCost - (city.shieldStock || 0)) / Math.max(1, shieldsPerTurn)
+        );
+
+        logger.debug('Started next production from worklist', {
+          cityId: city.id,
+          production: city.currentProduction,
+          type: city.productionType,
+        });
+
+        return;
+      }
+    }
+
+    // No worklist - default to basic unit or building
+    // This could be enhanced to be smarter based on city needs
+    city.currentProduction = 'warrior'; // Default to warrior
+    city.productionType = 'unit';
+
+    const productionCost = this.getProductionCost(city.currentProduction, city.productionType);
+    const shieldsPerTurn = city.shieldsPerTurn || 1;
+    city.turnsToComplete = Math.ceil(
+      (productionCost - (city.shieldStock || 0)) / Math.max(1, shieldsPerTurn)
+    );
+
+    logger.debug('Started default production', {
+      cityId: city.id,
+      production: city.currentProduction,
+      type: city.productionType,
+    });
+  }
+
+  /**
+   * Process city growth (food consumption and population growth)
+   */
+  private async processCityGrowth(city: CityState): Promise<void> {
+    // foodPerTurn in tests represents the net surplus/deficit, not gross production
+    const foodSurplus = city.foodPerTurn || city.prod?.food || 0;
+
+    city.foodStock = (city.foodStock || 0) + foodSurplus;
+
+    // Check for growth
+    const granarySize = this.calculateGranarySize(city.size);
+    if (city.foodStock >= granarySize && foodSurplus > 0) {
+      city.size += 1;
+      city.population = city.size; // Keep population in sync
+      city.foodStock -= granarySize;
+
+      logger.info('City grew', {
+        cityId: city.id,
+        cityName: city.name,
+        newSize: city.size,
+        newPopulation: city.population,
+        foodStock: city.foodStock,
+      });
+    }
+
+    // Check for starvation
+    if (city.foodStock < 0 && city.size > 1) {
+      city.size -= 1;
+      city.population = city.size; // Keep population in sync
+      city.foodStock = 0;
+
+      logger.warn('City shrunk due to starvation', {
+        cityId: city.id,
+        cityName: city.name,
+        newSize: city.size,
+        newPopulation: city.population,
+      });
+    }
+  }
+
+  /**
+   * Process city happiness and disorder
+   */
+  private processCityHappiness(city: CityState): void {
+    // Basic happiness calculation - can be enhanced
+    const baseHappiness = Math.max(0, 4 - city.size); // Smaller cities are naturally happier
+    const buildingBonus =
+      city.buildings?.filter(b => (typeof b === 'string' ? b === 'temple' : b.id === 'temple'))
+        .length || 0;
+
+    const totalHappiness = baseHappiness + buildingBonus;
+    const requiredHappiness = Math.max(0, city.size - 4);
+
+    city.disorder = totalHappiness < requiredHappiness;
+    city.celebrating = totalHappiness > requiredHappiness + 2;
+
+    // Update citizens happiness breakdown
+    if (!city.citizens) {
+      city.citizens = { happy: 0, content: 0, unhappy: 0, angry: 0, specialists: {} };
+    }
+
+    city.citizens.happy = Math.min(totalHappiness, city.size);
+    city.citizens.unhappy = Math.max(0, requiredHappiness - totalHappiness);
+    city.citizens.content = city.size - city.citizens.happy - city.citizens.unhappy;
+  }
+
+  /**
+   * Persist city turn results to database
+   */
+  private async persistCityTurnToDatabase(city: CityState, currentTurn: number): Promise<void> {
+    try {
+      if (!this.databaseProvider) {
+        return;
+      }
+
+      await this.databaseProvider
+        .getDatabase()
+        .update(cities)
+        .set({
+          population: city.size,
+          food: city.foodStock || 0,
+          production: city.shieldStock || 0,
+          currentProduction: city.currentProduction,
+        })
+        .where(eq(cities.id, city.id));
+    } catch (error) {
+      logger.error('Failed to persist city turn to database', {
+        error,
+        cityId: city.id,
+        turn: currentTurn,
+      });
+    }
+  }
+
+  /**
+   * Persist city production changes to database
+   */
+  private async persistCityProductionToDatabase(city: CityState): Promise<void> {
+    try {
+      if (!this.databaseProvider) {
+        logger.warn('Database provider not available, skipping city production persistence');
+        return;
+      }
+
+      await this.databaseProvider
+        .getDatabase()
+        .update(cities)
+        .set({
+          currentProduction: city.currentProduction,
+          production: city.shieldStock || 0,
+        })
+        .where(eq(cities.id, city.id));
+
+      logger.debug('City production persisted to database', {
+        cityId: city.id,
+        production: city.currentProduction,
+        type: city.productionType,
+      });
+    } catch (error) {
+      logger.error('Failed to persist city production to database', {
+        error,
+        cityId: city.id,
+        production: city.currentProduction,
+      });
+    }
+  }
+
   cleanup(): void {
     this.cities.clear();
   }

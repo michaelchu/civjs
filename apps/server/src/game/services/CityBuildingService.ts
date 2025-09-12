@@ -67,9 +67,9 @@ export class CityBuildingService extends BaseGameService {
    * @reference Original CityManager.applyBuildingEffects()
    *
   private applyBuildingEffects(city: CityState, building: BuildingType): void {
-    if (building.effects.defenseBonus && city.defenseStrength) {
+    if (buildingType.effects.defenseBonus && city.defenseStrength) {
       city.defenseStrength += Math.floor(
-        (city.defenseStrength * building.effects.defenseBonus) / 100
+        (city.defenseStrength * buildingType.effects.defenseBonus) / 100
       );
     }
 
@@ -79,7 +79,7 @@ export class CityBuildingService extends BaseGameService {
     logger.debug('Applied building effects', {
       cityId: city.id,
       buildingId: building.name,
-      effects: building.effects,
+      effects: buildingType.effects,
     });
   }
    */
@@ -112,13 +112,15 @@ export class CityBuildingService extends BaseGameService {
     let scienceBonus = 0;
     let goldBonus = 0;
 
-    for (const buildingId of city.buildings) {
-      const building = this.buildingTypes[buildingId];
-      if (building) {
-        if (building.effects.foodBonus) foodBonus += building.effects.foodBonus;
-        if (building.effects.productionBonus) productionBonus += building.effects.productionBonus;
-        if (building.effects.scienceBonus) scienceBonus += building.effects.scienceBonus;
-        if (building.effects.goldBonus) goldBonus += building.effects.goldBonus;
+    for (const building of city.buildings) {
+      const buildingId = typeof building === 'string' ? building : building.id;
+      const buildingType = this.buildingTypes[buildingId];
+      if (buildingType) {
+        if (buildingType.effects.foodBonus) foodBonus += buildingType.effects.foodBonus;
+        if (buildingType.effects.productionBonus)
+          productionBonus += buildingType.effects.productionBonus;
+        if (buildingType.effects.scienceBonus) scienceBonus += buildingType.effects.scienceBonus;
+        if (buildingType.effects.goldBonus) goldBonus += buildingType.effects.goldBonus;
       }
     }
 
@@ -156,11 +158,12 @@ export class CityBuildingService extends BaseGameService {
 
     let totalMaintenance = 0;
 
-    for (const buildingId of city.buildings) {
-      const building = this.buildingTypes[buildingId];
+    for (const building of city.buildings) {
+      const buildingId = typeof building === 'string' ? building : building.id;
+      const buildingType = this.buildingTypes[buildingId];
       // Note: maintenanceCost property doesn't exist in current BuildingType interface
       // This would need to be added when implementing building maintenance costs
-      if (building) {
+      if (buildingType) {
         // totalMaintenance += building.maintenanceCost || 0;
         totalMaintenance += 1; // Placeholder maintenance cost
       }
@@ -270,7 +273,10 @@ export class CityBuildingService extends BaseGameService {
     }
 
     return city.buildings
-      .map(buildingId => this.buildingTypes[buildingId])
+      .map(building => {
+        const buildingId = typeof building === 'string' ? building : building.id;
+        return this.buildingTypes[buildingId];
+      })
       .filter(building => building !== undefined);
   }
 }

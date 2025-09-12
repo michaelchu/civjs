@@ -85,7 +85,8 @@ export class CityCaptureService extends BaseGameService {
       const buildingsDestroyed: string[] = [];
       const buildingDestructionChance = 0.3; // 30% chance per building
 
-      city.buildings = city.buildings.filter(buildingId => {
+      city.buildings = city.buildings.filter(building => {
+        const buildingId = typeof building === 'string' ? building : building.id;
         if (Math.random() < buildingDestructionChance) {
           buildingsDestroyed.push(buildingId);
           return false;
