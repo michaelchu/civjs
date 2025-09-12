@@ -1921,6 +1921,7 @@ export class CityManager {
           this.broadcastToGame(this.gameId, 'unit_created', {
             gameId: this.gameId,
             unitId: unit.id,
+            unit: unit, // Include full unit data for client
             playerId: city.playerId,
             unitType,
             x: spawnPosition.x,

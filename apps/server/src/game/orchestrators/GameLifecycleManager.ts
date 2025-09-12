@@ -239,6 +239,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
     // Set up dependencies after all managers are created
     cityManager.setMapManager(mapManager);
+    cityManager.setUnitManager(unitManager);
     await cityManager.initialize();
 
     // Create additional managers

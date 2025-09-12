@@ -410,31 +410,17 @@ export class CityDataService {
   }
 
   /**
-   * Get production cost for item
-   * TODO: Get from actual unit/building definitions
+   * Get production cost for item from actual game constants
    */
   private static getProductionCost(itemId: string, type: string): number {
     if (type === 'unit') {
-      const unitCosts: Record<string, number> = {
-        warrior: 10,
-        settler: 30,
-        archer: 15,
-        phalanx: 20,
-        horseman: 25,
-      };
-      return unitCosts[itemId] || 10;
+      // Import here to avoid circular dependencies
+      const { UNIT_TYPES } = require('@game/constants/UnitConstants');
+      return UNIT_TYPES[itemId]?.cost || 10;
     } else if (type === 'building') {
-      const buildingCosts: Record<string, number> = {
-        granary: 60,
-        barracks: 40,
-        library: 80,
-        marketplace: 80,
-        temple: 40,
-        walls: 80,
-        factory: 140,
-        palace: 100,
-      };
-      return buildingCosts[itemId] || 40;
+      // Import here to avoid circular dependencies
+      const { BUILDING_TYPES } = require('@game/managers/CityManager');
+      return BUILDING_TYPES[itemId]?.cost || 40;
     }
 
     return 100; // Default wonder cost

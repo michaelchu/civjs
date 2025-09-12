@@ -258,6 +258,16 @@ class GameClient {
       }
     });
 
+    // Handle unit creation (e.g., from city production)
+    this.socket.on('unit_created', data => {
+      console.log('Unit created:', data);
+      const { units } = useGameStore.getState();
+      const newUnits = { ...units, [data.unitId]: data.unit };
+      useGameStore.getState().updateGameState({
+        units: newUnits,
+      });
+    });
+
     // Handle unit destruction (e.g., settler consumed by city founding)
     this.socket.on('unit_destroyed', data => {
       console.log('Unit destroyed:', data);

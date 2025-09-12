@@ -828,7 +828,7 @@ export class GameManager {
     playerId: string,
     cityId: string,
     production: string,
-    type: 'unit' | 'building'
+    type: 'unit' | 'building' | 'wonder'
   ): Promise<void> {
     return this.cityManagementService.setCityProduction(gameId, playerId, cityId, production, type);
   }
