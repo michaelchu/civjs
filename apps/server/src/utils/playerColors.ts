@@ -35,8 +35,8 @@ export const NATION_COLOR_THEMES: NationColorTheme[] = [
     tertiary: { r: 255, g: 215, b: 0 }, // Gold
   },
   {
-    name: 'Forest Green',
-    primary: { r: 34, g: 139, b: 34 }, // Forest Green
+    name: 'Navy Empire',
+    primary: { r: 25, g: 25, b: 112 }, // Midnight Blue
     secondary: { r: 255, g: 255, b: 255 }, // White
     tertiary: { r: 139, g: 69, b: 19 }, // Saddle Brown
   },
@@ -65,8 +65,8 @@ export const NATION_COLOR_THEMES: NationColorTheme[] = [
     tertiary: { r: 255, g: 255, b: 255 }, // White
   },
   {
-    name: 'Emerald Kingdom',
-    primary: { r: 0, g: 201, b: 87 }, // Emerald Green
+    name: 'Burgundy Kingdom',
+    primary: { r: 128, g: 0, b: 32 }, // Burgundy
     secondary: { r: 255, g: 255, b: 255 }, // White
     tertiary: { r: 139, g: 69, b: 19 }, // Saddle Brown
   },
@@ -101,8 +101,8 @@ export const NATION_COLOR_THEMES: NationColorTheme[] = [
     tertiary: { r: 255, g: 255, b: 255 }, // White
   },
   {
-    name: 'Jade Dynasty',
-    primary: { r: 0, g: 168, b: 107 }, // Jade Green
+    name: 'Indigo Dynasty',
+    primary: { r: 75, g: 0, b: 130 }, // Indigo
     secondary: { r: 255, g: 215, b: 0 }, // Gold
     tertiary: { r: 139, g: 0, b: 0 }, // Dark Red
   },
