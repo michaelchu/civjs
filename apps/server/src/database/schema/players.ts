@@ -29,8 +29,10 @@ export const players = pgTable('players', {
   // Resources
   gold: integer('gold').default(0).notNull(),
   science: integer('science').default(0).notNull(),
-  culture: integer('culture').default(0).notNull(),
   faith: integer('faith').default(0).notNull(),
+
+  // Culture system (freeciv-based)
+  history: integer('history').default(0).notNull(), // National history accumulation
 
   // Technologies and civics
   technologies: jsonb('technologies').default([]).notNull(), // array of tech IDs

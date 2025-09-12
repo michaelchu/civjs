@@ -200,6 +200,7 @@ class GameClient {
           color: data.assignedColor ? playerColorToHex(data.assignedColor) : '#808080', // Use server-assigned color
           gold: 50,
           science: 0,
+          history: 0, // Initialize culture history
           government: 'despotism', // Default starting government
           isHuman: true,
           isActive: true, // Make player active so turn done button works
@@ -1050,6 +1051,7 @@ class GameClient {
             color: response.assignedColor ? playerColorToHex(response.assignedColor) : '#808080', // Use server-assigned color
             gold: 50,
             science: 0,
+            history: 0, // Initialize culture history
             government: 'despotism', // Default starting government
             isHuman: true,
             isActive: true, // Make player active so turn done button works
