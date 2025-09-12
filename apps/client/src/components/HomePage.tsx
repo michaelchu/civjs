@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SERVER_URL } from '../config';
 import { PageBackground } from './shared/PageBackground';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './ui/card';
+import { gameClient } from '../services/GameClient';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const [isQuickStarting, setIsQuickStarting] = useState(false);
+  const [quickStartError, setQuickStartError] = useState('');
 
   const handleStartNewGame = () => {
     navigate('/create-game');
@@ -13,6 +16,48 @@ export const HomePage: React.FC = () => {
 
   const handleBrowseGames = () => {
     navigate('/browse-games');
+  };
+
+  const generateTestHash = (): string => {
+    const array = new Uint8Array(3);
+    crypto.getRandomValues(array);
+    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+  };
+
+  const handleQuickStart = async () => {
+    setIsQuickStarting(true);
+    setQuickStartError('');
+
+    try {
+      await gameClient.connect();
+
+      const hash = generateTestHash();
+      const gameData = {
+        gameName: `test-${hash}`,
+        playerName: `test-${hash}`,
+        gameType: 'single' as const,
+        maxPlayers: 4,
+        mapSize: 'standard',
+        selectedNation: 'random',
+        terrainSettings: {
+          generator: 'random',
+          landmass: 'normal',
+          huts: 15,
+          temperature: 50,
+          wetness: 50,
+          rivers: 50,
+          resources: 'normal',
+        },
+      };
+
+      const gameId = await gameClient.createGame(gameData);
+      navigate(`/game/${gameId}`);
+    } catch (err) {
+      console.error('Quick start error:', err);
+      setQuickStartError(err instanceof Error ? err.message : 'Failed to start game');
+    } finally {
+      setIsQuickStarting(false);
+    }
   };
 
   return (
@@ -43,6 +88,44 @@ export const HomePage: React.FC = () => {
               Start New Game
             </div>
           </button>
+
+          <button
+            onClick={handleQuickStart}
+            disabled={isQuickStarting}
+            className="w-full py-4 px-6 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-lg"
+          >
+            <div className="flex items-center justify-center">
+              {isQuickStarting ? (
+                <>
+                  <div className="animate-spin w-5 h-5 mr-2 border-2 border-white/30 border-t-transparent rounded-full"></div>
+                  Creating Game...
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="w-5 h-5 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
+                  </svg>
+                  Quick Start
+                </>
+              )}
+            </div>
+          </button>
+
+          {quickStartError && (
+            <div className="p-3 bg-red-50 border border-red-300 rounded-md text-red-800 text-sm">
+              {quickStartError}
+            </div>
+          )}
 
           <button
             onClick={handleBrowseGames}
