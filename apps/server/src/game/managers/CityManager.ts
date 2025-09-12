@@ -878,7 +878,7 @@ export class CityManager {
     }
   }
 
-  private calculateGranarySize(population: number, rulesetName: string = 'classic'): number {
+  public calculateGranarySize(population: number, rulesetName: string = 'classic'): number {
     try {
       const civstyle = rulesetLoader.getCivstyle(rulesetName);
       const granaryFoodIni = civstyle.granary_food_ini;
