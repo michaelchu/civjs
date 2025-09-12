@@ -92,12 +92,12 @@ export const HomePage: React.FC = () => {
           <button
             onClick={handleQuickStart}
             disabled={isQuickStarting}
-            className="w-full py-4 px-6 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-lg"
+            className="w-full py-4 px-6 bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-500/50 text-black font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-lg"
           >
             <div className="flex items-center justify-center">
               {isQuickStarting ? (
                 <>
-                  <div className="animate-spin w-5 h-5 mr-2 border-2 border-white/30 border-t-transparent rounded-full"></div>
+                  <div className="animate-spin w-5 h-5 mr-2 border-2 border-black/30 border-t-transparent rounded-full"></div>
                   Creating Game...
                 </>
               ) : (
