@@ -317,6 +317,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
     cityManager: CityManager;
     unitManager: UnitManager;
   }): Promise<void> {
+    // Initialize CityManager services (including TileManagementService for terrain-based calculations)
+    await managers.cityManager.initialize();
     await managers.cityManager.loadCities();
     await managers.unitManager.loadUnits();
   }
