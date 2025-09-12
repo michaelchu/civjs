@@ -76,6 +76,15 @@ export class CityManagementService extends BaseGameService {
       city: clientCityData,
     });
 
+    // Also broadcast all cities to ensure consistency
+    const allCities = gameInstance.cityManager.getAllCities();
+    const clientCities = CityDataService.transformCitiesForClient(allCities);
+    this.broadcastToGame(gameId, 'cities_updated', {
+      gameId,
+      cities: clientCities,
+      timestamp: Date.now(),
+    });
+
     return cityData.id;
   }
 

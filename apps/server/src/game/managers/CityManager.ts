@@ -22,6 +22,7 @@ import { CityTradeRouteService } from '@game/services/CityTradeRouteService';
 import { CityProductionService } from '@game/services/CityProductionService';
 import { CityGovernorService } from '@game/services/CityGovernorService';
 import { CityCaptureService } from '@game/services/CityCaptureService';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 // Following original Freeciv city radius logic
 export const CITY_MAP_DEFAULT_RADIUS = 2;
@@ -543,9 +544,10 @@ export class CityManager {
       size: 1,
       cityRadius: CITY_MAP_DEFAULT_RADIUS,
       founded: currentTurn,
-      currentProduction: null,
-      productionType: null,
-      turnsToComplete: 0,
+      currentProduction: 'warrior', // Default production following Freeciv
+      productionType: 'unit' as const,
+      turnsToComplete: 10, // Warrior cost, will be recalculated
+      productionStock: 0, // Shield stock for current production
       foodStock: 0,
       foodPerTurn: 2, // Base city center food
       productionPerTurn: 1, // Base city center production
@@ -576,6 +578,8 @@ export class CityManager {
     // Initialize workable tiles using the service
     if (this.tileManagementService) {
       this.tileManagementService.initializeWorkableTiles(city);
+      // TODO: Auto-assign citizens to best available tiles for new city
+      // For now, the city center is automatically worked which provides base resources
     } else {
       // Fallback if service is not available
       logger.warn('TileManagementService not available, providing fallback workable tiles', {
@@ -730,6 +734,14 @@ export class CityManager {
 
       logger.info(`City ${city.name} grew from size ${oldSize} to ${city.population}`);
 
+      // Automatically assign the new citizen to work the best available tile
+      if (this.tileManagementService && city.workableTiles) {
+        // Re-run auto-assignment to allocate the new citizen
+        this.tileManagementService.reassignCitizensAfterGrowth(city);
+      }
+      // Recalculate outputs after assigning new citizen
+      this.calculateCityOutputs(city.id);
+
       if (this.callbacks.onCityGrowth) {
         this.callbacks.onCityGrowth(city, oldSize);
       }
@@ -855,8 +867,18 @@ export class CityManager {
     }
   }
 
-  private calculateGranarySize(population: number): number {
-    return 10 + (population - 1) * 2;
+  private calculateGranarySize(population: number, rulesetName: string = 'classic'): number {
+    try {
+      const civstyle = rulesetLoader.getCivstyle(rulesetName);
+      const granaryFoodIni = civstyle.granary_food_ini;
+      const granaryFoodInc = civstyle.granary_food_inc;
+
+      // Freeciv formula: base initial size + increment per additional population
+      return granaryFoodIni + (population - 1) * granaryFoodInc;
+    } catch {
+      // Fallback to classic values if ruleset loading fails
+      return 20 + (population - 1) * 10;
+    }
   }
 
   // === SPECIALIST MANAGEMENT ===
@@ -1341,10 +1363,18 @@ export class CityManager {
       }
 
       // Provide city center base output for any missing essential outputs
-      // Cities should always have at least city center production values
-      tileOutputs.food = Math.max(tileOutputs.food, 2);
-      tileOutputs.shields = Math.max(tileOutputs.shields, 1);
-      tileOutputs.trade = Math.max(tileOutputs.trade, 1);
+      // Cities should always have at least city center production values from ruleset
+      try {
+        const civstyle = rulesetLoader.getCivstyle('classic');
+        tileOutputs.food = Math.max(tileOutputs.food, civstyle.min_city_center_food);
+        tileOutputs.shields = Math.max(tileOutputs.shields, civstyle.min_city_center_shield);
+        tileOutputs.trade = Math.max(tileOutputs.trade, civstyle.min_city_center_trade);
+      } catch {
+        // Fallback to hardcoded values if ruleset loading fails
+        tileOutputs.food = Math.max(tileOutputs.food, 2);
+        tileOutputs.shields = Math.max(tileOutputs.shields, 1);
+        tileOutputs.trade = Math.max(tileOutputs.trade, 1);
+      }
 
       let science = 0;
       let gold = 0;
@@ -1406,15 +1436,33 @@ export class CityManager {
     // Fallback calculation when TileManagementService is not available
     const city = this.cities.get(cityId);
     if (city) {
-      // Apply fallback outputs directly to city state with science calculation
-      city.foodPerTurn = 2;
-      city.productionPerTurn = 1;
-      city.tradePerTurn = 1;
+      try {
+        const civstyle = rulesetLoader.getCivstyle('classic');
+        // Apply fallback outputs from ruleset
+        city.foodPerTurn = civstyle.min_city_center_food;
+        city.productionPerTurn = civstyle.min_city_center_shield;
+        city.tradePerTurn = civstyle.min_city_center_trade;
 
-      // Calculate science from trade even in fallback mode
-      const tradeToScience =
-        city.tradePerTurn > 0 ? Math.max(1, Math.floor(city.tradePerTurn / 2)) : 0;
-      city.sciencePerTurn = tradeToScience;
+        // Calculate science from trade even in fallback mode
+        const tradeToScience =
+          city.tradePerTurn > 0 ? Math.max(1, Math.floor(city.tradePerTurn / 2)) : 0;
+        city.sciencePerTurn = tradeToScience;
+
+        return {
+          food: civstyle.min_city_center_food,
+          shields: civstyle.min_city_center_shield,
+          trade: civstyle.min_city_center_trade,
+          science: tradeToScience,
+          gold: 0,
+          luxury: 0,
+        };
+      } catch {
+        // Double fallback to hardcoded classic values
+        city.foodPerTurn = 2;
+        city.productionPerTurn = 1;
+        city.tradePerTurn = 1;
+        city.sciencePerTurn = 1;
+      }
     }
     return { food: 2, shields: 1, trade: 1, science: 1, gold: 0, luxury: 0 };
   }

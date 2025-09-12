@@ -210,22 +210,22 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
   // Helper functions for data access with proper fallbacks to calculated values
   const getCityData = () => {
-    // Use server-calculated values when available, otherwise compute sensible fallbacks
+    // Always prioritize server-calculated values from prod and surplus
     const prod = city.prod || {
-      food: city.food || 2, // City center base food
-      shields: city.shields || 1, // City center base shields
-      trade: city.trade || 1, // City center base trade
+      food: city.food || 2, // Fallback to legacy fields or defaults
+      shields: city.shields || 1,
+      trade: city.trade || 1,
       gold: 0,
       luxury: 0,
-      science: Math.max(1, Math.floor((city.trade || 1) / 2)), // Calculate science from trade
+      science: 1,
     };
 
     const surplus = city.surplus || {
-      food: prod.food - city.size, // Food surplus = production - population consumption
-      shields: prod.shields, // All shields go to production (no consumption)
+      food: prod.food - city.size, // Fallback calculation
+      shields: prod.shields,
       trade: prod.trade,
-      gold: Math.max(0, prod.trade - prod.science), // Gold = remaining trade after science
-      luxury: 0,
+      gold: prod.gold,
+      luxury: prod.luxury,
       science: prod.science,
     };
 
@@ -251,15 +251,11 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
         )
       : [];
 
-    // Calculate granary size and growth time based on food surplus
-    const granarySize = city.granarySize || 10 + (city.size - 1) * 2; // Freeciv formula
+    // Use server-provided values for granary calculations
+    const granarySize = city.granarySize || 20; // Server calculates this
     const foodStock = city.foodStock || 0;
-    const granaryTurns =
-      surplus.food > 0
-        ? Math.ceil((granarySize - foodStock) / surplus.food)
-        : surplus.food < 0
-          ? Math.floor(foodStock / Math.abs(surplus.food)) * -1 // Negative for starvation
-          : city.granaryTurns || 999; // No growth if no surplus
+    // Always use server-provided granaryTurns if available
+    const granaryTurns = city.granaryTurns !== undefined ? city.granaryTurns : 999;
 
     return {
       prod,
@@ -296,10 +292,12 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
   };
 
   const formatGrowthText = () => {
-    if (!cityData.granaryTurns) return 'Unknown';
+    if (cityData.granaryTurns === undefined || cityData.granaryTurns === null) return 'Unknown';
+    if (cityData.granaryTurns >= 999) return 'No growth';
     if (cityData.granaryTurns < 0) {
       return `Starves in ${Math.abs(cityData.granaryTurns)} turns`;
     }
+    if (cityData.granaryTurns === 0) return 'Blocked';
     return `Growth in ${cityData.granaryTurns} turns`;
   };
 
