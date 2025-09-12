@@ -661,8 +661,27 @@ export class CityManager {
       }
       recordStep('governor_automation');
 
-      // Optimize citizen assignments
-      await this.optimizeCitizens(cityId);
+      // Optimize citizen assignments - ensure we maintain food production
+      try {
+        const optimized = await this.optimizeCitizens(cityId);
+        if (!optimized) {
+          logger.debug(
+            `Citizen optimization failed for city ${city.name}, using fallback tile assignment`
+          );
+          // Fallback: ensure basic tile assignment if optimization fails
+          if (this.tileManagementService) {
+            this.tileManagementService.reassignCitizensAfterGrowth(city);
+          }
+        }
+      } catch (error) {
+        logger.warn(`Citizen optimization error for city ${city.name}`, {
+          error: error instanceof Error ? error.message : error,
+        });
+        // Fallback: ensure basic tile assignment if optimization fails
+        if (this.tileManagementService) {
+          this.tileManagementService.reassignCitizensAfterGrowth(city);
+        }
+      }
       recordStep('citizen_optimization');
 
       // Calculate city outputs
@@ -750,7 +769,25 @@ export class CityManager {
       if (this.tileManagementService && city.workableTiles) {
         // Re-run auto-assignment to allocate the new citizen
         this.tileManagementService.reassignCitizensAfterGrowth(city);
+
+        // Try to optimize citizens after growth, but don't fail if it doesn't work
+        try {
+          const optimized = await this.optimizeCitizens(city.id);
+          if (!optimized) {
+            logger.debug(
+              `Citizen optimization failed for ${city.name}, using basic tile assignment`
+            );
+          }
+        } catch (error) {
+          logger.warn(
+            `Citizen optimization error for ${city.name}, continuing with basic assignment`,
+            {
+              error: error instanceof Error ? error.message : error,
+            }
+          );
+        }
       }
+
       // Recalculate outputs after assigning new citizen
       this.calculateCityOutputs(city.id);
 
