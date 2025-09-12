@@ -179,7 +179,7 @@ export class CityDataService {
       ? {
           target: city.currentProduction,
           type: (city.productionType as 'unit' | 'building' | 'wonder') || 'unit',
-          progress: city.productionStock || city.shieldStock || 0,
+          progress: city.shieldStock || 0, // Use shieldStock as the primary source of progress
           cost: this.getProductionCost(city.currentProduction, city.productionType || 'unit'),
           turnsToComplete: city.turnsToComplete,
         }

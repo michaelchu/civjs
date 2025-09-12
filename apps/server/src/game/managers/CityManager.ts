@@ -226,7 +226,6 @@ export interface CityState {
   currentProduction?: string | null;
   productionType?: 'unit' | 'building' | null;
   turnsToComplete: number;
-  productionStock?: number;
 
   // Resources and storage
   foodStock?: number;
@@ -605,7 +604,7 @@ export class CityManager {
       currentProduction: 'warrior', // Default production following Freeciv
       productionType: 'unit' as const,
       turnsToComplete: 10, // Warrior cost, will be recalculated
-      productionStock: 0, // Shield stock for current production
+      shieldStock: 0, // Shield stock for current production
       foodStock: 0,
       foodPerTurn: 2, // Base city center food
       productionPerTurn: 1, // Base city center production
@@ -789,7 +788,7 @@ export class CityManager {
           productionPerTurn: record.productionPerTurn || 0,
           tradePerTurn: 0, // Will be calculated from trade routes
           sciencePerTurn: record.sciencePerTurn || 0, // Will be recalculated
-          productionStock: record.production || 0,
+          shieldStock: record.production || 0, // Use shieldStock consistently
           buildings: (record.buildings as string[]) || [],
           specialists: (record.specialists as Record<SpecialistType, number>) || {
             [SpecialistType.SCIENTIST]: 0,
@@ -846,7 +845,7 @@ export class CityManager {
         currentProduction: city.currentProduction,
         food: city.foodStock || 0,
         foodPerTurn: city.foodPerTurn || 0,
-        production: city.productionStock || 0,
+        production: city.shieldStock || 0,
         productionPerTurn: city.productionPerTurn || 0,
         goldPerTurn: 0, // Will be calculated
         sciencePerTurn: 0, // Will be calculated
