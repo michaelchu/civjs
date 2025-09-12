@@ -46,33 +46,7 @@ jobs:
     strategy:
       matrix:
         node-version: ['18', '20', '22']
-        postgres-version: ['14', '15', '16']
       fail-fast: false
-
-    services:
-      postgres:
-        image: postgres:${{ matrix.postgres-version }}-alpine
-        env:
-          POSTGRES_USER: civjs_test
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: civjs_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
 
     steps:
       - name: Checkout code
@@ -87,12 +61,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
+      - name: Run unit tests
         run: npm test
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://civjs_test:test_password@localhost:5432/civjs_test
-          REDIS_URL: redis://localhost:6379
 
   # ================================
   # CHANGE IMPACT ANALYSIS

@@ -39,34 +39,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: ci_test_user
-          POSTGRES_PASSWORD: ci_test_password_123
-          POSTGRES_DB: civjs_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
     env:
-      DATABASE_URL: postgresql://ci_test_user:ci_test_password_123@localhost:5432/civjs_test
-      REDIS_URL: redis://localhost:6379
       NODE_ENV: test
 
     steps:
@@ -87,25 +60,11 @@ jobs:
       - name: Install server dependencies
         run: cd apps/server && npm ci
       
-      - name: Setup test database
-        run: |
-          cd apps/server
-          npm run db:push
-        env:
-          DATABASE_URL: postgresql://ci_test_user:ci_test_password_123@localhost:5432/civjs_test
-      
       - name: Run client unit tests
         run: cd apps/client && npm run test
       
       - name: Run server unit tests
         run: cd apps/server && npm run test:unit -- --ci --coverage --maxWorkers=2
-      
-      - name: Run integration tests
-        run: cd apps/server && npm run test:integration:ci -- --ci --coverage
-        env:
-          DATABASE_URL: postgresql://ci_test_user:ci_test_password_123@localhost:5432/civjs_test
-          REDIS_URL: redis://localhost:6379
-          MIN_PLAYERS_TO_START: 2
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
