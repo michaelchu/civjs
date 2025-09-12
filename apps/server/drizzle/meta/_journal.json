@@ -8,6 +8,13 @@
       "when": 1757632409732,
       "tag": "0000_square_logan",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1726175050000,
+      "tag": "0001_add_culture_fields",
+      "breakpoints": true
     }
   ]
 }
