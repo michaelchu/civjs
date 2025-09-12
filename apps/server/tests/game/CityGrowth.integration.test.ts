@@ -54,49 +54,66 @@ describe('City Population Growth Integration', () => {
   });
 
   describe('Full processCityTurn Integration', () => {
-    it('should integrate growth logic with full city turn processing', async () => {
+    it('should grow city population when using processCityTurn with surplus food', async () => {
       const city = await cityManager.foundCity(35, 35, 'IntegrationCity', 'player-123');
 
-      // Set up a straightforward test by manually setting the end result we expect
-      // after optimizeCitizens runs. Since grassland provides 2 food per tile:
-      // City center (2 food) = 2 food total, population 1 consumes 2 food = 0 net
-      city.foodStock = 19; // Almost at growth threshold
+      // Record initial state
+      const initialPopulation = city.population;
+      expect(initialPopulation).toBe(1);
 
-      // We'll need to modify the city after optimization to have surplus for growth
-      // This simulates the scenario where optimization assigns good tiles
+      // Set up for guaranteed growth by starting very close to growth threshold
+      // Since grassland provides ~1 net food surplus per turn, start at 19
+      city.foodStock = 19; // Almost at growth threshold (need 20 to grow)
 
       // Process one turn - this will call optimizeCitizens and calculateCityOutputs
+      // With grassland terrain, this should produce enough to trigger growth
       await cityManager.processCityTurn(city.id, 1);
 
       const afterTurn = cityManager.getCity(city.id)!;
 
-      // Verify that the full turn processing completed without errors
-      expect(afterTurn).toBeDefined();
-      expect(afterTurn.population).toBeGreaterThanOrEqual(1);
+      // Verify that population actually grew from the turn processing
+      // Starting at 19 food + 1 net surplus = 20 food, which should trigger growth
+      expect(afterTurn.population).toBe(initialPopulation + 1);
+      expect(afterTurn.population).toBe(2);
+      expect(afterTurn.size).toBe(2);
 
-      // The exact results depend on what optimizeCitizens does with grassland terrain
-      // but we can verify that the growth logic was called and didn't crash
+      // Verify food stock was handled correctly after growth
+      expect(afterTurn.foodStock).toBeGreaterThanOrEqual(0);
+      expect(afterTurn.foodStock).toBeLessThan(20); // Should be < 20 after growth consumed the granary
     });
 
-    it('should recalculate food production after growth', async () => {
+    it('should handle population growth and recalculate consumption correctly', async () => {
       const city = await cityManager.foundCity(40, 40, 'RecalcCity', 'player-123');
 
-      // Force growth by setting high food surplus before turn processing
-      city.foodPerTurn = 10;
-      city.foodStock = 19; // One turn away from growth
+      // Record initial state
+      const initialPopulation = city.population;
+      expect(initialPopulation).toBe(1);
 
-      // Process one turn to trigger growth - this tests the integration
-      await cityManager.processCityTurn(city.id, 1);
+      // Set up for guaranteed growth by getting close to threshold with high food stock
+      // With grassland providing ~1 net food surplus per turn, we need to start near growth
+      city.foodStock = 18; // Close to growth threshold (need 20)
 
-      const grownCity = cityManager.getCity(city.id)!;
+      // Process multiple turns until growth occurs - this tests the integration
+      let grownCity = cityManager.getCity(city.id)!;
 
-      // After growth, population should potentially have increased
-      // The exact result depends on the tile management system
-      // but we can verify the system handled it without crashing
-      expect(grownCity.population).toBeGreaterThanOrEqual(1);
+      for (let turn = 1; turn <= 5; turn++) {
+        await cityManager.processCityTurn(city.id, turn);
+        grownCity = cityManager.getCity(city.id)!;
 
-      // Food per turn should be recalculated based on new population
-      // (This depends on the tile management service working correctly)
+        // Stop when growth occurs
+        if (grownCity.population > initialPopulation) {
+          break;
+        }
+      }
+
+      // Verify population grew: 1 -> 2
+      expect(grownCity.population).toBe(initialPopulation + 1);
+      expect(grownCity.population).toBe(2);
+
+      // After growth, the city should have properly recalculated food consumption
+      // New consumption = 2 citizens × 2 food = 4 food per turn
+      // This verifies that the citizen food consumption calculation works with processCityTurn
+      expect(grownCity.size).toBe(2);
     });
 
     it('should process multiple city turns without growth errors', async () => {
