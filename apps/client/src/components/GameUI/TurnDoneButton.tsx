@@ -3,12 +3,11 @@ import { useGameStore } from '../../store/gameStore';
 import { gameClient } from '../../services/GameClient';
 
 export const TurnDoneButton: React.FC = () => {
-  const { getCurrentPlayer, phase, clientState, startTurnProcessing } = useGameStore();
+  const { getCurrentPlayer, phase, clientState, startTurnProcessing, turnProcessingState } =
+    useGameStore();
   const currentPlayer = getCurrentPlayer();
 
   const handleTurnDone = () => {
-    console.log('Turn done clicked');
-
     // Start the turn processing animation
     startTurnProcessing();
 
@@ -17,9 +16,14 @@ export const TurnDoneButton: React.FC = () => {
   };
 
   const isDisabled =
-    clientState !== 'running' || !currentPlayer || !currentPlayer.isActive || phase !== 'movement';
+    clientState !== 'running' ||
+    !currentPlayer ||
+    !currentPlayer.isActive ||
+    phase !== 'movement' ||
+    turnProcessingState === 'processing';
 
   const getButtonText = () => {
+    if (turnProcessingState === 'processing') return 'Processing...';
     if (clientState !== 'running') return 'Waiting...';
     if (!currentPlayer?.isActive) return 'Not Your Turn';
     if (phase !== 'movement') return `${phase} Phase`;

@@ -1,1 +1,0 @@
-ALTER TABLE "games" ALTER COLUMN "turn_time_limit" SET DEFAULT 300;

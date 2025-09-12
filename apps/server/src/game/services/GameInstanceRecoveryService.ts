@@ -167,7 +167,11 @@ export class GameInstanceRecoveryService extends BaseGameService {
     pathfindingManager: PathfindingManager;
     visibilityManager: VisibilityManager;
   }> {
-    const turnManager = new TurnManager(gameId, this.databaseProvider, this.io);
+    // Create managers in dependency order
+    const effectsManager = new EffectsManager();
+    const cityManager = new CityManager(gameId, this.databaseProvider, effectsManager, {});
+    const researchManager = new ResearchManager(gameId, this.databaseProvider);
+
     const unitManager = new UnitManager(
       gameId,
       this.databaseProvider,
@@ -187,14 +191,40 @@ export class GameInstanceRecoveryService extends BaseGameService {
       }
     );
 
-    const playerIds = Array.from(players.keys());
-    await turnManager.initializeTurn(playerIds);
-
-    const effectsManager = new EffectsManager();
-    const cityManager = new CityManager(gameId, this.databaseProvider, effectsManager, {});
-    const researchManager = new ResearchManager(gameId, this.databaseProvider);
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
+
+    // Create BorderManager placeholder
+    const borderManager = {
+      recalculateBordersForPlayer: () => {},
+    } as any; // TODO: Fix this with proper BorderManager instantiation
+
+    // Create a simple broadcast manager for the TurnManager
+    // TODO: Proper dependency injection should be implemented
+    const mockBroadcastManager = {
+      broadcastToPlayer: (playerId: string, event: string, data: any) => {
+        this.io.to(`player:${playerId}`).emit(event, data);
+      },
+      broadcastToGame: (gameId: string, event: string, data: any) => {
+        this.io.to(`game:${gameId}`).emit(event, data);
+      },
+    } as any; // Cast to any to satisfy type requirements temporarily
+
+    // Create TurnManager last with all dependencies
+    const turnManager = new TurnManager(
+      gameId,
+      this.databaseProvider,
+      this.io,
+      unitManager,
+      cityManager,
+      researchManager,
+      borderManager,
+      visibilityManager,
+      mockBroadcastManager
+    );
+
+    const playerIds = Array.from(players.keys());
+    await turnManager.initializeTurn(playerIds);
 
     return {
       turnManager,

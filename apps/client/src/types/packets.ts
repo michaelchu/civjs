@@ -56,13 +56,16 @@ export enum PacketType {
   UNIT_FORTIFY = 59,
   UNIT_CREATE = 60,
 
-  // Turn Management (80-90)
+  // Turn Management (80-90, 125-135)
   TURN_DONE = 80,
   NEW_TURN = 81,
   BEGIN_TURN = 82,
   END_TURN = 83,
   TURN_END_REPLY = 84,
   TURN_START = 85,
+
+  // Freeciv-web compatible turn packets
+  NEW_YEAR = 127, // @reference freeciv-web/javascript/packhand_gen.js case 127
   FREEZE_CLIENT = 86,
   THAW_CLIENT = 87,
 
@@ -123,6 +126,7 @@ export const PACKET_NAMES: Record<number, string> = {
   [PacketType.UNIT_FORTIFY]: 'UNIT_FORTIFY',
   [PacketType.UNIT_CREATE]: 'UNIT_CREATE',
   [PacketType.TURN_START]: 'TURN_START',
+  [PacketType.NEW_YEAR]: 'NEW_YEAR',
   [PacketType.END_TURN]: 'END_TURN',
   [PacketType.GAME_CREATE]: 'GAME_CREATE',
   [PacketType.GAME_CREATE_REPLY]: 'GAME_CREATE_REPLY',
@@ -231,6 +235,15 @@ export interface TurnStartPacket {
   data: {
     turn: number;
     year: number;
+  };
+}
+
+export interface NewYearPacket {
+  type: PacketType.NEW_YEAR;
+  data: {
+    turn: number;
+    year: number;
+    fragments?: number; // Calendar fragments for sub-year precision
   };
 }
 
@@ -359,6 +372,7 @@ export type SocketPacket =
   | ResearchSetPacket
   | ResearchSetReplyPacket
   | TurnStartPacket
+  | NewYearPacket
   | ServerJoinReplyPacket
   | MapInfoPacket
   | TileInfoPacket

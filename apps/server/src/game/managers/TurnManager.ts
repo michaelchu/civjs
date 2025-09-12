@@ -4,7 +4,19 @@ import { gameState } from '@database/redis';
 import { gameTurns, games, players } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { Server as SocketServer } from 'socket.io';
-import { PacketType } from '@app-types/packet';
+// PacketType removed - handled by TurnPacketService
+import { TurnProcessingService, type PlayerAction } from '@game/services/TurnProcessingService';
+import { TurnCoordinationService } from '@game/services/TurnCoordinationService';
+import { TurnPacketService } from '@game/services/TurnPacketService';
+import { TurnPhaseService } from '@game/services/TurnPhaseService';
+import { GameEventService } from '@game/services/GameEventService';
+import { CalendarService } from '@game/services/CalendarService';
+import type { UnitManager } from '@game/managers/UnitManager';
+import type { CityManager } from '@game/managers/CityManager';
+import type { ResearchManager } from '@game/managers/ResearchManager';
+import type { BorderManager } from '@game/managers/BorderManager';
+import type { VisibilityManager } from '@game/managers/VisibilityManager';
+import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -28,21 +40,68 @@ export class TurnManager {
   private currentTurn: number = 0;
   private currentYear: number = -4000; // Starting year like Civilization
   private turnEvents: TurnEvent[] = [];
-  private playerActions: Map<string, any[]> = new Map();
+  private playerActions: Map<string, PlayerAction[]> = new Map();
   private turnStartTime: Date | null = null;
   private turnTimer: NodeJS.Timeout | null = null;
 
-  constructor(gameId: string, databaseProvider: DatabaseProvider, io: SocketServer) {
+  // Service dependencies
+  private turnProcessingService: TurnProcessingService;
+  private turnCoordinationService: TurnCoordinationService;
+  private turnPacketService: TurnPacketService;
+  private gameEventService: GameEventService;
+  private turnPhaseService: TurnPhaseService;
+  private calendarService: CalendarService;
+
+  constructor(
+    gameId: string,
+    databaseProvider: DatabaseProvider,
+    io: SocketServer,
+    unitManager: UnitManager,
+    cityManager: CityManager,
+    researchManager: ResearchManager,
+    borderManager: BorderManager,
+    visibilityManager: VisibilityManager,
+    broadcastManager: GameBroadcastManager
+  ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
     this.io = io;
+
+    // Initialize services
+    this.turnProcessingService = new TurnProcessingService(
+      gameId,
+      unitManager,
+      cityManager,
+      researchManager
+    );
+    this.turnCoordinationService = new TurnCoordinationService(
+      gameId,
+      borderManager,
+      visibilityManager,
+      unitManager,
+      cityManager
+    );
+    this.turnPacketService = new TurnPacketService(io, gameId);
+    this.gameEventService = new GameEventService(gameId, broadcastManager);
+    this.turnPhaseService = new TurnPhaseService(
+      gameId,
+      this.turnProcessingService,
+      this.turnCoordinationService,
+      this.turnPacketService,
+      this.gameEventService
+    );
+
+    // Initialize calendar service with default configuration
+    // Can be enhanced to support different calendar types in game settings
+    this.calendarService = new CalendarService(CalendarService.createDefaultConfig());
   }
 
   public async initializeTurn(playerIds: string[]): Promise<void> {
     logger.info('Initializing turn system', { gameId: this.gameId });
 
     this.currentTurn = 1;
-    this.currentYear = -4000;
+    // Initialize calendar with starting year, sync currentYear with calendar state
+    this.currentYear = this.calendarService.getState().year;
     this.turnStartTime = new Date();
 
     // Initialize player actions tracking
@@ -66,8 +125,6 @@ export class TurnManager {
   public async processTurn(): Promise<void> {
     logger.info('Processing turn', { gameId: this.gameId, turn: this.currentTurn });
 
-    const startTime = Date.now();
-
     try {
       // Clear any existing timer
       if (this.turnTimer) {
@@ -75,54 +132,35 @@ export class TurnManager {
         this.turnTimer = null;
       }
 
-      // Broadcast processing step: Player Actions
-      this.broadcastProcessingStep('player-actions', 'Processing player actions...');
-      await this.processPlayerActions();
-      await this.delay(200); // Small delay to show the step
+      // Get active player IDs
+      const playerIds = Array.from(this.playerActions.keys());
 
-      // Broadcast processing step: City Production
-      this.broadcastProcessingStep('city-production', 'Processing city production...');
-      await this.processCityProduction();
-      await this.delay(200);
+      // Use the new TurnPhaseService for comprehensive multi-phase processing
+      const phaseResult = await this.turnPhaseService.executePhaseProcessing(
+        this.currentTurn,
+        this.currentYear,
+        playerIds
+      );
 
-      // Broadcast processing step: Unit Actions
-      this.broadcastProcessingStep('unit-actions', 'Processing unit actions...');
-      await this.processUnitActions();
-      await this.delay(200);
+      if (phaseResult.success) {
+        logger.info('Turn processed successfully via phase service', {
+          gameId: this.gameId,
+          turn: this.currentTurn,
+          totalDuration: phaseResult.totalDuration,
+          phasesCompleted: phaseResult.phases.filter(p => p.success).length,
+        });
 
-      // Broadcast processing step: Research
-      this.broadcastProcessingStep('research', 'Processing research...');
-      await this.processResearch();
-      await this.delay(200);
-
-      // Broadcast processing step: Random Events
-      this.broadcastProcessingStep('random-events', 'Processing random events...');
-      await this.processRandomEvents();
-      await this.delay(200);
-
-      // Broadcast processing step: Statistics
-      this.broadcastProcessingStep('statistics', 'Calculating statistics...');
-      const statistics = await this.calculateTurnStatistics(startTime);
-      await this.delay(200);
-
-      // Broadcast processing step: Database Save
-      this.broadcastProcessingStep('database-save', 'Saving turn data...');
-      await this.completeTurnRecord(statistics);
-      await this.delay(200);
-
-      // Broadcast processing step: Next Turn
-      this.broadcastProcessingStep('next-turn', 'Advancing to next turn...');
-      await this.advanceToNextTurn();
-      await this.delay(200);
-
-      // Broadcast completion
-      this.broadcastProcessingComplete();
-
-      logger.info('Turn processed successfully', {
-        gameId: this.gameId,
-        turn: this.currentTurn - 1,
-        processingTime: statistics.processingTimeMs,
-      });
+        // Advance to next turn after successful processing
+        await this.advanceToNextTurn();
+      } else {
+        logger.error('Turn processing failed', {
+          gameId: this.gameId,
+          turn: this.currentTurn,
+          errors: phaseResult.errors,
+          failedPhases: phaseResult.phases.filter(p => !p.success).map(p => p.phase),
+        });
+        throw new Error(`Turn processing failed: ${phaseResult.errors.join(', ')}`);
+      }
     } catch (error) {
       logger.error('Error processing turn', {
         gameId: this.gameId,
@@ -133,168 +171,25 @@ export class TurnManager {
     }
   }
 
-  private async processPlayerActions(): Promise<void> {
-    for (const [playerId, actions] of this.playerActions) {
-      for (const action of actions) {
-        try {
-          await this.processPlayerAction(playerId, action);
-        } catch (error) {
-          logger.error('Error processing player action', {
-            gameId: this.gameId,
-            playerId,
-            action: action.type,
-            error: error instanceof Error ? error.message : error,
-          });
-        }
-      }
-    }
-
-    // Clear processed actions
-    this.playerActions.clear();
-  }
-
-  private async processPlayerAction(playerId: string, action: any): Promise<void> {
-    switch (action.type) {
-      case 'unit_move':
-        await this.processUnitMove(playerId, action.data);
-        break;
-      case 'unit_attack':
-        await this.processUnitAttack(playerId, action.data);
-        break;
-      case 'city_production':
-        await this.processCityProductionOrder(playerId, action.data);
-        break;
-      case 'research_selection':
-        await this.processResearchSelection(playerId, action.data);
-        break;
-      default:
-        logger.warn('Unknown action type', {
-          gameId: this.gameId,
-          playerId,
-          actionType: action.type,
-        });
-    }
-  }
-
-  private async processUnitMove(playerId: string, moveData: any): Promise<void> {
-    // TODO: Implement unit movement logic
-    // - Validate move is legal
-    // - Check for encounters (other units, cities, resources)
-    // - Update unit position
-    // - Consume movement points
-
-    this.addTurnEvent('unit_move', playerId, moveData);
-    logger.debug('Processed unit move', { gameId: this.gameId, playerId, moveData });
-  }
-
-  private async processUnitAttack(playerId: string, attackData: any): Promise<void> {
-    // TODO: Implement combat system
-    // - Calculate attack/defense values
-    // - Apply damage
-    // - Handle unit destruction
-    // - Update experience
-
-    this.addTurnEvent('combat', playerId, attackData);
-    logger.debug('Processed unit attack', { gameId: this.gameId, playerId, attackData });
-  }
-
-  private async processCityProduction(): Promise<void> {
-    // TODO: Implement city production
-    // - Process production queues
-    // - Complete buildings/units
-    // - Handle population growth
-    // - Calculate resource yields
-
-    logger.debug('Processing city production', { gameId: this.gameId });
-  }
-
-  private async processCityProductionOrder(playerId: string, productionData: any): Promise<void> {
-    // TODO: Implement production orders
-    // - Validate player owns the city
-    // - Update production queue
-    // - Check if production can complete this turn
-
-    this.addTurnEvent('city_production', playerId, productionData);
-    logger.debug('Processed city production order', {
-      gameId: this.gameId,
-      playerId,
-      productionData,
-    });
-  }
-
-  private async processUnitActions(): Promise<void> {
-    // TODO: Implement unit actions
-    // - Process automated units
-    // - Handle fortification
-    // - Process unit healing
-    // - Update unit status
-
-    logger.debug('Processing unit actions', { gameId: this.gameId });
-  }
-
-  private async processResearch(): Promise<void> {
-    // TODO: Implement research system
-    // - Add research points
-    // - Complete technologies
-    // - Unlock new units/buildings
-    // - Handle tech trading
-
-    logger.debug('Processing research', { gameId: this.gameId });
-  }
-
-  private async processResearchSelection(playerId: string, researchData: any): Promise<void> {
-    // TODO: Implement research selection
-    // - Validate research is available
-    // - Set current research
-    // - Calculate research points
-
-    this.addTurnEvent('research_complete', playerId, researchData);
-    logger.debug('Processed research selection', { gameId: this.gameId, playerId, researchData });
-  }
-
-  private async processRandomEvents(): Promise<void> {
-    // TODO: Implement random events
-    // - Barbarian spawning
-    // - Natural disasters
-    // - Goody huts
-    // - City revolts
-
-    logger.debug('Processing random events', { gameId: this.gameId });
-  }
-
   public addPlayerAction(playerId: string, action: any): void {
     if (!this.playerActions.has(playerId)) {
       this.playerActions.set(playerId, []);
     }
 
-    this.playerActions.get(playerId)!.push({
-      ...action,
+    const playerAction: PlayerAction = {
+      id: `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: action.type,
+      playerId,
+      priority: action.priority || 5, // Default priority
+      data: action.data || action,
       timestamp: new Date(),
-    });
+      dependencies: action.dependencies,
+      status: 'queued' as const,
+    };
+
+    this.playerActions.get(playerId)!.push(playerAction);
 
     logger.debug('Added player action', { gameId: this.gameId, playerId, actionType: action.type });
-  }
-
-  private addTurnEvent(type: TurnEvent['type'], playerId: string, data: any): void {
-    this.turnEvents.push({
-      type,
-      playerId,
-      data,
-      timestamp: new Date(),
-    });
-  }
-
-  private async calculateTurnStatistics(startTime: number): Promise<TurnStatistics> {
-    // TODO: Calculate real statistics from database
-    const processingTime = Date.now() - startTime;
-
-    return {
-      playersActive: this.playerActions.size,
-      unitsTotal: 0, // TODO: Count from database
-      citiesTotal: 0, // TODO: Count from database
-      actionsProcessed: this.turnEvents.length,
-      processingTimeMs: processingTime,
-    };
   }
 
   private async createTurnRecord(): Promise<void> {
@@ -312,32 +207,18 @@ export class TurnManager {
     logger.debug('Created turn record', { gameId: this.gameId, turn: this.currentTurn });
   }
 
-  private async completeTurnRecord(statistics: TurnStatistics): Promise<void> {
-    const endTime = new Date();
-    const duration = this.turnStartTime ? endTime.getTime() - this.turnStartTime.getTime() : 0;
-
-    await this.databaseProvider
-      .getDatabase()
-      .update(gameTurns)
-      .set({
-        endedAt: endTime,
-        duration,
-        events: this.turnEvents,
-        playerActions: Object.fromEntries(this.playerActions),
-        statistics,
-      })
-      .where(eq(gameTurns.gameId, this.gameId) && eq(gameTurns.turnNumber, this.currentTurn));
-
-    logger.debug('Completed turn record', {
-      gameId: this.gameId,
-      turn: this.currentTurn,
-      duration,
-    });
-  }
-
   private async advanceToNextTurn(): Promise<void> {
     this.currentTurn++;
-    this.currentYear = this.calculateYearFromTurn(this.currentTurn);
+
+    // Use CalendarService for freeciv-compliant year calculation
+    // TODO: Get actual world bonuses from effects system when implemented
+    this.calendarService.advanceYear({
+      turnYears: this.getYearIncrementForTurn(this.currentTurn),
+      turnFragments: 0, // No fragments for default config
+      slowDownTimeline: 0, // No slowdown effect active
+    });
+    this.currentYear = this.calendarService.getState().year;
+
     this.turnStartTime = new Date();
     this.turnEvents = [];
 
@@ -378,15 +259,24 @@ export class TurnManager {
     });
   }
 
-  private calculateYearFromTurn(turn: number): number {
-    // Civilization-style year progression
-    if (turn <= 75) return -4000 + (turn - 1) * 40; // 40 years per turn (4000 BC - 1000 BC)
-    if (turn <= 175) return -1000 + (turn - 75) * 20; // 20 years per turn (1000 BC - 1000 AD)
-    if (turn <= 275) return 1000 + (turn - 175) * 10; // 10 years per turn (1000 AD - 2000 AD)
-    return 2000 + (turn - 275) * 5; // 5 years per turn (2000 AD+)
+  private getYearIncrementForTurn(turn: number): number {
+    // Civilization-style year progression - return increment per turn, not absolute year
+    if (turn <= 75) return 40; // 40 years per turn (4000 BC - 1000 BC)
+    if (turn <= 175) return 20; // 20 years per turn (1000 BC - 1000 AD)
+    if (turn <= 275) return 10; // 10 years per turn (1000 AD - 2000 AD)
+    return 5; // 5 years per turn (2000 AD+)
   }
 
   private broadcastTurnStart(): void {
+    // Use TurnPacketService for proper packet protocol with calendar fragment support
+    const calendarState = this.calendarService.getState();
+    this.turnPacketService.sendTurnStartSequence(
+      this.currentTurn,
+      this.currentYear,
+      calendarState.fragmentCount // fragments from CalendarService
+    );
+
+    // Keep legacy emit for backward compatibility
     this.io.emit('turn-started', {
       gameId: this.gameId,
       turn: this.currentTurn,
@@ -395,42 +285,24 @@ export class TurnManager {
     });
   }
 
-  private broadcastProcessingStep(stepId: string, stepLabel: string): void {
-    this.io.emit('packet', {
-      type: PacketType.TURN_PROCESSING_STEP,
-      timestamp: Date.now(),
-      data: {
-        gameId: this.gameId,
-        step: stepId,
-        label: stepLabel,
-        completed: false,
-      },
-    });
-  }
-
-  private broadcastProcessingComplete(): void {
-    this.io.emit('packet', {
-      type: PacketType.TURN_PROCESSING_STEP,
-      timestamp: Date.now(),
-      data: {
-        gameId: this.gameId,
-        step: 'complete',
-        label: 'Turn processing complete',
-        completed: true,
-      },
-    });
-  }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
   public getCurrentTurn(): number {
     return this.currentTurn;
   }
 
   public getCurrentYear(): number {
     return this.currentYear;
+  }
+
+  public getGameEventService(): GameEventService {
+    return this.gameEventService;
+  }
+
+  public getCalendarService(): CalendarService {
+    return this.calendarService;
+  }
+
+  public getFormattedCalendar(): string {
+    return this.calendarService.formatCalendar();
   }
 
   public getTurnEvents(): TurnEvent[] {
@@ -467,5 +339,19 @@ export class TurnManager {
       this.turnTimer = null;
       logger.debug('Turn timer cleared', { gameId: this.gameId });
     }
+  }
+
+  /**
+   * Get current turn processing phase (Phase 2 enhancement)
+   */
+  public getCurrentPhase(): string | null {
+    return this.turnPhaseService.getCurrentPhase();
+  }
+
+  /**
+   * Get turn phase processing history (Phase 2 enhancement)
+   */
+  public getPhaseHistory(): any[] {
+    return this.turnPhaseService.getPhaseHistory();
   }
 }

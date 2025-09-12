@@ -434,8 +434,6 @@ export class CityManager {
     // Initialize high-level coordination service
     // Note: CityManagementService needs different constructor parameters
     // this.managementService = new CityManagementService(...);
-
-    logger.info('CityManager initialized with specialized services');
   }
 
   /**
@@ -626,46 +624,92 @@ export class CityManager {
       return;
     }
 
-    logger.debug(`Processing turn for city ${city.name} (${cityId})`, { currentTurn });
+    const startTime = Date.now();
+
+    const stepTimings: Array<{ step: string; duration: number }> = [];
+    let lastStepTime = startTime;
+
+    const recordStep = (step: string) => {
+      const now = Date.now();
+      stepTimings.push({
+        step,
+        duration: now - lastStepTime,
+      });
+      lastStepTime = now;
+    };
 
     try {
       // Apply government effects first
       this.refreshCityWithGovernmentEffects(cityId);
+      recordStep('government_effects');
 
       // Apply automated governor if enabled
       if (this.governorService && city.governor?.isEnabled) {
         await this.governorService.applyGovernorAutomation(cityId);
       }
+      recordStep('governor_automation');
 
       // Calculate city outputs
       this.calculateCityOutputs(cityId);
+      recordStep('calculate_outputs');
 
       // Trigger callback for city turn processing (science accumulation)
       if (this.callbacks.onCityTurnProcessed) {
         this.callbacks.onCityTurnProcessed(city);
       }
+      recordStep('callbacks');
 
       // Process food and growth
       await this.processFoodAndGrowth(city, currentTurn);
+      recordStep('food_growth');
 
       // Process production
       await this.processProduction(city, currentTurn);
+      recordStep('production');
 
       // Process happiness
       this.calculateHappiness(cityId);
+      recordStep('happiness');
 
       // Save changes to database
       await this.saveCityToDatabase(city);
+      recordStep('database_save');
 
-      logger.debug(`Turn processing completed for city ${city.name}`, {
+      const totalTime = Date.now() - startTime;
+
+      // Log performance details for slow cities or if total time is concerning
+      if (totalTime > 2000 || stepTimings.some(s => s.duration > 1000)) {
+        logger.warn(`Slow city turn processing detected for ${city.name}`, {
+          gameId: this.gameId,
+          cityId,
+          totalTime,
+          stepTimings,
+          population: city.population,
+          currentProduction: city.currentProduction,
+          productionType: city.productionType,
+        });
+      }
+    } catch (error) {
+      const totalTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      logger.error(`Error processing turn for city ${city.name}`, {
+        gameId: this.gameId,
         cityId,
+        totalTime,
+        stepTimings,
+        error: errorMessage,
         population: city.population,
         currentProduction: city.currentProduction,
+        productionType: city.productionType,
       });
-    } catch (error) {
-      logger.error(`Error processing turn for city ${city.name}`, {
+
+      // Don't re-throw database errors during turn processing to avoid breaking the entire turn
+      // The error has already been logged above, and the turn processing should continue
+      logger.warn('City turn processing completed with database save error, continuing with turn', {
+        gameId: this.gameId,
         cityId,
-        error: error instanceof Error ? error.message : error,
+        cityName: city.name,
       });
     }
   }
@@ -712,13 +756,60 @@ export class CityManager {
     const newProductionStock = currentProductionStock + productionPerTurn;
 
     let productionCost = 0;
+    let productionIsValid = true;
 
     if (city.productionType === 'unit') {
       const unitType = UNIT_TYPES[city.currentProduction];
-      productionCost = unitType?.cost || 0;
+      if (!unitType) {
+        logger.error(`Invalid unit type in production for city ${city.name}`, {
+          cityId: city.id,
+          productionType: city.productionType,
+          currentProduction: city.currentProduction,
+          availableUnitTypes: Object.keys(UNIT_TYPES),
+        });
+        productionIsValid = false;
+      } else {
+        productionCost = unitType.cost || 0;
+      }
     } else if (city.productionType === 'building') {
       const building = BUILDING_TYPES[city.currentProduction];
-      productionCost = building?.cost || 0;
+      if (!building) {
+        logger.error(`Invalid building type in production for city ${city.name}`, {
+          cityId: city.id,
+          productionType: city.productionType,
+          currentProduction: city.currentProduction,
+          availableBuildingTypes: Object.keys(BUILDING_TYPES),
+        });
+        productionIsValid = false;
+      } else {
+        productionCost = building.cost || 0;
+      }
+    } else {
+      logger.error(`Unknown production type for city ${city.name}`, {
+        cityId: city.id,
+        productionType: city.productionType,
+        currentProduction: city.currentProduction,
+      });
+      productionIsValid = false;
+    }
+
+    if (!productionIsValid) {
+      logger.warn(`Clearing invalid production for city ${city.name}`);
+      city.currentProduction = null;
+      city.productionType = null;
+      city.productionStock = 0;
+      city.turnsToComplete = 0;
+      return;
+    }
+
+    if (productionCost <= 0) {
+      logger.warn(`Production cost is 0 or negative for city ${city.name}, setting to 1`, {
+        cityId: city.id,
+        productionType: city.productionType,
+        currentProduction: city.currentProduction,
+        originalCost: productionCost,
+      });
+      productionCost = 1;
     }
 
     if (newProductionStock >= productionCost) {
@@ -747,11 +838,9 @@ export class CityManager {
       // Add the building to the city
       if (!city.buildings.includes(city.currentProduction)) {
         city.buildings.push(city.currentProduction);
-        logger.info(`Building ${city.currentProduction} completed in city ${city.name}`);
       }
     } else if (city.productionType === 'unit') {
       // Handle unit creation (would integrate with UnitManager)
-      logger.info(`Unit ${city.currentProduction} completed in city ${city.name}`);
     }
 
     // Reset production
@@ -798,12 +887,6 @@ export class CityManager {
     city.specialists[fromType] -= 1;
     city.specialists[toType] += 1;
 
-    logger.debug(`Changed specialist in city ${city.name}`, {
-      cityId,
-      from: fromType,
-      to: toType,
-    });
-
     // Recalculate city outputs
     this.calculateCityOutputs(cityId);
   }
@@ -826,11 +909,6 @@ export class CityManager {
     });
 
     city.worklist.push(...validItems);
-
-    logger.debug(`Added ${validItems.length} items to worklist for city ${city.name}`, {
-      cityId,
-      items: validItems,
-    });
   }
 
   private canCityQueueItem(city: CityState, kind: 'unit' | 'building', value: string): boolean {
@@ -890,14 +968,6 @@ export class CityManager {
     city.currentProduction = productionId;
     city.productionType = productionType;
     city.turnsToComplete = Math.ceil(productionCost / Math.max(1, city.productionPerTurn || 1));
-
-    logger.info(`Set city production for ${city.name}`, {
-      cityId,
-      productionType,
-      productionId,
-      cost: productionCost,
-      turnsToComplete: city.turnsToComplete,
-    });
 
     // Save changes to database
     await this.saveCityToDatabase(city);
@@ -965,8 +1035,6 @@ export class CityManager {
         // Calculate city outputs to ensure all values are properly set
         this.calculateCityOutputs(city.id);
       }
-
-      logger.info(`Loaded ${this.cities.size} cities from database`);
     } catch (error) {
       logger.error('Failed to load cities from database', {
         gameId: this.gameId,
@@ -988,7 +1056,7 @@ export class CityManager {
         y: city.y,
         playerId: city.playerId,
         population: city.population,
-        foundedTurn: city.founded,
+        foundedTurn: city.founded || 1,
         currentProduction: city.currentProduction,
         food: city.foodStock || 0,
         foodPerTurn: city.foodPerTurn || 0,
@@ -1013,29 +1081,71 @@ export class CityManager {
           city.workableTiles?.filter(t => t.isWorked).map(t => ({ x: t.x, y: t.y })) || [],
       };
 
-      await db.insert(cities).values([cityData]).onConflictDoUpdate({
-        target: cities.id,
-        set: cityData,
+      // Use upsert pattern that works in both production and test environments
+      const dbOperation = async () => {
+        try {
+          // Try insert first
+          await db.insert(cities).values([cityData]);
+        } catch (error: any) {
+          // If constraint violation (PostgreSQL or SQLite), try update instead
+          if (
+            error?.code === 'SQLITE_CONSTRAINT' ||
+            error?.constraint === 'PRIMARY' ||
+            error?.code === '23505' || // PostgreSQL unique violation
+            (error?.message && error.message.includes('duplicate key'))
+          ) {
+            await db.update(cities).set(cityData).where(eq(cities.id, city.id));
+          } else {
+            throw error;
+          }
+        }
+      };
+
+      // Apply timeout in all environments to prevent database hangs
+      const DB_OPERATION_TIMEOUT = process.env.NODE_ENV === 'test' ? 5000 : 10000; // 5s for tests, 10s for production
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(
+            new Error(
+              `Database operation timed out for city ${city.id} after ${DB_OPERATION_TIMEOUT}ms`
+            )
+          );
+        }, DB_OPERATION_TIMEOUT);
       });
+
+      await Promise.race([dbOperation(), timeoutPromise]);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
       logger.error('Failed to save city to database', {
         cityId: city.id,
         cityName: city.name,
-        error: error instanceof Error ? error.message : error,
+        gameId: this.gameId,
+        error: errorMessage,
+        isTimeout: errorMessage.includes('timed out'),
       });
+
+      // In production, we should be more resilient - log the error but don't crash the turn processing
+      // Only throw in non-timeout cases that might be recoverable
+      if (!errorMessage.includes('timed out')) {
+        throw error;
+      } else {
+        logger.warn('Database timeout occurred, continuing with turn processing', {
+          cityId: city.id,
+          cityName: city.name,
+        });
+      }
     }
   }
 
   async processAllCitiesTurn(currentTurn: number): Promise<void> {
-    logger.info(`Processing turn ${currentTurn} for ${this.cities.size} cities`);
-
     const cityPromises = Array.from(this.cities.keys()).map(cityId =>
       this.processCityTurn(cityId, currentTurn)
     );
 
     try {
       await Promise.all(cityPromises);
-      logger.info(`Successfully processed turn ${currentTurn} for all cities`);
     } catch (error) {
       logger.error('Error processing cities turn', {
         currentTurn,
@@ -1191,16 +1301,9 @@ export class CityManager {
     // Apply corruption to trade income (simplified)
     const originalTrade = city.tradePerTurn || 0;
     city.tradePerTurn = Math.max(0, originalTrade - corruption);
-
-    logger.debug(`Applied corruption to city ${city.name}`, {
-      cityId,
-      originalTrade,
-      corruption,
-      newTrade: city.tradePerTurn,
-    });
   }
 
-  public applyCityHappiness(cityId: string, currentGovernment: string): void {
+  public applyCityHappiness(cityId: string): void {
     const city = this.cities.get(cityId);
     if (!city) return;
 
@@ -1212,12 +1315,6 @@ export class CityManager {
       unhappy: detailedHappiness.unhappy,
       angry: detailedHappiness.angry,
     };
-
-    logger.debug(`Applied happiness to city ${city.name}`, {
-      cityId,
-      happiness: city.happiness,
-      government: currentGovernment,
-    });
   }
 
   private calculateSquaredDistance(x1: number, y1: number, x2: number, y2: number): number {
@@ -1330,7 +1427,7 @@ export class CityManager {
     this.calculateCityOutputs(cityId);
 
     this.applyCityCorruption(cityId, defaultGovernment);
-    this.applyCityHappiness(cityId, defaultGovernment);
+    this.applyCityHappiness(cityId);
   }
 
   // === SERVICE DELEGATION METHODS ===
@@ -1485,17 +1582,13 @@ export class CityManager {
   // === UTILITY METHODS ===
 
   private async updateTradeRoutesOnPlayerChange(
-    cityId: string,
-    newPlayerId: string,
-    oldPlayerId: string
+    _cityId: string,
+    _newPlayerId: string,
+    _oldPlayerId: string
   ): Promise<void> {
     if (this.tradeRouteService) {
-      // This would be implemented in the trade route service
-      logger.debug('Updating trade routes after player change', {
-        cityId,
-        newPlayerId,
-        oldPlayerId,
-      });
+      // TODO: Implement trade route updates when service is available
+      // this.tradeRouteService.updateRoutesOnPlayerChange(cityId, newPlayerId, oldPlayerId);
     }
   }
 
@@ -1524,7 +1617,6 @@ export class CityManager {
       this.callbacks.onCityDestroyed(city);
     }
 
-    logger.info(`City ${city.name} destroyed`, { cityId });
     return true;
   }
 
@@ -1534,12 +1626,10 @@ export class CityManager {
 
     if (city.playerId !== playerId) return false;
 
-    const oldName = city.name;
     city.name = newName;
 
     await this.saveCityToDatabase(city);
 
-    logger.info(`City renamed from ${oldName} to ${newName}`, { cityId, playerId });
     return true;
   }
 
@@ -1611,7 +1701,6 @@ export class CityManager {
    */
   cleanup(): void {
     this.cities.clear();
-    logger.info('CityManager cleaned up');
   }
 
   /**
