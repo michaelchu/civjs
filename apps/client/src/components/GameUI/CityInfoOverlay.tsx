@@ -37,7 +37,8 @@ import {
   ArrowUp,
   ArrowDown,
 } from 'lucide-react';
-import type { City, Unit, ProductionOption } from '../../types';
+import type { City, Unit } from '../../types';
+import { ProductionDataService } from '../../services/ProductionDataService';
 
 interface CityInfoOverlayProps {
   city: City | null;
@@ -80,130 +81,8 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState('main');
 
-  // Mock production options - in a real implementation, these would come from game rules
-  const getAvailableProductions = (): ProductionOption[] => {
-    return [
-      // Units
-      {
-        id: 'warrior',
-        name: 'Warrior',
-        type: 'unit',
-        cost: 10,
-        available: true,
-        description: 'Basic military unit',
-      },
-      {
-        id: 'settler',
-        name: 'Settler',
-        type: 'unit',
-        cost: 40,
-        available: true,
-        description: 'Founds new cities',
-      },
-      {
-        id: 'archer',
-        name: 'Archer',
-        type: 'unit',
-        cost: 15,
-        available: true,
-        description: 'Ranged military unit',
-      },
-      {
-        id: 'phalanx',
-        name: 'Phalanx',
-        type: 'unit',
-        cost: 20,
-        available: true,
-        description: 'Defensive military unit',
-      },
-      {
-        id: 'horseman',
-        name: 'Horseman',
-        type: 'unit',
-        cost: 25,
-        available: true,
-        description: 'Mobile military unit',
-      },
-
-      // Buildings
-      {
-        id: 'granary',
-        name: 'Granary',
-        type: 'building',
-        cost: 60,
-        available: true,
-        description: 'Stores food and helps city growth',
-      },
-      {
-        id: 'barracks',
-        name: 'Barracks',
-        type: 'building',
-        cost: 40,
-        available: true,
-        description: 'Trains veteran units',
-      },
-      {
-        id: 'library',
-        name: 'Library',
-        type: 'building',
-        cost: 80,
-        available: true,
-        description: 'Increases science output',
-      },
-      {
-        id: 'marketplace',
-        name: 'Marketplace',
-        type: 'building',
-        cost: 80,
-        available: true,
-        description: 'Increases trade income',
-      },
-      {
-        id: 'temple',
-        name: 'Temple',
-        type: 'building',
-        cost: 40,
-        available: true,
-        description: 'Makes citizens happy',
-      },
-      {
-        id: 'walls',
-        name: 'City Walls',
-        type: 'building',
-        cost: 80,
-        available: true,
-        description: 'Defends the city',
-      },
-
-      // Wonders
-      {
-        id: 'pyramids',
-        name: 'Pyramids',
-        type: 'wonder',
-        cost: 200,
-        available: true,
-        description: 'Granary effect in all cities',
-      },
-      {
-        id: 'lighthouse',
-        name: 'Lighthouse',
-        type: 'wonder',
-        cost: 200,
-        available: true,
-        description: 'Safe sea travel for all ships',
-      },
-      {
-        id: 'oracle',
-        name: 'Oracle',
-        type: 'wonder',
-        cost: 300,
-        available: true,
-        description: 'Temple effect in all cities',
-      },
-    ];
-  };
-
-  const availableProductions = getAvailableProductions();
+  // Get available production options from service (using real game data)
+  const availableProductions = ProductionDataService.getAvailableProductions();
   if (!city) {
     return null;
   }
