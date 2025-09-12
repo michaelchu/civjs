@@ -238,6 +238,7 @@ export interface CityState {
 
   // Culture system (freeciv-based)
   history: number; // Accumulated culture history
+  culturePerTurn?: number; // Culture generated per turn
 
   // Production system (from client types compatibility)
   prod?: {

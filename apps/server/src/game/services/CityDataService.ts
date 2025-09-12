@@ -32,6 +32,7 @@ interface ClientCityData {
     gold: number;
     luxury: number;
     science: number;
+    culture: number;
   };
 
   // Net surplus/deficit after consumption
@@ -42,6 +43,7 @@ interface ClientCityData {
     gold: number;
     luxury: number;
     science: number;
+    culture: number;
   };
 
   // Waste/corruption
@@ -103,6 +105,10 @@ interface ClientCityData {
   disorder: boolean;
   pollution: number;
 
+  // Culture system
+  history: number; // Accumulated culture history
+  culturePerTurn: number; // Culture generated per turn
+
   // Rally point
   rallyPoint?: {
     x: number;
@@ -128,6 +134,9 @@ export class CityDataService {
     // Calculate luxury from specialists
     const luxuryPerTurn = this.calculateSpecialistOutput(city.specialists, 'luxury');
 
+    // Calculate culture per turn
+    const culturePerTurn = city.culturePerTurn || 0; // Use calculated value from CultureManager
+
     // Production breakdown (total before consumption)
     const prod = {
       food: foodPerTurn,
@@ -136,6 +145,7 @@ export class CityDataService {
       gold: goldPerTurn,
       luxury: luxuryPerTurn,
       science: sciencePerTurn,
+      culture: culturePerTurn,
     };
 
     // Calculate surplus (after consumption) - following freeciv pattern
@@ -146,6 +156,7 @@ export class CityDataService {
       gold: goldPerTurn,
       luxury: luxuryPerTurn,
       science: sciencePerTurn,
+      culture: culturePerTurn, // Culture has no consumption, all goes to history
     };
 
     // Transform buildings to client format with proper upkeep
@@ -236,6 +247,10 @@ export class CityDataService {
       celebrating: this.isCelebrating(city),
       disorder: this.isInDisorder(city),
       pollution: this.calculatePollution(city),
+
+      // Culture system
+      history: city.history || 0,
+      culturePerTurn: culturePerTurn,
 
       rallyPoint: undefined, // TODO: Implement rally points
     };

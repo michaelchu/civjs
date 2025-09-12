@@ -36,6 +36,7 @@ import {
   ChevronDown,
   ArrowUp,
   ArrowDown,
+  Sparkles,
 } from 'lucide-react';
 import type { City, Unit } from '../../types';
 import { ProductionDataService } from '../../services/ProductionDataService';
@@ -368,7 +369,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
               </div>
 
               {/* Economic Output */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-2">
                 <div
                   className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.gold)}`}
                 >
@@ -404,6 +405,18 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                     {cityData.surplus.science}
                   </div>
                   <div className="text-xs">Science</div>
+                </div>
+                <div
+                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.culture || 0)}`}
+                >
+                  <Sparkles className="h-5 w-5 mb-1" />
+                  <div
+                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus.culture || 0)}`}
+                  >
+                    {(cityData.surplus.culture || 0) > 0 ? '+' : ''}
+                    {cityData.surplus.culture || 0}
+                  </div>
+                  <div className="text-xs">Culture</div>
                 </div>
               </div>
 
@@ -922,6 +935,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
               </h3>
               <div className="space-y-2 text-sm">
                 <div className={`font-medium ${stateInfo.color}`}>{stateInfo.text}</div>
+                <div className="text-purple-600 flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  Culture History: {city.history || 0}
+                </div>
                 {cityData.pollution > 0 && (
                   <div className="text-orange-600">Pollution: {cityData.pollution}</div>
                 )}

@@ -48,6 +48,7 @@ export interface City {
   trade: number;
   // Culture system (freeciv-based)
   history: number; // Accumulated culture history
+  culturePerTurn: number; // Culture generated per turn
   // Production breakdown (total production before usage)
   prod: {
     food: number;
@@ -56,6 +57,7 @@ export interface City {
     gold: number;
     luxury: number;
     science: number;
+    culture: number;
   };
   // Net surplus/deficit after consumption
   surplus: {
@@ -65,6 +67,7 @@ export interface City {
     gold: number;
     luxury: number;
     science: number;
+    culture: number;
   };
   // Waste/corruption
   waste: {
