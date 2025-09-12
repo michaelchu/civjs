@@ -12,6 +12,7 @@ import { ResearchManager } from '@game/managers/ResearchManager';
 import { TurnManager } from '@game/managers/TurnManager';
 import { UnitManager } from '@game/managers/UnitManager';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
+import { CultureManager } from '@game/managers/CultureManager';
 import { BorderManager } from '@game/managers/BorderManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
 import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
@@ -285,6 +286,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
       },
     } as any; // Cast to any to satisfy type requirements temporarily
 
+    // Create CultureManager
+    const cultureManager = new CultureManager(this.databaseProvider);
+
     // Create TurnManager last with all dependencies
     const turnManager = new TurnManager(
       gameId,
@@ -295,6 +299,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       researchManager,
       borderManager,
       visibilityManager,
+      cultureManager,
       mockBroadcastManager
     );
 

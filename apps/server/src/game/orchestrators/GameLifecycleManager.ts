@@ -18,6 +18,7 @@ import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { CityManager } from '@game/managers/CityManager';
 import { EffectsManager } from '@game/managers/EffectsManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
+import { CultureManager } from '@game/managers/CultureManager';
 import { CityDataService } from '@game/services/CityDataService';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { BorderManager } from '@game/managers/BorderManager';
@@ -877,6 +878,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       },
     } as any; // Cast to any to satisfy type requirements temporarily
 
+    const cultureManager = this.createCultureManager();
     const tm = new TurnManager(
       gameId,
       this.databaseProvider,
@@ -886,6 +888,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       researchManager,
       borderManager,
       visibilityManager,
+      cultureManager,
       mockBroadcastManager
     );
     const playerIds = Array.from(players.keys());
@@ -946,6 +949,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
   private createResearchManager(gameId: string): ResearchManager {
     return new ResearchManager(gameId, this.databaseProvider);
+  }
+
+  private createCultureManager(): CultureManager {
+    return new CultureManager(this.databaseProvider);
   }
 
   private createPathfindingManager(game: any, mapManager: MapManager): PathfindingManager {
