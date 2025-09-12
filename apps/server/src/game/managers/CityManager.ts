@@ -392,11 +392,8 @@ export class CityManager {
    */
   async initialize(): Promise<void> {
     // Initialize specialized services
-    this.tileManagementService = new CityTileManagementService(
-      this.cities,
-      this.mapManager!,
-      CITY_MAP_DEFAULT_RADIUS_SQ
-    );
+    // Note: CityTileManagementService will be initialized when MapManager is set
+    // this.tileManagementService = new CityTileManagementService(...)
 
     this.buildingService = new CityBuildingService(
       this.cities,
@@ -450,14 +447,13 @@ export class CityManager {
    */
   setMapManager(mapManager: MapManager): void {
     this.mapManager = mapManager;
-    // Re-initialize services that depend on MapManager if they exist
-    if (this.tileManagementService) {
-      this.tileManagementService = new CityTileManagementService(
-        this.cities,
-        this.mapManager,
-        CITY_MAP_DEFAULT_RADIUS_SQ
-      );
-    }
+
+    // Initialize CityTileManagementService now that we have MapManager
+    this.tileManagementService = new CityTileManagementService(
+      this.cities,
+      this.mapManager,
+      CITY_MAP_DEFAULT_RADIUS_SQ
+    );
   }
 
   /**
@@ -661,27 +657,8 @@ export class CityManager {
       }
       recordStep('governor_automation');
 
-      // Optimize citizen assignments - ensure we maintain food production
-      try {
-        const optimized = await this.optimizeCitizens(cityId);
-        if (!optimized) {
-          logger.debug(
-            `Citizen optimization failed for city ${city.name}, using fallback tile assignment`
-          );
-          // Fallback: ensure basic tile assignment if optimization fails
-          if (this.tileManagementService) {
-            this.tileManagementService.reassignCitizensAfterGrowth(city);
-          }
-        }
-      } catch (error) {
-        logger.warn(`Citizen optimization error for city ${city.name}`, {
-          error: error instanceof Error ? error.message : error,
-        });
-        // Fallback: ensure basic tile assignment if optimization fails
-        if (this.tileManagementService) {
-          this.tileManagementService.reassignCitizensAfterGrowth(city);
-        }
-      }
+      // Optimize citizen assignments
+      await this.optimizeCitizens(cityId);
       recordStep('citizen_optimization');
 
       // Calculate city outputs
@@ -769,24 +746,9 @@ export class CityManager {
       if (this.tileManagementService && city.workableTiles) {
         // Re-run auto-assignment to allocate the new citizen
         this.tileManagementService.reassignCitizensAfterGrowth(city);
-
-        // Try to optimize citizens after growth, but don't fail if it doesn't work
-        try {
-          const optimized = await this.optimizeCitizens(city.id);
-          if (!optimized) {
-            logger.debug(
-              `Citizen optimization failed for ${city.name}, using basic tile assignment`
-            );
-          }
-        } catch (error) {
-          logger.warn(
-            `Citizen optimization error for ${city.name}, continuing with basic assignment`,
-            {
-              error: error instanceof Error ? error.message : error,
-            }
-          );
-        }
       }
+      // Re-optimize citizens after growth to ensure best assignment
+      await this.optimizeCitizens(city.id);
 
       // Recalculate outputs after assigning new citizen
       this.calculateCityOutputs(city.id);
