@@ -270,6 +270,7 @@ export interface BuildingType {
     goldBonus?: number;
     luxuryBonus?: number;
     happinessEffect?: number;
+    borderStrengthPct?: number;
   };
 }
 
@@ -288,6 +289,7 @@ export const BUILDING_TYPES: Record<string, BuildingType> = {
     cost: 40,
     effects: {
       happinessEffect: 2, // Makes 2 unhappy citizens content
+      borderStrengthPct: 25, // 25% bonus to border strength from culture
     },
   },
   marketplace: {

@@ -61,7 +61,8 @@
       "cost": 40,
       "upkeep": 1,
       "effects": {
-        "happinessBonus": 2
+        "happinessBonus": 2,
+        "borderStrengthPct": 25
       }
     },
     "walls": {

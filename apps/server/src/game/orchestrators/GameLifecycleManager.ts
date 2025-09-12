@@ -901,7 +901,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   }
 
   private createBorderManager(mapManager: MapManager, cityManager: CityManager): BorderManager {
-    return new BorderManager(mapManager, cityManager);
+    const effectsManager = new EffectsManager();
+    return new BorderManager(mapManager, cityManager, effectsManager);
   }
 
   private createBorderNetworkService(borderManager: BorderManager): BorderNetworkService {

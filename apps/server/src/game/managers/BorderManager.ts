@@ -11,6 +11,7 @@
 import { logger } from '@utils/logger';
 import type { MapManager } from '@game/managers/MapManager';
 import type { CityManager } from '@game/managers/CityManager';
+import { EffectsManager, EffectType, type EffectContext } from '@game/managers/EffectsManager';
 import {
   BORDERS_ENABLED,
   BORDER_DEFAULT_CITY_RADIUS_SQ,
@@ -37,6 +38,7 @@ interface BorderChangeCallbacks {
 export class BorderManager {
   private mapManager: MapManager;
   private cityManager: CityManager;
+  private effectsManager: EffectsManager;
   private gameSettings: GameSettings;
   private callbacks: BorderChangeCallbacks = {};
 
@@ -47,10 +49,12 @@ export class BorderManager {
   constructor(
     mapManager: MapManager,
     cityManager: CityManager,
+    effectsManager: EffectsManager,
     gameSettings?: Partial<GameSettings>
   ) {
     this.mapManager = mapManager;
     this.cityManager = cityManager;
+    this.effectsManager = effectsManager;
     this.gameSettings = {
       borders: BORDERS_ENABLED,
       borderCityRadiusSq: BORDER_DEFAULT_CITY_RADIUS_SQ,
@@ -163,14 +167,53 @@ export class BorderManager {
     let strength = 0;
 
     if (source.type === 'city') {
+      const city = this.cityManager.getCityAt(source.x, source.y);
       const citySize = this.getCitySize(source.x, source.y);
-      if (citySize > 0) {
-        // Base strength: (city_size + 2) * (100 + border_strength_pct) / 100
-        strength = ((citySize + 2) * (100 + this.gameSettings.borderStrengthPct)) / 100;
+
+      if (citySize > 0 && city) {
+        // Create effect context for the city
+        const context: EffectContext = {
+          cityId: city.id,
+          playerId: city.playerId,
+          tileX: source.x,
+          tileY: source.y,
+          cityBuildings: new Set(city.buildings || []),
+          // TODO: Add player techs when available from player manager
+        };
+
+        // Get border strength percentage bonus from effects (buildings, techs, government)
+        const borderStrengthPct = this.effectsManager.calculateEffect(
+          EffectType.BORDER_STRENGTH_PCT,
+          context
+        );
+
+        // Freeciv formula: (city_size + 2) * (100 + border_strength_pct) / 100
+        strength = ((citySize + 2) * (100 + borderStrengthPct.value)) / 100;
+
+        logger.debug('🏘️ City border strength calculation', {
+          cityId: city.id,
+          citySize,
+          borderStrengthPct: borderStrengthPct.value,
+          borderStrengthEffects: borderStrengthPct.effects,
+          strength,
+          buildings: city.buildings,
+        });
       }
     } else if (source.type === 'fort' || source.type === 'extra') {
+      // For tile-based sources (forts, bases), use tile context
+      const context: EffectContext = {
+        tileX: source.x,
+        tileY: source.y,
+        // TODO: Add tile improvements/extras when available
+      };
+
+      const borderStrengthPct = this.effectsManager.calculateEffect(
+        EffectType.BORDER_STRENGTH_PCT,
+        context
+      );
+
       // Base strength for extras: (100 + border_strength_pct) / 100
-      strength = (100 + this.gameSettings.borderStrengthPct) / 100;
+      strength = (100 + borderStrengthPct.value) / 100;
     }
 
     return strength;

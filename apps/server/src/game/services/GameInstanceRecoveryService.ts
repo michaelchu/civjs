@@ -237,7 +237,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
 
     // Initialize BorderManager after CityManager is created
-    borderManager = new BorderManager(mapManager, cityManager);
+    borderManager = new BorderManager(mapManager, cityManager, effectsManager);
     const borderNetworkService = new BorderNetworkService(this.io, borderManager);
     borderManager.setCallbacks({
       onBorderUpdate: update => {

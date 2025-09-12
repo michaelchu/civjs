@@ -645,6 +645,19 @@
         }
       ],
       "comment": "Palace eliminates corruption in its city"
+    },
+    "temple_border_strength": {
+      "id": "temple_border_strength",
+      "type": "Border_Strength_Pct",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Temple",
+          "range": "City"
+        }
+      ],
+      "comment": "Temple strengthens cultural borders by 25%"
     }
   }
 }
