@@ -22,6 +22,8 @@ import { CityTradeRouteService } from '@game/services/CityTradeRouteService';
 import { CityProductionService } from '@game/services/CityProductionService';
 import { CityGovernorService } from '@game/services/CityGovernorService';
 import { CityCaptureService } from '@game/services/CityCaptureService';
+import { CitizenManagementService } from '@game/systems/CitizenManagement/CitizenManagementService';
+import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 // Following original Freeciv city radius logic
@@ -364,6 +366,7 @@ export class CityManager {
   private productionService?: CityProductionService;
   private governorService?: CityGovernorService;
   private captureService?: CityCaptureService;
+  private citizenManagementService?: CitizenManagementService;
 
   constructor(
     gameId: string,
@@ -431,6 +434,10 @@ export class CityManager {
       this.cities,
       this.updateTradeRoutesOnPlayerChange.bind(this)
     );
+
+    // Initialize citizen management service
+    this.citizenManagementService = CitizenManagementService.getInstance();
+    await this.citizenManagementService.initialize();
 
     // Initialize high-level coordination service
     // Note: CityManagementService needs different constructor parameters
@@ -578,8 +585,8 @@ export class CityManager {
     // Initialize workable tiles using the service
     if (this.tileManagementService) {
       this.tileManagementService.initializeWorkableTiles(city);
-      // TODO: Auto-assign citizens to best available tiles for new city
-      // For now, the city center is automatically worked which provides base resources
+      // Auto-assign citizens to best available tiles for new city
+      await this.optimizeCitizens(cityId);
     } else {
       // Fallback if service is not available
       logger.warn('TileManagementService not available, providing fallback workable tiles', {
@@ -652,6 +659,10 @@ export class CityManager {
         await this.governorService.applyGovernorAutomation(cityId);
       }
       recordStep('governor_automation');
+
+      // Optimize citizen assignments
+      await this.optimizeCitizens(cityId);
+      recordStep('citizen_optimization');
 
       // Calculate city outputs
       this.calculateCityOutputs(cityId);
@@ -1476,6 +1487,148 @@ export class CityManager {
 
     this.applyCityCorruption(cityId, defaultGovernment);
     this.applyCityHappiness(cityId);
+  }
+
+  // === CITIZEN OPTIMIZATION METHODS ===
+
+  /**
+   * Optimize citizen assignments for a city using the CitizenManagement system
+   * @param cityId The city to optimize
+   * @param parameters Optional optimization parameters (uses default if not provided)
+   */
+  private async optimizeCitizens(cityId: string, parameters?: any): Promise<boolean> {
+    if (!this.citizenManagementService || !this.tileManagementService) {
+      logger.warn(`Cannot optimize citizens for city ${cityId} - services not available`);
+      return false;
+    }
+
+    const city = this.cities.get(cityId);
+    if (!city) {
+      logger.warn(`Cannot optimize citizens - city ${cityId} not found`);
+      return false;
+    }
+
+    try {
+      // Use provided parameters, or stored parameters, or default parameters
+      const optimizationParams =
+        parameters || this.getCitizenParameters(cityId) || CitizenParameterFactory.createDefault();
+
+      // Get workable tiles for the optimization
+      const workableTiles = this.tileManagementService.getWorkableTiles(cityId);
+      if (!workableTiles) {
+        logger.warn(`Cannot optimize citizens - no workable tiles for city ${cityId}`);
+        return false;
+      }
+
+      // Run the optimization
+      const result = this.citizenManagementService.queryResult(
+        city,
+        optimizationParams,
+        false // Don't allow negative surpluses
+      );
+
+      if (result.found_valid) {
+        // Apply the optimized assignments
+        if (city.workableTiles) {
+          // Update worked tile assignments
+          for (
+            let i = 0;
+            i < result.worker_positions.length && i < city.workableTiles.length;
+            i++
+          ) {
+            city.workableTiles[i].isWorked = result.worker_positions[i];
+          }
+        }
+
+        // Update specialist assignments
+        city.specialists = { ...result.specialists };
+
+        // Update output calculations based on optimized assignments
+        city.foodPerTurn = result.surplus.food;
+        city.productionPerTurn = result.surplus.shield;
+        city.tradePerTurn = result.surplus.trade;
+        city.sciencePerTurn = result.surplus.science;
+
+        logger.debug(`Successfully optimized citizens for city ${city.name}`, {
+          cityId,
+          fitness: result.fitness,
+          workersCount: result.workers_count,
+          specialistsCount: result.specialists_count,
+        });
+
+        return true;
+      } else {
+        logger.warn(`Citizen optimization failed for city ${city.name}`, {
+          cityId,
+          aborted: result.aborted,
+        });
+        return false;
+      }
+    } catch (error) {
+      logger.error(`Error optimizing citizens for city ${city.name}`, {
+        cityId,
+        error: error instanceof Error ? error.message : error,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Public method to manually optimize a city's citizens
+   * @param cityId The city to optimize
+   * @param parameters Optional optimization parameters
+   */
+  async optimizeCityManually(cityId: string, parameters?: any): Promise<boolean> {
+    return this.optimizeCitizens(cityId, parameters);
+  }
+
+  /**
+   * Get citizen optimization parameters for a city (for UI configuration)
+   * @param cityId The city to get parameters for
+   */
+  getCitizenParameters(cityId: string): any | null {
+    const city = this.cities.get(cityId);
+    if (!city) return null;
+
+    // Check if city has stored citizen parameters
+    if (city.governor && (city.governor as any).citizenParameters) {
+      return (city.governor as any).citizenParameters;
+    }
+
+    // Return default parameters if none stored
+    return CitizenParameterFactory.createDefault();
+  }
+
+  /**
+   * Set citizen optimization parameters for a city
+   * @param cityId The city to set parameters for
+   * @param parameters The optimization parameters to set
+   */
+  setCitizenParameters(cityId: string, parameters: any): boolean {
+    const city = this.cities.get(cityId);
+    if (!city) return false;
+
+    // For now, we'll store parameters in the city's governor settings
+    // In the future, we might add a dedicated citizen management config
+    if (!city.governor) {
+      city.governor = {
+        isEnabled: false,
+        priority: GovernorPriority.BALANCED,
+        settings: {
+          autoManageSpecialists: true,
+          autoManageTiles: true,
+          autoManageProduction: false,
+          preventStarvation: true,
+          maintainHappiness: true,
+        },
+      };
+    }
+
+    // Store citizen parameters in a way that doesn't break the interface
+    // We'll extend the governor with additional data for now
+    (city.governor as any).citizenParameters = parameters;
+
+    return true;
   }
 
   // === SERVICE DELEGATION METHODS ===
