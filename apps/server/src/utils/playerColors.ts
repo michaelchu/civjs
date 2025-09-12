@@ -35,8 +35,8 @@ export const NATION_COLOR_THEMES: NationColorTheme[] = [
     tertiary: { r: 255, g: 215, b: 0 }, // Gold
   },
   {
-    name: 'Navy Empire',
-    primary: { r: 25, g: 25, b: 112 }, // Midnight Blue
+    name: 'Turquoise Empire',
+    primary: { r: 64, g: 224, b: 208 }, // Turquoise
     secondary: { r: 255, g: 255, b: 255 }, // White
     tertiary: { r: 139, g: 69, b: 19 }, // Saddle Brown
   },
