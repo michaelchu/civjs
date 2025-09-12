@@ -392,9 +392,6 @@ export class CityManager {
    */
   async initialize(): Promise<void> {
     // Initialize specialized services
-    // Note: CityTileManagementService will be initialized when MapManager is set
-    // this.tileManagementService = new CityTileManagementService(...)
-
     this.buildingService = new CityBuildingService(
       this.cities,
       this.databaseProvider,
