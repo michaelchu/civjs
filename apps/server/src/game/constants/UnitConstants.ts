@@ -23,7 +23,7 @@ export const UNIT_TYPES: Record<string, UnitType> = {
   warrior: {
     id: 'warrior',
     name: 'Warrior',
-    cost: 40,
+    cost: 10,
     movement: 2 * SINGLE_MOVE, // 2 movement points = 6 fragments
     combat: 20,
     range: 1,
@@ -35,7 +35,7 @@ export const UNIT_TYPES: Record<string, UnitType> = {
   settler: {
     id: 'settler',
     name: 'Settler',
-    cost: 80,
+    cost: 40,
     movement: 2 * SINGLE_MOVE, // 2 movement points = 6 fragments
     combat: 0,
     range: 0,

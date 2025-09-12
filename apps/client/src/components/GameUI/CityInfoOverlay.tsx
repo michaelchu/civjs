@@ -96,7 +96,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
         id: 'settler',
         name: 'Settler',
         type: 'unit',
-        cost: 30,
+        cost: 40,
         available: true,
         description: 'Founds new cities',
       },
