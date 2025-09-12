@@ -24,22 +24,25 @@ export const FC_INFINITY = 1000000; // From freeciv FC_INFINITY constant
 
 /**
  * Calculate city border radius squared based on population/size
- * Implements progressive expansion: small cities start with 1 tile radius,
- * grow to medium radius, then large radius as population increases
+ * Implements freeciv's progressive border expansion formula:
+ * radius_sq = border_city_radius_sq + min(city_size, CITY_MAP_MAX_RADIUS_SQ) * border_size_effect
  *
+ * @reference freeciv/common/borders.c:33-49 tile_border_source_radius_sq()
  * @param citySize - The population/size of the city
  * @returns radius squared value for border calculations
  */
 export function calculateCityBorderRadiusSq(citySize: number): number {
   if (citySize <= 0) {
     return 0; // No borders for invalid cities
-  } else if (citySize <= 2) {
-    // Small cities (size 1-2): 1 tile radius like Civ 3 (3x3 square)
-    // Need radius_sq = 2 to include diagonal tiles: √2 ≈ 1.41 <= √2
-    return 2;
-  } else {
-    // Medium+ cities (size 3+): 2 tile radius with 21 tiles (~2.2 radius)
-    // radius_sq = 5 (freeciv default, matches 21 tile pattern)
-    return 5;
   }
+
+  // Freeciv border expansion formula
+  // Base radius (usually 5 for 2-tile radius)
+  let radiusSq = BORDER_DEFAULT_CITY_RADIUS_SQ;
+
+  // Add size effect: min(city_size, max_radius_sq) * size_effect
+  const sizeBonus = Math.min(citySize, CITY_MAP_MAX_RADIUS_SQ) * BORDER_DEFAULT_SIZE_EFFECT;
+  radiusSq += sizeBonus;
+
+  return radiusSq;
 }
