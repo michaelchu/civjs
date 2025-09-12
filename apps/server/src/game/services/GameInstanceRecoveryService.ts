@@ -12,6 +12,9 @@ import { ResearchManager } from '@game/managers/ResearchManager';
 import { TurnManager } from '@game/managers/TurnManager';
 import { UnitManager } from '@game/managers/UnitManager';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
+import { BorderManager } from '@game/managers/BorderManager';
+import { BorderNetworkService } from '@game/services/BorderNetworkService';
+import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
 import { Server as SocketServer } from 'socket.io';
 
 /**
@@ -169,7 +172,44 @@ export class GameInstanceRecoveryService extends BaseGameService {
   }> {
     // Create managers in dependency order
     const effectsManager = new EffectsManager();
-    const cityManager = new CityManager(gameId, this.databaseProvider, effectsManager, {});
+    
+    // BorderNetworkService will be created after BorderManager
+    
+    // Create CityManager with growth callback that will use BorderManager
+    let borderManager: BorderManager; // Declare first, initialize after managers are created
+    const cityManager = new CityManager(gameId, this.databaseProvider, effectsManager, {
+      onCityGrowth: (city, oldSize) => {
+        // Update border radius when city grows (population-based expansion)
+        logger.info(`City ${city.name} grew from size ${oldSize} to ${city.size}`, {
+          cityId: city.id,
+          x: city.x,
+          y: city.y,
+          oldSize,
+          newSize: city.size,
+        });
+
+        // Recalculate borders around the city due to potential radius change
+        if (borderManager) {
+          const oldRadiusSq = calculateCityBorderRadiusSq(oldSize);
+          const newRadiusSq = calculateCityBorderRadiusSq(city.size);
+
+          if (newRadiusSq !== oldRadiusSq) {
+            logger.info(`City border radius changed for ${city.name}`, {
+              cityId: city.id,
+              oldRadiusSq,
+              newRadiusSq,
+              oldRadius: Math.sqrt(oldRadiusSq),
+              newRadius: Math.sqrt(newRadiusSq),
+            });
+
+            // Update borders around the city with the new radius
+            // Use the larger radius to ensure we recalculate all potentially affected tiles
+            const updateRadius = Math.max(oldRadiusSq, newRadiusSq);
+            borderManager.updateBordersAroundTile(city.x, city.y, updateRadius);
+          }
+        }
+      },
+    });
     const researchManager = new ResearchManager(gameId, this.databaseProvider);
 
     const unitManager = new UnitManager(
@@ -194,10 +234,14 @@ export class GameInstanceRecoveryService extends BaseGameService {
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
     const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
 
-    // Create BorderManager placeholder
-    const borderManager = {
-      recalculateBordersForPlayer: () => {},
-    } as any; // TODO: Fix this with proper BorderManager instantiation
+    // Initialize BorderManager after CityManager is created
+    borderManager = new BorderManager(mapManager, cityManager);
+    const borderNetworkService = new BorderNetworkService(this.io, borderManager);
+    borderManager.setCallbacks({
+      onBorderUpdate: update => {
+        borderNetworkService.broadcastBorderUpdate(gameId, update);
+      },
+    });
 
     // Create a simple broadcast manager for the TurnManager
     // TODO: Proper dependency injection should be implemented
