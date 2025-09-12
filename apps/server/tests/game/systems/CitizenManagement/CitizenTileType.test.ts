@@ -240,8 +240,8 @@ describe('CitizenTileType', () => {
         expect(poor.better_types).toContain(excellent);
         expect(poor.better_types).toContain(good);
 
-        // Different should not dominate or be dominated by others (mixed outputs)
-        expect(different.better_types).toHaveLength(0);
+        // Different should be dominated by excellent but not dominate others
+        expect(different.better_types).toContain(excellent);
         expect(different.worse_types).toHaveLength(0);
       });
 

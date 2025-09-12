@@ -858,6 +858,10 @@ export class CitizenManagementService {
         this.performanceStats.totalQueries > 0
           ? this.performanceStats.totalIterations / this.performanceStats.totalQueries
           : 0,
+      iterationsPerSecond:
+        this.performanceStats.totalTimeMs > 0
+          ? (this.performanceStats.totalIterations * 1000) / this.performanceStats.totalTimeMs
+          : 0,
       cacheHitRate:
         this.performanceStats.totalQueries > 0
           ? this.performanceStats.cacheHits / this.performanceStats.totalQueries
