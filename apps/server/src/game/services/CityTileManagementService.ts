@@ -409,7 +409,9 @@ export class CityTileManagementService extends BaseGameService {
 
   /**
    * Calculate city outputs from worked tiles only (without buildings/specialists)
+   * Includes food consumption by citizens as per Freeciv rules
    * @reference Original CityManager.calculateCityOutputs()
+   * @reference freeciv-web help: "Each citizen requires two food points per turn"
    */
   public calculateCityOutputs(cityId: string): {
     food: number;
@@ -433,6 +435,11 @@ export class CityTileManagementService extends BaseGameService {
         trade += tile.outputs.trade;
       }
     }
+
+    // Apply food consumption: each citizen consumes 2 food per turn
+    // @reference freeciv-web/javascript/freeciv-helpdata.js - help_food
+    const foodConsumption = city.population * 2;
+    food -= foodConsumption;
 
     return { food, shields, trade };
   }

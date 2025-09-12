@@ -392,12 +392,6 @@ export class CityManager {
    */
   async initialize(): Promise<void> {
     // Initialize specialized services
-    this.tileManagementService = new CityTileManagementService(
-      this.cities,
-      this.mapManager!,
-      CITY_MAP_DEFAULT_RADIUS_SQ
-    );
-
     this.buildingService = new CityBuildingService(
       this.cities,
       this.databaseProvider,
@@ -450,14 +444,13 @@ export class CityManager {
    */
   setMapManager(mapManager: MapManager): void {
     this.mapManager = mapManager;
-    // Re-initialize services that depend on MapManager if they exist
-    if (this.tileManagementService) {
-      this.tileManagementService = new CityTileManagementService(
-        this.cities,
-        this.mapManager,
-        CITY_MAP_DEFAULT_RADIUS_SQ
-      );
-    }
+
+    // Initialize CityTileManagementService now that we have MapManager
+    this.tileManagementService = new CityTileManagementService(
+      this.cities,
+      this.mapManager,
+      CITY_MAP_DEFAULT_RADIUS_SQ
+    );
   }
 
   /**
@@ -751,6 +744,9 @@ export class CityManager {
         // Re-run auto-assignment to allocate the new citizen
         this.tileManagementService.reassignCitizensAfterGrowth(city);
       }
+      // Re-optimize citizens after growth to ensure best assignment
+      await this.optimizeCitizens(city.id);
+
       // Recalculate outputs after assigning new citizen
       this.calculateCityOutputs(city.id);
 
@@ -879,7 +875,7 @@ export class CityManager {
     }
   }
 
-  private calculateGranarySize(population: number, rulesetName: string = 'classic'): number {
+  public calculateGranarySize(population: number, rulesetName: string = 'classic'): number {
     try {
       const civstyle = rulesetLoader.getCivstyle(rulesetName);
       const granaryFoodIni = civstyle.granary_food_ini;
