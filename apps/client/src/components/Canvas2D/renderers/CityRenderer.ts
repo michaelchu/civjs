@@ -156,19 +156,6 @@ export class CityRenderer extends BaseRenderer {
     // Generate authentic Freeciv sprite key format
     const spriteKey = `${cityStyleGraphic}_${spriteType}_${sizeIndex}`;
 
-    // Debug: Log city sprite information
-    console.log(`🏙️ City Debug:`, {
-      cityName: city.name,
-      population: city.size,
-      sizeIndex,
-      cityStyleGraphic,
-      spriteType,
-      spriteKey,
-      hasWalls,
-      stylesLoaded: this.stylesLoaded,
-      availableStyles: Object.keys(this.cityStyles),
-    });
-
     sprites.push({
       key: spriteKey,
       offset_x: 0,
