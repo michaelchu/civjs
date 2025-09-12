@@ -312,6 +312,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "history": {
+          "name": "history",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "0"
         }
       },
       "indexes": {},
@@ -708,6 +715,13 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
+        },
+        "history_interest_pml": {
+          "name": "history_interest_pml",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "0"
         }
       },
       "indexes": {},
