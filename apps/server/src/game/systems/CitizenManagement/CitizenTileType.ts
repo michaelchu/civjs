@@ -1,12 +1,12 @@
 /**
  * CitizenTileType - Represents unique combinations of tile outputs for optimization
  * @reference freeciv/common/aicore/cm.c - struct cm_tile_type
- * 
+ *
  * Groups tiles with identical output into types to reduce search space
  */
 
-import type { OutputType } from '@game/constants/GameConstants';
-import type { SpecialistType } from '@game/managers/CityManager';
+import { OutputType } from '@game/constants/GameConstants';
+import { SpecialistType } from '@game/managers/CityManager';
 
 /**
  * Represents a unique tile output combination or specialist type
@@ -15,34 +15,34 @@ import type { SpecialistType } from '@game/managers/CityManager';
 export interface CitizenTileType {
   /** Unique identifier for this tile type */
   id: string;
-  
+
   /** Production output for each type (food, shields, trade, etc.) */
   production: Record<OutputType, number>;
-  
+
   /** Estimated fitness value (weighted sum of production) */
   estimated_fitness: number;
-  
+
   /** Whether this represents a specialist rather than a tile */
   is_specialist: boolean;
-  
+
   /** Specialist type (only valid if is_specialist = true) */
   specialist_type?: SpecialistType;
-  
+
   /** List of actual tile indices that have this output pattern */
   tile_indices: number[];
-  
+
   /** Available count (number of tiles/specialists of this type available) */
   available_count: number;
-  
+
   /** Index in the optimization lattice */
   lattice_index: number;
-  
+
   /** Depth in the lattice (sum of counts of all better types) */
   lattice_depth: number;
-  
+
   /** References to tile types that are strictly better */
   better_types: CitizenTileType[];
-  
+
   /** References to tile types that are strictly worse */
   worse_types: CitizenTileType[];
 }
@@ -130,10 +130,7 @@ export class CitizenTileTypeUtils {
   /**
    * Calculate estimated fitness using weighted factors
    */
-  static calculateFitness(
-    tileType: CitizenTileType, 
-    factors: Record<OutputType, number>
-  ): number {
+  static calculateFitness(tileType: CitizenTileType, factors: Record<OutputType, number>): number {
     let fitness = 0;
     for (const [outputType, amount] of Object.entries(tileType.production)) {
       fitness += amount * factors[outputType as OutputType];
@@ -144,10 +141,7 @@ export class CitizenTileTypeUtils {
   /**
    * Update fitness for a tile type using given factors
    */
-  static updateFitness(
-    tileType: CitizenTileType, 
-    factors: Record<OutputType, number>
-  ): void {
+  static updateFitness(tileType: CitizenTileType, factors: Record<OutputType, number>): void {
     tileType.estimated_fitness = this.calculateFitness(tileType, factors);
   }
 
@@ -157,20 +151,20 @@ export class CitizenTileTypeUtils {
    */
   static dominates(type1: CitizenTileType, type2: CitizenTileType): boolean {
     let strictlyBetter = false;
-    
+
     for (const outputType of Object.values(OutputType)) {
       const prod1 = type1.production[outputType];
       const prod2 = type2.production[outputType];
-      
+
       if (prod1 < prod2) {
         return false; // type1 is worse in this output
       }
-      
+
       if (prod1 > prod2) {
         strictlyBetter = true;
       }
     }
-    
+
     return strictlyBetter;
   }
 
@@ -219,7 +213,7 @@ export class CitizenTileTypeUtils {
     tiles: Array<{ index: number; production: Record<OutputType, number> }>
   ): CitizenTileType[] {
     const productionGroups = new Map<string, number[]>();
-    
+
     // Group tiles by production pattern
     for (const tile of tiles) {
       const key = this.getProductionKey(tile.production);
@@ -232,17 +226,17 @@ export class CitizenTileTypeUtils {
     // Create tile types from groups
     const tileTypes: CitizenTileType[] = [];
     let typeIndex = 0;
-    
-    for (const [productionKey, tileIndices] of productionGroups.entries()) {
+
+    for (const [_productionKey, tileIndices] of productionGroups.entries()) {
       // Reconstruct production from first tile in group
       const firstTile = tiles.find(t => t.index === tileIndices[0])!;
-      
+
       const tileType = CitizenTileTypeFactory.createFromTileOutput(
         `tiles_${typeIndex++}`,
         firstTile.production,
         tileIndices
       );
-      
+
       tileTypes.push(tileType);
     }
 
@@ -257,11 +251,11 @@ export class CitizenTileTypeUtils {
       .filter(([, amount]) => amount > 0)
       .map(([type, amount]) => `${amount} ${type}`)
       .join(', ');
-    
-    const prefix = tileType.is_specialist 
+
+    const prefix = tileType.is_specialist
       ? `${tileType.specialist_type} specialist`
       : `Tile (${tileType.available_count} available)`;
-      
+
     return `${prefix}: ${outputs || 'no output'} (fitness: ${tileType.estimated_fitness.toFixed(1)})`;
   }
 }

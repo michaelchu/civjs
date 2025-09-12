@@ -9,7 +9,7 @@
  */
 export enum OutputType {
   FOOD = 'food',
-  SHIELD = 'shield', 
+  SHIELD = 'shield',
   TRADE = 'trade',
   GOLD = 'gold',
   LUXURY = 'luxury',

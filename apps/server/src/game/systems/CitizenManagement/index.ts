@@ -1,6 +1,6 @@
 /**
  * CitizenManagement System - Main exports
- * 
+ *
  * Provides intelligent citizen assignment optimization following Freeciv's
  * Citizen Management (CM) system architecture.
  */

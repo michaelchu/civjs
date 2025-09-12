@@ -1,12 +1,12 @@
 /**
  * CitizenParameter - Configuration parameters for citizen management optimization
  * @reference freeciv/common/aicore/cm.h - struct cm_parameter
- * 
+ *
  * This interface defines how citizens should be assigned to maximize city output
  * according to player preferences and constraints.
  */
 
-import type { OutputType } from '@game/constants/GameConstants';
+import { OutputType } from '@game/constants/GameConstants';
 
 /**
  * Configuration parameters for citizen assignment optimization
@@ -15,22 +15,22 @@ import type { OutputType } from '@game/constants/GameConstants';
 export interface CitizenParameter {
   /** Minimum required surplus for each output type (food, shields, trade, etc.) */
   minimal_surplus: Record<OutputType, number>;
-  
+
   /** Weighting factors for each output type in optimization */
   factor: Record<OutputType, number>;
-  
+
   /** Happiness factor weight in optimization */
   happy_factor: number;
-  
+
   /** Whether to maximize growth (prioritize food surplus) */
   max_growth: boolean;
-  
+
   /** Whether city must be happy (no unhappy citizens) */
   require_happy: boolean;
-  
+
   /** Whether to allow disorder (unhappy > happy citizens) */
   allow_disorder: boolean;
-  
+
   /** Whether to allow specialists (non-worker citizens) */
   allow_specialists: boolean;
 }
@@ -146,19 +146,23 @@ export class CitizenParameterUtils {
   static areEqual(p1: CitizenParameter, p2: CitizenParameter): boolean {
     // Compare all fields for equality
     const outputTypes = Object.values(OutputType);
-    
+
     for (const outputType of outputTypes) {
-      if (p1.minimal_surplus[outputType] !== p2.minimal_surplus[outputType] ||
-          p1.factor[outputType] !== p2.factor[outputType]) {
+      if (
+        p1.minimal_surplus[outputType] !== p2.minimal_surplus[outputType] ||
+        p1.factor[outputType] !== p2.factor[outputType]
+      ) {
         return false;
       }
     }
-    
-    return p1.happy_factor === p2.happy_factor &&
-           p1.max_growth === p2.max_growth &&
-           p1.require_happy === p2.require_happy &&
-           p1.allow_disorder === p2.allow_disorder &&
-           p1.allow_specialists === p2.allow_specialists;
+
+    return (
+      p1.happy_factor === p2.happy_factor &&
+      p1.max_growth === p2.max_growth &&
+      p1.require_happy === p2.require_happy &&
+      p1.allow_disorder === p2.allow_disorder &&
+      p1.allow_specialists === p2.allow_specialists
+    );
   }
 
   /**

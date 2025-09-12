@@ -1,12 +1,12 @@
 /**
  * CitizenResult - Result of citizen management optimization
  * @reference freeciv/common/aicore/cm.h - struct cm_result
- * 
+ *
  * Contains the optimal citizen assignment and resulting city outputs
  */
 
-import type { OutputType } from '@game/constants/GameConstants';
-import type { SpecialistType } from '@game/managers/CityManager';
+import { OutputType } from '@game/constants/GameConstants';
+import { SpecialistType } from '@game/managers/CityManager';
 
 /**
  * Result of citizen assignment optimization
@@ -15,34 +15,34 @@ import type { SpecialistType } from '@game/managers/CityManager';
 export interface CitizenResult {
   /** Whether the optimization was successful */
   found_valid: boolean;
-  
+
   /** Whether the optimization was aborted (timeout/complexity) */
   aborted: boolean;
-  
+
   /** Whether the city is in disorder */
   disorder: boolean;
-  
+
   /** Whether all citizens are happy */
   happy: boolean;
-  
+
   /** Final surplus for each output type after optimization */
   surplus: Record<OutputType, number>;
-  
+
   /** City radius squared (for tile positioning) */
   city_radius_sq: number;
-  
+
   /** Which tile positions are worked (boolean array indexed by city map) */
   worker_positions: boolean[];
-  
+
   /** Number of each type of specialist */
   specialists: Record<SpecialistType, number>;
-  
+
   /** Total number of citizens working tiles */
   workers_count: number;
-  
+
   /** Total number of specialist citizens */
   specialists_count: number;
-  
+
   /** Overall fitness score of this solution */
   fitness: number;
 }
@@ -58,7 +58,7 @@ export class CitizenResultFactory {
   static create(cityRadiusSq: number): CitizenResult {
     // Initialize worker positions array for all tiles in city radius
     const maxTiles = (2 * Math.floor(Math.sqrt(cityRadiusSq)) + 1) ** 2;
-    
+
     return {
       found_valid: false,
       aborted: false,
@@ -137,24 +137,24 @@ export class CitizenResultUtils {
    */
   static validate(result: CitizenResult, expectedPopulation: number): boolean {
     const totalCitizens = this.getTotalCitizens(result);
-    
+
     if (totalCitizens !== expectedPopulation) {
       return false;
     }
-    
+
     // Check that worker positions array is correct size
     const expectedTiles = (2 * Math.floor(Math.sqrt(result.city_radius_sq)) + 1) ** 2;
     if (result.worker_positions.length !== expectedTiles) {
       return false;
     }
-    
+
     // Check that specialists counts are non-negative
     for (const count of Object.values(result.specialists)) {
       if (count < 0) {
         return false;
       }
     }
-    
+
     return true;
   }
 
@@ -165,7 +165,7 @@ export class CitizenResultUtils {
     if (!result.found_valid) {
       return 'No valid solution found';
     }
-    
+
     const lines = [
       `Workers: ${result.workers_count}, Specialists: ${result.specialists_count}`,
       `Surplus: ${Object.entries(result.surplus)
@@ -174,7 +174,7 @@ export class CitizenResultUtils {
       `Status: ${result.disorder ? 'Disorder' : result.happy ? 'Happy' : 'Content'}`,
       `Fitness: ${result.fitness}`,
     ];
-    
+
     return lines.join('\n');
   }
 }
