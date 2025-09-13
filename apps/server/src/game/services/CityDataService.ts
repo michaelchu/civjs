@@ -15,7 +15,7 @@ import {
   BUILDING_TYPES,
 } from '@game/managers/CityManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import { UNIT_TYPES } from '../constants/UnitConstants';
+import { rulesetUnitsService } from './RulesetUnitsService';
 
 interface ClientCityData {
   id: string;
@@ -428,7 +428,8 @@ export class CityDataService {
    */
   private static getProductionCost(itemId: string, type: string): number {
     if (type === 'unit') {
-      return UNIT_TYPES[itemId]?.cost || 10;
+      const unitType = rulesetUnitsService.getUnitType(itemId);
+      return unitType?.cost || 10;
     } else if (type === 'building') {
       return BUILDING_TYPES[itemId]?.cost || 40;
     }

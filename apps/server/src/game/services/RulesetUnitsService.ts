@@ -1,0 +1,183 @@
+/**
+ * Service for accessing unit types from rulesets instead of hardcoded constants
+ * Provides the same interface as the old UNIT_TYPES constant but loads dynamically from rulesets
+ */
+
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import type { UnitTypeRuleset } from '@shared/data/rulesets/schemas';
+
+export interface UnitType {
+  id: string;
+  name: string;
+  cost: number;
+  movement: number;
+  combat: number; // For backward compatibility - maps to attack value
+  attack?: number; // Freeciv attack value
+  defense?: number; // Freeciv defense value
+  range: number;
+  sight: number; // For backward compatibility - maps to vision_radius_sq
+  vision_radius_sq?: number; // Freeciv vision value
+  canFoundCity: boolean;
+  canBuildImprovements: boolean;
+  unitClass: 'military' | 'civilian' | 'naval' | 'air';
+  requiredTech?: string;
+  transport_capacity?: number;
+  // Additional freeciv fields
+  hitpoints?: number;
+  firepower?: number;
+  fuel?: number;
+  uk_happy?: number;
+  uk_shield?: number;
+  uk_food?: number;
+  uk_gold?: number;
+  roles?: string[];
+  flags?: string[];
+  obsolete_by?: string;
+  pop_cost?: number;
+  veteran_levels?: number;
+}
+
+export class RulesetUnitsService {
+  private static instance: RulesetUnitsService;
+  private cache = new Map<string, Record<string, UnitType>>();
+
+  static getInstance(): RulesetUnitsService {
+    if (!RulesetUnitsService.instance) {
+      RulesetUnitsService.instance = new RulesetUnitsService();
+    }
+    return RulesetUnitsService.instance;
+  }
+
+  /**
+   * Get all unit types for a ruleset, with backward compatibility mapping
+   */
+  getUnitTypes(rulesetName: string = 'classic'): Record<string, UnitType> {
+    if (this.cache.has(rulesetName)) {
+      return this.cache.get(rulesetName)!;
+    }
+
+    const rulesetUnits = rulesetLoader.getUnits(rulesetName);
+    const mappedUnits: Record<string, UnitType> = {};
+
+    for (const [unitId, unit] of Object.entries(rulesetUnits)) {
+      mappedUnits[unitId] = this.mapRulesetUnit(unit);
+    }
+
+    this.cache.set(rulesetName, mappedUnits);
+    return mappedUnits;
+  }
+
+  /**
+   * Get a specific unit type
+   */
+  getUnitType(unitId: string, rulesetName: string = 'classic'): UnitType | undefined {
+    const units = this.getUnitTypes(rulesetName);
+    return units[unitId];
+  }
+
+  /**
+   * Map ruleset unit to backward-compatible UnitType interface
+   */
+  private mapRulesetUnit(unit: UnitTypeRuleset): UnitType {
+    return {
+      id: unit.id,
+      name: unit.name,
+      cost: unit.cost || unit.build_cost || 10,
+      movement: unit.movement || 1,
+      combat: unit.attack || unit.combat || 0, // Use attack as primary combat value
+      attack: unit.attack,
+      defense: unit.defense,
+      range: unit.range || 0,
+      sight: unit.vision_radius_sq || unit.sight || 2,
+      vision_radius_sq: unit.vision_radius_sq,
+      canFoundCity: unit.canFoundCity || unit.roles?.includes('CitiesStartUnit') || false,
+      canBuildImprovements: unit.canBuildImprovements || unit.flags?.includes('Workers' as any) || false,
+      unitClass: this.mapUnitClass(unit.unit_class, unit.unitClass as any),
+      requiredTech: unit.required_tech || unit.requiredTech,
+      transport_capacity: unit.transport_cap,
+      // Additional freeciv fields
+      hitpoints: unit.hitpoints,
+      firepower: unit.firepower,
+      fuel: unit.fuel,
+      uk_happy: unit.uk_happy,
+      uk_shield: unit.uk_shield,
+      uk_food: unit.uk_food,
+      uk_gold: unit.uk_gold,
+      roles: unit.roles,
+      flags: unit.flags,
+      obsolete_by: unit.obsolete_by,
+      pop_cost: unit.pop_cost,
+      veteran_levels: unit.veteran_levels,
+    };
+  }
+
+  /**
+   * Map freeciv unit class to our enum
+   */
+  private mapUnitClass(
+    freecivClass: any,
+    backwardClass?: 'military' | 'civilian' | 'naval' | 'air'
+  ): 'military' | 'civilian' | 'naval' | 'air' {
+    // Use backward compatibility field first
+    if (backwardClass) {
+      return backwardClass;
+    }
+
+    // Map freeciv classes
+    switch (freecivClass) {
+      case 'Land':
+      case 'Big Land':
+      case 'Small Land':
+        return 'military';
+      case 'Sea':
+      case 'Trireme':
+        return 'naval';
+      case 'Air':
+      case 'Helicopter':
+        return 'air';
+      default:
+        // For units with flags indicating civilian roles
+        return 'civilian';
+    }
+  }
+
+  /**
+   * Clear cache (useful for tests or ruleset changes)
+   */
+  clearCache(): void {
+    this.cache.clear();
+  }
+}
+
+// Create singleton instance
+export const rulesetUnitsService = RulesetUnitsService.getInstance();
+
+// Provide backward-compatible exports that use the dynamic service
+export const UNIT_TYPES = new Proxy({} as Record<string, UnitType>, {
+  get(_, prop: string) {
+    return rulesetUnitsService.getUnitType(prop);
+  },
+  ownKeys(_) {
+    return Reflect.ownKeys(rulesetUnitsService.getUnitTypes());
+  },
+  has(_, prop: string) {
+    return rulesetUnitsService.getUnitType(prop) !== undefined;
+  },
+  getOwnPropertyDescriptor(_, prop: string) {
+    const unit = rulesetUnitsService.getUnitType(prop);
+    if (unit) {
+      return {
+        enumerable: true,
+        configurable: true,
+        value: unit,
+      };
+    }
+    return undefined;
+  },
+});
+
+export function getUnitType(unitTypeId: string): UnitType | undefined {
+  return rulesetUnitsService.getUnitType(unitTypeId);
+}
+
+export { UnitType as UnitTypeInterface };
