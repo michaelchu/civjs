@@ -11,6 +11,7 @@
 import { logger } from '@utils/logger';
 import type { MapManager } from '@game/managers/MapManager';
 import type { CityManager } from '@game/managers/CityManager';
+import { EffectsManager, EffectType, type EffectContext } from '@game/managers/EffectsManager';
 import {
   BORDERS_ENABLED,
   BORDER_DEFAULT_CITY_RADIUS_SQ,
@@ -37,6 +38,7 @@ interface BorderChangeCallbacks {
 export class BorderManager {
   private mapManager: MapManager;
   private cityManager: CityManager;
+  private effectsManager: EffectsManager;
   private gameSettings: GameSettings;
   private callbacks: BorderChangeCallbacks = {};
 
@@ -47,10 +49,12 @@ export class BorderManager {
   constructor(
     mapManager: MapManager,
     cityManager: CityManager,
+    effectsManager: EffectsManager,
     gameSettings?: Partial<GameSettings>
   ) {
     this.mapManager = mapManager;
     this.cityManager = cityManager;
+    this.effectsManager = effectsManager;
     this.gameSettings = {
       borders: BORDERS_ENABLED,
       borderCityRadiusSq: BORDER_DEFAULT_CITY_RADIUS_SQ,
@@ -163,14 +167,28 @@ export class BorderManager {
     let strength = 0;
 
     if (source.type === 'city') {
-      const citySize = this.getCitySize(source.x, source.y);
-      if (citySize > 0) {
-        // Base strength: (city_size + 2) * (100 + border_strength_pct) / 100
-        strength = ((citySize + 2) * (100 + this.gameSettings.borderStrengthPct)) / 100;
+      const city = this.cityManager.getCityAt(source.x, source.y);
+      if (city && city.size > 0) {
+        const citySize = city.size;
+        // Get culture-based border strength bonus from buildings/effects
+        const cultureBonus = this.getCultureBorderBonus(source.x, source.y);
+
+        // Freeciv formula: (city_size + 2) * (100 + border_strength_pct) / 100
+        strength = ((citySize + 2) * (100 + cultureBonus)) / 100;
+
+        logger.debug('City border strength calculation', {
+          x: source.x,
+          y: source.y,
+          citySize,
+          cultureBonus,
+          strength,
+        });
       }
     } else if (source.type === 'fort' || source.type === 'extra') {
-      // Base strength for extras: (100 + border_strength_pct) / 100
-      strength = (100 + this.gameSettings.borderStrengthPct) / 100;
+      // Freeciv reference: Base strength 100 / 100 = 1 plus tile effects
+      // For extras, use tile-based border strength effects
+      const tileBonus = this.getTileBorderBonus(source.x, source.y);
+      strength = (100 + tileBonus) / 100;
     }
 
     return strength;
@@ -526,6 +544,56 @@ export class BorderManager {
       // Update tile ownership in map
       this.updateTileOwnership(x, y, newOwnership.playerId);
     }
+  }
+
+  /**
+   * Get culture-based border strength bonus for a city
+   * @reference freeciv/common/borders.c:82 get_city_bonus(pcity, EFT_BORDER_STRENGTH_PCT)
+   */
+  private getCultureBorderBonus(x: number, y: number): number {
+    const city = this.cityManager.getCityAt(x, y);
+    if (!city) {
+      return 0;
+    }
+
+    const context: EffectContext = {
+      cityId: city.id,
+      playerId: city.playerId,
+      tileX: x,
+      tileY: y,
+      cityBuildings: new Set(city.buildings || []),
+    };
+
+    const borderStrengthEffect = this.effectsManager.calculateEffect(
+      EffectType.BORDER_STRENGTH_PCT,
+      context
+    );
+
+    return borderStrengthEffect.value;
+  }
+
+  /**
+   * Get tile-based border strength bonus for extras (forts, bases)
+   * @reference freeciv/common/borders.c:89 get_tile_bonus(ptile, EFT_BORDER_STRENGTH_PCT)
+   */
+  private getTileBorderBonus(x: number, y: number): number {
+    // For now, return 0 since extras system is not yet implemented
+    // When extras are implemented, this should check tile extras and calculate
+    // border strength effects similar to getCultureBorderBonus but for tile context
+    const tile = this.mapManager.getTile(x, y);
+    if (!tile) {
+      return 0;
+    }
+
+    // TODO: Implement when extras/improvements system is available
+    // const context: EffectContext = {
+    //   tileX: x,
+    //   tileY: y,
+    //   tileExtras: new Set(tile.extras || []),
+    // };
+    // return this.effectsManager.calculateEffect(EffectType.BORDER_STRENGTH_PCT, context).value;
+
+    return 0; // No tile-based border bonuses yet
   }
 
   /**

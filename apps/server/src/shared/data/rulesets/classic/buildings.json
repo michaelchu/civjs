@@ -72,6 +72,34 @@
       "effects": {
         "defenseBonus": 200
       }
+    },
+    "monument": {
+      "id": "monument",
+      "name": "Monument",
+      "cost": 30,
+      "upkeep": 1,
+      "effects": {
+        "happinessBonus": 1
+      }
+    },
+    "cathedral": {
+      "id": "cathedral",
+      "name": "Cathedral",
+      "cost": 160,
+      "upkeep": 3,
+      "effects": {
+        "happinessBonus": 3,
+        "scienceBonus": 25
+      }
+    },
+    "courthouse": {
+      "id": "courthouse",
+      "name": "Courthouse",
+      "cost": 80,
+      "upkeep": 1,
+      "effects": {
+        "corruptionReduction": 50
+      }
     }
   }
 }
