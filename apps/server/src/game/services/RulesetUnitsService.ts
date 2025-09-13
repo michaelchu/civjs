@@ -91,7 +91,8 @@ export class RulesetUnitsService {
       sight: unit.vision_radius_sq || unit.sight || 2,
       vision_radius_sq: unit.vision_radius_sq,
       canFoundCity: unit.canFoundCity || unit.roles?.includes('CitiesStartUnit') || false,
-      canBuildImprovements: unit.canBuildImprovements || unit.flags?.includes('Workers' as any) || false,
+      canBuildImprovements:
+        unit.canBuildImprovements || unit.flags?.includes('Workers' as any) || false,
       unitClass: this.mapUnitClass(unit.unit_class, unit.unitClass as any),
       requiredTech: unit.required_tech || unit.requiredTech,
       transport_capacity: unit.transport_cap,

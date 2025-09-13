@@ -5,8 +5,4 @@
  */
 
 // Re-export everything from the new ruleset-based service
-export {
-  type UnitType,
-  UNIT_TYPES,
-  getUnitType,
-} from '../services/RulesetUnitsService';
+export { type UnitType, UNIT_TYPES, getUnitType } from '../services/RulesetUnitsService';
