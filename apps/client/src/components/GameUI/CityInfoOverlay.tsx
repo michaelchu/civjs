@@ -87,48 +87,21 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
     return null;
   }
 
-  // Helper functions for data access with proper fallbacks to calculated values
+  // Helper functions for data access - server data only, no calculations
   const getCityData = () => {
-    // Always prioritize server-calculated values from prod and surplus
-    const prod = city.prod || {
-      food: city.food || 2, // Fallback to legacy fields or defaults
-      shields: city.shields || 1,
-      trade: city.trade || 1,
-      gold: 0,
-      luxury: 0,
-      science: 1,
-    };
+    // Server must provide all production and surplus data
+    const prod = city.prod || null;
+    const surplus = city.surplus || null;
+    const citizens = city.citizens || null;
+    const waste = city.waste || null;
+    
+    // Buildings should come from server with proper structure
+    const buildings = Array.isArray(city.buildings) ? city.buildings : [];
 
-    const surplus = city.surplus || {
-      food: 0, // Server should always provide surplus data
-      shields: 0,
-      trade: 0,
-      gold: 0,
-      luxury: 0,
-      science: 0,
-    };
-
-    // Use server-provided citizen data (no client-side calculations)
-    const citizens = city.citizens || {
-      happy: 0,
-      content: city.size, // Default all citizens to content if no server data
-      unhappy: 0,
-      angry: 0,
-      specialists: {},
-    };
-
-    const waste = city.waste || { shields: 0, trade: 0 };
-    const buildings = Array.isArray(city.buildings)
-      ? city.buildings.map(building =>
-          typeof building === 'string' ? { id: building, name: building, upkeep: 0 } : building
-        )
-      : [];
-
-    // Use server-provided values for granary calculations
-    const granarySize = city.granarySize || 20; // Server calculates this
-    const foodStock = city.foodStock || 0;
-    // Always use server-provided granaryTurns if available
-    const granaryTurns = city.granaryTurns !== undefined ? city.granaryTurns : 999;
+    // Server-provided values only - no fallbacks
+    const granarySize = city.granarySize;
+    const foodStock = city.foodStock;
+    const granaryTurns = city.granaryTurns;
 
     return {
       prod,
@@ -152,23 +125,32 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
   const cityData = getCityData();
 
-  const getResourceColor = (value: number) => {
+  const getResourceColor = (value: number | null | undefined) => {
+    if (value === null || value === undefined) return 'text-gray-400';
     if (value > 0) return 'text-green-600';
     if (value < 0) return 'text-red-600';
     return 'text-gray-600';
   };
 
-  const getResourceBgColor = (value: number) => {
+  const getResourceBgColor = (value: number | null | undefined) => {
+    if (value === null || value === undefined) return 'bg-gray-50 border-gray-300';
     if (value > 0) return 'bg-green-50 border-green-200';
     if (value < 0) return 'bg-red-50 border-red-200';
     return 'bg-gray-50 border-gray-200';
   };
 
+  const formatResourceValue = (value: number | null | undefined, showSign = true) => {
+    if (value === null || value === undefined) return '--';
+    const sign = showSign && value > 0 ? '+' : '';
+    return `${sign}${value}`;
+  };
+
   const formatGrowthText = () => {
-    if (cityData.granaryTurns === undefined || cityData.granaryTurns === null) return 'Unknown';
+    if (cityData.granaryTurns === undefined || cityData.granaryTurns === null) return '--';
     if (cityData.granaryTurns >= 999) return 'No growth';
     if (cityData.granaryTurns < 0) {
-      return `Starves in ${Math.abs(cityData.granaryTurns)} turns`;
+      // Server should provide negative values correctly formatted
+      return `Starves in ${-cityData.granaryTurns} turns`;
     }
     if (cityData.granaryTurns === 0) return 'Blocked';
     return `Growth in ${cityData.granaryTurns} turns`;
@@ -201,7 +183,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
               </div>
               <div className="flex items-center gap-1">
                 <Users className="h-4 w-4" />
-                Population: {(city.size * 1000).toLocaleString()}
+                Population: {city.actualPopulation ? city.actualPopulation.toLocaleString() : '--'}
               </div>
               <div className={`flex items-center gap-1 ${stateInfo.color}`}>
                 <StateIcon className="h-4 w-4" />
@@ -246,7 +228,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   <div>
                     Granary:{' '}
                     <span className="font-semibold">
-                      {city.foodStock || 0}/{city.granarySize || city.size * 2}
+                      {city.foodStock || '--'}/{city.granarySize || '--'}
                     </span>
                   </div>
                   <div className="text-xs text-blue-600">{formatGrowthText()}</div>
@@ -271,10 +253,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                       <div
                         className="bg-purple-600 h-2 rounded-full transition-all duration-300"
                         style={{
-                          width: `${Math.min(
-                            (city.production.progress / city.production.cost) * 100,
-                            100
-                          )}%`,
+                          width: `${city.production.percentComplete || 0}%`,
                         }}
                       />
                     </div>
@@ -300,18 +279,17 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
               <div className="grid grid-cols-3 gap-3 mb-4">
                 {/* Food */}
                 <div
-                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.food)}`}
+                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus?.food)}`}
                 >
                   <Wheat className="h-5 w-5 mb-1" />
                   <div
-                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus.food)}`}
+                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus?.food)}`}
                   >
-                    {cityData.surplus.food > 0 ? '+' : ''}
-                    {cityData.surplus.food}
+                    {formatResourceValue(cityData.surplus?.food)}
                   </div>
                   <div className="text-xs text-center">
                     <div>Food</div>
-                    {cityData.prod.food !== cityData.surplus.food && (
+                    {cityData.prod?.food !== cityData.surplus?.food && cityData.prod?.food !== undefined && (
                       <div className="text-gray-500">({cityData.prod.food} base)</div>
                     )}
                   </div>
@@ -319,18 +297,17 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
                 {/* Shields */}
                 <div
-                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.shields)}`}
+                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus?.shields)}`}
                 >
                   <Shield className="h-5 w-5 mb-1" />
                   <div
-                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus.shields)}`}
+                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus?.shields)}`}
                   >
-                    {cityData.surplus.shields > 0 ? '+' : ''}
-                    {cityData.surplus.shields}
+                    {formatResourceValue(cityData.surplus?.shields)}
                   </div>
                   <div className="text-xs text-center">
                     <div>Shields</div>
-                    {cityData.prod.shields !== cityData.surplus.shields && (
+                    {cityData.prod?.shields !== cityData.surplus?.shields && cityData.prod?.shields !== undefined && (
                       <div className="text-gray-500">({cityData.prod.shields} base)</div>
                     )}
                   </div>
@@ -338,18 +315,17 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
                 {/* Trade */}
                 <div
-                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.trade)}`}
+                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus?.trade)}`}
                 >
                   <Truck className="h-5 w-5 mb-1" />
                   <div
-                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus.trade)}`}
+                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus?.trade)}`}
                   >
-                    {cityData.surplus.trade > 0 ? '+' : ''}
-                    {cityData.surplus.trade}
+                    {formatResourceValue(cityData.surplus?.trade)}
                   </div>
                   <div className="text-xs text-center">
                     <div>Trade</div>
-                    {cityData.prod.trade !== cityData.surplus.trade && (
+                    {cityData.prod?.trade !== cityData.surplus?.trade && cityData.prod?.trade !== undefined && (
                       <div className="text-gray-500">({cityData.prod.trade} base)</div>
                     )}
                   </div>
@@ -359,45 +335,42 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
               {/* Economic Output */}
               <div className="grid grid-cols-3 gap-3">
                 <div
-                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.gold)}`}
+                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus?.gold)}`}
                 >
                   <Coins className="h-5 w-5 mb-1" />
                   <div
-                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus.gold)}`}
+                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus?.gold)}`}
                   >
-                    {cityData.surplus.gold > 0 ? '+' : ''}
-                    {cityData.surplus.gold}
+                    {formatResourceValue(cityData.surplus?.gold)}
                   </div>
                   <div className="text-xs">Gold</div>
                 </div>
                 <div
-                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.luxury)}`}
+                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus?.luxury)}`}
                 >
                   <Zap className="h-5 w-5 mb-1" />
                   <div
-                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus.luxury)}`}
+                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus?.luxury)}`}
                   >
-                    {cityData.surplus.luxury > 0 ? '+' : ''}
-                    {cityData.surplus.luxury}
+                    {formatResourceValue(cityData.surplus?.luxury)}
                   </div>
                   <div className="text-xs">Luxury</div>
                 </div>
                 <div
-                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus.science)}`}
+                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus?.science)}`}
                 >
                   <FlaskConical className="h-5 w-5 mb-1" />
                   <div
-                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus.science)}`}
+                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus?.science)}`}
                   >
-                    {cityData.surplus.science > 0 ? '+' : ''}
-                    {cityData.surplus.science}
+                    {formatResourceValue(cityData.surplus?.science)}
                   </div>
                   <div className="text-xs">Science</div>
                 </div>
               </div>
 
               {/* Waste/Corruption */}
-              {(cityData.waste.shields > 0 || cityData.waste.trade > 0) && (
+              {cityData.waste && (cityData.waste.shields > 0 || cityData.waste.trade > 0) && (
                 <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                   <h4 className="text-sm font-medium text-orange-800 mb-2">Waste & Corruption</h4>
                   <div className="flex gap-4 text-sm">
@@ -632,10 +605,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                       <div
                         className="bg-purple-600 h-3 rounded-full transition-all duration-300"
                         style={{
-                          width: `${Math.min(
-                            (city.production.progress / city.production.cost) * 100,
-                            100
-                          )}%`,
+                          width: `${city.production.percentComplete || 0}%`,
                         }}
                       />
                     </div>

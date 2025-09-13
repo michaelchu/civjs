@@ -18,6 +18,7 @@ interface ClientCityData {
   x: number;
   y: number;
   size: number;
+  actualPopulation?: number;
 
   // Basic output values (for legacy compatibility)
   food: number;
@@ -82,6 +83,7 @@ interface ClientCityData {
     progress: number;
     cost: number;
     turnsToComplete: number;
+    percentComplete?: number;
   };
 
   // Worklist
@@ -171,13 +173,20 @@ export class CityDataService {
 
     // Transform current production with server-calculated data
     const production = city.currentProduction
-      ? {
-          target: city.currentProduction,
-          type: (city.productionType as 'unit' | 'building' | 'wonder') || 'unit',
-          progress: city.productionStock || city.shieldStock || 0,
-          cost: this.getProductionCost(city.currentProduction, city.productionType || 'unit'),
-          turnsToComplete: this.calculateTurnsToComplete(city),
-        }
+      ? (() => {
+          const progress = city.productionStock || city.shieldStock || 0;
+          const cost = this.getProductionCost(city.currentProduction, city.productionType || 'unit');
+          const percentComplete = cost > 0 ? Math.min((progress / cost) * 100, 100) : 0;
+          
+          return {
+            target: city.currentProduction,
+            type: (city.productionType as 'unit' | 'building' | 'wonder') || 'unit',
+            progress,
+            cost,
+            turnsToComplete: this.calculateTurnsToComplete(city),
+            percentComplete,
+          };
+        })()
       : undefined;
 
     // Transform worklist with accurate costs
@@ -194,6 +203,7 @@ export class CityDataService {
       x: city.x,
       y: city.y,
       size: city.population,
+      actualPopulation: city.population * 1000, // Actual population count
 
       // Legacy compatibility (for backward compatibility)
       food: foodPerTurn,
