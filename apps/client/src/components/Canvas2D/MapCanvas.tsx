@@ -5,7 +5,7 @@ import { TileHoverOverlay } from './TileHoverOverlay';
 import { UnitContextMenu } from '../GameUI/UnitContextMenu';
 import { CityNameDialog } from '../GameUI/CityNameDialog';
 import { CityInfoOverlay } from '../GameUI/CityInfoOverlay';
-import type { Unit, City } from '../../types';
+import type { Unit, City, ProductionOption } from '../../types';
 import { ActionType } from '../../types/shared/actions';
 import { gameClient } from '../../services/GameClient';
 import { pathfindingService, type GotoPath } from '../../services/PathfindingService';
@@ -54,6 +54,17 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   }>({
     isOpen: false,
     city: null,
+  });
+
+  // Production data state
+  const [productionData, setProductionData] = useState<{
+    availableProductions: ProductionOption[];
+    isLoading: boolean;
+    cityId: string | null;
+  }>({
+    availableProductions: [],
+    isLoading: false,
+    cityId: null,
   });
 
   // Goto mode state (similar to freeciv-web's goto_active)
@@ -574,6 +585,49 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     [gotoMode.unit, deactivateGotoMode, selectUnit]
   );
 
+  // City overlay handlers - placed early to avoid dependency issues
+  const handleOpenCityInfoOverlay = useCallback(async (city: City) => {
+    setCityInfoOverlay({
+      isOpen: true,
+      city: city,
+    });
+
+    // Load production data
+    setProductionData({
+      availableProductions: [],
+      isLoading: true,
+      cityId: city.id,
+    });
+
+    try {
+      const productions = await gameClient.getAvailableProductions(city.id);
+      setProductionData({
+        availableProductions: productions,
+        isLoading: false,
+        cityId: city.id,
+      });
+    } catch (error) {
+      console.error('Failed to load production data:', error);
+      setProductionData({
+        availableProductions: [],
+        isLoading: false,
+        cityId: city.id,
+      });
+    }
+  }, []);
+
+  const handleCloseCityInfoOverlay = useCallback(() => {
+    setCityInfoOverlay({
+      isOpen: false,
+      city: null,
+    });
+    setProductionData({
+      availableProductions: [],
+      isLoading: false,
+      cityId: null,
+    });
+  }, []);
+
   const handleMouseDown = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       if (event.button !== 0) return; // Only handle left mouse button
@@ -891,10 +945,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
               selectUnit(unitAtPosition.id);
               setSelectedUnit(unitAtPosition as Unit);
             } else if (cityAtPosition) {
-              setCityInfoOverlay({
-                isOpen: true,
-                city: cityAtPosition as City,
-              });
+              handleOpenCityInfoOverlay(cityAtPosition as City);
             }
           }
         }
@@ -1135,13 +1186,18 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         setSelectedUnit(unitAtPosition as Unit);
       } else if (cityAtPosition) {
         // Show info overlay for the city
-        setCityInfoOverlay({
-          isOpen: true,
-          city: cityAtPosition as City,
-        });
+        handleOpenCityInfoOverlay(cityAtPosition as City);
       }
     },
-    [selectUnit, units, cities, viewport, gotoMode.active, deactivateGotoMode]
+    [
+      selectUnit,
+      units,
+      cities,
+      viewport,
+      gotoMode.active,
+      deactivateGotoMode,
+      handleOpenCityInfoOverlay,
+    ]
   );
 
   // Handle unit action selection
@@ -1230,13 +1286,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     });
   }, []);
 
-  const handleCloseCityInfoOverlay = useCallback(() => {
-    setCityInfoOverlay({
-      isOpen: false,
-      city: null,
-    });
-  }, []);
-
   const handleFoundCity = useCallback(
     async (cityName: string) => {
       if (!cityNameDialog.unit) return;
@@ -1263,6 +1312,38 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     },
     [cityNameDialog.unit, selectUnit]
   );
+
+  const handleProductionChange = useCallback(
+    async (cityId: string, productionId: string, type: 'unit' | 'building' | 'wonder') => {
+      console.log('Production change:', { cityId, productionId, type });
+      try {
+        await gameClient.changeProduction(cityId, productionId, type);
+        console.log('Production changed successfully');
+      } catch (error) {
+        console.error('Failed to change production:', error);
+        // TODO: Show error message to user
+      }
+    },
+    []
+  );
+
+  const handleQueueAdd = useCallback(
+    (cityId: string, productionId: string, type: 'unit' | 'building' | 'wonder') => {
+      console.log('Queue add:', { cityId, productionId, type });
+      // TODO: Implement queue add action when server supports it
+    },
+    []
+  );
+
+  const handleQueueRemove = useCallback((cityId: string, index: number) => {
+    console.log('Queue remove:', { cityId, index });
+    // TODO: Implement queue remove action when server supports it
+  }, []);
+
+  const handleQueueReorder = useCallback((cityId: string, fromIndex: number, toIndex: number) => {
+    console.log('Queue reorder:', { cityId, fromIndex, toIndex });
+    // TODO: Implement queue reorder action when server supports it
+  }, []);
 
   // Global keyboard handler for ESC key to exit goto mode
   useEffect(() => {
@@ -1364,22 +1445,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         isOpen={cityInfoOverlay.isOpen}
         onClose={handleCloseCityInfoOverlay}
         units={units}
-        onProductionChange={(cityId, productionId, type) => {
-          console.log('Production change:', { cityId, productionId, type });
-          // TODO: Implement production change action
-        }}
-        onQueueAdd={(cityId, productionId, type) => {
-          console.log('Queue add:', { cityId, productionId, type });
-          // TODO: Implement queue add action
-        }}
-        onQueueRemove={(cityId, index) => {
-          console.log('Queue remove:', { cityId, index });
-          // TODO: Implement queue remove action
-        }}
-        onQueueReorder={(cityId, fromIndex, toIndex) => {
-          console.log('Queue reorder:', { cityId, fromIndex, toIndex });
-          // TODO: Implement queue reorder action
-        }}
+        availableProductions={productionData.availableProductions}
+        isLoadingProductions={productionData.isLoading}
+        onProductionChange={handleProductionChange}
+        onQueueAdd={handleQueueAdd}
+        onQueueRemove={handleQueueRemove}
+        onQueueReorder={handleQueueReorder}
       />
     </div>
   );

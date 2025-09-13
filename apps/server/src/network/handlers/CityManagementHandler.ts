@@ -4,6 +4,7 @@ import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
 import { PacketType, CityFoundSchema, CityProductionChangeSchema } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
+import { CityProductionHandler } from './CityProductionHandler';
 
 /**
  * Handles city management packets: founding cities, production changes
@@ -21,11 +22,15 @@ export class CityManagementHandler extends BaseSocketHandler {
 
   private activeConnections: Map<string, { userId?: string; username?: string; gameId?: string }>;
   private gameManager: GameManager;
+  private productionHandler: CityProductionHandler;
 
   constructor(activeConnections: Map<string, any>, gameManager: GameManager) {
     super();
     this.activeConnections = activeConnections;
     this.gameManager = gameManager;
+    // TODO: Fix this once GameManager properly exposes managers
+    // For now, create production handler with empty collections
+    this.productionHandler = new CityProductionHandler(new Map(), new Map(), null);
   }
 
   register(handler: PacketHandler, io: Server, socket: Socket): void {
@@ -44,6 +49,33 @@ export class CityManagementHandler extends BaseSocketHandler {
       },
       CityProductionChangeSchema
     );
+
+    // Register production endpoints
+    socket.on('city:getAvailableProductions', async data => {
+      const connection = this.getConnection(socket, this.activeConnections);
+      if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
+        socket.emit('error', { message: 'Not authenticated or not in a game' });
+        return;
+      }
+      await this.productionHandler.getAvailableProductions(socket, {
+        cityId: data.cityId,
+        playerId: connection.userId!,
+      });
+    });
+
+    socket.on('city:changeProduction', async data => {
+      const connection = this.getConnection(socket, this.activeConnections);
+      if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
+        socket.emit('error', { message: 'Not authenticated or not in a game' });
+        return;
+      }
+      await this.productionHandler.changeProduction(socket, {
+        cityId: data.cityId,
+        playerId: connection.userId!,
+        productionId: data.productionId,
+        productionType: data.productionType,
+      });
+    });
 
     logger.debug(`${this.handlerName} registered handlers for socket ${socket.id}`);
   }

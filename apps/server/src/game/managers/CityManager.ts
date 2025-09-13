@@ -13,6 +13,7 @@ import {
   CityFoundingErrorCode,
 } from '@game/services/CityFoundingValidationService';
 import type { MapManager } from '@game/managers/MapManager';
+import { Server as SocketServer } from 'socket.io';
 
 // Import the specialized services
 import { CityManagementService } from '@game/services/CityManagementService';
@@ -262,6 +263,8 @@ export interface BuildingType {
   id: string;
   name: string;
   cost: number;
+  requiredTech?: string;
+  requires?: string[]; // Required buildings
   effects: {
     defenseBonus?: number;
     foodBonus?: number;
@@ -360,6 +363,7 @@ export class CityManager {
   private databaseProvider: DatabaseProvider;
   private callbacks: CityManagerCallbacks;
   private mapManager?: MapManager;
+  private io?: SocketServer; // Socket.IO server for emitting events
   private validationService?: CityFoundingValidationService;
 
   // Specialized services
@@ -454,6 +458,13 @@ export class CityManager {
       this.mapManager,
       CITY_MAP_DEFAULT_RADIUS_SQ
     );
+  }
+
+  /**
+   * Set the Socket.IO server for emitting events
+   */
+  setSocketServer(io: SocketServer): void {
+    this.io = io;
   }
 
   /**
@@ -858,6 +869,8 @@ export class CityManager {
       value: city.currentProduction,
     };
 
+    let newUnitId: string | undefined;
+
     if (city.productionType === 'building') {
       // Add the building to the city
       if (!city.buildings.includes(city.currentProduction)) {
@@ -865,13 +878,43 @@ export class CityManager {
       }
     } else if (city.productionType === 'unit') {
       // Handle unit creation (would integrate with UnitManager)
+      // For now, generate a placeholder unit ID
+      newUnitId = `unit-${Date.now()}-${city.id}`;
+      logger.info('Unit production completed', {
+        cityId: city.id,
+        unitType: city.currentProduction,
+        newUnitId,
+      });
     }
+
+    // Store production details before resetting
+    const completedProductionType = city.productionType as 'unit' | 'building' | 'wonder';
+    const completedProductionId = city.currentProduction;
 
     // Reset production
     city.currentProduction = null;
     city.productionType = null;
     city.productionStock = 0;
     city.turnsToComplete = 0;
+
+    // Emit socket event if Socket.IO server is available
+    if (this.io && completedProductionType && completedProductionId) {
+      logger.info('Production completed', {
+        gameId: this.gameId,
+        cityId,
+        productionType: completedProductionType,
+        productionId: completedProductionId,
+        newUnitId,
+      });
+
+      // Emit to all players in the game
+      this.io.to(`game:${this.gameId}`).emit('production:completed', {
+        cityId,
+        productionType: completedProductionType,
+        productionId: completedProductionId,
+        newUnitId,
+      });
+    }
 
     // Trigger callback
     if (this.callbacks.onCityProductionComplete) {

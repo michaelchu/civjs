@@ -44,6 +44,8 @@ interface CityInfoOverlayProps {
   isOpen: boolean;
   onClose: () => void;
   units?: Record<string, Unit>; // For displaying present/supported units
+  availableProductions?: ProductionOption[]; // Real production data from server
+  isLoadingProductions?: boolean; // Loading state for production data
   onProductionChange?: (
     cityId: string,
     productionId: string,
@@ -73,137 +75,14 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
   isOpen,
   onClose,
   units = {},
+  availableProductions = [],
+  isLoadingProductions = false,
   onProductionChange,
   onQueueAdd,
   onQueueRemove,
   onQueueReorder,
 }) => {
   const [activeTab, setActiveTab] = useState('main');
-
-  // Mock production options - in a real implementation, these would come from game rules
-  const getAvailableProductions = (): ProductionOption[] => {
-    return [
-      // Units
-      {
-        id: 'warrior',
-        name: 'Warrior',
-        type: 'unit',
-        cost: 10,
-        available: true,
-        description: 'Basic military unit',
-      },
-      {
-        id: 'settler',
-        name: 'Settler',
-        type: 'unit',
-        cost: 30,
-        available: true,
-        description: 'Founds new cities',
-      },
-      {
-        id: 'archer',
-        name: 'Archer',
-        type: 'unit',
-        cost: 15,
-        available: true,
-        description: 'Ranged military unit',
-      },
-      {
-        id: 'phalanx',
-        name: 'Phalanx',
-        type: 'unit',
-        cost: 20,
-        available: true,
-        description: 'Defensive military unit',
-      },
-      {
-        id: 'horseman',
-        name: 'Horseman',
-        type: 'unit',
-        cost: 25,
-        available: true,
-        description: 'Mobile military unit',
-      },
-
-      // Buildings
-      {
-        id: 'granary',
-        name: 'Granary',
-        type: 'building',
-        cost: 60,
-        available: true,
-        description: 'Stores food and helps city growth',
-      },
-      {
-        id: 'barracks',
-        name: 'Barracks',
-        type: 'building',
-        cost: 40,
-        available: true,
-        description: 'Trains veteran units',
-      },
-      {
-        id: 'library',
-        name: 'Library',
-        type: 'building',
-        cost: 80,
-        available: true,
-        description: 'Increases science output',
-      },
-      {
-        id: 'marketplace',
-        name: 'Marketplace',
-        type: 'building',
-        cost: 80,
-        available: true,
-        description: 'Increases trade income',
-      },
-      {
-        id: 'temple',
-        name: 'Temple',
-        type: 'building',
-        cost: 40,
-        available: true,
-        description: 'Makes citizens happy',
-      },
-      {
-        id: 'walls',
-        name: 'City Walls',
-        type: 'building',
-        cost: 80,
-        available: true,
-        description: 'Defends the city',
-      },
-
-      // Wonders
-      {
-        id: 'pyramids',
-        name: 'Pyramids',
-        type: 'wonder',
-        cost: 200,
-        available: true,
-        description: 'Granary effect in all cities',
-      },
-      {
-        id: 'lighthouse',
-        name: 'Lighthouse',
-        type: 'wonder',
-        cost: 200,
-        available: true,
-        description: 'Safe sea travel for all ships',
-      },
-      {
-        id: 'oracle',
-        name: 'Oracle',
-        type: 'wonder',
-        cost: 300,
-        available: true,
-        description: 'Temple effect in all cities',
-      },
-    ];
-  };
-
-  const availableProductions = getAvailableProductions();
   if (!city) {
     return null;
   }
@@ -646,78 +525,103 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   </h3>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-8">
-                        Change <ChevronDown className="h-3 w-3 ml-1" />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        disabled={isLoadingProductions}
+                      >
+                        {isLoadingProductions ? 'Loading...' : 'Change'}{' '}
+                        <ChevronDown className="h-3 w-3 ml-1" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-64">
                       <DropdownMenuLabel>Select Production</DropdownMenuLabel>
                       <DropdownMenuSeparator />
 
-                      <DropdownMenuLabel className="text-xs text-muted-foreground">
-                        Units
-                      </DropdownMenuLabel>
-                      {availableProductions
-                        .filter(p => p.type === 'unit')
-                        .map(option => (
-                          <DropdownMenuItem
-                            key={option.id}
-                            onClick={() => onProductionChange?.(city.id, option.id, option.type)}
-                            className="flex items-center justify-between"
-                          >
-                            <div>
-                              <div className="font-medium">{option.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {option.description}
-                              </div>
-                            </div>
-                            <span className="text-xs">{option.cost} shields</span>
-                          </DropdownMenuItem>
-                        ))}
+                      {isLoadingProductions ? (
+                        <DropdownMenuItem disabled>
+                          <span className="text-sm text-muted-foreground">
+                            Loading production options...
+                          </span>
+                        </DropdownMenuItem>
+                      ) : (
+                        <>
+                          <DropdownMenuLabel className="text-xs text-muted-foreground">
+                            Units
+                          </DropdownMenuLabel>
+                          {availableProductions
+                            .filter(p => p.type === 'unit')
+                            .map(option => (
+                              <DropdownMenuItem
+                                key={option.id}
+                                onClick={() =>
+                                  onProductionChange?.(city.id, option.id, option.type)
+                                }
+                                className="flex items-center justify-between"
+                                disabled={!option.available}
+                              >
+                                <div>
+                                  <div className="font-medium">{option.name}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {option.description}
+                                  </div>
+                                </div>
+                                <span className="text-xs">{option.cost} shields</span>
+                              </DropdownMenuItem>
+                            ))}
 
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel className="text-xs text-muted-foreground">
-                        Buildings
-                      </DropdownMenuLabel>
-                      {availableProductions
-                        .filter(p => p.type === 'building')
-                        .map(option => (
-                          <DropdownMenuItem
-                            key={option.id}
-                            onClick={() => onProductionChange?.(city.id, option.id, option.type)}
-                            className="flex items-center justify-between"
-                          >
-                            <div>
-                              <div className="font-medium">{option.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {option.description}
-                              </div>
-                            </div>
-                            <span className="text-xs">{option.cost} shields</span>
-                          </DropdownMenuItem>
-                        ))}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel className="text-xs text-muted-foreground">
+                            Buildings
+                          </DropdownMenuLabel>
+                          {availableProductions
+                            .filter(p => p.type === 'building')
+                            .map(option => (
+                              <DropdownMenuItem
+                                key={option.id}
+                                onClick={() =>
+                                  onProductionChange?.(city.id, option.id, option.type)
+                                }
+                                className="flex items-center justify-between"
+                                disabled={!option.available}
+                              >
+                                <div>
+                                  <div className="font-medium">{option.name}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {option.description}
+                                  </div>
+                                </div>
+                                <span className="text-xs">{option.cost} shields</span>
+                              </DropdownMenuItem>
+                            ))}
 
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel className="text-xs text-muted-foreground">
-                        Wonders
-                      </DropdownMenuLabel>
-                      {availableProductions
-                        .filter(p => p.type === 'wonder')
-                        .map(option => (
-                          <DropdownMenuItem
-                            key={option.id}
-                            onClick={() => onProductionChange?.(city.id, option.id, option.type)}
-                            className="flex items-center justify-between"
-                          >
-                            <div>
-                              <div className="font-medium">{option.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {option.description}
-                              </div>
-                            </div>
-                            <span className="text-xs">{option.cost} shields</span>
-                          </DropdownMenuItem>
-                        ))}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel className="text-xs text-muted-foreground">
+                            Wonders
+                          </DropdownMenuLabel>
+                          {availableProductions
+                            .filter(p => p.type === 'wonder')
+                            .map(option => (
+                              <DropdownMenuItem
+                                key={option.id}
+                                onClick={() =>
+                                  onProductionChange?.(city.id, option.id, option.type)
+                                }
+                                className="flex items-center justify-between"
+                                disabled={!option.available}
+                              >
+                                <div>
+                                  <div className="font-medium">{option.name}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {option.description}
+                                  </div>
+                                </div>
+                                <span className="text-xs">{option.cost} shields</span>
+                              </DropdownMenuItem>
+                            ))}
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -776,79 +680,97 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                 </h3>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      disabled={isLoadingProductions}
+                    >
                       <Plus className="h-3 w-3 mr-1" />
-                      Add to Queue
+                      {isLoadingProductions ? 'Loading...' : 'Add to Queue'}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64">
                     <DropdownMenuLabel>Add to Production Queue</DropdownMenuLabel>
                     <DropdownMenuSeparator />
 
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">
-                      Units
-                    </DropdownMenuLabel>
-                    {availableProductions
-                      .filter(p => p.type === 'unit')
-                      .map(option => (
-                        <DropdownMenuItem
-                          key={option.id}
-                          onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
-                          className="flex items-center justify-between"
-                        >
-                          <div>
-                            <div className="font-medium">{option.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {option.description}
-                            </div>
-                          </div>
-                          <span className="text-xs">{option.cost} shields</span>
-                        </DropdownMenuItem>
-                      ))}
+                    {isLoadingProductions ? (
+                      <DropdownMenuItem disabled>
+                        <span className="text-sm text-muted-foreground">
+                          Loading production options...
+                        </span>
+                      </DropdownMenuItem>
+                    ) : (
+                      <>
+                        <DropdownMenuLabel className="text-xs text-muted-foreground">
+                          Units
+                        </DropdownMenuLabel>
+                        {availableProductions
+                          .filter(p => p.type === 'unit')
+                          .map(option => (
+                            <DropdownMenuItem
+                              key={option.id}
+                              onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
+                              className="flex items-center justify-between"
+                              disabled={!option.available}
+                            >
+                              <div>
+                                <div className="font-medium">{option.name}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {option.description}
+                                </div>
+                              </div>
+                              <span className="text-xs">{option.cost} shields</span>
+                            </DropdownMenuItem>
+                          ))}
 
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">
-                      Buildings
-                    </DropdownMenuLabel>
-                    {availableProductions
-                      .filter(p => p.type === 'building')
-                      .map(option => (
-                        <DropdownMenuItem
-                          key={option.id}
-                          onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
-                          className="flex items-center justify-between"
-                        >
-                          <div>
-                            <div className="font-medium">{option.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {option.description}
-                            </div>
-                          </div>
-                          <span className="text-xs">{option.cost} shields</span>
-                        </DropdownMenuItem>
-                      ))}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-xs text-muted-foreground">
+                          Buildings
+                        </DropdownMenuLabel>
+                        {availableProductions
+                          .filter(p => p.type === 'building')
+                          .map(option => (
+                            <DropdownMenuItem
+                              key={option.id}
+                              onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
+                              className="flex items-center justify-between"
+                              disabled={!option.available}
+                            >
+                              <div>
+                                <div className="font-medium">{option.name}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {option.description}
+                                </div>
+                              </div>
+                              <span className="text-xs">{option.cost} shields</span>
+                            </DropdownMenuItem>
+                          ))}
 
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">
-                      Wonders
-                    </DropdownMenuLabel>
-                    {availableProductions
-                      .filter(p => p.type === 'wonder')
-                      .map(option => (
-                        <DropdownMenuItem
-                          key={option.id}
-                          onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
-                          className="flex items-center justify-between"
-                        >
-                          <div>
-                            <div className="font-medium">{option.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {option.description}
-                            </div>
-                          </div>
-                          <span className="text-xs">{option.cost} shields</span>
-                        </DropdownMenuItem>
-                      ))}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-xs text-muted-foreground">
+                          Wonders
+                        </DropdownMenuLabel>
+                        {availableProductions
+                          .filter(p => p.type === 'wonder')
+                          .map(option => (
+                            <DropdownMenuItem
+                              key={option.id}
+                              onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
+                              className="flex items-center justify-between"
+                              disabled={!option.available}
+                            >
+                              <div>
+                                <div className="font-medium">{option.name}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {option.description}
+                                </div>
+                              </div>
+                              <span className="text-xs">{option.cost} shields</span>
+                            </DropdownMenuItem>
+                          ))}
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

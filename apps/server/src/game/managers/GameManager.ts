@@ -951,6 +951,33 @@ export class GameManager {
   }
 
   /**
+   * Emit production completion event to all players in the game
+   */
+  public emitProductionCompleted(
+    gameId: string,
+    cityId: string,
+    productionType: 'unit' | 'building' | 'wonder',
+    productionId: string,
+    newUnitId?: string
+  ): void {
+    logger.info('Production completed', {
+      gameId,
+      cityId,
+      productionType,
+      productionId,
+      newUnitId,
+    });
+
+    // Emit to all players in the game
+    this.io.to(`game:${gameId}`).emit('production:completed', {
+      cityId,
+      productionType,
+      productionId,
+      newUnitId,
+    });
+  }
+
+  /**
    * Handle pathfinding request from client
    */
   public async requestPath(

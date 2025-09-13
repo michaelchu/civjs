@@ -6,6 +6,7 @@ import { PacketType, PACKET_NAMES, type Packet } from '../types/packets';
 import { ActionType } from '../types/shared/actions';
 import { pathfindingService } from './PathfindingService';
 import { playerColorToHex } from '../utils/playerColors';
+import type { ProductionOption } from '../types';
 
 // Mock government data for development
 const getMockGovernments = () => ({
@@ -301,6 +302,26 @@ class GameClient {
         useGameStore.getState().updateGameState({
           cities: data.cities,
         });
+      }
+    });
+
+    // Handle production completion events
+    this.socket.on('production:completed', data => {
+      console.log('Production completed:', data);
+      const { cityId, productionType, productionId, newUnitId } = data;
+
+      if (productionType === 'unit' && newUnitId) {
+        // A new unit was created - it should already be in the units update
+        console.log(`New unit ${newUnitId} created at city ${cityId}`);
+
+        // The unit should already be added to the game state via other packets
+        // But we can trigger any UI notifications here if needed
+      } else if (productionType === 'building') {
+        console.log(`Building ${productionId} completed in city ${cityId}`);
+        // Building completions are handled via city updates
+      } else if (productionType === 'wonder') {
+        console.log(`Wonder ${productionId} completed in city ${cityId}`);
+        // Wonder completions might need special handling/notifications
       }
     });
   }
@@ -1420,6 +1441,110 @@ class GameClient {
     }
 
     // Could show UI notifications here for territory changes
+  }
+
+  /**
+   * Get available production options for a city
+   */
+  async getAvailableProductions(cityId: string): Promise<ProductionOption[]> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      // Set up response handler
+      const handleResponse = (data: { cityId: string; productions: ProductionOption[] }) => {
+        if (data.cityId === cityId) {
+          this.socket?.off('city:availableProductions', handleResponse);
+          resolve(data.productions);
+        }
+      };
+
+      const handleError = (error: { message: string }) => {
+        this.socket?.off('city:availableProductions', handleResponse);
+        this.socket?.off('error', handleError);
+        reject(new Error(error.message));
+      };
+
+      this.socket.on('city:availableProductions', handleResponse);
+      this.socket.on('error', handleError);
+
+      // Set timeout
+      setTimeout(() => {
+        this.socket?.off('city:availableProductions', handleResponse);
+        this.socket?.off('error', handleError);
+        reject(new Error('Get available productions timeout'));
+      }, 10000);
+
+      // Send request
+      this.socket.emit('city:getAvailableProductions', { cityId });
+    });
+  }
+
+  /**
+   * Change city production
+   */
+  async changeProduction(
+    cityId: string,
+    productionId: string,
+    productionType: 'unit' | 'building' | 'wonder'
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Not connected to server'));
+        return;
+      }
+
+      // Set up response handler
+      const handleResponse = (data: {
+        cityId: string;
+        production: any;
+        shieldStock: number;
+        penalty: number;
+      }) => {
+        if (data.cityId === cityId) {
+          this.socket?.off('city:productionChanged', handleResponse);
+
+          // Update city in store
+          const { cities } = useGameStore.getState();
+          const updatedCities = {
+            ...cities,
+            [cityId]: {
+              ...cities[cityId],
+              production: data.production,
+              shieldStock: data.shieldStock,
+            },
+          };
+          useGameStore.getState().updateGameState({ cities: updatedCities });
+
+          resolve();
+        }
+      };
+
+      const handleError = (error: { message: string }) => {
+        this.socket?.off('city:productionChanged', handleResponse);
+        this.socket?.off('error', handleError);
+        reject(new Error(error.message));
+      };
+
+      this.socket.on('city:productionChanged', handleResponse);
+      this.socket.on('error', handleError);
+
+      // Set timeout
+      setTimeout(() => {
+        this.socket?.off('city:productionChanged', handleResponse);
+        this.socket?.off('error', handleError);
+        reject(new Error('Change production timeout'));
+      }, 10000);
+
+      // Send request
+      this.socket.emit('city:changeProduction', {
+        cityId,
+        productionId,
+        productionType,
+      });
+    });
   }
 }
 
