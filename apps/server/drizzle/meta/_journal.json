@@ -15,6 +15,13 @@
       "when": 1757895613000,
       "tag": "0001_add_history_interest_pml_and_rename_culture_column",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1757895614000,
+      "tag": "0002_rename_culture_to_history_in_players",
+      "breakpoints": true
     }
   ]
 }
