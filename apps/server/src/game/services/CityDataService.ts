@@ -169,14 +169,14 @@ export class CityDataService {
     const foodStock = city.foodStock || 0;
     const granaryTurns = this.calculateGranaryTurns(surplus.food, foodStock, granarySize);
 
-    // Transform current production with actual shield stock
+    // Transform current production with server-calculated data
     const production = city.currentProduction
       ? {
           target: city.currentProduction,
           type: (city.productionType as 'unit' | 'building' | 'wonder') || 'unit',
           progress: city.productionStock || city.shieldStock || 0,
           cost: this.getProductionCost(city.currentProduction, city.productionType || 'unit'),
-          turnsToComplete: city.turnsToComplete,
+          turnsToComplete: this.calculateTurnsToComplete(city),
         }
       : undefined;
 
@@ -405,33 +405,38 @@ export class CityDataService {
   }
 
   /**
-   * Get production cost for item
-   * TODO: Get from actual unit/building definitions
+   * Get production cost for item from actual definitions
    */
   private static getProductionCost(itemId: string, type: string): number {
     if (type === 'unit') {
-      const unitCosts: Record<string, number> = {
-        warrior: 10,
-        settler: 30,
-        archer: 15,
-        phalanx: 20,
-        horseman: 25,
-      };
-      return unitCosts[itemId] || 10;
+      // Import UNIT_TYPES dynamically to get actual costs
+      const UNIT_TYPES = require('../constants/UnitConstants').UNIT_TYPES;
+      return UNIT_TYPES[itemId]?.cost || 10;
     } else if (type === 'building') {
-      const buildingCosts: Record<string, number> = {
-        granary: 60,
-        barracks: 40,
-        library: 80,
-        marketplace: 80,
-        temple: 40,
-        walls: 80,
-        factory: 140,
-        palace: 100,
-      };
-      return buildingCosts[itemId] || 40;
+      // Import BUILDING_TYPES dynamically to get actual costs  
+      const BUILDING_TYPES = require('../managers/CityManager').BUILDING_TYPES;
+      return BUILDING_TYPES[itemId]?.cost || 40;
     }
 
     return 100; // Default wonder cost
+  }
+
+  /**
+   * Calculate turns to complete current production
+   * Uses same logic as client to ensure consistency
+   */
+  private static calculateTurnsToComplete(city: any): number {
+    if (!city.currentProduction) {
+      return 0;
+    }
+
+    const productionCost = this.getProductionCost(city.currentProduction, city.productionType || 'unit');
+    const progress = city.productionStock || city.shieldStock || 0;
+    const remainingShields = Math.max(0, productionCost - progress);
+    
+    // Use same calculation priority as CityProductionHandler
+    const shieldsPerTurn = Math.max(1, city.productionPerTurn || city.surplus?.shields || 1);
+    
+    return Math.ceil(remainingShields / shieldsPerTurn);
   }
 }

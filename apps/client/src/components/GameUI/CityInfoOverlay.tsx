@@ -100,25 +100,19 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
     };
 
     const surplus = city.surplus || {
-      food: prod.food - city.size, // Fallback calculation
-      shields: prod.shields,
-      trade: prod.trade,
-      gold: prod.gold,
-      luxury: prod.luxury,
-      science: prod.science,
+      food: 0, // Server should always provide surplus data
+      shields: 0,
+      trade: 0,
+      gold: 0,
+      luxury: 0,
+      science: 0,
     };
 
-    // Calculate realistic citizen happiness based on city size and buildings
-    const happyFromBuildings = Array.isArray(city.buildings)
-      ? city.buildings.filter(b => (typeof b === 'string' ? b === 'temple' : b.id === 'temple'))
-          .length * 2
-      : 0;
-    const baseUnhappy = Math.max(0, city.size - 4); // Cities > size 4 start getting unhappy
-    const actualUnhappy = Math.max(0, baseUnhappy - happyFromBuildings);
+    // Use server-provided citizen data (no client-side calculations)
     const citizens = city.citizens || {
-      happy: Math.min(happyFromBuildings, city.size),
-      content: Math.max(0, city.size - actualUnhappy - Math.min(happyFromBuildings, city.size)),
-      unhappy: actualUnhappy,
+      happy: 0,
+      content: city.size, // Default all citizens to content if no server data
+      unhappy: 0,
       angry: 0,
       specialists: {},
     };
@@ -289,12 +283,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                         {city.production.progress}/{city.production.cost}
                       </span>
                       <span>
-                        {city.production.turnsToComplete ||
-                          Math.ceil(
-                            (city.production.cost - city.production.progress) /
-                              Math.max(1, cityData.surplus.shields)
-                          )}{' '}
-                        turns
+                        {city.production.turnsToComplete} turns
                       </span>
                     </div>
                   </div>
@@ -658,11 +647,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                       <span>
                         Turns remaining:{' '}
                         <span className="font-semibold">
-                          {city.production.turnsToComplete ||
-                            Math.ceil(
-                              (city.production.cost - city.production.progress) /
-                                Math.max(1, cityData.surplus.shields)
-                            )}
+                          {city.production.turnsToComplete}
                         </span>
                       </span>
                     </div>
