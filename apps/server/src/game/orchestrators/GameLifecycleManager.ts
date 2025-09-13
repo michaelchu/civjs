@@ -233,8 +233,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
     // Create managers in dependency order
     const mapManager = this.createMapManager(game, terrainSettings);
-    const cityManager = this.createCityManager(gameId);
-    const borderManager = this.createBorderManager(mapManager, cityManager);
+    const effectsManager = new EffectsManager(); // Shared effects manager
+    const cityManager = this.createCityManager(gameId, effectsManager);
+    const borderManager = this.createBorderManager(mapManager, cityManager, effectsManager);
     this.borderNetworkService = this.createBorderNetworkService(borderManager);
     const unitManager = this.createUnitManager(gameId, game, mapManager, cityManager);
 
@@ -895,13 +896,16 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return tm;
   }
 
-  private createCityManager(gameId: string): CityManager {
-    const effectsManager = new EffectsManager();
+  private createCityManager(gameId: string, effectsManager: EffectsManager): CityManager {
     return new CityManager(gameId, this.databaseProvider, effectsManager, {});
   }
 
-  private createBorderManager(mapManager: MapManager, cityManager: CityManager): BorderManager {
-    return new BorderManager(mapManager, cityManager);
+  private createBorderManager(
+    mapManager: MapManager,
+    cityManager: CityManager,
+    effectsManager: EffectsManager
+  ): BorderManager {
+    return new BorderManager(mapManager, cityManager, effectsManager);
   }
 
   private createBorderNetworkService(borderManager: BorderManager): BorderNetworkService {
