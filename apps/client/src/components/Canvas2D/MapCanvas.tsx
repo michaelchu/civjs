@@ -1360,17 +1360,94 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       />
 
       <CityInfoOverlay
-        city={cityInfoOverlay.city}
+        city={
+          cityInfoOverlay.isOpen && cityInfoOverlay.city?.id
+            ? cities[cityInfoOverlay.city.id] || cityInfoOverlay.city
+            : cityInfoOverlay.city
+        }
         isOpen={cityInfoOverlay.isOpen}
         onClose={handleCloseCityInfoOverlay}
         units={units}
         onProductionChange={async (cityId, productionId, type) => {
+          // Store original state for potential rollback (outside try block)
+          const originalOverlayCity = cityInfoOverlay.city;
+          const gameState = useGameStore.getState();
+          const originalStoreCity = gameState.cities[cityId];
+
           try {
             console.log('Changing city production:', { cityId, productionId, type });
+
+            // Optimistically update the UI immediately for responsiveness
+            setCityInfoOverlay(prev => {
+              if (prev.isOpen && prev.city && prev.city.id === cityId) {
+                const updatedCity: typeof prev.city = {
+                  ...prev.city,
+                  production: prev.city.production
+                    ? {
+                        ...prev.city.production,
+                        target: productionId,
+                        type: type,
+                        progress: 0, // Reset progress when changing production
+                      }
+                    : {
+                        target: productionId,
+                        type: type,
+                        progress: 0,
+                        cost: 0, // Will be updated by server
+                        turnsToComplete: 0,
+                      },
+                };
+                return { ...prev, city: updatedCity };
+              }
+              return prev;
+            });
+
+            // Update the game store optimistically
+            if (originalStoreCity) {
+              const updatedCity = {
+                ...originalStoreCity,
+                currentProduction: productionId,
+                productionType: type,
+                shieldStock: 0, // Reset shields when changing production
+              };
+              gameState.updateGameState({
+                cities: {
+                  ...gameState.cities,
+                  [cityId]: updatedCity,
+                },
+              });
+            }
+
+            // Send the change to the server
             await gameClient.changeCityProduction(cityId, productionId, type);
             console.log('City production changed successfully');
+
+            // Note: Server will send city_production_changed event with accurate data
+            // which will overwrite our optimistic update with real values
           } catch (error) {
             console.error('Failed to change city production:', error);
+
+            // Revert optimistic updates on error
+            if (originalOverlayCity) {
+              setCityInfoOverlay(prev =>
+                prev.isOpen
+                  ? {
+                      ...prev,
+                      city: originalOverlayCity,
+                    }
+                  : prev
+              );
+            }
+
+            if (originalStoreCity) {
+              gameState.updateGameState({
+                cities: {
+                  ...gameState.cities,
+                  [cityId]: originalStoreCity,
+                },
+              });
+            }
+
             // TODO: Show error message to user in UI
           }
         }}

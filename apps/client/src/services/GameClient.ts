@@ -313,6 +313,30 @@ class GameClient {
         });
       }
     });
+
+    // Handle city production changes
+    this.socket.on('city_production_changed', data => {
+      console.log('City production changed:', data);
+      const { cities } = useGameStore.getState();
+      const currentCity = cities[data.cityId];
+
+      if (currentCity) {
+        const updatedCity = {
+          ...currentCity,
+          currentProduction: data.production,
+          productionType: data.type,
+          shieldStock: data.progress || 0,
+          turnsToComplete: data.turnsToComplete || 0,
+        };
+
+        useGameStore.getState().updateGameState({
+          cities: {
+            ...cities,
+            [data.cityId]: updatedCity,
+          },
+        });
+      }
+    });
   }
 
   private handlePacket(packet: Packet) {
