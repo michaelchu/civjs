@@ -86,6 +86,7 @@ describe('CitizenManagementService', () => {
       tradePerTurn: 0,
       shieldStock: 0,
       sciencePerTurn: 0,
+      history: 0, // Culture history
       buildings: [],
       specialists: {
         [SpecialistType.SCIENTIST]: 0,

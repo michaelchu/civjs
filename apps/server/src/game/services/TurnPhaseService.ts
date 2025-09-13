@@ -14,6 +14,7 @@ import type { TurnProcessingService } from './TurnProcessingService';
 import type { TurnCoordinationService } from './TurnCoordinationService';
 import type { TurnPacketService } from './TurnPacketService';
 import type { RandomEventsManager } from '@game/managers/RandomEventsManager';
+import type { CultureManager } from '@game/managers/CultureManager';
 import { GameEventService, GameEventType } from './GameEventService';
 import { db } from '@database/index';
 import { turnPhases, NewTurnPhase } from '@database/schema/turn-phases';
@@ -36,27 +37,31 @@ export enum TurnPhase {
   // @reference freeciv/server/cityturn.c city_turn()
   PHASE_CITY_PRODUCTION = 'city_production',
 
-  // Phase 5: Research and technology
+  // Phase 5: Culture processing and accumulation
+  // @reference freeciv/server/cityturn.c:3703 city_history_gain(), plrhand.c:3530 nation_history_gain()
+  PHASE_CULTURE_PROCESSING = 'culture_processing',
+
+  // Phase 6: Research and technology
   // @reference freeciv/server/techtools.c tech advancement
   PHASE_RESEARCH = 'research',
 
-  // Phase 6: AI player actions
+  // Phase 7: AI player actions
   // @reference freeciv/server/srv_main.c AI player processing
   PHASE_AI_ACTIONS = 'ai_actions',
 
-  // Phase 7: Random events and barbarians
+  // Phase 8: Random events and barbarians
   // @reference freeciv/server/srv_main.c:1668 summon_barbarians(), 1684 check_disasters()
   PHASE_RANDOM_EVENTS = 'random_events',
 
-  // Phase 8: Border calculation
+  // Phase 9: Border calculation
   // @reference freeciv/server/srv_main.c:end_turn() map_calculate_borders()
   PHASE_BORDER_CALCULATION = 'border_calculation',
 
-  // Phase 9: End turn cleanup
+  // Phase 10: End turn cleanup
   // @reference freeciv/server/srv_main.c end_turn()
   PHASE_END_TURN = 'end_turn',
 
-  // Phase 10: Statistics and save
+  // Phase 11: Statistics and save
   // @reference freeciv/server/srv_main.c turn advancement and save
   PHASE_SAVE_ADVANCE = 'save_advance',
 }
@@ -95,6 +100,7 @@ export class TurnPhaseService {
   private turnCoordinationService: TurnCoordinationService;
   private turnPacketService: TurnPacketService;
   private randomEventsManager?: RandomEventsManager;
+  private cultureManager?: CultureManager;
   private gameEventService: GameEventService;
 
   private currentPhase: TurnPhase | null = null;
@@ -107,7 +113,8 @@ export class TurnPhaseService {
     turnCoordinationService: TurnCoordinationService,
     turnPacketService: TurnPacketService,
     gameEventService: GameEventService,
-    randomEventsManager?: RandomEventsManager
+    randomEventsManager?: RandomEventsManager,
+    cultureManager?: CultureManager
   ) {
     this.gameId = gameId;
     this.turnProcessingService = turnProcessingService;
@@ -115,6 +122,7 @@ export class TurnPhaseService {
     this.turnPacketService = turnPacketService;
     this.gameEventService = gameEventService;
     this.randomEventsManager = randomEventsManager;
+    this.cultureManager = cultureManager;
 
     // Register built-in event handlers for turn processing
     this.registerBuiltInEventHandlers();
@@ -292,6 +300,7 @@ export class TurnPhaseService {
       TurnPhase.PHASE_PLAYER_ACTIONS,
       TurnPhase.PHASE_UNIT_ACTIVITIES,
       TurnPhase.PHASE_CITY_PRODUCTION,
+      TurnPhase.PHASE_CULTURE_PROCESSING,
       TurnPhase.PHASE_RESEARCH,
       TurnPhase.PHASE_AI_ACTIONS,
       TurnPhase.PHASE_RANDOM_EVENTS,
@@ -438,6 +447,10 @@ export class TurnPhaseService {
 
         case TurnPhase.PHASE_CITY_PRODUCTION:
           await this.executeCityProductionPhase(context, phaseResult);
+          break;
+
+        case TurnPhase.PHASE_CULTURE_PROCESSING:
+          await this.executeCultureProcessingPhase(context, phaseResult);
           break;
 
         case TurnPhase.PHASE_RESEARCH:
@@ -688,6 +701,53 @@ export class TurnPhaseService {
     result.itemsProcessed = totalCitiesProcessed;
   }
 
+  /**
+   * Execute culture processing phase - accumulate city and player culture/history
+   *
+   * Direct port of freeciv culture system processing
+   * Reference: freeciv/server/cityturn.c:3703 city_history_gain(), plrhand.c:3530 nation_history_gain()
+   */
+  private async executeCultureProcessingPhase(
+    context: PhaseContext,
+    result: PhaseResult
+  ): Promise<void> {
+    logger.debug('Processing culture phase', { gameId: context.gameId });
+
+    if (!this.cultureManager) {
+      logger.warn('CultureManager not configured, skipping culture processing phase');
+      result.playersProcessed = context.playerIds.length;
+      result.itemsProcessed = 0;
+      return;
+    }
+
+    try {
+      // Process culture gain for all cities and players in the game
+      // This handles both city history gain and national history gain
+      await this.cultureManager.processCultureGain(context.gameId);
+
+      result.playersProcessed = context.playerIds.length;
+      result.itemsProcessed = 1; // One processing operation for the entire game
+
+      logger.debug('Culture processing completed', {
+        gameId: context.gameId,
+        turn: context.turn,
+        playersProcessed: result.playersProcessed,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      logger.error('Culture processing failed', {
+        gameId: context.gameId,
+        turn: context.turn,
+        error: errorMessage,
+      });
+
+      result.errors.push(`Culture processing failed: ${errorMessage}`);
+      result.playersProcessed = context.playerIds.length;
+      result.itemsProcessed = 0;
+    }
+  }
+
   private async executeResearchPhase(context: PhaseContext, result: PhaseResult): Promise<void> {
     logger.debug('Processing research phase', { gameId: context.gameId });
 
@@ -871,6 +931,7 @@ export class TurnPhaseService {
       [TurnPhase.PHASE_PLAYER_ACTIONS]: 'Processing player actions...',
       [TurnPhase.PHASE_UNIT_ACTIVITIES]: 'Processing unit activities...',
       [TurnPhase.PHASE_CITY_PRODUCTION]: 'Processing city production...',
+      [TurnPhase.PHASE_CULTURE_PROCESSING]: 'Processing culture...',
       [TurnPhase.PHASE_RESEARCH]: 'Processing research...',
       [TurnPhase.PHASE_AI_ACTIONS]: 'Processing AI actions...',
       [TurnPhase.PHASE_RANDOM_EVENTS]: 'Processing random events...',

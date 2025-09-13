@@ -72,6 +72,18 @@ const mockVisibilityManager = {
   calculateVisibility: jest.fn(),
 } as any;
 
+const mockCultureManager = {
+  calculateCityCulture: jest.fn(),
+  calculateCityHistoryGain: jest.fn(),
+  calculatePlayerCulture: jest
+    .fn()
+    .mockResolvedValue({ totalCulture: 0, nationalHistory: 0, nationalHistoryGain: 0 }),
+  calculateNationHistoryGain: jest.fn(),
+  processCultureGain: jest.fn().mockResolvedValue(undefined),
+  getPlayerCultureInfo: jest.fn(),
+  getCityCultureInfo: jest.fn(),
+} as any;
+
 // Mock Socket.IO - create proper chainable mock
 const mockEmit = jest.fn();
 const mockRoom = {
@@ -106,6 +118,7 @@ describe.skip('TurnManager - Complex mocking required, temporarily skipped', () 
       mockResearchManager,
       mockBorderManager,
       mockVisibilityManager,
+      mockCultureManager,
       mockBroadcastManager
     );
   });

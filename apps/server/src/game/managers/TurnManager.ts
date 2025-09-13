@@ -16,6 +16,7 @@ import type { CityManager } from '@game/managers/CityManager';
 import type { ResearchManager } from '@game/managers/ResearchManager';
 import type { BorderManager } from '@game/managers/BorderManager';
 import type { VisibilityManager } from '@game/managers/VisibilityManager';
+import type { CultureManager } from '@game/managers/CultureManager';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 
 export interface TurnEvent {
@@ -52,6 +53,7 @@ export class TurnManager {
   private turnPhaseService: TurnPhaseService;
   private calendarService: CalendarService;
   private broadcastManager: GameBroadcastManager;
+  private cultureManager: CultureManager;
 
   constructor(
     gameId: string,
@@ -62,11 +64,13 @@ export class TurnManager {
     researchManager: ResearchManager,
     borderManager: BorderManager,
     visibilityManager: VisibilityManager,
+    cultureManager: CultureManager,
     broadcastManager: GameBroadcastManager
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
     this.io = io;
+    this.cultureManager = cultureManager;
 
     // Initialize services
     this.turnProcessingService = new TurnProcessingService(
@@ -90,7 +94,9 @@ export class TurnManager {
       this.turnProcessingService,
       this.turnCoordinationService,
       this.turnPacketService,
-      this.gameEventService
+      this.gameEventService,
+      undefined, // randomEventsManager - not passed yet
+      this.cultureManager
     );
 
     // Initialize calendar service with default configuration
