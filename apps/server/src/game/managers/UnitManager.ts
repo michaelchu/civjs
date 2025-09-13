@@ -211,7 +211,7 @@ export class UnitManager {
       unitTypeId,
       x,
       y,
-      movementLeft: unitType.movement,
+      movementLeft: unitType.movement * 3, // Convert movement points to fragments
       health: 100,
       veteranLevel: 0,
       experience: 0,
@@ -470,7 +470,7 @@ export class UnitManager {
       if (unit.playerId === playerId) {
         const unitType = UNIT_TYPES[unit.unitTypeId];
         // Restore full movement points in fragments
-        unit.movementLeft = unitType.movement;
+        unit.movementLeft = unitType.movement * 3;
 
         // Heal fortified units
         // @reference freeciv/server/unithand.c unit_restore_movepoints() - heal_unit()
@@ -541,7 +541,7 @@ export class UnitManager {
         unitTypeId: dbUnit.unitType,
         x: dbUnit.x,
         y: dbUnit.y,
-        movementLeft: Math.min(parseFloat(dbUnit.movementPoints) || 0, unitType.movement),
+        movementLeft: Math.min(parseFloat(dbUnit.movementPoints) || 0, unitType.movement * 3),
         health: dbUnit.health,
         veteranLevel: dbUnit.veteranLevel,
         experience: dbUnit.experience || 0,
@@ -616,10 +616,10 @@ export class UnitManager {
       // Update movement points for veteran bonus
       const veteranLevel = this.getVeteranLevel(newLevel);
       const unitType = UNIT_TYPES[unit.unitTypeId];
-      const maxMovement = unitType.movement + veteranLevel.moveBonus;
+      const maxMovement = (unitType.movement + veteranLevel.moveBonus) * 3; // Convert to fragments
 
       // If unit hasn't moved this turn, give them bonus movement
-      if (unit.movementLeft === unitType.movement) {
+      if (unit.movementLeft === unitType.movement * 3) {
         unit.movementLeft = maxMovement;
       }
 

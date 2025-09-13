@@ -42,6 +42,7 @@ export interface City {
   x: number;
   y: number;
   size: number;
+  actualPopulation?: number; // Actual population count (server-calculated)
   // Current output
   food: number;
   shields: number;
@@ -99,6 +100,7 @@ export interface City {
     progress: number;
     cost: number;
     turnsToComplete: number;
+    percentComplete?: number; // Server-calculated percentage (0-100)
   };
   // Worklist
   worklist: Array<{

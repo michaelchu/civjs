@@ -17,16 +17,17 @@ describe('UnitManager', () => {
   describe('unit types', () => {
     it('should have valid unit type definitions', () => {
       expect(UNIT_TYPES.warrior).toBeDefined();
-      expect(UNIT_TYPES.warrior.name).toBe('Warrior');
-      expect(UNIT_TYPES.warrior.movement).toBe(6); // 2 movement points = 6 fragments
-      expect(UNIT_TYPES.warrior.combat).toBe(20);
+      expect(UNIT_TYPES.warrior.name).toBe('Warriors'); // From freeciv ruleset
+      expect(UNIT_TYPES.warrior.movement).toBe(1); // Freeciv movement points (not fragments)
+      expect(UNIT_TYPES.warrior.attack).toBe(1); // Freeciv attack value
+      expect(UNIT_TYPES.warrior.cost).toBe(10); // Corrected freeciv cost
 
-      expect(UNIT_TYPES.settler).toBeDefined();
-      expect(UNIT_TYPES.settler.canFoundCity).toBe(true);
-      expect(UNIT_TYPES.settler.combat).toBe(0);
+      expect(UNIT_TYPES.settlers).toBeDefined(); // 'settlers' not 'settler'
+      expect(UNIT_TYPES.settlers.flags).toContain('Cities'); // Can found cities via flag
+      expect(UNIT_TYPES.settlers.attack).toBe(0); // Non-combat unit
 
       expect(UNIT_TYPES.worker).toBeDefined();
-      expect(UNIT_TYPES.worker.canBuildImprovements).toBe(true);
+      expect(UNIT_TYPES.worker.flags).toContain('Workers'); // Can build improvements via flag
     });
   });
 
@@ -39,7 +40,7 @@ describe('UnitManager', () => {
       expect(unit.x).toBe(10);
       expect(unit.y).toBe(10);
       expect(unit.health).toBe(100);
-      expect(unit.movementLeft).toBe(6); // Warrior movement in fragments
+      expect(unit.movementLeft).toBe(3); // Warrior movement in fragments (1 * 3)
       expect(unit.veteranLevel).toBe(0);
       expect(unit.fortified).toBe(false);
 
@@ -63,8 +64,8 @@ describe('UnitManager', () => {
     });
 
     it('should reject stacking civilian units', async () => {
-      // First create a settler
-      await unitManager.createUnit('player-123', 'settler', 10, 10);
+      // First create a settler (use 'settlers' from freeciv)
+      await unitManager.createUnit('player-123', 'settlers', 10, 10);
 
       // Try to create another settler at same position
       await expect(unitManager.createUnit('player-123', 'worker', 10, 10)).rejects.toThrow(
@@ -89,19 +90,18 @@ describe('UnitManager', () => {
       const unit = unitManager.getUnit(unitId);
       expect(unit!.x).toBe(11);
       expect(unit!.y).toBe(10);
-      expect(unit!.movementLeft).toBe(3); // Used 3 fragments for plains terrain
+      expect(unit!.movementLeft).toBe(0); // Used 1 movement point for basic terrain
       expect(unit!.fortified).toBe(false);
 
       // Database operations are handled by MockDatabaseProvider
     });
 
     it('should reject move with insufficient movement', async () => {
-      // Use up movement points
+      // Use up movement point (warrior has only 1 movement in freeciv)
       await unitManager.moveUnit(unitId, 11, 10);
-      await unitManager.moveUnit(unitId, 12, 10);
 
-      // Should fail on third move
-      await expect(unitManager.moveUnit(unitId, 13, 10)).rejects.toThrow(
+      // Should fail on second move - no movement left
+      await expect(unitManager.moveUnit(unitId, 12, 10)).rejects.toThrow(
         'Not enough movement points'
       );
     });
@@ -146,15 +146,11 @@ describe('UnitManager', () => {
     });
 
     it('should reject attack out of range', async () => {
-      // Reset movement for the test
-      await unitManager.resetMovement('player-123');
-
-      // Move attacker away (2 spaces, using all movement)
-      await unitManager.moveUnit(attackerUnitId, 8, 10);
-
-      // Give some movement back to test range
+      // Move attacker away to position out of range
       const attacker = unitManager.getUnit(attackerUnitId)!;
-      attacker.movementLeft = 1;
+      attacker.x = 5; // Far from defender at (11, 10)
+      attacker.y = 5;
+      attacker.movementLeft = 1; // Give movement for attack attempt
 
       await expect(unitManager.attackUnit(attackerUnitId, defenderUnitId)).rejects.toThrow(
         'Target out of range'
@@ -162,12 +158,12 @@ describe('UnitManager', () => {
     });
 
     it('should reject attack with no movement', async () => {
-      // Use up movement points
-      await unitManager.moveUnit(attackerUnitId, 9, 10);
-      await unitManager.moveUnit(attackerUnitId, 8, 10);
+      // Use up movement point (warrior has only 1 movement)
+      const attacker = unitManager.getUnit(attackerUnitId)!;
+      attacker.movementLeft = 0; // No movement left
 
       await expect(unitManager.attackUnit(attackerUnitId, defenderUnitId)).rejects.toThrow(
-        'No movement points remaining'
+        'No movement points remaining' // Actual error message from UnitManager
       );
     });
 
@@ -178,6 +174,7 @@ describe('UnitManager', () => {
       // Set low health to ensure destruction
       attacker.health = 1;
       defender.health = 1;
+      attacker.movementLeft = 1; // Give movement for attack
 
       const result = await unitManager.attackUnit(attackerUnitId, defenderUnitId);
 
@@ -237,7 +234,7 @@ describe('UnitManager', () => {
     beforeEach(async () => {
       const unit = await unitManager.createUnit('player-123', 'warrior', 10, 10);
       unitId = unit.id;
-      // Use some movement
+      // Use some movement (unit starts with 1 movement)
       await unitManager.moveUnit(unitId, 11, 10);
     });
 
@@ -245,7 +242,7 @@ describe('UnitManager', () => {
       await unitManager.resetMovement('player-123');
 
       const unit = unitManager.getUnit(unitId);
-      expect(unit!.movementLeft).toBe(6); // Reset to warrior's full movement in fragments
+      expect(unit!.movementLeft).toBe(3); // Reset to warrior's full movement in fragments
     });
 
     it('should heal fortified units', async () => {
@@ -262,7 +259,7 @@ describe('UnitManager', () => {
   describe('unit queries', () => {
     beforeEach(async () => {
       await unitManager.createUnit('player-123', 'warrior', 10, 10);
-      await unitManager.createUnit('player-123', 'settler', 11, 10);
+      await unitManager.createUnit('player-123', 'settlers', 11, 10); // Use 'settlers'
       await unitManager.createUnit('player-456', 'warrior', 12, 10);
     });
 
@@ -299,7 +296,7 @@ describe('UnitManager', () => {
     beforeEach(async () => {
       await unitManager.createUnit('player-123', 'warrior', 10, 10);
       await unitManager.createUnit('player-456', 'warrior', 11, 10);
-      await unitManager.createUnit('player-456', 'settler', 20, 20);
+      await unitManager.createUnit('player-456', 'settlers', 20, 20); // Use 'settlers'
     });
 
     it('should return visible units for player', () => {

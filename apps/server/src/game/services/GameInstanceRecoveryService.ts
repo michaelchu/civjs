@@ -240,6 +240,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
     const borderEffectsManager = new EffectsManager();
     borderManager = new BorderManager(mapManager, cityManager, borderEffectsManager);
     const borderNetworkService = new BorderNetworkService(this.io, borderManager);
+
+    // Set socket server for production completion events
+    cityManager.setSocketServer(this.io);
     borderManager.setCallbacks({
       onBorderUpdate: update => {
         borderNetworkService.broadcastBorderUpdate(gameId, update);

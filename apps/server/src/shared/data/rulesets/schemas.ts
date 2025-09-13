@@ -76,6 +76,7 @@ export const UnitClassSchema = z.enum([
   'Nuclear',
   'Big Land',
   'Small Land',
+  'Trireme', // Freeciv classic ship class
 ]);
 
 export const UnitRoleSchema = z.enum([
@@ -100,6 +101,15 @@ export const UnitRoleSchema = z.enum([
   'BarbarianStartUnit',
   'Diplomat',
   'Hunter',
+  // Additional freeciv classic roles
+  'AirCarrier',
+  'AttackFast',
+  'AttackOk',
+  'AttackStrong',
+  'HelpWonder',
+  'Marines',
+  'Settlers',
+  'TradeRoute',
 ]);
 
 export const UnitTypeFlagSchema = z.enum([
@@ -125,7 +135,6 @@ export const UnitTypeFlagSchema = z.enum([
   'Bomber',
   'AWACS',
   'Stealth',
-  'Partial_Invis',
   'Cant_Fortify',
   'No_Land_Attack',
   'AddToCity',
@@ -147,6 +156,14 @@ export const UnitTypeFlagSchema = z.enum([
   'GainVeteran',
   'Capturable',
   'HasInitialVeteran',
+  // Additional freeciv classic flags
+  'AEGIS',
+  'Airbase',
+  'Cities',
+  'FieldUnit',
+  'HasNoZOC',
+  'Horse',
+  'Workers',
 ]);
 
 export const UnitTypeRulesetSchema = z.object({
@@ -154,7 +171,8 @@ export const UnitTypeRulesetSchema = z.object({
   name: z.string(),
   internal_name: z.string().optional(),
   cost: z.number().positive(),
-  movement: z.number().positive(),
+  movement: z.number().positive().optional(), // Legacy field
+  move_rate: z.number().positive().optional(), // Freeciv field
   attack: z.number().min(0), // Separate attack from defense
   defense: z.number().min(0), // Separate defense from attack
   hitpoints: z.number().positive(), // Unit health

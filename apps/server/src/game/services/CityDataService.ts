@@ -8,8 +8,14 @@
  * @reference freeciv-web/javascript/city.js
  */
 
-import { SPECIALIST_TYPES, type CityState, type SpecialistType } from '@game/managers/CityManager';
+import {
+  SPECIALIST_TYPES,
+  type CityState,
+  type SpecialistType,
+  BUILDING_TYPES,
+} from '@game/managers/CityManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { rulesetUnitsService } from './RulesetUnitsService';
 
 interface ClientCityData {
   id: string;
@@ -18,6 +24,7 @@ interface ClientCityData {
   x: number;
   y: number;
   size: number;
+  actualPopulation?: number;
 
   // Basic output values (for legacy compatibility)
   food: number;
@@ -82,6 +89,7 @@ interface ClientCityData {
     progress: number;
     cost: number;
     turnsToComplete: number;
+    percentComplete?: number;
   };
 
   // Worklist
@@ -169,15 +177,25 @@ export class CityDataService {
     const foodStock = city.foodStock || 0;
     const granaryTurns = this.calculateGranaryTurns(surplus.food, foodStock, granarySize);
 
-    // Transform current production with actual shield stock
+    // Transform current production with server-calculated data
     const production = city.currentProduction
-      ? {
-          target: city.currentProduction,
-          type: (city.productionType as 'unit' | 'building' | 'wonder') || 'unit',
-          progress: city.productionStock || city.shieldStock || 0,
-          cost: this.getProductionCost(city.currentProduction, city.productionType || 'unit'),
-          turnsToComplete: city.turnsToComplete,
-        }
+      ? (() => {
+          const progress = city.productionStock || city.shieldStock || 0;
+          const cost = this.getProductionCost(
+            city.currentProduction,
+            city.productionType || 'unit'
+          );
+          const percentComplete = cost > 0 ? Math.min((progress / cost) * 100, 100) : 0;
+
+          return {
+            target: city.currentProduction,
+            type: (city.productionType as 'unit' | 'building' | 'wonder') || 'unit',
+            progress,
+            cost,
+            turnsToComplete: this.calculateTurnsToComplete(city),
+            percentComplete,
+          };
+        })()
       : undefined;
 
     // Transform worklist with accurate costs
@@ -194,6 +212,7 @@ export class CityDataService {
       x: city.x,
       y: city.y,
       size: city.population,
+      actualPopulation: city.population * 1000, // Actual population count
 
       // Legacy compatibility (for backward compatibility)
       food: foodPerTurn,
@@ -405,33 +424,38 @@ export class CityDataService {
   }
 
   /**
-   * Get production cost for item
-   * TODO: Get from actual unit/building definitions
+   * Get production cost for item from actual definitions
    */
   private static getProductionCost(itemId: string, type: string): number {
     if (type === 'unit') {
-      const unitCosts: Record<string, number> = {
-        warrior: 10,
-        settler: 30,
-        archer: 15,
-        phalanx: 20,
-        horseman: 25,
-      };
-      return unitCosts[itemId] || 10;
+      const unitType = rulesetUnitsService.getUnitType(itemId);
+      return unitType?.cost || 10;
     } else if (type === 'building') {
-      const buildingCosts: Record<string, number> = {
-        granary: 60,
-        barracks: 40,
-        library: 80,
-        marketplace: 80,
-        temple: 40,
-        walls: 80,
-        factory: 140,
-        palace: 100,
-      };
-      return buildingCosts[itemId] || 40;
+      return BUILDING_TYPES[itemId]?.cost || 40;
     }
 
     return 100; // Default wonder cost
+  }
+
+  /**
+   * Calculate turns to complete current production
+   * Uses same logic as client to ensure consistency
+   */
+  private static calculateTurnsToComplete(city: any): number {
+    if (!city.currentProduction) {
+      return 0;
+    }
+
+    const productionCost = this.getProductionCost(
+      city.currentProduction,
+      city.productionType || 'unit'
+    );
+    const progress = city.productionStock || city.shieldStock || 0;
+    const remainingShields = Math.max(0, productionCost - progress);
+
+    // Use same calculation priority as CityProductionHandler
+    const shieldsPerTurn = Math.max(1, city.productionPerTurn || city.surplus?.shields || 1);
+
+    return Math.ceil(remainingShields / shieldsPerTurn);
   }
 }

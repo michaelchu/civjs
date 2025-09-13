@@ -4,6 +4,7 @@ import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
 import { PacketType, CityFoundSchema, CityProductionChangeSchema } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
+import { CityProductionHandler } from './CityProductionHandler';
 
 /**
  * Handles city management packets: founding cities, production changes
@@ -44,6 +45,63 @@ export class CityManagementHandler extends BaseSocketHandler {
       },
       CityProductionChangeSchema
     );
+
+    // Register production endpoints
+    socket.on('city:getAvailableProductions', async data => {
+      const connection = this.getConnection(socket, this.activeConnections);
+      if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
+        socket.emit('error', { message: 'Not authenticated or not in a game' });
+        return;
+      }
+
+      // Get the actual game instance and its data
+      const game = this.gameManager.getGameInstance(connection.gameId!);
+      if (!game) {
+        socket.emit('error', { message: 'Game not found' });
+        return;
+      }
+
+      // Create production handler with real data for this request
+      const productionHandler = new CityProductionHandler(
+        game.cityManager.getCitiesMap(),
+        game.players,
+        game.researchManager
+      );
+
+      await productionHandler.getAvailableProductions(socket, {
+        cityId: data.cityId,
+        playerId: connection.userId!,
+      });
+    });
+
+    socket.on('city:changeProduction', async data => {
+      const connection = this.getConnection(socket, this.activeConnections);
+      if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
+        socket.emit('error', { message: 'Not authenticated or not in a game' });
+        return;
+      }
+
+      // Get the actual game instance and its data
+      const game = this.gameManager.getGameInstance(connection.gameId!);
+      if (!game) {
+        socket.emit('error', { message: 'Game not found' });
+        return;
+      }
+
+      // Create production handler with real data for this request
+      const productionHandler = new CityProductionHandler(
+        game.cityManager.getCitiesMap(),
+        game.players,
+        game.researchManager
+      );
+
+      await productionHandler.changeProduction(socket, {
+        cityId: data.cityId,
+        playerId: connection.userId!,
+        productionId: data.productionId,
+        productionType: data.productionType,
+      });
+    });
 
     logger.debug(`${this.handlerName} registered handlers for socket ${socket.id}`);
   }

@@ -13,6 +13,7 @@ import {
   CityFoundingErrorCode,
 } from '@game/services/CityFoundingValidationService';
 import type { MapManager } from '@game/managers/MapManager';
+import { Server as SocketServer } from 'socket.io';
 
 // Import the specialized services
 import { CityManagementService } from '@game/services/CityManagementService';
@@ -262,6 +263,8 @@ export interface BuildingType {
   id: string;
   name: string;
   cost: number;
+  requiredTech?: string;
+  requires?: string[]; // Required buildings
   effects: {
     defenseBonus?: number;
     foodBonus?: number;
@@ -306,6 +309,14 @@ export const BUILDING_TYPES: Record<string, BuildingType> = {
       scienceBonus: 50, // 50% bonus to science from trade
     },
   },
+  barracks: {
+    id: 'barracks',
+    name: 'Barracks',
+    cost: 40,
+    effects: {
+      defenseBonus: 50, // 50% defense bonus for new units
+    },
+  },
   walls: {
     id: 'walls',
     name: 'City Walls',
@@ -336,7 +347,7 @@ export const BUILDING_TYPES: Record<string, BuildingType> = {
 export interface CityManagerCallbacks {
   onCityFounded?: (city: CityState) => void;
   onCityGrowth?: (city: CityState, oldSize: number) => void;
-  onCityProductionComplete?: (city: CityState, item: ProductionItem) => void;
+  onCityProductionComplete?: (city: CityState, item: ProductionItem) => void | Promise<void>;
   onCityDestroyed?: (city: CityState) => void;
   onCityTurnProcessed?: (city: CityState) => void;
 }
@@ -360,6 +371,7 @@ export class CityManager {
   private databaseProvider: DatabaseProvider;
   private callbacks: CityManagerCallbacks;
   private mapManager?: MapManager;
+  private io?: SocketServer; // Socket.IO server for emitting events
   private validationService?: CityFoundingValidationService;
 
   // Specialized services
@@ -454,6 +466,20 @@ export class CityManager {
       this.mapManager,
       CITY_MAP_DEFAULT_RADIUS_SQ
     );
+  }
+
+  /**
+   * Set the Socket.IO server for emitting events
+   */
+  setSocketServer(io: SocketServer): void {
+    this.io = io;
+  }
+
+  /**
+   * Get cities map for production handler access
+   */
+  getCitiesMap(): Map<string, CityState> {
+    return this.cities;
   }
 
   /**
@@ -864,8 +890,13 @@ export class CityManager {
         city.buildings.push(city.currentProduction);
       }
     } else if (city.productionType === 'unit') {
-      // Handle unit creation (would integrate with UnitManager)
+      // Unit creation is handled by the onCityProductionComplete callback
+      // which properly integrates with UnitManager
     }
+
+    // Store production details before resetting
+    const completedProductionType = city.productionType as 'unit' | 'building' | 'wonder';
+    const completedProductionId = city.currentProduction;
 
     // Reset production
     city.currentProduction = null;
@@ -873,9 +904,39 @@ export class CityManager {
     city.productionStock = 0;
     city.turnsToComplete = 0;
 
+    // Emit socket event if Socket.IO server is available
+    if (this.io && completedProductionType && completedProductionId) {
+      logger.info('Production completed', {
+        gameId: this.gameId,
+        cityId,
+        productionType: completedProductionType,
+        productionId: completedProductionId,
+      });
+
+      // For unit production, let the callback handle unit creation and broadcasting
+      // For building production, emit the completion event here
+      if (completedProductionType === 'building') {
+        this.io.to(`game:${this.gameId}`).emit('production:completed', {
+          cityId,
+          productionType: completedProductionType,
+          productionId: completedProductionId,
+        });
+      }
+    }
+
     // Trigger callback
     if (this.callbacks.onCityProductionComplete) {
-      this.callbacks.onCityProductionComplete(city, productionItem);
+      const result = this.callbacks.onCityProductionComplete(city, productionItem);
+      if (result instanceof Promise) {
+        // Handle async callback without blocking
+        result.catch(error => {
+          logger.error('Error in onCityProductionComplete callback', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            cityId: city.id,
+            productionItem,
+          });
+        });
+      }
     }
   }
 

@@ -64,7 +64,11 @@ export class VisibilityManager {
       const unitType = UNIT_TYPES[unit.unitTypeId];
       if (!unitType) continue;
 
-      const visibleTiles = this.calculateTileVisibility(unit.x, unit.y, unitType.sight);
+      const visibleTiles = this.calculateTileVisibility(
+        unit.x,
+        unit.y,
+        unitType.vision_radius_sq || unitType.sight
+      );
 
       for (const tileKey of visibleTiles) {
         visibility.visibleTiles.add(tileKey);
@@ -80,24 +84,26 @@ export class VisibilityManager {
 
   /**
    * Calculate which tiles are visible from a position
+   * @param visionRadiusSq - freeciv vision_radius_sq value (distance squared)
    */
   private calculateTileVisibility(
     centerX: number,
     centerY: number,
-    sightRange: number
+    visionRadiusSq: number
   ): Set<string> {
     const visibleTiles = new Set<string>();
     const mapData = this.mapManager.getMapData();
     if (!mapData) return visibleTiles;
 
-    // Simple circular sight range (could be enhanced with line-of-sight later)
-    for (let x = centerX - sightRange; x <= centerX + sightRange; x++) {
-      for (let y = centerY - sightRange; y <= centerY + sightRange; y++) {
+    // Simple circular sight range using freeciv vision_radius_sq
+    const maxRadius = Math.ceil(Math.sqrt(visionRadiusSq));
+    for (let x = centerX - maxRadius; x <= centerX + maxRadius; x++) {
+      for (let y = centerY - maxRadius; y <= centerY + maxRadius; y++) {
         // Check bounds manually since isValidCoord is private
         if (x < 0 || x >= mapData.width || y < 0 || y >= mapData.height) continue;
 
-        const distance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
-        if (distance <= sightRange) {
+        const distanceSquared = (x - centerX) ** 2 + (y - centerY) ** 2;
+        if (distanceSquared <= visionRadiusSq) {
           visibleTiles.add(`${x},${y}`);
         }
       }
