@@ -94,7 +94,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
     const surplus = city.surplus || null;
     const citizens = city.citizens || null;
     const waste = city.waste || null;
-    
+
     // Buildings should come from server with proper structure
     const buildings = Array.isArray(city.buildings) ? city.buildings : [];
 
@@ -261,9 +261,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                       <span>
                         {city.production.progress}/{city.production.cost}
                       </span>
-                      <span>
-                        {city.production.turnsToComplete} turns
-                      </span>
+                      <span>{city.production.turnsToComplete} turns</span>
                     </div>
                   </div>
                 </div>
@@ -289,9 +287,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   </div>
                   <div className="text-xs text-center">
                     <div>Food</div>
-                    {cityData.prod?.food !== cityData.surplus?.food && cityData.prod?.food !== undefined && (
-                      <div className="text-gray-500">({cityData.prod.food} base)</div>
-                    )}
+                    {cityData.prod?.food !== cityData.surplus?.food &&
+                      cityData.prod?.food !== undefined && (
+                        <div className="text-gray-500">({cityData.prod.food} base)</div>
+                      )}
                   </div>
                 </div>
 
@@ -307,9 +306,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   </div>
                   <div className="text-xs text-center">
                     <div>Shields</div>
-                    {cityData.prod?.shields !== cityData.surplus?.shields && cityData.prod?.shields !== undefined && (
-                      <div className="text-gray-500">({cityData.prod.shields} base)</div>
-                    )}
+                    {cityData.prod?.shields !== cityData.surplus?.shields &&
+                      cityData.prod?.shields !== undefined && (
+                        <div className="text-gray-500">({cityData.prod.shields} base)</div>
+                      )}
                   </div>
                 </div>
 
@@ -325,9 +325,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   </div>
                   <div className="text-xs text-center">
                     <div>Trade</div>
-                    {cityData.prod?.trade !== cityData.surplus?.trade && cityData.prod?.trade !== undefined && (
-                      <div className="text-gray-500">({cityData.prod.trade} base)</div>
-                    )}
+                    {cityData.prod?.trade !== cityData.surplus?.trade &&
+                      cityData.prod?.trade !== undefined && (
+                        <div className="text-gray-500">({cityData.prod.trade} base)</div>
+                      )}
                   </div>
                 </div>
               </div>
@@ -616,9 +617,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                       </span>
                       <span>
                         Turns remaining:{' '}
-                        <span className="font-semibold">
-                          {city.production.turnsToComplete}
-                        </span>
+                        <span className="font-semibold">{city.production.turnsToComplete}</span>
                       </span>
                     </div>
                   </div>

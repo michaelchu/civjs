@@ -8,8 +8,14 @@
  * @reference freeciv-web/javascript/city.js
  */
 
-import { SPECIALIST_TYPES, type CityState, type SpecialistType } from '@game/managers/CityManager';
+import {
+  SPECIALIST_TYPES,
+  type CityState,
+  type SpecialistType,
+  BUILDING_TYPES,
+} from '@game/managers/CityManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { UNIT_TYPES } from '../constants/UnitConstants';
 
 interface ClientCityData {
   id: string;
@@ -175,9 +181,12 @@ export class CityDataService {
     const production = city.currentProduction
       ? (() => {
           const progress = city.productionStock || city.shieldStock || 0;
-          const cost = this.getProductionCost(city.currentProduction, city.productionType || 'unit');
+          const cost = this.getProductionCost(
+            city.currentProduction,
+            city.productionType || 'unit'
+          );
           const percentComplete = cost > 0 ? Math.min((progress / cost) * 100, 100) : 0;
-          
+
           return {
             target: city.currentProduction,
             type: (city.productionType as 'unit' | 'building' | 'wonder') || 'unit',
@@ -419,12 +428,8 @@ export class CityDataService {
    */
   private static getProductionCost(itemId: string, type: string): number {
     if (type === 'unit') {
-      // Import UNIT_TYPES dynamically to get actual costs
-      const UNIT_TYPES = require('../constants/UnitConstants').UNIT_TYPES;
       return UNIT_TYPES[itemId]?.cost || 10;
     } else if (type === 'building') {
-      // Import BUILDING_TYPES dynamically to get actual costs  
-      const BUILDING_TYPES = require('../managers/CityManager').BUILDING_TYPES;
       return BUILDING_TYPES[itemId]?.cost || 40;
     }
 
@@ -440,13 +445,16 @@ export class CityDataService {
       return 0;
     }
 
-    const productionCost = this.getProductionCost(city.currentProduction, city.productionType || 'unit');
+    const productionCost = this.getProductionCost(
+      city.currentProduction,
+      city.productionType || 'unit'
+    );
     const progress = city.productionStock || city.shieldStock || 0;
     const remainingShields = Math.max(0, productionCost - progress);
-    
+
     // Use same calculation priority as CityProductionHandler
     const shieldsPerTurn = Math.max(1, city.productionPerTurn || city.surplus?.shields || 1);
-    
+
     return Math.ceil(remainingShields / shieldsPerTurn);
   }
 }
