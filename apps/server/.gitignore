@@ -55,9 +55,13 @@ jspm_packages/
 # Docker
 docker-compose.override.yml
 
-# Drizzle - keep SQL migration files but ignore meta folder
+# Drizzle - keep SQL migration files but ignore auto-generated files
 # drizzle/meta/
 # drizzle/**/_journal.json
+
+# Auto-generated Drizzle files (regenerated from schema and database)
+drizzle/schema.ts
+drizzle/relations.ts
 
 # Database
 *.sqlite
