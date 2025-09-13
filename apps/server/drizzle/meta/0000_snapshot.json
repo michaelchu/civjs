@@ -1,5 +1,5 @@
 {
-  "id": "5d5de5ac-e2dc-40d9-91a5-bcb9c9150547",
+  "id": "4b0f66f7-348c-46e1-bb27-b05063a1d3b4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -219,6 +219,13 @@
         },
         "faith_per_turn": {
           "name": "faith_per_turn",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "history": {
+          "name": "history",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -646,6 +653,13 @@
           "notNull": true,
           "default": "'classic'"
         },
+        "history_interest_pml": {
+          "name": "history_interest_pml",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "map_seed": {
           "name": "map_seed",
           "type": "varchar(100)",
@@ -1041,15 +1055,15 @@
           "notNull": true,
           "default": 0
         },
-        "culture": {
-          "name": "culture",
+        "faith": {
+          "name": "faith",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "default": 0
         },
-        "faith": {
-          "name": "faith",
+        "history": {
+          "name": "history",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
