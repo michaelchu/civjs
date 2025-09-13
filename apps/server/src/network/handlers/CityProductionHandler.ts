@@ -181,9 +181,10 @@ export class CityProductionHandler {
       };
 
       // Broadcast city update to all players who can see this city
+      // TODO: Implement proper city serialization for broadcasts
       socket.broadcast.emit('city:updated', {
         cityId,
-        city: this.serializeCityForClient(city),
+        city,
       });
 
       socket.emit('city:productionChanged', {
@@ -245,7 +246,7 @@ export class CityProductionHandler {
    */
   private canCityBuildBuilding(city: any, buildingType: any, player: any): boolean {
     // Check if already built (can't build duplicates)
-    if (city.buildings?.some((b: any) => b.id === buildingType.id)) {
+    if (city.buildings?.includes(buildingType.id)) {
       return false;
     }
 
@@ -393,73 +394,7 @@ export class CityProductionHandler {
    * Check if city has required buildings
    */
   private hasRequiredBuildings(city: any, requirements: string[]): boolean {
-    const cityBuildings = city.buildings?.map((b: any) => b.id) || [];
+    const cityBuildings = city.buildings || [];
     return requirements.every(req => cityBuildings.includes(req));
-  }
-
-  /**
-   * Serialize city for client (remove sensitive server data)
-   */
-  private serializeCityForClient(city: any) {
-    // Return only client-safe city data
-    const {
-      id,
-      name,
-      playerId,
-      x,
-      y,
-      size,
-      food,
-      shields,
-      trade,
-      prod,
-      surplus,
-      waste,
-      foodStock,
-      granarySize,
-      granaryTurns,
-      citizens,
-      buildings,
-      presentUnits,
-      supportedUnits,
-      production,
-      worklist,
-      tradeRoutes,
-      celebrating,
-      disorder,
-      pollution,
-      rallyPoint,
-      history,
-    } = city;
-
-    return {
-      id,
-      name,
-      playerId,
-      x,
-      y,
-      size,
-      food,
-      shields,
-      trade,
-      prod,
-      surplus,
-      waste,
-      foodStock,
-      granarySize,
-      granaryTurns,
-      citizens,
-      buildings,
-      presentUnits,
-      supportedUnits,
-      production,
-      worklist,
-      tradeRoutes,
-      celebrating,
-      disorder,
-      pollution,
-      rallyPoint,
-      history,
-    };
   }
 }

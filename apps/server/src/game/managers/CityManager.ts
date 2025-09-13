@@ -309,6 +309,14 @@ export const BUILDING_TYPES: Record<string, BuildingType> = {
       scienceBonus: 50, // 50% bonus to science from trade
     },
   },
+  barracks: {
+    id: 'barracks',
+    name: 'Barracks',
+    cost: 40,
+    effects: {
+      defenseBonus: 50, // 50% defense bonus for new units
+    },
+  },
   walls: {
     id: 'walls',
     name: 'City Walls',
@@ -465,6 +473,13 @@ export class CityManager {
    */
   setSocketServer(io: SocketServer): void {
     this.io = io;
+  }
+
+  /**
+   * Get cities map for production handler access
+   */
+  getCitiesMap(): Map<string, CityState> {
+    return this.cities;
   }
 
   /**

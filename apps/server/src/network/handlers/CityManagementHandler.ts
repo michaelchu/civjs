@@ -22,15 +22,11 @@ export class CityManagementHandler extends BaseSocketHandler {
 
   private activeConnections: Map<string, { userId?: string; username?: string; gameId?: string }>;
   private gameManager: GameManager;
-  private productionHandler: CityProductionHandler;
 
   constructor(activeConnections: Map<string, any>, gameManager: GameManager) {
     super();
     this.activeConnections = activeConnections;
     this.gameManager = gameManager;
-    // TODO: Fix this once GameManager properly exposes managers
-    // For now, create production handler with empty collections
-    this.productionHandler = new CityProductionHandler(new Map(), new Map(), null);
   }
 
   register(handler: PacketHandler, io: Server, socket: Socket): void {
@@ -57,7 +53,22 @@ export class CityManagementHandler extends BaseSocketHandler {
         socket.emit('error', { message: 'Not authenticated or not in a game' });
         return;
       }
-      await this.productionHandler.getAvailableProductions(socket, {
+
+      // Get the actual game instance and its data
+      const game = this.gameManager.getGameInstance(connection.gameId!);
+      if (!game) {
+        socket.emit('error', { message: 'Game not found' });
+        return;
+      }
+
+      // Create production handler with real data for this request
+      const productionHandler = new CityProductionHandler(
+        game.cityManager.getCitiesMap(),
+        game.players,
+        game.researchManager
+      );
+
+      await productionHandler.getAvailableProductions(socket, {
         cityId: data.cityId,
         playerId: connection.userId!,
       });
@@ -69,7 +80,22 @@ export class CityManagementHandler extends BaseSocketHandler {
         socket.emit('error', { message: 'Not authenticated or not in a game' });
         return;
       }
-      await this.productionHandler.changeProduction(socket, {
+
+      // Get the actual game instance and its data
+      const game = this.gameManager.getGameInstance(connection.gameId!);
+      if (!game) {
+        socket.emit('error', { message: 'Game not found' });
+        return;
+      }
+
+      // Create production handler with real data for this request
+      const productionHandler = new CityProductionHandler(
+        game.cityManager.getCitiesMap(),
+        game.players,
+        game.researchManager
+      );
+
+      await productionHandler.changeProduction(socket, {
         cityId: data.cityId,
         playerId: connection.userId!,
         productionId: data.productionId,
