@@ -87,7 +87,7 @@ export class RulesetUnitsService {
       combat: unit.attack || unit.combat || 0, // Use attack as primary combat value
       attack: unit.attack,
       defense: unit.defense,
-      range: unit.range || 0,
+      range: unit.range || 1, // Melee units need range 1 for adjacent combat
       sight: unit.vision_radius_sq || unit.sight || 2,
       vision_radius_sq: unit.vision_radius_sq,
       canFoundCity: unit.canFoundCity || unit.roles?.includes('CitiesStartUnit') || false,

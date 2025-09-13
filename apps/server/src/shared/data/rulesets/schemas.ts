@@ -171,7 +171,8 @@ export const UnitTypeRulesetSchema = z.object({
   name: z.string(),
   internal_name: z.string().optional(),
   cost: z.number().positive(),
-  movement: z.number().positive(),
+  movement: z.number().positive().optional(), // Legacy field
+  move_rate: z.number().positive().optional(), // Freeciv field
   attack: z.number().min(0), // Separate attack from defense
   defense: z.number().min(0), // Separate defense from attack
   hitpoints: z.number().positive(), // Unit health

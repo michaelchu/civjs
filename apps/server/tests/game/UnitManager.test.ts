@@ -40,7 +40,7 @@ describe('UnitManager', () => {
       expect(unit.x).toBe(10);
       expect(unit.y).toBe(10);
       expect(unit.health).toBe(100);
-      expect(unit.movementLeft).toBe(1); // Warrior movement from freeciv ruleset
+      expect(unit.movementLeft).toBe(3); // Warrior movement in fragments (1 * 3)
       expect(unit.veteranLevel).toBe(0);
       expect(unit.fortified).toBe(false);
 
@@ -242,7 +242,7 @@ describe('UnitManager', () => {
       await unitManager.resetMovement('player-123');
 
       const unit = unitManager.getUnit(unitId);
-      expect(unit!.movementLeft).toBe(1); // Reset to warrior's full movement from freeciv
+      expect(unit!.movementLeft).toBe(3); // Reset to warrior's full movement in fragments
     });
 
     it('should heal fortified units', async () => {

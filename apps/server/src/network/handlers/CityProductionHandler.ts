@@ -228,7 +228,7 @@ export class CityProductionHandler {
     }
 
     // Check city size requirements for settlers (need at least size 2)
-    if (unitType.id === 'settler' && city.size < 2) {
+    if (['settler', 'settlers'].includes(unitType.id) && city.size < 2) {
       return false;
     }
 
