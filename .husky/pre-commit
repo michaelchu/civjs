@@ -16,7 +16,7 @@ git add -u
 echo "🔎 Running type checks..."
 npm run typecheck
 
-echo "🧪 Skipping tests (known failures from dynamic ruleset transition)..."
+echo "🧪 Skipping tests (alignment in progress for dynamic ruleset transition)..."
 # npm run test
 
 echo "🏗️ Running build..."

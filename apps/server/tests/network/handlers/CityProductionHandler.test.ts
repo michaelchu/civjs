@@ -76,9 +76,9 @@ describe('CityProductionHandler', () => {
         productions: expect.arrayContaining([
           expect.objectContaining({
             id: 'warrior',
-            name: 'Warrior',
+            name: 'Warriors', // From freeciv ruleset
             type: 'unit',
-            cost: expect.any(Number),
+            cost: 10, // Exact cost from freeciv
             available: true,
           }),
           expect.objectContaining({
@@ -163,7 +163,7 @@ describe('CityProductionHandler', () => {
       await handler.changeProduction(mockSocket, {
         cityId: 'city-1',
         playerId: 'player-1',
-        productionId: 'archer',
+        productionId: 'archers', // Correct unit ID from freeciv
         productionType: 'unit',
       });
 
@@ -190,7 +190,7 @@ describe('CityProductionHandler', () => {
       await handler.changeProduction(mockSocket, {
         cityId: 'city-1',
         playerId: 'player-1',
-        productionId: 'archer',
+        productionId: 'archers', // Correct unit ID from freeciv
         productionType: 'unit',
       });
 
@@ -264,11 +264,11 @@ describe('CityProductionHandler', () => {
       expect(result).toBe(true);
     });
 
-    it('should prevent building settler in size 1 city', () => {
+    it('should prevent building settlers in size 1 city', () => {
       const city = mockCities.get('city-1');
       city.size = 1;
       const player = mockPlayers.get('player-1');
-      const unitType = UNIT_TYPES.settler;
+      const unitType = UNIT_TYPES.settlers; // Use 'settlers' from freeciv
 
       const result = (handler as any).canCityBuildUnit(city, unitType, player);
       expect(result).toBe(false);

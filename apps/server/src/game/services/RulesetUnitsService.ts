@@ -93,7 +93,7 @@ export class RulesetUnitsService {
       canFoundCity: unit.canFoundCity || unit.roles?.includes('CitiesStartUnit') || false,
       canBuildImprovements:
         unit.canBuildImprovements || unit.flags?.includes('Workers' as any) || false,
-      unitClass: this.mapUnitClass(unit.unit_class, unit.unitClass as any),
+      unitClass: this.mapUnitClass(unit.unit_class, unit.unitClass as any, unit.flags),
       requiredTech: unit.required_tech || unit.requiredTech,
       transport_capacity: unit.transport_cap,
       // Additional freeciv fields
@@ -117,11 +117,17 @@ export class RulesetUnitsService {
    */
   private mapUnitClass(
     freecivClass: any,
-    backwardClass?: 'military' | 'civilian' | 'naval' | 'air'
+    backwardClass?: 'military' | 'civilian' | 'naval' | 'air',
+    flags?: string[]
   ): 'military' | 'civilian' | 'naval' | 'air' {
     // Use backward compatibility field first
     if (backwardClass) {
       return backwardClass;
+    }
+
+    // Check flags for civilian units (NonMil = Non-Military)
+    if (flags && flags.includes('NonMil')) {
+      return 'civilian';
     }
 
     // Map freeciv classes
