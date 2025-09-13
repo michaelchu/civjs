@@ -18,6 +18,7 @@ import type { BorderManager } from '@game/managers/BorderManager';
 import type { VisibilityManager } from '@game/managers/VisibilityManager';
 import type { CultureManager } from '@game/managers/CultureManager';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
+import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -54,6 +55,7 @@ export class TurnManager {
   private calendarService: CalendarService;
   private broadcastManager: GameBroadcastManager;
   private cultureManager: CultureManager;
+  private economicManager?: EconomicManager;
 
   constructor(
     gameId: string,
@@ -65,19 +67,22 @@ export class TurnManager {
     borderManager: BorderManager,
     visibilityManager: VisibilityManager,
     cultureManager: CultureManager,
-    broadcastManager: GameBroadcastManager
+    broadcastManager: GameBroadcastManager,
+    economicManager?: EconomicManager
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
     this.io = io;
     this.cultureManager = cultureManager;
+    this.economicManager = economicManager;
 
     // Initialize services
     this.turnProcessingService = new TurnProcessingService(
       gameId,
       unitManager,
       cityManager,
-      researchManager
+      researchManager,
+      economicManager
     );
     this.turnCoordinationService = new TurnCoordinationService(
       gameId,
@@ -357,6 +362,13 @@ export class TurnManager {
    */
   public getCurrentPhase(): string | null {
     return this.turnPhaseService.getCurrentPhase();
+  }
+
+  /**
+   * Get economic manager for economic operations
+   */
+  public getEconomicManager(): EconomicManager | undefined {
+    return this.economicManager;
   }
 
   /**

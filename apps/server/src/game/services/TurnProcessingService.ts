@@ -12,6 +12,7 @@ import { logger } from '@utils/logger';
 import type { UnitManager } from '@game/managers/UnitManager';
 import type { CityManager } from '@game/managers/CityManager';
 import type { ResearchManager } from '@game/managers/ResearchManager';
+import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 
 export interface PlayerAction {
   id: string; // Unique action identifier
@@ -36,6 +37,7 @@ export interface TurnProcessingResult {
   unitsProcessed: number;
   citiesProcessed: number;
   researchUpdated: boolean;
+  economicsProcessed: boolean;
   errors: Array<{
     playerId: string;
     action: string;
@@ -48,6 +50,7 @@ export class TurnProcessingService {
   private unitManager: UnitManager;
   private cityManager: CityManager;
   private researchManager: ResearchManager;
+  private economicManager?: EconomicManager;
   private actionQueues: Map<string, ActionQueue> = new Map(); // playerId -> ActionQueue
   private actionHistory: Map<string, PlayerAction[]> = new Map(); // playerId -> completed actions
 
@@ -55,12 +58,14 @@ export class TurnProcessingService {
     gameId: string,
     unitManager: UnitManager,
     cityManager: CityManager,
-    researchManager: ResearchManager
+    researchManager: ResearchManager,
+    economicManager?: EconomicManager
   ) {
     this.gameId = gameId;
     this.unitManager = unitManager;
     this.cityManager = cityManager;
     this.researchManager = researchManager;
+    this.economicManager = economicManager;
   }
 
   /**
@@ -198,6 +203,7 @@ export class TurnProcessingService {
       unitsProcessed: 0,
       citiesProcessed: 0,
       researchUpdated: false,
+      economicsProcessed: false,
       errors: [],
     };
 
@@ -673,6 +679,85 @@ export class TurnProcessingService {
       logger.error('Error processing research', {
         gameId: this.gameId,
         playerId,
+        error: error instanceof Error ? error.message : error,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Process economic calculations for end of turn
+   * Integrates with EconomicManager to calculate gold accumulation
+   */
+  async processPlayerEconomics(playerId: string, turn: number): Promise<boolean> {
+    if (!this.economicManager) {
+      return false; // Economics not enabled
+    }
+
+    try {
+      // Get all cities for this player
+      const cities = this.cityManager.getCitiesByPlayer(playerId);
+      const cityOutputs = [];
+
+      // Calculate economic output for each city
+      for (const city of cities) {
+        const economicOutput = this.economicManager.calculateCityEconomicOutput(
+          city.id,
+          playerId,
+          city.tradePerTurn || 0, // Raw trade from city
+          0, // Direct gold (calculated by CityEconomicService)
+          0, // Building upkeep (calculated by CityEconomicService)
+          0 // Unit upkeep (calculated by CityEconomicService)
+        );
+        cityOutputs.push(economicOutput);
+      }
+
+      // Process player turn economics
+      await this.economicManager.processTurnEconomics(playerId, cityOutputs, turn);
+
+      logger.debug('Economics processed', {
+        gameId: this.gameId,
+        playerId,
+        turn,
+        citiesProcessed: cityOutputs.length,
+      });
+
+      return true;
+    } catch (error) {
+      logger.error('Error processing economics', {
+        gameId: this.gameId,
+        playerId,
+        turn,
+        error: error instanceof Error ? error.message : error,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Process all players' economics for end of turn
+   */
+  async processAllPlayersEconomics(playerIds: string[], turn: number): Promise<boolean> {
+    if (!this.economicManager) {
+      return false;
+    }
+
+    try {
+      for (const playerId of playerIds) {
+        await this.processPlayerEconomics(playerId, turn);
+      }
+
+      logger.info('All players economics processed', {
+        gameId: this.gameId,
+        turn,
+        playerCount: playerIds.length,
+      });
+
+      return true;
+    } catch (error) {
+      logger.error('Error processing all players economics', {
+        gameId: this.gameId,
+        turn,
         error: error instanceof Error ? error.message : error,
       });
       return false;

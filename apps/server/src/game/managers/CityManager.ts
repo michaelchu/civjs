@@ -1920,6 +1920,13 @@ export class CityManager {
   }
 
   /**
+   * Get cities by player - used by EconomicManager
+   */
+  getCitiesByPlayer(playerId: string): CityState[] {
+    return Array.from(this.cities.values()).filter(city => city.playerId === playerId);
+  }
+
+  /**
    * Initializes workable tiles for a city loaded from database
    */
   private initializeWorkableTilesForLoadedCity(
