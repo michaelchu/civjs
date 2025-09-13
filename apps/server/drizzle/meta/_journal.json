@@ -8,6 +8,13 @@
       "when": 1757632409732,
       "tag": "0000_square_logan",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1757895613000,
+      "tag": "0001_add_history_interest_pml_and_rename_culture_column",
+      "breakpoints": true
     }
   ]
 }
