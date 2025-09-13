@@ -347,7 +347,7 @@ export const BUILDING_TYPES: Record<string, BuildingType> = {
 export interface CityManagerCallbacks {
   onCityFounded?: (city: CityState) => void;
   onCityGrowth?: (city: CityState, oldSize: number) => void;
-  onCityProductionComplete?: (city: CityState, item: ProductionItem) => void;
+  onCityProductionComplete?: (city: CityState, item: ProductionItem) => void | Promise<void>;
   onCityDestroyed?: (city: CityState) => void;
   onCityTurnProcessed?: (city: CityState) => void;
 }
@@ -933,7 +933,17 @@ export class CityManager {
 
     // Trigger callback
     if (this.callbacks.onCityProductionComplete) {
-      this.callbacks.onCityProductionComplete(city, productionItem);
+      const result = this.callbacks.onCityProductionComplete(city, productionItem);
+      if (result instanceof Promise) {
+        // Handle async callback without blocking
+        result.catch(error => {
+          logger.error('Error in onCityProductionComplete callback', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            cityId: city.id,
+            productionItem,
+          });
+        });
+      }
     }
   }
 

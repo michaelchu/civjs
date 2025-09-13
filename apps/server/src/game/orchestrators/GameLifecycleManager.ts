@@ -25,6 +25,7 @@ import { BorderManager } from '@game/managers/BorderManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
 import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
 import { MapStartpos } from '@game/map/MapTypes';
+import { PacketType } from '@app-types/packet';
 import type { Server as SocketServer } from 'socket.io';
 import type {
   GameConfig,
@@ -261,17 +262,43 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
     // Set up callbacks after all managers are created
     cityManager.setCallbacks({
-      onCityProductionComplete: (city, item) => {
+      onCityProductionComplete: async (city, item) => {
         if (item.kind === 'unit') {
-          // Create unit at city location
-          unitManager.createUnit(city.playerId, item.value, city.x, city.y);
-          this.logger.info(`Unit ${item.value} created at city ${city.name}`, {
-            cityId: city.id,
-            playerId: city.playerId,
-            unitType: item.value,
-            x: city.x,
-            y: city.y,
-          });
+          try {
+            // Create unit at city location
+            const unit = await unitManager.createUnit(city.playerId, item.value, city.x, city.y);
+            this.logger.info(`Unit ${item.value} created at city ${city.name}`, {
+              cityId: city.id,
+              playerId: city.playerId,
+              unitType: item.value,
+              unitId: unit.id,
+              x: city.x,
+              y: city.y,
+            });
+
+            // Broadcast the new unit to all players in the game
+            this.io.to(`game:${gameId}`).emit('packet', {
+              type: PacketType.UNIT_INFO,
+              data: {
+                units: [this.formatUnitForClient(unit, unitManager)],
+              },
+            });
+
+            this.logger.debug('New unit broadcasted to game', {
+              gameId,
+              unitId: unit.id,
+              playerId: city.playerId,
+            });
+          } catch (error) {
+            this.logger.error(`Failed to create unit ${item.value} at city ${city.name}`, {
+              error: error instanceof Error ? error.message : 'Unknown error',
+              cityId: city.id,
+              playerId: city.playerId,
+              unitType: item.value,
+              x: city.x,
+              y: city.y,
+            });
+          }
         }
       },
       onCityTurnProcessed: city => {
@@ -1025,5 +1052,39 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       logger.error('Error in GameLifecycleManager requestPath delegation:', error);
       return { success: false, error: 'Pathfinding error' };
     }
+  }
+
+  /**
+   * Format unit for client consumption
+   * @reference GameManager.formatUnitForClient
+   */
+  private formatUnitForClient(unit: any, unitManager: any): any {
+    const unitType = unitManager.getUnitType(unit.unitTypeId);
+
+    return {
+      id: unit.id,
+      owner: unit.playerId,
+      type: unitType?.id || unit.unitTypeId,
+      tile: unit.x + unit.y * 100, // Convert to tile index (simplified)
+      x: unit.x,
+      y: unit.y,
+      hp: unit.health,
+      movesleft: unit.movementLeft * 3, // Convert to movement fragments
+      veteran: unit.veteranLevel,
+      transported: false,
+      paradropped: false,
+      connecting: false,
+      occupied: false,
+      done_moving: unit.movementLeft === 0,
+      battlegroup: -1,
+      has_orders: false,
+      homecity: 0, // No home city initially
+      fuel: 0,
+      goto_tile: -1,
+      activity: 0, // ACTIVITY_IDLE
+      activity_count: 0,
+      activity_target: null,
+      focus: false,
+    };
   }
 }
