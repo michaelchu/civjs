@@ -28,6 +28,15 @@ import { CitizenParameterFactory } from '@game/systems/CitizenManagement/Citizen
 import { OutputType } from '@game/constants/GameConstants';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
+// Import the newly extracted services (temporarily commented out)
+// import {
+//   CityTurnProcessingService,
+//   type CityTurnProcessingDependencies,
+// } from '@game/services/CityTurnProcessingService';
+// import { CityCalculationService } from '@game/services/CityCalculationService';
+// import { CityHappinessService } from '@game/services/CityHappinessService';
+import { CityOptimizationService } from '@game/services/CityOptimizationService';
+
 // Following original Freeciv city radius logic
 export const CITY_MAP_DEFAULT_RADIUS = 2;
 export const CITY_MAP_DEFAULT_RADIUS_SQ = CITY_MAP_DEFAULT_RADIUS * CITY_MAP_DEFAULT_RADIUS + 1; // 5
@@ -384,6 +393,12 @@ export class CityManager {
   private captureService?: CityCaptureService;
   private citizenManagementService?: CitizenManagementService;
 
+  // Newly extracted services (temporarily commented out until integration is complete)
+  // private turnProcessingService?: CityTurnProcessingService;
+  // private calculationService: CityCalculationService;
+  // private happinessService: CityHappinessService;
+  private optimizationService?: CityOptimizationService;
+
   constructor(
     gameId: string,
     databaseProvider: DatabaseProvider,
@@ -393,6 +408,11 @@ export class CityManager {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
     this.callbacks = callbacks;
+
+    // Initialize services that don't have dependencies
+    // TODO: Uncomment when services are integrated
+    // this.calculationService = new CityCalculationService();
+    // this.happinessService = new CityHappinessService();
   }
 
   /**
@@ -449,6 +469,12 @@ export class CityManager {
     this.citizenManagementService = CitizenManagementService.getInstance();
     await this.citizenManagementService.initialize();
 
+    // Initialize optimization service (will be fully initialized after setMapManager)
+    this.optimizationService = new CityOptimizationService(
+      this.cities,
+      this.citizenManagementService
+    );
+
     // Initialize high-level coordination service
     // Note: CityManagementService needs different constructor parameters
     // this.managementService = new CityManagementService(...);
@@ -466,6 +492,28 @@ export class CityManager {
       this.mapManager,
       CITY_MAP_DEFAULT_RADIUS_SQ
     );
+
+    // Update optimization service with tile management service
+    if (this.optimizationService) {
+      this.optimizationService.setTileManagementService(this.tileManagementService);
+    }
+
+    // TODO: Initialize turn processing service now that we have all dependencies
+    // const dependencies: CityTurnProcessingDependencies = {
+    //   gameId: this.gameId,
+    //   cities: this.cities,
+    //   callbacks: this.callbacks,
+    //   io: this.io,
+    //   governorService: this.governorService,
+    //   tileManagementService: this.tileManagementService,
+    //   refreshCityWithGovernmentEffects: this.refreshCityWithGovernmentEffects.bind(this),
+    //   optimizeCitizens: this.optimizeCitizens.bind(this),
+    //   calculateCityOutputs: this.calculateCityOutputs.bind(this),
+    //   calculateHappiness: this.calculateHappiness.bind(this),
+    //   saveCityToDatabase: this.saveCityToDatabase.bind(this),
+    // };
+    // TODO: Uncomment when services are integrated
+    // this.turnProcessingService = new CityTurnProcessingService(dependencies);
   }
 
   /**
