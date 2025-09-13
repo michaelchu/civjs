@@ -315,7 +315,10 @@ export class CityProductionHandler {
    * Calculate turns to complete production
    */
   private calculateTurnsToComplete(city: any, productionDetails: any): number {
-    const shieldsPerTurn = Math.max(1, city.surplus?.shields || 1);
+    // Use the same calculation as CityDataService.transformCityForClient to ensure consistency
+    // Priority: city.productionPerTurn > city.surplus.shields > default (1)
+    // This fixes the discrepancy where server showed 40 turns and client showed 10 turns
+    const shieldsPerTurn = Math.max(1, city.productionPerTurn || city.surplus?.shields || 1);
     const remainingShields = Math.max(0, productionDetails.cost - (city.shieldStock || 0));
     return Math.ceil(remainingShields / shieldsPerTurn);
   }

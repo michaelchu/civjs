@@ -39,8 +39,9 @@ describe('CityProductionHandler', () => {
       shieldStock: 10,
       currentProduction: 'warrior',
       productionType: 'unit',
+      productionPerTurn: 4, // Realistic shield production for size 3 city
       surplus: {
-        shields: 5,
+        shields: 4,
         food: 2,
         trade: 3,
       },
