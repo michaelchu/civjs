@@ -884,22 +884,14 @@ export class CityManager {
       value: city.currentProduction,
     };
 
-    let newUnitId: string | undefined;
-
     if (city.productionType === 'building') {
       // Add the building to the city
       if (!city.buildings.includes(city.currentProduction)) {
         city.buildings.push(city.currentProduction);
       }
     } else if (city.productionType === 'unit') {
-      // Handle unit creation (would integrate with UnitManager)
-      // For now, generate a placeholder unit ID
-      newUnitId = `unit-${Date.now()}-${city.id}`;
-      logger.info('Unit production completed', {
-        cityId: city.id,
-        unitType: city.currentProduction,
-        newUnitId,
-      });
+      // Unit creation is handled by the onCityProductionComplete callback
+      // which properly integrates with UnitManager
     }
 
     // Store production details before resetting
@@ -919,16 +911,17 @@ export class CityManager {
         cityId,
         productionType: completedProductionType,
         productionId: completedProductionId,
-        newUnitId,
       });
 
-      // Emit to all players in the game
-      this.io.to(`game:${this.gameId}`).emit('production:completed', {
-        cityId,
-        productionType: completedProductionType,
-        productionId: completedProductionId,
-        newUnitId,
-      });
+      // For unit production, let the callback handle unit creation and broadcasting
+      // For building production, emit the completion event here
+      if (completedProductionType === 'building') {
+        this.io.to(`game:${this.gameId}`).emit('production:completed', {
+          cityId,
+          productionType: completedProductionType,
+          productionId: completedProductionId,
+        });
+      }
     }
 
     // Trigger callback
