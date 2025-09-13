@@ -238,6 +238,9 @@ export class CityEconomicService extends BaseGameService {
     // Gold from trade routes (immediate gold bonus, not trade)
     directGold += this.calculateTradeRouteGold(city);
 
+    // Gold from terrain and improvements (mines, special resources)
+    directGold += this.calculateTerrainGoldProduction(city);
+
     return directGold;
   }
 
@@ -284,6 +287,43 @@ export class CityEconomicService extends BaseGameService {
     // For now, return a simple calculation
     const tradeRouteCount = city.tradeRoutes?.length || 0;
     return tradeRouteCount * 2; // Simple placeholder: 2 trade per route
+  }
+
+  /**
+   * Calculate direct gold production from terrain and improvements (STUB)
+   * @reference freeciv/common/city.c - tile gold calculations
+   * TODO: Integrate with MapManager and TerrainManager for actual tile data
+   */
+  private calculateTerrainGoldProduction(city: CityState): number {
+    // STUB: Simulate gold production from mines and special resources
+    // In a real implementation, this would:
+    // 1. Get worked tiles from CitizenManagement
+    // 2. Check each tile for improvements (mines) and special resources
+    // 3. Calculate gold output based on terrain + improvement combinations
+
+    // Simplified calculation based on city size (placeholder)
+    const population = city.population || 1;
+
+    // Assume some cities have mines/gold resources based on simple heuristics
+    let terrainGold = 0;
+
+    // Hills and mountains might have mines producing gold
+    // For now, add 1 gold per 3 population to simulate mining potential
+    terrainGold += Math.floor(population / 3);
+
+    // Cities near rivers or coast might have additional trade-to-gold conversion
+    // This is a simplified stub - real implementation would check actual terrain
+    if (city.name?.includes('River') || city.name?.includes('Coast')) {
+      terrainGold += 1;
+    }
+
+    // Special resources stub: some cities might have gold deposits
+    // In real implementation, this would check tile special resources
+    if (city.id && city.id.charCodeAt(0) % 4 === 0) {
+      terrainGold += 2; // Simulate cities with gold mines/deposits
+    }
+
+    return terrainGold;
   }
 
   /**

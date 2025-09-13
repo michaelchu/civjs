@@ -672,8 +672,33 @@ export class TurnPhaseService {
         const citiesProcessed = await Promise.race([processingPromise, timeoutPromise]);
         totalCitiesProcessed += citiesProcessed;
 
+        // Process economics after city production (following Freeciv pattern)
+        // @reference freeciv/server/cityturn.c - economic calculations after city production
+        try {
+          const economicsProcessed = await this.turnProcessingService.processPlayerEconomics(
+            playerId,
+            context.turn
+          );
+
+          if (economicsProcessed) {
+            logger.debug('Economics processed for player', {
+              gameId: context.gameId,
+              playerId,
+              turn: context.turn,
+            });
+          }
+        } catch (economicError) {
+          logger.warn('Economic processing failed for player', {
+            gameId: context.gameId,
+            playerId,
+            turn: context.turn,
+            error: economicError instanceof Error ? economicError.message : economicError,
+          });
+          // Don't fail the entire turn for economic errors - they're not critical
+        }
+
         const processingTime = Date.now() - playerStartTime;
-        logger.debug('City production completed for player', {
+        logger.debug('City production and economics completed for player', {
           gameId: context.gameId,
           playerId,
           citiesProcessed,

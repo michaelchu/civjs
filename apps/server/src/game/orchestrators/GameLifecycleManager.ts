@@ -19,6 +19,7 @@ import { CityManager } from '@game/managers/CityManager';
 import { EffectsManager } from '@game/managers/EffectsManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
 import { CultureManager } from '@game/managers/CultureManager';
+import { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import { CityDataService } from '@game/services/CityDataService';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { BorderManager } from '@game/managers/BorderManager';
@@ -879,6 +880,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     } as any; // Cast to any to satisfy type requirements temporarily
 
     const cultureManager = this.createCultureManager();
+    const economicManager = this.createEconomicManager(gameId);
     const tm = new TurnManager(
       gameId,
       this.databaseProvider,
@@ -889,10 +891,20 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       borderManager,
       visibilityManager,
       cultureManager,
-      mockBroadcastManager
+      mockBroadcastManager,
+      economicManager
     );
     const playerIds = Array.from(players.keys());
     await tm.initializeTurn(playerIds);
+
+    // Initialize economic system
+    await economicManager.initialize();
+
+    // Initialize economic data for each player
+    for (const playerId of playerIds) {
+      await economicManager.initializePlayer(playerId);
+    }
+
     return tm;
   }
 
@@ -956,6 +968,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
   private createCultureManager(): CultureManager {
     return new CultureManager(this.databaseProvider);
+  }
+
+  private createEconomicManager(gameId: string): EconomicManager {
+    return new EconomicManager(gameId, this.databaseProvider);
   }
 
   private createPathfindingManager(game: any, mapManager: MapManager): PathfindingManager {
