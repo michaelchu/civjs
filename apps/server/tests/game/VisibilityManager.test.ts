@@ -89,13 +89,17 @@ describe('VisibilityManager', () => {
       expect(visibleTiles.has('10,10')).toBe(true); // Warrior position
       expect(visibleTiles.has('15,15')).toBe(true); // Explorer position
 
-      // Check warrior sight range (should see tiles within distance 2)
-      expect(visibleTiles.has('8,10')).toBe(true); // 2 tiles west
-      expect(visibleTiles.has('12,10')).toBe(true); // 2 tiles east
+      // Check warrior sight range (vision_radius_sq=2, so distance <= sqrt(2) ≈ 1.41)
+      expect(visibleTiles.has('9,10')).toBe(true); // 1 tile west (distance 1)
+      expect(visibleTiles.has('11,10')).toBe(true); // 1 tile east (distance 1)
+      expect(visibleTiles.has('8,10')).toBe(false); // 2 tiles west (distance 2, outside range)
+      expect(visibleTiles.has('12,10')).toBe(false); // 2 tiles east (distance 2, outside range)
 
       // Check explorer sight range (both have same vision in freeciv)
-      expect(visibleTiles.has('13,15')).toBe(true); // 2 tiles west from explorer
-      expect(visibleTiles.has('17,15')).toBe(true); // 2 tiles east from explorer
+      expect(visibleTiles.has('14,15')).toBe(true); // 1 tile west from explorer (distance 1)
+      expect(visibleTiles.has('16,15')).toBe(true); // 1 tile east from explorer (distance 1)
+      expect(visibleTiles.has('13,15')).toBe(false); // 2 tiles west from explorer (distance 2, outside range)
+      expect(visibleTiles.has('17,15')).toBe(false); // 2 tiles east from explorer (distance 2, outside range)
     });
 
     it('should handle units at map edges', async () => {
@@ -106,10 +110,12 @@ describe('VisibilityManager', () => {
 
       const visibleTiles = visibilityManager.getVisibleTiles('player-123');
 
-      // Should see the unit's position and valid nearby tiles
+      // Should see the unit's position and valid nearby tiles (vision_radius_sq=2)
       expect(visibleTiles.has('0,0')).toBe(true);
-      expect(visibleTiles.has('1,1')).toBe(true);
-      expect(visibleTiles.has('2,0')).toBe(true); // Distance 2, within warrior sight
+      expect(visibleTiles.has('1,1')).toBe(true); // Distance sqrt(2) ≈ 1.41, within range
+      expect(visibleTiles.has('2,0')).toBe(false); // Distance 2, outside range
+      expect(visibleTiles.has('1,0')).toBe(true); // Distance 1, within range
+      expect(visibleTiles.has('0,1')).toBe(true); // Distance 1, within range
 
       // Should not try to see beyond map boundaries
       expect(visibleTiles.has('-1,-1')).toBe(false);
@@ -207,7 +213,10 @@ describe('VisibilityManager', () => {
       // Reset movement and move unit away to create fog of war
       await unitManager.resetMovement('player-123');
       const unit = unitManager.getPlayerUnits('player-123')[0];
-      await unitManager.moveUnit(unit.id, 11, 10); // Only 1 tile away (warrior's movement)
+      // Move unit far enough to be outside vision range (vision_radius_sq = 2, so need distance > sqrt(2))
+      await unitManager.moveUnit(unit.id, 11, 10); // First move (1 tile away)
+      await unitManager.resetMovement('player-123'); // Give more movement for testing
+      await unitManager.moveUnit(unit.id, 12, 10); // Second move (2 tiles away from original)
       visibilityManager.updatePlayerVisibility('player-123');
 
       const mapView = visibilityManager.getPlayerMapView('player-123');
@@ -219,7 +228,7 @@ describe('VisibilityManager', () => {
       expect(fogTile.terrain).toBeDefined(); // Terrain should be known for explored tiles
 
       // New position should be visible
-      const currentTile = mapView?.tiles[11][10];
+      const currentTile = mapView?.tiles[12][10];
       expect(currentTile.isVisible).toBe(true);
       expect(currentTile.isExplored).toBe(true);
     });
