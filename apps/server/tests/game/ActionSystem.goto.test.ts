@@ -50,17 +50,10 @@ describe('ActionSystem - Goto Actions', () => {
             unitY = 10;
           }
         } else {
-          // For mockUnit.id, we need to handle boundary test cases specially
-          // If the target is (0,0) and we're testing boundaries, the unit is likely at (1,1)
+          // For boundary tests, if target is (0,0), assume unit is at (1,1)
           if (targetX === 0 && targetY === 0) {
             unitX = 1;
             unitY = 1;
-          }
-          // Similarly for edge cases like (199, 199)
-          else if (targetX === 199 && targetY === 199) {
-            // Unit could be at (198, 198) for this boundary test
-            unitX = 198;
-            unitY = 198;
           }
         }
 
@@ -306,11 +299,11 @@ describe('ActionSystem - Goto Actions', () => {
         [200, 10, false], // X too high
         [10, -1, false], // Y too low
         [10, 200, false], // Y too high
-        [0, 0, true], // Valid minimum
-        [199, 199, true], // Valid maximum
+        [0, 0, true], // Valid minimum (but should fail pathfinding from (1,1))
+        [199, 199, true], // Valid maximum (but should fail pathfinding from (1,1))
       ];
 
-      for (const [x, y, shouldSucceed] of boundaryTests) {
+      for (const [x, y, shouldPassBoundaryValidation] of boundaryTests) {
         // Use a unit at position (1,1) so we can test movement to (0,0)
         const testUnit = { ...mockUnit, x: 1, y: 1 };
         const result = await actionSystem.executeAction(
@@ -320,14 +313,22 @@ describe('ActionSystem - Goto Actions', () => {
           y as number
         );
 
-        if (
-          shouldSucceed &&
-          Math.abs((x as number) - testUnit.x) <= 1 &&
-          Math.abs((y as number) - testUnit.y) <= 1
-        ) {
-          expect(result.success).toBe(true);
-        } else {
+        // For invalid coordinates, should fail with boundary validation message
+        if (!shouldPassBoundaryValidation) {
           expect(result.success).toBe(false);
+          expect(result.message).toBe('Invalid target coordinates');
+        } else {
+          // For valid coordinates, check if pathfinding works
+          const dx = Math.abs((x as number) - testUnit.x);
+          const dy = Math.abs((y as number) - testUnit.y);
+          if (dx <= 1 && dy <= 1 && (dx > 0 || dy > 0)) {
+            // Adjacent move should succeed if coordinates are valid
+            expect(result.success).toBe(true);
+          } else {
+            // Too far - should fail due to pathfinding
+            expect(result.success).toBe(false);
+            expect(result.message).not.toBe('Invalid target coordinates');
+          }
         }
       }
     });
