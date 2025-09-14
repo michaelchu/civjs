@@ -37,7 +37,7 @@ describe('CityProductionHandler', () => {
       size: 3,
       buildings: ['granary'],
       shieldStock: 10,
-      currentProduction: 'warrior',
+      currentProduction: 'warriors',
       productionType: 'unit',
       productionPerTurn: 4, // Realistic shield production for size 3 city
       surplus: {
@@ -75,7 +75,7 @@ describe('CityProductionHandler', () => {
         cityId: 'city-1',
         productions: expect.arrayContaining([
           expect.objectContaining({
-            id: 'warrior',
+            id: 'warriors',
             name: 'Warriors', // From freeciv ruleset
             type: 'unit',
             cost: 10, // Exact cost from freeciv
@@ -178,7 +178,7 @@ describe('CityProductionHandler', () => {
         }),
         shieldStock: expect.any(Number),
         penalty: expect.any(Number),
-        previousProduction: 'warrior',
+        previousProduction: 'warriors',
         previousType: 'unit',
       });
     });
@@ -224,7 +224,7 @@ describe('CityProductionHandler', () => {
       await handler.changeProduction(mockSocket, {
         cityId: 'non-existent',
         playerId: 'player-1',
-        productionId: 'warrior',
+        productionId: 'warriors',
         productionType: 'unit',
       });
 
@@ -248,7 +248,7 @@ describe('CityProductionHandler', () => {
         }),
         shieldStock: expect.any(Number),
         penalty: expect.any(Number),
-        previousProduction: 'warrior',
+        previousProduction: 'warriors',
         previousType: 'unit',
       });
     });
@@ -321,7 +321,7 @@ describe('CityProductionHandler', () => {
     it('should return 0 penalty for same production', () => {
       const city = mockCities.get('city-1');
 
-      const penalty = (handler as any).calculateProductionChangePenalty(city, 'warrior', 'unit');
+      const penalty = (handler as any).calculateProductionChangePenalty(city, 'warriors', 'unit');
 
       expect(penalty).toBe(0);
     });

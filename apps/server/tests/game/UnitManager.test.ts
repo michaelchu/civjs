@@ -16,11 +16,11 @@ describe('UnitManager', () => {
 
   describe('unit types', () => {
     it('should have valid unit type definitions', () => {
-      expect(UNIT_TYPES.warrior).toBeDefined();
-      expect(UNIT_TYPES.warrior.name).toBe('Warriors'); // From freeciv ruleset
-      expect(UNIT_TYPES.warrior.movement).toBe(1); // Freeciv movement points (not fragments)
-      expect(UNIT_TYPES.warrior.attack).toBe(1); // Freeciv attack value
-      expect(UNIT_TYPES.warrior.cost).toBe(10); // Corrected freeciv cost
+      expect(UNIT_TYPES.warriors).toBeDefined();
+      expect(UNIT_TYPES.warriors.name).toBe('Warriors'); // From freeciv ruleset
+      expect(UNIT_TYPES.warriors.movement).toBe(1); // Freeciv movement points (not fragments)
+      expect(UNIT_TYPES.warriors.attack).toBe(1); // Freeciv attack value
+      expect(UNIT_TYPES.warriors.cost).toBe(10); // Corrected freeciv cost
 
       expect(UNIT_TYPES.settlers).toBeDefined(); // 'settlers' not 'settler'
       expect(UNIT_TYPES.settlers.flags).toContain('Cities'); // Can found cities via flag
