@@ -205,6 +205,7 @@ class GameClient {
           government: 'despotism', // Default starting government
           isHuman: true,
           isActive: true, // Make player active so turn done button works
+          isAlive: true,
         };
 
         const mockGovernments = getMockGovernments();
@@ -356,6 +357,7 @@ class GameClient {
           government: packet.data.government,
           isHuman: true, // Assume human for now, could be sent from server
           isActive: packet.data.alive,
+          isAlive: packet.data.alive,
         };
 
         useGameStore.getState().updateGameState({
@@ -1076,6 +1078,7 @@ class GameClient {
             government: 'despotism', // Default starting government
             isHuman: true,
             isActive: true, // Make player active so turn done button works
+            isAlive: true,
           };
 
           useGameStore.getState().updateGameState({

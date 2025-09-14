@@ -139,6 +139,7 @@ export interface Player {
   revolutionTurns?: number;
   isHuman: boolean;
   isActive: boolean;
+  isAlive: boolean;
 }
 
 export interface Technology {
@@ -181,6 +182,28 @@ export interface Government {
   helptext: string;
 }
 
+export interface TerrainType {
+  id: string;
+  name: string;
+  colorRed: number;
+  colorGreen: number;
+  colorBlue: number;
+}
+
+export interface Nation {
+  id: string;
+  name: string;
+  colorRed: number;
+  colorGreen: number;
+  colorBlue: number;
+  colorRed2?: number;
+  colorGreen2?: number;
+  colorBlue2?: number;
+  colorRed3?: number;
+  colorGreen3?: number;
+  colorBlue3?: number;
+}
+
 export interface GameState {
   turn: number;
   year?: number; // Game year (e.g., -4000, 1950, 2000)
@@ -200,6 +223,10 @@ export interface GameState {
   technologies: Record<string, Technology>;
   research?: ResearchState;
   governments: Record<string, Government>;
+  terrainTypes?: Record<string, TerrainType>;
+  nations?: Record<string, Nation>;
+  diplomaticStates?: Record<string, string>;
+  isObserver?: boolean;
   mapData?: {
     width: number;
     height: number;

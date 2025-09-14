@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { MapCanvas } from '../Canvas2D/MapCanvas';
 import { GameTabs } from './GameTabs';
@@ -7,6 +7,7 @@ import { StatusPanel } from './StatusPanel';
 import { TurnDoneButton } from './TurnDoneButton';
 import { TechnologyTree } from '../Research/TechnologyTree';
 import { GovernmentPanel } from './GovernmentPanel';
+import { MinimapPanel } from './MinimapPanel';
 import { useKeyboardControls } from '../../hooks/useKeyboardControls';
 
 export const GameLayout: React.FC = () => {
@@ -15,7 +16,7 @@ export const GameLayout: React.FC = () => {
     height: window.innerHeight,
   });
 
-  const { activeTab, clientState } = useGameStore();
+  const { activeTab, clientState, setViewport } = useGameStore();
 
   // Initialize keyboard controls
   useKeyboardControls();
@@ -44,6 +45,14 @@ export const GameLayout: React.FC = () => {
   };
 
   const canvasSize = calculateCanvasSize();
+
+  // Handle minimap click to center main map
+  const handleMinimapCenterMap = useCallback(
+    (x: number, y: number) => {
+      setViewport({ x, y });
+    },
+    [setViewport]
+  );
 
   if (clientState === 'initial' || clientState === 'connecting') {
     return (
@@ -77,20 +86,13 @@ export const GameLayout: React.FC = () => {
           <div className={`h-full relative ${activeTab === 'map' ? 'block' : 'hidden'}`}>
             <MapCanvas width={canvasSize.width} height={canvasSize.height} />
 
-            {/* Overlay UI elements - COMMENTED OUT */}
-            {/* <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end pointer-events-none">
-              {/* Chat box */}
-            {/* <div className="w-80 pointer-events-auto">
-                <ChatBox />
-              </div> */}
-
-            {/* Overview mini-map would go here */}
-            {/* <div className="w-48 h-32 bg-gray-900 bg-opacity-80 border border-gray-600 rounded pointer-events-auto">
-                <div className="p-2 text-sm text-gray-300">
-                  Mini-map placeholder
-                </div>
-              </div> */}
-            {/* </div> */}
+            {/* Overlay UI elements */}
+            <div className="absolute inset-0 pointer-events-none">
+              {/* Minimap in bottom-left corner */}
+              <div className="pointer-events-auto">
+                <MinimapPanel onCenterMap={handleMinimapCenterMap} />
+              </div>
+            </div>
           </div>
 
           <div className={`${activeTab === 'government' ? 'block' : 'hidden'}`}>

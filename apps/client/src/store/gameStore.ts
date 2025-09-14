@@ -38,6 +38,9 @@ interface GameStore extends GameState {
   turnProcessingState: TurnProcessingState;
   turnProcessingSteps: TurnProcessingStep[];
 
+  // Minimap state
+  minimapVisible: boolean;
+
   // Actions
   setClientState: (state: ClientState) => void;
   setActiveTab: (tab: GameTab) => void;
@@ -68,6 +71,9 @@ interface GameStore extends GameState {
   // Government actions
   requestGovernmentChange: (governmentId: string) => void;
   startRevolution: (requestedGovernment: string) => void;
+
+  // Minimap actions
+  setMinimapVisible: (visible: boolean) => void;
 
   // Computed getters
   getCurrentPlayer: () => ReturnType<typeof getCurrentPlayer>;
@@ -142,6 +148,9 @@ export const useGameStore = create<GameStore>()(
     // Turn processing initial state
     turnProcessingState: 'idle',
     turnProcessingSteps: [],
+
+    // Minimap initial state
+    minimapVisible: true,
 
     // Actions
     setClientState: (state: ClientState) => {
@@ -246,6 +255,11 @@ export const useGameStore = create<GameStore>()(
       // This would send a revolution packet to server
       // For now, just a placeholder - actual networking will be handled elsewhere
       console.log('Starting revolution to:', requestedGovernment);
+    },
+
+    // Minimap actions
+    setMinimapVisible: (visible: boolean) => {
+      set({ minimapVisible: visible });
     },
 
     // Multi-unit focus actions
