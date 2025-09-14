@@ -10,6 +10,7 @@ import {
 } from '@app-types/shared/actions';
 import { Unit, UnitOrder } from '@game/managers/UnitManager';
 import { SINGLE_MOVE } from '@game/constants/MovementConstants';
+import { getUnitType } from '@game/constants/UnitConstants';
 
 // Action definitions based on freeciv classic ruleset
 // @reference freeciv/common/actions.c
@@ -430,7 +431,8 @@ export class ActionSystem {
    * Check if unit can found a city
    */
   private canFoundCity(unit: Unit): boolean {
-    if (unit.unitTypeId !== 'settlers' || unit.movementLeft <= 0) {
+    const unitType = getUnitType(unit.unitTypeId);
+    if (!unitType || !unitType.canFoundCity || unit.movementLeft <= 0) {
       return false;
     }
     return this.canFoundCityAtLocation(unit, unit.x, unit.y);
@@ -550,7 +552,8 @@ export class ActionSystem {
    * Helper method to check if unit can build improvements
    */
   private canBuildImprovement(unit: Unit): boolean {
-    return unit.unitTypeId === 'worker' || unit.unitTypeId === 'engineer';
+    const unitType = getUnitType(unit.unitTypeId);
+    return unitType ? unitType.canBuildImprovements : false;
   }
 
   /**
@@ -689,21 +692,28 @@ export class ActionSystem {
           : !validTypes.includes(unit.unitTypeId);
       }
 
-      case 'unit_flag':
-        // This would check unit capabilities from ruleset data
-        // For now, simplified check based on unit type
+      case 'unit_flag': {
+        // Check unit capabilities from dynamic ruleset data
+        const unitType = getUnitType(unit.unitTypeId);
+        if (!unitType) {
+          return false;
+        }
+
         if (requirement.value === 'canFoundCity') {
-          return unit.unitTypeId === 'settlers';
+          return unitType.canFoundCity;
         }
         if (requirement.value === 'canBuildImprovements') {
-          return unit.unitTypeId === 'worker' || unit.unitTypeId === 'engineer';
+          return unitType.canBuildImprovements;
         }
         if (requirement.value === 'canPillage') {
-          // Most military units can pillage, civilians generally cannot
-          const militaryUnits = ['warriors', 'archers', 'pikemen', 'horsemen', 'knights'];
-          return militaryUnits.includes(unit.unitTypeId);
+          // Check if unit has military capabilities and is not flagged as NonMil
+          return (
+            unitType.unitClass === 'military' ||
+            (unitType.flags ? !unitType.flags.includes('NonMil') : true)
+          );
         }
         return true;
+      }
 
       default:
         return true;
@@ -825,11 +835,12 @@ export class ActionSystem {
       };
     }
 
-    // Validate that it's a settler
-    if (unit.unitTypeId !== 'settlers') {
+    // Validate that the unit can found cities using dynamic ruleset data
+    const unitType = getUnitType(unit.unitTypeId);
+    if (!unitType || !unitType.canFoundCity) {
       return {
         success: false,
-        message: 'Only settlers can found cities',
+        message: 'This unit cannot found cities',
       };
     }
 
