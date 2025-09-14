@@ -424,7 +424,26 @@ export class ActionSystem {
    * Check if unit can move
    */
   private canMove(unit: Unit, targetX?: number, targetY?: number): boolean {
-    return targetX !== undefined && targetY !== undefined && unit.movementLeft > 0;
+    const canMove = targetX !== undefined && targetY !== undefined && unit.movementLeft > 0;
+
+    // Add debug logging to help diagnose movement issues
+    if (!canMove) {
+      logger.debug('Unit movement check failed', {
+        unitId: unit.id,
+        unitType: unit.unitTypeId,
+        targetX,
+        targetY,
+        movementLeft: unit.movementLeft,
+        reason:
+          targetX === undefined
+            ? 'no targetX'
+            : targetY === undefined
+              ? 'no targetY'
+              : 'no movement left',
+      });
+    }
+
+    return canMove;
   }
 
   /**
@@ -432,9 +451,26 @@ export class ActionSystem {
    */
   private canFoundCity(unit: Unit): boolean {
     const unitType = getUnitType(unit.unitTypeId);
-    if (!unitType || !unitType.canFoundCity || unit.movementLeft <= 0) {
+
+    // Add debug logging for unit type lookup issues
+    if (!unitType) {
+      logger.warn('Unit type not found during city founding check', {
+        unitId: unit.id,
+        unitTypeId: unit.unitTypeId,
+      });
       return false;
     }
+
+    if (!unitType.canFoundCity || unit.movementLeft <= 0) {
+      logger.debug('Unit cannot found city', {
+        unitId: unit.id,
+        unitType: unit.unitTypeId,
+        canFoundCity: unitType.canFoundCity,
+        movementLeft: unit.movementLeft,
+      });
+      return false;
+    }
+
     return this.canFoundCityAtLocation(unit, unit.x, unit.y);
   }
 
@@ -553,7 +589,16 @@ export class ActionSystem {
    */
   private canBuildImprovement(unit: Unit): boolean {
     const unitType = getUnitType(unit.unitTypeId);
-    return unitType ? unitType.canBuildImprovements : false;
+
+    if (!unitType) {
+      logger.warn('Unit type not found during improvement check', {
+        unitId: unit.id,
+        unitTypeId: unit.unitTypeId,
+      });
+      return false;
+    }
+
+    return unitType.canBuildImprovements || false;
   }
 
   /**
@@ -696,6 +741,11 @@ export class ActionSystem {
         // Check unit capabilities from dynamic ruleset data
         const unitType = getUnitType(unit.unitTypeId);
         if (!unitType) {
+          logger.warn('Unit type not found during requirement check', {
+            unitId: unit.id,
+            unitTypeId: unit.unitTypeId,
+            requirement: requirement.value,
+          });
           return false;
         }
 
@@ -941,12 +991,42 @@ export class ActionSystem {
     let remainingMovement = unit.movementLeft;
     let tilesTraversed = 0;
 
+    logger.debug('Starting path traversal', {
+      unitId: unit.id,
+      startPosition: { x: currentX, y: currentY },
+      initialMovement: remainingMovement,
+      pathLength: pathResult.path?.tiles?.length || 0,
+    });
+
+    if (!pathResult.path?.tiles || pathResult.path.tiles.length <= 1) {
+      logger.warn('Invalid path result in traversePath', {
+        unitId: unit.id,
+        pathResult: pathResult,
+      });
+      return { currentX, currentY, remainingMovement, tilesTraversed };
+    }
+
     for (let i = 1; i < pathResult.path.tiles.length; i++) {
       const nextTile = pathResult.path.tiles[i];
       const dx = Math.abs(nextTile.x - currentX);
       const dy = Math.abs(nextTile.y - currentY);
       const movementCost = dx === 1 && dy === 1 ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
+
+      logger.debug('Processing path tile', {
+        unitId: unit.id,
+        tileIndex: i,
+        from: { x: currentX, y: currentY },
+        to: { x: nextTile.x, y: nextTile.y },
+        movementCost,
+        remainingMovement,
+      });
+
       if (remainingMovement < movementCost) {
+        logger.debug('Insufficient movement for next tile, stopping', {
+          unitId: unit.id,
+          needed: movementCost,
+          remaining: remainingMovement,
+        });
         break;
       }
       currentX = nextTile.x;
@@ -954,6 +1034,13 @@ export class ActionSystem {
       remainingMovement -= movementCost;
       tilesTraversed++;
     }
+
+    logger.debug('Path traversal complete', {
+      unitId: unit.id,
+      finalPosition: { x: currentX, y: currentY },
+      remainingMovement,
+      tilesTraversed,
+    });
 
     return { currentX, currentY, remainingMovement, tilesTraversed };
   }
