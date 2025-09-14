@@ -85,8 +85,8 @@
       "sound_move": "m_engineers",
       "sound_fight": "f_engineers"
     },
-    "warrior": {
-      "id": "warrior",
+    "warriors": {
+      "id": "warriors",
       "name": "Warriors",
       "cost": 10,
       "movement": 1,

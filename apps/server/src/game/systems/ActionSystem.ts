@@ -31,7 +31,7 @@ const ACTION_DEFINITIONS = {
     name: 'Attack',
     description: 'Attack enemy unit or city',
     category: ActionCategory.MILITARY,
-    requirements: [{ type: 'unit_type', value: ['warrior', 'archer', 'spearman'], present: true }],
+    requirements: [{ type: 'unit_type', value: ['warriors', 'archers', 'pikemen'], present: true }],
     targetType: ActionTargetType.UNIT,
     consumes_actor: false,
     moves_actor: ActionMovesActor.STAYS,
@@ -43,7 +43,7 @@ const ACTION_DEFINITIONS = {
     description: 'Fortify unit for defensive bonus',
     hotkey: 'F',
     category: ActionCategory.BASIC,
-    requirements: [{ type: 'unit_type', value: ['warrior', 'archer', 'spearman'], present: true }],
+    requirements: [{ type: 'unit_type', value: ['warriors', 'archers', 'pikemen'], present: true }],
     targetType: ActionTargetType.NONE,
     consumes_actor: false,
     moves_actor: ActionMovesActor.STAYS,
@@ -430,7 +430,7 @@ export class ActionSystem {
    * Check if unit can found a city
    */
   private canFoundCity(unit: Unit): boolean {
-    if (unit.unitTypeId !== 'settler' || unit.movementLeft <= 0) {
+    if (unit.unitTypeId !== 'settlers' || unit.movementLeft <= 0) {
       return false;
     }
     return this.canFoundCityAtLocation(unit, unit.x, unit.y);
@@ -693,14 +693,14 @@ export class ActionSystem {
         // This would check unit capabilities from ruleset data
         // For now, simplified check based on unit type
         if (requirement.value === 'canFoundCity') {
-          return unit.unitTypeId === 'settler';
+          return unit.unitTypeId === 'settlers';
         }
         if (requirement.value === 'canBuildImprovements') {
           return unit.unitTypeId === 'worker' || unit.unitTypeId === 'engineer';
         }
         if (requirement.value === 'canPillage') {
           // Most military units can pillage, civilians generally cannot
-          const militaryUnits = ['warrior', 'archer', 'spearman', 'horsemen', 'knight'];
+          const militaryUnits = ['warriors', 'archers', 'pikemen', 'horsemen', 'knights'];
           return militaryUnits.includes(unit.unitTypeId);
         }
         return true;
@@ -826,7 +826,7 @@ export class ActionSystem {
     }
 
     // Validate that it's a settler
-    if (unit.unitTypeId !== 'settler') {
+    if (unit.unitTypeId !== 'settlers') {
       return {
         success: false,
         message: 'Only settlers can found cities',

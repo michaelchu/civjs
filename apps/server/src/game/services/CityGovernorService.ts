@@ -415,7 +415,7 @@ export class CityGovernorService extends BaseGameService {
           recommendedProduction = 'granary';
           productionType = 'building';
         } else {
-          recommendedProduction = 'warrior';
+          recommendedProduction = 'warriors';
           productionType = 'unit';
         }
         break;

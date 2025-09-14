@@ -300,7 +300,7 @@ export class CityManagementHandler extends BaseSocketHandler {
       return { isValid: false, errorMessage: 'Unit does not belong to player' };
     }
 
-    if (unit.unitTypeId !== 'settler') {
+    if (unit.unitTypeId !== 'settlers') {
       return { isValid: false, errorMessage: 'Only settlers can found cities' };
     }
 

@@ -386,7 +386,7 @@ export class GameManager {
           // @reference freeciv/server/plrhand.c - UTYF_CITYFOUNDATION flag
           const settler = await unitManager.createUnit(
             player.id,
-            'settler',
+            'settlers',
             startingPos.x,
             startingPos.y
           );
@@ -395,7 +395,7 @@ export class GameManager {
           // @reference freeciv/server/plrhand.c - initial military unit
           const warrior = await unitManager.createUnit(
             player.id,
-            'warrior',
+            'warriors',
             startingPos.x,
             startingPos.y
           );

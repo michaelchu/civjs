@@ -574,9 +574,9 @@ export class CityManager {
       size: 1,
       cityRadius: CITY_MAP_DEFAULT_RADIUS,
       founded: currentTurn,
-      currentProduction: 'warrior', // Default production following Freeciv
+      currentProduction: 'warriors', // Default production following Freeciv
       productionType: 'unit' as const,
-      turnsToComplete: 10, // Warrior cost, will be recalculated
+      turnsToComplete: 10, // Warriors cost, will be recalculated
       productionStock: 0, // Shield stock for current production
       foodStock: 0,
       foodPerTurn: 2, // Base city center food

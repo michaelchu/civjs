@@ -789,7 +789,7 @@ export class GovernmentManager {
     governmentType: string,
     unitType: string
   ): Array<{ type: string; value: number; description: string }> {
-    const isMilitaryUnit = unitType === 'warrior' || unitType === 'phalanx';
+    const isMilitaryUnit = unitType === 'warriors' || unitType === 'phalanx';
 
     switch (governmentType) {
       case 'despotism':

@@ -1430,15 +1430,15 @@ export class UnitManager {
     // the ruleset's cargo capacity and allowed unit classes
 
     const transportRules: Record<string, string[]> = {
-      trireme: ['warrior', 'archer', 'settler', 'diplomat'],
-      caravel: ['warrior', 'archer', 'settler', 'diplomat', 'musketeer'],
-      galleon: ['warrior', 'archer', 'settler', 'diplomat', 'musketeer', 'riflemen'],
+      trireme: ['warriors', 'archers', 'settlers', 'diplomat'],
+      caravel: ['warriors', 'archers', 'settlers', 'diplomat', 'musketeers'],
+      galleon: ['warriors', 'archers', 'settlers', 'diplomat', 'musketeers', 'riflemen'],
       transport: [
-        'warrior',
-        'archer',
-        'settler',
+        'warriors',
+        'archers',
+        'settlers',
         'diplomat',
-        'musketeer',
+        'musketeers',
         'riflemen',
         'cavalry',
         'armor',

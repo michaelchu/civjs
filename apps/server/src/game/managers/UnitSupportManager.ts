@@ -502,7 +502,7 @@ export class UnitSupportManager {
     // In full implementation, this would query the UnitManager
     return {
       unitId,
-      unitType: 'warrior',
+      unitType: 'warriors',
       homeCity: 'mock-city-id',
       currentLocation: 'mock-location',
       upkeep: { food: 1, shield: 1, gold: 0 },
