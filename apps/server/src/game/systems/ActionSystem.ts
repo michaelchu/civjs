@@ -424,10 +424,7 @@ export class ActionSystem {
    * Check if unit can move
    */
   private canMove(unit: Unit, targetX?: number, targetY?: number): boolean {
-    const canMove = targetX !== undefined && targetY !== undefined && unit.movementLeft > 0;
-
-    // Add debug logging to help diagnose movement issues
-    if (!canMove) {
+    if (targetX === undefined || targetY === undefined || unit.movementLeft <= 0) {
       logger.debug('Unit movement check failed', {
         unitId: unit.id,
         unitType: unit.unitTypeId,
@@ -441,9 +438,36 @@ export class ActionSystem {
               ? 'no targetY'
               : 'no movement left',
       });
+      return false;
     }
 
-    return canMove;
+    // Check if target is achievable with current movement points
+    const dx = Math.abs(targetX - unit.x);
+    const dy = Math.abs(targetY - unit.y);
+    const isDiagonal = dx === 1 && dy === 1;
+    const isAdjacent = (dx === 0 && dy === 1) || (dx === 1 && dy === 0) || isDiagonal;
+
+    // Only allow direct adjacent moves for now (no multi-step pathfinding in validation)
+    if (!isAdjacent) {
+      return true; // Let pathfinding handle longer distances
+    }
+
+    const requiredMovement = isDiagonal ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
+    const hasEnoughMovement = unit.movementLeft >= requiredMovement;
+
+    if (!hasEnoughMovement) {
+      logger.debug('Unit movement check failed - insufficient movement for target', {
+        unitId: unit.id,
+        unitType: unit.unitTypeId,
+        from: { x: unit.x, y: unit.y },
+        to: { x: targetX, y: targetY },
+        isDiagonal,
+        required: requiredMovement,
+        available: unit.movementLeft,
+      });
+    }
+
+    return hasEnoughMovement;
   }
 
   /**
@@ -837,7 +861,17 @@ export class ActionSystem {
         diagonalMoveCost: Math.floor(SINGLE_MOVE * 1.5),
         unitTypeFound: !!unitType,
       });
-      return { success: false, message: 'Insufficient movement points to start moving' };
+
+      // Provide more specific error message based on movement points
+      let errorMessage = 'Insufficient movement points to start moving';
+      if (unit.movementLeft === 3) {
+        errorMessage =
+          'Insufficient movement points for diagonal move. Try moving to an adjacent (non-diagonal) tile.';
+      } else if (unit.movementLeft > 0 && unit.movementLeft < 3) {
+        errorMessage = `Need ${SINGLE_MOVE} movement points to move, but only have ${unit.movementLeft}.`;
+      }
+
+      return { success: false, message: errorMessage };
     }
 
     const oldX = unit.x;
@@ -1028,6 +1062,9 @@ export class ActionSystem {
         tileIndex: i,
         from: { x: currentX, y: currentY },
         to: { x: nextTile.x, y: nextTile.y },
+        dx,
+        dy,
+        isDiagonal: dx === 1 && dy === 1,
         movementCost,
         remainingMovement,
       });
