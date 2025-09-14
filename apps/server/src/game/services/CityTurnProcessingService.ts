@@ -515,18 +515,25 @@ export class CityTurnProcessingService extends BaseGameService {
       }
     }
 
-    // Trigger callback
+    // Trigger callback and await if it's async
     if (this.dependencies.callbacks.onCityProductionComplete) {
-      const result = this.dependencies.callbacks.onCityProductionComplete(city, productionItem);
-      if (result instanceof Promise) {
-        // Handle async callback without blocking
-        result.catch(error => {
-          logger.error('Error in onCityProductionComplete callback', {
-            error: error instanceof Error ? error.message : 'Unknown error',
+      try {
+        const result = this.dependencies.callbacks.onCityProductionComplete(city, productionItem);
+        if (result instanceof Promise) {
+          // Properly await async callback to ensure unit creation completes
+          await result;
+          logger.debug('Production completion callback completed successfully', {
             cityId: city.id,
             productionItem,
           });
+        }
+      } catch (error) {
+        logger.error('Error in onCityProductionComplete callback', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          cityId: city.id,
+          productionItem,
         });
+        // Don't rethrow - production completion should continue even if callback fails
       }
     }
   }
