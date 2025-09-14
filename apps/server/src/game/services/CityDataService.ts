@@ -147,8 +147,9 @@ export class CityDataService {
     };
 
     // Calculate surplus (after consumption) - following freeciv pattern
+    // Note: foodPerTurn already has food consumption deducted by CityTileManagementService
     const surplus = {
-      food: foodPerTurn - city.population * 2, // Food consumption = 2 per citizen
+      food: foodPerTurn, // Food surplus already calculated (production - consumption)
       shields: productionPerTurn, // All shields go to production (no consumption)
       trade: tradePerTurn, // Trade is base (before gold/science split)
       gold: goldPerTurn,
