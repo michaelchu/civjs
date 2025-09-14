@@ -862,14 +862,10 @@ export class ActionSystem {
         unitTypeFound: !!unitType,
       });
 
-      // Provide more specific error message based on movement points
-      let errorMessage = 'Insufficient movement points to start moving';
-      if (unit.movementLeft === 3) {
-        errorMessage =
-          'Insufficient movement points for diagonal move. Try moving to an adjacent (non-diagonal) tile.';
-      } else if (unit.movementLeft > 0 && unit.movementLeft < 3) {
-        errorMessage = `Need ${SINGLE_MOVE} movement points to move, but only have ${unit.movementLeft}.`;
-      }
+      // This should only happen if the unit has no movement left at all
+      // due to the minimum move rule implementation
+      const errorMessage =
+        unit.movementLeft <= 0 ? 'Unit has no movement points left' : 'Cannot move to target tile';
 
       return { success: false, message: errorMessage };
     }
@@ -1069,18 +1065,48 @@ export class ActionSystem {
         remainingMovement,
       });
 
-      if (remainingMovement < movementCost) {
+      // Implement freeciv's minimum move rule:
+      // Units with any movement left (>0) can always move at least one tile
+      // @reference freeciv/server/unittools.c - units with moves_left > 0 can always attempt to move
+      if (remainingMovement <= 0) {
+        // No movement left at all - stop here
+        logger.debug('No movement left, stopping', {
+          unitId: unit.id,
+          remainingMovement,
+        });
+        break;
+      }
+
+      // If this is the first move and we have any movement left, we can always move
+      // even if the cost exceeds our remaining movement (minimum move rule)
+      const canMove = tilesTraversed === 0 || remainingMovement >= movementCost;
+
+      if (!canMove) {
         logger.debug('Insufficient movement for next tile, stopping', {
           unitId: unit.id,
           needed: movementCost,
           remaining: remainingMovement,
+          tilesTraversed,
         });
         break;
       }
+
+      // Move to the next tile
       currentX = nextTile.x;
       currentY = nextTile.y;
-      remainingMovement -= movementCost;
+
+      // Deduct movement cost, but never go below 0
+      // If this was a minimum move (cost > remaining), set to 0
+      remainingMovement = Math.max(0, remainingMovement - movementCost);
       tilesTraversed++;
+
+      logger.debug('Moved to tile', {
+        unitId: unit.id,
+        position: { x: currentX, y: currentY },
+        movementCostApplied: movementCost,
+        remainingMovement,
+        wasMinimumMove: movementCost > unit.movementLeft && tilesTraversed === 1,
+      });
     }
 
     logger.debug('Path traversal complete', {
