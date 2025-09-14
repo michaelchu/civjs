@@ -5,6 +5,7 @@ import { BaseSocketHandler } from './BaseSocketHandler';
 import { PacketType, CityFoundSchema, CityProductionChangeSchema } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
 import { CityProductionHandler } from './CityProductionHandler';
+import { getUnitType } from '@game/constants/UnitConstants';
 
 /**
  * Handles city management packets: founding cities, production changes
@@ -300,8 +301,13 @@ export class CityManagementHandler extends BaseSocketHandler {
       return { isValid: false, errorMessage: 'Unit does not belong to player' };
     }
 
-    if (unit.unitTypeId !== 'settlers') {
-      return { isValid: false, errorMessage: 'Only settlers can found cities' };
+    // Use dynamic unit data to check if unit can found cities (matches ActionSystem approach)
+    const unitType = getUnitType(unit.unitTypeId);
+    if (!unitType || !unitType.canFoundCity) {
+      return {
+        isValid: false,
+        errorMessage: 'Only settlers can found cities',
+      };
     }
 
     return { isValid: true };

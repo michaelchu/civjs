@@ -235,7 +235,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         id: unitId1,
         gameId: game.id,
         playerId: players[0].id,
-        unitType: 'warrior',
+        unitType: 'warriors',
         x: 11,
         y: 11,
         health: 100,
@@ -267,7 +267,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         id: unitId3,
         gameId: game.id,
         playerId: players[1].id,
-        unitType: 'warrior',
+        unitType: 'warriors',
         x: 16,
         y: 15,
         health: 100,
@@ -346,7 +346,7 @@ export async function createProductionScenario(): Promise<TestGameScenario> {
   const [updatedCity] = await db
     .update(schema.cities)
     .set({
-      currentProduction: 'warrior',
+      currentProduction: 'warriors',
       production: 15, // Almost complete (warrior costs 20)
       productionPerTurn: 3,
     })

@@ -38,10 +38,10 @@ describe('MovementConstants', () => {
     });
 
     it('should handle land units correctly', () => {
-      expect(getTerrainMovementCost('grassland', 'warrior')).toBe(3);
-      expect(getTerrainMovementCost('hills', 'warrior')).toBe(6);
-      expect(getTerrainMovementCost('ocean', 'warrior')).toBe(-1); // Impassable
-      expect(getTerrainMovementCost('deep_ocean', 'warrior')).toBe(-1); // Impassable
+      expect(getTerrainMovementCost('grassland', 'warriors')).toBe(3);
+      expect(getTerrainMovementCost('hills', 'warriors')).toBe(6);
+      expect(getTerrainMovementCost('ocean', 'warriors')).toBe(-1); // Impassable
+      expect(getTerrainMovementCost('deep_ocean', 'warriors')).toBe(-1); // Impassable
     });
 
     it('should handle sea units correctly', () => {
@@ -59,14 +59,14 @@ describe('MovementConstants', () => {
 
   describe('canUnitEnterTerrain', () => {
     it('should allow land units on land terrain', () => {
-      expect(canUnitEnterTerrain('grassland', 'warrior')).toBe(true);
-      expect(canUnitEnterTerrain('hills', 'warrior')).toBe(true);
-      expect(canUnitEnterTerrain('mountains', 'warrior')).toBe(true);
+      expect(canUnitEnterTerrain('grassland', 'warriors')).toBe(true);
+      expect(canUnitEnterTerrain('hills', 'warriors')).toBe(true);
+      expect(canUnitEnterTerrain('mountains', 'warriors')).toBe(true);
     });
 
     it('should prevent land units from entering water', () => {
-      expect(canUnitEnterTerrain('ocean', 'warrior')).toBe(false);
-      expect(canUnitEnterTerrain('deep_ocean', 'warrior')).toBe(false);
+      expect(canUnitEnterTerrain('ocean', 'warriors')).toBe(false);
+      expect(canUnitEnterTerrain('deep_ocean', 'warriors')).toBe(false);
     });
 
     it('should allow sea units on water terrain', () => {
@@ -83,27 +83,27 @@ describe('MovementConstants', () => {
 
   describe('calculateMovementCost', () => {
     it('should calculate correct cost for straight movement', () => {
-      const cost = calculateMovementCost(0, 0, 1, 0, 'grassland', 'warrior');
+      const cost = calculateMovementCost(0, 0, 1, 0, 'grassland', 'warriors');
       expect(cost).toBe(3); // SINGLE_MOVE
     });
 
     it('should calculate higher cost for diagonal movement', () => {
-      const straightCost = calculateMovementCost(0, 0, 1, 0, 'grassland', 'warrior');
-      const diagonalCost = calculateMovementCost(0, 0, 1, 1, 'grassland', 'warrior');
+      const straightCost = calculateMovementCost(0, 0, 1, 0, 'grassland', 'warriors');
+      const diagonalCost = calculateMovementCost(0, 0, 1, 1, 'grassland', 'warriors');
 
       expect(diagonalCost).toBeGreaterThan(straightCost);
       expect(diagonalCost).toBe(Math.floor(3 * 1.5)); // 1.5x multiplier for diagonal
     });
 
     it('should return -1 for impassable terrain', () => {
-      const cost = calculateMovementCost(0, 0, 1, 0, 'ocean', 'warrior');
+      const cost = calculateMovementCost(0, 0, 1, 0, 'ocean', 'warriors');
       expect(cost).toBe(-1);
     });
 
     it('should handle different terrain types correctly', () => {
-      const grasslandCost = calculateMovementCost(0, 0, 1, 0, 'grassland', 'warrior');
-      const hillsCost = calculateMovementCost(0, 0, 1, 0, 'hills', 'warrior');
-      const mountainsCost = calculateMovementCost(0, 0, 1, 0, 'mountains', 'warrior');
+      const grasslandCost = calculateMovementCost(0, 0, 1, 0, 'grassland', 'warriors');
+      const hillsCost = calculateMovementCost(0, 0, 1, 0, 'hills', 'warriors');
+      const mountainsCost = calculateMovementCost(0, 0, 1, 0, 'mountains', 'warriors');
 
       expect(grasslandCost).toBe(3);
       expect(hillsCost).toBe(6);
@@ -111,8 +111,8 @@ describe('MovementConstants', () => {
     });
 
     it('should handle diagonal movement on different terrains', () => {
-      const grasslandDiagonal = calculateMovementCost(0, 0, 1, 1, 'grassland', 'warrior');
-      const hillsDiagonal = calculateMovementCost(0, 0, 1, 1, 'hills', 'warrior');
+      const grasslandDiagonal = calculateMovementCost(0, 0, 1, 1, 'grassland', 'warriors');
+      const hillsDiagonal = calculateMovementCost(0, 0, 1, 1, 'hills', 'warriors');
 
       expect(grasslandDiagonal).toBe(Math.floor(3 * 1.5));
       expect(hillsDiagonal).toBe(Math.floor(6 * 1.5));
@@ -120,7 +120,7 @@ describe('MovementConstants', () => {
 
     it('should validate movement distances', () => {
       // Test that it only calculates for adjacent tiles
-      const validCost = calculateMovementCost(0, 0, 1, 0, 'grassland', 'warrior');
+      const validCost = calculateMovementCost(0, 0, 1, 0, 'grassland', 'warriors');
       expect(validCost).toBeGreaterThan(0);
     });
   });
@@ -132,12 +132,12 @@ describe('MovementConstants', () => {
     });
 
     it('should handle coast terrain correctly for different unit types', () => {
-      expect(getTerrainMovementCost('coast', 'warrior')).toBe(3); // Land units can use coast
+      expect(getTerrainMovementCost('coast', 'warriors')).toBe(3); // Land units can use coast
       expect(getTerrainMovementCost('coast', 'trireme')).toBe(3); // Sea units can use coast
     });
 
     it('should handle lake terrain correctly', () => {
-      expect(getTerrainMovementCost('lake', 'warrior')).toBe(-1); // Land units cannot cross lakes
+      expect(getTerrainMovementCost('lake', 'warriors')).toBe(-1); // Land units cannot cross lakes
       expect(getTerrainMovementCost('lake', 'trireme')).toBe(3); // Sea units can use lakes
     });
   });

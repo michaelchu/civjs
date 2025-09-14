@@ -33,10 +33,10 @@ describe('UnitManager', () => {
 
   describe('unit creation', () => {
     it('should create a unit successfully', async () => {
-      const unit = await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      const unit = await unitManager.createUnit('player-123', 'warriors', 10, 10);
 
       expect(unit.playerId).toBe('player-123');
-      expect(unit.unitTypeId).toBe('warrior');
+      expect(unit.unitTypeId).toBe('warriors');
       expect(unit.x).toBe(10);
       expect(unit.y).toBe(10);
       expect(unit.health).toBe(100);
@@ -54,11 +54,11 @@ describe('UnitManager', () => {
     });
 
     it('should reject invalid position', async () => {
-      await expect(unitManager.createUnit('player-123', 'warrior', -1, 10)).rejects.toThrow(
+      await expect(unitManager.createUnit('player-123', 'warriors', -1, 10)).rejects.toThrow(
         'Invalid position: -1, 10'
       );
 
-      await expect(unitManager.createUnit('player-123', 'warrior', 100, 10)).rejects.toThrow(
+      await expect(unitManager.createUnit('player-123', 'warriors', 100, 10)).rejects.toThrow(
         'Invalid position: 100, 10'
       );
     });
@@ -78,7 +78,7 @@ describe('UnitManager', () => {
     let unitId: string;
 
     beforeEach(async () => {
-      const unit = await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      const unit = await unitManager.createUnit('player-123', 'warriors', 10, 10);
       unitId = unit.id;
     });
 
@@ -114,7 +114,7 @@ describe('UnitManager', () => {
 
     it('should reject move to enemy unit position', async () => {
       // Create enemy unit
-      await unitManager.createUnit('player-456', 'warrior', 11, 10);
+      await unitManager.createUnit('player-456', 'warriors', 11, 10);
 
       await expect(unitManager.moveUnit(unitId, 11, 10)).rejects.toThrow(
         'Cannot move to tile occupied by enemy unit'
@@ -127,8 +127,8 @@ describe('UnitManager', () => {
     let defenderUnitId: string;
 
     beforeEach(async () => {
-      const attacker = await unitManager.createUnit('player-123', 'warrior', 10, 10);
-      const defender = await unitManager.createUnit('player-456', 'warrior', 11, 10);
+      const attacker = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      const defender = await unitManager.createUnit('player-456', 'warriors', 11, 10);
       attackerUnitId = attacker.id;
       defenderUnitId = defender.id;
     });
@@ -187,7 +187,7 @@ describe('UnitManager', () => {
     let unitId: string;
 
     beforeEach(async () => {
-      const unit = await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      const unit = await unitManager.createUnit('player-123', 'warriors', 10, 10);
       unitId = unit.id;
     });
 
@@ -206,7 +206,7 @@ describe('UnitManager', () => {
     let unitId: string;
 
     beforeEach(async () => {
-      const unit = await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      const unit = await unitManager.createUnit('player-123', 'warriors', 10, 10);
       unitId = unit.id;
       unit.health = 50; // Damaged unit
     });
@@ -232,7 +232,7 @@ describe('UnitManager', () => {
     let unitId: string;
 
     beforeEach(async () => {
-      const unit = await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      const unit = await unitManager.createUnit('player-123', 'warriors', 10, 10);
       unitId = unit.id;
       // Use some movement (unit starts with 1 movement)
       await unitManager.moveUnit(unitId, 11, 10);
@@ -258,9 +258,9 @@ describe('UnitManager', () => {
 
   describe('unit queries', () => {
     beforeEach(async () => {
-      await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
       await unitManager.createUnit('player-123', 'settlers', 11, 10); // Use 'settlers'
-      await unitManager.createUnit('player-456', 'warrior', 12, 10);
+      await unitManager.createUnit('player-456', 'warriors', 12, 10);
     });
 
     it('should get player units', () => {
@@ -277,7 +277,7 @@ describe('UnitManager', () => {
     it('should get unit at position', () => {
       const unit = unitManager.getUnitAt(10, 10);
       expect(unit).toBeDefined();
-      expect(unit!.unitTypeId).toBe('warrior');
+      expect(unit!.unitTypeId).toBe('warriors');
 
       const noUnit = unitManager.getUnitAt(50, 50);
       expect(noUnit).toBeUndefined();
@@ -294,8 +294,8 @@ describe('UnitManager', () => {
 
   describe('visibility', () => {
     beforeEach(async () => {
-      await unitManager.createUnit('player-123', 'warrior', 10, 10);
-      await unitManager.createUnit('player-456', 'warrior', 11, 10);
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.createUnit('player-456', 'warriors', 11, 10);
       await unitManager.createUnit('player-456', 'settlers', 20, 20); // Use 'settlers'
     });
 
