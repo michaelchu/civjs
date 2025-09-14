@@ -60,9 +60,9 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       expect(UNIT_TYPES.warrior.movement).toBe(6); // 2 movement points = 6 fragments
       expect(UNIT_TYPES.warrior.combat).toBe(20);
 
-      expect(UNIT_TYPES.settler).toBeDefined();
-      expect(UNIT_TYPES.settler.canFoundCity).toBe(true);
-      expect(UNIT_TYPES.settler.combat).toBe(0);
+      expect(UNIT_TYPES.settlers).toBeDefined();
+      expect(UNIT_TYPES.settlers.canFoundCity).toBe(true);
+      expect(UNIT_TYPES.settlers.combat).toBe(0);
 
       expect(UNIT_TYPES.worker).toBeDefined();
       expect(UNIT_TYPES.worker.canBuildImprovements).toBe(true);

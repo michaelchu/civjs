@@ -10,7 +10,7 @@ describe('ActionSystem - Goto Actions', () => {
     id: 'test-unit-1',
     gameId: 'test-game-123',
     playerId: 'player-1',
-    unitTypeId: 'warrior',
+    unitTypeId: 'warriors',
     x: 10,
     y: 10,
     health: 100,
