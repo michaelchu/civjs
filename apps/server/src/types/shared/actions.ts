@@ -140,4 +140,6 @@ export interface ActionResult {
   experience_gained?: number;
   cityId?: string;
   movementCost?: number;
+  newMovementLeft?: number;
+  newOrders?: any[];
 }

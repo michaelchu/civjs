@@ -782,10 +782,9 @@ export class ActionSystem {
     const oldX = unit.x;
     const oldY = unit.y;
     const originalMovementLeft = unit.movementLeft;
-    unit.x = currentX;
-    unit.y = currentY;
-    unit.movementLeft = remainingMovement;
     const totalMovementCost = originalMovementLeft - remainingMovement;
+
+    // Don't mutate unit object directly - return new state in result for UnitManager to apply
 
     logger.info('Unit goto executed', {
       gameId: this.gameId,
@@ -799,22 +798,15 @@ export class ActionSystem {
 
     const reachedDestination = currentX === targetX && currentY === targetY;
 
+    // Prepare new orders without mutating unit object
+    let newOrders: UnitOrder[] = [];
     if (!reachedDestination) {
       const moveOrder: UnitOrder = {
         type: 'move',
         targetX: targetX,
         targetY: targetY,
       };
-
-      // Initialize orders array if it doesn't exist, then add the order
-      if (!unit.orders) {
-        unit.orders = [];
-      }
-      // Clear any existing orders and add the new move order
-      unit.orders = [moveOrder];
-    } else {
-      // Clear orders when destination is reached
-      unit.orders = [];
+      newOrders = [moveOrder];
     }
 
     return {
@@ -823,6 +815,8 @@ export class ActionSystem {
         ? `${unit.unitTypeId} moved to (${targetX}, ${targetY})`
         : `${unit.unitTypeId} moved ${tilesTraversed} tiles toward (${targetX}, ${targetY}). Will continue next turn.`,
       newPosition: { x: currentX, y: currentY },
+      newMovementLeft: remainingMovement,
+      newOrders: newOrders,
       movementCost: totalMovementCost,
     };
   }

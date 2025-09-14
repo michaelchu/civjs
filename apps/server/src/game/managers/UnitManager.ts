@@ -948,8 +948,16 @@ export class UnitManager {
     if (!result.newPosition) return {};
     unit.x = result.newPosition.x;
     unit.y = result.newPosition.y;
-    const movementCost = result.movementCost || 1;
-    unit.movementLeft = Math.max(0, unit.movementLeft - movementCost);
+
+    // Use the new movement left from ActionSystem instead of double-deducting
+    if (result.newMovementLeft !== undefined) {
+      unit.movementLeft = result.newMovementLeft;
+    }
+
+    // Update unit orders if provided
+    if (result.newOrders !== undefined) {
+      unit.orders = result.newOrders;
+    }
     const updateData = {
       x: unit.x,
       y: unit.y,
