@@ -424,7 +424,56 @@ export class ActionSystem {
    * Check if unit can move
    */
   private canMove(unit: Unit, targetX?: number, targetY?: number): boolean {
-    return targetX !== undefined && targetY !== undefined && unit.movementLeft > 0;
+    if (targetX === undefined || targetY === undefined || unit.movementLeft <= 0) {
+      logger.debug('Unit movement check failed', {
+        unitId: unit.id,
+        unitType: unit.unitTypeId,
+        targetX,
+        targetY,
+        movementLeft: unit.movementLeft,
+        reason:
+          targetX === undefined
+            ? 'no targetX'
+            : targetY === undefined
+              ? 'no targetY'
+              : 'no movement left',
+      });
+      return false;
+    }
+
+    // Check if target is achievable with current movement points
+    const dx = Math.abs(targetX - unit.x);
+    const dy = Math.abs(targetY - unit.y);
+    const isDiagonal = dx === 1 && dy === 1;
+    const isAdjacent = (dx === 0 && dy === 1) || (dx === 1 && dy === 0) || isDiagonal;
+
+    // Only allow direct adjacent moves for now (no multi-step pathfinding in validation)
+    if (!isAdjacent) {
+      return true; // Let pathfinding handle longer distances
+    }
+
+    // Implement minimum move rule for adjacent tiles:
+    // Units with ANY movement (>0) can always move to an adjacent tile
+    // @reference freeciv/server/unittools.c - units with moves_left > 0 can always attempt to move
+    if (unit.movementLeft > 0) {
+      // Unit has movement, so it can always make at least one adjacent move (minimum move rule)
+      const requiredMovement = isDiagonal ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
+
+      if (unit.movementLeft < requiredMovement) {
+        logger.debug('Unit can move using minimum move rule', {
+          unitId: unit.id,
+          unitType: unit.unitTypeId,
+          from: { x: unit.x, y: unit.y },
+          to: { x: targetX, y: targetY },
+          isDiagonal,
+          required: requiredMovement,
+          available: unit.movementLeft,
+        });
+      }
+      return true;
+    }
+
+    return false; // No movement left at all
   }
 
   /**
@@ -432,9 +481,26 @@ export class ActionSystem {
    */
   private canFoundCity(unit: Unit): boolean {
     const unitType = getUnitType(unit.unitTypeId);
-    if (!unitType || !unitType.canFoundCity || unit.movementLeft <= 0) {
+
+    // Add debug logging for unit type lookup issues
+    if (!unitType) {
+      logger.warn('Unit type not found during city founding check', {
+        unitId: unit.id,
+        unitTypeId: unit.unitTypeId,
+      });
       return false;
     }
+
+    if (!unitType.canFoundCity || unit.movementLeft <= 0) {
+      logger.debug('Unit cannot found city', {
+        unitId: unit.id,
+        unitType: unit.unitTypeId,
+        canFoundCity: unitType.canFoundCity,
+        movementLeft: unit.movementLeft,
+      });
+      return false;
+    }
+
     return this.canFoundCityAtLocation(unit, unit.x, unit.y);
   }
 
@@ -553,7 +619,16 @@ export class ActionSystem {
    */
   private canBuildImprovement(unit: Unit): boolean {
     const unitType = getUnitType(unit.unitTypeId);
-    return unitType ? unitType.canBuildImprovements : false;
+
+    if (!unitType) {
+      logger.warn('Unit type not found during improvement check', {
+        unitId: unit.id,
+        unitTypeId: unit.unitTypeId,
+      });
+      return false;
+    }
+
+    return unitType.canBuildImprovements || false;
   }
 
   /**
@@ -696,6 +771,11 @@ export class ActionSystem {
         // Check unit capabilities from dynamic ruleset data
         const unitType = getUnitType(unit.unitTypeId);
         if (!unitType) {
+          logger.warn('Unit type not found during requirement check', {
+            unitId: unit.id,
+            unitTypeId: unit.unitTypeId,
+            requirement: requirement.value,
+          });
           return false;
         }
 
@@ -776,16 +856,32 @@ export class ActionSystem {
     );
 
     if (tilesTraversed === 0) {
-      return { success: false, message: 'Insufficient movement points to start moving' };
+      const unitType = getUnitType(unit.unitTypeId);
+      logger.warn('Unit cannot traverse any tiles', {
+        unitId: unit.id,
+        unitType: unit.unitTypeId,
+        currentMovement: unit.movementLeft,
+        expectedMaxMovement: unitType ? unitType.movement * 3 : 'unknown',
+        pathLength: pathResult.path?.tiles?.length || 0,
+        singleMoveCost: SINGLE_MOVE,
+        diagonalMoveCost: Math.floor(SINGLE_MOVE * 1.5),
+        unitTypeFound: !!unitType,
+      });
+
+      // This should only happen if the unit has no movement left at all
+      // due to the minimum move rule implementation
+      const errorMessage =
+        unit.movementLeft <= 0 ? 'Unit has no movement points left' : 'Cannot move to target tile';
+
+      return { success: false, message: errorMessage };
     }
 
     const oldX = unit.x;
     const oldY = unit.y;
     const originalMovementLeft = unit.movementLeft;
-    unit.x = currentX;
-    unit.y = currentY;
-    unit.movementLeft = remainingMovement;
     const totalMovementCost = originalMovementLeft - remainingMovement;
+
+    // Don't mutate unit object directly - return new state in result for UnitManager to apply
 
     logger.info('Unit goto executed', {
       gameId: this.gameId,
@@ -799,22 +895,15 @@ export class ActionSystem {
 
     const reachedDestination = currentX === targetX && currentY === targetY;
 
+    // Prepare new orders without mutating unit object
+    let newOrders: UnitOrder[] = [];
     if (!reachedDestination) {
       const moveOrder: UnitOrder = {
         type: 'move',
         targetX: targetX,
         targetY: targetY,
       };
-
-      // Initialize orders array if it doesn't exist, then add the order
-      if (!unit.orders) {
-        unit.orders = [];
-      }
-      // Clear any existing orders and add the new move order
-      unit.orders = [moveOrder];
-    } else {
-      // Clear orders when destination is reached
-      unit.orders = [];
+      newOrders = [moveOrder];
     }
 
     return {
@@ -823,6 +912,8 @@ export class ActionSystem {
         ? `${unit.unitTypeId} moved to (${targetX}, ${targetY})`
         : `${unit.unitTypeId} moved ${tilesTraversed} tiles toward (${targetX}, ${targetY}). Will continue next turn.`,
       newPosition: { x: currentX, y: currentY },
+      newMovementLeft: remainingMovement,
+      newOrders: newOrders,
       movementCost: totalMovementCost,
     };
   }
@@ -947,19 +1038,101 @@ export class ActionSystem {
     let remainingMovement = unit.movementLeft;
     let tilesTraversed = 0;
 
+    logger.debug('Starting path traversal', {
+      unitId: unit.id,
+      startPosition: { x: currentX, y: currentY },
+      initialMovement: remainingMovement,
+      pathLength: pathResult.path?.tiles?.length || 0,
+    });
+
+    if (!pathResult.path?.tiles || pathResult.path.tiles.length <= 1) {
+      logger.warn('Invalid path result in traversePath', {
+        unitId: unit.id,
+        pathResult: pathResult,
+      });
+      return { currentX, currentY, remainingMovement, tilesTraversed };
+    }
+
     for (let i = 1; i < pathResult.path.tiles.length; i++) {
       const nextTile = pathResult.path.tiles[i];
       const dx = Math.abs(nextTile.x - currentX);
       const dy = Math.abs(nextTile.y - currentY);
       const movementCost = dx === 1 && dy === 1 ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
-      if (remainingMovement < movementCost) {
+
+      logger.debug('Processing path tile', {
+        unitId: unit.id,
+        tileIndex: i,
+        from: { x: currentX, y: currentY },
+        to: { x: nextTile.x, y: nextTile.y },
+        dx,
+        dy,
+        isDiagonal: dx === 1 && dy === 1,
+        movementCost,
+        remainingMovement,
+        tilesTraversed,
+        isFirstMove: tilesTraversed === 0,
+      });
+
+      // Implement freeciv's minimum move rule:
+      // Units with any movement left (>0) can always move at least one tile
+      // @reference freeciv/server/unittools.c - units with moves_left > 0 can always attempt to move
+      if (remainingMovement <= 0) {
+        // No movement left at all - stop here
+        logger.debug('No movement left, stopping', {
+          unitId: unit.id,
+          remainingMovement,
+        });
         break;
       }
+
+      // If this is the first move and we have any movement left, we can always move
+      // even if the cost exceeds our remaining movement (minimum move rule)
+      const canMove = tilesTraversed === 0 || remainingMovement >= movementCost;
+
+      logger.debug('Movement check', {
+        unitId: unit.id,
+        canMove,
+        isFirstMove: tilesTraversed === 0,
+        hasEnoughMovement: remainingMovement >= movementCost,
+        remainingMovement,
+        movementCost,
+        tilesTraversed,
+      });
+
+      if (!canMove) {
+        logger.debug('Insufficient movement for next tile, stopping', {
+          unitId: unit.id,
+          needed: movementCost,
+          remaining: remainingMovement,
+          tilesTraversed,
+        });
+        break;
+      }
+
+      // Move to the next tile
       currentX = nextTile.x;
       currentY = nextTile.y;
-      remainingMovement -= movementCost;
+
+      // Deduct movement cost, but never go below 0
+      // If this was a minimum move (cost > remaining), set to 0
+      remainingMovement = Math.max(0, remainingMovement - movementCost);
       tilesTraversed++;
+
+      logger.debug('Moved to tile', {
+        unitId: unit.id,
+        position: { x: currentX, y: currentY },
+        movementCostApplied: movementCost,
+        remainingMovement,
+        wasMinimumMove: movementCost > unit.movementLeft && tilesTraversed === 1,
+      });
     }
+
+    logger.debug('Path traversal complete', {
+      unitId: unit.id,
+      finalPosition: { x: currentX, y: currentY },
+      remainingMovement,
+      tilesTraversed,
+    });
 
     return { currentX, currentY, remainingMovement, tilesTraversed };
   }
