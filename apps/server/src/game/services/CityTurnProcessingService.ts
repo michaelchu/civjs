@@ -336,8 +336,9 @@ export class CityTurnProcessingService extends BaseGameService {
 
   /**
    * Process food consumption and city growth
+   * Public method for testing and external access
    */
-  private async processFoodAndGrowth(city: CityState, _currentTurn: number): Promise<void> {
+  public async processFoodAndGrowth(city: CityState, _currentTurn: number): Promise<void> {
     const foodSurplus = city.foodPerTurn || 0;
     const currentFoodStock = city.foodStock || 0;
     const newFoodStock = currentFoodStock + foodSurplus;

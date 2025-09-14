@@ -469,20 +469,7 @@ export class CityManager {
       this.citizenManagementService
     );
 
-    // Initialize turn processing service with method dependencies
-    this.turnProcessingService = new CityTurnProcessingService({
-      gameId: this.gameId,
-      cities: this.cities,
-      callbacks: this.callbacks,
-      io: this.io,
-      governorService: this.governorService,
-      tileManagementService: this.tileManagementService,
-      refreshCityWithGovernmentEffects: this.refreshCityWithGovernmentEffects.bind(this),
-      optimizeCitizens: this.optimizeCitizens.bind(this),
-      calculateCityOutputs: this.calculateCityOutputs.bind(this),
-      calculateHappiness: this.calculateHappiness.bind(this),
-      saveCityToDatabase: this.saveCityToDatabase.bind(this),
-    });
+    // Note: Turn processing service will be initialized in setMapManager when all dependencies are available
 
     // Initialize high-level coordination service
     // Note: CityManagementService needs different constructor parameters
@@ -507,22 +494,20 @@ export class CityManager {
       this.optimizationService.setTileManagementService(this.tileManagementService);
     }
 
-    // TODO: Initialize turn processing service now that we have all dependencies
-    // const dependencies: CityTurnProcessingDependencies = {
-    //   gameId: this.gameId,
-    //   cities: this.cities,
-    //   callbacks: this.callbacks,
-    //   io: this.io,
-    //   governorService: this.governorService,
-    //   tileManagementService: this.tileManagementService,
-    //   refreshCityWithGovernmentEffects: this.refreshCityWithGovernmentEffects.bind(this),
-    //   optimizeCitizens: this.optimizeCitizens.bind(this),
-    //   calculateCityOutputs: this.calculateCityOutputs.bind(this),
-    //   calculateHappiness: this.calculateHappiness.bind(this),
-    //   saveCityToDatabase: this.saveCityToDatabase.bind(this),
-    // };
-    // TODO: Uncomment when services are integrated
-    // this.turnProcessingService = new CityTurnProcessingService(dependencies);
+    // Initialize turn processing service now that we have all dependencies
+    this.turnProcessingService = new CityTurnProcessingService({
+      gameId: this.gameId,
+      cities: this.cities,
+      callbacks: this.callbacks,
+      io: this.io,
+      governorService: this.governorService,
+      tileManagementService: this.tileManagementService,
+      refreshCityWithGovernmentEffects: this.refreshCityWithGovernmentEffects.bind(this),
+      optimizeCitizens: this.optimizeCitizens.bind(this),
+      calculateCityOutputs: this.calculateCityOutputs.bind(this),
+      calculateHappiness: this.calculateHappiness.bind(this),
+      saveCityToDatabase: this.saveCityToDatabase.bind(this),
+    });
   }
 
   /**
@@ -530,6 +515,13 @@ export class CityManager {
    */
   setSocketServer(io: SocketServer): void {
     this.io = io;
+
+    // Update turn processing service with socket server if it exists
+    if (this.turnProcessingService) {
+      // The service would need to support updating the io dependency
+      // For now, we might need to reinitialize it if socket server is critical
+      // This would require a method to update dependencies or proper dependency injection container
+    }
   }
 
   /**
@@ -738,10 +730,8 @@ export class CityManager {
     if (!this.turnProcessingService) {
       throw new Error('Turn processing service not available');
     }
-    // The service has its own processFoodAndGrowth method - call processCityTurn for comprehensive turn processing
-    // or call the service's private method if we can access it
-    // For now, we'll need to access the private method or refactor the service to expose it
-    return (this.turnProcessingService as any).processFoodAndGrowth(city, currentTurn);
+    // Now properly delegate to the public method on the service
+    return this.turnProcessingService.processFoodAndGrowth(city, currentTurn);
   }
 
   // === SPECIALIST MANAGEMENT ===
@@ -1192,6 +1182,14 @@ export class CityManager {
 
     this.applyCityCorruption(cityId, defaultGovernment);
     this.applyCityHappiness(cityId);
+  }
+
+  /**
+   * Lightweight city refresh method that only recalculates outputs without government effects
+   * Useful for frequent updates during turn processing
+   */
+  public refreshCityOutputs(cityId: string): void {
+    this.calculateCityOutputs(cityId);
   }
 
   // === CITIZEN OPTIMIZATION METHODS ===
