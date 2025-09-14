@@ -431,7 +431,7 @@ export class GameManager {
    * Format unit for client communication
    * @reference freeciv-web unit packet format
    */
-  private formatUnitForClient(unit: any, unitManager: any): any {
+  public formatUnitForClient(unit: any, unitManager: any): any {
     const unitType = unitManager.getUnitType(unit.unitTypeId);
 
     return {

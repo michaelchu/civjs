@@ -360,14 +360,53 @@ export class GameManagementHandler extends BaseSocketHandler {
   /**
    * Send map data to player (placeholder - would need to be implemented)
    */
-  private async sendPlayerMapData(
-    gameId: string,
-    playerId: string,
-    _socket: Socket
-  ): Promise<void> {
-    // TODO: This would need to be implemented with proper map data sending
-    // For now, we'll leave it as a placeholder since it involves complex map data logic
-    logger.debug(`Sending player map data for game ${gameId}, player ${playerId}`);
+  private async sendPlayerMapData(gameId: string, playerId: string, socket: Socket): Promise<void> {
+    try {
+      logger.debug(`Sending player map data for game ${gameId}, player ${playerId}`);
+
+      // Get the game instance
+      const gameInstance = this.gameManager.getGameInstance(gameId);
+      if (!gameInstance) {
+        logger.warn(`Game instance ${gameId} not found when sending map data`);
+        return;
+      }
+
+      // Get unit manager from game instance
+      const unitManager = gameInstance.unitManager;
+      if (!unitManager) {
+        logger.warn(`Unit manager not found for game ${gameId}`);
+        return;
+      }
+
+      // Get all units for this player
+      const playerUnits = unitManager.getPlayerUnits(playerId);
+      if (playerUnits && playerUnits.length > 0) {
+        // Format units for client
+        const formattedUnits = playerUnits.map(unit =>
+          this.gameManager.formatUnitForClient(unit, unitManager)
+        );
+
+        // Send unit data to the specific player
+        socket.emit('packet', {
+          type: 'UNIT_INFO',
+          data: {
+            units: formattedUnits,
+          },
+        });
+
+        logger.info(`Sent ${formattedUnits.length} units to player ${playerId}`, {
+          gameId,
+          unitIds: formattedUnits.map(u => u.id),
+        });
+      } else {
+        logger.warn(`No units found for player ${playerId} in game ${gameId}`);
+      }
+
+      // TODO: Also send map tiles, cities, and other game state data as needed
+      // For now, we're focusing on fixing the unit rendering issue
+    } catch (error) {
+      logger.error('Error sending player map data:', error);
+    }
   }
 
   /**
