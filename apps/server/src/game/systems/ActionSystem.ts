@@ -452,22 +452,28 @@ export class ActionSystem {
       return true; // Let pathfinding handle longer distances
     }
 
-    const requiredMovement = isDiagonal ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
-    const hasEnoughMovement = unit.movementLeft >= requiredMovement;
+    // Implement minimum move rule for adjacent tiles:
+    // Units with ANY movement (>0) can always move to an adjacent tile
+    // @reference freeciv/server/unittools.c - units with moves_left > 0 can always attempt to move
+    if (unit.movementLeft > 0) {
+      // Unit has movement, so it can always make at least one adjacent move (minimum move rule)
+      const requiredMovement = isDiagonal ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
 
-    if (!hasEnoughMovement) {
-      logger.debug('Unit movement check failed - insufficient movement for target', {
-        unitId: unit.id,
-        unitType: unit.unitTypeId,
-        from: { x: unit.x, y: unit.y },
-        to: { x: targetX, y: targetY },
-        isDiagonal,
-        required: requiredMovement,
-        available: unit.movementLeft,
-      });
+      if (unit.movementLeft < requiredMovement) {
+        logger.debug('Unit can move using minimum move rule', {
+          unitId: unit.id,
+          unitType: unit.unitTypeId,
+          from: { x: unit.x, y: unit.y },
+          to: { x: targetX, y: targetY },
+          isDiagonal,
+          required: requiredMovement,
+          available: unit.movementLeft,
+        });
+      }
+      return true;
     }
 
-    return hasEnoughMovement;
+    return false; // No movement left at all
   }
 
   /**
@@ -1063,6 +1069,8 @@ export class ActionSystem {
         isDiagonal: dx === 1 && dy === 1,
         movementCost,
         remainingMovement,
+        tilesTraversed,
+        isFirstMove: tilesTraversed === 0,
       });
 
       // Implement freeciv's minimum move rule:
@@ -1080,6 +1088,16 @@ export class ActionSystem {
       // If this is the first move and we have any movement left, we can always move
       // even if the cost exceeds our remaining movement (minimum move rule)
       const canMove = tilesTraversed === 0 || remainingMovement >= movementCost;
+
+      logger.debug('Movement check', {
+        unitId: unit.id,
+        canMove,
+        isFirstMove: tilesTraversed === 0,
+        hasEnoughMovement: remainingMovement >= movementCost,
+        remainingMovement,
+        movementCost,
+        tilesTraversed,
+      });
 
       if (!canMove) {
         logger.debug('Insufficient movement for next tile, stopping', {

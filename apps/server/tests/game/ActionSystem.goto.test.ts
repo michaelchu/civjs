@@ -170,22 +170,22 @@ describe('ActionSystem - Goto Actions', () => {
       expect(result.message).toContain('No valid path to target');
     });
 
-    it('should reject movement when insufficient movement points', async () => {
-      const lowMovementUnit = { ...mockUnit, movementLeft: 2 }; // Less than required 3
+    it('should allow movement with minimum move rule when unit has any movement points', async () => {
+      const lowMovementUnit = { ...mockUnit, movementLeft: 2 }; // Less than required 3 but minimum move rule applies
       const result = await actionSystem.executeAction(lowMovementUnit, ActionType.GOTO, 11, 10);
 
-      expect(result.success).toBe(false);
-      // GOTO now uses pathfinding which may give different error message
-      expect(result.message).toBeDefined();
+      expect(result.success).toBe(true); // Minimum move rule allows this
+      expect(result.newPosition).toEqual({ x: 11, y: 10 });
+      expect(result.newMovementLeft).toBe(0); // All movement consumed
     });
 
-    it('should reject diagonal movement when insufficient movement points', async () => {
-      const lowMovementUnit = { ...mockUnit, movementLeft: 3 }; // Less than required 4 for diagonal
+    it('should allow diagonal movement with minimum move rule when unit has any movement points', async () => {
+      const lowMovementUnit = { ...mockUnit, movementLeft: 3 }; // Less than required 4 for diagonal but minimum move rule applies
       const result = await actionSystem.executeAction(lowMovementUnit, ActionType.GOTO, 11, 11);
 
-      expect(result.success).toBe(false);
-      // GOTO now uses pathfinding which may give different error message
-      expect(result.message).toBeDefined();
+      expect(result.success).toBe(true); // Minimum move rule allows this
+      expect(result.newPosition).toEqual({ x: 11, y: 11 });
+      expect(result.newMovementLeft).toBe(0); // All movement consumed
     });
 
     it('should reject movement when unit has no movement left', async () => {
