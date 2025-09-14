@@ -1,0 +1,169 @@
+/* Game Dialog Theme Enhancements */
+
+/* Medieval Theme Effects */
+.game-dialog-medieval {
+  /* Parchment texture effect */
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(139, 69, 19, 0.05) 0%, transparent 30%),
+    radial-gradient(circle at 80% 80%, rgba(160, 82, 45, 0.05) 0%, transparent 30%),
+    linear-gradient(45deg, transparent 49%, rgba(139, 69, 19, 0.02) 50%, transparent 51%);
+
+  /* Optional: Add noise texture */
+  background-blend-mode: multiply;
+}
+
+.game-dialog-medieval::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4aa7d' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+/* Futuristic Theme Effects */
+.game-dialog-futuristic {
+  /* Holographic effect */
+  background-image:
+    linear-gradient(90deg, transparent 79%, rgba(34, 211, 238, 0.03) 80%, transparent 81%),
+    linear-gradient(0deg, transparent 79%, rgba(34, 211, 238, 0.03) 80%, transparent 81%);
+  background-size: 20px 20px;
+
+  /* Glow effect */
+  box-shadow:
+    0 0 20px rgba(34, 211, 238, 0.1),
+    inset 0 0 20px rgba(34, 211, 238, 0.05),
+    0 4px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Stone Theme Effects */
+.game-dialog-stone {
+  /* Stone texture */
+  background-image:
+    radial-gradient(circle at 30% 30%, rgba(75, 85, 99, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 70% 70%, rgba(107, 114, 128, 0.1) 0%, transparent 50%),
+    linear-gradient(45deg, rgba(156, 163, 175, 0.05) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(156, 163, 175, 0.05) 25%, transparent 25%);
+  background-size:
+    40px 40px,
+    60px 60px,
+    20px 20px,
+    20px 20px;
+}
+
+/* Metal Theme Effects */
+.game-dialog-metal {
+  /* Brushed metal effect */
+  background-image:
+    linear-gradient(90deg, rgba(148, 163, 184, 0.1) 50%, transparent 50%),
+    linear-gradient(0deg, rgba(148, 163, 184, 0.05) 50%, transparent 50%);
+  background-size:
+    4px 4px,
+    40px 40px;
+
+  /* Metallic sheen */
+  position: relative;
+}
+
+.game-dialog-metal::after {
+  content: '';
+  position: absolute;
+  top: 10%;
+  left: -100%;
+  width: 100%;
+  height: 20%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  animation: metallic-shine 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes metallic-shine {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* Parchment Theme Effects */
+.game-dialog-parchment {
+  /* Aged parchment look */
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(180, 83, 9, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(146, 64, 14, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 40% 60%, rgba(133, 77, 14, 0.04) 0%, transparent 30%);
+
+  /* Subtle paper texture */
+  position: relative;
+}
+
+/* Animation effects for all themes */
+.game-dialog-content {
+  animation: game-dialog-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes game-dialog-enter {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95) rotateX(10deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) rotateX(0deg);
+  }
+}
+
+/* Button hover effects */
+.game-button-medieval:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(217, 119, 6, 0.3);
+}
+
+.game-button-futuristic:hover {
+  text-shadow: 0 0 10px currentColor;
+  box-shadow:
+    0 0 20px rgba(34, 211, 238, 0.3),
+    inset 0 0 10px rgba(34, 211, 238, 0.1);
+}
+
+.game-button-stone:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 6px 16px rgba(75, 85, 99, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.game-button-metal:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 6px 16px rgba(71, 85, 105, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.game-button-parchment:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(146, 64, 14, 0.3);
+}
+
+/* Scrollbar styling for game dialogs */
+.game-dialog-content ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.game-dialog-content ::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.game-dialog-content ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.game-dialog-content ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
+}

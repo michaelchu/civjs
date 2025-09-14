@@ -4,6 +4,7 @@ import { GameCreationDialog } from './components/GameCreationDialog';
 import { TerrainSettingsDialog } from './components/TerrainSettingsDialog';
 import { GameLobby } from './components/GameLobby';
 import { GameRoute } from './components/GameRoute';
+import { GameDialogExample } from './components/examples/GameDialogExample';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/terrain-settings" element={<TerrainSettingsDialog />} />
         <Route path="/browse-games" element={<GameLobby />} />
         <Route path="/game/:gameId" element={<GameRoute />} />
+        <Route path="/dialog-examples" element={<GameDialogExample />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+@import './components/ui/game-theme.css';
 
 @theme {
   /* Custom CivJS color palette */
