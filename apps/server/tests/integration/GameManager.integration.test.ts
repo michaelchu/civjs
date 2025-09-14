@@ -494,7 +494,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
       expect(city).toBeDefined();
       expect(city!.name).toBe('NewCity');
       expect(unit).toBeDefined();
-      expect(unit!.unitTypeId).toBe('settler');
+      expect(unit!.unitTypeId).toBe('settlers');
 
       newGameManager['games'].clear();
       newGameManager['playerToGame'].clear();
