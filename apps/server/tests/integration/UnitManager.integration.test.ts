@@ -60,9 +60,9 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       expect(UNIT_TYPES.warrior.movement).toBe(6); // 2 movement points = 6 fragments
       expect(UNIT_TYPES.warrior.combat).toBe(20);
 
-      expect(UNIT_TYPES.settler).toBeDefined();
-      expect(UNIT_TYPES.settler.canFoundCity).toBe(true);
-      expect(UNIT_TYPES.settler.combat).toBe(0);
+      expect(UNIT_TYPES.settlers).toBeDefined();
+      expect(UNIT_TYPES.settlers.canFoundCity).toBe(true);
+      expect(UNIT_TYPES.settlers.combat).toBe(0);
 
       expect(UNIT_TYPES.worker).toBeDefined();
       expect(UNIT_TYPES.worker.canBuildImprovements).toBe(true);
@@ -71,11 +71,11 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
   describe('unit creation with real database persistence', () => {
     it('should create and persist units to database', async () => {
-      const unit = await unitManager.createUnit(testData.player.id, 'warrior', 10, 10);
+      const unit = await unitManager.createUnit(testData.player.id, 'warriors', 10, 10);
 
       // Verify unit in memory
       expect(unit.playerId).toBe(testData.player.id);
-      expect(unit.unitTypeId).toBe('warrior');
+      expect(unit.unitTypeId).toBe('warriors');
       expect(unit.x).toBe(10);
       expect(unit.y).toBe(10);
       expect(unit.health).toBe(100);
@@ -91,7 +91,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
       expect(dbUnits).toHaveLength(1);
       expect(dbUnits[0].playerId).toBe(testData.player.id);
-      expect(dbUnits[0].unitType).toBe('warrior');
+      expect(dbUnits[0].unitType).toBe('warriors');
       expect(dbUnits[0].x).toBe(10);
       expect(dbUnits[0].y).toBe(10);
       expect(dbUnits[0].health).toBe(100);
@@ -114,12 +114,12 @@ describe('UnitManager - Integration Tests with Real Database', () => {
     });
 
     it('should reject invalid positions', async () => {
-      await expect(unitManager.createUnit(testData.player.id, 'warrior', -1, 10)).rejects.toThrow(
+      await expect(unitManager.createUnit(testData.player.id, 'warriors', -1, 10)).rejects.toThrow(
         'Invalid position: -1, 10'
       );
 
       await expect(
-        unitManager.createUnit(testData.player.id, 'warrior', mapWidth + 1, 10)
+        unitManager.createUnit(testData.player.id, 'warriors', mapWidth + 1, 10)
       ).rejects.toThrow('Invalid position: 81, 10');
 
       // Verify no units were created
@@ -132,7 +132,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
     it('should prevent stacking civilian units', async () => {
       // Create first civilian unit
-      await unitManager.createUnit(testData.player.id, 'settler', 10, 10);
+      await unitManager.createUnit(testData.player.id, 'settlers', 10, 10);
 
       // Try to create another civilian at same position (should fail)
       await expect(unitManager.createUnit(testData.player.id, 'worker', 10, 10)).rejects.toThrow(
@@ -145,7 +145,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         where: (units, { eq }) => eq(units.gameId, testData.game.id),
       });
       expect(dbUnits).toHaveLength(1);
-      expect(dbUnits[0].unitType).toBe('settler');
+      expect(dbUnits[0].unitType).toBe('settlers');
     });
   });
 
@@ -153,7 +153,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
     let unitId: string;
 
     beforeEach(async () => {
-      const unit = await unitManager.createUnit(testData.player.id, 'warrior', 10, 10);
+      const unit = await unitManager.createUnit(testData.player.id, 'warriors', 10, 10);
       unitId = unit.id;
     });
 
@@ -206,7 +206,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       const enemyData = await createTestGameAndPlayer();
 
       // Create enemy unit
-      const enemyUnit = await unitManager.createUnit(enemyData.player.id, 'warrior', 11, 10);
+      const enemyUnit = await unitManager.createUnit(enemyData.player.id, 'warriors', 11, 10);
 
       await expect(unitManager.moveUnit(unitId, 11, 10)).rejects.toThrow(
         'Cannot move to tile occupied by enemy unit'
@@ -235,11 +235,11 @@ describe('UnitManager - Integration Tests with Real Database', () => {
     let defenderUnitId: string;
 
     beforeEach(async () => {
-      const attacker = await unitManager.createUnit(testData.player.id, 'warrior', 10, 10);
+      const attacker = await unitManager.createUnit(testData.player.id, 'warriors', 10, 10);
 
       // Create enemy player first
       const enemyData = await createTestGameAndPlayer();
-      const defender = await unitManager.createUnit(enemyData.player.id, 'warrior', 11, 10);
+      const defender = await unitManager.createUnit(enemyData.player.id, 'warriors', 11, 10);
       attackerUnitId = attacker.id;
       defenderUnitId = defender.id;
     });
@@ -354,7 +354,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         id: corruptUnitId,
         gameId: testData.game.id,
         playerId: testData.player.id,
-        unitType: 'warrior',
+        unitType: 'warriors',
         x: 5,
         y: 5,
         health: 100,
@@ -380,7 +380,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
     let unitId: string;
 
     beforeEach(async () => {
-      const unit = await unitManager.createUnit(testData.player.id, 'warrior', 10, 10);
+      const unit = await unitManager.createUnit(testData.player.id, 'warriors', 10, 10);
       unitId = unit.id;
       // Use some movement
       await unitManager.moveUnit(unitId, 11, 10);

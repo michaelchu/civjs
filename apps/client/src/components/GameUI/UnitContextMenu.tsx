@@ -87,10 +87,10 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
 
     // Military unit actions
     if (
-      unit.unitTypeId === 'warrior' ||
-      unit.unitTypeId === 'archer' ||
-      unit.unitTypeId === 'spearman' ||
-      unit.unitTypeId === 'scout'
+      unit.unitTypeId === 'warriors' ||
+      unit.unitTypeId === 'archers' ||
+      unit.unitTypeId === 'phalanx' ||
+      unit.unitTypeId === 'explorer'
     ) {
       actions.push(
         { separator: true },
@@ -109,7 +109,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
       );
 
       // Combat actions for military units
-      if (unit.unitTypeId !== 'scout') {
+      if (unit.unitTypeId !== 'explorer') {
         actions.push({
           action: ActionType.PATROL,
           name: 'Patrol',
@@ -120,7 +120,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     }
 
     // Settler actions
-    if (unit.unitTypeId === 'settler') {
+    if (unit.unitTypeId === 'settlers') {
       actions.push(
         { separator: true },
         {
@@ -187,8 +187,8 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
       });
     }
 
-    // Scout actions
-    if (unit.unitTypeId === 'scout') {
+    // Explorer actions
+    if (unit.unitTypeId === 'explorer') {
       actions.push(
         { separator: true },
         {

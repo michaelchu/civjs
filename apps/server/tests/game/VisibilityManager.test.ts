@@ -62,7 +62,7 @@ describe('VisibilityManager', () => {
 
     it('should update visibility when player has units', async () => {
       // Create a warrior at position (10, 10)
-      await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
 
       // Update visibility
       visibilityManager.updatePlayerVisibility('player-123');
@@ -78,7 +78,7 @@ describe('VisibilityManager', () => {
 
     it('should calculate correct sight range for different unit types', async () => {
       // Create warrior (sight 2) and explorer (sight 2)
-      await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
       await unitManager.createUnit('player-123', 'explorer', 15, 15);
 
       visibilityManager.updatePlayerVisibility('player-123');
@@ -104,7 +104,7 @@ describe('VisibilityManager', () => {
 
     it('should handle units at map edges', async () => {
       // Create unit at map edge
-      await unitManager.createUnit('player-123', 'warrior', 0, 0);
+      await unitManager.createUnit('player-123', 'warriors', 0, 0);
 
       visibilityManager.updatePlayerVisibility('player-123');
 
@@ -123,7 +123,7 @@ describe('VisibilityManager', () => {
 
     it('should accumulate explored tiles over time', async () => {
       // Create unit and update visibility
-      await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
       visibilityManager.updatePlayerVisibility('player-123');
 
       const initialExplored = visibilityManager.getExploredTiles('player-123');
@@ -148,7 +148,7 @@ describe('VisibilityManager', () => {
   describe('tile visibility queries', () => {
     beforeEach(async () => {
       visibilityManager.initializePlayerVisibility('player-123');
-      await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
       visibilityManager.updatePlayerVisibility('player-123');
     });
 
@@ -184,7 +184,7 @@ describe('VisibilityManager', () => {
   describe('map view filtering', () => {
     beforeEach(async () => {
       visibilityManager.initializePlayerVisibility('player-123');
-      await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
       visibilityManager.updatePlayerVisibility('player-123');
     });
 
@@ -243,7 +243,7 @@ describe('VisibilityManager', () => {
       const initialVisible = visibilityManager.getVisibleTiles('player-123');
       expect(initialVisible.size).toBe(0);
 
-      await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
       visibilityManager.onUnitCreated('player-123');
 
       const newVisible = visibilityManager.getVisibleTiles('player-123');
@@ -251,7 +251,7 @@ describe('VisibilityManager', () => {
     });
 
     it('should update visibility when unit moves', async () => {
-      await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
       visibilityManager.onUnitCreated('player-123');
 
       // Reset movement and move unit
@@ -271,7 +271,7 @@ describe('VisibilityManager', () => {
     });
 
     it('should update visibility when unit is destroyed', async () => {
-      await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
       visibilityManager.onUnitCreated('player-123');
 
       const visibleBeforeDestroy = visibilityManager.getVisibleTiles('player-123');
@@ -292,8 +292,8 @@ describe('VisibilityManager', () => {
       visibilityManager.initializePlayerVisibility('player-1');
       visibilityManager.initializePlayerVisibility('player-2');
 
-      await unitManager.createUnit('player-1', 'warrior', 5, 5);
-      await unitManager.createUnit('player-2', 'warrior', 15, 15);
+      await unitManager.createUnit('player-1', 'warriors', 5, 5);
+      await unitManager.createUnit('player-2', 'warriors', 15, 15);
 
       visibilityManager.updatePlayerVisibility('player-1');
       visibilityManager.updatePlayerVisibility('player-2');
@@ -367,7 +367,7 @@ describe('VisibilityManager', () => {
   describe('debug information', () => {
     it('should provide useful debug information', async () => {
       visibilityManager.initializePlayerVisibility('player-123');
-      await unitManager.createUnit('player-123', 'warrior', 10, 10);
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
       visibilityManager.updatePlayerVisibility('player-123');
 
       const debugInfo = visibilityManager.getDebugInfo();

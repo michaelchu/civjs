@@ -1,6 +1,5 @@
 import { Socket } from 'socket.io';
 import { CityProductionHandler } from '@network/handlers/CityProductionHandler';
-import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
 
 // Mock dependencies with proper Jest mock typing
@@ -37,7 +36,7 @@ describe('CityProductionHandler', () => {
       size: 3,
       buildings: ['granary'],
       shieldStock: 10,
-      currentProduction: 'warrior',
+      currentProduction: 'warriors',
       productionType: 'unit',
       productionPerTurn: 4, // Realistic shield production for size 3 city
       surplus: {
@@ -75,7 +74,7 @@ describe('CityProductionHandler', () => {
         cityId: 'city-1',
         productions: expect.arrayContaining([
           expect.objectContaining({
-            id: 'warrior',
+            id: 'warriors',
             name: 'Warriors', // From freeciv ruleset
             type: 'unit',
             cost: 10, // Exact cost from freeciv
@@ -178,7 +177,7 @@ describe('CityProductionHandler', () => {
         }),
         shieldStock: expect.any(Number),
         penalty: expect.any(Number),
-        previousProduction: 'warrior',
+        previousProduction: 'warriors',
         previousType: 'unit',
       });
     });
@@ -224,7 +223,7 @@ describe('CityProductionHandler', () => {
       await handler.changeProduction(mockSocket, {
         cityId: 'non-existent',
         playerId: 'player-1',
-        productionId: 'warrior',
+        productionId: 'warriors',
         productionType: 'unit',
       });
 
@@ -248,7 +247,7 @@ describe('CityProductionHandler', () => {
         }),
         shieldStock: expect.any(Number),
         penalty: expect.any(Number),
-        previousProduction: 'warrior',
+        previousProduction: 'warriors',
         previousType: 'unit',
       });
     });
@@ -258,7 +257,18 @@ describe('CityProductionHandler', () => {
     it('should allow building warrior with no tech requirements', () => {
       const city = mockCities.get('city-1');
       const player = mockPlayers.get('player-1');
-      const unitType = UNIT_TYPES.warrior;
+      // Create a mock warrior unit type without required tech
+      const unitType = {
+        id: 'warriors',
+        name: 'Warriors',
+        cost: 10,
+        attack: 1,
+        defense: 1,
+        hitpoints: 10,
+        firepower: 1,
+        move_rate: 3,
+        // No requiredTech property - basic unit
+      };
 
       const result = (handler as any).canCityBuildUnit(city, unitType, player);
       expect(result).toBe(true);
@@ -268,7 +278,17 @@ describe('CityProductionHandler', () => {
       const city = mockCities.get('city-1');
       city.size = 1;
       const player = mockPlayers.get('player-1');
-      const unitType = UNIT_TYPES.settlers; // Use 'settlers' from freeciv
+      // Create a mock settlers unit type
+      const unitType = {
+        id: 'settlers',
+        name: 'Settlers',
+        cost: 40,
+        attack: 0,
+        defense: 1,
+        hitpoints: 20,
+        firepower: 1,
+        move_rate: 3,
+      };
 
       const result = (handler as any).canCityBuildUnit(city, unitType, player);
       expect(result).toBe(false);
@@ -277,7 +297,18 @@ describe('CityProductionHandler', () => {
     it('should check technology requirements', () => {
       const city = mockCities.get('city-1');
       const player = mockPlayers.get('player-1');
-      const unitType = { ...UNIT_TYPES.warrior, requiredTech: 'missing_tech' };
+      // Create a unit type that requires technology
+      const unitType = {
+        id: 'advanced_unit',
+        name: 'Advanced Unit',
+        cost: 30,
+        attack: 2,
+        defense: 2,
+        hitpoints: 15,
+        firepower: 1,
+        move_rate: 3,
+        requiredTech: 'missing_tech',
+      };
 
       mockResearchManager.hasPlayerResearched.mockReturnValue(false);
 
@@ -321,7 +352,7 @@ describe('CityProductionHandler', () => {
     it('should return 0 penalty for same production', () => {
       const city = mockCities.get('city-1');
 
-      const penalty = (handler as any).calculateProductionChangePenalty(city, 'warrior', 'unit');
+      const penalty = (handler as any).calculateProductionChangePenalty(city, 'warriors', 'unit');
 
       expect(penalty).toBe(0);
     });
