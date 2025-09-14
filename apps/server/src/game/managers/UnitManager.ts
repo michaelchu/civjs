@@ -994,6 +994,24 @@ export class UnitManager {
    * This handles multi-turn GOTO movements and other queued actions
    */
   async processUnitOrders(playerId: string): Promise<void> {
+    const playerUnits = Array.from(this.units.values()).filter(u => u.playerId === playerId);
+    const unitsWithOrders = playerUnits.filter(u => u.orders && u.orders.length > 0);
+
+    logger.info('Processing unit orders at turn start', {
+      gameId: this.gameId,
+      playerId,
+      totalPlayerUnits: playerUnits.length,
+      unitsWithOrders: unitsWithOrders.length,
+      orderDetails: unitsWithOrders.map(u => ({
+        unitId: u.id,
+        unitType: u.unitTypeId,
+        position: { x: u.x, y: u.y },
+        movementLeft: u.movementLeft,
+        ordersCount: u.orders?.length || 0,
+        firstOrder: u.orders?.[0] || null,
+      })),
+    });
+
     for (const unit of this.units.values()) {
       await this.processUnitOrder(unit, playerId);
     }
@@ -1063,8 +1081,22 @@ export class UnitManager {
   private async processMoveOrder(unit: Unit, order: any): Promise<void> {
     // Only process move orders with valid target coordinates
     if (order.type !== 'move' || order.targetX === undefined || order.targetY === undefined) {
+      logger.debug('Skipping invalid move order', {
+        unitId: unit.id,
+        orderType: order.type,
+        targetX: order.targetX,
+        targetY: order.targetY,
+      });
       return;
     }
+
+    logger.info('Processing move order', {
+      unitId: unit.id,
+      unitType: unit.unitTypeId,
+      currentPosition: { x: unit.x, y: unit.y },
+      targetPosition: { x: order.targetX, y: order.targetY },
+      movementLeft: unit.movementLeft,
+    });
 
     // Execute the GOTO action
     const result = await this.actionSystem.executeAction(
@@ -1073,6 +1105,15 @@ export class UnitManager {
       order.targetX,
       order.targetY
     );
+
+    logger.info('Move order execution result', {
+      unitId: unit.id,
+      success: result.success,
+      message: result.message,
+      newPosition: result.newPosition,
+      newMovementLeft: result.newMovementLeft,
+      hasNewOrders: !!result.newOrders && result.newOrders.length > 0,
+    });
 
     if (result.success) {
       await this.handleSuccessfulGoto(unit, order, result);
