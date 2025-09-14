@@ -1,5 +1,5 @@
 // Reference: /root/repo/reference/freeciv-web/javascript/overview.js
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { MinimapRenderer } from '../../utils/minimapRenderer';
 import type { MinimapColorMode, MinimapRenderOptions } from '../../utils/minimapRenderer';
@@ -22,6 +22,7 @@ export const MinimapCanvas: React.FC<MinimapCanvasProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewrectCanvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<MinimapRenderer>(new MinimapRenderer());
+  const lastRenderTime = useRef<number>(0);
 
   const gameStore = useGameStore();
   const {
@@ -43,21 +44,39 @@ export const MinimapCanvas: React.FC<MinimapCanvasProps> = ({
 
   // const currentPlayer = currentPlayerId ? players[currentPlayerId] : null;
 
-  const gameState = {
-    turn,
-    phase,
-    map,
-    players,
-    currentPlayerId,
-    units,
-    cities,
-    technologies,
-    governments,
-    terrainTypes,
-    nations,
-    isObserver,
-    diplomaticStates,
-  };
+  // Memoize gameState to prevent unnecessary re-renders
+  const gameState = useMemo(
+    () => ({
+      turn,
+      phase,
+      map,
+      players,
+      currentPlayerId,
+      units,
+      cities,
+      technologies,
+      governments,
+      terrainTypes,
+      nations,
+      isObserver,
+      diplomaticStates,
+    }),
+    [
+      turn,
+      phase,
+      map,
+      players,
+      currentPlayerId,
+      units,
+      cities,
+      technologies,
+      governments,
+      terrainTypes,
+      nations,
+      isObserver,
+      diplomaticStates,
+    ]
+  );
 
   /**
    * Render the main minimap
@@ -65,7 +84,20 @@ export const MinimapCanvas: React.FC<MinimapCanvasProps> = ({
    */
   const redrawMinimap = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !map) return;
+    if (!canvas || !map || !map.tiles) return;
+
+    // Don't render minimap until we have actual game data
+    if (Object.keys(map.tiles).length === 0 || Object.keys(players).length === 0) {
+      return;
+    }
+
+    // Throttle minimap updates to prevent interference with main map rendering
+    const now = Date.now();
+    if (now - lastRenderTime.current < 100) {
+      // Limit to 10 FPS max
+      return;
+    }
+    lastRenderTime.current = now;
 
     const renderer = rendererRef.current;
 
@@ -100,10 +132,35 @@ export const MinimapCanvas: React.FC<MinimapCanvasProps> = ({
       // Render to canvas
       renderer.renderToCanvas(canvas, grid, palette, renderWidth, renderHeight);
 
-      // Render viewport rectangle
-      renderViewrect();
+      // Render viewport rectangle (call directly to avoid circular dependency)
+      const viewrectCanvas = viewrectCanvasRef.current;
+      if (viewrectCanvas && viewport) {
+        const ctx = viewrectCanvas.getContext('2d');
+        if (ctx) {
+          viewrectCanvas.width = width;
+          viewrectCanvas.height = height;
+          ctx.clearRect(0, 0, width, height);
+
+          const mapWidth = map.xsize || map.width;
+          const mapHeight = map.ysize || map.height;
+          const scaleX = width / mapWidth;
+          const scaleY = height / mapHeight;
+
+          const viewX = viewport.x * scaleX;
+          const viewY = viewport.y * scaleY;
+          const viewWidth = (viewport.width || 20) * scaleX;
+          const viewHeight = (viewport.height || 15) * scaleY;
+
+          ctx.strokeStyle = 'rgb(200, 200, 255)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.rect(viewX, viewY, viewWidth, viewHeight);
+          ctx.stroke();
+        }
+      }
     }
-  }, [gameState, colorMode, width, height, viewport, map]);
+  }, [gameState, colorMode, width, height, viewport, map, players]);
 
   /**
    * Render the viewport rectangle showing current view
@@ -179,9 +236,14 @@ export const MinimapCanvas: React.FC<MinimapCanvasProps> = ({
     [map, width, height, onTileClick]
   );
 
-  // Redraw when dependencies change
+  // Redraw when dependencies change, with delay on initial load
   useEffect(() => {
-    redrawMinimap();
+    // Delay initial render to avoid interfering with main map initialization
+    const timeoutId = setTimeout(() => {
+      redrawMinimap();
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(timeoutId);
   }, [redrawMinimap]);
 
   // Redraw viewport rectangle when viewport changes

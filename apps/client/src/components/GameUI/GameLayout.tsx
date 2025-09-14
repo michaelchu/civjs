@@ -16,7 +16,7 @@ export const GameLayout: React.FC = () => {
     height: window.innerHeight,
   });
 
-  const { activeTab, clientState, setViewport } = useGameStore();
+  const { activeTab, clientState, setViewport, minimapVisible, setMinimapVisible } = useGameStore();
 
   // Initialize keyboard controls
   useKeyboardControls();
@@ -74,6 +74,13 @@ export const GameLayout: React.FC = () => {
         <GameTabs />
         <div className="flex items-center space-x-4">
           <StatusPanel />
+          <button
+            onClick={() => setMinimapVisible(!minimapVisible)}
+            className="px-2 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs"
+            title={minimapVisible ? 'Hide Minimap' : 'Show Minimap'}
+          >
+            🗺️ {minimapVisible ? 'Hide' : 'Show'} Map
+          </button>
           <TurnDoneButton />
         </div>
       </div>
