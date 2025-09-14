@@ -826,6 +826,17 @@ export class ActionSystem {
     );
 
     if (tilesTraversed === 0) {
+      const unitType = getUnitType(unit.unitTypeId);
+      logger.warn('Unit cannot traverse any tiles', {
+        unitId: unit.id,
+        unitType: unit.unitTypeId,
+        currentMovement: unit.movementLeft,
+        expectedMaxMovement: unitType ? unitType.movement * 3 : 'unknown',
+        pathLength: pathResult.path?.tiles?.length || 0,
+        singleMoveCost: SINGLE_MOVE,
+        diagonalMoveCost: Math.floor(SINGLE_MOVE * 1.5),
+        unitTypeFound: !!unitType,
+      });
       return { success: false, message: 'Insufficient movement points to start moving' };
     }
 
