@@ -57,9 +57,26 @@ export class CityProductionHandler {
 
       const availableProductions: ProductionOption[] = [];
 
+      logger.info('Getting available productions for city', {
+        cityId,
+        cityName: city.name,
+        playerId,
+        unitTypesCount: Object.keys(UNIT_TYPES).length,
+        buildingTypesCount: Object.keys(BUILDING_TYPES).length,
+        unitTypes: Object.keys(UNIT_TYPES),
+        buildingTypes: Object.keys(BUILDING_TYPES),
+      });
+
       // Add available units based on technology
       for (const [unitId, unitType] of Object.entries(UNIT_TYPES)) {
         const isAvailable = this.canCityBuildUnit(city, unitType, player);
+        logger.debug('Processing unit type', {
+          unitId,
+          unitName: unitType.name,
+          cost: unitType.cost,
+          isAvailable,
+        });
+
         availableProductions.push({
           id: unitId,
           name: unitType.name,
@@ -74,6 +91,13 @@ export class CityProductionHandler {
       // Add available buildings based on technology and existing buildings
       for (const [buildingId, buildingType] of Object.entries(BUILDING_TYPES)) {
         const isAvailable = this.canCityBuildBuilding(city, buildingType, player);
+        logger.debug('Processing building type', {
+          buildingId,
+          buildingName: buildingType.name,
+          cost: buildingType.cost,
+          isAvailable,
+        });
+
         availableProductions.push({
           id: buildingId,
           name: buildingType.name,
@@ -89,15 +113,27 @@ export class CityProductionHandler {
       const wonders = this.getAvailableWonders(city, player);
       availableProductions.push(...wonders);
 
+      logger.info('Final available productions for city', {
+        cityId,
+        cityName: city.name,
+        playerId,
+        productionCount: availableProductions.length,
+        productions: availableProductions.map(p => ({
+          id: p.id,
+          name: p.name,
+          type: p.type,
+          cost: p.cost,
+          available: p.available,
+        })),
+      });
+
       socket.emit('city:availableProductions', {
         cityId,
         productions: availableProductions,
       });
 
-      logger.info('Sent available productions for city', {
+      logger.info('Sent available productions response to client', {
         cityId,
-        cityName: city.name,
-        playerId,
         productionCount: availableProductions.length,
       });
     } catch (error) {

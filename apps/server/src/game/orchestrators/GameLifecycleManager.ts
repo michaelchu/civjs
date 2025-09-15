@@ -264,11 +264,27 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     // Set up callbacks after all managers are created
     cityManager.setCallbacks({
       onCityProductionComplete: async (city, item) => {
+        this.logger.info(`City production completion callback triggered`, {
+          cityId: city.id,
+          cityName: city.name,
+          playerId: city.playerId,
+          productionKind: item.kind,
+          productionValue: item.value,
+        });
+
         if (item.kind === 'unit') {
           try {
+            this.logger.info(`Creating unit ${item.value} at city ${city.name}`, {
+              cityId: city.id,
+              playerId: city.playerId,
+              unitType: item.value,
+              x: city.x,
+              y: city.y,
+            });
+
             // Create unit at city location
             const unit = await unitManager.createUnit(city.playerId, item.value, city.x, city.y);
-            this.logger.info(`Unit ${item.value} created at city ${city.name}`, {
+            this.logger.info(`Unit ${item.value} created successfully at city ${city.name}`, {
               cityId: city.id,
               playerId: city.playerId,
               unitType: item.value,
@@ -277,15 +293,30 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
               y: city.y,
             });
 
-            // Broadcast the new unit to all players in the game
-            this.io.to(`game:${gameId}`).emit('packet', {
-              type: PacketType.UNIT_INFO,
-              data: {
-                units: [this.formatUnitForClient(unit, unitManager)],
-              },
+            // Format unit for client before broadcasting
+            const formattedUnit = this.formatUnitForClient(unit, unitManager);
+            this.logger.info('Formatted unit for client', {
+              formattedUnit,
+              originalUnit: unit,
             });
 
-            this.logger.debug('New unit broadcasted to game', {
+            // Broadcast the new unit to all players in the game
+            const packetData = {
+              type: PacketType.UNIT_INFO,
+              data: {
+                units: [formattedUnit],
+              },
+            };
+
+            this.logger.info('Broadcasting UNIT_INFO packet', {
+              gameId,
+              packetData,
+              roomName: `game:${gameId}`,
+            });
+
+            this.io.to(`game:${gameId}`).emit('packet', packetData);
+
+            this.logger.info('New unit broadcasted to game successfully', {
               gameId,
               unitId: unit.id,
               playerId: city.playerId,
