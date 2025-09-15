@@ -150,7 +150,7 @@ export const useGameStore = create<GameStore>()(
     turnProcessingSteps: [],
 
     // Minimap initial state
-    minimapVisible: false, // Disabled by default to prevent rendering conflicts
+    minimapVisible: true,
 
     // Actions
     setClientState: (state: ClientState) => {

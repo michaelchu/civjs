@@ -51,7 +51,7 @@ export class MinimapRenderer {
     this.paletteTerrainOffset = Object.keys(palette).length;
 
     // Add terrain colors
-    if (gameState.terrainTypes) {
+    if (gameState.terrainTypes && Object.keys(gameState.terrainTypes).length > 0) {
       Object.values(gameState.terrainTypes).forEach((terrain, index) => {
         const terrainIndex = this.paletteTerrainOffset + index;
         // Use terrain colors if available, otherwise default colors
@@ -60,6 +60,19 @@ export class MinimapRenderer {
           terrain.colorGreen || 100,
           terrain.colorBlue || 100,
         ];
+      });
+    } else {
+      // Fallback terrain colors when no terrain types available
+      const defaultTerrains = [
+        [34, 139, 34], // Forest green
+        [160, 82, 45], // Saddle brown (mountains)
+        [255, 215, 0], // Gold (desert)
+        [50, 205, 50], // Lime green (grassland)
+        [30, 144, 255], // Dodger blue (ocean)
+        [139, 69, 19], // Saddle brown (hills)
+      ];
+      defaultTerrains.forEach((color, index) => {
+        palette[this.paletteTerrainOffset + index] = color as [number, number, number];
       });
     }
 

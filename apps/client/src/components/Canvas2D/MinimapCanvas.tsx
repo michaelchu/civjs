@@ -84,17 +84,12 @@ export const MinimapCanvas: React.FC<MinimapCanvasProps> = ({
    */
   const redrawMinimap = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !map || !map.tiles) return;
+    if (!canvas || !map) return;
 
-    // Don't render minimap until we have actual game data
-    if (Object.keys(map.tiles).length === 0 || Object.keys(players).length === 0) {
-      return;
-    }
-
-    // Throttle minimap updates to prevent interference with main map rendering
+    // Basic throttling to prevent excessive renders
     const now = Date.now();
-    if (now - lastRenderTime.current < 100) {
-      // Limit to 10 FPS max
+    if (now - lastRenderTime.current < 50) {
+      // 20 FPS max
       return;
     }
     lastRenderTime.current = now;
@@ -236,14 +231,9 @@ export const MinimapCanvas: React.FC<MinimapCanvasProps> = ({
     [map, width, height, onTileClick]
   );
 
-  // Redraw when dependencies change, with delay on initial load
+  // Redraw when dependencies change
   useEffect(() => {
-    // Delay initial render to avoid interfering with main map initialization
-    const timeoutId = setTimeout(() => {
-      redrawMinimap();
-    }, 500); // 500ms delay
-
-    return () => clearTimeout(timeoutId);
+    redrawMinimap();
   }, [redrawMinimap]);
 
   // Redraw viewport rectangle when viewport changes
