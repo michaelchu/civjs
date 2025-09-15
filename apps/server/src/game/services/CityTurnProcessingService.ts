@@ -217,11 +217,25 @@ export class CityTurnProcessingService extends BaseGameService {
    * Process a single city's turn with comprehensive timing and error handling
    */
   async processCityTurn(cityId: string, currentTurn: number): Promise<void> {
+    logger.info('Starting city turn processing', {
+      cityId,
+      currentTurn,
+    });
+
     const city = this.dependencies.cities.get(cityId);
     if (!city) {
       logger.warn(`Cannot process turn for city: ${cityId} - city not found`);
       return;
     }
+
+    logger.info('Processing turn for city', {
+      cityId,
+      cityName: city.name,
+      currentTurn,
+      playerId: city.playerId,
+      currentProduction: city.currentProduction,
+      productionStock: city.productionStock,
+    });
 
     const startTime = Date.now();
     const stepTimings: TurnStepTiming[] = [];
@@ -385,13 +399,34 @@ export class CityTurnProcessingService extends BaseGameService {
    * Process production accumulation and completion
    */
   private async processProduction(city: CityState, _currentTurn: number): Promise<void> {
+    logger.info('Processing production for city', {
+      cityId: city.id,
+      cityName: city.name,
+      currentProduction: city.currentProduction,
+      productionType: city.productionType,
+      productionStock: city.productionStock,
+      productionPerTurn: city.productionPerTurn,
+    });
+
     if (!city.currentProduction) {
+      logger.warn('No current production set for city', {
+        cityId: city.id,
+        cityName: city.name,
+      });
       return;
     }
 
     const productionPerTurn = city.productionPerTurn || 0;
     const currentProductionStock = city.productionStock || 0;
     const newProductionStock = currentProductionStock + productionPerTurn;
+
+    logger.info('Production calculation', {
+      cityId: city.id,
+      cityName: city.name,
+      productionPerTurn,
+      currentProductionStock,
+      newProductionStock,
+    });
 
     let productionCost = 0;
     let productionIsValid = true;
@@ -450,14 +485,36 @@ export class CityTurnProcessingService extends BaseGameService {
       productionCost = 1;
     }
 
+    logger.info('Checking production completion', {
+      cityId: city.id,
+      cityName: city.name,
+      newProductionStock,
+      productionCost,
+      isComplete: newProductionStock >= productionCost,
+    });
+
     if (newProductionStock >= productionCost) {
       // Production completed
+      logger.info('PRODUCTION COMPLETED - triggering completion', {
+        cityId: city.id,
+        cityName: city.name,
+        productionType: city.productionType,
+        productionItem: city.currentProduction,
+        finalStock: newProductionStock,
+        requiredCost: productionCost,
+      });
       await this.completeProduction(city.id);
     } else {
       city.productionStock = newProductionStock;
       city.turnsToComplete = Math.ceil(
         (productionCost - newProductionStock) / Math.max(1, productionPerTurn)
       );
+      logger.info('Production in progress', {
+        cityId: city.id,
+        cityName: city.name,
+        productionStock: newProductionStock,
+        turnsToComplete: city.turnsToComplete,
+      });
     }
   }
 

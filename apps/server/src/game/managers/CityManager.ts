@@ -610,8 +610,29 @@ export class CityManager {
       throw new Error(validation.errorMessage);
     }
 
+    // Check if a city already exists at this location to prevent duplicates
+    const existingCity = Array.from(this.cities.values()).find(c => c.x === x && c.y === y);
+    if (existingCity) {
+      logger.warn('City already exists at this location', {
+        existingCityId: existingCity.id,
+        existingCityName: existingCity.name,
+        x,
+        y,
+        playerId,
+      });
+      throw new Error(`City already exists at location (${x}, ${y})`);
+    }
+
     const cityId = randomUUID();
     const currentTurn = 1; // This would come from game state
+
+    logger.info('Generated city ID for founding', {
+      cityId,
+      name,
+      x,
+      y,
+      playerId,
+    });
 
     const city: CityState = {
       id: cityId,
