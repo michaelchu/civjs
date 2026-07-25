@@ -81,6 +81,7 @@ services:
       - ./apps/server:/app
       - /app/node_modules
       - ./apps/server/logs:/app/logs
+    command: npm run dev
     restart: unless-stopped
 
   # React Client
