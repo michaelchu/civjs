@@ -172,6 +172,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
     researchManager: ResearchManager;
     pathfindingManager: PathfindingManager;
     visibilityManager: VisibilityManager;
+    borderManager: BorderManager;
+    mapManager: MapManager;
   }> {
     // Create managers in dependency order
     const effectsManager = new EffectsManager();
@@ -319,6 +321,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       researchManager,
       pathfindingManager,
       visibilityManager,
+      borderManager,
+      mapManager,
     };
   }
 
@@ -333,6 +337,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       researchManager: ResearchManager;
       pathfindingManager: PathfindingManager;
       visibilityManager: VisibilityManager;
+      borderManager: BorderManager;
+      mapManager: MapManager;
     }
   ): GameInstance {
     return {
@@ -356,15 +362,13 @@ export class GameInstanceRecoveryService extends BaseGameService {
       turnPhase: game.turnPhase as TurnPhase,
       players,
       turnManager: managers.turnManager,
-      mapManager:
-        (managers.unitManager as any).mapManager ||
-        (managers as any).mapManager ||
-        managers.turnManager, // placeholder, mapManager is referenced separately
+      mapManager: managers.mapManager,
       unitManager: managers.unitManager,
       visibilityManager: managers.visibilityManager,
       cityManager: managers.cityManager,
       researchManager: managers.researchManager,
       pathfindingManager: managers.pathfindingManager,
+      borderManager: managers.borderManager,
       lastActivity: new Date(),
     } as unknown as GameInstance;
   }
@@ -372,11 +376,30 @@ export class GameInstanceRecoveryService extends BaseGameService {
   private async loadDataIntoManagers(managers: {
     cityManager: CityManager;
     unitManager: UnitManager;
+    borderManager: BorderManager;
   }): Promise<void> {
     // Initialize CityManager services (including TileManagementService for terrain-based calculations)
     await managers.cityManager.initialize();
     await managers.cityManager.loadCities();
     await managers.unitManager.loadUnits();
+    this.restoreBorderSources(managers.cityManager, managers.borderManager);
+  }
+
+  private restoreBorderSources(cityManager: CityManager, borderManager: BorderManager): void {
+    for (const city of cityManager.getAllCities()) {
+      const source = {
+        x: city.x,
+        y: city.y,
+        playerId: city.playerId,
+        type: 'city' as const,
+        strength: 0,
+        radius: 0,
+        cityId: city.id,
+      };
+      source.radius = borderManager.getBorderSourceRadius(source);
+      source.strength = borderManager.getBorderSourceStrength(source);
+      borderManager.addBorderSource(source);
+    }
   }
 
   private async initializeResearchAndVisibility(
@@ -426,9 +449,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
         tiles: this.deserializeMapTiles(mapData.tiles, mapData.width, mapData.height),
       };
 
-      // Set the restored map data directly in MapManager
-      // This bypasses generation and uses the stored data
-      (mapManager as any).mapData = restoredMapData;
+      // Bypass generation and restore the persisted map through MapManager's
+      // public API so its MapAccessService serves the restored tiles.
+      mapManager.setMapData(restoredMapData);
 
       logger.info('Map data restored to manager', {
         width: restoredMapData.width,
@@ -446,6 +469,20 @@ export class GameInstanceRecoveryService extends BaseGameService {
    * @reference Original GameManager.deserializeMapTiles()
    */
   private deserializeMapTiles(compressedTiles: any, width: number, height: number): any[][] {
+    // Current saves store tiles as the map's native column-major [x][y]
+    // array. Keep accepting the older coordinate-keyed object format below
+    // for saves created before the serializer was updated.
+    if (Array.isArray(compressedTiles)) {
+      return Array.from({ length: width }, (_, x) =>
+        Array.from({ length: height }, (_, y) => {
+          const tileData = compressedTiles[x]?.[y];
+          return tileData
+            ? this.applyTileData(this.createDefaultTile(x, y), tileData)
+            : this.createDefaultTile(x, y);
+        })
+      );
+    }
+
     // Create empty tile array filled with ocean tiles - match generation pattern [x][y]
     const tiles: any[][] = [];
 

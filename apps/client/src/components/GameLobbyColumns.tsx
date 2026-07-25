@@ -50,7 +50,9 @@ const GameActions: React.FC<GameActionsProps> = ({
     <div className="flex justify-end gap-2">
       <button
         onClick={() => onJoinGame(game.id)}
-        disabled={!game.canJoin || joiningGameId === game.id}
+        // An active game may be resumed by an existing player after they
+        // identify themselves on the game route.
+        disabled={(!game.canJoin && game.status !== 'active') || joiningGameId === game.id}
         className="px-3 py-1 bg-primary hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 text-primary-foreground text-sm font-medium rounded transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
       >
         {joiningGameId === game.id ? (
@@ -58,6 +60,8 @@ const GameActions: React.FC<GameActionsProps> = ({
             <div className="animate-spin w-3 h-3 border border-primary-foreground/30 border-t-transparent rounded-full mr-1"></div>
             Joining...
           </div>
+        ) : game.status === 'active' ? (
+          'Continue'
         ) : (
           'Join'
         )}
@@ -153,7 +157,7 @@ export const createGameColumns = (
       return (
         <div className="flex items-center gap-2">
           <StatusBadge status={row.getValue('status')} />
-          {!game.canJoin && (
+          {!game.canJoin && game.status === 'waiting' && (
             <span className="text-xs bg-red-500 text-white px-2 py-1 rounded-full">Full</span>
           )}
         </div>

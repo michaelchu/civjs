@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, Navigate, useNavigate } from 'react-router-dom';
+import { useParams, Navigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { gameClient } from '../services/GameClient';
 import { ConnectionDialog } from './ConnectionDialog';
@@ -10,7 +10,6 @@ export const GameRoute: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
   const [error, setError] = useState('');
   const [isJoining, setIsJoining] = useState(false);
-  const navigate = useNavigate();
 
   const { clientState, setClientState } = useGameStore();
 
@@ -65,17 +64,8 @@ export const GameRoute: React.FC = () => {
       return;
     }
 
-    // Check if this page load was due to a reload/refresh using modern API
-    const navEntries = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
-    const wasPageReloaded = navEntries.length > 0 && navEntries[0].type === 'reload';
-
-    // Only redirect to lobby on actual page refresh, not on navigation
-    if (wasPageReloaded && !gameClient.isConnected()) {
-      // This was a page reload and we're not connected, redirect to lobby
-      navigate('/browse-games');
-      return;
-    }
-
+    // A reload is a normal way to resume an active game. loadGame() restores
+    // the saved player identity and reconnects it to the existing game.
     if (gameClient.isConnected() && gameClient.getCurrentGameId() === gameId) {
       setClientState('running');
     } else {
@@ -100,7 +90,7 @@ export const GameRoute: React.FC = () => {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [gameId, navigate, loadGame, setClientState]);
+  }, [gameId, loadGame, setClientState]);
 
   if (!gameId) {
     return <Navigate to="/" replace />;

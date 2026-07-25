@@ -5,6 +5,7 @@ import { DataTable } from './ui/DataTable';
 import { createGameColumns, type GameInfo } from './GameLobbyColumns';
 import { PageBackground } from './shared/PageBackground';
 import { Button } from './ui/button';
+import { getStoredUsername, storeUsername } from '../utils/gameSession';
 
 export const GameLobby: React.FC = () => {
   const [games, setGames] = useState<GameInfo[]>([]);
@@ -36,6 +37,13 @@ export const GameLobby: React.FC = () => {
         await gameClient.connect();
       }
 
+      // Authenticate before loading the lobby so the server can mark the
+      // current user's active games as rejoinable.
+      const storedUsername = getStoredUsername();
+      if (storedUsername) {
+        await gameClient.authenticatePlayer(storedUsername);
+      }
+
       const gameList = await gameClient.getGameList();
       setGames(gameList);
       setError('');
@@ -60,6 +68,16 @@ export const GameLobby: React.FC = () => {
     setError('');
 
     try {
+      const selectedGame = games.find(game => game.id === gameId);
+      if (selectedGame?.status === 'active' && !getStoredUsername()) {
+        const playerName = window.prompt('Enter the player name used for this game:');
+        if (!playerName?.trim()) {
+          setJoiningGameId(null);
+          return;
+        }
+        storeUsername(playerName.trim());
+      }
+
       // Navigate directly to the game URL - user will enter name in the dialog
       navigate(`/game/${gameId}`);
     } catch (err) {

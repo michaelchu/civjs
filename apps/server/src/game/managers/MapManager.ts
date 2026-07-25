@@ -181,6 +181,14 @@ export class MapManager {
   }
 
   /**
+   * Load previously generated map data, for example when restoring an active
+   * game after a server restart.
+   */
+  public setMapData(mapData: MapData): void {
+    this.mapAccessService.setMapData(mapData);
+  }
+
+  /**
    * Get the seed used for map generation
    */
   public getSeed(): string {

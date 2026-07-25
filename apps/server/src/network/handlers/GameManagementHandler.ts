@@ -4,6 +4,7 @@ import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
 import { PacketType } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
+import { CityDataService } from '@game/services/CityDataService';
 
 /**
  * Handles game management packets: creation, joining, starting, listing, deletion
@@ -70,7 +71,7 @@ export class GameManagementHandler extends BaseSocketHandler {
 
     // Handle get_game_list event
     socket.on('get_game_list', async callback => {
-      await this.handleGetGameListEvent(callback);
+      await this.handleGetGameListEvent(socket, callback);
     });
 
     // Handle delete_game event
@@ -326,10 +327,14 @@ export class GameManagementHandler extends BaseSocketHandler {
   /**
    * Handle get_game_list socket event
    */
-  private async handleGetGameListEvent(callback: (response: any) => void): Promise<void> {
+  private async handleGetGameListEvent(
+    socket: Socket,
+    callback: (response: any) => void
+  ): Promise<void> {
     try {
       logger.info('Getting game list requested');
-      const games = await this.gameManager.getGameListForLobby(null);
+      const connection = this.getConnection(socket, this.activeConnections);
+      const games = await this.gameManager.getGameListForLobby(connection?.userId || null);
       logger.info(`Retrieved ${games.length} games from database`);
 
       callback({ success: true, games });
@@ -358,16 +363,119 @@ export class GameManagementHandler extends BaseSocketHandler {
   }
 
   /**
-   * Send map data to player (placeholder - would need to be implemented)
+   * Restore and send the full map to a player rejoining an active game.
+   *
+   * A server restart clears the in-memory game instance, so recover it from
+   * the persisted map before sending the initial map packets to this socket.
    */
-  private async sendPlayerMapData(
-    gameId: string,
-    playerId: string,
-    _socket: Socket
-  ): Promise<void> {
-    // TODO: This would need to be implemented with proper map data sending
-    // For now, we'll leave it as a placeholder since it involves complex map data logic
-    logger.debug(`Sending player map data for game ${gameId}, player ${playerId}`);
+  private async sendPlayerMapData(gameId: string, playerId: string, socket: Socket): Promise<void> {
+    let gameInstance = this.gameManager.getGameInstance(gameId);
+    if (!gameInstance) {
+      gameInstance = await this.gameManager.recoverGameInstance(gameId);
+    }
+
+    if (!gameInstance) {
+      throw new Error('Unable to recover active game');
+    }
+
+    const mapData = gameInstance.mapManager.getMapData();
+    if (!mapData) {
+      throw new Error('Recovered game has no map data');
+    }
+
+    socket.emit('packet', {
+      type: PacketType.MAP_INFO,
+      data: {
+        xsize: mapData.width,
+        ysize: mapData.height,
+        wrap_id: 0,
+        topology_id: 0,
+      },
+      timestamp: Date.now(),
+    });
+
+    const tiles = [];
+    for (let y = 0; y < mapData.height; y++) {
+      for (let x = 0; x < mapData.width; x++) {
+        const tile = mapData.tiles[x]?.[y];
+        if (!tile) continue;
+        tiles.push({
+          tile: x + y * mapData.width,
+          x,
+          y,
+          terrain: tile.terrain,
+          resource: tile.resource,
+          elevation: tile.elevation || 0,
+          riverMask: tile.riverMask || 0,
+          known: 1,
+          seen: 1,
+          player: null,
+          worked: null,
+          extras: 0,
+        });
+      }
+    }
+
+    const batchSize = 100;
+    for (let startIndex = 0; startIndex < tiles.length; startIndex += batchSize) {
+      const batch = tiles.slice(startIndex, startIndex + batchSize);
+      socket.emit('packet', {
+        type: PacketType.TILE_INFO,
+        data: {
+          tiles: batch,
+          startIndex,
+          endIndex: startIndex + batch.length,
+          total: tiles.length,
+        },
+        timestamp: Date.now(),
+      });
+    }
+
+    const units = Array.from(gameInstance.unitManager.getAllUnits().values()).map((unit: any) => ({
+      id: unit.id,
+      owner: unit.playerId,
+      type: unit.unitTypeId,
+      x: unit.x,
+      y: unit.y,
+      hp: unit.health,
+      movesleft: unit.movementLeft,
+      veteran: unit.veteranLevel,
+    }));
+    socket.emit('packet', {
+      type: PacketType.UNIT_INFO,
+      data: { units },
+      timestamp: Date.now(),
+    });
+
+    socket.emit('cities_updated', {
+      gameId,
+      cities: CityDataService.transformCitiesForClient(gameInstance.cityManager.getAllCities()),
+      timestamp: Date.now(),
+    });
+
+    socket.emit('packet', {
+      type: PacketType.BORDER_UPDATE,
+      data: {
+        type: 'border_update',
+        updateType: 'full_update',
+        tiles: gameInstance.borderManager.getAllTileOwnership().map((ownership: any) => ({
+          x: ownership.x,
+          y: ownership.y,
+          owner: ownership.playerId,
+          strength: ownership.strength,
+        })),
+      },
+      timestamp: Date.now(),
+    });
+
+    logger.info('Sent recovered map data to player', {
+      gameId,
+      playerId,
+      mapSize: `${mapData.width}x${mapData.height}`,
+      tiles: tiles.length,
+      units: units.length,
+      cities: gameInstance.cityManager.getAllCities().length,
+    });
   }
 
   /**

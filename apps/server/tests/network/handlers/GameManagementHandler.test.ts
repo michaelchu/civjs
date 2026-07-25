@@ -45,6 +45,8 @@ describe('GameManagementHandler', () => {
       deleteGame: jest.fn(),
       updatePlayerConnection: jest.fn(),
       getPlayerById: jest.fn(),
+      getGameInstance: jest.fn(),
+      recoverGameInstance: jest.fn(),
     } as any;
 
     // Create handler
@@ -285,6 +287,38 @@ describe('GameManagementHandler', () => {
         assignedColor: { r: 255, g: 0, b: 0 },
       });
       mockGameManager.getPlayerById.mockResolvedValue({ nation: 'random' });
+      (mockGameManager.getGameInstance as jest.Mock).mockReturnValue({
+        mapManager: {
+          getMapData: () => ({
+            width: 2,
+            height: 2,
+            tiles: [
+              [{ terrain: 'grassland' }, { terrain: 'plains' }],
+              [{ terrain: 'ocean' }, { terrain: 'forest' }],
+            ],
+          }),
+        },
+        unitManager: {
+          getAllUnits: () =>
+            new Map([
+              [
+                'unit-1',
+                {
+                  id: 'unit-1',
+                  playerId: mockPlayerId,
+                  unitTypeId: 'warriors',
+                  x: 0,
+                  y: 0,
+                  health: 100,
+                  movementLeft: 1,
+                  veteranLevel: 0,
+                },
+              ],
+            ]),
+        },
+        cityManager: { getAllCities: () => [] },
+        borderManager: { getAllTileOwnership: () => [] },
+      });
 
       // Get the join_game event handler
       const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(
@@ -301,6 +335,35 @@ describe('GameManagementHandler', () => {
         assignedNation: 'romans',
         assignedColor: { r: 255, g: 0, b: 0 },
       });
+      expect(mockSocket.emit).toHaveBeenCalledWith(
+        'packet',
+        expect.objectContaining({
+          type: PacketType.MAP_INFO,
+          data: expect.objectContaining({ xsize: 2, ysize: 2 }),
+        })
+      );
+      expect(mockSocket.emit).toHaveBeenCalledWith(
+        'packet',
+        expect.objectContaining({
+          type: PacketType.TILE_INFO,
+          data: expect.objectContaining({ total: 4 }),
+        })
+      );
+      expect(mockSocket.emit).toHaveBeenCalledWith(
+        'packet',
+        expect.objectContaining({
+          type: PacketType.UNIT_INFO,
+          data: expect.objectContaining({ units: [expect.objectContaining({ id: 'unit-1' })] }),
+        })
+      );
+      expect(mockSocket.emit).toHaveBeenCalledWith(
+        'cities_updated',
+        expect.objectContaining({ gameId: mockGameId, cities: {} })
+      );
+      expect(mockSocket.emit).toHaveBeenCalledWith(
+        'packet',
+        expect.objectContaining({ type: PacketType.BORDER_UPDATE })
+      );
     });
 
     it('should handle authentication error', async () => {
@@ -328,6 +391,7 @@ describe('GameManagementHandler', () => {
     it('should return game list', async () => {
       const mockGames = [{ id: mockGameId, name: 'Test Game' }];
       mockGameManager.getGameListForLobby.mockResolvedValue(mockGames as any);
+      activeConnections.set(mockSocketId, { userId: mockUserId, username: mockUsername });
 
       const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(
         call => call[0] === 'get_game_list'
@@ -336,7 +400,7 @@ describe('GameManagementHandler', () => {
       const mockCallback = jest.fn();
       await eventHandler(mockCallback);
 
-      expect(mockGameManager.getGameListForLobby).toHaveBeenCalledWith(null);
+      expect(mockGameManager.getGameListForLobby).toHaveBeenCalledWith(mockUserId);
       expect(mockCallback).toHaveBeenCalledWith({
         success: true,
         games: mockGames,

@@ -6,6 +6,7 @@ import { PacketType, PACKET_NAMES, type Packet } from '../types/packets';
 import { ActionType } from '../types/shared/actions';
 import { pathfindingService } from './PathfindingService';
 import { playerColorToHex } from '../utils/playerColors';
+import { storeUsername } from '../utils/gameSession';
 import type { ProductionOption } from '../types';
 
 // Mock government data for development
@@ -100,6 +101,7 @@ class GameClient {
   private socket: Socket | null = null;
   private serverUrl: string;
   private currentGameId: string | null = null;
+  private connectionPromise: Promise<void> | null = null;
 
   constructor() {
     this.serverUrl = SERVER_URL;
@@ -107,7 +109,15 @@ class GameClient {
   }
 
   connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    if (this.socket?.connected) {
+      return Promise.resolve();
+    }
+
+    if (this.connectionPromise) {
+      return this.connectionPromise;
+    }
+
+    this.connectionPromise = new Promise((resolve, reject) => {
       try {
         this.socket = io(this.serverUrl, {
           transports: ['websocket'],
@@ -121,6 +131,7 @@ class GameClient {
         this.socket.on('connect', () => {
           console.log('Connected to game server');
           useGameStore.getState().setClientState('connecting');
+          this.connectionPromise = null;
           resolve();
         });
 
@@ -131,6 +142,7 @@ class GameClient {
 
         this.socket.on('connect_error', error => {
           console.error('Connection error:', error);
+          this.connectionPromise = null;
           reject(error);
         });
 
@@ -158,9 +170,12 @@ class GameClient {
 
         this.setupGameHandlers();
       } catch (error) {
+        this.connectionPromise = null;
         reject(error);
       }
     });
+
+    return this.connectionPromise;
   }
 
   private setupGameHandlers() {
@@ -922,6 +937,9 @@ class GameClient {
           this.socket?.off('packet', handleReply);
           if (replyPacket.data.accepted) {
             console.log('Authentication successful:', replyPacket.data);
+            // Keep the identity used to create/join a game so an active game
+            // can be continued after a browser reload or route change.
+            storeUsername(playerName);
             resolve();
           } else {
             console.error('Authentication failed:', replyPacket.data);
