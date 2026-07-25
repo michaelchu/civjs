@@ -142,6 +142,68 @@ describe('Game Integration Flow', () => {
       // Integration test complete - all managers working together
     });
 
+    it('should recover persisted map, units, cities, and borders after a server restart', async () => {
+      const db = getTestDatabase();
+      const hostUserId = generateTestUUID();
+      const guestUserId = generateTestUUID();
+
+      await db.insert(schema.users).values([
+        {
+          id: hostUserId,
+          username: `ResumeHost_${Date.now()}`,
+          email: `resume_host_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+        {
+          id: guestUserId,
+          username: `ResumeGuest_${Date.now()}`,
+          email: `resume_guest_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+      ]);
+
+      const gameId = await gameManager.createGame({
+        name: 'Resume Integration Test',
+        hostId: hostUserId,
+        maxPlayers: 2,
+        mapWidth: 20,
+        mapHeight: 20,
+        ruleset: 'classic',
+      });
+      const host = await gameManager.joinGame(gameId, hostUserId, 'romans');
+      await gameManager.joinGame(gameId, guestUserId, 'greeks');
+
+      const activeGame = gameManager.getGameInstance(gameId)!;
+      const originalMap = activeGame.mapManager.getMapData()!;
+      const originalTerrain = originalMap.tiles[10][10].terrain;
+      const cityId = await gameManager.foundCity(gameId, host.playerId, 'Resume City', 10, 10);
+      const unitId = await gameManager.createUnit(gameId, host.playerId, 'warriors', 12, 12);
+
+      // Simulate a process restart: only the database survives.
+      gameManager.clearAllGames();
+      (GameManager as any).instance = null;
+      const restartedManager = GameManager.getInstance(
+        createMockSocketServer(),
+        getTestDatabaseProvider()
+      );
+
+      const recoveredGame = await restartedManager.recoverGameInstance(gameId);
+
+      expect(recoveredGame).not.toBeNull();
+      expect(recoveredGame!.mapManager.getMapData()).not.toBeNull();
+      expect(recoveredGame!.mapManager.getMapData()!.tiles[10][10].terrain).toBe(originalTerrain);
+      expect(recoveredGame!.cityManager.getCity(cityId)).toBeDefined();
+      expect(recoveredGame!.unitManager.getUnit(unitId)).toBeDefined();
+      expect(recoveredGame!.borderManager.getAllBorderSources()).toEqual(
+        expect.arrayContaining([expect.objectContaining({ cityId, playerId: host.playerId })])
+      );
+      expect(recoveredGame!.borderManager.getAllTileOwnership().length).toBeGreaterThan(0);
+
+      // Rejoining uses the original player record rather than creating another one.
+      const reconnect = await restartedManager.joinGame(gameId, hostUserId, 'romans');
+      expect(reconnect.playerId).toBe(host.playerId);
+    });
+
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     it.skip('should maintain data consistency across manager interactions', async () => {
       const db = getTestDatabase();
