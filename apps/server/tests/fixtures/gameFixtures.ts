@@ -150,7 +150,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         hasEndedTurn: false,
         gold: 50,
         science: 10,
-        culture: 5,
+        history: 5,
       },
       {
         id: playerId2,
@@ -165,7 +165,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         hasEndedTurn: false,
         gold: 50,
         science: 10,
-        culture: 5,
+        history: 5,
       },
     ])
     .returning();
@@ -188,7 +188,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         productionPerTurn: 2,
         goldPerTurn: 2,
         sciencePerTurn: 1,
-        culturePerTurn: 1,
+        history: 1,
         buildings: ['palace'],
         workedTiles: [
           { x: 10, y: 10 },
@@ -215,7 +215,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
         productionPerTurn: 1,
         goldPerTurn: 1,
         sciencePerTurn: 1,
-        culturePerTurn: 1,
+        history: 1,
         buildings: [],
         workedTiles: [{ x: 15, y: 15 }],
         isCapital: true,

@@ -288,7 +288,6 @@
       "comment": "Base HP regeneration (except helicopters)"
     },
 
-    // Government Corruption Effects - Direct port from freeciv effects.ruleset
     "corruption_anarchy_base": {
       "id": "corruption_anarchy_base",
       "type": "Output_Waste",
@@ -407,9 +406,6 @@
       "comment": "Republic distance corruption: 200% per tile"
     },
 
-    // Democracy has no corruption (0% base, no distance)
-
-    // Martial Law Effects - Direct port from freeciv
     "martial_law_anarchy": {
       "id": "martial_law_anarchy",
       "type": "Martial_Law_By_Unit",
@@ -515,7 +511,6 @@
       "comment": "Communism martial law max: 3 units"
     },
 
-    // Unit Support Cost Effects - Direct port from freeciv
     "upkeep_free_anarchy": {
       "id": "upkeep_free_anarchy",
       "type": "Unit_Upkeep_Free_Per_City",
@@ -589,9 +584,6 @@
       "comment": "Communism free unit support: 3 shield units per city"
     },
 
-    // Republic and Democracy have no free unit support (must pay for all)
-
-    // Base unhappy citizens effects
     "base_unhappy_anarchy": {
       "id": "base_unhappy_anarchy",
       "type": "City_Unhappy_Size",
@@ -619,7 +611,6 @@
       "comment": "Despotism: 2 base unhappy citizens"
     },
 
-    // Palace effects - Government center
     "palace_gov_center": {
       "id": "palace_gov_center",
       "type": "Gov_Center",
@@ -647,7 +638,6 @@
       "comment": "Palace eliminates corruption in its city"
     },
 
-    // Culture and Border Strength Effects - Following Freeciv culture system
     "temple_border_strength": {
       "id": "temple_border_strength",
       "type": "Border_Strength_Pct",

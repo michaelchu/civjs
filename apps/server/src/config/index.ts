@@ -40,7 +40,9 @@ const config = ConfigSchema.parse({
     maxPlayersPerGame: parseInt(process.env.MAX_PLAYERS_PER_GAME || '8', 10),
     turnTimeoutSeconds: parseInt(process.env.TURN_TIMEOUT_SECONDS || '120', 10),
     autoSaveIntervalTurns: parseInt(process.env.AUTO_SAVE_INTERVAL_TURNS || '10', 10),
-    minPlayersToStart: parseInt(process.env.MIN_PLAYERS_TO_START || '1', 10),
+    // Multiplayer games remain in the pre-game lobby until a second player joins.
+    // @reference reference/freeciv/server/srv_main.c:1879-1912
+    minPlayersToStart: parseInt(process.env.MIN_PLAYERS_TO_START || '2', 10),
     maxGames: parseInt(process.env.MAX_GAMES || '100', 10),
   },
   map: {

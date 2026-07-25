@@ -248,6 +248,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     // Create additional managers
     const visibilityManager = this.createVisibilityManager(gameId, unitManager, mapManager);
     const researchManager = this.createResearchManager(gameId);
+    await this.initializePlayerResearch(researchManager, players);
     const pathfindingManager = this.createPathfindingManager(game, mapManager);
 
     // Create TurnManager last since it depends on all other managers
@@ -433,6 +434,19 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       playerCount: players.size,
     });
     return gameInstance;
+  }
+
+  /**
+   * Initialize a research record for every player before the first turn.
+   * @reference reference/freeciv/common/research.c:62-76 researches_init()
+   */
+  private async initializePlayerResearch(
+    researchManager: ResearchManager,
+    players: Map<string, PlayerState>
+  ): Promise<void> {
+    for (const playerId of players.keys()) {
+      await researchManager.initializePlayerResearch(playerId);
+    }
   }
 
   /**

@@ -41,8 +41,7 @@ describe('Game Integration Flow', () => {
   });
 
   describe('complete game flow', () => {
-    // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
-    it.skip('should handle full game creation and player interaction flow', async () => {
+    it('should handle full game creation and player interaction flow', async () => {
       const db = getTestDatabase();
 
       // Create users directly in the database
@@ -107,13 +106,19 @@ describe('Game Integration Flow', () => {
       // Visibility comes from units, so let's create a unit first
 
       // Test unit creation affects visibility
-      const unitId = await gameManager.createUnit(gameId, hostPlayerId, 'warrior', 12, 12);
+      const unitId = await gameManager.createUnit(gameId, hostPlayerId, 'warriors', 12, 12);
       expect(unitId).toBeDefined();
 
       gameManager.updatePlayerVisibility(gameId, hostPlayerId);
       const unitTileVisibility = gameManager.getTileVisibility(gameId, hostPlayerId, 12, 12);
       expect(unitTileVisibility.isVisible).toBe(true);
       expect(unitTileVisibility.isExplored).toBe(true);
+
+      const mapView = gameManager.getPlayerMapView(gameId, hostPlayerId);
+      expect(mapView).toBeDefined();
+      expect(mapView!.width).toBeGreaterThan(0);
+      expect(mapView!.height).toBeGreaterThan(0);
+      expect(mapView!.tiles.length).toBeGreaterThan(0);
 
       // Test research functionality
       await gameManager.setPlayerResearch(gameId, hostPlayerId, 'pottery');
@@ -129,6 +134,10 @@ describe('Game Integration Flow', () => {
 
       const turnAdvanced2 = await gameManager.endTurn(guestPlayerId);
       expect(turnAdvanced2).toBe(true); // Now turn advances
+
+      // A joined player can reconnect to the same active game without creating a new player.
+      const reconnectResult = await gameManager.joinGame(gameId, hostUserId, 'romans');
+      expect(reconnectResult.playerId).toBe(hostPlayerId);
 
       // Integration test complete - all managers working together
     });

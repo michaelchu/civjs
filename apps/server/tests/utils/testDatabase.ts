@@ -233,7 +233,6 @@ export async function createTestGameAndPlayer() {
   if (!testDb) throw new Error('Test database not initialized');
 
   const gameId = generateTestUUID();
-  const playerId = generateTestUUID();
   const userId = generateTestUUID();
 
   // Create or find test user
@@ -260,7 +259,6 @@ export async function createTestGameAndPlayer() {
   const [player] = await testDb
     .insert(schema.players)
     .values({
-      id: playerId,
       gameId: game.id, // Use actual game.id
       userId: user.id, // Use actual user.id
       playerNumber: 0,
@@ -272,7 +270,7 @@ export async function createTestGameAndPlayer() {
       hasEndedTurn: false,
       gold: 100,
       science: 10,
-      culture: 5,
+      history: 5,
     })
     .returning();
 
@@ -281,7 +279,9 @@ export async function createTestGameAndPlayer() {
 
 // Test database connection string
 const testConnectionString =
-  process.env.DATABASE_URL || 'postgresql://civjs:civjs_secret@localhost:5432/civjs_test';
+  process.env.TEST_DATABASE_URL ||
+  process.env.DATABASE_URL ||
+  'postgresql://civjs:civjs_secret@localhost:5432/civjs_test';
 
 // Create test database connection
 let testQueryClient: postgres.Sql | null = null;
@@ -310,16 +310,15 @@ export async function setupTestDatabase() {
     logger.info('Test database migrations completed');
 
     return testDb;
-  } catch {
-    logger.error('Test database not available - integration tests will be skipped');
+  } catch (error) {
+    logger.error('Test database not available', error);
 
-    // Create a mock database provider that throws helpful errors
-    const mockError = new Error(
+    const detail = error instanceof Error ? `: ${error.message}` : '';
+    throw new Error(
       'Integration tests require a PostgreSQL database. ' +
-        'Set TEST_DATABASE_URL environment variable or start local PostgreSQL with test database.'
+        'Set TEST_DATABASE_URL or start local PostgreSQL with a test database' +
+        detail
     );
-
-    throw mockError;
   }
 }
 
@@ -443,7 +442,6 @@ export async function seedTestData() {
     const [testPlayer] = await testDb
       .insert(schema.players)
       .values({
-        id: 'test-player-1',
         gameId: testGame.id,
         userId: testUser.id,
         playerNumber: 0,
@@ -455,7 +453,7 @@ export async function seedTestData() {
         hasEndedTurn: false,
         gold: 100,
         science: 10,
-        culture: 5,
+        history: 5,
       })
       .returning();
 

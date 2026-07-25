@@ -105,7 +105,7 @@ beforeAll(async () => {
     testDbInitialized = true;
   } catch (error) {
     console.error('Failed to setup test database:', error);
-    process.exit(1);
+    throw error;
   }
 }, 30000); // 30 second timeout for database setup
 

@@ -265,7 +265,7 @@ export const TechnologyRulesetSchema = z.object({
   req1: z.string().optional(), // First requirement (freeciv dual system)
   req2: z.string().optional(), // Second requirement (freeciv dual system)
   requirements: z.array(z.string()), // Derived array from req1/req2
-  root_req: z.string().optional(), // Root requirement for advanced dependencies
+  root_req: z.string().nullable().optional(), // Root requirement for advanced dependencies
   flags: z.array(z.string()).optional().default([]),
   graphic: z.string().optional(),
   position: z

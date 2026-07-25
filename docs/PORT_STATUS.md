@@ -37,6 +37,7 @@ These are confirmed by explicit TODOs, placeholders, or unintegrated paths; they
 ## Detailed documentation
 
 - Continuation plan: [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md).
+- Milestone 0 evidence backlog: [`PORTING_INVENTORY.md`](PORTING_INVENTORY.md).
 - Culture implementation: `docs/CULTURE_SYSTEM_IMPLEMENTATION.md`.
 - Citizen-management design and usage: `apps/server/src/game/systems/CitizenManagement/README.md`.
 
