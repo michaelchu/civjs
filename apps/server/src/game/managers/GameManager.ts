@@ -77,6 +77,8 @@ export interface GameInstance {
 export interface PlayerState {
   id: string;
   userId: string | null; // Can be null for AI players
+  /** AI players are processed by the server and never submit END_TURN packets. */
+  isAI?: boolean;
   playerNumber: number;
   civilization: string;
   isReady: boolean;
@@ -729,7 +731,9 @@ export class GameManager {
 
     // Check if all players have ended their turn
     const allPlayersReady = Array.from(gameInstance.players.values())
-      .filter(p => p.isConnected)
+      // AI turns are processed during TurnManager.processTurn(); only connected
+      // human players must explicitly end their turn.
+      .filter(p => p.isConnected && !p.isAI && p.userId !== null)
       .every(p => p.hasEndedTurn);
 
     if (allPlayersReady) {

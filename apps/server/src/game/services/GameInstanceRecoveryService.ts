@@ -129,6 +129,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       players.set(dbPlayer.id, {
         id: dbPlayer.id,
         userId: dbPlayer.userId,
+        // Older AI rows did not persist isAI; null userId is the legacy AI marker.
+        isAI: dbPlayer.isAI || dbPlayer.userId === null,
         playerNumber: dbPlayer.playerNumber,
         civilization: dbPlayer.civilization,
         isReady: dbPlayer.isReady || false,

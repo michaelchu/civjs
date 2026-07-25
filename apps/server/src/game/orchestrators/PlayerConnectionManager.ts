@@ -278,6 +278,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         leaderName: `AI Leader ${playerNumber}`,
         color: safeAiTheme.primary, // Store primary color for backward compatibility
         connectionStatus: 'connected',
+        isAI: true,
         isReady: true,
       };
 
