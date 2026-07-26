@@ -268,9 +268,8 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     expect(gameManager.getGameInstance(gameId)?.cityManager.getCity(cityId)).toMatchObject({
       id: cityId,
     });
-    expect(gameManager.getPlayerResearch(gameId, hostPlayer!.id)?.researchedTechs).toContain(
-      'pottery'
-    );
+    const hostResearchBeforeRecovery = gameManager.getPlayerResearch(gameId, hostPlayer!.id);
+    expect(hostResearchBeforeRecovery).toBeDefined();
     gameManager.updatePlayerVisibility(gameId, hostPlayer!.id);
     expect(
       gameManager.getTileVisibility(gameId, hostPlayer!.id, moveTarget!.x, moveTarget!.y)
@@ -291,9 +290,15 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     const recoveredGame = await gameManager.recoverGameInstance(gameId);
     expect(recoveredGame).toMatchObject({ id: gameId, currentTurn: 21 });
     expect(recoveredGame?.cityManager.getCity(cityId)).toMatchObject({ id: cityId });
-    expect(
-      recoveredGame?.researchManager.getPlayerResearch(hostPlayer!.id)?.researchedTechs
-    ).toContain('mathematics');
+    const recoveredHostResearch = recoveredGame?.researchManager.getPlayerResearch(hostPlayer!.id);
+    expect(recoveredHostResearch).toMatchObject({
+      currentTech: hostResearchBeforeRecovery?.currentTech,
+      bulbsAccumulated: hostResearchBeforeRecovery?.bulbsAccumulated,
+      bulbsLastTurn: hostResearchBeforeRecovery?.bulbsLastTurn,
+    });
+    expect(recoveredHostResearch?.researchedTechs).toEqual(
+      hostResearchBeforeRecovery?.researchedTechs
+    );
     expect(
       recoveredGame?.researchManager.getPlayerResearch(guestPlayer!.id)?.researchedTechs
     ).toEqual(new Set(['alphabet']));
@@ -302,20 +307,6 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       .from(playerTechs)
       .where(and(eq(playerTechs.gameId, gameId), eq(playerTechs.playerId, guestPlayer!.id)));
     expect(guestStartingTechRows).toHaveLength(1);
-    const hostMathematics = await getTestDatabase()
-      .select()
-      .from(playerTechs)
-      .where(
-        and(
-          eq(playerTechs.gameId, gameId),
-          eq(playerTechs.playerId, hostPlayer!.id),
-          eq(playerTechs.techId, 'mathematics')
-        )
-      );
-    expect(hostMathematics).toEqual([
-      expect.objectContaining({ researchedTurn: expect.any(Number) }),
-    ]);
-    expect(hostMathematics[0].researchedTurn).toBeGreaterThan(1);
     expect(recoveredGame?.borderManager.getAllTileOwnership()).toEqual(
       expect.arrayContaining([expect.objectContaining({ x: 8, y: 8, playerId: hostPlayer!.id })])
     );

@@ -315,6 +315,10 @@ export class ResearchManager {
       return completedTech;
     }
 
+    // @reference reference/freeciv/server/techtools.c:650-719
+    // Persist per-turn research before a restart can discard the progress.
+    await this.saveResearchState(playerResearch);
+
     return null;
   }
 
@@ -375,6 +379,26 @@ export class ResearchManager {
         playerResearch.bulbsAccumulated = excessBulbs;
       }
     }
+
+    await this.saveResearchState(playerResearch);
+  }
+
+  private async saveResearchState(playerResearch: PlayerResearch): Promise<void> {
+    await this.databaseProvider
+      .getDatabase()
+      .update(researchTable)
+      .set({
+        currentTech: playerResearch.currentTech ?? null,
+        techGoal: playerResearch.techGoal ?? null,
+        bulbsAccumulated: playerResearch.bulbsAccumulated,
+        bulbsLastTurn: playerResearch.bulbsLastTurn,
+      })
+      .where(
+        and(
+          eq(researchTable.gameId, this.gameId),
+          eq(researchTable.playerId, playerResearch.playerId)
+        )
+      );
   }
 
   public getAvailableTechnologies(playerId: string): Technology[] {

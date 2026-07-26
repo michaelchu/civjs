@@ -662,9 +662,11 @@ export class TurnProcessingService {
     });
 
     try {
-      // Add research points and check if technology completed
-      // TODO: Get actual research bulbs from city science output
-      const researchBulbs = 10; // Placeholder - should be calculated from cities
+      // Each city contributes its science output to the player's research pool.
+      // @reference reference/freeciv/server/techtools.c:650-719
+      const researchBulbs = this.cityManager
+        .getPlayerCities(playerId)
+        .reduce((total, city) => total + (city.sciencePerTurn ?? 0), 0);
       const completedTech = await this.researchManager.addResearchPoints(playerId, researchBulbs);
 
       logger.info('Research processed', {
