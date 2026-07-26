@@ -299,22 +299,23 @@ describe('GameManagementHandler', () => {
           }),
         },
         unitManager: {
-          getAllUnits: () =>
-            new Map([
-              [
-                'unit-1',
-                {
-                  id: 'unit-1',
-                  playerId: mockPlayerId,
-                  unitTypeId: 'warriors',
-                  x: 0,
-                  y: 0,
-                  health: 100,
-                  movementLeft: 1,
-                  veteranLevel: 0,
-                },
-              ],
-            ]),
+          getVisibleUnits: () => [
+            {
+              id: 'unit-1',
+              playerId: mockPlayerId,
+              unitTypeId: 'warriors',
+              x: 0,
+              y: 0,
+              health: 100,
+              movementLeft: 1,
+              veteranLevel: 0,
+            },
+          ],
+        },
+        visibilityManager: {
+          updatePlayerVisibility: jest.fn(),
+          getVisibleTiles: () => new Set(['0,0']),
+          getExploredTiles: () => new Set(['0,0']),
         },
         cityManager: { getAllCities: () => [] },
         borderManager: { getAllTileOwnership: () => [] },

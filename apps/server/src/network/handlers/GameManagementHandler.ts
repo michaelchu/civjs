@@ -383,6 +383,13 @@ export class GameManagementHandler extends BaseSocketHandler {
       throw new Error('Recovered game has no map data');
     }
 
+    // @reference reference/freeciv/server/maphand.c:442-613
+    // Rejoining players receive only their explored map, with current vision
+    // represented by the Freeciv-compatible known/seen packet flags.
+    gameInstance.visibilityManager.updatePlayerVisibility(playerId);
+    const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
+    const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
+
     socket.emit('packet', {
       type: PacketType.MAP_INFO,
       data: {
@@ -399,16 +406,19 @@ export class GameManagementHandler extends BaseSocketHandler {
       for (let x = 0; x < mapData.width; x++) {
         const tile = mapData.tiles[x]?.[y];
         if (!tile) continue;
+        const tileKey = `${x},${y}`;
+        const isVisible = visibleTiles.has(tileKey);
+        const isExplored = exploredTiles.has(tileKey);
         tiles.push({
           tile: x + y * mapData.width,
           x,
           y,
-          terrain: tile.terrain,
-          resource: tile.resource,
-          elevation: tile.elevation || 0,
-          riverMask: tile.riverMask || 0,
-          known: 1,
-          seen: 1,
+          terrain: isExplored ? tile.terrain : undefined,
+          resource: isVisible ? tile.resource : undefined,
+          elevation: isExplored ? tile.elevation || 0 : undefined,
+          riverMask: isExplored ? tile.riverMask || 0 : undefined,
+          known: isVisible ? 1 : 0,
+          seen: isExplored ? 1 : 0,
           player: null,
           worked: null,
           extras: 0,
@@ -431,25 +441,30 @@ export class GameManagementHandler extends BaseSocketHandler {
       });
     }
 
-    const units = Array.from(gameInstance.unitManager.getAllUnits().values()).map((unit: any) => ({
-      id: unit.id,
-      owner: unit.playerId,
-      type: unit.unitTypeId,
-      x: unit.x,
-      y: unit.y,
-      hp: unit.health,
-      movesleft: unit.movementLeft,
-      veteran: unit.veteranLevel,
-    }));
+    const units = gameInstance.unitManager
+      .getVisibleUnits(playerId, visibleTiles)
+      .map((unit: any) => ({
+        id: unit.id,
+        owner: unit.playerId,
+        type: unit.unitTypeId,
+        x: unit.x,
+        y: unit.y,
+        hp: unit.health,
+        movesleft: unit.movementLeft,
+        veteran: unit.veteranLevel,
+      }));
     socket.emit('packet', {
       type: PacketType.UNIT_INFO,
       data: { units },
       timestamp: Date.now(),
     });
 
+    const cities = gameInstance.cityManager
+      .getAllCities()
+      .filter((city: any) => city.playerId === playerId || visibleTiles.has(`${city.x},${city.y}`));
     socket.emit('cities_updated', {
       gameId,
-      cities: CityDataService.transformCitiesForClient(gameInstance.cityManager.getAllCities()),
+      cities: CityDataService.transformCitiesForClient(cities),
       timestamp: Date.now(),
     });
 
