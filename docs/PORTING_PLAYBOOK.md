@@ -89,7 +89,10 @@ Fixture tests cover terrain/unit, city-tile/flag, and normalized building-ID
 conditions; schema validation rejects effect requirement kinds without a runtime
 evaluator. Research now loads the complete classic technology catalogue (costs,
 prerequisites, and flags) rather than the previous reduced TypeScript tree.
-Wiring effect contexts into every authoritative action remains open.
+City production and happiness now share the classic building catalogue rather
+than duplicated TypeScript lists, and unit visibility applies ruleset effects
+with live unit and tile context (including classic mountain vision). Wiring
+effect contexts into every authoritative action remains open.
 
 - Finish ruleset loading and validation for all classic entities and effects used by the playable loop.
 - Implement requirement evaluation in every relevant context: player, city, unit, tile, technology, government, and action.
