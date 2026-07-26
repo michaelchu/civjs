@@ -15,6 +15,7 @@ export interface BroadcastService {
   broadcastToGame(gameId: string, event: string, data: any): void;
   broadcastPacketToGame(gameId: string, packetType: PacketType, data: any): void;
   broadcastMapData(gameId: string, mapData: any): void;
+  broadcastUnitInfo(gameId: string, unit: any): void;
   broadcastCityData(gameId: string): void;
   broadcastCityDataToPlayer(gameId: string, playerId: string): void;
   syncGameStateToPlayer(gameId: string, playerId: string): void;
@@ -138,6 +139,33 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     });
   }
 
+  /**
+   * Send a unit update to its owner and players that can currently see it.
+   * @reference reference/freeciv/server/maphand.c:442-613
+   */
+  broadcastUnitInfo(gameId: string, unit: any): void {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) {
+      this.logger.warn('Attempted to broadcast unit for non-existent game', {
+        gameId,
+        unitId: unit.id,
+      });
+      return;
+    }
+
+    for (const [playerId] of gameInstance.players) {
+      gameInstance.visibilityManager.updatePlayerVisibility(playerId);
+      const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
+      if (unit.playerId !== playerId && !visibleTiles.has(`${unit.x},${unit.y}`)) {
+        continue;
+      }
+
+      this.sendPacketToPlayer(gameInstance, playerId, PacketType.UNIT_INFO, {
+        units: [this.formatUnitForClient(unit, gameInstance.unitManager)],
+      });
+    }
+  }
+
   private computeMapDataMetrics(mapData: any): {
     tilesComplete: boolean;
     firstTileComplete: boolean;
@@ -211,12 +239,18 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     mapData: any
   ): void {
     try {
-      // TODO: Implement fog of war - for now send all tiles
-      // Get player-specific visibility data (disabled until fog of war is implemented)
+      // @reference reference/freeciv/server/maphand.c:442-613
+      // Map knowledge is player-specific: explored tiles retain terrain, while
+      // resources and units are sent only while currently visible.
+      gameInstance.visibilityManager.updatePlayerVisibility(playerId);
       const visibleTilesSet = gameInstance.visibilityManager.getVisibleTiles(playerId);
+      const exploredTilesSet = gameInstance.visibilityManager.getExploredTiles(playerId);
 
-      // Process and format all tiles (no fog of war for now)
-      const visibleTiles = this.processMapTilesForPlayer(mapData);
+      const visibleTiles = this.processMapTilesForPlayer(
+        mapData,
+        visibleTilesSet,
+        exploredTilesSet
+      );
 
       // Get units visible to this player (delegate to UnitManager)
       const visibleUnits = gameInstance.unitManager.getVisibleUnits(playerId, visibleTilesSet);
@@ -231,10 +265,23 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         wrap_id: 0, // Flat earth
         topology_id: 0,
       };
-      this.broadcastPacketToGame(gameId, PacketType.MAP_INFO, mapInfoPacket);
+      this.sendPacketToPlayer(gameInstance, playerId, PacketType.MAP_INFO, mapInfoPacket);
 
       // Send tiles in batches like original code
-      this.sendTileDataInBatches(gameId, visibleTiles);
+      this.sendTileDataInBatches(gameInstance, playerId, visibleTiles);
+
+      this.sendPacketToPlayer(gameInstance, playerId, PacketType.UNIT_INFO, {
+        units: formattedUnits.map((unit: any) => ({
+          id: unit.id,
+          owner: unit.playerId,
+          type: unit.type,
+          x: unit.x,
+          y: unit.y,
+          hp: unit.health,
+          movesleft: unit.movementLeft,
+          veteran: unit.veteran,
+        })),
+      });
 
       this.logger.debug('Sent player-specific map data', {
         gameId,
@@ -255,23 +302,39 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   /**
    * Process map tiles for player visibility
    */
-  private processMapTilesForPlayer(mapData: any): any[] {
-    const visibleTiles = [];
+  private processMapTilesForPlayer(
+    mapData: any,
+    currentlyVisibleTiles: Set<string>,
+    exploredTiles: Set<string>
+  ): any[] {
+    const clientTiles = [];
     for (let y = 0; y < mapData.height; y++) {
       for (let x = 0; x < mapData.width; x++) {
-        const tileInfo = this.createTileInfo(mapData, x, y);
+        const tileInfo = this.createTileInfo(
+          mapData,
+          x,
+          y,
+          currentlyVisibleTiles.has(`${x},${y}`),
+          exploredTiles.has(`${x},${y}`)
+        );
         if (tileInfo) {
-          visibleTiles.push(tileInfo);
+          clientTiles.push(tileInfo);
         }
       }
     }
-    return visibleTiles;
+    return clientTiles;
   }
 
   /**
    * Create tile information object for a specific coordinate
    */
-  private createTileInfo(mapData: any, x: number, y: number): any | null {
+  private createTileInfo(
+    mapData: any,
+    x: number,
+    y: number,
+    isVisible: boolean,
+    isExplored: boolean
+  ): any | null {
     const index = x + y * mapData.width;
     // Handle column-based tile array structure: mapData.tiles[x][y]
     const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
@@ -285,12 +348,12 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       tile: index, // This is the key - tile index used by freeciv-web
       x: x,
       y: y,
-      terrain: serverTile.terrain,
-      resource: serverTile.resource,
-      elevation: serverTile.elevation || 0,
-      riverMask: serverTile.riverMask || 0,
-      known: 1, // TILE_KNOWN
-      seen: 1,
+      terrain: isExplored ? serverTile.terrain : undefined,
+      resource: isVisible ? serverTile.resource : undefined,
+      elevation: isExplored ? serverTile.elevation || 0 : undefined,
+      riverMask: isExplored ? serverTile.riverMask || 0 : undefined,
+      known: isVisible ? 1 : 0,
+      seen: isExplored ? 1 : 0,
       player: null,
       worked: null,
       extras: 0, // BitVector for extras
@@ -300,7 +363,11 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   /**
    * Send tile data in batches
    */
-  private sendTileDataInBatches(gameId: string, visibleTiles: any[]): void {
+  private sendTileDataInBatches(
+    gameInstance: GameInstance,
+    playerId: string,
+    visibleTiles: any[]
+  ): void {
     const BATCH_SIZE = 100;
     for (let i = 0; i < visibleTiles.length; i += BATCH_SIZE) {
       const batch = visibleTiles.slice(i, i + BATCH_SIZE);
@@ -320,13 +387,29 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         });
       }
 
-      this.broadcastPacketToGame(gameId, PacketType.TILE_INFO, {
+      this.sendPacketToPlayer(gameInstance, playerId, PacketType.TILE_INFO, {
         tiles: batch,
         startIndex: i,
         endIndex: Math.min(i + BATCH_SIZE, visibleTiles.length),
         total: visibleTiles.length,
       });
     }
+  }
+
+  /** Send a structured packet to the authenticated user's private room. */
+  private sendPacketToPlayer(
+    gameInstance: GameInstance,
+    playerId: string,
+    packetType: PacketType,
+    data: any
+  ): void {
+    const player = gameInstance.players.get(playerId);
+    const recipientId = player?.userId || playerId;
+    this.io.to(`player:${recipientId}`).emit('packet', {
+      type: packetType,
+      data,
+      timestamp: Date.now(),
+    });
   }
 
   /**
@@ -337,13 +420,13 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     return {
       id: unit.id,
       playerId: unit.playerId,
-      type: unit.type,
+      type: unit.unitTypeId || unit.type,
       x: unit.x,
       y: unit.y,
       movementLeft: unit.movementLeft,
       maxMovement: unitManager.getUnitMaxMovement(unit.type),
       health: unit.health || 100,
-      veteran: unit.veteran || false,
+      veteran: unit.veteranLevel ?? unit.veteran ?? false,
       homeCity: unit.homeCity || null,
       activity: unit.activity || 'idle',
       fortified: unit.fortified || false,
@@ -362,20 +445,13 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       return;
     }
 
-    // Get all cities and transform for client
-    const allCities = gameInstance.cityManager.getAllCities();
-    const clientCityData = CityDataService.transformCitiesForClient(allCities);
-
-    // Broadcast complete city data to all players
-    this.broadcastToGame(gameId, 'cities_updated', {
-      gameId,
-      cities: clientCityData,
-      timestamp: Date.now(),
-    });
+    for (const [playerId] of gameInstance.players) {
+      this.broadcastCityDataToPlayer(gameId, playerId);
+    }
 
     this.logger.debug('Broadcasted city data to game', {
       gameId,
-      cityCount: allCities.length,
+      cityCount: gameInstance.cityManager.getAllCities().length,
       playerCount: gameInstance.players.size,
     });
   }
@@ -390,16 +466,17 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       return;
     }
 
-    // Get cities visible to this player (all cities for now, TODO: implement fog of war)
+    gameInstance.visibilityManager.updatePlayerVisibility(playerId);
+    const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
     const allCities = gameInstance.cityManager.getAllCities();
-    const visibleCities = allCities.filter(() => {
-      // TODO: Check fog of war visibility based on city
-      return true; // For now, all cities are visible
-    });
+    const visibleCities = allCities.filter(
+      (city: any) => city.playerId === playerId || visibleTiles.has(`${city.x},${city.y}`)
+    );
 
     const clientCityData = CityDataService.transformCitiesForClient(visibleCities);
 
-    this.broadcastToPlayer(playerId, 'cities_updated', {
+    const recipientId = gameInstance.players.get(playerId)?.userId || playerId;
+    this.broadcastToPlayer(recipientId, 'cities_updated', {
       gameId,
       cities: clientCityData,
       timestamp: Date.now(),

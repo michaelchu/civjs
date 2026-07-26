@@ -20,13 +20,12 @@ import { EffectsManager } from '@game/managers/EffectsManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
 import { CultureManager } from '@game/managers/CultureManager';
 import { EconomicManager } from '@game/systems/Economic/EconomicManager';
-import { CityDataService } from '@game/services/CityDataService';
+import { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { BorderManager } from '@game/managers/BorderManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
 import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
 import { MapStartpos } from '@game/map/MapTypes';
-import { PacketType } from '@app-types/packet';
 import type { Server as SocketServer } from 'socket.io';
 import type {
   GameConfig,
@@ -72,6 +71,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   ) => Promise<string>;
   // private _onRequestPath - removed, delegating to GameManager instead
   private onBroadcastMapData?: (gameId: string, mapData: any) => void;
+  private broadcastManager?: GameBroadcastManager;
   private borderNetworkService?: BorderNetworkService;
 
   constructor(
@@ -98,7 +98,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       y: number
     ) => Promise<string>,
     // _onRequestPath removed - delegating to GameManager instead
-    onBroadcastMapData?: (gameId: string, mapData: any) => void
+    onBroadcastMapData?: (gameId: string, mapData: any) => void,
+    broadcastManager?: GameBroadcastManager
   ) {
     super(logger);
     this.io = io;
@@ -110,6 +111,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     this.onFoundCity = onFoundCity;
     // this._onRequestPath removed - delegating to GameManager instead
     this.onBroadcastMapData = onBroadcastMapData;
+    this.broadcastManager = broadcastManager;
   }
 
   getServiceName(): string {
@@ -281,13 +283,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
               y: city.y,
             });
 
-            // Broadcast the new unit to all players in the game
-            this.io.to(`game:${gameId}`).emit('packet', {
-              type: PacketType.UNIT_INFO,
-              data: {
-                units: [this.formatUnitForClient(unit, unitManager)],
-              },
-            });
+            this.broadcastManager?.broadcastUnitInfo(gameId, unit);
 
             this.logger.debug('New unit broadcasted to game', {
               gameId,
@@ -862,67 +858,13 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         this.io.to(`game:${gameId}`).emit('map_data', mapData);
       },
       broadcastCityData: (gameId: string) => {
-        // Get game instance and broadcast real city data if available
-        const gameInstance = this.games.get(gameId);
-        if (gameInstance?.cityManager) {
-          const allCities = gameInstance.cityManager.getAllCities();
-          const clientCityData = CityDataService.transformCitiesForClient(allCities);
-
-          this.io.to(`game:${gameId}`).emit('cities_updated', {
-            gameId,
-            cities: clientCityData,
-            timestamp: Date.now(),
-          });
-        } else {
-          // Fallback to empty cities
-          this.io.to(`game:${gameId}`).emit('cities_updated', {
-            gameId,
-            cities: {},
-            timestamp: Date.now(),
-          });
-        }
+        this.broadcastManager?.broadcastCityData(gameId);
       },
       broadcastCityDataToPlayer: (gameId: string, playerId: string) => {
-        // Get game instance and broadcast real city data if available
-        const gameInstance = this.games.get(gameId);
-        if (gameInstance?.cityManager) {
-          const allCities = gameInstance.cityManager.getAllCities();
-          const clientCityData = CityDataService.transformCitiesForClient(allCities);
-
-          this.io.to(`player:${playerId}`).emit('cities_updated', {
-            gameId,
-            cities: clientCityData,
-            timestamp: Date.now(),
-          });
-        } else {
-          // Fallback to empty cities
-          this.io.to(`player:${playerId}`).emit('cities_updated', {
-            gameId,
-            cities: {},
-            timestamp: Date.now(),
-          });
-        }
+        this.broadcastManager?.broadcastCityDataToPlayer(gameId, playerId);
       },
       syncGameStateToPlayer: (gameId: string, playerId: string) => {
-        // Sync city data to player
-        const gameInstance = this.games.get(gameId);
-        if (gameInstance?.cityManager) {
-          const allCities = gameInstance.cityManager.getAllCities();
-          const clientCityData = CityDataService.transformCitiesForClient(allCities);
-
-          this.io.to(`player:${playerId}`).emit('cities_updated', {
-            gameId,
-            cities: clientCityData,
-            timestamp: Date.now(),
-          });
-        } else {
-          // Fallback to empty cities
-          this.io.to(`player:${playerId}`).emit('cities_updated', {
-            gameId,
-            cities: {},
-            timestamp: Date.now(),
-          });
-        }
+        this.broadcastManager?.syncGameStateToPlayer(gameId, playerId);
       },
     } as any; // Cast to any to satisfy type requirements temporarily
 
@@ -1092,39 +1034,5 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       logger.error('Error in GameLifecycleManager requestPath delegation:', error);
       return { success: false, error: 'Pathfinding error' };
     }
-  }
-
-  /**
-   * Format unit for client consumption
-   * @reference GameManager.formatUnitForClient
-   */
-  private formatUnitForClient(unit: any, unitManager: any): any {
-    const unitType = unitManager.getUnitType(unit.unitTypeId);
-
-    return {
-      id: unit.id,
-      owner: unit.playerId,
-      type: unitType?.id || unit.unitTypeId,
-      tile: unit.x + unit.y * 100, // Convert to tile index (simplified)
-      x: unit.x,
-      y: unit.y,
-      hp: unit.health,
-      movesleft: unit.movementLeft * 3, // Convert to movement fragments
-      veteran: unit.veteranLevel,
-      transported: false,
-      paradropped: false,
-      connecting: false,
-      occupied: false,
-      done_moving: unit.movementLeft === 0,
-      battlegroup: -1,
-      has_orders: false,
-      homecity: 0, // No home city initially
-      fuel: 0,
-      goto_tile: -1,
-      activity: 0, // ACTIVITY_IDLE
-      activity_count: 0,
-      activity_target: null,
-      focus: false,
-    };
   }
 }

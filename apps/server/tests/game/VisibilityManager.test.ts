@@ -56,6 +56,14 @@ describe('VisibilityManager', () => {
   });
 
   describe('visibility updates', () => {
+    it('calculates visibility on the first update for a player', async () => {
+      await unitManager.createUnit('new-player', 'warriors', 10, 10);
+
+      visibilityManager.updatePlayerVisibility('new-player');
+
+      expect(visibilityManager.getVisibleTiles('new-player').has('10,10')).toBe(true);
+    });
+
     beforeEach(() => {
       visibilityManager.initializePlayerVisibility('player-123');
     });

@@ -4,7 +4,6 @@ import { Server as SocketServer } from 'socket.io';
 import { DatabaseProvider, productionDatabaseProvider } from '@database';
 import { gameState } from '@database/redis';
 import { games, players } from '@database/schema';
-import { PacketType } from '@app-types/packet';
 import { logger } from '@utils/logger';
 
 // Extracted managers following refactoring patterns
@@ -154,7 +153,8 @@ export class GameManager {
       this.persistMapDataToDatabase.bind(this),
       this.createStartingUnits.bind(this),
       this.foundCity.bind(this),
-      this.gameBroadcastManager.broadcastMapData.bind(this.gameBroadcastManager)
+      this.gameBroadcastManager.broadcastMapData.bind(this.gameBroadcastManager),
+      this.gameBroadcastManager
     );
 
     this.unitManagementService = new UnitManagementService(
@@ -409,13 +409,9 @@ export class GameManager {
             units: [settler.id, warrior.id],
           });
 
-          // Broadcast unit creation to all players in the game
-          this.broadcastPacketToGame(gameId, PacketType.UNIT_INFO, {
-            units: [
-              this.formatUnitForClient(settler, unitManager),
-              this.formatUnitForClient(warrior, unitManager),
-            ],
-          });
+          // The player-scoped initial map sync emits these units after
+          // visibility is calculated. Broadcasting here would disclose every
+          // starting position to every player before that sync.
         } catch (error) {
           logger.error(`Failed to create starting units for player ${player.id}:`, error);
           // Continue with other players even if one fails
@@ -427,40 +423,6 @@ export class GameManager {
       logger.error('Failed to create starting units:', error);
       // Don't throw to avoid breaking game initialization
     }
-  }
-
-  /**
-   * Format unit for client communication
-   * @reference freeciv-web unit packet format
-   */
-  private formatUnitForClient(unit: any, unitManager: any): any {
-    const unitType = unitManager.getUnitType(unit.unitTypeId);
-
-    return {
-      id: unit.id,
-      owner: unit.playerId,
-      type: unitType?.id || unit.unitTypeId,
-      tile: unit.x + unit.y * 100, // Convert to tile index (simplified)
-      x: unit.x,
-      y: unit.y,
-      hp: unit.health,
-      movesleft: unit.movementLeft * 3, // Convert to movement fragments
-      veteran: unit.veteranLevel,
-      transported: false,
-      paradropped: false,
-      connecting: false,
-      occupied: false,
-      done_moving: unit.movementLeft === 0,
-      battlegroup: -1,
-      has_orders: false,
-      homecity: 0, // No home city initially
-      fuel: 0,
-      goto_tile: -1,
-      activity: 0, // ACTIVITY_IDLE
-      activity_count: 0,
-      activity_target: null,
-      focus: false,
-    };
   }
 
   /**
@@ -892,13 +854,6 @@ export class GameManager {
    */
   private broadcastToGame(gameId: string, event: string, data: any): void {
     this.gameBroadcastManager.broadcastToGame(gameId, event, data);
-  }
-
-  /**
-   * Broadcast packet to game - delegates to GameBroadcastManager
-   */
-  private broadcastPacketToGame(gameId: string, packetType: PacketType, data: any): void {
-    this.gameBroadcastManager.broadcastPacketToGame(gameId, packetType, data);
   }
 
   /**

@@ -47,10 +47,10 @@ export class VisibilityManager {
    * Update visibility for a player based on their units
    */
   public updatePlayerVisibility(playerId: string): void {
-    const visibility = this.playerVisibility.get(playerId);
+    let visibility = this.playerVisibility.get(playerId);
     if (!visibility) {
       this.initializePlayerVisibility(playerId);
-      return;
+      visibility = this.playerVisibility.get(playerId)!;
     }
 
     // Clear current visibility
