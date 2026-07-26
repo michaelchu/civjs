@@ -35,5 +35,11 @@ describe('RulesetBuildingsService', () => {
     expect(Object.keys(rulesetBuildingsService.getPlayableBuildingTypes())).toEqual(
       expect.arrayContaining(['palace', 'granary', 'barracks', 'library', 'marketplace', 'temple'])
     );
+
+    // 68 classic definitions plus CivJS's legacy Monument entry.
+    // @reference reference/freeciv/data/classic/buildings.ruleset
+    expect(Object.keys(buildings)).toHaveLength(69);
+    expect(buildings.airport).toMatchObject({ requiredTech: 'radio', playable: false });
+    expect(buildings.bank.requires).toEqual(['marketplace']);
   });
 });

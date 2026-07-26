@@ -103,7 +103,9 @@
       "upkeep": 3,
       "playable": true,
       "requiredTech": "monotheism",
-      "requires": ["temple"],
+      "requires": [
+        "temple"
+      ],
       "effects": {
         "happinessBonus": 3,
         "scienceBonus": 25
@@ -119,6 +121,516 @@
       "effects": {
         "corruptionReduction": 50
       }
+    },
+    "airport": {
+      "id": "airport",
+      "name": "Airport",
+      "effects": {},
+      "cost": 120,
+      "upkeep": 3,
+      "requiredTech": "radio"
+    },
+    "aqueduct": {
+      "id": "aqueduct",
+      "name": "Aqueduct",
+      "effects": {},
+      "cost": 60,
+      "upkeep": 2,
+      "requiredTech": "construction"
+    },
+    "bank": {
+      "id": "bank",
+      "name": "Bank",
+      "effects": {},
+      "cost": 80,
+      "upkeep": 2,
+      "requiredTech": "banking",
+      "requires": [
+        "marketplace"
+      ]
+    },
+    "barracks_ii": {
+      "id": "barracks_ii",
+      "name": "Barracks II",
+      "effects": {},
+      "cost": 30,
+      "upkeep": 1,
+      "requiredTech": "gunpowder"
+    },
+    "barracks_iii": {
+      "id": "barracks_iii",
+      "name": "Barracks III",
+      "effects": {},
+      "cost": 30,
+      "upkeep": 1,
+      "requiredTech": "mobile_warfare"
+    },
+    "coastal_defense": {
+      "id": "coastal_defense",
+      "name": "Coastal Defense",
+      "effects": {},
+      "cost": 60,
+      "upkeep": 1,
+      "requiredTech": "gunpowder"
+    },
+    "colosseum": {
+      "id": "colosseum",
+      "name": "Colosseum",
+      "effects": {},
+      "cost": 70,
+      "upkeep": 4,
+      "requiredTech": "construction"
+    },
+    "factory": {
+      "id": "factory",
+      "name": "Factory",
+      "effects": {},
+      "cost": 140,
+      "upkeep": 4,
+      "requiredTech": "industrialization"
+    },
+    "harbor": {
+      "id": "harbor",
+      "name": "Harbor",
+      "effects": {},
+      "cost": 40,
+      "upkeep": 1,
+      "requiredTech": "seafaring"
+    },
+    "hydro_plant": {
+      "id": "hydro_plant",
+      "name": "Hydro Plant",
+      "effects": {},
+      "cost": 180,
+      "upkeep": 4,
+      "requiredTech": "electronics",
+      "requires": [
+        "factory"
+      ]
+    },
+    "mass_transit": {
+      "id": "mass_transit",
+      "name": "Mass Transit",
+      "effects": {},
+      "cost": 120,
+      "upkeep": 4,
+      "requiredTech": "mass_production"
+    },
+    "mfg_plant": {
+      "id": "mfg_plant",
+      "name": "Mfg. Plant",
+      "effects": {},
+      "cost": 220,
+      "upkeep": 6,
+      "requiredTech": "robotics",
+      "requires": [
+        "factory"
+      ]
+    },
+    "nuclear_plant": {
+      "id": "nuclear_plant",
+      "name": "Nuclear Plant",
+      "effects": {},
+      "cost": 120,
+      "upkeep": 2,
+      "requiredTech": "nuclear_power",
+      "requires": [
+        "factory"
+      ]
+    },
+    "offshore_platform": {
+      "id": "offshore_platform",
+      "name": "Offshore Platform",
+      "effects": {},
+      "cost": 120,
+      "upkeep": 3,
+      "requiredTech": "miniaturization"
+    },
+    "police_station": {
+      "id": "police_station",
+      "name": "Police Station",
+      "effects": {},
+      "cost": 50,
+      "upkeep": 2,
+      "requiredTech": "communism"
+    },
+    "port_facility": {
+      "id": "port_facility",
+      "name": "Port Facility",
+      "effects": {},
+      "cost": 60,
+      "upkeep": 3,
+      "requiredTech": "amphibious_warfare"
+    },
+    "power_plant": {
+      "id": "power_plant",
+      "name": "Power Plant",
+      "effects": {},
+      "cost": 130,
+      "upkeep": 4,
+      "requiredTech": "refining",
+      "requires": [
+        "factory"
+      ]
+    },
+    "recycling_center": {
+      "id": "recycling_center",
+      "name": "Recycling Center",
+      "effects": {},
+      "cost": 140,
+      "upkeep": 2,
+      "requiredTech": "recycling"
+    },
+    "research_lab": {
+      "id": "research_lab",
+      "name": "Research Lab",
+      "effects": {},
+      "cost": 120,
+      "upkeep": 3,
+      "requiredTech": "computers",
+      "requires": [
+        "university"
+      ]
+    },
+    "sam_battery": {
+      "id": "sam_battery",
+      "name": "SAM Battery",
+      "effects": {},
+      "cost": 70,
+      "upkeep": 2,
+      "requiredTech": "rocketry"
+    },
+    "sdi_defense": {
+      "id": "sdi_defense",
+      "name": "SDI Defense",
+      "effects": {},
+      "cost": 140,
+      "upkeep": 4,
+      "requiredTech": "laser"
+    },
+    "sewer_system": {
+      "id": "sewer_system",
+      "name": "Sewer System",
+      "effects": {},
+      "cost": 80,
+      "upkeep": 2,
+      "requiredTech": "sanitation",
+      "requires": [
+        "aqueduct"
+      ]
+    },
+    "solar_plant": {
+      "id": "solar_plant",
+      "name": "Solar Plant",
+      "effects": {},
+      "cost": 320,
+      "upkeep": 4,
+      "requiredTech": "environmentalism",
+      "requires": [
+        "factory"
+      ]
+    },
+    "space_component": {
+      "id": "space_component",
+      "name": "Space Component",
+      "effects": {},
+      "cost": 160,
+      "upkeep": 0,
+      "requiredTech": "plastics",
+      "requires": [
+        "factory"
+      ]
+    },
+    "space_module": {
+      "id": "space_module",
+      "name": "Space Module",
+      "effects": {},
+      "cost": 320,
+      "upkeep": 0,
+      "requiredTech": "superconductors",
+      "requires": [
+        "factory"
+      ]
+    },
+    "space_structural": {
+      "id": "space_structural",
+      "name": "Space Structural",
+      "effects": {},
+      "cost": 80,
+      "upkeep": 0,
+      "requiredTech": "space_flight",
+      "requires": [
+        "factory"
+      ]
+    },
+    "stock_exchange": {
+      "id": "stock_exchange",
+      "name": "Stock Exchange",
+      "effects": {},
+      "cost": 120,
+      "upkeep": 3,
+      "requiredTech": "economics",
+      "requires": [
+        "bank"
+      ]
+    },
+    "super_highways": {
+      "id": "super_highways",
+      "name": "Super Highways",
+      "effects": {},
+      "cost": 120,
+      "upkeep": 3,
+      "requiredTech": "automobile"
+    },
+    "supermarket": {
+      "id": "supermarket",
+      "name": "Supermarket",
+      "effects": {},
+      "cost": 80,
+      "upkeep": 3,
+      "requiredTech": "refrigeration"
+    },
+    "university": {
+      "id": "university",
+      "name": "University",
+      "effects": {},
+      "cost": 120,
+      "upkeep": 3,
+      "requiredTech": "university",
+      "requires": [
+        "library"
+      ]
+    },
+    "apollo_program": {
+      "id": "apollo_program",
+      "name": "Apollo Program",
+      "effects": {},
+      "cost": 600,
+      "upkeep": 0,
+      "requiredTech": "space_flight"
+    },
+    "asmiths_trading_co": {
+      "id": "asmiths_trading_co",
+      "name": "A.Smith's Trading Co.",
+      "effects": {},
+      "cost": 400,
+      "upkeep": 0,
+      "requiredTech": "economics"
+    },
+    "colossus": {
+      "id": "colossus",
+      "name": "Colossus",
+      "effects": {},
+      "cost": 100,
+      "upkeep": 0,
+      "requiredTech": "bronze_working"
+    },
+    "copernicus_observatory": {
+      "id": "copernicus_observatory",
+      "name": "Copernicus' Observatory",
+      "effects": {},
+      "cost": 200,
+      "upkeep": 0,
+      "requiredTech": "astronomy"
+    },
+    "cure_for_cancer": {
+      "id": "cure_for_cancer",
+      "name": "Cure For Cancer",
+      "effects": {},
+      "cost": 600,
+      "upkeep": 0,
+      "requiredTech": "genetic_engineering"
+    },
+    "darwins_voyage": {
+      "id": "darwins_voyage",
+      "name": "Darwin's Voyage",
+      "effects": {},
+      "cost": 300,
+      "upkeep": 0,
+      "requiredTech": "railroad"
+    },
+    "eiffel_tower": {
+      "id": "eiffel_tower",
+      "name": "Eiffel Tower",
+      "effects": {},
+      "cost": 100,
+      "upkeep": 0,
+      "requiredTech": "steam_engine"
+    },
+    "great_library": {
+      "id": "great_library",
+      "name": "Great Library",
+      "effects": {},
+      "cost": 300,
+      "upkeep": 0,
+      "requiredTech": "literacy"
+    },
+    "great_wall": {
+      "id": "great_wall",
+      "name": "Great Wall",
+      "effects": {},
+      "cost": 300,
+      "upkeep": 0,
+      "requiredTech": "masonry"
+    },
+    "hanging_gardens": {
+      "id": "hanging_gardens",
+      "name": "Hanging Gardens",
+      "effects": {},
+      "cost": 200,
+      "upkeep": 0,
+      "requiredTech": "pottery"
+    },
+    "hoover_dam": {
+      "id": "hoover_dam",
+      "name": "Hoover Dam",
+      "effects": {},
+      "cost": 600,
+      "upkeep": 0,
+      "requiredTech": "electronics"
+    },
+    "isaac_newtons_college": {
+      "id": "isaac_newtons_college",
+      "name": "Isaac Newton's College",
+      "effects": {},
+      "cost": 300,
+      "upkeep": 0,
+      "requiredTech": "theory_of_gravity"
+    },
+    "js_bachs_cathedral": {
+      "id": "js_bachs_cathedral",
+      "name": "J.S. Bach's Cathedral",
+      "effects": {},
+      "cost": 400,
+      "upkeep": 0,
+      "requiredTech": "theology"
+    },
+    "king_richards_crusade": {
+      "id": "king_richards_crusade",
+      "name": "King Richard's Crusade",
+      "effects": {},
+      "cost": 150,
+      "upkeep": 0,
+      "requiredTech": "engineering"
+    },
+    "leonardos_workshop": {
+      "id": "leonardos_workshop",
+      "name": "Leonardo's Workshop",
+      "effects": {},
+      "cost": 400,
+      "upkeep": 0,
+      "requiredTech": "invention"
+    },
+    "lighthouse": {
+      "id": "lighthouse",
+      "name": "Lighthouse",
+      "effects": {},
+      "cost": 200,
+      "upkeep": 0,
+      "requiredTech": "map_making"
+    },
+    "magellans_expedition": {
+      "id": "magellans_expedition",
+      "name": "Magellan's Expedition",
+      "effects": {},
+      "cost": 400,
+      "upkeep": 0,
+      "requiredTech": "navigation"
+    },
+    "manhattan_project": {
+      "id": "manhattan_project",
+      "name": "Manhattan Project",
+      "effects": {},
+      "cost": 600,
+      "upkeep": 0,
+      "requiredTech": "nuclear_fission"
+    },
+    "marco_polos_embassy": {
+      "id": "marco_polos_embassy",
+      "name": "Marco Polo's Embassy",
+      "effects": {},
+      "cost": 200,
+      "upkeep": 0,
+      "requiredTech": "trade"
+    },
+    "michelangelos_chapel": {
+      "id": "michelangelos_chapel",
+      "name": "Michelangelo's Chapel",
+      "effects": {},
+      "cost": 400,
+      "upkeep": 0,
+      "requiredTech": "monotheism"
+    },
+    "oracle": {
+      "id": "oracle",
+      "name": "Oracle",
+      "effects": {},
+      "cost": 100,
+      "upkeep": 0,
+      "requiredTech": "mysticism"
+    },
+    "pyramids": {
+      "id": "pyramids",
+      "name": "Pyramids",
+      "effects": {},
+      "cost": 200,
+      "upkeep": 0,
+      "requiredTech": "masonry"
+    },
+    "seti_program": {
+      "id": "seti_program",
+      "name": "SETI Program",
+      "effects": {},
+      "cost": 600,
+      "upkeep": 0,
+      "requiredTech": "computers"
+    },
+    "shakespeares_theatre": {
+      "id": "shakespeares_theatre",
+      "name": "Shakespeare's Theater",
+      "effects": {},
+      "cost": 200,
+      "upkeep": 0,
+      "requiredTech": "medicine"
+    },
+    "statue_of_liberty": {
+      "id": "statue_of_liberty",
+      "name": "Statue of Liberty",
+      "effects": {},
+      "cost": 400,
+      "upkeep": 0,
+      "requiredTech": "democracy"
+    },
+    "sun_tzus_war_academy": {
+      "id": "sun_tzus_war_academy",
+      "name": "Sun Tzu's War Academy",
+      "effects": {},
+      "cost": 300,
+      "upkeep": 0,
+      "requiredTech": "feudalism"
+    },
+    "united_nations": {
+      "id": "united_nations",
+      "name": "United Nations",
+      "effects": {},
+      "cost": 600,
+      "upkeep": 0,
+      "requiredTech": "communism"
+    },
+    "womens_suffrage": {
+      "id": "womens_suffrage",
+      "name": "Women's Suffrage",
+      "effects": {},
+      "cost": 600,
+      "upkeep": 0,
+      "requiredTech": "industrialization"
+    },
+    "capitalization": {
+      "id": "capitalization",
+      "name": "Coinage",
+      "effects": {},
+      "cost": 999,
+      "upkeep": 0
     }
   }
 }
