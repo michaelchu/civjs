@@ -311,6 +311,14 @@ export class CityTurnProcessingService extends BaseGameService {
       if (city.population > 1) {
         city.population -= 1;
         city.size = city.population;
+        const shrinkFoodRetention = this.effectsManager.calculateEffect(EffectType.SHRINK_FOOD, {
+          playerId: city.playerId,
+          cityId: city.id,
+          cityBuildings: new Set(city.buildings),
+        }).value;
+        city.foodStock = Math.floor(
+          (this.calculateGranarySize(city.population) * shrinkFoodRetention) / 100
+        );
         logger.info(`City ${city.name} starved and lost population`);
       }
     } else {
