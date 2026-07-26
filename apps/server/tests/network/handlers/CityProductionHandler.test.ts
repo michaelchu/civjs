@@ -155,6 +155,32 @@ describe('CityProductionHandler', () => {
       );
       expect(call).toBeDefined();
     });
+
+    it("uses ResearchManager's canonical technology lookup for building prerequisites", async () => {
+      const canonicalResearchManager = {
+        hasResearchedTech: jest.fn((_playerId: string, techId: string) => techId !== 'writing'),
+      };
+      const canonicalHandler = new CityProductionHandler(
+        mockCities,
+        mockPlayers,
+        canonicalResearchManager
+      );
+
+      await canonicalHandler.getAvailableProductions(mockSocket, {
+        cityId: 'city-1',
+        playerId: 'player-1',
+      });
+
+      const call = (mockSocket.emit as jest.MockedFunction<any>).mock.calls.find(
+        (entry: any) => entry[0] === 'city:availableProductions'
+      );
+      const library = call[1].productions.find((production: any) => production.id === 'library');
+      expect(library.available).toBe(false);
+      expect(canonicalResearchManager.hasResearchedTech).toHaveBeenCalledWith(
+        'player-1',
+        'writing'
+      );
+    });
   });
 
   describe('changeProduction', () => {

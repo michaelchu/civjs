@@ -14,6 +14,7 @@
       "name": "Palace",
       "cost": 100,
       "upkeep": 0,
+      "requiredTech": "masonry",
       "effects": {
         "defenseBonus": 100,
         "happinessBonus": 1
@@ -24,6 +25,7 @@
       "name": "Granary",
       "cost": 60,
       "upkeep": 1,
+      "requiredTech": "pottery",
       "effects": {
         "foodBonus": 1
       }
@@ -42,6 +44,7 @@
       "name": "Library",
       "cost": 80,
       "upkeep": 1,
+      "requiredTech": "writing",
       "effects": {
         "scienceBonus": 50
       }
@@ -51,6 +54,7 @@
       "name": "Marketplace",
       "cost": 80,
       "upkeep": 0,
+      "requiredTech": "currency",
       "effects": {
         "goldBonus": 50
       }
@@ -60,6 +64,7 @@
       "name": "Temple",
       "cost": 40,
       "upkeep": 1,
+      "requiredTech": "ceremonial_burial",
       "effects": {
         "happinessBonus": 2
       }
@@ -69,6 +74,7 @@
       "name": "City Walls",
       "cost": 80,
       "upkeep": 0,
+      "requiredTech": "masonry",
       "effects": {
         "defenseBonus": 200
       }
@@ -87,6 +93,8 @@
       "name": "Cathedral",
       "cost": 160,
       "upkeep": 3,
+      "requiredTech": "monotheism",
+      "requires": ["temple"],
       "effects": {
         "happinessBonus": 3,
         "scienceBonus": 25
@@ -97,6 +105,7 @@
       "name": "Courthouse",
       "cost": 80,
       "upkeep": 1,
+      "requiredTech": "code_of_laws",
       "effects": {
         "corruptionReduction": 50
       }

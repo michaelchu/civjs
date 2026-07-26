@@ -14,5 +14,10 @@ describe('RulesetBuildingsService', () => {
     expect(buildings.temple.effects.happinessEffect).toBe(
       classicBuildings.temple.effects.happinessBonus
     );
+    expect(buildings.temple.requiredTech).toBe('ceremonial_burial');
+    expect(buildings.cathedral).toMatchObject({
+      requiredTech: 'monotheism',
+      requires: ['temple'],
+    });
   });
 });

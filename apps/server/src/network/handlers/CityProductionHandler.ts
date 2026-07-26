@@ -395,7 +395,18 @@ export class CityProductionHandler {
    * Check if player has researched technology
    */
   private hasPlayerResearched(player: any, techId: string): boolean {
-    return this.researchManager?.hasPlayerResearched?.(player.id, techId) ?? true;
+    if (this.researchManager?.hasResearchedTech) {
+      return this.researchManager.hasResearchedTech(player.id, techId);
+    }
+
+    // Retain the older adapter only for callers which have not yet moved to
+    // ResearchManager's canonical API.
+    if (this.researchManager?.hasPlayerResearched) {
+      return this.researchManager.hasPlayerResearched(player.id, techId);
+    }
+
+    // A missing research authority must not make a gated product available.
+    return false;
   }
 
   /**

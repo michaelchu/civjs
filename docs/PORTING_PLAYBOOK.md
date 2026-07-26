@@ -93,7 +93,10 @@ City production and happiness now share the classic building catalogue rather
 than duplicated TypeScript lists, and unit visibility applies ruleset effects
 with live unit, tile, and researched-technology context (including classic
 mountain and Invention-gated fortress vision), for both new and recovered
-games. Wiring effect contexts into every authoritative action remains open.
+games. The city-production authority now uses the canonical research API and
+fails closed without it; its shared building catalogue carries the classic
+technology and prerequisite-building gates used by the playable catalogue.
+Wiring effect contexts into every authoritative action remains open.
 
 - Finish ruleset loading and validation for all classic entities and effects used by the playable loop.
 - Implement requirement evaluation in every relevant context: player, city, unit, tile, technology, government, and action.

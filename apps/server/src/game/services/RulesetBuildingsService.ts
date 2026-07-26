@@ -4,6 +4,8 @@ export interface RulesetBuildingType {
   id: string;
   name: string;
   cost: number;
+  requiredTech?: string;
+  requires?: string[];
   effects: {
     defenseBonus?: number;
     foodBonus?: number;
@@ -33,6 +35,8 @@ export class RulesetBuildingsService {
           id: building.id,
           name: building.name,
           cost: building.cost,
+          requiredTech: building.requiredTech,
+          requires: building.requires,
           effects: {
             ...building.effects,
             happinessEffect: building.effects.happinessBonus,
