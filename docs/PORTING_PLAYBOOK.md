@@ -102,7 +102,14 @@ full source catalog is loaded without exposing an unimplemented building to
 players. City happiness and output now consume the loaded classic Temple,
 Cathedral, Marketplace, and Library effects, with live research context for
 their tech-gated contentment modifiers. Wiring effect contexts into every
-authoritative action remains open.
+authoritative action remains open. The comprehensive playable-building pass
+now covers Palace trade waste and government shield bonuses, Granary growth and
+starvation food retention, Barracks veteran production and city healing,
+Library science, Marketplace gold/luxury, Temple/Cathedral contentment,
+Courthouse trade waste/Democracy contentment, and City Walls defense. Effects
+that require an unported system are deliberately not imported as active rules:
+city capture population protection and incite costs need the capture/incite
+action flow, while visible-wall UI effects require client rendering support.
 
 - Finish ruleset loading and validation for all classic entities and effects used by the playable loop.
 - Implement requirement evaluation in every relevant context: player, city, unit, tile, technology, government, and action.
