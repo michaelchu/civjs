@@ -35,6 +35,12 @@ export interface TurnStatistics {
   processingTimeMs: number;
 }
 
+export interface TurnInitializationOptions {
+  currentTurn?: number;
+  createTurnRecord?: boolean;
+  broadcastTurnStart?: boolean;
+}
+
 export class TurnManager {
   private gameId: string;
   private databaseProvider: DatabaseProvider;
@@ -109,11 +115,26 @@ export class TurnManager {
     this.calendarService = new CalendarService(CalendarService.createDefaultConfig());
   }
 
-  public async initializeTurn(playerIds: string[]): Promise<void> {
+  public async initializeTurn(
+    playerIds: string[],
+    {
+      currentTurn = 1,
+      createTurnRecord = true,
+      broadcastTurnStart = true,
+    }: TurnInitializationOptions = {}
+  ): Promise<void> {
     logger.info('Initializing turn system', { gameId: this.gameId });
 
-    this.currentTurn = 1;
-    // Initialize calendar with starting year, sync currentYear with calendar state
+    this.currentTurn = currentTurn;
+    // Reconstruct the calendar when restoring an existing game so packets and
+    // future turn processing continue from the persisted turn rather than turn 1.
+    for (let turn = 2; turn <= this.currentTurn; turn += 1) {
+      this.calendarService.advanceYear({
+        turnYears: this.getYearIncrementForTurn(turn),
+        turnFragments: 0,
+        slowDownTimeline: 0,
+      });
+    }
     this.currentYear = this.calendarService.getState().year;
     this.turnStartTime = new Date();
 
@@ -122,11 +143,13 @@ export class TurnManager {
       this.playerActions.set(playerId, []);
     }
 
-    // Create initial turn record
-    await this.createTurnRecord();
+    if (createTurnRecord) {
+      await this.createTurnRecord();
+    }
 
-    // Notify players of turn start
-    this.broadcastTurnStart();
+    if (broadcastTurnStart) {
+      this.broadcastTurnStart();
+    }
 
     logger.info('Turn system initialized', {
       gameId: this.gameId,

@@ -740,6 +740,11 @@ export class GameManager {
       // Process the turn using the comprehensive TurnManager system
       // This now handles all aspects: movement reset, unit orders, city production, research, etc.
       await gameInstance.turnManager.processTurn();
+      // @reference reference/freeciv/server/srv_main.c:1155-1185,1607-1623
+      // TurnManager is the authoritative turn processor. Keep the game
+      // instance synchronized so broadcasts, reconnects, and recovery observe
+      // the same turn that was persisted by TurnManager.
+      gameInstance.currentTurn = gameInstance.turnManager.getCurrentTurn();
 
       // Reset player turn status for next turn
       for (const player of gameInstance.players.values()) {

@@ -9,6 +9,7 @@ describe('GameManager turn readiness', () => {
   it('advances a single-player game after the human ends turn', async () => {
     const gameManager = GameManager.getInstance(createMockSocketServer() as any);
     const processTurn = jest.fn().mockResolvedValue(undefined);
+    const getCurrentTurn = jest.fn().mockReturnValue(2);
     const gameId = 'single-player-game';
     const humanId = 'human-player';
     const aiId = 'ai-player';
@@ -48,12 +49,13 @@ describe('GameManager turn readiness', () => {
       state: 'active',
       currentTurn: 1,
       players,
-      turnManager: { processTurn },
+      turnManager: { processTurn, getCurrentTurn },
     });
     (gameManager as any).playerToGame.set(humanId, gameId);
 
     await expect(gameManager.endTurn(humanId)).resolves.toBe(true);
     expect(processTurn).toHaveBeenCalledTimes(1);
+    expect(getCurrentTurn).toHaveBeenCalledTimes(1);
     expect(players.get(humanId)?.hasEndedTurn).toBe(false);
     expect(players.get(aiId)?.hasEndedTurn).toBe(false);
   });

@@ -160,13 +160,16 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     expect(mapReply.success).toBe(true);
     expect(mapReply.mapData).toMatchObject({ width: 20, height: 20 });
 
-    const hostTurnReply = waitForPacket(host, PacketType.TURN_END_REPLY);
-    host.emit('packet', { type: PacketType.END_TURN, data: {} });
-    expect((await hostTurnReply).data).toMatchObject({ success: true, turnAdvanced: false });
+    for (let completedTurns = 0; completedTurns < 20; completedTurns += 1) {
+      const hostTurnReply = waitForPacket(host, PacketType.TURN_END_REPLY);
+      host.emit('packet', { type: PacketType.END_TURN, data: {} });
+      expect((await hostTurnReply).data).toMatchObject({ success: true, turnAdvanced: false });
 
-    const guestTurnReply = waitForPacket(guest, PacketType.TURN_END_REPLY);
-    guest.emit('packet', { type: PacketType.END_TURN, data: {} });
-    expect((await guestTurnReply).data).toMatchObject({ success: true, turnAdvanced: true });
+      const guestTurnReply = waitForPacket(guest, PacketType.TURN_END_REPLY);
+      guest.emit('packet', { type: PacketType.END_TURN, data: {} });
+      expect((await guestTurnReply).data).toMatchObject({ success: true, turnAdvanced: true });
+    }
+    expect(gameManager.getGameInstance(gameId)?.currentTurn).toBe(21);
 
     host.disconnect();
     const returning = connectClient();

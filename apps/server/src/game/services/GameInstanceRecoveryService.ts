@@ -312,7 +312,11 @@ export class GameInstanceRecoveryService extends BaseGameService {
     );
 
     const playerIds = Array.from(players.keys());
-    await turnManager.initializeTurn(playerIds);
+    await turnManager.initializeTurn(playerIds, {
+      currentTurn: game.currentTurn,
+      createTurnRecord: false,
+      broadcastTurnStart: false,
+    });
 
     return {
       turnManager,

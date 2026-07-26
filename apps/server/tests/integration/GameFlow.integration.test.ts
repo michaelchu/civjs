@@ -142,6 +142,62 @@ describe('Game Integration Flow', () => {
       // Integration test complete - all managers working together
     });
 
+    it('plays twenty two-player turns and preserves the active game for recovery', async () => {
+      // @reference reference/freeciv/server/srv_main.c:1155-1185,1607-1623
+      const db = getTestDatabase();
+      const hostUserId = generateTestUUID();
+      const guestUserId = generateTestUUID();
+
+      await db.insert(schema.users).values([
+        {
+          id: hostUserId,
+          username: `TwentyTurnHost_${Date.now()}`,
+          email: `twenty_turn_host_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+        {
+          id: guestUserId,
+          username: `TwentyTurnGuest_${Date.now()}`,
+          email: `twenty_turn_guest_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+      ]);
+
+      const gameId = await gameManager.createGame({
+        name: 'Twenty Turn Integration Test',
+        hostId: hostUserId,
+        maxPlayers: 2,
+        mapWidth: 20,
+        mapHeight: 20,
+        ruleset: 'classic',
+      });
+      const host = await gameManager.joinGame(gameId, hostUserId, 'romans');
+      const guest = await gameManager.joinGame(gameId, guestUserId, 'greeks');
+
+      for (let completedTurns = 0; completedTurns < 20; completedTurns += 1) {
+        expect(await gameManager.endTurn(host.playerId)).toBe(false);
+        expect(await gameManager.endTurn(guest.playerId)).toBe(true);
+      }
+
+      const activeGame = gameManager.getGameInstance(gameId);
+      expect(activeGame).toBeDefined();
+      expect(activeGame!.currentTurn).toBe(21);
+
+      gameManager.clearAllGames();
+      (GameManager as any).instance = null;
+      const recoveredManager = GameManager.getInstance(
+        createMockSocketServer(),
+        getTestDatabaseProvider()
+      );
+      const recoveredGame = await recoveredManager.recoverGameInstance(gameId);
+
+      expect(recoveredGame).not.toBeNull();
+      expect(recoveredGame!.currentTurn).toBe(21);
+      expect((await recoveredManager.joinGame(gameId, hostUserId, 'romans')).playerId).toBe(
+        host.playerId
+      );
+    });
+
     it('should recover persisted map, units, cities, and borders after a server restart', async () => {
       const db = getTestDatabase();
       const hostUserId = generateTestUUID();

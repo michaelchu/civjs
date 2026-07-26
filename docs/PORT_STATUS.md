@@ -30,7 +30,8 @@ Milestone 0's reliable-porting baseline is complete:
   authoritative manager/database flow, including restart recovery.
 - `apps/server/tests/integration/SocketGameFlow.integration.test.ts` verifies
   the client transport boundary: Socket.IO connection/authentication, game
-  creation, join/nation selection, map delivery, turn completion, and rejoin.
+  creation, join/nation selection, map delivery, 20 turn completions, and
+  rejoin.
 - `.github/pull_request_template.md` requires source citations and packet and
   ruleset impact assessments for new porting changes.
 
