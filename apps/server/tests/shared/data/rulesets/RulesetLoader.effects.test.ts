@@ -37,6 +37,19 @@ describe('RulesetLoader classic effects ruleset', () => {
     });
   });
 
+  it('loads the classic city building output and contentment effects', () => {
+    const effects = createLoader().loadEffectsRuleset().effects;
+
+    // @reference reference/freeciv/data/classic/effects.ruleset:1175-1199,1764-1781,920-949
+    expect(effects.library_science_bonus).toMatchObject({ type: 'Output_Bonus', value: 100 });
+    expect(effects.marketplace_gold_bonus).toMatchObject({ type: 'Output_Bonus', value: 50 });
+    expect(effects.temple_content).toMatchObject({ type: 'Make_Content', value: 1 });
+    expect(effects.temple_mysticism_content).toMatchObject({ type: 'Make_Content', value: 1 });
+    expect(effects.cathedral_content).toMatchObject({ type: 'Make_Content', value: 3 });
+    expect(effects.cathedral_theology_content).toMatchObject({ type: 'Make_Content', value: 1 });
+    expect(effects.cathedral_communism_content).toMatchObject({ type: 'Make_Content', value: -1 });
+  });
+
   it('rejects effects with requirement types that the runtime cannot evaluate', () => {
     const loader = createLoader();
     const effects = loader.loadEffectsRuleset();

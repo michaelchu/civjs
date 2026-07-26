@@ -99,7 +99,10 @@ technology and prerequisite-building gates used by the playable catalogue.
 Representative classic building costs are now asserted against the source as
 well. Building metadata and production availability are now separate, so the
 full source catalog is loaded without exposing an unimplemented building to
-players. Wiring effect contexts into every authoritative action remains open.
+players. City happiness and output now consume the loaded classic Temple,
+Cathedral, Marketplace, and Library effects, with live research context for
+their tech-gated contentment modifiers. Wiring effect contexts into every
+authoritative action remains open.
 
 - Finish ruleset loading and validation for all classic entities and effects used by the playable loop.
 - Implement requirement evaluation in every relevant context: player, city, unit, tile, technology, government, and action.
