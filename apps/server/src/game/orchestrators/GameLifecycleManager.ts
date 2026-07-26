@@ -250,6 +250,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     // Create additional managers
     const researchManager = this.createResearchManager(gameId);
     await this.initializePlayerResearch(researchManager, players);
+    cityManager.setPlayerTechsProvider(
+      playerId => new Set(researchManager.getResearchedTechs(playerId))
+    );
     const visibilityManager = this.createVisibilityManager(
       gameId,
       unitManager,

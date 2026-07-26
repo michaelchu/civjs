@@ -671,6 +671,16 @@
       "reqs": [{ "type": "Building", "name": "Temple", "range": "City" }],
       "comment": "Base Temple contentment"
     },
+    "temple_mysticism_content": {
+      "id": "temple_mysticism_content",
+      "type": "Make_Content",
+      "value": 1,
+      "reqs": [
+        { "type": "Tech", "name": "Mysticism", "range": "Player" },
+        { "type": "Building", "name": "Temple", "range": "City" }
+      ],
+      "comment": "Mysticism Temple contentment bonus"
+    },
     "cathedral_content": {
       "id": "cathedral_content",
       "type": "Make_Content",

@@ -219,6 +219,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
       },
     });
     const researchManager = new ResearchManager(gameId, this.databaseProvider);
+    cityManager.setPlayerTechsProvider(
+      playerId => new Set(researchManager.getResearchedTechs(playerId))
+    );
 
     const unitManager = new UnitManager(
       gameId,

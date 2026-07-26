@@ -359,6 +359,10 @@ export class CityManager {
     this.currentTurnProvider = provider;
   }
 
+  public setPlayerTechsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
+    this.happinessService.setPlayerTechsProvider(provider);
+  }
+
   /**
    * Initialize the CityManager and its services
    */
