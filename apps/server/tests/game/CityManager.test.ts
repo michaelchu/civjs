@@ -9,6 +9,7 @@ import {
   productionKindToVut,
 } from '@game/managers/CityManager';
 import { EffectsManager } from '@game/managers/EffectsManager';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { MapManager } from '@game/managers/MapManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
@@ -75,17 +76,25 @@ describe('CityManager', () => {
 
   describe('building types', () => {
     it('should have valid building type definitions', () => {
+      const classicBuildings = rulesetLoader.getBuildings();
+
       expect(BUILDING_TYPES.granary).toBeDefined();
       expect(BUILDING_TYPES.granary.name).toBe('Granary');
-      expect(BUILDING_TYPES.granary.cost).toBe(60);
-      expect(BUILDING_TYPES.granary.effects.foodBonus).toBe(50);
+      expect(BUILDING_TYPES.granary.cost).toBe(classicBuildings.granary.cost);
+      expect(BUILDING_TYPES.granary.effects.foodBonus).toBe(
+        classicBuildings.granary.effects.foodBonus
+      );
 
       expect(BUILDING_TYPES.library).toBeDefined();
       expect(BUILDING_TYPES.library.name).toBe('Library');
-      expect(BUILDING_TYPES.library.effects.scienceBonus).toBe(50);
+      expect(BUILDING_TYPES.library.effects.scienceBonus).toBe(
+        classicBuildings.library.effects.scienceBonus
+      );
 
       expect(BUILDING_TYPES.temple).toBeDefined();
-      expect(BUILDING_TYPES.temple.effects.happinessEffect).toBe(2);
+      expect(BUILDING_TYPES.temple.effects.happinessEffect).toBe(
+        classicBuildings.temple.effects.happinessBonus
+      );
     });
   });
 

@@ -5,6 +5,7 @@ import { DatabaseProvider } from '@database';
 import { cities } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
+import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { EffectsManager } from '@game/managers/EffectsManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
 import {
@@ -280,7 +281,7 @@ export interface BuildingType {
   };
 }
 
-export const BUILDING_TYPES: Record<string, BuildingType> = {
+export const LEGACY_BUILDING_TYPES: Record<string, BuildingType> = {
   granary: {
     id: 'granary',
     name: 'Granary',
@@ -346,6 +347,10 @@ export const BUILDING_TYPES: Record<string, BuildingType> = {
     },
   },
 };
+
+/** @reference reference/freeciv/data/classic/buildings.ruleset */
+export const BUILDING_TYPES: Record<string, BuildingType> =
+  rulesetBuildingsService.getBuildingTypes();
 
 // Callback interface for events
 export interface CityManagerCallbacks {
