@@ -116,6 +116,7 @@ export interface CityTurnProcessingDependencies {
   gameId: string;
   cities: Map<string, CityState>;
   callbacks: CityManagerCallbacks;
+  effectsManager: EffectsManager;
   io?: SocketServer;
   governorService?: CityGovernorService;
   tileManagementService?: CityTileManagementService;
@@ -133,11 +134,12 @@ export interface CityTurnProcessingDependencies {
  */
 export class CityTurnProcessingService extends BaseGameService {
   private dependencies: CityTurnProcessingDependencies;
-  private readonly effectsManager = new EffectsManager();
+  private readonly effectsManager: EffectsManager;
 
   constructor(dependencies: CityTurnProcessingDependencies) {
     super(logger);
     this.dependencies = dependencies;
+    this.effectsManager = dependencies.effectsManager;
   }
 
   getServiceName(): string {

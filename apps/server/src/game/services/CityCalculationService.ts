@@ -19,7 +19,12 @@
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsManager';
+import {
+  EffectsManager,
+  EffectType,
+  OutputType,
+  type EffectContext,
+} from '@game/managers/EffectsManager';
 import type { CityTileManagementService } from './CityTileManagementService';
 
 // Re-export types that will be shared
@@ -154,27 +159,28 @@ export interface CityOutputs {
 }
 
 /**
- * Government corruption modifiers
+ * Owner state needed to evaluate ruleset requirements for a city.
+ *
+ * Freeciv resolves every effect against the full player context, so the caller
+ * must supply it rather than let the service assume a government or ruleset.
+ * @reference reference/freeciv/common/requirements.c:6495-6535
  */
-export interface GovernmentCorruptionModifiers {
-  [government: string]: number;
+export interface CityPlayerContext {
+  government: string;
+  playerTechs: ReadonlySet<string>;
+  playerBuildings: ReadonlySet<string>;
+  playerCities: readonly CityState[];
 }
 
 /**
  * CityCalculationService handles all pure calculation logic for cities
  */
 export class CityCalculationService extends BaseGameService {
-  private readonly effectsManager = new EffectsManager();
-  private static readonly GOVERNMENT_CORRUPTION_MODIFIERS: GovernmentCorruptionModifiers = {
-    despotism: 1.0,
-    monarchy: 0.8,
-    republic: 0.6,
-    democracy: 0.4,
-    communism: 0.9,
-  };
+  private readonly effectsManager: EffectsManager;
 
-  constructor() {
+  constructor(effectsManager: EffectsManager) {
     super(logger);
+    this.effectsManager = effectsManager;
   }
 
   getServiceName(): string {
@@ -186,13 +192,14 @@ export class CityCalculationService extends BaseGameService {
    * @param city City state data
    * @param tileOutputs Base tile outputs from TileManagementService (optional)
    * @param tileManagementService Service for calculating tile outputs (optional)
+   * @param playerContext Government, technologies, buildings and cities of the owner
    * @returns Complete city output breakdown
    */
   calculateCityOutputs(
     city: CityState,
-    tileOutputs?: { food: number; shields: number; trade: number },
-    tileManagementService?: CityTileManagementService,
-    government: string = 'despotism'
+    tileOutputs: { food: number; shields: number; trade: number } | undefined,
+    tileManagementService: CityTileManagementService | undefined,
+    playerContext: CityPlayerContext
   ): CityOutputs {
     // Get base tile outputs
     let baseTileOutputs = tileOutputs;
@@ -208,35 +215,33 @@ export class CityCalculationService extends BaseGameService {
     // Ensure minimum city center outputs from ruleset
     const finalOutputs = this.applyMinimumCityCenterOutputs(baseTileOutputs);
 
-    // Apply corruption before trade is converted to science, gold, and luxury.
-    // @reference reference/freeciv/common/city.c city_waste()
-    const corruption = this.effectsManager.calculateWaste(
-      {
-        playerId: city.playerId,
-        cityId: city.id,
-        government,
-        cityBuildings: new Set(city.buildings),
-      },
-      OutputType.TRADE,
-      finalOutputs.trade
+    const effectContext = this.buildCityEffectContext(city, playerContext);
+
+    // Corruption is subtracted here and nowhere else, matching freeciv where
+    // city_waste() feeds the surplus once per output refresh.
+    // @reference reference/freeciv/common/city.c:3015-3024 set_city_production()
+    // @reference reference/freeciv/common/city.c:3253-3337 city_waste()
+    const { corruption } = this.effectsManager.calculateCityCorruption(
+      effectContext,
+      finalOutputs.trade,
+      playerContext.playerCities.map(playerCity => ({
+        id: playerCity.id,
+        x: playerCity.x,
+        y: playerCity.y,
+        buildings: new Set(playerCity.buildings),
+      }))
     );
     const tradeAfterCorruption = Math.max(0, finalOutputs.trade - corruption);
 
     // Convert trade to science and gold
     const convertedTrade = this.convertTradeToResources(tradeAfterCorruption);
     const science = this.applyOutputBonus(
-      city,
+      effectContext,
       OutputType.SCIENCE,
-      convertedTrade.science,
-      government
+      convertedTrade.science
     );
-    const gold = this.applyOutputBonus(city, OutputType.GOLD, convertedTrade.gold, government);
-    const luxury = this.applyOutputBonus(
-      city,
-      OutputType.LUXURY,
-      convertedTrade.luxury,
-      government
-    );
+    const gold = this.applyOutputBonus(effectContext, OutputType.GOLD, convertedTrade.gold);
+    const luxury = this.applyOutputBonus(effectContext, OutputType.LUXURY, convertedTrade.luxury);
 
     // Add specialist contributions
     const specialistOutputs = this.calculateSpecialistOutputs(city.specialists);
@@ -245,7 +250,7 @@ export class CityCalculationService extends BaseGameService {
     const totalOutputs: CityOutputs = {
       food: finalOutputs.food + specialistOutputs.food,
       shields:
-        this.applyOutputBonus(city, OutputType.SHIELD, finalOutputs.shields, government) +
+        this.applyOutputBonus(effectContext, OutputType.SHIELD, finalOutputs.shields) +
         specialistOutputs.shields,
       trade: tradeAfterCorruption + specialistOutputs.trade,
       science: science + specialistOutputs.science,
@@ -351,18 +356,31 @@ export class CityCalculationService extends BaseGameService {
     };
   }
 
-  private applyOutputBonus(
-    city: CityState,
-    outputType: OutputType,
-    output: number,
-    government: string
-  ): number {
-    const bonus = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, {
+  /**
+   * Assemble the requirement context freeciv evaluates effects against.
+   * @reference reference/freeciv/common/requirements.c:6495-6535
+   */
+  private buildCityEffectContext(city: CityState, playerContext: CityPlayerContext): EffectContext {
+    return {
       playerId: city.playerId,
       cityId: city.id,
+      tileX: city.x,
+      tileY: city.y,
+      government: playerContext.government,
       cityBuildings: new Set(city.buildings),
+      playerTechs: new Set(playerContext.playerTechs),
+      playerBuildings: new Set(playerContext.playerBuildings),
+    };
+  }
+
+  private applyOutputBonus(
+    effectContext: EffectContext,
+    outputType: OutputType,
+    output: number
+  ): number {
+    const bonus = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, {
+      ...effectContext,
       outputType,
-      government,
     }).value;
     return Math.floor((output * (100 + bonus)) / 100);
   }
@@ -412,43 +430,6 @@ export class CityCalculationService extends BaseGameService {
     }
 
     return outputs;
-  }
-
-  /**
-   * Calculate corruption based on distance to capital and government type
-   * @param distanceToCapital Distance from city to capital
-   * @param governmentType Current government type
-   * @returns Corruption amount
-   */
-  calculateCorruption(distanceToCapital: number, governmentType: string = 'despotism'): number {
-    // Basic corruption calculation based on distance and government
-    const baseCorruption = Math.floor(distanceToCapital / 10);
-    const governmentModifier = this.getGovernmentCorruptionModifier(governmentType);
-
-    return Math.floor(baseCorruption * governmentModifier);
-  }
-
-  /**
-   * Get government modifier for corruption calculations
-   * @param governmentType Government type
-   * @returns Modifier value (1.0 = no change, < 1.0 = reduced corruption)
-   */
-  getGovernmentCorruptionModifier(governmentType: string): number {
-    return CityCalculationService.GOVERNMENT_CORRUPTION_MODIFIERS[governmentType] || 1.0;
-  }
-
-  /**
-   * Calculate squared distance between two points (for city distance calculations)
-   * @param x1 First point X coordinate
-   * @param y1 First point Y coordinate
-   * @param x2 Second point X coordinate
-   * @param y2 Second point Y coordinate
-   * @returns Squared distance
-   */
-  calculateSquaredDistance(x1: number, y1: number, x2: number, y2: number): number {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    return dx * dx + dy * dy;
   }
 
   /**

@@ -5,13 +5,13 @@ import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('City Population Growth Integration', () => {
   let cityManager: CityManager;
-  let mockEffectsManager: EffectsManager;
+  let effectsManager: EffectsManager;
   let mockMapManager: MapManager;
   const gameId = 'test-game-id';
 
   beforeEach(async () => {
     const mockDbProvider = createMockDatabaseProvider();
-    mockEffectsManager = {} as EffectsManager;
+    effectsManager = new EffectsManager();
 
     // Create mock MapManager
     mockMapManager = {
@@ -46,7 +46,7 @@ describe('City Population Growth Integration', () => {
       isValidPosition: jest.fn().mockReturnValue(true),
     } as unknown as MapManager;
 
-    cityManager = new CityManager(gameId, mockDbProvider, mockEffectsManager);
+    cityManager = new CityManager(gameId, mockDbProvider, effectsManager);
     await cityManager.initialize();
     cityManager.setMapManager(mockMapManager);
 

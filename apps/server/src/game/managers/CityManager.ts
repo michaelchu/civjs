@@ -329,24 +329,29 @@ export class CityManager {
 
   // Newly extracted services
   private turnProcessingService?: CityTurnProcessingService;
+  private effectsManager: EffectsManager;
   private calculationService: CityCalculationService;
   private happinessService: CityHappinessService;
   private playerGovernmentProvider: (playerId: string) => string = () => 'despotism';
+  private playerTechsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
+  private playerBuildingsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private optimizationService?: CityOptimizationService;
 
   constructor(
     gameId: string,
     databaseProvider: DatabaseProvider,
-    _effectsManager: EffectsManager, // Mark as unused with underscore
+    effectsManager: EffectsManager,
     callbacks: CityManagerCallbacks = {}
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
     this.callbacks = callbacks;
+    this.effectsManager = effectsManager;
 
-    // Initialize services that don't have dependencies
-    this.calculationService = new CityCalculationService();
-    this.happinessService = new CityHappinessService();
+    // Every city service evaluates requirements against the same game-owned
+    // ruleset instance so effects cannot diverge between subsystems.
+    this.calculationService = new CityCalculationService(effectsManager);
+    this.happinessService = new CityHappinessService(effectsManager);
   }
 
   /**
@@ -361,10 +366,12 @@ export class CityManager {
   }
 
   public setPlayerTechsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
+    this.playerTechsProvider = provider;
     this.happinessService.setPlayerTechsProvider(provider);
   }
 
   public setPlayerBuildingsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
+    this.playerBuildingsProvider = provider;
     this.happinessService.setPlayerBuildingsProvider(provider);
   }
 
@@ -456,6 +463,7 @@ export class CityManager {
       gameId: this.gameId,
       cities: this.cities,
       callbacks: this.callbacks,
+      effectsManager: this.effectsManager,
       io: this.io,
       governorService: this.governorService,
       tileManagementService: this.tileManagementService,
@@ -992,18 +1000,6 @@ export class CityManager {
 
   // === CALCULATION METHODS ===
 
-  public calculateCorruption(
-    cityId: string,
-    distanceToCapital: number,
-    governmentType: string = 'despotism'
-  ): number {
-    const city = this.cities.get(cityId);
-    if (!city) return 0;
-
-    // Delegate to CityCalculationService for corruption calculation
-    return this.calculationService.calculateCorruption(distanceToCapital, governmentType);
-  }
-
   public calculateDetailedHappiness(cityId: string): {
     stage: number;
     happy: number;
@@ -1057,50 +1053,12 @@ export class CityManager {
     return `${city.name} (Pop: ${city.population}, ${isUnhappy ? 'Unhappy' : 'Content'})`;
   }
 
-  private findNearestGovernmentCenter(city: CityState): CityState | null {
-    let nearestCity: CityState | null = null;
-    let shortestDistance = Infinity;
-
-    for (const otherCity of this.cities.values()) {
-      if (otherCity.playerId === city.playerId && otherCity.id !== city.id) {
-        const distance = this.calculateSquaredDistance(city.x, city.y, otherCity.x, otherCity.y);
-        if (distance < shortestDistance) {
-          shortestDistance = distance;
-          nearestCity = otherCity;
-        }
-      }
-    }
-
-    return nearestCity;
-  }
-
-  public applyCityCorruption(cityId: string, currentGovernment: string): void {
-    const city = this.cities.get(cityId);
-    if (!city) return;
-
-    const capitalCity = this.findNearestGovernmentCenter(city);
-    const distanceToCapital = capitalCity
-      ? Math.sqrt(this.calculateSquaredDistance(city.x, city.y, capitalCity.x, capitalCity.y))
-      : 0;
-
-    const corruption = this.calculateCorruption(cityId, distanceToCapital, currentGovernment);
-
-    // Apply corruption to trade income (simplified)
-    const originalTrade = city.tradePerTurn || 0;
-    city.tradePerTurn = Math.max(0, originalTrade - corruption);
-  }
-
   public applyCityHappiness(cityId: string): void {
     const city = this.cities.get(cityId);
     if (!city) return;
 
     // Delegate to CityHappinessService to apply happiness to city state
     this.happinessService.applyCityHappiness(city);
-  }
-
-  private calculateSquaredDistance(x1: number, y1: number, x2: number, y2: number): number {
-    // Delegate to CityCalculationService for distance calculation
-    return this.calculationService.calculateSquaredDistance(x1, y1, x2, y2);
   }
 
   public calculateCityOutputs(cityId: string): {
@@ -1121,7 +1079,12 @@ export class CityManager {
       city,
       undefined, // Let the service get tile outputs from tileManagementService
       this.tileManagementService,
-      this.playerGovernmentProvider(city.playerId)
+      {
+        government: this.playerGovernmentProvider(city.playerId),
+        playerTechs: this.playerTechsProvider(city.playerId),
+        playerBuildings: this.playerBuildingsProvider(city.playerId),
+        playerCities: this.getPlayerCities(city.playerId),
+      }
     );
 
     // Update city state with calculated outputs
@@ -1133,14 +1096,14 @@ export class CityManager {
     return outputs;
   }
 
+  /**
+   * Recalculate a city against the owner's current government. Corruption is
+   * already subtracted while outputs are produced, so nothing may deduct it a
+   * second time here.
+   * @reference reference/freeciv/common/city.c:3201-3244 city_refresh_from_main_map()
+   */
   public refreshCityWithGovernmentEffects(cityId: string): void {
-    // In a full implementation, this would get the current government from the game state
-    const defaultGovernment = 'despotism';
-
-    // Recalculate city outputs first to ensure they're current
     this.calculateCityOutputs(cityId);
-
-    this.applyCityCorruption(cityId, defaultGovernment);
     this.applyCityHappiness(cityId);
   }
 

@@ -261,9 +261,10 @@ export class GameInstanceRecoveryService extends BaseGameService {
       playerId => new Set(researchManager.getResearchedTechs(playerId))
     );
 
-    // Initialize BorderManager after CityManager is created
-    const borderEffectsManager = new EffectsManager();
-    borderManager = new BorderManager(mapManager, cityManager, borderEffectsManager);
+    // Initialize BorderManager after CityManager is created, reusing the
+    // game-owned effects instance so recovered games evaluate the same
+    // ruleset context as newly created ones.
+    borderManager = new BorderManager(mapManager, cityManager, effectsManager);
     const borderNetworkService = new BorderNetworkService(this.io, borderManager, gameId =>
       this.games.get(gameId)
     );

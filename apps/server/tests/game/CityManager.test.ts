@@ -15,13 +15,13 @@ import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('CityManager', () => {
   let cityManager: CityManager;
-  let mockEffectsManager: EffectsManager;
+  let effectsManager: EffectsManager;
   let mockMapManager: MapManager;
   const gameId = 'test-game-id';
 
   beforeEach(async () => {
     const mockDbProvider = createMockDatabaseProvider();
-    mockEffectsManager = {} as EffectsManager;
+    effectsManager = new EffectsManager();
 
     // Create a mock MapManager with required methods
     mockMapManager = {
@@ -64,7 +64,7 @@ describe('CityManager', () => {
       isValidPosition: jest.fn().mockReturnValue(true),
     } as any;
 
-    cityManager = new CityManager(gameId, mockDbProvider, mockEffectsManager);
+    cityManager = new CityManager(gameId, mockDbProvider, effectsManager);
 
     // Set the MapManager dependency before initialization
     cityManager.setMapManager(mockMapManager);

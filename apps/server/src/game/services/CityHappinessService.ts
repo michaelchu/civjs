@@ -146,7 +146,7 @@ export interface HappinessAnalysis {
  * CityHappinessService handles all city happiness calculations and analysis
  */
 export class CityHappinessService extends BaseGameService {
-  private readonly effectsManager = new EffectsManager();
+  private readonly effectsManager: EffectsManager;
   private playerTechsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private playerBuildingsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private playerGovernmentProvider: (playerId: string) => string = () => 'despotism';
@@ -162,8 +162,10 @@ export class CityHappinessService extends BaseGameService {
   setPlayerGovernmentProvider(provider: (playerId: string) => string): void {
     this.playerGovernmentProvider = provider;
   }
-  constructor() {
+
+  constructor(effectsManager: EffectsManager) {
     super(logger);
+    this.effectsManager = effectsManager;
   }
 
   getServiceName(): string {

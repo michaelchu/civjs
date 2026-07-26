@@ -76,6 +76,12 @@ export enum EffectType {
   HAS_SENATE = 'Has_Senate',
 }
 
+/**
+ * Distance used when a player owns no reachable government center.
+ * @reference reference/freeciv/common/city.c:3298-3299
+ */
+const NO_GOV_CENTER_DISTANCE = 10;
+
 // Output types for effect calculations
 export enum OutputType {
   FOOD = 'food',
@@ -695,25 +701,38 @@ export class EffectsManager {
 
   /**
    * Calculate distance to nearest government center for corruption calculation
-   * Reference: freeciv nearest_gov_center() in common/city.c
+   *
+   * Freeciv wastes the whole output when a player owns no government center at
+   * all. CivJS does not grant a Palace yet, so an unreachable government center
+   * keeps this lenient stand-in distance instead of zeroing every city's trade.
+   * @reference reference/freeciv/common/city.c:2287-2314 nearest_gov_center()
+   * @reference reference/freeciv/common/city.c:3296-3299 city_waste()
    */
   public calculateDistanceToGovCenter(
     cityContext: EffectContext,
     playerCities?: Array<{ id: string; x: number; y: number; buildings?: Set<string> }>
   ): number {
-    // If the city itself is a government center, distance is 0
+    // Check the special case that the city itself is a government center
+    // before iterating over the owner's cities.
+    // @reference reference/freeciv/common/city.c:2294-2299
     if (this.isGovernmentCenter(cityContext)) {
       return 0;
     }
 
-    if (!playerCities || !cityContext.tileX || !cityContext.tileY) {
-      return 10; // Default high distance if no city data available
+    if (!playerCities || cityContext.tileX === undefined || cityContext.tileY === undefined) {
+      return NO_GOV_CENTER_DISTANCE;
     }
 
     let nearestDistance = Number.MAX_SAFE_INTEGER;
 
     for (const city of playerCities) {
-      // Check if this city is a government center
+      // Do not recheck the current city
+      // @reference reference/freeciv/common/city.c:2302
+      if (city.id === cityContext.cityId) {
+        continue;
+      }
+
+      // Only cities whose own building context activates Gov_Center count.
       const otherCityContext: EffectContext = {
         ...cityContext,
         cityId: city.id,
@@ -723,14 +742,19 @@ export class EffectsManager {
       };
 
       if (this.isGovernmentCenter(otherCityContext)) {
-        // Calculate Manhattan distance (freeciv uses this for corruption)
-        const distance =
-          Math.abs(cityContext.tileX - city.x) + Math.abs(cityContext.tileY - city.y);
+        // real_map_distance() reduces to MAX(|dx|, |dy|) on the square
+        // topology CivJS uses, matching the Chebyshev distance already applied
+        // to citymindist.
+        // @reference reference/freeciv/common/map.c:623-654 map_vector_to_real_distance()
+        const distance = Math.max(
+          Math.abs(cityContext.tileX - city.x),
+          Math.abs(cityContext.tileY - city.y)
+        );
         nearestDistance = Math.min(nearestDistance, distance);
       }
     }
 
-    return nearestDistance === Number.MAX_SAFE_INTEGER ? 10 : nearestDistance;
+    return nearestDistance === Number.MAX_SAFE_INTEGER ? NO_GOV_CENTER_DISTANCE : nearestDistance;
   }
 
   /**
