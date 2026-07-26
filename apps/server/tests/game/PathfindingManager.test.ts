@@ -16,7 +16,7 @@ describe('PathfindingManager', () => {
     id: 'test-unit',
     gameId: 'test-game',
     playerId: 'test-player',
-    unitTypeId: 'warrior',
+    unitTypeId: 'warriors',
     x: 5,
     y: 5,
     health: 100,

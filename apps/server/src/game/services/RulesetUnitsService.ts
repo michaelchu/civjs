@@ -3,8 +3,10 @@
  * Provides the same interface as the old UNIT_TYPES constant but loads dynamically from rulesets
  */
 
-import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import type { UnitTypeRuleset } from '@shared/data/rulesets/schemas';
+import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import type { UnitClass, UnitTypeRuleset } from '@shared/data/rulesets/schemas';
+
+export type UnitMovementType = 'land' | 'sea' | 'air';
 
 export interface UnitType {
   id: string;
@@ -22,7 +24,7 @@ export interface UnitType {
   unitClass: 'military' | 'civilian' | 'naval' | 'air';
   rulesetUnitClass?: string;
   /** @reference reference/freeciv/data/classic/units.ruleset:143-188 */
-  rulesetUnitClassFlags?: string[];
+  rulesetUnitClassFlags: string[];
   requiredTech?: string;
   transport_capacity?: number;
   // Additional freeciv fields
@@ -40,34 +42,11 @@ export interface UnitType {
   veteran_levels?: number;
 }
 
-/**
- * Classic unit-class flags used by effect requirements such as CanFortify.
- * @reference reference/freeciv/data/classic/units.ruleset:143-188
- */
-const CLASSIC_UNIT_CLASS_FLAGS: Record<string, string[]> = {
-  Missile: ['Missile', 'Unreachable', 'DoesntOccupyTile', 'HutFrighten'],
-  Land: [
-    'TerrainSpeed',
-    'DamageSlows',
-    'CanOccupyCity',
-    'BuildAnywhere',
-    'CollectRansom',
-    'ZOC',
-    'CanFortify',
-    'CanPillage',
-    'TerrainDefense',
-    'KillCitizen',
-    'NonNatBombardTgt',
-  ],
-  Sea: ['DamageSlows', 'AttackNonNative', 'AttFromNonNative'],
-  Trireme: ['DamageSlows', 'AttFromNonNative'],
-  Helicopter: ['CanOccupyCity', 'CollectRansom'],
-  Air: ['Unreachable', 'DoesntOccupyTile', 'HutFrighten'],
-};
-
 export class RulesetUnitsService {
   private static instance: RulesetUnitsService;
   private cache = new Map<string, Record<string, UnitType>>();
+
+  constructor(private readonly loader: Pick<RulesetLoader, 'loadUnitsRuleset'> = rulesetLoader) {}
 
   static getInstance(): RulesetUnitsService {
     if (!RulesetUnitsService.instance) {
@@ -84,11 +63,12 @@ export class RulesetUnitsService {
       return this.cache.get(rulesetName)!;
     }
 
-    const rulesetUnits = rulesetLoader.getUnits(rulesetName);
+    const ruleset = this.loader.loadUnitsRuleset(rulesetName);
     const mappedUnits: Record<string, UnitType> = {};
 
-    for (const [unitId, unit] of Object.entries(rulesetUnits)) {
-      mappedUnits[unitId] = this.mapRulesetUnit(unit);
+    for (const [unitId, unit] of Object.entries(ruleset.units)) {
+      const unitClassFlags = ruleset.unit_classes[unit.unit_class]?.flags ?? [];
+      mappedUnits[unitId] = this.mapRulesetUnit(unit, unitClassFlags);
     }
 
     this.cache.set(rulesetName, mappedUnits);
@@ -104,9 +84,23 @@ export class RulesetUnitsService {
   }
 
   /**
+   * Classify movement from the unit's loaded ruleset class.
+   * Freeciv stores movement type on the unit class and reads it through the
+   * unit type; CivJS keeps the current land/sea/air movement surface explicit.
+   * @reference reference/freeciv/common/unittype.c:1574-1580
+   * @reference reference/freeciv/common/unittype.c:2953-2991
+   */
+  getMovementType(unitId: string, rulesetName: string = 'classic'): UnitMovementType | undefined {
+    const unitClass = this.getUnitType(unitId, rulesetName)?.rulesetUnitClass;
+    if (!unitClass) return undefined;
+
+    return this.mapMovementType(unitClass as UnitClass);
+  }
+
+  /**
    * Map ruleset unit to backward-compatible UnitType interface
    */
-  private mapRulesetUnit(unit: UnitTypeRuleset): UnitType {
+  private mapRulesetUnit(unit: UnitTypeRuleset, unitClassFlags: string[]): UnitType {
     return {
       id: unit.id,
       name: unit.name,
@@ -123,7 +117,7 @@ export class RulesetUnitsService {
         unit.canBuildImprovements || unit.flags?.includes('Workers' as any) || false,
       unitClass: this.mapUnitClass(unit.unit_class, unit.unitClass as any, unit.flags),
       rulesetUnitClass: unit.unit_class,
-      rulesetUnitClassFlags: CLASSIC_UNIT_CLASS_FLAGS[unit.unit_class] ?? [],
+      rulesetUnitClassFlags: [...unitClassFlags],
       requiredTech: unit.required_tech || unit.requiredTech,
       transport_capacity: unit.transport_cap,
       // Additional freeciv fields
@@ -140,6 +134,22 @@ export class RulesetUnitsService {
       pop_cost: unit.pop_cost,
       veteran_levels: unit.veteran_levels,
     };
+  }
+
+  private mapMovementType(unitClass: UnitClass): UnitMovementType | undefined {
+    switch (unitClass) {
+      case 'Land':
+        return 'land';
+      case 'Sea':
+      case 'Trireme':
+        return 'sea';
+      case 'Air':
+      case 'Helicopter':
+      case 'Missile':
+        return 'air';
+      default:
+        return undefined;
+    }
   }
 
   /**

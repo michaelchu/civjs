@@ -79,6 +79,19 @@ export const UnitClassSchema = z.enum([
   'Trireme', // Freeciv classic ship class
 ]);
 
+/**
+ * Unit-class catalogue fields loaded from the classic ruleset.
+ * @reference reference/freeciv/data/classic/units.ruleset:97-112
+ * @reference reference/freeciv/data/classic/units.ruleset:143-188
+ */
+export const UnitClassRulesetSchema = z.object({
+  id: UnitClassSchema,
+  name: UnitClassSchema,
+  min_speed: z.number().positive(),
+  hp_loss_pct: z.number().min(0),
+  flags: z.array(z.string()),
+});
+
 export const UnitRoleSchema = z.enum([
   'FirstBuild',
   'Explorer',
@@ -222,6 +235,7 @@ export const UnitsRulesetFileSchema = z.object({
     name: z.string(),
     summary: z.string(),
   }),
+  unit_classes: z.record(z.string(), UnitClassRulesetSchema),
   units: z.record(z.string(), UnitTypeRulesetSchema),
 });
 
@@ -303,6 +317,7 @@ export type TerrainRuleset = z.infer<typeof TerrainRulesetSchema>;
 export type TerrainRulesetFile = z.infer<typeof TerrainRulesetFileSchema>;
 
 export type UnitClass = z.infer<typeof UnitClassSchema>;
+export type UnitClassRuleset = z.infer<typeof UnitClassRulesetSchema>;
 export type UnitTypeRuleset = z.infer<typeof UnitTypeRulesetSchema>;
 export type UnitsRulesetFile = z.infer<typeof UnitsRulesetFileSchema>;
 

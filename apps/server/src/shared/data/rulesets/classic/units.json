@@ -8,6 +8,62 @@
     "name": "Freeciv Classic Units Ruleset - Complete",
     "summary": "All 52 unit types from freeciv classic ruleset with exact stats, classes, roles, flags, and technology requirements"
   },
+  "unit_classes": {
+    "Missile": {
+      "id": "Missile",
+      "name": "Missile",
+      "min_speed": 1,
+      "hp_loss_pct": 0,
+      "flags": ["Missile", "Unreachable", "DoesntOccupyTile", "HutFrighten"]
+    },
+    "Land": {
+      "id": "Land",
+      "name": "Land",
+      "min_speed": 1,
+      "hp_loss_pct": 0,
+      "flags": [
+        "TerrainSpeed",
+        "DamageSlows",
+        "CanOccupyCity",
+        "BuildAnywhere",
+        "CollectRansom",
+        "ZOC",
+        "CanFortify",
+        "CanPillage",
+        "TerrainDefense",
+        "KillCitizen",
+        "NonNatBombardTgt"
+      ]
+    },
+    "Sea": {
+      "id": "Sea",
+      "name": "Sea",
+      "min_speed": 2,
+      "hp_loss_pct": 0,
+      "flags": ["DamageSlows", "AttackNonNative", "AttFromNonNative"]
+    },
+    "Trireme": {
+      "id": "Trireme",
+      "name": "Trireme",
+      "min_speed": 2,
+      "hp_loss_pct": 0,
+      "flags": ["DamageSlows", "AttFromNonNative"]
+    },
+    "Helicopter": {
+      "id": "Helicopter",
+      "name": "Helicopter",
+      "min_speed": 1,
+      "hp_loss_pct": 10,
+      "flags": ["CanOccupyCity", "CollectRansom"]
+    },
+    "Air": {
+      "id": "Air",
+      "name": "Air",
+      "min_speed": 1,
+      "hp_loss_pct": 0,
+      "flags": ["Unreachable", "DoesntOccupyTile", "HutFrighten"]
+    }
+  },
   "units": {
     "settlers": {
       "id": "settlers",

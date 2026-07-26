@@ -7,33 +7,11 @@
  * @reference freeciv/server/ruleset/ruleload.c - Terrain control loading
  * @compliance Movement fragments (3 per move point) match freeciv exactly
  */
+import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+
 export const SINGLE_MOVE = 3; // 1 movement point = 3 movement fragments
 export const MAX_MOVE_FRAGS = 65535; // Maximum movement fragments - matches freeciv exactly
-
-/**
- * Terrain movement costs in movement fragments
- * @reference freeciv/data/classic/terrain.ruleset
- */
-export const TERRAIN_MOVEMENT_COSTS: Record<string, number> = {
-  // Flat terrain: 1 movement point = 3 fragments
-  ocean: SINGLE_MOVE,
-  coast: SINGLE_MOVE,
-  deep_ocean: SINGLE_MOVE,
-  lake: SINGLE_MOVE,
-  plains: SINGLE_MOVE,
-  grassland: SINGLE_MOVE,
-  desert: SINGLE_MOVE,
-  tundra: SINGLE_MOVE,
-
-  // Rough terrain: 2 movement points = 6 fragments
-  hills: SINGLE_MOVE * 2,
-  forest: SINGLE_MOVE * 2,
-  jungle: SINGLE_MOVE * 2,
-  swamp: SINGLE_MOVE * 2,
-
-  // Impassable terrain: 3 movement points = 9 fragments
-  mountains: SINGLE_MOVE * 3,
-};
 
 /**
  * Unit movement capabilities
@@ -50,35 +28,45 @@ export enum MovementType {
   AIR = 'air',
 }
 
-/**
- * Unit type movement capabilities
- */
-export const UNIT_MOVEMENT_TYPES: Record<string, MovementType> = {
-  // Land units
-  warrior: MovementType.LAND,
-  archer: MovementType.LAND,
-  spearman: MovementType.LAND,
-  settler: MovementType.LAND,
+export interface MovementRulesetLookup {
+  getTerrainMoveCost(terrain: string): number | undefined;
+  getUnitMovementType(unitTypeId: string): MovementType | undefined;
+}
 
-  // Sea units
-  trireme: MovementType.SEA,
-
-  // Future: Air units, amphibious units, etc.
+const defaultMovementRulesetLookup: MovementRulesetLookup = {
+  getTerrainMoveCost(terrain: string): number | undefined {
+    const terrains = rulesetLoader.getTerrains() as Record<string, { moveCost: number }>;
+    return terrains[terrain]?.moveCost;
+  },
+  getUnitMovementType(unitTypeId: string): MovementType | undefined {
+    return rulesetUnitsService.getMovementType(unitTypeId) as MovementType | undefined;
+  },
 };
 
 /**
  * Get terrain movement cost for specific unit type
- * @reference freeciv/common/movement.c map_move_cost_unit()
+ * terrain.json stores the whole movement points from terrain.ruleset; this
+ * boundary converts them to movement fragments exactly once.
+ * @reference reference/freeciv/data/classic/terrain.ruleset:106-108
+ * @reference reference/freeciv/common/movement.c:117-128
  */
-export function getTerrainMovementCost(terrain: string, unitTypeId?: string): number {
-  const baseCost = TERRAIN_MOVEMENT_COSTS[terrain] || SINGLE_MOVE;
+export function getTerrainMovementCost(
+  terrain: string,
+  unitTypeId?: string,
+  lookup: MovementRulesetLookup = defaultMovementRulesetLookup
+): number {
+  const moveCost = lookup.getTerrainMoveCost(terrain);
+  const baseCost = moveCost === undefined ? SINGLE_MOVE : moveCost * SINGLE_MOVE;
 
   // If no unit type specified, return base cost
   if (!unitTypeId) {
     return baseCost;
   }
 
-  const movementType = UNIT_MOVEMENT_TYPES[unitTypeId] || MovementType.LAND;
+  const movementType = lookup.getUnitMovementType(unitTypeId);
+  if (!movementType) {
+    return -1;
+  }
 
   // Check movement type compatibility
   switch (movementType) {
@@ -101,11 +89,12 @@ export function getTerrainMovementCost(terrain: string, unitTypeId?: string): nu
       return baseCost;
 
     case MovementType.AIR:
-      // Air units ignore terrain (not implemented yet)
+      // Unit classes without TerrainSpeed use one movement point.
+      // @reference reference/freeciv/common/movement.c:110-113
       return SINGLE_MOVE;
 
     default:
-      return baseCost;
+      return -1;
   }
 }
 
