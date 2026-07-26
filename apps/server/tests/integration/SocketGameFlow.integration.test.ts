@@ -16,12 +16,14 @@ import { SocketCoordinator } from '@network/SocketCoordinator';
 import { GameManager } from '@game/managers/GameManager';
 import { PacketType, type Packet } from '@app-types/packet';
 import { SINGLE_MOVE, getTerrainMovementCost } from '@game/constants/MovementConstants';
+import { playerTechs } from '@database/schema';
 import {
   clearAllTables,
   generateTestUUID,
   getTestDatabase,
   getTestDatabaseProvider,
 } from '../utils/testDatabase';
+import { and, eq } from 'drizzle-orm';
 
 const timeoutMs = 10_000;
 
@@ -292,6 +294,14 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     expect(
       recoveredGame?.researchManager.getPlayerResearch(hostPlayer!.id)?.researchedTechs
     ).toContain('pottery');
+    expect(
+      recoveredGame?.researchManager.getPlayerResearch(guestPlayer!.id)?.researchedTechs
+    ).toEqual(new Set(['alphabet']));
+    const guestStartingTechRows = await getTestDatabase()
+      .select()
+      .from(playerTechs)
+      .where(and(eq(playerTechs.gameId, gameId), eq(playerTechs.playerId, guestPlayer!.id)));
+    expect(guestStartingTechRows).toHaveLength(1);
     expect(recoveredGame?.borderManager.getAllTileOwnership()).toEqual(
       expect.arrayContaining([expect.objectContaining({ x: 8, y: 8, playerId: hostPlayer!.id })])
     );

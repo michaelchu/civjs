@@ -193,6 +193,10 @@ export class ResearchManager {
   }
 
   public async initializePlayerResearch(playerId: string): Promise<void> {
+    if (this.playerResearch.has(playerId)) {
+      return;
+    }
+
     const research: PlayerResearch = {
       playerId,
       bulbsAccumulated: 0,
@@ -471,6 +475,20 @@ export class ResearchManager {
       };
 
       this.playerResearch.set(researchEntry.playerId, playerResearch);
+    }
+
+    // A player who has not selected a technology only has their starting tech
+    // persisted. Recreate that state without inserting another starting-tech row.
+    // @reference reference/freeciv/server/savegame/savegame3.c:7648-7741
+    for (const [playerId, researchedTechs] of playerTechMap) {
+      if (this.playerResearch.has(playerId)) continue;
+
+      this.playerResearch.set(playerId, {
+        playerId,
+        bulbsAccumulated: 0,
+        bulbsLastTurn: 0,
+        researchedTechs: new Set(researchedTechs),
+      });
     }
   }
 
