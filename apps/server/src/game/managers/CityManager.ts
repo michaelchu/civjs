@@ -283,7 +283,7 @@ export interface BuildingType {
 
 /** @reference reference/freeciv/data/classic/buildings.ruleset */
 export const BUILDING_TYPES: Record<string, BuildingType> =
-  rulesetBuildingsService.getBuildingTypes();
+  rulesetBuildingsService.getPlayableBuildingTypes();
 
 // Callback interface for events
 export interface CityManagerCallbacks {

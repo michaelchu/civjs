@@ -241,6 +241,7 @@ export const BuildingTypeRulesetSchema = z.object({
   upkeep: z.number().min(0),
   requiredTech: z.string().optional(),
   requires: z.array(z.string()).optional(),
+  playable: z.boolean().optional().default(false),
   effects: BuildingEffectsSchema,
 });
 

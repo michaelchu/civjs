@@ -6,6 +6,7 @@ export interface RulesetBuildingType {
   cost: number;
   requiredTech?: string;
   requires?: string[];
+  playable: boolean;
   effects: {
     defenseBonus?: number;
     foodBonus?: number;
@@ -37,6 +38,7 @@ export class RulesetBuildingsService {
           cost: building.cost,
           requiredTech: building.requiredTech,
           requires: building.requires,
+          playable: building.playable,
           effects: {
             ...building.effects,
             happinessEffect: building.effects.happinessBonus,
@@ -46,6 +48,12 @@ export class RulesetBuildingsService {
     );
     this.cache.set(rulesetName, buildings);
     return buildings;
+  }
+
+  getPlayableBuildingTypes(rulesetName: string = 'classic'): Record<string, RulesetBuildingType> {
+    return Object.fromEntries(
+      Object.entries(this.getBuildingTypes(rulesetName)).filter(([, building]) => building.playable)
+    );
   }
 
   clearCache(): void {

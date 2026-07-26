@@ -31,5 +31,9 @@ describe('RulesetBuildingsService', () => {
     expect(buildings.walls.cost).toBe(60);
     expect(buildings.cathedral.cost).toBe(80);
     expect(buildings.courthouse.cost).toBe(60);
+
+    expect(Object.keys(rulesetBuildingsService.getPlayableBuildingTypes())).toEqual(
+      expect.arrayContaining(['palace', 'granary', 'barracks', 'library', 'marketplace', 'temple'])
+    );
   });
 });
