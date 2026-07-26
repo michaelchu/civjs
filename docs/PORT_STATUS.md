@@ -1,8 +1,14 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 1 working tree (2026-07-26)
+**Verified against:** Milestone 2 working tree (2026-07-26)
 **Verification method:** source-tree audit plus passing client/unit tests and the
-database-backed integration suite (including the Socket.IO continuation test).
+production type check/build. Database-backed integration remains separately
+dependent on the configured PostgreSQL test service.
+
+**External verification blocker (2026-07-26):** `npm run test:integration` was
+attempted, but all 13 suites stopped in shared setup because neither
+`TEST_DATABASE_URL` nor a local PostgreSQL test database was available. No
+Milestone 2 integration assertion executed and failed.
 
 ## Purpose
 
@@ -56,6 +62,28 @@ This meets the Milestone 1 exit criterion: a two-player classic game can be
 created, played for 20 turns, reconnected, and continued with deterministic
 server state. Visual fog-of-war rendering, worker improvements, wonders, AI,
 and deeper economic fidelity remain later-milestone work.
+
+## Milestone 2 — complete
+
+Classic ruleset data is authoritative for the Milestone 1 playable loop:
+
+- Zod and cross-file validation cover all shipped classic JSON domains,
+  supported effect types, and entity references.
+- Government, technology, building, unit, tile, specialist, and nation-group
+  requirements are evaluated with explicit context and fail closed when
+  required context is absent.
+- Loaded data drives unit classes, terrain movement/yields, building
+  names/upkeep, research, food consumption, city corruption and happiness,
+  specialists, fortification/defense, vision, and granary retention.
+- `apps/server/tests/shared/data/rulesets/RulesetMutation.test.ts` uses isolated
+  copied fixtures to prove that effect, unit, building, technology, terrain,
+  and game-data mutations change authoritative results.
+
+Effects requiring later systems remain deliberately inert: capture population
+protection and incite-cost rules await their Milestone 3/4 action flows, and
+visible-wall effects await Milestone 5 rendering support. This completion claim
+is limited to the Milestone 1 playable loop; it does not imply that later city,
+worker, action, client, AI, diplomacy, or metagame milestones are complete.
 
 ## Partial or incomplete areas
 

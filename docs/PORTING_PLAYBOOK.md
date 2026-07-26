@@ -81,7 +81,7 @@ border broadcasts are also covered by the server and client test suites.
 
 **Outcome:** classic ruleset data drives gameplay instead of TypeScript-specific approximations.
 
-**Progress (2026-07-26):** effect requirement activation now evaluates the
+**Complete (2026-07-26):** effect requirement activation now evaluates the
 classic requirement kinds present in `effects.json` from an explicit gameplay
 context, including government, technology, buildings, unit/tile properties,
 specialists, and nation groups. Unsupported or incomplete context fails closed.
@@ -101,8 +101,7 @@ well. Building metadata and production availability are now separate, so the
 full source catalog is loaded without exposing an unimplemented building to
 players. City happiness and output now consume the loaded classic Temple,
 Cathedral, Marketplace, and Library effects, with live research context for
-their tech-gated contentment modifiers. Wiring effect contexts into every
-authoritative action remains open. The comprehensive playable-building pass
+their tech-gated contentment modifiers. The comprehensive playable-building pass
 now covers Palace trade waste and government shield bonuses, Granary growth and
 starvation food retention, Barracks veteran production and city healing,
 Library science, Marketplace gold/luxury, Temple/Cathedral contentment,
@@ -114,14 +113,26 @@ that require an unported system are deliberately not imported as active rules:
 city capture population protection and incite costs need the capture/incite
 action flow, while visible-wall UI effects require client rendering support.
 
-- Finish ruleset loading and validation for all classic entities and effects used by the playable loop.
-- Implement requirement evaluation in every relevant context: player, city, unit, tile, technology, government, and action.
-- Build fixture-based parity tests for representative units, buildings, technologies, and effects.
-- Eliminate duplicated constants when the ruleset is authoritative.
+Cross-file validation rejects malformed or dangling playable-loop definitions.
+The runtime now reads unit classes, terrain movement/yields, building
+names/upkeep, technology costs/prerequisites, citizen food cost, corruption,
+happiness, specialists, vision, fortification, defense, and granary retention
+from loaded classic data. `RulesetMutation.test.ts` copies the classic fixture
+to an isolated directory and proves that changes in each of the effect, unit,
+building, technology, terrain, and game domains alter the corresponding
+authoritative calculation without mutating singleton state.
 
 **Primary references:** `reference/freeciv/data/classic/`, `common/effects.*`, `common/requirements.*`, and `common/unittype.*`.
 
 **Exit criteria:** representative ruleset changes alter the game through data loading and tests catch invalid or unsupported definitions.
+
+**Completion evidence:** `RulesetLoader.validation.test.ts`,
+`RulesetLoader.effects.test.ts`, `RulesetMutation.test.ts`,
+`MovementConstants.test.ts`, `RulesetUnitsService.test.ts`,
+`CityCorruption.effects.test.ts`, `CityHappiness.effects.test.ts`,
+`CitySpecialists.effects.test.ts`, `CityRulesetValues.test.ts`,
+`CityInitialBuildings.test.ts`, `UnitManager.test.ts`, and
+`VisibilityManager.test.ts`.
 
 ### Milestone 3 — City, economy, and worker mechanics
 

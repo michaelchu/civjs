@@ -1,28 +1,50 @@
 # CivJS Porting Inventory
 
-**Audit baseline:** `2a01dcca` (2026-07-25); Milestone 1 evidence updated
-2026-07-26.
+**Audit baseline:** Milestone 2 working tree (2026-07-26).
 **Purpose:** the evidence record for Milestone 0 in [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md). It distinguishes implemented transport/data from unported or unverified upstream behavior.
 
 ## Classic ruleset inventory
 
 | CivJS JSON data    | Freeciv classic source                           | Status                                                                                                        |
 | ------------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `buildings.json`   | `data/classic/buildings.ruleset`                 | Present; behavior coverage must be verified per effect.                                                       |
+| `buildings.json`   | `data/classic/buildings.ruleset`                 | Loaded and cross-validated; playable-loop costs, upkeep, production gates, defense, happiness, output, veteran/healing, and food retention have parity evidence. |
 | `cities.json`      | `data/classic/cities.ruleset`                    | Present.                                                                                                      |
-| `effects.json`     | `data/classic/effects.ruleset`                   | Present; JSON parseability is covered by `RulesetLoader.effects.test.ts`.                                     |
-| `game.json`        | `data/classic/game.ruleset`                      | Present.                                                                                                      |
-| `governments.json` | `data/classic/governments.ruleset`               | Present.                                                                                                      |
+| `effects.json`     | `data/classic/effects.ruleset`                   | Loaded, schema-constrained, cross-validated, and evaluated for the Milestone 1 playable loop.                  |
+| `game.json`        | `data/classic/game.ruleset`                      | Loaded; initial buildings, food cost, granary sizing, and city-center minimums drive runtime behavior.         |
+| `governments.json` | `data/classic/governments.ruleset`               | Loaded and cross-validated; playable-loop corruption, happiness, martial law, and support effects are active.  |
 | `nations.json`     | `data/classic/nations.ruleset`                   | Present.                                                                                                      |
 | `techs.json`       | `data/classic/techs.ruleset`                     | Present; the research manager now uses the full loaded catalogue for costs, prerequisites, and flags.          |
-| `terrain.json`     | `data/classic/terrain.ruleset`                   | Present.                                                                                                      |
-| `units.json`       | `data/classic/units.ruleset`                     | Present.                                                                                                      |
+| `terrain.json`     | `data/classic/terrain.ruleset`                   | Loaded; movement costs, base yields, and effect terrain context drive playable-loop calculations.             |
+| `units.json`       | `data/classic/units.ruleset`                     | Loaded and cross-validated; values, classes/flags, movement, vision, upkeep, and combat contexts drive runtime behavior. |
 | extras             | `data/classic/terrain.ruleset`                   | No standalone CivJS extras data file; terrain-derived extras and worker integration remain partial.           |
 | requirements       | requirement clauses in the classic ruleset files | Effect requirement evaluation covers the requirement kinds currently present in `effects.json` and fails closed for unsupported or context-free clauses. Action and entity requirement loading remains partial. |
 | —                  | `data/classic/actions.ruleset`                   | No equivalent JSON data file identified; action coverage requires an explicit audit.                          |
 | —                  | `data/classic/styles.ruleset`                    | No equivalent JSON data file identified; client style/rendering coverage requires an explicit audit.          |
 
 The loader parses every `classic/*.json` file with `JSON.parse`, then validates it with Zod. Therefore comments are not valid in these data files. `RulesetLoader.effects.test.ts` loads every supported classic JSON ruleset and covers an effects pair ported from `effects.ruleset:262–278`. The classic effects file previously contained JavaScript comments and could not load; technologies also use `null` to represent an absent `root_req`.
+
+### Milestone 2 representative parity matrix
+
+| Representative rule | Loaded authority | Automated evidence |
+| ------------------- | ---------------- | ------------------ |
+| Warriors values and Land class | `units.json` | `RulesetUnitsService.test.ts`, `RulesetMutation.test.ts` |
+| Granary, Library, and Temple | `buildings.json`, `effects.json` | `RulesetBuildingsService.test.ts`, `CityGrowth.test.ts`, `CityHappiness.effects.test.ts`, `CityRulesetValues.test.ts` |
+| Alphabet → Pottery representative early research catalogue (both root technologies) | `techs.json` | `ResearchManager.test.ts`, `RulesetMutation.test.ts` |
+| Terrain movement and yields | `terrain.json` | `MovementConstants.test.ts`, `CityRulesetValues.test.ts`, `RulesetMutation.test.ts` |
+| Government corruption and Courthouse reduction | `governments.json`, `effects.json` | `CityCorruption.effects.test.ts` |
+| Fortification and City Walls defense | `units.json`, `effects.json` | `UnitManager.test.ts` |
+| Unit and terrain/extra vision | `units.json`, `effects.json` | `VisibilityManager.test.ts` |
+| Granary growth/starvation retention | `effects.json`, `game.json` | `CityGrowth.test.ts` |
+
+`RulesetMutation.test.ts` copies `classic/` into a temporary base directory and
+injects a fresh `RulesetLoader` into each affected boundary. Mutating an effect,
+unit, building, technology, terrain, or game parameter changes the
+corresponding result without modifying the process-wide singleton.
+
+Later-milestone effects remain intentionally inert where their authoritative
+consumer does not yet exist: capture population protection and incite-cost
+effects require the capture/incite action flows, and visible-wall effects
+require client rendering support.
 
 ## Packet inventory
 

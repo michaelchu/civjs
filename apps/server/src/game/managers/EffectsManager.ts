@@ -12,7 +12,7 @@
  * Reference: /reference/freeciv/common/effects.c
  */
 
-import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { logger } from '@utils/logger';
 import type { Effect, Requirement } from '@shared/data/rulesets/schemas';
@@ -139,13 +139,18 @@ export interface EffectResult {
 export class EffectsManager {
   private effectsCache = new Map<string, Record<string, Effect>>();
   private rulesetName: string;
+  private rulesetLoader: Pick<RulesetLoader, 'getEffects'>;
   private requirementHandlers: Record<
     string,
     (req: Requirement, context: EffectContext) => RequirementResult
   > = {};
 
-  constructor(rulesetName: string = 'classic') {
+  constructor(
+    rulesetName: string = 'classic',
+    ruleset: Pick<RulesetLoader, 'getEffects'> = rulesetLoader
+  ) {
     this.rulesetName = rulesetName;
+    this.rulesetLoader = ruleset;
     this.initRequirementHandlers();
   }
 
@@ -156,7 +161,7 @@ export class EffectsManager {
   private getEffects(): Record<string, Effect> {
     if (!this.effectsCache.has(this.rulesetName)) {
       try {
-        const effects = rulesetLoader.getEffects(this.rulesetName);
+        const effects = this.rulesetLoader.getEffects(this.rulesetName);
         this.effectsCache.set(this.rulesetName, effects);
         logger.info(
           `Loaded ${Object.keys(effects).length} effects from ruleset '${this.rulesetName}'`
