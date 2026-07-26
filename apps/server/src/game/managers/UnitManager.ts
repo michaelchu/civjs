@@ -197,8 +197,8 @@ export class UnitManager {
         attackStrength: unitType.combat,
         defenseStrength: unitType.combat,
         rangedStrength: unitType.range > 1 ? unitType.combat : 0,
-        movementPoints: unitType.movement.toString(),
-        maxMovementPoints: unitType.movement.toString(),
+        movementPoints: (unitType.movement * 3).toString(),
+        maxMovementPoints: (unitType.movement * 3).toString(),
         veteranLevel: 0,
         createdTurn: 1, // TODO: get current turn
       })
@@ -483,12 +483,11 @@ export class UnitManager {
     // Update database for all player units
     for (const unit of this.units.values()) {
       if (unit.playerId === playerId) {
-        const unitType = UNIT_TYPES[unit.unitTypeId];
         await this.databaseProvider
           .getDatabase()
           .update(units)
           .set({
-            movementPoints: unitType.movement.toString(),
+            movementPoints: unit.movementLeft.toString(),
             health: unit.health,
           })
           .where(eq(units.id, unit.id));

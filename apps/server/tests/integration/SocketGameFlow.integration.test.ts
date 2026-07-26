@@ -279,6 +279,9 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     expect(gameManager.getGameInstance(gameId)?.borderManager.getAllTileOwnership()).toEqual(
       expect.arrayContaining([expect.objectContaining({ x: 8, y: 8, playerId: hostPlayer!.id })])
     );
+    const activeGameBeforeRecovery = gameManager.getGameInstance(gameId)!;
+    const attackerBeforeRecovery = activeGameBeforeRecovery.unitManager.getUnit(unitId);
+    const defenderBeforeRecovery = activeGameBeforeRecovery.unitManager.getUnit(defenderId);
 
     // Simulate a server restart: only PostgreSQL state remains before the
     // returning socket asks to rejoin the active game.
@@ -289,6 +292,16 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     expect(recoveredGame?.borderManager.getAllTileOwnership()).toEqual(
       expect.arrayContaining([expect.objectContaining({ x: 8, y: 8, playerId: hostPlayer!.id })])
     );
+    if (attackerBeforeRecovery) {
+      expect(recoveredGame?.unitManager.getUnit(unitId)).toMatchObject(attackerBeforeRecovery);
+    } else {
+      expect(recoveredGame?.unitManager.getUnit(unitId)).toBeUndefined();
+    }
+    if (defenderBeforeRecovery) {
+      expect(recoveredGame?.unitManager.getUnit(defenderId)).toMatchObject(defenderBeforeRecovery);
+    } else {
+      expect(recoveredGame?.unitManager.getUnit(defenderId)).toBeUndefined();
+    }
 
     host.disconnect();
     const returning = connectClient();
