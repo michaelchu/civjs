@@ -468,35 +468,39 @@ export class CityHappinessService extends BaseGameService {
     const happiness = this.calculateHappiness(city);
 
     if (happiness.unhappy > 0) {
+      const temple = BUILDING_TYPES.temple;
+      const cathedral = BUILDING_TYPES.cathedral;
+      const colosseum = BUILDING_TYPES.colosseum;
+
       // Recommend Temple if not built
-      if (!city.buildings.includes('temple')) {
+      if (temple && !city.buildings.includes('temple')) {
         recommendations.push({
-          buildingId: 'temple',
-          buildingName: 'Temple',
+          buildingId: temple.id,
+          buildingName: temple.name,
           happinessImprovement: 2,
-          cost: 40,
+          cost: temple.cost,
           priority: 'high' as const,
         });
       }
 
       // Recommend Cathedral if Temple exists but more happiness needed
-      if (city.buildings.includes('temple') && !city.buildings.includes('cathedral')) {
+      if (cathedral && city.buildings.includes('temple') && !city.buildings.includes('cathedral')) {
         recommendations.push({
-          buildingId: 'cathedral',
-          buildingName: 'Cathedral',
+          buildingId: cathedral.id,
+          buildingName: cathedral.name,
           happinessImprovement: 3,
-          cost: 160,
+          cost: cathedral.cost,
           priority: 'medium' as const,
         });
       }
 
       // Recommend Colosseum for larger cities
-      if (city.population >= 6 && !city.buildings.includes('colosseum')) {
+      if (colosseum && city.population >= 6 && !city.buildings.includes('colosseum')) {
         recommendations.push({
-          buildingId: 'colosseum',
-          buildingName: 'Colosseum',
+          buildingId: colosseum.id,
+          buildingName: colosseum.name,
           happinessImprovement: 3,
-          cost: 100,
+          cost: colosseum.cost,
           priority: 'medium' as const,
         });
       }
