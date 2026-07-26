@@ -664,6 +664,28 @@
       ],
       "comment": "Temples provide +1 immediate culture boost"
     },
+    "temple_content": {
+      "id": "temple_content",
+      "type": "Make_Content",
+      "value": 1,
+      "reqs": [{ "type": "Building", "name": "Temple", "range": "City" }],
+      "comment": "Base Temple contentment"
+    },
+    "cathedral_content": {
+      "id": "cathedral_content",
+      "type": "Make_Content",
+      "value": 3,
+      "reqs": [
+        { "type": "Building", "name": "Cathedral", "range": "City" },
+        {
+          "type": "Building",
+          "name": "Michelangelo's Chapel",
+          "range": "Player",
+          "present": false
+        }
+      ],
+      "comment": "Base Cathedral contentment"
+    },
     "library_culture_pct": {
       "id": "library_culture_pct",
       "type": "Culture_Pct",

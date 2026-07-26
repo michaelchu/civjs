@@ -16,6 +16,7 @@
 
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { rulesetBuildingsService } from './RulesetBuildingsService';
 
 // Re-export shared types and constants
@@ -145,6 +146,7 @@ export interface HappinessAnalysis {
  * CityHappinessService handles all city happiness calculations and analysis
  */
 export class CityHappinessService extends BaseGameService {
+  private readonly effectsManager = new EffectsManager();
   constructor() {
     super(logger);
   }
@@ -193,13 +195,11 @@ export class CityHappinessService extends BaseGameService {
     const totalLuxury = luxuryEffect + luxuryFromTrade;
 
     // Calculate building happiness effects
-    let buildingEffect = 0;
-    for (const buildingId of city.buildings) {
-      const building = BUILDING_TYPES[buildingId];
-      if (building && building.effects.happinessEffect) {
-        buildingEffect += building.effects.happinessEffect;
-      }
-    }
+    const buildingEffect = this.effectsManager.calculateEffect(EffectType.MAKE_CONTENT, {
+      playerId: city.playerId,
+      cityId: city.id,
+      cityBuildings: new Set(city.buildings),
+    }).value;
 
     // Calculate military unit effects (martial law)
     const unitEffect = Math.min(militaryUnitsPresent, Math.floor(city.population / 2)); // Max martial law effect
