@@ -9,7 +9,8 @@ describe('GameInstanceRecoveryService map deserialization', () => {
       {} as any,
       jest.fn(),
       jest.fn(),
-      jest.fn()
+      jest.fn(),
+      {} as any
     );
 
     const tiles = (recoveryService as any).deserializeMapTiles(

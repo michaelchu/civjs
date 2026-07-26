@@ -181,7 +181,8 @@ export class GameManager {
       this.io,
       this.foundCity.bind(this),
       this.requestPath.bind(this),
-      this.broadcastToGame.bind(this)
+      this.broadcastToGame.bind(this),
+      this.gameBroadcastManager
     );
 
     // Register services

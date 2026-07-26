@@ -15,6 +15,7 @@ import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { CultureManager } from '@game/managers/CultureManager';
 import { BorderManager } from '@game/managers/BorderManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
+import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
 import { Server as SocketServer } from 'socket.io';
 
@@ -49,7 +50,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
     ) => Promise<any>,
     // Note: createUnit callback removed as it's not currently used
     // private createUnit: (gameId: string, playerId: string, unitType: string, x: number, y: number) => Promise<string>,
-    private broadcastToGame: (gameId: string, event: string, data: any) => void
+    private broadcastToGame: (gameId: string, event: string, data: any) => void,
+    private broadcastManager: GameBroadcastManager
   ) {
     super(logger);
   }
@@ -253,47 +255,6 @@ export class GameInstanceRecoveryService extends BaseGameService {
       },
     });
 
-    // Create a simple broadcast manager for the TurnManager
-    // TODO: Proper dependency injection should be implemented
-    const mockBroadcastManager = {
-      broadcastToPlayer: (playerId: string, event: string, data: any) => {
-        this.io.to(`player:${playerId}`).emit(event, data);
-      },
-      broadcastToGame: (gameId: string, event: string, data: any) => {
-        this.io.to(`game:${gameId}`).emit(event, data);
-      },
-      broadcastPacketToGame: (gameId: string, packetType: any, data: any) => {
-        this.io.to(`game:${gameId}`).emit('packet', { type: packetType, data });
-      },
-      broadcastMapData: (gameId: string, mapData: any) => {
-        this.io.to(`game:${gameId}`).emit('map_data', mapData);
-      },
-      broadcastCityData: (gameId: string) => {
-        // Mock implementation - just emit empty cities for now
-        this.io.to(`game:${gameId}`).emit('cities_updated', {
-          gameId,
-          cities: {},
-          timestamp: Date.now(),
-        });
-      },
-      broadcastCityDataToPlayer: (gameId: string, playerId: string) => {
-        // Mock implementation
-        this.io.to(`player:${playerId}`).emit('cities_updated', {
-          gameId,
-          cities: {},
-          timestamp: Date.now(),
-        });
-      },
-      syncGameStateToPlayer: (gameId: string, playerId: string) => {
-        // Mock implementation - just broadcast empty city data
-        this.io.to(`player:${playerId}`).emit('cities_updated', {
-          gameId,
-          cities: {},
-          timestamp: Date.now(),
-        });
-      },
-    } as any; // Cast to any to satisfy type requirements temporarily
-
     // Create CultureManager
     const cultureManager = new CultureManager(this.databaseProvider);
 
@@ -308,7 +269,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       borderManager,
       visibilityManager,
       cultureManager,
-      mockBroadcastManager
+      this.broadcastManager
     );
 
     const playerIds = Array.from(players.keys());
