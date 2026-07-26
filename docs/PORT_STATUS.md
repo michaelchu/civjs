@@ -1,8 +1,8 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 0 working tree (2026-07-25)
+**Verified against:** Milestone 1 working tree (2026-07-26)
 **Verification method:** source-tree audit plus passing client/unit tests and the
-database-backed integration suite (including the Socket.IO smoke test).
+database-backed integration suite (including the Socket.IO continuation test).
 
 ## Purpose
 
@@ -36,8 +36,26 @@ Milestone 0's reliable-porting baseline is complete:
   ruleset impact assessments for new porting changes.
 
 This baseline makes incomplete data and transport explicit; it does not imply
-that the partially ported mechanics below are complete. Milestone 1 is now the
-active delivery target.
+that the partially ported mechanics below are complete.
+
+## Milestone 1 — complete
+
+The core two-player classic loop is now covered from the client transport
+boundary through persistent server state:
+
+- Nation selection, game start, map delivery, movement, combat, city founding,
+  production selection, research selection, and 20 completed turns are
+  exercised in `apps/server/tests/integration/SocketGameFlow.integration.test.ts`.
+- The same test clears in-memory games to simulate a server restart, recovers
+  state from PostgreSQL, reconnects the host, completes another two-player
+  turn, and verifies the recovered city remains present at turn 22.
+- Map packets, units, cities, and borders are scoped to the receiving player's
+  owned or visible state during normal play and recovery.
+
+This meets the Milestone 1 exit criterion: a two-player classic game can be
+created, played for 20 turns, reconnected, and continued with deterministic
+server state. Visual fog-of-war rendering, worker improvements, wonders, AI,
+and deeper economic fidelity remain later-milestone work.
 
 ## Partial or incomplete areas
 
