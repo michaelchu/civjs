@@ -57,6 +57,7 @@ export enum EffectType {
   GROWTH_FOOD = 'Growth_Food',
   SHRINK_FOOD = 'Shrink_Food',
   VETERAN_BUILD = 'Veteran_Build',
+  HP_REGEN = 'HP_Regen',
 
   // Culture system effects (freeciv culture.c and effects_enums.def)
   PERFORMANCE = 'Performance', // EFT_PERFORMANCE (123) - Immediate culture boost

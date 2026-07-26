@@ -506,6 +506,16 @@ export class UnitManager {
         if (unit.fortified && unit.health < 100) {
           unit.health = Math.min(100, unit.health + 10);
         }
+        const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
+        if (city && city.playerId === playerId && this.effectsManager) {
+          const regeneration = this.effectsManager.calculateEffect(EffectType.HP_REGEN, {
+            playerId,
+            unitType: unit.unitTypeId,
+            unitClass: unitType.rulesetUnitClass,
+            cityBuildings: new Set(city.buildings ?? []),
+          }).value;
+          unit.health = Math.min(100, unit.health + regeneration);
+        }
       }
     }
 

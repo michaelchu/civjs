@@ -840,6 +840,16 @@
       ],
       "comment": "Barracks produce veteran land military units"
     },
+    "barracks_hp_regen": {
+      "id": "barracks_hp_regen",
+      "type": "HP_Regen",
+      "value": 100,
+      "reqs": [
+        { "type": "Building", "name": "Barracks", "range": "City" },
+        { "type": "UnitClass", "name": "Land", "range": "Local" }
+      ],
+      "comment": "Barracks fully heal land units stationed in the city"
+    },
     "library_culture_performance": {
       "id": "library_culture_performance",
       "type": "Performance",
