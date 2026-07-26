@@ -222,6 +222,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
     cityManager.setPlayerTechsProvider(
       playerId => new Set(researchManager.getResearchedTechs(playerId))
     );
+    cityManager.setPlayerBuildingsProvider(
+      playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
+    );
 
     const unitManager = new UnitManager(
       gameId,
@@ -237,9 +240,12 @@ export class GameInstanceRecoveryService extends BaseGameService {
         },
         getCityAt: (x: number, y: number) => {
           const city = cityManager.getCityAt(x, y);
-          return city ? { playerId: city.playerId } : null;
+          return city ? { playerId: city.playerId, buildings: city.buildings } : null;
         },
-      }
+        getPlayerBuildings: playerId =>
+          cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings),
+      },
+      effectsManager
     );
 
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);

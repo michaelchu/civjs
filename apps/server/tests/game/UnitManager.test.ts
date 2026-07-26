@@ -1,5 +1,6 @@
 import { UnitManager } from '@game/managers/UnitManager';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
+import { EffectsManager } from '@game/managers/EffectsManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('UnitManager', () => {
@@ -193,6 +194,33 @@ describe('UnitManager', () => {
 
       // At least one unit should be destroyed with such low health
       expect(result.attackerDestroyed || result.defenderDestroyed).toBe(true);
+    });
+
+    it('applies the classic City Walls defense bonus to a land defender in the city', async () => {
+      const cityAwareUnitManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: async () => '',
+          requestPath: async () => ({ success: true }),
+          broadcastUnitMoved: () => undefined,
+          getCityAt: (x, y) =>
+            x === 11 && y === 10 ? { playerId: 'player-456', buildings: ['walls'] } : null,
+        },
+        new EffectsManager()
+      );
+      const defender = await cityAwareUnitManager.createUnit('player-456', 'warriors', 11, 10);
+
+      const strength = (cityAwareUnitManager as any).calculateCombatStrength(
+        defender,
+        UNIT_TYPES.warriors
+      );
+
+      // @reference reference/freeciv/data/classic/effects.ruleset:953-962
+      expect(strength).toBe(3);
     });
   });
 

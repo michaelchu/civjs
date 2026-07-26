@@ -13,6 +13,7 @@
  */
 
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { logger } from '@utils/logger';
 import type { Effect, Requirement } from '@shared/data/rulesets/schemas';
 
@@ -52,6 +53,7 @@ export enum EffectType {
   OUTPUT_BONUS_2 = 'Output_Bonus_2',
   UNIT_VISION_RADIUS_SQ = 'Unit_Vision_Radius_Sq',
   FORTIFY_DEFENSE_BONUS = 'Fortify_Defense_Bonus',
+  DEFEND_BONUS = 'Defend_Bonus',
 
   // Culture system effects (freeciv culture.c and effects_enums.def)
   PERFORMANCE = 'Performance', // EFT_PERFORMANCE (123) - Immediate culture boost
@@ -104,6 +106,7 @@ export interface EffectContext {
   playerNationGroups?: Set<string>;
   age?: number;
   playerTechs?: Set<string>; // Player's researched technologies
+  playerBuildings?: Set<string>; // Buildings owned anywhere by the player
   cityBuildings?: Set<string>; // Buildings in the city
 }
 
@@ -509,11 +512,8 @@ export class EffectsManager {
 
     // Building requirement handler
     this.requirementHandlers['Building'] = (req, context) => {
-      return this.requirementResult(
-        'Building',
-        req,
-        this.setContains(context.cityBuildings, req.name)
-      );
+      const buildings = req.range === 'Player' ? context.playerBuildings : context.cityBuildings;
+      return this.requirementResult('Building', req, this.cityHasBuilding(buildings, req.name));
     };
 
     // Technology requirement handler
@@ -604,6 +604,25 @@ export class EffectsManager {
     return values === undefined
       ? undefined
       : [...values].some(value => this.matches(value, expected));
+  }
+
+  /**
+   * Saved cities use stable building IDs, while classic effects.ruleset names
+   * improvements by their display name (for example `walls` / `City Walls`).
+   */
+  private cityHasBuilding(
+    buildings: Set<string> | undefined,
+    expected: string
+  ): boolean | undefined {
+    if (buildings === undefined) return undefined;
+    if (buildings.size === 0) return false;
+    if (this.setContains(buildings, expected)) return true;
+
+    const rulesetBuildings = rulesetBuildingsService.getBuildingTypes(this.rulesetName);
+    return [...buildings].some(buildingId => {
+      const building = rulesetBuildings[buildingId];
+      return building !== undefined && this.matches(building.name, expected) === true;
+    });
   }
 
   private normaliseRuleName(value: string): string {

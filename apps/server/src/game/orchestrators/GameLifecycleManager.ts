@@ -241,7 +241,13 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     const cityManager = this.createCityManager(gameId, effectsManager);
     const borderManager = this.createBorderManager(mapManager, cityManager, effectsManager);
     this.borderNetworkService = this.createBorderNetworkService(borderManager);
-    const unitManager = this.createUnitManager(gameId, game, mapManager, cityManager);
+    const unitManager = this.createUnitManager(
+      gameId,
+      game,
+      mapManager,
+      cityManager,
+      effectsManager
+    );
 
     // Set up dependencies after all managers are created
     cityManager.setMapManager(mapManager);
@@ -252,6 +258,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     await this.initializePlayerResearch(researchManager, players);
     cityManager.setPlayerTechsProvider(
       playerId => new Set(researchManager.getResearchedTechs(playerId))
+    );
+    cityManager.setPlayerBuildingsProvider(
+      playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
     );
     const visibilityManager = this.createVisibilityManager(
       gameId,
@@ -930,7 +939,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     gameId: string,
     game: any,
     mapManager: MapManager,
-    cityManager: CityManager
+    cityManager: CityManager,
+    effectsManager: EffectsManager
   ): UnitManager {
     return new UnitManager(
       gameId,
@@ -950,9 +960,12 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         },
         getCityAt: (x: number, y: number) => {
           const city = cityManager.getCityAt(x, y);
-          return city ? { playerId: city.playerId } : null;
+          return city ? { playerId: city.playerId, buildings: city.buildings } : null;
         },
-      }
+        getPlayerBuildings: playerId =>
+          cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings),
+      },
+      effectsManager
     );
   }
 

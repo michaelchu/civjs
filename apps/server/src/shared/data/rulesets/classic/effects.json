@@ -761,6 +761,29 @@
       ],
       "comment": "Marketplace gold output bonus"
     },
+    "city_walls_defense": {
+      "id": "city_walls_defense",
+      "type": "Defend_Bonus",
+      "value": 200,
+      "reqs": [
+        { "type": "Building", "name": "City Walls", "range": "City" },
+        { "type": "UnitClass", "name": "Land", "range": "Local" },
+        { "type": "Building", "name": "Great Wall", "range": "Player", "present": false },
+        { "type": "UnitType", "name": "Howitzer", "range": "Local", "present": false }
+      ],
+      "comment": "City Walls triple the defense of land units except Howitzers"
+    },
+    "city_walls_helicopter_defense": {
+      "id": "city_walls_helicopter_defense",
+      "type": "Defend_Bonus",
+      "value": 200,
+      "reqs": [
+        { "type": "Building", "name": "City Walls", "range": "City" },
+        { "type": "UnitClass", "name": "Helicopter", "range": "Local" },
+        { "type": "Building", "name": "Great Wall", "range": "Player", "present": false }
+      ],
+      "comment": "City Walls triple the defense of helicopters"
+    },
     "library_culture_performance": {
       "id": "library_culture_performance",
       "type": "Performance",

@@ -363,6 +363,10 @@ export class CityManager {
     this.happinessService.setPlayerTechsProvider(provider);
   }
 
+  public setPlayerBuildingsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
+    this.happinessService.setPlayerBuildingsProvider(provider);
+  }
+
   /**
    * Initialize the CityManager and its services
    */

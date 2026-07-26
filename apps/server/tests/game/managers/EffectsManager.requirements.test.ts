@@ -39,6 +39,12 @@ describe('EffectsManager classic requirement evaluation', () => {
         // @reference reference/freeciv/data/classic/effects.ruleset:620-626
         reqs: [{ type: 'Building', name: 'Palace', range: 'City' }],
       },
+      wonder_blocked: {
+        id: 'wonder_blocked',
+        type: 'Gov_Center',
+        value: 5,
+        reqs: [{ type: 'Building', name: 'great_wall', range: 'Player', present: false }],
+      },
     });
   });
 
@@ -78,6 +84,23 @@ describe('EffectsManager classic requirement evaluation', () => {
 
     expect(
       effects.calculateEffect(EffectType.GOV_CENTER, { cityBuildings: new Set(['palace']) }).value
+    ).toBe(1);
+  });
+
+  it('evaluates player-range buildings separately from the city buildings', () => {
+    const effects = new EffectsManager();
+
+    expect(
+      effects.calculateEffect(EffectType.GOV_CENTER, {
+        cityBuildings: new Set(['palace']),
+        playerBuildings: new Set(),
+      }).value
+    ).toBe(6);
+    expect(
+      effects.calculateEffect(EffectType.GOV_CENTER, {
+        cityBuildings: new Set(['palace']),
+        playerBuildings: new Set(['great_wall']),
+      }).value
     ).toBe(1);
   });
 

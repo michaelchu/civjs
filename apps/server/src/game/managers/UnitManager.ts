@@ -6,6 +6,12 @@ import { getTerrainMovementCost } from '@game/constants/MovementConstants';
 import { UNIT_TYPES, getUnitType, UnitType } from '@game/constants/UnitConstants';
 import { ActionSystem } from '@game/systems/ActionSystem';
 import { ActionType, ActionResult } from '@app-types/shared/actions';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
+
+interface CityAtLocation {
+  playerId: string;
+  buildings?: string[];
+}
 
 export interface Unit {
   id: string;
@@ -99,6 +105,7 @@ export class UnitManager {
   private mapHeight: number;
   private mapManager: any; // MapManager instance for terrain access
   private actionSystem: ActionSystem;
+  private effectsManager?: EffectsManager;
   private currentTurnProvider?: () => number;
   private gameManagerCallback?: {
     foundCity: (
@@ -121,7 +128,8 @@ export class UnitManager {
       y: number,
       movementLeft: number
     ) => void;
-    getCityAt?: (x: number, y: number) => { playerId: string } | null;
+    getCityAt?: (x: number, y: number) => CityAtLocation | null;
+    getPlayerBuildings?: (playerId: string) => string[];
   };
 
   constructor(
@@ -151,8 +159,10 @@ export class UnitManager {
         y: number,
         movementLeft: number
       ) => void;
-      getCityAt?: (x: number, y: number) => { playerId: string } | null;
-    }
+      getCityAt?: (x: number, y: number) => CityAtLocation | null;
+      getPlayerBuildings?: (playerId: string) => string[];
+    },
+    effectsManager?: EffectsManager
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -160,6 +170,7 @@ export class UnitManager {
     this.mapHeight = mapHeight;
     this.mapManager = mapManager;
     this.gameManagerCallback = gameManagerCallback;
+    this.effectsManager = effectsManager;
     this.actionSystem = new ActionSystem(gameId, gameManagerCallback);
   }
 
@@ -578,10 +589,32 @@ export class UnitManager {
       strength = Math.floor(strength * 1.5);
     }
 
+    strength = Math.floor(
+      (strength * (100 + this.calculateCityDefenseBonus(unit, unitType))) / 100
+    );
+
     // Health modifier
     strength = Math.floor(strength * (unit.health / 100));
 
     return Math.max(1, strength);
+  }
+
+  private calculateCityDefenseBonus(unit: Unit, unitType: UnitType): number {
+    const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
+    if (!city || city.playerId !== unit.playerId || !this.effectsManager) return 0;
+
+    return this.effectsManager.calculateEffect(EffectType.DEFEND_BONUS, {
+      playerId: unit.playerId,
+      unitId: unit.id,
+      unitType: unit.unitTypeId,
+      unitClass: unitType.rulesetUnitClass,
+      unitTypeFlags: new Set(unitType.flags),
+      tileX: unit.x,
+      tileY: unit.y,
+      tileIsCityCenter: true,
+      cityBuildings: new Set(city.buildings ?? []),
+      playerBuildings: new Set(this.gameManagerCallback?.getPlayerBuildings?.(unit.playerId) ?? []),
+    }).value;
   }
 
   /**

@@ -148,9 +148,14 @@ export interface HappinessAnalysis {
 export class CityHappinessService extends BaseGameService {
   private readonly effectsManager = new EffectsManager();
   private playerTechsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
+  private playerBuildingsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
 
   setPlayerTechsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
     this.playerTechsProvider = provider;
+  }
+
+  setPlayerBuildingsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
+    this.playerBuildingsProvider = provider;
   }
   constructor() {
     super(logger);
@@ -205,6 +210,7 @@ export class CityHappinessService extends BaseGameService {
       cityId: city.id,
       cityBuildings: new Set(city.buildings),
       playerTechs: new Set(this.playerTechsProvider(city.playerId)),
+      playerBuildings: new Set(this.playerBuildingsProvider(city.playerId)),
     }).value;
 
     // Calculate military unit effects (martial law)
