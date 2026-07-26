@@ -15,6 +15,7 @@ import { Server as SocketServer } from 'socket.io';
 import { SocketCoordinator } from '@network/SocketCoordinator';
 import { GameManager } from '@game/managers/GameManager';
 import { PacketType, type Packet } from '@app-types/packet';
+import { SINGLE_MOVE, getTerrainMovementCost } from '@game/constants/MovementConstants';
 import {
   clearAllTables,
   generateTestUUID,
@@ -165,11 +166,30 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       player => player.userId === hostUserId
     );
     expect(hostPlayer).toBeDefined();
-    const unitId = await gameManager.createUnit(gameId, hostPlayer!.id, 'warriors', 10, 10);
+    const unitStart = { x: 10, y: 10 };
+    const map = gameManager.getGameInstance(gameId)!.mapManager.getMapData()!;
+    const moveTarget = [
+      { x: unitStart.x + 1, y: unitStart.y },
+      { x: unitStart.x - 1, y: unitStart.y },
+      { x: unitStart.x, y: unitStart.y + 1 },
+      { x: unitStart.x, y: unitStart.y - 1 },
+    ].find(({ x, y }) => {
+      const terrain = map.tiles[x]?.[y]?.terrain;
+      return terrain && getTerrainMovementCost(terrain, 'warriors') <= SINGLE_MOVE;
+    });
+    expect(moveTarget).toBeDefined();
+
+    const unitId = await gameManager.createUnit(
+      gameId,
+      hostPlayer!.id,
+      'warriors',
+      unitStart.x,
+      unitStart.y
+    );
     const moveReply = waitForPacket(host, PacketType.UNIT_MOVE_REPLY);
     host.emit('packet', {
       type: PacketType.UNIT_MOVE,
-      data: { unitId, x: 11, y: 10 },
+      data: { unitId, x: moveTarget!.x, y: moveTarget!.y },
     });
     const moveResponse = await moveReply;
     if (!(moveResponse.data as { success: boolean }).success) {
@@ -178,9 +198,18 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     expect(moveResponse.data).toMatchObject({
       success: true,
       unitId,
-      newX: 11,
-      newY: 10,
+      newX: moveTarget!.x,
+      newY: moveTarget!.y,
     });
+
+    // @reference reference/freeciv/server/cityturn.c:338-390
+    const settlerId = await gameManager.createUnit(gameId, hostPlayer!.id, 'settlers', 8, 8);
+    const cityReply = waitForPacket(host, PacketType.CITY_FOUND_REPLY);
+    host.emit('packet', {
+      type: PacketType.CITY_FOUND,
+      data: { unitId: settlerId, name: 'Socket City', x: 8, y: 8 },
+    });
+    expect((await cityReply).data).toMatchObject({ success: true });
 
     for (let completedTurns = 0; completedTurns < 20; completedTurns += 1) {
       const hostTurnReply = waitForPacket(host, PacketType.TURN_END_REPLY);
