@@ -16,6 +16,7 @@
 
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
+import { rulesetBuildingsService } from './RulesetBuildingsService';
 
 // Re-export shared types and constants
 export interface CityState {
@@ -120,7 +121,7 @@ interface BuildingType {
   };
 }
 
-const BUILDING_TYPES: Record<string, BuildingType> = {
+export const LEGACY_BUILDING_TYPES: Record<string, BuildingType> = {
   temple: {
     id: 'temple',
     name: 'Temple',
@@ -146,6 +147,8 @@ const BUILDING_TYPES: Record<string, BuildingType> = {
     },
   },
 };
+
+const BUILDING_TYPES = rulesetBuildingsService.getBuildingTypes();
 
 /**
  * Detailed happiness calculation result with breakdown

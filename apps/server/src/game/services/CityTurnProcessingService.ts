@@ -20,6 +20,7 @@ import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { rulesetBuildingsService } from './RulesetBuildingsService';
 import type { Server as SocketServer } from 'socket.io';
 import type { CityGovernorService } from './CityGovernorService';
 import type { CityTileManagementService } from './CityTileManagementService';
@@ -99,7 +100,7 @@ interface BuildingType {
   };
 }
 
-const BUILDING_TYPES: Record<string, BuildingType> = {
+export const LEGACY_BUILDING_TYPES: Record<string, BuildingType> = {
   granary: {
     id: 'granary',
     name: 'Granary',
@@ -157,6 +158,8 @@ const BUILDING_TYPES: Record<string, BuildingType> = {
     },
   },
 };
+
+const BUILDING_TYPES = rulesetBuildingsService.getBuildingTypes();
 
 /**
  * Turn processing step timing information
