@@ -43,6 +43,8 @@ describe('RulesetLoader classic effects ruleset', () => {
     // @reference reference/freeciv/data/classic/effects.ruleset:1175-1199,1764-1781,953-980
     expect(effects.library_science_bonus).toMatchObject({ type: 'Output_Bonus', value: 100 });
     expect(effects.marketplace_gold_bonus).toMatchObject({ type: 'Output_Bonus', value: 50 });
+    // @reference reference/freeciv/data/classic/effects.ruleset:1193-1201
+    expect(effects.marketplace_luxury_bonus).toMatchObject({ type: 'Output_Bonus', value: 50 });
     expect(effects.temple_content).toMatchObject({ type: 'Make_Content', value: 1 });
     expect(effects.temple_mysticism_content).toMatchObject({ type: 'Make_Content', value: 1 });
     expect(effects.cathedral_content).toMatchObject({ type: 'Make_Content', value: 3 });

@@ -761,6 +761,16 @@
       ],
       "comment": "Marketplace gold output bonus"
     },
+    "marketplace_luxury_bonus": {
+      "id": "marketplace_luxury_bonus",
+      "type": "Output_Bonus",
+      "value": 50,
+      "reqs": [
+        { "type": "Building", "name": "Marketplace", "range": "City" },
+        { "type": "OutputType", "name": "Luxury", "range": "Local" }
+      ],
+      "comment": "Marketplace luxury output bonus"
+    },
     "city_walls_defense": {
       "id": "city_walls_defense",
       "type": "Defend_Bonus",

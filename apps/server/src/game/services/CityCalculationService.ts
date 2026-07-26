@@ -19,7 +19,7 @@
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import { EffectsManager, OutputType } from '@game/managers/EffectsManager';
+import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsManager';
 import type { CityTileManagementService } from './CityTileManagementService';
 
 // Re-export types that will be shared
@@ -223,7 +223,10 @@ export class CityCalculationService extends BaseGameService {
     const tradeAfterCorruption = Math.max(0, finalOutputs.trade - corruption);
 
     // Convert trade to science and gold
-    const { science, gold, luxury } = this.convertTradeToResources(tradeAfterCorruption);
+    const convertedTrade = this.convertTradeToResources(tradeAfterCorruption);
+    const science = this.applyOutputBonus(city, OutputType.SCIENCE, convertedTrade.science);
+    const gold = this.applyOutputBonus(city, OutputType.GOLD, convertedTrade.gold);
+    const luxury = this.applyOutputBonus(city, OutputType.LUXURY, convertedTrade.luxury);
 
     // Add specialist contributions
     const specialistOutputs = this.calculateSpecialistOutputs(city.specialists);
@@ -334,6 +337,16 @@ export class CityCalculationService extends BaseGameService {
       gold: tradeToGold,
       luxury: 0, // Luxury comes from specialists in this simplified model
     };
+  }
+
+  private applyOutputBonus(city: CityState, outputType: OutputType, output: number): number {
+    const bonus = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, {
+      playerId: city.playerId,
+      cityId: city.id,
+      cityBuildings: new Set(city.buildings),
+      outputType,
+    }).value;
+    return Math.floor((output * (100 + bonus)) / 100);
   }
 
   /**
