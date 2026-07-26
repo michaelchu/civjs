@@ -411,8 +411,15 @@ export class GameInstanceRecoveryService extends BaseGameService {
     researchManager: ResearchManager,
     visibilityManager: VisibilityManager
   ): Promise<void> {
+    // Restore completed technologies before filling in any legacy players without a record.
+    // @reference reference/freeciv/server/savegame/savegame3.c:7648-7741
+    // Reinitializing every player here would replace completed technologies after recovery.
+    await researchManager.loadPlayerResearch();
+
     for (const player of players.values()) {
-      await researchManager.initializePlayerResearch(player.id);
+      if (!researchManager.getPlayerResearch(player.id)) {
+        await researchManager.initializePlayerResearch(player.id);
+      }
       visibilityManager.initializePlayerVisibility(player.id);
       visibilityManager.updatePlayerVisibility(player.id);
     }

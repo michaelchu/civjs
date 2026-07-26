@@ -289,6 +289,9 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     const recoveredGame = await gameManager.recoverGameInstance(gameId);
     expect(recoveredGame).toMatchObject({ id: gameId, currentTurn: 21 });
     expect(recoveredGame?.cityManager.getCity(cityId)).toMatchObject({ id: cityId });
+    expect(
+      recoveredGame?.researchManager.getPlayerResearch(hostPlayer!.id)?.researchedTechs
+    ).toContain('pottery');
     expect(recoveredGame?.borderManager.getAllTileOwnership()).toEqual(
       expect.arrayContaining([expect.objectContaining({ x: 8, y: 8, playerId: hostPlayer!.id })])
     );
