@@ -124,7 +124,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     const host = connectClient();
     await waitForConnection(host);
     const hostUsername = `host-${generateTestUUID().slice(0, 20)}`;
-    await authenticate(host, hostUsername);
+    const hostUserId = await authenticate(host, hostUsername);
 
     const created = waitForPacket(host, PacketType.GAME_CREATE_REPLY);
     host.emit('packet', {
@@ -159,6 +159,28 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     }>(host, 'get_map_data', {});
     expect(mapReply.success).toBe(true);
     expect(mapReply.mapData).toMatchObject({ width: 20, height: 20 });
+
+    // @reference reference/freeciv/server/unittools.c:1215-1280
+    const hostPlayer = Array.from(gameManager.getGameInstance(gameId)!.players.values()).find(
+      player => player.userId === hostUserId
+    );
+    expect(hostPlayer).toBeDefined();
+    const unitId = await gameManager.createUnit(gameId, hostPlayer!.id, 'warriors', 10, 10);
+    const moveReply = waitForPacket(host, PacketType.UNIT_MOVE_REPLY);
+    host.emit('packet', {
+      type: PacketType.UNIT_MOVE,
+      data: { unitId, x: 11, y: 10 },
+    });
+    const moveResponse = await moveReply;
+    if (!(moveResponse.data as { success: boolean }).success) {
+      throw new Error(`UNIT_MOVE failed: ${JSON.stringify(moveResponse.data)}`);
+    }
+    expect(moveResponse.data).toMatchObject({
+      success: true,
+      unitId,
+      newX: 11,
+      newY: 10,
+    });
 
     for (let completedTurns = 0; completedTurns < 20; completedTurns += 1) {
       const hostTurnReply = waitForPacket(host, PacketType.TURN_END_REPLY);

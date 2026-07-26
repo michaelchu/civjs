@@ -524,6 +524,7 @@ export class GameManager {
         mapSize: `${game.mapWidth}x${game.mapHeight}`,
         createdAt: game.createdAt.toISOString(),
         canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
+        players: game.players || [],
       };
     } catch (error) {
       logger.error('Error fetching game by player ID:', error);
@@ -634,6 +635,7 @@ export class GameManager {
         mapSize: `${game.mapWidth}x${game.mapHeight}`,
         createdAt: game.createdAt.toISOString(),
         canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
+        players: game.players || [],
       };
     } catch (error) {
       logger.error('Error fetching game by ID from database:', error);
