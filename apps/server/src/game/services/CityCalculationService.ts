@@ -224,9 +224,19 @@ export class CityCalculationService extends BaseGameService {
 
     // Convert trade to science and gold
     const convertedTrade = this.convertTradeToResources(tradeAfterCorruption);
-    const science = this.applyOutputBonus(city, OutputType.SCIENCE, convertedTrade.science);
-    const gold = this.applyOutputBonus(city, OutputType.GOLD, convertedTrade.gold);
-    const luxury = this.applyOutputBonus(city, OutputType.LUXURY, convertedTrade.luxury);
+    const science = this.applyOutputBonus(
+      city,
+      OutputType.SCIENCE,
+      convertedTrade.science,
+      government
+    );
+    const gold = this.applyOutputBonus(city, OutputType.GOLD, convertedTrade.gold, government);
+    const luxury = this.applyOutputBonus(
+      city,
+      OutputType.LUXURY,
+      convertedTrade.luxury,
+      government
+    );
 
     // Add specialist contributions
     const specialistOutputs = this.calculateSpecialistOutputs(city.specialists);
@@ -234,7 +244,9 @@ export class CityCalculationService extends BaseGameService {
     // Combine all outputs
     const totalOutputs: CityOutputs = {
       food: finalOutputs.food + specialistOutputs.food,
-      shields: finalOutputs.shields + specialistOutputs.shields,
+      shields:
+        this.applyOutputBonus(city, OutputType.SHIELD, finalOutputs.shields, government) +
+        specialistOutputs.shields,
       trade: tradeAfterCorruption + specialistOutputs.trade,
       science: science + specialistOutputs.science,
       gold: gold + specialistOutputs.gold,
@@ -339,12 +351,18 @@ export class CityCalculationService extends BaseGameService {
     };
   }
 
-  private applyOutputBonus(city: CityState, outputType: OutputType, output: number): number {
+  private applyOutputBonus(
+    city: CityState,
+    outputType: OutputType,
+    output: number,
+    government: string
+  ): number {
     const bonus = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, {
       playerId: city.playerId,
       cityId: city.id,
       cityBuildings: new Set(city.buildings),
       outputType,
+      government,
     }).value;
     return Math.floor((output * (100 + bonus)) / 100);
   }

@@ -627,15 +627,20 @@
     "palace_corruption_immunity": {
       "id": "palace_corruption_immunity",
       "type": "Output_Waste_Pct",
-      "value": 0,
+      "value": 50,
       "reqs": [
         {
           "type": "Building",
           "name": "Palace",
           "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
         }
       ],
-      "comment": "Palace eliminates corruption in its city"
+      "comment": "Palace halves trade waste in its city"
     },
 
     "temple_border_strength": {
@@ -849,6 +854,28 @@
         { "type": "UnitClass", "name": "Land", "range": "Local" }
       ],
       "comment": "Barracks fully heal land units stationed in the city"
+    },
+    "palace_despotism_shield_bonus": {
+      "id": "palace_despotism_shield_bonus",
+      "type": "Output_Bonus",
+      "value": 75,
+      "reqs": [
+        { "type": "Gov", "name": "Despotism", "range": "Player" },
+        { "type": "Building", "name": "Palace", "range": "City" },
+        { "type": "OutputType", "name": "Shield", "range": "Local" }
+      ],
+      "comment": "Palace shield output bonus under Despotism"
+    },
+    "palace_monarchy_shield_bonus": {
+      "id": "palace_monarchy_shield_bonus",
+      "type": "Output_Bonus",
+      "value": 50,
+      "reqs": [
+        { "type": "Gov", "name": "Monarchy", "range": "Player" },
+        { "type": "Building", "name": "Palace", "range": "City" },
+        { "type": "OutputType", "name": "Shield", "range": "Local" }
+      ],
+      "comment": "Palace shield output bonus under Monarchy"
     },
     "library_culture_performance": {
       "id": "library_culture_performance",

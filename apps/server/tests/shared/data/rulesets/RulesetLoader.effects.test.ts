@@ -64,6 +64,16 @@ describe('RulesetLoader classic effects ruleset', () => {
     expect(effects.granary_shrink_food).toMatchObject({ type: 'Shrink_Food', value: 50 });
     // @reference reference/freeciv/data/classic/effects.ruleset:904-925
     expect(effects.barracks_veteran_build).toMatchObject({ type: 'Veteran_Build', value: 1 });
+    // @reference reference/freeciv/data/classic/effects.ruleset:1314-1379
+    expect(effects.palace_corruption_immunity).toMatchObject({
+      type: 'Output_Waste_Pct',
+      value: 50,
+    });
+    expect(effects.palace_despotism_shield_bonus).toMatchObject({
+      type: 'Output_Bonus',
+      value: 75,
+    });
+    expect(effects.palace_monarchy_shield_bonus).toMatchObject({ type: 'Output_Bonus', value: 50 });
   });
 
   it('rejects effects with requirement types that the runtime cannot evaluate', () => {
