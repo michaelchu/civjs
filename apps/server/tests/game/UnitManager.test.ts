@@ -220,7 +220,95 @@ describe('UnitManager', () => {
       );
 
       // @reference reference/freeciv/data/classic/effects.ruleset:953-962
+      // Warriors (combat 1) receive City Walls +200% and city fortify +50%:
+      // floor(floor(1 * 150 / 100) * 300 / 100) === 3
       expect(strength).toBe(3);
+    });
+
+    it('applies the classic fortified defense bonus from Fortify_Defense_Bonus', async () => {
+      const effectsAwareUnitManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: async () => '',
+          requestPath: async () => ({ success: true }),
+          broadcastUnitMoved: () => undefined,
+        },
+        new EffectsManager()
+      );
+      const defender = await effectsAwareUnitManager.createUnit('player-456', 'archers', 12, 10);
+      defender.fortified = true;
+
+      const strength = (effectsAwareUnitManager as any).calculateCombatStrength(
+        defender,
+        UNIT_TYPES.archers
+      );
+
+      // @reference reference/freeciv/data/classic/effects.ruleset:157-162
+      // Archers (combat 3) with +50% fortify: floor(3 * 150 / 100) === 4
+      expect(strength).toBe(4);
+    });
+
+    it('applies the classic city fortify defense bonus when unfortified in a city', async () => {
+      const cityAwareUnitManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: async () => '',
+          requestPath: async () => ({ success: true }),
+          broadcastUnitMoved: () => undefined,
+          getCityAt: (x, y) =>
+            x === 13 && y === 10 ? { playerId: 'player-456', buildings: [] } : null,
+        },
+        new EffectsManager()
+      );
+      const defender = await cityAwareUnitManager.createUnit('player-456', 'archers', 13, 10);
+
+      const strength = (cityAwareUnitManager as any).calculateCombatStrength(
+        defender,
+        UNIT_TYPES.archers
+      );
+
+      // @reference reference/freeciv/data/classic/effects.ruleset:164-173
+      // Unfortified land unit in city center: +50% city fortify bonus
+      expect(strength).toBe(4);
+    });
+
+    it('does not give settlers the city fortify bonus because they Cant_Fortify', async () => {
+      const cityAwareUnitManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: async () => '',
+          requestPath: async () => ({ success: true }),
+          broadcastUnitMoved: () => undefined,
+          getCityAt: (x, y) =>
+            x === 14 && y === 10 ? { playerId: 'player-456', buildings: [] } : null,
+        },
+        new EffectsManager()
+      );
+      const defender = await cityAwareUnitManager.createUnit('player-456', 'settlers', 14, 10);
+
+      const strength = (cityAwareUnitManager as any).calculateCombatStrength(
+        defender,
+        UNIT_TYPES.settlers
+      );
+
+      // Settlers have attack 0 → combat 0, then max(1, …) keeps strength at 1 with no fortify bonus.
+      expect(strength).toBe(1);
+      expect(UNIT_TYPES.settlers.flags).toContain('Cant_Fortify');
+      expect(
+        (cityAwareUnitManager as any).calculateFortifyDefenseBonus(defender, UNIT_TYPES.settlers)
+      ).toBe(0);
     });
   });
 

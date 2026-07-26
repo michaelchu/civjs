@@ -598,6 +598,7 @@ export class UnitManager {
   /**
    * Calculate combat strength with veteran bonuses
    * @reference freeciv/common/combat.c get_total_attack_power()
+   * @reference freeciv/common/combat.c defense_multiplication() / EFT_FORTIFY_DEFENSE_BONUS
    */
   private calculateCombatStrength(unit: Unit, unitType: UnitType): number {
     let strength = unitType.combat;
@@ -606,10 +607,10 @@ export class UnitManager {
     const veteranLevel = this.getVeteranLevel(unit.veteranLevel);
     strength = Math.floor(strength * veteranLevel.powerFactor);
 
-    // Fortification bonus
-    if (unit.fortified) {
-      strength = Math.floor(strength * 1.5);
-    }
+    // @reference reference/freeciv/common/combat.c:697-708
+    strength = Math.floor(
+      (strength * (100 + this.calculateFortifyDefenseBonus(unit, unitType))) / 100
+    );
 
     strength = Math.floor(
       (strength * (100 + this.calculateCityDefenseBonus(unit, unitType))) / 100
@@ -619,6 +620,33 @@ export class UnitManager {
     strength = Math.floor(strength * (unit.health / 100));
 
     return Math.max(1, strength);
+  }
+
+  /**
+   * Classic Fortify_Defense_Bonus for fortified units and city-center land defenders.
+   * @reference reference/freeciv/data/classic/effects.ruleset:157-173
+   * @reference reference/freeciv/common/combat.c:697-708
+   */
+  private calculateFortifyDefenseBonus(unit: Unit, unitType: UnitType): number {
+    if (!this.effectsManager) return 0;
+
+    const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
+    const tileIsCityCenter = Boolean(city && city.playerId === unit.playerId);
+
+    return this.effectsManager.calculateEffect(EffectType.FORTIFY_DEFENSE_BONUS, {
+      playerId: unit.playerId,
+      unitId: unit.id,
+      unitType: unit.unitTypeId,
+      unitClass: unitType.rulesetUnitClass,
+      unitClassFlags: new Set(unitType.rulesetUnitClassFlags ?? []),
+      unitTypeFlags: new Set(unitType.flags),
+      unitActivity: unit.fortified ? 'Fortified' : 'Idle',
+      tileX: unit.x,
+      tileY: unit.y,
+      tileIsCityCenter,
+      cityBuildings: new Set(city?.buildings ?? []),
+      playerBuildings: new Set(this.gameManagerCallback?.getPlayerBuildings?.(unit.playerId) ?? []),
+    }).value;
   }
 
   private calculateCityDefenseBonus(unit: Unit, unitType: UnitType): number {

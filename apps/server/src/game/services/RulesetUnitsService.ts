@@ -21,6 +21,8 @@ export interface UnitType {
   canBuildImprovements: boolean;
   unitClass: 'military' | 'civilian' | 'naval' | 'air';
   rulesetUnitClass?: string;
+  /** @reference reference/freeciv/data/classic/units.ruleset:143-188 */
+  rulesetUnitClassFlags?: string[];
   requiredTech?: string;
   transport_capacity?: number;
   // Additional freeciv fields
@@ -37,6 +39,31 @@ export interface UnitType {
   pop_cost?: number;
   veteran_levels?: number;
 }
+
+/**
+ * Classic unit-class flags used by effect requirements such as CanFortify.
+ * @reference reference/freeciv/data/classic/units.ruleset:143-188
+ */
+const CLASSIC_UNIT_CLASS_FLAGS: Record<string, string[]> = {
+  Missile: ['Missile', 'Unreachable', 'DoesntOccupyTile', 'HutFrighten'],
+  Land: [
+    'TerrainSpeed',
+    'DamageSlows',
+    'CanOccupyCity',
+    'BuildAnywhere',
+    'CollectRansom',
+    'ZOC',
+    'CanFortify',
+    'CanPillage',
+    'TerrainDefense',
+    'KillCitizen',
+    'NonNatBombardTgt',
+  ],
+  Sea: ['DamageSlows', 'AttackNonNative', 'AttFromNonNative'],
+  Trireme: ['DamageSlows', 'AttFromNonNative'],
+  Helicopter: ['CanOccupyCity', 'CollectRansom'],
+  Air: ['Unreachable', 'DoesntOccupyTile', 'HutFrighten'],
+};
 
 export class RulesetUnitsService {
   private static instance: RulesetUnitsService;
@@ -96,6 +123,7 @@ export class RulesetUnitsService {
         unit.canBuildImprovements || unit.flags?.includes('Workers' as any) || false,
       unitClass: this.mapUnitClass(unit.unit_class, unit.unitClass as any, unit.flags),
       rulesetUnitClass: unit.unit_class,
+      rulesetUnitClassFlags: CLASSIC_UNIT_CLASS_FLAGS[unit.unit_class] ?? [],
       requiredTech: unit.required_tech || unit.requiredTech,
       transport_capacity: unit.transport_cap,
       // Additional freeciv fields

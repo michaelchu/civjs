@@ -55,6 +55,15 @@ describe('RulesetLoader classic effects ruleset', () => {
       type: 'Defend_Bonus',
       value: 200,
     });
+    // @reference reference/freeciv/data/classic/effects.ruleset:157-173
+    expect(effects.fortified_defense).toMatchObject({
+      type: 'Fortify_Defense_Bonus',
+      value: 50,
+    });
+    expect(effects.city_fortified_defense).toMatchObject({
+      type: 'Fortify_Defense_Bonus',
+      value: 50,
+    });
     // @reference reference/freeciv/data/classic/effects.ruleset:1020-1028
     expect(effects.courthouse_trade_waste).toMatchObject({ type: 'Output_Waste_Pct', value: 50 });
     // @reference reference/freeciv/data/classic/effects.ruleset:1038-1045

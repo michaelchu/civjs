@@ -106,7 +106,10 @@ authoritative action remains open. The comprehensive playable-building pass
 now covers Palace trade waste and government shield bonuses, Granary growth and
 starvation food retention, Barracks veteran production and city healing,
 Library science, Marketplace gold/luxury, Temple/Cathedral contentment,
-Courthouse trade waste/Democracy contentment, and City Walls defense. Effects
+Courthouse trade waste/Democracy contentment, and City Walls defense. Combat
+now applies classic `Fortify_Defense_Bonus` for fortified units and unfortified
+city-center land defenders (via loaded unit-class flags such as `CanFortify`),
+replacing the previous hardcoded ×1.5 fortify multiplier. Effects
 that require an unported system are deliberately not imported as active rules:
 city capture population protection and incite costs need the capture/incite
 action flow, while visible-wall UI effects require client rendering support.
