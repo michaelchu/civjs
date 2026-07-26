@@ -21,12 +21,10 @@ import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsMa
 import type { UnitSupportData } from '@game/managers/UnitSupportManager';
 import type { CityEconomicOutput } from '@game/systems/Economic/types/EconomicTypes';
 import {
-  BUILDING_UPKEEP_COSTS,
-  SPECIALIST_GOLD_OUTPUT,
-  CORRUPTION_CONSTANTS,
   GOLD_UPKEEP_STYLES,
   type GoldUpkeepStyle,
 } from '@game/systems/Economic/constants/EconomicConstants';
+import { rulesetBuildingsService } from './RulesetBuildingsService';
 
 /**
  * City economic calculation parameters
@@ -112,8 +110,10 @@ export class CityEconomicService extends BaseGameService {
     // Calculate raw trade (base city production + trade routes)
     const rawTrade = this.calculateCityTrade(city);
 
-    // Apply corruption
-    const netTrade = this.applyCorruption(rawTrade, params);
+    // CityManager already stores trade after the single authoritative
+    // calculateCityCorruption pass; this reporting service must not deduct it
+    // again.
+    const netTrade = rawTrade;
 
     // Calculate direct gold production (specialists, buildings)
     const directGold = this.calculateDirectGoldProduction(city);
@@ -191,40 +191,10 @@ export class CityEconomicService extends BaseGameService {
     // Base trade from worked tiles (would integrate with CitizenManagement)
     let baseTrade = city.tradePerTurn || 0;
 
-    // Add trade from specialists (Merchants)
-    const merchantCount = city.specialists?.[SpecialistType.MERCHANT] || 0;
-    baseTrade += merchantCount * 3; // Merchants produce 3 trade each
-
     // Add trade route bonuses
     baseTrade += this.calculateTradeRouteValue(city);
 
     return baseTrade;
-  }
-
-  /**
-   * Apply corruption to trade output
-   */
-  private applyCorruption(rawTrade: number, params: CityEconomicParams): number {
-    const { government, distanceFromCapital = 0 } = params;
-
-    // Get government corruption modifier
-    const govModifier =
-      CORRUPTION_CONSTANTS.GOVERNMENT_MODIFIERS[
-        government as keyof typeof CORRUPTION_CONSTANTS.GOVERNMENT_MODIFIERS
-      ] || 1.0;
-
-    // Calculate distance-based corruption
-    const distanceCorruption =
-      distanceFromCapital * CORRUPTION_CONSTANTS.DISTANCE_CORRUPTION_FACTOR;
-
-    // Total corruption rate
-    const totalCorruption = Math.min(
-      CORRUPTION_CONSTANTS.MAX_CORRUPTION,
-      (CORRUPTION_CONSTANTS.BASE_CORRUPTION + distanceCorruption) * govModifier
-    );
-
-    const tradeLost = Math.floor(rawTrade * totalCorruption);
-    return Math.max(0, rawTrade - tradeLost);
   }
 
   /**
@@ -253,7 +223,17 @@ export class CityEconomicService extends BaseGameService {
    */
   private calculateSpecialistGold(city: CityState): number {
     const taxCollectorCount = city.specialists?.[SpecialistType.TAX_COLLECTOR] || 0;
-    return taxCollectorCount * SPECIALIST_GOLD_OUTPUT.TAX_COLLECTOR_GOLD;
+    return taxCollectorCount * this.getTaxCollectorOutputValue(city);
+  }
+
+  private getTaxCollectorOutputValue(city: CityState): number {
+    return this.effectsManager.calculateEffect(EffectType.SPECIALIST_OUTPUT, {
+      playerId: city.playerId,
+      cityId: city.id,
+      cityBuildings: new Set(city.buildings),
+      specialist: 'taxman',
+      outputType: OutputType.GOLD,
+    }).value;
   }
 
   /**
@@ -333,9 +313,9 @@ export class CityEconomicService extends BaseGameService {
     let totalUpkeep = 0;
 
     if (city.buildings) {
+      const buildingTypes = rulesetBuildingsService.getBuildingTypes();
       for (const buildingId of city.buildings) {
-        const upkeep = BUILDING_UPKEEP_COSTS[buildingId as keyof typeof BUILDING_UPKEEP_COSTS] || 0;
-        totalUpkeep += upkeep;
+        totalUpkeep += buildingTypes[buildingId]?.upkeep ?? 0;
       }
     }
 
@@ -378,12 +358,14 @@ export class CityEconomicService extends BaseGameService {
     const breakdown: Array<{ buildingId: string; name: string; upkeep: number }> = [];
 
     if (city.buildings) {
+      const buildingTypes = rulesetBuildingsService.getBuildingTypes();
       for (const buildingId of city.buildings) {
-        const upkeep = BUILDING_UPKEEP_COSTS[buildingId as keyof typeof BUILDING_UPKEEP_COSTS] || 0;
+        const building = buildingTypes[buildingId];
+        const upkeep = building?.upkeep ?? 0;
         if (upkeep > 0) {
           breakdown.push({
             buildingId,
-            name: buildingId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            name: building.name,
             upkeep,
           });
         }
@@ -493,7 +475,7 @@ export class CityEconomicService extends BaseGameService {
       recommendations.push({
         type: 'specialist',
         recommendation: 'Add Tax Collector',
-        expectedBenefit: SPECIALIST_GOLD_OUTPUT.TAX_COLLECTOR_GOLD,
+        expectedBenefit: this.getTaxCollectorOutputValue(params.city),
         reasoning: 'Tax Collectors provide guaranteed gold income',
       });
     }

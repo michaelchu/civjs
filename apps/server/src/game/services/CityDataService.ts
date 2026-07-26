@@ -8,14 +8,20 @@
  * @reference freeciv-web/javascript/city.js
  */
 
-import {
-  SPECIALIST_TYPES,
-  type CityState,
-  type SpecialistType,
-  BUILDING_TYPES,
-} from '@game/managers/CityManager';
-import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { SPECIALIST_TYPES, type CityState, type SpecialistType } from '@game/managers/CityManager';
+import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { rulesetUnitsService } from './RulesetUnitsService';
+import { rulesetBuildingsService, type RulesetBuildingsService } from './RulesetBuildingsService';
+
+export interface CityDataRulesetDependencies {
+  loader: Pick<RulesetLoader, 'getCivstyle'>;
+  buildings: RulesetBuildingsService;
+}
+
+const defaultRulesetDependencies: CityDataRulesetDependencies = {
+  loader: rulesetLoader,
+  buildings: rulesetBuildingsService,
+};
 
 interface ClientCityData {
   id: string;
@@ -123,12 +129,17 @@ export class CityDataService {
   /**
    * Transform internal CityState to client-compatible format following freeciv-web patterns
    */
-  static transformCityForClient(city: CityState, rulesetName: string = 'classic'): ClientCityData {
+  static transformCityForClient(
+    city: CityState,
+    rulesetName: string = 'classic',
+    dependencies: CityDataRulesetDependencies = defaultRulesetDependencies
+  ): ClientCityData {
     // Use actual calculated values from CityManager
-    const foodPerTurn = city.foodPerTurn || 2; // Default city center food
-    const productionPerTurn = city.productionPerTurn || 1; // Default city center shields
-    const tradePerTurn = city.tradePerTurn || 1; // Default city center trade
-    const sciencePerTurn = city.sciencePerTurn || Math.floor(tradePerTurn / 2);
+    const civstyle = dependencies.loader.getCivstyle(rulesetName);
+    const foodPerTurn = city.foodPerTurn ?? civstyle.min_city_center_food;
+    const productionPerTurn = city.productionPerTurn ?? civstyle.min_city_center_shield;
+    const tradePerTurn = city.tradePerTurn ?? civstyle.min_city_center_trade;
+    const sciencePerTurn = city.sciencePerTurn ?? Math.floor(tradePerTurn / 2);
 
     // Calculate gold from trade (remaining after science allocation)
     const goldPerTurn = Math.max(0, tradePerTurn - sciencePerTurn);
@@ -148,7 +159,7 @@ export class CityDataService {
 
     // Calculate surplus (after consumption) - following freeciv pattern
     const surplus = {
-      food: foodPerTurn - city.population * 2, // Food consumption = 2 per citizen
+      food: foodPerTurn - city.population * civstyle.food_cost,
       shields: productionPerTurn, // All shields go to production (no consumption)
       trade: tradePerTurn, // Trade is base (before gold/science split)
       gold: goldPerTurn,
@@ -157,11 +168,14 @@ export class CityDataService {
     };
 
     // Transform buildings to client format with proper upkeep
-    const buildings = city.buildings.map(buildingId => ({
-      id: buildingId,
-      name: this.getBuildingDisplayName(buildingId),
-      upkeep: this.getBuildingUpkeep(buildingId),
-    }));
+    const buildingTypes = dependencies.buildings.getBuildingTypes(rulesetName);
+    const buildings = city.buildings.map(buildingId => {
+      const building = buildingTypes[buildingId];
+      if (!building) {
+        throw new Error(`Building '${buildingId}' not found in ruleset '${rulesetName}'`);
+      }
+      return { id: buildingId, name: building.name, upkeep: building.upkeep };
+    });
 
     // Use actual happiness data from city state
     const citizens = {
@@ -183,7 +197,9 @@ export class CityDataService {
           const progress = city.productionStock || city.shieldStock || 0;
           const cost = this.getProductionCost(
             city.currentProduction,
-            city.productionType || 'unit'
+            city.productionType || 'unit',
+            rulesetName,
+            dependencies
           );
           const percentComplete = cost > 0 ? Math.min((progress / cost) * 100, 100) : 0;
 
@@ -192,7 +208,7 @@ export class CityDataService {
             type: (city.productionType as 'unit' | 'building' | 'wonder') || 'unit',
             progress,
             cost,
-            turnsToComplete: this.calculateTurnsToComplete(city),
+            turnsToComplete: this.calculateTurnsToComplete(city, rulesetName, dependencies),
             percentComplete,
           };
         })()
@@ -202,7 +218,9 @@ export class CityDataService {
     const worklist = city.worklist.map(item => ({
       target: item.value,
       type: item.kind as 'unit' | 'building' | 'wonder',
-      cost: item.remainingCost || this.getProductionCost(item.value, item.kind),
+      cost:
+        item.remainingCost ||
+        this.getProductionCost(item.value, item.kind, rulesetName, dependencies),
     }));
 
     return {
@@ -260,12 +278,13 @@ export class CityDataService {
    */
   static transformCitiesForClient(
     cities: CityState[],
-    rulesetName: string = 'classic'
+    rulesetName: string = 'classic',
+    dependencies: CityDataRulesetDependencies = defaultRulesetDependencies
   ): Record<string, ClientCityData> {
     const result: Record<string, ClientCityData> = {};
 
     for (const city of cities) {
-      result[city.id] = this.transformCityForClient(city, rulesetName);
+      result[city.id] = this.transformCityForClient(city, rulesetName, dependencies);
     }
 
     return result;
@@ -362,42 +381,6 @@ export class CityDataService {
   }
 
   /**
-   * Get building display name
-   */
-  private static getBuildingDisplayName(buildingId: string): string {
-    const displayNames: Record<string, string> = {
-      granary: 'Granary',
-      temple: 'Temple',
-      marketplace: 'Marketplace',
-      library: 'Library',
-      walls: 'City Walls',
-      factory: 'Factory',
-      palace: 'Palace',
-      barracks: 'Barracks',
-    };
-
-    return displayNames[buildingId] || buildingId.charAt(0).toUpperCase() + buildingId.slice(1);
-  }
-
-  /**
-   * Get building upkeep cost
-   */
-  private static getBuildingUpkeep(buildingId: string): number {
-    const upkeepCosts: Record<string, number> = {
-      temple: 1,
-      marketplace: 1,
-      library: 1,
-      walls: 1,
-      factory: 2,
-      palace: 0,
-      granary: 0,
-      barracks: 1,
-    };
-
-    return upkeepCosts[buildingId] || 0;
-  }
-
-  /**
    * Transform specialists to client format
    */
   private static transformSpecialists(specialists: Record<number, number>): Record<string, number> {
@@ -426,12 +409,17 @@ export class CityDataService {
   /**
    * Get production cost for item from actual definitions
    */
-  private static getProductionCost(itemId: string, type: string): number {
+  private static getProductionCost(
+    itemId: string,
+    type: string,
+    rulesetName: string = 'classic',
+    dependencies: CityDataRulesetDependencies = defaultRulesetDependencies
+  ): number {
     if (type === 'unit') {
       const unitType = rulesetUnitsService.getUnitType(itemId);
       return unitType?.cost || 10;
     } else if (type === 'building') {
-      return BUILDING_TYPES[itemId]?.cost || 40;
+      return dependencies.buildings.getBuildingTypes(rulesetName)[itemId]?.cost || 40;
     }
 
     return 100; // Default wonder cost
@@ -441,14 +429,20 @@ export class CityDataService {
    * Calculate turns to complete current production
    * Uses same logic as client to ensure consistency
    */
-  private static calculateTurnsToComplete(city: any): number {
+  private static calculateTurnsToComplete(
+    city: any,
+    rulesetName: string,
+    dependencies: CityDataRulesetDependencies
+  ): number {
     if (!city.currentProduction) {
       return 0;
     }
 
     const productionCost = this.getProductionCost(
       city.currentProduction,
-      city.productionType || 'unit'
+      city.productionType || 'unit',
+      rulesetName,
+      dependencies
     );
     const progress = city.productionStock || city.shieldStock || 0;
     const remainingShields = Math.max(0, productionCost - progress);

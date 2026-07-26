@@ -6,7 +6,7 @@
  * @reference freeciv-web/javascript/rates.js - tax rate constants
  */
 
-import type { EconomicConfig, TaxRates, TaxRateConstraints } from '../types/EconomicTypes';
+import type { TaxRates, TaxRateConstraints } from '../types/EconomicTypes';
 
 /**
  * Default tax rate allocation for new players
@@ -43,41 +43,6 @@ export const ECONOMIC_THRESHOLDS = {
 } as const;
 
 /**
- * Building upkeep costs
- * @reference freeciv/data/classic/buildings.ruleset
- */
-export const BUILDING_UPKEEP_COSTS = {
-  // Basic buildings
-  granary: 1,
-  barracks: 1,
-  temple: 1,
-  marketplace: 1,
-  library: 1,
-  walls: 1,
-
-  // Advanced buildings
-  bank: 2,
-  university: 3,
-  factory: 4,
-  power_plant: 4,
-  research_lab: 3,
-  cathedral: 3,
-  colosseum: 4,
-
-  // Infrastructure
-  aqueduct: 2,
-  sewer_system: 2,
-  harbor: 1,
-  airport: 3,
-
-  // Wonders (higher upkeep)
-  hanging_gardens: 0, // Most wonders have no upkeep in classic ruleset
-  great_library: 0,
-  lighthouse: 0,
-  oracle: 0,
-} as const;
-
-/**
  * Rush building cost multipliers
  * @reference freeciv/common/city.c city_buy_production()
  */
@@ -104,37 +69,6 @@ export const TRADE_CONVERSION = {
 } as const;
 
 /**
- * Corruption and waste constants
- * @reference freeciv/common/city.c city_corruption()
- */
-export const CORRUPTION_CONSTANTS = {
-  /** Base corruption rate (0-1) */
-  BASE_CORRUPTION: 0.0,
-  /** Corruption increase per tile distance from capital */
-  DISTANCE_CORRUPTION_FACTOR: 0.02,
-  /** Maximum corruption percentage */
-  MAX_CORRUPTION: 0.75, // 75%
-  /** Government corruption modifiers */
-  GOVERNMENT_MODIFIERS: {
-    despotism: 1.5, // Higher corruption
-    monarchy: 1.0, // Normal corruption
-    republic: 0.7, // Lower corruption
-    democracy: 0.5, // Lowest corruption
-  },
-} as const;
-
-/**
- * Specialist gold production
- * @reference freeciv/data/classic/game.ruleset specialist definitions
- */
-export const SPECIALIST_GOLD_OUTPUT = {
-  /** Tax Collector gold output per specialist */
-  TAX_COLLECTOR_GOLD: 3,
-  /** Merchant trade output (convertible to gold) */
-  MERCHANT_TRADE: 3,
-} as const;
-
-/**
  * Economic warnings configuration
  */
 export const WARNING_THRESHOLDS = {
@@ -145,18 +79,6 @@ export const WARNING_THRESHOLDS = {
   /** Show warning when gold income is negative for this many turns */
   NEGATIVE_INCOME_TURNS: 2,
 } as const;
-
-/**
- * Default economic configuration
- */
-export const DEFAULT_ECONOMIC_CONFIG: EconomicConfig = {
-  defaultTaxRates: DEFAULT_TAX_RATES,
-  minTaxRate: TAX_RATE_CONSTRAINTS.minRate,
-  maxTaxRate: TAX_RATE_CONSTRAINTS.maxRate,
-  taxRateIncrement: TAX_RATE_CONSTRAINTS.increment,
-  baseCorruptionRate: CORRUPTION_CONSTANTS.BASE_CORRUPTION,
-  lowTreasuryThreshold: ECONOMIC_THRESHOLDS.LOW_TREASURY,
-};
 
 /**
  * Gold upkeep style configuration

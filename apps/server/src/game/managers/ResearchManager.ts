@@ -22,178 +22,15 @@ export interface PlayerResearch {
   researchedTechs: Set<string>;
 }
 
-// Following Freeciv's classic technology tree
-/**
- * Retained only as an audit reference while the classic data-backed catalogue
- * below replaces it at runtime.
- */
-export const LEGACY_TECHNOLOGIES: Record<string, Technology> = {
-  // Starting technologies
-  alphabet: {
-    id: 'alphabet',
-    name: 'Alphabet',
-    cost: 10,
-    requirements: [],
-    flags: [],
-    description: 'Enables writing and record keeping',
-  },
-
-  pottery: {
-    id: 'pottery',
-    name: 'Pottery',
-    cost: 10,
-    requirements: [],
-    flags: [],
-    description: 'Enables granary construction and food storage',
-  },
-
-  // Tier 1 technologies
-  mysticism: {
-    id: 'mysticism',
-    name: 'Mysticism',
-    cost: 20,
-    requirements: ['alphabet'],
-    flags: [],
-    description: 'Enables temples and spiritual buildings',
-  },
-
-  mathematics: {
-    id: 'mathematics',
-    name: 'Mathematics',
-    cost: 20,
-    requirements: ['alphabet'],
-    flags: [],
-    description: 'Foundation for advanced sciences',
-  },
-
-  bronze_working: {
-    id: 'bronze_working',
-    name: 'Bronze Working',
-    cost: 20,
-    requirements: ['pottery'],
-    flags: [],
-    description: 'Enables bronze tools and weapons',
-  },
-
-  animal_husbandry: {
-    id: 'animal_husbandry',
-    name: 'Animal Husbandry',
-    cost: 20,
-    requirements: ['pottery'],
-    flags: [],
-    description: 'Enables domestication of animals',
-  },
-
-  // Tier 2 technologies
-  astronomy: {
-    id: 'astronomy',
-    name: 'Astronomy',
-    cost: 40,
-    requirements: ['mysticism', 'mathematics'],
-    flags: [],
-    description: 'Enables navigation and calendar systems',
-  },
-
-  iron_working: {
-    id: 'iron_working',
-    name: 'Iron Working',
-    cost: 40,
-    requirements: ['bronze_working'],
-    flags: [],
-    description: 'Enables iron tools and advanced weapons',
-  },
-
-  currency: {
-    id: 'currency',
-    name: 'Currency',
-    cost: 40,
-    requirements: ['bronze_working'],
-    flags: [],
-    description: 'Enables trade and marketplace buildings',
-  },
-
-  writing: {
-    id: 'writing',
-    name: 'Writing',
-    cost: 40,
-    requirements: ['alphabet'],
-    flags: [],
-    description: 'Enables libraries and advanced record keeping',
-  },
-
-  // Advanced technologies
-  philosophy: {
-    id: 'philosophy',
-    name: 'Philosophy',
-    cost: 80,
-    requirements: ['writing', 'mysticism'],
-    flags: ['bonus_tech'],
-    description: 'First civilization to discover Philosophy gets a free technology',
-  },
-
-  literature: {
-    id: 'literature',
-    name: 'Literature',
-    cost: 80,
-    requirements: ['writing'],
-    flags: [],
-    description: 'Enables great works and cultural advancement',
-  },
-
-  engineering: {
-    id: 'engineering',
-    name: 'Engineering',
-    cost: 80,
-    requirements: ['mathematics', 'iron_working'],
-    flags: ['bridge'],
-    description: 'Enables construction of bridges and aqueducts',
-  },
-
-  // Government technologies
-  monarchy: {
-    id: 'monarchy',
-    name: 'Monarchy',
-    cost: 60,
-    requirements: ['currency'],
-    flags: [],
-    description: 'Enables the Monarchy form of government',
-  },
-
-  the_republic: {
-    id: 'the_republic',
-    name: 'The Republic',
-    cost: 120,
-    requirements: ['literature', 'currency'],
-    flags: [],
-    description: 'Enables the Republic form of government',
-  },
-
-  communism: {
-    id: 'communism',
-    name: 'Communism',
-    cost: 240,
-    requirements: ['philosophy', 'iron_working'],
-    flags: [],
-    description: 'Enables the Communist form of government',
-  },
-
-  democracy: {
-    id: 'democracy',
-    name: 'Democracy',
-    cost: 320,
-    requirements: ['philosophy', 'literature'],
-    flags: [],
-    description: 'Enables the Democratic form of government',
-  },
-};
-
 /**
  * Build the playable technology catalogue from classic ruleset data.
  * @reference reference/freeciv/data/classic/techs.ruleset
  */
-function loadRulesetTechnologies(): Record<string, Technology> {
+export function loadRulesetTechnologies(
+  loader: Pick<typeof rulesetLoader, 'getTechs'> = rulesetLoader
+): Record<string, Technology> {
   return Object.fromEntries(
-    Object.entries(rulesetLoader.getTechs()).map(([id, tech]) => [
+    Object.entries(loader.getTechs()).map(([id, tech]) => [
       id,
       {
         id: tech.id,
@@ -216,7 +53,11 @@ export class ResearchManager {
   private databaseProvider: DatabaseProvider;
   private currentTurnProvider?: () => number;
 
-  constructor(gameId: string, databaseProvider: DatabaseProvider) {
+  constructor(
+    gameId: string,
+    databaseProvider: DatabaseProvider,
+    private readonly technologies: Record<string, Technology> = TECHNOLOGIES
+  ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
   }
@@ -254,7 +95,7 @@ export class ResearchManager {
       throw new Error(`Player ${playerId} research not initialized`);
     }
 
-    const tech = TECHNOLOGIES[techId];
+    const tech = this.technologies[techId];
     if (!tech) {
       throw new Error(`Unknown technology: ${techId}`);
     }
@@ -305,7 +146,7 @@ export class ResearchManager {
       throw new Error(`Player ${playerId} research not initialized`);
     }
 
-    const tech = TECHNOLOGIES[techId];
+    const tech = this.technologies[techId];
     if (!tech) {
       throw new Error(`Unknown technology: ${techId}`);
     }
@@ -328,7 +169,7 @@ export class ResearchManager {
       return null;
     }
 
-    const tech = TECHNOLOGIES[playerResearch.currentTech];
+    const tech = this.technologies[playerResearch.currentTech];
     if (!tech) {
       return null;
     }
@@ -356,7 +197,7 @@ export class ResearchManager {
       return;
     }
 
-    const tech = TECHNOLOGIES[techId];
+    const tech = this.technologies[techId];
     if (!tech) {
       return;
     }
@@ -435,7 +276,7 @@ export class ResearchManager {
       return [];
     }
 
-    return Object.values(TECHNOLOGIES).filter(
+    return Object.values(this.technologies).filter(
       tech =>
         !playerResearch.researchedTechs.has(tech.id) &&
         tech.requirements.every(req => playerResearch.researchedTechs.has(req))
@@ -448,7 +289,7 @@ export class ResearchManager {
       return false;
     }
 
-    const tech = TECHNOLOGIES[techId];
+    const tech = this.technologies[techId];
     if (!tech) {
       return false;
     }
@@ -472,7 +313,7 @@ export class ResearchManager {
       return null;
     }
 
-    const tech = TECHNOLOGIES[playerResearch.currentTech];
+    const tech = this.technologies[playerResearch.currentTech];
     if (!tech) {
       return null;
     }

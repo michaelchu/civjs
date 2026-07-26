@@ -1,4 +1,8 @@
-import { ResearchManager, TECHNOLOGIES } from '@game/managers/ResearchManager';
+import {
+  ResearchManager,
+  TECHNOLOGIES,
+  loadRulesetTechnologies,
+} from '@game/managers/ResearchManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
@@ -39,6 +43,16 @@ describe('ResearchManager', () => {
           expect(TECHNOLOGIES[reqTech]).toBeDefined();
         }
       }
+    });
+
+    it('builds an injectable ruleset-backed catalogue', () => {
+      const mutated = structuredClone(rulesetLoader.getTechs());
+      mutated.pottery.cost = 37;
+
+      const technologies = loadRulesetTechnologies({ getTechs: () => mutated });
+
+      expect(technologies.pottery.cost).toBe(37);
+      expect(technologies.pottery.requirements).toEqual(mutated.pottery.requirements);
     });
   });
 

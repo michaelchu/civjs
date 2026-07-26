@@ -2,6 +2,8 @@ import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { CityState, WorkableTile, SpecialistType } from '@game/managers/CityManager';
 import type { MapManager } from '@game/managers/MapManager';
+import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import type { TerrainType } from '@shared/data/rulesets/schemas';
 
 /**
  * CityTileManagementService - Manages city workable tiles and citizen assignments
@@ -17,7 +19,8 @@ export class CityTileManagementService extends BaseGameService {
   constructor(
     private cities: Map<string, CityState>,
     private mapManager: MapManager,
-    private CITY_MAP_DEFAULT_RADIUS_SQ: number
+    private CITY_MAP_DEFAULT_RADIUS_SQ: number,
+    private readonly ruleset: Pick<RulesetLoader, 'getTerrain' | 'getCivstyle'> = rulesetLoader
   ) {
     super(logger);
   }
@@ -62,7 +65,7 @@ export class CityTileManagementService extends BaseGameService {
           isCenter: true,
           isWorked: true,
           isBlocked: false,
-          outputs: { food: 2, shields: 1, trade: 1 },
+          outputs: this.getTerrainBaseOutputs('grassland'),
         },
       ];
       return;
@@ -81,7 +84,7 @@ export class CityTileManagementService extends BaseGameService {
           isCenter: true,
           isWorked: true,
           isBlocked: false,
-          outputs: { food: 2, shields: 1, trade: 1 },
+          outputs: this.getTerrainBaseOutputs('grassland'),
         },
       ];
       return;
@@ -195,23 +198,7 @@ export class CityTileManagementService extends BaseGameService {
    * Calculate food output from a map tile
    */
   private calculateTileFood(mapTile: any): number {
-    // Basic terrain food values (simplified)
-    const terrainFood: Record<string, number> = {
-      grassland: 2,
-      plains: 1,
-      hills: 1,
-      mountains: 0,
-      desert: 0,
-      tundra: 1,
-      arctic: 0,
-      swamp: 1,
-      forest: 1,
-      jungle: 1,
-      ocean: 1,
-      river: 2,
-    };
-
-    let food = terrainFood[mapTile.terrain] || 0;
+    let food = this.getTerrainBaseOutputs(mapTile.terrain).food;
 
     // Resource bonuses
     if (mapTile.resource) {
@@ -231,22 +218,7 @@ export class CityTileManagementService extends BaseGameService {
    * Calculate shield output from a map tile
    */
   private calculateTileShields(mapTile: any): number {
-    const terrainShields: Record<string, number> = {
-      grassland: 0,
-      plains: 1,
-      hills: 1,
-      mountains: 1,
-      desert: 0,
-      tundra: 0,
-      arctic: 0,
-      swamp: 0,
-      forest: 2,
-      jungle: 0,
-      ocean: 0,
-      river: 0,
-    };
-
-    let shields = terrainShields[mapTile.terrain] || 0;
+    let shields = this.getTerrainBaseOutputs(mapTile.terrain).shields;
 
     if (mapTile.resource) {
       const resourceShields: Record<string, number> = {
@@ -264,22 +236,7 @@ export class CityTileManagementService extends BaseGameService {
    * Calculate trade output from a map tile
    */
   private calculateTileTradeFromTerrain(mapTile: any): number {
-    const terrainTrade: Record<string, number> = {
-      grassland: 0,
-      plains: 0,
-      hills: 0,
-      mountains: 0,
-      desert: 0,
-      tundra: 0,
-      arctic: 0,
-      swamp: 0,
-      forest: 0,
-      jungle: 0,
-      ocean: 2,
-      river: 1,
-    };
-
-    let trade = terrainTrade[mapTile.terrain] || 0;
+    let trade = this.getTerrainBaseOutputs(mapTile.terrain).trade;
 
     if (mapTile.resource) {
       const resourceTrade: Record<string, number> = {
@@ -291,6 +248,24 @@ export class CityTileManagementService extends BaseGameService {
     }
 
     return trade;
+  }
+
+  /**
+   * Base terrain yield comes from terrain.ruleset; resource modifiers remain
+   * runtime map state and are applied by the individual output methods.
+   * @reference reference/freeciv/data/classic/terrain.ruleset
+   */
+  private getTerrainBaseOutputs(terrain: string): {
+    food: number;
+    shields: number;
+    trade: number;
+  } {
+    const definition = this.ruleset.getTerrain(terrain as TerrainType);
+    return {
+      food: definition.food,
+      shields: definition.shields,
+      trade: definition.trade,
+    };
   }
 
   /**
@@ -436,9 +411,8 @@ export class CityTileManagementService extends BaseGameService {
       }
     }
 
-    // Apply food consumption: each citizen consumes 2 food per turn
-    // @reference freeciv-web/javascript/freeciv-helpdata.js - help_food
-    const foodConsumption = city.population * 2;
+    // @reference reference/freeciv/common/city.c:3132-3134 city_support()
+    const foodConsumption = city.population * this.ruleset.getCivstyle().food_cost;
     food -= foodConsumption;
 
     return { food, shields, trade };

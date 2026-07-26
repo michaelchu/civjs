@@ -1,9 +1,10 @@
-import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 export interface RulesetBuildingType {
   id: string;
   name: string;
   cost: number;
+  upkeep: number;
   requiredTech?: string;
   requires?: string[];
   playable: boolean;
@@ -25,17 +26,20 @@ export interface RulesetBuildingType {
 export class RulesetBuildingsService {
   private cache = new Map<string, Record<string, RulesetBuildingType>>();
 
+  constructor(private readonly loader: Pick<RulesetLoader, 'getBuildings'> = rulesetLoader) {}
+
   getBuildingTypes(rulesetName: string = 'classic'): Record<string, RulesetBuildingType> {
     const cached = this.cache.get(rulesetName);
     if (cached) return cached;
 
     const buildings = Object.fromEntries(
-      Object.entries(rulesetLoader.getBuildings(rulesetName)).map(([id, building]) => [
+      Object.entries(this.loader.getBuildings(rulesetName)).map(([id, building]) => [
         id,
         {
           id: building.id,
           name: building.name,
           cost: building.cost,
+          upkeep: building.upkeep,
           requiredTech: building.requiredTech,
           requires: building.requires,
           playable: building.playable,
