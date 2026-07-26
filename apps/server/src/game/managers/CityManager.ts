@@ -370,6 +370,7 @@ export class CityManager {
 
   public setPlayerGovernmentProvider(provider: (playerId: string) => string): void {
     this.playerGovernmentProvider = provider;
+    this.happinessService.setPlayerGovernmentProvider(provider);
   }
 
   /**

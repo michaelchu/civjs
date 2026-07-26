@@ -149,6 +149,7 @@ export class CityHappinessService extends BaseGameService {
   private readonly effectsManager = new EffectsManager();
   private playerTechsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private playerBuildingsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
+  private playerGovernmentProvider: (playerId: string) => string = () => 'despotism';
 
   setPlayerTechsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
     this.playerTechsProvider = provider;
@@ -156,6 +157,10 @@ export class CityHappinessService extends BaseGameService {
 
   setPlayerBuildingsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
     this.playerBuildingsProvider = provider;
+  }
+
+  setPlayerGovernmentProvider(provider: (playerId: string) => string): void {
+    this.playerGovernmentProvider = provider;
   }
   constructor() {
     super(logger);
@@ -208,6 +213,7 @@ export class CityHappinessService extends BaseGameService {
     const buildingEffect = this.effectsManager.calculateEffect(EffectType.MAKE_CONTENT, {
       playerId: city.playerId,
       cityId: city.id,
+      government: this.playerGovernmentProvider(city.playerId),
       cityBuildings: new Set(city.buildings),
       playerTechs: new Set(this.playerTechsProvider(city.playerId)),
       playerBuildings: new Set(this.playerBuildingsProvider(city.playerId)),

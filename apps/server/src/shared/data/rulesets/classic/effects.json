@@ -795,6 +795,16 @@
       ],
       "comment": "Courthouse halves trade waste outside the capital"
     },
+    "courthouse_democracy_content": {
+      "id": "courthouse_democracy_content",
+      "type": "Make_Content",
+      "value": 1,
+      "reqs": [
+        { "type": "Gov", "name": "Democracy", "range": "Player" },
+        { "type": "Building", "name": "Courthouse", "range": "City" }
+      ],
+      "comment": "Courthouse provides one content citizen under Democracy"
+    },
     "library_culture_performance": {
       "id": "library_culture_performance",
       "type": "Performance",
