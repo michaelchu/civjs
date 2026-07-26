@@ -784,6 +784,17 @@
       ],
       "comment": "City Walls triple the defense of helicopters"
     },
+    "courthouse_trade_waste": {
+      "id": "courthouse_trade_waste",
+      "type": "Output_Waste_Pct",
+      "value": 50,
+      "reqs": [
+        { "type": "Building", "name": "Courthouse", "range": "City" },
+        { "type": "OutputType", "name": "Trade", "range": "Local" },
+        { "type": "Building", "name": "Palace", "range": "City", "present": false }
+      ],
+      "comment": "Courthouse halves trade waste outside the capital"
+    },
     "library_culture_performance": {
       "id": "library_culture_performance",
       "type": "Performance",

@@ -262,6 +262,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     cityManager.setPlayerBuildingsProvider(
       playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
     );
+    cityManager.setPlayerGovernmentProvider(
+      playerId =>
+        game.players.find((player: any) => player.id === playerId)?.government ?? 'despotism'
+    );
     const visibilityManager = this.createVisibilityManager(
       gameId,
       unitManager,

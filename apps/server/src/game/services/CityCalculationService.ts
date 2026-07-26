@@ -19,6 +19,7 @@
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { EffectsManager, OutputType } from '@game/managers/EffectsManager';
 import type { CityTileManagementService } from './CityTileManagementService';
 
 // Re-export types that will be shared
@@ -163,6 +164,7 @@ export interface GovernmentCorruptionModifiers {
  * CityCalculationService handles all pure calculation logic for cities
  */
 export class CityCalculationService extends BaseGameService {
+  private readonly effectsManager = new EffectsManager();
   private static readonly GOVERNMENT_CORRUPTION_MODIFIERS: GovernmentCorruptionModifiers = {
     despotism: 1.0,
     monarchy: 0.8,
@@ -189,7 +191,8 @@ export class CityCalculationService extends BaseGameService {
   calculateCityOutputs(
     city: CityState,
     tileOutputs?: { food: number; shields: number; trade: number },
-    tileManagementService?: CityTileManagementService
+    tileManagementService?: CityTileManagementService,
+    government: string = 'despotism'
   ): CityOutputs {
     // Get base tile outputs
     let baseTileOutputs = tileOutputs;
@@ -205,8 +208,22 @@ export class CityCalculationService extends BaseGameService {
     // Ensure minimum city center outputs from ruleset
     const finalOutputs = this.applyMinimumCityCenterOutputs(baseTileOutputs);
 
+    // Apply corruption before trade is converted to science, gold, and luxury.
+    // @reference reference/freeciv/common/city.c city_waste()
+    const corruption = this.effectsManager.calculateWaste(
+      {
+        playerId: city.playerId,
+        cityId: city.id,
+        government,
+        cityBuildings: new Set(city.buildings),
+      },
+      OutputType.TRADE,
+      finalOutputs.trade
+    );
+    const tradeAfterCorruption = Math.max(0, finalOutputs.trade - corruption);
+
     // Convert trade to science and gold
-    const { science, gold, luxury } = this.convertTradeToResources(finalOutputs.trade);
+    const { science, gold, luxury } = this.convertTradeToResources(tradeAfterCorruption);
 
     // Add specialist contributions
     const specialistOutputs = this.calculateSpecialistOutputs(city.specialists);
@@ -215,7 +232,7 @@ export class CityCalculationService extends BaseGameService {
     const totalOutputs: CityOutputs = {
       food: finalOutputs.food + specialistOutputs.food,
       shields: finalOutputs.shields + specialistOutputs.shields,
-      trade: finalOutputs.trade + specialistOutputs.trade,
+      trade: tradeAfterCorruption + specialistOutputs.trade,
       science: science + specialistOutputs.science,
       gold: gold + specialistOutputs.gold,
       luxury: luxury + specialistOutputs.luxury,

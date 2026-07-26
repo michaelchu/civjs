@@ -53,6 +53,8 @@ describe('RulesetLoader classic effects ruleset', () => {
       type: 'Defend_Bonus',
       value: 200,
     });
+    // @reference reference/freeciv/data/classic/effects.ruleset:1020-1028
+    expect(effects.courthouse_trade_waste).toMatchObject({ type: 'Output_Waste_Pct', value: 50 });
   });
 
   it('rejects effects with requirement types that the runtime cannot evaluate', () => {

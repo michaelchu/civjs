@@ -331,6 +331,7 @@ export class CityManager {
   private turnProcessingService?: CityTurnProcessingService;
   private calculationService: CityCalculationService;
   private happinessService: CityHappinessService;
+  private playerGovernmentProvider: (playerId: string) => string = () => 'despotism';
   private optimizationService?: CityOptimizationService;
 
   constructor(
@@ -365,6 +366,10 @@ export class CityManager {
 
   public setPlayerBuildingsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
     this.happinessService.setPlayerBuildingsProvider(provider);
+  }
+
+  public setPlayerGovernmentProvider(provider: (playerId: string) => string): void {
+    this.playerGovernmentProvider = provider;
   }
 
   /**
@@ -1114,7 +1119,8 @@ export class CityManager {
     const outputs = this.calculationService.calculateCityOutputs(
       city,
       undefined, // Let the service get tile outputs from tileManagementService
-      this.tileManagementService
+      this.tileManagementService,
+      this.playerGovernmentProvider(city.playerId)
     );
 
     // Update city state with calculated outputs
