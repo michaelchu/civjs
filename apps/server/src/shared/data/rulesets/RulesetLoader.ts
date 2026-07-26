@@ -625,7 +625,7 @@ export class RulesetLoader {
    * Load every ruleset file and reject unresolved cross-file references.
    * Freeciv resolves named universals while loading rulesets and treats an
    * unknown rule name as a ruleset error.
-   * @reference reference/freeciv/server/ruleset/ruleload.c:6275-6282
+   * @reference reference/freeciv/common/requirements.c:1108-1120
    */
   validateRuleset(rulesetName: string = 'classic'): void {
     const terrains = this.loadTerrainRuleset(rulesetName).terrains;

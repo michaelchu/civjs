@@ -317,7 +317,7 @@ export type TechsRulesetFile = z.infer<typeof TechsRulesetFileSchema>;
 // These are the requirement kinds with concrete handlers in EffectsManager.
 // Freeciv evaluates requirements by universal kind and rejects unsupported
 // kinds while loading rulesets.
-// @reference reference/freeciv/common/requirements.c:6495-6535
+// @reference reference/freeciv/common/requirements.c:1108-1120
 export const GovernmentRequirementTypeSchema = z.enum([
   'Activity',
   'Age',
@@ -472,8 +472,8 @@ export const GameRulesetFileSchema = z.object({
 // Runtime-supported CivJS effects plus the explicitly inert effect types
 // already present in the classic data. Freeciv resolves effect type names to
 // its enum and rejects unknown names during ruleset loading.
-// @reference reference/freeciv/gen_headers/enums/effects_enums.def:5-120
-// @reference reference/freeciv/server/ruleset/ruleload.c:6275-6282
+// @reference reference/freeciv/gen_headers/enums/effects_enums.def:5-167
+// @reference reference/freeciv/server/ruleset/ruleload.c:6342-6363
 export const EffectTypeSchema = z.enum([
   'Output_Waste',
   'Output_Waste_By_Distance',
