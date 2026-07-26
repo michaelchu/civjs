@@ -110,44 +110,7 @@ export const SPECIALIST_TYPES: Record<SpecialistType, SpecialistDefinition> = {
   },
 };
 
-// Building types for happiness effects
-interface BuildingType {
-  id: string;
-  name: string;
-  cost: number;
-  effects: {
-    happinessEffect?: number;
-    [key: string]: any;
-  };
-}
-
-export const LEGACY_BUILDING_TYPES: Record<string, BuildingType> = {
-  temple: {
-    id: 'temple',
-    name: 'Temple',
-    cost: 40,
-    effects: {
-      happinessEffect: 2, // Makes 2 unhappy citizens content
-    },
-  },
-  cathedral: {
-    id: 'cathedral',
-    name: 'Cathedral',
-    cost: 160,
-    effects: {
-      happinessEffect: 3,
-    },
-  },
-  colosseum: {
-    id: 'colosseum',
-    name: 'Colosseum',
-    cost: 100,
-    effects: {
-      happinessEffect: 3,
-    },
-  },
-};
-
+/** @reference reference/freeciv/data/classic/buildings.ruleset */
 const BUILDING_TYPES = rulesetBuildingsService.getBuildingTypes();
 
 /**
