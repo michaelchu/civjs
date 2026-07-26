@@ -85,6 +85,17 @@ visible-wall effects await Milestone 5 rendering support. This completion claim
 is limited to the Milestone 1 playable loop; it does not imply that later city,
 worker, action, client, AI, diplomacy, or metagame milestones are complete.
 
+## Milestone 3 — in progress
+
+The production lifecycle is the first completed Milestone 3 slice. Normal turn
+production, rush buying, completion, client progress, and persistence use one
+shield stock. Completion retains overflow, and classic unit/building rush
+premiums are covered by `CityProductionLifecycle.test.ts`.
+
+The remaining Milestone 3 scope includes full city output/economy fixtures,
+trade routes, governor/citizen automation, worker improvements, pollution, and
+terrain transformations.
+
 ## Partial or incomplete areas
 
 These are confirmed by explicit TODOs, placeholders, or unintegrated paths; they are not a complete feature roadmap.

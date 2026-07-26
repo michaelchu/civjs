@@ -89,10 +89,20 @@ export class CityProductionService extends BaseGameService {
       };
     }
 
-    const shieldsRemaining = Math.max(0, totalCost - (city.shieldStock || 0));
+    const productionStock = city.productionStock ?? city.shieldStock ?? 0;
+    const shieldsRemaining = Math.max(0, totalCost - productionStock);
 
-    // Buy cost formula: 2 gold per shield remaining (Freeciv standard)
-    const goldCost = shieldsRemaining * 2;
+    // Freeciv charges different rush premiums for units and improvements,
+    // then doubles the price when no shields have been accumulated.
+    // @reference reference/freeciv/common/improvement.c:306-326
+    // @reference reference/freeciv/common/unittype.c:1517-1537
+    let goldCost =
+      city.productionType === 'unit'
+        ? 2 * shieldsRemaining + Math.floor((shieldsRemaining * shieldsRemaining) / 20)
+        : 2 * shieldsRemaining;
+    if (productionStock === 0) {
+      goldCost *= 2;
+    }
 
     return {
       canBuy: shieldsRemaining > 0,
@@ -177,7 +187,10 @@ export class CityProductionService extends BaseGameService {
       totalCost = building?.cost || 0;
     }
 
-    // Set shield stock to production cost to complete it
+    // Buying fills the same authoritative stock consumed by turn processing.
+    // Keep the legacy alias synchronized while callers migrate.
+    // @reference reference/freeciv/server/cityhand.c:348-356
+    city.productionStock = totalCost;
     city.shieldStock = totalCost;
     city.turnsToComplete = 0;
 
@@ -282,7 +295,7 @@ export class CityProductionService extends BaseGameService {
         productionName: '',
         productionType: '',
         totalCost: 0,
-        shieldStock: city.shieldStock || 0,
+        shieldStock: city.productionStock ?? city.shieldStock ?? 0,
         shieldsRemaining: 0,
         goldCost: 0,
         canAfford: false,
@@ -307,7 +320,7 @@ export class CityProductionService extends BaseGameService {
       }
     }
 
-    const shieldStock = city.shieldStock || 0;
+    const shieldStock = city.productionStock ?? city.shieldStock ?? 0;
     const shieldsRemaining = Math.max(0, totalCost - shieldStock);
     const goldCost = shieldsRemaining * 2;
     const playerGold = this.getPlayerGold(city.playerId);

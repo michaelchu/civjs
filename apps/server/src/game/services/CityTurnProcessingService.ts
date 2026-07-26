@@ -337,7 +337,7 @@ export class CityTurnProcessingService extends BaseGameService {
     }
 
     const productionPerTurn = city.productionPerTurn || 0;
-    const currentProductionStock = city.productionStock || 0;
+    const currentProductionStock = city.productionStock ?? city.shieldStock ?? 0;
     const newProductionStock = currentProductionStock + productionPerTurn;
 
     let productionCost = 0;
@@ -383,6 +383,7 @@ export class CityTurnProcessingService extends BaseGameService {
       city.currentProduction = null;
       city.productionType = null;
       city.productionStock = 0;
+      city.shieldStock = 0;
       city.turnsToComplete = 0;
       return;
     }
@@ -399,9 +400,12 @@ export class CityTurnProcessingService extends BaseGameService {
 
     if (newProductionStock >= productionCost) {
       // Production completed
-      await this.completeProduction(city.id);
+      city.productionStock = newProductionStock;
+      city.shieldStock = newProductionStock;
+      await this.completeProduction(city.id, productionCost);
     } else {
       city.productionStock = newProductionStock;
+      city.shieldStock = newProductionStock;
       city.turnsToComplete = Math.ceil(
         (productionCost - newProductionStock) / Math.max(1, productionPerTurn)
       );
@@ -411,7 +415,7 @@ export class CityTurnProcessingService extends BaseGameService {
   /**
    * Handle production completion
    */
-  private async completeProduction(cityId: string): Promise<void> {
+  private async completeProduction(cityId: string, productionCost: number): Promise<void> {
     const city = this.dependencies.cities.get(cityId);
     if (!city || !city.currentProduction) {
       return;
@@ -436,10 +440,20 @@ export class CityTurnProcessingService extends BaseGameService {
     const completedProductionType = city.productionType as 'unit' | 'building' | 'wonder';
     const completedProductionId = city.currentProduction;
 
-    // Reset production
+    // Freeciv subtracts only the completed target's cost, retaining excess
+    // shields for the next target instead of discarding the entire stock.
+    // @reference reference/freeciv/server/cityturn.c:2784-2786
+    // @reference reference/freeciv/server/cityturn.c:3054-3062
+    const remainingStock = Math.max(
+      0,
+      (city.productionStock ?? city.shieldStock ?? 0) - productionCost
+    );
+
+    // Clear the completed target while retaining its carryover.
     city.currentProduction = null;
     city.productionType = null;
-    city.productionStock = 0;
+    city.productionStock = remainingStock;
+    city.shieldStock = remainingStock;
     city.turnsToComplete = 0;
 
     // Emit socket event if Socket.IO server is available
@@ -466,14 +480,7 @@ export class CityTurnProcessingService extends BaseGameService {
     if (this.dependencies.callbacks.onCityProductionComplete) {
       const result = this.dependencies.callbacks.onCityProductionComplete(city, productionItem);
       if (result instanceof Promise) {
-        // Handle async callback without blocking
-        result.catch(error => {
-          logger.error('Error in onCityProductionComplete callback', {
-            error: error instanceof Error ? error.message : 'Unknown error',
-            cityId: city.id,
-            productionItem,
-          });
-        });
+        await result;
       }
     }
   }

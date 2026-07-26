@@ -106,6 +106,14 @@ action-flow and client-rendering support exists.
 
 **Outcome:** cities behave as the strategic and economic center of the game.
 
+**Progress (2026-07-26):** production turns, rush buying, client progress, and
+database persistence now share `productionStock` as their authoritative shield
+store. Building and unit completion subtract only the completed target's cost
+and retain overflow for the next target, matching Freeciv's city-turn behavior.
+Rush costs use the classic improvement and unit formulas, including the
+zero-stock premium. `CityProductionLifecycle.test.ts` covers normal completion,
+carryover, rush pricing, and the buy-to-turn-processing handoff.
+
 - Complete tile yields, worked tiles, specialists, happiness, food, shields, trade, waste, and upkeep.
 - Complete production carryover, buying, building/unit completion, and city growth/starvation.
 - Integrate trade routes, governors, and citizen automation end-to-end; do not count service classes alone as completion.

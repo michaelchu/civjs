@@ -194,7 +194,7 @@ export class CityDataService {
     // Transform current production with server-calculated data
     const production = city.currentProduction
       ? (() => {
-          const progress = city.productionStock || city.shieldStock || 0;
+          const progress = city.productionStock ?? city.shieldStock ?? 0;
           const cost = this.getProductionCost(
             city.currentProduction,
             city.productionType || 'unit',
@@ -444,7 +444,7 @@ export class CityDataService {
       rulesetName,
       dependencies
     );
-    const progress = city.productionStock || city.shieldStock || 0;
+    const progress = city.productionStock ?? city.shieldStock ?? 0;
     const remainingShields = Math.max(0, productionCost - progress);
 
     // Use same calculation priority as CityProductionHandler

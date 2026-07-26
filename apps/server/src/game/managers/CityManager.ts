@@ -791,7 +791,10 @@ export class CityManager {
 
     city.currentProduction = productionId;
     city.productionType = productionType;
-    city.turnsToComplete = Math.ceil(productionCost / Math.max(1, city.productionPerTurn || 1));
+    const productionStock = city.productionStock ?? city.shieldStock ?? 0;
+    city.turnsToComplete = Math.ceil(
+      Math.max(0, productionCost - productionStock) / Math.max(1, city.productionPerTurn || 1)
+    );
 
     // Save changes to database
     await this.saveCityToDatabase(city);
