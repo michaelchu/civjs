@@ -362,6 +362,32 @@ export const RequirementSchema = z.object({
   present: z.boolean().optional(),
 });
 
+// Requirement kinds currently represented by the ported classic effects data.
+// @reference reference/freeciv/data/classic/effects.ruleset:50-710
+export const EffectRequirementTypeSchema = z.enum([
+  'Activity',
+  'Age',
+  'Building',
+  'CityTile',
+  'Extra',
+  'Gov',
+  'MaxUnitsOnTile',
+  'NationGroup',
+  'OutputType',
+  'Specialist',
+  'Tech',
+  'Terrain',
+  'TerrainClass',
+  'UnitClass',
+  'UnitClassFlag',
+  'UnitType',
+  'UnitTypeFlag',
+]);
+
+export const EffectRequirementSchema = RequirementSchema.extend({
+  type: EffectRequirementTypeSchema,
+});
+
 // Game rules and parameters schemas
 export const GameParametersSchema = z.object({
   init_city_radius_sq: z.number(),
@@ -417,7 +443,7 @@ export const EffectSchema = z.object({
   id: z.string(),
   type: z.string(),
   value: z.number(),
-  reqs: z.array(RequirementSchema).optional(),
+  reqs: z.array(EffectRequirementSchema).optional(),
   comment: z.string().optional(),
 });
 
@@ -506,6 +532,7 @@ export const NationsRulesetFileSchema = z.object({
 
 // Export inferred types
 export type Requirement = z.infer<typeof RequirementSchema>;
+export type EffectRequirement = z.infer<typeof EffectRequirementSchema>;
 export type GameParameters = z.infer<typeof GameParametersSchema>;
 export type Civstyle = z.infer<typeof CivstyleSchema>;
 export type GameOptions = z.infer<typeof GameOptionsSchema>;

@@ -88,7 +88,7 @@ describe('EffectsManager classic requirement evaluation', () => {
         id: 'unsupported',
         type: 'Gov_Center',
         value: 99,
-        reqs: [{ type: 'Action', name: 'Conquer City', range: 'Local' }],
+        reqs: [{ type: 'Action', name: 'Conquer City', range: 'Local' }] as never,
       },
     });
 

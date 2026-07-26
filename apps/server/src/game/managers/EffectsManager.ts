@@ -630,7 +630,7 @@ export class EffectsManager {
    */
   private getEffectSource(effect: Effect): string {
     // Extract source from requirements or use effect ID
-    const govReq = effect.reqs?.find(req => req.type === 'Gov' || req.type === 'Government');
+    const govReq = effect.reqs?.find(req => req.type === 'Gov');
     if (govReq) {
       return `Government: ${govReq.name}`;
     }

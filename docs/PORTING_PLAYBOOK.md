@@ -86,7 +86,8 @@ classic requirement kinds present in `effects.json` from an explicit gameplay
 context, including government, technology, buildings, unit/tile properties,
 specialists, and nation groups. Unsupported or incomplete context fails closed.
 Fixture tests cover terrain/unit, city-tile/flag, and normalized building-ID
-conditions. Wiring those contexts into every authoritative action remains open.
+conditions; schema validation rejects effect requirement kinds without a runtime
+evaluator. Wiring those contexts into every authoritative action remains open.
 
 - Finish ruleset loading and validation for all classic entities and effects used by the playable loop.
 - Implement requirement evaluation in every relevant context: player, city, unit, tile, technology, government, and action.

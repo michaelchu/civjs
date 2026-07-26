@@ -1,5 +1,6 @@
 import { join } from 'path';
 import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { EffectsRulesetFileSchema } from '@shared/data/rulesets/schemas';
 
 describe('RulesetLoader classic effects ruleset', () => {
   const createLoader = () => new RulesetLoader(join(process.cwd(), 'src/shared/data/rulesets'));
@@ -34,5 +35,18 @@ describe('RulesetLoader classic effects ruleset', () => {
       type: 'Output_Waste_By_Distance',
       value: 200,
     });
+  });
+
+  it('rejects effects with requirement types that the runtime cannot evaluate', () => {
+    const loader = createLoader();
+    const effects = loader.loadEffectsRuleset();
+    const invalidEffects = structuredClone(effects);
+    invalidEffects.effects.corruption_anarchy_base.reqs = [
+      // @reference reference/freeciv/common/requirements.c:6495-6535
+      // Requirements must have a matching evaluator before they can affect play.
+      { type: 'UnsupportedRequirement', name: 'anything', range: 'Local' },
+    ] as never;
+
+    expect(EffectsRulesetFileSchema.safeParse(invalidEffects).success).toBe(false);
   });
 });
