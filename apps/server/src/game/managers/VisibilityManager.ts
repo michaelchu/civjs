@@ -2,6 +2,7 @@ import { logger } from '@utils/logger';
 import { UnitManager } from '@game/managers/UnitManager';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { MapManager } from '@game/managers/MapManager';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 
 export interface PlayerVisibility {
   playerId: string;
@@ -21,11 +22,18 @@ export class VisibilityManager {
   private playerVisibility: Map<string, PlayerVisibility> = new Map();
   private unitManager: UnitManager;
   private mapManager: MapManager;
+  private effectsManager: EffectsManager;
 
-  constructor(gameId: string, unitManager: UnitManager, mapManager: MapManager) {
+  constructor(
+    gameId: string,
+    unitManager: UnitManager,
+    mapManager: MapManager,
+    effectsManager: EffectsManager = new EffectsManager()
+  ) {
     this.gameId = gameId;
     this.unitManager = unitManager;
     this.mapManager = mapManager;
+    this.effectsManager = effectsManager;
   }
 
   /**
@@ -64,10 +72,30 @@ export class VisibilityManager {
       const unitType = UNIT_TYPES[unit.unitTypeId];
       if (!unitType) continue;
 
+      const tile = this.mapManager.getTile(unit.x, unit.y);
+      if (!tile) continue;
+
+      // Freeciv combines the unit's base sight with effects active at its
+      // current tile (for example, the classic mountain-vision effect).
+      // @reference reference/freeciv/server/unittools.c:4983-5010
+      const visionEffect = this.effectsManager.calculateEffect(EffectType.UNIT_VISION_RADIUS_SQ, {
+        playerId,
+        unitId: unit.id,
+        unitType: unit.unitTypeId,
+        unitClass: unitType.rulesetUnitClass,
+        unitTypeFlags: new Set(unitType.flags),
+        unitActivity: unit.activity?.type,
+        tileX: unit.x,
+        tileY: unit.y,
+        tileTerrain: tile.terrain,
+        tileExtras: new Set(tile.improvements),
+        tileIsCityCenter: Boolean(tile.cityId),
+        maxUnitsOnTile: tile.unitIds.length,
+      });
       const visibleTiles = this.calculateTileVisibility(
         unit.x,
         unit.y,
-        unitType.vision_radius_sq || unitType.sight
+        (unitType.vision_radius_sq || unitType.sight) + visionEffect.value
       );
 
       for (const tileKey of visibleTiles) {

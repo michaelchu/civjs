@@ -110,6 +110,18 @@ describe('VisibilityManager', () => {
       expect(visibleTiles.has('17,15')).toBe(false); // 2 tiles east from explorer (distance 2, outside range)
     });
 
+    it('applies the classic mountain vision effect using the unit and tile context', async () => {
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      const unitTile = mapManager.getTile(10, 10)!;
+      unitTile.terrain = 'mountains';
+
+      visibilityManager.updatePlayerVisibility('player-123');
+
+      // Warrior base vision is 2; classic mountains add 4 squared tiles.
+      // @reference reference/freeciv/data/classic/effects.ruleset:132-139
+      expect(visibilityManager.getVisibleTiles('player-123').has('12,10')).toBe(true);
+    });
+
     it('should handle units at map edges', async () => {
       // Create unit at map edge
       await unitManager.createUnit('player-123', 'warriors', 0, 0);

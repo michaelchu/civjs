@@ -240,7 +240,12 @@ export class GameInstanceRecoveryService extends BaseGameService {
     );
 
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
-    const visibilityManager = new VisibilityManager(gameId, unitManager, mapManager);
+    const visibilityManager = new VisibilityManager(
+      gameId,
+      unitManager,
+      mapManager,
+      effectsManager
+    );
 
     // Initialize BorderManager after CityManager is created
     const borderEffectsManager = new EffectsManager();

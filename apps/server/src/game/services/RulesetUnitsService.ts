@@ -20,6 +20,7 @@ export interface UnitType {
   canFoundCity: boolean;
   canBuildImprovements: boolean;
   unitClass: 'military' | 'civilian' | 'naval' | 'air';
+  rulesetUnitClass?: string;
   requiredTech?: string;
   transport_capacity?: number;
   // Additional freeciv fields
@@ -94,6 +95,7 @@ export class RulesetUnitsService {
       canBuildImprovements:
         unit.canBuildImprovements || unit.flags?.includes('Workers' as any) || false,
       unitClass: this.mapUnitClass(unit.unit_class, unit.unitClass as any, unit.flags),
+      rulesetUnitClass: unit.unit_class,
       requiredTech: unit.required_tech || unit.requiredTech,
       transport_capacity: unit.transport_cap,
       // Additional freeciv fields
