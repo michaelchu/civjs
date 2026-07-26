@@ -219,6 +219,10 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       data: { cityId, production: 'warriors', type: 'unit' },
     });
     expect((await productionReply).data).toMatchObject({ success: true });
+    expect(gameManager.getGameInstance(gameId)?.cityManager.getCity(cityId)).toMatchObject({
+      id: cityId,
+      currentProduction: 'warriors',
+    });
 
     const researchReply = waitForPacket(host, PacketType.RESEARCH_SET_REPLY);
     host.emit('packet', { type: PacketType.RESEARCH_SET, data: { techId: 'pottery' } });
@@ -259,16 +263,24 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       expect((await guestTurnReply).data).toMatchObject({ success: true, turnAdvanced: true });
     }
     expect(gameManager.getGameInstance(gameId)?.currentTurn).toBe(21);
+    expect(gameManager.getGameInstance(gameId)?.cityManager.getCity(cityId)).toMatchObject({
+      id: cityId,
+    });
+    expect(gameManager.getPlayerResearch(gameId, hostPlayer!.id)?.researchedTechs).toContain(
+      'pottery'
+    );
 
     host.disconnect();
     const returning = connectClient();
     await waitForConnection(returning);
     await authenticate(returning, hostUsername);
+    const returningMap = waitForPacket(returning, PacketType.MAP_INFO);
     const reconnect = await emitWithAck<{ success: boolean; playerId: string }>(
       returning,
       'join_game',
       { gameId, selectedNation: 'romans' }
     );
     expect(reconnect).toMatchObject({ success: true });
+    expect((await returningMap).data).toMatchObject({ xsize: 20, ysize: 20 });
   });
 });
