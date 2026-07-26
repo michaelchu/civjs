@@ -209,7 +209,16 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       type: PacketType.CITY_FOUND,
       data: { unitId: settlerId, name: 'Socket City', x: 8, y: 8 },
     });
-    expect((await cityReply).data).toMatchObject({ success: true });
+    const cityResponse = await cityReply;
+    expect(cityResponse.data).toMatchObject({ success: true });
+    const cityId = (cityResponse.data as { cityId: string }).cityId;
+
+    const productionReply = waitForPacket(host, PacketType.CITY_PRODUCTION_CHANGE_REPLY);
+    host.emit('packet', {
+      type: PacketType.CITY_PRODUCTION_CHANGE,
+      data: { cityId, production: 'warriors', type: 'unit' },
+    });
+    expect((await productionReply).data).toMatchObject({ success: true });
 
     for (let completedTurns = 0; completedTurns < 20; completedTurns += 1) {
       const hostTurnReply = waitForPacket(host, PacketType.TURN_END_REPLY);
