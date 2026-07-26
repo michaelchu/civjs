@@ -114,8 +114,12 @@ export class SocketCoordinator {
       socket.data.packetHandler.cleanup(socket.id);
     }
 
-    // Additional disconnect logic for game-specific cleanup
-    await this.handleGameSpecificDisconnect(socket);
+    try {
+      // Additional disconnect logic for game-specific cleanup
+      await this.handleGameSpecificDisconnect(socket);
+    } finally {
+      activeConnections.delete(socket.id);
+    }
   }
 
   /**

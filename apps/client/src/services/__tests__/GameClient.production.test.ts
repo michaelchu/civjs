@@ -1,5 +1,8 @@
 import { gameClient } from '../GameClient';
 import type { ProductionOption } from '../../types';
+import { vi } from 'vitest';
+
+const jest = vi;
 
 // Mock socket.io
 const mockSocket = {
@@ -116,7 +119,10 @@ describe('GameClient Production Methods', () => {
 
       await gameClient.getAvailableProductions('city-1');
 
-      expect(mockSocket.off).toHaveBeenCalledWith('city:availableProductions', expect.any(Object));
+      expect(mockSocket.off).toHaveBeenCalledWith(
+        'city:availableProductions',
+        expect.any(Function)
+      );
     });
 
     it('should only respond to matching cityId', async () => {
@@ -286,7 +292,7 @@ describe('GameClient Production Methods', () => {
 
   describe('production completion event handling', () => {
     it('should handle unit production completion', () => {
-      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
       // Find the production:completed handler
       const productionCompletedCalls = mockSocket.on.mock.calls.filter(
@@ -312,7 +318,7 @@ describe('GameClient Production Methods', () => {
     });
 
     it('should handle building production completion', () => {
-      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
       const productionCompletedCalls = mockSocket.on.mock.calls.filter(
         call => call[0] === 'production:completed'

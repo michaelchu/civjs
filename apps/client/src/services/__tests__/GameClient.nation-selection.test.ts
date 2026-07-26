@@ -1,29 +1,35 @@
 import { gameClient } from '../GameClient';
 import { useGameStore } from '../../store/gameStore';
+import { vi } from 'vitest';
 
-// Mock socket.io-client
-const mockSocket = {
-  on: jest.fn(),
-  emit: jest.fn(),
-  connect: jest.fn(),
-  disconnect: jest.fn(),
-};
+const jest = vi;
 
-jest.mock('socket.io-client', () => ({
-  io: jest.fn(() => mockSocket),
+const { mockSocket } = vi.hoisted(() => ({
+  mockSocket: {
+    on: vi.fn(),
+    off: vi.fn(),
+    emit: vi.fn(),
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+  },
+}));
+
+vi.mock('socket.io-client', () => ({
+  io: vi.fn(() => mockSocket),
 }));
 
 // Mock the game store
-jest.mock('../../store/gameStore', () => ({
+vi.mock('../../store/gameStore', () => ({
   useGameStore: {
-    getState: jest.fn(),
-    setState: jest.fn(),
+    getState: vi.fn(),
+    setState: vi.fn(),
   },
 }));
 
 describe('GameClient - Nation Selection', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (gameClient as unknown as { socket: typeof mockSocket }).socket = mockSocket;
 
     // Mock store state
     (useGameStore.getState as jest.Mock).mockReturnValue({
@@ -33,6 +39,11 @@ describe('GameClient - Nation Selection', () => {
 
     // Reset socket
     mockSocket.emit.mockClear();
+    mockSocket.on.mockImplementation((event, handler) => {
+      if (event === 'packet') {
+        queueMicrotask(() => handler({ type: 5, data: { accepted: true } }));
+      }
+    });
   });
 
   describe('joinSpecificGame', () => {
@@ -250,20 +261,20 @@ describe('GameClient - Nation Selection', () => {
         }
       });
 
-      // Mock packet handler
+      let packetHandlerCount = 0;
       mockSocket.on.mockImplementation((event, handler) => {
         if (event === 'packet') {
-          // Simulate successful game creation response
-          setTimeout(() => {
-            handler({
-              type: 201, // GAME_CREATE_REPLY
-              data: {
-                success: true,
-                gameId: 'game-123',
-                assignedNation: 'japanese',
-              },
-            });
-          }, 0);
+          packetHandlerCount += 1;
+          queueMicrotask(() =>
+            handler(
+              packetHandlerCount === 1
+                ? { type: 5, data: { accepted: true } }
+                : {
+                    type: 201,
+                    data: { success: true, gameId: 'game-123', assignedNation: 'japanese' },
+                  }
+            )
+          );
         }
       });
 
@@ -283,8 +294,7 @@ describe('GameClient - Nation Selection', () => {
         })
       );
 
-      // Clean up the promise
-      await gameIdPromise.catch(() => {}); // Ignore timeout errors in test
+      await expect(gameIdPromise).resolves.toBe('game-123');
     });
   });
 });

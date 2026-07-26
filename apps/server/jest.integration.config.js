@@ -26,10 +26,8 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/tests/setup.integration.ts'],
   testTimeout: 30000,
   clearMocks: true,
-  resetMocks: true,
+  resetMocks: false,
   restoreMocks: true,
-  // Force Jest to exit after tests complete (needed for integration tests with DB connections)
-  forceExit: true,
   // Optimize for CI environments
   verbose: false,
   silent: false,

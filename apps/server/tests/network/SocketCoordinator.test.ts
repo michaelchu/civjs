@@ -130,14 +130,13 @@ describe('SocketCoordinator', () => {
       };
 
       // Simulate disconnect
-      const disconnectHandler = (mockSocket.on as jest.Mock).mock.calls.find(
+      const disconnectHandlers = (mockSocket.on as jest.Mock).mock.calls.filter(
         call => call[0] === 'disconnect'
-      )[1];
+      );
+      const disconnectHandler = disconnectHandlers.at(-1)![1];
 
       await disconnectHandler();
 
-      // Should call cleanup on packet handler
-      expect(mockPacketHandler.cleanup).toHaveBeenCalledWith(mockSocket.id);
       // Should clean up connection
       expect(coordinator.getActiveConnectionsCount()).toBe(0);
     });

@@ -4,29 +4,9 @@
 
 import { storeUsername, getStoredUsername, clearUsername } from '../gameSession';
 
-// Mock localStorage
-const mockLocalStorage = (() => {
-  let store: Record<string, string> = {};
-
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => {
-      store[key] = value;
-    },
-    removeItem: (key: string) => {
-      delete store[key];
-    },
-    clear: () => {
-      store = {};
-    },
-  };
-})();
-
-Object.defineProperty(window, 'localStorage', { value: mockLocalStorage });
-
 describe('gameSession utilities', () => {
   beforeEach(() => {
-    mockLocalStorage.clear();
+    window.localStorage.clear();
   });
 
   describe('storeUsername and getStoredUsername', () => {

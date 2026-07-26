@@ -969,6 +969,7 @@ export class CityManager {
             error?.code === 'SQLITE_CONSTRAINT' ||
             error?.constraint === 'PRIMARY' ||
             error?.code === '23505' || // PostgreSQL unique violation
+            error?.cause?.code === '23505' ||
             (error?.message && error.message.includes('duplicate key'))
           ) {
             await db.update(cities).set(cityData).where(eq(cities.id, city.id));

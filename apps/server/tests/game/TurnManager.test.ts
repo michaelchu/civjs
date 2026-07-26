@@ -94,7 +94,7 @@ const mockIo = {
   to: jest.fn().mockReturnValue(mockRoom),
 } as any;
 
-describe.skip('TurnManager - Complex mocking required, temporarily skipped', () => {
+describe('TurnManager', () => {
   let turnManager: TurnManager;
   let mockDatabase: any;
 
@@ -107,6 +107,7 @@ describe.skip('TurnManager - Complex mocking required, temporarily skipped', () 
       broadcastToGame: jest.fn(),
       broadcastToPlayer: jest.fn(),
       broadcastToAllPlayers: jest.fn(),
+      broadcastCityData: jest.fn(),
     } as any;
 
     turnManager = new TurnManager(
@@ -251,34 +252,40 @@ describe.skip('TurnManager - Complex mocking required, temporarily skipped', () 
 
     it('should start turn timer', () => {
       jest.useFakeTimers();
+      const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
 
       turnManager.startTurnTimer(60); // 60 seconds
 
-      expect(setTimeout).toHaveBeenCalledWith(expect.any(Function), 60000);
+      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 60000);
 
+      setTimeoutSpy.mockRestore();
       jest.useRealTimers();
     });
 
     it('should clear existing timer when starting new one', () => {
       jest.useFakeTimers();
+      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
 
       turnManager.startTurnTimer(30);
       turnManager.startTurnTimer(60);
 
       // clearTimeout should be called when starting second timer
-      expect(clearTimeout).toHaveBeenCalled();
+      expect(clearTimeoutSpy).toHaveBeenCalled();
 
+      clearTimeoutSpy.mockRestore();
       jest.useRealTimers();
     });
 
     it('should clear turn timer', () => {
       jest.useFakeTimers();
+      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
 
       turnManager.startTurnTimer(60);
       turnManager.clearTurnTimer();
 
-      expect(clearTimeout).toHaveBeenCalled();
+      expect(clearTimeoutSpy).toHaveBeenCalled();
 
+      clearTimeoutSpy.mockRestore();
       jest.useRealTimers();
     });
   });

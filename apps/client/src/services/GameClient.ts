@@ -935,6 +935,7 @@ class GameClient {
       const handleReply = (replyPacket: Packet) => {
         if (replyPacket.type === PacketType.SERVER_JOIN_REPLY) {
           this.socket?.off('packet', handleReply);
+          clearTimeout(timeout);
           if (replyPacket.data.accepted) {
             console.log('Authentication successful:', replyPacket.data);
             // Keep the identity used to create/join a game so an active game
@@ -950,7 +951,7 @@ class GameClient {
 
       this.socket.on('packet', handleReply);
 
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         this.socket?.off('packet', handleReply);
         reject(new Error('Authentication timeout'));
       }, 10000);
@@ -1024,6 +1025,7 @@ class GameClient {
       const handleReply = (replyPacket: Packet) => {
         if (replyPacket.type === PacketType.GAME_CREATE_REPLY) {
           this.socket?.off('packet', handleReply);
+          clearTimeout(timeout);
           if (replyPacket.data.success) {
             this.currentGameId = replyPacket.data.gameId;
             resolve(replyPacket.data.gameId);
@@ -1035,7 +1037,7 @@ class GameClient {
 
       this.socket.on('packet', handleReply);
 
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         this.socket?.off('packet', handleReply);
         reject(new Error('Game creation timeout'));
       }, 10000);
@@ -1475,6 +1477,8 @@ class GameClient {
       const handleResponse = (data: { cityId: string; productions: ProductionOption[] }) => {
         if (data.cityId === cityId) {
           this.socket?.off('city:availableProductions', handleResponse);
+          this.socket?.off('error', handleError);
+          clearTimeout(timeout);
           resolve(data.productions);
         }
       };
@@ -1482,6 +1486,7 @@ class GameClient {
       const handleError = (error: { message: string }) => {
         this.socket?.off('city:availableProductions', handleResponse);
         this.socket?.off('error', handleError);
+        clearTimeout(timeout);
         reject(new Error(error.message));
       };
 
@@ -1489,7 +1494,7 @@ class GameClient {
       this.socket.on('error', handleError);
 
       // Set timeout
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         this.socket?.off('city:availableProductions', handleResponse);
         this.socket?.off('error', handleError);
         reject(new Error('Get available productions timeout'));
@@ -1523,6 +1528,8 @@ class GameClient {
       }) => {
         if (data.cityId === cityId) {
           this.socket?.off('city:productionChanged', handleResponse);
+          this.socket?.off('error', handleError);
+          clearTimeout(timeout);
 
           // Update city in store
           const { cities } = useGameStore.getState();
@@ -1543,6 +1550,7 @@ class GameClient {
       const handleError = (error: { message: string }) => {
         this.socket?.off('city:productionChanged', handleResponse);
         this.socket?.off('error', handleError);
+        clearTimeout(timeout);
         reject(new Error(error.message));
       };
 
@@ -1550,7 +1558,7 @@ class GameClient {
       this.socket.on('error', handleError);
 
       // Set timeout
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         this.socket?.off('city:productionChanged', handleResponse);
         this.socket?.off('error', handleError);
         reject(new Error('Change production timeout'));

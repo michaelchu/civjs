@@ -29,10 +29,8 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   testTimeout: 10000,
   clearMocks: true,
-  resetMocks: true,
+  resetMocks: false,
   restoreMocks: true,
   // Run tests in parallel for performance, but integration tests use their own config
   maxWorkers: '50%',
-  // Force Jest to exit after tests complete (needed for integration tests with DB connections)
-  forceExit: true,
 };

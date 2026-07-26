@@ -64,7 +64,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
-    it.skip('should create and persist game to database', async () => {
+    it('should create and persist game to database', async () => {
       const gameId = await gameManager.createGame(testConfig);
 
       expect(gameId).toBeTruthy();
@@ -155,7 +155,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
-    it.skip('should join players and persist to database', async () => {
+    it('should join players and persist to database', async () => {
       const userId1 = generateTestUUID();
       const userId2 = generateTestUUID();
 
@@ -202,7 +202,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
-    it.skip('should reject players when game is full', async () => {
+    it('should reject players when game is full', async () => {
       // Fill game to capacity
       const userId1 = generateTestUUID();
       const userId2 = generateTestUUID();
@@ -291,7 +291,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
-    it.skip('should start game and initialize all managers', async () => {
+    it('should start game and initialize all managers', async () => {
       const gameConfig: GameConfig = {
         name: 'Lifecycle Test Game',
         hostId: hostData.user.id,
@@ -334,7 +334,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
     // TODO: Fix in separate PR - game state transition logic issues
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
-    it.skip('should prevent non-host from starting game', async () => {
+    it('should prevent non-host from starting game', async () => {
       const gameConfig: GameConfig = {
         name: 'Non-Host Test Game',
         hostId: hostData.user.id,
@@ -395,8 +395,8 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
     // TODO: Fix in separate PR - visibility system not working after DI refactoring
     // TODO: Fix in separate PR - visibility system integration
-    it.skip('should create units and update visibility', async () => {
-      const unitId = await gameManager.createUnit(gameId, playerId, 'warrior', 12, 12);
+    it('should create units and update visibility', async () => {
+      const unitId = await gameManager.createUnit(gameId, playerId, 'warriors', 12, 12);
 
       expect(unitId).toBeTruthy();
 
@@ -404,7 +404,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
       const game = gameManager.getGameInstance(gameId);
       const unit = game!.unitManager.getUnit(unitId);
       expect(unit).toBeDefined();
-      expect(unit!.unitTypeId).toBe('warrior');
+      expect(unit!.unitTypeId).toBe('warriors');
 
       // Test visibility update
       gameManager.updatePlayerVisibility(gameId, playerId);
@@ -417,7 +417,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
         where: (units, { eq }) => eq(units.id, unitId),
       });
       expect(dbUnits).toHaveLength(1);
-      expect(dbUnits[0].unitType).toBe('warrior');
+      expect(dbUnits[0].unitType).toBe('warriors');
     });
 
     it('should handle research progression with database persistence', async () => {
@@ -465,7 +465,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
   describe('game state consistency', () => {
     // TODO: Fix in separate PR - game loading and manager initialization issues
     // TODO: Fix in separate PR - game loading and state recovery
-    it.skip('should maintain consistency after manager reload', async () => {
+    it('should maintain consistency after manager reload', async () => {
       const scenario = await createBasicGameScenario();
 
       // Load game into first manager
@@ -474,18 +474,16 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
       // Make some changes
       const cityId = await gameManager.foundCity(gameId, scenario.players[0].id, 'NewCity', 8, 8);
-      const unitId = await gameManager.createUnit(gameId, scenario.players[0].id, 'settler', 9, 9);
+      const unitId = await gameManager.createUnit(gameId, scenario.players[0].id, 'settlers', 9, 9);
 
       // Create new GameManager instance
       (GameManager as any).instance = null;
       const mockIo2 = createMockSocketServer();
-      const newGameManager = GameManager.getInstance(mockIo2);
+      const newGameManager = GameManager.getInstance(mockIo2, testDbProvider);
 
       // Load same game
-      await newGameManager.loadGame(gameId);
-
-      const newGame = newGameManager.getGameInstance(gameId);
-      expect(newGame).toBeDefined();
+      const newGame = await newGameManager.recoverGameInstance(gameId);
+      expect(newGame).not.toBeNull();
 
       // Verify all data was loaded correctly
       const city = newGame!.cityManager.getCity(cityId);
@@ -512,8 +510,8 @@ describe('GameManager - Integration Tests with Real Database', () => {
       const operations = [
         gameManager.foundCity(gameId, player1Id, 'City1', 7, 7),
         gameManager.foundCity(gameId, player2Id, 'City2', 17, 17),
-        gameManager.createUnit(gameId, player1Id, 'warrior', 6, 7),
-        gameManager.createUnit(gameId, player2Id, 'warrior', 18, 17),
+        gameManager.createUnit(gameId, player1Id, 'warriors', 6, 7),
+        gameManager.createUnit(gameId, player2Id, 'warriors', 18, 17),
       ];
 
       const results = await Promise.all(operations);

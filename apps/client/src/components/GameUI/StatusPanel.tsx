@@ -2,7 +2,6 @@ import React from 'react';
 import { useGameStore } from '../../store/gameStore';
 
 const formatNationName = (nation: string): string => {
-  console.log('StatusPanel: formatNationName called with:', nation);
   if (nation === 'random') {
     return 'Random';
   }

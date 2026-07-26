@@ -205,7 +205,7 @@ describe('Game Integration Flow', () => {
     });
 
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
-    it.skip('should maintain data consistency across manager interactions', async () => {
+    it('should maintain data consistency across manager interactions', async () => {
       const db = getTestDatabase();
 
       // Create host user for consistency test
@@ -255,7 +255,7 @@ describe('Game Integration Flow', () => {
 
       // Create city and unit at same location
       const cityId = await gameManager.foundCity(gameId, playerId, 'Capital', 5, 5);
-      const unitId = await gameManager.createUnit(gameId, playerId, 'warrior', 5, 5);
+      const unitId = await gameManager.createUnit(gameId, playerId, 'warriors', 5, 5);
 
       const game = gameManager.getGameInstance(gameId)!;
 
