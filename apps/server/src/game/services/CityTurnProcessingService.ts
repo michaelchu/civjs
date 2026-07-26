@@ -21,6 +21,7 @@ import { BaseGameService } from '@game/orchestrators/GameService';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { rulesetBuildingsService } from './RulesetBuildingsService';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import type { Server as SocketServer } from 'socket.io';
 import type { CityGovernorService } from './CityGovernorService';
 import type { CityTileManagementService } from './CityTileManagementService';
@@ -132,6 +133,7 @@ export interface CityTurnProcessingDependencies {
  */
 export class CityTurnProcessingService extends BaseGameService {
   private dependencies: CityTurnProcessingDependencies;
+  private readonly effectsManager = new EffectsManager();
 
   constructor(dependencies: CityTurnProcessingDependencies) {
     super(logger);
@@ -279,7 +281,13 @@ export class CityTurnProcessingService extends BaseGameService {
       const oldSize = city.population;
       city.population += 1;
       city.size = city.population;
-      city.foodStock = newFoodStock - granarySize;
+      const growthFoodRetention = this.effectsManager.calculateEffect(EffectType.GROWTH_FOOD, {
+        playerId: city.playerId,
+        cityId: city.id,
+        cityBuildings: new Set(city.buildings),
+      }).value;
+      city.foodStock =
+        newFoodStock - granarySize + Math.floor((granarySize * growthFoodRetention) / 100);
 
       logger.info(`City ${city.name} grew from size ${oldSize} to ${city.population}`);
 

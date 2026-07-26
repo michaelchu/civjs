@@ -57,6 +57,9 @@ describe('RulesetLoader classic effects ruleset', () => {
     expect(effects.courthouse_trade_waste).toMatchObject({ type: 'Output_Waste_Pct', value: 50 });
     // @reference reference/freeciv/data/classic/effects.ruleset:1038-1045
     expect(effects.courthouse_democracy_content).toMatchObject({ type: 'Make_Content', value: 1 });
+    // @reference reference/freeciv/data/classic/effects.ruleset:1097-1110
+    expect(effects.granary_growth_food).toMatchObject({ type: 'Growth_Food', value: 50 });
+    expect(effects.granary_shrink_food).toMatchObject({ type: 'Shrink_Food', value: 50 });
   });
 
   it('rejects effects with requirement types that the runtime cannot evaluate', () => {

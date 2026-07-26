@@ -54,6 +54,8 @@ export enum EffectType {
   UNIT_VISION_RADIUS_SQ = 'Unit_Vision_Radius_Sq',
   FORTIFY_DEFENSE_BONUS = 'Fortify_Defense_Bonus',
   DEFEND_BONUS = 'Defend_Bonus',
+  GROWTH_FOOD = 'Growth_Food',
+  SHRINK_FOOD = 'Shrink_Food',
 
   // Culture system effects (freeciv culture.c and effects_enums.def)
   PERFORMANCE = 'Performance', // EFT_PERFORMANCE (123) - Immediate culture boost

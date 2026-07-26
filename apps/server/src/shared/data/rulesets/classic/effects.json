@@ -805,6 +805,20 @@
       ],
       "comment": "Courthouse provides one content citizen under Democracy"
     },
+    "granary_growth_food": {
+      "id": "granary_growth_food",
+      "type": "Growth_Food",
+      "value": 50,
+      "reqs": [{ "type": "Building", "name": "Granary", "range": "City" }],
+      "comment": "Granary retains half of its food after city growth"
+    },
+    "granary_shrink_food": {
+      "id": "granary_shrink_food",
+      "type": "Shrink_Food",
+      "value": 50,
+      "reqs": [{ "type": "Building", "name": "Granary", "range": "City" }],
+      "comment": "Granary retains half of its food after population loss"
+    },
     "library_culture_performance": {
       "id": "library_culture_performance",
       "type": "Performance",
