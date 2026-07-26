@@ -280,6 +280,16 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       expect.arrayContaining([expect.objectContaining({ x: 8, y: 8, playerId: hostPlayer!.id })])
     );
 
+    // Simulate a server restart: only PostgreSQL state remains before the
+    // returning socket asks to rejoin the active game.
+    gameManager.clearAllGames();
+    const recoveredGame = await gameManager.recoverGameInstance(gameId);
+    expect(recoveredGame).toMatchObject({ id: gameId, currentTurn: 21 });
+    expect(recoveredGame?.cityManager.getCity(cityId)).toMatchObject({ id: cityId });
+    expect(recoveredGame?.borderManager.getAllTileOwnership()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ x: 8, y: 8, playerId: hostPlayer!.id })])
+    );
+
     host.disconnect();
     const returning = connectClient();
     await waitForConnection(returning);
