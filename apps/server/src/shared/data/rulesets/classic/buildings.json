@@ -12,7 +12,7 @@
     "palace": {
       "id": "palace",
       "name": "Palace",
-      "cost": 100,
+      "cost": 70,
       "upkeep": 0,
       "requiredTech": "masonry",
       "effects": {
@@ -23,7 +23,7 @@
     "granary": {
       "id": "granary",
       "name": "Granary",
-      "cost": 60,
+      "cost": 40,
       "upkeep": 1,
       "requiredTech": "pottery",
       "effects": {
@@ -33,7 +33,7 @@
     "barracks": {
       "id": "barracks",
       "name": "Barracks",
-      "cost": 40,
+      "cost": 30,
       "upkeep": 1,
       "effects": {
         "defenseBonus": 50
@@ -42,7 +42,7 @@
     "library": {
       "id": "library",
       "name": "Library",
-      "cost": 80,
+      "cost": 60,
       "upkeep": 1,
       "requiredTech": "writing",
       "effects": {
@@ -52,7 +52,7 @@
     "marketplace": {
       "id": "marketplace",
       "name": "Marketplace",
-      "cost": 80,
+      "cost": 60,
       "upkeep": 0,
       "requiredTech": "currency",
       "effects": {
@@ -62,7 +62,7 @@
     "temple": {
       "id": "temple",
       "name": "Temple",
-      "cost": 40,
+      "cost": 30,
       "upkeep": 1,
       "requiredTech": "ceremonial_burial",
       "effects": {
@@ -72,7 +72,7 @@
     "walls": {
       "id": "walls",
       "name": "City Walls",
-      "cost": 80,
+      "cost": 60,
       "upkeep": 0,
       "requiredTech": "masonry",
       "effects": {
@@ -91,7 +91,7 @@
     "cathedral": {
       "id": "cathedral",
       "name": "Cathedral",
-      "cost": 160,
+      "cost": 80,
       "upkeep": 3,
       "requiredTech": "monotheism",
       "requires": ["temple"],
@@ -103,7 +103,7 @@
     "courthouse": {
       "id": "courthouse",
       "name": "Courthouse",
-      "cost": 80,
+      "cost": 60,
       "upkeep": 1,
       "requiredTech": "code_of_laws",
       "effects": {

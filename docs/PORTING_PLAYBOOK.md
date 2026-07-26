@@ -96,7 +96,8 @@ mountain and Invention-gated fortress vision), for both new and recovered
 games. The city-production authority now uses the canonical research API and
 fails closed without it; its shared building catalogue carries the classic
 technology and prerequisite-building gates used by the playable catalogue.
-Wiring effect contexts into every authoritative action remains open.
+Representative classic building costs are now asserted against the source as
+well. Wiring effect contexts into every authoritative action remains open.
 
 - Finish ruleset loading and validation for all classic entities and effects used by the playable loop.
 - Implement requirement evaluation in every relevant context: player, city, unit, tile, technology, government, and action.

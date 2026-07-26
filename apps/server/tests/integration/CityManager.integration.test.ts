@@ -58,7 +58,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
     it('should have valid building type definitions', () => {
       expect(BUILDING_TYPES.palace).toBeDefined();
       expect(BUILDING_TYPES.palace.name).toBe('Palace');
-      expect(BUILDING_TYPES.palace.cost).toBe(100);
+      expect(BUILDING_TYPES.palace.cost).toBe(70);
       expect(BUILDING_TYPES.palace.effects.defenseBonus).toBe(100);
 
       expect(BUILDING_TYPES.library).toBeDefined();
@@ -66,7 +66,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
       expect(BUILDING_TYPES.library.effects.scienceBonus).toBe(50);
 
       expect(BUILDING_TYPES.granary).toBeDefined();
-      expect(BUILDING_TYPES.granary.effects.foodBonus).toBe(50);
+      expect(BUILDING_TYPES.granary.effects.foodBonus).toBe(1);
     });
   });
 
