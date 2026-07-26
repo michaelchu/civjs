@@ -62,6 +62,8 @@ describe('RulesetLoader classic effects ruleset', () => {
     // @reference reference/freeciv/data/classic/effects.ruleset:1097-1110
     expect(effects.granary_growth_food).toMatchObject({ type: 'Growth_Food', value: 50 });
     expect(effects.granary_shrink_food).toMatchObject({ type: 'Shrink_Food', value: 50 });
+    // @reference reference/freeciv/data/classic/effects.ruleset:904-925
+    expect(effects.barracks_veteran_build).toMatchObject({ type: 'Veteran_Build', value: 1 });
   });
 
   it('rejects effects with requirement types that the runtime cannot evaluate', () => {

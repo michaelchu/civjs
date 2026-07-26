@@ -198,6 +198,18 @@ export class UnitManager {
       throw new Error('Cannot stack civilian units');
     }
 
+    const city = this.gameManagerCallback?.getCityAt?.(x, y);
+    const veteranLevel =
+      city && city.playerId === playerId && this.effectsManager
+        ? this.effectsManager.calculateEffect(EffectType.VETERAN_BUILD, {
+            playerId,
+            unitType: unitTypeId,
+            unitClass: unitType.rulesetUnitClass,
+            unitTypeFlags: new Set(unitType.flags),
+            cityBuildings: new Set(city.buildings ?? []),
+          }).value
+        : 0;
+
     // Save to database and get the generated ID
     const [dbUnit] = await this.databaseProvider
       .getDatabase()
@@ -215,7 +227,7 @@ export class UnitManager {
         rangedStrength: unitType.range > 1 ? unitType.combat : 0,
         movementPoints: (unitType.movement * 3).toString(),
         maxMovementPoints: (unitType.movement * 3).toString(),
-        veteranLevel: 0,
+        veteranLevel,
         // @reference reference/freeciv/server/unittools.c:1215-1280
         createdTurn: this.currentTurnProvider?.() ?? 1,
       })
@@ -230,7 +242,7 @@ export class UnitManager {
       y,
       movementLeft: unitType.movement * 3, // Convert movement points to fragments
       health: 100,
-      veteranLevel: 0,
+      veteranLevel,
       experience: 0,
       fortified: false,
     };

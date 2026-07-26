@@ -829,6 +829,17 @@
       "reqs": [{ "type": "Building", "name": "Granary", "range": "City" }],
       "comment": "Granary retains half of its food after population loss"
     },
+    "barracks_veteran_build": {
+      "id": "barracks_veteran_build",
+      "type": "Veteran_Build",
+      "value": 1,
+      "reqs": [
+        { "type": "Building", "name": "Barracks", "range": "City" },
+        { "type": "UnitClass", "name": "Land", "range": "Local" },
+        { "type": "UnitTypeFlag", "name": "NonMil", "range": "Local", "present": false }
+      ],
+      "comment": "Barracks produce veteran land military units"
+    },
     "library_culture_performance": {
       "id": "library_culture_performance",
       "type": "Performance",
