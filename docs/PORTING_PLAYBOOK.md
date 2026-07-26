@@ -77,50 +77,18 @@ server-memory recovery from PostgreSQL, reconnect, and one further completed
 turn with the recovered city intact. Player-specific map, unit, city, and
 border broadcasts are also covered by the server and client test suites.
 
-### Milestone 2 — Ruleset and effects fidelity
+### Milestone 2 — Ruleset and effects fidelity — complete (2026-07-26)
 
 **Outcome:** classic ruleset data drives gameplay instead of TypeScript-specific approximations.
 
-**Complete (2026-07-26):** effect requirement activation now evaluates the
-classic requirement kinds present in `effects.json` from an explicit gameplay
-context, including government, technology, buildings, unit/tile properties,
-specialists, and nation groups. Unsupported or incomplete context fails closed.
-Fixture tests cover terrain/unit, city-tile/flag, and normalized building-ID
-conditions; schema validation rejects effect requirement kinds without a runtime
-evaluator. Research now loads the complete classic technology catalogue (costs,
-prerequisites, and flags) rather than the previous reduced TypeScript tree.
-City production and happiness now share the classic building catalogue rather
-than duplicated TypeScript lists, and unit visibility applies ruleset effects
-with live unit, tile, and researched-technology context (including classic
-mountain and Invention-gated fortress vision), for both new and recovered
-games. The city-production authority now uses the canonical research API and
-fails closed without it; its shared building catalogue carries the classic
-technology and prerequisite-building gates used by the playable catalogue.
-Representative classic building costs are now asserted against the source as
-well. Building metadata and production availability are now separate, so the
-full source catalog is loaded without exposing an unimplemented building to
-players. City happiness and output now consume the loaded classic Temple,
-Cathedral, Marketplace, and Library effects, with live research context for
-their tech-gated contentment modifiers. The comprehensive playable-building pass
-now covers Palace trade waste and government shield bonuses, Granary growth and
-starvation food retention, Barracks veteran production and city healing,
-Library science, Marketplace gold/luxury, Temple/Cathedral contentment,
-Courthouse trade waste/Democracy contentment, and City Walls defense. Combat
-now applies classic `Fortify_Defense_Bonus` for fortified units and unfortified
-city-center land defenders (via loaded unit-class flags such as `CanFortify`),
-replacing the previous hardcoded ×1.5 fortify multiplier. Effects
-that require an unported system are deliberately not imported as active rules:
-city capture population protection and incite costs need the capture/incite
-action flow, while visible-wall UI effects require client rendering support.
-
-Cross-file validation rejects malformed or dangling playable-loop definitions.
-The runtime now reads unit classes, terrain movement/yields, building
-names/upkeep, technology costs/prerequisites, citizen food cost, corruption,
-happiness, specialists, vision, fortification, defense, and granary retention
-from loaded classic data. `RulesetMutation.test.ts` copies the classic fixture
-to an isolated directory and proves that changes in each of the effect, unit,
-building, technology, terrain, and game domains alter the corresponding
-authoritative calculation without mutating singleton state.
+**Completed work:** ruleset effects now evaluate classic requirement kinds from
+live gameplay context and fail closed when context or evaluators are missing.
+The runtime loads classic technology, building, unit, terrain, economy, city,
+vision, and combat data; production, happiness, visibility, and fortification
+use that shared data for new and recovered games. Validation and mutation tests
+cover malformed definitions, cross-domain data changes, and singleton safety.
+Unported capture/incite and visible-wall effects remain inactive until their
+action-flow and client-rendering support exists.
 
 **Primary references:** `reference/freeciv/data/classic/`, `common/effects.*`, `common/requirements.*`, and `common/unittype.*`.
 
