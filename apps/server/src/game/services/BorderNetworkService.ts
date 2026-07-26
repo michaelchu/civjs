@@ -7,6 +7,7 @@
 import { logger } from '@utils/logger';
 import type { Server as SocketServer, Socket } from 'socket.io';
 import type { BorderManager } from '@game/managers/BorderManager';
+import type { GameInstance } from '@game/managers/GameManager';
 import { PacketType, type Packet } from '../../types/packet';
 import type {
   BorderUpdatePacket,
@@ -22,7 +23,11 @@ export class BorderNetworkService {
   private borderManager: BorderManager;
   private socketHandlers: Map<string, { [key: string]: (...args: any[]) => void }> = new Map();
 
-  constructor(io: SocketServer, borderManager: BorderManager) {
+  constructor(
+    io: SocketServer,
+    borderManager: BorderManager,
+    private getGameInstance?: (gameId: string) => GameInstance | undefined
+  ) {
     this.io = io;
     this.borderManager = borderManager;
   }
@@ -82,6 +87,14 @@ export class BorderNetworkService {
    * Send incremental border update to all players in a game
    */
   broadcastBorderUpdate(gameId: string, borderUpdate: BorderUpdate): void {
+    const gameInstance = this.getGameInstance?.(gameId);
+    if (gameInstance) {
+      this.broadcastPlayerScopedBorderUpdate(borderUpdate, gameInstance);
+      return;
+    }
+
+    // This fallback keeps the standalone service usable in older call sites.
+    // Production game lifecycles provide the instance and use the scoped path.
     const updatePacket: BorderUpdatePacket = {
       type: 'border_update',
       tiles: borderUpdate.tiles.map(tile => ({
@@ -124,6 +137,59 @@ export class BorderNetworkService {
       affectedPlayers: borderUpdate.affectedPlayers,
       sampleTiles: updatePacket.tiles.slice(0, 3), // Show first 3 tiles for debugging
     });
+  }
+
+  /**
+   * Send border changes only to their owner or to players that can see them.
+   * @reference reference/freeciv/server/maphand.c:442-613
+   */
+  private broadcastPlayerScopedBorderUpdate(
+    borderUpdate: BorderUpdate,
+    gameInstance: GameInstance
+  ): void {
+    for (const [playerId, player] of gameInstance.players) {
+      gameInstance.visibilityManager.updatePlayerVisibility(playerId);
+      const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
+      const canSee = (x: number, y: number, ownerId?: string | null): boolean =>
+        ownerId === playerId || visibleTiles.has(`${x},${y}`);
+      const tiles = borderUpdate.tiles.filter(tile => canSee(tile.x, tile.y, tile.playerId));
+      const sources = borderUpdate.sources.filter(source =>
+        canSee(source.x, source.y, source.playerId)
+      );
+      const removed = borderUpdate.removedSources.filter(
+        source =>
+          visibleTiles.has(`${source.x},${source.y}`) ||
+          borderUpdate.affectedPlayers.includes(playerId)
+      );
+
+      if (tiles.length > 0) {
+        const packet: Packet<BorderUpdatePacket> = {
+          type: PacketType.BORDER_UPDATE,
+          data: {
+            type: 'border_update',
+            tiles: tiles.map(tile => ({
+              x: tile.x,
+              y: tile.y,
+              owner: tile.playerId,
+              strength: tile.strength,
+            })),
+            updateType: 'incremental',
+            affectedPlayers: borderUpdate.affectedPlayers.includes(playerId)
+              ? [playerId]
+              : undefined,
+          },
+        };
+        this.io.to(`player:${player.userId || playerId}`).emit('packet', packet);
+      }
+
+      if (sources.length > 0 || removed.length > 0) {
+        const packet: Packet<BorderSourcePacket> = {
+          type: PacketType.BORDER_SOURCE_UPDATE,
+          data: { type: 'border_source_update', sources, removed },
+        };
+        this.io.to(`player:${player.userId || playerId}`).emit('packet', packet);
+      }
+    }
   }
 
   /**

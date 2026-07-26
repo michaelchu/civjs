@@ -245,7 +245,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
     // Initialize BorderManager after CityManager is created
     const borderEffectsManager = new EffectsManager();
     borderManager = new BorderManager(mapManager, cityManager, borderEffectsManager);
-    const borderNetworkService = new BorderNetworkService(this.io, borderManager);
+    const borderNetworkService = new BorderNetworkService(this.io, borderManager, gameId =>
+      this.games.get(gameId)
+    );
 
     // Set socket server for production completion events
     cityManager.setSocketServer(this.io);

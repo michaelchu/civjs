@@ -68,6 +68,23 @@ function waitForConnection(socket: ClientSocket): Promise<void> {
   });
 }
 
+function waitForEvent<T>(socket: ClientSocket, event: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      socket.off(event, onEvent);
+      reject(new Error(`Timed out waiting for ${event}`));
+    }, timeoutMs);
+
+    const onEvent = (data: T) => {
+      clearTimeout(timeout);
+      socket.off(event, onEvent);
+      resolve(data);
+    };
+
+    socket.on(event, onEvent);
+  });
+}
+
 function emitWithAck<T>(socket: ClientSocket, event: string, data: unknown): Promise<T> {
   return new Promise((resolve, reject) => {
     socket.timeout(timeoutMs).emit(event, data, (error: Error | null, response: T) => {
@@ -326,6 +343,10 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     await waitForConnection(returning);
     await authenticate(returning, hostUsername);
     const returningMap = waitForPacket(returning, PacketType.MAP_INFO);
+    const returningCities = waitForEvent<{
+      gameId: string;
+      cities: Record<string, { id: string; name: string }>;
+    }>(returning, 'cities_updated');
     const reconnect = await emitWithAck<{ success: boolean; playerId: string }>(
       returning,
       'join_game',
@@ -333,5 +354,9 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     );
     expect(reconnect).toMatchObject({ success: true });
     expect((await returningMap).data).toMatchObject({ xsize: 20, ysize: 20 });
+    expect(await returningCities).toMatchObject({
+      gameId,
+      cities: { [cityId]: expect.objectContaining({ id: cityId, name: 'Socket City' }) },
+    });
   });
 });

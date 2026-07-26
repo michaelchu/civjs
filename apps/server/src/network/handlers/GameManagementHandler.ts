@@ -473,12 +473,21 @@ export class GameManagementHandler extends BaseSocketHandler {
       data: {
         type: 'border_update',
         updateType: 'full_update',
-        tiles: gameInstance.borderManager.getAllTileOwnership().map((ownership: any) => ({
-          x: ownership.x,
-          y: ownership.y,
-          owner: ownership.playerId,
-          strength: ownership.strength,
-        })),
+        // @reference reference/freeciv/server/maphand.c:442-613
+        // A player may always inspect their own territory, but another
+        // civilization's borders are only sent while the tile is visible.
+        tiles: gameInstance.borderManager
+          .getAllTileOwnership()
+          .filter(
+            (ownership: any) =>
+              ownership.playerId === playerId || visibleTiles.has(`${ownership.x},${ownership.y}`)
+          )
+          .map((ownership: any) => ({
+            x: ownership.x,
+            y: ownership.y,
+            owner: ownership.playerId,
+            strength: ownership.strength,
+          })),
       },
       timestamp: Date.now(),
     });

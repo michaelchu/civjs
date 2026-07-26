@@ -914,7 +914,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   }
 
   private createBorderNetworkService(borderManager: BorderManager): BorderNetworkService {
-    return new BorderNetworkService(this.io, borderManager);
+    return new BorderNetworkService(this.io, borderManager, gameId => this.games.get(gameId));
   }
 
   private createUnitManager(

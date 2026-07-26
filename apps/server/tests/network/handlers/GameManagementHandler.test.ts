@@ -318,7 +318,13 @@ describe('GameManagementHandler', () => {
           getExploredTiles: () => new Set(['0,0']),
         },
         cityManager: { getAllCities: () => [] },
-        borderManager: { getAllTileOwnership: () => [] },
+        borderManager: {
+          getAllTileOwnership: () => [
+            { x: 0, y: 0, playerId: mockPlayerId, strength: 1 },
+            { x: 1, y: 0, playerId: 'visible-rival', strength: 1 },
+            { x: 1, y: 1, playerId: 'hidden-rival', strength: 1 },
+          ],
+        },
       });
 
       // Get the join_game event handler
@@ -361,10 +367,10 @@ describe('GameManagementHandler', () => {
         'cities_updated',
         expect.objectContaining({ gameId: mockGameId, cities: {} })
       );
-      expect(mockSocket.emit).toHaveBeenCalledWith(
-        'packet',
-        expect.objectContaining({ type: PacketType.BORDER_UPDATE })
-      );
+      const borderPacket = (mockSocket.emit as jest.Mock).mock.calls.find(
+        ([event, packet]) => event === 'packet' && packet.type === PacketType.BORDER_UPDATE
+      )[1];
+      expect(borderPacket.data.tiles).toEqual([{ x: 0, y: 0, owner: mockPlayerId, strength: 1 }]);
     });
 
     it('should handle authentication error', async () => {
