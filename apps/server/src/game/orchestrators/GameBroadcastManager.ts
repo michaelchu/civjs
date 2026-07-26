@@ -244,13 +244,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       // resources and units are sent only while currently visible.
       gameInstance.visibilityManager.updatePlayerVisibility(playerId);
       const visibleTilesSet = gameInstance.visibilityManager.getVisibleTiles(playerId);
-      const exploredTilesSet = gameInstance.visibilityManager.getExploredTiles(playerId);
-
-      const visibleTiles = this.processMapTilesForPlayer(
-        mapData,
-        visibleTilesSet,
-        exploredTilesSet
-      );
+      const visibleTiles = this.processMapTilesForPlayer(mapData, visibleTilesSet);
 
       // Get units visible to this player (delegate to UnitManager)
       const visibleUnits = gameInstance.unitManager.getVisibleUnits(playerId, visibleTilesSet);
@@ -302,21 +296,11 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   /**
    * Process map tiles for player visibility
    */
-  private processMapTilesForPlayer(
-    mapData: any,
-    currentlyVisibleTiles: Set<string>,
-    exploredTiles: Set<string>
-  ): any[] {
+  private processMapTilesForPlayer(mapData: any, currentlyVisibleTiles: Set<string>): any[] {
     const clientTiles = [];
     for (let y = 0; y < mapData.height; y++) {
       for (let x = 0; x < mapData.width; x++) {
-        const tileInfo = this.createTileInfo(
-          mapData,
-          x,
-          y,
-          currentlyVisibleTiles.has(`${x},${y}`),
-          exploredTiles.has(`${x},${y}`)
-        );
+        const tileInfo = this.createTileInfo(mapData, x, y, currentlyVisibleTiles.has(`${x},${y}`));
         if (tileInfo) {
           clientTiles.push(tileInfo);
         }
@@ -328,13 +312,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   /**
    * Create tile information object for a specific coordinate
    */
-  private createTileInfo(
-    mapData: any,
-    x: number,
-    y: number,
-    isVisible: boolean,
-    isExplored: boolean
-  ): any | null {
+  private createTileInfo(mapData: any, x: number, y: number, isVisible: boolean): any | null {
     const index = x + y * mapData.width;
     // Handle column-based tile array structure: mapData.tiles[x][y]
     const serverTile = mapData.tiles[x] && mapData.tiles[x][y];
@@ -348,12 +326,15 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       tile: index, // This is the key - tile index used by freeciv-web
       x: x,
       y: y,
-      terrain: isExplored ? serverTile.terrain : undefined,
+      // The Canvas renderer requires every map coordinate to be known before
+      // it can paint the isometric grid. Keep terrain public for rendering;
+      // dynamic information (resources, units, cities) remains visibility scoped.
+      terrain: serverTile.terrain,
       resource: isVisible ? serverTile.resource : undefined,
-      elevation: isExplored ? serverTile.elevation || 0 : undefined,
-      riverMask: isExplored ? serverTile.riverMask || 0 : undefined,
+      elevation: serverTile.elevation || 0,
+      riverMask: serverTile.riverMask || 0,
       known: isVisible ? 1 : 0,
-      seen: isExplored ? 1 : 0,
+      seen: 1,
       player: null,
       worked: null,
       extras: 0, // BitVector for extras

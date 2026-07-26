@@ -115,10 +115,10 @@ describe('GameBroadcastManager visibility sync', () => {
         expect.objectContaining({
           x: 0,
           y: 0,
-          terrain: undefined,
+          terrain: 'grassland',
           resource: undefined,
           known: 0,
-          seen: 0,
+          seen: 1,
         }),
         expect.objectContaining({
           x: 1,

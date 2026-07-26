@@ -388,7 +388,6 @@ export class GameManagementHandler extends BaseSocketHandler {
     // represented by the Freeciv-compatible known/seen packet flags.
     gameInstance.visibilityManager.updatePlayerVisibility(playerId);
     const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
-    const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
 
     socket.emit('packet', {
       type: PacketType.MAP_INFO,
@@ -408,17 +407,18 @@ export class GameManagementHandler extends BaseSocketHandler {
         if (!tile) continue;
         const tileKey = `${x},${y}`;
         const isVisible = visibleTiles.has(tileKey);
-        const isExplored = exploredTiles.has(tileKey);
         tiles.push({
           tile: x + y * mapData.width,
           x,
           y,
-          terrain: isExplored ? tile.terrain : undefined,
+          // The client renderer needs terrain on every coordinate to draw the
+          // map grid. Resources and entities stay restricted to current vision.
+          terrain: tile.terrain,
           resource: isVisible ? tile.resource : undefined,
-          elevation: isExplored ? tile.elevation || 0 : undefined,
-          riverMask: isExplored ? tile.riverMask || 0 : undefined,
+          elevation: tile.elevation || 0,
+          riverMask: tile.riverMask || 0,
           known: isVisible ? 1 : 0,
-          seen: isExplored ? 1 : 0,
+          seen: 1,
           player: null,
           worked: null,
           extras: 0,
