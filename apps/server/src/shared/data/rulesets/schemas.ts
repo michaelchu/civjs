@@ -314,8 +314,35 @@ export type TechnologyRuleset = z.infer<typeof TechnologyRulesetSchema>;
 export type TechsRulesetFile = z.infer<typeof TechsRulesetFileSchema>;
 
 // Government schemas
+// These are the requirement kinds with concrete handlers in EffectsManager.
+// Freeciv evaluates requirements by universal kind and rejects unsupported
+// kinds while loading rulesets.
+// @reference reference/freeciv/common/requirements.c:6495-6535
+export const GovernmentRequirementTypeSchema = z.enum([
+  'Activity',
+  'Age',
+  'Building',
+  'CityTile',
+  'Extra',
+  'Gov',
+  'Government',
+  'MaxUnitsOnTile',
+  'NationGroup',
+  'OutputType',
+  'Player',
+  'Specialist',
+  'Tech',
+  'Terrain',
+  'TerrainClass',
+  'UnitClass',
+  'UnitClassFlag',
+  'UnitType',
+  'UnitTypeFlag',
+  'tech',
+]);
+
 export const GovernmentRequirementSchema = z.object({
-  type: z.string(),
+  type: GovernmentRequirementTypeSchema,
   name: z.string(),
   range: z.string(),
 });
@@ -442,9 +469,63 @@ export const GameRulesetFileSchema = z.object({
 });
 
 // Effects system schemas
+// Runtime-supported CivJS effects plus the explicitly inert effect types
+// already present in the classic data. Freeciv resolves effect type names to
+// its enum and rejects unknown names during ruleset loading.
+// @reference reference/freeciv/gen_headers/enums/effects_enums.def:5-120
+// @reference reference/freeciv/server/ruleset/ruleload.c:6275-6282
+export const EffectTypeSchema = z.enum([
+  'Output_Waste',
+  'Output_Waste_By_Distance',
+  'Output_Waste_By_Rel_Distance',
+  'Output_Waste_Pct',
+  'Gov_Center',
+  'Make_Happy',
+  'Make_Content',
+  'Make_Content_Mil',
+  'Make_Content_Mil_Per',
+  'Force_Content',
+  'No_Unhappy',
+  'Martial_Law_By_Unit',
+  'Martial_Law_Max',
+  'City_Unhappy_Size',
+  'Revolution_Unhappiness',
+  'Upkeep_Free',
+  'Unit_Upkeep_Free_Per_City',
+  'Upkeep_Pct',
+  'Unhappy_Factor',
+  'Shield2Gold_Pct',
+  'Specialist_Output',
+  'Output_Bonus',
+  'Output_Bonus_2',
+  'Unit_Vision_Radius_Sq',
+  'Fortify_Defense_Bonus',
+  'Defend_Bonus',
+  'Growth_Food',
+  'Shrink_Food',
+  'Veteran_Build',
+  'HP_Regen',
+  'Performance',
+  'History',
+  'National_Performance',
+  'National_History',
+  'Culture_Pct',
+  'Border_Vision',
+  'Border_Strength_Pct',
+  'Any_Government',
+  'No_Anarchy',
+  'Has_Senate',
+  // Shipped but intentionally inert until their gameplay systems are ported.
+  'No_Diplomacy',
+  'Retire_Pct',
+  'Tech_Upkeep_Free',
+  'Min_HP_Pct',
+  'HP_Regen_2',
+]);
+
 export const EffectSchema = z.object({
   id: z.string(),
-  type: z.string(),
+  type: EffectTypeSchema,
   value: z.number(),
   reqs: z.array(EffectRequirementSchema).optional(),
   comment: z.string().optional(),

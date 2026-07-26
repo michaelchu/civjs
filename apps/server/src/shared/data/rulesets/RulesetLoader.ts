@@ -36,13 +36,11 @@ import {
   type NationRuleset,
   type TraitRange,
   type NationsCompatibility,
-  type Requirement,
   CitiesRulesetFileSchema,
   type CitiesRulesetFile,
   type CityStyle,
   type CityFoundingRules,
 } from './schemas';
-import { logger } from '@utils/logger';
 
 export class RulesetLoader {
   private static instance: RulesetLoader;
@@ -624,67 +622,162 @@ export class RulesetLoader {
   }
 
   /**
-   * Utility method to evaluate requirements against a context
-   * This is the core requirements system implementation
+   * Load every ruleset file and reject unresolved cross-file references.
+   * Freeciv resolves named universals while loading rulesets and treats an
+   * unknown rule name as a ruleset error.
+   * @reference reference/freeciv/server/ruleset/ruleload.c:6275-6282
    */
-  evaluateRequirements(
-    requirements: Requirement[],
-    context: {
-      player?: any;
-      city?: any;
-      unit?: any;
-      tile?: any;
-      [key: string]: any;
-    }
-  ): boolean {
-    if (!requirements || requirements.length === 0) {
-      return true; // No requirements means always satisfied
+  validateRuleset(rulesetName: string = 'classic'): void {
+    const terrains = this.loadTerrainRuleset(rulesetName).terrains;
+    const units = this.loadUnitsRuleset(rulesetName).units;
+    const buildings = this.loadBuildingsRuleset(rulesetName).buildings;
+    const techs = this.loadTechsRuleset(rulesetName).techs;
+    const governments = this.loadGovernmentsRuleset(rulesetName).governments;
+    const effects = this.loadEffectsRuleset(rulesetName).effects;
+
+    // Loading the remaining files here makes validateRuleset the single schema
+    // integrity entry point even though they do not contribute entity indexes.
+    this.loadGameRulesRuleset(rulesetName);
+    this.loadNationsRuleset(rulesetName);
+    this.loadCitiesRuleset(rulesetName);
+
+    const terrainNames = this.buildRuleNameIndex(terrains);
+    const unitNames = this.buildRuleNameIndex(units);
+    const buildingNames = this.buildRuleNameIndex(buildings);
+    const techNames = this.buildRuleNameIndex(techs);
+    const governmentNames = this.buildRuleNameIndex(governments.types);
+    const errors: string[] = [];
+
+    for (const [unitId, unit] of Object.entries(units)) {
+      // CivJS ships Fanatics as a compatibility extension, while classic
+      // explicitly omits Fundamentalism. Keep that one extension inert rather
+      // than inventing a technology or government during validation work.
+      // @reference reference/freeciv/data/classic/governments.ruleset:14-14
+      // @reference reference/freeciv/data/classic/units.ruleset:344-345
+      const isKnownFanaticsExtension =
+        unitId === 'fanatic' &&
+        unit.required_tech !== undefined &&
+        this.normalizeRuleName(unit.required_tech) === 'fundamentalism';
+      if (!isKnownFanaticsExtension) {
+        this.validateReference(
+          errors,
+          `Unit '${unitId}' required technology`,
+          unit.required_tech,
+          techNames
+        );
+      }
+      this.validateReference(
+        errors,
+        `Unit '${unitId}' required technology`,
+        unit.requiredTech,
+        techNames
+      );
+      this.validateReference(errors, `Unit '${unitId}' obsolete unit`, unit.obsolete_by, unitNames);
+      this.validateReference(
+        errors,
+        `Unit '${unitId}' conversion unit`,
+        unit.convert_to,
+        unitNames
+      );
     }
 
-    // All requirements must be satisfied (AND logic)
-    return requirements.every(req => this.evaluateRequirement(req, context));
+    for (const [buildingId, building] of Object.entries(buildings)) {
+      this.validateReference(
+        errors,
+        `Building '${buildingId}' required technology`,
+        building.requiredTech,
+        techNames
+      );
+      for (const prerequisite of building.requires ?? []) {
+        this.validateReference(
+          errors,
+          `Building '${buildingId}' prerequisite`,
+          prerequisite,
+          buildingNames
+        );
+      }
+    }
+
+    for (const [effectId, effect] of Object.entries(effects)) {
+      for (const requirement of effect.reqs ?? []) {
+        const namesByType: Partial<Record<string, Set<string>>> = {
+          Building: buildingNames,
+          Gov: governmentNames,
+          Government: governmentNames,
+          Tech: techNames,
+          Terrain: terrainNames,
+          UnitType: unitNames,
+        };
+        const validNames = namesByType[requirement.type];
+        if (validNames) {
+          this.validateReference(
+            errors,
+            `Effect '${effectId}' ${requirement.type} requirement`,
+            requirement.name,
+            validNames
+          );
+        }
+      }
+    }
+
+    this.validateReference(
+      errors,
+      'Government during_revolution',
+      governments.during_revolution,
+      governmentNames
+    );
+    for (const [governmentId, government] of Object.entries(governments.types)) {
+      this.validateReference(
+        errors,
+        `Government '${governmentId}' ai_better`,
+        government.ai_better,
+        governmentNames
+      );
+      for (const requirement of government.reqs ?? []) {
+        if (requirement.type === 'Tech' || requirement.type === 'tech') {
+          this.validateReference(
+            errors,
+            `Government '${governmentId}' technology requirement`,
+            requirement.name,
+            techNames
+          );
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new Error(`Ruleset '${rulesetName}' has invalid references:\n${errors.join('\n')}`);
+    }
   }
 
-  /**
-   * Evaluate a single requirement against a context
-   */
-  private evaluateRequirement(requirement: Requirement, context: any): boolean {
-    const { type, name, present = true } = requirement;
-    const satisfied = this.evaluateByType(type, name, context);
-    return present ? satisfied : !satisfied;
-  }
-
-  private evaluateByType(type: string, name: string, context: any): boolean {
-    const evaluators = this.getRequirementEvaluators();
-    const fn = evaluators[type];
-    if (!fn) {
-      // Use central logger instead of console to satisfy lint rules
-      logger.warn(`Unknown requirement type: ${type}`);
-      return false;
+  private buildRuleNameIndex(
+    entries: Record<
+      string,
+      { id?: string; name: string; internal_name?: string; rule_name?: string }
+    >
+  ): Set<string> {
+    const names = new Set<string>();
+    for (const [key, entry] of Object.entries(entries)) {
+      for (const name of [key, entry.id, entry.name, entry.internal_name, entry.rule_name]) {
+        if (name) names.add(this.normalizeRuleName(name));
+      }
     }
-    return fn(name, context);
+    return names;
   }
 
-  private getRequirementEvaluators(): Record<string, (name: string, context: any) => boolean> {
-    return {
-      Tech: (n, ctx) => ctx.player?.technologies?.includes(n) ?? false,
-      Government: (n, ctx) => ctx.player?.government === n,
-      Building: (n, ctx) => ctx.city?.buildings?.includes(n) ?? false,
-      UnitType: (n, ctx) => ctx.unit?.type === n,
-      UnitClass: (n, ctx) => ctx.unit?.unitClass === n,
-      Terrain: (n, ctx) => ctx.tile?.terrain === n,
-      TerrainClass: (_n, _ctx) => false, // Placeholder until class mapping exists
-      NationGroup: (n, ctx) => ctx.player?.nationGroups?.includes(n) ?? false,
-      Age: (n, ctx) => (ctx.unit?.age ?? 0) >= parseInt(n),
-      Activity: (n, ctx) => ctx.unit?.activity === n,
-      CityTile: (n, ctx) => (n === 'Center' ? (ctx.tile?.isCity ?? false) : false),
-      Extra: (n, ctx) => ctx.tile?.extras?.includes(n) ?? false,
-      UnitClassFlag: (n, ctx) => ctx.unit?.classFlags?.includes(n) ?? false,
-      UnitTypeFlag: (n, ctx) => ctx.unit?.typeFlags?.includes(n) ?? false,
-      Specialist: (n, ctx) => (ctx.city?.specialists?.[n] ?? 0) > 0,
-      OutputType: (_n, _ctx) => true, // Placeholder - context dependent
-      MaxUnitsOnTile: (n, ctx) => (ctx.tile?.unitCount ?? 0) <= parseInt(n),
-    };
+  private validateReference(
+    errors: string[],
+    label: string,
+    reference: string | undefined,
+    validNames: Set<string>
+  ): void {
+    if (reference && !validNames.has(this.normalizeRuleName(reference))) {
+      errors.push(`${label} '${reference}' does not exist`);
+    }
+  }
+
+  private normalizeRuleName(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
   /**
