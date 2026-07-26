@@ -4,12 +4,13 @@ import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('UnitManager', () => {
   let unitManager: UnitManager;
+  let mockDbProvider: ReturnType<typeof createMockDatabaseProvider>;
   const gameId = 'test-game-id';
   const mapWidth = 80;
   const mapHeight = 50;
 
   beforeEach(() => {
-    const mockDbProvider = createMockDatabaseProvider();
+    mockDbProvider = createMockDatabaseProvider();
     unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight);
     jest.clearAllMocks();
   });
@@ -32,6 +33,18 @@ describe('UnitManager', () => {
   });
 
   describe('unit creation', () => {
+    it('records the authoritative turn when creating a unit', async () => {
+      unitManager.setCurrentTurnProvider(() => 7);
+
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
+
+      expect(
+        ((mockDbProvider.getDatabase() as any).values as jest.Mock).mock.calls[0][0]
+      ).toMatchObject({
+        createdTurn: 7,
+      });
+    });
+
     it('should create a unit successfully', async () => {
       const unit = await unitManager.createUnit('player-123', 'warriors', 10, 10);
 

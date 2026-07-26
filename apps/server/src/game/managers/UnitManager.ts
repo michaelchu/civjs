@@ -99,6 +99,7 @@ export class UnitManager {
   private mapHeight: number;
   private mapManager: any; // MapManager instance for terrain access
   private actionSystem: ActionSystem;
+  private currentTurnProvider?: () => number;
   private gameManagerCallback?: {
     foundCity: (
       gameId: string,
@@ -162,6 +163,10 @@ export class UnitManager {
     this.actionSystem = new ActionSystem(gameId, gameManagerCallback);
   }
 
+  public setCurrentTurnProvider(provider: () => number): void {
+    this.currentTurnProvider = provider;
+  }
+
   /**
    * Create a new unit
    */
@@ -200,7 +205,8 @@ export class UnitManager {
         movementPoints: (unitType.movement * 3).toString(),
         maxMovementPoints: (unitType.movement * 3).toString(),
         veteranLevel: 0,
-        createdTurn: 1, // TODO: get current turn
+        // @reference reference/freeciv/server/unittools.c:1215-1280
+        createdTurn: this.currentTurnProvider?.() ?? 1,
       })
       .returning();
 

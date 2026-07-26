@@ -943,6 +943,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     );
     const playerIds = Array.from(players.keys());
     await tm.initializeTurn(playerIds);
+    // @reference reference/freeciv/server/unittools.c:1215-1280
+    unitManager.setCurrentTurnProvider(() => tm.getCurrentTurn());
     // @reference reference/freeciv/server/citytools.c:639-690
     cityManager.setCurrentTurnProvider(() => tm.getCurrentTurn());
 

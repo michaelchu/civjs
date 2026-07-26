@@ -317,6 +317,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       createTurnRecord: false,
       broadcastTurnStart: false,
     });
+    // @reference reference/freeciv/server/unittools.c:1215-1280
+    unitManager.setCurrentTurnProvider(() => turnManager.getCurrentTurn());
     // @reference reference/freeciv/server/citytools.c:639-690
     cityManager.setCurrentTurnProvider(() => turnManager.getCurrentTurn());
     // @reference reference/freeciv/server/techtools.c:665-719
