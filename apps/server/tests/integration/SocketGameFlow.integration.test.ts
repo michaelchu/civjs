@@ -145,7 +145,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
 
     const guest = connectClient();
     await waitForConnection(guest);
-    await authenticate(guest, `guest-${generateTestUUID().slice(0, 19)}`);
+    const guestUserId = await authenticate(guest, `guest-${generateTestUUID().slice(0, 19)}`);
     const mapPacket = waitForPacket(guest, PacketType.MAP_INFO);
     const joined = await emitWithAck<{ success: boolean; playerId: string }>(guest, 'join_game', {
       gameId,
@@ -220,7 +220,36 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     });
     expect((await productionReply).data).toMatchObject({ success: true });
 
-    for (let completedTurns = 0; completedTurns < 20; completedTurns += 1) {
+    const researchReply = waitForPacket(host, PacketType.RESEARCH_SET_REPLY);
+    host.emit('packet', { type: PacketType.RESEARCH_SET, data: { techId: 'pottery' } });
+    expect((await researchReply).data).toMatchObject({ success: true });
+    expect(gameManager.getPlayerResearch(gameId, hostPlayer!.id)?.currentTech).toBe('pottery');
+
+    const hostTurnReply = waitForPacket(host, PacketType.TURN_END_REPLY);
+    host.emit('packet', { type: PacketType.END_TURN, data: {} });
+    expect((await hostTurnReply).data).toMatchObject({ success: true, turnAdvanced: false });
+    const guestTurnReply = waitForPacket(guest, PacketType.TURN_END_REPLY);
+    guest.emit('packet', { type: PacketType.END_TURN, data: {} });
+    expect((await guestTurnReply).data).toMatchObject({ success: true, turnAdvanced: true });
+
+    const guestPlayer = Array.from(gameManager.getGameInstance(gameId)!.players.values()).find(
+      player => player.userId === guestUserId
+    );
+    const defenderId = await gameManager.createUnit(
+      gameId,
+      guestPlayer!.id,
+      'warriors',
+      moveTarget!.x + 1,
+      moveTarget!.y
+    );
+    const attackReply = waitForPacket(host, PacketType.UNIT_ATTACK_REPLY);
+    host.emit('packet', {
+      type: PacketType.UNIT_ATTACK,
+      data: { attackerUnitId: unitId, defenderUnitId: defenderId },
+    });
+    expect((await attackReply).data).toMatchObject({ success: true });
+
+    for (let completedTurns = 1; completedTurns < 20; completedTurns += 1) {
       const hostTurnReply = waitForPacket(host, PacketType.TURN_END_REPLY);
       host.emit('packet', { type: PacketType.END_TURN, data: {} });
       expect((await hostTurnReply).data).toMatchObject({ success: true, turnAdvanced: false });
