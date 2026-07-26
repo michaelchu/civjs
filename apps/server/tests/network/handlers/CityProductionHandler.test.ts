@@ -158,6 +158,25 @@ describe('CityProductionHandler', () => {
   });
 
   describe('changeProduction', () => {
+    it('delegates accepted production changes to the authoritative city manager', async () => {
+      const persistProduction = jest.fn().mockResolvedValue(true);
+      const authoritativeHandler = new CityProductionHandler(
+        mockCities,
+        mockPlayers,
+        mockResearchManager,
+        persistProduction
+      );
+
+      await authoritativeHandler.changeProduction(mockSocket, {
+        cityId: 'city-1',
+        playerId: 'player-1',
+        productionId: 'archers',
+        productionType: 'unit',
+      });
+
+      expect(persistProduction).toHaveBeenCalledWith('city-1', 'unit', 'archers', 'player-1');
+    });
+
     it('should successfully change production to a valid unit', async () => {
       await handler.changeProduction(mockSocket, {
         cityId: 'city-1',

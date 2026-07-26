@@ -26,7 +26,13 @@ export class CityProductionHandler {
   constructor(
     private cities: Map<string, any>,
     private players: Map<string, any>,
-    private researchManager: any
+    private researchManager: any,
+    private setCityProduction?: (
+      cityId: string,
+      productionType: 'unit' | 'building',
+      productionId: string,
+      playerId: string
+    ) => Promise<boolean>
   ) {}
 
   /**
@@ -155,16 +161,27 @@ export class CityProductionHandler {
       // Calculate production change penalty (shields lost when changing)
       const penalty = this.calculateProductionChangePenalty(city, productionId, productionType);
 
-      // Update city production
       const previousProduction = city.currentProduction;
       const previousType = city.productionType;
 
-      city.currentProduction = productionId;
-      city.productionType = productionType;
-
       // Apply penalty to shield stock
       if (penalty > 0) {
-        city.shieldStock = Math.max(0, (city.shieldStock || 0) - penalty);
+        city.productionStock = Math.max(
+          0,
+          (city.productionStock ?? city.shieldStock ?? 0) - penalty
+        );
+      }
+
+      if (productionType === 'wonder') {
+        socket.emit('error', { message: 'Wonders are not supported yet' });
+        return;
+      }
+
+      if (this.setCityProduction) {
+        await this.setCityProduction(cityId, productionType, productionId, playerId);
+      } else {
+        city.currentProduction = productionId;
+        city.productionType = productionType;
       }
 
       // Get production details for the response
@@ -175,22 +192,15 @@ export class CityProductionHandler {
       city.production = {
         target: productionDetails.name,
         type: productionType,
-        progress: city.shieldStock || 0,
+        progress: city.productionStock ?? city.shieldStock ?? 0,
         cost: productionDetails.cost,
         turnsToComplete,
       };
 
-      // Broadcast city update to all players who can see this city
-      // TODO: Implement proper city serialization for broadcasts
-      socket.broadcast.emit('city:updated', {
-        cityId,
-        city,
-      });
-
       socket.emit('city:productionChanged', {
         cityId,
         production: city.production,
-        shieldStock: city.shieldStock,
+        shieldStock: city.productionStock ?? city.shieldStock ?? 0,
         penalty,
         previousProduction,
         previousType,
@@ -304,7 +314,7 @@ export class CityProductionHandler {
 
     // In Freeciv, changing production typically loses 50% of accumulated shields
     // but there are exceptions for related units/buildings
-    const currentShields = city.shieldStock || 0;
+    const currentShields = city.productionStock ?? city.shieldStock ?? 0;
 
     // For now, apply standard 50% penalty
     // TODO: Implement more sophisticated penalty calculation based on production relationships
@@ -319,7 +329,10 @@ export class CityProductionHandler {
     // Priority: city.productionPerTurn > city.surplus.shields > default (1)
     // This fixes the discrepancy where server showed 40 turns and client showed 10 turns
     const shieldsPerTurn = Math.max(1, city.productionPerTurn || city.surplus?.shields || 1);
-    const remainingShields = Math.max(0, productionDetails.cost - (city.shieldStock || 0));
+    const remainingShields = Math.max(
+      0,
+      productionDetails.cost - (city.productionStock ?? city.shieldStock ?? 0)
+    );
     return Math.ceil(remainingShields / shieldsPerTurn);
   }
 

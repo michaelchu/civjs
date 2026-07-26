@@ -66,12 +66,21 @@ export class CityManagementHandler extends BaseSocketHandler {
       const productionHandler = new CityProductionHandler(
         game.cityManager.getCitiesMap(),
         game.players,
-        game.researchManager
+        game.researchManager,
+        game.cityManager.setCityProduction.bind(game.cityManager)
       );
+
+      const player = Array.from(game.players.values()).find(
+        (candidate: any) => candidate.userId === connection.userId
+      );
+      if (!player) {
+        socket.emit('error', { message: 'Player not found in game' });
+        return;
+      }
 
       await productionHandler.getAvailableProductions(socket, {
         cityId: data.cityId,
-        playerId: connection.userId!,
+        playerId: player.id,
       });
     });
 
@@ -93,12 +102,21 @@ export class CityManagementHandler extends BaseSocketHandler {
       const productionHandler = new CityProductionHandler(
         game.cityManager.getCitiesMap(),
         game.players,
-        game.researchManager
+        game.researchManager,
+        game.cityManager.setCityProduction.bind(game.cityManager)
       );
+
+      const player = Array.from(game.players.values()).find(
+        (candidate: any) => candidate.userId === connection.userId
+      );
+      if (!player) {
+        socket.emit('error', { message: 'Player not found in game' });
+        return;
+      }
 
       await productionHandler.changeProduction(socket, {
         cityId: data.cityId,
-        playerId: connection.userId!,
+        playerId: player.id,
         productionId: data.productionId,
         productionType: data.productionType,
       });
