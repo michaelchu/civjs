@@ -47,6 +47,7 @@ describe('City Population Growth Integration', () => {
     } as unknown as MapManager;
 
     cityManager = new CityManager(gameId, mockDbProvider, effectsManager);
+    cityManager.setPlayerGovernmentProvider(() => 'despotism');
     await cityManager.initialize();
     cityManager.setMapManager(mockMapManager);
 

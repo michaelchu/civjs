@@ -496,6 +496,52 @@ export class RulesetLoader {
   }
 
   /**
+   * Resolve `options.global_init_buildings` to canonical building ids.
+   *
+   * Freeciv parses this option into improvement ids while loading the ruleset
+   * and refuses to load when a configured rule name matches no improvement, so
+   * an unknown name is an error here rather than a silently skipped entry.
+   * @reference reference/freeciv/server/ruleset/ruleload.c:1005-1049 lookup_building_list()
+   * @reference reference/freeciv/server/ruleset/ruleload.c:6811-6816
+   * @reference reference/freeciv/data/classic/game.ruleset:60-62
+   */
+  getGlobalInitBuildings(rulesetName: string = 'classic'): string[] {
+    const configured = this.getGameOptions(rulesetName).global_init_buildings;
+    const ruleNames = configured
+      .split(',')
+      .map(entry =>
+        entry
+          .trim()
+          .replace(/^"(.*)"$/, '$1')
+          .trim()
+      )
+      .filter(entry => entry.length > 0);
+
+    if (ruleNames.length === 0) {
+      return [];
+    }
+
+    const buildings = this.getBuildings(rulesetName);
+    return ruleNames.map(ruleName => {
+      const normalized = this.normalizeRuleName(ruleName);
+      const match = Object.entries(buildings).find(
+        ([buildingId, building]) =>
+          this.normalizeRuleName(buildingId) === normalized ||
+          this.normalizeRuleName(building.id) === normalized ||
+          this.normalizeRuleName(building.name) === normalized
+      );
+
+      if (!match) {
+        throw new Error(
+          `Ruleset '${rulesetName}' options.global_init_buildings: couldn't match '${ruleName}'`
+        );
+      }
+
+      return match[1].id;
+    });
+  }
+
+  /**
    * Get capabilities from a ruleset
    */
   getCapabilities(rulesetName: string = 'classic'): string[] {
@@ -749,6 +795,12 @@ export class RulesetLoader {
           );
         }
       }
+    }
+
+    try {
+      this.getGlobalInitBuildings(rulesetName);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
     }
 
     if (errors.length > 0) {

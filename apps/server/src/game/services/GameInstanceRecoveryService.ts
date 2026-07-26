@@ -225,10 +225,13 @@ export class GameInstanceRecoveryService extends BaseGameService {
     cityManager.setPlayerBuildingsProvider(
       playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
     );
-    cityManager.setPlayerGovernmentProvider(
-      playerId =>
-        game.players.find((player: any) => player.id === playerId)?.government ?? 'despotism'
-    );
+    cityManager.setPlayerGovernmentProvider(playerId => {
+      const player = game.players.find((candidate: any) => candidate.id === playerId);
+      if (!player?.government) {
+        throw new Error(`No government found for player '${playerId}'`);
+      }
+      return player.government;
+    });
 
     const unitManager = new UnitManager(
       gameId,

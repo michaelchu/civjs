@@ -15,11 +15,11 @@ import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsMa
  * - Building selling/demolition
  */
 export class CityBuildingService extends BaseGameService {
-  private readonly effectsManager = new EffectsManager();
   constructor(
     private cities: Map<string, CityState>,
     _db: DatabaseProvider, // Marked as unused with underscore
-    private buildingTypes: typeof BUILDING_TYPES
+    private buildingTypes: typeof BUILDING_TYPES,
+    private readonly effectsManager: EffectsManager
   ) {
     super(logger);
   }

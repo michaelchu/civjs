@@ -76,12 +76,6 @@ export enum EffectType {
   HAS_SENATE = 'Has_Senate',
 }
 
-/**
- * Distance used when a player owns no reachable government center.
- * @reference reference/freeciv/common/city.c:3298-3299
- */
-const NO_GOV_CENTER_DISTANCE = 10;
-
 // Output types for effect calculations
 export enum OutputType {
   FOOD = 'food',
@@ -242,25 +236,30 @@ export class EffectsManager {
 
     // Base waste percentage
     const baseWaste = this.calculateEffect(EffectType.OUTPUT_WASTE, context);
-    let wasteLevel = (baseWaste.value * totalOutput) / 100;
+    let wasteLevel = baseWaste.value;
 
     // Distance-based waste (if government center exists)
     if (distanceToGovCenter !== undefined && distanceToGovCenter > 0) {
       const distanceWaste = this.calculateEffect(EffectType.OUTPUT_WASTE_BY_DISTANCE, context);
-      wasteLevel += (distanceWaste.value * distanceToGovCenter * totalOutput) / 10000;
+      wasteLevel += Math.floor((distanceWaste.value * distanceToGovCenter) / 100);
 
       // Relative distance waste (scales with map size)
       // const relDistanceWaste = this.calculateEffect(EffectType.OUTPUT_WASTE_BY_REL_DISTANCE, context);
       // TODO: Implement relative distance calculation when map size data available
     }
 
+    // Convert the percentage to an integer penalty before applying reductions.
+    // Freeciv performs integer division at both stages.
+    // @reference reference/freeciv/common/city.c:3321-3327 city_waste()
+    let penaltyWaste = Math.floor((totalOutput * wasteLevel) / 100);
+
     // Apply waste reduction effects
     const wasteReduction = this.calculateEffect(EffectType.OUTPUT_WASTE_PCT, context);
     if (wasteReduction.value > 0) {
-      wasteLevel = (wasteLevel * wasteReduction.value) / 100;
+      penaltyWaste -= Math.floor((penaltyWaste * wasteReduction.value) / 100);
     }
 
-    return Math.min(Math.max(Math.floor(wasteLevel), 0), totalOutput);
+    return Math.min(Math.max(penaltyWaste, 0), totalOutput);
   }
 
   /**
@@ -702,16 +701,15 @@ export class EffectsManager {
   /**
    * Calculate distance to nearest government center for corruption calculation
    *
-   * Freeciv wastes the whole output when a player owns no government center at
-   * all. CivJS does not grant a Palace yet, so an unreachable government center
-   * keeps this lenient stand-in distance instead of zeroing every city's trade.
+   * A null result means the player owns no government center. The caller must
+   * then apply Freeciv's waste-all rule when distance waste is active.
    * @reference reference/freeciv/common/city.c:2287-2314 nearest_gov_center()
    * @reference reference/freeciv/common/city.c:3296-3299 city_waste()
    */
   public calculateDistanceToGovCenter(
     cityContext: EffectContext,
     playerCities?: Array<{ id: string; x: number; y: number; buildings?: Set<string> }>
-  ): number {
+  ): number | null {
     // Check the special case that the city itself is a government center
     // before iterating over the owner's cities.
     // @reference reference/freeciv/common/city.c:2294-2299
@@ -720,7 +718,7 @@ export class EffectsManager {
     }
 
     if (!playerCities || cityContext.tileX === undefined || cityContext.tileY === undefined) {
-      return NO_GOV_CENTER_DISTANCE;
+      return null;
     }
 
     let nearestDistance = Number.MAX_SAFE_INTEGER;
@@ -754,7 +752,7 @@ export class EffectsManager {
       }
     }
 
-    return nearestDistance === Number.MAX_SAFE_INTEGER ? NO_GOV_CENTER_DISTANCE : nearestDistance;
+    return nearestDistance === Number.MAX_SAFE_INTEGER ? null : nearestDistance;
   }
 
   /**
@@ -765,13 +763,24 @@ export class EffectsManager {
     cityContext: EffectContext,
     tradeOutput: number,
     playerCities?: Array<{ id: string; x: number; y: number; buildings?: Set<string> }>
-  ): { corruption: number; distanceToGovCenter: number } {
+  ): { corruption: number; distanceToGovCenter: number | null } {
     const distanceToGovCenter = this.calculateDistanceToGovCenter(cityContext, playerCities);
+    const tradeContext = { ...cityContext, outputType: OutputType.TRADE };
+    const hasDistanceWaste =
+      this.calculateEffect(EffectType.OUTPUT_WASTE_BY_DISTANCE, tradeContext).value > 0 ||
+      this.calculateEffect(EffectType.OUTPUT_WASTE_BY_REL_DISTANCE, tradeContext).value > 0;
+    // Freeciv wastes all eligible output when distance corruption is active but
+    // the player owns no government center.
+    // @reference reference/freeciv/common/city.c:3292-3302 city_waste()
+    if (distanceToGovCenter === null && hasDistanceWaste) {
+      return { corruption: tradeOutput, distanceToGovCenter };
+    }
+
     const corruption = this.calculateWaste(
       cityContext,
       OutputType.TRADE,
       tradeOutput,
-      distanceToGovCenter
+      distanceToGovCenter ?? undefined
     );
 
     return {

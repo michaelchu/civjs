@@ -97,8 +97,8 @@ describe('city corruption from loaded effects', () => {
     );
 
     expect(distance).toBe(0);
-    // Republic base waste 15% of 20 = 3, halved by the palace's Output_Waste_Pct.
-    expect(tradeFor(effectsManager, capital, context)).toBe(19);
+    // Republic base waste is 3; Palace removes floor(3 * 50 / 100) = 1.
+    expect(tradeFor(effectsManager, capital, context)).toBe(18);
   });
 
   it('measures distance from zero coordinates instead of treating them as missing', () => {
@@ -179,21 +179,27 @@ describe('city corruption from loaded effects', () => {
     );
 
     expect(courthouseTrade).toBeGreaterThan(plainTrade);
-    // Courthouse halves the 5 point waste to 2 (floored).
-    expect(courthouseTrade).toBe(18);
+    // Courthouse removes floor(5 * 50 / 100) = 2 from the 5 point waste.
+    expect(courthouseTrade).toBe(17);
   });
 
-  it('applies corruption exactly once per output calculation', () => {
-    const capital = createCity({ id: 'capital', x: 0, y: 0, buildings: ['palace'] });
-    const colony = createCity({ id: 'colony', x: 5, y: 0 });
-    const context = createPlayerContext('republic', [capital, colony]);
-    const service = new CityCalculationService(effectsManager);
+  it('wastes all trade when distance waste is active without a government center', () => {
+    // @reference reference/freeciv/common/city.c:3292-3302
+    const city = createCity({ id: 'orphan', x: 5, y: 0 });
+    const result = effectsManager.calculateCityCorruption(
+      {
+        playerId: city.playerId,
+        cityId: city.id,
+        tileX: city.x,
+        tileY: city.y,
+        government: 'republic',
+        cityBuildings: new Set(),
+      },
+      20,
+      [{ id: city.id, x: city.x, y: city.y, buildings: new Set() }]
+    );
 
-    const first = service.calculateCityOutputs(colony, CITY_TILE_OUTPUTS, undefined, context);
-    const second = service.calculateCityOutputs(colony, CITY_TILE_OUTPUTS, undefined, context);
-
-    expect(second.trade).toBe(first.trade);
-    expect(second.trade).toBe(15);
+    expect(result).toEqual({ corruption: 20, distanceToGovCenter: null });
   });
 
   it('changes trade when the loaded corruption effect value changes', () => {

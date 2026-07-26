@@ -33,6 +33,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
     // Initialize CityManager with test database provider
     const testDbProvider = getTestDatabaseProvider();
     cityManager = new CityManager(testData.game.id, testDbProvider, effectsManager, {});
+    cityManager.setPlayerGovernmentProvider(() => 'despotism');
 
     // Set up a mock MapManager and initialize the CityManager
     const mockMapManager = {
@@ -173,6 +174,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
       const testDbProvider = getTestDatabaseProvider();
       effectsManager = new EffectsManager();
       cityManager = new CityManager(scenario.game.id, testDbProvider, effectsManager, {});
+      cityManager.setPlayerGovernmentProvider(() => 'despotism');
 
       // Load cities from database
       await cityManager.loadCities();
@@ -234,6 +236,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
       const testDbProvider = getTestDatabaseProvider();
       effectsManager = new EffectsManager();
       cityManager = new CityManager(scenario.game.id, testDbProvider, effectsManager, {});
+      cityManager.setPlayerGovernmentProvider(() => 'despotism');
       await cityManager.loadCities();
 
       const cityId = scenario.cities[0].id;
@@ -294,6 +297,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
         newEffectsManager,
         {}
       );
+      newCityManager.setPlayerGovernmentProvider(() => 'despotism');
 
       // Load cities from database
       await newCityManager.loadCities();

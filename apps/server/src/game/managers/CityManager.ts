@@ -6,6 +6,7 @@ import { cities } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { EffectsManager } from '@game/managers/EffectsManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
 import {
@@ -316,6 +317,11 @@ export class CityManager {
   private io?: SocketServer; // Socket.IO server for emitting events
   private validationService?: CityFoundingValidationService;
   private currentTurnProvider?: () => number;
+  /**
+   * Players that have ever owned a city, mirroring freeciv's PLRF_FIRST_CITY.
+   * @reference reference/freeciv/common/fc_types.h:501-503
+   */
+  private playersWithFirstCity: Set<string> = new Set();
 
   // Specialized services
   private managementService?: CityManagementService;
@@ -332,7 +338,7 @@ export class CityManager {
   private effectsManager: EffectsManager;
   private calculationService: CityCalculationService;
   private happinessService: CityHappinessService;
-  private playerGovernmentProvider: (playerId: string) => string = () => 'despotism';
+  private playerGovernmentProvider?: (playerId: string) => string;
   private playerTechsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private playerBuildingsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private optimizationService?: CityOptimizationService;
@@ -380,6 +386,17 @@ export class CityManager {
     this.happinessService.setPlayerGovernmentProvider(provider);
   }
 
+  private getPlayerGovernment(playerId: string): string {
+    if (!this.playerGovernmentProvider) {
+      throw new Error(`No government provider configured for player '${playerId}'`);
+    }
+    const government = this.playerGovernmentProvider(playerId);
+    if (!government) {
+      throw new Error(`No government found for player '${playerId}'`);
+    }
+    return government;
+  }
+
   /**
    * Initialize the CityManager and its services
    */
@@ -388,7 +405,8 @@ export class CityManager {
     this.buildingService = new CityBuildingService(
       this.cities,
       this.databaseProvider,
-      BUILDING_TYPES
+      BUILDING_TYPES,
+      this.effectsManager
     );
 
     this.tradeRouteService = new CityTradeRouteService(this.cities);
@@ -619,6 +637,14 @@ export class CityManager {
       defenseStrength: 1,
     };
 
+    // Free initial buildings for the player's very first city. Freeciv checks
+    // this before the city joins the owner's city list.
+    // @reference reference/freeciv/server/citytools.c:1559-1564 create_city()
+    if (!this.playersWithFirstCity.has(playerId)) {
+      this.buildFreeBuildings(city);
+      this.playersWithFirstCity.add(playerId);
+    }
+
     this.cities.set(cityId, city);
 
     // Initialize workable tiles using the service
@@ -663,6 +689,30 @@ export class CityManager {
     });
 
     return city;
+  }
+
+  /**
+   * Give a player's first city the ruleset's free initial buildings.
+   *
+   * Freeciv also re-grants buildings flagged SaveSmallWonder to a later "first"
+   * city when the `savepalace` server setting is on; neither the improvement
+   * flag nor the setting is modelled here, so only the never-had-a-city branch
+   * is implemented.
+   * @reference reference/freeciv/server/citytools.c:1435-1479 city_build_free_buildings()
+   */
+  private buildFreeBuildings(city: CityState): void {
+    for (const buildingId of rulesetLoader.getGlobalInitBuildings()) {
+      if (city.buildings.includes(buildingId)) {
+        continue;
+      }
+
+      city.buildings.push(buildingId);
+      logger.info('Granted free initial building', {
+        cityId: city.id,
+        playerId: city.playerId,
+        buildingId,
+      });
+    }
   }
 
   // === PRODUCTION METHODS ===
@@ -867,6 +917,10 @@ export class CityManager {
         };
 
         this.cities.set(city.id, city);
+        // A recovered owner has already had a city, so later foundings must not
+        // hand out the ruleset's free initial buildings again.
+        // @reference reference/freeciv/server/savegame/savegame2.c:3675-3678
+        this.playersWithFirstCity.add(city.playerId);
 
         // Initialize workable tiles for loaded cities
         this.initializeWorkableTilesForLoadedCity(
@@ -1080,7 +1134,7 @@ export class CityManager {
       undefined, // Let the service get tile outputs from tileManagementService
       this.tileManagementService,
       {
-        government: this.playerGovernmentProvider(city.playerId),
+        government: this.getPlayerGovernment(city.playerId),
         playerTechs: this.playerTechsProvider(city.playerId),
         playerBuildings: this.playerBuildingsProvider(city.playerId),
         playerCities: this.getPlayerCities(city.playerId),

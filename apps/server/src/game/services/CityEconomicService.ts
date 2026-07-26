@@ -91,8 +91,10 @@ export interface CityEconomicBreakdown extends CityEconomicOutput {
  * CityEconomicService handles city-level economic calculations
  */
 export class CityEconomicService extends BaseGameService {
-  private readonly effectsManager = new EffectsManager();
-  constructor(_gameId: string) {
+  constructor(
+    _gameId: string,
+    private readonly effectsManager: EffectsManager
+  ) {
     super(logger);
     // gameId stored for future use if needed
   }

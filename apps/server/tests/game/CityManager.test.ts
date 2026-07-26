@@ -65,6 +65,7 @@ describe('CityManager', () => {
     } as any;
 
     cityManager = new CityManager(gameId, mockDbProvider, effectsManager);
+    cityManager.setPlayerGovernmentProvider(() => 'despotism');
 
     // Set the MapManager dependency before initialization
     cityManager.setMapManager(mockMapManager);
@@ -126,7 +127,7 @@ describe('CityManager', () => {
       expect(city!.x).toBe(10);
       expect(city!.y).toBe(10);
       expect(city!.playerId).toBe('player-123');
-      expect(city!.buildings).toEqual([]);
+      expect(city!.buildings).toEqual(['palace']);
       expect(city!.specialists[SpecialistType.SCIENTIST]).toBe(0);
       expect(city!.specialists[SpecialistType.ENTERTAINER]).toBe(0);
     });
