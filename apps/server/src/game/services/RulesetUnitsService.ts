@@ -67,8 +67,11 @@ export class RulesetUnitsService {
     const mappedUnits: Record<string, UnitType> = {};
 
     for (const [unitId, unit] of Object.entries(ruleset.units)) {
-      const unitClassFlags = ruleset.unit_classes[unit.unit_class]?.flags ?? [];
-      mappedUnits[unitId] = this.mapRulesetUnit(unit, unitClassFlags);
+      const unitClass = ruleset.unit_classes[unit.unit_class];
+      if (!unitClass) {
+        throw new Error(`Unit '${unitId}' references missing unit class '${unit.unit_class}'`);
+      }
+      mappedUnits[unitId] = this.mapRulesetUnit(unit, unitClass.flags);
     }
 
     this.cache.set(rulesetName, mappedUnits);
@@ -85,10 +88,13 @@ export class RulesetUnitsService {
 
   /**
    * Classify movement from the unit's loaded ruleset class.
-   * Freeciv stores movement type on the unit class and reads it through the
-   * unit type; CivJS keeps the current land/sea/air movement surface explicit.
-   * @reference reference/freeciv/common/unittype.c:1574-1580
+   * Freeciv derives a class movement type from native terrain and extras, but
+   * its movement enum is Land/Sea/Both; it has no distinct Air movement type.
+   * This is an intentional CivJS compatibility adapter from the six classic
+   * class IDs to the server's existing land/sea/air movement surface.
+   * @reference reference/freeciv/common/unittype.h:131-139
    * @reference reference/freeciv/common/unittype.c:2953-2991
+   * @reference reference/freeciv/data/classic/units.ruleset:143-188
    */
   getMovementType(unitId: string, rulesetName: string = 'classic'): UnitMovementType | undefined {
     const unitClass = this.getUnitType(unitId, rulesetName)?.rulesetUnitClass;

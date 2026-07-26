@@ -91,6 +91,18 @@ describe('RulesetLoader validation', () => {
     );
   });
 
+  it('rejects a unit class reference that does not resolve', () => {
+    const units = readRuleset<{
+      units: Record<string, { unit_class: string }>;
+    }>('units.json');
+    units.units.warriors.unit_class = 'Nuclear';
+    writeRuleset('units.json', units);
+
+    expect(() => new RulesetLoader(baseDir).validateRuleset()).toThrow(
+      "Unit 'warriors' unit class 'Nuclear' does not exist"
+    );
+  });
+
   it('rejects a building prerequisite that does not resolve', () => {
     const buildings = readRuleset<{
       buildings: Record<string, { requires?: string[] }>;

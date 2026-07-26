@@ -53,6 +53,16 @@ describe('RulesetUnitsService', () => {
     expect(service.getUnitType('warriors')?.rulesetUnitClassFlags).toEqual(['InjectedFlag']);
   });
 
+  it('rejects an injected ruleset whose unit class is missing from the catalogue', () => {
+    const unitsRuleset = structuredClone(rulesetLoader.loadUnitsRuleset());
+    delete unitsRuleset.unit_classes.Land;
+    const service = new RulesetUnitsService({ loadUnitsRuleset: () => unitsRuleset });
+
+    expect(() => service.getUnitType('warriors')).toThrow(
+      "Unit 'settlers' references missing unit class 'Land'"
+    );
+  });
+
   it('classifies movement from each loaded unit class and rejects unknown IDs', () => {
     expect(rulesetUnitsService.getMovementType('warriors')).toBe('land');
     expect(rulesetUnitsService.getMovementType('trireme')).toBe('sea');

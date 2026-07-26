@@ -629,7 +629,9 @@ export class RulesetLoader {
    */
   validateRuleset(rulesetName: string = 'classic'): void {
     const terrains = this.loadTerrainRuleset(rulesetName).terrains;
-    const units = this.loadUnitsRuleset(rulesetName).units;
+    const unitsRuleset = this.loadUnitsRuleset(rulesetName);
+    const units = unitsRuleset.units;
+    const unitClasses = unitsRuleset.unit_classes;
     const buildings = this.loadBuildingsRuleset(rulesetName).buildings;
     const techs = this.loadTechsRuleset(rulesetName).techs;
     const governments = this.loadGovernmentsRuleset(rulesetName).governments;
@@ -649,6 +651,10 @@ export class RulesetLoader {
     const errors: string[] = [];
 
     for (const [unitId, unit] of Object.entries(units)) {
+      if (!(unit.unit_class in unitClasses)) {
+        errors.push(`Unit '${unitId}' unit class '${unit.unit_class}' does not exist`);
+      }
+
       // CivJS ships Fanatics as a compatibility extension, while classic
       // explicitly omits Fundamentalism. Keep that one extension inert rather
       // than inventing a technology or government during validation work.

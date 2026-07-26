@@ -90,7 +90,7 @@ export function getTerrainMovementCost(
 
     case MovementType.AIR:
       // Unit classes without TerrainSpeed use one movement point.
-      // @reference reference/freeciv/common/movement.c:110-113
+      // @reference reference/freeciv/common/map.c:924-926
       return SINGLE_MOVE;
 
     default:
