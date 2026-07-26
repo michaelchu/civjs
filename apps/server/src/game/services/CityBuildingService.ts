@@ -2,6 +2,7 @@ import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import type { CityState, BuildingType, BUILDING_TYPES } from '@game/managers/CityManager';
 import { DatabaseProvider } from '@database';
+import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsManager';
 
 /**
  * CityBuildingService - Manages city buildings and their effects
@@ -14,6 +15,7 @@ import { DatabaseProvider } from '@database';
  * - Building selling/demolition
  */
 export class CityBuildingService extends BaseGameService {
+  private readonly effectsManager = new EffectsManager();
   constructor(
     private cities: Map<string, CityState>,
     _db: DatabaseProvider, // Marked as unused with underscore
@@ -109,18 +111,27 @@ export class CityBuildingService extends BaseGameService {
     // Apply building bonuses (using available effect properties)
     let foodBonus = 0;
     let productionBonus = 0; // Use productionBonus instead of shieldBonus
-    let scienceBonus = 0;
-    let goldBonus = 0;
-
     for (const buildingId of city.buildings) {
       const building = this.buildingTypes[buildingId];
       if (building) {
         if (building.effects.foodBonus) foodBonus += building.effects.foodBonus;
         if (building.effects.productionBonus) productionBonus += building.effects.productionBonus;
-        if (building.effects.scienceBonus) scienceBonus += building.effects.scienceBonus;
-        if (building.effects.goldBonus) goldBonus += building.effects.goldBonus;
       }
     }
+
+    const effectContext = {
+      playerId: city.playerId,
+      cityId: city.id,
+      cityBuildings: new Set(city.buildings),
+    };
+    const scienceBonus = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, {
+      ...effectContext,
+      outputType: OutputType.SCIENCE,
+    }).value;
+    const goldBonus = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, {
+      ...effectContext,
+      outputType: OutputType.GOLD,
+    }).value;
 
     // Apply bonuses
     const tradeAfterBonus = trade; // No trade bonus property available yet
