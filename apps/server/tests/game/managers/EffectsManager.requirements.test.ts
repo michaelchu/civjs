@@ -81,6 +81,15 @@ describe('EffectsManager classic requirement evaluation', () => {
     ).toBe(1);
   });
 
+  it('accepts the lowercase technology requirement spelling used by governments', () => {
+    const effects = new EffectsManager();
+    expect(
+      effects.evaluateRequirements([{ type: 'tech', name: 'Monarchy', range: 'Player' }], {
+        playerTechs: new Set(['monarchy']),
+      }).satisfied
+    ).toBe(true);
+  });
+
   it('fails closed for unsupported requirements', () => {
     const effects = new EffectsManager();
     mockedRulesetLoader.getEffects.mockReturnValueOnce({

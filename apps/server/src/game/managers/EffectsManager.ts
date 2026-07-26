@@ -520,6 +520,9 @@ export class EffectsManager {
     this.requirementHandlers['Tech'] = (req, context) => {
       return this.requirementResult('Tech', req, this.setContains(context.playerTechs, req.name));
     };
+    // Government ruleset requirements use the lowercase spelling.
+    // @reference reference/freeciv/data/classic/governments.ruleset
+    this.requirementHandlers['tech'] = this.requirementHandlers['Tech'];
 
     this.requirementHandlers['Player'] = (req, context) =>
       this.requirementResult('Player', req, this.matches(context.playerId, req.name));
