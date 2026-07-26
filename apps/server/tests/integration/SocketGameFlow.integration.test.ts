@@ -269,6 +269,16 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     expect(gameManager.getPlayerResearch(gameId, hostPlayer!.id)?.researchedTechs).toContain(
       'pottery'
     );
+    gameManager.updatePlayerVisibility(gameId, hostPlayer!.id);
+    expect(
+      gameManager.getTileVisibility(gameId, hostPlayer!.id, moveTarget!.x, moveTarget!.y)
+    ).toMatchObject({
+      isVisible: true,
+      isExplored: true,
+    });
+    expect(gameManager.getGameInstance(gameId)?.borderManager.getAllTileOwnership()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ x: 8, y: 8, playerId: hostPlayer!.id })])
+    );
 
     host.disconnect();
     const returning = connectClient();
