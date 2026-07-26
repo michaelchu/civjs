@@ -1,6 +1,7 @@
 # CivJS Porting Inventory
 
-**Audit baseline:** `2a01dcca` (2026-07-25)
+**Audit baseline:** `2a01dcca` (2026-07-25); Milestone 1 evidence updated
+2026-07-26.
 **Purpose:** the evidence record for Milestone 0 in [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md). It distinguishes implemented transport/data from unported or unverified upstream behavior.
 
 ## Classic ruleset inventory
@@ -87,20 +88,27 @@ Do not renumber existing packets in place. Migrate one feature family at a time 
 4. Migrate the client to the structured path, remove the compatibility adapter only after the packet inventory marks it unused, and update the Freeciv mapping.
 5. Use a protocol-version field before adopting upstream numeric IDs broadly; packet numbers alone are not sufficient evidence of semantic compatibility.
 
-## Milestone 0 transport smoke test
+## Transport smoke-test coverage
 
 `tests/integration/SocketGameFlow.integration.test.ts` starts a real in-process
 Socket.IO server and two Socket.IO clients. It verifies connection,
-authentication, game creation, join/nation selection, map delivery, 20 complete
-turns, and disconnect/reconnect of the same persisted player. It uses the
-isolated `TEST_DATABASE_URL` database and is part of `npm run
-test:integration`.
+authentication, game creation, join/nation selection, map delivery, movement,
+combat, city founding, production, research, and 20 complete turns. It then
+clears in-memory games to simulate a server restart, recovers persistent state
+from the isolated `TEST_DATABASE_URL` database, reconnects the host, and
+completes another two-player turn with the recovered city present. It is part
+of `npm run test:integration`.
 
 ## Prioritized next slices
 
-1. **Packet contract foundation:** inventory all active packet-envelope registrations and named events, then choose one family for migration.
-2. **City production:** make its declared structured packet path authoritative and test it against Freeciv `PACKET_CITY_CHANGE` semantics before removing the named-event path.
-3. **Classic actions ruleset:** inventory `actions.ruleset` against `ActionSystem` and identify the first missing ruleset-driven action.
+1. **Generic requirements and effects:** establish a validated representation
+   for classic requirements and evaluate it in the player, city, unit, tile,
+   technology, government, and action contexts used by the playable loop.
+2. **Ruleset-driven values:** replace duplicated unit, building, technology,
+   and effect constants with loaded classic ruleset data, backed by fixture
+   parity tests.
+3. **Classic actions ruleset:** inventory `actions.ruleset` against
+   `ActionSystem` and identify the first missing ruleset-driven action.
 4. **Client-browser smoke test:** add an automated browser layer over the
    Socket.IO smoke path once a browser test runner is selected.
 
@@ -116,8 +124,9 @@ The local ruleset has no `actions.json`; Freeciv’s action definitions remain i
 manager/database path, including two-player creation, nation assignment,
 start, map/visibility access, city founding, unit creation, research, turn
 advancement, and rejoin. `SocketGameFlow.integration.test.ts` verifies the
-same baseline through the network transport. Both require `TEST_DATABASE_URL`
-to point to an isolated PostgreSQL database.
+same baseline through the network transport, including restart recovery and a
+continued turn. Both require `TEST_DATABASE_URL` to point to an isolated
+PostgreSQL database.
 
 ## Update rule
 

@@ -56,7 +56,7 @@ the manager/database and real Socket.IO flows respectively; and
 `.github/pull_request_template.md` makes source and impact evidence a required
 review item for new porting changes.
 
-### Milestone 1 — Core playable loop
+### Milestone 1 — Core playable loop — complete (2026-07-26)
 
 **Outcome:** a player can start a game and play several turns without manual database repair.
 
@@ -68,6 +68,14 @@ review item for new porting changes.
 **Primary references:** `server/gamehand.c`, `server/unittools.c`, `server/cityturn.c`, `common/unit.c`, `common/city.c`, and freeciv-web `game.js`, `unit.js`, and `city.js`.
 
 **Exit criteria:** a two-player classic game can be created, played for 20 turns, reconnected, and continued with deterministic server state.
+
+**Completion evidence:**
+`apps/server/tests/integration/SocketGameFlow.integration.test.ts` exercises
+the two-player flow through Socket.IO: nation selection, map delivery,
+movement, combat, city founding, production, research, 20 turn completions,
+server-memory recovery from PostgreSQL, reconnect, and one further completed
+turn with the recovered city intact. Player-specific map, unit, city, and
+border broadcasts are also covered by the server and client test suites.
 
 ### Milestone 2 — Ruleset and effects fidelity
 
