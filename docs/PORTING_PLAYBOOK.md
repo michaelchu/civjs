@@ -81,6 +81,13 @@ border broadcasts are also covered by the server and client test suites.
 
 **Outcome:** classic ruleset data drives gameplay instead of TypeScript-specific approximations.
 
+**Progress (2026-07-26):** effect requirement activation now evaluates the
+classic requirement kinds present in `effects.json` from an explicit gameplay
+context, including government, technology, buildings, unit/tile properties,
+specialists, and nation groups. Unsupported or incomplete context fails closed.
+Fixture tests cover terrain/unit, city-tile/flag, and normalized building-ID
+conditions. Wiring those contexts into every authoritative action remains open.
+
 - Finish ruleset loading and validation for all classic entities and effects used by the playable loop.
 - Implement requirement evaluation in every relevant context: player, city, unit, tile, technology, government, and action.
 - Build fixture-based parity tests for representative units, buildings, technologies, and effects.

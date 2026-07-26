@@ -18,7 +18,7 @@
 | `terrain.json`     | `data/classic/terrain.ruleset`                   | Present.                                                                                                      |
 | `units.json`       | `data/classic/units.ruleset`                     | Present.                                                                                                      |
 | extras             | `data/classic/terrain.ruleset`                   | No standalone CivJS extras data file; terrain-derived extras and worker integration remain partial.           |
-| requirements       | requirement clauses in the classic ruleset files | Parsed only where individual CivJS schemas support them; there is no complete generic requirements-data port. |
+| requirements       | requirement clauses in the classic ruleset files | Effect requirement evaluation covers the requirement kinds currently present in `effects.json` and fails closed for unsupported or context-free clauses. Action and entity requirement loading remains partial. |
 | —                  | `data/classic/actions.ruleset`                   | No equivalent JSON data file identified; action coverage requires an explicit audit.                          |
 | —                  | `data/classic/styles.ruleset`                    | No equivalent JSON data file identified; client style/rendering coverage requires an explicit audit.          |
 

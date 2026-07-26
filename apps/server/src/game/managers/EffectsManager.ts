@@ -50,6 +50,8 @@ export enum EffectType {
   SPECIALIST_OUTPUT = 'Specialist_Output',
   OUTPUT_BONUS = 'Output_Bonus',
   OUTPUT_BONUS_2 = 'Output_Bonus_2',
+  UNIT_VISION_RADIUS_SQ = 'Unit_Vision_Radius_Sq',
+  FORTIFY_DEFENSE_BONUS = 'Fortify_Defense_Bonus',
 
   // Culture system effects (freeciv culture.c and effects_enums.def)
   PERFORMANCE = 'Performance', // EFT_PERFORMANCE (123) - Immediate culture boost
@@ -90,6 +92,17 @@ export interface EffectContext {
   outputType?: OutputType;
   specialist?: string;
   unitType?: string;
+  unitClass?: string;
+  unitClassFlags?: Set<string>;
+  unitTypeFlags?: Set<string>;
+  unitActivity?: string;
+  tileTerrain?: string;
+  tileTerrainClass?: string;
+  tileExtras?: Set<string>;
+  tileIsCityCenter?: boolean;
+  maxUnitsOnTile?: number;
+  playerNationGroups?: Set<string>;
+  age?: number;
   playerTechs?: Set<string>; // Player's researched technologies
   cityBuildings?: Set<string>; // Buildings in the city
 }
@@ -479,87 +492,127 @@ export class EffectsManager {
   }
 
   private initRequirementHandlers(): void {
-    const presentCheck = (actual: boolean, expectedPresent: boolean | undefined) =>
-      actual === (expectedPresent !== false);
-
+    // @reference reference/freeciv/common/requirements.c:6495-6535
+    // Freeciv evaluates every requirement against the supplied context. Missing
+    // context is not permission to apply an effect, so unsupported requirements
+    // must fail closed rather than silently granting their effects.
     this.requirementHandlers['Gov'] = (req, context) =>
-      presentCheck(context.government === req.name, req.present)
-        ? { satisfied: true }
-        : { satisfied: false, reason: `Government requirement not met: ${req.name}` };
+      this.requirementResult('Government', req, this.matches(context.government, req.name));
 
     this.requirementHandlers['Government'] = this.requirementHandlers['Gov'];
 
     this.requirementHandlers['OutputType'] = (req, context) =>
-      presentCheck(context.outputType === req.name, req.present)
-        ? { satisfied: true }
-        : { satisfied: false, reason: `OutputType requirement not met: ${req.name}` };
+      this.requirementResult('OutputType', req, this.matches(context.outputType, req.name));
 
     this.requirementHandlers['UnitType'] = (req, context) =>
-      presentCheck(context.unitType === req.name, req.present)
-        ? { satisfied: true }
-        : { satisfied: false, reason: `UnitType requirement not met: ${req.name}` };
+      this.requirementResult('UnitType', req, this.matches(context.unitType, req.name));
 
     // Building requirement handler
     this.requirementHandlers['Building'] = (req, context) => {
-      if (!context.cityBuildings) {
-        // If no building context provided, assume requirement is not met
-        return {
-          satisfied: req.present === false, // Only satisfied if requirement is "NOT present"
-          reason:
-            req.present !== false
-              ? `Building requirement cannot be evaluated: ${req.name}`
-              : undefined,
-        };
-      }
-
-      const hasBuilding = context.cityBuildings.has(req.name);
-      return presentCheck(hasBuilding, req.present)
-        ? { satisfied: true }
-        : { satisfied: false, reason: `Building requirement not met: ${req.name}` };
+      return this.requirementResult(
+        'Building',
+        req,
+        this.setContains(context.cityBuildings, req.name)
+      );
     };
 
     // Technology requirement handler
     this.requirementHandlers['Tech'] = (req, context) => {
-      if (!context.playerTechs) {
-        // If no tech context provided, assume requirement is not met
-        return {
-          satisfied: req.present === false, // Only satisfied if requirement is "NOT present"
-          reason:
-            req.present !== false ? `Tech requirement cannot be evaluated: ${req.name}` : undefined,
-        };
-      }
-
-      // Map requirement names to our tech IDs (like in GovernmentManager)
-      const techNameMap: Record<string, string> = {
-        Monarchy: 'monarchy',
-        'The Republic': 'the_republic',
-        Communism: 'communism',
-        Democracy: 'democracy',
-        'Code of Laws': 'code_of_laws',
-        'Ceremonial Burial': 'ceremonial_burial',
-        Mysticism: 'mysticism',
-      };
-
-      const techId = techNameMap[req.name] || req.name.toLowerCase().replace(/\s+/g, '_');
-      const hasTech = context.playerTechs.has(techId);
-
-      return presentCheck(hasTech, req.present)
-        ? { satisfied: true }
-        : { satisfied: false, reason: `Tech requirement not met: ${req.name}` };
+      return this.requirementResult('Tech', req, this.setContains(context.playerTechs, req.name));
     };
 
     this.requirementHandlers['Player'] = (req, context) =>
-      presentCheck(context.playerId === req.name, req.present)
-        ? { satisfied: true }
-        : { satisfied: false, reason: `Player requirement not met: ${req.name}` };
+      this.requirementResult('Player', req, this.matches(context.playerId, req.name));
+
+    this.requirementHandlers['UnitClass'] = (req, context) =>
+      this.requirementResult('UnitClass', req, this.matches(context.unitClass, req.name));
+    this.requirementHandlers['UnitClassFlag'] = (req, context) =>
+      this.requirementResult(
+        'UnitClassFlag',
+        req,
+        this.setContains(context.unitClassFlags, req.name)
+      );
+    this.requirementHandlers['UnitTypeFlag'] = (req, context) =>
+      this.requirementResult(
+        'UnitTypeFlag',
+        req,
+        this.setContains(context.unitTypeFlags, req.name)
+      );
+    this.requirementHandlers['Activity'] = (req, context) =>
+      this.requirementResult('Activity', req, this.matches(context.unitActivity, req.name));
+    this.requirementHandlers['Terrain'] = (req, context) =>
+      this.requirementResult('Terrain', req, this.matches(context.tileTerrain, req.name));
+    this.requirementHandlers['TerrainClass'] = (req, context) =>
+      this.requirementResult('TerrainClass', req, this.matches(context.tileTerrainClass, req.name));
+    this.requirementHandlers['Extra'] = (req, context) =>
+      this.requirementResult('Extra', req, this.setContains(context.tileExtras, req.name));
+    this.requirementHandlers['CityTile'] = (req, context) =>
+      this.requirementResult(
+        'CityTile',
+        req,
+        this.matches(req.name, 'Center') === false
+          ? false
+          : context.tileIsCityCenter === undefined
+            ? undefined
+            : context.tileIsCityCenter
+      );
+    this.requirementHandlers['Specialist'] = (req, context) =>
+      this.requirementResult('Specialist', req, this.matches(context.specialist, req.name));
+    this.requirementHandlers['MaxUnitsOnTile'] = (req, context) =>
+      this.requirementResult(
+        'MaxUnitsOnTile',
+        req,
+        context.maxUnitsOnTile === undefined
+          ? undefined
+          : context.maxUnitsOnTile === Number(req.name)
+      );
+    this.requirementHandlers['NationGroup'] = (req, context) =>
+      this.requirementResult(
+        'NationGroup',
+        req,
+        this.setContains(context.playerNationGroups, req.name)
+      );
+    this.requirementHandlers['Age'] = (req, context) =>
+      this.requirementResult(
+        'Age',
+        req,
+        context.age === undefined ? undefined : context.age === Number(req.name)
+      );
+  }
+
+  private requirementResult(
+    type: string,
+    req: Requirement,
+    actual: boolean | undefined
+  ): RequirementResult {
+    const satisfied = actual !== undefined && actual === (req.present !== false);
+    return satisfied
+      ? { satisfied: true }
+      : { satisfied: false, reason: `${type} requirement not met: ${req.name}` };
+  }
+
+  private matches(actual: string | undefined, expected: string): boolean | undefined {
+    return actual === undefined
+      ? undefined
+      : this.normaliseRuleName(actual) === this.normaliseRuleName(expected);
+  }
+
+  private setContains(values: Set<string> | undefined, expected: string): boolean | undefined {
+    return values === undefined
+      ? undefined
+      : [...values].some(value => this.matches(value, expected));
+  }
+
+  private normaliseRuleName(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
   private handleUnknownRequirement = (
     req: Requirement,
     _context: EffectContext
   ): RequirementResult => {
-    logger.warn(`Unknown requirement type: ${req.type}`);
-    return { satisfied: true };
+    logger.warn(`Unsupported requirement type: ${req.type}`);
+    return { satisfied: false, reason: `Unsupported requirement type: ${req.type}` };
   };
 
   /**
