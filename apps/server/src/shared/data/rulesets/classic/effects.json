@@ -699,6 +699,26 @@
       ],
       "comment": "Libraries provide 25% bonus to culture generation"
     },
+    "library_science_bonus": {
+      "id": "library_science_bonus",
+      "type": "Output_Bonus",
+      "value": 100,
+      "reqs": [
+        { "type": "Building", "name": "Library", "range": "City" },
+        { "type": "OutputType", "name": "Science", "range": "Local" }
+      ],
+      "comment": "Library science output bonus"
+    },
+    "marketplace_gold_bonus": {
+      "id": "marketplace_gold_bonus",
+      "type": "Output_Bonus",
+      "value": 50,
+      "reqs": [
+        { "type": "Building", "name": "Marketplace", "range": "City" },
+        { "type": "OutputType", "name": "Gold", "range": "Local" }
+      ],
+      "comment": "Marketplace gold output bonus"
+    },
     "library_culture_performance": {
       "id": "library_culture_performance",
       "type": "Performance",

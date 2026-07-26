@@ -17,6 +17,7 @@
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { type CityState, SpecialistType } from '@game/managers/CityManager';
+import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsManager';
 import type { UnitSupportData } from '@game/managers/UnitSupportManager';
 import type { CityEconomicOutput } from '@game/systems/Economic/types/EconomicTypes';
 import {
@@ -90,6 +91,7 @@ export interface CityEconomicBreakdown extends CityEconomicOutput {
  * CityEconomicService handles city-level economic calculations
  */
 export class CityEconomicService extends BaseGameService {
+  private readonly effectsManager = new EffectsManager();
   constructor(_gameId: string) {
     super(logger);
     // gameId stored for future use if needed
@@ -256,18 +258,14 @@ export class CityEconomicService extends BaseGameService {
    * Calculate gold bonuses from buildings
    */
   private calculateBuildingGoldBonus(city: CityState): number {
-    let goldBonus = 0;
+    const outputBonus = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, {
+      playerId: city.playerId,
+      cityId: city.id,
+      cityBuildings: new Set(city.buildings),
+      outputType: OutputType.GOLD,
+    });
 
-    // Check for gold-producing buildings
-    if (city.buildings?.includes('marketplace')) {
-      goldBonus += Math.floor((city.tradePerTurn || 0) * 0.5); // 50% trade bonus as gold
-    }
-
-    if (city.buildings?.includes('bank')) {
-      goldBonus += Math.floor((city.tradePerTurn || 0) * 0.5); // Additional 50% with bank
-    }
-
-    return goldBonus;
+    return Math.floor(((city.tradePerTurn || 0) * outputBonus.value) / 100);
   }
 
   /**
