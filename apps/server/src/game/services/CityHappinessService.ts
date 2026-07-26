@@ -16,8 +16,13 @@
 
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
-import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
+import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsManager';
 import { rulesetBuildingsService } from './RulesetBuildingsService';
+import {
+  SpecialistType,
+  SPECIALIST_TYPES,
+  type SpecialistDefinition,
+} from '@game/constants/SpecialistDefinitions';
 
 // Re-export shared types and constants
 export interface CityState {
@@ -54,62 +59,7 @@ export const FEELING_NATIONALITY = 3; // after citizen nationality effects
 export const FEELING_MARTIAL = 4; // after units enforce martial order
 export const FEELING_FINAL = 5; // after wonders (final result)
 
-// Specialist types for happiness calculations
-export enum SpecialistType {
-  SCIENTIST = 0,
-  TAX_COLLECTOR = 1,
-  ENTERTAINER = 2,
-  WORKER = 3,
-  ENGINEER = 4,
-  MERCHANT = 5,
-}
-
-// Specialist definitions (minimal, focused on happiness)
-export interface SpecialistDefinition {
-  id: SpecialistType;
-  name: string;
-  outputType: string;
-  outputAmount: number;
-}
-
-export const SPECIALIST_TYPES: Record<SpecialistType, SpecialistDefinition> = {
-  [SpecialistType.SCIENTIST]: {
-    id: SpecialistType.SCIENTIST,
-    name: 'Scientist',
-    outputType: 'science',
-    outputAmount: 3,
-  },
-  [SpecialistType.TAX_COLLECTOR]: {
-    id: SpecialistType.TAX_COLLECTOR,
-    name: 'Tax Collector',
-    outputType: 'gold',
-    outputAmount: 3,
-  },
-  [SpecialistType.ENTERTAINER]: {
-    id: SpecialistType.ENTERTAINER,
-    name: 'Entertainer',
-    outputType: 'luxury',
-    outputAmount: 3,
-  },
-  [SpecialistType.WORKER]: {
-    id: SpecialistType.WORKER,
-    name: 'Worker',
-    outputType: 'food',
-    outputAmount: 2,
-  },
-  [SpecialistType.ENGINEER]: {
-    id: SpecialistType.ENGINEER,
-    name: 'Engineer',
-    outputType: 'shield',
-    outputAmount: 2,
-  },
-  [SpecialistType.MERCHANT]: {
-    id: SpecialistType.MERCHANT,
-    name: 'Merchant',
-    outputType: 'trade',
-    outputAmount: 3,
-  },
-};
+export { SpecialistType, SPECIALIST_TYPES, type SpecialistDefinition };
 
 /** @reference reference/freeciv/data/classic/buildings.ruleset */
 const BUILDING_TYPES = rulesetBuildingsService.getBuildingTypes();
@@ -208,47 +158,68 @@ export class CityHappinessService extends BaseGameService {
       };
     }
 
-    // Start with base population happiness
-    const happy = 0;
-    let content = Math.max(0, city.population - 1); // Population minus base unhappy citizens
-    let unhappy = Math.min(1, city.population); // Base unhappiness (size 1 cities start content)
-    const angry = 0;
-
-    // Calculate luxury specialist effects (Entertainers)
-    const luxurySpecialists = city.specialists[SpecialistType.ENTERTAINER] || 0;
-    const luxuryEffect =
-      luxurySpecialists * SPECIALIST_TYPES[SpecialistType.ENTERTAINER].outputAmount;
-
-    // Add luxury from trade allocation
-    const totalLuxury = luxuryEffect + luxuryFromTrade;
-
-    // Calculate building happiness effects
-    const buildingEffect = this.effectsManager.calculateEffect(EffectType.MAKE_CONTENT, {
+    const effectContext = {
       playerId: city.playerId,
       cityId: city.id,
       government: this.getPlayerGovernment(city.playerId),
       cityBuildings: new Set(city.buildings),
       playerTechs: new Set(this.playerTechsProvider(city.playerId)),
       playerBuildings: new Set(this.playerBuildingsProvider(city.playerId)),
-    }).value;
+    };
 
-    // Calculate military unit effects (martial law)
-    const unitEffect = Math.min(militaryUnitsPresent, Math.floor(city.population / 2)); // Max martial law effect
+    // Specialists are removed before Freeciv creates the base citizen mood.
+    // @reference reference/freeciv/common/city.c:2507-2536 citizen_base_mood()
+    const specialistCount = Object.values(city.specialists).reduce(
+      (total, count) => total + Math.max(0, count),
+      0
+    );
+    const ordinaryCitizens = Math.max(0, city.population - specialistCount);
+    const baseContent = this.effectsManager.calculateEffect(
+      EffectType.CITY_UNHAPPY_SIZE,
+      effectContext
+    ).value;
+
+    // Start with ruleset-driven base population happiness.
+    const happy = 0;
+    let content = Math.min(ordinaryCitizens, Math.max(0, baseContent));
+    let unhappy = Math.max(0, ordinaryCitizens - content);
+    const angry = 0;
+
+    // Calculate entertainer luxury through the loaded Specialist_Output effect.
+    // @reference reference/freeciv/data/classic/effects.ruleset:92-99
+    const luxurySpecialists = city.specialists[SpecialistType.ENTERTAINER] || 0;
+    const luxuryEffect =
+      luxurySpecialists *
+      this.effectsManager.calculateEffect(EffectType.SPECIALIST_OUTPUT, {
+        ...effectContext,
+        specialist: SPECIALIST_TYPES[SpecialistType.ENTERTAINER].ruleName,
+        outputType: OutputType.LUXURY,
+      }).value;
+
+    // Add luxury from trade allocation
+    const totalLuxury = luxuryEffect + luxuryFromTrade;
+
+    // Calculate building happiness effects
+    const buildingEffect = this.effectsManager.calculateEffect(
+      EffectType.MAKE_CONTENT,
+      effectContext
+    ).value;
+
+    // Calculate military unit effects from government-specific martial law.
+    // @reference reference/freeciv/common/city.c:3108-3174 city_support()
+    const unitEffect = this.effectsManager.calculateMartialLaw(
+      effectContext,
+      militaryUnitsPresent
+    ).happyBonus;
 
     // Apply happiness improvements
-    const totalHappinessBonus = totalLuxury + buildingEffect + unitEffect;
+    // Freeciv spends two luxury points per citizen mood improvement.
+    // @reference reference/freeciv/common/city.c:2545-2623 citizen_happy_luxury()
+    const totalHappinessBonus = Math.floor(totalLuxury / 2) + buildingEffect + unitEffect;
     const happinessToApply = Math.min(totalHappinessBonus, unhappy);
 
     unhappy = Math.max(0, unhappy - happinessToApply);
     content += happinessToApply;
-
-    // Handle population growth unhappiness
-    if (city.population > 4) {
-      const additionalUnhappiness = Math.floor((city.population - 4) / 4);
-      const unhappinessToAdd = Math.min(additionalUnhappiness, content);
-      content -= unhappinessToAdd;
-      unhappy += unhappinessToAdd;
-    }
 
     return {
       stage: FEELING_FINAL,

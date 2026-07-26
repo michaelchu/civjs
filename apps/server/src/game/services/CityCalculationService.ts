@@ -26,6 +26,11 @@ import {
   type EffectContext,
 } from '@game/managers/EffectsManager';
 import type { CityTileManagementService } from './CityTileManagementService';
+import {
+  SpecialistType,
+  SPECIALIST_TYPES,
+  type SpecialistDefinition,
+} from '@game/constants/SpecialistDefinitions';
 
 // Re-export types that will be shared
 export interface CityState {
@@ -74,77 +79,7 @@ export interface CityState {
   defenseStrength?: number;
 }
 
-// Specialist types from CityManager
-export enum SpecialistType {
-  SCIENTIST = 0,
-  TAX_COLLECTOR = 1,
-  ENTERTAINER = 2,
-  WORKER = 3,
-  ENGINEER = 4,
-  MERCHANT = 5,
-}
-
-export interface SpecialistDefinition {
-  id: SpecialistType;
-  name: string;
-  pluralName: string;
-  shortName: string;
-  outputType: 'science' | 'gold' | 'luxury' | 'food' | 'shield' | 'trade';
-  outputAmount: number;
-  requiredWonder?: string;
-}
-
-// Specialist definitions from CityManager
-export const SPECIALIST_TYPES: Record<SpecialistType, SpecialistDefinition> = {
-  [SpecialistType.SCIENTIST]: {
-    id: SpecialistType.SCIENTIST,
-    name: 'Scientist',
-    pluralName: 'Scientists',
-    shortName: 'Sci',
-    outputType: 'science',
-    outputAmount: 3,
-  },
-  [SpecialistType.TAX_COLLECTOR]: {
-    id: SpecialistType.TAX_COLLECTOR,
-    name: 'Tax Collector',
-    pluralName: 'Tax Collectors',
-    shortName: 'Tax',
-    outputType: 'gold',
-    outputAmount: 3,
-  },
-  [SpecialistType.ENTERTAINER]: {
-    id: SpecialistType.ENTERTAINER,
-    name: 'Entertainer',
-    pluralName: 'Entertainers',
-    shortName: 'Ent',
-    outputType: 'luxury',
-    outputAmount: 3,
-  },
-  [SpecialistType.WORKER]: {
-    id: SpecialistType.WORKER,
-    name: 'Worker',
-    pluralName: 'Workers',
-    shortName: 'Wkr',
-    outputType: 'food',
-    outputAmount: 2,
-  },
-  [SpecialistType.ENGINEER]: {
-    id: SpecialistType.ENGINEER,
-    name: 'Engineer',
-    pluralName: 'Engineers',
-    shortName: 'Eng',
-    outputType: 'shield',
-    outputAmount: 2,
-  },
-  [SpecialistType.MERCHANT]: {
-    id: SpecialistType.MERCHANT,
-    name: 'Merchant',
-    pluralName: 'Merchants',
-    shortName: 'Mer',
-    outputType: 'trade',
-    outputAmount: 3,
-  },
-};
+export { SpecialistType, SPECIALIST_TYPES, type SpecialistDefinition };
 
 /**
  * City output calculation result
@@ -244,7 +179,7 @@ export class CityCalculationService extends BaseGameService {
     const luxury = this.applyOutputBonus(effectContext, OutputType.LUXURY, convertedTrade.luxury);
 
     // Add specialist contributions
-    const specialistOutputs = this.calculateSpecialistOutputs(city.specialists);
+    const specialistOutputs = this.calculateSpecialistOutputs(city.specialists, effectContext);
 
     // Combine all outputs
     const totalOutputs: CityOutputs = {
@@ -389,7 +324,10 @@ export class CityCalculationService extends BaseGameService {
    * Calculate outputs from all specialists in a city
    * @private
    */
-  private calculateSpecialistOutputs(specialists: Record<number, number>): CityOutputs {
+  private calculateSpecialistOutputs(
+    specialists: Record<number, number>,
+    effectContext: EffectContext
+  ): CityOutputs {
     const outputs: CityOutputs = {
       food: 0,
       shields: 0,
@@ -403,30 +341,18 @@ export class CityCalculationService extends BaseGameService {
       const type = parseInt(specialistType) as SpecialistType;
       const definition = SPECIALIST_TYPES[type];
 
-      if (!definition || count <= 0) continue;
+      if (!definition?.ruleName || count <= 0) continue;
 
-      const amount = count * definition.outputAmount;
-
-      switch (definition.outputType) {
-        case 'science':
-          outputs.science += amount;
-          break;
-        case 'gold':
-          outputs.gold += amount;
-          break;
-        case 'luxury':
-          outputs.luxury += amount;
-          break;
-        case 'food':
-          outputs.food += amount;
-          break;
-        case 'shield':
-          outputs.shields += amount;
-          break;
-        case 'trade':
-          outputs.trade += amount;
-          break;
-      }
+      const outputType = definition.outputType as OutputType;
+      const amount =
+        count *
+        this.effectsManager.calculateEffect(EffectType.SPECIALIST_OUTPUT, {
+          ...effectContext,
+          specialist: definition.ruleName,
+          outputType,
+        }).value;
+      const outputKey = definition.outputType === 'shield' ? 'shields' : definition.outputType;
+      outputs[outputKey] += amount;
     }
 
     return outputs;

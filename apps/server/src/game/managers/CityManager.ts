@@ -5,6 +5,11 @@ import { DatabaseProvider } from '@database';
 import { cities } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
+import {
+  SpecialistType,
+  SPECIALIST_TYPES,
+  type SpecialistDefinition,
+} from '@game/constants/SpecialistDefinitions';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { EffectsManager } from '@game/managers/EffectsManager';
@@ -68,79 +73,7 @@ export const FEELING_NATIONALITY = 3; // after citizen nationality effects
 export const FEELING_MARTIAL = 4; // after units enforce martial order
 export const FEELING_FINAL = 5; // after wonders (final result)
 
-// Following Freeciv specialist types
-// Reference: freeciv-web/javascript/city.js:99 and specialists data
-export enum SpecialistType {
-  SCIENTIST = 0, // Science specialist
-  TAX_COLLECTOR = 1, // Gold specialist
-  ENTERTAINER = 2, // Luxury specialist
-  // Extended specialists (require Adam Smith's Trading Company)
-  WORKER = 3, // Food specialist
-  ENGINEER = 4, // Shield specialist
-  MERCHANT = 5, // Trade specialist
-}
-
-export interface SpecialistDefinition {
-  id: SpecialistType;
-  name: string;
-  pluralName: string;
-  shortName: string;
-  outputType: 'science' | 'gold' | 'luxury' | 'food' | 'shield' | 'trade';
-  outputAmount: number;
-  requiredWonder?: string; // Some specialists require specific wonders
-}
-
-// Following Freeciv specialist definitions
-export const SPECIALIST_TYPES: Record<SpecialistType, SpecialistDefinition> = {
-  [SpecialistType.SCIENTIST]: {
-    id: SpecialistType.SCIENTIST,
-    name: 'Scientist',
-    pluralName: 'Scientists',
-    shortName: 'Sci',
-    outputType: 'science',
-    outputAmount: 3, // Base science output
-  },
-  [SpecialistType.TAX_COLLECTOR]: {
-    id: SpecialistType.TAX_COLLECTOR,
-    name: 'Tax Collector',
-    pluralName: 'Tax Collectors',
-    shortName: 'Tax',
-    outputType: 'gold',
-    outputAmount: 3, // Base gold output
-  },
-  [SpecialistType.ENTERTAINER]: {
-    id: SpecialistType.ENTERTAINER,
-    name: 'Entertainer',
-    pluralName: 'Entertainers',
-    shortName: 'Ent',
-    outputType: 'luxury',
-    outputAmount: 3, // Base luxury output
-  },
-  [SpecialistType.WORKER]: {
-    id: SpecialistType.WORKER,
-    name: 'Worker',
-    pluralName: 'Workers',
-    shortName: 'Wkr',
-    outputType: 'food',
-    outputAmount: 2, // Base food output
-  },
-  [SpecialistType.ENGINEER]: {
-    id: SpecialistType.ENGINEER,
-    name: 'Engineer',
-    pluralName: 'Engineers',
-    shortName: 'Eng',
-    outputType: 'shield',
-    outputAmount: 2, // Base shield output
-  },
-  [SpecialistType.MERCHANT]: {
-    id: SpecialistType.MERCHANT,
-    name: 'Merchant',
-    pluralName: 'Merchants',
-    shortName: 'Mer',
-    outputType: 'trade',
-    outputAmount: 3, // Base trade output
-  },
-};
+export { SpecialistType, SPECIALIST_TYPES, type SpecialistDefinition };
 
 export interface WorkableTile {
   x: number;

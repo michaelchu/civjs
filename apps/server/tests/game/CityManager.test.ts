@@ -210,7 +210,7 @@ describe('CityManager', () => {
 
       expect(SPECIALIST_TYPES[SpecialistType.ENTERTAINER]).toBeDefined();
       expect(SPECIALIST_TYPES[SpecialistType.ENTERTAINER].outputType).toBe('luxury');
-      expect(SPECIALIST_TYPES[SpecialistType.ENTERTAINER].outputAmount).toBe(3);
+      expect(SPECIALIST_TYPES[SpecialistType.ENTERTAINER].outputAmount).toBe(2);
     });
   });
 
