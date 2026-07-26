@@ -223,12 +223,13 @@ export class EconomicManager {
     rawTrade: number,
     directGold: number = 0,
     buildingUpkeep: number = 0,
-    unitUpkeep: number = 0
+    unitUpkeep: number = 0,
+    authoritativeGold?: number
   ): CityEconomicOutput {
     // Convert trade based on player's tax rates
     const tradeConversion = this.taxRateService.convertTradeToOutputs(playerId, rawTrade);
 
-    const totalGoldProduced = tradeConversion.gold + directGold;
+    const totalGoldProduced = authoritativeGold ?? tradeConversion.gold + directGold;
     const totalCosts = buildingUpkeep + unitUpkeep;
     const netGoldContribution = totalGoldProduced - totalCosts;
 
@@ -238,7 +239,8 @@ export class EconomicManager {
       rawTrade,
       netTrade: rawTrade, // No corruption calculation yet
       tradeConversion,
-      directGold,
+      directGold:
+        authoritativeGold === undefined ? directGold : authoritativeGold - tradeConversion.gold,
       totalGoldProduced,
       costs: {
         buildingUpkeep,

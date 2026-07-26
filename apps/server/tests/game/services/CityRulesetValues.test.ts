@@ -73,7 +73,7 @@ describe('ruleset-backed city values', () => {
 
   it('uses civstyle.food_cost for serialized food surplus', () => {
     const baseCivstyle = rulesetLoader.getCivstyle();
-    const result = CityDataService.transformCityForClient(city(), 'classic', {
+    const result = CityDataService.transformCityForClient(city({ foodPerTurn: -1 }), 'classic', {
       loader: { getCivstyle: () => ({ ...baseCivstyle, food_cost: 3 }) },
       buildings: rulesetBuildingsService,
     });
@@ -103,7 +103,7 @@ describe('ruleset-backed city values', () => {
 
     expect(center.outputs).toEqual({ food: 5, shields: 2, trade: 1 });
     expect(service.calculateCityOutputs(cityState.id)).toEqual({
-      food: 2,
+      food: 5,
       shields: 2,
       trade: 1,
     });

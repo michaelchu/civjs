@@ -286,7 +286,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       cityManager,
       researchManager,
       borderManager,
-      visibilityManager
+      visibilityManager,
+      game.players
     );
     // @reference reference/freeciv/server/techtools.c:665-719
     // Research completion belongs to the active authoritative turn.
@@ -325,27 +326,6 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
               y: city.y,
             });
           }
-        }
-      },
-      onCityTurnProcessed: city => {
-        // Transfer city science output to research manager
-        this.logger.debug(`🔬 City turn processed callback for ${city.name}:`, {
-          cityId: city.id,
-          sciencePerTurn: city.sciencePerTurn,
-          playerId: city.playerId,
-        });
-
-        if (city.sciencePerTurn && city.sciencePerTurn > 0) {
-          const completedTech = researchManager.addResearchPoints(
-            city.playerId,
-            city.sciencePerTurn
-          );
-          this.logger.debug(`Science accumulated from city ${city.name}`, {
-            cityId: city.id,
-            playerId: city.playerId,
-            scienceAdded: city.sciencePerTurn,
-            completedTech: completedTech || 'none',
-          });
         }
       },
       onCityFounded: city => {
@@ -865,7 +845,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     cityManager: CityManager,
     researchManager: ResearchManager,
     borderManager: BorderManager,
-    visibilityManager: VisibilityManager
+    visibilityManager: VisibilityManager,
+    databasePlayers: any[]
   ): Promise<TurnManager> {
     // Create a simple broadcast manager for the TurnManager
     // TODO: Proper dependency injection should be implemented
@@ -918,10 +899,18 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     // Initialize economic system
     await economicManager.initialize();
 
-    // Initialize economic data for each player
+    // Restore authoritative treasury and rates instead of resetting persisted
+    // players to EconomicManager's new-player defaults.
+    // @reference reference/freeciv/server/savegame/savegame3.c:6543-6603
     for (const playerId of playerIds) {
-      await economicManager.initializePlayer(playerId);
+      const player = databasePlayers.find(candidate => candidate.id === playerId);
+      await economicManager.initializePlayer(playerId, player?.gold ?? 0, {
+        tax: player?.taxRate ?? 50,
+        luxury: player?.luxuryRate ?? 20,
+        science: player?.scienceRate ?? 30,
+      });
     }
+    cityManager.setPlayerTaxRatesProvider(playerId => economicManager.getPlayerTaxRates(playerId));
 
     return tm;
   }

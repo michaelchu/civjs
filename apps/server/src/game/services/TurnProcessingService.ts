@@ -13,6 +13,7 @@ import type { UnitManager } from '@game/managers/UnitManager';
 import type { CityManager } from '@game/managers/CityManager';
 import type { ResearchManager } from '@game/managers/ResearchManager';
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
+import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 
 export interface PlayerAction {
   id: string; // Unique action identifier
@@ -703,13 +704,19 @@ export class TurnProcessingService {
 
       // Calculate economic output for each city
       for (const city of cities) {
+        const buildingTypes = rulesetBuildingsService.getBuildingTypes();
+        const buildingUpkeep = city.buildings.reduce(
+          (total, buildingId) => total + (buildingTypes[buildingId]?.upkeep ?? 0),
+          0
+        );
         const economicOutput = this.economicManager.calculateCityEconomicOutput(
           city.id,
           playerId,
           city.tradePerTurn || 0, // Raw trade from city
           0, // Direct gold (calculated by CityEconomicService)
-          0, // Building upkeep (calculated by CityEconomicService)
-          0 // Unit upkeep (calculated by CityEconomicService)
+          buildingUpkeep,
+          0, // Unit upkeep follows when unit home-city persistence is authoritative.
+          city.goldPerTurn ?? 0
         );
         cityOutputs.push(economicOutput);
       }

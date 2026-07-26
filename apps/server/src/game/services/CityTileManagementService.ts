@@ -65,7 +65,7 @@ export class CityTileManagementService extends BaseGameService {
           isCenter: true,
           isWorked: true,
           isBlocked: false,
-          outputs: this.getTerrainBaseOutputs('grassland'),
+          outputs: this.applyCityCenterMinimums(this.getTerrainBaseOutputs('grassland')),
         },
       ];
       return;
@@ -84,7 +84,7 @@ export class CityTileManagementService extends BaseGameService {
           isCenter: true,
           isWorked: true,
           isBlocked: false,
-          outputs: this.getTerrainBaseOutputs('grassland'),
+          outputs: this.applyCityCenterMinimums(this.getTerrainBaseOutputs('grassland')),
         },
       ];
       return;
@@ -134,6 +134,7 @@ export class CityTileManagementService extends BaseGameService {
         // City center is always worked
         if (workableTile.isCenter) {
           workableTile.isWorked = true;
+          workableTile.outputs = this.applyCityCenterMinimums(workableTile.outputs);
         }
 
         city.workableTiles.push(workableTile);
@@ -383,10 +384,9 @@ export class CityTileManagementService extends BaseGameService {
   }
 
   /**
-   * Calculate city outputs from worked tiles only (without buildings/specialists)
-   * Includes food consumption by citizens as per Freeciv rules
+   * Calculate gross city outputs from worked tiles only (without buildings/specialists).
    * @reference Original CityManager.calculateCityOutputs()
-   * @reference freeciv-web help: "Each citizen requires two food points per turn"
+   * @reference reference/freeciv/common/city.c:2950-3050 set_city_production()
    */
   public calculateCityOutputs(cityId: string): {
     food: number;
@@ -411,10 +411,23 @@ export class CityTileManagementService extends BaseGameService {
       }
     }
 
-    // @reference reference/freeciv/common/city.c:3132-3134 city_support()
-    const foodConsumption = city.population * this.ruleset.getCivstyle().food_cost;
-    food -= foodConsumption;
-
     return { food, shields, trade };
+  }
+
+  /**
+   * City-center minimums apply to the center tile, not to aggregate city output.
+   * @reference reference/freeciv/common/city.c:2917-2945 city_get_output_tile()
+   */
+  private applyCityCenterMinimums(outputs: { food: number; shields: number; trade: number }): {
+    food: number;
+    shields: number;
+    trade: number;
+  } {
+    const civstyle = this.ruleset.getCivstyle();
+    return {
+      food: Math.max(outputs.food, civstyle.min_city_center_food),
+      shields: Math.max(outputs.shields, civstyle.min_city_center_shield),
+      trade: Math.max(outputs.trade, civstyle.min_city_center_trade),
+    };
   }
 }

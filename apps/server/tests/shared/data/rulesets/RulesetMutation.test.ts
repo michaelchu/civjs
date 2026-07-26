@@ -145,11 +145,12 @@ describe('isolated ruleset mutations', () => {
     const loader = new RulesetLoader(fixtureRoot);
     const buildings = new RulesetBuildingsService(loader);
 
-    const result = CityDataService.transformCityForClient(city(), 'classic', {
+    const result = CityDataService.transformCityForClient(city({ foodPerTurn: 0 }), 'classic', {
       loader,
       buildings,
     });
 
+    expect(result.prod.food).toBe(6);
     expect(result.surplus.food).toBe(0);
   });
 });

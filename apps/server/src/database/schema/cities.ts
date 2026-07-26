@@ -29,8 +29,11 @@ export const cities = pgTable('cities', {
   productionQueue: jsonb('production_queue').default([]).notNull(),
 
   // Resources
+  tradePerTurn: integer('trade_per_turn').default(0).notNull(),
   goldPerTurn: integer('gold_per_turn').default(0).notNull(),
+  luxuryPerTurn: integer('luxury_per_turn').default(0).notNull(),
   sciencePerTurn: integer('science_per_turn').default(0).notNull(),
+  pollution: integer('pollution').default(0).notNull(),
   faithPerTurn: integer('faith_per_turn').default(0).notNull(),
 
   // Culture system (freeciv-based)

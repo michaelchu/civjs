@@ -21,6 +21,8 @@ import {
 } from '@game/services/CityFoundingValidationService';
 import type { MapManager } from '@game/managers/MapManager';
 import { Server as SocketServer } from 'socket.io';
+import type { TaxRates } from '@game/systems/Economic/types/EconomicTypes';
+import { DEFAULT_TAX_RATES } from '@game/systems/Economic/constants/EconomicConstants';
 
 // Import the specialized services
 import { CityManagementService } from '@game/services/CityManagementService';
@@ -170,6 +172,9 @@ export interface CityState {
   tradePerTurn?: number;
   shieldStock?: number; // Stored shields
   sciencePerTurn?: number;
+  goldPerTurn?: number;
+  luxuryPerTurn?: number;
+  pollution?: number;
 
   // Culture system (freeciv-based)
   history: number; // Accumulated culture history
@@ -274,6 +279,9 @@ export class CityManager {
   private playerGovernmentProvider?: (playerId: string) => string;
   private playerTechsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private playerBuildingsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
+  private playerTaxRatesProvider: (playerId: string) => TaxRates = () => ({
+    ...DEFAULT_TAX_RATES,
+  });
   private optimizationService?: CityOptimizationService;
 
   constructor(
@@ -312,6 +320,10 @@ export class CityManager {
   public setPlayerBuildingsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
     this.playerBuildingsProvider = provider;
     this.happinessService.setPlayerBuildingsProvider(provider);
+  }
+
+  public setPlayerTaxRatesProvider(provider: (playerId: string) => TaxRates): void {
+    this.playerTaxRatesProvider = provider;
   }
 
   public setPlayerGovernmentProvider(provider: (playerId: string) => string): void {
@@ -828,8 +840,11 @@ export class CityManager {
           foodStock: record.food || 0,
           foodPerTurn: record.foodPerTurn || 0,
           productionPerTurn: record.productionPerTurn || 0,
-          tradePerTurn: 0, // Will be calculated from trade routes
+          tradePerTurn: record.tradePerTurn || 0,
           sciencePerTurn: record.sciencePerTurn || 0, // Will be recalculated
+          goldPerTurn: record.goldPerTurn || 0,
+          luxuryPerTurn: record.luxuryPerTurn || 0,
+          pollution: record.pollution || 0,
           history: record.history || 0, // Culture history
           productionStock: record.production || 0,
           buildings: (record.buildings as string[]) || [],
@@ -894,8 +909,11 @@ export class CityManager {
         foodPerTurn: city.foodPerTurn || 0,
         production: city.productionStock || 0,
         productionPerTurn: city.productionPerTurn || 0,
-        goldPerTurn: 0, // Will be calculated
-        sciencePerTurn: 0, // Will be calculated
+        tradePerTurn: city.tradePerTurn || 0,
+        goldPerTurn: city.goldPerTurn || 0,
+        luxuryPerTurn: city.luxuryPerTurn || 0,
+        sciencePerTurn: city.sciencePerTurn || 0,
+        pollution: city.pollution || 0,
         culturePerTurn: 0, // Will be calculated
         faithPerTurn: 0, // Will be calculated
         history: city.history || 0, // Culture history
@@ -1058,10 +1076,19 @@ export class CityManager {
     science: number;
     gold: number;
     luxury: number;
+    pollution: number;
   } {
     const city = this.cities.get(cityId);
     if (!city) {
-      return { food: 0, shields: 0, trade: 0, science: 0, gold: 0, luxury: 0 };
+      return {
+        food: 0,
+        shields: 0,
+        trade: 0,
+        science: 0,
+        gold: 0,
+        luxury: 0,
+        pollution: 0,
+      };
     }
 
     // Delegate to CityCalculationService for all calculations
@@ -1074,6 +1101,7 @@ export class CityManager {
         playerTechs: this.playerTechsProvider(city.playerId),
         playerBuildings: this.playerBuildingsProvider(city.playerId),
         playerCities: this.getPlayerCities(city.playerId),
+        taxRates: this.playerTaxRatesProvider(city.playerId),
       }
     );
 
@@ -1082,6 +1110,9 @@ export class CityManager {
     city.productionPerTurn = outputs.shields;
     city.tradePerTurn = outputs.trade;
     city.sciencePerTurn = outputs.science;
+    city.goldPerTurn = outputs.gold;
+    city.luxuryPerTurn = outputs.luxury;
+    city.pollution = outputs.pollution;
 
     return outputs;
   }

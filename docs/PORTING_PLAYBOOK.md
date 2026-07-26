@@ -113,6 +113,12 @@ and retain overflow for the next target, matching Freeciv's city-turn behavior.
 Rush costs use the classic improvement and unit formulas, including the
 zero-stock premium. `CityProductionLifecycle.test.ts` covers normal completion,
 carryover, rush pricing, and the buy-to-turn-processing handoff.
+City output accounting also uses a single authoritative path: center minimums
+apply only to the center tile, food support is deducted after gross output,
+specialists receive output bonuses, corruption is deducted once, and player
+tax rates use Freeciv's largest-remainder distribution. Economic recovery
+restores persisted treasury/rates, building upkeep is charged during the turn,
+and calculated city resources persist across reloads.
 
 - Complete tile yields, worked tiles, specialists, happiness, food, shields, trade, waste, and upkeep.
 - Complete production carryover, buying, building/unit completion, and city growth/starvation.

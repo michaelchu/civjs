@@ -234,7 +234,15 @@ describe('CityManager free initial buildings', () => {
     const city = await cityManager.foundCity(10, 10, 'Capital', 'player-1');
     jest.spyOn(cityManager, 'calculateCityOutputs').mockImplementation(() => {
       city.tradePerTurn = 15;
-      return { food: 2, shields: 1, trade: 15, science: 7, gold: 8, luxury: 0 };
+      return {
+        food: 2,
+        shields: 1,
+        trade: 15,
+        science: 7,
+        gold: 8,
+        luxury: 0,
+        pollution: 0,
+      };
     });
 
     cityManager.refreshCityWithGovernmentEffects(city.id);

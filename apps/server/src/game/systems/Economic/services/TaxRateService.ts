@@ -17,11 +17,8 @@ import type {
   TaxRateLocks,
 } from '../types/TaxRateTypes';
 import type { TaxRates, TaxRateConstraints, PlayerEconomicSummary } from '../types/EconomicTypes';
-import {
-  DEFAULT_TAX_RATES,
-  TAX_RATE_CONSTRAINTS,
-  TRADE_CONVERSION,
-} from '../constants/EconomicConstants';
+import { DEFAULT_TAX_RATES, TAX_RATE_CONSTRAINTS } from '../constants/EconomicConstants';
+import { distributeTrade } from '../TradeDistribution';
 
 /**
  * TaxRateService handles all tax rate operations
@@ -176,27 +173,7 @@ export class TaxRateService extends BaseGameService {
     tradePoints: number
   ): { gold: number; luxury: number; science: number } {
     const rates = this.getPlayerTaxRates(playerId);
-
-    // Calculate conversion based on rates and conversion ratios
-    const goldTrade = Math.floor((tradePoints * rates.tax) / 100);
-    const luxuryTrade = Math.floor((tradePoints * rates.luxury) / 100);
-    const scienceTrade = Math.floor((tradePoints * rates.science) / 100);
-
-    // Apply conversion ratios
-    const gold = Math.floor(goldTrade / TRADE_CONVERSION.TRADE_TO_GOLD_RATIO);
-    const luxury = Math.floor(luxuryTrade / TRADE_CONVERSION.TRADE_TO_LUXURY_RATIO);
-    const science = Math.floor(scienceTrade / TRADE_CONVERSION.TRADE_TO_SCIENCE_RATIO);
-
-    // Handle rounding discrepancy (give remainder to gold)
-    const totalConverted = goldTrade + luxuryTrade + scienceTrade;
-    const remainder = tradePoints - totalConverted;
-    const finalGold = gold + Math.floor(remainder / TRADE_CONVERSION.TRADE_TO_GOLD_RATIO);
-
-    return {
-      gold: finalGold,
-      luxury,
-      science,
-    };
+    return distributeTrade(tradePoints, rates);
   }
 
   /**

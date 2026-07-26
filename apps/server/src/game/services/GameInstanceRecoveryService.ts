@@ -13,6 +13,7 @@ import { TurnManager } from '@game/managers/TurnManager';
 import { UnitManager } from '@game/managers/UnitManager';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { CultureManager } from '@game/managers/CultureManager';
+import { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import { BorderManager } from '@game/managers/BorderManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
@@ -176,6 +177,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
     visibilityManager: VisibilityManager;
     borderManager: BorderManager;
     mapManager: MapManager;
+    economicManager: EconomicManager;
   }> {
     // Create managers in dependency order
     const effectsManager = new EffectsManager();
@@ -282,6 +284,16 @@ export class GameInstanceRecoveryService extends BaseGameService {
 
     // Create CultureManager
     const cultureManager = new CultureManager(this.databaseProvider);
+    const economicManager = new EconomicManager(gameId, this.databaseProvider);
+    await economicManager.initialize();
+    for (const player of game.players) {
+      await economicManager.initializePlayer(player.id, player.gold, {
+        tax: player.taxRate,
+        luxury: player.luxuryRate,
+        science: player.scienceRate,
+      });
+    }
+    cityManager.setPlayerTaxRatesProvider(playerId => economicManager.getPlayerTaxRates(playerId));
 
     // Create TurnManager last with all dependencies
     const turnManager = new TurnManager(
@@ -294,7 +306,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       borderManager,
       visibilityManager,
       cultureManager,
-      this.broadcastManager
+      this.broadcastManager,
+      economicManager
     );
 
     const playerIds = Array.from(players.keys());
@@ -320,6 +333,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       visibilityManager,
       borderManager,
       mapManager,
+      economicManager,
     };
   }
 

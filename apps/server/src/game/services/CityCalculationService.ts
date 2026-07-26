@@ -31,6 +31,9 @@ import {
   SPECIALIST_TYPES,
   type SpecialistDefinition,
 } from '@game/constants/SpecialistDefinitions';
+import type { TaxRates } from '@game/systems/Economic/types/EconomicTypes';
+import { DEFAULT_TAX_RATES } from '@game/systems/Economic/constants/EconomicConstants';
+import { distributeTrade } from '@game/systems/Economic/TradeDistribution';
 
 // Re-export types that will be shared
 export interface CityState {
@@ -53,6 +56,9 @@ export interface CityState {
   tradePerTurn?: number;
   shieldStock?: number;
   sciencePerTurn?: number;
+  goldPerTurn?: number;
+  luxuryPerTurn?: number;
+  pollution?: number;
   history: number;
   buildings: string[];
   specialists: Record<number, number>;
@@ -91,6 +97,7 @@ export interface CityOutputs {
   science: number;
   gold: number;
   luxury: number;
+  pollution: number;
 }
 
 /**
@@ -105,6 +112,7 @@ export interface CityPlayerContext {
   playerTechs: ReadonlySet<string>;
   playerBuildings: ReadonlySet<string>;
   playerCities: readonly CityState[];
+  taxRates?: TaxRates;
 }
 
 /**
@@ -144,13 +152,26 @@ export class CityCalculationService extends BaseGameService {
 
     // If no tile outputs available, use fallback calculation
     if (!baseTileOutputs) {
-      return this.calculateFallbackCityOutputs(city);
+      return this.calculateFallbackCityOutputs(city, playerContext.taxRates);
     }
 
-    // Ensure minimum city center outputs from ruleset
-    const finalOutputs = this.applyMinimumCityCenterOutputs(baseTileOutputs);
-
     const effectContext = this.buildCityEffectContext(city, playerContext);
+    const specialistOutputs = this.calculateSpecialistOutputs(city.specialists, effectContext);
+    const grossFood = this.applyOutputBonus(
+      effectContext,
+      OutputType.FOOD,
+      baseTileOutputs.food + specialistOutputs.food
+    );
+    const grossShields = this.applyOutputBonus(
+      effectContext,
+      OutputType.SHIELD,
+      baseTileOutputs.shields + specialistOutputs.shields
+    );
+    const grossTrade = this.applyOutputBonus(
+      effectContext,
+      OutputType.TRADE,
+      baseTileOutputs.trade + specialistOutputs.trade
+    );
 
     // Corruption is subtracted here and nowhere else, matching freeciv where
     // city_waste() feeds the surplus once per output refresh.
@@ -158,7 +179,7 @@ export class CityCalculationService extends BaseGameService {
     // @reference reference/freeciv/common/city.c:3253-3337 city_waste()
     const { corruption } = this.effectsManager.calculateCityCorruption(
       effectContext,
-      finalOutputs.trade,
+      grossTrade,
       playerContext.playerCities.map(playerCity => ({
         id: playerCity.id,
         x: playerCity.x,
@@ -166,129 +187,94 @@ export class CityCalculationService extends BaseGameService {
         buildings: new Set(playerCity.buildings),
       }))
     );
-    const tradeAfterCorruption = Math.max(0, finalOutputs.trade - corruption);
+    const tradeAfterCorruption = Math.max(0, grossTrade - corruption);
 
-    // Convert trade to science and gold
-    const convertedTrade = this.convertTradeToResources(tradeAfterCorruption);
+    const convertedTrade = distributeTrade(
+      tradeAfterCorruption,
+      playerContext.taxRates ?? DEFAULT_TAX_RATES
+    );
     const science = this.applyOutputBonus(
       effectContext,
       OutputType.SCIENCE,
-      convertedTrade.science
+      convertedTrade.science + specialistOutputs.science
     );
-    const gold = this.applyOutputBonus(effectContext, OutputType.GOLD, convertedTrade.gold);
-    const luxury = this.applyOutputBonus(effectContext, OutputType.LUXURY, convertedTrade.luxury);
+    const gold = this.applyOutputBonus(
+      effectContext,
+      OutputType.GOLD,
+      convertedTrade.gold + specialistOutputs.gold
+    );
+    const luxury = this.applyOutputBonus(
+      effectContext,
+      OutputType.LUXURY,
+      convertedTrade.luxury + specialistOutputs.luxury
+    );
 
-    // Add specialist contributions
-    const specialistOutputs = this.calculateSpecialistOutputs(city.specialists, effectContext);
-
-    // Combine all outputs
+    const foodConsumption = city.population * rulesetLoader.getCivstyle('classic').food_cost;
     const totalOutputs: CityOutputs = {
-      food: finalOutputs.food + specialistOutputs.food,
-      shields:
-        this.applyOutputBonus(effectContext, OutputType.SHIELD, finalOutputs.shields) +
-        specialistOutputs.shields,
-      trade: tradeAfterCorruption + specialistOutputs.trade,
-      science: science + specialistOutputs.science,
-      gold: gold + specialistOutputs.gold,
-      luxury: luxury + specialistOutputs.luxury,
+      food: grossFood - foodConsumption,
+      shields: grossShields,
+      trade: tradeAfterCorruption,
+      science,
+      gold,
+      luxury,
+      pollution: this.calculatePollution(city, grossShields),
     };
 
     // Defensive programming to ensure no undefined values
     return {
-      food: totalOutputs.food || 0,
+      food: totalOutputs.food,
       shields: totalOutputs.shields || 0,
       trade: totalOutputs.trade || 0,
       science: totalOutputs.science || 0,
       gold: totalOutputs.gold || 0,
       luxury: totalOutputs.luxury || 0,
+      pollution: totalOutputs.pollution || 0,
     };
-  }
-
-  /**
-   * Apply minimum city center outputs from ruleset
-   * @private
-   */
-  private applyMinimumCityCenterOutputs(outputs: {
-    food: number;
-    shields: number;
-    trade: number;
-  }): {
-    food: number;
-    shields: number;
-    trade: number;
-  } {
-    try {
-      const civstyle = rulesetLoader.getCivstyle('classic');
-      return {
-        food: Math.max(outputs.food, civstyle.min_city_center_food),
-        shields: Math.max(outputs.shields, civstyle.min_city_center_shield),
-        trade: Math.max(outputs.trade, civstyle.min_city_center_trade),
-      };
-    } catch {
-      // Fallback to hardcoded values if ruleset loading fails
-      return {
-        food: Math.max(outputs.food, 2),
-        shields: Math.max(outputs.shields, 1),
-        trade: Math.max(outputs.trade, 1),
-      };
-    }
   }
 
   /**
    * Fallback calculation when TileManagementService is not available
    * @private
    */
-  private calculateFallbackCityOutputs(_city: CityState): CityOutputs {
+  private calculateFallbackCityOutputs(city: CityState, taxRates?: TaxRates): CityOutputs {
     try {
       const civstyle = rulesetLoader.getCivstyle('classic');
       const food = civstyle.min_city_center_food;
       const shields = civstyle.min_city_center_shield;
       const trade = civstyle.min_city_center_trade;
 
-      // Calculate science from trade even in fallback mode
-      const tradeToScience = trade > 0 ? Math.max(1, Math.floor(trade / 2)) : 0;
+      const convertedTrade = distributeTrade(trade, taxRates ?? DEFAULT_TAX_RATES);
 
       return {
-        food,
+        food: food - city.population * civstyle.food_cost,
         shields,
         trade,
-        science: tradeToScience,
-        gold: 0,
-        luxury: 0,
+        ...convertedTrade,
+        pollution: this.calculatePollution(city, shields),
       };
     } catch {
       // Double fallback to hardcoded classic values
+      const convertedTrade = distributeTrade(1, taxRates ?? DEFAULT_TAX_RATES);
       return {
-        food: 2,
+        food: 2 - city.population * 2,
         shields: 1,
         trade: 1,
-        science: 1,
-        gold: 0,
-        luxury: 0,
+        ...convertedTrade,
+        pollution: this.calculatePollution(city, 1),
       };
     }
   }
 
   /**
-   * Convert trade points to science and gold based on simple allocation
-   * In a full implementation, this would use government type and city settings
-   * @private
+   * Baseline production and population pollution plus the ruleset modifier.
+   * Pollution-reduction effects are applied by EffectsManager as those
+   * Freeciv effect types are ported.
+   *
+   * @reference reference/freeciv/common/city.c:2785-2823 city_pollution_types()
    */
-  private convertTradeToResources(trade: number): {
-    science: number;
-    gold: number;
-    luxury: number;
-  } {
-    // Simplified economics: split trade between science and gold
-    // Ensure at least 1 science for any city with trade
-    const tradeToScience = trade > 0 ? Math.max(1, Math.floor(trade / 2)) : 0;
-    const tradeToGold = Math.max(0, trade - tradeToScience);
-
-    return {
-      science: tradeToScience,
-      gold: tradeToGold,
-      luxury: 0, // Luxury comes from specialists in this simplified model
-    };
+  private calculatePollution(city: CityState, shieldProduction: number): number {
+    const basePollution = rulesetLoader.getCivstyle('classic').base_pollution;
+    return Math.max(0, shieldProduction + city.population + basePollution);
   }
 
   /**
@@ -335,6 +321,7 @@ export class CityCalculationService extends BaseGameService {
       science: 0,
       gold: 0,
       luxury: 0,
+      pollution: 0,
     };
 
     for (const [specialistType, count] of Object.entries(specialists)) {
@@ -466,7 +453,7 @@ export class CityCalculationService extends BaseGameService {
 
     // Check for negative values
     Object.entries(outputs).forEach(([key, value]) => {
-      if (value < 0) {
+      if (value < 0 && key !== 'food') {
         warnings.push(`Negative ${key} output: ${value}`);
         isValid = false;
       }

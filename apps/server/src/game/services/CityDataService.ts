@@ -140,16 +140,14 @@ export class CityDataService {
     const productionPerTurn = city.productionPerTurn ?? civstyle.min_city_center_shield;
     const tradePerTurn = city.tradePerTurn ?? civstyle.min_city_center_trade;
     const sciencePerTurn = city.sciencePerTurn ?? Math.floor(tradePerTurn / 2);
-
-    // Calculate gold from trade (remaining after science allocation)
-    const goldPerTurn = Math.max(0, tradePerTurn - sciencePerTurn);
-
-    // Calculate luxury from specialists
-    const luxuryPerTurn = this.calculateSpecialistOutput(city.specialists, 'luxury');
+    const goldPerTurn = city.goldPerTurn ?? Math.max(0, tradePerTurn - sciencePerTurn);
+    const luxuryPerTurn =
+      city.luxuryPerTurn ?? this.calculateSpecialistOutput(city.specialists, 'luxury');
+    const grossFood = foodPerTurn + city.population * civstyle.food_cost;
 
     // Production breakdown (total before consumption)
     const prod = {
-      food: foodPerTurn,
+      food: grossFood,
       shields: productionPerTurn,
       trade: tradePerTurn,
       gold: goldPerTurn,
@@ -159,7 +157,7 @@ export class CityDataService {
 
     // Calculate surplus (after consumption) - following freeciv pattern
     const surplus = {
-      food: foodPerTurn - city.population * civstyle.food_cost,
+      food: foodPerTurn,
       shields: productionPerTurn, // All shields go to production (no consumption)
       trade: tradePerTurn, // Trade is base (before gold/science split)
       gold: goldPerTurn,
@@ -267,7 +265,7 @@ export class CityDataService {
       // City state
       celebrating: this.isCelebrating(city),
       disorder: this.isInDisorder(city),
-      pollution: this.calculatePollution(city),
+      pollution: city.pollution ?? this.calculatePollution(city),
 
       rallyPoint: undefined, // TODO: Implement rally points
     };

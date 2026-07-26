@@ -87,13 +87,20 @@ worker, action, client, AI, diplomacy, or metagame milestones are complete.
 
 ## Milestone 3 — in progress
 
-The production lifecycle is the first completed Milestone 3 slice. Normal turn
-production, rush buying, completion, client progress, and persistence use one
-shield stock. Completion retains overflow, and classic unit/building rush
-premiums are covered by `CityProductionLifecycle.test.ts`.
+Production and authoritative city-output accounting are completed Milestone 3
+slices. Normal turn production, rush buying, completion, client progress, and
+persistence use one shield stock. Completion retains overflow, and classic
+unit/building rush premiums are covered by `CityProductionLifecycle.test.ts`.
+Tile output is now gross until the city calculation applies food support;
+player tax rates use Freeciv's largest-remainder distribution; specialist
+output receives building bonuses; city trade, gold, luxury, science, pollution,
+and food surplus persist; recovered games restore treasury and rates; and turn
+economics charges ruleset building upkeep without double-counting research.
+`CityOutputPipeline.test.ts`, `TradeDistribution.test.ts`, and
+`TurnProcessingService.research.test.ts` cover these paths.
 
-The remaining Milestone 3 scope includes full city output/economy fixtures,
-trade routes, governor/citizen automation, worker improvements, pollution, and
+The remaining Milestone 3 scope includes trade routes, governor/citizen
+automation, unit upkeep, worker improvements, pollution placement/cleanup, and
 terrain transformations.
 
 ## Partial or incomplete areas
