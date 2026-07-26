@@ -14,7 +14,7 @@ import { getUnitType } from '@game/constants/UnitConstants';
 
 // Action definitions based on freeciv classic ruleset
 // @reference freeciv/common/actions.c
-const ACTION_DEFINITIONS = {
+const ACTION_DEFINITIONS: Partial<Record<ActionType, ActionDefinition>> = {
   // Basic movement actions
   [ActionType.MOVE]: {
     id: ActionType.MOVE,
@@ -250,40 +250,7 @@ const ACTION_DEFINITIONS = {
     consumes_actor: false,
     moves_actor: ActionMovesActor.STAYS,
   },
-
-  // Simplified definitions for other actions (to be expanded)
-  ...Object.fromEntries(
-    Object.values(ActionType)
-      .filter(
-        actionType =>
-          ![
-            ActionType.MOVE,
-            ActionType.ATTACK,
-            ActionType.FORTIFY,
-            ActionType.SENTRY,
-            ActionType.WAIT,
-            ActionType.GOTO,
-            ActionType.FOUND_CITY,
-            ActionType.BUILD_ROAD,
-            ActionType.AUTO_EXPLORE,
-            ActionType.SKIP_TURN,
-          ].includes(actionType)
-      )
-      .map(actionType => [
-        actionType,
-        {
-          id: actionType,
-          name: actionType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-          description: `Perform ${actionType.replace(/_/g, ' ').toLowerCase()}`,
-          category: ActionCategory.BASIC,
-          requirements: [],
-          targetType: ActionTargetType.NONE,
-          consumes_actor: false,
-          moves_actor: ActionMovesActor.STAYS,
-        },
-      ])
-  ),
-} as unknown as Record<ActionType, ActionDefinition>;
+};
 
 export class ActionSystem {
   private gameId: string;
@@ -329,6 +296,9 @@ export class ActionSystem {
    * Get action definition by type
    */
   getActionDefinition(actionType: ActionType): ActionDefinition | null {
+    // @reference reference/freeciv/data/classic/actions.ruleset
+    // Do not expose generated placeholder actions. An action becomes available
+    // only when its rules and authoritative execution have been ported.
     return ACTION_DEFINITIONS[actionType] || null;
   }
 

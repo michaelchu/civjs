@@ -18,6 +18,7 @@
     "test:unit:client": "cd apps/client && npm run test",
     "test:unit:server": "cd apps/server && npm run test:unit",
     "test:integration": "cd apps/server && npm run test:integration",
+    "test:integration:path": "cd apps/server && npm run test:integration:path --",
     "test:integration:watch": "cd apps/server && npm run test:integration:watch",
     "test:all": "npm run test:unit && npm run test:integration",
     "lint": "npm run lint:client && npm run lint:server",

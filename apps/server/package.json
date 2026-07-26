@@ -19,6 +19,7 @@
     "test:ci": "npm run test:unit",
     "test:unit": "jest --testPathIgnorePatterns=integration",
     "test:integration": "jest --config jest.integration.config.js --runInBand",
+    "test:integration:path": "jest --config jest.integration.config.js --runInBand --runTestsByPath",
     "test:integration:ci": "jest --config jest.integration.config.js --runInBand",
     "test:integration:watch": "jest --config jest.integration.config.js --watch",
     "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",

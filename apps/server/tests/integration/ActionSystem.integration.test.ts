@@ -69,9 +69,11 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
       expect(foundCityAction!.name).toBe('Found City');
     });
 
-    it('should return null for unknown action types', () => {
+    it('should return null for unknown and unported action types', () => {
       const unknownAction = actionSystem.getActionDefinition('UNKNOWN_ACTION' as ActionType);
       expect(unknownAction).toBeNull();
+
+      expect(actionSystem.getActionDefinition(ActionType.BRIBE_UNIT)).toBeNull();
     });
   });
 
