@@ -1,4 +1,9 @@
-import { EffectType, EffectsManager, type EffectContext } from '@game/managers/EffectsManager';
+import {
+  EffectType,
+  EffectsManager,
+  OutputType,
+  type EffectContext,
+} from '@game/managers/EffectsManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 jest.mock('@shared/data/rulesets/RulesetLoader', () => ({
@@ -44,6 +49,40 @@ describe('EffectsManager classic requirement evaluation', () => {
         type: 'Gov_Center',
         value: 5,
         reqs: [{ type: 'Building', name: 'great_wall', range: 'Player', present: false }],
+      },
+      base_upkeep_not_gold: {
+        id: 'base_upkeep_not_gold',
+        type: 'Upkeep_Pct',
+        value: 100,
+        // @reference reference/freeciv/data/classic/effects.ruleset:343-349
+        reqs: [{ type: 'OutputType', name: 'Gold', range: 'Local', present: false }],
+      },
+      base_upkeep_gold: {
+        id: 'base_upkeep_gold',
+        type: 'Upkeep_Pct',
+        value: 100,
+        // @reference reference/freeciv/data/classic/effects.ruleset:351-358
+        reqs: [
+          { type: 'OutputType', name: 'Gold', range: 'Local' },
+          { type: 'UnitState', name: 'HasHomeCity', range: 'Local' },
+        ],
+      },
+      republic_unhappy: {
+        id: 'republic_unhappy',
+        type: 'Unhappy_Factor',
+        value: 1,
+        // @reference reference/freeciv/data/classic/effects.ruleset:378-384
+        reqs: [{ type: 'Gov', name: 'Republic', range: 'Player' }],
+      },
+      republic_corruption: {
+        id: 'republic_corruption',
+        type: 'Output_Waste',
+        value: 15,
+        // @reference reference/freeciv/data/classic/effects.ruleset:325-332
+        reqs: [
+          { type: 'Gov', name: 'Republic', range: 'Player' },
+          { type: 'OutputType', name: 'Trade', range: 'Local' },
+        ],
       },
     });
   });
@@ -131,5 +170,63 @@ describe('EffectsManager classic requirement evaluation', () => {
     const effects = new EffectsManager();
 
     expect(effects.calculateEffect(EffectType.FORTIFY_DEFENSE_BONUS, {}).value).toBe(0);
+  });
+
+  it('applies gold upkeep only to units with a home city', () => {
+    const effects = new EffectsManager();
+
+    expect(
+      effects.calculateEffect(EffectType.UPKEEP_PCT, {
+        outputType: OutputType.GOLD,
+        unitHasHomeCity: true,
+      }).value
+    ).toBe(100);
+    expect(
+      effects.calculateEffect(EffectType.UPKEEP_PCT, {
+        outputType: OutputType.GOLD,
+        unitHasHomeCity: false,
+      }).value
+    ).toBe(0);
+  });
+
+  it('fails closed when required government, output, or unit-state context is absent', () => {
+    const effects = new EffectsManager();
+
+    expect(effects.calculateEffect(EffectType.UPKEEP_PCT, {}).value).toBe(0);
+    expect(
+      effects.calculateEffect(EffectType.UPKEEP_PCT, { outputType: OutputType.GOLD }).value
+    ).toBe(0);
+    expect(effects.calculateEffect(EffectType.UNHAPPY_FACTOR, {}).value).toBe(0);
+  });
+
+  it('does not apply classic corruption to non-trade output or missing government context', () => {
+    const effects = new EffectsManager();
+
+    expect(
+      effects.calculateEffect(EffectType.OUTPUT_WASTE, {
+        government: 'Republic',
+        outputType: OutputType.TRADE,
+      }).value
+    ).toBe(15);
+    expect(
+      effects.calculateEffect(EffectType.OUTPUT_WASTE, {
+        government: 'Republic',
+        outputType: OutputType.SHIELD,
+      }).value
+    ).toBe(0);
+    expect(
+      effects.calculateEffect(EffectType.OUTPUT_WASTE, { outputType: OutputType.TRADE }).value
+    ).toBe(0);
+  });
+
+  it('fails closed for unsupported unit-state names even when negated', () => {
+    const effects = new EffectsManager();
+
+    expect(
+      effects.evaluateRequirements(
+        [{ type: 'UnitState', name: 'UnsupportedState', range: 'Local', present: false }],
+        { unitHasHomeCity: false }
+      ).satisfied
+    ).toBe(false);
   });
 });

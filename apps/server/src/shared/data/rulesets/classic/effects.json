@@ -288,6 +288,138 @@
       "comment": "Base HP regeneration (except helicopters)"
     },
 
+    "republic_military_content": {
+      "id": "republic_military_content",
+      "type": "Make_Content_Mil",
+      "value": 1,
+      "reqs": [{ "type": "Gov", "name": "Republic", "range": "Player" }],
+      "comment": "Republic military contentment; @reference reference/freeciv/data/classic/effects.ruleset:254-260"
+    },
+    "base_unit_upkeep_not_gold": {
+      "id": "base_unit_upkeep_not_gold",
+      "type": "Upkeep_Pct",
+      "value": 100,
+      "reqs": [{ "type": "OutputType", "name": "Gold", "range": "Local", "present": false }],
+      "comment": "Base non-gold unit upkeep; @reference reference/freeciv/data/classic/effects.ruleset:343-349"
+    },
+    "base_unit_upkeep_gold": {
+      "id": "base_unit_upkeep_gold",
+      "type": "Upkeep_Pct",
+      "value": 100,
+      "reqs": [
+        { "type": "OutputType", "name": "Gold", "range": "Local" },
+        { "type": "UnitState", "name": "HasHomeCity", "range": "Local" }
+      ],
+      "comment": "Base gold unit upkeep for units with a home city; @reference reference/freeciv/data/classic/effects.ruleset:351-358"
+    },
+    "republic_unit_upkeep": {
+      "id": "republic_unit_upkeep",
+      "type": "Upkeep_Pct",
+      "value": 100,
+      "reqs": [
+        { "type": "Gov", "name": "Republic", "range": "Player" },
+        { "type": "OutputType", "name": "Food", "range": "Local" }
+      ],
+      "comment": "Republic food unit upkeep; @reference reference/freeciv/data/classic/effects.ruleset:360-367"
+    },
+    "democracy_unit_upkeep": {
+      "id": "democracy_unit_upkeep",
+      "type": "Upkeep_Pct",
+      "value": 100,
+      "reqs": [
+        { "type": "Gov", "name": "Democracy", "range": "Player" },
+        { "type": "OutputType", "name": "Food", "range": "Local" }
+      ],
+      "comment": "Democracy food unit upkeep; @reference reference/freeciv/data/classic/effects.ruleset:369-376"
+    },
+    "republic_unit_unhappiness": {
+      "id": "republic_unit_unhappiness",
+      "type": "Unhappy_Factor",
+      "value": 1,
+      "reqs": [{ "type": "Gov", "name": "Republic", "range": "Player" }],
+      "comment": "Republic unit unhappiness; @reference reference/freeciv/data/classic/effects.ruleset:378-384"
+    },
+    "democracy_unit_unhappiness": {
+      "id": "democracy_unit_unhappiness",
+      "type": "Unhappy_Factor",
+      "value": 2,
+      "reqs": [{ "type": "Gov", "name": "Democracy", "range": "Player" }],
+      "comment": "Democracy unit unhappiness; @reference reference/freeciv/data/classic/effects.ruleset:386-392"
+    },
+    "democracy_revolution_unhappiness": {
+      "id": "democracy_revolution_unhappiness",
+      "type": "Revolution_Unhappiness",
+      "value": 2,
+      "reqs": [{ "type": "Gov", "name": "Democracy", "range": "Player" }],
+      "comment": "Democracy revolution unhappiness; @reference reference/freeciv/data/classic/effects.ruleset:759-765"
+    },
+    "republic_senate": {
+      "id": "republic_senate",
+      "type": "Has_Senate",
+      "value": 1,
+      "reqs": [{ "type": "Gov", "name": "Republic", "range": "Player" }],
+      "comment": "Republic senate; @reference reference/freeciv/data/classic/effects.ruleset:767-773"
+    },
+    "democracy_senate": {
+      "id": "democracy_senate",
+      "type": "Has_Senate",
+      "value": 1,
+      "reqs": [{ "type": "Gov", "name": "Democracy", "range": "Player" }],
+      "comment": "Democracy senate; @reference reference/freeciv/data/classic/effects.ruleset:775-781"
+    },
+    "police_station_republic_military_content": {
+      "id": "police_station_republic_military_content",
+      "type": "Make_Content_Mil",
+      "value": 1,
+      "reqs": [
+        { "type": "Gov", "name": "Republic", "range": "Player", "present": true },
+        { "type": "Building", "name": "Police Station", "range": "City", "present": true },
+        {
+          "type": "Building",
+          "name": "Women's Suffrage",
+          "range": "Player",
+          "present": false
+        }
+      ],
+      "comment": "Republic Police Station military contentment; @reference reference/freeciv/data/classic/effects.ruleset:1383-1391"
+    },
+    "police_station_democracy_military_content": {
+      "id": "police_station_democracy_military_content",
+      "type": "Make_Content_Mil",
+      "value": 2,
+      "reqs": [
+        { "type": "Gov", "name": "Democracy", "range": "Player", "present": true },
+        { "type": "Building", "name": "Police Station", "range": "City", "present": true },
+        {
+          "type": "Building",
+          "name": "Women's Suffrage",
+          "range": "Player",
+          "present": false
+        }
+      ],
+      "comment": "Democracy Police Station military contentment; @reference reference/freeciv/data/classic/effects.ruleset:1393-1401"
+    },
+    "womens_suffrage_republic_military_content": {
+      "id": "womens_suffrage_republic_military_content",
+      "type": "Make_Content_Mil",
+      "value": 1,
+      "reqs": [
+        { "type": "Gov", "name": "Republic", "range": "Player" },
+        { "type": "Building", "name": "Women's Suffrage", "range": "Player" }
+      ],
+      "comment": "Republic Women's Suffrage military contentment; @reference reference/freeciv/data/classic/effects.ruleset:2201-2208"
+    },
+    "womens_suffrage_democracy_military_content": {
+      "id": "womens_suffrage_democracy_military_content",
+      "type": "Make_Content_Mil",
+      "value": 2,
+      "reqs": [
+        { "type": "Gov", "name": "Democracy", "range": "Player" },
+        { "type": "Building", "name": "Women's Suffrage", "range": "Player" }
+      ],
+      "comment": "Democracy Women's Suffrage military contentment; @reference reference/freeciv/data/classic/effects.ruleset:2210-2217"
+    },
+
     "corruption_anarchy_base": {
       "id": "corruption_anarchy_base",
       "type": "Output_Waste",
@@ -297,6 +429,11 @@
           "type": "Gov",
           "name": "anarchy",
           "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
         }
       ],
       "comment": "Anarchy base corruption: 25%"
@@ -310,6 +447,11 @@
           "type": "Gov",
           "name": "anarchy",
           "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
         }
       ],
       "comment": "Anarchy distance corruption: 200% per tile"
@@ -323,6 +465,11 @@
           "type": "Gov",
           "name": "despotism",
           "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
         }
       ],
       "comment": "Despotism base corruption: 37%"
@@ -336,6 +483,11 @@
           "type": "Gov",
           "name": "despotism",
           "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
         }
       ],
       "comment": "Despotism distance corruption: 400% per tile"
@@ -349,6 +501,11 @@
           "type": "Gov",
           "name": "monarchy",
           "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
         }
       ],
       "comment": "Monarchy base corruption: 15%"
@@ -362,6 +519,11 @@
           "type": "Gov",
           "name": "monarchy",
           "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
         }
       ],
       "comment": "Monarchy distance corruption: 200% per tile"
@@ -375,6 +537,11 @@
           "type": "Gov",
           "name": "communism",
           "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
         }
       ],
       "comment": "Communism base corruption: 20% (no distance penalty)"
@@ -388,6 +555,11 @@
           "type": "Gov",
           "name": "republic",
           "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
         }
       ],
       "comment": "Republic base corruption: 15%"
@@ -401,6 +573,11 @@
           "type": "Gov",
           "name": "republic",
           "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
         }
       ],
       "comment": "Republic distance corruption: 200% per tile"

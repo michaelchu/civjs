@@ -394,6 +394,7 @@ export const RequirementSchema = z.object({
 
 // Requirement kinds currently represented by the ported classic effects data.
 // @reference reference/freeciv/data/classic/effects.ruleset:50-710
+// @reference reference/freeciv/common/requirements.c:4803-4828
 export const EffectRequirementTypeSchema = z.enum([
   'Activity',
   'Age',
@@ -410,6 +411,7 @@ export const EffectRequirementTypeSchema = z.enum([
   'TerrainClass',
   'UnitClass',
   'UnitClassFlag',
+  'UnitState',
   'UnitType',
   'UnitTypeFlag',
 ]);

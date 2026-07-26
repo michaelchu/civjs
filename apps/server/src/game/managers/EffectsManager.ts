@@ -102,6 +102,7 @@ export interface EffectContext {
   unitClassFlags?: Set<string>;
   unitTypeFlags?: Set<string>;
   unitActivity?: string;
+  unitHasHomeCity?: boolean;
   tileTerrain?: string;
   tileTerrainClass?: string;
   tileExtras?: Set<string>;
@@ -544,6 +545,13 @@ export class EffectsManager {
         'UnitTypeFlag',
         req,
         this.setContains(context.unitTypeFlags, req.name)
+      );
+    // @reference reference/freeciv/common/requirements.c:4803-4828
+    this.requirementHandlers['UnitState'] = (req, context) =>
+      this.requirementResult(
+        'UnitState',
+        req,
+        this.matches(req.name, 'HasHomeCity') === true ? context.unitHasHomeCity : undefined
       );
     this.requirementHandlers['Activity'] = (req, context) =>
       this.requirementResult('Activity', req, this.matches(context.unitActivity, req.name));
