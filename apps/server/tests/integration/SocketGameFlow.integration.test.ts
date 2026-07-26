@@ -358,5 +358,28 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       gameId,
       cities: { [cityId]: expect.objectContaining({ id: cityId, name: 'Socket City' }) },
     });
+
+    // A recovered game must continue processing through the real broadcaster;
+    // otherwise the next completed turn replaces the reconnect payload with
+    // the old empty-city mock update.
+    const returningTurnReply = waitForPacket(returning, PacketType.TURN_END_REPLY);
+    returning.emit('packet', { type: PacketType.END_TURN, data: {} });
+    expect((await returningTurnReply).data).toMatchObject({ success: true, turnAdvanced: false });
+
+    const citiesAfterRecoveredTurn = waitForEvent<{
+      gameId: string;
+      cities: Record<string, { id: string; name: string }>;
+    }>(returning, 'cities_updated');
+    const guestTurnAfterRecovery = waitForPacket(guest, PacketType.TURN_END_REPLY);
+    guest.emit('packet', { type: PacketType.END_TURN, data: {} });
+    expect((await guestTurnAfterRecovery).data).toMatchObject({
+      success: true,
+      turnAdvanced: true,
+    });
+    expect(await citiesAfterRecoveredTurn).toMatchObject({
+      gameId,
+      cities: { [cityId]: expect.objectContaining({ id: cityId, name: 'Socket City' }) },
+    });
+    expect(gameManager.getGameInstance(gameId)?.currentTurn).toBe(22);
   });
 });
