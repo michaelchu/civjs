@@ -377,6 +377,7 @@ export class CityManager {
   private mapManager?: MapManager;
   private io?: SocketServer; // Socket.IO server for emitting events
   private validationService?: CityFoundingValidationService;
+  private currentTurnProvider?: () => number;
 
   // Specialized services
   private managementService?: CityManagementService;
@@ -414,6 +415,10 @@ export class CityManager {
    */
   setCallbacks(newCallbacks: Partial<CityManagerCallbacks>): void {
     this.callbacks = { ...this.callbacks, ...newCallbacks };
+  }
+
+  public setCurrentTurnProvider(provider: () => number): void {
+    this.currentTurnProvider = provider;
   }
 
   /**
@@ -611,7 +616,8 @@ export class CityManager {
     }
 
     const cityId = randomUUID();
-    const currentTurn = 1; // This would come from game state
+    // @reference reference/freeciv/server/citytools.c:639-690
+    const currentTurn = this.currentTurnProvider?.() ?? 1;
 
     const city: CityState = {
       id: cityId,

@@ -100,6 +100,14 @@ describe('CityManager', () => {
   });
 
   describe('city founding', () => {
+    it('records the authoritative turn when founding a city', async () => {
+      cityManager.setCurrentTurnProvider(() => 7);
+
+      const city = await cityManager.foundCity(10, 10, 'Turn Seven', 'player-123');
+
+      expect(city.founded).toBe(7);
+    });
+
     it('should found a city successfully', async () => {
       const city = await cityManager.foundCity(10, 10, 'TestCity', 'player-123');
 
