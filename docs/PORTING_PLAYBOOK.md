@@ -38,7 +38,7 @@ Do not fill gaps with invented game rules. When a reference cannot be reused, do
 
 Each milestone is complete only when its acceptance criteria are met. Work items within a milestone should be delivered as small vertical slices, not one large subsystem rewrite.
 
-### Milestone 0 — Establish a reliable porting baseline
+### Milestone 0 — Establish a reliable porting baseline — complete (2026-07-25)
 
 **Outcome:** contributors can tell what is implemented, partial, and unverified.
 
@@ -48,6 +48,13 @@ Each milestone is complete only when its acceptance criteria are met. Work items
 - Add a repeatable local-game smoke test covering connection, game creation, join, map load, one turn, and reload.
 
 **Exit criteria:** every new port PR has source citations and a packet/ruleset impact assessment.
+
+**Completion evidence:** [`PORTING_INVENTORY.md`](PORTING_INVENTORY.md)
+contains the current classic-data and transport catalogues;
+`GameFlow.integration.test.ts` and `SocketGameFlow.integration.test.ts` cover
+the manager/database and real Socket.IO flows respectively; and
+`.github/pull_request_template.md` makes source and impact evidence a required
+review item for new porting changes.
 
 ### Milestone 1 — Core playable loop
 

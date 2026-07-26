@@ -1,7 +1,8 @@
 # CivJS Port Status
 
-**Verified against:** `6860b9dc` (2025-09-14)  
-**Verification method:** source-tree audit; this document does not claim runtime or gameplay-test coverage.
+**Verified against:** Milestone 0 working tree (2026-07-25)
+**Verification method:** source-tree audit plus passing client/unit tests and the
+database-backed integration suite (including the Socket.IO smoke test).
 
 ## Purpose
 
@@ -16,6 +17,26 @@ This is the single status document for the Freeciv port. It records only claims 
 - Structured turn processing, including a culture phase: `apps/server/src/game/managers/TurnManager.ts` and `apps/server/src/game/services/TurnPhaseService.ts`.
 - Culture, borders, and visibility: `CultureManager.ts`, `BorderManager.ts`, and `VisibilityManager.ts` in `apps/server/src/game/managers/`.
 - Citizen assignment optimization: `apps/server/src/game/systems/CitizenManagement/`, with corresponding server tests.
+
+## Milestone 0 — complete
+
+Milestone 0's reliable-porting baseline is complete:
+
+- `PORT_STATUS.md` is the single high-level status source.
+- [`PORTING_INVENTORY.md`](PORTING_INVENTORY.md) records the classic ruleset
+  data coverage, every active transport contract, its upstream reference, and
+  its available automated evidence.
+- `apps/server/tests/integration/GameFlow.integration.test.ts` verifies the
+  authoritative manager/database flow, including restart recovery.
+- `apps/server/tests/integration/SocketGameFlow.integration.test.ts` verifies
+  the client transport boundary: Socket.IO connection/authentication, game
+  creation, join/nation selection, map delivery, turn completion, and rejoin.
+- `.github/pull_request_template.md` requires source citations and packet and
+  ruleset impact assessments for new porting changes.
+
+This baseline makes incomplete data and transport explicit; it does not imply
+that the partially ported mechanics below are complete. Milestone 1 is now the
+active delivery target.
 
 ## Partial or incomplete areas
 

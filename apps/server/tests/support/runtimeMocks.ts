@@ -6,6 +6,7 @@ const mockLogger = {
 };
 
 jest.mock('../../src/utils/logger', () => ({
+  __esModule: true,
   default: mockLogger,
   logger: mockLogger,
 }));

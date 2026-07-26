@@ -1,7 +1,7 @@
 # CivJS Porting Inventory
 
-**Audit baseline:** `3f4618b4` plus the Milestone 0 working tree
-**Purpose:** the evidence backlog for Milestone 0 in [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md). This is an inventory, not a completion claim.
+**Audit baseline:** `2a01dcca` (2026-07-25)
+**Purpose:** the evidence record for Milestone 0 in [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md). It distinguishes implemented transport/data from unported or unverified upstream behavior.
 
 ## Classic ruleset inventory
 
@@ -16,6 +16,8 @@
 | `techs.json`       | `data/classic/techs.ruleset`       | Present.                                                                                             |
 | `terrain.json`     | `data/classic/terrain.ruleset`     | Present.                                                                                             |
 | `units.json`       | `data/classic/units.ruleset`       | Present.                                                                                             |
+| extras             | `data/classic/terrain.ruleset` | No standalone CivJS extras data file; terrain-derived extras and worker integration remain partial. |
+| requirements       | requirement clauses in the classic ruleset files | Parsed only where individual CivJS schemas support them; there is no complete generic requirements-data port. |
 | —                  | `data/classic/actions.ruleset`     | No equivalent JSON data file identified; action coverage requires an explicit audit.                 |
 | —                  | `data/classic/styles.ruleset`      | No equivalent JSON data file identified; client style/rendering coverage requires an explicit audit. |
 
@@ -23,15 +25,36 @@ The loader parses every `classic/*.json` file with `JSON.parse`, then validates 
 
 ## Packet inventory
 
-### Current implementations
+### Contract catalogue
 
-| Concern                           | CivJS location                                                               | Freeciv / freeciv-web reference                               |
-| --------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Server packet enum and validation | `apps/server/src/types/packet.ts`                                            | `reference/freeciv/common/networking/packets.def`             |
-| Server envelope dispatch          | `apps/server/src/network/PacketHandler.ts`                                   | `packets.def` handler directions                              |
-| Client packet enum and reducers   | `apps/client/src/types/packets.ts`, `apps/client/src/services/GameClient.ts` | `reference/freeciv-web/javascript/packets.js`, `packhand.js`  |
-| City production protocol          | `CityManagementHandler.ts`, `CityProductionHandler.ts`                       | `packets.def:825–849`, `freeciv-web/javascript/city.js`       |
-| Turn protocol                     | `TurnManagementHandler.ts`, `TurnPacketService.ts`                           | `packets.def:1339+`, `freeciv-web/javascript/packhand_gen.js` |
+The rows below inventory every currently registered CivJS gameplay transport. A
+`named` row is a Socket.IO event; an `envelope` row is sent through the
+`packet` event. “No direct equivalent” means CivJS-specific transport, not
+unreviewed compatibility.
+
+| Transport | Direction | CivJS handler | Client consumer | Upstream reference | Automated evidence |
+| --- | --- | --- | --- | --- | --- |
+| `SERVER_JOIN_REQ` / `SERVER_JOIN_REPLY` (envelope) | client ↔ server | `ConnectionHandler.ts` | `GameClient.authenticatePlayer` | `PACKET_SERVER_JOIN_REQ` / `PACKET_SERVER_JOIN_REPLY` in `packets.def`; `packhand.js` | `ConnectionHandler.test.ts`; `SocketGameFlow.integration.test.ts` |
+| `GAME_CREATE` / `GAME_CREATE_REPLY` (envelope) | client ↔ server | `GameManagementHandler.ts` | `GameClient.createGame` | no direct one-packet equivalent; lobby flow is adapted from freeciv-web `game.js` | `GameManagementHandler.test.ts`; `SocketGameFlow.integration.test.ts` |
+| `join_game` (named) | client → server | `GameManagementHandler.ts` | `GameClient.joinGame` | freeciv-web `game.js` lobby/join flow | `GameManagementHandler.nation-selection.test.ts`; `SocketGameFlow.integration.test.ts` |
+| `GAME_LIST` (envelope), `get_game_list` (named) | client ↔ server | `GameManagementHandler.ts` | `GameClient.getGameList` | freeciv-web `game.js` | `GameManagementHandler.test.ts` |
+| `observe_game`, `delete_game` (named) | client → server | `GameManagementHandler.ts` | `GameClient.observeGame`, `GameClient.deleteGame` | no direct equivalent; CivJS lobby API | `GameManagementHandler.test.ts` |
+| `MAP_VIEW_REQ` / `MAP_VIEW_REPLY` (envelope) | client ↔ server | `MapVisibilityHandler.ts` | `GameClient.requestMapData` | `PACKET_MAP_INFO`, `PACKET_TILE_INFO`; freeciv-web `packhand.js` | `SocketGameFlow.integration.test.ts` |
+| `get_map_data`, `get_visible_tiles` (named) | client ↔ server | `MapVisibilityHandler.ts` | `GameClient.getMapData`, `GameClient.getVisibleTiles` | freeciv-web map request flow | `SocketGameFlow.integration.test.ts` |
+| `TILE_VISIBILITY_REQ` / `TILE_VISIBILITY_REPLY` (envelope) | client ↔ server | `MapVisibilityHandler.ts` | no current `GameClient` caller | `PACKET_TILE_INFO` | `MapVisibilityHandler` unit coverage pending feature use |
+| `UNIT_MOVE`, `UNIT_ATTACK`, `UNIT_FORTIFY`, `UNIT_CREATE` and replies (envelope) | client ↔ server | `UnitActionHandler.ts` | `GameClient.moveUnit`, `attackUnit`, `fortifyUnit`, `createUnit` | `PACKET_UNIT_*` in `packets.def`; freeciv-web `unit.js` | `UnitActionHandler.test.ts`, `UnitMovement.integration.test.ts` |
+| `unit_action`, `path_request` / `path_response` (named) | client ↔ server | `UnitActionHandler.ts` | `GameClient.executeUnitAction`, `PathfindingService` | freeciv-web `unit.js` | `UnitActionHandler.test.ts`, `ActionSystem.integration.test.ts` |
+| `CITY_FOUND` / reply, `CITY_PRODUCTION_CHANGE` / reply (envelope) | client ↔ server | `CityManagementHandler.ts` | `GameClient.foundCity`; production envelope unused | `PACKET_CITY_CHANGE` in `packets.def`; freeciv-web `city.js` | `CityProductionHandler.test.ts`, `CityManager.integration.test.ts` |
+| `city:getAvailableProductions`, `city:changeProduction` and replies (named) | client ↔ server | `CityManagementHandler.ts`, `CityProductionHandler.ts` | `GameClient.getAvailableProductions`, `changeProduction` | freeciv-web `city.js` | `CityProductionHandler.test.ts`, `GameClient.production.test.ts` |
+| `RESEARCH_SET`, goal/list/progress and replies (envelope) | client ↔ server | `ResearchHandler.ts` | `GameClient.setResearch` | `PACKET_PLAYER_RESEARCH`; freeciv-web `research.js` | `ResearchManager.test.ts`, `GameFlow.integration.test.ts` |
+| `END_TURN` / `TURN_END_REPLY`, `TURN_START`, `NEW_YEAR` (envelope) | client ↔ server | `TurnManagementHandler.ts` | `GameClient.endTurn`, packet reducer | `PACKET_TURN_DONE`, `PACKET_BEGIN_TURN`, `PACKET_NEW_YEAR` | `TurnManager.test.ts`, `GameFlow.integration.test.ts`, `SocketGameFlow.integration.test.ts` |
+| `CHAT_MSG_REQ` / `CHAT_MSG` (envelope) | client ↔ server | `ChatCommunicationHandler.ts` | `GameClient` packet reducer | `PACKET_CHAT_MSG_REQ`, `PACKET_CHAT_MSG` | handler unit coverage pending client feature work |
+| border update/info events (envelope and named) | server → client / client → server | `GameManagementHandler.ts`, `MapVisibilityHandler.ts` | `GameClient` packet reducer | `PACKET_BORDER_*`; freeciv-web map handlers | `BorderManager` unit/integration tests; socket transport coverage pending |
+
+The enum declarations in `apps/server/src/types/packet.ts` and
+`apps/client/src/types/packets.ts` contain additional legacy or future packet
+names. They are intentionally not counted as implemented transport until a
+handler, client consumer, and test exist.
 
 ### Confirmed protocol risks
 
@@ -64,12 +87,22 @@ Do not renumber existing packets in place. Migrate one feature family at a time 
 4. Migrate the client to the structured path, remove the compatibility adapter only after the packet inventory marks it unused, and update the Freeciv mapping.
 5. Use a protocol-version field before adopting upstream numeric IDs broadly; packet numbers alone are not sufficient evidence of semantic compatibility.
 
+## Milestone 0 transport smoke test
+
+`tests/integration/SocketGameFlow.integration.test.ts` starts a real in-process
+Socket.IO server and two Socket.IO clients. It verifies connection,
+authentication, game creation, join/nation selection, map delivery, a complete
+turn, disconnect/reconnect, and recovery of the same persisted game. It uses
+the isolated `TEST_DATABASE_URL` database and is part of `npm run
+test:integration`.
+
 ## Prioritized next slices
 
 1. **Packet contract foundation:** inventory all active packet-envelope registrations and named events, then choose one family for migration.
 2. **City production:** make its declared structured packet path authoritative and test it against Freeciv `PACKET_CITY_CHANGE` semantics before removing the named-event path.
 3. **Classic actions ruleset:** inventory `actions.ruleset` against `ActionSystem` and identify the first missing ruleset-driven action.
-4. **Local smoke test:** automate create → join → nation select → start → map → unit action → end turn → reconnect.
+4. **Client-browser smoke test:** add an automated browser layer over the
+   Socket.IO smoke path once a browser test runner is selected.
 
 ## Action-system inventory
 
@@ -79,7 +112,12 @@ The local ruleset has no `actions.json`; Freeciv’s action definitions remain i
 
 ## Smoke-test status
 
-`tests/integration/GameFlow.integration.test.ts` is the Milestone 0 server smoke test. It now covers a two-player game’s creation, nation assignment, start, map/visibility access, city founding, unit creation, research selection, turn advancement, and rejoin of an active player. It requires `TEST_DATABASE_URL` to point to an isolated PostgreSQL database.
+`tests/integration/GameFlow.integration.test.ts` verifies the authoritative
+manager/database path, including two-player creation, nation assignment,
+start, map/visibility access, city founding, unit creation, research, turn
+advancement, and rejoin. `SocketGameFlow.integration.test.ts` verifies the
+same baseline through the network transport. Both require `TEST_DATABASE_URL`
+to point to an isolated PostgreSQL database.
 
 ## Update rule
 

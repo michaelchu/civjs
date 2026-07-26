@@ -14,6 +14,7 @@ import {
   TurnManagementHandler,
 } from './handlers';
 import { PacketType } from '../types/packet';
+import { db, type Database } from '@database';
 
 // Store active connections (shared across handlers)
 const activeConnections = new Map<
@@ -33,7 +34,10 @@ export class SocketCoordinator {
   private handlers: SocketHandler[] = [];
   private gameManager: GameManager;
 
-  constructor(gameManager: GameManager) {
+  constructor(
+    gameManager: GameManager,
+    private database: Database = db
+  ) {
     this.gameManager = gameManager;
     this.initializeHandlers();
   }
@@ -43,7 +47,7 @@ export class SocketCoordinator {
    */
   private initializeHandlers(): void {
     this.handlers = [
-      new ConnectionHandler(activeConnections),
+      new ConnectionHandler(activeConnections, this.database),
       new GameManagementHandler(activeConnections, this.gameManager),
       new UnitActionHandler(activeConnections, this.gameManager),
       new CityManagementHandler(activeConnections, this.gameManager),

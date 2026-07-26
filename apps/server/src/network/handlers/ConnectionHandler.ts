@@ -4,7 +4,7 @@ import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
 import { PacketType, ServerJoinReqSchema } from '@app-types/packet';
 import { sessionCache } from '@database/redis';
-import { db } from '@database';
+import { db, type Database } from '@database';
 import { users } from '@database/schema';
 import { eq } from 'drizzle-orm';
 
@@ -24,7 +24,10 @@ export class ConnectionHandler extends BaseSocketHandler {
 
   private activeConnections: Map<string, { userId?: string; username?: string; gameId?: string }>;
 
-  constructor(activeConnections: Map<string, any>) {
+  constructor(
+    activeConnections: Map<string, any>,
+    private database: Database = db
+  ) {
     super();
     this.activeConnections = activeConnections;
   }
@@ -64,7 +67,7 @@ export class ConnectionHandler extends BaseSocketHandler {
     try {
       const { username } = data;
 
-      const existingUser = await db.query.users.findFirst({
+      const existingUser = await this.database.query.users.findFirst({
         where: eq(users.username, username),
       });
 
@@ -73,7 +76,7 @@ export class ConnectionHandler extends BaseSocketHandler {
 
       if (existingUser) {
         userId = existingUser.id;
-        await db.update(users).set({ lastSeen: new Date() }).where(eq(users.id, userId));
+        await this.database.update(users).set({ lastSeen: new Date() }).where(eq(users.id, userId));
       } else {
         const result = await this.createNewUser(username);
         userId = result.userId;
@@ -129,7 +132,10 @@ export class ConnectionHandler extends BaseSocketHandler {
 
     const connection = this.activeConnections.get(socket.id);
     if (connection?.userId) {
-      await db.update(users).set({ lastSeen: new Date() }).where(eq(users.id, connection.userId));
+      await this.database
+        .update(users)
+        .set({ lastSeen: new Date() })
+        .where(eq(users.id, connection.userId));
 
       if (connection.gameId) {
         // Emit disconnect message to game room
@@ -160,7 +166,7 @@ export class ConnectionHandler extends BaseSocketHandler {
    */
   private async createNewUser(username: string): Promise<{ userId: string; isNewUser: boolean }> {
     try {
-      const [newUser] = await db
+      const [newUser] = await this.database
         .insert(users)
         .values({
           username,
@@ -190,7 +196,7 @@ export class ConnectionHandler extends BaseSocketHandler {
       `Username ${username} already exists due to race condition, fetching existing user`
     );
 
-    const existingUserRetry = await db.query.users.findFirst({
+    const existingUserRetry = await this.database.query.users.findFirst({
       where: eq(users.username, username),
     });
 
@@ -198,7 +204,10 @@ export class ConnectionHandler extends BaseSocketHandler {
       throw new Error(`Failed to find user ${username} after constraint violation`);
     }
 
-    await db.update(users).set({ lastSeen: new Date() }).where(eq(users.id, existingUserRetry.id));
+    await this.database
+      .update(users)
+      .set({ lastSeen: new Date() })
+      .where(eq(users.id, existingUserRetry.id));
     return { userId: existingUserRetry.id, isNewUser: false };
   }
 
