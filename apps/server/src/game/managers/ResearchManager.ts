@@ -186,10 +186,15 @@ export class ResearchManager {
   private playerResearch: Map<string, PlayerResearch> = new Map();
   private gameId: string;
   private databaseProvider: DatabaseProvider;
+  private currentTurnProvider?: () => number;
 
   constructor(gameId: string, databaseProvider: DatabaseProvider) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
+  }
+
+  public setCurrentTurnProvider(provider: () => number): void {
+    this.currentTurnProvider = provider;
   }
 
   public async initializePlayerResearch(playerId: string): Promise<void> {
@@ -493,8 +498,7 @@ export class ResearchManager {
   }
 
   private getCurrentTurn(): number {
-    // This would typically come from the game manager
-    return 1;
+    return this.currentTurnProvider?.() ?? 1;
   }
 
   public cleanup(): void {

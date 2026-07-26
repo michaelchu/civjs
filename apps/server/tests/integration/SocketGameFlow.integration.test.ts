@@ -227,9 +227,9 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     });
 
     const researchReply = waitForPacket(host, PacketType.RESEARCH_SET_REPLY);
-    host.emit('packet', { type: PacketType.RESEARCH_SET, data: { techId: 'pottery' } });
+    host.emit('packet', { type: PacketType.RESEARCH_SET, data: { techId: 'mathematics' } });
     expect((await researchReply).data).toMatchObject({ success: true });
-    expect(gameManager.getPlayerResearch(gameId, hostPlayer!.id)?.currentTech).toBe('pottery');
+    expect(gameManager.getPlayerResearch(gameId, hostPlayer!.id)?.currentTech).toBe('mathematics');
 
     const hostTurnReply = waitForPacket(host, PacketType.TURN_END_REPLY);
     host.emit('packet', { type: PacketType.END_TURN, data: {} });
@@ -293,7 +293,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     expect(recoveredGame?.cityManager.getCity(cityId)).toMatchObject({ id: cityId });
     expect(
       recoveredGame?.researchManager.getPlayerResearch(hostPlayer!.id)?.researchedTechs
-    ).toContain('pottery');
+    ).toContain('mathematics');
     expect(
       recoveredGame?.researchManager.getPlayerResearch(guestPlayer!.id)?.researchedTechs
     ).toEqual(new Set(['alphabet']));
@@ -302,6 +302,20 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       .from(playerTechs)
       .where(and(eq(playerTechs.gameId, gameId), eq(playerTechs.playerId, guestPlayer!.id)));
     expect(guestStartingTechRows).toHaveLength(1);
+    const hostMathematics = await getTestDatabase()
+      .select()
+      .from(playerTechs)
+      .where(
+        and(
+          eq(playerTechs.gameId, gameId),
+          eq(playerTechs.playerId, hostPlayer!.id),
+          eq(playerTechs.techId, 'mathematics')
+        )
+      );
+    expect(hostMathematics).toEqual([
+      expect.objectContaining({ researchedTurn: expect.any(Number) }),
+    ]);
+    expect(hostMathematics[0].researchedTurn).toBeGreaterThan(1);
     expect(recoveredGame?.borderManager.getAllTileOwnership()).toEqual(
       expect.arrayContaining([expect.objectContaining({ x: 8, y: 8, playerId: hostPlayer!.id })])
     );

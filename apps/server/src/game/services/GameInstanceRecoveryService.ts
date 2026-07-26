@@ -317,6 +317,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
       createTurnRecord: false,
       broadcastTurnStart: false,
     });
+    // @reference reference/freeciv/server/techtools.c:665-719
+    // Keep recovered research associated with the restored authoritative turn.
+    researchManager.setCurrentTurnProvider(() => turnManager.getCurrentTurn());
 
     return {
       turnManager,

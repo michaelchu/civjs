@@ -261,6 +261,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       borderManager,
       visibilityManager
     );
+    // @reference reference/freeciv/server/techtools.c:665-719
+    // Research completion belongs to the active authoritative turn.
+    researchManager.setCurrentTurnProvider(() => turnManager.getCurrentTurn());
 
     // Set up callbacks after all managers are created
     cityManager.setCallbacks({
