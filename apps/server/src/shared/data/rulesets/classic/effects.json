@@ -696,6 +696,38 @@
       ],
       "comment": "Base Cathedral contentment"
     },
+    "cathedral_theology_content": {
+      "id": "cathedral_theology_content",
+      "type": "Make_Content",
+      "value": 1,
+      "reqs": [
+        { "type": "Tech", "name": "Theology", "range": "Player" },
+        { "type": "Building", "name": "Cathedral", "range": "City" },
+        {
+          "type": "Building",
+          "name": "Michelangelo's Chapel",
+          "range": "Player",
+          "present": false
+        }
+      ],
+      "comment": "Theology Cathedral contentment bonus"
+    },
+    "cathedral_communism_content": {
+      "id": "cathedral_communism_content",
+      "type": "Make_Content",
+      "value": -1,
+      "reqs": [
+        { "type": "Tech", "name": "Communism", "range": "Player" },
+        { "type": "Building", "name": "Cathedral", "range": "City" },
+        {
+          "type": "Building",
+          "name": "Michelangelo's Chapel",
+          "range": "Player",
+          "present": false
+        }
+      ],
+      "comment": "Communism Cathedral contentment penalty"
+    },
     "library_culture_pct": {
       "id": "library_culture_pct",
       "type": "Culture_Pct",
