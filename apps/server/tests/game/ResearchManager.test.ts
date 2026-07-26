@@ -1,4 +1,5 @@
 import { ResearchManager, TECHNOLOGIES } from '@game/managers/ResearchManager';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('ResearchManager', () => {
@@ -13,21 +14,25 @@ describe('ResearchManager', () => {
 
   describe('technology definitions', () => {
     it('should have valid technology definitions', () => {
+      const classicTechs = rulesetLoader.getTechs();
+
       expect(TECHNOLOGIES.alphabet).toBeDefined();
       expect(TECHNOLOGIES.alphabet.name).toBe('Alphabet');
-      expect(TECHNOLOGIES.alphabet.cost).toBe(10);
+      expect(TECHNOLOGIES.alphabet.cost).toBe(classicTechs.alphabet.cost);
       expect(TECHNOLOGIES.alphabet.requirements).toEqual([]);
 
       expect(TECHNOLOGIES.mathematics).toBeDefined();
-      expect(TECHNOLOGIES.mathematics.requirements).toEqual(['alphabet']);
-      expect(TECHNOLOGIES.mathematics.cost).toBe(20);
+      expect(TECHNOLOGIES.mathematics.requirements).toEqual(classicTechs.mathematics.requirements);
+      expect(TECHNOLOGIES.mathematics.cost).toBe(classicTechs.mathematics.cost);
 
       expect(TECHNOLOGIES.philosophy).toBeDefined();
-      expect(TECHNOLOGIES.philosophy.flags).toContain('bonus_tech');
-      expect(TECHNOLOGIES.philosophy.requirements).toEqual(['writing', 'mysticism']);
+      expect(TECHNOLOGIES.philosophy.flags).toContain('Bonus_Tech');
+      expect(TECHNOLOGIES.philosophy.requirements).toEqual(classicTechs.philosophy.requirements);
     });
 
     it('should have properly structured tech tree', () => {
+      expect(Object.keys(TECHNOLOGIES)).toHaveLength(Object.keys(rulesetLoader.getTechs()).length);
+
       // Check that all required techs exist
       for (const tech of Object.values(TECHNOLOGIES)) {
         for (const reqTech of tech.requirements) {
@@ -76,23 +81,17 @@ describe('ResearchManager', () => {
     });
 
     it('should reject technology without requirements', async () => {
-      await expect(
-        researchManager.setCurrentResearch('player-123', 'bronze_working')
-      ).rejects.toThrow('Missing requirement: pottery for bronze_working');
+      await expect(researchManager.setCurrentResearch('player-123', 'mathematics')).rejects.toThrow(
+        'Missing requirement: masonry for mathematics'
+      );
     });
 
     it('should allow technology with satisfied requirements', async () => {
-      // Research pottery first (no requirements beyond alphabet)
-      await researchManager.setCurrentResearch('player-123', 'pottery');
-
-      // Complete pottery research
       const research = researchManager.getPlayerResearch('player-123')!;
-      research.researchedTechs.add('pottery');
-      research.currentTech = undefined;
+      research.researchedTechs.add('masonry');
 
-      // Now should be able to research animal husbandry (requires pottery)
-      await researchManager.setCurrentResearch('player-123', 'animal_husbandry');
-      expect(research.currentTech).toBe('animal_husbandry');
+      await researchManager.setCurrentResearch('player-123', 'mathematics');
+      expect(research.currentTech).toBe('mathematics');
     });
   });
 
@@ -151,13 +150,13 @@ describe('ResearchManager', () => {
     });
 
     it('should auto-select next research when goal is set', async () => {
-      await researchManager.setResearchGoal('player-123', 'animal_husbandry');
+      await researchManager.setResearchGoal('player-123', 'code_of_laws');
 
       // Complete pottery
       await researchManager.addResearchPoints('player-123', 10);
 
       const research = researchManager.getPlayerResearch('player-123');
-      expect(research!.currentTech).toBe('animal_husbandry');
+      expect(research!.currentTech).toBe('code_of_laws');
       expect(research!.techGoal).toBeUndefined(); // Goal cleared
     });
   });
@@ -170,13 +169,13 @@ describe('ResearchManager', () => {
     it('should return technologies available for research', () => {
       const availableTechs = researchManager.getAvailableTechnologies('player-123');
 
-      expect(availableTechs).toHaveLength(4); // pottery, mysticism, mathematics, writing (all require only alphabet)
-      expect(availableTechs.map(t => t.id)).toContain('pottery');
-      expect(availableTechs.map(t => t.id)).toContain('mysticism');
-      expect(availableTechs.map(t => t.id)).toContain('mathematics');
-      expect(availableTechs.map(t => t.id)).toContain('writing');
+      const expected = Object.values(TECHNOLOGIES)
+        .filter(
+          tech => tech.id !== 'alphabet' && tech.requirements.every(req => req === 'alphabet')
+        )
+        .map(tech => tech.id);
+      expect(availableTechs.map(t => t.id).sort()).toEqual(expected.sort());
       expect(availableTechs.map(t => t.id)).not.toContain('alphabet'); // Already researched
-      expect(availableTechs.map(t => t.id)).not.toContain('bronze_working'); // Missing requirements
     });
 
     it('should update available technologies as research progresses', async () => {
@@ -186,8 +185,7 @@ describe('ResearchManager', () => {
 
       const availableTechs = researchManager.getAvailableTechnologies('player-123');
 
-      // Should now include animal_husbandry (requires pottery)
-      expect(availableTechs.map(t => t.id)).toContain('animal_husbandry');
+      // Pottery is no longer available after it has been researched.
       expect(availableTechs.map(t => t.id)).not.toContain('pottery'); // Already researched
     });
   });
@@ -247,7 +245,7 @@ describe('ResearchManager', () => {
     it('should check if technology can be researched', () => {
       expect(researchManager.canResearch('player-123', 'pottery')).toBe(true);
       expect(researchManager.canResearch('player-123', 'alphabet')).toBe(false); // Already researched
-      expect(researchManager.canResearch('player-123', 'bronze_working')).toBe(false); // Missing requirements
+      expect(researchManager.canResearch('player-123', 'mathematics')).toBe(false); // Missing masonry
       expect(researchManager.canResearch('player-123', 'invalid-tech')).toBe(false); // Doesn't exist
     });
   });
@@ -260,17 +258,20 @@ describe('ResearchManager', () => {
     it('should grant bonus tech for philosophy', async () => {
       // Research prerequisites for philosophy
       const research = researchManager.getPlayerResearch('player-123')!;
-      research.researchedTechs.add('writing');
       research.researchedTechs.add('mysticism');
+      research.researchedTechs.add('literacy');
 
       await researchManager.setCurrentResearch('player-123', 'philosophy');
-      const completedTech = await researchManager.addResearchPoints('player-123', 80);
+      const completedTech = await researchManager.addResearchPoints(
+        'player-123',
+        TECHNOLOGIES.philosophy.cost
+      );
 
       expect(completedTech).toBe('philosophy');
       expect(research.researchedTechs.has('philosophy')).toBe(true);
 
       // Should have received a bonus tech
-      expect(research.researchedTechs.size).toBeGreaterThan(4); // alphabet + writing + mysticism + philosophy + bonus
+      expect(research.researchedTechs.size).toBeGreaterThan(4); // alphabet + prerequisites + philosophy + bonus
     });
   });
 

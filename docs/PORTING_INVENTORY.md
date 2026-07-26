@@ -14,7 +14,7 @@
 | `game.json`        | `data/classic/game.ruleset`                      | Present.                                                                                                      |
 | `governments.json` | `data/classic/governments.ruleset`               | Present.                                                                                                      |
 | `nations.json`     | `data/classic/nations.ruleset`                   | Present.                                                                                                      |
-| `techs.json`       | `data/classic/techs.ruleset`                     | Present.                                                                                                      |
+| `techs.json`       | `data/classic/techs.ruleset`                     | Present; the research manager now uses the full loaded catalogue for costs, prerequisites, and flags.          |
 | `terrain.json`     | `data/classic/terrain.ruleset`                   | Present.                                                                                                      |
 | `units.json`       | `data/classic/units.ruleset`                     | Present.                                                                                                      |
 | extras             | `data/classic/terrain.ruleset`                   | No standalone CivJS extras data file; terrain-derived extras and worker integration remain partial.           |

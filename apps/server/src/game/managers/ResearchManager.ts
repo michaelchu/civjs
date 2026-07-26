@@ -1,6 +1,7 @@
 import { DatabaseProvider } from '@database';
 import { research as researchTable, playerTechs } from '@database/schema';
 import { eq, and } from 'drizzle-orm';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 export interface Technology {
   id: string;
@@ -22,7 +23,11 @@ export interface PlayerResearch {
 }
 
 // Following Freeciv's classic technology tree
-export const TECHNOLOGIES: Record<string, Technology> = {
+/**
+ * Retained only as an audit reference while the classic data-backed catalogue
+ * below replaces it at runtime.
+ */
+export const LEGACY_TECHNOLOGIES: Record<string, Technology> = {
   // Starting technologies
   alphabet: {
     id: 'alphabet',
@@ -181,6 +186,29 @@ export const TECHNOLOGIES: Record<string, Technology> = {
     description: 'Enables the Democratic form of government',
   },
 };
+
+/**
+ * Build the playable technology catalogue from classic ruleset data.
+ * @reference reference/freeciv/data/classic/techs.ruleset
+ */
+function loadRulesetTechnologies(): Record<string, Technology> {
+  return Object.fromEntries(
+    Object.entries(rulesetLoader.getTechs()).map(([id, tech]) => [
+      id,
+      {
+        id: tech.id,
+        name: tech.name,
+        cost: tech.cost,
+        requirements: tech.requirements,
+        rootRequirement: tech.root_req ?? undefined,
+        flags: tech.flags,
+        description: tech.description,
+      },
+    ])
+  );
+}
+
+export const TECHNOLOGIES: Record<string, Technology> = loadRulesetTechnologies();
 
 export class ResearchManager {
   private playerResearch: Map<string, PlayerResearch> = new Map();
@@ -350,7 +378,7 @@ export class ResearchManager {
     });
 
     // Handle bonus tech flag (Philosophy gives free tech)
-    if (tech.flags.includes('bonus_tech')) {
+    if (tech.flags.some(flag => flag.toLowerCase().replace(/[^a-z0-9]/g, '') === 'bonustech')) {
       const availableTechs = this.getAvailableTechnologies(playerId);
       if (availableTechs.length > 0) {
         // Give random available tech
