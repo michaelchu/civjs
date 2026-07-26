@@ -248,14 +248,15 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     await cityManager.initialize();
 
     // Create additional managers
+    const researchManager = this.createResearchManager(gameId);
+    await this.initializePlayerResearch(researchManager, players);
     const visibilityManager = this.createVisibilityManager(
       gameId,
       unitManager,
       mapManager,
-      effectsManager
+      effectsManager,
+      researchManager
     );
-    const researchManager = this.createResearchManager(gameId);
-    await this.initializePlayerResearch(researchManager, players);
     const pathfindingManager = this.createPathfindingManager(game, mapManager);
 
     // Create TurnManager last since it depends on all other managers
@@ -956,9 +957,16 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     gameId: string,
     unitManager: UnitManager,
     mapManager: MapManager,
-    effectsManager: EffectsManager
+    effectsManager: EffectsManager,
+    researchManager: ResearchManager
   ): VisibilityManager {
-    return new VisibilityManager(gameId, unitManager, mapManager, effectsManager);
+    return new VisibilityManager(
+      gameId,
+      unitManager,
+      mapManager,
+      effectsManager,
+      playerId => new Set(researchManager.getResearchedTechs(playerId))
+    );
   }
 
   private createResearchManager(gameId: string): ResearchManager {

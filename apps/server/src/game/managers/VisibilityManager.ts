@@ -17,23 +17,28 @@ export interface TileVisibility {
   lastSeen?: Date; // when was it last seen
 }
 
+export type PlayerTechsProvider = (playerId: string) => ReadonlySet<string>;
+
 export class VisibilityManager {
   private gameId: string;
   private playerVisibility: Map<string, PlayerVisibility> = new Map();
   private unitManager: UnitManager;
   private mapManager: MapManager;
   private effectsManager: EffectsManager;
+  private playerTechsProvider: PlayerTechsProvider;
 
   constructor(
     gameId: string,
     unitManager: UnitManager,
     mapManager: MapManager,
-    effectsManager: EffectsManager = new EffectsManager()
+    effectsManager: EffectsManager = new EffectsManager(),
+    playerTechsProvider: PlayerTechsProvider = () => new Set()
   ) {
     this.gameId = gameId;
     this.unitManager = unitManager;
     this.mapManager = mapManager;
     this.effectsManager = effectsManager;
+    this.playerTechsProvider = playerTechsProvider;
   }
 
   /**
@@ -91,6 +96,7 @@ export class VisibilityManager {
         tileExtras: new Set(tile.improvements),
         tileIsCityCenter: Boolean(tile.cityId),
         maxUnitsOnTile: tile.unitIds.length,
+        playerTechs: new Set(this.playerTechsProvider(playerId)),
       });
       const visibleTiles = this.calculateTileVisibility(
         unit.x,

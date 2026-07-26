@@ -244,7 +244,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       gameId,
       unitManager,
       mapManager,
-      effectsManager
+      effectsManager,
+      playerId => new Set(researchManager.getResearchedTechs(playerId))
     );
 
     // Initialize BorderManager after CityManager is created

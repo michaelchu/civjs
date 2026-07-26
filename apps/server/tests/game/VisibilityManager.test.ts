@@ -122,6 +122,25 @@ describe('VisibilityManager', () => {
       expect(visibilityManager.getVisibleTiles('player-123').has('12,10')).toBe(true);
     });
 
+    it('applies tech-gated fortress vision only after the player has Invention', async () => {
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      const unitTile = mapManager.getTile(10, 10)!;
+      unitTile.improvements = ['fortress'];
+
+      visibilityManager = new VisibilityManager(
+        gameId,
+        unitManager,
+        mapManager,
+        undefined,
+        () => new Set(['invention'])
+      );
+      visibilityManager.updatePlayerVisibility('player-123');
+
+      // Warrior base vision is 2; a fortress adds 8 only with Invention.
+      // @reference reference/freeciv/data/classic/effects.ruleset:121-130
+      expect(visibilityManager.getVisibleTiles('player-123').has('13,10')).toBe(true);
+    });
+
     it('should handle units at map edges', async () => {
       // Create unit at map edge
       await unitManager.createUnit('player-123', 'warriors', 0, 0);
