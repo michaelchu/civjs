@@ -32,11 +32,11 @@ export class CityManagementHandler extends BaseSocketHandler {
     this.gameManager = gameManager;
   }
 
-  register(handler: PacketHandler, io: Server, socket: Socket): void {
+  register(handler: PacketHandler, _io: Server, socket: Socket): void {
     handler.register(
       PacketType.CITY_FOUND,
       async (socket, data) => {
-        await this.handleCityFound(handler, io, socket, data);
+        await this.handleCityFound(handler, socket, data);
       },
       CityFoundSchema
     );
@@ -221,12 +221,7 @@ export class CityManagementHandler extends BaseSocketHandler {
     return { game, player };
   }
 
-  private async handleCityFound(
-    handler: PacketHandler,
-    io: Server,
-    socket: Socket,
-    data: any
-  ): Promise<void> {
+  private async handleCityFound(handler: PacketHandler, socket: Socket, data: any): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
       handler.send(socket, PacketType.CITY_FOUND_REPLY, {
@@ -255,7 +250,7 @@ export class CityManagementHandler extends BaseSocketHandler {
       );
 
       // Handle settler unit consumption and send success response
-      this.handlePostCityFoundingActions(io, handler, socket, data, connection, player, cityId);
+      await this.handlePostCityFoundingActions(handler, socket, data, connection, player, cityId);
     } catch (error) {
       logger.error('Error founding city:', error);
       handler.send(socket, PacketType.CITY_FOUND_REPLY, {
@@ -438,26 +433,20 @@ export class CityManagementHandler extends BaseSocketHandler {
     return { isValid: true };
   }
 
-  private removeSettlerUnit(
-    io: Server,
+  private async removeSettlerUnit(
     gameId: string,
     unitId: string,
     cityId: string,
     playerId: string
-  ): void {
+  ): Promise<void> {
     const gameInstance = this.gameManager.getGameInstance(gameId);
     if (!gameInstance) return;
 
     const unit = gameInstance.unitManager.getUnit(unitId);
     if (!unit) return;
 
-    gameInstance.unitManager.removeUnit(unitId);
-
-    // Broadcast unit destruction to all players
-    io.to(`game:${gameId}`).emit('unit_destroyed', {
-      gameId,
-      unitId,
-    });
+    await gameInstance.unitManager.removeUnit(unitId);
+    this.gameManager.broadcastUnitDestroyed(gameId, unit);
 
     logger.debug('Settler unit consumed by city founding', {
       unitId,
@@ -502,18 +491,17 @@ export class CityManagementHandler extends BaseSocketHandler {
   /**
    * Handle post city founding actions: unit removal, response, and logging
    */
-  private handlePostCityFoundingActions(
-    io: Server,
+  private async handlePostCityFoundingActions(
     handler: PacketHandler,
     socket: Socket,
     data: any,
     connection: any,
     player: any,
     cityId: string
-  ): void {
+  ): Promise<void> {
     // Remove the settler unit if unitId was provided
     if (data.unitId) {
-      this.removeSettlerUnit(io, connection.gameId!, data.unitId, cityId, player.id);
+      await this.removeSettlerUnit(connection.gameId!, data.unitId, cityId, player.id);
     }
 
     handler.send(socket, PacketType.CITY_FOUND_REPLY, {
