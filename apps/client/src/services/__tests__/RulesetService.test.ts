@@ -39,4 +39,24 @@ describe('RulesetService', () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('loads and caches the renderer presentation catalogue', async () => {
+    const payload = {
+      nation_styles: { style_asian: { name: 'Asian' } },
+      city_styles: {},
+      music_styles: {},
+      terrains: { lake: { graphic: 'lake', graphic_alt: 'coast' } },
+      units: { warriors: { graphic: 'u.warriors' } },
+      extras: { extra_gold: { graphic: 'ts.gold' } },
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => payload,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(rulesetService.loadPresentationRuleset()).resolves.toEqual(payload);
+    await expect(rulesetService.loadPresentationRuleset()).resolves.toEqual(payload);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
 });

@@ -22,16 +22,20 @@
     "test:integration:path": "cd apps/server && npm run test:integration:path --",
     "test:integration:watch": "cd apps/server && npm run test:integration:watch",
     "test:all": "npm run test:unit && npm run test:integration",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "lint": "npm run lint:client && npm run lint:server",
     "lint:client": "cd apps/client && npm run lint",
     "lint:server": "cd apps/server && npm run lint",
     "lint:fix": "npm run lint:fix:client && npm run lint:fix:server",
     "lint:fix:client": "cd apps/client && npm run lint:fix",
     "lint:fix:server": "cd apps/server && npm run lint:fix",
-    "format": "npm run format:client && npm run format:server",
+    "format": "npm run format:root && npm run format:client && npm run format:server",
+    "format:root": "prettier --write \"*.{json,ts}\" \".github/**/*.yml\" \"docs/PORT*.md\" \"docs/RELEASE_RUNBOOK.md\" \"tests/**/*.ts\"",
     "format:client": "cd apps/client && npm run format",
     "format:server": "cd apps/server && npm run format",
-    "format:check": "npm run format:check:client && npm run format:check:server",
+    "format:check": "npm run format:check:root && npm run format:check:client && npm run format:check:server",
+    "format:check:root": "prettier --check \"*.{json,ts}\" \".github/**/*.yml\" \"docs/PORT*.md\" \"docs/RELEASE_RUNBOOK.md\" \"tests/**/*.ts\"",
     "format:check:client": "cd apps/client && npm run format:check",
     "format:check:server": "cd apps/server && npm run format:check",
     "typecheck": "npm run typecheck:client && npm run typecheck:server",
@@ -44,8 +48,10 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "concurrently": "^9.0.1",
     "husky": "^9.1.7",
+    "prettier": "^3.9.6",
     "typescript": "^5.6.3"
   },
   "engines": {

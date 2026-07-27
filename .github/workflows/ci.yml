@@ -59,10 +59,16 @@ jobs:
 
       - name: Install server dependencies
         run: cd apps/server && npm ci
-      
+
       - name: Run client unit tests
         run: cd apps/client && npm run test
-      
+
+      - name: Install browser test runtime
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser parity tests
+        run: npm run test:e2e
+
       - name: Run server unit tests
         run: cd apps/server && npm run test:unit -- --ci --coverage --maxWorkers=2
 
@@ -74,3 +80,5 @@ jobs:
           path: |
             apps/client/coverage
             apps/server/coverage
+            test-results/browser
+            playwright-report

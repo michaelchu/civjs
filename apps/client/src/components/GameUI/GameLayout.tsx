@@ -13,6 +13,8 @@ import { NotificationFeed } from './NotificationFeed';
 import { NationsPanel } from './NationsPanel';
 import { useKeyboardControls } from '../../hooks/useKeyboardControls';
 import { EndGamePanel } from './EndGamePanel';
+import { rulesetService } from '../../services/RulesetService';
+import { resolveMusicStyle } from '../../services/PresentationResolver';
 
 export const GameLayout: React.FC = () => {
   const [dimensions, setDimensions] = useState({
@@ -20,7 +22,34 @@ export const GameLayout: React.FC = () => {
     height: window.innerHeight,
   });
 
-  const { activeTab, clientState } = useGameStore();
+  const { activeTab, clientState, players, currentPlayerId, research } = useGameStore();
+
+  useEffect(() => {
+    let active = true;
+    const applyMusicTheme = async () => {
+      const presentation = await rulesetService.loadPresentationRuleset('classic');
+      if (!active) return;
+      const player = players[currentPlayerId];
+      const theme = resolveMusicStyle({
+        requestedNationStyle: player
+          ? (await rulesetService.getNationStyles('classic'))[player.nation]
+          : undefined,
+        nationStyles: presentation.nation_styles,
+        musicStyles: presentation.music_styles,
+        researchedTechs: research?.researchedTechs,
+      });
+      if (theme) {
+        document.documentElement.dataset.musicTheme = theme;
+        document.dispatchEvent(new CustomEvent('civjs-music-theme', { detail: { theme } }));
+      }
+    };
+    void applyMusicTheme().catch(() => {
+      // Presentation audio tags are optional; rendering remains usable offline.
+    });
+    return () => {
+      active = false;
+    };
+  }, [currentPlayerId, players, research?.researchedTechs]);
 
   // Initialize keyboard controls
   useKeyboardControls();

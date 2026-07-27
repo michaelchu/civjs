@@ -1,6 +1,7 @@
 import type { City, MapViewport } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
-import { rulesetService, type CityStyle } from '../../../services/RulesetService';
+import type { CityStyle, NationStyle } from '../../../services/RulesetService';
+import { resolveCityGraphic } from '../../../services/PresentationResolver';
 import { useGameStore } from '../../../store/gameStore';
 
 /**
@@ -44,9 +45,8 @@ export class CityRenderer extends BaseRenderer {
   // Sprite scaling factors for visual size control
   private cityScale = 1.0; // Normal size cities
   private cityStyles: Record<string, CityStyle> = {};
+  private nationStyleDefinitions: Record<string, NationStyle> = {};
   private nationStyles: Record<string, string> = {};
-  private stylesLoaded = false;
-  private stylesLoading = false;
 
   // Text rendering constants
   private static readonly BASE_FONT_SIZE = 10; // Base font size in pixels before scaling
@@ -54,21 +54,14 @@ export class CityRenderer extends BaseRenderer {
   /**
    * Initialize city styles from ruleset
    */
-  private async initializeCityStyles(): Promise<void> {
-    if (!this.stylesLoaded && !this.stylesLoading) {
-      this.stylesLoading = true;
-      try {
-        [this.cityStyles, this.nationStyles] = await Promise.all([
-          rulesetService.getCityStyles('classic'),
-          rulesetService.getNationStyles('classic'),
-        ]);
-      } catch (error) {
-        console.error('Failed to load authoritative city styles:', error);
-      } finally {
-        this.stylesLoaded = true;
-        this.stylesLoading = false;
-      }
-    }
+  setCityStyles(
+    cityStyles: Record<string, CityStyle>,
+    nationStyleDefinitions: Record<string, NationStyle>,
+    nationStyles: Record<string, string>
+  ): void {
+    this.cityStyles = cityStyles;
+    this.nationStyleDefinitions = nationStyleDefinitions;
+    this.nationStyles = nationStyles;
   }
 
   /**
@@ -76,13 +69,6 @@ export class CityRenderer extends BaseRenderer {
    * After initialization, this is synchronous for better performance.
    */
   renderCities(state: RenderState): void {
-    // If styles aren't loaded yet, skip rendering cities this frame
-    // They will be rendered on the next frame after initialization completes
-    if (!this.stylesLoaded) {
-      this.initializeCityStyles(); // Start async loading in background
-      return;
-    }
-
     Object.values(state.cities).forEach(city => {
       if (this.isInViewport(city.x, city.y, state.viewport)) {
         this.renderCity(city, state.viewport, state);
@@ -195,15 +181,14 @@ export class CityRenderer extends BaseRenderer {
 
     const nationId = state.players[city.playerId]?.nation;
     const nationStyle = nationId ? this.nationStyles[nationId] : undefined;
-    const styleAliases: Record<string, string> = {
-      african: 'tropical',
-      american: 'european',
-      asian: 'asian',
-      european: 'european',
-      'middle eastern': 'babylonian',
-    };
-    const styleId = nationStyle ? styleAliases[nationStyle.toLowerCase()] : undefined;
-    return (styleId && this.cityStyles[styleId]?.graphic) || 'city.european';
+    const researchedTechs =
+      city.playerId === state.currentPlayerId ? state.researchedTechs : new Set<string>();
+    return resolveCityGraphic({
+      requestedNationStyle: nationStyle,
+      nationStyles: this.nationStyleDefinitions,
+      cityStyles: this.cityStyles,
+      researchedTechs,
+    });
   }
 
   /**

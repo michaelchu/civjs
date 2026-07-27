@@ -14,11 +14,26 @@ unit sabotage, poisoning, bribery, and incitement.
 1. Back up PostgreSQL and record the deployed commit SHA.
 2. Run `npm ci` in the repository root and both applications.
 3. Run `npm run format:check`, `npm run lint`, `npm run typecheck`,
-   `npm run test:unit`, and `npm run build`.
+   `npm run test:unit`, `npm run test:e2e`, and `npm run build`.
 4. Run PostgreSQL integration tests with an isolated database:
    `TEST_DATABASE_URL=... npm run test:integration`.
 5. Apply migrations with `npm run db:migrate:prod` from `apps/server`.
 6. Start the server only after migrations succeed.
+
+## Browser parity
+
+Install the supported local browser once with `npx playwright install
+chromium`, then run `npm run test:e2e`. The suite starts Vite itself and
+intercepts only the deterministic ruleset APIs; no PostgreSQL service is
+required. It covers desktop and mobile game creation plus the classic canvas
+fixture, game-screen navigation, accessibility preferences, and presentation
+catalogue consumption.
+
+Browser failures are written beneath `test-results/browser`; traces,
+screenshots, and video are retained on failure. CI also uploads that directory
+and `playwright-report`. Inspect the trace before accepting a screenshot
+change, because a changed image may indicate missing sprites, fog, borders, or
+responsive controls rather than an intentional visual update.
 
 Migration `0007_add_game_end_report.sql` is additive and preserves existing
 saves. A rollback may run the previous application version without dropping
@@ -26,15 +41,15 @@ the new nullable columns.
 
 ## Persistence compatibility
 
-| Entity | Authoritative storage | Reload evidence |
-| --- | --- | --- |
-| Game configuration, map, timer, pause state | `games` | `GameInstanceRecoveryService.test.ts`, `MapManager.integration.test.ts` |
-| Players, economy, government, technology IDs, visibility, diplomacy | `players` | `GameManager.integration.test.ts`, manager and handler unit suites |
-| Cities, citizens, production, buildings, trade, governor state | `cities` | `CityManager.integration.test.ts`, city recovery/economy suites |
-| Units, health, movement, orders, activities, transport | `units` | `UnitManager.integration.test.ts`, `UnitManager.test.ts` |
-| Research progress | `research` and player technology IDs | `ResearchManager.test.ts` |
-| Turn audit, actions, events, phase metrics | `game_turns`, `turn_events`, `turn_phases` | `TurnManager.test.ts` |
-| Final scores and report | `players.score`, `games.end_game_report` | `EndGameService.test.ts` |
+| Entity                                                              | Authoritative storage                      | Reload evidence                                                         |
+| ------------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------- |
+| Game configuration, map, timer, pause state                         | `games`                                    | `GameInstanceRecoveryService.test.ts`, `MapManager.integration.test.ts` |
+| Players, economy, government, technology IDs, visibility, diplomacy | `players`                                  | `GameManager.integration.test.ts`, manager and handler unit suites      |
+| Cities, citizens, production, buildings, trade, governor state      | `cities`                                   | `CityManager.integration.test.ts`, city recovery/economy suites         |
+| Units, health, movement, orders, activities, transport              | `units`                                    | `UnitManager.integration.test.ts`, `UnitManager.test.ts`                |
+| Research progress                                                   | `research` and player technology IDs       | `ResearchManager.test.ts`                                               |
+| Turn audit, actions, events, phase metrics                          | `game_turns`, `turn_events`, `turn_phases` | `TurnManager.test.ts`                                                   |
+| Final scores and report                                             | `players.score`, `games.end_game_report`   | `EndGameService.test.ts`                                                |
 
 Ownership, treasury, population, health, and production changes caused by
 covert actions use these same authoritative player, city, and unit records.

@@ -121,6 +121,8 @@ temp/
 
 # Test results and outputs
 apps/server/tests/e2e/audit/results/
+test-results/
+playwright-report/
 
 # Claude AI settings
 .claude/

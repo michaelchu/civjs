@@ -88,6 +88,7 @@ describe('ruleset-backed city values', () => {
     const service = new CityTileManagementService(cities, mapFor('grassland', 'wheat'), 5, {
       getTerrain: () => ({
         name: 'grassland',
+        graphic: 'grassland',
         properties: {},
         moveCost: 1,
         defense: 10,

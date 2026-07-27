@@ -9,6 +9,40 @@ export interface CityStyle {
   techreq?: string;
   replaced_by?: string;
   oceanic_city_style?: boolean;
+  reqs?: RulesetRequirement[];
+}
+
+export interface RulesetRequirement {
+  type: string;
+  name: string;
+  range: string;
+  present?: boolean;
+}
+
+export interface GraphicDefinition {
+  graphic?: string;
+  graphic_alt?: string;
+  graphic_alt2?: string;
+}
+
+export interface NationStyle {
+  name: string;
+  rule_name?: string;
+}
+
+export interface MusicStyle {
+  music_peaceful: string;
+  music_combat: string;
+  reqs: RulesetRequirement[];
+}
+
+export interface PresentationRuleset {
+  nation_styles: Record<string, NationStyle>;
+  city_styles: Record<string, CityStyle>;
+  music_styles: Record<string, MusicStyle>;
+  terrains: Record<string, GraphicDefinition>;
+  units: Record<string, GraphicDefinition>;
+  extras: Record<string, GraphicDefinition>;
 }
 
 export interface CityFoundingRules {
@@ -28,6 +62,7 @@ export class RulesetService {
   private static instance: RulesetService;
   private citiesCache = new Map<string, CitiesRuleset>();
   private nationStylesCache = new Map<string, Record<string, string>>();
+  private presentationCache = new Map<string, PresentationRuleset>();
 
   static getInstance(): RulesetService {
     if (!RulesetService.instance) {
@@ -82,9 +117,24 @@ export class RulesetService {
     return nationStyles;
   }
 
+  async loadPresentationRuleset(rulesetName: string = 'classic'): Promise<PresentationRuleset> {
+    const cached = this.presentationCache.get(rulesetName);
+    if (cached) return cached;
+    const response = await fetch(
+      `${SERVER_URL}/api/rulesets/${encodeURIComponent(rulesetName)}/presentation`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to load ${rulesetName} presentation ruleset (${response.status})`);
+    }
+    const presentation = (await response.json()) as PresentationRuleset;
+    this.presentationCache.set(rulesetName, presentation);
+    return presentation;
+  }
+
   clearCache(): void {
     this.citiesCache.clear();
     this.nationStylesCache.clear();
+    this.presentationCache.clear();
   }
 }
 

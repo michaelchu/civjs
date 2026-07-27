@@ -6,6 +6,8 @@ import { UnitRenderer } from './renderers/UnitRenderer';
 import { CityRenderer } from './renderers/CityRenderer';
 import { PathRenderer } from './renderers/PathRenderer';
 import { BorderRenderer } from './renderers/BorderRenderer';
+import { rulesetService } from '../../services/RulesetService';
+import { resolveGraphic } from '../../services/PresentationResolver';
 import type { RenderState } from './renderers/BaseRenderer';
 
 declare global {
@@ -76,6 +78,10 @@ export class MapRenderer {
   async initialize(): Promise<void> {
     try {
       await this.tilesetLoader.loadTileset();
+      const [presentation, nationStyles] = await Promise.all([
+        rulesetService.loadPresentationRuleset('classic'),
+        rulesetService.getNationStyles('classic'),
+      ]);
 
       const tileSize = this.tilesetLoader.getTileSize();
       this.tileWidth = tileSize.width;
@@ -87,6 +93,24 @@ export class MapRenderer {
       this.cityRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.pathRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.borderRenderer.updateTileSize(this.tileWidth, this.tileHeight);
+      const terrainGraphics = Object.fromEntries(
+        Object.entries(presentation.terrains)
+          .map(([id, definition]) => [
+            id,
+            resolveGraphic(definition, graphic => Boolean((window as any).ts_tiles?.[graphic])),
+          ])
+          .filter((entry): entry is [string, string] => Boolean(entry[1]))
+      );
+      this.terrainRenderer.setTerrainGraphics(terrainGraphics);
+      this.terrainRenderer.setExtraGraphics(presentation.extras);
+      this.unitRenderer.setTerrainGraphics(terrainGraphics);
+      this.cityRenderer.setTerrainGraphics(terrainGraphics);
+      this.unitRenderer.setUnitGraphics(presentation.units);
+      this.cityRenderer.setCityStyles(
+        presentation.city_styles,
+        presentation.nation_styles,
+        nationStyles
+      );
 
       this.isInitialized = true;
     } catch (error) {

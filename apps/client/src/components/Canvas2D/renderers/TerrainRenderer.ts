@@ -13,6 +13,7 @@ import {
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 
 export class TerrainRenderer extends BaseRenderer {
+  private extraGraphics: Record<string, { graphic?: string; graphic_alt?: string }> = {};
   // Cached tile lookup for performance
   private tileMap: Map<string, any> = new Map();
   private tileMapBuilt = false;
@@ -278,12 +279,32 @@ export class TerrainRenderer extends BaseRenderer {
       }
     };
 
-    addConnections('hasRoad', 'road.road');
-    addConnections('hasRailroad', 'road.rail');
-    if (!tile.cityId && tile.improvements?.includes('irrigation')) sprites.push('tx.irrigation');
-    if (!tile.cityId && tile.improvements?.includes('mine')) sprites.push('tx.mine');
-    if (tile.improvements?.includes('pollution')) sprites.push('tx.pollution');
+    addConnections('hasRoad', this.extraGraphic('road', 'road.road'));
+    addConnections('hasRailroad', this.extraGraphic('railroad', 'road.rail'));
+    for (const improvement of tile.improvements ?? []) {
+      if (tile.cityId && (improvement === 'irrigation' || improvement === 'mine')) continue;
+      const graphic = this.extraGraphic(improvement);
+      if (graphic) sprites.push(graphic);
+    }
     return sprites;
+  }
+
+  private extraGraphic(name: string, fallback?: string): string {
+    const aliases: Record<string, string> = {
+      icy_ivory: 'ivory',
+      arctic_ivory: 'ivory',
+      tundra_game: 'game',
+      grassland_resources: 'bonus',
+    };
+    const id = `extra_${aliases[name] ?? name}`;
+    const definition = this.extraGraphics[id];
+    return (
+      [definition?.graphic, definition?.graphic_alt].find(
+        candidate => candidate && candidate !== '-'
+      ) ??
+      fallback ??
+      ''
+    );
   }
 
   // Direct port of freeciv-web's fill_terrain_sprite_array function
@@ -738,6 +759,8 @@ export class TerrainRenderer extends BaseRenderer {
    */
   private getTileResourceSprite(tile: Tile): { key: string } | null {
     if (!tile.resource) return null;
+    const authoritativeGraphic = this.extraGraphic(tile.resource);
+    if (authoritativeGraphic) return { key: `${authoritativeGraphic}:0` };
 
     // Map resource types to sprite keys following freeciv tileset patterns
     const resourceSpriteMap: Record<string, string> = {
@@ -804,5 +827,9 @@ export class TerrainRenderer extends BaseRenderer {
 
     // Return sprite key following freeciv-web's s.RESOURCE:0 pattern
     return { key: spriteKey };
+  }
+
+  setExtraGraphics(graphics: Record<string, { graphic?: string; graphic_alt?: string }>): void {
+    this.extraGraphics = graphics;
   }
 }

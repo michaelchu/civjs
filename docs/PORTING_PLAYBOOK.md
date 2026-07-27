@@ -361,7 +361,7 @@ bombardment, automated orders, and recovery. `UnitActionHandler.test.ts` proves
 affected units use visibility-scoped updates, and
 `UnitContextMenu.specialActions.test.tsx` covers the client controls.
 
-### Milestone 12 — Client style fidelity and browser-level parity
+### Milestone 12 — Client style fidelity and browser-level parity — complete (2026-07-27)
 
 **Outcome:** loaded classic style data and the supported gameplay surface are
 verified in a real browser rather than only through reducers and component
@@ -387,6 +387,20 @@ tests.
 **Exit criteria:** every supported player-visible feature has a browser-level
 happy path and validation/error path, and representative classic style changes
 are visible without a client code change.
+
+**Completion evidence:** `/api/rulesets/:ruleset/presentation` now supplies the
+validated nation, city, music, terrain, unit, and extra graphic catalogue used
+by the renderer. City and music selection evaluates loaded Style and Tech
+requirements, including later-era replacement, while sprite lookup honors
+ruleset alternatives. `PresentationResolver.test.ts`,
+`RulesetsRoute.test.ts`, and `RulesetService.test.ts` pin that contract.
+
+Playwright runs the real Vite client against a deterministic classic fixture on
+desktop and mobile Chromium. `renderer-parity.spec.ts` verifies non-empty
+canvas output, ruleset-selected music, tabs, city presentation, keyboard
+navigation, and reduced motion; `creation-flow.spec.ts` covers responsive game
+creation and the ruleset-loading error path. CI installs Chromium, retains
+trace/screenshot/video artifacts on failure, and runs `npm run test:e2e`.
 
 ### Milestone 13 — AI depth and release-verification closure
 

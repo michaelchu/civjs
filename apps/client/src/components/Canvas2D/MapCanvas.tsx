@@ -24,6 +24,7 @@ interface MapCanvasProps {
 export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<MapRenderer | null>(null);
+  const [rendererReady, setRendererReady] = useState(false);
 
   // Track initial centering to prevent multiple centering events (freeciv-web compliance)
   const [hasInitiallyCentered, setHasInitiallyCentered] = useState(false);
@@ -178,6 +179,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       try {
         // Initialize renderer (tileset files are now served from client domain)
         await rendererRef.current.initialize();
+        setRendererReady(true);
         const gameState = useGameStore.getState();
 
         if (rendererRef.current) {
@@ -189,6 +191,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
             players: gameState.players,
             selectedUnitId: gameState.selectedUnitId,
             focusedUnits: gameState.focusedUnits,
+            currentPlayerId: gameState.currentPlayerId,
+            researchedTechs: gameState.research?.researchedTechs,
           });
         }
       } catch (error) {
@@ -348,6 +352,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         selectedUnitId: useGameStore.getState().selectedUnitId,
         focusedUnits: useGameStore.getState().focusedUnits,
         gotoPath: gotoMode.currentPath,
+        currentPlayerId: gameState.currentPlayerId,
+        researchedTechs: gameState.research?.researchedTechs,
       });
     }
   }, [
@@ -360,6 +366,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     gotoMode.active,
     gotoMode.currentPath,
     globalTilesVersion,
+    gameState.currentPlayerId,
+    gameState.research?.researchedTechs,
   ]); // Include map for React Hook dependency
 
   // Monitor global tiles changes and trigger canvas reinitialization (like window resize)
@@ -1505,6 +1513,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       )}
       <canvas
         ref={canvasRef}
+        aria-label="World map"
+        data-renderer-ready={rendererReady}
         width={width}
         height={height}
         onMouseDown={handleMouseDown}

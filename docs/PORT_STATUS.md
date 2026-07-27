@@ -1,10 +1,11 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 10 working tree (2026-07-26)
-**Verification method:** source-tree audit, 860 passing unit tests (55 client,
-805 server), and passing formatting, lint, production type checks, and
-production builds. Database-backed integration remains separately dependent on
-the configured PostgreSQL test service.
+**Verified against:** Milestone 12 working tree (2026-07-27)
+**Verification method:** source-tree audit, 880 passing unit tests (61 client,
+819 server), 6 passing desktop/mobile Chromium tests, and passing formatting,
+lint, production type checks, and production builds. Database-backed
+integration remains separately dependent on the configured PostgreSQL test
+service.
 
 **External verification blocker (2026-07-26):** `npm run test:integration` was
 attempted, but all 13 suites stopped in shared setup because neither
@@ -323,13 +324,29 @@ The executable 82-enabler audit found additional enabled outcomes that the
 earlier manual audit had missed. They are now explicitly scheduled in
 Milestones 14 and 15 rather than being mislabeled complete.
 
+## Milestone 12 — complete
+
+The client now initializes its 2D renderer from one validated presentation
+catalogue containing nation, city, music, terrain, unit, and extra graphics.
+The former city-style ID mismatch is removed: Asian and other nation styles
+resolve through loaded Style requirements, and researched technologies select
+the latest eligible city and music style. Terrain, unit, resource, road, rail,
+and improvement sprites use loaded primary and alternate graphics rather than
+client-only presentation maps.
+
+A deterministic browser fixture exercises the real canvas and game screens
+without requiring PostgreSQL. Desktop and mobile Chromium cover responsive
+creation, renderer readiness and non-empty output, tabs, city display,
+keyboard navigation, music-theme selection, reduced motion, and API error
+feedback. CI retains browser traces, screenshots, and videos on failure.
+Evidence includes `PresentationResolver.test.ts`, `RulesetsRoute.test.ts`,
+`renderer-parity.spec.ts`, and `creation-flow.spec.ts`.
+
 ## Partial or incomplete areas
 
 These are confirmed by the post-Milestone 8 audit and are now scheduled in
 [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md):
 
-- Style/rendering parity and the playable flow lack browser-level automated
-  evidence (Milestone 12).
 - Freeciv's full default AI is not ported, and the database-backed integration
   evidence still depends on an externally configured PostgreSQL service
   (Milestone 13).

@@ -40,6 +40,9 @@ export const TerrainTypeSchema = z.enum([
 // Individual terrain ruleset schema
 export const TerrainRulesetSchema = z.object({
   name: TerrainTypeSchema,
+  graphic: z.string(),
+  graphic_alt: z.string().optional(),
+  graphic_alt2: z.string().optional(),
   properties: z.record(z.string(), z.number()).optional().default({}),
   moveCost: z.number().positive(),
   defense: z.number().min(0),

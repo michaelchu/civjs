@@ -11,6 +11,9 @@
   "terrains": {
     "ocean": {
       "name": "ocean",
+      "graphic": "coast",
+      "graphic_alt": "-",
+      "graphic_alt2": "-",
       "properties": {
         "MG_OCEAN_DEPTH": 30
       },
@@ -22,6 +25,9 @@
     },
     "deep_ocean": {
       "name": "deep_ocean",
+      "graphic": "floor",
+      "graphic_alt": "coast",
+      "graphic_alt2": "-",
       "properties": {
         "MG_OCEAN_DEPTH": 80
       },
@@ -33,6 +39,9 @@
     },
     "coast": {
       "name": "coast",
+      "graphic": "coast",
+      "graphic_alt": "-",
+      "graphic_alt2": "-",
       "properties": {
         "MG_OCEAN_DEPTH": 10
       },
@@ -44,6 +53,9 @@
     },
     "lake": {
       "name": "lake",
+      "graphic": "lake",
+      "graphic_alt": "coast",
+      "graphic_alt2": "-",
       "properties": {
         "MG_OCEAN_DEPTH": 5
       },
@@ -56,6 +68,9 @@
     },
     "tundra": {
       "name": "tundra",
+      "graphic": "tundra",
+      "graphic_alt": "arctic",
+      "graphic_alt2": "-",
       "properties": {
         "MG_COLD": 50,
         "MG_FROZEN": 100
@@ -76,6 +91,9 @@
     },
     "desert": {
       "name": "desert",
+      "graphic": "desert",
+      "graphic_alt": "-",
+      "graphic_alt2": "-",
       "properties": {
         "MG_DRY": 100,
         "MG_TROPICAL": 50,
@@ -97,6 +115,9 @@
     },
     "forest": {
       "name": "forest",
+      "graphic": "forest",
+      "graphic_alt": "-",
+      "graphic_alt2": "-",
       "properties": {
         "MG_FOLIAGE": 50,
         "MG_TEMPERATE": 50,
@@ -119,6 +140,9 @@
     },
     "jungle": {
       "name": "jungle",
+      "graphic": "jungle",
+      "graphic_alt": "-",
+      "graphic_alt2": "-",
       "properties": {
         "MG_FOLIAGE": 50,
         "MG_TROPICAL": 50,
@@ -140,6 +164,9 @@
     },
     "swamp": {
       "name": "swamp",
+      "graphic": "swamp",
+      "graphic_alt": "-",
+      "graphic_alt2": "-",
       "properties": {
         "MG_WET": 100
       },
@@ -159,6 +186,9 @@
     },
     "grassland": {
       "name": "grassland",
+      "graphic": "grassland",
+      "graphic_alt": "-",
+      "graphic_alt2": "-",
       "properties": {
         "MG_GREEN": 50,
         "MG_TEMPERATE": 50
@@ -179,6 +209,9 @@
     },
     "plains": {
       "name": "plains",
+      "graphic": "plains",
+      "graphic_alt": "-",
+      "graphic_alt2": "-",
       "properties": {
         "MG_GREEN": 50,
         "MG_TEMPERATE": 50
@@ -199,6 +232,9 @@
     },
     "hills": {
       "name": "hills",
+      "graphic": "hills",
+      "graphic_alt": "-",
+      "graphic_alt2": "-",
       "properties": {
         "MG_MOUNTAINOUS": 30,
         "MG_GREEN": 50
@@ -219,6 +255,9 @@
     },
     "mountains": {
       "name": "mountains",
+      "graphic": "mountains",
+      "graphic_alt": "-",
+      "graphic_alt2": "-",
       "properties": {
         "MG_MOUNTAINOUS": 70
       },

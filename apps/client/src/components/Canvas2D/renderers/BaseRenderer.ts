@@ -11,6 +11,8 @@ export interface RenderState {
   selectedUnitId?: string | null;
   focusedUnits?: string[];
   gotoPath?: GotoPath | null;
+  currentPlayerId?: string;
+  researchedTechs?: ReadonlySet<string>;
 }
 
 export abstract class BaseRenderer {
@@ -18,6 +20,7 @@ export abstract class BaseRenderer {
   protected tilesetLoader: TilesetLoader;
   protected tileWidth: number;
   protected tileHeight: number;
+  private terrainGraphics: Record<string, string> = {};
 
   constructor(
     ctx: CanvasRenderingContext2D,
@@ -77,6 +80,8 @@ export abstract class BaseRenderer {
    * Map terrain names to freeciv graphics names (from terrain.ruleset).
    */
   protected mapTerrainName(terrain: string): string {
+    const authoritativeGraphic = this.terrainGraphics[terrain];
+    if (authoritativeGraphic) return authoritativeGraphic;
     const terrainMap: Record<string, string> = {
       // Water terrains
       ocean: 'coast',
@@ -98,6 +103,10 @@ export abstract class BaseRenderer {
     };
 
     return terrainMap[terrain] || terrain;
+  }
+
+  setTerrainGraphics(graphics: Record<string, string>): void {
+    this.terrainGraphics = graphics;
   }
 
   /**

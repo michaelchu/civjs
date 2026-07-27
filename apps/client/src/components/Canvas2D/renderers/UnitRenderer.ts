@@ -2,6 +2,7 @@ import type { Unit, MapViewport } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 
 export class UnitRenderer extends BaseRenderer {
+  private unitGraphics: Record<string, { graphic?: string; graphic_alt?: string }> = {};
   // Animation state for unit selection
   private selectionAnimationStartTime: number | null = null;
   private lastSelectedUnitId: string | null = null;
@@ -115,9 +116,12 @@ export class UnitRenderer extends BaseRenderer {
 
           this.ctx.drawImage(sprite, unitX + offsetX, unitY + offsetY);
         } else {
-          // Fallback to unit type specific sprite key
-          const fallbackKey = this.getUnitTypeGraphicTag(unit.unitTypeId);
-          const fallbackSprite = this.tilesetLoader.getSprite(fallbackKey);
+          // Freeciv tries the ruleset alternate graphic before a local placeholder.
+          const alternateGraphic = this.unitGraphics[unit.unitTypeId]?.graphic_alt;
+          const fallbackSprite =
+            alternateGraphic && alternateGraphic !== '-'
+              ? this.tilesetLoader.getSprite(alternateGraphic)
+              : null;
           if (fallbackSprite) {
             this.ctx.drawImage(fallbackSprite, unitX, unitY);
           } else {
@@ -227,6 +231,10 @@ export class UnitRenderer extends BaseRenderer {
    * @reference freeciv-web: tileset_unit_graphic_tag()
    */
   private getUnitTypeGraphicTag(unitType: string): string {
+    const definition = this.unitGraphics[unitType];
+    if (definition?.graphic && definition.graphic !== '-') {
+      return definition.graphic;
+    }
     // Handle special case mappings between common unit type names and sprite names
     // @reference freeciv-web/javascript/2dcanvas/tileset_spec_amplio2.js
     const specialMappings: Record<string, string> = {
@@ -241,6 +249,10 @@ export class UnitRenderer extends BaseRenderer {
     // Use special mapping if exists, otherwise use direct mapping
     const spriteName = specialMappings[unitType] || unitType;
     return `u.${spriteName}`;
+  }
+
+  setUnitGraphics(graphics: Record<string, { graphic?: string; graphic_alt?: string }>): void {
+    this.unitGraphics = graphics;
   }
 
   /**
