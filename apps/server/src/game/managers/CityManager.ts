@@ -10,6 +10,7 @@ import {
   SPECIALIST_TYPES,
   type SpecialistDefinition,
 } from '@game/constants/SpecialistDefinitions';
+import type { BuildingCultureRequirement } from '@shared/data/rulesets/schemas';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { EffectsManager } from '@game/managers/EffectsManager';
@@ -211,6 +212,7 @@ export interface BuildingType {
   cost: number;
   requiredTech?: string;
   requires?: string[]; // Required buildings
+  cultureRequirements?: BuildingCultureRequirement[];
   effects: {
     defenseBonus?: number;
     foodBonus?: number;

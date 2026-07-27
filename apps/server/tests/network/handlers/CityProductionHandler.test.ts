@@ -363,33 +363,63 @@ describe('CityProductionHandler', () => {
   });
 
   describe('canCityBuildBuilding', () => {
-    it('should prevent building duplicate buildings', () => {
+    it('should prevent building duplicate buildings', async () => {
       const city = mockCities.get('city-1');
       const player = mockPlayers.get('player-1');
       const buildingType = BUILDING_TYPES.granary;
 
-      const result = (handler as any).canCityBuildBuilding(city, buildingType, player);
+      const result = await (handler as any).canCityBuildBuilding(city, buildingType, player);
       expect(result).toBe(false);
     });
 
-    it('should allow building new buildings', () => {
+    it('should allow building new buildings', async () => {
       const city = mockCities.get('city-1');
       const player = mockPlayers.get('player-1');
       const buildingType = BUILDING_TYPES.barracks;
 
-      const result = (handler as any).canCityBuildBuilding(city, buildingType, player);
+      const result = await (handler as any).canCityBuildBuilding(city, buildingType, player);
       expect(result).toBe(true);
     });
 
-    it('should check technology requirements for buildings', () => {
+    it('should check technology requirements for buildings', async () => {
       const city = mockCities.get('city-1');
       const player = mockPlayers.get('player-1');
       const buildingType = { ...BUILDING_TYPES.barracks, requiredTech: 'missing_tech' };
 
       mockResearchManager.hasPlayerResearched.mockReturnValue(false);
 
-      const result = (handler as any).canCityBuildBuilding(city, buildingType, player);
+      const result = await (handler as any).canCityBuildBuilding(city, buildingType, player);
       expect(result).toBe(false);
+    });
+
+    it('should enforce ruleset culture requirements', async () => {
+      const requirementsManager = {
+        evaluateRulesetCultureRequirements: jest.fn().mockResolvedValue({
+          satisfied: false,
+          reason: 'requires minimum 100 culture',
+        }),
+      };
+      const cultureHandler = new CityProductionHandler(
+        mockCities,
+        mockPlayers,
+        mockResearchManager,
+        undefined,
+        requirementsManager
+      );
+      const city = mockCities.get('city-1');
+      const player = mockPlayers.get('player-1');
+      const buildingType = {
+        ...BUILDING_TYPES.barracks,
+        cultureRequirements: [{ type: 'MinCulture', value: 100, range: 'City', present: true }],
+      };
+
+      await expect(
+        (cultureHandler as any).canCityBuildBuilding(city, buildingType, player)
+      ).resolves.toBe(false);
+      expect(requirementsManager.evaluateRulesetCultureRequirements).toHaveBeenCalledWith(
+        buildingType.cultureRequirements,
+        expect.objectContaining({ cityId: city.id, playerId: player.id })
+      );
     });
   });
 

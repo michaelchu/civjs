@@ -262,6 +262,13 @@ export const BuildingGenusSchema = z.enum([
   'Convert',
 ]);
 
+export const BuildingCultureRequirementSchema = z.object({
+  type: z.literal('MinCulture'),
+  value: z.number().int().min(0),
+  range: z.enum(['City', 'Player']),
+  present: z.boolean().optional().default(true),
+});
+
 export const BuildingTypeRulesetSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -270,6 +277,7 @@ export const BuildingTypeRulesetSchema = z.object({
   upkeep: z.number().min(0),
   requiredTech: z.string().optional(),
   requires: z.array(z.string()).optional(),
+  cultureRequirements: z.array(BuildingCultureRequirementSchema).optional(),
   playable: z.boolean().optional().default(false),
   effects: BuildingEffectsSchema,
 });
@@ -337,6 +345,7 @@ export type UnitTypeRuleset = z.infer<typeof UnitTypeRulesetSchema>;
 export type UnitsRulesetFile = z.infer<typeof UnitsRulesetFileSchema>;
 
 export type BuildingEffects = z.infer<typeof BuildingEffectsSchema>;
+export type BuildingCultureRequirement = z.infer<typeof BuildingCultureRequirementSchema>;
 export type BuildingTypeRuleset = z.infer<typeof BuildingTypeRulesetSchema>;
 export type BuildingsRulesetFile = z.infer<typeof BuildingsRulesetFileSchema>;
 

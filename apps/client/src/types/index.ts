@@ -164,6 +164,7 @@ export interface Player {
   science: number;
   // Culture system (freeciv-based)
   history: number; // National history accumulation
+  culture?: number; // Current national history plus performance and city culture
   government: string;
   revolutionTurns?: number;
   isHuman: boolean;

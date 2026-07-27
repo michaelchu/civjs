@@ -138,6 +138,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
         isAI: dbPlayer.isAI || dbPlayer.userId === null,
         playerNumber: dbPlayer.playerNumber,
         civilization: dbPlayer.civilization,
+        history: dbPlayer.history ?? 0,
         isReady: dbPlayer.isReady || false,
         hasEndedTurn: dbPlayer.hasEndedTurn || false,
         isConnected: dbPlayer.connectionStatus === 'connected',
@@ -345,7 +346,11 @@ export class GameInstanceRecoveryService extends BaseGameService {
     });
 
     // Create CultureManager
-    const cultureManager = new CultureManager(this.databaseProvider);
+    const cultureManager = new CultureManager(this.databaseProvider, game.ruleset ?? 'classic');
+    cultureManager.setRuntimeState({
+      getCity: cityId => cityManager.getCity(cityId),
+      getPlayer: playerId => players.get(playerId),
+    });
     const economicManager = new EconomicManager(gameId, this.databaseProvider);
     await economicManager.initialize();
     for (const player of game.players) {

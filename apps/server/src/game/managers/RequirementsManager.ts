@@ -13,6 +13,7 @@
 import { logger } from '@utils/logger';
 import { CultureManager } from './CultureManager';
 import type { EffectContext } from './EffectsManager';
+import type { BuildingCultureRequirement } from '@shared/data/rulesets/schemas';
 
 // Vulnerability/Requirement types from freeciv fc_types.js and requirements.c
 export enum VulnerabilityType {
@@ -385,48 +386,22 @@ export class RequirementsManager {
     return this.evaluateRequirements(cultureRequirements, context);
   }
 
-  /**
-   * Get culture requirements for common buildings
-   * Based on typical freeciv ruleset culture requirements
-   */
-  public getCultureRequirementsForBuilding(buildingId: string): CultureRequirement[] {
-    const requirements: CultureRequirement[] = [];
-
-    // Add culture requirements based on building type
-    // These would typically come from ruleset files
-    switch (buildingId) {
-      case 'cathedral':
-        requirements.push({
-          type: VulnerabilityType.VUT_MINCULTURE,
-          value: 100,
-          range: RequirementRange.REQ_RANGE_CITY,
-          present: true,
-        });
-        break;
-
-      case 'university':
-        requirements.push({
-          type: VulnerabilityType.VUT_MINCULTURE,
-          value: 50,
-          range: RequirementRange.REQ_RANGE_CITY,
-          present: true,
-        });
-        break;
-
-      case 'theatre':
-        requirements.push({
-          type: VulnerabilityType.VUT_MINCULTURE,
-          value: 30,
-          range: RequirementRange.REQ_RANGE_CITY,
-          present: true,
-        });
-        break;
-
-      default:
-        // Most buildings have no culture requirements
-        break;
-    }
-
-    return requirements;
+  public async evaluateRulesetCultureRequirements(
+    requirements: BuildingCultureRequirement[],
+    context: EffectContext
+  ): Promise<RequirementResult> {
+    return this.canBuildWithCulture(
+      'ruleset-building',
+      requirements.map(requirement => ({
+        type: VulnerabilityType.VUT_MINCULTURE,
+        value: requirement.value,
+        range:
+          requirement.range === 'City'
+            ? RequirementRange.REQ_RANGE_CITY
+            : RequirementRange.REQ_RANGE_PLAYER,
+        present: requirement.present,
+      })),
+      context
+    );
   }
 }

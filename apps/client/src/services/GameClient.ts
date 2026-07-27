@@ -321,6 +321,8 @@ class GameClient {
       }
     });
 
+    this.socket.on('culture_updated', data => this.applyCultureUpdate(data));
+
     // Handle production completion events
     this.socket.on('production:completed', data => {
       console.log('Production completed:', data);
@@ -369,6 +371,8 @@ class GameClient {
           color: playerColorToHex(packet.data.color), // Convert RGB to hex
           gold: packet.data.gold,
           science: packet.data.science,
+          history: players[packet.data.id]?.history ?? 0,
+          culture: packet.data.culture,
           government: packet.data.government,
           isHuman: true, // Assume human for now, could be sent from server
           isActive: packet.data.alive,
@@ -694,6 +698,26 @@ class GameClient {
       default:
         console.log(`Unhandled packet type: ${packetName} (${packet.type})`);
     }
+  }
+
+  private applyCultureUpdate(data: {
+    players?: Record<string, { history: number; totalCulture: number }>;
+  }): void {
+    const state = useGameStore.getState();
+    if (!data.players) return;
+
+    const players = { ...state.players };
+    for (const [playerId, culture] of Object.entries(data.players)) {
+      const player = players[playerId];
+      if (player) {
+        players[playerId] = {
+          ...player,
+          history: culture.history,
+          culture: culture.totalCulture,
+        };
+      }
+    }
+    state.updateGameState({ players });
   }
 
   private handleMapInfo(data: any) {

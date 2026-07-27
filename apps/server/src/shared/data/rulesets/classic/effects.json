@@ -833,19 +833,6 @@
       ],
       "comment": "Temples provide 25% border strength bonus (cultural influence)"
     },
-    "temple_culture_performance": {
-      "id": "temple_culture_performance",
-      "type": "Performance",
-      "value": 1,
-      "reqs": [
-        {
-          "type": "Building",
-          "name": "temple",
-          "range": "City"
-        }
-      ],
-      "comment": "Temples provide +1 immediate culture boost"
-    },
     "temple_content": {
       "id": "temple_content",
       "type": "Make_Content",
@@ -909,19 +896,6 @@
         }
       ],
       "comment": "Communism Cathedral contentment penalty"
-    },
-    "library_culture_pct": {
-      "id": "library_culture_pct",
-      "type": "Culture_Pct",
-      "value": 25,
-      "reqs": [
-        {
-          "type": "Building",
-          "name": "library",
-          "range": "City"
-        }
-      ],
-      "comment": "Libraries provide 25% bonus to culture generation"
     },
     "library_science_bonus": {
       "id": "library_science_bonus",
@@ -1054,19 +1028,6 @@
       ],
       "comment": "Palace shield output bonus under Monarchy"
     },
-    "library_culture_performance": {
-      "id": "library_culture_performance",
-      "type": "Performance",
-      "value": 2,
-      "reqs": [
-        {
-          "type": "Building",
-          "name": "library",
-          "range": "City"
-        }
-      ],
-      "comment": "Libraries provide +2 immediate culture boost"
-    },
     "palace_border_strength": {
       "id": "palace_border_strength",
       "type": "Border_Strength_Pct",
@@ -1079,19 +1040,6 @@
         }
       ],
       "comment": "Palace provides 50% border strength bonus (seat of power)"
-    },
-    "palace_culture_performance": {
-      "id": "palace_culture_performance",
-      "type": "Performance",
-      "value": 2,
-      "reqs": [
-        {
-          "type": "Building",
-          "name": "palace",
-          "range": "City"
-        }
-      ],
-      "comment": "Palace provides +2 immediate culture boost"
     }
   }
 }

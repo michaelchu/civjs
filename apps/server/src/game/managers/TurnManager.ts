@@ -216,6 +216,8 @@ export class TurnManager {
         // Advance to next turn after successful processing
         await this.advanceToNextTurn();
 
+        await this.broadcastCultureData(playerIds);
+
         // Broadcast updated city data to all players with current production rates
         this.broadcastManager.broadcastCityData(this.gameId);
       } else {
@@ -256,6 +258,27 @@ export class TurnManager {
     this.playerActions.get(playerId)!.push(playerAction);
 
     logger.debug('Added player action', { gameId: this.gameId, playerId, actionType: action.type });
+  }
+
+  public getCultureManager(): CultureManager {
+    return this.cultureManager;
+  }
+
+  private async broadcastCultureData(playerIds: string[]): Promise<void> {
+    const cultureEntries = await Promise.all(
+      playerIds.map(async playerId => {
+        const culture = await this.cultureManager.getPlayerCultureInfo(playerId, this.gameId);
+        return [
+          playerId,
+          { history: culture.nationalHistory, totalCulture: culture.totalCulture },
+        ] as const;
+      })
+    );
+
+    this.io.to(`game:${this.gameId}`).emit('culture_updated', {
+      gameId: this.gameId,
+      players: Object.fromEntries(cultureEntries),
+    });
   }
 
   private async processGovernmentTurns(playerIds: string[]): Promise<void> {

@@ -1,4 +1,5 @@
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import type { BuildingCultureRequirement } from '@shared/data/rulesets/schemas';
 
 export interface RulesetBuildingType {
   id: string;
@@ -8,6 +9,7 @@ export interface RulesetBuildingType {
   upkeep: number;
   requiredTech?: string;
   requires?: string[];
+  cultureRequirements?: BuildingCultureRequirement[];
   playable: boolean;
   effects: {
     defenseBonus?: number;
@@ -44,6 +46,7 @@ export class RulesetBuildingsService {
           upkeep: building.upkeep,
           requiredTech: building.requiredTech,
           requires: building.requires,
+          cultureRequirements: building.cultureRequirements,
           playable: building.playable,
           effects: {
             ...building.effects,

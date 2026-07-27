@@ -323,7 +323,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       borderManager,
       visibilityManager,
       game.players,
-      governmentManager
+      governmentManager,
+      game.ruleset ?? 'classic'
     );
     // @reference reference/freeciv/server/techtools.c:665-719
     // Research completion belongs to the active authoritative turn.
@@ -839,6 +840,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         isAI: dbPlayer.isAI || dbPlayer.userId === null,
         playerNumber: dbPlayer.playerNumber,
         civilization: dbPlayer.civilization,
+        history: dbPlayer.history ?? 0,
         isReady: false,
         hasEndedTurn: false,
         isConnected: true,
@@ -906,7 +908,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     borderManager: BorderManager,
     visibilityManager: VisibilityManager,
     databasePlayers: any[],
-    governmentManager: GovernmentManager
+    governmentManager: GovernmentManager,
+    rulesetName: string
   ): Promise<TurnManager> {
     // Create a simple broadcast manager for the TurnManager
     // TODO: Proper dependency injection should be implemented
@@ -934,7 +937,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       },
     } as any; // Cast to any to satisfy type requirements temporarily
 
-    const cultureManager = this.createCultureManager();
+    const cultureManager = this.createCultureManager(rulesetName);
+    cultureManager.setRuntimeState({
+      getCity: cityId => cityManager.getCity(cityId),
+      getPlayer: playerId => players.get(playerId),
+    });
     const economicManager = this.createEconomicManager(gameId);
     const tm = new TurnManager(
       gameId,
@@ -1056,8 +1063,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return new ResearchManager(gameId, this.databaseProvider);
   }
 
-  private createCultureManager(): CultureManager {
-    return new CultureManager(this.databaseProvider);
+  private createCultureManager(rulesetName: string): CultureManager {
+    return new CultureManager(this.databaseProvider, rulesetName);
   }
 
   private createEconomicManager(gameId: string): EconomicManager {

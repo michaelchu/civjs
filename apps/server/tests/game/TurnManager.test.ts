@@ -82,7 +82,9 @@ const mockCultureManager = {
     .mockResolvedValue({ totalCulture: 0, nationalHistory: 0, nationalHistoryGain: 0 }),
   calculateNationHistoryGain: jest.fn(),
   processCultureGain: jest.fn().mockResolvedValue(undefined),
-  getPlayerCultureInfo: jest.fn(),
+  getPlayerCultureInfo: jest
+    .fn()
+    .mockResolvedValue({ totalCulture: 0, nationalHistory: 0, cityCulture: 0 }),
   getCityCultureInfo: jest.fn(),
 } as any;
 

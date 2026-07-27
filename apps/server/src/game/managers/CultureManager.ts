@@ -57,6 +57,21 @@ export interface PlayerCultureResult {
   };
 }
 
+export interface CultureProcessingResult {
+  cities: Record<string, { history: number; culture: number }>;
+  players: Record<string, { history: number; totalCulture: number }>;
+}
+
+interface RuntimeCultureState {
+  getCity?: (cityId: string) => { history: number } | undefined;
+  getPlayer?: (playerId: string) => { history?: number } | undefined;
+}
+
+/** Match C integer division, which truncates every term toward zero. */
+function scaleCultureEffect(value: number, percentage: number): number {
+  return Math.trunc((value * (100 + percentage)) / 100);
+}
+
 /**
  * CultureManager - Direct port of Freeciv culture system
  *
@@ -69,10 +84,15 @@ export interface PlayerCultureResult {
 export class CultureManager {
   private databaseProvider: DatabaseProvider;
   private effectsManager: EffectsManager;
+  private runtimeState: RuntimeCultureState = {};
 
   constructor(databaseProvider: DatabaseProvider, rulesetName: string = 'classic') {
     this.databaseProvider = databaseProvider;
     this.effectsManager = new EffectsManager(rulesetName);
+  }
+
+  public setRuntimeState(runtimeState: RuntimeCultureState): void {
+    this.runtimeState = runtimeState;
   }
 
   /**
@@ -103,7 +123,7 @@ export class CultureManager {
     const culturePctEffect = this.effectsManager.calculateEffect(EffectType.CULTURE_PCT, context);
 
     // Apply freeciv formula: performance * (100 + culture_pct) / 100
-    const adjustedPerformance = (performanceEffect.value * (100 + culturePctEffect.value)) / 100;
+    const adjustedPerformance = scaleCultureEffect(performanceEffect.value, culturePctEffect.value);
 
     // Total culture = base history + adjusted performance
     const culture = city.history + adjustedPerformance;
@@ -158,11 +178,11 @@ export class CultureManager {
     const culturePctEffect = this.effectsManager.calculateEffect(EffectType.CULTURE_PCT, context);
 
     // Apply culture percentage to history generation
-    const adjustedHistory = (historyEffect.value * (100 + culturePctEffect.value)) / 100;
+    const adjustedHistory = scaleCultureEffect(historyEffect.value, culturePctEffect.value);
 
     // Calculate compound interest on existing history
     // game.historyInterestPml is per mille (parts per thousand)
-    const interestGain = (city.history * game.historyInterestPml) / 1000;
+    const interestGain = Math.trunc((city.history * game.historyInterestPml) / 1000);
 
     const totalGain = adjustedHistory + interestGain;
 
@@ -177,7 +197,7 @@ export class CultureManager {
       totalGain,
     });
 
-    return Math.floor(totalGain);
+    return totalGain;
   }
 
   /**
@@ -204,8 +224,10 @@ export class CultureManager {
     const culturePctEffect = this.effectsManager.calculateEffect(EffectType.CULTURE_PCT, context);
 
     // Apply freeciv formula: national_performance * (100 + culture_pct) / 100
-    const adjustedNationalPerformance =
-      (nationalPerformanceEffect.value * (100 + culturePctEffect.value)) / 100;
+    const adjustedNationalPerformance = scaleCultureEffect(
+      nationalPerformanceEffect.value,
+      culturePctEffect.value
+    );
 
     // Get all player cities to sum their culture
     const db = this.databaseProvider.getDatabase();
@@ -276,11 +298,13 @@ export class CultureManager {
     const culturePctEffect = this.effectsManager.calculateEffect(EffectType.CULTURE_PCT, context);
 
     // Apply culture percentage to national history generation
-    const adjustedNationalHistory =
-      (nationalHistoryEffect.value * (100 + culturePctEffect.value)) / 100;
+    const adjustedNationalHistory = scaleCultureEffect(
+      nationalHistoryEffect.value,
+      culturePctEffect.value
+    );
 
     // Calculate compound interest on existing national history
-    const interestGain = (player.history * game.historyInterestPml) / 1000;
+    const interestGain = Math.trunc((player.history * game.historyInterestPml) / 1000);
 
     const totalGain = adjustedNationalHistory + interestGain;
 
@@ -295,15 +319,16 @@ export class CultureManager {
       totalGain,
     });
 
-    return Math.floor(totalGain);
+    return totalGain;
   }
 
   /**
    * Process culture gain for all cities and players in a game
    * Called once per turn during turn processing
    */
-  public async processCultureGain(gameId: string): Promise<void> {
+  public async processCultureGain(gameId: string): Promise<CultureProcessingResult> {
     const db = this.databaseProvider.getDatabase();
+    const result: CultureProcessingResult = { cities: {}, players: {} };
 
     try {
       // Get game settings
@@ -335,17 +360,20 @@ export class CultureManager {
 
         const historyGain = this.calculateCityHistoryGain(cityWithBuildings, game, playerTechs);
 
-        if (historyGain > 0) {
+        const history = city.history + historyGain;
+        if (historyGain !== 0) {
           // Update city history in database
-          await db
-            .update(cities)
-            .set({ history: city.history + historyGain })
-            .where(eq(cities.id, city.id));
+          await db.update(cities).set({ history }).where(eq(cities.id, city.id));
 
-          logger.debug(
-            `City ${city.name} gained ${historyGain} history (total: ${city.history + historyGain})`
-          );
+          logger.debug(`City ${city.name} gained ${historyGain} history (total: ${history})`);
         }
+        const runtimeCity = this.runtimeState.getCity?.(city.id);
+        if (runtimeCity) runtimeCity.history = history;
+        result.cities[city.id] = {
+          history,
+          culture: this.calculateCityCulture({ ...cityWithBuildings, history }, playerTechs)
+            .culture,
+        };
       }
 
       // Process each player's national history gain
@@ -357,22 +385,25 @@ export class CultureManager {
 
         const nationalHistoryGain = this.calculateNationHistoryGain(playerWithTechs, game);
 
-        if (nationalHistoryGain > 0) {
+        const history = player.history + nationalHistoryGain;
+        if (nationalHistoryGain !== 0) {
           // Update player national history in database
-          await db
-            .update(players)
-            .set({ history: player.history + nationalHistoryGain })
-            .where(eq(players.id, player.id));
+          await db.update(players).set({ history }).where(eq(players.id, player.id));
 
           logger.debug(
-            `Player ${player.id} gained ${nationalHistoryGain} national history (total: ${player.history + nationalHistoryGain})`
+            `Player ${player.id} gained ${nationalHistoryGain} national history (total: ${history})`
           );
         }
+        const runtimePlayer = this.runtimeState.getPlayer?.(player.id);
+        if (runtimePlayer) runtimePlayer.history = history;
+        const culture = await this.calculatePlayerCulture({ ...playerWithTechs, history });
+        result.players[player.id] = { history, totalCulture: culture.totalCulture };
       }
 
       logger.info(
         `Processed culture gain for game ${gameId}: ${gameCities.length} cities, ${gamePlayers.length} players`
       );
+      return result;
     } catch (error) {
       logger.error(`Failed to process culture gain for game ${gameId}:`, error);
       throw error;

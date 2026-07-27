@@ -7,6 +7,7 @@ import { GameManager } from '@game/managers/GameManager';
 import { CityProductionHandler } from './CityProductionHandler';
 import { getUnitType } from '@game/constants/UnitConstants';
 import { GovernorPriority } from '@game/managers/CityManager';
+import { RequirementsManager } from '@game/managers/RequirementsManager';
 
 /**
  * Handles city management packets: founding cities, production changes
@@ -72,7 +73,8 @@ export class CityManagementHandler extends BaseSocketHandler {
         game.cityManager.getCitiesMap(),
         game.players,
         game.researchManager,
-        game.cityManager.setCityProduction.bind(game.cityManager)
+        game.cityManager.setCityProduction.bind(game.cityManager),
+        game.turnManager ? new RequirementsManager(game.turnManager.getCultureManager()) : undefined
       );
 
       const player = Array.from(game.players.values()).find(
@@ -112,7 +114,8 @@ export class CityManagementHandler extends BaseSocketHandler {
         game.cityManager.getCitiesMap(),
         game.players,
         game.researchManager,
-        game.cityManager.setCityProduction.bind(game.cityManager)
+        game.cityManager.setCityProduction.bind(game.cityManager),
+        game.turnManager ? new RequirementsManager(game.turnManager.getCultureManager()) : undefined
       );
 
       const player = Array.from(game.players.values()).find(
@@ -311,6 +314,25 @@ export class CityManagementHandler extends BaseSocketHandler {
       if (!validation) return;
 
       const { player } = validation;
+      const game = this.gameManager.getGameInstance(connection.gameId!);
+      const city = game?.cityManager.getCity(data.cityId);
+      if (!game || !city) {
+        throw new Error('City or game instance not found');
+      }
+      const productionHandler = new CityProductionHandler(
+        game.cityManager.getCitiesMap(),
+        game.players,
+        game.researchManager,
+        game.cityManager.setCityProduction.bind(game.cityManager),
+        game.turnManager ? new RequirementsManager(game.turnManager.getCultureManager()) : undefined
+      );
+      if (!(await productionHandler.canCityBuild(city, data.production, data.type, player))) {
+        handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {
+          success: false,
+          message: 'Production not available',
+        });
+        return;
+      }
 
       await this.gameManager.setCityProduction(
         connection.gameId!,

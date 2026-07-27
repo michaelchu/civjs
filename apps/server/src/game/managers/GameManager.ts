@@ -95,6 +95,7 @@ export interface PlayerState {
   isAI?: boolean;
   playerNumber: number;
   civilization: string;
+  history?: number;
   isReady: boolean;
   hasEndedTurn: boolean;
   isConnected: boolean;

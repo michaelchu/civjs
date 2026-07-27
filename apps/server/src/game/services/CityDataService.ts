@@ -36,6 +36,7 @@ interface ClientCityData {
   food: number;
   shields: number;
   trade: number;
+  history: number;
 
   // Detailed production breakdown
   prod: {
@@ -246,6 +247,7 @@ export class CityDataService {
       food: foodPerTurn,
       shields: productionPerTurn,
       trade: tradePerTurn,
+      history: city.history,
 
       // Freeciv-web compatible detailed breakdowns
       prod,

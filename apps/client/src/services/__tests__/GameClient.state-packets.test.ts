@@ -9,6 +9,14 @@ const handlePacket = (packet: Packet) =>
       handlePacket: (incoming: Packet) => void;
     }
   ).handlePacket(packet);
+const applyCultureUpdate = (data: {
+  players: Record<string, { history: number; totalCulture: number }>;
+}) =>
+  (
+    gameClient as unknown as {
+      applyCultureUpdate: (incoming: typeof data) => void;
+    }
+  ).applyCultureUpdate(data);
 
 describe('GameClient state-bearing packets', () => {
   beforeEach(() => {
@@ -33,6 +41,7 @@ describe('GameClient state-bearing packets', () => {
         color: { r: 255, g: 0, b: 0 },
         gold: 75,
         science: 12,
+        culture: 34,
         government: 'republic',
         alive: true,
       },
@@ -45,7 +54,13 @@ describe('GameClient state-bearing packets', () => {
     handlePacket({ type: PacketType.FREEZE_CLIENT, data: {} });
 
     expect(useGameStore.getState().players['player-1']).toEqual(
-      expect.objectContaining({ name: 'Caesar', government: 'republic', gold: 75 })
+      expect.objectContaining({
+        name: 'Caesar',
+        government: 'republic',
+        gold: 75,
+        history: 0,
+        culture: 34,
+      })
     );
     expect(useGameStore.getState()).toEqual(expect.objectContaining({ turn: 5, year: -3840 }));
     expect(useGameStore.getState().cities['city-1']).toEqual(
@@ -88,6 +103,31 @@ describe('GameClient state-bearing packets', () => {
         owner: 'player-2',
         visible: true,
       })
+    );
+  });
+
+  it('applies authoritative culture updates to existing players', () => {
+    handlePacket({
+      type: PacketType.PLAYER_INFO,
+      data: {
+        id: 'player-1',
+        name: 'Caesar',
+        nation: 'roman',
+        color: { r: 255, g: 0, b: 0 },
+        gold: 75,
+        science: 12,
+        culture: 0,
+        government: 'republic',
+        alive: true,
+      },
+    });
+
+    applyCultureUpdate({
+      players: { 'player-1': { history: 21, totalCulture: 34 } },
+    });
+
+    expect(useGameStore.getState().players['player-1']).toEqual(
+      expect.objectContaining({ history: 21, culture: 34 })
     );
   });
 

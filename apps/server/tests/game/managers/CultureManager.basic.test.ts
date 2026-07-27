@@ -202,7 +202,7 @@ describe('CultureManager - Core Calculations', () => {
         calculateEffect: jest.fn().mockImplementation(effectType => {
           switch (effectType) {
             case EffectType.PERFORMANCE:
-              return { value: 4, effects: [] }; // +4 performance from buildings
+              return { value: 3, effects: [] }; // +3 performance from ruleset effects
             case EffectType.CULTURE_PCT:
               return { value: 50, effects: [] }; // +50% culture bonus
             default:
@@ -214,9 +214,10 @@ describe('CultureManager - Core Calculations', () => {
 
       const result = cultureManager.calculateCityCulture(city);
 
-      // Formula: 100 + 4 * (100 + 50) / 100 = 100 + 4 * 1.5 = 100 + 6 = 106
-      expect(result.culture).toBe(106);
-      expect(result.breakdown.performance).toBe(4);
+      // C integer arithmetic truncates the adjusted term independently:
+      // 100 + trunc(3 * (100 + 50) / 100) = 100 + 4 = 104
+      expect(result.culture).toBe(104);
+      expect(result.breakdown.performance).toBe(3);
       expect(result.breakdown.culturePct).toBe(50);
     });
   });
@@ -339,8 +340,7 @@ describe('CultureManager - Core Calculations', () => {
       const historyGain = cultureManager.calculateCityHistoryGain(city, mockGame);
 
       // Formula: 3 * (100 + 100) / 100 + 100 * 5 / 1000
-      // = 3 * 2 + 0.5 = 6 + 0.5 = 6.5
-      // Note: Our implementation returns 6, likely due to integer math somewhere in the chain
+      // = trunc(3 * 2) + trunc(0.5) = 6
       expect(historyGain).toBe(6);
     });
 
@@ -496,6 +496,77 @@ describe('CultureManager - Core Calculations', () => {
       expect(() => {
         cultureManager.calculateCityHistoryGain(city, mockGame);
       }).not.toThrow();
+    });
+  });
+
+  describe('processCultureGain', () => {
+    it('persists gains and keeps live city/player history synchronized', async () => {
+      const db = mockDatabase.getDatabase();
+      const game = { id: 'test-game', historyInterestPml: 0 };
+      const player = {
+        id: 'test-player',
+        gameId: 'test-game',
+        history: 10,
+        technologies: [],
+      };
+      const city = {
+        id: 'test-city',
+        gameId: 'test-game',
+        playerId: 'test-player',
+        name: 'Test City',
+        x: 1,
+        y: 2,
+        history: 20,
+        buildings: [],
+      };
+      db.select
+        .mockImplementationOnce(() => ({
+          from: () => ({ where: () => ({ limit: () => Promise.resolve([game]) }) }),
+        }))
+        .mockImplementationOnce(() => ({
+          from: () => ({ where: () => Promise.resolve([player]) }),
+        }))
+        .mockImplementationOnce(() => ({
+          from: () => ({ where: () => Promise.resolve([city]) }),
+        }));
+      db.update.mockImplementation(() => ({
+        set: () => ({ where: () => Promise.resolve() }),
+      }));
+
+      jest.spyOn(cultureManager, 'calculateCityHistoryGain').mockReturnValue(3);
+      jest.spyOn(cultureManager, 'calculateNationHistoryGain').mockReturnValue(2);
+      jest.spyOn(cultureManager, 'calculateCityCulture').mockReturnValue({
+        culture: 23,
+        historyGain: 0,
+        breakdown: { baseHistory: 23, performance: 0, culturePct: 0, interestGain: 0 },
+      });
+      jest.spyOn(cultureManager, 'calculatePlayerCulture').mockResolvedValue({
+        totalCulture: 35,
+        nationalHistory: 12,
+        nationalHistoryGain: 0,
+        cityCulture: 23,
+        breakdown: {
+          nationalPerformance: 0,
+          nationalHistory: 12,
+          nationalCulturePct: 0,
+          totalCityCulture: 23,
+        },
+      });
+
+      const liveCity = { history: 20 };
+      const livePlayer = { history: 10 };
+      cultureManager.setRuntimeState({
+        getCity: () => liveCity,
+        getPlayer: () => livePlayer,
+      });
+
+      await expect(cultureManager.processCultureGain('test-game')).resolves.toEqual({
+        cities: { 'test-city': { history: 23, culture: 23 } },
+        players: { 'test-player': { history: 12, totalCulture: 35 } },
+      });
+      expect(liveCity.history).toBe(23);
+      expect(livePlayer.history).toBe(12);
+      expect(db.update).toHaveBeenCalledTimes(2);
     });
   });
 });

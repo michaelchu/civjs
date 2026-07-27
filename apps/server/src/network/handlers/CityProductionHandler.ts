@@ -2,6 +2,7 @@ import { logger } from '@utils/logger';
 import { Socket } from 'socket.io';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
+import type { RequirementsManager } from '@game/managers/RequirementsManager';
 // ProductionOption interface - shared between client and server
 interface ProductionOption {
   id: string;
@@ -32,7 +33,8 @@ export class CityProductionHandler {
       productionType: 'unit' | 'building',
       productionId: string,
       playerId: string
-    ) => Promise<boolean>
+    ) => Promise<boolean>,
+    private requirementsManager?: Pick<RequirementsManager, 'evaluateRulesetCultureRequirements'>
   ) {}
 
   /**
@@ -79,14 +81,21 @@ export class CityProductionHandler {
 
       // Add available buildings based on technology and existing buildings
       for (const [buildingId, buildingType] of Object.entries(BUILDING_TYPES)) {
-        const isAvailable = this.canCityBuildBuilding(city, buildingType, player);
+        const isAvailable = await this.canCityBuildBuilding(city, buildingType, player);
+        const cultureRequirements = (buildingType.cultureRequirements ?? []).map(
+          requirement =>
+            `${requirement.range} ${requirement.present ? 'minimum' : 'below'} ${requirement.value} culture`
+        );
         availableProductions.push({
           id: buildingId,
           name: buildingType.name,
           type: 'building',
           cost: buildingType.cost,
           description: this.getBuildingDescription(buildingType),
-          requirements: buildingType.requiredTech ? [buildingType.requiredTech] : [],
+          requirements: [
+            ...(buildingType.requiredTech ? [buildingType.requiredTech] : []),
+            ...cultureRequirements,
+          ],
           available: isAvailable,
         });
       }
@@ -153,7 +162,7 @@ export class CityProductionHandler {
       }
 
       // Validate the production option is available
-      if (!this.canCityBuild(city, productionId, productionType, player)) {
+      if (!(await this.canCityBuild(city, productionId, productionType, player))) {
         socket.emit('error', { message: 'Production not available' });
         return;
       }
@@ -254,7 +263,7 @@ export class CityProductionHandler {
    * Check if city can build a building
    * @reference freeciv/common/city.c can_city_build_improvement_now()
    */
-  private canCityBuildBuilding(city: any, buildingType: any, player: any): boolean {
+  private async canCityBuildBuilding(city: any, buildingType: any, player: any): Promise<boolean> {
     // Check if already built (can't build duplicates)
     if (city.buildings?.includes(buildingType.id)) {
       return false;
@@ -270,18 +279,36 @@ export class CityProductionHandler {
       return false;
     }
 
+    if (buildingType.cultureRequirements?.length) {
+      if (!this.requirementsManager) {
+        logger.warn('Culture-gated building evaluated without RequirementsManager', {
+          buildingId: buildingType.id,
+        });
+        return false;
+      }
+      const result = await this.requirementsManager.evaluateRulesetCultureRequirements(
+        buildingType.cultureRequirements,
+        {
+          cityId: city.id,
+          playerId: player.id,
+          cityBuildings: new Set(city.buildings ?? []),
+        }
+      );
+      if (!result.satisfied) return false;
+    }
+
     return true;
   }
 
   /**
    * Check if city can build the specified production
    */
-  private canCityBuild(
+  public async canCityBuild(
     city: any,
     productionId: string,
     productionType: 'unit' | 'building' | 'wonder',
     player: any
-  ): boolean {
+  ): Promise<boolean> {
     if (productionType === 'unit') {
       const unitType = UNIT_TYPES[productionId];
       return unitType ? this.canCityBuildUnit(city, unitType, player) : false;

@@ -2,7 +2,7 @@
  * EffectsManager Base Culture Tests
  *
  * Simple focused tests for culture-related base effects.
- * Verifies that cities get base culture generation as per Freeciv mechanics.
+ * Verifies that culture is entirely ruleset-driven, as in Freeciv.
  */
 
 import { EffectsManager, EffectType, type EffectContext } from '@game/managers/EffectsManager';
@@ -41,11 +41,10 @@ describe('EffectsManager - Base Culture Effects', () => {
   });
 
   describe('Base Culture Effect Values', () => {
-    it('should return base value of 1 for EFT_HISTORY (every city gets base culture)', () => {
+    it('should not invent a base value for EFT_HISTORY', () => {
       const result = effectsManager.calculateEffect(EffectType.HISTORY, mockContext);
 
-      // This is the key Freeciv mechanic - every city generates at least 1 culture per turn
-      expect(result.value).toBe(1);
+      expect(result.value).toBe(0);
       expect(typeof result.effects).toBe('object');
       expect(Array.isArray(result.effects)).toBe(true);
     });
@@ -73,7 +72,7 @@ describe('EffectsManager - Base Culture Effects', () => {
   });
 
   describe('Context Independence for Base Effects', () => {
-    it('should return base HISTORY value regardless of city buildings', () => {
+    it('should return zero HISTORY when the ruleset defines no matching effect', () => {
       const emptyContext: EffectContext = {
         cityBuildings: new Set(),
         playerTechs: new Set(),
@@ -81,8 +80,7 @@ describe('EffectsManager - Base Culture Effects', () => {
 
       const result = effectsManager.calculateEffect(EffectType.HISTORY, emptyContext);
 
-      // Base culture generation should be independent of buildings/techs
-      expect(result.value).toBe(1);
+      expect(result.value).toBe(0);
     });
 
     it('should return base HISTORY value with no context at all', () => {
@@ -90,7 +88,7 @@ describe('EffectsManager - Base Culture Effects', () => {
 
       const result = effectsManager.calculateEffect(EffectType.HISTORY, minimalContext);
 
-      expect(result.value).toBe(1);
+      expect(result.value).toBe(0);
     });
 
     it('should handle undefined/null context gracefully', () => {
@@ -99,7 +97,7 @@ describe('EffectsManager - Base Culture Effects', () => {
       }).not.toThrow();
 
       const result = effectsManager.calculateEffect(EffectType.HISTORY, {} as EffectContext);
-      expect(result.value).toBe(1);
+      expect(result.value).toBe(0);
     });
   });
 
