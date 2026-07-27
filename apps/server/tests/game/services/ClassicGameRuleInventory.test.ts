@@ -16,4 +16,12 @@ describe('classic game rule inventory', () => {
       expect(coverage.consumer).not.toHaveLength(0);
     }
   });
+
+  it('has no remaining partial classic game.ruleset sections', () => {
+    expect(
+      Object.entries(CLASSIC_GAME_RULE_COVERAGE).filter(
+        ([, coverage]) => coverage.disposition === 'partial'
+      )
+    ).toEqual([]);
+  });
 });

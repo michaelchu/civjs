@@ -605,7 +605,88 @@ describe('UnitManager', () => {
         defenderDestroyed: false,
         attackerDamage: 100,
         defenderDamage: 0,
+        experienceGained: { attacker: 0, defender: 1 },
       });
+      expect(deterministicManager.getUnit(defender.id)?.veteranLevel).toBe(1);
+    });
+
+    it('applies the classic pearl-harbor firepower rule in a city', async () => {
+      const cityAwareManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: async () => '',
+          requestPath: async () => ({ success: true }),
+          broadcastUnitMoved: () => undefined,
+          getCityAt: (x, y) =>
+            x === 11 && y === 10
+              ? { id: 'port-city', playerId: 'player-456', buildings: [] }
+              : null,
+        }
+      );
+      const attacker = await cityAwareManager.createUnit('player-123', 'bomber', 10, 10);
+      const defender = await cityAwareManager.createUnit('player-456', 'battleship', 11, 10);
+
+      const firepower = (cityAwareManager as any).calculateModifiedFirepower(
+        attacker,
+        defender,
+        { ...UNIT_TYPES.bomber, firepower: 2 },
+        { ...UNIT_TYPES.battleship, firepower: 2 }
+      );
+
+      expect(firepower).toEqual({ attacker: 4, defender: 1 });
+    });
+
+    it('reduces helicopter firepower when attacked by a fighter', async () => {
+      const attacker = await unitManager.createUnit('player-123', 'fighter', 10, 10);
+      const defender = await unitManager.createUnit('player-456', 'helicopter', 11, 10);
+
+      const firepower = (unitManager as any).calculateModifiedFirepower(
+        attacker,
+        defender,
+        { ...UNIT_TYPES.fighter, firepower: 2 },
+        { ...UNIT_TYPES.helicopter, firepower: 2 }
+      );
+
+      expect(firepower).toEqual({ attacker: 2, defender: 1 });
+    });
+
+    it('caps BadWallAttacker firepower when city defense applies', async () => {
+      const cityAwareManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: async () => '',
+          requestPath: async () => ({ success: true }),
+          broadcastUnitMoved: () => undefined,
+          getCityAt: (x, y) =>
+            x === 11 && y === 10
+              ? {
+                  id: 'walled-city',
+                  playerId: 'player-456',
+                  buildings: ['walls'],
+                }
+              : null,
+        },
+        new EffectsManager()
+      );
+      const attacker = await cityAwareManager.createUnit('player-123', 'catapult', 10, 10);
+      const defender = await cityAwareManager.createUnit('player-456', 'warriors', 11, 10);
+
+      const firepower = (cityAwareManager as any).calculateModifiedFirepower(
+        attacker,
+        defender,
+        { ...UNIT_TYPES.catapult, firepower: 2 },
+        UNIT_TYPES.warriors
+      );
+
+      expect(firepower.attacker).toBe(1);
     });
 
     it('applies classic field killstack and moves the winning attacker onto the tile', async () => {

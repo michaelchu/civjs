@@ -4,7 +4,11 @@ import { games } from '@database/schema/games';
 import { players } from '@database/schema/players';
 import { and, eq, sql } from 'drizzle-orm';
 import { logger } from '@utils/logger';
-import { getTerrainMovementCost, SINGLE_MOVE } from '@game/constants/MovementConstants';
+import {
+  canUnitEnterTerrain,
+  getTerrainMovementCost,
+  SINGLE_MOVE,
+} from '@game/constants/MovementConstants';
 import { UNIT_TYPES, getUnitType, UnitType } from '@game/constants/UnitConstants';
 import { ActionSystem } from '@game/systems/ActionSystem';
 import { ActionType, ActionResult } from '@app-types/shared/actions';
@@ -692,13 +696,19 @@ export class UnitManager {
     const defenderStrength = this.calculateCombatStrength(defender, defenderType);
     const attackerStartingHealth = attacker.health;
     const defenderStartingHealth = defender.health;
+    const firepower = this.calculateModifiedFirepower(
+      attacker,
+      defender,
+      attackerType,
+      defenderType
+    );
     const damagePerAttackerWin = Math.max(
       1,
-      Math.round(((attackerType.firepower ?? 1) * 100) / (defenderType.hitpoints ?? 10))
+      Math.round((firepower.attacker * 100) / (defenderType.hitpoints ?? 10))
     );
     const damagePerDefenderWin = Math.max(
       1,
-      Math.round(((defenderType.firepower ?? 1) * 100) / (attackerType.hitpoints ?? 10))
+      Math.round((firepower.defender * 100) / (attackerType.hitpoints ?? 10))
     );
 
     // Classic combat resolves one firepower exchange at a time until one unit
@@ -724,22 +734,13 @@ export class UnitManager {
     const defenderDestroyed = defender.health <= 0;
     let resultCollateralDestroyedIds: string[] | undefined;
 
-    // Award experience based on combat outcome
-    let attackerExp = 0;
-    let defenderExp = 0;
+    let attackerPromoted = false;
+    let defenderPromoted = false;
 
     if (attackerDestroyed) {
-      // Defender won
-      defenderExp = this.calculateCombatExperience(defender, attacker, true);
-      if (defenderExp > 0) {
-        await this.awardExperience(defenderId, defenderExp);
-      }
+      defenderPromoted = await this.maybePromoteAfterCombat(defender);
     } else if (defenderDestroyed) {
-      // Attacker won
-      attackerExp = this.calculateCombatExperience(attacker, defender, true);
-      if (attackerExp > 0) {
-        await this.awardExperience(attackerId, attackerExp);
-      }
+      attackerPromoted = await this.maybePromoteAfterCombat(attacker);
     }
 
     // Handle unit destruction
@@ -803,13 +804,112 @@ export class UnitManager {
       defenderDestroyed,
       collateralDestroyedIds: resultCollateralDestroyedIds,
       experienceGained: {
-        attacker: attackerExp,
-        defender: defenderExp,
+        attacker: attackerPromoted ? 1 : 0,
+        defender: defenderPromoted ? 1 : 0,
       },
     };
 
     logger.info(`Combat: ${attackerId} vs ${defenderId}`, result);
     return result;
+  }
+
+  /**
+   * Apply classic's situational firepower overrides before combat rounds.
+   * @reference reference/freeciv/common/combat.c:411-470 get_modified_firepower()
+   */
+  private calculateModifiedFirepower(
+    attacker: Unit,
+    defender: Unit,
+    attackerType: UnitType,
+    defenderType: UnitType
+  ): { attacker: number; defender: number } {
+    const rules = rulesetLoader.getCombatRules();
+    const city = this.gameManagerCallback?.getCityAt?.(defender.x, defender.y);
+    let attackerFirepower = attackerType.firepower ?? 1;
+    let defenderFirepower = defenderType.firepower ?? 1;
+
+    if (city && attackerType.flags?.includes('CityBuster')) {
+      attackerFirepower *= 2;
+    }
+
+    if (
+      city &&
+      attackerType.flags?.includes('BadWallAttacker') &&
+      this.calculateAttackSpecificCityDefenseBonus(attacker, attackerType, defender, city) > 0
+    ) {
+      attackerFirepower = Math.min(attackerFirepower, rules.low_firepower_badwallattacker);
+    }
+
+    if (city && defenderType.flags?.includes('BadCityDefender')) {
+      attackerFirepower *= 2;
+      defenderFirepower = Math.min(defenderFirepower, rules.low_firepower_pearl_harbor);
+    }
+
+    if (
+      attackerType.flags?.some(flag => flag === 'Fighter' || flag === 'AirAttacker') &&
+      defenderType.rulesetUnitClass === 'Helicopter'
+    ) {
+      defenderFirepower = Math.min(defenderFirepower, rules.low_firepower_combat_bonus);
+    }
+
+    const attackerTerrain = this.getTerrainAt(attacker.x, attacker.y);
+    const defenderTerrain = this.getTerrainAt(defender.x, defender.y);
+    if (
+      defenderType.rulesetUnitClassFlags.includes('NonNatBombardTgt') &&
+      !canUnitEnterTerrain(defenderTerrain, attackerType.id) &&
+      (!canUnitEnterTerrain(attackerTerrain, defenderType.id) ||
+        !canUnitEnterTerrain(attackerTerrain, attackerType.id))
+    ) {
+      attackerFirepower = Math.min(attackerFirepower, rules.low_firepower_nonnat_bombard);
+      defenderFirepower = Math.min(defenderFirepower, rules.low_firepower_nonnat_bombard);
+    }
+
+    return { attacker: attackerFirepower, defender: defenderFirepower };
+  }
+
+  private calculateAttackSpecificCityDefenseBonus(
+    attacker: Unit,
+    attackerType: UnitType,
+    defender: Unit,
+    city: CityAtLocation
+  ): number {
+    if (!this.effectsManager) return 0;
+
+    return this.effectsManager.calculateEffect(EffectType.DEFEND_BONUS, {
+      playerId: city.playerId,
+      unitId: attacker.id,
+      unitType: attacker.unitTypeId,
+      unitClass: attackerType.rulesetUnitClass,
+      unitClassFlags: new Set(attackerType.rulesetUnitClassFlags),
+      unitTypeFlags: new Set(attackerType.flags),
+      tileX: defender.x,
+      tileY: defender.y,
+      tileIsCityCenter: true,
+      cityBuildings: new Set(city.buildings ?? []),
+      playerBuildings: new Set(this.gameManagerCallback?.getPlayerBuildings?.(city.playerId) ?? []),
+    }).value;
+  }
+
+  /**
+   * Classic uses per-level promotion chances rather than accumulated XP.
+   * Its selected game rule disables opponent-strength scaling.
+   * @reference reference/freeciv/server/unittools.c:219-278
+   * @reference reference/freeciv/data/classic/units.ruleset:64-82
+   */
+  private async maybePromoteAfterCombat(unit: Unit): Promise<boolean> {
+    const raiseChances = [50, 33, 20, 0];
+    const chance = raiseChances[unit.veteranLevel] ?? 0;
+    if (chance <= 0 || this.random() * 100 >= chance) {
+      return false;
+    }
+
+    unit.veteranLevel += 1;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ veteranLevel: unit.veteranLevel })
+      .where(eq(units.id, unit.id));
+    return true;
   }
 
   /**
@@ -1937,15 +2037,20 @@ export class UnitManager {
       return { success: false, message: 'Unit cannot bombard the target tile' };
     }
     const type = UNIT_TYPES[unit.unitTypeId];
+    const combatRules = rulesetLoader.getCombatRules();
+    const bombardRate = combatRules.damage_reduces_bombard_rate
+      ? Math.max(1, Math.floor((type.bombardRate * unit.health) / 100))
+      : type.bombardRate;
     const targets = this.getUnitsAt(targetX!, targetY!).filter(
       target => target.playerId !== unit.playerId && !target.transportedBy
     );
     const affectedUnitIds: string[] = [];
     for (const target of targets) {
       const targetType = UNIT_TYPES[target.unitTypeId];
+      const firepower = this.calculateModifiedFirepower(unit, target, type, targetType);
       const damage = Math.max(
         1,
-        Math.round((type.bombardRate * (type.firepower ?? 1) * 100) / (targetType.hitpoints ?? 10))
+        Math.round((bombardRate * firepower.attacker * 100) / (targetType.hitpoints ?? 10))
       );
       target.health = Math.max(1, target.health - damage);
       affectedUnitIds.push(target.id);

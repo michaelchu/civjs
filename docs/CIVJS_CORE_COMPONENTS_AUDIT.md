@@ -45,9 +45,9 @@ This document provides a component inventory for gap review. It does not perform
 
 #### Game constants and options implementation status
 
-The complete top-level `classic/game.ruleset` structure is now reproducibly converted into `classic/game.json`, schema-validated, and guarded by `ClassicGameRuleInventory`. Existing engines consume the classic initial state, city/economy values, research rules, upkeep style, nuclear population loss, population-based borders, culture interest, calendar labels and timeline effects, initial visibility, and trade-route percentages.
+The complete top-level `classic/game.ruleset` structure is reproducibly converted into `classic/game.json`, schema-validated, and guarded by `ClassicGameRuleInventory`. Runtime consumers now cover every behavior selected by that file: initial state, city/economy and research rules, upkeep, combat and veterancy, airlift/paradrop policy, nuclear damage, borders, culture, calendar effects, visibility, disasters, all classic trade relationships and settlement bonuses, goods, treaty transfers, and cultural/world-peace victories.
 
-Remaining high-level gaps are explicitly classified in the executable inventory: gameloss variants, migration, advanced trade goods/bonuses/cancellation, several diplomacy clause transfers, and non-default combat/airlift/paradrop variants. Cultural domination, world-peace victory, and all six classic ruleset disasters now execute from the converted rules. General Freeciv server-setting breadth—beyond the options exposed by CivJS game creation—also remains a separate parity surface.
+Sections that classic deliberately disables or leaves empty remain inert, including illness, game-loss effects, named teams, locked server settings, and migration (the reference server defaults its separate migration setting to disabled). Generic alternatives not selected by classic—such as embassy-only small-wonder visibility, scaled combat veterancy, or nonzero nuclear-defender survival—belong to alternate-ruleset/server-setting breadth rather than gaps in classic `game.ruleset` execution.
 
 ### World, map, and spatial simulation
 

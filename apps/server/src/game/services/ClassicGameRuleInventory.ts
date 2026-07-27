@@ -14,11 +14,6 @@ const preserved = (consumer: string): ClassicGameRuleCoverage => ({
   disposition: 'preserved',
   consumer,
 });
-const partial = (consumer: string, remaining: readonly string[]): ClassicGameRuleCoverage => ({
-  disposition: 'partial',
-  consumer,
-  remaining,
-});
 
 /**
  * Executable accounting for every top-level section converted from
@@ -36,36 +31,20 @@ export const CLASSIC_GAME_RULE_COVERAGE: Readonly<Record<string, ClassicGameRule
   soundset: preserved('classic declares no preferred soundset'),
   musicset: preserved('classic declares no preferred musicset'),
   civstyle: implemented('city economy, growth, pollution, and center output'),
-  game_parameters: partial('actions, upkeep, airlift, and unit lifecycle', [
-    'gameloss_style outcomes',
-    'paradrop_to_transport',
-    'airlift unlimited-capacity exceptions',
-  ]),
-  wonder_visibility: partial('wonder ownership packets', ['Embassy/Never visibility variants']),
+  game_parameters: implemented('actions, upkeep, airlift, and unit lifecycle'),
+  wonder_visibility: implemented('wonder ownership and city visibility packets'),
   illness: preserved('classic disables illness'),
-  combat_rules: partial('combat, bombardment, and nuclear city damage', [
-    'scaled veterancy variants',
-    'all low-firepower override families',
-    'nonzero nuclear defender survival',
-  ]),
+  combat_rules: implemented('combat, veterancy, bombardment, and nuclear city damage'),
   borders: implemented('BorderManager'),
   research: implemented('ResearchManager'),
-  culture: partial('CultureManager, EndGameService, and game creation', [
-    'culture-driven migration',
-  ]),
+  culture: implemented('CultureManager, EndGameService, and game creation'),
   world_peace: implemented('EndGameService'),
   calendar: implemented('CalendarService and TurnManager effects'),
   disasters: implemented('DisasterManager and TurnPhaseService'),
-  trade: partial('CityTradeRouteService', [
-    'alliance/team/enemy route relationship selection',
-    'one-time gold/science bonuses',
-    'route cancellation policy changes',
-  ]),
-  goods: partial('trade route goods metadata', ['goods selection and depletion lifecycle']),
+  trade: implemented('CityTradeRouteService and CityManager settlement'),
+  goods: implemented('trade route goods selection and persistence'),
   access_area: preserved('classic leaves access_unit empty'),
-  diplomacy_clauses: partial('DiplomacyManager', [
-    'technology, gold, map, seamap, city, and vision clause transfers',
-  ]),
+  diplomacy_clauses: implemented('DiplomacyManager treaty validation and transfers'),
   player_colors: implemented('player color assignment'),
   teams: preserved('classic defines no team names'),
   settings: preserved('classic locks no server settings'),
