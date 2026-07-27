@@ -1037,11 +1037,12 @@ class GameClient {
     this.emitPacket(PacketType.RESEARCH_PROGRESS, {});
   }
 
-  private emitPacket(type: PacketType, data: unknown): void {
+  private emitPacket(type: PacketType, data: unknown, requestId?: string): void {
     if (!this.socket) return;
     this.socket.emit('packet', {
       type,
       version: PROTOCOL_VERSION,
+      requestId,
       data,
       timestamp: Date.now(),
     } satisfies Packet);
@@ -1061,6 +1062,7 @@ class GameClient {
         return;
       }
 
+      const requestId = crypto.randomUUID();
       const timeoutId = window.setTimeout(() => {
         this.socket?.off('packet', responseHandler);
         reject(new Error(`${fallbackError}: request timed out`));
@@ -1068,6 +1070,7 @@ class GameClient {
       const responseHandler = (reply: Packet<Record<string, unknown>>) => {
         if (reply.type !== replyType) return;
         if (reply.version !== undefined && reply.version !== PROTOCOL_VERSION) return;
+        if (reply.requestId !== requestId) return;
         if (!matchesReply(reply.data)) return;
         window.clearTimeout(timeoutId);
         this.socket?.off('packet', responseHandler);
@@ -1079,7 +1082,7 @@ class GameClient {
       };
 
       this.socket.on('packet', responseHandler);
-      this.emitPacket(requestType, data);
+      this.emitPacket(requestType, data, requestId);
     });
   }
 

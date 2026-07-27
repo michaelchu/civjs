@@ -7,6 +7,7 @@ export interface Packet<T = any> {
   type: PacketType;
   version?: number;
   seq?: number;
+  requestId?: string;
   timestamp?: number;
   data: T;
 }

@@ -1,5 +1,6 @@
 /* eslint-disable complexity */
 import { Socket } from 'socket.io';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { z } from 'zod';
 import logger from '../utils/logger';
 import { Packet, PacketType, PACKET_NAMES, PROTOCOL_VERSION } from '../types/packet';
@@ -14,6 +15,7 @@ export class PacketHandler {
   private handlers: Map<PacketType, PacketHandlerFunction> = new Map();
   private validators: Map<PacketType, z.ZodSchema> = new Map();
   private sequenceNumbers: Map<string, number> = new Map();
+  private requestContext = new AsyncLocalStorage<{ socketId: string; requestId?: string }>();
 
   constructor() {
     logger.info('PacketHandler initialized');
@@ -78,7 +80,10 @@ export class PacketHandler {
       }
 
       // Execute handler
-      await handler(socket, packet.data, packet);
+      await this.requestContext.run(
+        { socketId: socket.id, requestId: packet.requestId },
+        async () => handler(socket, packet.data, packet)
+      );
 
       logger.debug(
         `Processed packet ${PACKET_NAMES[packet.type] || packet.type} from ${socket.id}`
@@ -96,6 +101,10 @@ export class PacketHandler {
     const packet: Packet = {
       type,
       version: PROTOCOL_VERSION,
+      requestId:
+        this.requestContext.getStore()?.socketId === socket.id
+          ? this.requestContext.getStore()?.requestId
+          : undefined,
       data,
       timestamp: Date.now(),
     };

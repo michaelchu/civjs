@@ -77,4 +77,38 @@ describe('PacketHandler ordering and duplicates', () => {
       })
     );
   });
+
+  it('echoes request IDs on direct replies across concurrent handlers', async () => {
+    const packetHandler = new PacketHandler();
+    const socket = { id: 'socket-1', emit: jest.fn() } as any;
+    packetHandler.register(PacketType.RESEARCH_SET, async (requestSocket, data) => {
+      await Promise.resolve();
+      packetHandler.send(requestSocket, PacketType.RESEARCH_SET_REPLY, {
+        success: true,
+        techId: data.techId,
+      });
+    });
+
+    await Promise.all([
+      packetHandler.process(socket, {
+        type: PacketType.RESEARCH_SET,
+        requestId: 'request-a',
+        data: { techId: 'alphabet' },
+      }),
+      packetHandler.process(socket, {
+        type: PacketType.RESEARCH_SET,
+        requestId: 'request-b',
+        data: { techId: 'writing' },
+      }),
+    ]);
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      'packet',
+      expect.objectContaining({ requestId: 'request-a' })
+    );
+    expect(socket.emit).toHaveBeenCalledWith(
+      'packet',
+      expect.objectContaining({ requestId: 'request-b' })
+    );
+  });
 });

@@ -179,6 +179,8 @@ describe('GameClient Production Methods', () => {
             callback({
               type: PacketType.CITY_PRODUCTION_CHANGE_REPLY,
               version: PROTOCOL_VERSION,
+              requestId: (mockSocket.emit.mock.calls.at(-1)?.[1] as { requestId?: string })
+                ?.requestId,
               data: { success: true, ...mockResponse },
             });
           }, 10);
@@ -210,6 +212,8 @@ describe('GameClient Production Methods', () => {
             callback({
               type: PacketType.CITY_PRODUCTION_CHANGE_REPLY,
               version: PROTOCOL_VERSION,
+              requestId: (mockSocket.emit.mock.calls.at(-1)?.[1] as { requestId?: string })
+                ?.requestId,
               data: {
                 success: false,
                 cityId: 'city-1',
@@ -256,6 +260,8 @@ describe('GameClient Production Methods', () => {
             // Send response for different city first
             callback({
               type: PacketType.CITY_PRODUCTION_CHANGE_REPLY,
+              requestId: (mockSocket.emit.mock.calls.at(-1)?.[1] as { requestId?: string })
+                ?.requestId,
               data: {
                 success: true,
                 cityId: 'different-city',
@@ -268,6 +274,8 @@ describe('GameClient Production Methods', () => {
             setTimeout(() => {
               callback({
                 type: PacketType.CITY_PRODUCTION_CHANGE_REPLY,
+                requestId: (mockSocket.emit.mock.calls.at(-1)?.[1] as { requestId?: string })
+                  ?.requestId,
                 data: {
                   success: true,
                   cityId: 'city-1',
@@ -297,6 +305,8 @@ describe('GameClient Production Methods', () => {
           setTimeout(() => {
             callback({
               type: PacketType.CITY_PRODUCTION_CHANGE_REPLY,
+              requestId: (mockSocket.emit.mock.calls.at(-1)?.[1] as { requestId?: string })
+                ?.requestId,
               data: {
                 success: true,
                 cityId: 'city-1',

@@ -16,12 +16,17 @@ describe('GameClient canonical protocol', () => {
   });
 
   it('requests tile visibility through the versioned packet envelope', async () => {
+    let packetListener: ((data: unknown) => void) | undefined;
     mockSocket.on.mockImplementation((event: string, callback: (data: unknown) => void) => {
+      if (event === 'packet') packetListener = callback;
+    });
+    mockSocket.emit.mockImplementation((event: string, request: { requestId?: string }) => {
       if (event === 'packet') {
         queueMicrotask(() =>
-          callback({
+          packetListener?.({
             type: PacketType.TILE_VISIBILITY_REPLY,
             version: PROTOCOL_VERSION,
+            requestId: request.requestId,
             data: {
               success: true,
               x: 4,
@@ -54,12 +59,17 @@ describe('GameClient canonical protocol', () => {
   });
 
   it('requests a server snapshot when debug visibility changes', async () => {
+    let packetListener: ((data: unknown) => void) | undefined;
     mockSocket.on.mockImplementation((event: string, callback: (data: unknown) => void) => {
+      if (event === 'packet') packetListener = callback;
+    });
+    mockSocket.emit.mockImplementation((event: string, request: { requestId?: string }) => {
       if (event === 'packet') {
         queueMicrotask(() =>
-          callback({
+          packetListener?.({
             type: PacketType.DEBUG_VISIBILITY_REPLY,
             version: PROTOCOL_VERSION,
+            requestId: request.requestId,
             data: { success: true, enabled: true },
           })
         );

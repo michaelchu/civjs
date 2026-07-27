@@ -38,6 +38,7 @@ describe('GameClient research packets', () => {
         listeners.forEach(listener =>
           listener({
             type: PacketType.RESEARCH_SET_REPLY,
+            requestId: request.requestId,
             data: { success: true },
           })
         );
@@ -56,6 +57,7 @@ describe('GameClient research packets', () => {
         listeners.forEach(listener =>
           listener({
             type: PacketType.RESEARCH_SET_REPLY,
+            requestId: request.requestId,
             data: { success: false, message: 'Technology is not available' },
           })
         );
@@ -66,6 +68,41 @@ describe('GameClient research packets', () => {
       'Technology is not available'
     );
     expect(useGameStore.getState().research?.currentTech).toBeUndefined();
+  });
+
+  it('correlates concurrent requests of the same packet type', async () => {
+    const requests: Packet[] = [];
+    socket.emit.mockImplementation((event: string, request: Packet) => {
+      if (event === 'packet' && request.type === PacketType.RESEARCH_SET) {
+        requests.push(request);
+      }
+    });
+    const resolutions: string[] = [];
+
+    const writing = gameClient.setResearch('writing').then(() => resolutions.push('writing'));
+    const pottery = gameClient.setResearch('pottery').then(() => resolutions.push('pottery'));
+    const potteryRequest = requests.find(request => request.data.techId === 'pottery');
+    const writingRequest = requests.find(request => request.data.techId === 'writing');
+
+    listeners.forEach(listener =>
+      listener({
+        type: PacketType.RESEARCH_SET_REPLY,
+        requestId: potteryRequest?.requestId,
+        data: { success: true },
+      })
+    );
+    await pottery;
+    expect(resolutions).toEqual(['pottery']);
+
+    listeners.forEach(listener =>
+      listener({
+        type: PacketType.RESEARCH_SET_REPLY,
+        requestId: writingRequest?.requestId,
+        data: { success: true },
+      })
+    );
+    await writing;
+    expect(resolutions).toEqual(['pottery', 'writing']);
   });
 
   it('hydrates the research tree and progress from server packets', () => {
