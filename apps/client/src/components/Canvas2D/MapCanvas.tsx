@@ -1326,6 +1326,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           ActionType.SABOTAGE_UNIT,
           ActionType.PARADROP,
           ActionType.BOMBARD,
+          ActionType.NUCLEAR_EXPLOSION,
+          ActionType.COLLECT_RANSOM,
+          ActionType.SUICIDE_ATTACK,
           ActionType.AIRLIFT,
           ActionType.MARKETPLACE,
           ActionType.HELP_WONDER,
@@ -1356,9 +1359,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
                         ? 'Select a paradrop destination'
                         : action === ActionType.BOMBARD
                           ? 'Select a tile containing enemy units'
-                          : [ActionType.BRIBE_UNIT, ActionType.SABOTAGE_UNIT].includes(action)
-                            ? 'Select an adjacent foreign unit'
-                            : 'Select an adjacent foreign city',
+                          : action === ActionType.NUCLEAR_EXPLOSION
+                            ? 'Select the nuclear blast center'
+                            : [ActionType.COLLECT_RANSOM, ActionType.SUICIDE_ATTACK].includes(
+                                  action
+                                )
+                              ? 'Select an adjacent enemy unit'
+                              : [ActionType.BRIBE_UNIT, ActionType.SABOTAGE_UNIT].includes(action)
+                                ? 'Select an adjacent foreign unit'
+                                : 'Select an adjacent foreign city',
         });
         return;
       }

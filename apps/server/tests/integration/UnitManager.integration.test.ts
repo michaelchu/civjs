@@ -438,6 +438,51 @@ describe('UnitManager - Integration Tests with Real Database', () => {
     });
   });
 
+  describe('Milestone 15 consequence persistence', () => {
+    it('removes every unit in a nuclear blast from the authoritative database', async () => {
+      const tile = { terrain: 'grassland', improvements: [] as string[] };
+      const mapData = { width: mapWidth, height: mapHeight, tiles: [], startingPositions: [] };
+      unitManager = new UnitManager(
+        testData.game.id,
+        getTestDatabaseProvider(),
+        mapWidth,
+        mapHeight,
+        {
+          getTile: () => tile,
+          updateTileProperty: (_x: number, _y: number, property: string, value: unknown) => {
+            (tile as Record<string, unknown>)[property] = value;
+          },
+          getMapData: () => mapData,
+        },
+        {
+          foundCity: async () => 'test-city-id',
+          requestPath: async () => ({ success: true }),
+          broadcastUnitMoved: () => {},
+          applyNuclearCityDamage: async () => [],
+        },
+        undefined,
+        () => 0
+      );
+      const nuclear = await unitManager.createUnit(testData.player.id, 'nuclear', 10, 10);
+      await unitManager.createUnit(testData.player.id, 'warriors', 11, 10);
+
+      await expect(
+        unitManager.executeUnitAction(
+          nuclear.id,
+          ActionType.NUCLEAR_EXPLOSION,
+          11,
+          10,
+          testData.player.id
+        )
+      ).resolves.toMatchObject({ success: true, unitDestroyed: true });
+
+      const remaining = await getTestDatabase().query.units.findMany({
+        where: (units, { eq }) => eq(units.gameId, testData.game.id),
+      });
+      expect(remaining).toEqual([]);
+    });
+  });
+
   describe('turn management with real persistence', () => {
     let unitId: string;
 

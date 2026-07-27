@@ -387,13 +387,37 @@ Evidence includes `UnitManager.test.ts`, `CityManager.test.ts`,
 `UnitContextMenu.specialActions.test.tsx`, and the real-PostgreSQL unit-upgrade
 scenario in `UnitManager.integration.test.ts`.
 
+## Milestone 15 — complete
+
+The remaining enabled combat and movement consequences are authoritative.
+Nuclear units expose a target flow and detonate with radius-one unit removal,
+rounded 49 percent city population loss, per-tile fallout, actor consumption,
+map persistence, and visibility-scoped removal packets. Missile suicide
+attacks always consume the actor. Collect-ransom removes barbarian stacks and
+transfers the classic ruleset's per-unit ransom from the barbarian treasury.
+
+Huts resolve on movement rather than as manual orders. Entry removes the hut
+and selects the classic gold, technology, mercenary, barbarian, settlement, or
+map-scroll outcome; `HutFrighten` classes remove it without a reward.
+Map-scroll exploration and tile changes persist through restart. Movement also
+claims ownership of conquerable extras on the entered tile.
+
+Civil war is an explicit compatibility deviation. CivJS games retain their
+fixed lobby participant set, so the server does not create a mid-game rebel AI
+or split cities between a new player. The unconditional classic `Civil War`
+enabler is recorded as `inapplicable`, not approximated or advertised.
+
+All 82 classic enablers and 64 distinct action names now have an implemented,
+engine-resolved, or evidence-backed inapplicable disposition; none remain
+scheduled. Evidence includes `UnitManager.test.ts`, `CityManager.test.ts`,
+`VisibilityManager.test.ts`, `UnitActionHandler.test.ts`,
+`ClassicActionInventory.test.ts`, `UnitContextMenu.specialActions.test.tsx`,
+and the PostgreSQL nuclear persistence scenario.
+
 ## Partial or incomplete areas
 
-These are confirmed by the post-Milestone 8 audit and are now scheduled in
-[`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md):
-
-- Enabled nuclear/combat, hut/extras, and civil-war outcomes enumerated by the
-  executable audit remain scheduled in Milestone 15.
+The executable classic-action inventory has no remaining scheduled porting
+gap.
 
 Full Freeciv default-AI parity remains outside the agreed target; the supported
 CivJS-specific behavior and deviations are now explicit in

@@ -53,6 +53,15 @@ describe('VisibilityManager', () => {
       expect(player1Visible.size).toBe(0);
       expect(player2Visible.size).toBe(0);
     });
+
+    it('permanently reveals the classic hut map-scroll radius', () => {
+      const explored = visibilityManager.revealArea('player-123', 10, 10, 30);
+
+      expect(explored).toContain('10,10');
+      expect(explored).toContain('15,10');
+      expect(explored).not.toContain('16,10');
+      expect(visibilityManager.getVisibleTiles('player-123')).toEqual(new Set());
+    });
   });
 
   describe('visibility updates', () => {

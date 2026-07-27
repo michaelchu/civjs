@@ -2,6 +2,7 @@ import { UnitActionHandler } from '@network/handlers/UnitActionHandler';
 import { PacketHandler } from '@network/PacketHandler';
 import { PacketType } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
+import { ActionType } from '@app-types/shared/actions';
 import { Server, Socket } from 'socket.io';
 
 // Mock dependencies
@@ -42,6 +43,8 @@ describe('UnitActionHandler', () => {
       getGameInstance: jest.fn(),
       broadcastUnitInfo: jest.fn(),
       broadcastUnitDestroyed: jest.fn(),
+      broadcastCityData: jest.fn(),
+      syncGameStateToPlayer: jest.fn(),
       executeDiplomatAction: jest.fn(),
     } as any;
 
@@ -392,6 +395,44 @@ describe('UnitActionHandler', () => {
 
       expect(mockGameManager.broadcastUnitInfo).toHaveBeenCalledWith(mockGameId, actor);
       expect(mockGameManager.broadcastUnitInfo).toHaveBeenCalledWith(mockGameId, target);
+    });
+
+    it('broadcasts both actor and blast victims removed by a nuclear action', async () => {
+      const actor = { id: mockUnitId, playerId: mockPlayerId, x: 4, y: 5 };
+      const target = { id: 'target-unit', playerId: 'other-player', x: 5, y: 5 };
+      const getUnit = jest.fn().mockReturnValueOnce(actor).mockReturnValue(undefined);
+      mockGameManager.getGameInstance.mockReturnValue({
+        players: new Map([[mockPlayerId, { userId: mockUserId }]]),
+        unitManager: {
+          getUnit,
+          getAllUnits: jest.fn(
+            () =>
+              new Map([
+                [actor.id, actor],
+                [target.id, target],
+              ])
+          ),
+          executeUnitAction: jest.fn().mockResolvedValue({
+            success: true,
+            unitDestroyed: true,
+            affectedUnitIds: [actor.id, target.id],
+          }),
+        },
+      } as any);
+
+      await getUnitActionHandler()(
+        {
+          unitId: mockUnitId,
+          actionType: ActionType.NUCLEAR_EXPLOSION,
+          targetX: 5,
+          targetY: 5,
+        },
+        jest.fn()
+      );
+
+      expect(mockGameManager.broadcastUnitDestroyed).toHaveBeenCalledWith(mockGameId, actor);
+      expect(mockGameManager.broadcastUnitDestroyed).toHaveBeenCalledWith(mockGameId, target);
+      expect(mockGameManager.broadcastCityData).toHaveBeenCalledWith(mockGameId);
     });
 
     it('routes diplomat operations through the authoritative diplomacy action API', async () => {

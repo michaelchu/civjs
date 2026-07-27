@@ -476,7 +476,7 @@ surface. The executable inventory contains no remaining Milestone 14
 `scheduled` entry. Unit, client, action-contract, recovery wiring, and
 PostgreSQL upgrade tests pin the behavior.
 
-### Milestone 15 — Enabled combat consequences, huts, and extras
+### Milestone 15 — Enabled combat consequences, huts, and extras — complete
 
 **Outcome:** remaining classic action consequences are no longer approximated
 by ordinary movement or combat.
@@ -492,6 +492,24 @@ by ordinary movement or combat.
 **Exit criteria:** the executable inventory has no `scheduled` classic
 enablers, with deterministic result, visibility, recovery, and client evidence
 for each added family.
+
+**Completion evidence:** the three enabled nuclear actions converge on a
+ruleset-capable target command that consumes the actor, removes every unit in
+the radius-one blast, applies the classic rounded 49 percent city population
+loss, rolls fallout on eligible land, persists the map, and visibility-scopes
+unit removals. Collect-ransom removes barbarian stacks and transfers the
+loaded `ransom_gold`; suicide attacks always consume Missile-class actors
+after ordinary combat. Movement removes huts, resolves the classic
+gold/technology/mercenary/barbarian/city/map table, frightens huts for
+`HutFrighten` classes, and persists extra claim ownership.
+
+Civil war is the explicit compatibility deviation: CivJS keeps the
+participant set fixed after the lobby and does not create an AI rebel player
+mid-game. The inventory therefore marks the unconditional upstream
+`Civil War` enabler `inapplicable`, rather than advertising a partial empire
+split. Unit, city, visibility, network, client, inventory, recovery, and
+real-PostgreSQL tests pin the supported outcomes. No classic enabler remains
+`scheduled`.
 
 ## Testing strategy
 
@@ -514,8 +532,8 @@ Run `npm run format:check`, `npm run lint`, `npm run test:unit`, and `npm run ty
 
 ## Scope after Milestone 15
 
-Milestones 9–15 close the confirmed classic/freeciv-web gaps in the current
-inventory. They do not expand the target to every generic Freeciv feature.
+Milestones 9–15 have closed the confirmed classic/freeciv-web gaps in the
+current inventory. They do not expand the target to every generic Freeciv feature.
 Plague, suitcase-nuke, and direct gold/map theft remain out of scope because
 the classic ruleset has no enablers for them.
 

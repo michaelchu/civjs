@@ -172,18 +172,18 @@ not advertised by classic because no classic unit defines `bombard_rate`.
 
 `CLASSIC_ACTION_COVERAGE` and `ClassicActionInventory.test.ts` account for all
 82 enablers and 64 distinct upstream action names. Milestone 14 closes every
-enabled caravan, city/unit-management, and worker-extra entry.
-Nuclear/combat-consequence, hut, extras, and civil-war outcomes remain
-scheduled in Milestone 15. Non-classic covert outcomes remain intentionally
-excluded.
+enabled caravan, city/unit-management, and worker-extra entry. Milestone 15
+closes the remaining enabled combat, hut, and extra consequences and records
+the fixed-lobby civil-war deviation. No classic enabler remains scheduled.
+Non-classic covert outcomes remain intentionally excluded.
 
 The local `actions.json` is generated from
 `reference/freeciv/data/classic/actions.ruleset`; it is not a separately
 maintained approximation. Milestone 9 uses its enablers for capability
 discovery. Milestone 11 connects paradrop, airlift, generic bombardment, and
 automation; Milestone 14 connects caravan, city/unit-management, and
-worker-extra outcomes; Milestone 15 closes the remaining enabled
-consequences. Generic non-classic covert outcomes stay unadvertised.
+worker-extra outcomes; Milestone 15 closes the remaining enabled consequences.
+Generic non-classic covert outcomes stay unadvertised.
 
 ## Smoke-test status
 

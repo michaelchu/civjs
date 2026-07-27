@@ -86,4 +86,31 @@ describe('UnitContextMenu classic special actions', () => {
     fireEvent.click(screen.getByText('Disband and Recover Shields'));
     expect(onActionSelect).toHaveBeenCalledWith(ActionType.DISBAND_UNIT_RECOVER);
   });
+
+  it('renders Milestone 15 combat consequences only when advertised', () => {
+    const onActionSelect = vi.fn();
+    render(
+      <UnitContextMenu
+        unit={{
+          ...unit,
+          capabilities: {
+            ...unit.capabilities!,
+            unitActions: [
+              ActionType.NUCLEAR_EXPLOSION,
+              ActionType.COLLECT_RANSOM,
+              ActionType.SUICIDE_ATTACK,
+            ],
+          },
+        }}
+        position={{ x: 10, y: 10 }}
+        onClose={vi.fn()}
+        onActionSelect={onActionSelect}
+      />
+    );
+
+    expect(screen.getByText('Detonate Nuclear')).toBeInTheDocument();
+    expect(screen.getByText('Collect Ransom')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Suicide Attack'));
+    expect(onActionSelect).toHaveBeenCalledWith(ActionType.SUICIDE_ATTACK);
+  });
 });

@@ -427,11 +427,25 @@ export class UnitActionHandler extends BaseSocketHandler {
 
       const unitBeforeAction = gameInstance.unitManager.getUnit(data.unitId);
       const targetUnitsBeforeAction =
-        data.targetX === undefined || data.targetY === undefined
-          ? []
-          : (gameInstance.unitManager.getUnitsAt?.(data.targetX, data.targetY) ?? []).map(unit => ({
-              ...unit,
-            }));
+        data.actionType === ActionType.NUCLEAR_EXPLOSION
+          ? [...gameInstance.unitManager.getAllUnits().values()]
+              .filter(unit => {
+                const centerX = data.targetX ?? unitBeforeAction?.x;
+                const centerY = data.targetY ?? unitBeforeAction?.y;
+                return (
+                  centerX !== undefined &&
+                  centerY !== undefined &&
+                  (unit.x - centerX) ** 2 + (unit.y - centerY) ** 2 <= 1
+                );
+              })
+              .map(unit => ({ ...unit }))
+          : data.targetX === undefined || data.targetY === undefined
+            ? []
+            : (gameInstance.unitManager.getUnitsAt?.(data.targetX, data.targetY) ?? []).map(
+                unit => ({
+                  ...unit,
+                })
+              );
       const result = await this.executeRequestedUnitAction(
         gameInstance,
         connection.gameId!,
@@ -465,6 +479,8 @@ export class UnitActionHandler extends BaseSocketHandler {
           ActionType.DISBAND_UNIT_RECOVER,
           ActionType.CHANGE_HOME_CITY,
           ActionType.UPGRADE_UNIT,
+          ActionType.NUCLEAR_EXPLOSION,
+          ActionType.COLLECT_RANSOM,
         ].includes(data.actionType)
       ) {
         this.gameManager.broadcastCityData(connection.gameId!);
@@ -495,11 +511,12 @@ export class UnitActionHandler extends BaseSocketHandler {
   ): void {
     if (unitDestroyed) {
       if (unitBeforeAction) this.gameManager.broadcastUnitDestroyed(gameId, unitBeforeAction);
-      return;
+    } else {
+      const updatedUnit = gameInstance.unitManager.getUnit(unitId);
+      if (updatedUnit) this.gameManager.broadcastUnitInfo(gameId, updatedUnit);
     }
-    const updatedUnit = gameInstance.unitManager.getUnit(unitId);
-    if (updatedUnit) this.gameManager.broadcastUnitInfo(gameId, updatedUnit);
     for (const targetBefore of targetUnitsBeforeAction) {
+      if (targetBefore.id === unitId) continue;
       const targetAfter = gameInstance.unitManager.getUnit(targetBefore.id);
       if (targetAfter) this.gameManager.broadcastUnitInfo(gameId, targetAfter);
       else this.gameManager.broadcastUnitDestroyed(gameId, targetBefore);

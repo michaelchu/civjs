@@ -254,12 +254,15 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     const cityManager = this.createCityManager(gameId, effectsManager);
     const borderManager = this.createBorderManager(mapManager, cityManager, effectsManager);
     this.borderNetworkService = this.createBorderNetworkService(borderManager);
+    const researchManager = this.createResearchManager(gameId);
+    await this.initializePlayerResearch(researchManager, players);
     const unitManager = this.createUnitManager(
       gameId,
       game,
       mapManager,
       cityManager,
-      effectsManager
+      effectsManager,
+      researchManager
     );
     cityManager.setUnitSupportProvider(city =>
       [...unitManager.getAllUnits().values()]
@@ -290,8 +293,6 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     await cityManager.initialize();
 
     // Create additional managers
-    const researchManager = this.createResearchManager(gameId);
-    await this.initializePlayerResearch(researchManager, players);
     cityManager.setPlayerTechsProvider(
       playerId => new Set(researchManager.getResearchedTechs(playerId))
     );
@@ -312,6 +313,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       effectsManager,
       researchManager
     );
+    unitManager.setHutMapRevealProvider((playerId, x, y) => [
+      ...visibilityManager.revealArea(playerId, x, y, 30),
+    ]);
     unitManager.setExploredTilesProvider(playerId => visibilityManager.getExploredTiles(playerId));
     unitManager.setPlayerTechsProvider(
       playerId => new Set(researchManager.getResearchedTechs(playerId))
@@ -1011,7 +1015,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     game: any,
     mapManager: MapManager,
     cityManager: CityManager,
-    effectsManager: EffectsManager
+    effectsManager: EffectsManager,
+    researchManager: ResearchManager
   ): UnitManager {
     return new UnitManager(
       gameId,
@@ -1044,6 +1049,14 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
             : false;
         },
         executeCityUnitAction: (...args) => cityManager.executeUnitCityAction(...args),
+        applyNuclearCityDamage: (...args) => cityManager.applyNuclearExplosion(...args),
+        grantHutTechnology: async playerId => {
+          const available = researchManager.getAvailableTechnologies(playerId);
+          const technology = available[0];
+          return technology && (await researchManager.grantTechnology(playerId, technology.id))
+            ? technology.name
+            : null;
+        },
         captureCity: async (cityId, playerId, unitId) =>
           (await cityManager.captureCity(cityId, playerId, unitId)).success,
         broadcastMapChanged: (changedGameId, mapData) =>

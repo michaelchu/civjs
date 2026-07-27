@@ -200,7 +200,25 @@ export class CivJSAIAdapter {
             (type?.range ?? 1)
       );
       if (!defender) continue;
-      await game.unitManager.attackUnit(attacker.id, defender.id);
+      if (type?.flags?.includes('Nuclear')) {
+        await game.unitManager.executeUnitAction(
+          attacker.id,
+          ActionType.NUCLEAR_EXPLOSION,
+          defender.x,
+          defender.y,
+          playerId
+        );
+      } else if (type?.rulesetUnitClassFlags?.includes('Missile')) {
+        await game.unitManager.executeUnitAction(
+          attacker.id,
+          ActionType.SUICIDE_ATTACK,
+          defender.x,
+          defender.y,
+          playerId
+        );
+      } else {
+        await game.unitManager.attackUnit(attacker.id, defender.id);
+      }
       actions++;
     }
     return actions;

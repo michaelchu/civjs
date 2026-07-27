@@ -287,6 +287,27 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
         icon: Crosshair,
       });
     }
+    if (unitActions.has(ActionType.NUCLEAR_EXPLOSION)) {
+      specialActions.push({
+        action: ActionType.NUCLEAR_EXPLOSION,
+        name: 'Detonate Nuclear',
+        icon: Zap,
+      });
+    }
+    if (unitActions.has(ActionType.COLLECT_RANSOM)) {
+      specialActions.push({
+        action: ActionType.COLLECT_RANSOM,
+        name: 'Collect Ransom',
+        icon: HandCoins,
+      });
+    }
+    if (unitActions.has(ActionType.SUICIDE_ATTACK)) {
+      specialActions.push({
+        action: ActionType.SUICIDE_ATTACK,
+        name: 'Suicide Attack',
+        icon: Crosshair,
+      });
+    }
     if (unitActions.has(ActionType.AIRLIFT)) {
       specialActions.push({
         action: ActionType.AIRLIFT,

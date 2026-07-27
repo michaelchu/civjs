@@ -172,6 +172,14 @@ export class UnitManager {
       targetX: number,
       targetY: number
     ) => Promise<ActionResult>;
+    applyNuclearCityDamage?: (
+      centerX: number,
+      centerY: number,
+      radiusSquared: number,
+      attackerPlayerId: string
+    ) => Promise<string[]>;
+    grantHutTechnology?: (playerId: string) => Promise<string | null>;
+    revealHutMap?: (playerId: string, x: number, y: number) => string[];
     broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
   };
   private playerTechsProvider: (playerId: string) => Set<string> = () => new Set();
@@ -227,6 +235,14 @@ export class UnitManager {
         targetX: number,
         targetY: number
       ) => Promise<ActionResult>;
+      applyNuclearCityDamage?: (
+        centerX: number,
+        centerY: number,
+        radiusSquared: number,
+        attackerPlayerId: string
+      ) => Promise<string[]>;
+      grantHutTechnology?: (playerId: string) => Promise<string | null>;
+      revealHutMap?: (playerId: string, x: number, y: number) => string[];
       broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
     },
     effectsManager?: EffectsManager,
@@ -254,6 +270,12 @@ export class UnitManager {
     if (this.gameManagerCallback) {
       this.gameManagerCallback.getExploredTiles = provider;
     }
+  }
+
+  public setHutMapRevealProvider(
+    provider: (playerId: string, x: number, y: number) => string[]
+  ): void {
+    if (this.gameManagerCallback) this.gameManagerCallback.revealHutMap = provider;
   }
 
   /**
@@ -415,9 +437,119 @@ export class UnitManager {
       ]);
     }
     await Promise.all(cargo.map(cargoUnit => this.updateUnitPositionInDb(cargoUnit.id, cargoUnit)));
+    await this.resolveEnteredTile(unit);
 
     logger.info(`Unit ${unitId} moved to (${newX}, ${newY})`);
     return true;
+  }
+
+  /**
+   * Hut entry/frighten and extra conquest are movement consequences in
+   * classic, rather than separate player orders.
+   * @reference reference/freeciv/server/unittools.c:3304-3380
+   * @reference reference/freeciv/data/default/default.lua:19-185
+   */
+  private async resolveEnteredTile(unit: Unit): Promise<void> {
+    const tile = this.mapManager?.getTile(unit.x, unit.y);
+    if (!tile) return;
+    let changed = false;
+    const improvements = [...tile.improvements];
+    const hutIndex = improvements.findIndex((extra: string) => extra.toLowerCase() === 'hut');
+    if (hutIndex >= 0) {
+      improvements.splice(hutIndex, 1);
+      changed = true;
+      const frightens = UNIT_TYPES[unit.unitTypeId].rulesetUnitClassFlags.includes('HutFrighten');
+      if (!frightens) {
+        await this.resolveHutReward(unit);
+      }
+    }
+
+    const conquerableExtras = improvements.filter(
+      (extra: string) => !['pollution', 'fallout'].includes(extra.toLowerCase())
+    );
+    if (conquerableExtras.length > 0 && tile.claimer !== unit.playerId) {
+      this.mapManager.updateTileProperty(unit.x, unit.y, 'claimer', unit.playerId);
+      changed = true;
+    }
+    if (changed) {
+      this.mapManager.updateTileProperty(unit.x, unit.y, 'improvements', improvements);
+      await this.persistMapState();
+    }
+  }
+
+  private async resolveHutReward(unit: Unit): Promise<void> {
+    const chance = Math.floor(this.random() * 14);
+    if (chance <= 4) {
+      const gold = chance === 0 ? 25 : chance <= 3 ? 50 : 100;
+      await this.changePlayerGold(unit.playerId, gold);
+      return;
+    }
+    if (chance <= 7) {
+      const technology = await this.gameManagerCallback?.grantHutTechnology?.(unit.playerId);
+      if (!technology) await this.changePlayerGold(unit.playerId, 25);
+      return;
+    }
+    if (chance <= 9) {
+      const mercenary = Object.values(UNIT_TYPES).find(
+        type =>
+          type.roles?.includes('Hut') &&
+          type.rulesetUnitClass === UNIT_TYPES[unit.unitTypeId].rulesetUnitClass
+      );
+      if (mercenary) {
+        await this.createUnit(unit.playerId, mercenary.id, unit.x, unit.y, unit.homeCityId);
+      } else {
+        await this.changePlayerGold(unit.playerId, 25);
+      }
+      return;
+    }
+    if (chance === 10) {
+      await this.destroyUnit(unit.id);
+      return;
+    }
+    if (chance === 11 && this.gameManagerCallback?.foundCity) {
+      try {
+        await this.gameManagerCallback.foundCity(
+          this.gameId,
+          unit.playerId,
+          'Hut Settlement',
+          unit.x,
+          unit.y
+        );
+        return;
+      } catch {
+        await this.changePlayerGold(unit.playerId, 25);
+        return;
+      }
+    }
+    const exploredTiles = this.gameManagerCallback?.revealHutMap?.(unit.playerId, unit.x, unit.y);
+    if (exploredTiles) {
+      await this.databaseProvider
+        .getDatabase()
+        .update(players)
+        .set({ exploredTiles })
+        .where(and(eq(players.id, unit.playerId), eq(players.gameId, this.gameId)));
+    } else {
+      await this.changePlayerGold(unit.playerId, 25);
+    }
+  }
+
+  private async changePlayerGold(playerId: string, amount: number): Promise<void> {
+    await this.databaseProvider
+      .getDatabase()
+      .update(players)
+      .set({ gold: sql`${players.gold} + ${amount}` })
+      .where(and(eq(players.id, playerId), eq(players.gameId, this.gameId)));
+  }
+
+  private async persistMapState(): Promise<void> {
+    const mapData = this.mapManager?.getMapData?.();
+    if (!mapData) return;
+    await this.databaseProvider
+      .getDatabase()
+      .update(games)
+      .set({ mapData })
+      .where(eq(games.id, this.gameId));
+    this.gameManagerCallback?.broadcastMapChanged?.(this.gameId, mapData);
   }
 
   private validateMoveTarget(newX: number, newY: number): void {
@@ -1289,6 +1421,15 @@ export class UnitManager {
     if (actionType === ActionType.BOMBARD) {
       return this.executeBombard(unit, targetX, targetY);
     }
+    if (actionType === ActionType.NUCLEAR_EXPLOSION) {
+      return this.executeNuclearExplosion(unit, targetX, targetY);
+    }
+    if (actionType === ActionType.COLLECT_RANSOM) {
+      return this.executeCollectRansom(unit, targetX, targetY);
+    }
+    if (actionType === ActionType.SUICIDE_ATTACK) {
+      return this.executeSuicideAttack(unit, targetX, targetY);
+    }
     if (actionType === ActionType.AUTO_EXPLORE || actionType === ActionType.AUTO_SETTLER) {
       return this.setAutomation(unit, actionType);
     }
@@ -1732,6 +1873,169 @@ export class UnitManager {
     };
   }
 
+  private canTargetCombatUnit(unit: Unit, targetX?: number, targetY?: number): boolean {
+    if (unit.movementLeft <= 0 || targetX === undefined || targetY === undefined) return false;
+    const type = UNIT_TYPES[unit.unitTypeId];
+    if ((type.attack ?? 0) <= 0 || this.calculateDistance(unit.x, unit.y, targetX, targetY) > 1) {
+      return false;
+    }
+    return this.getUnitsAt(targetX, targetY).some(
+      target => target.playerId !== unit.playerId && !target.transportedBy
+    );
+  }
+
+  private canNuclearExplode(unit: Unit, targetX?: number, targetY?: number): boolean {
+    const type = UNIT_TYPES[unit.unitTypeId];
+    const x = targetX ?? unit.x;
+    const y = targetY ?? unit.y;
+    return Boolean(
+      type.flags?.includes('Nuclear') &&
+        unit.movementLeft > 0 &&
+        this.isValidPosition(x, y) &&
+        this.calculateDistance(unit.x, unit.y, x, y) <= Math.max(1, type.range)
+    );
+  }
+
+  /**
+   * Classic nuclear actions converge on one deterministic authoritative
+   * explosion: all units and roughly half of city population in radius one
+   * are affected, fallout is rolled per eligible land tile, and the actor is
+   * always consumed.
+   * @reference reference/freeciv/server/unittools.c:2954-3065
+   */
+  private async executeNuclearExplosion(
+    unit: Unit,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    if (!this.canNuclearExplode(unit, targetX, targetY)) {
+      return { success: false, message: 'Unit cannot detonate at the target tile' };
+    }
+    const centerX = targetX ?? unit.x;
+    const centerY = targetY ?? unit.y;
+    const affectedUnitIds = [...this.units.values()]
+      .filter(target => {
+        const dx = target.x - centerX;
+        const dy = target.y - centerY;
+        return dx * dx + dy * dy <= 1;
+      })
+      .map(target => target.id);
+    for (const targetId of affectedUnitIds) {
+      await this.destroyUnit(targetId);
+    }
+
+    const affectedCityIds =
+      (await this.gameManagerCallback?.applyNuclearCityDamage?.(
+        centerX,
+        centerY,
+        1,
+        unit.playerId
+      )) ?? [];
+    for (let x = Math.max(0, centerX - 1); x <= Math.min(this.mapWidth - 1, centerX + 1); x++) {
+      for (let y = Math.max(0, centerY - 1); y <= Math.min(this.mapHeight - 1, centerY + 1); y++) {
+        const dx = x - centerX;
+        const dy = y - centerY;
+        const tile = this.mapManager?.getTile(x, y);
+        if (
+          dx * dx + dy * dy <= 1 &&
+          tile &&
+          !['ocean', 'coast', 'deep_ocean', 'lake'].includes(tile.terrain) &&
+          this.random() >= 0.5 &&
+          !tile.improvements.includes('fallout')
+        ) {
+          this.mapManager.updateTileProperty(x, y, 'improvements', [
+            ...tile.improvements,
+            'fallout',
+          ]);
+        }
+      }
+    }
+    await this.persistMapState();
+    return {
+      success: true,
+      message: `Nuclear explosion affected ${affectedUnitIds.length} unit(s) and ${affectedCityIds.length} city/cities`,
+      unitDestroyed: true,
+      affectedUnitIds,
+    };
+  }
+
+  /**
+   * @reference reference/freeciv/server/unittools.c:2646-2725 collect_ransom()
+   */
+  private async executeCollectRansom(
+    unit: Unit,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    if (!this.canTargetCombatUnit(unit, targetX, targetY)) {
+      return { success: false, message: 'Unit cannot collect ransom from that tile' };
+    }
+    const targets = this.getUnitsAt(targetX!, targetY!).filter(
+      target => target.playerId !== unit.playerId
+    );
+    const victimPlayerId = targets[0].playerId;
+    const victim = await this.databaseProvider.getDatabase().query.players.findFirst({
+      where: eq(players.id, victimPlayerId),
+    });
+    if (victim?.nation !== 'barbarian' && victim?.civilization.toLowerCase() !== 'barbarian') {
+      return { success: false, message: 'Ransom can only be collected from barbarians' };
+    }
+    const requested = targets.length * rulesetLoader.getGameParameters().ransom_gold;
+    const ransom = Math.min(requested, victim.gold);
+    for (const target of targets) await this.destroyUnit(target.id);
+    if (ransom > 0) {
+      const db = this.databaseProvider.getDatabase();
+      await db
+        .update(players)
+        .set({ gold: sql`${players.gold} + ${ransom}` })
+        .where(eq(players.id, unit.playerId));
+      await db
+        .update(players)
+        .set({ gold: sql`${players.gold} - ${ransom}` })
+        .where(eq(players.id, victimPlayerId));
+    }
+    unit.movementLeft = 0;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ movementPoints: '0' })
+      .where(eq(units.id, unit.id));
+    return {
+      success: true,
+      message: `${targets.length} barbarian unit(s) yielded ${ransom} gold`,
+      targetDestroyed: true,
+      affectedUnitIds: targets.map(target => target.id),
+      newMovementLeft: 0,
+    };
+  }
+
+  private async executeSuicideAttack(
+    unit: Unit,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    if (
+      !UNIT_TYPES[unit.unitTypeId].rulesetUnitClassFlags.includes('Missile') ||
+      !this.canTargetCombatUnit(unit, targetX, targetY)
+    ) {
+      return { success: false, message: 'Unit cannot perform a suicide attack' };
+    }
+    const defender = this.getUnitsAt(targetX!, targetY!).find(
+      target => target.playerId !== unit.playerId && !target.transportedBy
+    )!;
+    const combat = await this.attackUnit(unit.id, defender.id);
+    if (this.units.has(unit.id)) await this.destroyUnit(unit.id);
+    return {
+      success: true,
+      message: combat.defenderDestroyed
+        ? 'Suicide attack destroyed the target'
+        : 'Suicide attack damaged the target',
+      unitDestroyed: true,
+      targetDestroyed: combat.defenderDestroyed,
+      affectedUnitIds: [defender.id, ...(combat.collateralDestroyedIds ?? [])],
+    };
+  }
+
   private async setAutomation(unit: Unit, actionType: ActionType): Promise<ActionResult> {
     const automation = actionType === ActionType.AUTO_SETTLER ? 'settler' : 'explore';
     if (
@@ -1875,6 +2179,18 @@ export class UnitManager {
     }
     if (actionType === ActionType.BOMBARD) {
       return this.canBombard(unit, targetX, targetY);
+    }
+    if (actionType === ActionType.NUCLEAR_EXPLOSION) {
+      return this.canNuclearExplode(unit, targetX, targetY);
+    }
+    if (actionType === ActionType.COLLECT_RANSOM) {
+      return this.canTargetCombatUnit(unit, targetX, targetY);
+    }
+    if (actionType === ActionType.SUICIDE_ATTACK) {
+      return (
+        UNIT_TYPES[unit.unitTypeId].rulesetUnitClassFlags.includes('Missile') &&
+        this.canTargetCombatUnit(unit, targetX, targetY)
+      );
     }
     if (actionType === ActionType.AUTO_EXPLORE) {
       return UNIT_TYPES[unit.unitTypeId].movement > 0;

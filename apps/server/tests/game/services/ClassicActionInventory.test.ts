@@ -60,4 +60,24 @@ describe('classic action inventory', () => {
     expect(service.getUnitActions(UNIT_TYPES.worker)).toContain(ActionType.BUILD_AIRBASE);
     expect(service.getUnitActions(UNIT_TYPES.engineers)).toContain(ActionType.BUILD_AIRBASE);
   });
+
+  it('closes Milestone 15 with capability-derived combat consequences', () => {
+    expect(
+      Object.values(CLASSIC_ACTION_COVERAGE).filter(
+        coverage => coverage.disposition === 'scheduled'
+      )
+    ).toEqual([]);
+
+    const service = new RulesetActionsService();
+    expect(service.getUnitActions(UNIT_TYPES.nuclear)).toEqual(
+      expect.arrayContaining([ActionType.NUCLEAR_EXPLOSION, ActionType.SUICIDE_ATTACK])
+    );
+    expect(service.getUnitActions(UNIT_TYPES.cruise_missile)).toContain(ActionType.SUICIDE_ATTACK);
+    expect(service.getUnitActions(UNIT_TYPES.warriors)).toContain(ActionType.COLLECT_RANSOM);
+    expect(service.getUnitActions(UNIT_TYPES.settlers)).not.toContain(ActionType.COLLECT_RANSOM);
+    expect(CLASSIC_ACTION_COVERAGE['Civil War']).toMatchObject({
+      disposition: 'inapplicable',
+      family: 'player-events',
+    });
+  });
 });

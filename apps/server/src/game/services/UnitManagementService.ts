@@ -91,15 +91,20 @@ export class UnitManagementService extends BaseGameService {
       throw new Error('Unit not found or does not belong to player');
     }
 
+    const unitBeforeMove = { ...unit };
     const moved = await gameInstance.unitManager.moveUnit(unitId, x, y);
 
     if (moved) {
-      const updatedUnit = gameInstance.unitManager.getUnit(unitId)!;
+      const updatedUnit = gameInstance.unitManager.getUnit(unitId);
 
       // Update visibility for the player
-      gameInstance.visibilityManager.onUnitMoved(playerId);
-
-      this.unitBroadcaster?.broadcastUnitInfo(gameId, updatedUnit);
+      if (updatedUnit) {
+        gameInstance.visibilityManager.onUnitMoved(playerId);
+        this.unitBroadcaster?.broadcastUnitInfo(gameId, updatedUnit);
+      } else {
+        gameInstance.visibilityManager.onUnitDestroyed(playerId);
+        this.unitBroadcaster?.broadcastUnitDestroyed(gameId, unitBeforeMove);
+      }
     }
 
     return moved;

@@ -35,6 +35,9 @@ export enum ActionType {
   PILLAGE = 'pillage',
   PARADROP = 'paradrop',
   BOMBARD = 'bombard',
+  NUCLEAR_EXPLOSION = 'nuclear_explosion',
+  COLLECT_RANSOM = 'collect_ransom',
+  SUICIDE_ATTACK = 'suicide_attack',
   CAPTURE_UNITS = 'capture_units',
   PATROL = 'patrol',
 

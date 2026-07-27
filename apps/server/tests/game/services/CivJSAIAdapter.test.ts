@@ -183,6 +183,7 @@ function createScenario() {
     game,
     setCityProduction,
     setCurrentResearch,
+    unitTypes,
     units,
   };
 }
@@ -255,6 +256,42 @@ describe('CivJSAIAdapter compatibility contract', () => {
       'alliance-proposal',
       false
     );
+  });
+
+  it('uses nuclear consequences instead of ordinary combat for nuclear actors', async () => {
+    const scenario = createScenario();
+    scenario.units.set('nuclear', {
+      id: 'nuclear',
+      playerId: 'ai',
+      unitTypeId: 'nuclear',
+      x: 4,
+      y: 5,
+      movementLeft: 3,
+      health: 100,
+      veteranLevel: 0,
+      experience: 0,
+      fortified: false,
+    });
+    scenario.unitTypes.nuclear = {
+      attack: 99,
+      range: 1,
+      flags: ['Nuclear'],
+      rulesetUnitClassFlags: ['Missile'],
+    };
+
+    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith(
+      'nuclear',
+      ActionType.NUCLEAR_EXPLOSION,
+      5,
+      4,
+      'ai'
+    );
+    expect(scenario.attackUnit).not.toHaveBeenCalledWith('nuclear', 'enemy');
   });
 
   it('uses a legal Milestone 14 city-unit command through UnitManager', async () => {

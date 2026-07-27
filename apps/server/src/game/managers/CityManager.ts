@@ -1535,6 +1535,33 @@ export class CityManager {
     return transferred;
   }
 
+  /**
+   * Apply the classic nuclear population consequence to every city in the
+   * blast circle. The classic ruleset uses a 49 percent rounded population
+   * loss and zero defender survival.
+   * @reference reference/freeciv/server/unittools.c:2954-3037 do_nuke_tile()
+   * @reference reference/freeciv/data/classic/game.ruleset:279-284
+   */
+  async applyNuclearExplosion(
+    centerX: number,
+    centerY: number,
+    radiusSquared: number,
+    _attackerPlayerId: string
+  ): Promise<string[]> {
+    const affected: string[] = [];
+    for (const city of [...this.cities.values()]) {
+      const dx = city.x - centerX;
+      const dy = city.y - centerY;
+      if (dx * dx + dy * dy > radiusSquared) continue;
+      affected.push(city.id);
+      const populationLoss = Math.round(city.population * 0.49);
+      city.population = Math.max(1, city.population - populationLoss);
+      city.size = city.population;
+      await this.saveCityToDatabase(city);
+    }
+    return affected;
+  }
+
   // === UTILITY METHODS ===
 
   private async updateTradeRoutesOnPlayerChange(

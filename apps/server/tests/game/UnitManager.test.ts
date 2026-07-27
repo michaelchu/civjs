@@ -1069,6 +1069,143 @@ describe('UnitManager', () => {
     });
   });
 
+  describe('Milestone 15 consequences', () => {
+    const makeMap = (hut = false) => {
+      const tiles = new Map<string, any>();
+      for (const [x, y] of [
+        [10, 10],
+        [11, 10],
+        [12, 10],
+        [11, 9],
+        [11, 11],
+      ]) {
+        tiles.set(`${x},${y}`, {
+          x,
+          y,
+          terrain: 'grassland',
+          improvements: hut && x === 11 && y === 10 ? ['Hut'] : [],
+          hasRoad: false,
+          hasRailroad: false,
+          claimer: undefined,
+        });
+      }
+      const mapData = { width: mapWidth, height: mapHeight, tiles: [] };
+      return {
+        tiles,
+        manager: {
+          getTile: jest.fn((x: number, y: number) => tiles.get(`${x},${y}`)),
+          updateTileProperty: jest.fn((x: number, y: number, property: string, value: unknown) => {
+            tiles.get(`${x},${y}`)[property] = value;
+          }),
+          getMapData: jest.fn(() => mapData),
+        },
+      };
+    };
+
+    it('detonates a nuclear actor, destroys the blast stack, damages cities, and adds fallout', async () => {
+      const map = makeMap();
+      const applyNuclearCityDamage = jest.fn(async () => ['city-1']);
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        map.manager,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          applyNuclearCityDamage,
+          broadcastMapChanged: jest.fn(),
+        },
+        undefined,
+        () => 0.99
+      );
+      const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
+      const defender = await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      await expect(
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10, 'player-123')
+      ).resolves.toMatchObject({
+        success: true,
+        unitDestroyed: true,
+        affectedUnitIds: expect.arrayContaining([nuclear.id, defender.id]),
+      });
+      expect(manager.getUnit(nuclear.id)).toBeUndefined();
+      expect(manager.getUnit(defender.id)).toBeUndefined();
+      expect(applyNuclearCityDamage).toHaveBeenCalledWith(11, 10, 1, 'player-123');
+      expect(map.tiles.get('11,10').improvements).toContain('fallout');
+    });
+
+    it('always consumes a missile after its suicide attack', async () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        undefined,
+        () => 0.99
+      );
+      const missile = await manager.createUnit('player-123', 'cruise_missile', 10, 10);
+      await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      await expect(
+        manager.executeUnitAction(missile.id, ActionType.SUICIDE_ATTACK, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, unitDestroyed: true });
+      expect(manager.getUnit(missile.id)).toBeUndefined();
+    });
+
+    it('collects ruleset ransom from and destroys a barbarian stack', async () => {
+      const db = mockDbProvider.getDatabase() as any;
+      db.query.players.findFirst.mockResolvedValue({
+        nation: 'barbarian',
+        civilization: 'Barbarian',
+        gold: 500,
+      });
+      const collector = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      const leader = await unitManager.createUnit('barbarian-player', 'warriors', 11, 10);
+      const escort = await unitManager.createUnit('barbarian-player', 'archers', 11, 10);
+
+      await expect(
+        unitManager.executeUnitAction(collector.id, ActionType.COLLECT_RANSOM, 11, 10, 'player-123')
+      ).resolves.toMatchObject({
+        success: true,
+        targetDestroyed: true,
+        message: expect.stringContaining('200 gold'),
+      });
+      expect(unitManager.getUnit(leader.id)).toBeUndefined();
+      expect(unitManager.getUnit(escort.id)).toBeUndefined();
+    });
+
+    it('resolves and persists a hut reward when movement enters the tile', async () => {
+      const map = makeMap(true);
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        map.manager,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          broadcastMapChanged: jest.fn(),
+        },
+        undefined,
+        () => 0
+      );
+      const explorer = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      await manager.moveUnit(explorer.id, 11, 10);
+
+      expect(map.tiles.get('11,10').improvements).not.toContain('Hut');
+      expect(map.manager.getMapData).toHaveBeenCalled();
+      expect((mockDbProvider.getDatabase() as any).update).toHaveBeenCalled();
+    });
+  });
+
   describe('unit queries', () => {
     beforeEach(async () => {
       await unitManager.createUnit('player-123', 'warriors', 10, 10);

@@ -127,6 +127,21 @@ describe('CityManager', () => {
     });
   });
 
+  describe('Milestone 15 nuclear consequences', () => {
+    it('applies the classic rounded 49 percent population loss in the blast radius', async () => {
+      const city = await cityManager.foundCity(10, 10, 'Target', 'player-456');
+      city.population = 10;
+      city.size = 10;
+
+      await expect(cityManager.applyNuclearExplosion(10, 10, 1, 'player-123')).resolves.toEqual([
+        city.id,
+      ]);
+
+      expect(city.population).toBe(5);
+      expect(city.size).toBe(5);
+    });
+  });
+
   describe('airport airlift usage', () => {
     it('persists one reservation per endpoint city per turn', async () => {
       const source = {

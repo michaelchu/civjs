@@ -295,6 +295,13 @@ export class GameInstanceRecoveryService extends BaseGameService {
             : false;
         },
         executeCityUnitAction: (...args) => cityManager.executeUnitCityAction(...args),
+        applyNuclearCityDamage: (...args) => cityManager.applyNuclearExplosion(...args),
+        grantHutTechnology: async playerId => {
+          const technology = researchManager.getAvailableTechnologies(playerId)[0];
+          return technology && (await researchManager.grantTechnology(playerId, technology.id))
+            ? technology.name
+            : null;
+        },
         captureCity: async (cityId, playerId, unitId) =>
           (await cityManager.captureCity(cityId, playerId, unitId)).success,
         broadcastMapChanged: (changedGameId, mapData) =>
@@ -331,6 +338,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
       effectsManager,
       playerId => new Set(researchManager.getResearchedTechs(playerId))
     );
+    unitManager.setHutMapRevealProvider((playerId, x, y) => [
+      ...visibilityManager.revealArea(playerId, x, y, 30),
+    ]);
     unitManager.setExploredTilesProvider(playerId => visibilityManager.getExploredTiles(playerId));
     unitManager.setPlayerTechsProvider(
       playerId => new Set(researchManager.getResearchedTechs(playerId))

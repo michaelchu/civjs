@@ -48,6 +48,12 @@ const CLASSIC_UNIT_ACTIONS: ReadonlyArray<{
   { id: ActionType.PLANT, upstream: ['Plant'] },
   { id: ActionType.BUILD_FORTRESS, upstream: ['Build Base'] },
   { id: ActionType.BUILD_AIRBASE, upstream: ['Build Base'] },
+  {
+    id: ActionType.NUCLEAR_EXPLOSION,
+    upstream: ['Explode Nuclear', 'Nuke City', 'Nuke Units'],
+  },
+  { id: ActionType.COLLECT_RANSOM, upstream: ['Collect Ransom'] },
+  { id: ActionType.SUICIDE_ATTACK, upstream: ['Suicide Attack'] },
 ];
 
 /**
@@ -87,7 +93,14 @@ export class RulesetActionsService {
       return action.upstream.some(upstream =>
         this.loader
           .getActionEnablersFor(upstream, this.rulesetName)
-          .some(enabler => this.matchesStaticActorFacts(enabler, flags, unitClass))
+          .some(enabler =>
+            this.matchesStaticActorFacts(
+              enabler,
+              flags,
+              unitClass,
+              new Set(unitType.rulesetUnitClassFlags)
+            )
+          )
       );
     }).map(action => action.id);
 
@@ -109,13 +122,14 @@ export class RulesetActionsService {
   private matchesStaticActorFacts(
     enabler: ActionEnabler,
     flags: Set<string>,
-    unitClass: string | undefined
+    unitClass: string | undefined,
+    unitClassFlags: Set<string>
   ): boolean {
     const staticRequirements = enabler.actor_reqs.filter(requirement =>
-      ['UnitTypeFlag', 'UnitClass'].includes(requirement.type)
+      ['UnitTypeFlag', 'UnitClass', 'UnitClassFlag'].includes(requirement.type)
     );
     return this.requirements.evaluateAll(staticRequirements, {
-      Local: { unitTypeFlags: flags, unitClass },
+      Local: { unitTypeFlags: flags, unitClass, unitClassFlags },
     });
   }
 }

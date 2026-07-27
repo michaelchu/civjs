@@ -185,6 +185,27 @@ export class VisibilityManager {
   }
 
   /**
+   * Permanently reveal a circular area, as used by classic hut map scrolls.
+   * @reference reference/freeciv/data/default/default.lua:133-143
+   */
+  public revealArea(
+    playerId: string,
+    centerX: number,
+    centerY: number,
+    radiusSquared: number
+  ): Set<string> {
+    let visibility = this.playerVisibility.get(playerId);
+    if (!visibility) {
+      this.initializePlayerVisibility(playerId);
+      visibility = this.playerVisibility.get(playerId)!;
+    }
+    const revealed = this.calculateTileVisibility(centerX, centerY, radiusSquared);
+    for (const tile of revealed) visibility.exploredTiles.add(tile);
+    visibility.lastUpdated = new Date();
+    return new Set(visibility.exploredTiles);
+  }
+
+  /**
    * Check if a tile is visible to a player
    */
   public isTileVisible(playerId: string, x: number, y: number): boolean {

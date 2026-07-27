@@ -21,17 +21,6 @@ const engineResolved = (family: string, rationale: string): ClassicActionCoverag
   family,
   rationale,
 });
-const scheduled = (
-  family: string,
-  milestone: number,
-  rationale: string
-): ClassicActionCoverage => ({
-  disposition: 'scheduled',
-  family,
-  milestone,
-  rationale,
-});
-
 /**
  * Executable accounting for every distinct action referenced by classic
  * actions.ruleset enablers. Alternate Freeciv action names may converge on
@@ -69,12 +58,12 @@ export const CLASSIC_ACTION_COVERAGE: Readonly<Record<string, ClassicActionCover
   'Disband Unit': implemented('unit-management', 'Authoritative disband command'),
   'Found City': implemented('city', 'Authoritative city founding'),
   'Join City': implemented('city-unit-actions', 'Authoritative population join outcome'),
-  'Explode Nuclear': scheduled('nuclear-combat', 15, 'Nuclear explosion is not ported'),
-  'Nuke City': scheduled('nuclear-combat', 15, 'City nuclear outcome is not ported'),
-  'Nuke Units': scheduled('nuclear-combat', 15, 'Stack nuclear outcome is not ported'),
+  'Explode Nuclear': implemented('nuclear-combat', 'Authoritative ruleset-capable detonation'),
+  'Nuke City': implemented('nuclear-combat', 'Nuclear city targeting converges on detonation'),
+  'Nuke Units': implemented('nuclear-combat', 'Nuclear stack targeting converges on detonation'),
   Attack: implemented('combat', 'Authoritative unit combat'),
-  'Collect Ransom': scheduled('combat-alternatives', 15, 'Ransom reward is not ported'),
-  'Suicide Attack': scheduled('combat-alternatives', 15, 'Forced actor consumption is not ported'),
+  'Collect Ransom': implemented('combat-alternatives', 'Authoritative barbarian stack ransom'),
+  'Suicide Attack': implemented('combat-alternatives', 'Combat always consumes the missile actor'),
   'Conquer City Shrink': engineResolved('city-capture', 'Resolved by authoritative city capture'),
   'Conquer City Shrink 2': engineResolved('city-capture', 'Non-native capture variant'),
   'Home City': implemented('unit-management', 'Persisted home-city reassignment'),
@@ -99,14 +88,22 @@ export const CLASSIC_ACTION_COVERAGE: Readonly<Record<string, ClassicActionCover
   'Transport Disembark 2': implemented('transport', 'Non-native unload validation'),
   'Transport Embark': implemented('transport', 'Authoritative load command'),
   'Unit Move': implemented('movement', 'Authoritative path and movement command'),
-  'Enter Hut': scheduled('huts-and-extras', 15, 'Goody-hut entry outcome is not ported'),
-  'Enter Hut 2': scheduled('huts-and-extras', 15, 'Non-native hut entry is not ported'),
-  'Frighten Hut': scheduled('huts-and-extras', 15, 'Hut frighten outcome is not ported'),
-  'Frighten Hut 2': scheduled('huts-and-extras', 15, 'Non-native hut frighten is not ported'),
-  'Conquer Extras': scheduled('huts-and-extras', 15, 'Extra ownership conquest is not ported'),
-  'Conquer Extras 2': scheduled('huts-and-extras', 15, 'Non-native extra conquest is not ported'),
+  'Enter Hut': engineResolved('huts-and-extras', 'Movement resolves and persists hut rewards'),
+  'Enter Hut 2': engineResolved('huts-and-extras', 'Non-native movement uses the same hut outcome'),
+  'Frighten Hut': engineResolved('huts-and-extras', 'Movement removes huts without a reward'),
+  'Frighten Hut 2': engineResolved('huts-and-extras', 'Non-native frighten uses the same outcome'),
+  'Conquer Extras': engineResolved('huts-and-extras', 'Movement claims conquerable tile extras'),
+  'Conquer Extras 2': engineResolved(
+    'huts-and-extras',
+    'Non-native movement uses the same ownership outcome'
+  ),
   'Gain Veterancy': engineResolved('combat', 'Veterancy is awarded by combat resolution'),
-  'Civil War': scheduled('player-events', 15, 'Civil-war action consequence is not ported'),
+  'Civil War': {
+    disposition: 'inapplicable',
+    family: 'player-events',
+    rationale:
+      'CivJS games use a fixed lobby participant set and do not create mid-game rebel players',
+  },
   'Finish Unit': engineResolved('production', 'Resolved by city production completion'),
   'Finish Building': engineResolved('production', 'Resolved by city production completion'),
 };
