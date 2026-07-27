@@ -108,4 +108,42 @@ describe('GameClient state-bearing packets', () => {
       ['Connection interrupted', 'Ready?', '1 territory tiles gained']
     );
   });
+
+  it('hydrates diplomacy snapshots and reports rejected diplomacy actions', () => {
+    handlePacket({
+      type: PacketType.DIPLOMACY_LIST_REPLY,
+      data: {
+        success: true,
+        playerId: 'player-1',
+        nations: [
+          {
+            id: 'player-2',
+            civilization: 'greek',
+            leaderName: 'Pericles',
+            isAlive: true,
+            isAI: false,
+            known: true,
+            relation: {
+              state: 'peace',
+              sinceTurn: 3,
+              embassy: true,
+              sharedVision: false,
+            },
+          },
+        ],
+      },
+    });
+    expect(useGameStore.getState().diplomacy?.nations[0]).toEqual(
+      expect.objectContaining({
+        id: 'player-2',
+        relation: expect.objectContaining({ state: 'peace', embassy: true }),
+      })
+    );
+
+    handlePacket({
+      type: PacketType.DIPLOMACY_UPDATE,
+      data: { success: false, message: 'Treaty proposal not found' },
+    });
+    expect(useGameStore.getState().notifications.at(-1)?.message).toBe('Treaty proposal not found');
+  });
 });

@@ -339,6 +339,20 @@ export class ResearchManager {
     return playerResearch ? Array.from(playerResearch.researchedTechs) : [];
   }
 
+  public async grantTechnology(playerId: string, techId: string): Promise<boolean> {
+    const playerResearch = this.playerResearch.get(playerId);
+    if (!playerResearch) throw new Error(`Player ${playerId} research not initialized`);
+    if (!this.technologies[techId] || playerResearch.researchedTechs.has(techId)) return false;
+    playerResearch.researchedTechs.add(techId);
+    await this.databaseProvider.getDatabase().insert(playerTechs).values({
+      gameId: this.gameId,
+      playerId,
+      techId,
+      researchedTurn: this.getCurrentTurn(),
+    });
+    return true;
+  }
+
   public async loadPlayerResearch(): Promise<void> {
     // Load research state from database
     const researchData = await this.databaseProvider

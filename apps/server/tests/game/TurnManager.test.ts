@@ -226,6 +226,22 @@ describe('TurnManager', () => {
       expect(turnManager.getCurrentTurn()).toBe(1);
     });
 
+    it('coalesces concurrent turn processing requests', async () => {
+      const mockTurnPhaseService = (turnManager as any).turnPhaseService;
+      let resolvePhase!: (value: any) => void;
+      mockTurnPhaseService.executePhaseProcessing = jest.fn(
+        () => new Promise(resolve => (resolvePhase = resolve))
+      );
+
+      const first = turnManager.processTurn();
+      const duplicate = turnManager.processTurn();
+      resolvePhase({ success: true, totalDuration: 1, phases: [], errors: [] });
+      await Promise.all([first, duplicate]);
+
+      expect(mockTurnPhaseService.executePhaseProcessing).toHaveBeenCalledTimes(1);
+      expect(turnManager.getCurrentTurn()).toBe(2);
+    });
+
     it('advances revolutions and refreshes city effects when one completes', async () => {
       const governmentManager = {
         processRevolutionTurn: jest.fn().mockResolvedValue('monarchy'),

@@ -1,6 +1,6 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 5 working tree (2026-07-26)
+**Verified against:** Milestone 6 working tree (2026-07-26)
 **Verification method:** source-tree audit plus passing client/unit tests and the
 production type check/build. Database-backed integration remains separately
 dependent on the configured PostgreSQL test service.
@@ -177,13 +177,48 @@ Evidence also includes `MovementConstants.test.ts`, `UnitManager.test.ts`,
 `PathfindingManager.test.ts`, the server and client unit suites, both
 production type checks, and both production builds.
 
+## Milestone 6 — complete
+
+Diplomacy is persisted as bilateral authoritative state. Contact, war,
+ceasefire, peace, alliance, meetings, idempotent proposals, accept/reject and
+cancel flows, embassies, and shared vision are exposed through structured
+packets and the Nations screen. Shared vision expands live and explored map
+visibility through `VisibilityManager`; declarations of war revoke it.
+Diplomat and spy capabilities advertise only implemented operations:
+establishing an embassy, investigating a city, stealing an available
+technology, and sabotaging an eligible city improvement. Those operations use
+the same city, research, unit-removal, visibility, and packet paths as human
+gameplay.
+
+CivJS intentionally uses the documented `CivJSAIAdapter` instead of embedding
+a partial copy of Freeciv's tightly coupled default AI. AI participants select
+legal research and production through the authoritative managers and respond
+to non-alliance diplomatic proposals during the normal AI phase.
+
+Turns are simultaneous: all living humans must finish, while AI participants
+act during turn processing. A disconnected human retains their turn until the
+authoritative timeout. End-turn writes are serialized and persisted, duplicate
+turn-processing requests coalesce, and ordered packet sequences reject stale
+or duplicate requests. Timers pause when every human disconnects and resume on
+reconnect; paused games are recoverable after a server reload. Spectators have
+an explicit read-only connection role, including protection for both packet
+and named-event mutations. Host controls can pause/resume a game and change
+the persisted turn timeout.
+
+Evidence includes `DiplomacyManager.test.ts`, `CivJSAIAdapter.test.ts`,
+`VisibilityManager.test.ts`, `GameManager.turns.test.ts`,
+`TurnManager.test.ts`, `PacketHandler.ordering.test.ts`,
+`SocketCoordinator.test.ts`, `UnitActionHandler.test.ts`, and the client
+management/state packet suites.
+
 ## Partial or incomplete areas
 
 These are confirmed by explicit TODOs, placeholders, or unintegrated paths; they are not a complete feature roadmap.
 
-- AI turn processing is deferred (`TurnPhaseService.ts`).
-- Diplomatic states, treaties, embassies, espionage/sabotage, and their UI
-  remain the explicit Milestone 6 scope; their action enums are not exposed.
+- Covert actions beyond the Milestone 6 playable set (unit bribery, poisoning,
+  plague, nuclear sabotage, and direct gold/map theft) remain unadvertised.
+- Freeciv's full default AI is not ported; CivJS uses the replaceable adapter
+  documented above.
 
 ## Porting workflow
 

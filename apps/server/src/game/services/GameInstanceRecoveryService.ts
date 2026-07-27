@@ -112,8 +112,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       with: { players: true },
     });
 
-    if (!game || game.status !== 'active') {
-      logger.warn('Game not found or not active, cannot recover', {
+    if (!game || !['active', 'paused'].includes(game.status)) {
+      logger.warn('Game not found or not recoverable, cannot recover', {
         gameId,
         found: !!game,
         status: game?.status,
@@ -434,6 +434,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
         ],
       },
       state: game.status as GameState,
+      pauseReason: game.pauseReason ?? undefined,
       currentTurn: game.currentTurn,
       turnPhase: game.turnPhase as TurnPhase,
       players,

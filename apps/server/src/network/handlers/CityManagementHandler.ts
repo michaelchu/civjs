@@ -51,7 +51,11 @@ export class CityManagementHandler extends BaseSocketHandler {
     // Register production endpoints
     socket.on('city:getAvailableProductions', async data => {
       const connection = this.getConnection(socket, this.activeConnections);
-      if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
+      if (
+        !this.isAuthenticated(connection) ||
+        !this.isInGame(connection) ||
+        this.isSpectator(connection)
+      ) {
         socket.emit('error', { message: 'Not authenticated or not in a game' });
         return;
       }
@@ -87,7 +91,11 @@ export class CityManagementHandler extends BaseSocketHandler {
 
     socket.on('city:changeProduction', async data => {
       const connection = this.getConnection(socket, this.activeConnections);
-      if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
+      if (
+        !this.isAuthenticated(connection) ||
+        !this.isInGame(connection) ||
+        this.isSpectator(connection)
+      ) {
         socket.emit('error', { message: 'Not authenticated or not in a game' });
         return;
       }
@@ -194,7 +202,12 @@ export class CityManagementHandler extends BaseSocketHandler {
       }
     | undefined {
     const connection = this.getConnection(socket, this.activeConnections);
-    if (!this.isAuthenticated(connection) || !this.isInGame(connection)) return undefined;
+    if (
+      !this.isAuthenticated(connection) ||
+      !this.isInGame(connection) ||
+      this.isSpectator(connection)
+    )
+      return undefined;
     const game = this.gameManager.getGameInstance(connection.gameId!);
     if (!game) return undefined;
     const player = Array.from(game.players.values()).find(

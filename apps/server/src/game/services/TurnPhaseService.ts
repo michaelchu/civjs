@@ -102,6 +102,7 @@ export class TurnPhaseService {
   private randomEventsManager?: RandomEventsManager;
   private cultureManager?: CultureManager;
   private gameEventService: GameEventService;
+  private aiProcessor?: () => Promise<number>;
 
   private currentPhase: TurnPhase | null = null;
   private phaseHistory: PhaseResult[] = [];
@@ -194,6 +195,10 @@ export class TurnPhaseService {
    */
   setCurrentTurnId(turnId: string): void {
     this.currentTurnId = turnId;
+  }
+
+  setAIProcessor(processor: () => Promise<number>): void {
+    this.aiProcessor = processor;
   }
 
   /**
@@ -846,12 +851,9 @@ export class TurnPhaseService {
   }
 
   private async executeAIActionsPhase(context: PhaseContext, result: PhaseResult): Promise<void> {
-    logger.debug('Processing AI actions phase (placeholder)', { gameId: context.gameId });
-
-    // Placeholder for AI player processing
-    // This will be implemented when AI players are added
-    result.playersProcessed = 0; // No AI players yet
-    result.itemsProcessed = 0;
+    logger.debug('Processing AI actions through CivJS adapter', { gameId: context.gameId });
+    result.itemsProcessed = this.aiProcessor ? await this.aiProcessor() : 0;
+    result.playersProcessed = result.itemsProcessed > 0 ? 1 : 0;
   }
 
   private async executeBorderCalculationPhase(

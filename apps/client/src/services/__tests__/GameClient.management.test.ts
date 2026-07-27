@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { gameClient } from '../GameClient';
 import { useGameStore } from '../../store/gameStore';
+import { PacketType } from '../../types/packets';
 
 const socket = {
   connected: true,
@@ -12,6 +13,7 @@ const socket = {
 describe('GameClient management screens', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    socket.emit.mockReset();
     (gameClient as unknown as { socket: typeof socket }).socket = socket;
     useGameStore.getState().updateGameState({
       currentPlayerId: 'player-1',
@@ -91,5 +93,65 @@ describe('GameClient management screens', () => {
       luxury: 10,
       science: 50,
     });
+  });
+
+  it('sends authoritative diplomacy requests with idempotency IDs', () => {
+    gameClient.requestDiplomacy();
+    gameClient.proposeTreaty('player-2', ['peace', 'embassy']);
+    gameClient.respondToTreaty('player-2', 'proposal-1', true);
+
+    expect(socket.emit).toHaveBeenNthCalledWith(
+      1,
+      'packet',
+      expect.objectContaining({ type: PacketType.DIPLOMACY_LIST_REQ })
+    );
+    expect(socket.emit).toHaveBeenNthCalledWith(
+      2,
+      'packet',
+      expect.objectContaining({
+        type: PacketType.DIPLOMACY_TREATY_PROPOSE,
+        data: expect.objectContaining({
+          recipientId: 'player-2',
+          requestId: expect.any(String),
+          clauses: [{ type: 'peace' }, { type: 'embassy' }],
+        }),
+      })
+    );
+    expect(socket.emit).toHaveBeenNthCalledWith(
+      3,
+      'packet',
+      expect.objectContaining({
+        type: PacketType.DIPLOMACY_TREATY_RESPONSE,
+        data: { otherPlayerId: 'player-2', proposalId: 'proposal-1', accept: true },
+      })
+    );
+  });
+
+  it('loads and updates host turn controls', async () => {
+    socket.emit
+      .mockImplementationOnce(
+        (_event: string, _data: unknown, callback: (value: unknown) => void) =>
+          callback({ success: true, isHost: true, paused: false, turnTimeLimit: 90 })
+      )
+      .mockImplementationOnce(
+        (_event: string, _data: unknown, callback: (value: unknown) => void) =>
+          callback({ success: true })
+      )
+      .mockImplementationOnce(
+        (_event: string, _data: unknown, callback: (value: unknown) => void) =>
+          callback({ success: true })
+      );
+
+    await expect(gameClient.getHostControls()).resolves.toMatchObject({
+      isHost: true,
+      turnTimeLimit: 90,
+    });
+    await expect(gameClient.setGamePaused(true)).resolves.toBeUndefined();
+    await expect(gameClient.setTurnTimeLimit(120)).resolves.toBeUndefined();
+    expect(socket.emit.mock.calls.map(call => call[0])).toEqual([
+      'host:getControls',
+      'host:setPaused',
+      'host:setTurnTimeLimit',
+    ]);
   });
 });

@@ -42,6 +42,7 @@ describe('UnitActionHandler', () => {
       getGameInstance: jest.fn(),
       broadcastUnitInfo: jest.fn(),
       broadcastUnitDestroyed: jest.fn(),
+      executeDiplomatAction: jest.fn(),
     } as any;
 
     handler = new UnitActionHandler(activeConnections, mockGameManager);
@@ -366,6 +367,42 @@ describe('UnitActionHandler', () => {
       expect(mockGameManager.broadcastUnitDestroyed).toHaveBeenCalledWith(mockGameId, unit);
       expect(mockGameManager.broadcastUnitInfo).not.toHaveBeenCalled();
       expect(mockIo.to).not.toHaveBeenCalled();
+    });
+
+    it('routes diplomat operations through the authoritative diplomacy action API', async () => {
+      const unit = { id: mockUnitId, playerId: mockPlayerId, x: 4, y: 5 };
+      mockGameManager.getGameInstance.mockReturnValue({
+        players: new Map([[mockPlayerId, { userId: mockUserId }]]),
+        unitManager: { getUnit: jest.fn().mockReturnValue(unit) },
+      } as any);
+      mockGameManager.executeDiplomatAction.mockResolvedValue({
+        success: true,
+        message: 'Embassy established',
+      });
+      const callback = jest.fn();
+
+      await getUnitActionHandler()(
+        {
+          unitId: mockUnitId,
+          actionType: 'establish_embassy',
+          targetX: 5,
+          targetY: 5,
+        },
+        callback
+      );
+
+      expect(mockGameManager.executeDiplomatAction).toHaveBeenCalledWith(
+        mockGameId,
+        mockPlayerId,
+        mockUnitId,
+        'establish_embassy',
+        5,
+        5
+      );
+      expect(callback).toHaveBeenCalledWith({
+        success: true,
+        result: { success: true, message: 'Embassy established' },
+      });
     });
   });
 });

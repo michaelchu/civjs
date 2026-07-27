@@ -52,6 +52,7 @@ describe('SocketCoordinator', () => {
     mockSocket = {
       id: 'test-socket-id',
       on: jest.fn(),
+      emit: jest.fn(),
       data: {},
     } as any;
 
@@ -66,10 +67,11 @@ describe('SocketCoordinator', () => {
     it('should initialize with all handlers', () => {
       const stats = coordinator.getHandlerStats();
 
-      expect(stats).toHaveLength(10);
+      expect(stats).toHaveLength(11);
       expect(stats.map(s => s.name)).toContain('ConnectionHandler');
       expect(stats.map(s => s.name)).toContain('GameManagementHandler');
       expect(stats.map(s => s.name)).toContain('UnitActionHandler');
+      expect(stats.map(s => s.name)).toContain('DiplomacyHandler');
       expect(stats.map(s => s.name)).toContain('GovernmentHandler');
       expect(stats.map(s => s.name)).toContain('EconomicHandler');
       expect(stats.map(s => s.name)).toContain('CityManagementHandler');
@@ -110,6 +112,26 @@ describe('SocketCoordinator', () => {
 
       expect(coordinator.getActiveConnectionsCount()).toBe(1);
     });
+
+    it('rejects spectator mutation packets before they reach gameplay handlers', async () => {
+      coordinator.setupSocket(mockIo, mockSocket);
+      Object.assign(coordinator.getConnectionInfo(mockSocket.id)!, {
+        role: 'spectator',
+        gameId: 'game-1',
+      });
+      const packetHandler = mockSocket.data.packetHandler;
+      const packetListener = (mockSocket.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'packet'
+      )![1];
+
+      await packetListener({ type: PacketType.END_TURN, data: {} });
+
+      expect(packetHandler.process).not.toHaveBeenCalled();
+      expect(mockSocket.emit).toHaveBeenCalledWith('packet', {
+        type: PacketType.SERVER_MESSAGE,
+        data: { type: 'error', message: 'Spectators cannot change game state' },
+      });
+    });
   });
 
   describe('connection management', () => {
@@ -141,6 +163,26 @@ describe('SocketCoordinator', () => {
 
       // Should clean up connection
       expect(coordinator.getActiveConnectionsCount()).toBe(0);
+    });
+
+    it('marks the game player disconnected before cleaning up connection context', async () => {
+      coordinator.setupSocket(mockIo, mockSocket);
+      Object.assign(coordinator.getConnectionInfo(mockSocket.id)!, {
+        userId: 'user-1',
+        gameId: 'game-1',
+        role: 'player',
+      });
+      mockGameManager.getGame.mockResolvedValue({
+        players: [{ id: 'player-1', userId: 'user-1' }],
+      } as any);
+
+      const disconnectHandler = (mockSocket.on as jest.Mock).mock.calls
+        .filter(call => call[0] === 'disconnect')
+        .at(-1)![1];
+      await disconnectHandler();
+
+      expect(mockGameManager.updatePlayerConnection).toHaveBeenCalledWith('player-1', false);
+      expect(coordinator.getConnectionInfo(mockSocket.id)).toBeUndefined();
     });
   });
 });

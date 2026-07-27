@@ -7,7 +7,7 @@ import { ActionType, type ActionResult } from '../types/shared/actions';
 import { pathfindingService } from './PathfindingService';
 import { playerColorToHex } from '../utils/playerColors';
 import { storeUsername } from '../utils/gameSession';
-import type { GovernmentState, ProductionOption } from '../types';
+import type { DiplomacyState, GovernmentState, ProductionOption, TreatyClauseType } from '../types';
 
 // Mock government data for development
 const getMockGovernments = () => ({
@@ -664,6 +664,23 @@ class GameClient {
 
       case PacketType.BORDER_CHANGE_NOTIFICATION:
         this.handleBorderChangeNotification(packet.data);
+        break;
+
+      case PacketType.DIPLOMACY_LIST_REPLY:
+      case PacketType.DIPLOMACY_UPDATE:
+        if (packet.data.success && packet.data.playerId && packet.data.nations) {
+          useGameStore.getState().updateGameState({
+            diplomacy: {
+              playerId: packet.data.playerId,
+              nations: packet.data.nations,
+            } as DiplomacyState,
+          });
+        } else if (packet.data.message) {
+          useGameStore.getState().addNotification({
+            message: packet.data.message,
+            tone: 'error',
+          });
+        }
         break;
 
       default:
@@ -1331,6 +1348,39 @@ class GameClient {
     this.socket.emit('packet', packet);
   }
 
+  requestDiplomacy(): void {
+    this.sendPacket(PacketType.DIPLOMACY_LIST_REQ, {});
+  }
+
+  proposeTreaty(recipientId: string, clauses: TreatyClauseType[]): void {
+    this.sendPacket(PacketType.DIPLOMACY_TREATY_PROPOSE, {
+      recipientId,
+      clauses: clauses.map(type => ({ type })),
+      requestId: crypto.randomUUID(),
+    });
+  }
+
+  respondToTreaty(otherPlayerId: string, proposalId: string, accept: boolean): void {
+    this.sendPacket(PacketType.DIPLOMACY_TREATY_RESPONSE, {
+      otherPlayerId,
+      proposalId,
+      accept,
+    });
+  }
+
+  cancelTreaty(otherPlayerId: string, proposalId: string): void {
+    this.sendPacket(PacketType.DIPLOMACY_TREATY_CANCEL, { otherPlayerId, proposalId });
+  }
+
+  declareWar(otherPlayerId: string): void {
+    this.sendPacket(PacketType.DIPLOMACY_DECLARE_WAR, { otherPlayerId });
+  }
+
+  private sendPacket(type: PacketType, data: unknown): void {
+    if (!this.socket) return;
+    this.socket.emit('packet', { type, data, timestamp: Date.now() } satisfies Packet);
+  }
+
   private handleTurnProcessingStep(data: any) {
     const gameStore = useGameStore.getState();
 
@@ -1826,6 +1876,38 @@ class GameClient {
       throw new Error(response.error || 'Failed to update tax rates');
     }
     return response.rates;
+  }
+
+  async getHostControls(): Promise<{
+    isHost: boolean;
+    paused: boolean;
+    turnTimeLimit: number;
+  }> {
+    const response = await this.requestSocketEvent<{
+      success: boolean;
+      isHost: boolean;
+      paused: boolean;
+      turnTimeLimit: number;
+      error?: string;
+    }>('host:getControls', {});
+    if (!response.success) throw new Error(response.error || 'Failed to load host controls');
+    return response;
+  }
+
+  async setGamePaused(paused: boolean): Promise<void> {
+    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
+      'host:setPaused',
+      { paused }
+    );
+    if (!response.success) throw new Error(response.error || 'Failed to update game state');
+  }
+
+  async setTurnTimeLimit(turnTimeLimit: number): Promise<void> {
+    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
+      'host:setTurnTimeLimit',
+      { turnTimeLimit }
+    );
+    if (!response.success) throw new Error(response.error || 'Failed to update turn timer');
   }
 
   private applyGovernmentState(state: GovernmentState): void {

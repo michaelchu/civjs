@@ -35,6 +35,7 @@ export const games = pgTable('games', {
   turnTimeLimit: integer('turn_time_limit').default(300), // in seconds
   turnStartedAt: timestamp('turn_started_at'),
   pausedAt: timestamp('paused_at'),
+  pauseReason: varchar('pause_reason', { length: 20 }), // host, disconnect
 
   // Metadata
   startedAt: timestamp('started_at'),

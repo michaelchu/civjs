@@ -1305,11 +1305,22 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         return;
       }
 
-      if (action === ActionType.TRADE_ROUTE) {
+      if (
+        [
+          ActionType.TRADE_ROUTE,
+          ActionType.ESTABLISH_EMBASSY,
+          ActionType.INVESTIGATE_CITY,
+          ActionType.STEAL_TECH,
+          ActionType.SABOTAGE_CITY,
+        ].includes(action)
+      ) {
         setTargetActionMode({ unit: selectedUnit, action });
         setActionFeedback({
           success: true,
-          message: 'Select the destination city for this trade route',
+          message:
+            action === ActionType.TRADE_ROUTE
+              ? 'Select the destination city for this trade route'
+              : 'Select an adjacent foreign city',
         });
         return;
       }

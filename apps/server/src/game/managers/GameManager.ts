@@ -28,6 +28,15 @@ import { UnitManager, type Unit } from '@game/managers/UnitManager';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { BorderManager } from '@game/managers/BorderManager';
 import { GovernmentManager } from '@game/managers/GovernmentManager';
+import {
+  DiplomacyManager,
+  type DiplomacySnapshot,
+  type TreatyClause,
+  type TreatyProposal,
+} from '@game/managers/DiplomacyManager';
+import { CivJSAIAdapter } from '@game/services/CivJSAIAdapter';
+import { ActionType, type ActionResult } from '@app-types/shared/actions';
+import { getUnitType } from '@game/constants/UnitConstants';
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
@@ -73,6 +82,7 @@ export interface GameInstance {
   borderManager: BorderManager;
   governmentManager?: GovernmentManager;
   lastActivity: Date;
+  pauseReason?: 'host' | 'disconnect';
 }
 
 export interface PlayerState {
@@ -104,6 +114,8 @@ export class GameManager {
   private databaseProvider: DatabaseProvider;
   private games = new Map<string, GameInstance>();
   private playerToGame = new Map<string, string>();
+  private sharedVisionByGame = new Map<string, Map<string, Set<string>>>();
+  private endTurnLocks = new Map<string, Promise<boolean>>();
 
   // Extracted service components
   private serviceRegistry!: ServiceRegistry;
@@ -116,6 +128,8 @@ export class GameManager {
   private researchManagementService!: ResearchManagementService;
   private visibilityMapService!: VisibilityMapService;
   private gameInstanceRecoveryService!: GameInstanceRecoveryService;
+  private diplomacyManager!: DiplomacyManager;
+  private aiAdapter!: CivJSAIAdapter;
 
   private constructor(io: SocketServer, databaseProvider?: DatabaseProvider) {
     this.io = io;
@@ -172,6 +186,11 @@ export class GameManager {
     );
 
     this.visibilityMapService = new VisibilityMapService(this.games);
+    this.diplomacyManager = new DiplomacyManager(
+      this.databaseProvider,
+      gameId => this.games.get(gameId)?.currentTurn ?? 0
+    );
+    this.aiAdapter = new CivJSAIAdapter(this.diplomacyManager);
 
     this.gameInstanceRecoveryService = new GameInstanceRecoveryService(
       this.databaseProvider,
@@ -232,8 +251,13 @@ export class GameManager {
    * Clear all games and player mappings (for testing)
    */
   public clearAllGames(): void {
+    for (const gameInstance of this.games.values()) {
+      gameInstance.turnManager?.clearTurnTimer?.();
+    }
     this.games.clear();
     this.playerToGame.clear();
+    this.sharedVisionByGame.clear();
+    this.endTurnLocks.clear();
   }
 
   /**
@@ -278,7 +302,7 @@ export class GameManager {
    */
   public async startGame(gameId: string, hostId: string): Promise<void> {
     await this.gameLifecycleManager.startGame(gameId, hostId);
-    // Note: GameLifecycleManager handles the game instance creation internally
+    await this.configureMultiplayerInstance(gameId);
   }
 
   // Moved to GameBroadcastManager - this method is no longer used
@@ -431,7 +455,150 @@ export class GameManager {
    */
   // Game recovery methods - delegates to GameInstanceRecoveryService
   public async recoverGameInstance(gameId: string): Promise<GameInstance | null> {
-    return this.gameInstanceRecoveryService.recoverGameInstance(gameId);
+    const instance = await this.gameInstanceRecoveryService.recoverGameInstance(gameId);
+    if (instance) await this.configureMultiplayerInstance(gameId);
+    return instance;
+  }
+
+  public getDiplomacySnapshot(gameId: string, playerId: string): Promise<DiplomacySnapshot> {
+    return this.diplomacyManager.getSnapshot(gameId, playerId);
+  }
+
+  public proposeTreaty(
+    gameId: string,
+    proposerId: string,
+    recipientId: string,
+    clauses: TreatyClause[],
+    requestId?: string
+  ): Promise<TreatyProposal> {
+    return this.diplomacyManager.proposeTreaty(gameId, proposerId, recipientId, clauses, requestId);
+  }
+
+  public respondToTreaty(
+    gameId: string,
+    playerId: string,
+    otherPlayerId: string,
+    proposalId: string,
+    accept: boolean
+  ): Promise<TreatyProposal> {
+    return this.diplomacyManager
+      .respondToTreaty(gameId, playerId, otherPlayerId, proposalId, accept)
+      .then(async proposal => {
+        await this.refreshSharedVision(gameId);
+        return proposal;
+      });
+  }
+
+  public cancelTreaty(
+    gameId: string,
+    playerId: string,
+    otherPlayerId: string,
+    proposalId: string
+  ): Promise<TreatyProposal> {
+    return this.diplomacyManager.cancelTreaty(gameId, playerId, otherPlayerId, proposalId);
+  }
+
+  public declareWar(gameId: string, playerId: string, otherPlayerId: string): Promise<void> {
+    return this.diplomacyManager.declareWar(gameId, playerId, otherPlayerId).then(async () => {
+      await this.refreshSharedVision(gameId);
+    });
+  }
+
+  public async executeDiplomatAction(
+    gameId: string,
+    playerId: string,
+    unitId: string,
+    actionType: ActionType,
+    targetX: number,
+    targetY: number
+  ): Promise<ActionResult> {
+    const game = this.games.get(gameId);
+    if (!game) return { success: false, message: 'Game not found' };
+    const unit = game.unitManager.getUnit(unitId);
+    const unitType = unit ? getUnitType(unit.unitTypeId) : undefined;
+    const unitFlags = unitType?.flags ?? [];
+    if (!unit || unit.playerId !== playerId || !unitFlags.includes('Diplomat')) {
+      return { success: false, message: 'A diplomat or spy owned by the player is required' };
+    }
+    if (Math.max(Math.abs(unit.x - targetX), Math.abs(unit.y - targetY)) > 1) {
+      return { success: false, message: 'Target city must be adjacent' };
+    }
+    const city = game.cityManager.getCityAt(targetX, targetY);
+    if (!city || city.playerId === playerId) {
+      return { success: false, message: 'An adjacent foreign city is required' };
+    }
+    await this.diplomacyManager.establishContact(gameId, playerId, city.playerId);
+
+    let result: ActionResult;
+    if (actionType === ActionType.ESTABLISH_EMBASSY) {
+      await this.diplomacyManager.establishEmbassy(gameId, playerId, city.playerId);
+      result = { success: true, message: `Embassy established in ${city.name}` };
+    } else if (actionType === ActionType.INVESTIGATE_CITY) {
+      result = {
+        success: true,
+        message: `${city.name}: size ${city.size}, ${city.buildings.length} improvements, ${city.productionPerTurn ?? 0} shields/turn`,
+      };
+    } else if (actionType === ActionType.STEAL_TECH) {
+      const known = new Set(game.researchManager.getResearchedTechs(playerId));
+      const stolenTech = game.researchManager
+        .getResearchedTechs(city.playerId)
+        .filter(tech => !known.has(tech))
+        .sort()[0];
+      if (!stolenTech) return { success: false, message: 'No technology is available to steal' };
+      await game.researchManager.grantTechnology(playerId, stolenTech);
+      result = { success: true, message: `Stole ${stolenTech} from ${city.name}` };
+    } else if (actionType === ActionType.SABOTAGE_CITY) {
+      const building = await game.cityManager.sabotageCityBuilding(city.id, playerId);
+      if (!building) return { success: false, message: 'No eligible improvement to sabotage' };
+      this.gameBroadcastManager.broadcastCityData(gameId);
+      result = { success: true, message: `Sabotaged ${building} in ${city.name}` };
+    } else {
+      return { success: false, message: 'Unsupported diplomat action' };
+    }
+
+    if (!unitFlags.includes('Spy')) {
+      await game.unitManager.removeUnit(unit.id);
+      result.unitDestroyed = true;
+    }
+    await this.refreshSharedVision(gameId);
+    return result;
+  }
+
+  private async configureMultiplayerInstance(gameId: string): Promise<void> {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) return;
+    gameInstance.visibilityManager.setSharedVisionProvider(
+      playerId => this.sharedVisionByGame.get(gameId)?.get(playerId) ?? new Set()
+    );
+    gameInstance.turnManager.setAIProcessor(() => this.aiAdapter.processTurn(gameId, gameInstance));
+    gameInstance.turnManager.setTurnAdvancedCallback(turn => {
+      gameInstance.currentTurn = turn;
+      for (const player of gameInstance.players.values()) player.hasEndedTurn = false;
+      if (gameInstance.state === 'active') {
+        gameInstance.turnManager.startTurnTimer(gameInstance.config.turnTimeLimit ?? 300);
+      }
+    });
+    await this.refreshSharedVision(gameId);
+    if (gameInstance.state === 'active') {
+      gameInstance.turnManager.startTurnTimer(gameInstance.config.turnTimeLimit ?? 300);
+    }
+  }
+
+  private async refreshSharedVision(gameId: string): Promise<void> {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) return;
+    const sharedVision = new Map<string, Set<string>>();
+    for (const playerId of gameInstance.players.keys()) {
+      const snapshot = await this.diplomacyManager.getSnapshot(gameId, playerId);
+      sharedVision.set(
+        playerId,
+        new Set(
+          snapshot.nations.filter(nation => nation.relation.sharedVision).map(nation => nation.id)
+        )
+      );
+    }
+    this.sharedVisionByGame.set(gameId, sharedVision);
+    gameInstance.visibilityManager.updateAllPlayersVisibility([...gameInstance.players.keys()]);
   }
 
   public async getGame(gameId: string): Promise<any | null> {
@@ -447,7 +614,9 @@ export class GameManager {
   }
 
   public async loadGame(gameId: string): Promise<GameInstance | null> {
-    return this.gameInstanceRecoveryService.loadGame(gameId);
+    const instance = await this.gameInstanceRecoveryService.loadGame(gameId);
+    if (instance) await this.configureMultiplayerInstance(gameId);
+    return instance;
   }
 
   public getActiveGameInstances(): GameInstance[] {
@@ -616,10 +785,12 @@ export class GameManager {
       return this.playerConnectionManager.updatePlayerConnection(playerId, isConnected);
     }
 
-    const gameInstance = this.games.get(gameId);
+    let gameInstance = this.games.get(gameId);
     if (!gameInstance) {
-      // Delegate to connection manager
-      return this.playerConnectionManager.updatePlayerConnection(playerId, isConnected);
+      if (isConnected) gameInstance = (await this.recoverGameInstance(gameId)) ?? undefined;
+      if (!gameInstance) {
+        return this.playerConnectionManager.updatePlayerConnection(playerId, isConnected);
+      }
     }
 
     const player = gameInstance.players.get(playerId);
@@ -632,9 +803,8 @@ export class GameManager {
     this.updatePlayerConnectionState(player, isConnected);
 
     // Handle game pause if needed
-    if (!isConnected) {
-      this.handlePlayerDisconnection(gameInstance, gameId);
-    }
+    if (!isConnected) await this.handlePlayerDisconnection(gameInstance, gameId);
+    else await this.handlePlayerReconnection(gameInstance, gameId);
 
     // Delegate to connection manager
     return this.playerConnectionManager.updatePlayerConnection(playerId, isConnected);
@@ -651,27 +821,66 @@ export class GameManager {
   /**
    * Handle game pause when player disconnects
    */
-  private handlePlayerDisconnection(gameInstance: any, gameId: string): void {
+  private async handlePlayerDisconnection(
+    gameInstance: GameInstance,
+    gameId: string
+  ): Promise<void> {
     if (gameInstance.state !== 'active') {
       return;
     }
 
-    const allDisconnected = Array.from(gameInstance.players.values()).every(
-      (p: any) => !p.isConnected
+    const humanPlayers = Array.from(gameInstance.players.values()).filter(
+      player => !player.isAI && player.userId !== null
     );
+    const allDisconnected =
+      humanPlayers.length > 0 && humanPlayers.every(player => !player.isConnected);
 
     if (allDisconnected) {
       gameInstance.state = 'paused';
+      gameInstance.turnManager.pauseTurnTimer();
+      await this.databaseProvider
+        .getDatabase()
+        .update(games)
+        .set({ status: 'paused', pausedAt: new Date(), pauseReason: 'disconnect' })
+        .where(eq(games.id, gameId));
+      gameInstance.pauseReason = 'disconnect';
       logger.info('Game paused - all players disconnected', { gameId });
     }
   }
 
-  public async endTurn(playerId: string): Promise<boolean> {
+  private async handlePlayerReconnection(
+    gameInstance: GameInstance,
+    gameId: string
+  ): Promise<void> {
+    if (gameInstance.state !== 'paused' || gameInstance.pauseReason !== 'disconnect') return;
+    gameInstance.state = 'active';
+    gameInstance.pauseReason = undefined;
+    await this.databaseProvider
+      .getDatabase()
+      .update(games)
+      .set({ status: 'active', pausedAt: null, pauseReason: null })
+      .where(eq(games.id, gameId));
+    gameInstance.turnManager.resumeTurnTimer(gameInstance.config.turnTimeLimit ?? 300);
+    logger.info('Game resumed after player reconnect', { gameId });
+  }
+
+  public endTurn(playerId: string): Promise<boolean> {
     const gameId = this.playerToGame.get(playerId);
     if (!gameId) {
-      throw new Error('Player not in any game');
+      return Promise.reject(new Error('Player not in any game'));
     }
+    const previous = this.endTurnLocks.get(gameId) ?? Promise.resolve(false);
+    const next = previous
+      .catch(() => false)
+      .then(() => this.endTurnLocked(gameId, playerId))
+      .finally(() => {
+        if (this.endTurnLocks.get(gameId) === next) this.endTurnLocks.delete(gameId);
+      });
+    this.endTurnLocks.set(gameId, next);
+    return next;
+  }
 
+  private async endTurnLocked(gameId: string, playerId: string): Promise<boolean> {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) {
       throw new Error('Game not found');
@@ -691,13 +900,17 @@ export class GameManager {
     }
 
     player.hasEndedTurn = true;
+    await this.databaseProvider
+      .getDatabase()
+      .update(players)
+      .set({ hasEndedTurn: true, lastActionAt: new Date() })
+      .where(eq(players.id, playerId));
     logger.info('Player ended turn', { gameId, playerId, turn: gameInstance.currentTurn });
 
     // Check if all players have ended their turn
     const allPlayersReady = Array.from(gameInstance.players.values())
-      // AI turns are processed during TurnManager.processTurn(); only connected
-      // human players must explicitly end their turn.
-      .filter(p => p.isConnected && !p.isAI && p.userId !== null)
+      // Disconnected humans retain their place until the authoritative timeout.
+      .filter(p => !p.isAI && p.userId !== null)
       .every(p => p.hasEndedTurn);
 
     if (allPlayersReady) {
@@ -871,6 +1084,7 @@ export class GameManager {
     // Clean up local tracking
     const gameInstance = this.games.get(gameId);
     if (gameInstance) {
+      gameInstance.turnManager.clearTurnTimer();
       // Remove from player mappings
       for (const player of gameInstance.players.values()) {
         this.playerToGame.delete(player.id);
@@ -878,9 +1092,66 @@ export class GameManager {
       }
       this.games.delete(gameId);
     }
+    this.sharedVisionByGame.delete(gameId);
+    this.endTurnLocks.delete(gameId);
 
     // Delegate to lifecycle manager
     return this.gameLifecycleManager.deleteGame(gameId, userId);
+  }
+
+  public async setGamePaused(gameId: string, userId: string, paused: boolean): Promise<void> {
+    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
+      where: eq(games.id, gameId),
+    });
+    if (!game) throw new Error('Game not found');
+    if (game.hostId !== userId) throw new Error('Only the host can pause or resume the game');
+    if (!['active', 'paused'].includes(game.status)) {
+      throw new Error('Game cannot be paused or resumed in its current state');
+    }
+    let instance = this.games.get(gameId);
+    if (!instance) instance = (await this.recoverGameInstance(gameId)) ?? undefined;
+    if (!instance) throw new Error('Unable to load game');
+
+    instance.state = paused ? 'paused' : 'active';
+    instance.pauseReason = paused ? 'host' : undefined;
+    if (paused) instance.turnManager.pauseTurnTimer();
+    else instance.turnManager.resumeTurnTimer(instance.config.turnTimeLimit ?? 300);
+    await this.databaseProvider
+      .getDatabase()
+      .update(games)
+      .set({
+        status: paused ? 'paused' : 'active',
+        pausedAt: paused ? new Date() : null,
+        pauseReason: paused ? 'host' : null,
+      })
+      .where(eq(games.id, gameId));
+    this.broadcastToGame(gameId, 'game-control-changed', { paused });
+  }
+
+  public async setTurnTimeLimit(
+    gameId: string,
+    userId: string,
+    turnTimeLimit: number
+  ): Promise<void> {
+    if (!Number.isInteger(turnTimeLimit) || turnTimeLimit < 10 || turnTimeLimit > 3600) {
+      throw new Error('Turn time limit must be between 10 and 3600 seconds');
+    }
+    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
+      where: eq(games.id, gameId),
+    });
+    if (!game) throw new Error('Game not found');
+    if (game.hostId !== userId) throw new Error('Only the host can change the turn timer');
+    await this.databaseProvider
+      .getDatabase()
+      .update(games)
+      .set({ turnTimeLimit })
+      .where(eq(games.id, gameId));
+    const instance = this.games.get(gameId);
+    if (instance) {
+      instance.config.turnTimeLimit = turnTimeLimit;
+      if (instance.state === 'active') instance.turnManager.startTurnTimer(turnTimeLimit);
+    }
+    this.broadcastToGame(gameId, 'game-control-changed', { turnTimeLimit });
   }
 
   public async cleanupInactiveGames(): Promise<void> {
@@ -902,10 +1173,13 @@ export class GameManager {
           }
 
           // Cleanup managers
+          gameInstance.turnManager.clearTurnTimer();
           gameInstance.visibilityManager.cleanup();
           gameInstance.cityManager.cleanup();
 
           this.games.delete(gameId);
+          this.sharedVisionByGame.delete(gameId);
+          this.endTurnLocks.delete(gameId);
 
           // Update database
           await this.databaseProvider

@@ -185,13 +185,14 @@ describe('GameBroadcastManager visibility sync', () => {
       expect.objectContaining({
         id: 'own-unit',
         owner: playerOne,
-        capabilities: {
+        capabilities: expect.objectContaining({
           canFortify: true,
           canFoundCity: false,
           canBuildImprovements: false,
           canPillage: true,
           canTrade: false,
-        },
+          diplomatActions: [],
+        }),
       }),
     ]);
     expect(

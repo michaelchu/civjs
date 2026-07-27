@@ -10,6 +10,7 @@ import {
   UnitCreateSchema,
 } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
+import { ActionType } from '@app-types/shared/actions';
 
 /**
  * Handles unit action packets: movement, attack, fortify, creation, pathfinding
@@ -406,8 +407,8 @@ export class UnitActionHandler extends BaseSocketHandler {
     _io: Server
   ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
-    if (!this.isInGame(connection)) {
-      callback({ success: false, error: 'Not in a game' });
+    if (!this.isInGame(connection) || this.isSpectator(connection)) {
+      callback({ success: false, error: 'Not an active player' });
       return;
     }
 
@@ -425,33 +426,14 @@ export class UnitActionHandler extends BaseSocketHandler {
       }
 
       const unitBeforeAction = gameInstance.unitManager.getUnit(data.unitId);
-      const result = await gameInstance.unitManager.executeUnitAction(
-        data.unitId,
-        data.actionType,
-        data.targetX,
-        data.targetY,
-        playerId
+      const result = await this.executeRequestedUnitAction(
+        gameInstance,
+        connection.gameId!,
+        playerId,
+        data
       );
 
-      if (result.success) {
-        if (result.unitDestroyed) {
-          if (unitBeforeAction) {
-            this.gameManager.broadcastUnitDestroyed(connection.gameId!, unitBeforeAction);
-          }
-        } else {
-          const updatedUnit = gameInstance.unitManager.getUnit(data.unitId);
-          if (updatedUnit) {
-            this.gameManager.broadcastUnitInfo(connection.gameId!, updatedUnit);
-          }
-        }
-
-        callback({ success: true, result });
-        logger.info(`Unit action executed successfully`, {
-          unitId: data.unitId,
-          actionType: data.actionType,
-          playerId,
-        });
-      } else {
+      if (!result.success) {
         callback({ success: false, error: result.message });
         logger.warn(`Unit action failed`, {
           unitId: data.unitId,
@@ -459,7 +441,21 @@ export class UnitActionHandler extends BaseSocketHandler {
           error: result.message,
           playerId,
         });
+        return;
       }
+      this.broadcastUnitActionResult(
+        connection.gameId!,
+        data.unitId,
+        result.unitDestroyed,
+        unitBeforeAction,
+        gameInstance
+      );
+      callback({ success: true, result });
+      logger.info(`Unit action executed successfully`, {
+        unitId: data.unitId,
+        actionType: data.actionType,
+        playerId,
+      });
     } catch (error) {
       logger.error('Error executing unit action:', error);
       callback({
@@ -467,6 +463,52 @@ export class UnitActionHandler extends BaseSocketHandler {
         error: error instanceof Error ? error.message : 'Failed to execute unit action',
       });
     }
+  }
+
+  private broadcastUnitActionResult(
+    gameId: string,
+    unitId: string,
+    unitDestroyed: boolean | undefined,
+    unitBeforeAction: any,
+    gameInstance: NonNullable<ReturnType<GameManager['getGameInstance']>>
+  ): void {
+    if (unitDestroyed) {
+      if (unitBeforeAction) this.gameManager.broadcastUnitDestroyed(gameId, unitBeforeAction);
+      return;
+    }
+    const updatedUnit = gameInstance.unitManager.getUnit(unitId);
+    if (updatedUnit) this.gameManager.broadcastUnitInfo(gameId, updatedUnit);
+  }
+
+  private async executeRequestedUnitAction(
+    gameInstance: NonNullable<ReturnType<GameManager['getGameInstance']>>,
+    gameId: string,
+    playerId: string,
+    data: any
+  ) {
+    const diplomatActions = new Set([
+      ActionType.ESTABLISH_EMBASSY,
+      ActionType.INVESTIGATE_CITY,
+      ActionType.STEAL_TECH,
+      ActionType.SABOTAGE_CITY,
+    ]);
+    const result = diplomatActions.has(data.actionType)
+      ? await this.gameManager.executeDiplomatAction(
+          gameId,
+          playerId,
+          data.unitId,
+          data.actionType,
+          data.targetX,
+          data.targetY
+        )
+      : await gameInstance.unitManager.executeUnitAction(
+          data.unitId,
+          data.actionType,
+          data.targetX,
+          data.targetY,
+          playerId
+        );
+    return result;
   }
 
   private resolvePlayerId(connection: any, gameInstance: any): string | undefined {

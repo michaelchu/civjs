@@ -448,6 +448,14 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         canBuildImprovements: Boolean(unitType?.canBuildImprovements),
         canPillage: Boolean(unitType?.rulesetUnitClassFlags.includes('CanPillage')),
         canTrade: Boolean(unitType?.flags?.includes('TradeRoute')),
+        diplomatActions: unitType?.flags?.includes('Diplomat')
+          ? [
+              'establish_embassy',
+              'investigate_city',
+              'steal_tech',
+              ...(unitType.flags.includes('Spy') ? ['sabotage_city'] : []),
+            ]
+          : [],
       },
     };
   }

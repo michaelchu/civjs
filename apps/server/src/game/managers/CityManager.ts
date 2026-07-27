@@ -1580,6 +1580,22 @@ export class CityManager {
     return Array.from(this.cities.values()).filter(city => city.playerId === playerId);
   }
 
+  public async sabotageCityBuilding(
+    cityId: string,
+    actingPlayerId: string
+  ): Promise<string | null> {
+    const city = this.cities.get(cityId);
+    if (!city) throw new Error('Target city not found');
+    if (city.playerId === actingPlayerId) throw new Error('Cannot sabotage your own city');
+    const target = [...city.buildings].filter(building => building !== 'palace').sort()[0];
+    if (!target) return null;
+    city.buildings = city.buildings.filter(building => building !== target);
+    this.calculateCityOutputs(city.id);
+    this.applyCityHappiness(city.id);
+    await this.saveCityToDatabase(city);
+    return target;
+  }
+
   public getPlayerCityCount(playerId: string): number {
     return this.getPlayerCities(playerId).length;
   }

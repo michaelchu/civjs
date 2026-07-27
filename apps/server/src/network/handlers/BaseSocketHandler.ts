@@ -68,4 +68,8 @@ export abstract class BaseSocketHandler implements SocketHandler {
   protected isInGame(connection: any): boolean {
     return !!connection?.gameId;
   }
+
+  protected isSpectator(connection: any): boolean {
+    return connection?.role === 'spectator';
+  }
 }

@@ -84,6 +84,18 @@ describe('VisibilityManager', () => {
       expect(exploredTiles.size).toBeGreaterThanOrEqual(visibleTiles.size);
     });
 
+    it('includes allied unit vision when shared vision is enabled', async () => {
+      await unitManager.createUnit('ally', 'warriors', 3, 3);
+      visibilityManager.setSharedVisionProvider(playerId =>
+        playerId === 'player-123' ? new Set(['ally']) : new Set()
+      );
+
+      visibilityManager.updatePlayerVisibility('player-123');
+
+      expect(visibilityManager.getVisibleTiles('player-123').has('3,3')).toBe(true);
+      expect(visibilityManager.getExploredTiles('player-123').has('3,3')).toBe(true);
+    });
+
     it('should calculate correct sight range for different unit types', async () => {
       // Create warrior (sight 2) and explorer (sight 2)
       await unitManager.createUnit('player-123', 'warriors', 10, 10);

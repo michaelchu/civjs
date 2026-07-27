@@ -18,6 +18,7 @@ export interface TileVisibility {
 }
 
 export type PlayerTechsProvider = (playerId: string) => ReadonlySet<string>;
+export type SharedVisionProvider = (playerId: string) => ReadonlySet<string>;
 
 export class VisibilityManager {
   private gameId: string;
@@ -26,6 +27,7 @@ export class VisibilityManager {
   private mapManager: MapManager;
   private effectsManager: EffectsManager;
   private playerTechsProvider: PlayerTechsProvider;
+  private sharedVisionProvider: SharedVisionProvider = () => new Set();
 
   constructor(
     gameId: string,
@@ -39,6 +41,10 @@ export class VisibilityManager {
     this.mapManager = mapManager;
     this.effectsManager = effectsManager;
     this.playerTechsProvider = playerTechsProvider;
+  }
+
+  public setSharedVisionProvider(provider: SharedVisionProvider): void {
+    this.sharedVisionProvider = provider;
   }
 
   /**
@@ -69,11 +75,23 @@ export class VisibilityManager {
     // Clear current visibility
     visibility.visibleTiles.clear();
 
-    // Get all player units
-    const playerUnits = this.unitManager.getPlayerUnits(playerId);
+    const visionSources = new Set([playerId, ...this.sharedVisionProvider(playerId)]);
+    for (const sourcePlayerId of visionSources) {
+      this.addUnitVision(sourcePlayerId, visibility.visibleTiles);
+    }
 
-    // Calculate visibility from each unit
-    for (const unit of playerUnits) {
+    for (const tileKey of visibility.visibleTiles) {
+      visibility.exploredTiles.add(tileKey);
+    }
+
+    visibility.lastUpdated = new Date();
+    logger.debug(
+      `Updated visibility for player ${playerId}: ${visibility.visibleTiles.size} visible, ${visibility.exploredTiles.size} explored`
+    );
+  }
+
+  private addUnitVision(sourcePlayerId: string, visibleTiles: Set<string>): void {
+    for (const unit of this.unitManager.getPlayerUnits(sourcePlayerId)) {
       const unitType = UNIT_TYPES[unit.unitTypeId];
       if (!unitType) continue;
 
@@ -84,7 +102,7 @@ export class VisibilityManager {
       // current tile (for example, the classic mountain-vision effect).
       // @reference reference/freeciv/server/unittools.c:4983-5010
       const visionEffect = this.effectsManager.calculateEffect(EffectType.UNIT_VISION_RADIUS_SQ, {
-        playerId,
+        playerId: sourcePlayerId,
         unitId: unit.id,
         unitType: unit.unitTypeId,
         unitClass: unitType.rulesetUnitClass,
@@ -96,24 +114,18 @@ export class VisibilityManager {
         tileExtras: new Set(tile.improvements),
         tileIsCityCenter: Boolean(tile.cityId),
         maxUnitsOnTile: tile.unitIds.length,
-        playerTechs: new Set(this.playerTechsProvider(playerId)),
+        playerTechs: new Set(this.playerTechsProvider(sourcePlayerId)),
       });
-      const visibleTiles = this.calculateTileVisibility(
+      const unitVisibleTiles = this.calculateTileVisibility(
         unit.x,
         unit.y,
         (unitType.vision_radius_sq || unitType.sight) + visionEffect.value
       );
 
-      for (const tileKey of visibleTiles) {
-        visibility.visibleTiles.add(tileKey);
-        visibility.exploredTiles.add(tileKey);
+      for (const tileKey of unitVisibleTiles) {
+        visibleTiles.add(tileKey);
       }
     }
-
-    visibility.lastUpdated = new Date();
-    logger.debug(
-      `Updated visibility for player ${playerId}: ${visibility.visibleTiles.size} visible, ${visibility.exploredTiles.size} explored`
-    );
   }
 
   /**

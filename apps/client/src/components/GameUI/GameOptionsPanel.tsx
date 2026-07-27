@@ -4,11 +4,13 @@ import { gameClient } from '../../services/GameClient';
 import { Button } from '../ui/button';
 
 type TaxRates = { tax: number; luxury: number; science: number };
+type HostControls = { isHost: boolean; paused: boolean; turnTimeLimit: number };
 
 export const GameOptionsPanel: React.FC = () => {
   const { map, turn, year, currentGameId } = useGameStore();
   const [rates, setRates] = useState<TaxRates>({ tax: 50, luxury: 20, science: 30 });
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [hostControls, setHostControls] = useState<HostControls | null>(null);
   const total = rates.tax + rates.luxury + rates.science;
 
   useEffect(() => {
@@ -18,6 +20,10 @@ export const GameOptionsPanel: React.FC = () => {
       .catch(error =>
         setFeedback(error instanceof Error ? error.message : 'Failed to load tax rates')
       );
+    void gameClient
+      .getHostControls()
+      .then(setHostControls)
+      .catch(() => undefined);
   }, []);
 
   return (
@@ -87,6 +93,64 @@ export const GameOptionsPanel: React.FC = () => {
         {feedback && (
           <div role="status" className="mt-3 rounded bg-gray-900 p-3 text-sm text-gray-200">
             {feedback}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8 max-w-3xl rounded-lg border border-gray-700 bg-gray-800 p-5">
+        <h3 className="font-semibold">Multiplayer policy</h3>
+        <p className="mt-1 text-sm text-gray-400">
+          Turns resolve simultaneously when every human is done or the authoritative timer expires.
+          Disconnecting players keep their turn until that timeout.
+        </p>
+        {hostControls?.isHost && (
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="text-sm text-gray-300">
+              Turn timer (seconds)
+              <input
+                className="mt-1 block w-40 rounded border border-gray-600 bg-gray-900 p-2"
+                type="number"
+                min={10}
+                max={3600}
+                value={hostControls.turnTimeLimit}
+                onChange={event =>
+                  setHostControls(current =>
+                    current ? { ...current, turnTimeLimit: Number(event.target.value) } : current
+                  )
+                }
+              />
+            </label>
+            <Button
+              onClick={() => {
+                void gameClient
+                  .setTurnTimeLimit(hostControls.turnTimeLimit)
+                  .then(() => setFeedback('Turn timer updated'))
+                  .catch(error =>
+                    setFeedback(error instanceof Error ? error.message : 'Failed to update timer')
+                  );
+              }}
+            >
+              Save timer
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const paused = !hostControls.paused;
+                void gameClient
+                  .setGamePaused(paused)
+                  .then(() => {
+                    setHostControls(current => (current ? { ...current, paused } : current));
+                    setFeedback(paused ? 'Game paused' : 'Game resumed');
+                  })
+                  .catch(error =>
+                    setFeedback(
+                      error instanceof Error ? error.message : 'Failed to update game state'
+                    )
+                  );
+              }}
+            >
+              {hostControls.paused ? 'Resume game' : 'Pause game'}
+            </Button>
           </div>
         )}
       </div>

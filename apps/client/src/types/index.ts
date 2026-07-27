@@ -39,6 +39,7 @@ export interface Unit {
     canBuildImprovements: boolean;
     canPillage: boolean;
     canTrade: boolean;
+    diplomatActions?: string[];
   };
 }
 
@@ -169,6 +170,44 @@ export interface Player {
   isActive: boolean;
 }
 
+export type DiplomaticState =
+  | 'no_contact'
+  | 'war'
+  | 'ceasefire'
+  | 'armistice'
+  | 'peace'
+  | 'alliance';
+
+export type TreatyClauseType = 'ceasefire' | 'peace' | 'alliance' | 'embassy' | 'shared_vision';
+
+export interface DiplomacyNation {
+  id: string;
+  civilization: string;
+  leaderName: string;
+  isAlive: boolean;
+  isAI: boolean;
+  known: boolean;
+  relation: {
+    state: DiplomaticState;
+    sinceTurn: number;
+    embassy: boolean;
+    sharedVision: boolean;
+    proposal?: {
+      id: string;
+      proposerId: string;
+      recipientId: string;
+      clauses: Array<{ type: TreatyClauseType }>;
+      status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+      createdAt: string;
+    };
+  };
+}
+
+export interface DiplomacyState {
+  playerId: string;
+  nations: DiplomacyNation[];
+}
+
 export interface Technology {
   id: string;
   name: string;
@@ -240,6 +279,7 @@ export interface GameState {
   technologies: Record<string, Technology>;
   research?: ResearchState;
   governments: Record<string, Government>;
+  diplomacy?: DiplomacyState;
   mapData?: {
     width: number;
     height: number;

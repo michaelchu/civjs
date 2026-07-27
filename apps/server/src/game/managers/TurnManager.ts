@@ -52,6 +52,10 @@ export class TurnManager {
   private playerActions: Map<string, PlayerAction[]> = new Map();
   private turnStartTime: Date | null = null;
   private turnTimer: NodeJS.Timeout | null = null;
+  private turnDeadline: number | null = null;
+  private pausedTimerSeconds: number | null = null;
+  private processingPromise: Promise<void> | null = null;
+  private onTurnAdvanced?: (turn: number) => void | Promise<void>;
 
   // Service dependencies
   private turnProcessingService: TurnProcessingService;
@@ -164,7 +168,15 @@ export class TurnManager {
     });
   }
 
-  public async processTurn(): Promise<void> {
+  public processTurn(): Promise<void> {
+    if (this.processingPromise) return this.processingPromise;
+    this.processingPromise = this.processTurnInternal().finally(() => {
+      this.processingPromise = null;
+    });
+    return this.processingPromise;
+  }
+
+  private async processTurnInternal(): Promise<void> {
     logger.info('Processing turn', { gameId: this.gameId, turn: this.currentTurn });
 
     try {
@@ -309,6 +321,7 @@ export class TurnManager {
 
     // Notify players
     this.broadcastTurnStart();
+    await this.onTurnAdvanced?.(this.currentTurn);
 
     logger.info('Advanced to next turn', {
       gameId: this.gameId,
@@ -371,7 +384,10 @@ export class TurnManager {
     if (this.turnTimer) {
       clearTimeout(this.turnTimer);
     }
+    if (timeLimit <= 0) return;
 
+    this.turnDeadline = Date.now() + timeLimit * 1000;
+    this.pausedTimerSeconds = null;
     this.turnTimer = setTimeout(async () => {
       logger.info('Turn time limit reached, auto-processing turn', {
         gameId: this.gameId,
@@ -395,8 +411,27 @@ export class TurnManager {
     if (this.turnTimer) {
       clearTimeout(this.turnTimer);
       this.turnTimer = null;
+      this.turnDeadline = null;
       logger.debug('Turn timer cleared', { gameId: this.gameId });
     }
+  }
+
+  public pauseTurnTimer(): void {
+    if (!this.turnTimer || !this.turnDeadline) return;
+    const remainingSeconds = Math.max(1, Math.ceil((this.turnDeadline - Date.now()) / 1000));
+    clearTimeout(this.turnTimer);
+    this.turnTimer = null;
+    this.turnDeadline = null;
+    this.pausedTimerSeconds = remainingSeconds;
+  }
+
+  public resumeTurnTimer(defaultTimeLimit: number): void {
+    const remainingSeconds = this.pausedTimerSeconds ?? defaultTimeLimit;
+    this.startTurnTimer(remainingSeconds);
+  }
+
+  public setTurnAdvancedCallback(callback: (turn: number) => void | Promise<void>): void {
+    this.onTurnAdvanced = callback;
   }
 
   /**
@@ -404,6 +439,10 @@ export class TurnManager {
    */
   public getCurrentPhase(): string | null {
     return this.turnPhaseService.getCurrentPhase();
+  }
+
+  public setAIProcessor(processor: () => Promise<number>): void {
+    this.turnPhaseService.setAIProcessor(processor);
   }
 
   /**

@@ -90,7 +90,12 @@ export class GovernmentHandler extends BaseSocketHandler {
       }
     | undefined {
     const connection = this.getConnection(socket, this.activeConnections);
-    if (!this.isAuthenticated(connection) || !this.isInGame(connection)) return undefined;
+    if (
+      !this.isAuthenticated(connection) ||
+      !this.isInGame(connection) ||
+      this.isSpectator(connection)
+    )
+      return undefined;
     const game = this.gameManager.getGameInstance(connection.gameId!);
     if (!game?.governmentManager) return undefined;
     const player = Array.from(game.players.values()).find(

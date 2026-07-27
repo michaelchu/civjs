@@ -192,6 +192,24 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
       );
     }
 
+    if (unit.capabilities?.diplomatActions?.length) {
+      const diplomatLabels: Partial<Record<ActionType, string>> = {
+        [ActionType.ESTABLISH_EMBASSY]: 'Establish Embassy',
+        [ActionType.INVESTIGATE_CITY]: 'Investigate City',
+        [ActionType.STEAL_TECH]: 'Steal Technology',
+        [ActionType.SABOTAGE_CITY]: 'Sabotage City',
+      };
+      actions.push({ separator: true });
+      for (const action of unit.capabilities.diplomatActions) {
+        const actionType = action as ActionType;
+        actions.push({
+          action: actionType,
+          name: diplomatLabels[actionType] ?? action.replaceAll('_', ' '),
+          icon: actionType === ActionType.INVESTIGATE_CITY ? Eye : Zap,
+        });
+      }
+    }
+
     actions.push(
       { separator: true },
       unit.transportedBy

@@ -22,7 +22,15 @@ export class GameManagementHandler extends BaseSocketHandler {
 
   protected handlerName = 'GameManagementHandler';
 
-  private activeConnections: Map<string, { userId?: string; username?: string; gameId?: string }>;
+  private activeConnections: Map<
+    string,
+    {
+      userId?: string;
+      username?: string;
+      gameId?: string;
+      role?: 'player' | 'spectator';
+    }
+  >;
   private gameManager: GameManager;
 
   constructor(activeConnections: Map<string, any>, gameManager: GameManager) {
@@ -76,7 +84,53 @@ export class GameManagementHandler extends BaseSocketHandler {
 
     // Handle delete_game event
     socket.on('delete_game', async (data, callback) => {
-      await this.handleDeleteGameEvent(data, callback);
+      await this.handleDeleteGameEvent(socket, data, callback);
+    });
+
+    socket.on('host:getControls', async (_data, callback) => {
+      const connection = this.getConnection(socket, this.activeConnections);
+      const game = connection?.gameId ? await this.gameManager.getGame(connection.gameId) : null;
+      callback({
+        success: Boolean(game && connection?.userId && !this.isSpectator(connection)),
+        isHost: game?.hostId === connection?.userId,
+        paused: game?.status === 'paused',
+        turnTimeLimit: game?.turnTimeLimit,
+      });
+    });
+
+    socket.on('host:setPaused', async (data, callback) => {
+      const connection = this.getConnection(socket, this.activeConnections);
+      try {
+        if (!connection?.gameId || !connection.userId || this.isSpectator(connection)) {
+          throw new Error('Not an active player');
+        }
+        await this.gameManager.setGamePaused(
+          connection.gameId,
+          connection.userId,
+          Boolean(data.paused)
+        );
+        callback({ success: true, paused: Boolean(data.paused) });
+      } catch (error) {
+        callback({ success: false, error: error instanceof Error ? error.message : 'Failed' });
+      }
+    });
+
+    socket.on('host:setTurnTimeLimit', async (data, callback) => {
+      const connection = this.getConnection(socket, this.activeConnections);
+      try {
+        if (!connection?.gameId || !connection.userId || this.isSpectator(connection)) {
+          throw new Error('Not an active player');
+        }
+        const turnTimeLimit = Number(data.turnTimeLimit);
+        await this.gameManager.setTurnTimeLimit(
+          connection.gameId,
+          connection.userId,
+          turnTimeLimit
+        );
+        callback({ success: true, turnTimeLimit });
+      } catch (error) {
+        callback({ success: false, error: error instanceof Error ? error.message : 'Failed' });
+      }
     });
   }
 
@@ -139,6 +193,7 @@ export class GameManagementHandler extends BaseSocketHandler {
       // Automatically join the creator as a player
       // Join the socket room BEFORE joining the game so we receive broadcasts
       connection.gameId = gameId;
+      connection.role = 'player';
       socket.join(`game:${gameId}`);
 
       const result = await this.gameManager.joinGame(
@@ -194,6 +249,7 @@ export class GameManagementHandler extends BaseSocketHandler {
       );
 
       connection.gameId = data.gameId;
+      connection.role = 'player';
       socket.join(`game:${data.gameId}`);
       await this.gameManager.updatePlayerConnection(result.playerId, true);
 
@@ -259,6 +315,7 @@ export class GameManagementHandler extends BaseSocketHandler {
       );
 
       connection.gameId = data.gameId;
+      connection.role = 'player';
       socket.join(`game:${data.gameId}`);
       await this.gameManager.updatePlayerConnection(result.playerId, true);
 
@@ -309,11 +366,12 @@ export class GameManagementHandler extends BaseSocketHandler {
       }
 
       connection.gameId = data.gameId;
+      connection.role = 'spectator';
       socket.join(`game:${data.gameId}`);
 
       await this.sendObserverMapData(data.gameId, socket);
 
-      callback({ success: true });
+      callback({ success: true, role: 'spectator' });
       logger.info(`${connection?.username || 'Unknown'} is now observing game ${data.gameId}`);
     } catch (error) {
       logger.error('Error observing game:', error);
@@ -347,10 +405,17 @@ export class GameManagementHandler extends BaseSocketHandler {
   /**
    * Handle delete_game socket event
    */
-  private async handleDeleteGameEvent(data: any, callback: (response: any) => void): Promise<void> {
+  private async handleDeleteGameEvent(
+    socket: Socket,
+    data: any,
+    callback: (response: any) => void
+  ): Promise<void> {
     try {
-      // For single-player mode, allow anyone to delete any game
-      await this.gameManager.deleteGame(data.gameId);
+      const connection = this.getConnection(socket, this.activeConnections);
+      if (!connection?.userId || this.isSpectator(connection)) {
+        throw new Error('Not authorized to delete this game');
+      }
+      await this.gameManager.deleteGame(data.gameId, connection.userId);
       callback({ success: true });
       logger.info('Game deleted', { gameId: data.gameId });
     } catch (error) {

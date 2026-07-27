@@ -10,6 +10,7 @@ import { GovernmentPanel } from './GovernmentPanel';
 import { CitiesPanel } from './CitiesPanel';
 import { GameOptionsPanel } from './GameOptionsPanel';
 import { NotificationFeed } from './NotificationFeed';
+import { NationsPanel } from './NationsPanel';
 import { useKeyboardControls } from '../../hooks/useKeyboardControls';
 
 export const GameLayout: React.FC = () => {
@@ -107,23 +108,8 @@ export const GameLayout: React.FC = () => {
             <TechnologyTree />
           </div>
 
-          <div
-            className={`${activeTab === 'nations' ? 'block' : 'hidden'}`}
-            style={{ padding: '24px', backgroundColor: '#4a5568', height: '100%' }}
-          >
-            <h2
-              style={{
-                color: 'white',
-                fontSize: '24px',
-                fontWeight: 'bold',
-                marginBottom: '16px',
-              }}
-            >
-              Nations
-            </h2>
-            <p style={{ color: '#cbd5e0' }}>
-              Diplomacy and foreign-nation intelligence are planned for Milestone 6.
-            </p>
+          <div className={`h-full ${activeTab === 'nations' ? 'block' : 'hidden'}`}>
+            <NationsPanel />
           </div>
 
           <div className={`h-full ${activeTab === 'cities' ? 'block' : 'hidden'}`}>

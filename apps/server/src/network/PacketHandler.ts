@@ -36,7 +36,7 @@ export class PacketHandler {
   async process(socket: Socket, packet: Packet): Promise<void> {
     try {
       // Validate packet structure
-      if (!packet.type || packet.data === undefined) {
+      if (packet.type === undefined || packet.data === undefined) {
         throw new Error('Invalid packet structure');
       }
 
