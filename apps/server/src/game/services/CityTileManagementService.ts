@@ -405,9 +405,27 @@ export class CityTileManagementService extends BaseGameService {
     // Sum outputs from all worked tiles
     for (const tile of city.workableTiles) {
       if (tile.isWorked) {
-        food += tile.outputs.food;
-        shields += tile.outputs.shields;
-        trade += tile.outputs.trade;
+        const mapTile = this.mapManager?.getTile(tile.x, tile.y);
+        let outputs = mapTile
+          ? {
+              food: this.calculateTileFood(mapTile),
+              shields: this.calculateTileShields(mapTile),
+              trade: this.calculateTileTradeFromTerrain(mapTile),
+            }
+          : tile.outputs;
+        if (mapTile?.improvements?.includes('irrigation')) {
+          outputs.food += this.ruleset.getTerrain(mapTile.terrain).irrigationFoodIncr;
+        }
+        if (mapTile?.improvements?.includes('mine')) {
+          outputs.shields += this.ruleset.getTerrain(mapTile.terrain).miningShieldIncr;
+        }
+        if (tile.isCenter) {
+          outputs = this.applyCityCenterMinimums(outputs);
+        }
+        tile.outputs = outputs;
+        food += outputs.food;
+        shields += outputs.shields;
+        trade += outputs.trade;
       }
     }
 

@@ -15,7 +15,7 @@
         "MG_OCEAN_DEPTH": 30
       },
       "moveCost": 1,
-      "defense": 10,
+      "defense": 0,
       "food": 1,
       "shields": 0,
       "trade": 2
@@ -26,7 +26,7 @@
         "MG_OCEAN_DEPTH": 80
       },
       "moveCost": 1,
-      "defense": 10,
+      "defense": 0,
       "food": 1,
       "shields": 0,
       "trade": 2
@@ -37,7 +37,7 @@
         "MG_OCEAN_DEPTH": 10
       },
       "moveCost": 1,
-      "defense": 10,
+      "defense": 0,
       "food": 1,
       "shields": 0,
       "trade": 2
@@ -48,7 +48,7 @@
         "MG_OCEAN_DEPTH": 5
       },
       "moveCost": 1,
-      "defense": 10,
+      "defense": 0,
       "food": 2,
       "shields": 0,
       "trade": 2,
@@ -61,10 +61,15 @@
         "MG_FROZEN": 100
       },
       "moveCost": 1,
-      "defense": 10,
+      "defense": 0,
       "food": 1,
       "shields": 0,
       "trade": 0,
+      "roadTime": 2,
+      "irrigationFoodIncr": 1,
+      "irrigationTime": 5,
+      "miningShieldIncr": 0,
+      "miningTime": 0,
       "transformTo": "desert",
       "transformTime": 24,
       "canHaveRiver": true
@@ -77,10 +82,15 @@
         "MG_TEMPERATE": 20
       },
       "moveCost": 1,
-      "defense": 10,
+      "defense": 0,
       "food": 0,
       "shields": 1,
       "trade": 0,
+      "roadTime": 2,
+      "irrigationFoodIncr": 1,
+      "irrigationTime": 5,
+      "miningShieldIncr": 1,
+      "miningTime": 5,
       "transformTo": "plains",
       "transformTime": 24,
       "canHaveRiver": true
@@ -94,10 +104,15 @@
         "MG_COLD": 20
       },
       "moveCost": 2,
-      "defense": 15,
+      "defense": 50,
       "food": 1,
       "shields": 2,
       "trade": 0,
+      "roadTime": 4,
+      "irrigationFoodIncr": 0,
+      "irrigationTime": 0,
+      "miningShieldIncr": 0,
+      "miningTime": 0,
       "transformTo": "plains",
       "transformTime": 24,
       "canHaveRiver": true
@@ -110,10 +125,15 @@
         "MG_WET": 50
       },
       "moveCost": 2,
-      "defense": 15,
+      "defense": 50,
       "food": 1,
       "shields": 0,
       "trade": 0,
+      "roadTime": 4,
+      "irrigationFoodIncr": 0,
+      "irrigationTime": 0,
+      "miningShieldIncr": 0,
+      "miningTime": 0,
       "transformTo": "forest",
       "transformTime": 24,
       "canHaveRiver": true
@@ -124,10 +144,15 @@
         "MG_WET": 100
       },
       "moveCost": 2,
-      "defense": 15,
+      "defense": 50,
       "food": 1,
       "shields": 0,
       "trade": 0,
+      "roadTime": 4,
+      "irrigationFoodIncr": 0,
+      "irrigationTime": 0,
+      "miningShieldIncr": 0,
+      "miningTime": 0,
       "transformTo": "grassland",
       "transformTime": 24,
       "canHaveRiver": true
@@ -139,10 +164,15 @@
         "MG_TEMPERATE": 50
       },
       "moveCost": 1,
-      "defense": 10,
+      "defense": 0,
       "food": 2,
       "shields": 0,
       "trade": 0,
+      "roadTime": 2,
+      "irrigationFoodIncr": 1,
+      "irrigationTime": 5,
+      "miningShieldIncr": 0,
+      "miningTime": 0,
       "transformTo": "forest",
       "transformTime": 24,
       "canHaveRiver": true
@@ -154,10 +184,15 @@
         "MG_TEMPERATE": 50
       },
       "moveCost": 1,
-      "defense": 10,
+      "defense": 0,
       "food": 1,
       "shields": 1,
       "trade": 0,
+      "roadTime": 2,
+      "irrigationFoodIncr": 1,
+      "irrigationTime": 5,
+      "miningShieldIncr": 0,
+      "miningTime": 0,
       "transformTo": "forest",
       "transformTime": 24,
       "canHaveRiver": true
@@ -169,10 +204,15 @@
         "MG_GREEN": 50
       },
       "moveCost": 2,
-      "defense": 20,
+      "defense": 100,
       "food": 1,
       "shields": 2,
       "trade": 0,
+      "roadTime": 4,
+      "irrigationFoodIncr": 1,
+      "irrigationTime": 10,
+      "miningShieldIncr": 3,
+      "miningTime": 10,
       "transformTo": "plains",
       "transformTime": 24,
       "canHaveRiver": true
@@ -183,10 +223,15 @@
         "MG_MOUNTAINOUS": 70
       },
       "moveCost": 3,
-      "defense": 30,
+      "defense": 200,
       "food": 0,
       "shields": 1,
       "trade": 0,
+      "roadTime": 6,
+      "irrigationFoodIncr": 0,
+      "irrigationTime": 0,
+      "miningShieldIncr": 1,
+      "miningTime": 10,
       "transformTo": "hills",
       "transformTime": 24,
       "canHaveRiver": true

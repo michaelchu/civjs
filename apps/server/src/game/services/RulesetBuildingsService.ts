@@ -3,6 +3,7 @@ import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/Ruleset
 export interface RulesetBuildingType {
   id: string;
   name: string;
+  genus: 'Improvement' | 'SmallWonder' | 'GreatWonder' | 'Special' | 'Convert';
   cost: number;
   upkeep: number;
   requiredTech?: string;
@@ -38,6 +39,7 @@ export class RulesetBuildingsService {
         {
           id: building.id,
           name: building.name,
+          genus: building.genus,
           cost: building.cost,
           upkeep: building.upkeep,
           requiredTech: building.requiredTech,

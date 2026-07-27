@@ -102,7 +102,7 @@ action-flow and client-rendering support exists.
 `CityInitialBuildings.test.ts`, `UnitManager.test.ts`, and
 `VisibilityManager.test.ts`.
 
-### Milestone 3 — City, economy, and worker mechanics
+### Milestone 3 — City, economy, and worker mechanics — complete (2026-07-26)
 
 **Outcome:** cities behave as the strategic and economic center of the game.
 
@@ -118,7 +118,16 @@ apply only to the center tile, food support is deducted after gross output,
 specialists receive output bonuses, corruption is deducted once, and player
 tax rates use Freeciv's largest-remainder distribution. Economic recovery
 restores persisted treasury/rates, building upkeep is charged during the turn,
-and calculated city resources persist across reloads.
+and calculated city resources persist across reloads. Trade routes, governor
+automation, citizen parameters, and home-city unit support are integrated into
+that turn/recovery path. Ruleset-duration worker activities persist their
+progress, mutate the authoritative map on completion, and immediately affect
+worked-tile output. Pollution placement and cleanup use that same map state.
+
+**Completion evidence:** `CityProductionLifecycle.test.ts`,
+`CityOutputPipeline.test.ts`, `CityTradeRouteService.test.ts`,
+`CityRulesetValues.test.ts`, `CityManager.test.ts`, `UnitManager.test.ts`,
+`TradeDistribution.test.ts`, and `TurnProcessingService.research.test.ts`.
 
 - Complete tile yields, worked tiles, specialists, happiness, food, shields, trade, waste, and upkeep.
 - Complete production carryover, buying, building/unit completion, and city growth/starvation.
@@ -129,7 +138,7 @@ and calculated city resources persist across reloads.
 
 **Exit criteria:** city outputs and production results are reproducible from fixtures, displayed in the client, and persist across reloads.
 
-### Milestone 4 — Map, units, and action completeness
+### Milestone 4 — Map, units, and action completeness — complete (2026-07-26)
 
 **Outcome:** map rules and unit actions match the selected ruleset’s playable mechanics.
 
@@ -141,6 +150,22 @@ and calculated city resources persist across reloads.
 **Primary references:** `server/maphand.c`, `server/unithand.c`, `server/unittools.c`, `common/map.*`, `common/unit.*`, and freeciv-web `map.js`/`unit.js`.
 
 **Exit criteria:** every exposed action has server-side validation, an error/result packet, client feedback, and rule tests.
+
+**Completion evidence:** classic movement fragments, native terrain, minimum
+movement, roads/railroads, stacking, ZOC, ruleset transports, capture, and
+fortification are exercised by `MovementConstants.test.ts`,
+`PathfindingManager.test.ts`, `UnitManager.test.ts`, and
+`CityCaptureService.test.ts`. Combat uses classic attack-versus-defense rounds,
+terrain defense, hit points, firepower, and field killstack behavior; capture
+applies classic population, building-genus, and trade-route consequences. The generic action
+surface has an automated executor/delegation invariant in
+`ActionSystem.goto.test.ts`; dedicated movement/combat packets remain outside
+that generic catalogue, and unsupported diplomacy/sabotage actions are not
+exposed. `GameBroadcastManager.test.ts` covers canonical visibility-scoped unit
+updates, extras, and ownership; `GameClient.actions.test.ts` covers packet
+application and authoritative action feedback; the client renders the
+corresponding classic sprites; and `MapManager.test.ts` pins the topology
+summary of a named seed.
 
 ### Milestone 5 — Client parity for core play
 

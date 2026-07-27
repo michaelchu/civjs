@@ -48,7 +48,7 @@ describe('MovementConstants', () => {
     expect(canUnitEnterTerrain('deep_ocean', 'warriors')).toBe(false);
     expect(canUnitEnterTerrain('lake', 'trireme')).toBe(true);
     expect(calculateMovementCost(0, 0, 1, 0, 'hills', 'warriors')).toBe(6);
-    expect(calculateMovementCost(0, 0, 1, 1, 'hills', 'warriors')).toBe(9);
+    expect(calculateMovementCost(0, 0, 1, 1, 'hills', 'warriors')).toBe(6);
     expect(calculateMovementCost(0, 0, 1, 0, 'ocean', 'warriors')).toBe(-1);
   });
 });

@@ -37,6 +37,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     unit: Unit;
     position: { x: number; y: number };
   } | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
 
   // City naming dialog state
   const [cityNameDialog, setCityNameDialog] = useState<{
@@ -489,6 +493,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     units,
     cities,
     players,
+    focusedUnits,
     gotoMode.currentPath,
     isDragging,
   ]);
@@ -560,20 +565,23 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       console.log(`Executing goto for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
 
       try {
-        const success = await gameClient.requestUnitAction(
+        const result = await gameClient.executeUnitAction(
           gotoMode.unit.id,
           ActionType.GOTO,
           targetX,
           targetY
         );
 
-        if (success) {
-          console.log(`Unit ${gotoMode.unit.id} moving to (${targetX}, ${targetY})`);
-        } else {
-          console.error(`Failed to execute goto for unit ${gotoMode.unit.id}`);
-        }
+        setActionFeedback({
+          success: true,
+          message: result.message || `Unit moving to (${targetX}, ${targetY})`,
+        });
       } catch (error) {
         console.error('Error executing goto action:', error);
+        setActionFeedback({
+          success: false,
+          message: error instanceof Error ? error.message : 'Go To failed',
+        });
       } finally {
         // Always deactivate goto mode after execution attempt (clears path immediately)
         deactivateGotoMode();
@@ -954,7 +962,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       // Prevent default to avoid page scrolling
       event.preventDefault();
     },
-    [viewport, gotoMode.active, deactivateGotoMode, units, cities, selectUnit]
+    [
+      viewport,
+      gotoMode.active,
+      deactivateGotoMode,
+      units,
+      cities,
+      selectUnit,
+      handleOpenCityInfoOverlay,
+    ]
   );
 
   const handleTouchMove = useCallback(
@@ -1243,31 +1259,23 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
       // Send action to server via GameClient for immediate actions
       try {
-        const success = await gameClient.requestUnitAction(
+        const result = await gameClient.executeUnitAction(
           selectedUnit.id,
           action,
           targetX,
           targetY
         );
 
-        if (success) {
-          console.log(`Successfully requested ${action} for unit ${selectedUnit.id}`);
-          // Handle different action types for immediate UI feedback
-          switch (action) {
-            case ActionType.FORTIFY:
-              console.log('Unit fortified');
-              break;
-            case ActionType.SENTRY:
-              console.log('Unit on sentry duty');
-              break;
-            default:
-              console.log(`Action ${action} executed`);
-          }
-        } else {
-          console.error(`Failed to execute ${action} for unit ${selectedUnit.id}`);
-        }
+        setActionFeedback({
+          success: true,
+          message: result.message || `${action.replaceAll('_', ' ')} completed`,
+        });
       } catch (error) {
         console.error(`Error executing unit action:`, error);
+        setActionFeedback({
+          success: false,
+          message: error instanceof Error ? error.message : `${action} failed`,
+        });
       }
     },
     [selectedUnit]
@@ -1404,6 +1412,17 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   return (
     <div className="relative overflow-hidden bg-blue-900 w-full h-full">
+      {actionFeedback && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`absolute left-1/2 top-3 z-[1100] -translate-x-1/2 rounded px-3 py-2 text-sm font-medium shadow ${
+            actionFeedback.success ? 'bg-green-700 text-white' : 'bg-red-700 text-white'
+          }`}
+        >
+          {actionFeedback.message}
+        </div>
+      )}
       <canvas
         ref={canvasRef}
         width={width}

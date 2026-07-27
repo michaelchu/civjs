@@ -1,6 +1,12 @@
 import { GameInstance } from '@game/managers/GameManager';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { logger } from '@utils/logger';
+import type { Unit } from '@game/managers/UnitManager';
+
+interface UnitBroadcaster {
+  broadcastUnitInfo(gameId: string, unit: Unit): void;
+  broadcastUnitDestroyed(gameId: string, unit: Unit): void;
+}
 
 /**
  * UnitManagementService - Extracted unit operations from GameManager
@@ -15,7 +21,7 @@ import { logger } from '@utils/logger';
 export class UnitManagementService extends BaseGameService {
   constructor(
     private games: Map<string, GameInstance>,
-    private broadcastToGame: (gameId: string, event: string, data: any) => void
+    private readonly unitBroadcaster?: UnitBroadcaster
   ) {
     super(logger);
   }
@@ -54,19 +60,7 @@ export class UnitManagementService extends BaseGameService {
     // Update visibility for the player
     gameInstance.visibilityManager.onUnitCreated(playerId);
 
-    // Broadcast unit creation to all players
-    this.broadcastToGame(gameId, 'unit_created', {
-      gameId,
-      unit: {
-        id: unit.id,
-        playerId: unit.playerId,
-        unitType: unit.unitTypeId,
-        x: unit.x,
-        y: unit.y,
-        health: unit.health,
-        movementLeft: unit.movementLeft,
-      },
-    });
+    this.unitBroadcaster?.broadcastUnitInfo(gameId, unit);
 
     return unit.id;
   }
@@ -105,14 +99,7 @@ export class UnitManagementService extends BaseGameService {
       // Update visibility for the player
       gameInstance.visibilityManager.onUnitMoved(playerId);
 
-      // Broadcast unit movement to all players
-      this.broadcastToGame(gameId, 'unit_moved', {
-        gameId,
-        unitId,
-        x: updatedUnit.x,
-        y: updatedUnit.y,
-        movementLeft: updatedUnit.movementLeft,
-      });
+      this.unitBroadcaster?.broadcastUnitInfo(gameId, updatedUnit);
     }
 
     return moved;
@@ -143,25 +130,38 @@ export class UnitManagementService extends BaseGameService {
       throw new Error('Attacking unit not found or does not belong to player');
     }
 
+    const attackerSnapshot = gameInstance.unitManager.getUnit(attackerUnitId);
+    const defenderSnapshot = gameInstance.unitManager.getUnit(defenderUnitId);
+    const defenderStackSnapshots = defenderSnapshot
+      ? gameInstance.unitManager
+          .getUnitsAt(defenderSnapshot.x, defenderSnapshot.y)
+          .filter(unit => unit.playerId === defenderSnapshot.playerId)
+          .map(unit => ({ ...unit }))
+      : [];
     const combatResult = await gameInstance.unitManager.attackUnit(attackerUnitId, defenderUnitId);
 
     // Update visibility for relevant players if units were destroyed
     if (combatResult.attackerDestroyed) {
+      if (attackerSnapshot) {
+        this.unitBroadcaster?.broadcastUnitDestroyed(gameId, attackerSnapshot);
+      }
       gameInstance.visibilityManager.onUnitDestroyed(playerId);
     }
     if (combatResult.defenderDestroyed) {
-      // Find the defender's player
-      const defenderUnit = gameInstance.unitManager.getUnit(defenderUnitId);
-      if (defenderUnit) {
-        gameInstance.visibilityManager.onUnitDestroyed(defenderUnit.playerId);
+      for (const destroyedUnit of defenderStackSnapshots.filter(
+        unit => unit.id === defenderUnitId || combatResult.collateralDestroyedIds?.includes(unit.id)
+      )) {
+        this.unitBroadcaster?.broadcastUnitDestroyed(gameId, destroyedUnit);
+      }
+      if (defenderSnapshot) {
+        gameInstance.visibilityManager.onUnitDestroyed(defenderSnapshot.playerId);
       }
     }
 
-    // Broadcast combat result to all players
-    this.broadcastToGame(gameId, 'unit_combat', {
-      gameId,
-      combatResult,
-    });
+    const survivingAttacker = gameInstance.unitManager.getUnit(attackerUnitId);
+    const survivingDefender = gameInstance.unitManager.getUnit(defenderUnitId);
+    if (survivingAttacker) this.unitBroadcaster?.broadcastUnitInfo(gameId, survivingAttacker);
+    if (survivingDefender) this.unitBroadcaster?.broadcastUnitInfo(gameId, survivingDefender);
 
     return combatResult;
   }
@@ -184,11 +184,8 @@ export class UnitManagementService extends BaseGameService {
 
     await gameInstance.unitManager.fortifyUnit(unitId);
 
-    // Broadcast fortification to all players
-    this.broadcastToGame(gameId, 'unit_fortified', {
-      gameId,
-      unitId,
-    });
+    const fortifiedUnit = gameInstance.unitManager.getUnit(unitId);
+    if (fortifiedUnit) this.unitBroadcaster?.broadcastUnitInfo(gameId, fortifiedUnit);
   }
 
   /**

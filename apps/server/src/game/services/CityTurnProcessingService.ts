@@ -126,6 +126,7 @@ export interface CityTurnProcessingDependencies {
   optimizeCitizens: (cityId: string) => Promise<boolean>;
   calculateCityOutputs: (cityId: string) => any;
   calculateHappiness: (cityId: string) => any;
+  checkPollution: (cityId: string, currentTurn: number) => Promise<boolean>;
   saveCityToDatabase: (city: CityState) => Promise<void>;
 }
 
@@ -205,6 +206,9 @@ export class CityTurnProcessingService extends BaseGameService {
       // Process happiness
       this.dependencies.calculateHappiness(cityId);
       recordStep('happiness');
+
+      await this.dependencies.checkPollution(cityId, currentTurn);
+      recordStep('pollution');
 
       // Save changes to database
       await this.dependencies.saveCityToDatabase(city);

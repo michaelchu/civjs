@@ -62,6 +62,7 @@ describe('CityManager', () => {
         isVisible: true,
       }),
       isValidPosition: jest.fn().mockReturnValue(true),
+      updateTileProperty: jest.fn(),
     } as any;
 
     cityManager = new CityManager(gameId, mockDbProvider, effectsManager);
@@ -180,6 +181,25 @@ describe('CityManager', () => {
       expect(detailedHappiness.buildingEffect).toBeGreaterThanOrEqual(0);
       expect(detailedHappiness.unitEffect).toBeGreaterThanOrEqual(0);
     });
+
+    it('places deterministic pollution on a workable land tile', async () => {
+      city.pollution = 100;
+      city.workableTiles = [
+        { x: 10, y: 10, isCenter: true, isWorked: true },
+        { x: 11, y: 10, isCenter: false, isWorked: false },
+      ];
+      (mockMapManager.getTile as jest.Mock).mockImplementation((x: number, y: number) => ({
+        x,
+        y,
+        terrain: 'grassland',
+        improvements: [],
+      }));
+
+      await expect(cityManager.checkPollution(city.id, 4)).resolves.toBe(true);
+      expect(mockMapManager.updateTileProperty).toHaveBeenCalledWith(11, 10, 'improvements', [
+        'pollution',
+      ]);
+    });
   });
 
   describe('specialist management', () => {
@@ -272,6 +292,19 @@ describe('CityManager', () => {
       const captureResult = await cityManager.captureCity(city.id, 'player-123', 'unit-123');
       expect(captureResult).toBeDefined();
       expect(captureResult.success).toBe(false); // Cannot capture own city
+    });
+
+    it('destroys a size-one city through the normal city-destruction path', async () => {
+      const captureResult = await cityManager.captureCity(city.id, 'player-456', 'unit-123');
+
+      expect(captureResult).toEqual(
+        expect.objectContaining({
+          success: true,
+          populationLoss: 1,
+          cityDestroyed: true,
+        })
+      );
+      expect(cityManager.getCity(city.id)).toBeUndefined();
     });
   });
 

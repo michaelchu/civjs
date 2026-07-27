@@ -666,6 +666,12 @@ export class MapRenderer {
           elevation: tile.elevation || 0,
           resource: tile.resource || undefined,
           riverMask: tile.riverMask || tile.river_mask || 0, // Support both naming conventions
+          hasRoad: Boolean(tile.hasRoad),
+          hasRailroad: Boolean(tile.hasRailroad),
+          improvements: tile.improvements ?? [],
+          cityId: tile.cityId,
+          owner: tile.owner,
+          claimer: tile.claimer,
         });
       }
     }

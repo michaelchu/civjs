@@ -19,7 +19,8 @@
       "effects": {
         "defenseBonus": 100,
         "happinessBonus": 1
-      }
+      },
+      "genus": "SmallWonder"
     },
     "granary": {
       "id": "granary",
@@ -339,7 +340,8 @@
       "requiredTech": "plastics",
       "requires": [
         "factory"
-      ]
+      ],
+      "genus": "Special"
     },
     "space_module": {
       "id": "space_module",
@@ -350,7 +352,8 @@
       "requiredTech": "superconductors",
       "requires": [
         "factory"
-      ]
+      ],
+      "genus": "Special"
     },
     "space_structural": {
       "id": "space_structural",
@@ -361,7 +364,8 @@
       "requiredTech": "space_flight",
       "requires": [
         "factory"
-      ]
+      ],
+      "genus": "Special"
     },
     "stock_exchange": {
       "id": "stock_exchange",
@@ -407,7 +411,8 @@
       "effects": {},
       "cost": 600,
       "upkeep": 0,
-      "requiredTech": "space_flight"
+      "requiredTech": "space_flight",
+      "genus": "GreatWonder"
     },
     "asmiths_trading_co": {
       "id": "asmiths_trading_co",
@@ -415,7 +420,8 @@
       "effects": {},
       "cost": 400,
       "upkeep": 0,
-      "requiredTech": "economics"
+      "requiredTech": "economics",
+      "genus": "GreatWonder"
     },
     "colossus": {
       "id": "colossus",
@@ -423,7 +429,8 @@
       "effects": {},
       "cost": 100,
       "upkeep": 0,
-      "requiredTech": "bronze_working"
+      "requiredTech": "bronze_working",
+      "genus": "GreatWonder"
     },
     "copernicus_observatory": {
       "id": "copernicus_observatory",
@@ -431,7 +438,8 @@
       "effects": {},
       "cost": 200,
       "upkeep": 0,
-      "requiredTech": "astronomy"
+      "requiredTech": "astronomy",
+      "genus": "GreatWonder"
     },
     "cure_for_cancer": {
       "id": "cure_for_cancer",
@@ -439,7 +447,8 @@
       "effects": {},
       "cost": 600,
       "upkeep": 0,
-      "requiredTech": "genetic_engineering"
+      "requiredTech": "genetic_engineering",
+      "genus": "GreatWonder"
     },
     "darwins_voyage": {
       "id": "darwins_voyage",
@@ -447,7 +456,8 @@
       "effects": {},
       "cost": 300,
       "upkeep": 0,
-      "requiredTech": "railroad"
+      "requiredTech": "railroad",
+      "genus": "GreatWonder"
     },
     "eiffel_tower": {
       "id": "eiffel_tower",
@@ -455,7 +465,8 @@
       "effects": {},
       "cost": 100,
       "upkeep": 0,
-      "requiredTech": "steam_engine"
+      "requiredTech": "steam_engine",
+      "genus": "GreatWonder"
     },
     "great_library": {
       "id": "great_library",
@@ -463,7 +474,8 @@
       "effects": {},
       "cost": 300,
       "upkeep": 0,
-      "requiredTech": "literacy"
+      "requiredTech": "literacy",
+      "genus": "GreatWonder"
     },
     "great_wall": {
       "id": "great_wall",
@@ -471,7 +483,8 @@
       "effects": {},
       "cost": 300,
       "upkeep": 0,
-      "requiredTech": "masonry"
+      "requiredTech": "masonry",
+      "genus": "GreatWonder"
     },
     "hanging_gardens": {
       "id": "hanging_gardens",
@@ -479,7 +492,8 @@
       "effects": {},
       "cost": 200,
       "upkeep": 0,
-      "requiredTech": "pottery"
+      "requiredTech": "pottery",
+      "genus": "GreatWonder"
     },
     "hoover_dam": {
       "id": "hoover_dam",
@@ -487,7 +501,8 @@
       "effects": {},
       "cost": 600,
       "upkeep": 0,
-      "requiredTech": "electronics"
+      "requiredTech": "electronics",
+      "genus": "GreatWonder"
     },
     "isaac_newtons_college": {
       "id": "isaac_newtons_college",
@@ -495,7 +510,8 @@
       "effects": {},
       "cost": 300,
       "upkeep": 0,
-      "requiredTech": "theory_of_gravity"
+      "requiredTech": "theory_of_gravity",
+      "genus": "GreatWonder"
     },
     "js_bachs_cathedral": {
       "id": "js_bachs_cathedral",
@@ -503,7 +519,8 @@
       "effects": {},
       "cost": 400,
       "upkeep": 0,
-      "requiredTech": "theology"
+      "requiredTech": "theology",
+      "genus": "GreatWonder"
     },
     "king_richards_crusade": {
       "id": "king_richards_crusade",
@@ -511,7 +528,8 @@
       "effects": {},
       "cost": 150,
       "upkeep": 0,
-      "requiredTech": "engineering"
+      "requiredTech": "engineering",
+      "genus": "GreatWonder"
     },
     "leonardos_workshop": {
       "id": "leonardos_workshop",
@@ -519,7 +537,8 @@
       "effects": {},
       "cost": 400,
       "upkeep": 0,
-      "requiredTech": "invention"
+      "requiredTech": "invention",
+      "genus": "GreatWonder"
     },
     "lighthouse": {
       "id": "lighthouse",
@@ -527,7 +546,8 @@
       "effects": {},
       "cost": 200,
       "upkeep": 0,
-      "requiredTech": "map_making"
+      "requiredTech": "map_making",
+      "genus": "GreatWonder"
     },
     "magellans_expedition": {
       "id": "magellans_expedition",
@@ -535,7 +555,8 @@
       "effects": {},
       "cost": 400,
       "upkeep": 0,
-      "requiredTech": "navigation"
+      "requiredTech": "navigation",
+      "genus": "GreatWonder"
     },
     "manhattan_project": {
       "id": "manhattan_project",
@@ -543,7 +564,8 @@
       "effects": {},
       "cost": 600,
       "upkeep": 0,
-      "requiredTech": "nuclear_fission"
+      "requiredTech": "nuclear_fission",
+      "genus": "GreatWonder"
     },
     "marco_polos_embassy": {
       "id": "marco_polos_embassy",
@@ -551,7 +573,8 @@
       "effects": {},
       "cost": 200,
       "upkeep": 0,
-      "requiredTech": "trade"
+      "requiredTech": "trade",
+      "genus": "GreatWonder"
     },
     "michelangelos_chapel": {
       "id": "michelangelos_chapel",
@@ -559,7 +582,8 @@
       "effects": {},
       "cost": 400,
       "upkeep": 0,
-      "requiredTech": "monotheism"
+      "requiredTech": "monotheism",
+      "genus": "GreatWonder"
     },
     "oracle": {
       "id": "oracle",
@@ -567,7 +591,8 @@
       "effects": {},
       "cost": 100,
       "upkeep": 0,
-      "requiredTech": "mysticism"
+      "requiredTech": "mysticism",
+      "genus": "GreatWonder"
     },
     "pyramids": {
       "id": "pyramids",
@@ -575,7 +600,8 @@
       "effects": {},
       "cost": 200,
       "upkeep": 0,
-      "requiredTech": "masonry"
+      "requiredTech": "masonry",
+      "genus": "GreatWonder"
     },
     "seti_program": {
       "id": "seti_program",
@@ -583,7 +609,8 @@
       "effects": {},
       "cost": 600,
       "upkeep": 0,
-      "requiredTech": "computers"
+      "requiredTech": "computers",
+      "genus": "GreatWonder"
     },
     "shakespeares_theatre": {
       "id": "shakespeares_theatre",
@@ -591,7 +618,8 @@
       "effects": {},
       "cost": 200,
       "upkeep": 0,
-      "requiredTech": "medicine"
+      "requiredTech": "medicine",
+      "genus": "GreatWonder"
     },
     "statue_of_liberty": {
       "id": "statue_of_liberty",
@@ -599,7 +627,8 @@
       "effects": {},
       "cost": 400,
       "upkeep": 0,
-      "requiredTech": "democracy"
+      "requiredTech": "democracy",
+      "genus": "GreatWonder"
     },
     "sun_tzus_war_academy": {
       "id": "sun_tzus_war_academy",
@@ -607,7 +636,8 @@
       "effects": {},
       "cost": 300,
       "upkeep": 0,
-      "requiredTech": "feudalism"
+      "requiredTech": "feudalism",
+      "genus": "GreatWonder"
     },
     "united_nations": {
       "id": "united_nations",
@@ -615,7 +645,8 @@
       "effects": {},
       "cost": 600,
       "upkeep": 0,
-      "requiredTech": "communism"
+      "requiredTech": "communism",
+      "genus": "GreatWonder"
     },
     "womens_suffrage": {
       "id": "womens_suffrage",
@@ -623,14 +654,16 @@
       "effects": {},
       "cost": 600,
       "upkeep": 0,
-      "requiredTech": "industrialization"
+      "requiredTech": "industrialization",
+      "genus": "GreatWonder"
     },
     "capitalization": {
       "id": "capitalization",
       "name": "Coinage",
       "effects": {},
       "cost": 999,
-      "upkeep": 0
+      "upkeep": 0,
+      "genus": "Convert"
     }
   }
 }

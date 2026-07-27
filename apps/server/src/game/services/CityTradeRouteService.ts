@@ -15,22 +15,24 @@ import type { CityState, TradeRoute, TradeRouteCalculation } from '@game/manager
 export class CityTradeRouteService extends BaseGameService {
   constructor(
     private cities: Map<string, CityState>,
-    private MAX_TRADE_ROUTES_PER_CITY: number = 3
+    private MAX_TRADE_ROUTES_PER_CITY: number = 3,
+    private readonly mapContext: {
+      width: number;
+      height: number;
+      getContinentId: (x: number, y: number) => number | undefined;
+      getCurrentTurn: () => number;
+    } = {
+      width: 80,
+      height: 50,
+      getContinentId: () => undefined,
+      getCurrentTurn: () => 0,
+    }
   ) {
     super(logger);
   }
 
   getServiceName(): string {
     return 'CityTradeRouteService';
-  }
-
-  /**
-   * Calculate squared distance between two cities
-   */
-  private calculateSquaredDistance(x1: number, y1: number, x2: number, y2: number): number {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    return dx * dx + dy * dy;
   }
 
   /**
@@ -41,27 +43,34 @@ export class CityTradeRouteService extends BaseGameService {
     sourceCity: CityState,
     partnerCity: CityState
   ): TradeRouteCalculation {
-    // Base calculation following Freeciv trade route mechanics
-    const distance = Math.sqrt(
-      this.calculateSquaredDistance(sourceCity.x, sourceCity.y, partnerCity.x, partnerCity.y)
+    // Classic revenue uses real (Chebyshev) distance, with half of the
+    // distance normalized to a 40-tile-wide world by the default setting.
+    // @reference reference/freeciv/common/traderoutes.c:332-363
+    const distance = Math.max(
+      Math.abs(sourceCity.x - partnerCity.x),
+      Math.abs(sourceCity.y - partnerCity.y)
     );
-
-    // Base trade value influenced by partner city size
-    const baseValue = partnerCity.population;
-
-    // Distance bonus (longer routes are more valuable)
-    const distanceBonus = Math.floor(distance / 10);
-
-    // Size bonus for larger cities
-    const sizeBonus = Math.floor(partnerCity.population / 2);
-
-    const totalValue = Math.max(1, baseValue + distanceBonus + sizeBonus);
+    const relativeDistance = Math.floor(
+      (distance * 40) / Math.max(this.mapContext.width, this.mapContext.height)
+    );
+    const weightedDistance = Math.floor((50 * distance + 50 * relativeDistance) / 100);
+    const sourceContinent = this.mapContext.getContinentId(sourceCity.x, sourceCity.y);
+    const partnerContinent = this.mapContext.getContinentId(partnerCity.x, partnerCity.y);
+    const intercontinental =
+      sourceContinent !== undefined &&
+      partnerContinent !== undefined &&
+      sourceContinent !== partnerContinent;
+    const international = sourceCity.playerId !== partnerCity.playerId;
+    const tradePercent = (international ? 200 : 100) * (intercontinental ? 2 : 1);
+    const sizeValue = sourceCity.population + partnerCity.population;
+    const beforeTypeBonus = weightedDistance + sizeValue;
+    const totalValue = Math.floor(Math.floor((beforeTypeBonus * tradePercent) / 100) / 12);
 
     return {
-      baseTradeValue: baseValue,
-      distanceBonus,
-      sizeBonus,
-      governmentBonus: 0, // Would be calculated based on government type
+      baseTradeValue: sizeValue,
+      distanceBonus: weightedDistance,
+      sizeBonus: 0,
+      governmentBonus: tradePercent - 100,
       totalValue,
     };
   }
@@ -100,6 +109,16 @@ export class CityTradeRouteService extends BaseGameService {
       logger.warn('Cannot establish trade route: cannot trade with same city');
       return false;
     }
+    const manhattanDistance =
+      Math.abs(sourceCity.x - partnerCity.x) + Math.abs(sourceCity.y - partnerCity.y);
+    if (sourceCity.playerId === partnerCity.playerId && manhattanDistance < 9) {
+      logger.warn('Cannot establish domestic trade route below trademindist', {
+        sourceCityId,
+        partnerCityId,
+        manhattanDistance,
+      });
+      return false;
+    }
 
     // Check if trade route already exists
     const existingRoute = sourceCity.tradeRoutes?.find(
@@ -113,18 +132,16 @@ export class CityTradeRouteService extends BaseGameService {
       return false;
     }
 
-    // Check maximum trade routes
-    const currentTradeRoutes = sourceCity.tradeRoutes?.length || 0;
-    if (currentTradeRoutes >= this.MAX_TRADE_ROUTES_PER_CITY) {
-      logger.warn('Cannot establish trade route: maximum routes reached', {
-        sourceCityId,
-        maxRoutes: this.MAX_TRADE_ROUTES_PER_CITY,
-      });
-      return false;
-    }
-
     // Calculate trade value
     const calculation = this.calculateTradeRouteValue(sourceCity, partnerCity);
+    if (
+      !this.canMakeRoomForRoute(sourceCity, calculation.totalValue) ||
+      !this.canMakeRoomForRoute(partnerCity, calculation.totalValue)
+    ) {
+      return false;
+    }
+    this.makeRoomForRoute(sourceCity);
+    this.makeRoomForRoute(partnerCity);
 
     // Create trade route
     const tradeRoute: TradeRoute = {
@@ -132,11 +149,12 @@ export class CityTradeRouteService extends BaseGameService {
       sourceCity: sourceCityId,
       partnerCity: partnerCityId,
       value: calculation.totalValue,
-      establishedTurn: 0, // Would be set by turn manager
-      distance: Math.sqrt(
-        this.calculateSquaredDistance(sourceCity.x, sourceCity.y, partnerCity.x, partnerCity.y)
+      establishedTurn: this.mapContext.getCurrentTurn(),
+      distance: Math.max(
+        Math.abs(sourceCity.x - partnerCity.x),
+        Math.abs(sourceCity.y - partnerCity.y)
       ),
-      isCaravan: false, // Default to false, would be set based on establishment method
+      isCaravan: true,
     };
 
     // Initialize trade routes array if needed
@@ -145,6 +163,13 @@ export class CityTradeRouteService extends BaseGameService {
     }
 
     sourceCity.tradeRoutes.push(tradeRoute);
+    partnerCity.tradeRoutes ??= [];
+    partnerCity.tradeRoutes.push({
+      ...tradeRoute,
+      id: `${partnerCityId}-${sourceCityId}`,
+      sourceCity: partnerCityId,
+      partnerCity: sourceCityId,
+    });
 
     logger.info('Trade route established', {
       sourceCityId,
@@ -156,6 +181,29 @@ export class CityTradeRouteService extends BaseGameService {
     });
 
     return true;
+  }
+
+  private canMakeRoomForRoute(city: CityState, newValue: number): boolean {
+    city.tradeRoutes ??= [];
+    if (city.tradeRoutes.length < this.MAX_TRADE_ROUTES_PER_CITY) return true;
+    const weakest = city.tradeRoutes.reduce((candidate, route) =>
+      route.value < candidate.value ? route : candidate
+    );
+    return weakest.value < newValue;
+  }
+
+  private makeRoomForRoute(city: CityState): void {
+    if (city.tradeRoutes.length < this.MAX_TRADE_ROUTES_PER_CITY) return;
+    const weakest = city.tradeRoutes.reduce((candidate, route) =>
+      route.value < candidate.value ? route : candidate
+    );
+    city.tradeRoutes.splice(city.tradeRoutes.indexOf(weakest), 1);
+    const formerPartner = this.cities.get(weakest.partnerCity);
+    if (formerPartner) {
+      formerPartner.tradeRoutes = formerPartner.tradeRoutes.filter(
+        route => route.partnerCity !== city.id
+      );
+    }
   }
 
   /**
@@ -189,6 +237,10 @@ export class CityTradeRouteService extends BaseGameService {
     }
 
     const removedRoute = sourceCity.tradeRoutes.splice(routeIndex, 1)[0];
+    const partner = this.cities.get(partnerCityId);
+    if (partner) {
+      partner.tradeRoutes = partner.tradeRoutes.filter(route => route.partnerCity !== sourceCityId);
+    }
 
     logger.info('Trade route removed', {
       sourceCityId,
@@ -223,6 +275,28 @@ export class CityTradeRouteService extends BaseGameService {
   }
 
   /**
+   * Recalculate both sides after a city changes owner. International and
+   * intercontinental multipliers are properties of the live city pair, not
+   * values frozen when the caravan arrived.
+   * @reference reference/freeciv/server/citytools.c:953-1009
+   */
+  public updateRoutesOnPlayerChange(cityId: string): void {
+    const city = this.cities.get(cityId);
+    if (!city) return;
+
+    for (const route of city.tradeRoutes ?? []) {
+      const partner = this.cities.get(route.partnerCity);
+      if (!partner) continue;
+      const value = this.calculateTradeRouteValue(city, partner).totalValue;
+      route.value = value;
+      const reciprocal = (partner.tradeRoutes ?? []).find(
+        candidate => candidate.partnerCity === cityId
+      );
+      if (reciprocal) reciprocal.value = value;
+    }
+  }
+
+  /**
    * Get available trade partners for a city
    * @reference Original CityManager.getAvailableTradePartners()
    */
@@ -244,8 +318,9 @@ export class CityTradeRouteService extends BaseGameService {
       // Skip if already trading
       if (existingPartners.has(partnerId)) continue;
 
-      // Skip if owned by same player (in basic implementation)
-      if (partnerCity.playerId === sourceCity.playerId) continue;
+      const distance =
+        Math.abs(partnerCity.x - sourceCity.x) + Math.abs(partnerCity.y - sourceCity.y);
+      if (partnerCity.playerId === sourceCity.playerId && distance < 9) continue;
 
       availablePartners.push(partnerCity);
     }

@@ -353,4 +353,19 @@ describe('ActionSystem - Goto Actions', () => {
       }
     });
   });
+
+  describe('exposed action contract', () => {
+    it('has an authoritative execution route for every exposed generic action', () => {
+      const delegatedToUnitManager = new Set([ActionType.LOAD_UNIT, ActionType.UNLOAD_UNIT]);
+      const directExecutors = (actionSystem as any).actionExecutors as Map<ActionType, unknown>;
+
+      for (const actionType of Object.values(ActionType)) {
+        if (actionSystem.getActionDefinition(actionType)) {
+          expect(directExecutors.has(actionType) || delegatedToUnitManager.has(actionType)).toBe(
+            true
+          );
+        }
+      }
+    });
+  });
 });

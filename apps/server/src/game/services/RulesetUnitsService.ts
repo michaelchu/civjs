@@ -27,6 +27,7 @@ export interface UnitType {
   rulesetUnitClassFlags: string[];
   requiredTech?: string;
   transport_capacity?: number;
+  cargoClasses: string[];
   // Additional freeciv fields
   hitpoints?: number;
   firepower?: number;
@@ -126,6 +127,7 @@ export class RulesetUnitsService {
       rulesetUnitClassFlags: [...unitClassFlags],
       requiredTech: unit.required_tech || unit.requiredTech,
       transport_capacity: unit.transport_cap,
+      cargoClasses: [...unit.cargo],
       // Additional freeciv fields
       hitpoints: unit.hitpoints,
       firepower: unit.firepower,

@@ -268,7 +268,10 @@ export class CityOptimizationService extends BaseGameService {
             i < result.worker_positions.length && i < city.workableTiles.length;
             i++
           ) {
-            city.workableTiles[i].isWorked = result.worker_positions[i];
+            // The city center is worked for free and is never a citizen
+            // assignment. Optimizer output must not be allowed to unwork it.
+            city.workableTiles[i].isWorked =
+              city.workableTiles[i].isCenter || result.worker_positions[i];
           }
         }
 

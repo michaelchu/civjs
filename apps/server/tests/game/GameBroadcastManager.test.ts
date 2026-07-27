@@ -69,8 +69,33 @@ describe('GameBroadcastManager visibility sync', () => {
       width: 2,
       height: 1,
       tiles: [
-        [{ terrain: 'grassland', resource: 'wheat', elevation: 0, riverMask: 0 }],
-        [{ terrain: 'hills', resource: 'iron', elevation: 2, riverMask: 1 }],
+        [
+          {
+            terrain: 'grassland',
+            resource: 'wheat',
+            elevation: 0,
+            riverMask: 0,
+            hasRoad: true,
+            hasRailroad: false,
+            improvements: ['irrigation'],
+            cityId: 'city-1',
+            owner: playerOne,
+            claimer: 'city-1',
+          },
+        ],
+        [
+          {
+            terrain: 'hills',
+            resource: 'iron',
+            elevation: 2,
+            riverMask: 1,
+            hasRoad: true,
+            hasRailroad: true,
+            improvements: ['mine', 'pollution'],
+            owner: playerTwo,
+            claimer: 'city-2',
+          },
+        ],
       ],
     });
 
@@ -94,6 +119,12 @@ describe('GameBroadcastManager visibility sync', () => {
           y: 0,
           terrain: 'grassland',
           resource: 'wheat',
+          hasRoad: true,
+          hasRailroad: false,
+          improvements: ['irrigation'],
+          cityId: 'city-1',
+          owner: playerOne,
+          claimer: 'city-1',
           known: 1,
           seen: 1,
         }),
@@ -102,6 +133,12 @@ describe('GameBroadcastManager visibility sync', () => {
           y: 0,
           terrain: 'hills',
           resource: undefined,
+          hasRoad: false,
+          hasRailroad: false,
+          improvements: [],
+          cityId: undefined,
+          owner: undefined,
+          claimer: undefined,
           known: 0,
           seen: 1,
         }),
@@ -117,6 +154,12 @@ describe('GameBroadcastManager visibility sync', () => {
           y: 0,
           terrain: 'grassland',
           resource: undefined,
+          hasRoad: false,
+          hasRailroad: false,
+          improvements: [],
+          cityId: undefined,
+          owner: undefined,
+          claimer: undefined,
           known: 0,
           seen: 1,
         }),
@@ -125,6 +168,11 @@ describe('GameBroadcastManager visibility sync', () => {
           y: 0,
           terrain: 'hills',
           resource: 'iron',
+          hasRoad: true,
+          hasRailroad: true,
+          improvements: ['mine', 'pollution'],
+          owner: playerTwo,
+          claimer: 'city-2',
           known: 1,
           seen: 1,
         }),
@@ -167,5 +215,37 @@ describe('GameBroadcastManager visibility sync', () => {
           emission.data.type === PacketType.UNIT_INFO
       )
     ).toBe(false);
+    expect(
+      emitted.find(
+        emission =>
+          emission.room === `player:${userOne}` &&
+          emission.event === 'packet' &&
+          emission.data.type === PacketType.UNIT_INFO
+      )?.data.data.units
+    ).toEqual([
+      expect.objectContaining({
+        id: 'new-unit',
+        owner: playerOne,
+        type: 'warriors',
+        hp: 100,
+        movesleft: 1,
+      }),
+    ]);
+  });
+
+  it('visibility-scopes unit destruction using the last-known tile', () => {
+    manager.broadcastUnitDestroyed(gameId, {
+      id: 'lost-unit',
+      playerId: playerOne,
+      x: 0,
+      y: 0,
+    });
+
+    expect(emitted).toContainEqual({
+      room: `player:${userOne}`,
+      event: 'unit_destroyed',
+      data: { gameId, unitId: 'lost-unit' },
+    });
+    expect(emitted.some(emission => emission.room === `player:${userTwo}`)).toBe(false);
   });
 });

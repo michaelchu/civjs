@@ -123,6 +123,8 @@ export class VisibilityMapService extends BaseGameService {
       improvements: tile.improvements,
       cityId: tile.cityId,
       unitIds: tile.unitIds,
+      owner: tile.owner,
+      claimer: tile.claimer,
     }));
   }
 }

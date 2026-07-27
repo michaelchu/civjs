@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { SERVER_URL } from '../config';
 import { useGameStore } from '../store/gameStore';
 import { PacketType, PACKET_NAMES, type Packet } from '../types/packets';
-import { ActionType } from '../types/shared/actions';
+import { ActionType, type ActionResult } from '../types/shared/actions';
 import { pathfindingService } from './PathfindingService';
 import { playerColorToHex } from '../utils/playerColors';
 import { storeUsername } from '../utils/gameSession';
@@ -431,7 +431,13 @@ class GameClient {
               y: unitData.y,
               hp: unitData.hp,
               movesLeft: unitData.movesleft, // Server sends 'movesleft' not 'movesLeft'
+              maxMoves: unitData.maxmoves,
               veteranLevel: unitData.veteran, // Server sends 'veteran' not 'veteranLevel'
+              fortified: unitData.fortified,
+              activity: unitData.activity,
+              orders: unitData.orders,
+              transportedBy: unitData.transportedBy,
+              cargoUnits: unitData.cargoUnits,
             };
 
             // Check if unit position changed and clear cached paths if so
@@ -643,6 +649,15 @@ class GameClient {
           known: data.seen > 0,
           units: [],
           city: undefined,
+          resource: data.resource,
+          elevation: data.elevation,
+          riverMask: data.riverMask,
+          hasRoad: data.hasRoad,
+          hasRailroad: data.hasRailroad,
+          improvements: data.improvements,
+          cityId: data.cityId,
+          owner: data.owner,
+          claimer: data.claimer,
         },
       };
 
@@ -703,6 +718,14 @@ class GameClient {
         units: [],
         city: undefined,
         resource: tileData.resource,
+        elevation: tileData.elevation,
+        riverMask: tileData.riverMask,
+        hasRoad: tileData.hasRoad,
+        hasRailroad: tileData.hasRailroad,
+        improvements: tileData.improvements,
+        cityId: tileData.cityId,
+        owner: tileData.owner,
+        claimer: tileData.claimer,
       };
     }
 
@@ -786,7 +809,7 @@ class GameClient {
     actionType: string,
     targetX?: number,
     targetY?: number
-  ): Promise<boolean> {
+  ): Promise<ActionResult> {
     console.log('GameClient.executeUnitAction called:', { unitId, actionType, targetX, targetY });
 
     return new Promise((resolve, reject) => {
@@ -807,7 +830,7 @@ class GameClient {
         (response: any) => {
           console.log('GameClient.executeUnitAction response:', response);
           if (response.success) {
-            resolve(true);
+            resolve(response.result ?? { success: true });
           } else {
             reject(new Error(response.error || 'Action failed'));
           }
@@ -1277,43 +1300,19 @@ class GameClient {
   /**
    * Request unit action from server
    */
-  requestUnitAction(
+  async requestUnitAction(
     unitId: string,
     actionType: ActionType,
     targetX?: number,
     targetY?: number
   ): Promise<boolean> {
-    return new Promise(resolve => {
-      if (!this.socket) {
-        console.error('Socket not connected');
-        resolve(false);
-        return;
-      }
-
-      // Send unit action request to server and wait for response
-      this.socket.emit(
-        'unit_action',
-        {
-          unitId,
-          actionType,
-          targetX,
-          targetY,
-        },
-        (response: { success: boolean; error?: string; result?: any }) => {
-          if (response.success) {
-            console.log(`Successfully executed ${actionType} for unit ${unitId}`, {
-              targetX,
-              targetY,
-              result: response.result,
-            });
-            resolve(true);
-          } else {
-            console.error(`Failed to execute ${actionType} for unit ${unitId}:`, response.error);
-            resolve(false);
-          }
-        }
-      );
-    });
+    try {
+      await this.executeUnitAction(unitId, actionType, targetX, targetY);
+      return true;
+    } catch (error) {
+      console.error(`Failed to execute ${actionType} for unit ${unitId}:`, error);
+      return false;
+    }
   }
 
   /**

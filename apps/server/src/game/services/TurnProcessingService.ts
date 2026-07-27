@@ -715,7 +715,7 @@ export class TurnProcessingService {
           city.tradePerTurn || 0, // Raw trade from city
           0, // Direct gold (calculated by CityEconomicService)
           buildingUpkeep,
-          0, // Unit upkeep follows when unit home-city persistence is authoritative.
+          city.unitGoldUpkeep ?? 0,
           city.goldPerTurn ?? 0
         );
         cityOutputs.push(economicOutput);

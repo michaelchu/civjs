@@ -2,6 +2,7 @@ import { UnitManager } from '@game/managers/UnitManager';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { EffectsManager } from '@game/managers/EffectsManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
+import { ActionType } from '@app-types/shared/actions';
 
 describe('UnitManager', () => {
   let unitManager: UnitManager;
@@ -77,14 +78,108 @@ describe('UnitManager', () => {
       );
     });
 
-    it('should reject stacking civilian units', async () => {
-      // First create a settler (use 'settlers' from freeciv)
+    it('allows friendly unit stacks', async () => {
       await unitManager.createUnit('player-123', 'settlers', 10, 10);
+      await unitManager.createUnit('player-123', 'worker', 10, 10);
 
-      // Try to create another settler at same position
-      await expect(unitManager.createUnit('player-123', 'worker', 10, 10)).rejects.toThrow(
-        'Cannot stack civilian units'
-      );
+      expect(unitManager.getUnitsAt(10, 10)).toHaveLength(2);
+    });
+  });
+
+  describe('worker activities', () => {
+    const tile = {
+      x: 10,
+      y: 10,
+      terrain: 'grassland',
+      hasRoad: false,
+      hasRailroad: false,
+      improvements: [] as string[],
+    };
+    const mapManager = {
+      getTile: jest.fn(() => tile),
+      updateTileProperty: jest.fn((_x: number, _y: number, property: string, value: unknown) => {
+        (tile as Record<string, unknown>)[property] = value;
+      }),
+    };
+
+    beforeEach(() => {
+      tile.terrain = 'grassland';
+      tile.hasRoad = false;
+      tile.hasRailroad = false;
+      tile.improvements = [];
+      mapManager.getTile.mockClear();
+      mapManager.updateTileProperty.mockClear();
+      unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, mapManager);
+    });
+
+    it('persists a multi-turn road order and mutates the map on completion', async () => {
+      const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
+
+      await expect(
+        unitManager.executeUnitAction(
+          worker.id,
+          ActionType.BUILD_ROAD,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      expect(worker.orders).toEqual([{ type: 'road' }]);
+
+      await unitManager.processUnitOrders('player-123');
+      expect(tile.hasRoad).toBe(false);
+      expect(worker.orders?.[0].activity?.turnsRemaining).toBe(1);
+
+      await unitManager.processUnitOrders('player-123');
+      expect(tile.hasRoad).toBe(true);
+      expect(tile.improvements).toContain('road');
+      expect(worker.orders).toEqual([]);
+    });
+
+    it('rejects acting on another player unit', async () => {
+      const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
+
+      await expect(
+        unitManager.executeUnitAction(
+          worker.id,
+          ActionType.BUILD_ROAD,
+          undefined,
+          undefined,
+          'player-456'
+        )
+      ).resolves.toMatchObject({
+        success: false,
+        message: expect.stringContaining('does not belong'),
+      });
+    });
+
+    it('uses terrain-specific legality instead of a hardcoded terrain', async () => {
+      tile.terrain = 'forest';
+      const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_IRRIGATION)).toBe(false);
+      expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_ROAD)).toBe(true);
+    });
+
+    it('completes a queued pillage activity and removes the authoritative extra', async () => {
+      tile.hasRoad = true;
+      tile.improvements = ['road'];
+      const worker = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+
+      await expect(
+        unitManager.executeUnitAction(
+          worker.id,
+          ActionType.PILLAGE,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      await unitManager.processUnitOrders('player-123');
+
+      expect(tile.hasRoad).toBe(false);
+      expect(tile.improvements).not.toContain('road');
+      expect(worker.orders).toEqual([]);
     });
   });
 
@@ -134,6 +229,152 @@ describe('UnitManager', () => {
         'Cannot move to tile occupied by enemy unit'
       );
     });
+
+    it('rejects non-adjacent direct moves', async () => {
+      await expect(unitManager.moveUnit(unitId, 12, 10)).rejects.toThrow(
+        'only move to an adjacent tile'
+      );
+    });
+  });
+
+  describe('terrain movement, ZOC, and transports', () => {
+    const terrain = new Map<string, string>();
+    const roads = new Set<string>();
+    const railroads = new Set<string>();
+    const mapManager = {
+      getTile: jest.fn((x: number, y: number) => ({
+        x,
+        y,
+        terrain: terrain.get(`${x},${y}`) ?? 'grassland',
+        hasRoad: roads.has(`${x},${y}`),
+        hasRailroad: railroads.has(`${x},${y}`),
+        improvements: [],
+      })),
+    };
+
+    beforeEach(() => {
+      terrain.clear();
+      roads.clear();
+      railroads.clear();
+      mapManager.getTile.mockClear();
+      unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, mapManager);
+    });
+
+    it('enforces loaded land and sea terrain classes', async () => {
+      terrain.set('10,10', 'grassland');
+      terrain.set('11,10', 'ocean');
+      const warrior = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await expect(unitManager.moveUnit(warrior.id, 11, 10)).rejects.toThrow(
+        'cannot enter terrain'
+      );
+
+      terrain.set('20,20', 'ocean');
+      terrain.set('21,20', 'grassland');
+      const trireme = await unitManager.createUnit('player-123', 'trireme', 20, 20);
+      await expect(unitManager.moveUnit(trireme.id, 21, 20)).rejects.toThrow(
+        'cannot enter terrain'
+      );
+
+      terrain.set('21,20', 'deep_ocean');
+      await expect(unitManager.moveUnit(trireme.id, 21, 20)).rejects.toThrow(
+        'cannot enter terrain'
+      );
+    });
+
+    it('uses classic road and railroad fragment costs', async () => {
+      roads.add('10,10');
+      roads.add('11,10');
+      const roadUnit = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.moveUnit(roadUnit.id, 11, 10);
+      expect(roadUnit.movementLeft).toBe(2);
+
+      railroads.add('20,20');
+      railroads.add('21,20');
+      const railUnit = await unitManager.createUnit('player-123', 'warriors', 20, 20);
+      await unitManager.moveUnit(railUnit.id, 21, 20);
+      expect(railUnit.movementLeft).toBe(3);
+    });
+
+    it('blocks a ground step between two enemy zones of control', async () => {
+      const mover = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.createUnit('player-456', 'warriors', 9, 10);
+      await unitManager.createUnit('player-456', 'warriors', 12, 10);
+
+      await expect(unitManager.moveUnit(mover.id, 11, 10)).rejects.toThrow('enemy zone of control');
+    });
+
+    it('loads ruleset-compatible cargo, moves it, and unloads onto land', async () => {
+      terrain.set('10,10', 'ocean');
+      terrain.set('11,10', 'ocean');
+      terrain.set('12,10', 'grassland');
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+
+      await expect(unitManager.loadUnitOntoTransport(transport.id, cargo.id)).resolves.toBe(true);
+      expect(cargo.transportedBy).toBe(transport.id);
+      expect(transport.cargoUnits).toEqual([cargo.id]);
+
+      await unitManager.moveUnit(transport.id, 11, 10);
+      expect({ x: cargo.x, y: cargo.y }).toEqual({ x: 11, y: 10 });
+
+      await expect(unitManager.unloadUnit(cargo.id, 12, 10)).resolves.toBe(true);
+      expect(cargo.transportedBy).toBeUndefined();
+      expect({ x: cargo.x, y: cargo.y }).toEqual({ x: 12, y: 10 });
+    });
+
+    it('captures an undefended enemy city through the authoritative callback', async () => {
+      let cityOwner = 'player-456';
+      const captureCity = jest.fn(async () => {
+        cityOwner = 'player-123';
+        return true;
+      });
+      const cityAwareManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        mapManager,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          getCityAt: (x, y) =>
+            x === 11 && y === 10 ? { id: 'enemy-city', playerId: cityOwner, buildings: [] } : null,
+          captureCity,
+        }
+      );
+      const warrior = await cityAwareManager.createUnit('player-123', 'warriors', 10, 10);
+
+      await expect(cityAwareManager.moveUnit(warrior.id, 11, 10)).resolves.toBe(true);
+      expect(captureCity).toHaveBeenCalledWith('enemy-city', 'player-123', warrior.id);
+    });
+
+    it('rejects city capture by a NonMil unit', async () => {
+      const captureCity = jest.fn(async () => true);
+      const cityAwareManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        mapManager,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          getCityAt: (x, y) =>
+            x === 11 && y === 10
+              ? { id: 'enemy-city', playerId: 'player-456', buildings: [] }
+              : null,
+          captureCity,
+        }
+      );
+      const settlers = await cityAwareManager.createUnit('player-123', 'settlers', 10, 10);
+
+      await expect(cityAwareManager.moveUnit(settlers.id, 11, 10)).rejects.toThrow(
+        'Cannot capture enemy city'
+      );
+      expect(captureCity).not.toHaveBeenCalled();
+    });
   });
 
   describe('unit combat', () => {
@@ -152,11 +393,20 @@ describe('UnitManager', () => {
 
       expect(result.attackerId).toBe(attackerUnitId);
       expect(result.defenderId).toBe(defenderUnitId);
-      expect(result.attackerDamage).toBeGreaterThan(0);
-      expect(result.defenderDamage).toBeGreaterThan(0);
+      expect(result.attackerDamage + result.defenderDamage).toBeGreaterThan(0);
+      expect(result.attackerDestroyed || result.defenderDestroyed).toBe(true);
 
       const attacker = unitManager.getUnit(attackerUnitId);
-      expect(attacker!.movementLeft).toBe(0); // Attack uses all movement
+      if (attacker) {
+        expect(attacker.movementLeft).toBe(0); // Attack uses all movement
+      }
+    });
+
+    it('rejects attacks against friendly units', async () => {
+      const friendly = await unitManager.createUnit('player-123', 'warriors', 12, 10);
+      await expect(unitManager.attackUnit(attackerUnitId, friendly.id)).rejects.toThrow(
+        'friendly unit'
+      );
     });
 
     it('should reject attack out of range', async () => {
@@ -196,6 +446,81 @@ describe('UnitManager', () => {
       expect(result.attackerDestroyed || result.defenderDestroyed).toBe(true);
     });
 
+    it('uses attack versus defense and resolves classic combat until one unit dies', async () => {
+      const deterministicManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        undefined,
+        () => 0
+      );
+      const attacker = await deterministicManager.createUnit('player-123', 'warriors', 10, 10);
+      const defender = await deterministicManager.createUnit('player-456', 'phalanx', 11, 10);
+
+      const result = await deterministicManager.attackUnit(attacker.id, defender.id);
+
+      // A roll of zero always falls in the defender's defense-power share.
+      expect(result).toMatchObject({
+        attackerDestroyed: true,
+        defenderDestroyed: false,
+        attackerDamage: 100,
+        defenderDamage: 0,
+      });
+    });
+
+    it('applies classic field killstack and moves the winning attacker onto the tile', async () => {
+      const deterministicManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        undefined,
+        () => 0.99
+      );
+      const attacker = await deterministicManager.createUnit('player-123', 'warriors', 10, 10);
+      const defender = await deterministicManager.createUnit('player-456', 'warriors', 11, 10);
+      const stackedDefender = await deterministicManager.createUnit(
+        'player-456',
+        'phalanx',
+        11,
+        10
+      );
+
+      const result = await deterministicManager.attackUnit(attacker.id, defender.id);
+
+      expect(result.collateralDestroyedIds).toEqual([stackedDefender.id]);
+      expect(deterministicManager.getUnit(defender.id)).toBeUndefined();
+      expect(deterministicManager.getUnit(stackedDefender.id)).toBeUndefined();
+      expect(deterministicManager.getUnit(attacker.id)).toMatchObject({ x: 11, y: 10 });
+    });
+
+    it('applies the classic terrain defense bonus only to TerrainDefense classes', async () => {
+      const hillsMap = {
+        getTile: jest.fn(() => ({ terrain: 'hills' })),
+      };
+      const terrainAwareManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        hillsMap
+      );
+      const defender = await terrainAwareManager.createUnit('player-456', 'phalanx', 11, 10);
+
+      const strength = (terrainAwareManager as any).calculateCombatStrength(
+        defender,
+        UNIT_TYPES.phalanx
+      );
+
+      // Phalanx defense 2 receives the classic hills +100% defense bonus.
+      expect(strength).toBe(4);
+    });
+
     it('applies the classic City Walls defense bonus to a land defender in the city', async () => {
       const cityAwareUnitManager = new UnitManager(
         gameId,
@@ -208,7 +533,9 @@ describe('UnitManager', () => {
           requestPath: async () => ({ success: true }),
           broadcastUnitMoved: () => undefined,
           getCityAt: (x, y) =>
-            x === 11 && y === 10 ? { playerId: 'player-456', buildings: ['walls'] } : null,
+            x === 11 && y === 10
+              ? { id: 'city-walls', playerId: 'player-456', buildings: ['walls'] }
+              : null,
         },
         new EffectsManager()
       );
@@ -248,8 +575,8 @@ describe('UnitManager', () => {
       );
 
       // @reference reference/freeciv/data/classic/effects.ruleset:157-162
-      // Archers (combat 3) with +50% fortify: floor(3 * 150 / 100) === 4
-      expect(strength).toBe(4);
+      // Archers defense 2 with +50% fortify: floor(2 * 150 / 100) === 3
+      expect(strength).toBe(3);
     });
 
     it('applies the classic city fortify defense bonus when unfortified in a city', async () => {
@@ -264,7 +591,9 @@ describe('UnitManager', () => {
           requestPath: async () => ({ success: true }),
           broadcastUnitMoved: () => undefined,
           getCityAt: (x, y) =>
-            x === 13 && y === 10 ? { playerId: 'player-456', buildings: [] } : null,
+            x === 13 && y === 10
+              ? { id: 'city-fortify', playerId: 'player-456', buildings: [] }
+              : null,
         },
         new EffectsManager()
       );
@@ -277,7 +606,7 @@ describe('UnitManager', () => {
 
       // @reference reference/freeciv/data/classic/effects.ruleset:164-173
       // Unfortified land unit in city center: +50% city fortify bonus
-      expect(strength).toBe(4);
+      expect(strength).toBe(3);
     });
 
     it('does not give settlers the city fortify bonus because they Cant_Fortify', async () => {
@@ -292,7 +621,9 @@ describe('UnitManager', () => {
           requestPath: async () => ({ success: true }),
           broadcastUnitMoved: () => undefined,
           getCityAt: (x, y) =>
-            x === 14 && y === 10 ? { playerId: 'player-456', buildings: [] } : null,
+            x === 14 && y === 10
+              ? { id: 'city-settlers', playerId: 'player-456', buildings: [] }
+              : null,
         },
         new EffectsManager()
       );
@@ -303,7 +634,7 @@ describe('UnitManager', () => {
         UNIT_TYPES.settlers
       );
 
-      // Settlers have attack 0 → combat 0, then max(1, …) keeps strength at 1 with no fortify bonus.
+      // Settlers defense 1 remains 1 with no fortify bonus.
       expect(strength).toBe(1);
       expect(UNIT_TYPES.settlers.flags).toContain('Cant_Fortify');
       expect(

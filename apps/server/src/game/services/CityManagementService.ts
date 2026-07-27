@@ -381,6 +381,7 @@ export class CityManagementService extends BaseGameService {
     success: boolean;
     populationLoss: number;
     buildingsDestroyed: string[];
+    cityDestroyed?: boolean;
     reason?: string;
   }> {
     const gameInstance = this.games.get(gameId);
@@ -402,6 +403,7 @@ export class CityManagementService extends BaseGameService {
         conquerorPlayerId,
         populationLoss: result.populationLoss,
         buildingsDestroyed: result.buildingsDestroyed,
+        cityDestroyed: result.cityDestroyed ?? false,
       });
     }
 

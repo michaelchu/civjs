@@ -166,6 +166,32 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     }
   }
 
+  /**
+   * Remove a unit only for its owner and players who could see its last tile.
+   * The last-known unit snapshot is required because the authoritative unit
+   * has already been removed from UnitManager.
+   * @reference reference/freeciv/server/maphand.c:615-683
+   */
+  broadcastUnitDestroyed(gameId: string, unit: any): void {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) return;
+
+    for (const [playerId] of gameInstance.players) {
+      // Use the pre-destruction visibility snapshot. Recomputing after the
+      // unit has been removed can hide its last tile and leave a client ghost.
+      const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
+      if (unit.playerId !== playerId && !visibleTiles.has(`${unit.x},${unit.y}`)) {
+        continue;
+      }
+
+      const recipientId = gameInstance.players.get(playerId)?.userId || playerId;
+      this.io.to(`player:${recipientId}`).emit('unit_destroyed', {
+        gameId,
+        unitId: unit.id,
+      });
+    }
+  }
+
   private computeMapDataMetrics(mapData: any): {
     tilesComplete: boolean;
     firstTileComplete: boolean;
@@ -265,16 +291,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       this.sendTileDataInBatches(gameInstance, playerId, visibleTiles);
 
       this.sendPacketToPlayer(gameInstance, playerId, PacketType.UNIT_INFO, {
-        units: formattedUnits.map((unit: any) => ({
-          id: unit.id,
-          owner: unit.playerId,
-          type: unit.type,
-          x: unit.x,
-          y: unit.y,
-          hp: unit.health,
-          movesleft: unit.movementLeft,
-          veteran: unit.veteran,
-        })),
+        units: formattedUnits,
       });
 
       this.logger.debug('Sent player-specific map data', {
@@ -333,9 +350,15 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       resource: isVisible ? serverTile.resource : undefined,
       elevation: serverTile.elevation || 0,
       riverMask: serverTile.riverMask || 0,
+      hasRoad: isVisible ? serverTile.hasRoad : false,
+      hasRailroad: isVisible ? serverTile.hasRailroad : false,
+      improvements: isVisible ? serverTile.improvements : [],
+      cityId: isVisible ? serverTile.cityId : undefined,
+      owner: isVisible ? serverTile.owner : undefined,
+      claimer: isVisible ? serverTile.claimer : undefined,
       known: isVisible ? 1 : 0,
       seen: 1,
-      player: null,
+      player: isVisible ? (serverTile.owner ?? null) : null,
       worked: null,
       extras: 0, // BitVector for extras
     };
@@ -400,18 +423,20 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   private formatUnitForClient(unit: any, unitManager: any): any {
     return {
       id: unit.id,
-      playerId: unit.playerId,
+      owner: unit.playerId,
       type: unit.unitTypeId || unit.type,
       x: unit.x,
       y: unit.y,
-      movementLeft: unit.movementLeft,
-      maxMovement: unitManager.getUnitMaxMovement(unit.type),
-      health: unit.health || 100,
+      movesleft: unit.movementLeft,
+      maxmoves: unitManager.getUnitMaxMovement(unit.unitTypeId || unit.type) * 3,
+      hp: unit.health ?? 100,
       veteran: unit.veteranLevel ?? unit.veteran ?? false,
       homeCity: unit.homeCity || null,
       activity: unit.activity || 'idle',
       fortified: unit.fortified || false,
       orders: unit.orders || null,
+      transportedBy: unit.transportedBy,
+      cargoUnits: unit.cargoUnits || [],
     };
   }
 

@@ -11,40 +11,20 @@ import {
 import { Unit, UnitOrder } from '@game/managers/UnitManager';
 import { SINGLE_MOVE } from '@game/constants/MovementConstants';
 import { getUnitType } from '@game/constants/UnitConstants';
+import type { MapManager } from '@game/managers/MapManager';
+import type { TerrainType } from '@game/map/MapTypes';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 // Action definitions based on freeciv classic ruleset
 // @reference freeciv/common/actions.c
 const ACTION_DEFINITIONS: Partial<Record<ActionType, ActionDefinition>> = {
-  // Basic movement actions
-  [ActionType.MOVE]: {
-    id: ActionType.MOVE,
-    name: 'Move',
-    description: 'Move unit to target tile',
-    category: ActionCategory.BASIC,
-    requirements: [],
-    targetType: ActionTargetType.TILE,
-    consumes_actor: false,
-    moves_actor: ActionMovesActor.MOVES_TO_TARGET,
-  },
-
-  [ActionType.ATTACK]: {
-    id: ActionType.ATTACK,
-    name: 'Attack',
-    description: 'Attack enemy unit or city',
-    category: ActionCategory.MILITARY,
-    requirements: [{ type: 'unit_type', value: ['warriors', 'archers', 'pikemen'], present: true }],
-    targetType: ActionTargetType.UNIT,
-    consumes_actor: false,
-    moves_actor: ActionMovesActor.STAYS,
-  },
-
   [ActionType.FORTIFY]: {
     id: ActionType.FORTIFY,
     name: 'Fortify',
     description: 'Fortify unit for defensive bonus',
     hotkey: 'F',
     category: ActionCategory.BASIC,
-    requirements: [{ type: 'unit_type', value: ['warriors', 'archers', 'pikemen'], present: true }],
+    requirements: [],
     targetType: ActionTargetType.NONE,
     consumes_actor: false,
     moves_actor: ActionMovesActor.STAYS,
@@ -170,6 +150,17 @@ const ACTION_DEFINITIONS: Partial<Record<ActionType, ActionDefinition>> = {
     moves_actor: ActionMovesActor.STAYS,
   },
 
+  [ActionType.CLEAN_POLLUTION]: {
+    id: ActionType.CLEAN_POLLUTION,
+    name: 'Clean Pollution',
+    description: 'Remove pollution from this tile',
+    category: ActionCategory.BUILD,
+    requirements: [{ type: 'unit_flag', value: 'canBuildImprovements', present: true }],
+    targetType: ActionTargetType.NONE,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
   [ActionType.DISBAND_UNIT]: {
     id: ActionType.DISBAND_UNIT,
     name: 'Disband Unit',
@@ -179,40 +170,6 @@ const ACTION_DEFINITIONS: Partial<Record<ActionType, ActionDefinition>> = {
     requirements: [],
     targetType: ActionTargetType.SELF,
     consumes_actor: true,
-    moves_actor: ActionMovesActor.STAYS,
-  },
-
-  [ActionType.PATROL]: {
-    id: ActionType.PATROL,
-    name: 'Patrol',
-    description: 'Set up patrol between current position and target',
-    hotkey: 'Q',
-    category: ActionCategory.MILITARY,
-    requirements: [],
-    targetType: ActionTargetType.TILE,
-    consumes_actor: false,
-    moves_actor: ActionMovesActor.STAYS,
-  },
-
-  [ActionType.ESTABLISH_EMBASSY]: {
-    id: ActionType.ESTABLISH_EMBASSY,
-    name: 'Establish Embassy',
-    description: 'Establish diplomatic relations with target city',
-    category: ActionCategory.DIPLOMACY,
-    requirements: [{ type: 'unit_type', value: ['diplomat'], present: true }],
-    targetType: ActionTargetType.CITY,
-    consumes_actor: true,
-    moves_actor: ActionMovesActor.STAYS,
-  },
-
-  [ActionType.INVESTIGATE_CITY]: {
-    id: ActionType.INVESTIGATE_CITY,
-    name: 'Investigate City',
-    description: 'Gather intelligence about target city',
-    category: ActionCategory.ESPIONAGE,
-    requirements: [{ type: 'unit_type', value: ['diplomat'], present: true }],
-    targetType: ActionTargetType.CITY,
-    consumes_actor: false,
     moves_actor: ActionMovesActor.STAYS,
   },
 
@@ -227,19 +184,28 @@ const ACTION_DEFINITIONS: Partial<Record<ActionType, ActionDefinition>> = {
     moves_actor: ActionMovesActor.STAYS,
   },
 
-  [ActionType.AUTO_EXPLORE]: {
-    id: ActionType.AUTO_EXPLORE,
-    name: 'Auto Explore',
-    description: 'Automatically explore unknown areas',
-    hotkey: 'X',
-    category: ActionCategory.AUTOMATION,
+  [ActionType.LOAD_UNIT]: {
+    id: ActionType.LOAD_UNIT,
+    name: 'Load Unit',
+    description: 'Load this unit onto a compatible transport',
+    category: ActionCategory.TRANSPORT,
     requirements: [],
-    targetType: ActionTargetType.NONE,
+    targetType: ActionTargetType.UNIT,
     consumes_actor: false,
-    moves_actor: ActionMovesActor.STAYS,
+    moves_actor: ActionMovesActor.MOVES_TO_TARGET,
   },
 
-  // Add placeholder definitions for other actions
+  [ActionType.UNLOAD_UNIT]: {
+    id: ActionType.UNLOAD_UNIT,
+    name: 'Unload Unit',
+    description: 'Unload this unit from its transport',
+    category: ActionCategory.TRANSPORT,
+    requirements: [],
+    targetType: ActionTargetType.TILE,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.MOVES_TO_TARGET,
+  },
+
   [ActionType.SKIP_TURN]: {
     id: ActionType.SKIP_TURN,
     name: 'Skip Turn',
@@ -268,6 +234,12 @@ export class ActionSystem {
       targetX: number,
       targetY: number
     ) => Promise<{ success: boolean; path?: any; error?: string }>;
+    establishTradeRoute?: (
+      playerId: string,
+      homeCityId: string,
+      targetX: number,
+      targetY: number
+    ) => Promise<boolean>;
   };
 
   constructor(
@@ -286,7 +258,14 @@ export class ActionSystem {
         targetX: number,
         targetY: number
       ) => Promise<{ success: boolean; path?: any; error?: string }>;
-    }
+      establishTradeRoute?: (
+        playerId: string,
+        homeCityId: string,
+        targetX: number,
+        targetY: number
+      ) => Promise<boolean>;
+    },
+    private readonly mapManager?: Pick<MapManager, 'getTile'>
   ) {
     this.gameId = gameId;
     this.gameManagerCallback = gameManagerCallback;
@@ -350,7 +329,6 @@ export class ActionSystem {
   > = new Map([
     [ActionType.FORTIFY, unit => this.canFortify(unit)],
     [ActionType.SENTRY, unit => this.canSentry(unit)],
-    [ActionType.MOVE, (unit, targetX, targetY) => this.canMove(unit, targetX, targetY)],
     [ActionType.GOTO, (unit, targetX, targetY) => this.canMove(unit, targetX, targetY)],
     [ActionType.FOUND_CITY, unit => this.canFoundCity(unit)],
     [ActionType.BUILD_ROAD, unit => this.canBuildRoad(unit)],
@@ -359,8 +337,19 @@ export class ActionSystem {
     [ActionType.BUILD_MINE, unit => this.canBuildMine(unit)],
     [ActionType.PILLAGE, unit => this.canPillage(unit)],
     [ActionType.TRANSFORM_TERRAIN, unit => this.canTransformTerrain(unit)],
+    [ActionType.CLEAN_POLLUTION, unit => this.canCleanPollution(unit)],
+    [
+      ActionType.TRADE_ROUTE,
+      (unit, targetX, targetY) =>
+        Boolean(
+          unit.homeCityId &&
+            targetX !== undefined &&
+            targetY !== undefined &&
+            this.gameManagerCallback?.establishTradeRoute
+        ),
+    ],
     [ActionType.DISBAND_UNIT, unit => this.canDisbandUnit(unit)],
-    [ActionType.PATROL, (unit, targetX, targetY) => this.canPatrol(unit, targetX, targetY)],
+    [ActionType.SKIP_TURN, unit => unit.movementLeft > 0],
   ]);
 
   /**
@@ -380,7 +369,13 @@ export class ActionSystem {
    * Check if unit can fortify
    */
   private canFortify(unit: Unit): boolean {
-    return !unit.fortified && unit.movementLeft > 0;
+    const unitType = getUnitType(unit.unitTypeId);
+    return Boolean(
+      unitType?.rulesetUnitClassFlags.includes('CanFortify') &&
+        !unitType.flags?.includes('Cant_Fortify') &&
+        !unit.fortified &&
+        unit.movementLeft > 0
+    );
   }
 
   /**
@@ -479,15 +474,26 @@ export class ActionSystem {
    * @reference freeciv-web/javascript/unit.js unit activity validation
    */
   private canBuildRoad(unit: Unit): boolean {
-    return this.canBuildImprovement(unit) && unit.movementLeft > 0;
+    const tile = this.mapManager?.getTile(unit.x, unit.y);
+    const terrain = tile && rulesetLoader.getTerrain(tile.terrain);
+    return Boolean(
+      this.canBuildImprovement(unit) &&
+        unit.movementLeft > 0 &&
+        tile &&
+        terrain &&
+        terrain.roadTime > 0 &&
+        !tile.hasRoad
+    );
   }
 
   /**
    * Check if unit can build a railroad
    */
   private canBuildRailroad(unit: Unit): boolean {
-    return this.canBuildImprovement(unit) && unit.movementLeft > 0;
-    // TODO: Check if tile already has road (railroad requires road first)
+    const tile = this.mapManager?.getTile(unit.x, unit.y);
+    return Boolean(
+      this.canBuildImprovement(unit) && unit.movementLeft > 0 && tile?.hasRoad && !tile.hasRailroad
+    );
   }
 
   /**
@@ -499,11 +505,11 @@ export class ActionSystem {
       return false;
     }
 
-    // TODO: Check terrain compatibility and water source
-    // For now, allow irrigation on grassland, plains, desert
-    const validTerrains = ['grassland', 'plains', 'desert'];
-    const terrainType = this.getTerrainAt(unit.x, unit.y);
-    return validTerrains.includes(terrainType);
+    const tile = this.mapManager?.getTile(unit.x, unit.y);
+    const terrain = tile && rulesetLoader.getTerrain(tile.terrain);
+    return Boolean(
+      tile && terrain && terrain.irrigationTime > 0 && !tile.improvements.includes('irrigation')
+    );
   }
 
   /**
@@ -515,11 +521,11 @@ export class ActionSystem {
       return false;
     }
 
-    // TODO: Check terrain compatibility
-    // For now, allow mining on hills, mountains, forest
-    const validTerrains = ['hills', 'mountains', 'forest'];
-    const terrainType = this.getTerrainAt(unit.x, unit.y);
-    return validTerrains.includes(terrainType);
+    const tile = this.mapManager?.getTile(unit.x, unit.y);
+    const terrain = tile && rulesetLoader.getTerrain(tile.terrain);
+    return Boolean(
+      tile && terrain && terrain.miningTime > 0 && !tile.improvements.includes('mine')
+    );
   }
 
   /**
@@ -531,27 +537,21 @@ export class ActionSystem {
       return false;
     }
 
-    // TODO: Check if tile has improvements to pillage
-    // For now, assume there are always improvements that can be pillaged
     return this.hasPillageableImprovements(unit.x, unit.y);
   }
 
   /**
    * Get terrain type at coordinates
    */
-  private getTerrainAt(_x: number, _y: number): string {
-    // TODO: Integrate with MapManager to get actual terrain
-    // For now, return a default terrain type
-    return 'grassland';
+  private getTerrainAt(x: number, y: number): string {
+    return this.mapManager?.getTile(x, y)?.terrain ?? 'unknown';
   }
 
   /**
    * Check if tile has improvements that can be pillaged
    */
-  private hasPillageableImprovements(_x: number, _y: number): boolean {
-    // TODO: Check with MapManager for tile improvements
-    // For now, assume some tiles have improvements
-    return Math.random() > 0.5; // 50% chance for testing
+  private hasPillageableImprovements(x: number, y: number): boolean {
+    return this.getPillageableImprovements(x, y).length > 0;
   }
 
   /**
@@ -563,11 +563,16 @@ export class ActionSystem {
       return false;
     }
 
-    // TODO: Check available terrain transformations
-    // For now, allow transformation on most terrain types
-    const terrainType = this.getTerrainAt(unit.x, unit.y);
-    const transformableTerrains = ['forest', 'jungle', 'swamp', 'desert', 'tundra'];
-    return transformableTerrains.includes(terrainType);
+    const tile = this.mapManager?.getTile(unit.x, unit.y);
+    return Boolean(tile && rulesetLoader.getTerrain(tile.terrain).transformTo);
+  }
+
+  private canCleanPollution(unit: Unit): boolean {
+    return (
+      this.canBuildImprovement(unit) &&
+      unit.movementLeft > 0 &&
+      Boolean(this.mapManager?.getTile(unit.x, unit.y)?.improvements.includes('pollution'))
+    );
   }
 
   /**
@@ -575,13 +580,6 @@ export class ActionSystem {
    */
   private canDisbandUnit(_unit: Unit): boolean {
     return true; // Most units can be disbanded
-  }
-
-  /**
-   * Check if unit can patrol
-   */
-  private canPatrol(unit: Unit, targetX?: number, targetY?: number): boolean {
-    return targetX !== undefined && targetY !== undefined && unit.movementLeft > 0;
   }
 
   /**
@@ -643,6 +641,7 @@ export class ActionSystem {
     [ActionType.FORTIFY, async unit => this.executeFortify(unit)],
     [ActionType.SENTRY, async unit => this.executeSentry(unit)],
     [ActionType.WAIT, async unit => this.executeWait(unit)],
+    [ActionType.SKIP_TURN, async unit => this.executeSkipTurn(unit)],
     [ActionType.GOTO, async (unit, targetX, targetY) => this.executeGoto(unit, targetX!, targetY!)],
     [ActionType.FOUND_CITY, async unit => this.executeFoundCity(unit)],
     [ActionType.BUILD_ROAD, async unit => this.executeBuildRoad(unit)],
@@ -651,11 +650,13 @@ export class ActionSystem {
     [ActionType.BUILD_MINE, async unit => this.executeBuildMine(unit)],
     [ActionType.PILLAGE, async unit => this.executePillage(unit)],
     [ActionType.TRANSFORM_TERRAIN, async unit => this.executeTransformTerrain(unit)],
-    [ActionType.DISBAND_UNIT, async unit => this.executeDisbandUnit(unit)],
+    [ActionType.CLEAN_POLLUTION, async unit => this.executeCleanPollution(unit)],
     [
-      ActionType.PATROL,
-      async (unit, targetX, targetY) => this.executePatrol(unit, targetX!, targetY!),
+      ActionType.TRADE_ROUTE,
+      async (unit, targetX, targetY) =>
+        this.executeTradeRoute(unit, targetX as number, targetY as number),
     ],
+    [ActionType.DISBAND_UNIT, async unit => this.executeDisbandUnit(unit)],
   ]);
 
   /**
@@ -705,17 +706,10 @@ export class ActionSystem {
    * Check if a city can be founded at the given location
    */
   private canFoundCityAtLocation(_unit: Unit, _x: number, _y: number): boolean {
-    // Basic validation - more detailed checks would require access to MapManager and game state
-    // These are the rules that can be checked without external dependencies
-
-    // TODO: Add the following validation rules when we have access to MapManager:
-    // 1. Check terrain type (some terrains like ocean cannot have cities)
-    // 2. Check minimum distance from other cities (usually 2 tiles in Freeciv)
-    // 3. Check if tile is within map bounds
-    // 4. Check if tile is owned by another player
-    // 5. Check if there are hostile units on the tile
-
-    return true; // Simplified for now
+    // CityManager performs the authoritative terrain, bounds, occupancy, and
+    // city-distance checks in the foundCity callback. This local predicate
+    // deliberately avoids duplicating game-state validation.
+    return true;
   }
 
   /**
@@ -1108,7 +1102,7 @@ export class ActionSystem {
   }
 
   private async executeBuildRoad(unit: Unit): Promise<ActionResult> {
-    // TODO: Integrate with MapManager to actually add road to tile
+    // UnitManager queues and completes the authoritative multi-turn activity.
     return {
       success: true,
       message: `${unit.unitTypeId} started building road`,
@@ -1116,7 +1110,7 @@ export class ActionSystem {
   }
 
   private async executeBuildRailroad(unit: Unit): Promise<ActionResult> {
-    // TODO: Check for existing road, integrate with MapManager
+    // UnitManager queues and completes the authoritative multi-turn activity.
     return {
       success: true,
       message: `${unit.unitTypeId} started building railroad`,
@@ -1134,7 +1128,7 @@ export class ActionSystem {
       };
     }
 
-    // TODO: Integrate with MapManager to add irrigation improvement
+    // UnitManager queues and completes the authoritative multi-turn activity.
     return {
       success: true,
       message: `${unit.unitTypeId} started irrigation on ${terrainType}`,
@@ -1152,7 +1146,7 @@ export class ActionSystem {
       };
     }
 
-    // TODO: Integrate with MapManager to add mine improvement
+    // UnitManager queues and completes the authoritative multi-turn activity.
     return {
       success: true,
       message: `${unit.unitTypeId} started building mine on ${terrainType}`,
@@ -1170,7 +1164,7 @@ export class ActionSystem {
     const improvementTypes = this.getPillageableImprovements(unit.x, unit.y);
     const targetImprovement = improvementTypes[0]; // Pillage first available
 
-    // TODO: Integrate with MapManager to remove improvement
+    // UnitManager queues and completes the authoritative multi-turn activity.
     return {
       success: true,
       message: `${unit.unitTypeId} pillaged ${targetImprovement}`,
@@ -1180,11 +1174,13 @@ export class ActionSystem {
   /**
    * Get list of improvements that can be pillaged on a tile
    */
-  private getPillageableImprovements(_x: number, _y: number): string[] {
-    // TODO: Get from MapManager
-    // For now, return mock improvements
-    const mockImprovements = ['road', 'irrigation', 'mine', 'railroad'];
-    return mockImprovements.filter(() => Math.random() > 0.7); // Random subset
+  private getPillageableImprovements(x: number, y: number): string[] {
+    const tile = this.mapManager?.getTile(x, y);
+    if (!tile) return [];
+    const extras = [...tile.improvements];
+    if (tile.hasRailroad && !extras.includes('railroad')) extras.unshift('railroad');
+    if (tile.hasRoad && !extras.includes('road')) extras.push('road');
+    return extras;
   }
 
   private async executeTransformTerrain(unit: Unit): Promise<ActionResult> {
@@ -1198,7 +1194,7 @@ export class ActionSystem {
       };
     }
 
-    // TODO: Integrate with MapManager to transform terrain
+    // UnitManager queues and completes the authoritative multi-turn activity.
     return {
       success: true,
       message: `${unit.unitTypeId} started transforming ${currentTerrain} to ${targetTerrain}`,
@@ -1210,16 +1206,41 @@ export class ActionSystem {
    * @reference freeciv/common/terrain.h terrain transformations
    */
   private getTransformationTarget(currentTerrain: string): string | null {
-    const transformations: Record<string, string> = {
-      forest: 'grassland',
-      jungle: 'grassland',
-      swamp: 'grassland',
-      desert: 'grassland',
-      tundra: 'grassland',
-      hills: 'grassland',
-    };
+    try {
+      return rulesetLoader.getTerrain(currentTerrain as TerrainType).transformTo ?? null;
+    } catch {
+      return null;
+    }
+  }
 
-    return transformations[currentTerrain] || null;
+  private async executeCleanPollution(unit: Unit): Promise<ActionResult> {
+    return {
+      success: true,
+      message: `${unit.unitTypeId} started cleaning pollution`,
+    };
+  }
+
+  private async executeTradeRoute(
+    unit: Unit,
+    targetX: number,
+    targetY: number
+  ): Promise<ActionResult> {
+    const established = await this.gameManagerCallback?.establishTradeRoute?.(
+      unit.playerId,
+      unit.homeCityId!,
+      targetX,
+      targetY
+    );
+    return established
+      ? {
+          success: true,
+          message: `${unit.unitTypeId} established a trade route`,
+          unitDestroyed: true,
+        }
+      : {
+          success: false,
+          message: 'Cannot establish a trade route with that city',
+        };
   }
 
   private async executeDisbandUnit(unit: Unit): Promise<ActionResult> {
@@ -1230,11 +1251,10 @@ export class ActionSystem {
     };
   }
 
-  private async executePatrol(unit: Unit, targetX: number, targetY: number): Promise<ActionResult> {
-    // TODO: Set up patrol orders between current position and target
+  private async executeSkipTurn(unit: Unit): Promise<ActionResult> {
     return {
       success: true,
-      message: `${unit.unitTypeId} started patrolling to (${targetX}, ${targetY})`,
+      message: `${unit.unitTypeId} skipped the rest of its turn`,
     };
   }
 }

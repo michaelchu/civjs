@@ -52,9 +52,10 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
     it('should initialize with game ID and provide action definitions', () => {
       expect(actionSystem).toBeDefined();
 
-      const moveAction = actionSystem.getActionDefinition(ActionType.MOVE);
-      expect(moveAction).toBeDefined();
-      expect(moveAction!.name).toBe('Move');
+      // MOVE and ATTACK use their dedicated authoritative packets and are not
+      // exposed through the generic action system.
+      expect(actionSystem.getActionDefinition(ActionType.MOVE)).toBeNull();
+      expect(actionSystem.getActionDefinition(ActionType.ATTACK)).toBeNull();
 
       const fortifyAction = actionSystem.getActionDefinition(ActionType.FORTIFY);
       expect(fortifyAction).toBeDefined();
@@ -361,7 +362,6 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
     it('should maintain action definitions consistency', () => {
       // Test that all expected actions are defined
       const expectedActions = [
-        ActionType.MOVE,
         ActionType.FORTIFY,
         ActionType.WAIT,
         ActionType.SENTRY,
@@ -373,6 +373,19 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
         const definition = actionSystem.getActionDefinition(actionType);
         expect(definition).toBeDefined();
         expect(definition?.name).toBeTruthy();
+      }
+    });
+
+    it('has an authoritative execution route for every exposed generic action', () => {
+      const delegatedToUnitManager = new Set([ActionType.LOAD_UNIT, ActionType.UNLOAD_UNIT]);
+      const directExecutors = (actionSystem as any).actionExecutors as Map<ActionType, unknown>;
+
+      for (const actionType of Object.values(ActionType)) {
+        if (actionSystem.getActionDefinition(actionType)) {
+          expect(directExecutors.has(actionType) || delegatedToUnitManager.has(actionType)).toBe(
+            true
+          );
+        }
       }
     });
   });

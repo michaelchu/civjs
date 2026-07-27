@@ -46,6 +46,11 @@ export const TerrainRulesetSchema = z.object({
   food: z.number().min(0),
   shields: z.number().min(0),
   trade: z.number().min(0),
+  roadTime: z.number().min(0).default(0),
+  irrigationFoodIncr: z.number().min(0).default(0),
+  irrigationTime: z.number().min(0).default(0),
+  miningShieldIncr: z.number().min(0).default(0),
+  miningTime: z.number().min(0).default(0),
   transformTo: TerrainTypeSchema.optional(),
   transformTime: z.number().positive().optional(),
   canHaveRiver: z.boolean().optional(),
@@ -192,6 +197,7 @@ export const UnitTypeRulesetSchema = z.object({
   firepower: z.number().positive().optional().default(1),
   vision_radius_sq: z.number().min(0).optional().default(1),
   transport_cap: z.number().min(0).optional().default(0),
+  cargo: z.array(UnitClassSchema).optional().default([]),
   fuel: z.number().min(0).optional().default(0),
   uk_happy: z.number().min(0).optional().default(0), // Unhappiness from unit
   uk_shield: z.number().min(0).optional().default(1), // Shield upkeep cost
@@ -248,9 +254,18 @@ export const BuildingEffectsSchema = z.object({
   goldBonus: z.number().optional(),
 });
 
+export const BuildingGenusSchema = z.enum([
+  'Improvement',
+  'SmallWonder',
+  'GreatWonder',
+  'Special',
+  'Convert',
+]);
+
 export const BuildingTypeRulesetSchema = z.object({
   id: z.string(),
   name: z.string(),
+  genus: BuildingGenusSchema.optional().default('Improvement'),
   cost: z.number().positive(),
   upkeep: z.number().min(0),
   requiredTech: z.string().optional(),

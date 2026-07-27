@@ -20,7 +20,6 @@ import {
   Mountain,
   Pickaxe,
   Zap,
-  Search,
   SkipForward,
   Trash2,
 } from 'lucide-react';
@@ -107,16 +106,6 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
           hotkey: 'S',
         }
       );
-
-      // Combat actions for military units
-      if (unit.unitTypeId !== 'explorer') {
-        actions.push({
-          action: ActionType.PATROL,
-          name: 'Patrol',
-          icon: Route,
-          hotkey: 'P',
-        });
-      }
     }
 
     // Settler actions
@@ -128,28 +117,14 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
           name: 'Found City',
           icon: Home,
           hotkey: 'B',
-        },
-        {
-          action: ActionType.JOIN_CITY,
-          name: 'Join City',
-          icon: Home,
-          hotkey: 'J',
-          disabled: true, // TODO: Enable when in city
         }
       );
     }
 
-    // Worker actions
-    if (unit.unitTypeId === 'worker') {
-      actions.push(
-        { separator: true },
-        {
-          action: ActionType.AUTO_SETTLER,
-          name: 'Auto Settler',
-          icon: Hammer,
-          hotkey: 'A',
-        }
-      );
+    // Worker actions. Classic Settlers, Workers, and Engineers all carry the
+    // ruleset's Workers flag and therefore share terrain activities.
+    if (['settlers', 'worker', 'engineers'].includes(unit.unitTypeId)) {
+      actions.push({ separator: true });
 
       // Build submenu for workers
       const buildActions: UnitActionInfo[] = [
@@ -158,6 +133,11 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
           name: 'Build Road',
           icon: Route,
           hotkey: 'R',
+        },
+        {
+          action: ActionType.BUILD_RAILROAD,
+          name: 'Build Railroad',
+          icon: Route,
         },
         {
           action: ActionType.BUILD_IRRIGATION,
@@ -177,6 +157,17 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
           icon: Mountain,
           hotkey: 'O',
         },
+        {
+          action: ActionType.CLEAN_POLLUTION,
+          name: 'Clean Pollution',
+          icon: Zap,
+          hotkey: 'C',
+        },
+        {
+          action: ActionType.PILLAGE,
+          name: 'Pillage Improvement',
+          icon: Trash2,
+        },
       ];
 
       actions.push({
@@ -187,18 +178,20 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
       });
     }
 
-    // Explorer actions
-    if (unit.unitTypeId === 'explorer') {
-      actions.push(
-        { separator: true },
-        {
-          action: ActionType.AUTO_EXPLORE,
-          name: 'Auto Explore',
-          icon: Search,
-          hotkey: 'X',
-        }
-      );
-    }
+    actions.push(
+      { separator: true },
+      unit.transportedBy
+        ? {
+            action: ActionType.UNLOAD_UNIT,
+            name: 'Unload',
+            icon: Route,
+          }
+        : {
+            action: ActionType.LOAD_UNIT,
+            name: 'Load onto Transport',
+            icon: Route,
+          }
+    );
 
     // Common unit management actions
     actions.push(

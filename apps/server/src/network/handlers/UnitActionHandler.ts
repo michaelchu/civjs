@@ -403,7 +403,7 @@ export class UnitActionHandler extends BaseSocketHandler {
     socket: Socket,
     data: any,
     callback: (response: any) => void,
-    io: Server
+    _io: Server
   ): Promise<void> {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isInGame(connection)) {
@@ -424,26 +424,24 @@ export class UnitActionHandler extends BaseSocketHandler {
         return;
       }
 
+      const unitBeforeAction = gameInstance.unitManager.getUnit(data.unitId);
       const result = await gameInstance.unitManager.executeUnitAction(
         data.unitId,
         data.actionType,
         data.targetX,
-        data.targetY
+        data.targetY,
+        playerId
       );
 
       if (result.success) {
         if (result.unitDestroyed) {
-          io.to(`game:${connection.gameId}`).emit('unit_destroyed', {
-            gameId: connection.gameId,
-            unitId: data.unitId,
-          });
+          if (unitBeforeAction) {
+            this.gameManager.broadcastUnitDestroyed(connection.gameId!, unitBeforeAction);
+          }
         } else {
           const updatedUnit = gameInstance.unitManager.getUnit(data.unitId);
           if (updatedUnit) {
-            io.to(`game:${connection.gameId}`).emit('unit_update', {
-              gameId: connection.gameId,
-              unit: updatedUnit,
-            });
+            this.gameManager.broadcastUnitInfo(connection.gameId!, updatedUnit);
           }
         }
 

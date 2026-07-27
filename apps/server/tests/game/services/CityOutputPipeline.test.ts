@@ -83,4 +83,17 @@ describe('city output pipeline', () => {
 
     expect(result.science).toBe(6);
   });
+
+  it('deducts supported-unit food and shield upkeep from surplus', () => {
+    const subject = city({ population: 1 });
+    const result = new CityCalculationService(new EffectsManager()).calculateCityOutputs(
+      subject,
+      { food: 4, shields: 3, trade: 0 },
+      undefined,
+      context(subject, { unitUpkeep: { food: 1, shield: 2, gold: 0 } })
+    );
+
+    expect(result.food).toBe(1);
+    expect(result.shields).toBe(1);
+  });
 });

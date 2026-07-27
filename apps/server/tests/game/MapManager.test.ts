@@ -244,6 +244,50 @@ describe('MapManager', () => {
   });
 
   describe('seeded generation', () => {
+    it('preserves the pinned classic topology reference case', async () => {
+      const referenceMap = new MapManager(20, 15, 'classic-topology-v1');
+      await referenceMap.generateMap(new Map());
+      const mapData = referenceMap.getMapData()!;
+      const terrainCounts: Record<string, number> = {};
+      const landContinents = new Set<number>();
+
+      for (const column of mapData.tiles) {
+        for (const tile of column) {
+          terrainCounts[tile.terrain] = (terrainCounts[tile.terrain] ?? 0) + 1;
+          if (
+            !['ocean', 'deep_ocean', 'coast', 'lake'].includes(tile.terrain) &&
+            tile.continentId > 0
+          ) {
+            landContinents.add(tile.continentId);
+          }
+        }
+      }
+
+      // Fixed-seed fixture: changes here require an intentional topology review.
+      expect({
+        terrainCounts,
+        landContinents: landContinents.size,
+        corners: [
+          mapData.tiles[0][0].terrain,
+          mapData.tiles[19][0].terrain,
+          mapData.tiles[0][14].terrain,
+          mapData.tiles[19][14].terrain,
+        ],
+      }).toEqual({
+        terrainCounts: {
+          coast: 2,
+          deep_ocean: 250,
+          forest: 1,
+          grassland: 9,
+          hills: 1,
+          mountains: 2,
+          ocean: 35,
+        },
+        landContinents: 6,
+        corners: ['deep_ocean', 'deep_ocean', 'deep_ocean', 'deep_ocean'],
+      });
+    });
+
     it('should generate identical maps with same seed', async () => {
       // Use a unique seed to avoid interference from other tests
       const uniqueSeed = `test-seed-${Date.now()}-${Math.random()}`;

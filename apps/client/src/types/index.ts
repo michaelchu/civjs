@@ -10,6 +10,10 @@ export interface Tile {
   resource?: string;
   elevation?: number;
   riverMask?: number; // River connection bitmask: N=1, E=2, S=4, W=8
+  hasRoad?: boolean;
+  hasRailroad?: boolean;
+  improvements?: string[];
+  cityId?: string;
   owner?: string; // Player ID who owns this tile
   claimer?: string; // Player ID who is claiming this tile
 }
@@ -22,7 +26,13 @@ export interface Unit {
   y: number;
   hp: number;
   movesLeft: number;
+  maxMoves?: number;
   veteranLevel: number;
+  fortified?: boolean;
+  activity?: unknown;
+  orders?: unknown;
+  transportedBy?: string;
+  cargoUnits?: string[];
 }
 
 export interface ProductionOption {
@@ -222,6 +232,8 @@ export interface GameState {
     improvements: string[];
     cityId?: string;
     unitIds: string[];
+    owner?: string;
+    claimer?: string;
   }>;
 }
 

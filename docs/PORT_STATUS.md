@@ -1,6 +1,6 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 2 working tree (2026-07-26)
+**Verified against:** Milestone 4 working tree (2026-07-26)
 **Verification method:** source-tree audit plus passing client/unit tests and the
 production type check/build. Database-backed integration remains separately
 dependent on the configured PostgreSQL test service.
@@ -8,7 +8,7 @@ dependent on the configured PostgreSQL test service.
 **External verification blocker (2026-07-26):** `npm run test:integration` was
 attempted, but all 13 suites stopped in shared setup because neither
 `TEST_DATABASE_URL` nor a local PostgreSQL test database was available. No
-Milestone 2 integration assertion executed and failed.
+Milestone 4 integration assertion ran, so none failed.
 
 ## Purpose
 
@@ -85,10 +85,9 @@ visible-wall effects await Milestone 5 rendering support. This completion claim
 is limited to the Milestone 1 playable loop; it does not imply that later city,
 worker, action, client, AI, diplomacy, or metagame milestones are complete.
 
-## Milestone 3 — in progress
+## Milestone 3 — complete
 
-Production and authoritative city-output accounting are completed Milestone 3
-slices. Normal turn production, rush buying, completion, client progress, and
+Normal turn production, rush buying, completion, client progress, and
 persistence use one shield stock. Completion retains overflow, and classic
 unit/building rush premiums are covered by `CityProductionLifecycle.test.ts`.
 Tile output is now gross until the city calculation applies food support;
@@ -99,9 +98,59 @@ economics charges ruleset building upkeep without double-counting research.
 `CityOutputPipeline.test.ts`, `TradeDistribution.test.ts`, and
 `TurnProcessingService.research.test.ts` cover these paths.
 
-The remaining Milestone 3 scope includes trade routes, governor/citizen
-automation, unit upkeep, worker improvements, pollution placement/cleanup, and
-terrain transformations.
+Trade routes now use classic distance, size, international, and
+intercontinental factors; create reciprocal capacity-limited routes through
+the caravan action; contribute to city output; and survive recovery. Governor
+configuration and citizen parameters persist, and enabled governors execute in
+the city-turn pipeline. Home-city unit support deducts ruleset food, shield,
+and gold upkeep.
+
+Ruleset terrain data drives multi-turn road, railroad, irrigation, mining,
+pillage, cleanup, and transformation activities. Completion mutates and
+persists the authoritative map, worked-tile output is recalculated from that
+map, and pollution can be placed and cleaned. The client exposes these
+activities for all classic worker-capable units. Evidence includes
+`CityTradeRouteService.test.ts`, `CityManager.test.ts`,
+`CityOutputPipeline.test.ts`, `CityRulesetValues.test.ts`, and
+`UnitManager.test.ts`.
+
+## Milestone 4 — complete
+
+Classic movement now uses equal orthogonal/diagonal fragment costs, terrain
+class legality, the minimum-move rule, road and railroad integration, and
+ruleset unit flags such as `IgTer`, `IgZOC`, `HasNoZOC`, and class ZOC.
+Friendly units can stack; hostile ZOC blocks applicable land movement; and
+goto orders execute through the same authoritative single-step movement path.
+
+Ruleset cargo classes and capacities drive loading, unloading, embarkation,
+transport movement, persistence, and destruction. Combat resolves classic
+attack-versus-defense rounds using hit points, firepower, veteran status,
+terrain defense, fortification, city effects, and protected-versus-vulnerable
+stack death. Eligible military units
+capture undefended enemy cities through the authoritative ownership path,
+including classic one-population loss, improvement razing by genus, size-one
+city destruction, and reciprocal trade-route cleanup or recalculation.
+Fortify eligibility likewise comes from unit-class and unit-type flags.
+
+The generic action catalogue now exposes only actions with an authoritative
+execution route. Move and attack remain dedicated packet flows; unported
+diplomacy and sabotage actions are not advertised as playable. Load/unload,
+skip, disband, founding, goto, trade, fortify/sentry/wait, and worker actions
+all route through server validation and result handling. This action-surface
+invariant is covered by `ActionSystem.goto.test.ts`. Incremental unit packets
+use the same canonical shape as initial state and are visibility-scoped; the
+client applies them and presents authoritative success or validation feedback.
+
+Map packets visibility-scope roads, railroads, irrigation, mines, pollution,
+city ownership, and claimers. The client stores and renders those extras using
+the bundled Freeciv sprites. `GameBroadcastManager.test.ts` verifies that
+visible recipients receive the dynamic state while explored-but-hidden
+recipients do not. `MapManager.test.ts` pins a named seeded topology fixture,
+including terrain distribution, landmass count, and edge terrain.
+
+Evidence also includes `MovementConstants.test.ts`, `UnitManager.test.ts`,
+`PathfindingManager.test.ts`, the 741-test server unit suite, the 35-test
+client suite, both production type checks, and both production builds.
 
 ## Partial or incomplete areas
 
@@ -110,8 +159,8 @@ These are confirmed by explicit TODOs, placeholders, or unintegrated paths; they
 - AI turn processing is deferred (`TurnPhaseService.ts`).
 - Diplomacy, city-management, and game-options areas have client placeholders (`apps/client/src/components/GameUI/GameLayout.tsx`).
 - Smooth unit movement animation is not implemented (`apps/client/src/components/Canvas2D/renderers/UnitRenderer.ts`).
-- Several terrain, road, worker-action, and map-integration rules remain incomplete in `ActionSystem.ts` and `UnitManager.ts`.
-- Some economic and trade-route integration remains incomplete despite the presence of `CityTradeRouteService.ts`; verify end-to-end behavior before treating it as port-complete.
+- Diplomatic states, treaties, embassies, espionage/sabotage, and their UI
+  remain the explicit Milestone 6 scope; their action enums are not exposed.
 
 ## Porting workflow
 

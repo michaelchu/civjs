@@ -94,6 +94,11 @@ describe('ruleset-backed city values', () => {
         food: 4,
         shields: 2,
         trade: 1,
+        roadTime: 2,
+        irrigationFoodIncr: 1,
+        irrigationTime: 5,
+        miningShieldIncr: 0,
+        miningTime: 0,
       }),
       getCivstyle: () => ({ ...baseCivstyle, food_cost: 3 }),
     });
@@ -107,5 +112,20 @@ describe('ruleset-backed city values', () => {
       shields: 2,
       trade: 1,
     });
+  });
+
+  it('recalculates worked-tile output after an improvement changes the map', () => {
+    const cityState = city({ population: 1 });
+    const cities = new Map([[cityState.id, cityState]]);
+    const map = mapFor('grassland');
+    const mapTile = (map.getTile as jest.Mock)();
+    mapTile.improvements = [];
+    const service = new CityTileManagementService(cities, map, 5);
+
+    service.initializeWorkableTiles(cityState);
+    expect(service.calculateCityOutputs(cityState.id).food).toBe(2);
+
+    mapTile.improvements.push('irrigation');
+    expect(service.calculateCityOutputs(cityState.id).food).toBe(3);
   });
 });

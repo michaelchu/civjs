@@ -1,14 +1,18 @@
 import { DatabaseProvider } from '@database';
 import { units } from '@database/schema/units';
+import { games } from '@database/schema/games';
 import { eq } from 'drizzle-orm';
 import { logger } from '@utils/logger';
-import { getTerrainMovementCost } from '@game/constants/MovementConstants';
+import { getTerrainMovementCost, SINGLE_MOVE } from '@game/constants/MovementConstants';
 import { UNIT_TYPES, getUnitType, UnitType } from '@game/constants/UnitConstants';
 import { ActionSystem } from '@game/systems/ActionSystem';
 import { ActionType, ActionResult } from '@app-types/shared/actions';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import type { TerrainType } from '@game/map/MapTypes';
 
 interface CityAtLocation {
+  id: string;
   playerId: string;
   buildings?: string[];
 }
@@ -31,6 +35,7 @@ export interface Unit {
   autoExploreTarget?: { x: number; y: number };
   transportedBy?: string; // ID of unit transporting this unit
   cargoUnits?: string[]; // IDs of units being transported by this unit
+  homeCityId?: string;
 }
 
 export interface VeteranLevel {
@@ -54,6 +59,7 @@ export interface UnitOrder {
     | 'road'
     | 'railroad'
     | 'transform'
+    | 'cleanPollution'
     | 'sentry'
     | 'wait'
     | 'disband';
@@ -77,6 +83,7 @@ export interface UnitActivity {
     | 'mining'
     | 'pillaging'
     | 'transforming'
+    | 'cleaning_pollution'
     | 'fortifying'
     | 'patrolling';
   turnsRemaining: number;
@@ -91,6 +98,7 @@ export interface CombatResult {
   defenderDamage: number;
   attackerDestroyed: boolean;
   defenderDestroyed: boolean;
+  collateralDestroyedIds?: string[];
   experienceGained?: {
     attacker: number;
     defender: number;
@@ -130,6 +138,14 @@ export class UnitManager {
     ) => void;
     getCityAt?: (x: number, y: number) => CityAtLocation | null;
     getPlayerBuildings?: (playerId: string) => string[];
+    establishTradeRoute?: (
+      playerId: string,
+      homeCityId: string,
+      targetX: number,
+      targetY: number
+    ) => Promise<boolean>;
+    captureCity?: (cityId: string, playerId: string, unitId: string) => Promise<boolean>;
+    broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
   };
 
   constructor(
@@ -161,8 +177,17 @@ export class UnitManager {
       ) => void;
       getCityAt?: (x: number, y: number) => CityAtLocation | null;
       getPlayerBuildings?: (playerId: string) => string[];
+      establishTradeRoute?: (
+        playerId: string,
+        homeCityId: string,
+        targetX: number,
+        targetY: number
+      ) => Promise<boolean>;
+      captureCity?: (cityId: string, playerId: string, unitId: string) => Promise<boolean>;
+      broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
     },
-    effectsManager?: EffectsManager
+    effectsManager?: EffectsManager,
+    private readonly random: () => number = Math.random
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -171,7 +196,7 @@ export class UnitManager {
     this.mapManager = mapManager;
     this.gameManagerCallback = gameManagerCallback;
     this.effectsManager = effectsManager;
-    this.actionSystem = new ActionSystem(gameId, gameManagerCallback);
+    this.actionSystem = new ActionSystem(gameId, gameManagerCallback, mapManager);
   }
 
   public setCurrentTurnProvider(provider: () => number): void {
@@ -181,7 +206,13 @@ export class UnitManager {
   /**
    * Create a new unit
    */
-  async createUnit(playerId: string, unitTypeId: string, x: number, y: number): Promise<Unit> {
+  async createUnit(
+    playerId: string,
+    unitTypeId: string,
+    x: number,
+    y: number,
+    homeCityId?: string
+  ): Promise<Unit> {
     const unitType = UNIT_TYPES[unitTypeId];
     if (!unitType) {
       throw new Error(`Unknown unit type: ${unitTypeId}`);
@@ -190,12 +221,6 @@ export class UnitManager {
     // Validate position
     if (!this.isValidPosition(x, y)) {
       throw new Error(`Invalid position: ${x}, ${y}`);
-    }
-
-    // Check if there's already a unit at this position (for non-stacking rules)
-    const existingUnit = this.getUnitAt(x, y);
-    if (existingUnit && unitType.unitClass === 'civilian') {
-      throw new Error('Cannot stack civilian units');
     }
 
     const city = this.gameManagerCallback?.getCityAt?.(x, y);
@@ -228,6 +253,7 @@ export class UnitManager {
         movementPoints: (unitType.movement * 3).toString(),
         maxMovementPoints: (unitType.movement * 3).toString(),
         veteranLevel,
+        homeCityId,
         // @reference reference/freeciv/server/unittools.c:1215-1280
         createdTurn: this.currentTurnProvider?.() ?? 1,
       })
@@ -245,6 +271,7 @@ export class UnitManager {
       veteranLevel,
       experience: 0,
       fortified: false,
+      homeCityId,
     };
 
     this.units.set(unit.id, unit);
@@ -262,23 +289,77 @@ export class UnitManager {
       throw new Error(`Unit not found: ${unitId}`);
     }
 
-    const unitType = UNIT_TYPES[unit.unitTypeId];
-
     this.validateMoveTarget(newX, newY);
+    if (this.calculateDistance(unit.x, unit.y, newX, newY) !== 1) {
+      throw new Error('Units may only move to an adjacent tile');
+    }
+    if (unit.transportedBy) {
+      throw new Error('Transported unit must unload before moving');
+    }
+    const targetUnit = this.getUnitAt(newX, newY);
+    const targetCity = this.gameManagerCallback?.getCityAt?.(newX, newY);
+    if (targetCity && targetCity.playerId !== unit.playerId && !targetUnit) {
+      const unitType = UNIT_TYPES[unit.unitTypeId];
+      const canCapture =
+        unitType?.rulesetUnitClassFlags.includes('CanOccupyCity') &&
+        !unitType.flags?.includes('NonMil');
+      const captured =
+        canCapture && this.gameManagerCallback?.captureCity
+          ? await this.gameManagerCallback.captureCity(targetCity.id, unit.playerId, unit.id)
+          : false;
+      if (!captured) {
+        throw new Error('Cannot capture enemy city with this unit');
+      }
+    }
+    this.validateDestination(unit, targetUnit, newX, newY);
+    if (!this.canMoveWithZoneOfControl(unit, newX, newY)) {
+      throw new Error('Move blocked by enemy zone of control');
+    }
 
     const movementCost = this.calculateTerrainMovementCost(unit, unit.x, unit.y, newX, newY);
-    this.ensureSufficientMovement(unit, movementCost);
-
-    const targetUnit = this.getUnitAt(newX, newY);
-    this.validateDestination(unit, unitType, targetUnit, newX, newY);
+    const embarkTransport =
+      movementCost < 0 ? this.findAvailableTransportAt(unit, newX, newY) : undefined;
+    if (movementCost < 0 && !embarkTransport) {
+      throw new Error(`Unit cannot enter terrain at ${newX}, ${newY}`);
+    }
+    const effectiveMovementCost = embarkTransport ? SINGLE_MOVE : movementCost;
+    this.ensureSufficientMovement(unit);
 
     // Update unit state
     unit.x = newX;
     unit.y = newY;
-    unit.movementLeft -= movementCost;
+    unit.movementLeft = Math.max(0, unit.movementLeft - effectiveMovementCost);
     unit.fortified = false; // Moving breaks fortification
+    if (embarkTransport) {
+      unit.transportedBy = embarkTransport.id;
+      embarkTransport.cargoUnits ??= [];
+      embarkTransport.cargoUnits.push(unit.id);
+    }
+
+    const cargo = (unit.cargoUnits ?? [])
+      .map(cargoId => this.units.get(cargoId))
+      .filter((cargoUnit): cargoUnit is Unit => Boolean(cargoUnit));
+    for (const cargoUnit of cargo) {
+      cargoUnit.x = newX;
+      cargoUnit.y = newY;
+    }
 
     await this.updateUnitPositionInDb(unitId, unit);
+    if (embarkTransport) {
+      await Promise.all([
+        this.databaseProvider
+          .getDatabase()
+          .update(units)
+          .set({ transportedBy: embarkTransport.id })
+          .where(eq(units.id, unit.id)),
+        this.databaseProvider
+          .getDatabase()
+          .update(units)
+          .set({ cargoUnits: embarkTransport.cargoUnits })
+          .where(eq(units.id, embarkTransport.id)),
+      ]);
+    }
+    await Promise.all(cargo.map(cargoUnit => this.updateUnitPositionInDb(cargoUnit.id, cargoUnit)));
 
     logger.info(`Unit ${unitId} moved to (${newX}, ${newY})`);
     return true;
@@ -290,15 +371,16 @@ export class UnitManager {
     }
   }
 
-  private ensureSufficientMovement(unit: Unit, movementCost: number): void {
-    if (unit.movementLeft < movementCost) {
+  private ensureSufficientMovement(unit: Unit): void {
+    // Freeciv's minimum-move rule permits one adjacent step whenever a unit
+    // has any fragments left, even when the terrain cost is higher.
+    if (unit.movementLeft <= 0) {
       throw new Error('Not enough movement points');
     }
   }
 
   private validateDestination(
     unit: Unit,
-    unitType: UnitType,
     targetUnit: Unit | undefined,
     newX: number,
     newY: number
@@ -313,10 +395,59 @@ export class UnitManager {
         throw new Error('Cannot move to tile occupied by enemy city');
       }
     }
+  }
 
-    if (targetUnit && unitType.unitClass === 'civilian') {
-      throw new Error('Cannot stack civilian units');
+  /**
+   * Classic ground units may not move from one enemy-controlled tile directly
+   * into another. Friendly stacks, cities, non-ZOC terrain, and IgZOC units
+   * are exempt.
+   * @reference reference/freeciv/common/movement.c:573-595
+   * @reference reference/freeciv/common/unit.c:1443-1510
+   */
+  private canMoveWithZoneOfControl(unit: Unit, newX: number, newY: number): boolean {
+    const type = UNIT_TYPES[unit.unitTypeId];
+    const subjectToZoc =
+      type?.rulesetUnitClassFlags.includes('ZOC') && !type.flags?.includes('IgZOC');
+    if (!subjectToZoc) return true;
+
+    if (this.getUnitsAt(newX, newY).some(candidate => candidate.playerId === unit.playerId)) {
+      return true;
     }
+    if (
+      this.gameManagerCallback?.getCityAt?.(unit.x, unit.y) ||
+      this.gameManagerCallback?.getCityAt?.(newX, newY)
+    ) {
+      return true;
+    }
+
+    const noZocTerrains = new Set(['ocean', 'deep_ocean', 'coast', 'lake']);
+    if (
+      noZocTerrains.has(this.getTerrainAt(unit.x, unit.y)) ||
+      noZocTerrains.has(this.getTerrainAt(newX, newY))
+    ) {
+      return true;
+    }
+
+    return (
+      !this.hasAdjacentEnemyZoc(unit.playerId, unit.x, unit.y) ||
+      !this.hasAdjacentEnemyZoc(unit.playerId, newX, newY)
+    );
+  }
+
+  private hasAdjacentEnemyZoc(playerId: string, x: number, y: number): boolean {
+    return [...this.units.values()].some(candidate => {
+      if (
+        candidate.playerId === playerId ||
+        candidate.transportedBy ||
+        this.calculateDistance(x, y, candidate.x, candidate.y) > 1
+      ) {
+        return false;
+      }
+      const type = UNIT_TYPES[candidate.unitTypeId];
+      return Boolean(
+        type?.rulesetUnitClassFlags.includes('ZOC') && !type.flags?.includes('HasNoZOC')
+      );
+    });
   }
 
   private async updateUnitPositionInDb(unitId: string, unit: Unit): Promise<void> {
@@ -337,9 +468,21 @@ export class UnitManager {
     if (!attacker || !defender) {
       throw new Error('Unit not found');
     }
+    if (attacker.playerId === defender.playerId) {
+      throw new Error('Cannot attack a friendly unit');
+    }
+    if (attacker.transportedBy || defender.transportedBy) {
+      throw new Error('Transported units cannot directly participate in combat');
+    }
 
     const attackerType = UNIT_TYPES[attacker.unitTypeId];
     const defenderType = UNIT_TYPES[defender.unitTypeId];
+    const defenderTileUnits = this.getUnitsAt(defender.x, defender.y).filter(
+      unit => unit.playerId === defender.playerId && unit.id !== defender.id
+    );
+    if ((attackerType.attack ?? 0) <= 0) {
+      throw new Error('Unit has no attack strength');
+    }
 
     // Check if attacker has movement left
     if (attacker.movementLeft <= 0) {
@@ -353,26 +496,41 @@ export class UnitManager {
       throw new Error('Target out of range');
     }
 
-    // Simple combat calculation
-    const attackerStrength = this.calculateCombatStrength(attacker, attackerType);
+    const attackerStrength = this.calculateAttackStrength(attacker, attackerType);
     const defenderStrength = this.calculateCombatStrength(defender, defenderType);
-
-    // Calculate damage (simplified formula)
-    const damageToDefender = Math.floor(
-      (attackerStrength / (attackerStrength + defenderStrength)) * 30 + Math.random() * 20
+    const attackerStartingHealth = attacker.health;
+    const defenderStartingHealth = defender.health;
+    const damagePerAttackerWin = Math.max(
+      1,
+      Math.round(((attackerType.firepower ?? 1) * 100) / (defenderType.hitpoints ?? 10))
     );
-    const damageToAttacker = Math.floor(
-      (defenderStrength / (attackerStrength + defenderStrength)) * 20 + Math.random() * 10
+    const damagePerDefenderWin = Math.max(
+      1,
+      Math.round(((defenderType.firepower ?? 1) * 100) / (attackerType.hitpoints ?? 10))
     );
 
-    // Apply damage
-    attacker.health -= damageToAttacker;
-    defender.health -= damageToDefender;
+    // Classic combat resolves one firepower exchange at a time until one unit
+    // dies. A round is selected by attack power versus defense power; current
+    // hit points determine how many rounds a unit can endure, not its power.
+    // @reference reference/freeciv/server/unittools.c:292-351
+    while (attacker.health > 0 && defender.health > 0) {
+      if (this.random() * (attackerStrength + defenderStrength) >= defenderStrength) {
+        defender.health -= damagePerAttackerWin;
+      } else {
+        attacker.health -= damagePerDefenderWin;
+      }
+    }
+
+    attacker.health = Math.max(0, attacker.health);
+    defender.health = Math.max(0, defender.health);
+    const damageToAttacker = attackerStartingHealth - attacker.health;
+    const damageToDefender = defenderStartingHealth - defender.health;
     attacker.movementLeft = 0; // Attack uses all remaining movement
 
     // Check for unit destruction
     const attackerDestroyed = attacker.health <= 0;
     const defenderDestroyed = defender.health <= 0;
+    let resultCollateralDestroyedIds: string[] | undefined;
 
     // Award experience based on combat outcome
     let attackerExp = 0;
@@ -390,17 +548,6 @@ export class UnitManager {
       if (attackerExp > 0) {
         await this.awardExperience(attackerId, attackerExp);
       }
-    } else {
-      // Both survived - award minimal experience
-      attackerExp = this.calculateCombatExperience(attacker, defender, false);
-      defenderExp = this.calculateCombatExperience(defender, attacker, false);
-
-      if (attackerExp > 0) {
-        await this.awardExperience(attackerId, attackerExp);
-      }
-      if (defenderExp > 0) {
-        await this.awardExperience(defenderId, defenderExp);
-      }
     }
 
     // Handle unit destruction
@@ -416,8 +563,28 @@ export class UnitManager {
 
     if (defenderDestroyed) {
       await this.destroyUnit(defenderId);
+      const stackProtected = Boolean(
+        this.gameManagerCallback?.getCityAt?.(defender.x, defender.y) ||
+          this.mapManager
+            ?.getTile(defender.x, defender.y)
+            ?.improvements?.some((extra: string) => extra === 'fortress' || extra === 'airbase')
+      );
+      const collateralDestroyedIds: string[] = [];
+      if (!stackProtected) {
+        // Classic enables killstack by default outside cities, fortresses, and
+        // airbases, whose NoStackDeath flag protects the remaining defenders.
+        // @reference reference/freeciv/common/game.h:552
+        // @reference reference/freeciv/common/combat.c:990-1000
+        for (const stackedUnit of defenderTileUnits) {
+          await this.destroyUnit(stackedUnit.id);
+          collateralDestroyedIds.push(stackedUnit.id);
+        }
+      }
       // If defender is destroyed and attacker is melee, move to defender's position
-      if (!attackerDestroyed && attackerType.range === 1) {
+      const hostileUnitsRemain = this.getUnitsAt(defender.x, defender.y).some(
+        unit => unit.playerId === defender.playerId
+      );
+      if (!attackerDestroyed && attackerType.range === 1 && !hostileUnitsRemain) {
         attacker.x = defender.x;
         attacker.y = defender.y;
         await this.databaseProvider
@@ -426,6 +593,7 @@ export class UnitManager {
           .set({ x: attacker.x, y: attacker.y })
           .where(eq(units.id, attackerId));
       }
+      resultCollateralDestroyedIds = collateralDestroyedIds;
     } else {
       await this.databaseProvider
         .getDatabase()
@@ -441,6 +609,7 @@ export class UnitManager {
       defenderDamage: damageToDefender,
       attackerDestroyed,
       defenderDestroyed,
+      collateralDestroyedIds: resultCollateralDestroyedIds,
       experienceGained: {
         attacker: attackerExp,
         defender: defenderExp,
@@ -584,10 +753,14 @@ export class UnitManager {
         veteranLevel: dbUnit.veteranLevel,
         experience: dbUnit.experience || 0,
         fortified: dbUnit.isFortified,
-        orders:
-          dbUnit.orders && typeof dbUnit.orders === 'string' && dbUnit.orders.trim()
+        orders: Array.isArray(dbUnit.orders)
+          ? (dbUnit.orders as UnitOrder[])
+          : dbUnit.orders && typeof dbUnit.orders === 'string' && dbUnit.orders.trim()
             ? JSON.parse(dbUnit.orders)
             : [],
+        transportedBy: dbUnit.transportedBy ?? undefined,
+        cargoUnits: Array.isArray(dbUnit.cargoUnits) ? (dbUnit.cargoUnits as string[]) : [],
+        homeCityId: dbUnit.homeCityId ?? undefined,
       };
       this.units.set(unit.id, unit);
     }
@@ -596,16 +769,30 @@ export class UnitManager {
   }
 
   /**
-   * Calculate combat strength with veteran bonuses
-   * @reference freeciv/common/combat.c get_total_attack_power()
+   * Calculate attack power with veteran bonuses.
+   * @reference reference/freeciv/common/combat.c:608-647
+   */
+  private calculateAttackStrength(unit: Unit, unitType: UnitType): number {
+    const veteranLevel = this.getVeteranLevel(unit.veteranLevel);
+    return Math.max(1, Math.floor((unitType.attack ?? unitType.combat) * veteranLevel.powerFactor));
+  }
+
+  /**
+   * Calculate defense power with veteran, terrain, fortify, and city bonuses.
+   * Kept under the established name because focused ruleset tests exercise it.
+   * @reference reference/freeciv/common/combat.c:650-708
    * @reference freeciv/common/combat.c defense_multiplication() / EFT_FORTIFY_DEFENSE_BONUS
    */
   private calculateCombatStrength(unit: Unit, unitType: UnitType): number {
-    let strength = unitType.combat;
+    let strength = unitType.defense ?? unitType.combat;
 
-    // Veteran bonus - more sophisticated calculation
     const veteranLevel = this.getVeteranLevel(unit.veteranLevel);
     strength = Math.floor(strength * veteranLevel.powerFactor);
+
+    if (unitType.rulesetUnitClassFlags.includes('TerrainDefense')) {
+      const terrainDefense = rulesetLoader.getTerrain(this.getTerrainAt(unit.x, unit.y)).defense;
+      strength = Math.floor((strength * (100 + terrainDefense)) / 100);
+    }
 
     // @reference reference/freeciv/common/combat.c:697-708
     strength = Math.floor(
@@ -616,10 +803,7 @@ export class UnitManager {
       (strength * (100 + this.calculateCityDefenseBonus(unit, unitType))) / 100
     );
 
-    // Health modifier
-    strength = Math.floor(strength * (unit.health / 100));
-
-    return Math.max(1, strength);
+    return Math.max(0, strength);
   }
 
   /**
@@ -818,14 +1002,14 @@ export class UnitManager {
    * @param y Y coordinate
    * @returns terrain type string
    */
-  private getTerrainAt(x: number, y: number): string {
+  private getTerrainAt(x: number, y: number): TerrainType {
     if (!this.mapManager) {
       return 'plains'; // Default terrain if no map manager
     }
 
     try {
       const tile = this.mapManager.getTile(x, y);
-      return tile?.terrain || 'plains';
+      return (tile?.terrain as TerrainType | undefined) || 'plains';
     } catch (error) {
       logger.warn(`Failed to get terrain at (${x}, ${y}):`, error);
       return 'plains';
@@ -837,28 +1021,36 @@ export class UnitManager {
    * @reference freeciv/common/movement.c map_move_cost_unit()
    */
   private calculateTerrainMovementCost(
-    _unit: Unit,
+    unit: Unit,
     fromX: number,
     fromY: number,
     toX: number,
     toY: number
   ): number {
-    const distance = this.calculateDistance(fromX, fromY, toX, toY);
-
-    // For non-adjacent moves, calculate path cost (simplified)
-    if (distance > 1) {
-      // For now, treat as straight-line movement with destination terrain cost
-      const destinationTerrain = this.getTerrainAt(toX, toY);
-      return getTerrainMovementCost(destinationTerrain) * distance;
-    }
-
-    // Adjacent move - use destination terrain cost
     const destinationTerrain = this.getTerrainAt(toX, toY);
-    const movementCost = getTerrainMovementCost(destinationTerrain);
+    const unitType = UNIT_TYPES[unit.unitTypeId];
+    if (unitType?.rulesetUnitClass === 'Trireme' && destinationTerrain === 'deep_ocean') {
+      return -1;
+    }
+    const movementCost = getTerrainMovementCost(destinationTerrain, unit.unitTypeId);
+    if (movementCost < 0) return movementCost;
 
-    // TODO: Add road/railroad bonuses
-    // TODO: Add river crossing penalties
-    // TODO: Add unit-specific terrain bonuses (e.g., alpine troops in mountains)
+    const fromTile = this.mapManager?.getTile(fromX, fromY);
+    const destinationTile = this.mapManager?.getTile(toX, toY);
+    const usesLandInfrastructure = unitType?.rulesetUnitClass === 'Land';
+
+    // Classic road costs are already expressed in movement fragments. Both
+    // endpoints must carry the integrating road extra.
+    // @reference reference/freeciv/data/classic/terrain.ruleset:2078-2093
+    if (usesLandInfrastructure && fromTile?.hasRailroad && destinationTile?.hasRailroad) {
+      return 0;
+    }
+    if (usesLandInfrastructure && fromTile?.hasRoad && destinationTile?.hasRoad) {
+      return 1;
+    }
+    if (unitType?.flags?.includes('IgTer')) {
+      return 1;
+    }
 
     return movementCost;
   }
@@ -882,6 +1074,23 @@ export class UnitManager {
    * Destroy a unit
    */
   private async destroyUnit(unitId: string): Promise<void> {
+    const unit = this.units.get(unitId);
+    if (!unit) return;
+
+    for (const cargoId of [...(unit.cargoUnits ?? [])]) {
+      await this.destroyUnit(cargoId);
+    }
+    if (unit.transportedBy) {
+      const transport = this.units.get(unit.transportedBy);
+      if (transport) {
+        transport.cargoUnits = (transport.cargoUnits ?? []).filter(id => id !== unitId);
+        await this.databaseProvider
+          .getDatabase()
+          .update(units)
+          .set({ cargoUnits: transport.cargoUnits })
+          .where(eq(units.id, transport.id));
+      }
+    }
     this.units.delete(unitId);
     await this.databaseProvider.getDatabase().delete(units).where(eq(units.id, unitId));
     logger.info(`Unit ${unitId} destroyed`);
@@ -931,7 +1140,8 @@ export class UnitManager {
     unitId: string,
     actionType: ActionType,
     targetX?: number,
-    targetY?: number
+    targetY?: number,
+    actingPlayerId?: string
   ): Promise<ActionResult> {
     const unit = this.units.get(unitId);
     if (!unit) {
@@ -939,6 +1149,31 @@ export class UnitManager {
         success: false,
         message: `Unit not found: ${unitId}`,
       };
+    }
+    if (actingPlayerId && unit.playerId !== actingPlayerId) {
+      return {
+        success: false,
+        message: `Unit ${unitId} does not belong to player ${actingPlayerId}`,
+      };
+    }
+
+    if (actionType === ActionType.LOAD_UNIT) {
+      const transport = this.findAvailableTransportAt(unit, targetX ?? unit.x, targetY ?? unit.y);
+      const loaded = transport ? await this.loadUnitOntoTransport(transport.id, unit.id) : false;
+      return {
+        success: loaded,
+        message: loaded ? 'Unit loaded' : 'No compatible transport with available capacity',
+      };
+    }
+    if (actionType === ActionType.UNLOAD_UNIT) {
+      const unloaded = await this.unloadUnit(unit.id, targetX ?? unit.x, targetY ?? unit.y);
+      return {
+        success: unloaded,
+        message: unloaded ? 'Unit unloaded' : 'Unit cannot unload on the target tile',
+      };
+    }
+    if (actionType === ActionType.GOTO) {
+      return this.executeAuthoritativeGoto(unit, targetX, targetY);
     }
 
     // Execute action through ActionSystem
@@ -952,6 +1187,67 @@ export class UnitManager {
     return result;
   }
 
+  private async executeAuthoritativeGoto(
+    unit: Unit,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    if (targetX === undefined || targetY === undefined || !this.gameManagerCallback?.requestPath) {
+      return { success: false, message: 'Pathfinding target is unavailable' };
+    }
+    const pathResult = await this.gameManagerCallback.requestPath(
+      unit.playerId,
+      unit.id,
+      targetX,
+      targetY
+    );
+    const path = pathResult.path?.tiles;
+    if (!pathResult.success || !Array.isArray(path) || path.length < 2) {
+      return { success: false, message: pathResult.error ?? 'No valid path to target' };
+    }
+
+    let moved = 0;
+    let failure: unknown;
+    for (const step of path.slice(1)) {
+      if (unit.movementLeft <= 0) break;
+      try {
+        await this.moveUnit(unit.id, step.x, step.y);
+        moved++;
+      } catch (error) {
+        failure = error;
+        break;
+      }
+    }
+    if (moved === 0) {
+      return {
+        success: false,
+        message: failure instanceof Error ? failure.message : 'Cannot move along path',
+      };
+    }
+
+    const reached = unit.x === targetX && unit.y === targetY;
+    unit.orders = reached ? [] : [{ type: 'move', targetX, targetY }];
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ orders: unit.orders, currentOrder: unit.orders[0]?.type ?? null })
+      .where(eq(units.id, unit.id));
+    this.gameManagerCallback.broadcastUnitMoved(
+      this.gameId,
+      unit.id,
+      unit.x,
+      unit.y,
+      unit.movementLeft
+    );
+    return {
+      success: true,
+      message: reached ? 'Unit reached destination' : 'Unit will continue next turn',
+      newPosition: { x: unit.x, y: unit.y },
+      newMovementLeft: unit.movementLeft,
+      newOrders: unit.orders,
+    };
+  }
+
   /**
    * Check if unit can perform action
    */
@@ -963,6 +1259,13 @@ export class UnitManager {
   ): boolean {
     const unit = this.units.get(unitId);
     if (!unit) return false;
+
+    if (actionType === ActionType.LOAD_UNIT) {
+      return Boolean(this.findAvailableTransportAt(unit, targetX ?? unit.x, targetY ?? unit.y));
+    }
+    if (actionType === ActionType.UNLOAD_UNIT) {
+      return this.canUnloadUnit(unitId, targetX ?? unit.x, targetY ?? unit.y);
+    }
 
     return this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY);
   }
@@ -990,6 +1293,11 @@ export class UnitManager {
         // Wait preserves movement points
         break;
 
+      case ActionType.SKIP_TURN:
+        unit.movementLeft = 0;
+        updateData = { movementPoints: '0' };
+        break;
+
       case ActionType.GOTO:
         updateData = this.handleGoto(unit, result);
         break;
@@ -1000,8 +1308,25 @@ export class UnitManager {
         break;
       }
 
+      case ActionType.TRADE_ROUTE:
+        if (result.unitDestroyed) {
+          await this.destroyUnit(unit.id);
+          return;
+        }
+        break;
+
+      case ActionType.DISBAND_UNIT:
+        await this.destroyUnit(unit.id);
+        return;
+
       case ActionType.BUILD_ROAD:
-        updateData = this.handleBuildRoad(unit);
+      case ActionType.BUILD_RAILROAD:
+      case ActionType.BUILD_IRRIGATION:
+      case ActionType.BUILD_MINE:
+      case ActionType.PILLAGE:
+      case ActionType.TRANSFORM_TERRAIN:
+      case ActionType.CLEAN_POLLUTION:
+        updateData = this.handleWorkerActivity(unit, actionType);
         break;
     }
 
@@ -1072,9 +1397,26 @@ export class UnitManager {
     return false;
   }
 
-  private handleBuildRoad(unit: Unit): any {
+  private handleWorkerActivity(unit: Unit, actionType: ActionType): any {
+    const orderTypes: Partial<Record<ActionType, UnitOrder['type']>> = {
+      [ActionType.BUILD_ROAD]: 'road',
+      [ActionType.BUILD_RAILROAD]: 'railroad',
+      [ActionType.BUILD_IRRIGATION]: 'irrigate',
+      [ActionType.BUILD_MINE]: 'mine',
+      [ActionType.PILLAGE]: 'pillage',
+      [ActionType.TRANSFORM_TERRAIN]: 'transform',
+      [ActionType.CLEAN_POLLUTION]: 'cleanPollution',
+    };
+    const orderType = orderTypes[actionType];
+    if (!orderType) return {};
+    unit.orders = [{ type: orderType }];
+    unit.activity = undefined;
     unit.movementLeft = 0;
-    return { movementPoints: '0' };
+    return {
+      movementPoints: '0',
+      orders: unit.orders,
+      currentOrder: orderType,
+    };
   }
 
   /**
@@ -1130,6 +1472,8 @@ export class UnitManager {
       case 'irrigate':
       case 'mine':
       case 'transform':
+      case 'pillage':
+      case 'cleanPollution':
         await this.processActivityOrder(unit, order);
         break;
       case 'fortify':
@@ -1154,7 +1498,15 @@ export class UnitManager {
     const currentOrder = unit.orders[0];
 
     // Activity orders can continue even without movement points
-    const activityOrders = ['road', 'railroad', 'irrigate', 'mine', 'transform', 'pillage'];
+    const activityOrders = [
+      'road',
+      'railroad',
+      'irrigate',
+      'mine',
+      'transform',
+      'pillage',
+      'cleanPollution',
+    ];
     if (activityOrders.includes(currentOrder.type)) {
       return true;
     }
@@ -1186,13 +1538,7 @@ export class UnitManager {
       movementLeft: unit.movementLeft,
     });
 
-    // Execute the GOTO action
-    const result = await this.actionSystem.executeAction(
-      unit,
-      ActionType.GOTO,
-      order.targetX,
-      order.targetY
-    );
+    const result = await this.executeAuthoritativeGoto(unit, order.targetX, order.targetY);
 
     logger.info('Move order execution result', {
       unitId: unit.id,
@@ -1213,9 +1559,7 @@ export class UnitManager {
   /**
    * Handle successful GOTO action result
    */
-  private async handleSuccessfulGoto(unit: Unit, order: any, result: any): Promise<void> {
-    await this.applyActionResult(unit, ActionType.GOTO, result);
-
+  private async handleSuccessfulGoto(unit: Unit, order: any, _result: any): Promise<void> {
     // Log completion or continuation status
     if (unit.x === order.targetX && unit.y === order.targetY) {
       logger.info(`Unit ${unit.id} completed GOTO to (${order.targetX}, ${order.targetY})`);
@@ -1263,10 +1607,9 @@ export class UnitManager {
     }
 
     // Execute movement toward target
-    const result = await this.actionSystem.executeAction(unit, ActionType.GOTO, targetX, targetY);
+    const result = await this.executeAuthoritativeGoto(unit, targetX, targetY);
 
     if (result.success) {
-      await this.applyActionResult(unit, ActionType.GOTO, result);
       logger.info(`Unit ${unit.id} patrolling toward (${targetX}, ${targetY})`);
     } else {
       logger.warn(`Patrol failed for unit ${unit.id}: ${result.message}`);
@@ -1279,11 +1622,11 @@ export class UnitManager {
    */
   private async processActivityOrder(unit: Unit, order: UnitOrder): Promise<void> {
     // Initialize activity if not already started
-    if (!unit.activity || unit.activity.type === 'idle') {
+    if (!order.activity || order.activity.type === 'idle') {
       const activityType = this.getActivityTypeFromOrder(order.type);
       const turnsRequired = this.getActivityDuration(order.type, unit);
 
-      unit.activity = {
+      order.activity = {
         type: activityType,
         turnsRemaining: turnsRequired,
         totalTurns: turnsRequired,
@@ -1292,11 +1635,12 @@ export class UnitManager {
 
       logger.info(`Unit ${unit.id} started ${activityType} activity (${turnsRequired} turns)`);
     }
+    unit.activity = order.activity;
 
     // Process turn of activity
-    unit.activity.turnsRemaining--;
+    order.activity.turnsRemaining--;
 
-    if (unit.activity.turnsRemaining <= 0) {
+    if (order.activity.turnsRemaining <= 0) {
       // Activity completed
       await this.completeActivity(unit, order);
       unit.activity = { type: 'idle', turnsRemaining: 0, totalTurns: 0 };
@@ -1306,6 +1650,15 @@ export class UnitManager {
 
     // Activities consume all movement
     unit.movementLeft = 0;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({
+        movementPoints: '0',
+        orders: unit.orders ?? [],
+        currentOrder: unit.orders?.[0]?.type ?? null,
+      })
+      .where(eq(units.id, unit.id));
   }
 
   /**
@@ -1353,6 +1706,7 @@ export class UnitManager {
       mine: 'mining',
       transform: 'transforming',
       pillage: 'pillaging',
+      cleanPollution: 'cleaning_pollution',
     };
     return activityMap[orderType] || 'idle';
   }
@@ -1362,20 +1716,22 @@ export class UnitManager {
    * @reference freeciv ruleset activity times
    */
   private getActivityDuration(orderType: string, unit: Unit): number {
-    // Base activity times (in turns)
+    const tile = this.mapManager?.getTile(unit.x, unit.y);
+    const terrain = tile ? rulesetLoader.getTerrain(tile.terrain) : undefined;
     const baseTimes: Record<string, number> = {
-      road: 3,
+      road: terrain?.roadTime ?? 0,
       railroad: 3,
-      irrigate: 5,
-      mine: 5,
-      transform: 24, // Very long activity
+      irrigate: terrain?.irrigationTime ?? 0,
+      mine: terrain?.miningTime ?? 0,
+      transform: terrain?.transformTime ?? 0,
       pillage: 1,
+      cleanPollution: 3,
     };
 
     let baseTurns = baseTimes[orderType] || 1;
 
     // Engineer units work twice as fast as workers
-    if (unit.unitTypeId === 'engineer') {
+    if (unit.unitTypeId === 'engineers') {
       baseTurns = Math.ceil(baseTurns / 2);
     }
 
@@ -1386,7 +1742,65 @@ export class UnitManager {
    * Complete an activity and apply its effects
    */
   private async completeActivity(unit: Unit, order: UnitOrder): Promise<void> {
-    // TODO: Integrate with MapManager to apply terrain/improvement changes
+    const tile = this.mapManager?.getTile(unit.x, unit.y);
+    if (!tile) {
+      throw new Error(`No map tile at (${unit.x}, ${unit.y})`);
+    }
+
+    const extras = new Set(tile.improvements);
+    switch (order.type) {
+      case 'road':
+        extras.add('road');
+        this.mapManager.updateTileProperty(unit.x, unit.y, 'hasRoad', true);
+        break;
+      case 'railroad':
+        extras.add('railroad');
+        this.mapManager.updateTileProperty(unit.x, unit.y, 'hasRailroad', true);
+        break;
+      case 'irrigate':
+        extras.delete('mine');
+        extras.add('irrigation');
+        break;
+      case 'mine':
+        extras.delete('irrigation');
+        extras.add('mine');
+        break;
+      case 'transform': {
+        const transformed = rulesetLoader.getTerrain(tile.terrain).transformTo;
+        if (transformed) {
+          this.mapManager.updateTileProperty(unit.x, unit.y, 'terrain', transformed as TerrainType);
+          extras.delete('irrigation');
+          extras.delete('mine');
+        }
+        break;
+      }
+      case 'pillage': {
+        const target = tile.hasRailroad ? 'railroad' : tile.hasRoad ? 'road' : tile.improvements[0];
+        if (target === 'railroad') {
+          this.mapManager.updateTileProperty(unit.x, unit.y, 'hasRailroad', false);
+        } else if (target === 'road') {
+          this.mapManager.updateTileProperty(unit.x, unit.y, 'hasRoad', false);
+        }
+        if (target) extras.delete(target);
+        break;
+      }
+      case 'cleanPollution':
+        extras.delete('pollution');
+        break;
+    }
+    this.mapManager.updateTileProperty(unit.x, unit.y, 'improvements', [...extras]);
+    const mapData = this.mapManager.getMapData?.();
+    if (mapData) {
+      // Worker extras are part of the authoritative map and must survive a
+      // server restart just like terrain and ownership.
+      // @reference reference/freeciv/server/savegame/savegame3.c:2490-2600
+      await this.databaseProvider
+        .getDatabase()
+        .update(games)
+        .set({ mapData })
+        .where(eq(games.id, this.gameId));
+      this.gameManagerCallback?.broadcastMapChanged?.(this.gameId, mapData);
+    }
     logger.info(`Activity ${order.type} completed by unit ${unit.id} at (${unit.x}, ${unit.y})`);
   }
 
@@ -1490,7 +1904,7 @@ export class UnitManager {
    * Check if a unit can deboard (unload) from its transport
    * @reference freeciv-web/javascript/unit.js unit_can_deboard()
    */
-  canUnloadUnit(unitId: string): boolean {
+  canUnloadUnit(unitId: string, targetX?: number, targetY?: number): boolean {
     const unit = this.units.get(unitId);
     if (!unit || !unit.transportedBy) {
       return false; // Not transported, cannot deboard
@@ -1501,26 +1915,19 @@ export class UnitManager {
       return false; // Transport not found
     }
 
-    // Always can deboard in cities (placeholder logic)
-    // TODO: Add proper city detection when CityManager is available
-    // if (tile_has_city) return true;
-
-    // For now, allow deboarding on land tiles for ground units
-    // This is a simplified version - the original has complex ruleset logic
     const unitType = UNIT_TYPES[unit.unitTypeId];
-    const transportType = UNIT_TYPES[transport.unitTypeId];
-
-    if (unitType.unitClass === 'naval' && transportType.unitClass === 'naval') {
-      return true; // Naval units can always deboard from naval transports
+    const x = targetX ?? transport.x;
+    const y = targetY ?? transport.y;
+    if (!this.isValidPosition(x, y) || this.calculateDistance(transport.x, transport.y, x, y) > 1) {
+      return false;
     }
-
-    if (unitType.unitClass !== 'naval' && transportType.unitClass === 'naval') {
-      // Ground/air units need to be on coast or in port
-      // TODO: Add proper terrain checking when MapManager is integrated
-      return true; // Simplified - allow for now
+    const terrain = this.getTerrainAt(x, y);
+    if (getTerrainMovementCost(terrain, unit.unitTypeId) < 0) {
+      return false;
     }
-
-    return true; // Default allow - will be refined with proper terrain/city checks
+    const enemy = this.getUnitsAt(x, y).some(candidate => candidate.playerId !== unit.playerId);
+    const city = this.gameManagerCallback?.getCityAt?.(x, y);
+    return !enemy && (!city || city.playerId === unit.playerId) && Boolean(unitType);
   }
 
   /**
@@ -1531,6 +1938,9 @@ export class UnitManager {
     const cargo = this.units.get(cargoId);
 
     if (!transport || !cargo) {
+      return false;
+    }
+    if (transport.playerId !== cargo.playerId) {
       return false;
     }
 
@@ -1563,29 +1973,23 @@ export class UnitManager {
    * @reference freeciv-web/javascript/unit.js unit_could_possibly_load()
    */
   private isValidTransportCombination(transportType: string, cargoType: string): boolean {
-    // Simplified transport rules - in a full implementation this would check
-    // the ruleset's cargo capacity and allowed unit classes
+    const transport = UNIT_TYPES[transportType];
+    const cargo = UNIT_TYPES[cargoType];
+    return Boolean(
+      transport &&
+        cargo &&
+        (transport.transport_capacity ?? 0) > 0 &&
+        transport.cargoClasses.includes(cargo.rulesetUnitClass ?? '')
+    );
+  }
 
-    const transportRules: Record<string, string[]> = {
-      trireme: ['warriors', 'archers', 'settlers', 'diplomat'],
-      caravel: ['warriors', 'archers', 'settlers', 'diplomat', 'musketeers'],
-      galleon: ['warriors', 'archers', 'settlers', 'diplomat', 'musketeers', 'riflemen'],
-      transport: [
-        'warriors',
-        'archers',
-        'settlers',
-        'diplomat',
-        'musketeers',
-        'riflemen',
-        'cavalry',
-        'armor',
-      ],
-      carrier: ['fighter', 'bomber'],
-      submarine: [],
-    };
-
-    const allowedCargo = transportRules[transportType] || [];
-    return allowedCargo.includes(cargoType);
+  private findAvailableTransportAt(cargo: Unit, x: number, y: number): Unit | undefined {
+    return this.getUnitsAt(x, y).find(
+      transport =>
+        transport.playerId === cargo.playerId &&
+        this.getTransportCapacityRemaining(transport.id) > 0 &&
+        this.isValidTransportCombination(transport.unitTypeId, cargo.unitTypeId)
+    );
   }
 
   /**
@@ -1618,6 +2022,11 @@ export class UnitManager {
         movementPoints: '0',
       })
       .where(eq(units.id, cargoId));
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ cargoUnits: transport.cargoUnits })
+      .where(eq(units.id, transportId));
 
     logger.info(`Unit ${cargoId} loaded onto transport ${transportId}`, {
       transportType: transport.unitTypeId,
@@ -1625,6 +2034,41 @@ export class UnitManager {
       location: { x: transport.x, y: transport.y },
     });
 
+    return true;
+  }
+
+  /**
+   * Unload cargo onto its transport tile or an adjacent native tile.
+   * @reference reference/freeciv/server/unithand.c unit_unload()
+   */
+  async unloadUnit(unitId: string, targetX?: number, targetY?: number): Promise<boolean> {
+    const cargo = this.units.get(unitId);
+    if (!cargo?.transportedBy) return false;
+    const transport = this.units.get(cargo.transportedBy);
+    if (!transport) return false;
+
+    const x = targetX ?? transport.x;
+    const y = targetY ?? transport.y;
+    if (!this.canUnloadUnit(unitId, x, y)) return false;
+
+    transport.cargoUnits = (transport.cargoUnits ?? []).filter(id => id !== unitId);
+    cargo.transportedBy = undefined;
+    cargo.x = x;
+    cargo.y = y;
+    cargo.movementLeft = 0;
+
+    await Promise.all([
+      this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set({ transportedBy: null, x, y, movementPoints: '0' })
+        .where(eq(units.id, unitId)),
+      this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set({ cargoUnits: transport.cargoUnits })
+        .where(eq(units.id, transport.id)),
+    ]);
     return true;
   }
 }

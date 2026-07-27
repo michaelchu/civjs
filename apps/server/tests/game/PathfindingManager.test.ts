@@ -90,7 +90,9 @@ describe('PathfindingManager', () => {
       const result = await pathfindingManager.findPath(mockUnit, 6, 6);
 
       expect(result.valid).toBe(true);
-      expect(result.totalCost).toBeGreaterThan(3); // Should cost more than straight movement
+      // Classic rules use pythagorean_diagonal = FALSE, so diagonal movement
+      // has the same fragment cost as orthogonal movement.
+      expect(result.totalCost).toBe(3);
     });
 
     it('should calculate correct estimated turns', async () => {

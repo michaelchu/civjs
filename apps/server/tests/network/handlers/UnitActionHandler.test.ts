@@ -40,6 +40,8 @@ describe('UnitActionHandler', () => {
       createUnit: jest.fn(),
       requestPath: jest.fn(),
       getGameInstance: jest.fn(),
+      broadcastUnitInfo: jest.fn(),
+      broadcastUnitDestroyed: jest.fn(),
     } as any;
 
     handler = new UnitActionHandler(activeConnections, mockGameManager);
@@ -298,6 +300,72 @@ describe('UnitActionHandler', () => {
 
     it('should return handler name', () => {
       expect(handler.getName()).toBe('UnitActionHandler');
+    });
+  });
+
+  describe('unit_action socket event', () => {
+    beforeEach(() => {
+      handler.register(mockPacketHandler, mockIo, mockSocket);
+      activeConnections.set(mockSocketId, {
+        userId: mockUserId,
+        gameId: mockGameId,
+      });
+    });
+
+    const getUnitActionHandler = () =>
+      (mockSocket.on as jest.Mock).mock.calls.find(call => call[0] === 'unit_action')[1];
+
+    it('visibility-scopes a successful unit update through GameBroadcastManager', async () => {
+      const unit = { id: mockUnitId, playerId: mockPlayerId, x: 4, y: 5 };
+      const executeUnitAction = jest.fn().mockResolvedValue({
+        success: true,
+        message: 'Unit fortified',
+      });
+      mockGameManager.getGameInstance.mockReturnValue({
+        players: new Map([[mockPlayerId, { userId: mockUserId }]]),
+        unitManager: {
+          getUnit: jest.fn().mockReturnValue(unit),
+          executeUnitAction,
+        },
+      } as any);
+      const callback = jest.fn();
+
+      await getUnitActionHandler()({ unitId: mockUnitId, actionType: 'fortify' }, callback);
+
+      expect(executeUnitAction).toHaveBeenCalledWith(
+        mockUnitId,
+        'fortify',
+        undefined,
+        undefined,
+        mockPlayerId
+      );
+      expect(mockGameManager.broadcastUnitInfo).toHaveBeenCalledWith(mockGameId, unit);
+      expect(mockIo.to).not.toHaveBeenCalled();
+      expect(callback).toHaveBeenCalledWith({
+        success: true,
+        result: { success: true, message: 'Unit fortified' },
+      });
+    });
+
+    it('visibility-scopes destruction using the unit last-known position', async () => {
+      const unit = { id: mockUnitId, playerId: mockPlayerId, x: 4, y: 5 };
+      const getUnit = jest.fn().mockReturnValueOnce(unit).mockReturnValue(undefined);
+      mockGameManager.getGameInstance.mockReturnValue({
+        players: new Map([[mockPlayerId, { userId: mockUserId }]]),
+        unitManager: {
+          getUnit,
+          executeUnitAction: jest.fn().mockResolvedValue({
+            success: true,
+            unitDestroyed: true,
+          }),
+        },
+      } as any);
+
+      await getUnitActionHandler()({ unitId: mockUnitId, actionType: 'disband_unit' }, jest.fn());
+
+      expect(mockGameManager.broadcastUnitDestroyed).toHaveBeenCalledWith(mockGameId, unit);
+      expect(mockGameManager.broadcastUnitInfo).not.toHaveBeenCalled();
+      expect(mockIo.to).not.toHaveBeenCalled();
     });
   });
 });

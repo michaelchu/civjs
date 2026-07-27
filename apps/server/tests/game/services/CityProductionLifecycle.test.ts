@@ -58,6 +58,7 @@ function turnService(
     optimizeCitizens: jest.fn().mockResolvedValue(true),
     calculateCityOutputs: jest.fn(),
     calculateHappiness: jest.fn(),
+    checkPollution: jest.fn().mockResolvedValue(false),
     saveCityToDatabase: jest.fn().mockResolvedValue(undefined),
   };
 

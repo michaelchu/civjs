@@ -107,14 +107,17 @@ export function canUnitEnterTerrain(terrain: string, unitTypeId: string): boolea
 }
 
 /**
- * Calculate movement cost between two tiles (including diagonal penalty)
+ * Calculate movement cost between two tiles.
+ * Classic sets pythagorean_diagonal = FALSE, so square-topology diagonal
+ * steps have the same cost as orthogonal steps.
  * @reference freeciv/common/movement.c map_move_cost_unit()
+ * @reference reference/freeciv/data/classic/terrain.ruleset:74-75
  */
 export function calculateMovementCost(
-  fromX: number,
-  fromY: number,
-  toX: number,
-  toY: number,
+  _fromX: number,
+  _fromY: number,
+  _toX: number,
+  _toY: number,
   toTerrain: string,
   unitTypeId: string
 ): number {
@@ -124,11 +127,5 @@ export function calculateMovementCost(
     return -1; // Impassable
   }
 
-  // Check if it's a diagonal move
-  const dx = Math.abs(toX - fromX);
-  const dy = Math.abs(toY - fromY);
-  const isDiagonal = dx === 1 && dy === 1;
-
-  // Diagonal moves cost sqrt(2) ≈ 1.41 times more (simplified to 1.5x for integer math)
-  return isDiagonal ? Math.floor(baseCost * 1.5) : baseCost;
+  return baseCost;
 }

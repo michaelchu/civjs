@@ -24,7 +24,7 @@ import { MapManager } from '@game/managers/MapManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
 import { TurnManager } from '@game/managers/TurnManager';
-import { UnitManager } from '@game/managers/UnitManager';
+import { UnitManager, type Unit } from '@game/managers/UnitManager';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { BorderManager } from '@game/managers/BorderManager';
 
@@ -157,10 +157,7 @@ export class GameManager {
       this.gameBroadcastManager
     );
 
-    this.unitManagementService = new UnitManagementService(
-      this.games,
-      this.broadcastToGame.bind(this)
-    );
+    this.unitManagementService = new UnitManagementService(this.games, this.gameBroadcastManager);
 
     this.cityManagementService = new CityManagementService(
       this.games,
@@ -838,6 +835,14 @@ export class GameManager {
 
   public async processResearchTurn(gameId: string): Promise<void> {
     return this.researchManagementService.processResearchTurn(gameId);
+  }
+
+  public broadcastUnitInfo(gameId: string, unit: Unit): void {
+    this.gameBroadcastManager.broadcastUnitInfo(gameId, unit);
+  }
+
+  public broadcastUnitDestroyed(gameId: string, unit: Unit): void {
+    this.gameBroadcastManager.broadcastUnitDestroyed(gameId, unit);
   }
 
   /**

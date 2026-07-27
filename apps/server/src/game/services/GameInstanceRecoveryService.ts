@@ -19,6 +19,7 @@ import { BorderNetworkService } from '@game/services/BorderNetworkService';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
 import { Server as SocketServer } from 'socket.io';
+import { UNIT_TYPES } from '@game/constants/UnitConstants';
 
 /**
  * GameInstanceRecoveryService - Extracted game recovery operations from GameManager
@@ -188,6 +189,23 @@ export class GameInstanceRecoveryService extends BaseGameService {
     // eslint-disable-next-line prefer-const
     let borderManager: BorderManager; // Declare first, initialize after managers are created
     const cityManager = new CityManager(gameId, this.databaseProvider, effectsManager, {
+      onCityCaptured: city => {
+        if (!borderManager) return;
+        borderManager.removeBorderSource(city.x, city.y);
+        const source = {
+          x: city.x,
+          y: city.y,
+          playerId: city.playerId,
+          type: 'city' as const,
+          strength: 0,
+          radius: 0,
+          cityId: city.id,
+        };
+        source.radius = borderManager.getBorderSourceRadius(source);
+        source.strength = borderManager.getBorderSourceStrength(source);
+        borderManager.addBorderSource(source);
+        this.broadcastManager.broadcastMapData(gameId, mapManager.getMapData());
+      },
       onCityGrowth: (city, oldSize) => {
         // Update border radius when city grows (population-based expansion)
         logger.info(`City ${city.name} grew from size ${oldSize} to ${city.size}`, {
@@ -220,6 +238,10 @@ export class GameInstanceRecoveryService extends BaseGameService {
         }
       },
     });
+    cityManager.setMapManager(mapManager);
+    cityManager.setMapChangedCallback((changedGameId, mapData) =>
+      this.broadcastManager.broadcastMapData(changedGameId, mapData)
+    );
     const researchManager = new ResearchManager(gameId, this.databaseProvider);
     cityManager.setPlayerTechsProvider(
       playerId => new Set(researchManager.getResearchedTechs(playerId))
@@ -249,12 +271,42 @@ export class GameInstanceRecoveryService extends BaseGameService {
         },
         getCityAt: (x: number, y: number) => {
           const city = cityManager.getCityAt(x, y);
-          return city ? { playerId: city.playerId, buildings: city.buildings } : null;
+          return city ? { id: city.id, playerId: city.playerId, buildings: city.buildings } : null;
         },
         getPlayerBuildings: playerId =>
           cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings),
+        establishTradeRoute: async (playerId, homeCityId, targetX, targetY) => {
+          const destination = cityManager.getCityAt(targetX, targetY);
+          return destination
+            ? cityManager.establishTradeRoute(homeCityId, destination.id, playerId)
+            : false;
+        },
+        captureCity: async (cityId, playerId, unitId) =>
+          (await cityManager.captureCity(cityId, playerId, unitId)).success,
+        broadcastMapChanged: (changedGameId, mapData) =>
+          this.broadcastManager.broadcastMapData(changedGameId, mapData),
       },
       effectsManager
+    );
+    cityManager.setUnitSupportProvider(city =>
+      [...unitManager.getAllUnits().values()]
+        .filter(unit => unit.homeCityId === city.id)
+        .map(unit => {
+          const unitType = UNIT_TYPES[unit.unitTypeId];
+          return {
+            unitId: unit.id,
+            unitType: unit.unitTypeId,
+            homeCity: city.id,
+            currentLocation: cityManager.getCityAt(unit.x, unit.y)?.id ?? `${unit.x},${unit.y}`,
+            upkeep: {
+              food: unitType?.uk_food ?? 0,
+              shield: unitType?.uk_shield ?? 0,
+              gold: unitType?.uk_gold ?? 0,
+            },
+            isAwayFromHome: unit.x !== city.x || unit.y !== city.y,
+            isMilitaryUnit: (unitType?.attack ?? 0) > 0,
+          };
+        })
     );
 
     const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
@@ -393,6 +445,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
     await managers.cityManager.initialize();
     await managers.cityManager.loadCities();
     await managers.unitManager.loadUnits();
+    for (const city of managers.cityManager.getAllCities()) {
+      managers.cityManager.calculateCityOutputs(city.id);
+    }
     this.restoreBorderSources(managers.cityManager, managers.borderManager);
   }
 

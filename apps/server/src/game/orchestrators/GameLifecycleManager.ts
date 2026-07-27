@@ -26,6 +26,7 @@ import { BorderManager } from '@game/managers/BorderManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
 import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
 import { MapStartpos } from '@game/map/MapTypes';
+import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import type { Server as SocketServer } from 'socket.io';
 import type {
   GameConfig,
@@ -248,6 +249,29 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       cityManager,
       effectsManager
     );
+    cityManager.setUnitSupportProvider(city =>
+      [...unitManager.getAllUnits().values()]
+        .filter(unit => unit.homeCityId === city.id)
+        .map(unit => {
+          const unitType = UNIT_TYPES[unit.unitTypeId];
+          return {
+            unitId: unit.id,
+            unitType: unit.unitTypeId,
+            homeCity: city.id,
+            currentLocation: cityManager.getCityAt(unit.x, unit.y)?.id ?? `${unit.x},${unit.y}`,
+            upkeep: {
+              food: unitType?.uk_food ?? 0,
+              shield: unitType?.uk_shield ?? 0,
+              gold: unitType?.uk_gold ?? 0,
+            },
+            isAwayFromHome: unit.x !== city.x || unit.y !== city.y,
+            isMilitaryUnit: (unitType?.attack ?? 0) > 0,
+          };
+        })
+    );
+    cityManager.setMapChangedCallback((changedGameId, mapData) =>
+      this.onBroadcastMapData?.(changedGameId, mapData)
+    );
 
     // Set up dependencies after all managers are created
     cityManager.setMapManager(mapManager);
@@ -299,7 +323,13 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         if (item.kind === 'unit') {
           try {
             // Create unit at city location
-            const unit = await unitManager.createUnit(city.playerId, item.value, city.x, city.y);
+            const unit = await unitManager.createUnit(
+              city.playerId,
+              item.value,
+              city.x,
+              city.y,
+              city.id
+            );
             this.logger.info(`Unit ${item.value} created at city ${city.name}`, {
               cityId: city.id,
               playerId: city.playerId,
@@ -353,6 +383,22 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           y: city.y,
           playerId: city.playerId,
         });
+      },
+      onCityCaptured: city => {
+        borderManager.removeBorderSource(city.x, city.y);
+        const source = {
+          x: city.x,
+          y: city.y,
+          playerId: city.playerId,
+          type: 'city' as const,
+          strength: 0,
+          radius: 0,
+          cityId: city.id,
+        };
+        source.radius = borderManager.getBorderSourceRadius(source);
+        source.strength = borderManager.getBorderSourceStrength(source);
+        borderManager.addBorderSource(source);
+        this.onBroadcastMapData?.(gameId, mapManager.getMapData());
       },
       onCityGrowth: (city, oldSize) => {
         // Update border radius when city grows (population-based expansion)
@@ -956,10 +1002,20 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         },
         getCityAt: (x: number, y: number) => {
           const city = cityManager.getCityAt(x, y);
-          return city ? { playerId: city.playerId, buildings: city.buildings } : null;
+          return city ? { id: city.id, playerId: city.playerId, buildings: city.buildings } : null;
         },
         getPlayerBuildings: playerId =>
           cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings),
+        establishTradeRoute: async (playerId, homeCityId, targetX, targetY) => {
+          const destination = cityManager.getCityAt(targetX, targetY);
+          return destination
+            ? cityManager.establishTradeRoute(homeCityId, destination.id, playerId)
+            : false;
+        },
+        captureCity: async (cityId, playerId, unitId) =>
+          (await cityManager.captureCity(cityId, playerId, unitId)).success,
+        broadcastMapChanged: (changedGameId, mapData) =>
+          this.onBroadcastMapData?.(changedGameId, mapData),
       },
       effectsManager
     );

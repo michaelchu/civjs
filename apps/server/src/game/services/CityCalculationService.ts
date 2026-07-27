@@ -113,6 +113,7 @@ export interface CityPlayerContext {
   playerBuildings: ReadonlySet<string>;
   playerCities: readonly CityState[];
   taxRates?: TaxRates;
+  unitUpkeep?: { food: number; shield: number; gold: number };
 }
 
 /**
@@ -211,8 +212,8 @@ export class CityCalculationService extends BaseGameService {
 
     const foodConsumption = city.population * rulesetLoader.getCivstyle('classic').food_cost;
     const totalOutputs: CityOutputs = {
-      food: grossFood - foodConsumption,
-      shields: grossShields,
+      food: grossFood - foodConsumption - (playerContext.unitUpkeep?.food ?? 0),
+      shields: Math.max(0, grossShields - (playerContext.unitUpkeep?.shield ?? 0)),
       trade: tradeAfterCorruption,
       science,
       gold,

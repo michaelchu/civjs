@@ -36,6 +36,13 @@
       "when": 1785038400000,
       "tag": "0004_add_city_economic_outputs",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785042000000,
+      "tag": "0005_add_city_trade_and_governor_state",
+      "breakpoints": true
     }
   ]
 }

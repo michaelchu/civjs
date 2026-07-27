@@ -202,6 +202,16 @@ export class TerrainRenderer extends BaseRenderer {
       }
     }
 
+    // Roads, rails, and worked-tile extras use Freeciv's SPECIAL layers.
+    // @reference freeciv-web/javascript/2dcanvas/tilespec.js:2600-2706
+    for (const key of this.getInfrastructureSprites(tile)) {
+      const sprite = this.tilesetLoader.getSprite(key);
+      if (sprite) {
+        this.ctx.drawImage(sprite, screenPos.x, screenPos.y);
+        hasAnySprites = true;
+      }
+    }
+
     // ADD: Resource rendering layer (matches freeciv-web LAYER_SPECIAL1)
     // Resources render underneath cities in authentic freeciv-web
     const resourceSprite = this.getTileResourceSprite(tile);
@@ -241,6 +251,39 @@ export class TerrainRenderer extends BaseRenderer {
       this.ctx.fillStyle = color;
       this.ctx.fillRect(screenPos.x, screenPos.y, this.tileWidth, this.tileHeight);
     }
+  }
+
+  private getInfrastructureSprites(tile: Tile): string[] {
+    this.buildTileMap();
+    const directions = [
+      { dx: 0, dy: -1, name: 'n' },
+      { dx: 1, dy: -1, name: 'ne' },
+      { dx: 1, dy: 0, name: 'e' },
+      { dx: 1, dy: 1, name: 'se' },
+      { dx: 0, dy: 1, name: 's' },
+      { dx: -1, dy: 1, name: 'sw' },
+      { dx: -1, dy: 0, name: 'w' },
+      { dx: -1, dy: -1, name: 'nw' },
+    ];
+    const sprites: string[] = [];
+    const addConnections = (property: 'hasRoad' | 'hasRailroad', prefix: string) => {
+      if (!tile[property]) return;
+      const connected = directions.filter(({ dx, dy }) =>
+        Boolean(this.tileMap.get(`${tile.x + dx},${tile.y + dy}`)?.[property])
+      );
+      if (connected.length === 0) {
+        sprites.push(`${prefix}_isolated`);
+      } else {
+        sprites.push(...connected.map(({ name }) => `${prefix}_${name}`));
+      }
+    };
+
+    addConnections('hasRoad', 'road.road');
+    addConnections('hasRailroad', 'road.rail');
+    if (!tile.cityId && tile.improvements?.includes('irrigation')) sprites.push('tx.irrigation');
+    if (!tile.cityId && tile.improvements?.includes('mine')) sprites.push('tx.mine');
+    if (tile.improvements?.includes('pollution')) sprites.push('tx.pollution');
+    return sprites;
   }
 
   // Direct port of freeciv-web's fill_terrain_sprite_array function

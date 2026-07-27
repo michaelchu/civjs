@@ -2,7 +2,7 @@
 import { randomUUID } from 'crypto';
 import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
-import { cities } from '@database/schema';
+import { cities, games } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import {
@@ -23,6 +23,7 @@ import type { MapManager } from '@game/managers/MapManager';
 import { Server as SocketServer } from 'socket.io';
 import type { TaxRates } from '@game/systems/Economic/types/EconomicTypes';
 import { DEFAULT_TAX_RATES } from '@game/systems/Economic/constants/EconomicConstants';
+import { UnitSupportManager, type UnitSupportData } from '@game/managers/UnitSupportManager';
 
 // Import the specialized services
 import { CityManagementService } from '@game/services/CityManagementService';
@@ -175,6 +176,7 @@ export interface CityState {
   goldPerTurn?: number;
   luxuryPerTurn?: number;
   pollution?: number;
+  unitGoldUpkeep?: number;
 
   // Culture system (freeciv-based)
   history: number; // Accumulated culture history
@@ -230,6 +232,7 @@ export interface CityManagerCallbacks {
   onCityGrowth?: (city: CityState, oldSize: number) => void;
   onCityProductionComplete?: (city: CityState, item: ProductionItem) => void | Promise<void>;
   onCityDestroyed?: (city: CityState) => void;
+  onCityCaptured?: (city: CityState, oldPlayerId: string) => void;
   onCityTurnProcessed?: (city: CityState) => void;
 }
 
@@ -282,6 +285,9 @@ export class CityManager {
   private playerTaxRatesProvider: (playerId: string) => TaxRates = () => ({
     ...DEFAULT_TAX_RATES,
   });
+  private unitSupportProvider: (city: CityState) => UnitSupportData[] = () => [];
+  private mapChangedCallback?: (gameId: string, mapData: unknown) => void;
+  private readonly unitSupportManager: UnitSupportManager;
   private optimizationService?: CityOptimizationService;
 
   constructor(
@@ -294,6 +300,7 @@ export class CityManager {
     this.databaseProvider = databaseProvider;
     this.callbacks = callbacks;
     this.effectsManager = effectsManager;
+    this.unitSupportManager = new UnitSupportManager(gameId);
 
     // Every city service evaluates requirements against the same game-owned
     // ruleset instance so effects cannot diverge between subsystems.
@@ -305,7 +312,7 @@ export class CityManager {
    * Set or update callbacks after initialization
    */
   setCallbacks(newCallbacks: Partial<CityManagerCallbacks>): void {
-    this.callbacks = { ...this.callbacks, ...newCallbacks };
+    Object.assign(this.callbacks, newCallbacks);
   }
 
   public setCurrentTurnProvider(provider: () => number): void {
@@ -324,6 +331,14 @@ export class CityManager {
 
   public setPlayerTaxRatesProvider(provider: (playerId: string) => TaxRates): void {
     this.playerTaxRatesProvider = provider;
+  }
+
+  public setUnitSupportProvider(provider: (city: CityState) => UnitSupportData[]): void {
+    this.unitSupportProvider = provider;
+  }
+
+  public setMapChangedCallback(callback: (gameId: string, mapData: unknown) => void): void {
+    this.mapChangedCallback = callback;
   }
 
   public setPlayerGovernmentProvider(provider: (playerId: string) => string): void {
@@ -354,7 +369,13 @@ export class CityManager {
       this.effectsManager
     );
 
-    this.tradeRouteService = new CityTradeRouteService(this.cities);
+    const mapData = this.mapManager?.getMapData();
+    this.tradeRouteService = new CityTradeRouteService(this.cities, 3, {
+      width: mapData?.width ?? 80,
+      height: mapData?.height ?? 50,
+      getContinentId: (x, y) => this.mapManager?.getTile(x, y)?.continentId,
+      getCurrentTurn: () => this.currentTurnProvider?.() ?? 0,
+    });
 
     // Create getter functions for player resources (would be implemented by GameManager)
     const getPlayerGold = (_playerId: string): number => {
@@ -396,7 +417,11 @@ export class CityManager {
       this.citizenManagementService
     );
 
-    // Note: Turn processing service will be initialized in setMapManager when all dependencies are available
+    // setMapManager is commonly called before initialize. Rebuild the
+    // map-dependent services now that governor and optimization exist.
+    if (this.mapManager) {
+      this.setMapManager(this.mapManager);
+    }
 
     // Initialize high-level coordination service
     // Note: CityManagementService needs different constructor parameters
@@ -434,6 +459,7 @@ export class CityManager {
       optimizeCitizens: this.optimizeCitizens.bind(this),
       calculateCityOutputs: this.calculateCityOutputs.bind(this),
       calculateHappiness: this.calculateHappiness.bind(this),
+      checkPollution: this.checkPollution.bind(this),
       saveCityToDatabase: this.saveCityToDatabase.bind(this),
     });
   }
@@ -856,7 +882,8 @@ export class CityManager {
             [SpecialistType.ENGINEER]: 0,
             [SpecialistType.MERCHANT]: 0,
           },
-          tradeRoutes: [], // Will be loaded from separate table if implemented
+          tradeRoutes: (record.tradeRoutes as TradeRoute[]) || [],
+          governor: (record.governor as CityGovernor | null) ?? undefined,
           happiness: {
             happy: 0,
             content: Math.max(0, record.population - 1),
@@ -914,6 +941,8 @@ export class CityManager {
         luxuryPerTurn: city.luxuryPerTurn || 0,
         sciencePerTurn: city.sciencePerTurn || 0,
         pollution: city.pollution || 0,
+        tradeRoutes: city.tradeRoutes,
+        governor: city.governor ?? null,
         culturePerTurn: 0, // Will be calculated
         faithPerTurn: 0, // Will be calculated
         history: city.history || 0, // Culture history
@@ -1092,9 +1121,27 @@ export class CityManager {
     }
 
     // Delegate to CityCalculationService for all calculations
+    const tileOutputs = this.tileManagementService?.calculateCityOutputs(city.id);
+    if (tileOutputs && this.tradeRouteService) {
+      tileOutputs.trade += this.tradeRouteService.getCityTradeRouteRevenue(city.id);
+    }
+    const supportedUnits = this.unitSupportProvider(city);
+    const support = this.unitSupportManager.calculateCityUnitSupport(
+      city.id,
+      city.playerId,
+      this.getPlayerGovernment(city.playerId).toLowerCase(),
+      city.population,
+      supportedUnits
+    );
+    const populationFood = city.population * rulesetLoader.getCivstyle().food_cost;
+    const unitUpkeep = {
+      food: Math.max(0, support.upkeepCosts.food - populationFood),
+      shield: support.upkeepCosts.shield,
+      gold: support.upkeepCosts.gold,
+    };
     const outputs = this.calculationService.calculateCityOutputs(
       city,
-      undefined, // Let the service get tile outputs from tileManagementService
+      tileOutputs,
       this.tileManagementService,
       {
         government: this.getPlayerGovernment(city.playerId),
@@ -1102,6 +1149,7 @@ export class CityManager {
         playerBuildings: this.playerBuildingsProvider(city.playerId),
         playerCities: this.getPlayerCities(city.playerId),
         taxRates: this.playerTaxRatesProvider(city.playerId),
+        unitUpkeep,
       }
     );
 
@@ -1113,8 +1161,59 @@ export class CityManager {
     city.goldPerTurn = outputs.gold;
     city.luxuryPerTurn = outputs.luxury;
     city.pollution = outputs.pollution;
+    city.unitGoldUpkeep = unitUpkeep.gold;
 
     return outputs;
+  }
+
+  /**
+   * Roll and place one pollution extra on a workable non-center land tile.
+   * The roll is derived from persisted game/turn/city identity so recovery
+   * cannot change an already determined turn outcome.
+   *
+   * @reference reference/freeciv/server/cityturn.c:3500-3548
+   */
+  public async checkPollution(cityId: string, currentTurn: number): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city || !this.mapManager || (city.pollution ?? 0) <= 0) return false;
+    const roll = this.stableHash(`${this.gameId}:${currentTurn}:${city.id}:pollution`) % 100;
+    if (roll >= (city.pollution ?? 0)) return false;
+
+    const candidates = (city.workableTiles ?? [])
+      .filter(tile => !tile.isCenter)
+      .map(tile => this.mapManager!.getTile(tile.x, tile.y))
+      .filter(
+        tile =>
+          tile !== null &&
+          !['ocean', 'deep_ocean', 'coast', 'lake'].includes(tile.terrain) &&
+          !(tile.improvements ?? []).includes('pollution')
+      );
+    if (candidates.length === 0) return false;
+
+    const index =
+      this.stableHash(`${this.gameId}:${currentTurn}:${city.id}:pollution-tile`) %
+      candidates.length;
+    const tile = candidates[index]!;
+    this.mapManager.updateTileProperty(tile.x, tile.y, 'improvements', [
+      ...(tile.improvements ?? []),
+      'pollution',
+    ]);
+    await this.databaseProvider
+      .getDatabase()
+      .update(games)
+      .set({ mapData: this.mapManager.getMapData() })
+      .where(eq(games.id, this.gameId));
+    this.mapChangedCallback?.(this.gameId, this.mapManager.getMapData());
+    return true;
+  }
+
+  private stableHash(value: string): number {
+    let hash = 2166136261;
+    for (let index = 0; index < value.length; index++) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
   }
 
   /**
@@ -1194,7 +1293,7 @@ export class CityManager {
    * @param cityId The city to set parameters for
    * @param parameters The optimization parameters to set
    */
-  setCitizenParameters(cityId: string, parameters: any): boolean {
+  async setCitizenParameters(cityId: string, parameters: any): Promise<boolean> {
     const city = this.cities.get(cityId);
     if (!city) return false;
 
@@ -1218,6 +1317,7 @@ export class CityManager {
     // We'll extend the governor with additional data for now
     (city.governor as any).citizenParameters = parameters;
 
+    await this.saveCityToDatabase(city);
     return true;
   }
 
@@ -1277,7 +1377,17 @@ export class CityManager {
     playerId: string = 'default'
   ): Promise<boolean> {
     if (!this.tradeRouteService) return false;
-    return this.tradeRouteService.establishTradeRoute(sourceCityId, partnerCityId, playerId);
+    const established = await this.tradeRouteService.establishTradeRoute(
+      sourceCityId,
+      partnerCityId,
+      playerId
+    );
+    if (established) {
+      await Promise.all([...this.cities.values()].map(city => this.saveCityToDatabase(city)));
+      this.calculateCityOutputs(sourceCityId);
+      this.calculateCityOutputs(partnerCityId);
+    }
+    return established;
   }
 
   calculateTradeRouteValue(sourceCityId: string, partnerCityId: string): number {
@@ -1297,7 +1407,18 @@ export class CityManager {
 
   async removeTradeRoute(sourceCityId: string, partnerCityId: string): Promise<boolean> {
     if (!this.tradeRouteService) return false;
-    return this.tradeRouteService.removeTradeRoute(sourceCityId, partnerCityId);
+    const removed = await this.tradeRouteService.removeTradeRoute(sourceCityId, partnerCityId);
+    if (removed) {
+      await Promise.all(
+        [sourceCityId, partnerCityId]
+          .map(cityId => this.cities.get(cityId))
+          .filter((city): city is CityState => Boolean(city))
+          .map(city => this.saveCityToDatabase(city))
+      );
+      this.calculateCityOutputs(sourceCityId);
+      this.calculateCityOutputs(partnerCityId);
+    }
+    return removed;
   }
 
   // Delegate to production service
@@ -1336,7 +1457,12 @@ export class CityManager {
     }
   ): Promise<boolean> {
     if (!this.governorService) return false;
-    return this.governorService.configureCityGovernor(cityId, playerId, config);
+    const configured = await this.governorService.configureCityGovernor(cityId, playerId, config);
+    const city = this.cities.get(cityId);
+    if (configured && city) {
+      await this.saveCityToDatabase(city);
+    }
+    return configured;
   }
 
   getCityGovernorInfo(cityId: string): CityGovernor | null {
@@ -1353,6 +1479,7 @@ export class CityManager {
     success: boolean;
     populationLoss: number;
     buildingsDestroyed: string[];
+    cityDestroyed?: boolean;
     reason?: string;
   }> {
     if (!this.captureService)
@@ -1362,7 +1489,26 @@ export class CityManager {
         buildingsDestroyed: [],
         reason: 'Service not available',
       };
-    return this.captureService.captureCity(cityId, conquerorPlayerId, conquerorUnitId);
+    const cityBeforeCapture = this.cities.get(cityId);
+    const oldPlayerId = cityBeforeCapture?.playerId ?? '';
+    const result = await this.captureService.captureCity(
+      cityId,
+      conquerorPlayerId,
+      conquerorUnitId
+    );
+    if (result.success && result.cityDestroyed && cityBeforeCapture) {
+      await this.destroyCity(cityId);
+      return result;
+    }
+
+    const city = this.cities.get(cityId);
+    if (result.success && city) {
+      this.calculateCityOutputs(cityId);
+      this.applyCityHappiness(cityId);
+      await this.saveCityToDatabase(city);
+      this.callbacks.onCityCaptured?.(city, oldPlayerId);
+    }
+    return result;
   }
 
   async transferCity(cityId: string, newPlayerId: string): Promise<boolean> {
@@ -1373,19 +1519,22 @@ export class CityManager {
   // === UTILITY METHODS ===
 
   private async updateTradeRoutesOnPlayerChange(
-    _cityId: string,
+    cityId: string,
     _newPlayerId: string,
     _oldPlayerId: string
   ): Promise<void> {
     if (this.tradeRouteService) {
-      // TODO: Implement trade route updates when service is available
-      // this.tradeRouteService.updateRoutesOnPlayerChange(cityId, newPlayerId, oldPlayerId);
+      this.tradeRouteService.updateRoutesOnPlayerChange(cityId);
     }
   }
 
   async destroyCity(cityId: string): Promise<boolean> {
     const city = this.cities.get(cityId);
     if (!city) return false;
+
+    if (this.tradeRouteService) {
+      await this.tradeRouteService.updateTradeRoutesOnCityDestruction(cityId);
+    }
 
     // Remove from memory
     this.cities.delete(cityId);
@@ -1398,9 +1547,10 @@ export class CityManager {
       logger.error('Failed to delete city from database', { cityId, error });
     }
 
-    // Update trade routes
     if (this.tradeRouteService) {
-      // This would be implemented to clean up trade routes
+      await Promise.all(
+        [...this.cities.values()].map(remaining => this.saveCityToDatabase(remaining))
+      );
     }
 
     // Trigger callback

@@ -272,6 +272,12 @@ export interface TileInfoPacket {
     resource?: string;
     elevation?: number;
     riverMask?: number;
+    hasRoad?: boolean;
+    hasRailroad?: boolean;
+    improvements?: string[];
+    cityId?: string;
+    owner?: string;
+    claimer?: string;
     known: number; // 0 = unknown, 1 = known
     seen: number; // 0 = unseen, 1 = visible
     player?: string | null;
@@ -291,6 +297,12 @@ export interface TileInfoBatchPacket {
       resource?: string;
       elevation?: number;
       riverMask?: number;
+      hasRoad?: boolean;
+      hasRailroad?: boolean;
+      improvements?: string[];
+      cityId?: string;
+      owner?: string;
+      claimer?: string;
       known: number;
       seen: number;
       player?: string | null;
