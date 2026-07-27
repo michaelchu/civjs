@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { MapRenderer } from './MapRenderer';
+import { ActionFeedbackBanner, type ActionFeedback } from './ActionFeedbackBanner';
 import { TileHoverOverlay } from './TileHoverOverlay';
 import { UnitContextMenu } from '../GameUI/UnitContextMenu';
 import { CityNameDialog } from '../GameUI/CityNameDialog';
@@ -38,10 +39,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     unit: Unit;
     position: { x: number; y: number };
   } | null>(null);
-  const [actionFeedback, setActionFeedback] = useState<{
-    success: boolean;
-    message: string;
-  } | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null);
+  const dismissActionFeedback = useCallback(() => setActionFeedback(null), []);
 
   // City naming dialog state
   const [cityNameDialog, setCityNameDialog] = useState<{
@@ -1519,17 +1518,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   return (
     <div className="relative overflow-hidden bg-blue-900 w-full h-full">
-      {actionFeedback && (
-        <div
-          role="status"
-          aria-live="polite"
-          className={`absolute left-1/2 top-3 z-[1100] -translate-x-1/2 rounded px-3 py-2 text-sm font-medium shadow ${
-            actionFeedback.success ? 'bg-green-700 text-white' : 'bg-red-700 text-white'
-          }`}
-        >
-          {actionFeedback.message}
-        </div>
-      )}
+      <ActionFeedbackBanner feedback={actionFeedback} onDismiss={dismissActionFeedback} />
       {targetActionMode && (
         <div className="absolute right-3 top-3 z-[1100] rounded bg-amber-700 px-3 py-2 text-sm text-white shadow">
           Select a target · Esc to cancel
