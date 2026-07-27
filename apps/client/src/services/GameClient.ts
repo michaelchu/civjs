@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { io, Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import { SERVER_URL } from '../config';
 import { useGameStore } from '../store/gameStore';
 import { PacketType, PACKET_NAMES, PROTOCOL_VERSION, type Packet } from '../types/packets';
@@ -16,6 +16,8 @@ import type {
 } from '../types';
 import { playEndGameSound } from './UserPreferences';
 import { GameSessionCoordinator, type GameSessionTarget } from './GameSessionCoordinator';
+import { GameTransport } from './GameTransport';
+import { MapSnapshotAssembler } from './MapSnapshotAssembler';
 
 // Mock government data for development
 const getMockGovernments = () => ({
@@ -107,88 +109,52 @@ const getMockGovernments = () => ({
 
 export class GameClient {
   private socket: Socket | null = null;
-  private serverUrl: string;
   private currentGameId: string | null = null;
-  private connectionPromise: Promise<void> | null = null;
   private pendingGameJoins = new Map<string, Promise<void>>();
-  private pendingMapTiles: Record<string, any> | null = null;
   private readonly session = new GameSessionCoordinator();
+  private readonly transport: GameTransport;
+  private readonly mapSnapshots = new MapSnapshotAssembler();
   private reconnectPromise: Promise<void> | null = null;
-  private readonly handleVisibilityChange = () => {
-    if (document.visibilityState === 'hidden') {
-      console.log('Tab hidden - maintaining connection');
-    } else if (document.visibilityState === 'visible') {
-      console.log('Tab visible - connection status:', this.socket?.connected);
-      if (this.socket?.connected) {
-        this.socket.emit('ping');
-      }
-    }
-  };
 
-  constructor() {
-    this.serverUrl = SERVER_URL;
-    console.log('Connecting to server:', this.serverUrl);
+  constructor(transport = new GameTransport(SERVER_URL)) {
+    this.transport = transport;
+    console.log('Connecting to server:', SERVER_URL);
   }
 
-  connect(): Promise<void> {
+  async connect(): Promise<void> {
     if (this.socket?.connected) {
-      return Promise.resolve();
-    }
-
-    if (this.connectionPromise) {
-      return this.connectionPromise;
+      return;
     }
 
     this.session.connecting();
-    this.connectionPromise = new Promise((resolve, reject) => {
-      try {
-        this.socket = io(this.serverUrl, {
-          transports: ['websocket'],
-          timeout: 20000, // Increased timeout
-          reconnectionAttempts: 5,
-          reconnectionDelay: 1000,
-          forceNew: false,
-          autoConnect: true,
-        });
-
-        this.socket.on('connect', () => {
+    this.socket = await this.transport.connect(
+      socket => {
+        this.socket = socket;
+        this.setupGameHandlers();
+      },
+      {
+        connected: () => {
           console.log('Connected to game server');
           useGameStore.getState().setClientState('connecting');
-          this.connectionPromise = null;
-          resolve();
-        });
-
-        this.socket.on('disconnect', () => {
+        },
+        disconnected: () => {
           console.log('Disconnected from game server');
           this.session.disconnected();
+          this.mapSnapshots.cancel();
           useGameStore.getState().setClientState('initial');
-        });
-
-        this.socket.on('connect_error', error => {
+        },
+        connectionError: error => {
           console.error('Connection error:', error);
-          this.connectionPromise = null;
-          reject(error);
-        });
-
-        this.socket.io.on('reconnect', attemptNumber => {
+        },
+        reconnected: attemptNumber => {
           console.log(`Reconnected to server after ${attemptNumber} attempts`);
           void this.resumeSession();
-        });
-
-        this.socket.io.on('reconnect_error', error => {
+        },
+        reconnectError: error => {
           console.warn('Reconnection failed:', error);
-        });
-
-        document.addEventListener('visibilitychange', this.handleVisibilityChange);
-
-        this.setupGameHandlers();
-      } catch (error) {
-        this.connectionPromise = null;
-        reject(error);
+        },
       }
-    });
-
-    return this.connectionPromise;
+    );
   }
 
   private setupGameHandlers() {
@@ -688,16 +654,8 @@ export class GameClient {
       totalTiles: data.xsize * data.ysize,
     });
 
-    this.pendingMapTiles = {};
     useGameStore.getState().updateGameState({
-      map: {
-        width: data.xsize,
-        height: data.ysize,
-        xsize: data.xsize,
-        ysize: data.ysize,
-        wrap_id: data.wrap_id ?? 0,
-        tiles: {},
-      },
+      map: this.mapSnapshots.begin(data),
     });
   }
 
@@ -711,43 +669,14 @@ export class GameClient {
     });
 
     if (data.tile !== undefined) {
-      const tileKey = `${data.x},${data.y}`;
       const currentMap = useGameStore.getState().map;
-
-      const updatedTiles = {
-        ...currentMap.tiles,
-        [tileKey]: {
-          x: data.x,
-          y: data.y,
-          terrain: data.terrain,
-          visible: data.known === 2,
-          known: data.known >= 1,
-          units: [],
-          city: undefined,
-          resource: data.resource,
-          elevation: data.elevation,
-          riverMask: data.riverMask,
-          hasRoad: data.hasRoad,
-          hasRailroad: data.hasRailroad,
-          improvements: data.improvements,
-          cityId: data.cityId,
-          owner: data.owner,
-          claimer: data.claimer,
-        },
-      };
+      const map = this.mapSnapshots.applyTile(currentMap, data);
 
       useGameStore.getState().updateGameState({
-        map: {
-          width: currentMap.width,
-          height: currentMap.height,
-          tiles: updatedTiles,
-          xsize: currentMap.xsize,
-          ysize: currentMap.ysize,
-          wrap_id: currentMap.wrap_id,
-        },
+        map,
       });
 
-      if (Object.keys(updatedTiles).length === 1) {
+      if (Object.keys(map.tiles).length === 1) {
         useGameStore.getState().setViewport({
           x: 0,
           y: 0,
@@ -775,50 +704,11 @@ export class GameClient {
 
     if (!data.tiles) return;
 
-    if (data.startIndex === 0 || !this.pendingMapTiles) {
-      this.pendingMapTiles = {};
-    }
-    const updatedTiles = this.pendingMapTiles;
-
-    for (const tileData of data.tiles) {
-      const tileKey = `${tileData.x},${tileData.y}`;
-      updatedTiles[tileKey] = {
-        x: tileData.x,
-        y: tileData.y,
-        terrain: tileData.terrain,
-        visible: tileData.known === 2,
-        known: tileData.known >= 1,
-        units: [],
-        city: undefined,
-        resource: tileData.resource,
-        elevation: tileData.elevation,
-        riverMask: tileData.riverMask,
-        hasRoad: tileData.hasRoad,
-        hasRailroad: tileData.hasRailroad,
-        improvements: tileData.improvements,
-        cityId: tileData.cityId,
-        owner: tileData.owner,
-        claimer: tileData.claimer,
-      };
-    }
-
-    const snapshotComplete =
-      typeof data.total !== 'number' ||
-      typeof data.endIndex !== 'number' ||
-      data.endIndex >= data.total;
-    if (!snapshotComplete) return;
-
-    this.pendingMapTiles = null;
     const currentMap = useGameStore.getState().map;
+    const map = this.mapSnapshots.applyBatch(currentMap, data);
+    if (!map) return;
     useGameStore.getState().updateGameState({
-      map: {
-        width: currentMap.width,
-        height: currentMap.height,
-        tiles: updatedTiles,
-        xsize: currentMap.xsize,
-        ysize: currentMap.ysize,
-        wrap_id: currentMap.wrap_id,
-      },
+      map,
     });
   }
 
@@ -1523,14 +1413,15 @@ export class GameClient {
   }
 
   disconnect() {
-    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.session.cancel();
+    this.mapSnapshots.cancel();
     this.pendingGameJoins.clear();
     this.currentGameId = null;
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
-    }
+    const socket = this.socket;
+    const transportSocket = this.transport.getSocket();
+    this.transport.disconnect();
+    if (socket && socket !== transportSocket) socket.disconnect();
+    this.socket = null;
   }
 
   isConnected(): boolean {
