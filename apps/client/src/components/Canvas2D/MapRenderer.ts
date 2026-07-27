@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { MapViewport, Tile } from '../../types';
+import type { GameState, MapViewport, Tile } from '../../types';
 import { TilesetLoader } from './TilesetLoader';
 import { TerrainRenderer } from './renderers/TerrainRenderer';
 import { UnitRenderer } from './renderers/UnitRenderer';
@@ -49,6 +49,7 @@ export class MapRenderer {
   private borderRenderer: BorderRenderer;
   private fogRenderer: FogRenderer;
   private fogOfWarEnabled = true;
+  private currentMap: GameState['map'] = { width: 0, height: 0, tiles: {} };
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
@@ -146,6 +147,7 @@ export class MapRenderer {
     if (this.isDisposed) return;
 
     this.renderState = state;
+    this.currentMap = state.map;
     // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:688-700
     // Implement freeciv-web's performance timing system
     const currentTime = new Date().getTime();
@@ -177,20 +179,16 @@ export class MapRenderer {
 
     const renderStart = performance.now();
 
-    // Invalidate terrain cache if tiles data has changed
-    this.terrainRenderer.invalidateTileCache();
-
     if (!this.isInitialized) {
       this.clearCanvas();
       this.renderLoadingMessage();
       return;
     }
 
-    // Check for freeciv-web global tiles array instead of state.map.tiles
-    const globalTiles = (window as any).tiles;
-    const globalMap = (window as any).map;
-
-    if (!globalTiles || !globalMap || !Array.isArray(globalTiles) || globalTiles.length === 0) {
+    const mapWidth = state.map.xsize ?? state.map.width;
+    const mapHeight = state.map.ysize ?? state.map.height;
+    const mapTiles = Object.values(state.map.tiles);
+    if (!mapWidth || !mapHeight || mapTiles.length === 0) {
       this.clearCanvas();
       this.renderEmptyMap();
       return;
@@ -218,7 +216,7 @@ export class MapRenderer {
       this.clearCanvas(true, '#4682B4');
     }
 
-    const visibleTiles = this.getVisibleTilesFromGlobal(state.viewport, globalMap, globalTiles);
+    const visibleTiles = this.getVisibleTiles(mapTiles);
 
     // Follow freeciv-web layer order exactly:
     // LAYER_TERRAIN1, LAYER_TERRAIN2, LAYER_TERRAIN3, LAYER_ROADS,
@@ -248,7 +246,7 @@ export class MapRenderer {
     // LAYER_FOG: Freeciv draws fog after units so unseen dynamic entities
     // cannot leak through the remembered terrain layer.
     if (this.fogOfWarEnabled) {
-      this.fogRenderer.render(state, globalTiles);
+      this.fogRenderer.render(state);
     }
 
     // Render paths and overlays on top of everything
@@ -395,8 +393,9 @@ export class MapRenderer {
    * @returns true if any part of the viewport extends beyond map boundaries
    */
   private checkViewportBounds(viewport: MapViewport): boolean {
-    const globalMap = (window as any).map;
-    if (!globalMap || !globalMap.xsize || !globalMap.ysize) {
+    const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
+    const mapHeight = this.currentMap.ysize ?? this.currentMap.height;
+    if (!mapWidth || !mapHeight) {
       return false; // No map data available
     }
 
@@ -418,10 +417,7 @@ export class MapRenderer {
     // Check if any corner is outside map bounds (same logic as freeciv-web conditional)
     return corners.some(
       corner =>
-        corner.mapX < 0 ||
-        corner.mapX >= globalMap.xsize ||
-        corner.mapY < 0 ||
-        corner.mapY >= globalMap.ysize
+        corner.mapX < 0 || corner.mapX >= mapWidth || corner.mapY < 0 || corner.mapY >= mapHeight
     );
   }
 
@@ -441,8 +437,7 @@ export class MapRenderer {
    * @returns true if the map has this wrapping enabled
    */
   private wrapHasFlag(flag: number): boolean {
-    const globalMap = (window as any).map;
-    return globalMap && (globalMap.wrap_id & flag) !== 0;
+    return ((this.currentMap.wrap_id ?? 0) & flag) !== 0;
   }
 
   /**
@@ -470,8 +465,8 @@ export class MapRenderer {
    * @returns Native coordinates object with natX and natY
    */
   private mapToNativePos(mapX: number, mapY: number): { natX: number; natY: number } {
-    const globalMap = (window as any).map;
-    const natY = Math.floor(mapX + mapY - globalMap.xsize);
+    const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
+    const natY = Math.floor(mapX + mapY - mapWidth);
     const natX = Math.floor((2 * mapX - natY - (natY & 1)) / 2);
     return { natX, natY };
   }
@@ -484,9 +479,9 @@ export class MapRenderer {
    * @returns Map coordinates object with mapX and mapY
    */
   private nativeToMapPos(natX: number, natY: number): { mapX: number; mapY: number } {
-    const globalMap = (window as any).map;
+    const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
     const mapX = Math.floor((natY + (natY & 1)) / 2 + natX);
-    const mapY = Math.floor(natY - mapX + globalMap.xsize);
+    const mapY = Math.floor(natY - mapX + mapWidth);
     return { mapX, mapY };
   }
 
@@ -499,8 +494,9 @@ export class MapRenderer {
    * @returns Normalized GUI coordinates that respect map wrapping
    */
   private normalizeGuiPos(guiX: number, guiY: number): { guiX: number; guiY: number } {
-    const globalMap = (window as any).map;
-    if (!globalMap) return { guiX, guiY };
+    const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
+    const mapHeight = this.currentMap.ysize ?? this.currentMap.height;
+    if (!mapWidth || !mapHeight) return { guiX, guiY };
 
     // Convert the (gui_x, gui_y) into a (map_x, map_y) plus a GUI offset from this tile
     const mapPos = this.guiToMapPos(guiX, guiY);
@@ -519,10 +515,10 @@ export class MapRenderer {
     let { natX, natY } = nativePos;
 
     if (this.wrapHasFlag(MapRenderer.WRAP_X)) {
-      natX = this.fcWrap(natX, globalMap.xsize);
+      natX = this.fcWrap(natX, mapWidth);
     }
     if (this.wrapHasFlag(MapRenderer.WRAP_Y)) {
-      natY = this.fcWrap(natY, globalMap.ysize);
+      natY = this.fcWrap(natY, mapHeight);
     }
 
     const wrappedMapPos = this.nativeToMapPos(natX, natY);
@@ -548,16 +544,16 @@ export class MapRenderer {
     viewportWidth: number,
     viewportHeight: number
   ): { x: number; y: number } {
-    const globalMap = (window as any).map;
-
-    if (!globalMap || !globalMap.xsize || !globalMap.ysize) {
+    const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
+    const mapHeight = this.currentMap.ysize ?? this.currentMap.height;
+    if (!mapWidth || !mapHeight) {
       return { x: 0, y: 0 };
     }
 
     // For isometric maps, we need to center based on the actual center tile of the map
     // Let's use freeciv-web's approach: center on the middle tile
-    const centerTileX = Math.floor(globalMap.xsize / 2);
-    const centerTileY = Math.floor(globalMap.ysize / 2);
+    const centerTileX = Math.floor(mapWidth / 2);
+    const centerTileY = Math.floor(mapHeight / 2);
 
     // Convert center tile to GUI coordinates
     const centerTileGui = this.mapToGuiVector(centerTileX, centerTileY);
@@ -585,10 +581,11 @@ export class MapRenderer {
     viewportWidth: number = 800,
     viewportHeight: number = 600
   ): { x: number; y: number } {
-    const globalMap = (window as any).map;
+    const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
+    const mapHeight = this.currentMap.ysize ?? this.currentMap.height;
 
     // If no map data, apply simple bounds instead of infinite panning
-    if (!globalMap || !globalMap.xsize || !globalMap.ysize) {
+    if (!mapWidth || !mapHeight) {
       console.warn('No map data available, applying fallback bounds');
       // Apply simple rectangular bounds as fallback (prevent infinite panning)
       const maxX = 1000;
@@ -604,9 +601,9 @@ export class MapRenderer {
 
     // For non-wrapping maps, apply very generous boundary constraints
     // Allow panning to see the entire map with reasonable padding
-    if (globalMap.wrap_id === 0) {
-      const mapWidthGui = globalMap.xsize * this.tileWidth;
-      const mapHeightGui = globalMap.ysize * this.tileHeight;
+    if ((this.currentMap.wrap_id ?? 0) === 0) {
+      const mapWidthGui = mapWidth * this.tileWidth;
+      const mapHeightGui = mapHeight * this.tileHeight;
 
       // Very generous bounds - allow seeing entire map plus lots of padding
       // This matches freeciv-web's behavior which is quite permissive
@@ -727,39 +724,22 @@ export class MapRenderer {
     this.isInitialized = false;
   }
 
-  private getVisibleTilesFromGlobal(
-    // @ts-expect-error - TODO: implement viewport culling
-    viewport: MapViewport,
-    // @ts-expect-error - TODO: implement map bounds checking
-    globalMap: any,
-    globalTiles: any[]
-  ): Tile[] {
+  private getVisibleTiles(mapTiles: Tile[]): Tile[] {
     const tiles: Tile[] = [];
 
     // For now, let's do a simple approach - get all tiles that have data
     // Later we can add the complex isometric culling logic
-    for (let i = 0; i < globalTiles.length; i++) {
-      const tile = globalTiles[i];
-      if (tile && tile.terrain && (!this.fogOfWarEnabled || tile.known > 0)) {
-        // Convert to our expected format
-        tiles.push({
-          x: tile.x,
-          y: tile.y,
-          terrain: tile.terrain,
-          visible: !this.fogOfWarEnabled || tile.known === 2,
-          known: !this.fogOfWarEnabled || tile.known >= 1,
-          units: [],
-          city: undefined,
-          elevation: tile.elevation || 0,
-          resource: tile.resource || undefined,
-          riverMask: tile.riverMask || tile.river_mask || 0, // Support both naming conventions
-          hasRoad: Boolean(tile.hasRoad),
-          hasRailroad: Boolean(tile.hasRailroad),
-          improvements: tile.improvements ?? [],
-          cityId: tile.cityId,
-          owner: tile.owner,
-          claimer: tile.claimer,
-        });
+    for (const tile of mapTiles) {
+      if (tile.terrain && (!this.fogOfWarEnabled || tile.known)) {
+        tiles.push(
+          this.fogOfWarEnabled
+            ? tile
+            : {
+                ...tile,
+                visible: true,
+                known: true,
+              }
+        );
       }
     }
 

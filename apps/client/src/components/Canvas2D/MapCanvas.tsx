@@ -268,8 +268,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       return;
     }
 
-    const globalMap = (window as { map?: { xsize: number; ysize: number } }).map;
-    if (!rendererRef.current || !globalMap || !globalMap.xsize || !globalMap.ysize) {
+    const mapWidth = map.xsize ?? map.width;
+    const mapHeight = map.ysize ?? map.height;
+    if (!rendererRef.current || !mapWidth || !mapHeight) {
       return;
     }
 
@@ -300,23 +301,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           startTile = { x: firstCity.x, y: firstCity.y };
           console.log('Found user city at:', startTile);
         } else {
-          // FALLBACK 3: Try to find any visible tile from global tiles
-          const globalTiles = (
-            window as {
-              tiles?: Array<{
-                x: number;
-                y: number;
-                known: number;
-                seen: number;
-              }>;
-            }
-          ).tiles;
-          if (globalTiles) {
-            for (const tile of globalTiles) {
-              if (tile?.known === 2) {
-                startTile = { x: tile.x, y: tile.y };
-                break;
-              }
+          // FALLBACK 3: Try to find any visible tile from the game map
+          for (const tile of Object.values(map.tiles)) {
+            if (tile.visible) {
+              startTile = { x: tile.x, y: tile.y };
+              break;
             }
           }
         }
@@ -343,6 +332,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     // Minimal dependencies to reduce race conditions
     gameState.mapData,
     gameState.currentPlayerId,
+    map,
     hasInitiallyCentered,
     // Use extracted variables instead of complex expressions
     unitsCount,
@@ -353,37 +343,24 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     viewport,
   ]);
 
-  // Render game state - use global tiles for stability (same source as MapRenderer)
+  // Render from the same authoritative map snapshot used by the rest of the UI.
   useEffect(() => {
     if (!rendererReady || !rendererRef.current || !canvasRef.current) return;
 
-    const globalTiles = (window as unknown as Record<string, unknown>).tiles as unknown[];
-    const globalMap = (window as unknown as Record<string, unknown>).map;
-
     console.log('MapCanvas render effect triggered:', {
-      globalTilesCount: globalTiles ? globalTiles.length : 0,
-      storeTileCount: map ? Object.keys(map.tiles).length : 0,
+      storeTileCount: Object.keys(map.tiles).length,
       unitCount: Object.keys(units).length,
       cityCount: Object.keys(cities).length,
       viewport,
-      dataSourceMismatch:
-        globalTiles && map ? globalTiles.length !== Object.keys(map.tiles).length : false,
       gotoModeActive: gotoMode.active,
       gotoPath: gotoMode.currentPath ? `${gotoMode.currentPath.tiles.length} tiles` : 'null',
     });
 
-    // Only render if we have the global tiles data that MapRenderer uses
-    if (rendererRef.current && globalTiles && globalMap) {
-      console.log(
-        'Executing render with global tiles count:',
-        globalTiles.length,
-        'gotoPath:',
-        gotoMode.currentPath
-      );
+    if (rendererRef.current) {
       // Render is now synchronous for better performance and no race conditions
       rendererRef.current.render({
         viewport,
-        map, // Keep using store map for compatibility, but trigger based on global data
+        map,
         units,
         cities,
         players,
@@ -713,31 +690,23 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         }
 
         // Standard tile hover for tooltip
-        const globalTiles = (window as { tiles?: Array<{ x: number; y: number; terrain: string }> })
-          .tiles;
+        const hoveredTileData = map.tiles[`${tileX},${tileY}`];
 
-        if (globalTiles) {
-          // Find the tile at the mouse position
-          const hoveredTileData = globalTiles.find(
-            tile => tile && Math.floor(tile.x) === tileX && Math.floor(tile.y) === tileY
-          );
+        if (hoveredTileData?.terrain) {
+          // Format terrain name to be human readable
+          const terrainName = hoveredTileData.terrain
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, (l: string) => l.toUpperCase());
 
-          if (hoveredTileData && hoveredTileData.terrain) {
-            // Format terrain name to be human readable
-            const terrainName = hoveredTileData.terrain
-              .replace(/_/g, ' ')
-              .replace(/\b\w/g, (l: string) => l.toUpperCase());
-
-            // In goto mode, show path info if available
-            let hoverText = `${terrainName} (${tileX}, ${tileY})`;
-            if (gotoMode.active && gotoMode.currentPath) {
-              hoverText += ` - ${gotoMode.currentPath.estimatedTurns} turns, ${gotoMode.currentPath.totalCost} movement`;
-            }
-
-            setHoveredTile(hoverText);
-          } else {
-            setHoveredTile(null);
+          // In goto mode, show path info if available
+          let hoverText = `${terrainName} (${tileX}, ${tileY})`;
+          if (gotoMode.active && gotoMode.currentPath) {
+            hoverText += ` - ${gotoMode.currentPath.estimatedTurns} turns, ${gotoMode.currentPath.totalCost} movement`;
           }
+
+          setHoveredTile(hoverText);
+        } else {
+          setHoveredTile(null);
         }
         return;
       }

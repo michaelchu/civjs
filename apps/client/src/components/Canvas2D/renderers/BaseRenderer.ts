@@ -1,10 +1,10 @@
-import type { MapViewport, Unit, City } from '../../../types';
+import type { MapViewport, Unit, City, GameState } from '../../../types';
 import type { GotoPath } from '../../../services/PathfindingService';
 import type { TilesetLoader } from '../TilesetLoader';
 
 export interface RenderState {
   viewport: MapViewport;
-  map: unknown; // Global map object
+  map: GameState['map'];
   units: Record<string, Unit>;
   cities: Record<string, City>;
   players: Record<string, { color: string; name: string; nation: string }>; // Player data for border colors and validation

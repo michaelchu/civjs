@@ -22,7 +22,22 @@ function createContext() {
 function createRenderState(cities: RenderState['cities'] = {}): RenderState {
   return {
     viewport: { x: 0, y: 0, width: 800, height: 600 },
-    map: {},
+    map: {
+      width: 10,
+      height: 10,
+      xsize: 10,
+      ysize: 10,
+      wrap_id: 0,
+      tiles: {
+        '0,0': {
+          x: 0,
+          y: 0,
+          terrain: 'plains',
+          known: true,
+          visible: true,
+        },
+      },
+    },
     units: {},
     cities,
     players: {},
@@ -32,20 +47,11 @@ function createRenderState(cities: RenderState['cities'] = {}): RenderState {
 describe('MapRenderer live-state updates', () => {
   afterEach(() => {
     vi.useRealTimers();
-    delete (window as unknown as { tiles?: unknown }).tiles;
-    delete (window as unknown as { map?: unknown }).map;
   });
 
   it('coalesces throttled packet bursts and renders the latest state', () => {
     vi.useFakeTimers();
     vi.setSystemTime(1000);
-    (window as unknown as { tiles: unknown[] }).tiles = [{}];
-    (window as unknown as { map: { xsize: number; ysize: number; wrap_id: number } }).map = {
-      xsize: 10,
-      ysize: 10,
-      wrap_id: 0,
-    };
-
     const renderer = new MapRenderer(createContext());
     const cityRenderer = { renderCities: vi.fn() };
     Object.assign(renderer as unknown as Record<string, unknown>, {
@@ -63,7 +69,7 @@ describe('MapRenderer live-state updates', () => {
         hasActiveMovementAnimations: () => false,
       },
       pathRenderer: { renderPaths: vi.fn() },
-      getVisibleTilesFromGlobal: () => [],
+      getVisibleTiles: () => [],
       checkViewportBounds: () => false,
     });
 
@@ -91,13 +97,6 @@ describe('MapRenderer live-state updates', () => {
   it('cancels a pending render when the renderer is cleaned up', () => {
     vi.useFakeTimers();
     vi.setSystemTime(1000);
-    (window as unknown as { tiles: unknown[] }).tiles = [{}];
-    (window as unknown as { map: { xsize: number; ysize: number; wrap_id: number } }).map = {
-      xsize: 10,
-      ysize: 10,
-      wrap_id: 0,
-    };
-
     const renderer = new MapRenderer(createContext());
     const cityRenderer = { renderCities: vi.fn() };
     Object.assign(renderer as unknown as Record<string, unknown>, {
@@ -115,7 +114,7 @@ describe('MapRenderer live-state updates', () => {
         hasActiveMovementAnimations: () => false,
       },
       pathRenderer: { renderPaths: vi.fn() },
-      getVisibleTilesFromGlobal: () => [],
+      getVisibleTiles: () => [],
       checkViewportBounds: () => false,
     });
 
@@ -159,15 +158,6 @@ describe('MapRenderer live-state updates', () => {
   });
 
   it('reveals unknown terrain and skips the fog layer when debug fog is disabled', () => {
-    (window as unknown as { tiles: unknown[] }).tiles = [
-      { x: 2, y: 3, terrain: 'grassland', known: 0 },
-    ];
-    (window as unknown as { map: { xsize: number; ysize: number; wrap_id: number } }).map = {
-      xsize: 10,
-      ysize: 10,
-      wrap_id: 0,
-    };
-
     const renderer = new MapRenderer(createContext());
     const renderTerrain = vi.fn();
     const renderFog = vi.fn();
@@ -191,7 +181,17 @@ describe('MapRenderer live-state updates', () => {
     });
 
     renderer.setFogOfWarEnabled(false);
-    renderer.render(createRenderState(), true);
+    const state = createRenderState();
+    state.map.tiles = {
+      '2,3': {
+        x: 2,
+        y: 3,
+        terrain: 'grassland',
+        known: false,
+        visible: false,
+      },
+    };
+    renderer.render(state, true);
 
     expect(renderTerrain).toHaveBeenCalledWith(
       expect.anything(),
@@ -209,13 +209,10 @@ describe('MapRenderer live-state updates', () => {
   });
 
   it('checks map bounds using the full canvas when viewport dimensions lag', () => {
-    (window as unknown as { map: { xsize: number; ysize: number; wrap_id: number } }).map = {
-      xsize: 20,
-      ysize: 20,
-      wrap_id: 0,
-    };
-
     const renderer = new MapRenderer(createContext());
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      currentMap: { width: 20, height: 20, xsize: 20, ysize: 20, wrap_id: 0, tiles: {} },
+    });
     const viewport = { x: -50, y: 430, width: 100, height: 100 };
     const exceedsBounds = (
       renderer as unknown as {

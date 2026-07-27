@@ -18,20 +18,23 @@ describe('FogRenderer', () => {
     };
     const renderer = new FogRenderer(context, loader as never, 96, 48);
 
-    renderer.render(
-      {
-        viewport: { x: 0, y: 0, width: 800, height: 600 },
-        map: { xsize: 3, ysize: 1 },
-        units: {},
-        cities: {},
-        players: {},
+    renderer.render({
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+      map: {
+        width: 3,
+        height: 1,
+        xsize: 3,
+        ysize: 1,
+        tiles: {
+          '0,0': { x: 0, y: 0, terrain: 'unknown', known: false, visible: false },
+          '1,0': { x: 1, y: 0, terrain: 'plains', known: true, visible: false },
+          '2,0': { x: 2, y: 0, terrain: 'plains', known: true, visible: true },
+        },
       },
-      [
-        { x: 0, y: 0, known: 0 },
-        { x: 1, y: 0, known: 1 },
-        { x: 2, y: 0, known: 2 },
-      ]
-    );
+      units: {},
+      cities: {},
+      players: {},
+    });
 
     expect(loader.getSprite('t.fog_u_f_u_u')).toBeDefined();
     expect(context.drawImage).toHaveBeenCalledWith(sprites.get('t.fog_u_f_u_u'), 0, 24);

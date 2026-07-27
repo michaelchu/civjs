@@ -682,29 +682,23 @@ export class GameClient {
   }
 
   private handleMapInfo(data: any) {
-    console.log('Received MAP_INFO packet - creating new tiles array:', {
+    console.log('Received MAP_INFO packet:', {
       xsize: data.xsize,
       ysize: data.ysize,
       totalTiles: data.xsize * data.ysize,
-      existingTiles: !!(window as any).tiles,
     });
 
-    // Store in global map variable exactly like freeciv-web: map = packet;
-    (window as any).map = data;
-
-    const totalTiles = data.xsize * data.ysize;
-    (window as any).tiles = new Array(totalTiles);
     this.pendingMapTiles = {};
-
-    for (let i = 0; i < totalTiles; i++) {
-      (window as any).tiles[i] = {
-        index: i,
-        x: i % data.xsize,
-        y: Math.floor(i / data.xsize),
-        known: 0,
-        seen: 0,
-      };
-    }
+    useGameStore.getState().updateGameState({
+      map: {
+        width: data.xsize,
+        height: data.ysize,
+        xsize: data.xsize,
+        ysize: data.ysize,
+        wrap_id: data.wrap_id ?? 0,
+        tiles: {},
+      },
+    });
   }
 
   private handleTileInfo(data: any) {
@@ -716,10 +710,7 @@ export class GameClient {
       elevation: data.elevation,
     });
 
-    if ((window as any).tiles && data.tile !== undefined) {
-      const tiles = (window as any).tiles;
-      tiles[data.tile] = Object.assign(tiles[data.tile] || {}, data);
-
+    if (data.tile !== undefined) {
       const tileKey = `${data.x},${data.y}`;
       const currentMap = useGameStore.getState().map;
 
@@ -747,13 +738,12 @@ export class GameClient {
 
       useGameStore.getState().updateGameState({
         map: {
-          width: (window as any).map?.xsize || 80,
-          height: (window as any).map?.ysize || 50,
+          width: currentMap.width,
+          height: currentMap.height,
           tiles: updatedTiles,
-          // Store freeciv-web references
-          xsize: (window as any).map?.xsize || 80,
-          ysize: (window as any).map?.ysize || 50,
-          wrap_id: (window as any).map?.wrap_id || 0,
+          xsize: currentMap.xsize,
+          ysize: currentMap.ysize,
+          wrap_id: currentMap.wrap_id,
         },
       });
 
@@ -783,17 +773,14 @@ export class GameClient {
         : 'none',
     });
 
-    if (!(window as any).tiles || !data.tiles) return;
+    if (!data.tiles) return;
 
-    const tiles = (window as any).tiles;
     if (data.startIndex === 0 || !this.pendingMapTiles) {
       this.pendingMapTiles = {};
     }
     const updatedTiles = this.pendingMapTiles;
 
     for (const tileData of data.tiles) {
-      tiles[tileData.tile] = Object.assign(tiles[tileData.tile] || {}, tileData);
-
       const tileKey = `${tileData.x},${tileData.y}`;
       updatedTiles[tileKey] = {
         x: tileData.x,
@@ -822,15 +809,15 @@ export class GameClient {
     if (!snapshotComplete) return;
 
     this.pendingMapTiles = null;
+    const currentMap = useGameStore.getState().map;
     useGameStore.getState().updateGameState({
       map: {
-        width: (window as any).map?.xsize || 80,
-        height: (window as any).map?.ysize || 50,
+        width: currentMap.width,
+        height: currentMap.height,
         tiles: updatedTiles,
-        // Store freeciv-web references
-        xsize: (window as any).map?.xsize || 80,
-        ysize: (window as any).map?.ysize || 50,
-        wrap_id: (window as any).map?.wrap_id || 0,
+        xsize: currentMap.xsize,
+        ysize: currentMap.ysize,
+        wrap_id: currentMap.wrap_id,
       },
     });
   }

@@ -9,12 +9,8 @@ type Knowledge = typeof TILE_UNKNOWN | typeof TILE_KNOWN_UNSEEN | typeof TILE_KN
 interface FogTile {
   x?: number;
   y?: number;
-  known?: number;
-}
-
-interface MapDimensions {
-  xsize?: number;
-  ysize?: number;
+  known?: boolean;
+  visible?: boolean;
 }
 
 /**
@@ -31,21 +27,18 @@ interface MapDimensions {
  * @reference reference/freeciv-web/javascript/2dcanvas/tilespec.js:1881-1911
  */
 export class FogRenderer extends BaseRenderer {
-  render(state: RenderState, globalTiles: unknown[]): void {
-    const stateMap = state.map as MapDimensions | undefined;
-    const globalMap = (window as unknown as { map?: MapDimensions }).map;
-    const map = stateMap?.xsize && stateMap?.ysize ? stateMap : globalMap;
-    const mapWidth = map?.xsize;
-    const mapHeight = map?.ysize;
+  render(state: RenderState): void {
+    const mapWidth = state.map.xsize ?? state.map.width;
+    const mapHeight = state.map.ysize ?? state.map.height;
     if (!mapWidth || !mapHeight) return;
 
     const knowledgeByCoordinate = new Map<string, Knowledge>();
-    for (const rawTile of globalTiles) {
+    for (const rawTile of Object.values(state.map.tiles)) {
       const tile = rawTile as FogTile | undefined;
       if (tile?.x === undefined || tile.y === undefined) continue;
       knowledgeByCoordinate.set(
         this.coordinateKey(tile.x, tile.y),
-        this.normalizeKnowledge(tile.known)
+        this.normalizeKnowledge(tile.known, tile.visible)
       );
     }
 
@@ -111,9 +104,9 @@ export class FogRenderer extends BaseRenderer {
     return knowledgeByCoordinate.get(this.coordinateKey(x, y)) ?? TILE_UNKNOWN;
   }
 
-  private normalizeKnowledge(known: number | undefined): Knowledge {
-    if (known === TILE_KNOWN_SEEN) return TILE_KNOWN_SEEN;
-    if (known === TILE_KNOWN_UNSEEN) return TILE_KNOWN_UNSEEN;
+  private normalizeKnowledge(known: boolean | undefined, visible: boolean | undefined): Knowledge {
+    if (visible) return TILE_KNOWN_SEEN;
+    if (known) return TILE_KNOWN_UNSEEN;
     return TILE_UNKNOWN;
   }
 

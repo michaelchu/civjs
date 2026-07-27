@@ -17,13 +17,15 @@ export class TerrainRenderer extends BaseRenderer {
   // Cached tile lookup for performance
   private tileMap: Map<string, any> = new Map();
   private tileMapBuilt = false;
-  private lastGlobalTiles: any = null;
+  private sourceTiles: Record<string, Tile> = {};
+  private lastTiles: Record<string, Tile> | null = null;
 
   /**
    * Render terrain for all visible tiles in the viewport.
    * Includes rivers and resources in LAYER_SPECIAL1 (freeciv-web layer order).
    */
   renderTerrain(state: RenderState, visibleTiles: Tile[]): void {
+    this.invalidateTileCache(state.map.tiles);
     for (const tile of visibleTiles) {
       this.renderTile(tile, state.viewport);
     }
@@ -34,8 +36,9 @@ export class TerrainRenderer extends BaseRenderer {
    * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:305-380
    */
   renderOceanPadding(state: RenderState): void {
-    const globalMap = (window as any).map;
-    if (!globalMap) return;
+    const mapWidth = state.map.xsize ?? state.map.width;
+    const mapHeight = state.map.ysize ?? state.map.height;
+    if (!mapWidth || !mapHeight) return;
 
     const viewport = state.viewport;
 
@@ -116,7 +119,7 @@ export class TerrainRenderer extends BaseRenderer {
             const map_y = ptile_di / 4;
 
             // Only render ocean tiles for out-of-bounds positions
-            if (map_x < 0 || map_x >= globalMap.xsize || map_y < 0 || map_y >= globalMap.ysize) {
+            if (map_x < 0 || map_x >= mapWidth || map_y < 0 || map_y >= mapHeight) {
               // Calculate screen position for this tile
               const gui_x = Math.floor((ptile_xi * ptile_w) / ptile_r2 - ptile_w / 2);
               const gui_y = Math.floor((ptile_yi * ptile_h) / ptile_r2 - ptile_h / 2);
@@ -577,19 +580,14 @@ export class TerrainRenderer extends BaseRenderer {
   private buildTileMap(): void {
     if (this.tileMapBuilt) return;
 
-    const globalTiles = (window as any).tiles;
-    if (!globalTiles || !Array.isArray(globalTiles)) {
-      return;
-    }
-
-    // Validate that tiles array is populated before building cache
-    if (globalTiles.length === 0) {
+    const tiles = Object.values(this.sourceTiles);
+    if (tiles.length === 0) {
       return;
     }
 
     this.tileMap.clear();
 
-    for (const tile of globalTiles) {
+    for (const tile of tiles) {
       if (
         tile &&
         Object.prototype.hasOwnProperty.call(tile, 'x') &&
@@ -603,7 +601,7 @@ export class TerrainRenderer extends BaseRenderer {
     this.tileMapBuilt = true;
   }
 
-  // Get neighboring tiles from global tiles array
+  // Get neighboring tiles from the authoritative game map
   // Returns 8 neighbors in DIR8 order: N, NE, E, SE, S, SW, W, NW
   private getNeighboringTerrains(tile: Tile): any[] {
     this.buildTileMap();
@@ -697,35 +695,11 @@ export class TerrainRenderer extends BaseRenderer {
   /**
    * Reset tile map cache if tiles data has changed.
    */
-  invalidateTileCache(): void {
-    // Reset tile map cache if tiles data has changed - with React Strict Mode resilience
-    const currentGlobalTiles = (window as any).tiles;
-    if (currentGlobalTiles && currentGlobalTiles !== this.lastGlobalTiles) {
-      // Additional validation to avoid unnecessary cache invalidation
-      const isValidNewArray = Array.isArray(currentGlobalTiles) && currentGlobalTiles.length > 0;
-      const previousWasValid =
-        Array.isArray(this.lastGlobalTiles) && this.lastGlobalTiles.length > 0;
-
-      // Only invalidate if we have a legitimately new, populated tiles array
-      if (
-        isValidNewArray &&
-        (!previousWasValid || currentGlobalTiles.length !== this.lastGlobalTiles.length)
-      ) {
-        console.log('TerrainRenderer: Invalidating tile cache due to new tiles array', {
-          newLength: currentGlobalTiles.length,
-          previousLength: this.lastGlobalTiles?.length || 0,
-          strictModeResilient: true,
-        });
-        this.tileMapBuilt = false;
-        this.lastGlobalTiles = currentGlobalTiles;
-      } else if (isValidNewArray && previousWasValid) {
-        // Same array size - likely React Strict Mode double render, update reference but keep cache
-        console.log(
-          'TerrainRenderer: Updating tiles array reference without cache invalidation (likely React Strict Mode)'
-        );
-        this.lastGlobalTiles = currentGlobalTiles;
-      }
-    }
+  invalidateTileCache(tiles: Record<string, Tile>): void {
+    if (tiles === this.lastTiles) return;
+    this.sourceTiles = tiles;
+    this.lastTiles = tiles;
+    this.tileMapBuilt = false;
   }
 
   /**
