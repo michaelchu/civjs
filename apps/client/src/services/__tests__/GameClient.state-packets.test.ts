@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { gameClient } from '../GameClient';
 import { useGameStore } from '../../store/gameStore';
 import { PacketType, type Packet } from '../../types/packets';
@@ -150,6 +150,63 @@ describe('GameClient state-bearing packets', () => {
       expect.objectContaining({ known: false, visible: false })
     );
     expect(useGameStore.getState().units).toEqual({});
+  });
+
+  it('does not synthesize resize events after a recovered map snapshot', () => {
+    vi.useFakeTimers();
+    const dispatchEvent = vi.spyOn(window, 'dispatchEvent');
+
+    handlePacket({
+      type: PacketType.MAP_INFO,
+      data: { xsize: 1, ysize: 1, wrap_id: 0 },
+    });
+    handlePacket({
+      type: PacketType.TILE_INFO,
+      data: {
+        tiles: [{ tile: 0, x: 0, y: 0, terrain: 'plains', known: 2, seen: 1 }],
+        startIndex: 0,
+        endIndex: 1,
+        total: 1,
+      },
+    });
+    vi.runAllTimers();
+
+    expect(dispatchEvent.mock.calls.some(([event]) => event.type === 'resize')).toBe(false);
+    dispatchEvent.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it('commits a recovered map only after the final tile batch', () => {
+    handlePacket({
+      type: PacketType.MAP_INFO,
+      data: { xsize: 2, ysize: 1, wrap_id: 0 },
+    });
+    handlePacket({
+      type: PacketType.TILE_INFO,
+      data: {
+        tiles: [{ tile: 0, x: 0, y: 0, terrain: 'plains', known: 2, seen: 1 }],
+        startIndex: 0,
+        endIndex: 1,
+        total: 2,
+      },
+    });
+
+    expect(useGameStore.getState().map.tiles).toEqual({});
+
+    handlePacket({
+      type: PacketType.TILE_INFO,
+      data: {
+        tiles: [{ tile: 1, x: 1, y: 0, terrain: 'ocean', known: 2, seen: 1 }],
+        startIndex: 1,
+        endIndex: 2,
+        total: 2,
+      },
+    });
+
+    expect(useGameStore.getState().map.tiles).toEqual({
+      '0,0': expect.objectContaining({ terrain: 'plains' }),
+      '1,0': expect.objectContaining({ terrain: 'ocean' }),
+    });
   });
 
   it('applies authoritative culture updates to existing players', () => {

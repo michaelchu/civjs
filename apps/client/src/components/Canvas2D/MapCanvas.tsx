@@ -38,9 +38,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   // Track initial centering to prevent multiple centering events (freeciv-web compliance)
   const [hasInitiallyCentered, setHasInitiallyCentered] = useState(false);
 
-  // Track global tiles changes for render triggering - more stable than store map
-  const [globalTilesVersion, setGlobalTilesVersion] = useState(0);
-
   // Unit selection and context menu state
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -174,6 +171,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   // Initialize renderer and load tileset - only once, not on viewport changes!
   useEffect(() => {
+    let cancelled = false;
+    let renderer: MapRenderer | null = null;
+
     const initRenderer = async () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -181,16 +181,22 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      rendererRef.current = new MapRenderer(ctx);
+      renderer = new MapRenderer(ctx);
+      rendererRef.current = renderer;
 
       try {
         // Initialize renderer (tileset files are now served from client domain)
-        await rendererRef.current.initialize();
+        await renderer.initialize();
+        if (cancelled) {
+          renderer.cleanup();
+          return;
+        }
+
         setRendererReady(true);
         const gameState = useGameStore.getState();
 
-        if (rendererRef.current) {
-          rendererRef.current.render({
+        if (rendererRef.current === renderer) {
+          renderer.render({
             viewport: gameState.viewport,
             map: gameState.map,
             units: gameState.units,
@@ -203,14 +209,20 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           });
         }
       } catch (error) {
-        console.error('Failed to initialize MapRenderer:', error);
+        if (!cancelled) {
+          console.error('Failed to initialize MapRenderer:', error);
+        }
       }
     };
 
-    initRenderer();
+    void initRenderer();
 
     return () => {
-      rendererRef.current?.cleanup();
+      cancelled = true;
+      renderer?.cleanup();
+      if (rendererRef.current === renderer) {
+        rendererRef.current = null;
+      }
     };
   }, []); // Empty dependency array - initialize only once!
 
@@ -234,8 +246,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    canvas.width = width;
-    canvas.height = height;
+    // Setting either dimension clears the backing buffer. React may replay
+    // this effect with the same dimensions during a warm route transition.
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
 
     setViewport({ width, height });
   }, [width, height, setViewport]);
@@ -339,7 +355,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
   // Render game state - use global tiles for stability (same source as MapRenderer)
   useEffect(() => {
-    if (!rendererRef.current || !canvasRef.current) return;
+    if (!rendererReady || !rendererRef.current || !canvasRef.current) return;
 
     const globalTiles = (window as unknown as Record<string, unknown>).tiles as unknown[];
     const globalMap = (window as unknown as Record<string, unknown>).map;
@@ -387,85 +403,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     focusedUnits,
     gotoMode.active,
     gotoMode.currentPath,
-    globalTilesVersion,
     gameState.currentPlayerId,
     gameState.research?.researchedTechs,
     fogOfWarEnabled,
+    rendererReady,
   ]); // Include map for React Hook dependency
-
-  // Monitor global tiles changes and trigger canvas reinitialization (like window resize)
-  useEffect(() => {
-    let lastTilesLength = 0;
-
-    const checkGlobalTiles = () => {
-      const globalTiles = (window as unknown as Record<string, unknown>).tiles as unknown[];
-      if (globalTiles && globalTiles.length !== lastTilesLength && globalTiles.length > 0) {
-        console.log('Global tiles changed, triggering canvas reinitialization:', {
-          oldLength: lastTilesLength,
-          newLength: globalTiles.length,
-        });
-
-        lastTilesLength = globalTiles.length;
-
-        // Force canvas reinitialization like window resize does
-        const canvas = canvasRef.current;
-        if (canvas && rendererRef.current) {
-          // Get current dimensions
-          const currentWidth = canvas.width;
-          const currentHeight = canvas.height;
-
-          console.log('Forcing canvas context reset:', {
-            width: currentWidth,
-            height: currentHeight,
-          });
-
-          // Force complete canvas context reset by setting dimensions
-          // This clears any corrupted rendering state that might cause visual glitches
-          canvas.width = currentWidth;
-          canvas.height = currentHeight;
-
-          // Reinitialize the renderer context (important!)
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            // Reset any canvas context state that might be corrupted
-            ctx.imageSmoothingEnabled = false;
-            (ctx as unknown as Record<string, unknown>).webkitImageSmoothingEnabled = false;
-            (ctx as unknown as Record<string, unknown>).mozImageSmoothingEnabled = false;
-            (ctx as unknown as Record<string, unknown>).msImageSmoothingEnabled = false;
-            ctx.font = '14px Arial, sans-serif';
-          }
-
-          // Update viewport to trigger full re-render
-          setViewport({ width: currentWidth, height: currentHeight });
-
-          // Force an immediate render to avoid timing delays after tiles change
-          rendererRef.current.render(
-            {
-              viewport: useGameStore.getState().viewport,
-              map: useGameStore.getState().map,
-              units: useGameStore.getState().units,
-              cities: useGameStore.getState().cities,
-              players: useGameStore.getState().players,
-              selectedUnitId: useGameStore.getState().selectedUnitId,
-              focusedUnits: useGameStore.getState().focusedUnits,
-              gotoPath: gotoMode.currentPath,
-            },
-            true
-          ); // immediate flag
-        }
-
-        setGlobalTilesVersion(prev => prev + 1);
-      }
-    };
-
-    // Check periodically for global tiles changes (more stable than event-based)
-    const interval = setInterval(checkGlobalTiles, 100); // Check every 100ms
-
-    // Also check immediately
-    checkGlobalTiles();
-
-    return () => clearInterval(interval);
-  }, [setViewport, gotoMode.currentPath]); // Add dependencies
 
   // Optimized animation for selection pulsing - use a simple timer instead of continuous animation loop
   useEffect(() => {

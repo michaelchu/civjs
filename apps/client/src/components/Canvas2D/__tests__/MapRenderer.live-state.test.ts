@@ -88,6 +88,46 @@ describe('MapRenderer live-state updates', () => {
     expect(cityRenderer.renderCities).toHaveBeenLastCalledWith(latestState);
   });
 
+  it('cancels a pending render when the renderer is cleaned up', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    (window as unknown as { tiles: unknown[] }).tiles = [{}];
+    (window as unknown as { map: { xsize: number; ysize: number; wrap_id: number } }).map = {
+      xsize: 10,
+      ysize: 10,
+      wrap_id: 0,
+    };
+
+    const renderer = new MapRenderer(createContext());
+    const cityRenderer = { renderCities: vi.fn() };
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      isInitialized: true,
+      cityRenderer,
+      terrainRenderer: {
+        invalidateTileCache: vi.fn(),
+        renderTerrain: vi.fn(),
+        renderOceanPadding: vi.fn(),
+      },
+      borderRenderer: { render: vi.fn() },
+      unitRenderer: {
+        renderUnitSelection: vi.fn(),
+        renderUnits: vi.fn(),
+        hasActiveMovementAnimations: () => false,
+      },
+      pathRenderer: { renderPaths: vi.fn() },
+      getVisibleTilesFromGlobal: () => [],
+      checkViewportBounds: () => false,
+    });
+
+    renderer.render(createRenderState());
+    vi.setSystemTime(1010);
+    renderer.render(createRenderState());
+    renderer.cleanup();
+    vi.advanceTimersByTime(100);
+
+    expect(cityRenderer.renderCities).toHaveBeenCalledTimes(1);
+  });
+
   it('does not draw a unit placeholder when only an optional stack badge is missing', () => {
     const context = createContext();
     const unitSprite = {} as HTMLImageElement;
@@ -166,5 +206,23 @@ describe('MapRenderer live-state updates', () => {
       ])
     );
     expect(renderFog).not.toHaveBeenCalled();
+  });
+
+  it('checks map bounds using the full canvas when viewport dimensions lag', () => {
+    (window as unknown as { map: { xsize: number; ysize: number; wrap_id: number } }).map = {
+      xsize: 20,
+      ysize: 20,
+      wrap_id: 0,
+    };
+
+    const renderer = new MapRenderer(createContext());
+    const viewport = { x: -50, y: 430, width: 100, height: 100 };
+    const exceedsBounds = (
+      renderer as unknown as {
+        checkViewportBounds: (candidate: typeof viewport) => boolean;
+      }
+    ).checkViewportBounds(viewport);
+
+    expect(exceedsBounds).toBe(true);
   });
 });
