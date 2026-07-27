@@ -326,24 +326,16 @@ export class CityManagementHandler extends BaseSocketHandler {
         game.cityManager.setCityProduction.bind(game.cityManager),
         game.turnManager ? new RequirementsManager(game.turnManager.getCultureManager()) : undefined
       );
-      if (!(await productionHandler.canCityBuild(city, data.production, data.type, player))) {
-        handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {
-          success: false,
-          message: 'Production not available',
-        });
-        return;
-      }
-
-      await this.gameManager.setCityProduction(
-        connection.gameId!,
-        player.id,
-        data.cityId,
-        data.production,
-        data.type
-      );
+      const result = await productionHandler.applyProductionChange({
+        cityId: data.cityId,
+        playerId: player.id,
+        productionId: data.production,
+        productionType: data.type,
+      });
 
       handler.send(socket, PacketType.CITY_PRODUCTION_CHANGE_REPLY, {
         success: true,
+        ...result,
       });
 
       logger.debug('City production changed', {

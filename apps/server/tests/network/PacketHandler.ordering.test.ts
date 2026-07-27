@@ -1,5 +1,5 @@
 import { PacketHandler } from '@network/PacketHandler';
-import { PacketType } from '@app-types/packet';
+import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
 
 describe('PacketHandler ordering and duplicates', () => {
   it('accepts increasing sequences and ignores duplicate or stale requests', async () => {
@@ -53,5 +53,28 @@ describe('PacketHandler ordering and duplicates', () => {
     });
 
     expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects unsupported protocol versions and versions outgoing packets', async () => {
+    const packetHandler = new PacketHandler();
+    const socket = { id: 'socket-1', emit: jest.fn() } as any;
+    const handler = jest.fn();
+    packetHandler.register(PacketType.CHAT_MSG_REQ, handler);
+
+    await packetHandler.process(socket, {
+      type: PacketType.CHAT_MSG_REQ,
+      version: PROTOCOL_VERSION + 1,
+      data: {},
+    });
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(socket.emit).toHaveBeenCalledWith(
+      'packet',
+      expect.objectContaining({
+        type: PacketType.CONNECT_MSG,
+        version: PROTOCOL_VERSION,
+        data: expect.objectContaining({ message: `Unsupported protocol version: 2` }),
+      })
+    );
   });
 });

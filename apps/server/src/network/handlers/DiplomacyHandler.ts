@@ -1,7 +1,7 @@
 import type { Server, Socket } from 'socket.io';
 import { BaseSocketHandler } from './BaseSocketHandler';
 import type { PacketHandler } from '../PacketHandler';
-import { PacketType } from '@app-types/packet';
+import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
 import type { GameManager } from '@game/managers/GameManager';
 import type { TreatyClause } from '@game/managers/DiplomacyManager';
 import { logger } from '@utils/logger';
@@ -118,6 +118,7 @@ export class DiplomacyHandler extends BaseSocketHandler {
       if (!player.userId) continue;
       const snapshot = await this.gameManager.getDiplomacySnapshot(gameId, player.id);
       io.to(`player:${player.userId}`).emit('packet', {
+        version: PROTOCOL_VERSION,
         type: PacketType.DIPLOMACY_UPDATE,
         timestamp: Date.now(),
         data: { success: true, ...snapshot },

@@ -19,7 +19,8 @@
     /* Path mapping */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@protocol": ["../server/src/types/shared/packetContract.ts"]
     },
 
     /* Linting */

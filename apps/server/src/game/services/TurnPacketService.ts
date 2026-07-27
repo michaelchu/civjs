@@ -10,7 +10,7 @@
 
 import { logger } from '@utils/logger';
 import { Server as SocketServer } from 'socket.io';
-import { PacketType } from '@app-types/packet';
+import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
 
 export interface TurnPacketData {
   gameId: string;
@@ -58,6 +58,7 @@ export class TurnPacketService {
 
     // Send to all players in the game
     this.io.to(`game:${this.gameId}`).emit('packet', {
+      version: PROTOCOL_VERSION,
       type: PacketType.NEW_YEAR,
       timestamp: Date.now(),
       data: packetData,
@@ -90,6 +91,7 @@ export class TurnPacketService {
 
     // Send to all players in the game
     this.io.to(`game:${this.gameId}`).emit('packet', {
+      version: PROTOCOL_VERSION,
       type: PacketType.BEGIN_TURN,
       timestamp: Date.now(),
       data: packetData,
@@ -122,6 +124,7 @@ export class TurnPacketService {
 
     // Send to all players in the game
     this.io.to(`game:${this.gameId}`).emit('packet', {
+      version: PROTOCOL_VERSION,
       type: PacketType.END_TURN,
       timestamp: Date.now(),
       data: packetData,
@@ -156,6 +159,7 @@ export class TurnPacketService {
 
     // Send to all players in the game
     this.io.to(`game:${this.gameId}`).emit('packet', {
+      version: PROTOCOL_VERSION,
       type: PacketType.TURN_PROCESSING_STEP,
       timestamp: Date.now(),
       data: packetData,
@@ -180,6 +184,7 @@ export class TurnPacketService {
 
     // Send to all players in the game
     this.io.to(`game:${this.gameId}`).emit('packet', {
+      version: PROTOCOL_VERSION,
       type: PacketType.TURN_PROCESSING_STEP,
       timestamp: Date.now(),
       data: packetData,
@@ -206,6 +211,7 @@ export class TurnPacketService {
     });
 
     this.io.to(`game:${this.gameId}`).emit('packet', {
+      version: PROTOCOL_VERSION,
       type: PacketType.FREEZE_CLIENT,
       timestamp: Date.now(),
       data: packetData,
@@ -228,6 +234,7 @@ export class TurnPacketService {
     });
 
     this.io.to(`game:${this.gameId}`).emit('packet', {
+      version: PROTOCOL_VERSION,
       type: PacketType.THAW_CLIENT,
       timestamp: Date.now(),
       data: packetData,
@@ -321,6 +328,7 @@ export class TurnPacketService {
     });
 
     this.io.to(`game:${this.gameId}`).emit('packet', {
+      version: PROTOCOL_VERSION,
       type: PacketType.TURN_PROCESSING_STEP,
       timestamp: Date.now(),
       data: packetData,
@@ -346,6 +354,7 @@ export class TurnPacketService {
 
     // Use SERVER_MESSAGE packet type for statistics
     this.io.to(`game:${this.gameId}`).emit('packet', {
+      version: PROTOCOL_VERSION,
       type: PacketType.SERVER_MESSAGE,
       timestamp: Date.now(),
       data: {

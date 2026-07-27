@@ -105,22 +105,44 @@ export class MapVisibilityHandler extends BaseSocketHandler {
     const connection = this.getConnection(socket, this.activeConnections);
     if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
       handler.send(socket, PacketType.TILE_VISIBILITY_REPLY, {
+        success: false,
         x: data.x,
         y: data.y,
         isVisible: false,
         isExplored: false,
+        message: 'Not authenticated or not in a game',
       });
       return;
     }
 
     try {
       const game = await this.gameManager.getGame(connection.gameId!);
-      if (!game) return;
+      if (!game) {
+        handler.send(socket, PacketType.TILE_VISIBILITY_REPLY, {
+          success: false,
+          x: data.x,
+          y: data.y,
+          isVisible: false,
+          isExplored: false,
+          message: 'Game not found',
+        });
+        return;
+      }
 
       const player = Array.from(game.players.values()).find(
         (p: any) => p.userId === connection.userId
       ) as any;
-      if (!player) return;
+      if (!player) {
+        handler.send(socket, PacketType.TILE_VISIBILITY_REPLY, {
+          success: false,
+          x: data.x,
+          y: data.y,
+          isVisible: false,
+          isExplored: false,
+          message: 'Player not found in game',
+        });
+        return;
+      }
 
       const visibility = this.gameManager.getTileVisibility(
         connection.gameId!,
@@ -130,6 +152,7 @@ export class MapVisibilityHandler extends BaseSocketHandler {
       );
 
       handler.send(socket, PacketType.TILE_VISIBILITY_REPLY, {
+        success: true,
         x: data.x,
         y: data.y,
         isVisible: visibility.isVisible,
@@ -146,10 +169,12 @@ export class MapVisibilityHandler extends BaseSocketHandler {
     } catch (error) {
       logger.error('Error processing tile visibility request:', error);
       handler.send(socket, PacketType.TILE_VISIBILITY_REPLY, {
+        success: false,
         x: data.x,
         y: data.y,
         isVisible: false,
         isExplored: false,
+        message: error instanceof Error ? error.message : 'Failed to get tile visibility',
       });
     }
   }

@@ -1,5 +1,5 @@
 import { EndGameService } from '@game/services/EndGameService';
-import { PacketType } from '@app-types/packet';
+import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
 import { createMockDatabaseProvider } from '../../utils/mockDatabaseProvider';
 
 const citiesByPlayer: Record<string, Array<{ size: number }>> = {
@@ -79,6 +79,7 @@ describe('EndGameService', () => {
     );
     expect(emit).toHaveBeenCalledWith('packet', {
       type: PacketType.ENDGAME_REPORT,
+      version: PROTOCOL_VERSION,
       data: result.report,
     });
   });

@@ -16,7 +16,7 @@ import {
   EconomicHandler,
   DiplomacyHandler,
 } from './handlers';
-import { PacketType } from '../types/packet';
+import { PacketType, PROTOCOL_VERSION } from '../types/packet';
 import { db, type Database } from '@database';
 
 // Store active connections (shared across handlers)
@@ -99,6 +99,7 @@ export class SocketCoordinator {
         ]);
         if (connection?.role === 'spectator' && !spectatorSafePackets.has(packet.type)) {
           socket.emit('packet', {
+            version: PROTOCOL_VERSION,
             type: PacketType.SERVER_MESSAGE,
             data: { type: 'error', message: 'Spectators cannot change game state' },
           });

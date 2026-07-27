@@ -1,197 +1,11 @@
 import { z } from 'zod';
-
-// Packet type enum matching Freeciv's packet system
-export enum PacketType {
-  // Connection Management (0-20)
-  PROCESSING_STARTED = 0,
-  PROCESSING_FINISHED = 1,
-  SERVER_JOIN_REQ = 4,
-  SERVER_JOIN_REPLY = 5,
-  AUTHENTICATION_REQ = 6,
-  AUTHENTICATION_REPLY = 7,
-  SERVER_SHUTDOWN = 8,
-
-  // Player Management (10-30)
-  NATION_SELECT_REQ = 10,
-  NATION_SELECT_REPLY = 11,
-  PLAYER_READY = 12,
-  ENDGAME_REPORT = 13,
-  PLAYER_INFO = 14,
-  PLAYER_REMOVE = 15,
-  NATION_LIST_REQ = 16,
-  NATION_LIST_REPLY = 17,
-
-  // Map & Tile (18-40)
-  TILE_INFO = 18,
-  GAME_INFO = 19,
-  MAP_INFO = 20,
-  NUKE_TILE_INFO = 21,
-  MAP_VIEW_REQ = 22,
-  TILE_VISIBILITY_REQ = 23,
-
-  // Chat & Messages (25-35)
-  CHAT_MSG = 25,
-  CHAT_MSG_REQ = 26,
-  CONNECT_MSG = 27,
-  EARLY_CHAT_MSG = 28,
-  SERVER_INFO = 29,
-
-  // City Management (30-50)
-  CITY_REMOVE = 30,
-  CITY_INFO = 31,
-  CITY_SHORT_INFO = 32,
-  CITY_SELL = 33,
-  CITY_BUY = 34,
-  CITY_CHANGE = 35,
-  CITY_WORKLIST = 36,
-  CITY_MAKE_SPECIALIST = 37,
-  CITY_MAKE_WORKER = 38,
-
-  // Unit Management (50-80)
-  UNIT_INFO = 50,
-  UNIT_SHORT_INFO = 51,
-  UNIT_MOVE = 52,
-  UNIT_BUILD_CITY = 53,
-  UNIT_DISBAND = 54,
-  UNIT_CHANGE_HOMECITY = 55,
-  UNIT_COMBAT_INFO = 56,
-  UNIT_ORDERS = 57,
-  UNIT_ATTACK = 58,
-  UNIT_FORTIFY = 59,
-  UNIT_CREATE = 60,
-
-  // Turn Management (80-90, 125-135)
-  TURN_DONE = 80,
-  NEW_TURN = 81, // Legacy - keeping for compatibility
-  BEGIN_TURN = 82, // Legacy - keeping for compatibility
-  END_TURN = 83, // Legacy - keeping for compatibility
-  TURN_END_REPLY = 84,
-  TURN_START = 85,
-  FREEZE_CLIENT = 86,
-  THAW_CLIENT = 87,
-
-  // Freeciv-web compatible turn packets (matching reference protocol)
-  NEW_YEAR = 127, // @reference freeciv-web/javascript/packhand_gen.js case 127
-  // Note: BEGIN_TURN = 128, END_TURN = 129 in freeciv-web
-  // We use our existing 82, 83 for now and will phase these in
-
-  // Custom for our implementation (200+)
-  GAME_CREATE = 200,
-  GAME_CREATE_REPLY = 201,
-  GAME_JOIN = 202,
-  GAME_JOIN_REPLY = 203,
-  GAME_LEAVE = 204,
-  GAME_START = 205,
-  GAME_LIST = 206,
-  PLAYER_LIST = 207,
-  SERVER_MESSAGE = 208,
-  UNIT_MOVE_REPLY = 209,
-  UNIT_ATTACK_REPLY = 210,
-  UNIT_FORTIFY_REPLY = 211,
-  UNIT_CREATE_REPLY = 212,
-  MAP_VIEW_REPLY = 213,
-  TILE_VISIBILITY_REPLY = 214,
-  CITY_FOUND = 215,
-  CITY_FOUND_REPLY = 216,
-  CITY_PRODUCTION_CHANGE = 217,
-  CITY_PRODUCTION_CHANGE_REPLY = 218,
-  RESEARCH_SET = 219,
-  RESEARCH_SET_REPLY = 220,
-  RESEARCH_GOAL_SET = 221,
-  RESEARCH_GOAL_SET_REPLY = 222,
-  RESEARCH_LIST = 223,
-  RESEARCH_LIST_REPLY = 224,
-  RESEARCH_PROGRESS = 225,
-  RESEARCH_PROGRESS_REPLY = 226,
-  TURN_PROCESSING_STEP = 227,
-
-  // Government Management (228-235)
-  GOVERNMENT_LIST = 228,
-  GOVERNMENT_LIST_REPLY = 229,
-  GOVERNMENT_CHANGE_REQ = 230,
-  GOVERNMENT_CHANGE_REPLY = 231,
-  REVOLUTION_START = 232,
-  REVOLUTION_START_REPLY = 233,
-
-  // Border system packets (240-245)
-  BORDER_UPDATE = 240,
-  BORDER_SOURCE_UPDATE = 241,
-  BORDER_INFO_REQUEST = 242,
-  BORDER_INFO_RESPONSE = 243,
-  BORDER_CHANGE_NOTIFICATION = 244,
-
-  // Diplomacy (250-257)
-  DIPLOMACY_LIST_REQ = 250,
-  DIPLOMACY_LIST_REPLY = 251,
-  DIPLOMACY_TREATY_PROPOSE = 252,
-  DIPLOMACY_TREATY_RESPONSE = 253,
-  DIPLOMACY_TREATY_CANCEL = 254,
-  DIPLOMACY_DECLARE_WAR = 255,
-  DIPLOMACY_UPDATE = 256,
-}
-
-// Debug helper for development - maps numeric types to readable names
-export const PACKET_NAMES: Record<number, string> = {
-  [PacketType.PROCESSING_STARTED]: 'PROCESSING_STARTED',
-  [PacketType.PROCESSING_FINISHED]: 'PROCESSING_FINISHED',
-  [PacketType.SERVER_JOIN_REQ]: 'SERVER_JOIN_REQ',
-  [PacketType.SERVER_JOIN_REPLY]: 'SERVER_JOIN_REPLY',
-  [PacketType.NATION_SELECT_REQ]: 'NATION_SELECT_REQ',
-  [PacketType.NATION_SELECT_REPLY]: 'NATION_SELECT_REPLY',
-  [PacketType.ENDGAME_REPORT]: 'ENDGAME_REPORT',
-  [PacketType.NATION_LIST_REQ]: 'NATION_LIST_REQ',
-  [PacketType.NATION_LIST_REPLY]: 'NATION_LIST_REPLY',
-  [PacketType.TILE_INFO]: 'TILE_INFO',
-  [PacketType.GAME_INFO]: 'GAME_INFO',
-  [PacketType.MAP_INFO]: 'MAP_INFO',
-  [PacketType.CHAT_MSG]: 'CHAT_MSG',
-  [PacketType.CHAT_MSG_REQ]: 'CHAT_MSG_REQ',
-  [PacketType.CONNECT_MSG]: 'CONNECT_MSG',
-  [PacketType.CITY_INFO]: 'CITY_INFO',
-  [PacketType.UNIT_INFO]: 'UNIT_INFO',
-  [PacketType.UNIT_MOVE]: 'UNIT_MOVE',
-  [PacketType.UNIT_ATTACK]: 'UNIT_ATTACK',
-  [PacketType.UNIT_FORTIFY]: 'UNIT_FORTIFY',
-  [PacketType.UNIT_CREATE]: 'UNIT_CREATE',
-  [PacketType.TURN_START]: 'TURN_START',
-  [PacketType.END_TURN]: 'END_TURN',
-  [PacketType.NEW_YEAR]: 'NEW_YEAR',
-  [PacketType.GAME_CREATE]: 'GAME_CREATE',
-  [PacketType.GAME_CREATE_REPLY]: 'GAME_CREATE_REPLY',
-  [PacketType.GAME_JOIN]: 'GAME_JOIN',
-  [PacketType.GAME_JOIN_REPLY]: 'GAME_JOIN_REPLY',
-  [PacketType.UNIT_MOVE_REPLY]: 'UNIT_MOVE_REPLY',
-  [PacketType.UNIT_ATTACK_REPLY]: 'UNIT_ATTACK_REPLY',
-  [PacketType.UNIT_FORTIFY_REPLY]: 'UNIT_FORTIFY_REPLY',
-  [PacketType.UNIT_CREATE_REPLY]: 'UNIT_CREATE_REPLY',
-  [PacketType.CITY_FOUND]: 'CITY_FOUND',
-  [PacketType.CITY_FOUND_REPLY]: 'CITY_FOUND_REPLY',
-  [PacketType.RESEARCH_SET]: 'RESEARCH_SET',
-  [PacketType.RESEARCH_SET_REPLY]: 'RESEARCH_SET_REPLY',
-  [PacketType.TURN_PROCESSING_STEP]: 'TURN_PROCESSING_STEP',
-  [PacketType.GOVERNMENT_LIST]: 'GOVERNMENT_LIST',
-  [PacketType.GOVERNMENT_LIST_REPLY]: 'GOVERNMENT_LIST_REPLY',
-  [PacketType.GOVERNMENT_CHANGE_REQ]: 'GOVERNMENT_CHANGE_REQ',
-  [PacketType.GOVERNMENT_CHANGE_REPLY]: 'GOVERNMENT_CHANGE_REPLY',
-  [PacketType.REVOLUTION_START]: 'REVOLUTION_START',
-  [PacketType.REVOLUTION_START_REPLY]: 'REVOLUTION_START_REPLY',
-  [PacketType.BORDER_UPDATE]: 'BORDER_UPDATE',
-  [PacketType.BORDER_SOURCE_UPDATE]: 'BORDER_SOURCE_UPDATE',
-  [PacketType.BORDER_INFO_REQUEST]: 'BORDER_INFO_REQUEST',
-  [PacketType.BORDER_INFO_RESPONSE]: 'BORDER_INFO_RESPONSE',
-  [PacketType.BORDER_CHANGE_NOTIFICATION]: 'BORDER_CHANGE_NOTIFICATION',
-  [PacketType.DIPLOMACY_LIST_REQ]: 'DIPLOMACY_LIST_REQ',
-  [PacketType.DIPLOMACY_LIST_REPLY]: 'DIPLOMACY_LIST_REPLY',
-  [PacketType.DIPLOMACY_TREATY_PROPOSE]: 'DIPLOMACY_TREATY_PROPOSE',
-  [PacketType.DIPLOMACY_TREATY_RESPONSE]: 'DIPLOMACY_TREATY_RESPONSE',
-  [PacketType.DIPLOMACY_TREATY_CANCEL]: 'DIPLOMACY_TREATY_CANCEL',
-  [PacketType.DIPLOMACY_DECLARE_WAR]: 'DIPLOMACY_DECLARE_WAR',
-  [PacketType.DIPLOMACY_UPDATE]: 'DIPLOMACY_UPDATE',
-};
+export { PacketType, PACKET_NAMES, PROTOCOL_VERSION } from './shared/packetContract';
+import { PacketType } from './shared/packetContract';
 
 // Base packet interface
 export interface Packet<T = any> {
   type: PacketType;
+  version?: number;
   seq?: number;
   timestamp?: number;
   data: T;
@@ -346,7 +160,7 @@ export const CityInfoSchema = z.object({
 export const CityProductionChangeSchema = z.object({
   cityId: z.string(),
   production: z.string(),
-  type: z.enum(['unit', 'building']),
+  type: z.enum(['unit', 'building', 'wonder']),
 });
 
 export const CityFoundReplySchema = z.object({
@@ -357,6 +171,9 @@ export const CityFoundReplySchema = z.object({
 
 export const CityProductionChangeReplySchema = z.object({
   success: z.boolean(),
+  cityId: z.string().optional(),
+  production: z.unknown().optional(),
+  shieldStock: z.number().optional(),
   message: z.string().optional(),
 });
 
@@ -822,11 +639,13 @@ export const MapViewReplySchema = z.object({
 });
 
 export const TileVisibilityReplySchema = z.object({
+  success: z.boolean(),
   x: z.number(),
   y: z.number(),
   isVisible: z.boolean(),
   isExplored: z.boolean(),
-  lastSeen: z.date().optional(),
+  lastSeen: z.union([z.date(), z.number()]).optional(),
+  message: z.string().optional(),
 });
 
 export const TurnProcessingStepSchema = z.object({

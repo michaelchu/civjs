@@ -29,6 +29,7 @@ import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
 import { MapStartpos } from '@game/map/MapTypes';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import type { Server as SocketServer } from 'socket.io';
+import { PROTOCOL_VERSION } from '@app-types/packet';
 import type {
   GameConfig,
   GameInstance,
@@ -921,7 +922,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         this.io.to(`game:${gameId}`).emit(event, data);
       },
       broadcastPacketToGame: (gameId: string, packetType: any, data: any) => {
-        this.io.to(`game:${gameId}`).emit('packet', { type: packetType, data });
+        this.io
+          .to(`game:${gameId}`)
+          .emit('packet', { type: packetType, version: PROTOCOL_VERSION, data });
       },
       broadcastMapData: (gameId: string, mapData: any) => {
         this.io.to(`game:${gameId}`).emit('map_data', mapData);

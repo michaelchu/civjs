@@ -2,7 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
-import { PacketType, ServerJoinReqSchema } from '@app-types/packet';
+import { PacketType, PROTOCOL_VERSION, ServerJoinReqSchema } from '@app-types/packet';
 import { sessionCache } from '@database/redis';
 import { db, type Database } from '@database';
 import { users } from '@database/schema';
@@ -140,6 +140,7 @@ export class ConnectionHandler extends BaseSocketHandler {
       if (connection.gameId) {
         // Emit disconnect message to game room
         socket.to(`game:${connection.gameId}`).emit('packet', {
+          version: PROTOCOL_VERSION,
           type: PacketType.CONNECT_MSG,
           data: {
             type: 'player_disconnected',

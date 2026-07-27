@@ -2,7 +2,7 @@
 import { Socket } from 'socket.io';
 import { z } from 'zod';
 import logger from '../utils/logger';
-import { Packet, PacketType, PACKET_NAMES } from '../types/packet';
+import { Packet, PacketType, PACKET_NAMES, PROTOCOL_VERSION } from '../types/packet';
 
 export type PacketHandlerFunction = (
   socket: Socket,
@@ -38,6 +38,10 @@ export class PacketHandler {
       // Validate packet structure
       if (packet.type === undefined || packet.data === undefined) {
         throw new Error('Invalid packet structure');
+      }
+      if (packet.version !== undefined && packet.version !== PROTOCOL_VERSION) {
+        this.sendError(socket, `Unsupported protocol version: ${packet.version}`);
+        return;
       }
 
       // Check sequence number if provided
@@ -91,6 +95,7 @@ export class PacketHandler {
   send(socket: Socket, type: PacketType, data: any): void {
     const packet: Packet = {
       type,
+      version: PROTOCOL_VERSION,
       data,
       timestamp: Date.now(),
     };
@@ -104,6 +109,7 @@ export class PacketHandler {
   broadcast(sockets: Socket[], type: PacketType, data: any): void {
     const packet: Packet = {
       type,
+      version: PROTOCOL_VERSION,
       data,
       timestamp: Date.now(),
     };

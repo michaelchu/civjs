@@ -1,6 +1,7 @@
 import { gameClient } from '../GameClient';
 import type { ProductionOption } from '../../types';
 import { vi } from 'vitest';
+import { PacketType, PROTOCOL_VERSION } from '../../types/packets';
 
 const jest = vi;
 
@@ -173,9 +174,13 @@ describe('GameClient Production Methods', () => {
       };
 
       mockSocket.on.mockImplementation((event: string, callback: (data: unknown) => void) => {
-        if (event === 'city:productionChanged') {
+        if (event === 'packet') {
           setTimeout(() => {
-            callback(mockResponse);
+            callback({
+              type: PacketType.CITY_PRODUCTION_CHANGE_REPLY,
+              version: PROTOCOL_VERSION,
+              data: { success: true, ...mockResponse },
+            });
           }, 10);
         }
       });
@@ -183,11 +188,14 @@ describe('GameClient Production Methods', () => {
       const promise = gameClient.changeProduction('city-1', 'archer', 'unit');
 
       // Verify request was sent
-      expect(mockSocket.emit).toHaveBeenCalledWith('city:changeProduction', {
-        cityId: 'city-1',
-        productionId: 'archer',
-        productionType: 'unit',
-      });
+      expect(mockSocket.emit).toHaveBeenCalledWith(
+        'packet',
+        expect.objectContaining({
+          type: PacketType.CITY_PRODUCTION_CHANGE,
+          version: PROTOCOL_VERSION,
+          data: { cityId: 'city-1', production: 'archer', type: 'unit' },
+        })
+      );
 
       await promise;
 
@@ -197,9 +205,17 @@ describe('GameClient Production Methods', () => {
 
     it('should handle production change errors', async () => {
       mockSocket.on.mockImplementation((event: string, callback: (data: unknown) => void) => {
-        if (event === 'error') {
+        if (event === 'packet') {
           setTimeout(() => {
-            callback({ message: 'Production not available' });
+            callback({
+              type: PacketType.CITY_PRODUCTION_CHANGE_REPLY,
+              version: PROTOCOL_VERSION,
+              data: {
+                success: false,
+                cityId: 'city-1',
+                message: 'Production not available',
+              },
+            });
           }, 10);
         }
       });
@@ -216,9 +232,9 @@ describe('GameClient Production Methods', () => {
 
       const promise = gameClient.changeProduction('city-1', 'archer', 'unit');
 
-      jest.advanceTimersByTime(10000);
+      jest.advanceTimersByTime(5000);
 
-      await expect(promise).rejects.toThrow('Change production timeout');
+      await expect(promise).rejects.toThrow('Failed to change production: request timed out');
 
       jest.useRealTimers();
     });
@@ -227,7 +243,7 @@ describe('GameClient Production Methods', () => {
       (gameClient as unknown as { socket: null }).socket = null;
 
       await expect(gameClient.changeProduction('city-1', 'archer', 'unit')).rejects.toThrow(
-        'Not connected to server'
+        'Socket not connected'
       );
     });
 
@@ -235,29 +251,35 @@ describe('GameClient Production Methods', () => {
       let responseCount = 0;
 
       mockSocket.on.mockImplementation((event: string, callback: (data: unknown) => void) => {
-        if (event === 'city:productionChanged') {
+        if (event === 'packet') {
           setTimeout(() => {
             // Send response for different city first
             callback({
-              cityId: 'different-city',
-              production: {},
-              shieldStock: 0,
-              penalty: 0,
+              type: PacketType.CITY_PRODUCTION_CHANGE_REPLY,
+              data: {
+                success: true,
+                cityId: 'different-city',
+                production: {},
+                shieldStock: 0,
+              },
             });
 
             // Then send response for requested city
             setTimeout(() => {
               callback({
-                cityId: 'city-1',
-                production: {
-                  target: 'Archer',
-                  type: 'unit',
-                  progress: 0,
-                  cost: 15,
-                  turnsToComplete: 3,
+                type: PacketType.CITY_PRODUCTION_CHANGE_REPLY,
+                data: {
+                  success: true,
+                  cityId: 'city-1',
+                  production: {
+                    target: 'Archer',
+                    type: 'unit',
+                    progress: 0,
+                    cost: 15,
+                    turnsToComplete: 3,
+                  },
+                  shieldStock: 0,
                 },
-                shieldStock: 0,
-                penalty: 0,
               });
               responseCount++;
             }, 10);
@@ -271,13 +293,16 @@ describe('GameClient Production Methods', () => {
 
     it('should clean up event listeners after response', async () => {
       mockSocket.on.mockImplementation((event: string, callback: (data: unknown) => void) => {
-        if (event === 'city:productionChanged') {
+        if (event === 'packet') {
           setTimeout(() => {
             callback({
-              cityId: 'city-1',
-              production: {},
-              shieldStock: 0,
-              penalty: 0,
+              type: PacketType.CITY_PRODUCTION_CHANGE_REPLY,
+              data: {
+                success: true,
+                cityId: 'city-1',
+                production: {},
+                shieldStock: 0,
+              },
             });
           }, 10);
         }
@@ -285,8 +310,7 @@ describe('GameClient Production Methods', () => {
 
       await gameClient.changeProduction('city-1', 'archer', 'unit');
 
-      expect(mockSocket.off).toHaveBeenCalledWith('city:productionChanged', expect.any(Function));
-      expect(mockSocket.off).toHaveBeenCalledWith('error', expect.any(Function));
+      expect(mockSocket.off).toHaveBeenCalledWith('packet', expect.any(Function));
     });
   });
 

@@ -1,6 +1,6 @@
 # CivJS Porting Playbook
 
-**Status:** Milestones 0–9 complete; Milestones 10–13 define the remaining
+**Status:** Milestones 0–10 complete; Milestones 11–13 define the remaining
 classic-port closure work identified by the post-Milestone 8 audit
 **Baseline:** [`PORT_STATUS.md`](PORT_STATUS.md)  
 **Goal:** a playable, testable TypeScript port of the Freeciv classic ruleset with a freeciv-web-compatible 2D client experience.
@@ -312,6 +312,16 @@ named-event inventory in [`PORTING_INVENTORY.md`](PORTING_INVENTORY.md).
 active gameplay transport appears once in the canonical contract; and named
 events that remain are explicitly classified as Socket.IO lifecycle or
 versioned compatibility adapters.
+
+**Completion evidence:** `packetContract.ts` is the single protocol-v1 source
+for client and server identifiers and records each active envelope and named
+event. Packet envelopes carry a version, reject unsupported versions, and are
+protected against identifier drift by `PacketContract.test.ts`. City
+production now uses its authoritative structured request/reply path while the
+named event remains a documented compatibility adapter. Tile visibility now
+has a matching client caller plus validation, authorization, success, and
+error coverage in `MapVisibilityHandler.test.ts` and
+`GameClient.protocol.test.ts`.
 
 ### Milestone 11 — Remaining classic unit actions and automation
 

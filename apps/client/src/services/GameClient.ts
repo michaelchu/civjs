@@ -2,12 +2,18 @@
 import { io, Socket } from 'socket.io-client';
 import { SERVER_URL } from '../config';
 import { useGameStore } from '../store/gameStore';
-import { PacketType, PACKET_NAMES, type Packet } from '../types/packets';
+import { PacketType, PACKET_NAMES, PROTOCOL_VERSION, type Packet } from '../types/packets';
 import { ActionType, type ActionResult } from '../types/shared/actions';
 import { pathfindingService } from './PathfindingService';
 import { playerColorToHex } from '../utils/playerColors';
 import { storeUsername } from '../utils/gameSession';
-import type { DiplomacyState, GovernmentState, ProductionOption, TreatyClauseType } from '../types';
+import type {
+  City,
+  DiplomacyState,
+  GovernmentState,
+  ProductionOption,
+  TreatyClauseType,
+} from '../types';
 import { playEndGameSound } from './UserPreferences';
 
 // Mock government data for development
@@ -345,6 +351,10 @@ class GameClient {
   }
 
   private handlePacket(packet: Packet) {
+    if (packet.version !== undefined && packet.version !== PROTOCOL_VERSION) {
+      console.error(`Ignoring unsupported protocol version ${packet.version}`);
+      return;
+    }
     const packetName = PACKET_NAMES[packet.type] || `UNKNOWN_${packet.type}`;
 
     // Debug log for border packets
@@ -599,6 +609,7 @@ class GameClient {
         break;
 
       case PacketType.CONNECT_MSG:
+      case PacketType.SERVER_MESSAGE:
         console.log('Connection message:', packet.data);
         if (packet.data.type === 'error') {
           console.error('Server error:', packet.data.message);
@@ -1033,6 +1044,7 @@ class GameClient {
     if (!this.socket) return;
     this.socket.emit('packet', {
       type,
+      version: PROTOCOL_VERSION,
       data,
       timestamp: Date.now(),
     } satisfies Packet);
@@ -1043,7 +1055,8 @@ class GameClient {
     replyType: PacketType,
     data: unknown,
     isSuccess: (data: Record<string, unknown>) => boolean,
-    fallbackError: string
+    fallbackError: string,
+    matchesReply: (data: Record<string, unknown>) => boolean = () => true
   ): Promise<Record<string, unknown>> {
     return new Promise((resolve, reject) => {
       if (!this.socket) {
@@ -1057,6 +1070,8 @@ class GameClient {
       }, 5000);
       const responseHandler = (reply: Packet<Record<string, unknown>>) => {
         if (reply.type !== replyType) return;
+        if (reply.version !== undefined && reply.version !== PROTOCOL_VERSION) return;
+        if (!matchesReply(reply.data)) return;
         window.clearTimeout(timeoutId);
         this.socket?.off('packet', responseHandler);
         if (isSuccess(reply.data)) {
@@ -1090,6 +1105,27 @@ class GameClient {
         reject(new Error('Get map data timeout'));
       }, 10000);
     });
+  }
+
+  async getTileVisibility(
+    x: number,
+    y: number
+  ): Promise<{ x: number; y: number; isVisible: boolean; isExplored: boolean; lastSeen?: number }> {
+    const data = await this.requestPacket(
+      PacketType.TILE_VISIBILITY_REQ,
+      PacketType.TILE_VISIBILITY_REPLY,
+      { x, y },
+      reply => reply.success !== false,
+      'Failed to get tile visibility',
+      reply => reply.x === x && reply.y === y
+    );
+    return data as {
+      x: number;
+      y: number;
+      isVisible: boolean;
+      isExplored: boolean;
+      lastSeen?: number;
+    };
   }
 
   async getVisibleTiles(): Promise<any> {
@@ -1410,7 +1446,12 @@ class GameClient {
 
   private sendPacket(type: PacketType, data: unknown): void {
     if (!this.socket) return;
-    this.socket.emit('packet', { type, data, timestamp: Date.now() } satisfies Packet);
+    this.socket.emit('packet', {
+      type,
+      version: PROTOCOL_VERSION,
+      data,
+      timestamp: Date.now(),
+    } satisfies Packet);
   }
 
   private handleTurnProcessingStep(data: any) {
@@ -1728,64 +1769,26 @@ class GameClient {
     productionId: string,
     productionType: 'unit' | 'building' | 'wonder'
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!this.socket) {
-        reject(new Error('Not connected to server'));
-        return;
-      }
-
-      // Set up response handler
-      const handleResponse = (data: {
-        cityId: string;
-        production: any;
-        shieldStock: number;
-        penalty: number;
-      }) => {
-        if (data.cityId === cityId) {
-          this.socket?.off('city:productionChanged', handleResponse);
-          this.socket?.off('error', handleError);
-          clearTimeout(timeout);
-
-          // Update city in store
-          const { cities } = useGameStore.getState();
-          const updatedCities = {
-            ...cities,
-            [cityId]: {
-              ...cities[cityId],
-              production: data.production,
-              shieldStock: data.shieldStock,
-            },
-          };
-          useGameStore.getState().updateGameState({ cities: updatedCities });
-
-          resolve();
-        }
-      };
-
-      const handleError = (error: { message: string }) => {
-        this.socket?.off('city:productionChanged', handleResponse);
-        this.socket?.off('error', handleError);
-        clearTimeout(timeout);
-        reject(new Error(error.message));
-      };
-
-      this.socket.on('city:productionChanged', handleResponse);
-      this.socket.on('error', handleError);
-
-      // Set timeout
-      const timeout = setTimeout(() => {
-        this.socket?.off('city:productionChanged', handleResponse);
-        this.socket?.off('error', handleError);
-        reject(new Error('Change production timeout'));
-      }, 10000);
-
-      // Send request
-      this.socket.emit('city:changeProduction', {
-        cityId,
-        productionId,
-        productionType,
+    const data = await this.requestPacket(
+      PacketType.CITY_PRODUCTION_CHANGE,
+      PacketType.CITY_PRODUCTION_CHANGE_REPLY,
+      { cityId, production: productionId, type: productionType },
+      reply => Boolean(reply.success),
+      'Failed to change production',
+      reply => reply.cityId === cityId
+    );
+    const { cities } = useGameStore.getState();
+    if (cities[cityId] && data.production) {
+      useGameStore.getState().updateGameState({
+        cities: {
+          ...cities,
+          [cityId]: {
+            ...cities[cityId],
+            production: data.production as City['production'],
+          },
+        },
       });
-    });
+    }
   }
 
   async configureCityGovernor(

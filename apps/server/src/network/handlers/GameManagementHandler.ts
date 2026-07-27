@@ -2,7 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
-import { PacketType } from '@app-types/packet';
+import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
 import { CityDataService } from '@game/services/CityDataService';
 
@@ -155,6 +155,7 @@ export class GameManagementHandler extends BaseSocketHandler {
       }));
 
       socket.emit('packet', {
+        version: PROTOCOL_VERSION,
         type: PacketType.GAME_LIST,
         data: { games: gameList },
       });
@@ -459,6 +460,7 @@ export class GameManagementHandler extends BaseSocketHandler {
     const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
 
     socket.emit('packet', {
+      version: PROTOCOL_VERSION,
       type: PacketType.MAP_INFO,
       data: {
         xsize: mapData.width,
@@ -499,6 +501,7 @@ export class GameManagementHandler extends BaseSocketHandler {
     for (let startIndex = 0; startIndex < tiles.length; startIndex += batchSize) {
       const batch = tiles.slice(startIndex, startIndex + batchSize);
       socket.emit('packet', {
+        version: PROTOCOL_VERSION,
         type: PacketType.TILE_INFO,
         data: {
           tiles: batch,
@@ -523,6 +526,7 @@ export class GameManagementHandler extends BaseSocketHandler {
         veteran: unit.veteranLevel,
       }));
     socket.emit('packet', {
+      version: PROTOCOL_VERSION,
       type: PacketType.UNIT_INFO,
       data: { units },
       timestamp: Date.now(),
@@ -538,6 +542,7 @@ export class GameManagementHandler extends BaseSocketHandler {
     });
 
     socket.emit('packet', {
+      version: PROTOCOL_VERSION,
       type: PacketType.BORDER_UPDATE,
       data: {
         type: 'border_update',

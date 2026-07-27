@@ -1,6 +1,7 @@
 import { CityManagementHandler } from '@network/handlers/CityManagementHandler';
 import { GameManager } from '@game/managers/GameManager';
 import { PacketHandler } from '@network/PacketHandler';
+import { PacketType } from '@app-types/packet';
 import { Server, Socket } from 'socket.io';
 
 jest.mock('../../../src/utils/logger', () => ({
@@ -93,6 +94,55 @@ describe('CityManagementHandler production socket flow', () => {
     expect(mockSocket.emit).toHaveBeenCalledWith(
       'city:productionChanged',
       expect.objectContaining({ cityId: 'city-1' })
+    );
+  });
+
+  it('routes the canonical packet through the same authoritative production mutation', async () => {
+    const gameInstance = {
+      players: new Map([[playerId, { id: playerId, userId }]]),
+      cityManager,
+      researchManager: { hasPlayerResearched: jest.fn().mockReturnValue(true) },
+    };
+    const gameManager = {
+      getGame: jest.fn().mockResolvedValue({
+        status: 'active',
+        players: [{ id: playerId, userId }],
+      }),
+      getGameInstance: jest.fn().mockReturnValue(gameInstance),
+    } as unknown as GameManager;
+    const packetHandler = {
+      register: jest.fn(),
+      send: jest.fn(),
+    } as unknown as PacketHandler;
+    const handler = new CityManagementHandler(
+      new Map([[socketId, { userId, gameId }]]),
+      gameManager
+    );
+    handler.register(packetHandler, {} as Server, mockSocket);
+    const packetCallback = (packetHandler.register as jest.Mock).mock.calls.find(
+      call => call[0] === PacketType.CITY_PRODUCTION_CHANGE
+    )[1];
+
+    await packetCallback(mockSocket, {
+      cityId: 'city-1',
+      production: 'archers',
+      type: 'unit',
+    });
+
+    expect(cityManager.setCityProduction).toHaveBeenCalledWith(
+      'city-1',
+      'unit',
+      'archers',
+      playerId
+    );
+    expect(packetHandler.send).toHaveBeenCalledWith(
+      mockSocket,
+      PacketType.CITY_PRODUCTION_CHANGE_REPLY,
+      expect.objectContaining({
+        success: true,
+        cityId: 'city-1',
+        production: expect.objectContaining({ type: 'unit' }),
+      })
     );
   });
 

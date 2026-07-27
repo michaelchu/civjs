@@ -2,7 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
-import { PacketType } from '@app-types/packet';
+import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
 
 /**
@@ -99,6 +99,7 @@ export class TurnManagementHandler extends BaseSocketHandler {
 
       // Send NEW_YEAR packet first (freeciv-web protocol)
       io.to(`game:${gameId}`).emit('packet', {
+        version: PROTOCOL_VERSION,
         type: PacketType.NEW_YEAR,
         timestamp: Date.now(),
         data: {
@@ -118,7 +119,11 @@ export class TurnManagementHandler extends BaseSocketHandler {
 
       // Small delay to ensure packet ordering
       setTimeout(() => {
-        io.to(`game:${gameId}`).emit('packet', { type: PacketType.TURN_START, data: turnData });
+        io.to(`game:${gameId}`).emit('packet', {
+          type: PacketType.TURN_START,
+          version: PROTOCOL_VERSION,
+          data: turnData,
+        });
       }, 10);
     } else {
       logger.warn('No game found for turn start notification', {

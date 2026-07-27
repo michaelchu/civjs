@@ -1,6 +1,6 @@
 import { GameManagementHandler } from '@network/handlers/GameManagementHandler';
 import { PacketHandler } from '@network/PacketHandler';
-import { PacketType } from '@app-types/packet';
+import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
 import { Server, Socket } from 'socket.io';
 
@@ -136,6 +136,7 @@ describe('GameManagementHandler', () => {
       expect(mockGameManager.getGameListForLobby).toHaveBeenCalledWith(mockUserId);
       expect(mockSocket.emit).toHaveBeenCalledWith('packet', {
         type: PacketType.GAME_LIST,
+        version: PROTOCOL_VERSION,
         data: {
           games: expect.arrayContaining([
             expect.objectContaining({

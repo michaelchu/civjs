@@ -2,7 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
-import { PacketType, ChatMsgSchema } from '@app-types/packet';
+import { PacketType, ChatMsgSchema, PROTOCOL_VERSION } from '@app-types/packet';
 
 /**
  * Handles chat and communication packets
@@ -53,6 +53,7 @@ export class ChatCommunicationHandler extends BaseSocketHandler {
 
     if (data.channel === 'all' && connection.gameId) {
       io.to(`game:${connection.gameId}`).emit('packet', {
+        version: PROTOCOL_VERSION,
         type: PacketType.CHAT_MSG,
         data: chatPacket,
       });
@@ -64,6 +65,7 @@ export class ChatCommunicationHandler extends BaseSocketHandler {
       }
     } else {
       io.emit('packet', {
+        version: PROTOCOL_VERSION,
         type: PacketType.CHAT_MSG,
         data: chatPacket,
       });

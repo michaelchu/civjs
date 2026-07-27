@@ -5,7 +5,7 @@ import { games, players } from '@database/schema';
 import type { CityManager } from '@game/managers/CityManager';
 import type { ResearchManager } from '@game/managers/ResearchManager';
 import type { UnitManager } from '@game/managers/UnitManager';
-import { PacketType } from '@app-types/packet';
+import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
 
 export interface EndGameStanding {
   playerId: string;
@@ -135,6 +135,7 @@ export class EndGameService {
       })
       .where(eq(games.id, context.gameId));
     this.io.to(`game:${context.gameId}`).emit('packet', {
+      version: PROTOCOL_VERSION,
       type: PacketType.ENDGAME_REPORT,
       data: report,
     });

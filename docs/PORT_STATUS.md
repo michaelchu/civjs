@@ -1,8 +1,8 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 9 working tree (2026-07-26)
-**Verification method:** source-tree audit, 851 passing unit tests (53 client,
-798 server), and passing formatting, lint, production type checks, and
+**Verified against:** Milestone 10 working tree (2026-07-26)
+**Verification method:** source-tree audit, 860 passing unit tests (55 client,
+805 server), and passing formatting, lint, production type checks, and
 production builds. Database-backed integration remains separately dependent on
 the configured PostgreSQL test service.
 
@@ -280,13 +280,31 @@ without TypeScript constant edits.
 Remaining classic action outcomes belong to Milestone 11, while complete
 style/music rendering and browser evidence belong to Milestone 12.
 
+## Milestone 10 — complete
+
+Client and server now consume one canonical protocol-v1 identifier and
+transport catalogue. Outgoing packet envelopes carry the version, unsupported
+versions fail explicitly, and contract tests prevent numeric drift while
+preserving the deployed CivJS IDs.
+
+Every active packet and named Socket.IO event is classified with its direction
+and endpoint evidence. Named lifecycle, notification, and version-1
+compatibility paths remain visible rather than being mistaken for unimplemented
+packets. City production has moved to its structured, correlated request/reply
+path; the legacy named handler remains a compatibility adapter. The previously
+unused tile-visibility request now has a client caller and explicit validated,
+authorized success/error replies.
+
+Evidence includes `PacketContract.test.ts`,
+`PacketHandler.ordering.test.ts`, `MapVisibilityHandler.test.ts`,
+`CityManagementHandler.production.test.ts`,
+`GameClient.protocol.test.ts`, and `GameClient.production.test.ts`.
+
 ## Partial or incomplete areas
 
 These are confirmed by the post-Milestone 8 audit and are now scheduled in
 [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md):
 
-- Client and server packet enums can drift, and gameplay still mixes structured
-  packets with named Socket.IO events (Milestone 10).
 - Bombardment, paradrop, airlift, and applicable automation are not yet in the
   advertised classic action surface (Milestone 11).
 - Style/rendering parity and the playable flow lack browser-level automated

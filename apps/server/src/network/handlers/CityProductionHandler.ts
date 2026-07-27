@@ -144,86 +144,10 @@ export class CityProductionHandler {
     }
   ): Promise<void> {
     try {
-      const city = this.cities.get(cityId);
-      if (!city) {
-        socket.emit('error', { message: 'City not found' });
-        return;
-      }
-
-      if (city.playerId !== playerId) {
-        socket.emit('error', { message: 'City does not belong to player' });
-        return;
-      }
-
-      const player = this.players.get(playerId);
-      if (!player) {
-        socket.emit('error', { message: 'Player not found' });
-        return;
-      }
-
-      // Validate the production option is available
-      if (!(await this.canCityBuild(city, productionId, productionType, player))) {
-        socket.emit('error', { message: 'Production not available' });
-        return;
-      }
-
-      // Calculate production change penalty (shields lost when changing)
-      const penalty = this.calculateProductionChangePenalty(city, productionId, productionType);
-
-      const previousProduction = city.currentProduction;
-      const previousType = city.productionType;
-
-      // Apply penalty to shield stock
-      if (penalty > 0) {
-        city.productionStock = Math.max(
-          0,
-          (city.productionStock ?? city.shieldStock ?? 0) - penalty
-        );
-      }
-
-      if (productionType === 'wonder') {
-        socket.emit('error', { message: 'Wonders are not supported yet' });
-        return;
-      }
-
-      if (this.setCityProduction) {
-        await this.setCityProduction(cityId, productionType, productionId, playerId);
-      } else {
-        city.currentProduction = productionId;
-        city.productionType = productionType;
-      }
-
-      // Get production details for the response
-      const productionDetails = this.getProductionDetails(productionId, productionType);
-      const turnsToComplete = this.calculateTurnsToComplete(city, productionDetails);
-
-      // Update city production object
-      city.production = {
-        target: productionDetails.name,
-        type: productionType,
-        progress: city.productionStock ?? city.shieldStock ?? 0,
-        cost: productionDetails.cost,
-        turnsToComplete,
-      };
-
-      socket.emit('city:productionChanged', {
-        cityId,
-        production: city.production,
-        shieldStock: city.productionStock ?? city.shieldStock ?? 0,
-        penalty,
-        previousProduction,
-        previousType,
-      });
-
-      logger.info('City production changed', {
-        cityId,
-        cityName: city.name,
-        playerId,
-        from: `${previousType}:${previousProduction}`,
-        to: `${productionType}:${productionId}`,
-        penalty,
-        shieldStock: city.shieldStock,
-      });
+      socket.emit(
+        'city:productionChanged',
+        await this.applyProductionChange({ cityId, playerId, productionId, productionType })
+      );
     } catch (error) {
       logger.error('Error changing production', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -232,8 +156,79 @@ export class CityProductionHandler {
         productionId,
         productionType,
       });
-      socket.emit('error', { message: 'Failed to change production' });
+      socket.emit('error', {
+        message: error instanceof Error ? error.message : 'Failed to change production',
+      });
     }
+  }
+
+  /**
+   * Canonical authoritative mutation shared by packet-v1 and its named-event
+   * compatibility adapter.
+   */
+  public async applyProductionChange({
+    cityId,
+    playerId,
+    productionId,
+    productionType,
+  }: {
+    cityId: string;
+    playerId: string;
+    productionId: string;
+    productionType: 'unit' | 'building' | 'wonder';
+  }): Promise<Record<string, unknown>> {
+    const city = this.cities.get(cityId);
+    if (!city) throw new Error('City not found');
+    if (city.playerId !== playerId) throw new Error('City does not belong to player');
+
+    const player = this.players.get(playerId);
+    if (!player) throw new Error('Player not found');
+    if (!(await this.canCityBuild(city, productionId, productionType, player))) {
+      throw new Error('Production not available');
+    }
+    if (productionType === 'wonder') throw new Error('Wonders are not supported yet');
+
+    const penalty = this.calculateProductionChangePenalty(city, productionId, productionType);
+    const previousProduction = city.currentProduction;
+    const previousType = city.productionType;
+    if (penalty > 0) {
+      city.productionStock = Math.max(0, (city.productionStock ?? city.shieldStock ?? 0) - penalty);
+    }
+
+    if (this.setCityProduction) {
+      await this.setCityProduction(cityId, productionType, productionId, playerId);
+    } else {
+      city.currentProduction = productionId;
+      city.productionType = productionType;
+    }
+
+    const productionDetails = this.getProductionDetails(productionId, productionType);
+    city.production = {
+      target: productionDetails.name,
+      type: productionType,
+      progress: city.productionStock ?? city.shieldStock ?? 0,
+      cost: productionDetails.cost,
+      turnsToComplete: this.calculateTurnsToComplete(city, productionDetails),
+    };
+
+    const result = {
+      cityId,
+      production: city.production,
+      shieldStock: city.productionStock ?? city.shieldStock ?? 0,
+      penalty,
+      previousProduction,
+      previousType,
+    };
+    logger.info('City production changed', {
+      cityId,
+      cityName: city.name,
+      playerId,
+      from: `${previousType}:${previousProduction}`,
+      to: `${productionType}:${productionId}`,
+      penalty,
+      shieldStock: city.shieldStock,
+    });
+    return result;
   }
 
   /**

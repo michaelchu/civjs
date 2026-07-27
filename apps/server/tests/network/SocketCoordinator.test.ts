@@ -1,7 +1,7 @@
 import { SocketCoordinator, setupSocketHandlers } from '@network/SocketCoordinator';
 import { GameManager } from '@game/managers/GameManager';
 import { Server, Socket } from 'socket.io';
-import { PacketType } from '@app-types/packet';
+import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
 
 // Mock dependencies
 jest.mock('../../src/utils/logger', () => {
@@ -129,6 +129,7 @@ describe('SocketCoordinator', () => {
       expect(packetHandler.process).not.toHaveBeenCalled();
       expect(mockSocket.emit).toHaveBeenCalledWith('packet', {
         type: PacketType.SERVER_MESSAGE,
+        version: PROTOCOL_VERSION,
         data: { type: 'error', message: 'Spectators cannot change game state' },
       });
     });

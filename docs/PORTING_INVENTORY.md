@@ -1,6 +1,6 @@
 # CivJS Porting Inventory
 
-**Audit baseline:** Milestone 9 working tree (2026-07-26).
+**Audit baseline:** Milestone 10 working tree (2026-07-26).
 **Purpose:** the evidence record for Milestone 0 in [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md). It distinguishes implemented transport/data from unported or unverified upstream behavior.
 
 ## Classic ruleset inventory
@@ -63,12 +63,12 @@ unreviewed compatibility.
 | `GAME_LIST` (envelope), `get_game_list` (named)                                  | client ↔ server                  | `GameManagementHandler.ts`                             | `GameClient.getGameList`                                         | freeciv-web `game.js`                                                                 | `GameManagementHandler.test.ts`                                                                 |
 | `observe_game`, `delete_game` (named)                                            | client → server                   | `GameManagementHandler.ts`                             | `GameClient.observeGame`, `GameClient.deleteGame`                | no direct equivalent; CivJS lobby API                                                 | `GameManagementHandler.test.ts`                                                                 |
 | `MAP_VIEW_REQ` / `MAP_VIEW_REPLY` (envelope)                                     | client ↔ server                  | `MapVisibilityHandler.ts`                              | `GameClient.requestMapData`                                      | `PACKET_MAP_INFO`, `PACKET_TILE_INFO`; freeciv-web `packhand.js`                      | `SocketGameFlow.integration.test.ts`                                                            |
-| `get_map_data`, `get_visible_tiles` (named)                                      | client ↔ server                  | `MapVisibilityHandler.ts`                              | `GameClient.getMapData`, `GameClient.getVisibleTiles`            | freeciv-web map request flow                                                          | `SocketGameFlow.integration.test.ts`                                                            |
-| `TILE_VISIBILITY_REQ` / `TILE_VISIBILITY_REPLY` (envelope)                       | client ↔ server                  | `MapVisibilityHandler.ts`                              | no current `GameClient` caller                                   | `PACKET_TILE_INFO`                                                                    | `MapVisibilityHandler` unit coverage pending feature use                                        |
+| `get_map_data`, `get_visible_tiles` (named compatibility)                        | client ↔ server                  | `MapVisibilityHandler.ts`                              | `GameClient.getMapData`, `GameClient.getVisibleTiles`            | freeciv-web map request flow                                                          | `SocketGameFlow.integration.test.ts`                                                            |
+| `TILE_VISIBILITY_REQ` / `TILE_VISIBILITY_REPLY` (envelope)                       | client ↔ server                  | `MapVisibilityHandler.ts`                              | `GameClient.getTileVisibility`                                   | `PACKET_TILE_INFO`                                                                    | `MapVisibilityHandler.test.ts`; `GameClient.protocol.test.ts`                                   |
 | `UNIT_MOVE`, `UNIT_ATTACK`, `UNIT_FORTIFY`, `UNIT_CREATE` and replies (envelope) | client ↔ server                  | `UnitActionHandler.ts`                                 | `GameClient.moveUnit`, `attackUnit`, `fortifyUnit`, `createUnit` | `PACKET_UNIT_*` in `packets.def`; freeciv-web `unit.js`                               | `UnitActionHandler.test.ts`, `UnitMovement.integration.test.ts`                                 |
 | `unit_action`, `path_request` / `path_response` (named)                          | client ↔ server                  | `UnitActionHandler.ts`                                 | `GameClient.executeUnitAction`, `PathfindingService`             | freeciv-web `unit.js`                                                                 | `UnitActionHandler.test.ts`, `ActionSystem.integration.test.ts`                                 |
-| `CITY_FOUND` / reply, `CITY_PRODUCTION_CHANGE` / reply (envelope)                | client ↔ server                  | `CityManagementHandler.ts`                             | `GameClient.foundCity`; production envelope unused               | `PACKET_CITY_CHANGE` in `packets.def`; freeciv-web `city.js`                          | `CityProductionHandler.test.ts`, `CityManager.integration.test.ts`                              |
-| `city:getAvailableProductions`, `city:changeProduction` and replies (named)      | client ↔ server                  | `CityManagementHandler.ts`, `CityProductionHandler.ts` | `GameClient.getAvailableProductions`, `changeProduction`         | freeciv-web `city.js`                                                                 | `CityProductionHandler.test.ts`, `GameClient.production.test.ts`                                |
+| `CITY_FOUND` / reply, `CITY_PRODUCTION_CHANGE` / reply (envelope)                | client ↔ server                  | `CityManagementHandler.ts`                             | `GameClient.foundCity`, `GameClient.changeProduction`            | `PACKET_CITY_CHANGE` in `packets.def`; freeciv-web `city.js`                          | `CityProductionHandler.test.ts`, `GameClient.production.test.ts`                                |
+| `city:getAvailableProductions`, `city:changeProduction` and replies (named)      | client ↔ server                  | `CityManagementHandler.ts`, `CityProductionHandler.ts` | availability caller; production compatibility adapter            | freeciv-web `city.js`                                                                 | `CityProductionHandler.test.ts`, `CityManagementHandler.production.test.ts`                     |
 | `city:configureGovernor`, `city:optimizeCitizens`, `city:buyProduction` (named)  | client ↔ server                  | `CityManagementHandler.ts`                             | `GameClient` city-management methods                             | freeciv-web `city.js`                                                                 | `CityManagementHandler.production.test.ts`; `GameClient.management.test.ts`                     |
 | `RESEARCH_SET`, goal/list/progress and replies (envelope)                        | client ↔ server                  | `ResearchHandler.ts`                                   | `GameClient.setResearch`                                         | `PACKET_PLAYER_RESEARCH`; freeciv-web `research.js`                                   | `ResearchManager.test.ts`, `GameFlow.integration.test.ts`                                       |
 | `government:getState`, `government:startRevolution` (named)                      | client ↔ server                  | `GovernmentHandler.ts`                                 | `GameClient.getGovernmentState`, `startRevolution`               | freeciv-web `government.js`; Freeciv `government.c`                                   | `GovernmentHandler.test.ts`; `GameClient.management.test.ts`; `TurnManager.test.ts`             |
@@ -79,20 +79,24 @@ unreviewed compatibility.
 | diplomacy list/proposal/response/cancel/war/update (envelope)                    | client ↔ server                  | `DiplomacyHandler.ts`                                  | `GameClient`, `NationsPanel`                                     | Freeciv `diplhand.c`; freeciv-web `diplomacy.js`                                      | `DiplomacyManager.test.ts`; `GameClient.management.test.ts`; `GameClient.state-packets.test.ts` |
 | host controls (named)                                                            | client ↔ server                  | `GameManagementHandler.ts`                             | `GameClient`, `GameOptionsPanel`                                 | CivJS multiplayer policy adapter                                                      | `GameManagementHandler.test.ts`; authorization in `GameManager`                                 |
 
-The enum declarations in `apps/server/src/types/packet.ts` and
-`apps/client/src/types/packets.ts` contain additional legacy or future packet
-names. They are intentionally not counted as implemented transport until a
-handler, client consumer, and test exist.
+The canonical enum in
+`apps/server/src/types/shared/packetContract.ts` also contains legacy or future
+packet names. They are intentionally not counted as implemented transport
+until a handler, client consumer, and test exist.
 
-### Confirmed protocol risks
+### Protocol convergence status
 
-1. The server and client have separate `PacketType` enums. They already disagree on numeric values, including `GAME_INFO` (server `19`, client `16`), `PLAYER_INFO` (server `14`, client `13`), and the nation-selection sequence.
-2. Neither current enum is a complete direct mapping of `packets.def`; for example, upstream defines `PACKET_GAME_INFO = 16`, `PACKET_MAP_INFO = 17`, and `PACKET_PLAYER_INFO = 51`.
-3. Gameplay traffic uses both the structured `packet` envelope and named Socket.IO events. Examples of named-event flows are `join_game`, `get_map_data`, `unit_action`, `path_request`, and `city:changeProduction`.
-4. Some structured packet types are declared but are not the path used by the client. City production is the clearest example: the client uses `city:changeProduction`, while the server also declares `CITY_PRODUCTION_CHANGE` and its reply.
-
-Milestone 10 addresses all four protocol risks through a shared, versioned
-contract and family-by-family compatibility migration.
+1. Client and server now import one `PacketType` enum, and a contract test pins
+   unique deployed v1 identifiers. CivJS IDs intentionally remain distinct
+   from upstream `packets.def` IDs until a negotiated protocol version changes.
+2. Every active packet envelope records its direction, handler, consumer,
+   schema where present, and upstream mapping where applicable.
+3. Every remaining named event is classified in the same contract as
+   lifecycle, notification, or version-1 compatibility traffic.
+4. City production uses the structured packet path from the current client;
+   the old named handler remains only for version-1 compatibility. The
+   formerly caller-less tile-visibility packet now has a correlated client
+   request and explicit success/error replies.
 
 ### Active named-event inventory
 
@@ -112,13 +116,17 @@ The server’s structured packet registrations are in the connection, game-manag
 
 ### Packet migration plan
 
-Do not renumber existing packets in place. Migrate one feature family at a time with a compatibility period.
+Do not renumber existing packets in place. Future migration should continue one
+feature family at a time with a compatibility period.
 
-1. Create a canonical CivJS packet-contract module that names the transport event, direction, schema, numeric ID (where applicable), client consumer, and server handler.
-2. For a feature family, add the structured request/reply flow while retaining the named event as a thin compatibility adapter.
-3. Add tests for request validation, authoritative state update, reply/error packet, and client state handling.
-4. Migrate the client to the structured path, remove the compatibility adapter only after the packet inventory marks it unused, and update the Freeciv mapping.
-5. Use a protocol-version field before adopting upstream numeric IDs broadly; packet numbers alone are not sufficient evidence of semantic compatibility.
+1. Add any new active transport to the canonical contract.
+2. For a named compatibility family, add the structured request/reply flow
+   while retaining the named event as a thin compatibility adapter.
+3. Add tests for request validation, authoritative state update, reply/error
+   packet, and client state handling.
+4. Migrate the client, then remove the adapter only after the inventory marks
+   it unused.
+5. Negotiate a new protocol version before changing deployed numeric IDs.
 
 ## Transport smoke-test coverage
 

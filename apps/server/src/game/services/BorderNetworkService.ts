@@ -8,7 +8,7 @@ import { logger } from '@utils/logger';
 import type { Server as SocketServer, Socket } from 'socket.io';
 import type { BorderManager } from '@game/managers/BorderManager';
 import type { GameInstance } from '@game/managers/GameManager';
-import { PacketType, type Packet } from '../../types/packet';
+import { PacketType, PROTOCOL_VERSION, type Packet } from '../../types/packet';
 import type {
   BorderUpdatePacket,
   BorderSourcePacket,
@@ -64,11 +64,13 @@ export class BorderNetworkService {
 
     // Send structured packets matching client expectations
     const borderUpdatePacket: Packet<BorderUpdatePacket> = {
+      version: PROTOCOL_VERSION,
       type: PacketType.BORDER_UPDATE,
       data: updatePacket,
     };
 
     const borderSourcePacket: Packet<BorderSourcePacket> = {
+      version: PROTOCOL_VERSION,
       type: PacketType.BORDER_SOURCE_UPDATE,
       data: sourcePacket,
     };
@@ -115,6 +117,7 @@ export class BorderNetworkService {
       };
 
       const borderSourceStructuredPacket: Packet<BorderSourcePacket> = {
+        version: PROTOCOL_VERSION,
         type: PacketType.BORDER_SOURCE_UPDATE,
         data: sourcePacket,
       };
@@ -123,6 +126,7 @@ export class BorderNetworkService {
     }
 
     const borderUpdateStructuredPacket: Packet<BorderUpdatePacket> = {
+      version: PROTOCOL_VERSION,
       type: PacketType.BORDER_UPDATE,
       data: updatePacket,
     };
@@ -164,6 +168,7 @@ export class BorderNetworkService {
 
       if (tiles.length > 0) {
         const packet: Packet<BorderUpdatePacket> = {
+          version: PROTOCOL_VERSION,
           type: PacketType.BORDER_UPDATE,
           data: {
             type: 'border_update',
@@ -184,6 +189,7 @@ export class BorderNetworkService {
 
       if (sources.length > 0 || removed.length > 0) {
         const packet: Packet<BorderSourcePacket> = {
+          version: PROTOCOL_VERSION,
           type: PacketType.BORDER_SOURCE_UPDATE,
           data: { type: 'border_source_update', sources, removed },
         };
@@ -254,6 +260,7 @@ export class BorderNetworkService {
       };
 
       const packet: Packet<BorderInfoResponsePacket> = {
+        version: PROTOCOL_VERSION,
         type: PacketType.BORDER_INFO_RESPONSE,
         data: response,
       };

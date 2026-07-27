@@ -8,7 +8,7 @@ import { BaseGameService } from './GameService';
 import { CityDataService } from '@game/services/CityDataService';
 import { logger } from '@utils/logger';
 import type { Server as SocketServer } from 'socket.io';
-import { PacketType, PACKET_NAMES } from '@app-types/packet';
+import { PacketType, PACKET_NAMES, PROTOCOL_VERSION } from '@app-types/packet';
 import type { GameInstance } from '@game/managers/GameManager';
 import { getUnitType } from '@game/constants/UnitConstants';
 import { rulesetActionsService } from '@game/services/RulesetActionsService';
@@ -412,6 +412,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     const player = gameInstance.players.get(playerId);
     const recipientId = player?.userId || playerId;
     this.io.to(`player:${recipientId}`).emit('packet', {
+      version: PROTOCOL_VERSION,
       type: packetType,
       data,
       timestamp: Date.now(),
