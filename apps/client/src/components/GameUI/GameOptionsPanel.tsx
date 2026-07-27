@@ -2,6 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { gameClient } from '../../services/GameClient';
 import { Button } from '../ui/button';
+import {
+  loadUserPreferences,
+  saveUserPreferences,
+  type UserPreferences,
+} from '../../services/UserPreferences';
 
 type TaxRates = { tax: number; luxury: number; science: number };
 type HostControls = { isHost: boolean; paused: boolean; turnTimeLimit: number };
@@ -11,7 +16,12 @@ export const GameOptionsPanel: React.FC = () => {
   const [rates, setRates] = useState<TaxRates>({ tax: 50, luxury: 20, science: 30 });
   const [feedback, setFeedback] = useState<string | null>(null);
   const [hostControls, setHostControls] = useState<HostControls | null>(null);
+  const [preferences, setPreferences] = useState<UserPreferences>(loadUserPreferences);
   const total = rates.tax + rates.luxury + rates.science;
+
+  useEffect(() => {
+    saveUserPreferences(preferences);
+  }, [preferences]);
 
   useEffect(() => {
     void gameClient
@@ -153,6 +163,52 @@ export const GameOptionsPanel: React.FC = () => {
             </Button>
           </div>
         )}
+      </div>
+
+      <div className="mt-8 max-w-3xl rounded-lg border border-gray-700 bg-gray-800 p-5">
+        <h3 className="font-semibold">Accessibility and sound</h3>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="flex items-center gap-3 text-sm text-gray-200">
+            <input
+              type="checkbox"
+              checked={preferences.reducedMotion}
+              onChange={event =>
+                setPreferences(current => ({
+                  ...current,
+                  reducedMotion: event.target.checked,
+                }))
+              }
+            />
+            Reduce interface motion
+          </label>
+          <label className="flex items-center gap-3 text-sm text-gray-200">
+            <input
+              type="checkbox"
+              checked={preferences.muted}
+              onChange={event =>
+                setPreferences(current => ({ ...current, muted: event.target.checked }))
+              }
+            />
+            Mute game sounds
+          </label>
+          <label className="text-sm text-gray-200 sm:col-span-2">
+            Sound volume: {Math.round(preferences.volume * 100)}%
+            <input
+              className="mt-2 block w-full"
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(preferences.volume * 100)}
+              disabled={preferences.muted}
+              onChange={event =>
+                setPreferences(current => ({
+                  ...current,
+                  volume: Number(event.target.value) / 100,
+                }))
+              }
+            />
+          </label>
+        </div>
       </div>
 
       <div className="mt-8 max-w-3xl rounded-lg border border-gray-700 bg-gray-800 p-5">

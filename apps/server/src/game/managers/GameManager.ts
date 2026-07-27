@@ -35,6 +35,7 @@ import {
   type TreatyProposal,
 } from '@game/managers/DiplomacyManager';
 import { CivJSAIAdapter } from '@game/services/CivJSAIAdapter';
+import { EndGameService } from '@game/services/EndGameService';
 import { ActionType, type ActionResult } from '@app-types/shared/actions';
 import { getUnitType } from '@game/constants/UnitConstants';
 
@@ -130,6 +131,7 @@ export class GameManager {
   private gameInstanceRecoveryService!: GameInstanceRecoveryService;
   private diplomacyManager!: DiplomacyManager;
   private aiAdapter!: CivJSAIAdapter;
+  private endGameService!: EndGameService;
 
   private constructor(io: SocketServer, databaseProvider?: DatabaseProvider) {
     this.io = io;
@@ -154,6 +156,7 @@ export class GameManager {
     // Initialize extracted managers with proper dependencies
     this.gameStateManager = new GameStateManager(logger, this.databaseProvider);
     this.gameBroadcastManager = new GameBroadcastManager(this.io);
+    this.endGameService = new EndGameService(this.databaseProvider, this.io);
 
     this.playerConnectionManager = new PlayerConnectionManager(
       this.databaseProvider,
@@ -571,6 +574,23 @@ export class GameManager {
       playerId => this.sharedVisionByGame.get(gameId)?.get(playerId) ?? new Set()
     );
     gameInstance.turnManager.setAIProcessor(() => this.aiAdapter.processTurn(gameId, gameInstance));
+    gameInstance.turnManager.setEndGameEvaluator(async (turn, year) => {
+      const evaluation = await this.endGameService.evaluate({
+        gameId,
+        turn,
+        year,
+        victoryConditions: gameInstance.config.victoryConditions ?? ['conquest'],
+        playerIds: Array.from(gameInstance.players.keys()),
+        cityManager: gameInstance.cityManager,
+        unitManager: gameInstance.unitManager,
+        researchManager: gameInstance.researchManager,
+      });
+      if (!evaluation.ended) return false;
+      gameInstance.state = 'ended';
+      gameInstance.lastActivity = new Date();
+      gameInstance.turnManager.clearTurnTimer();
+      return true;
+    });
     gameInstance.turnManager.setTurnAdvancedCallback(turn => {
       gameInstance.currentTurn = turn;
       for (const player of gameInstance.players.values()) player.hasEndedTurn = false;
@@ -686,7 +706,8 @@ export class GameManager {
   public async getAllGamesFromDatabase(userId?: string | null): Promise<any[]> {
     try {
       const dbGames = await this.databaseProvider.getDatabase().query.games.findMany({
-        where: (games, { inArray }) => inArray(games.status, ['waiting', 'running', 'active']),
+        where: (games, { inArray }) =>
+          inArray(games.status, ['waiting', 'running', 'active', 'paused', 'ended']),
         with: {
           host: {
             columns: {
@@ -718,7 +739,7 @@ export class GameManager {
           id: game.id,
           name: game.name,
           hostName: game.host?.username || 'Unknown',
-          status: game.status,
+          status: game.status === 'ended' ? 'finished' : game.status,
           currentPlayers: currentPlayers,
           maxPlayers: game.maxPlayers,
           currentTurn: game.currentTurn,
@@ -767,6 +788,7 @@ export class GameManager {
         createdAt: game.createdAt.toISOString(),
         canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
         players: game.players || [],
+        endGameReport: game.endGameReport,
       };
     } catch (error) {
       logger.error('Error fetching game by ID from database:', error);

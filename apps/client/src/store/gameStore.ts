@@ -129,6 +129,7 @@ export const useGameStore = create<GameStore>()(
       availableTechs: new Set(),
     },
     governments: {},
+    endGameReport: undefined,
 
     // Initial client state
     clientState: 'initial',

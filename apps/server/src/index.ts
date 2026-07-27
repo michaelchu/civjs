@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 
 import config from './config';
 import logger from './utils/logger';
-import { testConnection, closeConnection } from './database';
+import { testConnection, closeConnection, productionDatabaseProvider } from './database';
 import redis from './database/redis';
 import { setupSocketHandlers } from './network/SocketCoordinator';
 import apiRouter from './routes/api';
@@ -76,6 +76,36 @@ app.get('/health', (_req: any, res: any) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+  });
+});
+
+app.get('/ready', async (_req: any, res: any) => {
+  const [databaseReady, redisReady] = await Promise.all([
+    productionDatabaseProvider.testConnection(),
+    redis
+      .ping()
+      .then(() => true)
+      .catch(() => false),
+  ]);
+  const ready = databaseReady && redisReady;
+  res.status(ready ? 200 : 503).json({
+    status: ready ? 'ready' : 'not_ready',
+    checks: { database: databaseReady, redis: redisReady },
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/metrics', (_req: any, res: any) => {
+  const memory = process.memoryUsage();
+  res.json({
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.round(process.uptime()),
+    connectedSockets: io.engine.clientsCount,
+    memoryBytes: {
+      rss: memory.rss,
+      heapUsed: memory.heapUsed,
+      heapTotal: memory.heapTotal,
+    },
   });
 });
 

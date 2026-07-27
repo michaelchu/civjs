@@ -40,6 +40,9 @@ export const games = pgTable('games', {
   // Metadata
   startedAt: timestamp('started_at'),
   endedAt: timestamp('ended_at'),
+  winnerPlayerId: uuid('winner_player_id'),
+  endReason: varchar('end_reason', { length: 30 }),
+  endGameReport: jsonb('end_game_report'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 

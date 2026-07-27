@@ -8,6 +8,7 @@ import { pathfindingService } from './PathfindingService';
 import { playerColorToHex } from '../utils/playerColors';
 import { storeUsername } from '../utils/gameSession';
 import type { DiplomacyState, GovernmentState, ProductionOption, TreatyClauseType } from '../types';
+import { playEndGameSound } from './UserPreferences';
 
 // Mock government data for development
 const getMockGovernments = () => ({
@@ -413,6 +414,13 @@ class GameClient {
       case PacketType.END_TURN:
         // Server has finished processing the turn
         // The THAW_CLIENT packet will handle clearing the UI
+        break;
+
+      case PacketType.ENDGAME_REPORT:
+        useGameStore.getState().updateGameState({ endGameReport: packet.data });
+        useGameStore.getState().setClientState('over');
+        useGameStore.getState().completeTurnProcessing();
+        playEndGameSound();
         break;
 
       case PacketType.UNIT_INFO:
@@ -1169,7 +1177,7 @@ class GameClient {
           mapHeight: dimensions.height,
           ruleset: 'classic',
           selectedNation: gameData.selectedNation,
-          victoryConditions: [],
+          victoryConditions: ['conquest'],
           turnTimeLimit: 120,
           terrainSettings: gameData.terrainSettings || {
             generator: 'random',

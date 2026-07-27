@@ -242,6 +242,49 @@ describe('TurnManager', () => {
       expect(turnManager.getCurrentTurn()).toBe(2);
     });
 
+    it('soaks 100 sequential audit-safe turns without state drift', async () => {
+      const mockTurnPhaseService = (turnManager as any).turnPhaseService;
+      mockTurnPhaseService.executePhaseProcessing = jest.fn().mockResolvedValue({
+        success: true,
+        totalDuration: 1,
+        phases: [{ phase: 'save_advance', success: true, itemsProcessed: 1 }],
+        errors: [],
+      });
+
+      for (let turn = 0; turn < 100; turn += 1) {
+        await turnManager.processTurn();
+      }
+
+      expect(turnManager.getCurrentTurn()).toBe(101);
+      expect(mockTurnPhaseService.executePhaseProcessing).toHaveBeenCalledTimes(100);
+      expect(mockDatabase.getDatabase().update).toHaveBeenCalled();
+    });
+
+    it('completes the audit record and stops advancing when the game ends', async () => {
+      const mockTurnPhaseService = (turnManager as any).turnPhaseService;
+      mockTurnPhaseService.executePhaseProcessing = jest.fn().mockResolvedValue({
+        success: true,
+        totalDuration: 1500,
+        phases: [{ phase: 'end_turn', success: true, itemsProcessed: 1 }],
+        errors: [],
+      });
+      const evaluator = jest.fn().mockResolvedValue(true);
+      turnManager.setEndGameEvaluator(evaluator);
+
+      await turnManager.processTurn();
+
+      expect(evaluator).toHaveBeenCalledWith(1, -4000);
+      expect(mockDatabase.getDatabase().update).toHaveBeenCalled();
+      expect(mockDatabase.getDatabase().set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endedAt: expect.any(Date),
+          duration: 2,
+          stateSnapshot: { version: 1, turn: 1, year: -4000 },
+        })
+      );
+      expect(turnManager.getCurrentTurn()).toBe(1);
+    });
+
     it('advances revolutions and refreshes city effects when one completes', async () => {
       const governmentManager = {
         processRevolutionTurn: jest.fn().mockResolvedValue('monarchy'),

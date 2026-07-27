@@ -137,7 +137,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       mapHeight: gameConfig.mapHeight || 50,
       ruleset: gameConfig.ruleset || 'classic',
       turnTimeLimit: gameConfig.turnTimeLimit,
-      victoryConditions: gameConfig.victoryConditions || ['conquest', 'science', 'culture'],
+      victoryConditions: gameConfig.victoryConditions?.length
+        ? gameConfig.victoryConditions
+        : ['conquest'],
       gameState: {
         terrainSettings: gameConfig.terrainSettings || {
           generator: 'random',

@@ -12,18 +12,21 @@ export enum PacketType {
 
   // Player Management (10-30)
   NATION_SELECT_REQ = 10,
-  PLAYER_READY = 11,
-  ENDGAME_REPORT = 12,
-  PLAYER_INFO = 13,
-  PLAYER_REMOVE = 14,
+  NATION_SELECT_REPLY = 11,
+  PLAYER_READY = 12,
+  ENDGAME_REPORT = 13,
+  PLAYER_INFO = 14,
+  PLAYER_REMOVE = 15,
+  NATION_LIST_REQ = 16,
+  NATION_LIST_REPLY = 17,
 
-  // Map & Tile (15-40)
-  GAME_INFO = 16,
-  MAP_VIEW_REQ = 17,
+  // Map & Tile (18-40)
+  GAME_INFO = 19,
+  MAP_VIEW_REQ = 22,
   TILE_INFO = 18,
-  NUKE_TILE_INFO = 19,
+  NUKE_TILE_INFO = 21,
   MAP_INFO = 20,
-  TILE_VISIBILITY_REQ = 21,
+  TILE_VISIBILITY_REQ = 23,
 
   // Chat & Messages (25-30)
   CHAT_MSG = 25,
@@ -122,6 +125,7 @@ export const PACKET_NAMES: Record<number, string> = {
   [PacketType.PROCESSING_FINISHED]: 'PROCESSING_FINISHED',
   [PacketType.SERVER_JOIN_REQ]: 'SERVER_JOIN_REQ',
   [PacketType.SERVER_JOIN_REPLY]: 'SERVER_JOIN_REPLY',
+  [PacketType.ENDGAME_REPORT]: 'ENDGAME_REPORT',
   [PacketType.TILE_INFO]: 'TILE_INFO',
   [PacketType.GAME_INFO]: 'GAME_INFO',
   [PacketType.MAP_INFO]: 'MAP_INFO',
@@ -381,6 +385,32 @@ export interface PlayerInfoPacket {
   };
 }
 
+export interface EndGameReportData {
+  version: 1;
+  gameId: string;
+  turn: number;
+  year: number;
+  reason: 'conquest';
+  winnerPlayerId: string;
+  endedAt: string;
+  standings: Array<{
+    playerId: string;
+    civilization: string;
+    score: number;
+    cities: number;
+    population: number;
+    units: number;
+    technologies: number;
+    history: number;
+    alive: boolean;
+  }>;
+}
+
+export interface EndGameReportPacket {
+  type: PacketType.ENDGAME_REPORT;
+  data: EndGameReportData;
+}
+
 export interface ServerJoinReplyPacket {
   type: PacketType.SERVER_JOIN_REPLY;
   data: {
@@ -409,4 +439,5 @@ export type SocketPacket =
   | ProcessingFinishedPacket
   | AuthenticationReqPacket
   | AuthenticationReplyPacket
-  | PlayerInfoPacket;
+  | PlayerInfoPacket
+  | EndGameReportPacket;

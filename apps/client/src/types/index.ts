@@ -280,6 +280,7 @@ export interface GameState {
   research?: ResearchState;
   governments: Record<string, Government>;
   diplomacy?: DiplomacyState;
+  endGameReport?: import('./packets').EndGameReportData;
   mapData?: {
     width: number;
     height: number;

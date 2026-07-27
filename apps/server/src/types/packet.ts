@@ -138,6 +138,7 @@ export const PACKET_NAMES: Record<number, string> = {
   [PacketType.SERVER_JOIN_REPLY]: 'SERVER_JOIN_REPLY',
   [PacketType.NATION_SELECT_REQ]: 'NATION_SELECT_REQ',
   [PacketType.NATION_SELECT_REPLY]: 'NATION_SELECT_REPLY',
+  [PacketType.ENDGAME_REPORT]: 'ENDGAME_REPORT',
   [PacketType.NATION_LIST_REQ]: 'NATION_LIST_REQ',
   [PacketType.NATION_LIST_REPLY]: 'NATION_LIST_REPLY',
   [PacketType.TILE_INFO]: 'TILE_INFO',
@@ -477,10 +478,26 @@ export const PlayerReadySchema = z.object({
 });
 
 export const EndgameReportSchema = z.object({
-  winners: z.array(z.string()),
-  losers: z.array(z.string()),
-  reason: z.string(),
+  version: z.literal(1),
+  gameId: z.string(),
   turn: z.number(),
+  year: z.number(),
+  reason: z.literal('conquest'),
+  winnerPlayerId: z.string(),
+  endedAt: z.string(),
+  standings: z.array(
+    z.object({
+      playerId: z.string(),
+      civilization: z.string(),
+      score: z.number(),
+      cities: z.number(),
+      population: z.number(),
+      units: z.number(),
+      technologies: z.number(),
+      history: z.number(),
+      alive: z.boolean(),
+    })
+  ),
 });
 
 export const PlayerInfoSchema = z.object({

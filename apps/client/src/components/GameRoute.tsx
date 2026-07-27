@@ -37,7 +37,7 @@ export const GameRoute: React.FC = () => {
       // Store the username after successful join for future login convenience
       storeUsername(username);
 
-      setClientState('running');
+      setClientState(useGameStore.getState().endGameReport ? 'over' : 'running');
     } catch (joinError) {
       console.log('Could not join as player:', joinError);
 
@@ -67,7 +67,7 @@ export const GameRoute: React.FC = () => {
     // A reload is a normal way to resume an active game. loadGame() restores
     // the saved player identity and reconnects it to the existing game.
     if (gameClient.isConnected() && gameClient.getCurrentGameId() === gameId) {
-      setClientState('running');
+      setClientState(useGameStore.getState().endGameReport ? 'over' : 'running');
     } else {
       loadGame();
     }
@@ -96,7 +96,7 @@ export const GameRoute: React.FC = () => {
     return <Navigate to="/" replace />;
   }
 
-  if (clientState === 'running') {
+  if (clientState === 'running' || clientState === 'over') {
     return <GameLayout />;
   }
 

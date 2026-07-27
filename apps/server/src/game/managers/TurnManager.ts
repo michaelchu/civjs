@@ -2,7 +2,7 @@ import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
 import { gameState } from '@database/redis';
 import { gameTurns, games, players } from '@database/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Server as SocketServer } from 'socket.io';
 // PacketType removed - handled by TurnPacketService
 import { TurnProcessingService, type PlayerAction } from '@game/services/TurnProcessingService';
@@ -56,6 +56,7 @@ export class TurnManager {
   private pausedTimerSeconds: number | null = null;
   private processingPromise: Promise<void> | null = null;
   private onTurnAdvanced?: (turn: number) => void | Promise<void>;
+  private endGameEvaluator?: (turn: number, year: number) => Promise<boolean>;
 
   // Service dependencies
   private turnProcessingService: TurnProcessingService;
@@ -206,6 +207,12 @@ export class TurnManager {
 
         await this.processGovernmentTurns(playerIds);
 
+        await this.completeTurnRecord(phaseResult);
+        if (await this.endGameEvaluator?.(this.currentTurn, this.currentYear)) {
+          this.clearTurnTimer();
+          return;
+        }
+
         // Advance to next turn after successful processing
         await this.advanceToNextTurn();
 
@@ -277,6 +284,42 @@ export class TurnManager {
     logger.debug('Created turn record', { gameId: this.gameId, turn: this.currentTurn });
   }
 
+  private async completeTurnRecord(phaseResult: {
+    totalDuration: number;
+    phases: Array<{ phase: string; success: boolean; itemsProcessed: number }>;
+  }): Promise<void> {
+    const actions = Object.fromEntries(
+      Array.from(this.playerActions.entries()).map(([playerId, queuedActions]) => [
+        playerId,
+        queuedActions,
+      ])
+    );
+    const statistics = {
+      processingTimeMs: phaseResult.totalDuration,
+      phases: phaseResult.phases.map(phase => ({
+        phase: phase.phase,
+        success: phase.success,
+        itemsProcessed: phase.itemsProcessed,
+      })),
+    };
+    await this.databaseProvider
+      .getDatabase()
+      .update(gameTurns)
+      .set({
+        events: this.turnEvents,
+        playerActions: actions,
+        statistics,
+        stateSnapshot: {
+          version: 1,
+          turn: this.currentTurn,
+          year: this.currentYear,
+        },
+        endedAt: new Date(),
+        duration: Math.max(0, Math.round(phaseResult.totalDuration / 1000)),
+      })
+      .where(and(eq(gameTurns.gameId, this.gameId), eq(gameTurns.turnNumber, this.currentTurn)));
+  }
+
   private async advanceToNextTurn(): Promise<void> {
     this.currentTurn++;
 
@@ -291,6 +334,9 @@ export class TurnManager {
 
     this.turnStartTime = new Date();
     this.turnEvents = [];
+    for (const playerId of this.playerActions.keys()) {
+      this.playerActions.set(playerId, []);
+    }
 
     // Reset player turn status
     await this.databaseProvider
@@ -432,6 +478,10 @@ export class TurnManager {
 
   public setTurnAdvancedCallback(callback: (turn: number) => void | Promise<void>): void {
     this.onTurnAdvanced = callback;
+  }
+
+  public setEndGameEvaluator(evaluator: (turn: number, year: number) => Promise<boolean>): void {
+    this.endGameEvaluator = evaluator;
   }
 
   /**

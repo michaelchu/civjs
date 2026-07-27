@@ -50,8 +50,12 @@ export const GameTabs: React.FC = () => {
             activeTab === tab.id ? 'border-b-2 border-blue-500' : ''
           )}
           title={tab.label}
+          aria-label={`${tab.label} screen (${tab.shortcut})`}
+          aria-current={activeTab === tab.id ? 'page' : undefined}
         >
-          <span className="text-lg">{tab.icon}</span>
+          <span className="text-lg" aria-hidden="true">
+            {tab.icon}
+          </span>
         </button>
       ))}
     </div>

@@ -191,7 +191,7 @@ summary of a named seed.
 
 **Exit criteria:** a multi-player game handles normal disconnect/reconnect and turn-timeout scenarios without corrupting state.
 
-### Milestone 7 — End game, saves, and release quality
+### Milestone 7 — End game, saves, and release quality — complete (2026-07-26)
 
 **Outcome:** complete games can finish, be resumed, and be diagnosed.
 

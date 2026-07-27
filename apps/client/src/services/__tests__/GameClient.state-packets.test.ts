@@ -20,6 +20,7 @@ describe('GameClient state-bearing packets', () => {
       map: { width: 0, height: 0, tiles: {} },
     });
     useGameStore.setState({ notifications: [] });
+    useGameStore.setState({ clientState: 'running', endGameReport: undefined });
   });
 
   it('applies player, calendar, city, and turn-processing packets', () => {
@@ -145,5 +146,36 @@ describe('GameClient state-bearing packets', () => {
       data: { success: false, message: 'Treaty proposal not found' },
     });
     expect(useGameStore.getState().notifications.at(-1)?.message).toBe('Treaty proposal not found');
+  });
+
+  it('moves to the accessible end-game flow when the final report arrives', () => {
+    handlePacket({
+      type: PacketType.ENDGAME_REPORT,
+      data: {
+        version: 1,
+        gameId: 'game-1',
+        turn: 42,
+        year: -2320,
+        reason: 'conquest',
+        winnerPlayerId: 'player-1',
+        endedAt: '2026-07-26T12:00:00.000Z',
+        standings: [
+          {
+            playerId: 'player-1',
+            civilization: 'Roman',
+            score: 400,
+            cities: 2,
+            population: 8,
+            units: 1,
+            technologies: 2,
+            history: 0,
+            alive: true,
+          },
+        ],
+      },
+    });
+
+    expect(useGameStore.getState().clientState).toBe('over');
+    expect(useGameStore.getState().endGameReport?.winnerPlayerId).toBe('player-1');
   });
 });

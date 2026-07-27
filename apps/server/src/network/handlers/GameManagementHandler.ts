@@ -258,6 +258,10 @@ export class GameManagementHandler extends BaseSocketHandler {
         playerId: result.playerId,
         message: 'Joined game successfully',
       });
+      const joinedGame = await this.gameManager.getGame(data.gameId);
+      if (joinedGame?.status === 'ended' && joinedGame.endGameReport) {
+        handler.send(socket, PacketType.ENDGAME_REPORT, joinedGame.endGameReport);
+      }
 
       logger.info(`${connection.username} joined game`, {
         gameId: data.gameId,

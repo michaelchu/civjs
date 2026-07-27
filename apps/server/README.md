@@ -173,6 +173,8 @@ The database uses the following main tables:
 ### HTTP Endpoints
 
 - `GET /health` - Health check
+- `GET /ready` - PostgreSQL and Redis readiness check
+- `GET /metrics` - Runtime socket and memory metrics
 - `GET /api/info` - Server information
 
 ### Socket.IO Events
@@ -241,7 +243,8 @@ MIT
 - [ ] AI players
 - [ ] Technology research system
 - [ ] Diplomacy system
-- [ ] Save/load functionality
+- [x] Save/load recovery and versioned turn audit records
+- [x] Conquest victory, scoring, and persisted end-game reports
 - [ ] Replay system
 - [ ] Admin tools
 - [ ] Web client interface

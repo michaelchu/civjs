@@ -12,6 +12,7 @@ import { GameOptionsPanel } from './GameOptionsPanel';
 import { NotificationFeed } from './NotificationFeed';
 import { NationsPanel } from './NationsPanel';
 import { useKeyboardControls } from '../../hooks/useKeyboardControls';
+import { EndGamePanel } from './EndGamePanel';
 
 export const GameLayout: React.FC = () => {
   const [dimensions, setDimensions] = useState({
@@ -65,6 +66,7 @@ export const GameLayout: React.FC = () => {
   return (
     <div className="h-screen bg-gray-800 text-white overflow-hidden flex flex-col">
       <NotificationFeed />
+      <EndGamePanel />
       {/* Header with tabs and status */}
       <div className="flex items-center justify-between bg-gray-700 px-4 py-1 border-b border-gray-600">
         <GameTabs />

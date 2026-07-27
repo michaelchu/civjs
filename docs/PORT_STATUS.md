@@ -1,6 +1,6 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 6 working tree (2026-07-26)
+**Verified against:** Milestone 7 working tree (2026-07-26)
 **Verification method:** source-tree audit plus passing client/unit tests and the
 production type check/build. Database-backed integration remains separately
 dependent on the configured PostgreSQL test service.
@@ -210,6 +210,33 @@ Evidence includes `DiplomacyManager.test.ts`, `CivJSAIAdapter.test.ts`,
 `TurnManager.test.ts`, `PacketHandler.ordering.test.ts`,
 `SocketCoordinator.test.ts`, `UnitActionHandler.test.ts`, and the client
 management/state packet suites.
+
+## Milestone 7 — complete
+
+Complete games now finish through an authoritative conquest check at the
+audited turn boundary. The server calculates deterministic category scores,
+persists player scores and a versioned final report, marks the game ended, and
+broadcasts the structured end-game packet. The client enters a read-only,
+keyboard-focusable final standings flow. Existing players can reopen a
+finished game and receive the persisted report without reconstructing it.
+
+Each completed turn now closes its `game_turns` audit row with queued actions,
+events, phase statistics, timing, and a versioned snapshot marker before the
+next turn begins. Existing normalized game, player, city, unit, research,
+government, visibility, diplomacy, map, timer, and ruleset state remains the
+single source of truth during recovery. Migration `0007_add_game_end_report.sql`
+adds nullable end-state fields without invalidating existing saves.
+
+Release quality includes aligned client/server packet identifiers, reduced
+motion support, labelled tab controls, persisted mute/volume settings, an
+optional victory cue, dependency-aware readiness, process metrics, a 100-turn
+audit soak test, and the deployment/monitoring/recovery procedures in
+[`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md). The release-supported target is the
+classic ruleset, conquest victory, 80×50 maps, and up to eight participants.
+
+Evidence includes `EndGameService.test.ts`, `TurnManager.test.ts`,
+`GameClient.state-packets.test.ts`, the recovery and integration suites, both
+production builds, and [`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md).
 
 ## Partial or incomplete areas
 
