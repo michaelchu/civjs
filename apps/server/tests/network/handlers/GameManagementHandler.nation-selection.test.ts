@@ -117,8 +117,11 @@ describe('GameManagementHandler - Nation Selection', () => {
         {
           success: true,
           gameId: mockGameId,
+          maxPlayers: 4,
+          playerId: mockPlayerId,
           message: 'Game created successfully',
           assignedNation: 'american',
+          assignedColor: { r: 255, g: 0, b: 0 },
         }
       );
     });
@@ -162,8 +165,11 @@ describe('GameManagementHandler - Nation Selection', () => {
         {
           success: true,
           gameId: mockGameId,
+          maxPlayers: 4,
+          playerId: mockPlayerId,
           message: 'Game created successfully',
           assignedNation: 'chinese', // Server assigned this
+          assignedColor: { r: 0, g: 255, b: 0 },
         }
       );
     });

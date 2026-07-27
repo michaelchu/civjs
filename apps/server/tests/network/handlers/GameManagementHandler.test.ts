@@ -199,8 +199,11 @@ describe('GameManagementHandler', () => {
         {
           success: true,
           gameId: mockGameId,
+          maxPlayers: 4,
+          playerId: mockPlayerId,
           message: 'Game created successfully',
           assignedNation: 'romans',
+          assignedColor: { r: 255, g: 0, b: 0 },
         }
       );
     });

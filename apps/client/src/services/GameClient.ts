@@ -197,62 +197,6 @@ class GameClient {
 
     // Legacy event handlers removed - now handled via structured packets
 
-    // Keep compatibility events for game management
-    this.socket.on('game_created', data => {
-      console.log('=== GAME CREATED DEBUG ===');
-      console.log('GameClient: game_created event data:', data);
-      console.log('GameClient: assignedNation from server:', data.assignedNation);
-      console.log('GameClient: assignedNation type:', typeof data.assignedNation);
-      console.log('GameClient: assignedNation is falsy?:', !data.assignedNation);
-
-      // Initialize mock player state since server automatically joins creator as player
-      if (data.playerId) {
-        // Always use the server-assigned nation, never store 'random' as the final value
-        let finalNation = data.assignedNation;
-        console.log('GameClient: finalNation before check:', finalNation);
-        if (!finalNation || finalNation === 'random') {
-          // If server didn't provide a specific nation, default to 'american'
-          // (this should not happen in normal operation)
-          finalNation = 'american';
-          console.warn('GameClient: Server did not provide assignedNation, using fallback');
-          console.warn('GameClient: Original assignedNation was:', data.assignedNation);
-        }
-        console.log('GameClient: final nation for game creation:', finalNation);
-        const initialPlayer = {
-          id: data.playerId,
-          name: 'Player', // We don't have the name here, will be updated later
-          nation: finalNation,
-          color: data.assignedColor ? playerColorToHex(data.assignedColor) : '#808080', // Use server-assigned color
-          gold: 50,
-          science: 0,
-          history: 0, // Initialize culture history
-          government: 'despotism', // Default starting government
-          isHuman: true,
-          isActive: true, // Make player active so turn done button works
-        };
-
-        const mockGovernments = getMockGovernments();
-
-        useGameStore.getState().updateGameState({
-          currentPlayerId: data.playerId,
-          players: {
-            [data.playerId]: initialPlayer,
-          },
-          governments: mockGovernments,
-          turn: 1, // Initialize turn
-        });
-      }
-
-      if (data.maxPlayers === 1) {
-        useGameStore.getState().setClientState('running');
-        useGameStore.getState().updateGameState({
-          phase: 'movement',
-        });
-      } else {
-        useGameStore.getState().setClientState('waiting_for_players');
-      }
-    });
-
     this.socket.on('game_started', data => {
       console.log('Game started:', data);
       useGameStore.getState().setClientState('running');
@@ -1276,6 +1220,7 @@ class GameClient {
           clearTimeout(timeout);
           if (replyPacket.data.success) {
             this.currentGameId = replyPacket.data.gameId;
+            this.applyJoinedPlayer(replyPacket.data, gameData.playerName, gameData.selectedNation);
             resolve(replyPacket.data.gameId);
           } else {
             reject(new Error(replyPacket.data.message || 'Failed to create game'));
@@ -1332,52 +1277,43 @@ class GameClient {
         if (response.success) {
           this.currentGameId = gameId;
 
-          // Initialize mock player state for turn system to work
-          console.log('=== JOIN GAME DEBUG ===');
-          console.log('GameClient: join response:', response);
-          console.log('GameClient: selectedNation param:', selectedNation);
-          console.log('GameClient: response.assignedNation:', response.assignedNation);
-          console.log('GameClient: assignedNation type:', typeof response.assignedNation);
-          // Always use the server-assigned nation, never store 'random' as the final value
-          let finalNation = response.assignedNation || selectedNation;
-          console.log('GameClient: finalNation after fallback:', finalNation);
-          if (finalNation === 'random') {
-            // If we still have 'random' at this point, default to 'american'
-            // (this should not happen if server is working correctly)
-            finalNation = 'american';
-            console.warn(
-              'GameClient: Still have random nation after server response, using fallback'
-            );
-          }
-          console.log('GameClient: final nation value:', finalNation);
-          const initialPlayer = {
-            id: response.playerId,
-            name: playerName,
-            nation: finalNation,
-            color: response.assignedColor ? playerColorToHex(response.assignedColor) : '#808080', // Use server-assigned color
-            gold: 50,
-            science: 0,
-            history: 0, // Initialize culture history
-            government: 'despotism', // Default starting government
-            isHuman: true,
-            isActive: true, // Make player active so turn done button works
-          };
-
-          useGameStore.getState().updateGameState({
-            currentPlayerId: response.playerId,
-            players: {
-              [response.playerId]: initialPlayer,
-            },
-            governments: getMockGovernments(),
-            phase: 'movement', // Set phase to movement
-            turn: 1, // Initialize turn
-          });
+          this.applyJoinedPlayer(response, playerName, selectedNation);
 
           resolve();
         } else {
           reject(new Error(response.error || 'Failed to join game'));
         }
       });
+    });
+  }
+
+  private applyJoinedPlayer(response: any, playerName: string, selectedNation: string): void {
+    if (!response.playerId) return;
+    const finalNation =
+      response.assignedNation && response.assignedNation !== 'random'
+        ? response.assignedNation
+        : selectedNation !== 'random'
+          ? selectedNation
+          : 'american';
+    useGameStore.getState().updateGameState({
+      currentPlayerId: response.playerId,
+      players: {
+        [response.playerId]: {
+          id: response.playerId,
+          name: playerName,
+          nation: finalNation,
+          color: response.assignedColor ? playerColorToHex(response.assignedColor) : '#808080',
+          gold: 50,
+          science: 0,
+          history: 0,
+          government: 'despotism',
+          isHuman: true,
+          isActive: true,
+        },
+      },
+      governments: getMockGovernments(),
+      phase: 'movement',
+      turn: 1,
     });
   }
 

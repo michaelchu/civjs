@@ -293,7 +293,13 @@ describe('GameClient - Nation Selection', () => {
                 ? { type: 5, data: { accepted: true } }
                 : {
                     type: 201,
-                    data: { success: true, gameId: 'game-123', assignedNation: 'japanese' },
+                    data: {
+                      success: true,
+                      gameId: 'game-123',
+                      playerId: 'player-123',
+                      assignedNation: 'japanese',
+                      assignedColor: { r: 255, g: 0, b: 0 },
+                    },
                   }
             )
           );
@@ -317,6 +323,14 @@ describe('GameClient - Nation Selection', () => {
       );
 
       await expect(gameIdPromise).resolves.toBe('game-123');
+      expect(useGameStore.getState().updateGameState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          currentPlayerId: 'player-123',
+          players: {
+            'player-123': expect.objectContaining({ nation: 'japanese', name: 'TestPlayer' }),
+          },
+        })
+      );
     });
   });
 });

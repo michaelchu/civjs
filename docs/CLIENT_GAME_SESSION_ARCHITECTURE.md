@@ -18,7 +18,7 @@ transport orchestration should follow native TypeScript and React patterns.
 | GS-02 | High | Implement observer snapshot loading before reporting the observer session ready. | Complete | Observer snapshot content and ordering test |
 | GS-03 | High | Apply runtime schemas to game creation, joining, and Socket.IO management events. | Complete | Registered-schema and malformed-event tests |
 | GS-04 | Medium | Correlate every packet request/reply with a unique request ID. | Complete | Concurrent server context and client request tests |
-| GS-05 | Medium | Replace mixed packets, callbacks, and compatibility events with one typed transport boundary. | Pending | Creation/join transport tests |
+| GS-05 | Medium | Replace mixed packets, callbacks, and compatibility events with one typed transport boundary. | Complete | Authoritative creation-reply tests |
 | GS-06 | Medium | Model the session lifecycle explicitly, including reconnect, resync, cancellation, and failure. | Pending | Session state-machine tests |
 | GS-07 | Medium | Make the Zustand game model the sole map source and remove `window.map`/`window.tiles` dependencies. | Pending | Renderer and recovery tests |
 | GS-08 | Medium | Split the monolithic client into transport, session, snapshot, and domain reducer responsibilities. | Pending | Unit tests for each boundary |
@@ -62,4 +62,6 @@ transport orchestration should follow native TypeScript and React patterns.
   runtime schemas, and management callbacks reject malformed identifiers.
 - 2026-07-27: GS-04 completed. Packet RPC calls now carry unique request IDs,
   and the server automatically echoes the correct ID through concurrent work.
+- 2026-07-27: GS-05 completed. Game creation state now comes exclusively from
+  `GAME_CREATE_REPLY`; the duplicate `game_created` mutation path was removed.
 - 2026-07-27: Recorded the architecture review and remediation sequence.

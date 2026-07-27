@@ -233,19 +233,14 @@ export class GameManagementHandler extends BaseSocketHandler {
       );
       await this.gameManager.updatePlayerConnection(result.playerId, true);
 
-      socket.emit('game_created', {
-        gameId,
-        maxPlayers: data.maxPlayers,
-        playerId: result.playerId, // Include playerId so client can initialize player state
-        assignedNation: result.assignedNation,
-        assignedColor: result.assignedColor,
-      });
-
       handler.send(socket, PacketType.GAME_CREATE_REPLY, {
         success: true,
         gameId,
+        maxPlayers: data.maxPlayers,
+        playerId: result.playerId,
         message: 'Game created successfully',
         assignedNation: result.assignedNation,
+        assignedColor: result.assignedColor,
       });
 
       logger.info(`Game created by ${connection.username}`, { gameId });

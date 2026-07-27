@@ -126,14 +126,6 @@ describe('Nation Selection Flow - Integration', () => {
           assignedNation: 'roman',
         })
       );
-
-      // Verify socket event was emitted with assignedNation
-      expect(mockSocket.emit).toHaveBeenCalledWith(
-        'game_created',
-        expect.objectContaining({
-          assignedNation: 'roman',
-        })
-      );
     });
 
     it('should create game and assign random nation when requested', async () => {
@@ -179,14 +171,8 @@ describe('Nation Selection Flow - Integration', () => {
       expect(packetCall[2].assignedNation).toBeDefined();
       expect(packetCall[2].assignedNation).not.toBe('random');
 
-      const socketCall = (mockSocket.emit as jest.Mock).mock.calls.find(
-        call => call[0] === 'game_created'
-      );
-      expect(socketCall[1].assignedNation).toBeDefined();
-      expect(socketCall[1].assignedNation).not.toBe('random');
-
-      // Both should be the same
-      expect(packetCall[2].assignedNation).toBe(socketCall[1].assignedNation);
+      expect(packetCall[2].playerId).toBeDefined();
+      expect(packetCall[2].assignedColor).toBeDefined();
     });
   });
 

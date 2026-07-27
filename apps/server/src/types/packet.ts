@@ -580,6 +580,10 @@ export const GameCreateSchema = z.object({
 export const GameCreateReplySchema = z.object({
   success: z.boolean(),
   gameId: z.string().optional(),
+  playerId: z.string().optional(),
+  assignedNation: z.string().optional(),
+  assignedColor: z.object({ r: z.number(), g: z.number(), b: z.number() }).optional(),
+  maxPlayers: z.number().int().optional(),
   message: z.string().optional(),
 });
 
