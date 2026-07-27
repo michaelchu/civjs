@@ -110,52 +110,18 @@ export class TurnCoordinationService {
     logger.debug('Recalculating territorial borders', { gameId: this.gameId });
 
     try {
-      // Get all players from active units and cities to determine who needs border updates
-      const allUnits = Array.from(this.unitManager.getAllUnits().values());
-      const playerIds = new Set<string>();
-
-      // Collect player IDs from units
-      for (const unit of allUnits) {
+      const playerIds = new Set(this.cityManager.getAllCities().map(city => city.playerId));
+      for (const unit of this.unitManager.getAllUnits().values()) {
         playerIds.add(unit.playerId);
       }
 
-      // Collect player IDs from cities (if any cities exist)
-      try {
-        // Since we don't have a direct method to get all players, we'll work with what we have
-        const allPlayerIds = Array.from(playerIds);
-
-        for (const playerId of allPlayerIds) {
-          const playerCities = await this.cityManager.getPlayerCities(playerId);
-          if (playerCities.length > 0) {
-            playerIds.add(playerId);
-          }
-        }
-      } catch (error) {
-        logger.debug('Could not check cities for border calculation', {
-          gameId: this.gameId,
-          error: error instanceof Error ? error.message : error,
-        });
-      }
-
-      // Recalculate borders for all active players
-      let playersProcessed = 0;
-      for (const playerId of playerIds) {
-        try {
-          this.borderManager.recalculateBordersForPlayer(playerId);
-          playersProcessed++;
-        } catch (error) {
-          logger.warn('Failed to recalculate borders for player', {
-            gameId: this.gameId,
-            playerId,
-            error: error instanceof Error ? error.message : error,
-          });
-        }
-      }
+      const update = this.borderManager.recalculateAllBorders();
 
       logger.info('Territorial borders recalculated', {
         gameId: this.gameId,
-        playersProcessed,
+        playersProcessed: playerIds.size,
         totalPlayers: playerIds.size,
+        tilesChanged: update.tiles.length,
       });
     } catch (error) {
       logger.error('Error recalculating borders', {

@@ -17,7 +17,6 @@ import { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import { BorderManager } from '@game/managers/BorderManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
-import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
 import { Server as SocketServer } from 'socket.io';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { GovernmentManager } from '@game/managers/GovernmentManager';
@@ -201,25 +200,17 @@ export class GameInstanceRecoveryService extends BaseGameService {
     // eslint-disable-next-line prefer-const
     let borderManager: BorderManager; // Declare first, initialize after managers are created
     const cityManager = new CityManager(gameId, this.databaseProvider, effectsManager, {
+      onCityFounded: city => {
+        if (!borderManager) return;
+        borderManager.addCityBorderSource(city);
+      },
       onCityCaptured: city => {
         if (!borderManager) return;
         borderManager.removeBorderSource(city.x, city.y);
-        const source = {
-          x: city.x,
-          y: city.y,
-          playerId: city.playerId,
-          type: 'city' as const,
-          strength: 0,
-          radius: 0,
-          cityId: city.id,
-        };
-        source.radius = borderManager.getBorderSourceRadius(source);
-        source.strength = borderManager.getBorderSourceStrength(source);
-        borderManager.addBorderSource(source);
+        borderManager.addCityBorderSource(city);
         this.broadcastManager.broadcastMapData(gameId, mapManager.getMapData());
       },
       onCityGrowth: (city, oldSize) => {
-        // Update border radius when city grows (population-based expansion)
         logger.info(`City ${city.name} grew from size ${oldSize} to ${city.size}`, {
           cityId: city.id,
           x: city.x,
@@ -228,25 +219,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
           newSize: city.size,
         });
 
-        // Recalculate borders around the city due to potential radius change
         if (borderManager) {
-          const oldRadiusSq = calculateCityBorderRadiusSq(oldSize);
-          const newRadiusSq = calculateCityBorderRadiusSq(city.size);
-
-          if (newRadiusSq !== oldRadiusSq) {
-            logger.info(`City border radius changed for ${city.name}`, {
-              cityId: city.id,
-              oldRadiusSq,
-              newRadiusSq,
-              oldRadius: Math.sqrt(oldRadiusSq),
-              newRadius: Math.sqrt(newRadiusSq),
-            });
-
-            // Update borders around the city with the new radius
-            // Use the larger radius to ensure we recalculate all potentially affected tiles
-            const updateRadius = Math.max(oldRadiusSq, newRadiusSq);
-            borderManager.updateBordersAroundTile(city.x, city.y, updateRadius);
-          }
+          borderManager.recalculateAllBorders();
         }
       },
     });
@@ -501,18 +475,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
 
   private restoreBorderSources(cityManager: CityManager, borderManager: BorderManager): void {
     for (const city of cityManager.getAllCities()) {
-      const source = {
-        x: city.x,
-        y: city.y,
-        playerId: city.playerId,
-        type: 'city' as const,
-        strength: 0,
-        radius: 0,
-        cityId: city.id,
-      };
-      source.radius = borderManager.getBorderSourceRadius(source);
-      source.strength = borderManager.getBorderSourceStrength(source);
-      borderManager.addBorderSource(source);
+      borderManager.addCityBorderSource(city);
     }
   }
 

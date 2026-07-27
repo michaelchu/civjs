@@ -1,6 +1,7 @@
 import { join } from 'path';
 import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { EffectsRulesetFileSchema } from '@shared/data/rulesets/schemas';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 
 describe('RulesetLoader classic effects ruleset', () => {
   const createLoader = () => new RulesetLoader(join(process.cwd(), 'src/shared/data/rulesets'));
@@ -37,6 +38,29 @@ describe('RulesetLoader classic effects ruleset', () => {
       value: 200,
       reqs: expect.arrayContaining([{ type: 'OutputType', name: 'Trade', range: 'Local' }]),
     });
+  });
+
+  it('loads the base city history effect used for culture border expansion', () => {
+    const effects = createLoader().loadEffectsRuleset().effects;
+
+    expect(effects.base_city_history).toMatchObject({
+      id: 'base_city_history',
+      type: 'History',
+      value: 1,
+      reqs: [],
+    });
+  });
+
+  it('applies base city history through the effects manager', () => {
+    const effectsManager = new EffectsManager('classic');
+
+    expect(
+      effectsManager.calculateEffect(EffectType.HISTORY, {
+        cityId: 'city-1',
+        playerId: 'player-1',
+        cityBuildings: new Set(),
+      }).value
+    ).toBe(1);
   });
 
   it('loads every classic government effect used by the playable loop', () => {

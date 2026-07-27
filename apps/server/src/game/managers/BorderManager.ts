@@ -135,14 +135,13 @@ export class BorderManager {
     let radiusSq = 0;
 
     if (source.type === 'city') {
-      // Use progressive radius calculation based on city population
-      const citySize = this.getCitySize(source.x, source.y);
-      radiusSq = calculateCityBorderRadiusSq(citySize);
+      const cityCulture = this.getCityCulture(source.x, source.y);
+      radiusSq = calculateCityBorderRadiusSq(cityCulture);
 
       logger.debug('🏘️ City border radius calculation', {
         x: source.x,
         y: source.y,
-        citySize,
+        cityCulture,
         radiusSq,
         effectiveRadius: Math.sqrt(radiusSq),
       });
@@ -264,7 +263,7 @@ export class BorderManager {
         : Infinity;
 
     if (this.borderSources.size > 0 && (distanceFromAnyCity <= 25 || maxStrength > 0)) {
-      logger.info('🧮 Tile ownership calculation', {
+      logger.debug('🧮 Tile ownership calculation', {
         tile: { x, y },
         borderSourcesCount: this.borderSources.size,
         distanceFromNearestCity: Math.sqrt(distanceFromAnyCity),
@@ -363,6 +362,24 @@ export class BorderManager {
   }
 
   /**
+   * Create and add the canonical border source for a city.
+   */
+  addCityBorderSource(city: { id: string; x: number; y: number; playerId: string }): void {
+    const source: BorderSource = {
+      x: city.x,
+      y: city.y,
+      playerId: city.playerId,
+      type: 'city',
+      strength: 0,
+      radius: 0,
+      cityId: city.id,
+    };
+    source.radius = this.getBorderSourceRadius(source);
+    source.strength = this.getBorderSourceStrength(source);
+    this.addBorderSource(source);
+  }
+
+  /**
    * Add a new border source (city founding, fort construction)
    */
   addBorderSource(source: BorderSource): void {
@@ -397,7 +414,7 @@ export class BorderManager {
       calculatedRadius: actualRadius,
       providedStrength: source.strength,
       calculatedStrength: actualStrength,
-      citySize: this.getCitySize(source.x, source.y),
+      cityCulture: this.getCityCulture(source.x, source.y),
     });
 
     // Update borders around this source and collect changes
@@ -440,29 +457,10 @@ export class BorderManager {
    * Update borders around a specific tile
    */
   updateBordersAroundTile(centerX: number, centerY: number, radius?: number): void {
-    const updateRadius = radius || BORDER_DEFAULT_CITY_RADIUS_SQ;
-    const updatedTiles: TileOwnership[] = [];
-
-    // Update ownership for all tiles within radius
-    // Convert radius_sq to linear radius for iteration bounds
-    const linearRadius = Math.floor(Math.sqrt(updateRadius));
-    for (let x = centerX - linearRadius; x <= centerX + linearRadius; x++) {
-      for (let y = centerY - linearRadius; y <= centerY + linearRadius; y++) {
-        if (this.isValidCoordinate(x, y)) {
-          const key = this.getTileKey(x, y);
-          const newOwnership = this.calculateTileOwnership(x, y);
-          this.tileOwnership.set(key, newOwnership);
-          updatedTiles.push(newOwnership);
-        }
-      }
+    const borderUpdate = this.updateBordersAroundTileWithUpdate(centerX, centerY, radius);
+    if (borderUpdate.tiles.length > 0) {
+      this.callbacks.onBorderUpdate?.(borderUpdate);
     }
-
-    logger.debug('Updated borders around tile', {
-      centerX,
-      centerY,
-      radius: updateRadius,
-      updatedCount: updatedTiles.length,
-    });
   }
 
   /**
@@ -525,25 +523,70 @@ export class BorderManager {
    */
   recalculateBordersForPlayer(playerId: string): void {
     logger.info('Recalculating borders for player', { playerId });
+    this.recalculateAllBorders();
+  }
 
-    // Clear existing ownership for this player
-    const tilesToRecalculate: Array<{ x: number; y: number }> = [];
+  /**
+   * Recalculate the authoritative ownership map after culture, source, or
+   * strength changes and broadcast every changed tile.
+   */
+  recalculateAllBorders(): BorderUpdate {
+    const mapData = this.mapManager.getMapData();
+    const changedTiles: TileOwnership[] = [];
+    const affectedPlayers = new Set<string>();
 
-    for (const [key, ownership] of this.tileOwnership) {
-      if (ownership.playerId === playerId) {
-        const [x, y] = key.split(',').map(Number);
-        tilesToRecalculate.push({ x, y });
+    if (!mapData) {
+      return { tiles: [], sources: [], removedSources: [], affectedPlayers: [] };
+    }
+
+    for (const source of this.borderSources.values()) {
+      source.radius = this.getBorderSourceRadius(source);
+      source.strength = this.getBorderSourceStrength(source);
+    }
+
+    for (let x = 0; x < mapData.width; x++) {
+      for (let y = 0; y < mapData.height; y++) {
+        const key = this.getTileKey(x, y);
+        const previous = this.tileOwnership.get(key);
+        const next = this.calculateTileOwnership(x, y);
+
+        this.tileOwnership.set(key, next);
+        this.updateTileOwnership(x, y, next.playerId);
+
+        if (this.didOwnershipChange(previous, next)) {
+          changedTiles.push(next);
+          this.recordAffectedPlayers(affectedPlayers, previous, next);
+        }
       }
     }
 
-    // Recalculate ownership for affected tiles
-    for (const { x, y } of tilesToRecalculate) {
-      const key = this.getTileKey(x, y);
-      const newOwnership = this.calculateTileOwnership(x, y);
-      this.tileOwnership.set(key, newOwnership);
-      // Update tile ownership in map
-      this.updateTileOwnership(x, y, newOwnership.playerId);
+    const update: BorderUpdate = {
+      tiles: changedTiles,
+      sources: Array.from(this.borderSources.values()),
+      removedSources: [],
+      affectedPlayers: Array.from(affectedPlayers),
+    };
+    if (changedTiles.length > 0) {
+      this.callbacks.onBorderUpdate?.(update);
     }
+    return update;
+  }
+
+  private didOwnershipChange(previous: TileOwnership | undefined, next: TileOwnership): boolean {
+    if (!previous) return next.playerId !== null;
+    if (previous.playerId !== next.playerId) return true;
+    if (previous.claimedBy?.x !== next.claimedBy?.x) return true;
+    if (previous.claimedBy?.y !== next.claimedBy?.y) return true;
+    return previous.playerId !== null && previous.strength !== next.strength;
+  }
+
+  private recordAffectedPlayers(
+    affectedPlayers: Set<string>,
+    previous: TileOwnership | undefined,
+    next: TileOwnership
+  ): void {
+    if (previous?.playerId) affectedPlayers.add(previous.playerId);
+    if (next.playerId) affectedPlayers.add(next.playerId);
   }
 
   /**
@@ -596,12 +639,9 @@ export class BorderManager {
     return 0; // No tile-based border bonuses yet
   }
 
-  /**
-   * Get city size at coordinates (helper method)
-   */
-  private getCitySize(x: number, y: number): number {
+  private getCityCulture(x: number, y: number): number {
     const city = this.cityManager.getCityAt(x, y);
-    return city ? city.size : 1; // Default to size 1 if no city found
+    return city?.history ?? 0;
   }
 
   /**

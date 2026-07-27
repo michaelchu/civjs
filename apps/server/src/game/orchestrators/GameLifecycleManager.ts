@@ -25,7 +25,6 @@ import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { BorderManager } from '@game/managers/BorderManager';
 import { GovernmentManager } from '@game/managers/GovernmentManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
-import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
 import { MapStartpos } from '@game/map/MapTypes';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import type { Server as SocketServer } from 'socket.io';
@@ -384,23 +383,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         }
       },
       onCityFounded: city => {
-        // Create border source for the new city
-        const borderSource = {
-          x: city.x,
-          y: city.y,
-          playerId: city.playerId,
-          type: 'city' as const,
-          strength: 0, // Will be calculated by BorderManager
-          radius: 0, // Will be calculated by BorderManager
-          cityId: city.id,
-        };
-
-        // Calculate actual values
-        borderSource.radius = borderManager.getBorderSourceRadius(borderSource);
-        borderSource.strength = borderManager.getBorderSourceStrength(borderSource);
-
-        // Add to border manager
-        borderManager.addBorderSource(borderSource);
+        borderManager.addCityBorderSource(city);
 
         this.logger.info(`Border source added for city ${city.name}`, {
           cityId: city.id,
@@ -411,22 +394,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       },
       onCityCaptured: city => {
         borderManager.removeBorderSource(city.x, city.y);
-        const source = {
-          x: city.x,
-          y: city.y,
-          playerId: city.playerId,
-          type: 'city' as const,
-          strength: 0,
-          radius: 0,
-          cityId: city.id,
-        };
-        source.radius = borderManager.getBorderSourceRadius(source);
-        source.strength = borderManager.getBorderSourceStrength(source);
-        borderManager.addBorderSource(source);
+        borderManager.addCityBorderSource(city);
         this.onBroadcastMapData?.(gameId, mapManager.getMapData());
       },
       onCityGrowth: (city, oldSize) => {
-        // Update border radius when city grows (population-based expansion)
         this.logger.info(`City ${city.name} grew from size ${oldSize} to ${city.size}`, {
           cityId: city.id,
           x: city.x,
@@ -434,25 +405,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           oldSize,
           newSize: city.size,
         });
-
-        // Recalculate borders around the city due to potential radius change
-        const oldRadiusSq = calculateCityBorderRadiusSq(oldSize);
-        const newRadiusSq = calculateCityBorderRadiusSq(city.size);
-
-        if (newRadiusSq !== oldRadiusSq) {
-          this.logger.info(`City border radius changed for ${city.name}`, {
-            cityId: city.id,
-            oldRadiusSq,
-            newRadiusSq,
-            oldRadius: Math.sqrt(oldRadiusSq),
-            newRadius: Math.sqrt(newRadiusSq),
-          });
-
-          // Update borders around the city with the new radius
-          // Use the larger radius to ensure we recalculate all potentially affected tiles
-          const updateRadius = Math.max(oldRadiusSq, newRadiusSq);
-          borderManager.updateBordersAroundTile(city.x, city.y, updateRadius);
-        }
+        // Population still changes Freeciv-style border strength, even though
+        // CivJS territorial radius is driven by accumulated city culture.
+        borderManager.recalculateAllBorders();
       },
     });
 

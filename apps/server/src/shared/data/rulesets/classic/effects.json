@@ -16,6 +16,13 @@
       "value": 4,
       "comment": "Base unhappiness threshold for city size"
     },
+    "base_city_history": {
+      "id": "base_city_history",
+      "type": "History",
+      "value": 1,
+      "reqs": [],
+      "comment": "CivJS cities accumulate one culture history point per turn for border growth"
+    },
     "barbarian_no_diplomacy": {
       "id": "barbarian_no_diplomacy",
       "type": "No_Diplomacy",
