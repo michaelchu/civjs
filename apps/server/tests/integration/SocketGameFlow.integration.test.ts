@@ -153,8 +153,8 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
         name: 'Socket smoke game',
         gameType: 'multiplayer',
         maxPlayers: 2,
-        mapWidth: 20,
-        mapHeight: 20,
+        mapWidth: 40,
+        mapHeight: 25,
         selectedNation: 'romans',
       },
     });
@@ -171,14 +171,14 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       selectedNation: 'greeks',
     });
     expect(joined).toMatchObject({ success: true });
-    expect((await mapPacket).data).toMatchObject({ xsize: 20, ysize: 20 });
+    expect((await mapPacket).data).toMatchObject({ xsize: 40, ysize: 25 });
 
     const mapReply = await emitWithAck<{
       success: boolean;
       mapData: { width: number; height: number };
     }>(host, 'get_map_data', {});
     expect(mapReply.success).toBe(true);
-    expect(mapReply.mapData).toMatchObject({ width: 20, height: 20 });
+    expect(mapReply.mapData).toMatchObject({ width: 40, height: 25 });
 
     // @reference reference/freeciv/server/unittools.c:1215-1280
     const hostPlayer = Array.from(gameManager.getGameInstance(gameId)!.players.values()).find(
@@ -478,7 +478,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       { gameId, selectedNation: 'romans' }
     );
     expect(reconnect).toMatchObject({ success: true });
-    expect((await returningMap).data).toMatchObject({ xsize: 20, ysize: 20 });
+    expect((await returningMap).data).toMatchObject({ xsize: 40, ysize: 25 });
     expect(await returningCities).toMatchObject({
       gameId,
       cities: { [cityId]: expect.objectContaining({ id: cityId, name: 'Socket City' }) },
