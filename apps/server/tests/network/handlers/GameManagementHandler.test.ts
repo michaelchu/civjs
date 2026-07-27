@@ -453,6 +453,87 @@ describe('GameManagementHandler', () => {
     });
   });
 
+  describe('observe_game socket event', () => {
+    beforeEach(() => {
+      handler.register(mockPacketHandler, mockIo, mockSocket);
+      activeConnections.set(mockSocketId, { userId: mockUserId, username: mockUsername });
+    });
+
+    it('sends a complete observer snapshot before acknowledging readiness', async () => {
+      mockGameManager.getGame.mockResolvedValue({ id: mockGameId, status: 'active' } as any);
+      mockGameManager.getGameInstance.mockReturnValue({
+        mapManager: {
+          getMapData: () => ({
+            width: 1,
+            height: 1,
+            tiles: [[{ terrain: 'grassland' }]],
+          }),
+        },
+        unitManager: {
+          getAllUnits: () =>
+            new Map([
+              [
+                'unit-1',
+                {
+                  id: 'unit-1',
+                  playerId: mockPlayerId,
+                  unitTypeId: 'warriors',
+                  x: 0,
+                  y: 0,
+                  health: 100,
+                  movementLeft: 1,
+                  veteranLevel: 0,
+                },
+              ],
+            ]),
+        },
+        visibilityManager: {
+          updatePlayerVisibility: jest.fn(),
+          getVisibleTiles: jest.fn(),
+          getExploredTiles: jest.fn(),
+        },
+        cityManager: { getAllCities: () => [] },
+        borderManager: { getAllTileOwnership: () => [] },
+      } as any);
+
+      const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'observe_game'
+      )[1];
+      const mockCallback = jest.fn();
+
+      await eventHandler({ gameId: mockGameId }, mockCallback);
+
+      expect(mockSocket.emit).toHaveBeenCalledWith(
+        'packet',
+        expect.objectContaining({
+          type: PacketType.TILE_INFO,
+          data: expect.objectContaining({
+            tiles: [expect.objectContaining({ terrain: 'grassland', known: 2, seen: 1 })],
+          }),
+        })
+      );
+      expect(mockSocket.emit).toHaveBeenCalledWith(
+        'packet',
+        expect.objectContaining({
+          type: PacketType.UNIT_INFO,
+          data: expect.objectContaining({ fullSnapshot: true }),
+        })
+      );
+      expect(mockCallback).toHaveBeenCalledWith({ success: true, role: 'spectator' });
+
+      const lastSnapshotEmission = (mockSocket.emit as jest.Mock).mock.calls
+        .map(([event, packet], index) => ({ event, packet, index }))
+        .filter(({ event }) => event === 'packet')
+        .at(-1)?.index;
+      const callbackOrder = mockCallback.mock.invocationCallOrder[0];
+      const lastEmissionOrder =
+        lastSnapshotEmission === undefined
+          ? undefined
+          : (mockSocket.emit as jest.Mock).mock.invocationCallOrder[lastSnapshotEmission];
+      expect(lastEmissionOrder).toBeLessThan(callbackOrder);
+    });
+  });
+
   describe('utility methods', () => {
     it('should return handled packet types', () => {
       const types = handler.getHandledPacketTypes();

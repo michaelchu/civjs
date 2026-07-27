@@ -15,7 +15,7 @@ transport orchestration should follow native TypeScript and React patterns.
 | ID | Priority | Work item | Status | Verification |
 | --- | --- | --- | --- | --- |
 | GS-01 | High | Do not report a player rejoin as successful when snapshot recovery or delivery fails. | Complete | Server handler recovery-failure regression test |
-| GS-02 | High | Implement observer snapshot loading before reporting the observer session ready. | Pending | Player/observer snapshot parity tests |
+| GS-02 | High | Implement observer snapshot loading before reporting the observer session ready. | Complete | Observer snapshot content and ordering test |
 | GS-03 | High | Apply runtime schemas to game creation, joining, and Socket.IO management events. | Pending | Invalid-input and resource-bound tests |
 | GS-04 | Medium | Correlate every packet request/reply with a unique request ID. | Pending | Concurrent same-type request tests |
 | GS-05 | Medium | Replace mixed packets, callbacks, and compatibility events with one typed transport boundary. | Pending | Creation/join transport tests |
@@ -56,4 +56,6 @@ transport orchestration should follow native TypeScript and React patterns.
 
 - 2026-07-27: GS-01 completed. Active-game joins now propagate snapshot
   recovery failures instead of acknowledging an unusable session.
+- 2026-07-27: GS-02 completed. Player and observer joins now share the same
+  snapshot pipeline, with observer readiness acknowledged only after delivery.
 - 2026-07-27: Recorded the architecture review and remediation sequence.

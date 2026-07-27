@@ -333,7 +333,7 @@ export class GameManagementHandler extends BaseSocketHandler {
       // recovery snapshot. Propagate recovery failures instead of mounting an
       // empty game and asking the browser to recover through a refresh.
       if (requiresSnapshot) {
-        await this.sendPlayerMapData(data.gameId, result.playerId, socket);
+        await this.sendGameSnapshot(data.gameId, socket, result.playerId);
       }
 
       callback({
@@ -379,7 +379,7 @@ export class GameManagementHandler extends BaseSocketHandler {
       connection.role = 'spectator';
       socket.join(`game:${data.gameId}`);
 
-      await this.sendObserverMapData(data.gameId, socket);
+      await this.sendGameSnapshot(data.gameId, socket);
 
       callback({ success: true, role: 'spectator' });
       logger.info(`${connection?.username || 'Unknown'} is now observing game ${data.gameId}`);
@@ -443,7 +443,7 @@ export class GameManagementHandler extends BaseSocketHandler {
    * A server restart clears the in-memory game instance, so recover it from
    * the persisted map before sending the initial map packets to this socket.
    */
-  private async sendPlayerMapData(gameId: string, playerId: string, socket: Socket): Promise<void> {
+  private async sendGameSnapshot(gameId: string, socket: Socket, playerId?: string): Promise<void> {
     let gameInstance = this.gameManager.getGameInstance(gameId);
     if (!gameInstance) {
       gameInstance = await this.gameManager.recoverGameInstance(gameId);
@@ -461,9 +461,15 @@ export class GameManagementHandler extends BaseSocketHandler {
     // @reference reference/freeciv/server/maphand.c:442-613
     // Rejoining players receive only their explored map, with current vision
     // represented by the Freeciv-compatible known/seen packet flags.
-    gameInstance.visibilityManager.updatePlayerVisibility(playerId);
-    const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
-    const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
+    if (playerId) {
+      gameInstance.visibilityManager.updatePlayerVisibility(playerId);
+    }
+    const visibleTiles = playerId
+      ? gameInstance.visibilityManager.getVisibleTiles(playerId)
+      : new Set<string>();
+    const exploredTiles = playerId
+      ? gameInstance.visibilityManager.getExploredTiles(playerId)
+      : new Set<string>();
 
     socket.emit('packet', {
       version: PROTOCOL_VERSION,
@@ -483,8 +489,8 @@ export class GameManagementHandler extends BaseSocketHandler {
         const tile = mapData.tiles[x]?.[y];
         if (!tile) continue;
         const tileKey = `${x},${y}`;
-        const isVisible = visibleTiles.has(tileKey);
-        const isExplored = exploredTiles.has(tileKey);
+        const isVisible = !playerId || visibleTiles.has(tileKey);
+        const isExplored = !playerId || exploredTiles.has(tileKey);
         tiles.push({
           tile: x + y * mapData.width,
           x,
@@ -525,18 +531,19 @@ export class GameManagementHandler extends BaseSocketHandler {
       });
     }
 
-    const units = gameInstance.unitManager
-      .getVisibleUnits(playerId, visibleTiles)
-      .map((unit: any) => ({
-        id: unit.id,
-        owner: unit.playerId,
-        type: unit.unitTypeId,
-        x: unit.x,
-        y: unit.y,
-        hp: unit.health,
-        movesleft: unit.movementLeft,
-        veteran: unit.veteranLevel,
-      }));
+    const sourceUnits = playerId
+      ? gameInstance.unitManager.getVisibleUnits(playerId, visibleTiles)
+      : Array.from(gameInstance.unitManager.getAllUnits().values());
+    const units = sourceUnits.map((unit: any) => ({
+      id: unit.id,
+      owner: unit.playerId,
+      type: unit.unitTypeId,
+      x: unit.x,
+      y: unit.y,
+      hp: unit.health,
+      movesleft: unit.movementLeft,
+      veteran: unit.veteranLevel,
+    }));
     socket.emit('packet', {
       version: PROTOCOL_VERSION,
       type: PacketType.UNIT_INFO,
@@ -547,7 +554,8 @@ export class GameManagementHandler extends BaseSocketHandler {
     const cities = gameInstance.cityManager
       .getAllCities()
       .filter(
-        (city: any) => city.playerId === playerId || exploredTiles.has(`${city.x},${city.y}`)
+        (city: any) =>
+          !playerId || city.playerId === playerId || exploredTiles.has(`${city.x},${city.y}`)
       );
     socket.emit('cities_updated', {
       gameId,
@@ -568,7 +576,9 @@ export class GameManagementHandler extends BaseSocketHandler {
           .getAllTileOwnership()
           .filter(
             (ownership: any) =>
-              ownership.playerId === playerId || exploredTiles.has(`${ownership.x},${ownership.y}`)
+              !playerId ||
+              ownership.playerId === playerId ||
+              exploredTiles.has(`${ownership.x},${ownership.y}`)
           )
           .map((ownership: any) => ({
             x: ownership.x,
@@ -580,23 +590,15 @@ export class GameManagementHandler extends BaseSocketHandler {
       timestamp: Date.now(),
     });
 
-    logger.info('Sent recovered map data to player', {
+    logger.info('Sent recovered game snapshot', {
       gameId,
       playerId,
+      role: playerId ? 'player' : 'spectator',
       mapSize: `${mapData.width}x${mapData.height}`,
       tiles: tiles.length,
       units: units.length,
       cities: cities.length,
       totalCities: gameInstance.cityManager.getAllCities().length,
     });
-  }
-
-  /**
-   * Send map data to observer (placeholder - would need to be implemented)
-   */
-  private async sendObserverMapData(gameId: string, _socket: Socket): Promise<void> {
-    // TODO: This would need to be implemented with proper map data sending
-    // For now, we'll leave it as a placeholder since it involves complex map data logic
-    logger.debug(`Sending observer map data for game ${gameId}`);
   }
 }
