@@ -25,6 +25,7 @@ export class MapRenderer {
   // Tileset loader for sprite management
   private tilesetLoader: TilesetLoader;
   private isInitialized = false;
+  private isDisposed = false;
 
   // Flag to force immediate render bypassing timing checks
   private forceImmediateRender = false;
@@ -83,10 +84,13 @@ export class MapRenderer {
   async initialize(): Promise<void> {
     try {
       await this.tilesetLoader.loadTileset();
+      if (this.isDisposed) return;
+
       const [presentation, nationStyles] = await Promise.all([
         rulesetService.loadPresentationRuleset('classic'),
         rulesetService.getNationStyles('classic'),
       ]);
+      if (this.isDisposed) return;
 
       const tileSize = this.tilesetLoader.getTileSize();
       this.tileWidth = tileSize.width;
@@ -120,7 +124,9 @@ export class MapRenderer {
 
       this.isInitialized = true;
     } catch (error) {
-      console.error('Failed to initialize MapRenderer:', error);
+      if (!this.isDisposed) {
+        console.error('Failed to initialize MapRenderer:', error);
+      }
       throw error;
     }
   }
@@ -137,6 +143,8 @@ export class MapRenderer {
   }
 
   render(state: RenderState, immediate = false) {
+    if (this.isDisposed) return;
+
     this.renderState = state;
     // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:688-700
     // Implement freeciv-web's performance timing system
@@ -392,21 +400,28 @@ export class MapRenderer {
       return false; // No map data available
     }
 
-    // Convert viewport corners to map coordinates using canvasToMap (equivalent to base_canvas_to_map_pos)
+    // The viewport dimensions can briefly lag behind the canvas during route
+    // transitions and resizes. Use the backing buffer dimensions so boundary
+    // detection covers every pixel that will actually be displayed.
+    const canvasWidth = this.ctx.canvas?.width || viewport.width;
+    const canvasHeight = this.ctx.canvas?.height || viewport.height;
+
+    // Convert canvas corners to map coordinates using canvasToMap
+    // (equivalent to base_canvas_to_map_pos).
     const corners = [
       this.canvasToMap(0, 0, viewport), // Top-left corner (r in freeciv-web)
-      this.canvasToMap(viewport.width, 0, viewport), // Top-right corner (s in freeciv-web)
-      this.canvasToMap(0, viewport.height, viewport), // Bottom-left corner (t in freeciv-web)
-      this.canvasToMap(viewport.width, viewport.height, viewport), // Bottom-right corner (u in freeciv-web)
+      this.canvasToMap(canvasWidth, 0, viewport), // Top-right corner (s in freeciv-web)
+      this.canvasToMap(0, canvasHeight, viewport), // Bottom-left corner (t in freeciv-web)
+      this.canvasToMap(canvasWidth, canvasHeight, viewport), // Bottom-right corner (u in freeciv-web)
     ];
 
     // Check if any corner is outside map bounds (same logic as freeciv-web conditional)
     return corners.some(
       corner =>
         corner.mapX < 0 ||
-        corner.mapX > globalMap.xsize ||
+        corner.mapX >= globalMap.xsize ||
         corner.mapY < 0 ||
-        corner.mapY > globalMap.ysize
+        corner.mapY >= globalMap.ysize
     );
   }
 
@@ -697,11 +712,17 @@ export class MapRenderer {
   };
 
   cleanup() {
+    this.isDisposed = true;
     this.stopRenderLoop();
+    if (this.pendingRenderTimeoutId !== null) {
+      window.clearTimeout(this.pendingRenderTimeoutId);
+      this.pendingRenderTimeoutId = null;
+    }
     if (this.movementAnimationFrameId !== null) {
       cancelAnimationFrame(this.movementAnimationFrameId);
       this.movementAnimationFrameId = null;
     }
+    this.renderState = null;
     this.tilesetLoader.cleanup();
     this.isInitialized = false;
   }

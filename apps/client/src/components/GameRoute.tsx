@@ -10,6 +10,7 @@ export const GameRoute: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
   const [error, setError] = useState('');
   const [isJoining, setIsJoining] = useState(false);
+  const [readyGameId, setReadyGameId] = useState<string | null>(null);
 
   const { clientState, setClientState } = useGameStore();
 
@@ -21,6 +22,7 @@ export const GameRoute: React.FC = () => {
 
     setError('');
     setIsJoining(true);
+    setReadyGameId(null);
 
     try {
       await gameClient.connect();
@@ -38,6 +40,7 @@ export const GameRoute: React.FC = () => {
       storeUsername(username);
 
       setClientState(useGameStore.getState().endGameReport ? 'over' : 'running');
+      setReadyGameId(gameId);
     } catch (joinError) {
       console.log('Could not join as player:', joinError);
 
@@ -47,6 +50,7 @@ export const GameRoute: React.FC = () => {
         await gameClient.observeGame(gameId);
         console.log('Joined as observer');
         setClientState('running');
+        setReadyGameId(gameId);
       } catch {
         setError(
           `Cannot access game: ${joinError instanceof Error ? joinError.message : 'Unknown error'}`
@@ -68,6 +72,7 @@ export const GameRoute: React.FC = () => {
     // the saved player identity and reconnects it to the existing game.
     if (gameClient.isConnected() && gameClient.getCurrentGameId() === gameId) {
       setClientState(useGameStore.getState().endGameReport ? 'over' : 'running');
+      setReadyGameId(gameId);
     } else {
       loadGame();
     }
@@ -96,7 +101,7 @@ export const GameRoute: React.FC = () => {
     return <Navigate to="/" replace />;
   }
 
-  if (clientState === 'running' || clientState === 'over') {
+  if ((clientState === 'running' || clientState === 'over') && readyGameId === gameId) {
     return <GameLayout />;
   }
 

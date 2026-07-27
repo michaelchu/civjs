@@ -21,23 +21,38 @@ export class TilesetLoader {
   private spriteSheets: HTMLImageElement[] = [];
   private sprites: Record<string, HTMLCanvasElement> = {};
   private isLoaded = false;
+  private loadGeneration = 0;
 
   private baseJsPath = '/js/2dcanvas';
   private baseTilesetPath = '/tilesets';
 
   async loadTileset(): Promise<void> {
+    const generation = ++this.loadGeneration;
+
     try {
       // Load tileset files from client's domain
       await this.loadConfig(`${this.baseJsPath}/tileset_config_amplio2.js`);
+      this.assertActiveLoad(generation);
       await this.loadSpec(`${this.baseJsPath}/tileset_spec_amplio2.js`);
+      this.assertActiveLoad(generation);
       await this.loadSpriteSheets();
+      this.assertActiveLoad(generation);
 
       this.cacheSprites();
+      this.assertActiveLoad(generation);
 
       this.isLoaded = true;
     } catch (error) {
-      console.error('Failed to load tileset:', error);
+      if (generation === this.loadGeneration) {
+        console.error('Failed to load tileset:', error);
+      }
       throw error;
+    }
+  }
+
+  private assertActiveLoad(generation: number): void {
+    if (generation !== this.loadGeneration) {
+      throw new Error('Tileset load cancelled');
     }
   }
 
@@ -213,6 +228,7 @@ export class TilesetLoader {
   }
 
   cleanup(): void {
+    this.loadGeneration++;
     this.sprites = {};
     this.spriteSheets = [];
     this.config = null;

@@ -47,6 +47,28 @@ describe('GameClient - Nation Selection', () => {
   });
 
   describe('joinSpecificGame', () => {
+    it('deduplicates concurrent joins for the same game', async () => {
+      let joinCallback: ((response: { success: boolean; playerId: string }) => void) | undefined;
+      mockSocket.emit.mockImplementation((event, _data, callback) => {
+        if (event === 'join_game') {
+          joinCallback = callback;
+        }
+      });
+
+      const firstJoin = gameClient.joinSpecificGame('game-1', 'TestPlayer');
+      const secondJoin = gameClient.joinSpecificGame('game-1', 'TestPlayer');
+
+      expect(secondJoin).toBe(firstJoin);
+      await vi.waitFor(() => {
+        expect(mockSocket.emit.mock.calls.filter(([event]) => event === 'join_game')).toHaveLength(
+          1
+        );
+      });
+
+      joinCallback?.({ success: true, playerId: 'player-1' });
+      await Promise.all([firstJoin, secondJoin]);
+    });
+
     it('should pass selectedNation to server when joining a game', async () => {
       // Arrange
       const gameId = 'test-game-id';

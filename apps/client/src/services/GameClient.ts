@@ -109,6 +109,8 @@ class GameClient {
   private serverUrl: string;
   private currentGameId: string | null = null;
   private connectionPromise: Promise<void> | null = null;
+  private pendingGameJoins = new Map<string, Promise<void>>();
+  private pendingMapTiles: Record<string, any> | null = null;
 
   constructor() {
     this.serverUrl = SERVER_URL;
@@ -744,6 +746,7 @@ class GameClient {
 
     const totalTiles = data.xsize * data.ysize;
     (window as any).tiles = new Array(totalTiles);
+    this.pendingMapTiles = {};
 
     for (let i = 0; i < totalTiles; i++) {
       (window as any).tiles[i] = {
@@ -835,8 +838,10 @@ class GameClient {
     if (!(window as any).tiles || !data.tiles) return;
 
     const tiles = (window as any).tiles;
-    const currentMap = useGameStore.getState().map;
-    const updatedTiles = { ...currentMap.tiles };
+    if (data.startIndex === 0 || !this.pendingMapTiles) {
+      this.pendingMapTiles = {};
+    }
+    const updatedTiles = this.pendingMapTiles;
 
     for (const tileData of data.tiles) {
       tiles[tileData.tile] = Object.assign(tiles[tileData.tile] || {}, tileData);
@@ -862,6 +867,13 @@ class GameClient {
       };
     }
 
+    const snapshotComplete =
+      typeof data.total !== 'number' ||
+      typeof data.endIndex !== 'number' ||
+      data.endIndex >= data.total;
+    if (!snapshotComplete) return;
+
+    this.pendingMapTiles = null;
     useGameStore.getState().updateGameState({
       map: {
         width: (window as any).map?.xsize || 80,
@@ -873,21 +885,6 @@ class GameClient {
         wrap_id: (window as any).map?.wrap_id || 0,
       },
     });
-
-    if (data.endIndex === data.total) {
-      setTimeout(() => {
-        const resizeEvent = new Event('resize', { bubbles: true });
-        window.dispatchEvent(resizeEvent);
-
-        setTimeout(() => {
-          window.dispatchEvent(new Event('resize', { bubbles: true }));
-        }, 50);
-
-        setTimeout(() => {
-          window.dispatchEvent(new Event('resize', { bubbles: true }));
-        }, 150);
-      }, 200);
-    }
   }
 
   /**
@@ -1298,10 +1295,27 @@ class GameClient {
     this.socket.emit('join_game', { playerName });
   }
 
-  async joinSpecificGame(
+  joinSpecificGame(
     gameId: string,
     playerName: string,
     selectedNation: string = 'random'
+  ): Promise<void> {
+    const pendingJoin = this.pendingGameJoins.get(gameId);
+    if (pendingJoin) return pendingJoin;
+
+    const trackedJoin = this.joinSpecificGameOnce(gameId, playerName, selectedNation).finally(
+      () => {
+        this.pendingGameJoins.delete(gameId);
+      }
+    );
+    this.pendingGameJoins.set(gameId, trackedJoin);
+    return trackedJoin;
+  }
+
+  private async joinSpecificGameOnce(
+    gameId: string,
+    playerName: string,
+    selectedNation: string
   ): Promise<void> {
     await this.authenticatePlayer(playerName);
 

@@ -42,8 +42,11 @@ export class TerrainRenderer extends BaseRenderer {
     // Copy freeciv-web's gui_rect_iterate logic exactly for proper viewport coverage
     const gui_x0 = viewport.x;
     const gui_y0 = viewport.y;
-    const width = viewport.width;
-    const height = viewport.height;
+    // Route transitions and resizes can update the canvas before Zustand's
+    // viewport dimensions. Fill the complete backing buffer so stale viewport
+    // dimensions cannot leave diagonal wedges of the canvas uncovered.
+    const width = this.ctx.canvas?.width || viewport.width;
+    const height = this.ctx.canvas?.height || viewport.height;
 
     // gui_rect_iterate begin - copied from freeciv-web
     let gui_x_0 = gui_x0;
