@@ -1,467 +1,96 @@
 # CivJS Port Status
 
-**Verified against:** post-Milestone 15 parity audit working tree (2026-07-27)
-**Verification method:** source-tree audit, 937 passing unit tests (74 client,
-863 server), 10 passing desktop/mobile Chromium tests, 154 passing assertions
-across all 13 PostgreSQL integration suites, release-limit map/turn soaks,
-formatting, lint, production type checks, and production builds. Local
-integration verification is reproducible with
-`npm run test:integration:docker`; CI provisions the same isolated PostgreSQL
-16 service.
-
-## Purpose
-
-This is the single status document for the Freeciv port. It records only claims that can be traced to the current codebase. For implementation details, use the subsystem documentation beside the code and the reference repositories under `reference/`.
-
-## Implemented foundations
-
-- React/TypeScript client and Node.js/TypeScript Socket.IO server.
-- Ruleset loading: `apps/server/src/shared/data/rulesets/RulesetLoader.ts`.
-- Map generation and map management: `apps/server/src/game/map/` and `apps/server/src/game/managers/MapManager.ts`.
-- City, unit, research, and government managers: `apps/server/src/game/managers/`.
-- Structured turn processing, including a culture phase: `apps/server/src/game/managers/TurnManager.ts` and `apps/server/src/game/services/TurnPhaseService.ts`.
-- Culture, borders, and visibility: `CultureManager.ts`, `BorderManager.ts`, and `VisibilityManager.ts` in `apps/server/src/game/managers/`.
-- Citizen assignment optimization: `apps/server/src/game/systems/CitizenManagement/`, with corresponding server tests.
-
-## Milestone 0 — complete
-
-Milestone 0's reliable-porting baseline is complete:
-
-- `PORT_STATUS.md` is the single high-level status source.
-- [`PORTING_INVENTORY.md`](PORTING_INVENTORY.md) records the classic ruleset
-  data coverage, every active transport contract, its upstream reference, and
-  its available automated evidence.
-- `apps/server/tests/integration/GameFlow.integration.test.ts` verifies the
-  authoritative manager/database flow, including restart recovery.
-- `apps/server/tests/integration/SocketGameFlow.integration.test.ts` verifies
-  the client transport boundary: Socket.IO connection/authentication, game
-  creation, join/nation selection, map delivery, 20 turn completions, and
-  rejoin.
-- `.github/pull_request_template.md` requires source citations and packet and
-  ruleset impact assessments for new porting changes.
-
-This baseline makes incomplete data and transport explicit; it does not imply
-that the partially ported mechanics below are complete.
-
-## Milestone 1 — complete
-
-The core two-player classic loop is now covered from the client transport
-boundary through persistent server state:
-
-- Nation selection, game start, map delivery, movement, combat, city founding,
-  production selection, research selection, and 20 completed turns are
-  exercised in `apps/server/tests/integration/SocketGameFlow.integration.test.ts`.
-- The same test clears in-memory games to simulate a server restart, recovers
-  state from PostgreSQL, reconnects the host, completes another two-player
-  turn, and verifies the recovered city remains present at turn 22.
-- Map packets, units, cities, and borders are scoped to the receiving player's
-  owned or visible state during normal play and recovery.
-
-This meets the Milestone 1 exit criterion: a two-player classic game can be
-created, played for 20 turns, reconnected, and continued with deterministic
-server state. Visual fog-of-war rendering, worker improvements, wonders, AI,
-and deeper economic fidelity remain later-milestone work.
-
-## Milestone 2 — complete
-
-Classic ruleset data is authoritative for the Milestone 1 playable loop:
-
-- Zod and cross-file validation cover all shipped classic JSON domains,
-  supported effect types, and entity references.
-- Government, technology, building, unit, tile, specialist, and nation-group
-  requirements are evaluated with explicit context and fail closed when
-  required context is absent.
-- Loaded data drives unit classes, terrain movement/yields, building
-  names/upkeep, research, food consumption, city corruption and happiness,
-  specialists, fortification/defense, vision, and granary retention.
-- `apps/server/tests/shared/data/rulesets/RulesetMutation.test.ts` uses isolated
-  copied fixtures to prove that effect, unit, building, technology, terrain,
-  and game-data mutations change authoritative results.
-
-At the Milestone 2 boundary, effects requiring later action and rendering
-systems remained deliberately inert. The later milestone sections below record
-their current player-facing status; this completion claim remains limited to
-the Milestone 1 playable loop.
-
-## Milestone 3 — complete
-
-Normal turn production, rush buying, completion, client progress, and
-persistence use one shield stock. Completion retains overflow, and classic
-unit/building rush premiums are covered by `CityProductionLifecycle.test.ts`.
-Tile output is now gross until the city calculation applies food support;
-player tax rates use Freeciv's largest-remainder distribution; specialist
-output receives building bonuses; city trade, gold, luxury, science, pollution,
-and food surplus persist; recovered games restore treasury and rates; and turn
-economics charges ruleset building upkeep without double-counting research.
-`CityOutputPipeline.test.ts`, `TradeDistribution.test.ts`, and
-`TurnProcessingService.research.test.ts` cover these paths.
-
-Trade routes now use classic distance, size, international, and
-intercontinental factors; create reciprocal capacity-limited routes through
-the caravan action; contribute to city output; and survive recovery. Governor
-configuration and citizen parameters persist, and enabled governors execute in
-the city-turn pipeline. Home-city unit support deducts ruleset food, shield,
-and gold upkeep.
-
-Ruleset terrain data drives multi-turn road, railroad, irrigation, mining,
-pillage, cleanup, and transformation activities. Completion mutates and
-persists the authoritative map, worked-tile output is recalculated from that
-map, and pollution can be placed and cleaned. The client exposes these
-activities for all classic worker-capable units. Evidence includes
-`CityTradeRouteService.test.ts`, `CityManager.test.ts`,
-`CityOutputPipeline.test.ts`, `CityRulesetValues.test.ts`, and
-`UnitManager.test.ts`.
-
-## Milestone 4 — complete
-
-Classic movement now uses equal orthogonal/diagonal fragment costs, terrain
-class legality, the minimum-move rule, road and railroad integration, and
-ruleset unit flags such as `IgTer`, `IgZOC`, `HasNoZOC`, and class ZOC.
-Friendly units can stack; hostile ZOC blocks applicable land movement; and
-goto orders execute through the same authoritative single-step movement path.
-
-Ruleset cargo classes and capacities drive loading, unloading, embarkation,
-transport movement, persistence, and destruction. Combat resolves classic
-attack-versus-defense rounds using hit points, firepower, veteran status,
-terrain defense, fortification, city effects, and protected-versus-vulnerable
-stack death. Eligible military units
-capture undefended enemy cities through the authoritative ownership path,
-including classic one-population loss, improvement razing by genus, size-one
-city destruction, and reciprocal trade-route cleanup or recalculation.
-Fortify eligibility likewise comes from unit-class and unit-type flags.
-
-The generic action catalogue now exposes only actions with an authoritative
-execution route. Move and attack remain dedicated packet flows; unported
-diplomacy and sabotage actions are not advertised as playable. Load/unload,
-skip, disband, founding, goto, trade, fortify/sentry/wait, and worker actions
-all route through server validation and result handling. This action-surface
-invariant is covered by `ActionSystem.goto.test.ts`. Incremental unit packets
-use the same canonical shape as initial state and are visibility-scoped; the
-client applies them and presents authoritative success or validation feedback.
-
-Map packets visibility-scope roads, railroads, irrigation, mines, pollution,
-city ownership, and claimers. The client stores and renders those extras using
-the bundled Freeciv sprites. `GameBroadcastManager.test.ts` verifies that
-visible recipients receive the dynamic state while explored-but-hidden
-recipients do not. `MapManager.test.ts` pins a named seeded topology fixture,
-including terrain distribution, landmass count, and edge terrain.
-
-## Milestone 5 — complete
-
-The playable Milestones 1–4 surface is now available through client controls.
-The Cities screen exposes production, output, happiness, supported units,
-governor configuration, manual citizen optimization, and rush buying. The
-Options screen exposes persisted tax/luxury/science allocation. Research
-selection, goals, lists, and progress use authoritative request/reply packets
-instead of local-only state.
-
-The Government screen loads classic ruleset definitions and availability from
-the live game. Revolution requests are validated against researched
-technologies, persisted, restored after restart, advanced during turn
-processing, and refresh affected city effects. Unit menus use server-supplied
-capabilities for founding, fortifying, worker activities, pillage, and trade;
-trade routes have map targeting and all actions show server feedback.
-Unsupported production-queue controls are hidden rather than acting as no-ops.
-
-Map play includes selection/focus, keyboard movement, pan/drag and touch
-controls, goto previews, cancelable target modes, visible notifications,
-terrain/city/unit/border/fog/extra rendering, and short interpolated unit
-movement. City and nation style data is loaded from the server ruleset API
-rather than duplicated in the client. Client packet/state tests cover map,
-tile, border, player, city,
-unit, turn, research, management, and notification state paths. Diplomacy and
-foreign-nation intelligence remain explicitly deferred to Milestone 6.
-
-Evidence also includes `MovementConstants.test.ts`, `UnitManager.test.ts`,
-`PathfindingManager.test.ts`, the server and client unit suites, both
-production type checks, and both production builds.
-
-## Milestone 6 — complete
-
-Diplomacy is persisted as bilateral authoritative state. Contact, war,
-ceasefire, peace, alliance, meetings, idempotent proposals, accept/reject and
-cancel flows, embassies, and shared vision are exposed through structured
-packets and the Nations screen. Shared vision expands live and explored map
-visibility through `VisibilityManager`; declarations of war revoke it.
-Diplomat and spy capabilities advertise only implemented operations:
-establishing an embassy, investigating a city, stealing an available
-technology, and sabotaging an eligible city improvement. Those operations use
-the same city, research, unit-removal, visibility, and packet paths as human
-gameplay.
-
-CivJS intentionally uses the versioned `CIVJS_AI_CONTRACT` instead of
-embedding a partial copy of Freeciv's tightly coupled default AI. AI
-participants found legal cities; select research and deficit, expansion, or
-defense production; enable worker/exploration automation; attack adjacent
-hostiles; and accept cease-fire/peace while rejecting alliances. Every
-mutation uses the same authoritative managers as human actions. Long-range
-campaign planning, advisor wants, difficulty levels, proactive diplomacy,
-espionage, government planning, and full tax/citizen optimization are explicit
-compatibility deviations rather than implied parity.
-
-Turns are simultaneous: all living humans must finish, while AI participants
-act during turn processing. A disconnected human retains their turn until the
-authoritative timeout. End-turn writes are serialized and persisted, duplicate
-turn-processing requests coalesce, and ordered packet sequences reject stale
-or duplicate requests. Timers pause when every human disconnects and resume on
-reconnect; paused games are recoverable after a server reload. Spectators have
-an explicit read-only connection role, including protection for both packet
-and named-event mutations. Host controls can pause/resume a game and change
-the persisted turn timeout.
-
-Evidence includes `DiplomacyManager.test.ts`, `CivJSAIAdapter.test.ts`,
-`VisibilityManager.test.ts`, `GameManager.turns.test.ts`,
-`TurnManager.test.ts`, `PacketHandler.ordering.test.ts`,
-`SocketCoordinator.test.ts`, `UnitActionHandler.test.ts`, and the client
-management/state packet suites.
-
-## Milestone 7 — complete
-
-Complete games now finish through an authoritative conquest check at the
-audited turn boundary. The server calculates deterministic category scores,
-persists player scores and a versioned final report, marks the game ended, and
-broadcasts the structured end-game packet. The client enters a read-only,
-keyboard-focusable final standings flow. Existing players can reopen a
-finished game and receive the persisted report without reconstructing it.
-
-Each completed turn now closes its `game_turns` audit row with queued actions,
-events, phase statistics, timing, and a versioned snapshot marker before the
-next turn begins. Existing normalized game, player, city, unit, research,
-government, visibility, diplomacy, map, timer, and ruleset state remains the
-single source of truth during recovery. Migration `0007_add_game_end_report.sql`
-adds nullable end-state fields without invalidating existing saves.
-
-Release quality includes aligned client/server packet identifiers, reduced
-motion support, labelled tab controls, persisted mute/volume settings, an
-optional victory cue, dependency-aware readiness, process metrics, a 100-turn
-audit soak test, and the deployment/monitoring/recovery procedures in
-[`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md). The release-supported target is the
-classic ruleset, conquest victory, 80×50 maps, and up to eight participants.
-
-Evidence includes `EndGameService.test.ts`, `TurnManager.test.ts`,
-`GameClient.state-packets.test.ts`, the recovery and integration suites, both
-production builds, and [`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md).
-
-## Milestone 8 — complete
-
-The remaining covert outcomes enabled by the classic ruleset are now playable.
-Diplomats can bribe a lone eligible foreign unit and incite a non-capital,
-non-Democracy city; spies additionally poison size-two-or-larger enemy cities
-and sabotage lone enemy units while at war. The same server-supplied
-capabilities feed the unit menu and the existing cancelable map-target flow.
-
-The server validates movement, adjacency, ownership, stack/city-center,
-`Unbribable`, diplomatic-state, government, capital, and population
-requirements. Classic ruleset data supplies bribe/incite base values and
-factors. Successful actions persist treasury changes, population loss, halved
-unit health, ownership transfers, cleared production, and nearby
-home-supported unit defections. Non-spy diplomats are consumed; surviving
-spies expend their remaining movement.
-
-Freeciv's generic plague, suitcase-nuke, gold-theft, and map-theft outcomes
-remain unadvertised because the classic ruleset does not enable them.
-Evidence includes `GameManager.espionage.test.ts`, `UnitActionHandler.test.ts`,
-`UnitManager.test.ts`, `CityManager.test.ts`, and
-`UnitContextMenu.espionage.test.tsx`.
-
-## Milestone 9 — complete
-
-Classic actions, extras, and styles are now complete, source-attributed,
-validated ruleset domains. A reproducible converter retains all 82 action
-enablers, 34 extras, 20 resources, 6 nation styles, 10 city styles, and 11
-music styles from the upstream secfiles. Cross-file validation rejects
-unresolved entity references in addition to malformed definitions.
-
-The shared ruleset requirement evaluator covers every requirement kind present
-in those domains, selects context by Freeciv range, applies negation, and fails
-closed when context is absent. Loaded action enablers determine diplomat and
-spy capability advertisement; loaded city styles feed the existing ruleset
-API; loaded extra and terrain settings determine railroad and pollution-cleanup
-activity times. Mutation fixtures prove these behaviors change through data
-without TypeScript constant edits.
-
-The first remaining classic action slice belongs to Milestone 11; the
-executable audit schedules the additional enabled outcomes in Milestones
-14–15. Complete style/music rendering and browser evidence belong to
-Milestone 12.
-
-## Milestone 10 — complete
-
-Client and server now consume one canonical protocol-v1 identifier and
-transport catalogue. Outgoing packet envelopes carry the version, unsupported
-versions fail explicitly, and contract tests prevent numeric drift while
-preserving the deployed CivJS IDs.
-
-Every active packet and named Socket.IO event is classified with its direction
-and endpoint evidence. Named lifecycle, notification, and version-1
-compatibility paths remain visible rather than being mistaken for unimplemented
-packets. City production has moved to its structured, correlated request/reply
-path; the legacy named handler remains a compatibility adapter. The previously
-unused tile-visibility request now has a client caller and explicit validated,
-authorized success/error replies.
-
-Evidence includes `PacketContract.test.ts`,
-`PacketHandler.ordering.test.ts`, `MapVisibilityHandler.test.ts`,
-`CityManagementHandler.production.test.ts`,
-`GameClient.protocol.test.ts`, and `GameClient.production.test.ts`.
-
-## Milestone 11 — complete
-
-Ruleset-derived unit capabilities now advertise paradrop, airlift, and
-applicable explore/settler automation. Paradrop enforces the classic source,
-range, movement, terrain, territorial, and contested-landing behavior.
-Airlift validates land units and domestic/allied airport endpoints, consumes
-movement, and persists the one-use-per-city-per-turn limit. Automated orders
-survive recovery and execute through authoritative pathfinding and worker
-activity paths.
-
-The generic bombard result updates all affected defenders through
-visibility-scoped unit broadcasts, but classic does not advertise it because
-its unit catalogue contains no positive `bombard_rate`. Evidence includes
-`ClassicActionInventory.test.ts`, `UnitManager.test.ts`,
-`CityManager.test.ts`, `UnitActionHandler.test.ts`, and
-`UnitContextMenu.specialActions.test.tsx`.
-
-The executable 82-enabler audit found additional enabled outcomes that the
-earlier manual audit had missed. They are now explicitly scheduled in
-Milestones 14 and 15 rather than being mislabeled complete.
-
-## Milestone 12 — complete
-
-The client now initializes its 2D renderer from one validated presentation
-catalogue containing nation, city, music, terrain, unit, and extra graphics.
-The former city-style ID mismatch is removed: Asian and other nation styles
-resolve through loaded Style requirements, and researched technologies select
-the latest eligible city and music style. Terrain, unit, resource, road, rail,
-and improvement sprites use loaded primary and alternate graphics rather than
-client-only presentation maps.
-
-A deterministic browser fixture exercises the real canvas and representative game screens
-without requiring PostgreSQL. Desktop and mobile Chromium cover responsive
-creation, renderer readiness and non-empty output, map, government, research,
-diplomacy, city and end-game display, keyboard navigation, music-theme
-selection, reduced motion, and API error feedback. Authoritative gameplay
-state transitions remain covered at the Socket.IO/integration and component
-layers; the deterministic browser fixture is not described as a second
-full-stack gameplay suite. CI retains browser traces, screenshots, and videos
-on failure.
-Evidence includes `PresentationResolver.test.ts`, `RulesetsRoute.test.ts`,
-`renderer-parity.spec.ts`, and `creation-flow.spec.ts`.
-
-## Milestone 13 — complete
-
-The bounded CivJS AI contract is executable and versioned. Deterministic
-reference scenarios cover expansion, economy, research, production, workers,
-combat, diplomacy, action use, restart-safe replay prevention, optional-action
-failure isolation, and completed games. The implementation delegates to
-`ResearchManager`, `CityManager`, `UnitManager`, `DiplomacyManager`, and the
-existing conquest evaluator rather than maintaining a second rules engine.
-
-An isolated PostgreSQL 16 service now runs every database-backed suite locally
-and in CI. The release job executes the browser flow and the real Socket.IO
-restart/reconnect flow in one gate. All 13 integration suites pass with 154
-assertions. Release-limit evidence generates an 80×50 map for eight
-participants and processes 100 eight-participant turns without state drift.
-The database audit also exposed and fixed city assignment capacity: the free
-city center no longer consumes a tile-worker or specialist assignment.
-
-Evidence includes `CivJSAIAdapter.test.ts`, `SocketGameFlow.integration.test.ts`,
-`MapManager.test.ts`, `TurnManager.test.ts`, `docker-compose.test.yml`, the CI
-PostgreSQL service, and [`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md).
-
-## Milestone 14 — complete
-
-Every classic caravan, city-unit, worker-extra, and unit-management entry from
-the executable inventory now has an authoritative command. Caravans can sell
-goods or contribute their full shield value to a Great Wonder. Units can join
-friendly cities, reassign home support, follow their ruleset upgrade chain
-with the classic treasury cost, or disband into city production.
-
-Cultivate and plant use the loaded classic terrain results and activity times.
-Fortress and airbase construction use loaded extra build times, unit flags,
-terrain class, city-center exclusion, and Construction/Radio requirements.
-All four are persisted as multi-turn unit orders and committed to
-authoritative map storage on completion. Capability-derived client menus,
-city target flows, recovered-game wiring, and the bounded AI use the same
-commands.
-
-All Milestone 14 entries in `CLASSIC_ACTION_COVERAGE` are now `implemented`.
-Evidence includes `UnitManager.test.ts`, `CityManager.test.ts`,
-`ClassicActionInventory.test.ts`, `ActionSystem.goto.test.ts`,
-`UnitContextMenu.specialActions.test.tsx`, and the real-PostgreSQL unit-upgrade
-scenario in `UnitManager.integration.test.ts`.
-
-## Milestone 15 — complete
-
-The remaining enabled combat and movement consequences are authoritative.
-Nuclear units expose a target flow and detonate with radius-one unit removal,
-rounded 49 percent city population loss, per-tile fallout, actor consumption,
-map persistence, and visibility-scoped removal packets. Missile suicide
-attacks always consume the actor. Collect-ransom removes barbarian stacks and
-transfers the classic ruleset's per-unit ransom from the barbarian treasury.
-
-Huts resolve on movement rather than as manual orders. Entry removes the hut
-and selects the classic gold, technology, mercenary, barbarian, settlement, or
-map-scroll outcome; `HutFrighten` classes remove it without a reward.
-Map-scroll exploration and tile changes persist through restart. Movement also
-claims ownership of conquerable extras on the entered tile.
-
-Civil war is an explicit compatibility deviation. CivJS games retain their
-fixed lobby participant set, so the server does not create a mid-game rebel AI
-or split cities between a new player. The unconditional classic `Civil War`
-enabler is recorded as `inapplicable`, not approximated or advertised.
-
-All 82 classic enablers and 64 distinct action names now have an implemented,
-engine-resolved, or evidence-backed inapplicable disposition; none remain
-scheduled. Evidence includes `UnitManager.test.ts`, `CityManager.test.ts`,
-`VisibilityManager.test.ts`, `UnitActionHandler.test.ts`,
-`ClassicActionInventory.test.ts`, `UnitContextMenu.specialActions.test.tsx`,
-and the PostgreSQL nuclear persistence scenario.
-
-## Post-Milestone 15 parity audit closure
-
-The audit removed five latent gaps that milestone-level inventory counts did
-not expose:
-
-- Rush buying now reads and debits the authoritative `EconomicManager`
-  treasury in new and recovered games.
-- Great Wonders are production candidates, use building production semantics,
-  and enforce global uniqueness.
-- Unit obsolescence follows the loaded replacement/technology chain, while
-  production switching preserves shields within a production class and applies
-  the classic half-stock loss across classes.
-- Citizen optimization now performs bounded assignment search over real tile
-  positions, live tax rates, food support, blocked tiles, city radius,
-  specialists, and happiness constraints; applied assignments are followed by
-  the authoritative city-output pipeline.
-- Browser claims now match their evidence, and the fixture covers all primary
-  screens plus the accessible end-game report. Full command/state-transition
-  evidence remains in the real Socket.IO integration suites.
-
-## Partial or incomplete areas
-
-The executable classic-action inventory has no remaining scheduled porting
-gap.
-
-Full Freeciv default-AI parity remains outside the agreed target; the supported
-CivJS-specific behavior and deviations are now explicit in
-`CIVJS_AI_CONTRACT`.
-
-Non-classic generic covert outcomes (plague, suitcase-nuke, and direct
-gold/map theft) remain intentionally unadvertised and are not roadmap gaps
-because the classic ruleset does not enable them.
-
-## Porting workflow
-
-1. Locate the corresponding behavior in `reference/freeciv/` or, for client behavior, `reference/freeciv-web/`.
-2. Record the source file and line range in the implementation or its test.
-3. Port the behavior with tests where practical.
-4. Update this file only when the status changes, including the commit/date and the source/test evidence.
-
-## Detailed documentation
-
-- Continuation plan: [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md).
-- Milestone 0 evidence backlog: [`PORTING_INVENTORY.md`](PORTING_INVENTORY.md).
-- Citizen-management design and usage: `apps/server/src/game/systems/CitizenManagement/README.md`.
-
-Historical plans and gap analyses were removed because their paths, file sizes, and completion claims no longer represented the repository.
+**Supported baseline:** Freeciv classic ruleset and freeciv-web-compatible 2D
+client experience
+
+**Status:** Milestones 0–15 and the post-port parity audit are complete for the
+agreed baseline
+
+## Supported scope
+
+CivJS supports a server-authoritative classic game with:
+
+- game creation, nation assignment, joining, observing, reconnecting, and
+  persistent recovery;
+- simultaneous turns, host pause/timer controls, bounded AI participants, and
+  conquest victory;
+- classic map generation, terrain, resources, extras, visibility, borders,
+  movement, transport, combat, huts, and worker activities;
+- city founding, tile assignment, population, happiness, production, trade,
+  upkeep, pollution, government, tax rates, and research;
+- diplomacy, embassies, treaties, shared vision, and every covert action enabled
+  by the classic ruleset;
+- the complete enabled classic caravan, unit-management, worker, airlift,
+  paradrop, nuclear, and combat-consequence surface;
+- persisted maps, players, cities, units, research, diplomacy, turn audit data,
+  timers, and end-game reports;
+- a React/Canvas 2D client exposing the supported core play surface without
+  developer-console commands.
+
+The release target is the classic ruleset, conquest victory, standard 80×50
+maps, and up to eight participants.
+
+## Ruleset and action authority
+
+Converted classic JSON drives technologies, governments, buildings, units,
+terrain, effects, extras, action enablers, and presentation styles. Zod schemas
+and cross-file validation reject malformed or unresolved ruleset data.
+Requirement evaluation is range- and negation-aware and fails closed when
+required runtime context is unavailable.
+
+The executable action inventory accounts for all 82 classic enablers and 64
+distinct action names. Each is implemented, resolved by the engine, or recorded
+as inapplicable to CivJS’s fixed-lobby model. No classic enabler remains
+scheduled.
+
+## Client and protocol
+
+Client and server share the protocol-v1 packet contract. Correlated request
+flows use unique request IDs, management inputs are runtime-validated, and
+snapshot readiness is acknowledged only after recovery and ordered state
+delivery. The client retains explicit reconnect intent and performs a complete
+rejoin or observer resync after transport recovery.
+
+Zustand is the authoritative browser game model. Canvas rendering, fog, camera
+bounds, terrain adjacency, hover lookup, and ocean padding consume the same map
+snapshot. See [`CLIENT_ARCHITECTURE.md`](CLIENT_ARCHITECTURE.md) for the current
+boundaries and invariants.
+
+## Intentional exclusions
+
+These are scope decisions, not untracked porting gaps:
+
+- additional Freeciv rulesets and metaserver/deployment compatibility;
+- literal line-for-line parity with the C server;
+- full Freeciv default-AI parity—CivJS uses the documented, versioned
+  `CIVJS_AI_CONTRACT`;
+- generic non-classic covert outcomes that the classic ruleset does not enable,
+  including plague, suitcase-nuke, and direct gold/map theft;
+- mid-game civil-war player creation, because CivJS retains a fixed lobby
+  participant set.
+
+New scope must be explicitly agreed and added here before being described as a
+porting requirement.
+
+## Verification
+
+The maintained evidence includes:
+
+- client and server unit suites;
+- real Socket.IO game-flow and PostgreSQL restart/recovery integration suites;
+- deterministic 20-turn economy/game-flow coverage;
+- the executable classic-action inventory;
+- ruleset validation and mutation tests;
+- desktop/mobile Chromium creation and renderer parity tests;
+- an 80×50, eight-participant generation check and 100-turn audit soak.
+
+Use [`PORTING_INVENTORY.md`](PORTING_INVENTORY.md) for detailed ruleset,
+transport, action, and evidence mappings. Use
+[`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md) for release gates and recovery
+procedures.
+
+## Maintenance rule
+
+Update this document only when supported player-visible scope or an intentional
+exclusion changes. Technical contract changes belong in the inventory or
+architecture document; implementation history remains in Git.

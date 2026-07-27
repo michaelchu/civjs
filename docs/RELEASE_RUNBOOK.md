@@ -45,9 +45,11 @@ same release job. The database-backed `SocketGameFlow.integration.test.ts`
 clears server memory, restores the active game from PostgreSQL, reconnects the
 host, and completes another turn.
 
-Migration `0007_add_game_end_report.sql` is additive and preserves existing
-saves. A rollback may run the previous application version without dropping
-the new nullable columns.
+Drizzle migrations are applied in order from `apps/server/drizzle`. Before a
+rollback, compare the deployed migration journal with the target application
+version and restore the pre-deploy backup if compatibility is uncertain. Do
+not automatically reverse or drop schema changes during an application
+rollback.
 
 ## Persistence compatibility
 

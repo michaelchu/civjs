@@ -1,6 +1,7 @@
 # CivJS Porting Inventory
 
-**Audit baseline:** post-Milestone 15 parity audit working tree (2026-07-27).
+**Audit baseline:** supported classic scope after the client session architecture
+remediation (2026-07-27).
 **Purpose:** the evidence record for Milestone 0 in [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md). It distinguishes implemented transport/data from unported or unverified upstream behavior.
 
 ## Classic ruleset inventory
@@ -18,7 +19,7 @@
 | `units.json`       | `data/classic/units.ruleset`                     | Loaded and cross-validated; values, classes/flags, movement, vision, upkeep, combat contexts, and primary/alternate graphics drive runtime behavior and rendering.                                                     |
 | `extras.json`      | `data/classic/terrain.ruleset`                   | Reproducibly converted and schema-validated: 34 extras, 20 resources, 3 bases, 3 roads, and terrain-specific removal settings. Loaded definitions drive worker timing; Milestones 11–12 complete action/rendering use. |
 | requirements       | requirement clauses in the classic ruleset files | Effect requirements and all universal kinds present in the converted action, extra, and style data are schema-validated. The shared evaluator is range/negation aware and fails closed without context.                |
-| `actions.json`     | `data/classic/actions.ruleset`                   | Reproducibly converted and schema-validated with all 82 enablers and action settings. The executable inventory drives discovery and schedules unresolved outcomes in Milestones 14–15.                                 |
+| `actions.json`     | `data/classic/actions.ruleset`                   | Reproducibly converted and schema-validated with all 82 enablers and action settings. The executable inventory drives discovery and verifies every enabled outcome is implemented, engine-resolved, or inapplicable.   |
 | `styles.json`      | `data/classic/styles.ruleset`                    | Reproducibly converted and schema-validated with 6 nation, 10 city, and 11 music styles. The presentation API and requirement-aware client resolver drive city graphics and music-theme selection.                     |
 
 The loader parses every `classic/*.json` file with `JSON.parse`, then validates it with Zod. Therefore comments are not valid in these data files. `RulesetLoader.effects.test.ts` loads every supported classic JSON ruleset and covers an effects pair ported from `effects.ruleset:262–278`. The classic effects file previously contained JavaScript comments and could not load; technologies also use `null` to represent an absent `root_req`.
@@ -70,7 +71,7 @@ unreviewed compatibility.
 | `CITY_FOUND` / reply, `CITY_PRODUCTION_CHANGE` / reply (envelope)                | client ↔ server                   | `CityManagementHandler.ts`                             | `GameClient.foundCity`, `GameClient.changeProduction`            | `PACKET_CITY_CHANGE` in `packets.def`; freeciv-web `city.js`                          | `CityProductionHandler.test.ts`, `GameClient.production.test.ts`                                |
 | `city:getAvailableProductions`, `city:changeProduction` and replies (named)      | client ↔ server                   | `CityManagementHandler.ts`, `CityProductionHandler.ts` | availability caller; production compatibility adapter            | freeciv-web `city.js`                                                                 | `CityProductionHandler.test.ts`, `CityManagementHandler.production.test.ts`                     |
 | `city:configureGovernor`, `city:optimizeCitizens`, `city:buyProduction` (named)  | client ↔ server                   | `CityManagementHandler.ts`                             | `GameClient` city-management methods                             | freeciv-web `city.js`                                                                 | `CityManagementHandler.production.test.ts`; `GameClient.management.test.ts`                     |
-| `RESEARCH_SET`, goal/list/progress and replies (envelope)                        | client ↔ server                   | `ResearchHandler.ts`                                   | `GameClient.setResearch`                                         | `PACKET_PLAYER_RESEARCH`; freeciv-web `research.js`                                   | `ResearchManager.test.ts`, `GameFlow.integration.test.ts`                                       |
+| `RESEARCH_SET`, goal/list/progress and replies (envelope)                        | client ↔ server                   | `ResearchHandler.ts`                                   | `GameClient.setResearch`                                         | `PACKET_PLAYER_RESEARCH`; freeciv-web `tech.js`                                       | `ResearchManager.test.ts`, `GameFlow.integration.test.ts`                                       |
 | `government:getState`, `government:startRevolution` (named)                      | client ↔ server                   | `GovernmentHandler.ts`                                 | `GameClient.getGovernmentState`, `startRevolution`               | freeciv-web `government.js`; Freeciv `government.c`                                   | `GovernmentHandler.test.ts`; `GameClient.management.test.ts`; `TurnManager.test.ts`             |
 | `economy:getTaxRates`, `economy:setTaxRates` (named)                             | client ↔ server                   | `EconomicHandler.ts`                                   | `GameClient.getTaxRates`, `setTaxRates`                          | freeciv-web `rates.js`                                                                | `EconomicHandler.test.ts`; `GameClient.management.test.ts`                                      |
 | `END_TURN` / `TURN_END_REPLY`, `TURN_START`, `NEW_YEAR` (envelope)               | client ↔ server                   | `TurnManagementHandler.ts`                             | `GameClient.endTurn`, packet reducer                             | `PACKET_TURN_DONE`, `PACKET_BEGIN_TURN`, `PACKET_NEW_YEAR`                            | `TurnManager.test.ts`, `GameFlow.integration.test.ts`, `SocketGameFlow.integration.test.ts`     |
@@ -104,7 +105,7 @@ The following named events bypass or supplement the `packet` envelope and must b
 
 | Family                | Client → server                                                                          | Server → client                                                                                                 |
 | --------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Game lobby            | `join_game`, `observe_game`, `get_game_list`, `delete_game`, host pause/timer controls   | `game_created`, `game_started`, `game_deleted`, `game-control-changed`                                          |
+| Game lobby            | `join_game`, `observe_game`, `get_game_list`, `delete_game`, host pause/timer controls   | `game_deleted`, `game-ended`, `game-control-changed`                                                            |
 | Map and borders       | `get_map_data`, `get_visible_tiles`, `border_info_request`, `request_full_border_update` | `map_data`, `border_change_notification`                                                                        |
 | Units and pathfinding | `unit_action`, `path_request`                                                            | `path_response`, `unit_destroyed`, `unit_update`                                                                |
 | Cities                | production, governor, optimization, and rush-buy events                                  | `city:availableProductions`, `city:productionChanged`, `city:updated`, `cities_updated`, `production:completed` |
@@ -141,19 +142,6 @@ of `npm run test:integration`. `npm run test:integration:docker` provisions a
 disposable PostgreSQL 16 service, runs all 13 integration suites, and removes
 the service and its data; CI uses the same database version and suite.
 
-## Original prioritized slices
-
-1. **Generic requirements and effects:** establish a validated representation
-   for classic requirements and evaluate it in the player, city, unit, tile,
-   technology, government, and action contexts used by the playable loop.
-2. **Ruleset-driven values:** replace duplicated unit, building, technology,
-   and effect constants with loaded classic ruleset data, backed by fixture
-   parity tests.
-3. **Classic actions ruleset:** continued as Milestones 9 and 11, which load
-   `actions.ruleset` and close enabled action gaps.
-4. **Client-browser smoke test:** completed in Milestone 12 with desktop/mobile
-   Chromium coverage and retained failure artifacts.
-
 ## Action-system inventory
 
 The executable action surface covers fortify, sentry, wait/skip, goto, found
@@ -171,19 +159,15 @@ Bombardment has a generic non-lethal authoritative outcome but is correctly
 not advertised by classic because no classic unit defines `bombard_rate`.
 
 `CLASSIC_ACTION_COVERAGE` and `ClassicActionInventory.test.ts` account for all
-82 enablers and 64 distinct upstream action names. Milestone 14 closes every
-enabled caravan, city/unit-management, and worker-extra entry. Milestone 15
-closes the remaining enabled combat, hut, and extra consequences and records
-the fixed-lobby civil-war deviation. No classic enabler remains scheduled.
-Non-classic covert outcomes remain intentionally excluded.
+82 enablers and 64 distinct upstream action names. No classic enabler remains
+scheduled. The fixed-lobby civil-war deviation is recorded as inapplicable,
+and non-classic covert outcomes remain intentionally excluded.
 
 The local `actions.json` is generated from
 `reference/freeciv/data/classic/actions.ruleset`; it is not a separately
-maintained approximation. Milestone 9 uses its enablers for capability
-discovery. Milestone 11 connects paradrop, airlift, generic bombardment, and
-automation; Milestone 14 connects caravan, city/unit-management, and
-worker-extra outcomes; Milestone 15 closes the remaining enabled consequences.
-Generic non-classic covert outcomes stay unadvertised.
+maintained approximation. Its enablers drive capability discovery and the
+authoritative action inventory. Generic non-classic covert outcomes stay
+unadvertised.
 
 ## Smoke-test status
 
@@ -193,9 +177,9 @@ start, map/visibility access, city founding, unit creation, research, turn
 advancement, and rejoin. `SocketGameFlow.integration.test.ts` verifies the
 same baseline through the network transport, including restart recovery and a
 continued turn. Both require `TEST_DATABASE_URL` to point to an isolated
-PostgreSQL database. Milestone 13 verifies all 13 suites through the disposable
-local runner and the CI PostgreSQL service; this evidence no longer depends on
-an externally maintained test database.
+PostgreSQL database. All integration suites run through the disposable local
+runner and the CI PostgreSQL service; this evidence does not depend on an
+externally maintained test database.
 
 ## Update rule
 

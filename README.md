@@ -8,8 +8,8 @@ The project is playable locally, including creating, joining, resuming,
 advancing, and completing games. The defined roadmap is complete through
 Milestone 15 for the supported classic-ruleset scope. It is not a port of every
 Freeciv ruleset or the full upstream default AI; the exact supported scope and
-remaining decisions are tracked in the [port status](docs/PORT_STATUS.md) and
-[porting playbook](docs/PORTING_PLAYBOOK.md).
+intentional exclusions are tracked in the
+[port status](docs/PORT_STATUS.md).
 
 ## Prerequisites
 
@@ -117,7 +117,7 @@ civjs/
 ├── apps/
 │   ├── client/              # React, Vite, Canvas 2D, Zustand, Socket.IO client
 │   └── server/              # Node.js, Socket.IO, Drizzle, game logic
-├── docs/                    # Port status, inventory, and continuation playbook
+├── docs/                    # Architecture, porting, and release documentation
 ├── reference/               # Freeciv and freeciv-web source references
 └── docker-compose.yml       # Local development stack
 ```
@@ -132,9 +132,11 @@ and caching.
 Before adding or changing game behavior, consult the source repositories in
 `reference/freeciv/` and `reference/freeciv-web/`. New ported behavior should
 record its source file and line range and include appropriate tests. The
-[porting playbook](docs/PORTING_PLAYBOOK.md) defines the milestones and the
-[porting inventory](docs/PORTING_INVENTORY.md) records current evidence and
-known gaps.
+[porting playbook](docs/PORTING_PLAYBOOK.md) defines the contribution
+workflow, the [porting inventory](docs/PORTING_INVENTORY.md) records technical
+contracts and evidence, and the
+[client architecture](docs/CLIENT_ARCHITECTURE.md) defines browser lifecycle
+and state boundaries.
 
 ## Technology
 
@@ -153,4 +155,4 @@ known gaps.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the MIT License.
