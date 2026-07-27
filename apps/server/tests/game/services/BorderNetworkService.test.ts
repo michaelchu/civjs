@@ -3,7 +3,7 @@ import { PacketType } from '@app-types/packet';
 import type { BorderUpdate } from '@app-types/shared/BorderTypes';
 
 describe('BorderNetworkService', () => {
-  it('sends incremental borders only to owners and players with tile visibility', () => {
+  it('sends incremental borders to owners and players who previously explored the tile', () => {
     const hostEmit = jest.fn();
     const guestEmit = jest.fn();
     const io = {
@@ -12,6 +12,10 @@ describe('BorderNetworkService', () => {
       })),
     } as any;
     const visibleTiles = new Map([
+      ['host-player', new Set<string>()],
+      ['guest-player', new Set<string>()],
+    ]);
+    const exploredTiles = new Map([
       ['host-player', new Set(['2,2'])],
       ['guest-player', new Set(['1,1'])],
     ]);
@@ -23,6 +27,7 @@ describe('BorderNetworkService', () => {
       visibilityManager: {
         updatePlayerVisibility: jest.fn(),
         getVisibleTiles: (playerId: string) => visibleTiles.get(playerId),
+        getExploredTiles: (playerId: string) => exploredTiles.get(playerId),
       },
     } as any;
     const service = new BorderNetworkService(io, {} as any, () => game);

@@ -364,8 +364,8 @@ export const TileInfoPacketSchema = z.object({
   resource: z.string().optional(),
   elevation: z.number().default(0),
   riverMask: z.number().default(0),
-  known: z.number().min(0).max(1), // 0 = unknown, 1 = known
-  seen: z.number().min(0).max(1), // 0 = unseen, 1 = visible
+  known: z.number().int().min(0).max(2), // Freeciv known_type: 0 unknown, 1 fogged, 2 seen
+  seen: z.number().min(0).max(1), // compatibility flag: 0 = unseen, 1 = visible
   player: z.string().nullable(),
   worked: z.string().nullable(),
   extras: z.number().default(0),

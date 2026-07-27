@@ -19,6 +19,14 @@ export interface TileVisibility {
 
 export type PlayerTechsProvider = (playerId: string) => ReadonlySet<string>;
 export type SharedVisionProvider = (playerId: string) => ReadonlySet<string>;
+export type CityVisionProvider = (
+  playerId: string
+) => ReadonlyArray<{ x: number; y: number; visionRadiusSq?: number }>;
+export type VisibilityPersistence = (
+  playerId: string,
+  exploredTiles: string[],
+  visibleTiles: string[]
+) => Promise<void>;
 
 export class VisibilityManager {
   private gameId: string;
@@ -28,23 +36,33 @@ export class VisibilityManager {
   private effectsManager: EffectsManager;
   private playerTechsProvider: PlayerTechsProvider;
   private sharedVisionProvider: SharedVisionProvider = () => new Set();
+  private cityVisionProvider: CityVisionProvider = () => [];
+  private visibilityPersistence?: VisibilityPersistence;
+  private persistenceQueues = new Map<string, Promise<void>>();
+  private lastQueuedSnapshots = new Map<string, string>();
 
   constructor(
     gameId: string,
     unitManager: UnitManager,
     mapManager: MapManager,
     effectsManager: EffectsManager = new EffectsManager(),
-    playerTechsProvider: PlayerTechsProvider = () => new Set()
+    playerTechsProvider: PlayerTechsProvider = () => new Set(),
+    visibilityPersistence?: VisibilityPersistence
   ) {
     this.gameId = gameId;
     this.unitManager = unitManager;
     this.mapManager = mapManager;
     this.effectsManager = effectsManager;
     this.playerTechsProvider = playerTechsProvider;
+    this.visibilityPersistence = visibilityPersistence;
   }
 
   public setSharedVisionProvider(provider: SharedVisionProvider): void {
     this.sharedVisionProvider = provider;
+  }
+
+  public setCityVisionProvider(provider: CityVisionProvider): void {
+    this.cityVisionProvider = provider;
   }
 
   /**
@@ -60,6 +78,19 @@ export class VisibilityManager {
 
     this.playerVisibility.set(playerId, visibility);
     logger.debug(`Initialized visibility for player ${playerId}`);
+  }
+
+  public restorePlayerVisibility(
+    playerId: string,
+    exploredTiles: Iterable<string>,
+    visibleTiles: Iterable<string> = []
+  ): void {
+    this.playerVisibility.set(playerId, {
+      playerId,
+      exploredTiles: new Set(exploredTiles),
+      visibleTiles: new Set(visibleTiles),
+      lastUpdated: new Date(),
+    });
   }
 
   /**
@@ -78,6 +109,7 @@ export class VisibilityManager {
     const visionSources = new Set([playerId, ...this.sharedVisionProvider(playerId)]);
     for (const sourcePlayerId of visionSources) {
       this.addUnitVision(sourcePlayerId, visibility.visibleTiles);
+      this.addCityVision(sourcePlayerId, visibility.visibleTiles);
     }
 
     for (const tileKey of visibility.visibleTiles) {
@@ -85,6 +117,7 @@ export class VisibilityManager {
     }
 
     visibility.lastUpdated = new Date();
+    this.queuePersistence(visibility);
     logger.debug(
       `Updated visibility for player ${playerId}: ${visibility.visibleTiles.size} visible, ${visibility.exploredTiles.size} explored`
     );
@@ -125,6 +158,19 @@ export class VisibilityManager {
       for (const tileKey of unitVisibleTiles) {
         visibleTiles.add(tileKey);
       }
+    }
+  }
+
+  private addCityVision(sourcePlayerId: string, visibleTiles: Set<string>): void {
+    for (const city of this.cityVisionProvider(sourcePlayerId)) {
+      // Freeciv city_refresh_vision() uses a base main-vision radius of 2,
+      // represented as radius_sq 5 by the classic city-map geometry.
+      const cityVisibleTiles = this.calculateTileVisibility(
+        city.x,
+        city.y,
+        city.visionRadiusSq ?? 5
+      );
+      for (const tileKey of cityVisibleTiles) visibleTiles.add(tileKey);
     }
   }
 
@@ -202,7 +248,33 @@ export class VisibilityManager {
     const revealed = this.calculateTileVisibility(centerX, centerY, radiusSquared);
     for (const tile of revealed) visibility.exploredTiles.add(tile);
     visibility.lastUpdated = new Date();
+    this.queuePersistence(visibility);
     return new Set(visibility.exploredTiles);
+  }
+
+  private queuePersistence(visibility: PlayerVisibility): void {
+    if (!this.visibilityPersistence) return;
+
+    const exploredTiles = [...visibility.exploredTiles].sort();
+    const visibleTiles = [...visibility.visibleTiles].sort();
+    const snapshot = JSON.stringify([exploredTiles, visibleTiles]);
+    if (this.lastQueuedSnapshots.get(visibility.playerId) === snapshot) return;
+    this.lastQueuedSnapshots.set(visibility.playerId, snapshot);
+
+    const previous = this.persistenceQueues.get(visibility.playerId) ?? Promise.resolve();
+    const next = previous
+      .then(() => this.visibilityPersistence!(visibility.playerId, exploredTiles, visibleTiles))
+      .catch(error => {
+        if (this.lastQueuedSnapshots.get(visibility.playerId) === snapshot) {
+          this.lastQueuedSnapshots.delete(visibility.playerId);
+        }
+        logger.error('Failed to persist player visibility', {
+          gameId: this.gameId,
+          playerId: visibility.playerId,
+          error: error instanceof Error ? error.message : error,
+        });
+      });
+    this.persistenceQueues.set(visibility.playerId, next);
   }
 
   /**

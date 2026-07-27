@@ -248,14 +248,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       console.log('Found player starting position at:', startTile);
     } else {
       // FALLBACK 1: Try to find user's first unit (matches freeciv-web behavior)
-      const userUnits = Object.values(units);
+      const userUnits = Object.values(units).filter(unit => unit.playerId === currentPlayerId);
       if (userUnits.length > 0) {
         const firstUnit = userUnits[0] as { x: number; y: number };
         startTile = { x: firstUnit.x, y: firstUnit.y };
         console.log('Found user unit at:', startTile);
       } else {
         // FALLBACK 2: Try to find user's first city
-        const userCities = Object.values(cities);
+        const userCities = Object.values(cities).filter(city => city.playerId === currentPlayerId);
         if (userCities.length > 0) {
           const firstCity = userCities[0] as { x: number; y: number };
           startTile = { x: firstCity.x, y: firstCity.y };
@@ -274,7 +274,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           ).tiles;
           if (globalTiles) {
             for (const tile of globalTiles) {
-              if (tile && (tile.known > 0 || tile.seen > 0)) {
+              if (tile?.known === 2) {
                 startTile = { x: tile.x, y: tile.y };
                 break;
               }

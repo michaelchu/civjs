@@ -6,6 +6,7 @@ import { UnitRenderer } from './renderers/UnitRenderer';
 import { CityRenderer } from './renderers/CityRenderer';
 import { PathRenderer } from './renderers/PathRenderer';
 import { BorderRenderer } from './renderers/BorderRenderer';
+import { FogRenderer } from './renderers/FogRenderer';
 import { rulesetService } from '../../services/RulesetService';
 import { resolveGraphic } from '../../services/PresentationResolver';
 import type { RenderState } from './renderers/BaseRenderer';
@@ -45,6 +46,7 @@ export class MapRenderer {
   private cityRenderer: CityRenderer;
   private pathRenderer: PathRenderer;
   private borderRenderer: BorderRenderer;
+  private fogRenderer: FogRenderer;
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
@@ -74,6 +76,7 @@ export class MapRenderer {
       this.tileWidth,
       this.tileHeight
     );
+    this.fogRenderer = new FogRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
   }
 
   async initialize(): Promise<void> {
@@ -94,6 +97,7 @@ export class MapRenderer {
       this.cityRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.pathRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.borderRenderer.updateTileSize(this.tileWidth, this.tileHeight);
+      this.fogRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       const terrainGraphics = Object.fromEntries(
         Object.entries(presentation.terrains)
           .map(([id, definition]) => [
@@ -231,6 +235,10 @@ export class MapRenderer {
 
     // LAYER_UNIT: Render units layer ON TOP of cities
     this.unitRenderer.renderUnits(state);
+
+    // LAYER_FOG: Freeciv draws fog after units so unseen dynamic entities
+    // cannot leak through the remembered terrain layer.
+    this.fogRenderer.render(state, globalTiles);
 
     // Render paths and overlays on top of everything
     this.pathRenderer.renderPaths(state);
@@ -704,14 +712,14 @@ export class MapRenderer {
     // Later we can add the complex isometric culling logic
     for (let i = 0; i < globalTiles.length; i++) {
       const tile = globalTiles[i];
-      if (tile && tile.terrain && (tile.known > 0 || tile.seen > 0)) {
+      if (tile && tile.terrain && tile.known > 0) {
         // Convert to our expected format
         tiles.push({
           x: tile.x,
           y: tile.y,
           terrain: tile.terrain,
-          visible: tile.known > 0,
-          known: tile.seen > 0,
+          visible: tile.known === 2,
+          known: tile.known >= 1,
           units: [],
           city: undefined,
           elevation: tile.elevation || 0,

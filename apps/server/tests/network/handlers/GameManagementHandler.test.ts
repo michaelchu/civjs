@@ -316,7 +316,7 @@ describe('GameManagementHandler', () => {
         visibilityManager: {
           updatePlayerVisibility: jest.fn(),
           getVisibleTiles: () => new Set(['0,0']),
-          getExploredTiles: () => new Set(['0,0']),
+          getExploredTiles: () => new Set(['0,0', '1,0']),
         },
         cityManager: { getAllCities: () => [] },
         borderManager: {
@@ -357,6 +357,16 @@ describe('GameManagementHandler', () => {
           data: expect.objectContaining({ total: 4 }),
         })
       );
+      const tilePacket = (mockSocket.emit as jest.Mock).mock.calls.find(
+        ([event, packet]) => event === 'packet' && packet.type === PacketType.TILE_INFO
+      )[1];
+      expect(tilePacket.data.tiles).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ x: 0, y: 0, known: 2, seen: 1 }),
+          expect.objectContaining({ x: 1, y: 0, known: 1, seen: 0 }),
+          expect.objectContaining({ x: 0, y: 1, terrain: 'unknown', known: 0, seen: 0 }),
+        ])
+      );
       expect(mockSocket.emit).toHaveBeenCalledWith(
         'packet',
         expect.objectContaining({
@@ -371,7 +381,10 @@ describe('GameManagementHandler', () => {
       const borderPacket = (mockSocket.emit as jest.Mock).mock.calls.find(
         ([event, packet]) => event === 'packet' && packet.type === PacketType.BORDER_UPDATE
       )[1];
-      expect(borderPacket.data.tiles).toEqual([{ x: 0, y: 0, owner: mockPlayerId, strength: 1 }]);
+      expect(borderPacket.data.tiles).toEqual([
+        { x: 0, y: 0, owner: mockPlayerId, strength: 1 },
+        { x: 1, y: 0, owner: 'visible-rival', strength: 1 },
+      ]);
     });
 
     it('should handle authentication error', async () => {

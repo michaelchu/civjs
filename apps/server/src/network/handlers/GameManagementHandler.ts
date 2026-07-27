@@ -458,6 +458,7 @@ export class GameManagementHandler extends BaseSocketHandler {
     // represented by the Freeciv-compatible known/seen packet flags.
     gameInstance.visibilityManager.updatePlayerVisibility(playerId);
     const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
+    const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
 
     socket.emit('packet', {
       version: PROTOCOL_VERSION,
@@ -478,19 +479,25 @@ export class GameManagementHandler extends BaseSocketHandler {
         if (!tile) continue;
         const tileKey = `${x},${y}`;
         const isVisible = visibleTiles.has(tileKey);
+        const isExplored = exploredTiles.has(tileKey);
         tiles.push({
           tile: x + y * mapData.width,
           x,
           y,
-          // The client renderer needs terrain on every coordinate to draw the
-          // map grid. Resources and entities stay restricted to current vision.
-          terrain: tile.terrain,
-          resource: isVisible ? tile.resource : undefined,
-          elevation: tile.elevation || 0,
-          riverMask: tile.riverMask || 0,
-          known: isVisible ? 1 : 0,
-          seen: 1,
-          player: null,
+          terrain: isExplored ? tile.terrain : 'unknown',
+          resource: isExplored ? tile.resource : undefined,
+          elevation: isExplored ? tile.elevation || 0 : 0,
+          riverMask: isExplored ? tile.riverMask || 0 : 0,
+          hasRoad: isExplored ? tile.hasRoad : false,
+          hasRailroad: isExplored ? tile.hasRailroad : false,
+          improvements: isExplored ? tile.improvements : [],
+          cityId: isExplored ? tile.cityId : undefined,
+          owner: isExplored ? tile.owner : undefined,
+          claimer: isExplored ? tile.claimer : undefined,
+          // Freeciv known_type: 0 unknown, 1 known/fogged, 2 known/seen.
+          known: isVisible ? 2 : isExplored ? 1 : 0,
+          seen: isVisible ? 1 : 0,
+          player: isExplored ? (tile.owner ?? null) : null,
           worked: null,
           extras: 0,
         });
@@ -528,13 +535,15 @@ export class GameManagementHandler extends BaseSocketHandler {
     socket.emit('packet', {
       version: PROTOCOL_VERSION,
       type: PacketType.UNIT_INFO,
-      data: { units },
+      data: { units, fullSnapshot: true },
       timestamp: Date.now(),
     });
 
     const cities = gameInstance.cityManager
       .getAllCities()
-      .filter((city: any) => city.playerId === playerId || visibleTiles.has(`${city.x},${city.y}`));
+      .filter(
+        (city: any) => city.playerId === playerId || exploredTiles.has(`${city.x},${city.y}`)
+      );
     socket.emit('cities_updated', {
       gameId,
       cities: CityDataService.transformCitiesForClient(cities),
@@ -548,13 +557,13 @@ export class GameManagementHandler extends BaseSocketHandler {
         type: 'border_update',
         updateType: 'full_update',
         // @reference reference/freeciv/server/maphand.c:442-613
-        // A player may always inspect their own territory, but another
-        // civilization's borders are only sent while the tile is visible.
+        // A player may always inspect their own territory. Previously
+        // discovered foreign borders remain on the fogged map after reload.
         tiles: gameInstance.borderManager
           .getAllTileOwnership()
           .filter(
             (ownership: any) =>
-              ownership.playerId === playerId || visibleTiles.has(`${ownership.x},${ownership.y}`)
+              ownership.playerId === playerId || exploredTiles.has(`${ownership.x},${ownership.y}`)
           )
           .map((ownership: any) => ({
             x: ownership.x,
@@ -572,7 +581,8 @@ export class GameManagementHandler extends BaseSocketHandler {
       mapSize: `${mapData.width}x${mapData.height}`,
       tiles: tiles.length,
       units: units.length,
-      cities: gameInstance.cityManager.getAllCities().length,
+      cities: cities.length,
+      totalCities: gameInstance.cityManager.getAllCities().length,
     });
   }
 

@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { DatabaseProvider } from '@database';
-import { games } from '@database/schema';
+import { games, players as playerRecords } from '@database/schema';
 import { GameInstance, PlayerState, TurnPhase, GameState } from '@game/managers/GameManager';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { logger } from '@utils/logger';
@@ -53,7 +53,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
     ) => Promise<any>,
     // Note: createUnit callback removed as it's not currently used
     // private createUnit: (gameId: string, playerId: string, unitType: string, x: number, y: number) => Promise<string>,
-    private broadcastToGame: (gameId: string, event: string, data: any) => void,
+    _broadcastToGame: (gameId: string, event: string, data: any) => void,
     private broadcastManager: GameBroadcastManager
   ) {
     super(logger);
@@ -93,6 +93,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       await this.loadDataIntoManagers(managers);
 
       await this.initializeResearchAndVisibility(
+        gameId,
         players,
         managers.researchManager,
         managers.visibilityManager
@@ -277,8 +278,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       {
         foundCity: this.foundCity.bind(this),
         requestPath: this.requestPath.bind(this),
-        broadcastUnitMoved: (gid, unitId, x, y, movementLeft) => {
-          this.broadcastToGame(gid, 'unit_moved', { gameId: gid, unitId, x, y, movementLeft });
+        broadcastUnitMoved: gid => {
+          this.broadcastManager.broadcastVisibilityState(gid);
         },
         getCityAt: (x: number, y: number) => {
           const city = cityManager.getCityAt(x, y);
@@ -336,7 +337,17 @@ export class GameInstanceRecoveryService extends BaseGameService {
       unitManager,
       mapManager,
       effectsManager,
-      playerId => new Set(researchManager.getResearchedTechs(playerId))
+      playerId => new Set(researchManager.getResearchedTechs(playerId)),
+      async (playerId, exploredTiles, visibleTiles) => {
+        await this.databaseProvider
+          .getDatabase()
+          .update(playerRecords)
+          .set({ exploredTiles, visibleTiles })
+          .where(eq(playerRecords.id, playerId));
+      }
+    );
+    visibilityManager.setCityVisionProvider(playerId =>
+      cityManager.getCitiesByPlayer(playerId).map(city => ({ x: city.x, y: city.y }))
     );
     unitManager.setHutMapRevealProvider((playerId, x, y) => [
       ...visibilityManager.revealArea(playerId, x, y, 30),
@@ -506,6 +517,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
   }
 
   private async initializeResearchAndVisibility(
+    gameId: string,
     players: Map<string, PlayerState>,
     researchManager: ResearchManager,
     visibilityManager: VisibilityManager
@@ -515,13 +527,35 @@ export class GameInstanceRecoveryService extends BaseGameService {
     // Reinitializing every player here would replace completed technologies after recovery.
     await researchManager.loadPlayerResearch();
 
+    const persistedPlayers = await this.databaseProvider
+      .getDatabase()
+      .select({
+        id: playerRecords.id,
+        exploredTiles: playerRecords.exploredTiles,
+        visibleTiles: playerRecords.visibleTiles,
+      })
+      .from(playerRecords)
+      .where(eq(playerRecords.gameId, gameId));
+    const persistedVisibility = new Map(persistedPlayers.map(player => [player.id, player]));
+
     for (const player of players.values()) {
       if (!researchManager.getPlayerResearch(player.id)) {
         await researchManager.initializePlayerResearch(player.id);
       }
-      visibilityManager.initializePlayerVisibility(player.id);
+      const stored = persistedVisibility.get(player.id);
+      visibilityManager.restorePlayerVisibility(
+        player.id,
+        this.asTileKeys(stored?.exploredTiles),
+        this.asTileKeys(stored?.visibleTiles)
+      );
       visibilityManager.updatePlayerVisibility(player.id);
     }
+  }
+
+  private asTileKeys(value: unknown): string[] {
+    return Array.isArray(value)
+      ? value.filter((tile): tile is string => typeof tile === 'string')
+      : [];
   }
 
   /**

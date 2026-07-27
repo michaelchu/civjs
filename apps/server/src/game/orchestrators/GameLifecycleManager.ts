@@ -8,7 +8,7 @@ import { BaseGameService } from './GameService';
 import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
 import { gameState } from '@database/redis';
-import { games } from '@database/schema';
+import { games, players as playerRecords } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import serverConfig from '@config';
 import { TurnManager } from '@game/managers/TurnManager';
@@ -312,6 +312,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       mapManager,
       effectsManager,
       researchManager
+    );
+    visibilityManager.setCityVisionProvider(playerId =>
+      cityManager.getCitiesByPlayer(playerId).map(city => ({ x: city.x, y: city.y }))
     );
     unitManager.setHutMapRevealProvider((playerId, x, y) => [
       ...visibilityManager.revealArea(playerId, x, y, 30),
@@ -1031,8 +1034,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           : async () => '',
         requestPath: (playerId: string, unitId: string, targetX: number, targetY: number) =>
           this.requestPathDelegate(gameId, playerId, unitId, targetX, targetY),
-        broadcastUnitMoved: (gameId, unitId, x, y, movementLeft) => {
-          this.onBroadcast?.(gameId, 'unit_moved', { gameId, unitId, x, y, movementLeft });
+        broadcastUnitMoved: gameId => {
+          this.broadcastManager?.broadcastVisibilityState(gameId);
         },
         getCityAt: (x: number, y: number) => {
           const city = cityManager.getCityAt(x, y);
@@ -1078,7 +1081,14 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       unitManager,
       mapManager,
       effectsManager,
-      playerId => new Set(researchManager.getResearchedTechs(playerId))
+      playerId => new Set(researchManager.getResearchedTechs(playerId)),
+      async (playerId, exploredTiles, visibleTiles) => {
+        await this.databaseProvider
+          .getDatabase()
+          .update(playerRecords)
+          .set({ exploredTiles, visibleTiles })
+          .where(eq(playerRecords.id, playerId));
+      }
     );
   }
 

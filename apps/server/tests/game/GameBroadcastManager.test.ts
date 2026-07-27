@@ -37,6 +37,16 @@ describe('GameBroadcastManager visibility sync', () => {
         [playerTwo, { id: playerTwo, userId: userTwo, isConnected: true }],
       ]),
       currentTurn: 1,
+      mapManager: {
+        getMapData: () => ({
+          width: 2,
+          height: 1,
+          tiles: [
+            [{ terrain: 'grassland', elevation: 0, riverMask: 0 }],
+            [{ terrain: 'hills', elevation: 0, riverMask: 0 }],
+          ],
+        }),
+      },
       visibilityManager: {
         updatePlayerVisibility: jest.fn(),
         getVisibleTiles: (playerId: string) => visible.get(playerId),
@@ -60,6 +70,7 @@ describe('GameBroadcastManager visibility sync', () => {
         getUnitMaxMovement: () => 1,
       },
       cityManager: { getAllCities: () => [] },
+      borderManager: { getAllTileOwnership: () => [] },
     };
     manager.setGamesReference(new Map([[gameId, game as any]]));
   });
@@ -125,42 +136,7 @@ describe('GameBroadcastManager visibility sync', () => {
           cityId: 'city-1',
           owner: playerOne,
           claimer: 'city-1',
-          known: 1,
-          seen: 1,
-        }),
-        expect.objectContaining({
-          x: 1,
-          y: 0,
-          terrain: 'hills',
-          resource: undefined,
-          hasRoad: false,
-          hasRailroad: false,
-          improvements: [],
-          cityId: undefined,
-          owner: undefined,
-          claimer: undefined,
-          known: 0,
-          seen: 1,
-        }),
-      ])
-    );
-    expect(
-      playerTwoPackets.find(emission => emission.data.type === PacketType.TILE_INFO)?.data.data
-        .tiles
-    ).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          x: 0,
-          y: 0,
-          terrain: 'grassland',
-          resource: undefined,
-          hasRoad: false,
-          hasRailroad: false,
-          improvements: [],
-          cityId: undefined,
-          owner: undefined,
-          claimer: undefined,
-          known: 0,
+          known: 2,
           seen: 1,
         }),
         expect.objectContaining({
@@ -174,6 +150,40 @@ describe('GameBroadcastManager visibility sync', () => {
           owner: playerTwo,
           claimer: 'city-2',
           known: 1,
+          seen: 0,
+        }),
+      ])
+    );
+    expect(
+      playerTwoPackets.find(emission => emission.data.type === PacketType.TILE_INFO)?.data.data
+        .tiles
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          x: 0,
+          y: 0,
+          terrain: 'unknown',
+          resource: undefined,
+          hasRoad: false,
+          hasRailroad: false,
+          improvements: [],
+          cityId: undefined,
+          owner: undefined,
+          claimer: undefined,
+          known: 0,
+          seen: 0,
+        }),
+        expect.objectContaining({
+          x: 1,
+          y: 0,
+          terrain: 'hills',
+          resource: 'iron',
+          hasRoad: true,
+          hasRailroad: true,
+          improvements: ['mine', 'pollution'],
+          owner: playerTwo,
+          claimer: 'city-2',
+          known: 2,
           seen: 1,
         }),
       ])
@@ -221,13 +231,13 @@ describe('GameBroadcastManager visibility sync', () => {
       )
     ).toBe(true);
     expect(
-      emitted.some(
+      emitted.find(
         emission =>
           emission.room === `player:${userTwo}` &&
           emission.event === 'packet' &&
           emission.data.type === PacketType.UNIT_INFO
-      )
-    ).toBe(false);
+      )?.data.data.units
+    ).toEqual([]);
     expect(
       emitted.find(
         emission =>
@@ -237,13 +247,47 @@ describe('GameBroadcastManager visibility sync', () => {
       )?.data.data.units
     ).toEqual([
       expect.objectContaining({
-        id: 'new-unit',
+        id: 'own-unit',
         owner: playerOne,
         type: 'warriors',
         hp: 100,
         movesleft: 1,
       }),
     ]);
+  });
+
+  it('keeps a discovered foreign city in sync after it leaves current vision', () => {
+    const game = (manager as any).games.get(gameId);
+    game.cityManager.getAllCities = () => [
+      {
+        id: 'known-city',
+        name: 'Known City',
+        playerId: 'ai-player',
+        x: 0,
+        y: 0,
+        population: 1,
+        history: 0,
+        specialists: {},
+        happiness: { happy: 0, content: 1, unhappy: 0, angry: 0 },
+        buildings: [],
+        worklist: [],
+        tradeRoutes: [],
+      },
+    ];
+
+    manager.broadcastCityDataToPlayer(gameId, playerOne);
+    manager.broadcastCityDataToPlayer(gameId, playerTwo);
+
+    expect(
+      emitted.find(
+        emission => emission.room === `player:${userOne}` && emission.event === 'cities_updated'
+      )?.data.cities
+    ).toHaveProperty('known-city');
+    expect(
+      emitted.find(
+        emission => emission.room === `player:${userTwo}` && emission.event === 'cities_updated'
+      )?.data.cities
+    ).toEqual({});
   });
 
   it('advertises the audited classic covert actions for spies', () => {
@@ -285,6 +329,10 @@ describe('GameBroadcastManager visibility sync', () => {
       event: 'unit_destroyed',
       data: { gameId, unitId: 'lost-unit' },
     });
-    expect(emitted.some(emission => emission.room === `player:${userTwo}`)).toBe(false);
+    expect(
+      emitted.some(
+        emission => emission.room === `player:${userTwo}` && emission.event === 'unit_destroyed'
+      )
+    ).toBe(false);
   });
 });

@@ -21,7 +21,8 @@ import type { CityState } from '@game/managers/CityManager';
 export class CityManagementService extends BaseGameService {
   constructor(
     private games: Map<string, GameInstance>,
-    private broadcastToGame: (gameId: string, event: string, data: any) => void
+    private broadcastToGame: (gameId: string, event: string, data: any) => void,
+    private broadcastVisibilityState?: (gameId: string) => void
   ) {
     super(logger);
   }
@@ -69,21 +70,9 @@ export class CityManagementService extends BaseGameService {
       throw new Error('Failed to found city');
     }
 
-    // Transform city data for client and broadcast to all players
-    const clientCityData = CityDataService.transformCityForClient(cityData);
-    this.broadcastToGame(gameId, 'city_founded', {
-      gameId,
-      city: clientCityData,
-    });
-
-    // Also broadcast all cities to ensure consistency
-    const allCities = gameInstance.cityManager.getAllCities();
-    const clientCities = CityDataService.transformCitiesForClient(allCities);
-    this.broadcastToGame(gameId, 'cities_updated', {
-      gameId,
-      cities: clientCities,
-      timestamp: Date.now(),
-    });
+    // City founding changes both vision and the remembered playermap. Send
+    // player-scoped snapshots rather than leaking the new city game-wide.
+    this.broadcastVisibilityState?.(gameId);
 
     return cityData.id;
   }

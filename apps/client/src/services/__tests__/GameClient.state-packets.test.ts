@@ -84,7 +84,7 @@ describe('GameClient state-bearing packets', () => {
         x: 0,
         y: 0,
         terrain: 'grassland',
-        known: 1,
+        known: 2,
         seen: 1,
         improvements: ['road', 'irrigation'],
         owner: 'player-1',
@@ -102,8 +102,54 @@ describe('GameClient state-bearing packets', () => {
         improvements: ['road', 'irrigation'],
         owner: 'player-2',
         visible: true,
+        known: true,
       })
     );
+  });
+
+  it('maps Freeciv fog states and replaces stale units with full visibility snapshots', () => {
+    handlePacket({
+      type: PacketType.MAP_INFO,
+      data: { xsize: 2, ysize: 1, wrap_id: 0 },
+    });
+    handlePacket({
+      type: PacketType.TILE_INFO,
+      data: {
+        tiles: [
+          { tile: 0, x: 0, y: 0, terrain: 'plains', known: 1, seen: 0 },
+          { tile: 1, x: 1, y: 0, terrain: 'unknown', known: 0, seen: 0 },
+        ],
+        startIndex: 0,
+        endIndex: 2,
+        total: 2,
+      },
+    });
+    useGameStore.getState().updateGameState({
+      units: {
+        stale: {
+          id: 'stale',
+          playerId: 'enemy',
+          unitTypeId: 'warriors',
+          x: 1,
+          y: 0,
+          hp: 100,
+          movesLeft: 1,
+          veteranLevel: 0,
+        },
+      },
+    });
+    handlePacket({
+      type: PacketType.UNIT_INFO,
+      data: { units: [], fullSnapshot: true },
+    });
+
+    expect(useGameStore.getState().map.tiles['0,0']).toEqual(
+      expect.objectContaining({ known: true, visible: false })
+    );
+    expect(useGameStore.getState().map.tiles['1,0']).toEqual(
+      expect.objectContaining({ known: false, visible: false })
+    );
+    expect(useGameStore.getState().units).toEqual({});
   });
 
   it('applies authoritative culture updates to existing players', () => {

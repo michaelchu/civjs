@@ -62,6 +62,38 @@ describe('VisibilityManager', () => {
       expect(explored).not.toContain('16,10');
       expect(visibilityManager.getVisibleTiles('player-123')).toEqual(new Set());
     });
+
+    it('uses the classic city vision radius as a vision source', () => {
+      visibilityManager.setCityVisionProvider(playerId =>
+        playerId === 'player-123' ? [{ x: 10, y: 10 }] : []
+      );
+
+      visibilityManager.updatePlayerVisibility('player-123');
+
+      const visible = visibilityManager.getVisibleTiles('player-123');
+      expect(visible.has('10,10')).toBe(true);
+      expect(visible.has('12,10')).toBe(true);
+      expect(visible.has('10,12')).toBe(true);
+      expect(visible.has('13,10')).toBe(false);
+    });
+
+    it('persists explored knowledge after recalculating current vision', async () => {
+      const persist = jest.fn(async () => undefined);
+      const persistentManager = new VisibilityManager(
+        gameId,
+        unitManager,
+        mapManager,
+        undefined,
+        undefined,
+        persist
+      );
+      persistentManager.restorePlayerVisibility('player-123', ['3,4']);
+
+      persistentManager.updatePlayerVisibility('player-123');
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(persist).toHaveBeenCalledWith('player-123', ['3,4'], []);
+    });
   });
 
   describe('visibility updates', () => {

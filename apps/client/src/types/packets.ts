@@ -133,8 +133,8 @@ export interface TileInfoPacket {
     cityId?: string;
     owner?: string;
     claimer?: string;
-    known: number; // 0 = unknown, 1 = known
-    seen: number; // 0 = unseen, 1 = visible
+    known: number; // Freeciv known_type: 0 = unknown, 1 = fogged, 2 = seen
+    seen: number; // compatibility flag: 0 = unseen, 1 = visible
     player?: string | null;
     worked?: string | null;
     extras?: number;

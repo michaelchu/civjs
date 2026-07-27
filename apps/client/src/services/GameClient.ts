@@ -441,7 +441,7 @@ class GameClient {
         console.log('Unit info:', packet.data);
         if (packet.data.units && Array.isArray(packet.data.units)) {
           const { units } = useGameStore.getState();
-          const updatedUnits = { ...units };
+          const updatedUnits = packet.data.fullSnapshot ? {} : { ...units };
 
           for (const unitData of packet.data.units) {
             const existingUnit = units[unitData.id];
@@ -778,8 +778,8 @@ class GameClient {
           x: data.x,
           y: data.y,
           terrain: data.terrain,
-          visible: data.known > 0,
-          known: data.seen > 0,
+          visible: data.known === 2,
+          known: data.known >= 1,
           units: [],
           city: undefined,
           resource: data.resource,
@@ -846,8 +846,8 @@ class GameClient {
         x: tileData.x,
         y: tileData.y,
         terrain: tileData.terrain,
-        visible: tileData.known > 0,
-        known: tileData.seen > 0,
+        visible: tileData.known === 2,
+        known: tileData.known >= 1,
         units: [],
         city: undefined,
         resource: tileData.resource,
@@ -1660,7 +1660,12 @@ class GameClient {
     }
 
     // Update tile ownership data
-    const updatedTiles = { ...map.tiles };
+    const updatedTiles =
+      data.updateType === 'full_update'
+        ? Object.fromEntries(
+            Object.entries(map.tiles).map(([key, tile]) => [key, { ...tile, owner: undefined }])
+          )
+        : { ...map.tiles };
     let updatedCount = 0;
 
     for (const tileUpdate of data.tiles) {

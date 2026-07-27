@@ -183,7 +183,8 @@ export class GameManager {
 
     this.cityManagementService = new CityManagementService(
       this.games,
-      this.broadcastToGame.bind(this)
+      this.broadcastToGame.bind(this),
+      this.gameBroadcastManager.broadcastVisibilityState.bind(this.gameBroadcastManager)
     );
 
     this.researchManagementService = new ResearchManagementService(
