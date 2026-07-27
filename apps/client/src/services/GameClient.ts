@@ -15,6 +15,7 @@ import type {
   TreatyClauseType,
 } from '../types';
 import { playEndGameSound } from './UserPreferences';
+import { GameSessionCoordinator, type GameSessionTarget } from './GameSessionCoordinator';
 
 // Mock government data for development
 const getMockGovernments = () => ({
@@ -104,13 +105,25 @@ const getMockGovernments = () => ({
   },
 });
 
-class GameClient {
+export class GameClient {
   private socket: Socket | null = null;
   private serverUrl: string;
   private currentGameId: string | null = null;
   private connectionPromise: Promise<void> | null = null;
   private pendingGameJoins = new Map<string, Promise<void>>();
   private pendingMapTiles: Record<string, any> | null = null;
+  private readonly session = new GameSessionCoordinator();
+  private reconnectPromise: Promise<void> | null = null;
+  private readonly handleVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      console.log('Tab hidden - maintaining connection');
+    } else if (document.visibilityState === 'visible') {
+      console.log('Tab visible - connection status:', this.socket?.connected);
+      if (this.socket?.connected) {
+        this.socket.emit('ping');
+      }
+    }
+  };
 
   constructor() {
     this.serverUrl = SERVER_URL;
@@ -126,6 +139,7 @@ class GameClient {
       return this.connectionPromise;
     }
 
+    this.session.connecting();
     this.connectionPromise = new Promise((resolve, reject) => {
       try {
         this.socket = io(this.serverUrl, {
@@ -146,6 +160,7 @@ class GameClient {
 
         this.socket.on('disconnect', () => {
           console.log('Disconnected from game server');
+          this.session.disconnected();
           useGameStore.getState().setClientState('initial');
         });
 
@@ -155,27 +170,16 @@ class GameClient {
           reject(error);
         });
 
-        this.socket.on('reconnect', attemptNumber => {
+        this.socket.io.on('reconnect', attemptNumber => {
           console.log(`Reconnected to server after ${attemptNumber} attempts`);
+          void this.resumeSession();
         });
 
-        this.socket.on('reconnect_error', error => {
+        this.socket.io.on('reconnect_error', error => {
           console.warn('Reconnection failed:', error);
         });
 
-        // Handle browser visibility changes to prevent disconnection on tab switch
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'hidden') {
-            console.log('Tab hidden - maintaining connection');
-            // Keep connection alive when tab is hidden
-          } else if (document.visibilityState === 'visible') {
-            console.log('Tab visible - connection status:', this.socket?.connected);
-            // Optionally ping server to ensure connection is still alive
-            if (this.socket?.connected) {
-              this.socket.emit('ping');
-            }
-          }
-        });
+        document.addEventListener('visibilitychange', this.handleVisibilityChange);
 
         this.setupGameHandlers();
       } catch (error) {
@@ -1221,6 +1225,13 @@ class GameClient {
           if (replyPacket.data.success) {
             this.currentGameId = replyPacket.data.gameId;
             this.applyJoinedPlayer(replyPacket.data, gameData.playerName, gameData.selectedNation);
+            const operation = this.session.begin({
+              role: 'player',
+              gameId: replyPacket.data.gameId,
+              playerName: gameData.playerName,
+              selectedNation: gameData.selectedNation,
+            });
+            this.session.ready(operation);
             resolve(replyPacket.data.gameId);
           } else {
             reject(new Error(replyPacket.data.message || 'Failed to create game'));
@@ -1265,26 +1276,74 @@ class GameClient {
     playerName: string,
     selectedNation: string
   ): Promise<void> {
-    await this.authenticatePlayer(playerName);
-
-    return new Promise((resolve, reject) => {
-      if (!this.socket) {
-        reject(new Error('Not connected to server'));
-        return;
-      }
-
-      this.socket.emit('join_game', { gameId, playerName, selectedNation }, (response: any) => {
-        if (response.success) {
-          this.currentGameId = gameId;
-
-          this.applyJoinedPlayer(response, playerName, selectedNation);
-
-          resolve();
-        } else {
-          reject(new Error(response.error || 'Failed to join game'));
-        }
-      });
+    const operation = this.session.begin({
+      role: 'player',
+      gameId,
+      playerName,
+      selectedNation,
     });
+
+    try {
+      await this.authenticatePlayer(playerName);
+      if (!this.session.transition(operation, 'joining')) return;
+
+      await new Promise<void>((resolve, reject) => {
+        if (!this.socket) {
+          reject(new Error('Not connected to server'));
+          return;
+        }
+
+        this.session.transition(operation, 'syncing');
+        this.socket.emit('join_game', { gameId, playerName, selectedNation }, (response: any) => {
+          if (!this.session.isCurrent(operation)) {
+            resolve();
+            return;
+          }
+          if (response.success) {
+            this.currentGameId = gameId;
+            this.applyJoinedPlayer(response, playerName, selectedNation);
+            this.session.ready(operation);
+            resolve();
+          } else {
+            reject(new Error(response.error || 'Failed to join game'));
+          }
+        });
+      });
+    } catch (error) {
+      this.session.fail(operation, error);
+      throw error;
+    }
+  }
+
+  private async observeGameOnce(gameId: string): Promise<void> {
+    const operation = this.session.begin({ role: 'observer', gameId });
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        if (!this.socket) {
+          reject(new Error('Not connected to server'));
+          return;
+        }
+
+        this.session.transition(operation, 'syncing');
+        this.socket.emit('observe_game', { gameId }, (response: any) => {
+          if (!this.session.isCurrent(operation)) {
+            resolve();
+            return;
+          }
+          if (response.success) {
+            this.currentGameId = gameId;
+            this.session.ready(operation);
+            resolve();
+          } else {
+            reject(new Error(response.error || 'Failed to observe game'));
+          }
+        });
+      });
+    } catch (error) {
+      this.session.fail(operation, error);
+      throw error;
+    }
   }
 
   private applyJoinedPlayer(response: any, playerName: string, selectedNation: string): void {
@@ -1318,21 +1377,7 @@ class GameClient {
   }
 
   async observeGame(gameId: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!this.socket) {
-        reject(new Error('Not connected to server'));
-        return;
-      }
-
-      this.socket.emit('observe_game', { gameId }, (response: any) => {
-        if (response.success) {
-          this.currentGameId = gameId;
-          resolve();
-        } else {
-          reject(new Error(response.error || 'Failed to observe game'));
-        }
-      });
-    });
+    return this.observeGameOnce(gameId);
   }
 
   async getGameList(): Promise<any[]> {
@@ -1491,10 +1536,13 @@ class GameClient {
   }
 
   disconnect() {
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    this.session.cancel();
+    this.pendingGameJoins.clear();
+    this.currentGameId = null;
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
-      this.currentGameId = null;
     }
   }
 
@@ -1504,6 +1552,41 @@ class GameClient {
 
   getCurrentGameId(): string | null {
     return this.currentGameId;
+  }
+
+  getSessionState() {
+    return this.session.getState();
+  }
+
+  private resumeSession(): Promise<void> {
+    if (this.reconnectPromise) return this.reconnectPromise;
+
+    const target = this.session.getState().target;
+    if (!target) {
+      useGameStore.getState().setClientState('connecting');
+      return Promise.resolve();
+    }
+
+    this.reconnectPromise = this.resumeTarget(target)
+      .catch(error => {
+        console.error('Failed to resume game session:', error);
+        useGameStore.getState().setClientState('initial');
+      })
+      .finally(() => {
+        this.reconnectPromise = null;
+      });
+    return this.reconnectPromise;
+  }
+
+  private async resumeTarget(target: GameSessionTarget): Promise<void> {
+    if (target.role === 'player') {
+      await this.joinSpecificGame(target.gameId, target.playerName, target.selectedNation);
+    } else {
+      await this.observeGameOnce(target.gameId);
+    }
+    useGameStore
+      .getState()
+      .setClientState(useGameStore.getState().endGameReport ? 'over' : 'running');
   }
 
   /**
