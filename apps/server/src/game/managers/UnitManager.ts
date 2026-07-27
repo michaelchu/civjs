@@ -1838,13 +1838,14 @@ export class UnitManager {
     source: CityAtLocation | null | undefined,
     destination: CityAtLocation | null | undefined
   ): boolean {
+    const parameters = rulesetLoader.loadGameRulesRuleset().game_parameters;
     return Boolean(
       source &&
         destination &&
         source.id !== destination.id &&
         source.playerId === unit.playerId &&
-        source.buildings?.includes('airport') &&
-        destination.buildings?.includes('airport') &&
+        (parameters.airlift_from_always_enabled || source.buildings?.includes('airport')) &&
+        (parameters.airlift_to_always_enabled || destination.buildings?.includes('airport')) &&
         this.gameManagerCallback?.reserveAirlift
     );
   }

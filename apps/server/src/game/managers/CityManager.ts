@@ -2,8 +2,8 @@
 import { randomUUID } from 'crypto';
 import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
-import { cities, games, players } from '@database/schema';
-import { eq, sql } from 'drizzle-orm';
+import { cities, games } from '@database/schema';
+import { eq } from 'drizzle-orm';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import {
   SpecialistType,
@@ -106,6 +106,8 @@ export interface TradeRoute {
   status?: 'active' | 'disrupted';
   distance?: number;
   isCaravan?: boolean;
+  routeType?: string;
+  goods?: string;
 }
 
 export interface TradeRouteCalculation {
@@ -301,6 +303,12 @@ export class CityManager {
   private playerGoldProvider: (playerId: string) => Promise<number> = async () => 0;
   private spendPlayerGoldProvider: (playerId: string, amount: number) => Promise<boolean> =
     async () => false;
+  private addPlayerGoldProvider: (playerId: string, amount: number) => Promise<boolean> =
+    async () => false;
+  private addResearchPointsProvider: (playerId: string, amount: number) => Promise<void> =
+    async () => {};
+  private diplomaticStateProvider: (playerId: string, otherPlayerId: string) => Promise<string> =
+    async () => 'no_contact';
   private unitSupportProvider: (city: CityState) => UnitSupportData[] = () => [];
   private mapChangedCallback?: (gameId: string, mapData: unknown) => void;
   private readonly unitSupportManager: UnitSupportManager;
@@ -465,6 +473,16 @@ export class CityManager {
       getPlayerGold,
       spendPlayerGold
     );
+  }
+
+  public setTradeProviders(
+    addGold: (playerId: string, amount: number) => Promise<boolean>,
+    addResearch: (playerId: string, amount: number) => Promise<void>,
+    diplomaticState: (playerId: string, otherPlayerId: string) => Promise<string>
+  ): void {
+    this.addPlayerGoldProvider = addGold;
+    this.addResearchPointsProvider = addResearch;
+    this.diplomaticStateProvider = diplomaticState;
   }
 
   /**
@@ -1532,17 +1550,41 @@ export class CityManager {
     playerId: string = 'default'
   ): Promise<boolean> {
     if (!this.tradeRouteService) return false;
+    const source = this.cities.get(sourceCityId);
+    const partner = this.cities.get(partnerCityId);
+    if (!source || !partner) return false;
+    const relation =
+      source.playerId === partner.playerId
+        ? 'domestic'
+        : await this.diplomaticStateProvider(source.playerId, partner.playerId);
+    const settlement = this.tradeRouteService.calculateTradeSettlement(source, partner, relation);
     const established = await this.tradeRouteService.establishTradeRoute(
       sourceCityId,
       partnerCityId,
-      playerId
+      playerId,
+      relation
     );
     if (established) {
+      await this.applyTradeBonus(playerId, settlement.bonus, settlement.bonusType);
       await Promise.all([...this.cities.values()].map(city => this.saveCityToDatabase(city)));
       this.calculateCityOutputs(sourceCityId);
       this.calculateCityOutputs(partnerCityId);
     }
     return established;
+  }
+
+  private async applyTradeBonus(
+    playerId: string,
+    amount: number,
+    bonusType: 'None' | 'Gold' | 'Science' | 'Both'
+  ): Promise<void> {
+    if (amount <= 0 || bonusType === 'None') return;
+    if (bonusType === 'Gold' || bonusType === 'Both') {
+      await this.addPlayerGoldProvider(playerId, amount);
+    }
+    if (bonusType === 'Science' || bonusType === 'Both') {
+      await this.addResearchPointsProvider(playerId, amount);
+    }
   }
 
   calculateTradeRouteValue(sourceCityId: string, partnerCityId: string): number {
@@ -1716,8 +1758,18 @@ export class CityManager {
     _oldPlayerId: string
   ): Promise<void> {
     if (this.tradeRouteService) {
-      this.tradeRouteService.updateRoutesOnPlayerChange(cityId);
+      await this.tradeRouteService.updateRoutesOnPlayerChange(cityId, this.diplomaticStateProvider);
     }
+  }
+
+  public async updateTradeRoutesForDiplomacy(
+    firstPlayerId: string,
+    secondPlayerId: string
+  ): Promise<void> {
+    if (!this.tradeRouteService) return;
+    const relation = await this.diplomaticStateProvider(firstPlayerId, secondPlayerId);
+    this.tradeRouteService.updateRoutesForDiplomacy(firstPlayerId, secondPlayerId, relation);
+    await Promise.all([...this.cities.values()].map(city => this.saveCityToDatabase(city)));
   }
 
   async destroyCity(cityId: string): Promise<boolean> {
@@ -1979,21 +2031,14 @@ export class CityManager {
     if (!home || !destination || home.playerId !== playerId || home.id === destination.id) {
       return null;
     }
-    const distance = Math.max(Math.abs(home.x - destination.x), Math.abs(home.y - destination.y));
-    const mapData = this.mapManager?.getMapData();
-    const nativeWidth = Math.max(mapData?.width ?? 80, mapData?.height ?? 50);
-    const weightedDistance = Math.floor(
-      (50 * distance + 50 * Math.floor((distance * 40) / nativeWidth)) / 100
-    );
-    const revenue = Math.ceil(
-      ((weightedDistance + 10) * ((home.tradePerTurn ?? 0) + (destination.tradePerTurn ?? 0))) / 24
-    );
-    await this.databaseProvider
-      .getDatabase()
-      .update(players)
-      .set({ gold: sql`${players.gold} + ${revenue}` })
-      .where(eq(players.id, playerId));
-    return revenue;
+    if (!this.tradeRouteService) return null;
+    const relation =
+      home.playerId === destination.playerId
+        ? 'domestic'
+        : await this.diplomaticStateProvider(home.playerId, destination.playerId);
+    const settlement = this.tradeRouteService.calculateTradeSettlement(home, destination, relation);
+    await this.applyTradeBonus(playerId, settlement.bonus, settlement.bonusType);
+    return settlement.bonus;
   }
 
   public async executeUnitCityAction(
@@ -2060,15 +2105,20 @@ export class CityManager {
   ): Promise<boolean> {
     const source = this.cities.get(sourceCityId);
     const destination = this.cities.get(destinationCityId);
+    const parameters = rulesetLoader.loadGameRulesRuleset().game_parameters;
+    const sourceUnavailable =
+      !parameters.airlift_from_always_enabled &&
+      (!source?.buildings.includes('airport') || source?.airliftUsedTurn === turn);
+    const destinationUnavailable =
+      !parameters.airlift_to_always_enabled &&
+      (!destination?.buildings.includes('airport') || destination?.airliftUsedTurn === turn);
     if (
       !source ||
       !destination ||
       source.id === destination.id ||
       source.playerId !== playerId ||
-      !source.buildings.includes('airport') ||
-      !destination.buildings.includes('airport') ||
-      source.airliftUsedTurn === turn ||
-      destination.airliftUsedTurn === turn
+      sourceUnavailable ||
+      destinationUnavailable
     ) {
       return false;
     }

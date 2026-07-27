@@ -352,6 +352,34 @@ describe('GameBroadcastManager visibility sync', () => {
     ).toEqual({});
   });
 
+  it('reveals classic small-wonder cities even before their tile is explored', () => {
+    const game = (manager as any).games.get(gameId);
+    game.cityManager.getAllCities = () => [
+      {
+        id: 'palace-city',
+        name: 'Capital',
+        playerId: 'ai-player',
+        x: 0,
+        y: 0,
+        population: 1,
+        history: 0,
+        specialists: {},
+        happiness: { happy: 0, content: 1, unhappy: 0, angry: 0 },
+        buildings: ['palace'],
+        worklist: [],
+        tradeRoutes: [],
+      },
+    ];
+
+    manager.broadcastCityDataToPlayer(gameId, playerTwo);
+
+    expect(
+      emitted.find(
+        emission => emission.room === `player:${userTwo}` && emission.event === 'cities_updated'
+      )?.data.cities
+    ).toHaveProperty('palace-city');
+  });
+
   it('advertises the audited classic covert actions for spies', () => {
     const formatted = (manager as any).formatUnitForClient(
       {

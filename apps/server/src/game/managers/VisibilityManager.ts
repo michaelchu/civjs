@@ -232,6 +232,18 @@ export class VisibilityManager {
     return new Set(visibility.exploredTiles);
   }
 
+  public grantExploredTiles(playerId: string, tiles: Iterable<string>): Set<string> {
+    let visibility = this.playerVisibility.get(playerId);
+    if (!visibility) {
+      this.initializePlayerVisibility(playerId);
+      visibility = this.playerVisibility.get(playerId)!;
+    }
+    for (const tile of tiles) visibility.exploredTiles.add(tile);
+    visibility.lastUpdated = new Date();
+    this.queuePersistence(visibility);
+    return new Set(visibility.exploredTiles);
+  }
+
   /**
    * Permanently reveal a circular area, as used by classic hut map scrolls.
    * @reference reference/freeciv/data/default/default.lua:133-143

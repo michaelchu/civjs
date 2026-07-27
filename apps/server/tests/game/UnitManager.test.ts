@@ -965,7 +965,7 @@ describe('UnitManager', () => {
       expect(manager.getUnit(paratroopers.id)).toBeUndefined();
     });
 
-    it('airlifts a land unit between unused friendly airports and spends movement', async () => {
+    it('airlifts from an airport to a classic unlimited-capacity destination', async () => {
       const usedCities = new Set<string>();
       const reserveAirlift = jest.fn(async (source: string, destination: string) => {
         if (usedCities.has(source) || usedCities.has(destination)) return false;
@@ -981,7 +981,7 @@ describe('UnitManager', () => {
           if (x === 10 && y === 10)
             return { id: 'source-city', playerId: 'player-123', buildings: ['airport'] };
           if (x === 30 && y === 20)
-            return { id: 'destination-city', playerId: 'player-123', buildings: ['airport'] };
+            return { id: 'destination-city', playerId: 'player-123', buildings: [] };
           return null;
         },
         reserveAirlift,

@@ -12,6 +12,7 @@ import type {
   DiplomacyState,
   GovernmentState,
   ProductionOption,
+  TreatyClause,
   TreatyClauseType,
 } from '../types';
 import { playEndGameSound } from './UserPreferences';
@@ -1307,10 +1308,10 @@ export class GameClient {
     this.sendPacket(PacketType.DIPLOMACY_LIST_REQ, {});
   }
 
-  proposeTreaty(recipientId: string, clauses: TreatyClauseType[]): void {
+  proposeTreaty(recipientId: string, clauses: Array<TreatyClauseType | TreatyClause>): void {
     this.sendPacket(PacketType.DIPLOMACY_TREATY_PROPOSE, {
       recipientId,
-      clauses: clauses.map(type => ({ type })),
+      clauses: clauses.map(clause => (typeof clause === 'string' ? { type: clause } : clause)),
       requestId: crypto.randomUUID(),
     });
   }

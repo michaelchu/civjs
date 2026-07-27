@@ -12,11 +12,23 @@ export type DiplomaticState =
   | 'peace'
   | 'alliance';
 
-export type TreatyClauseType = 'ceasefire' | 'peace' | 'alliance' | 'embassy' | 'shared_vision';
+export type TreatyClauseType =
+  | 'ceasefire'
+  | 'peace'
+  | 'alliance'
+  | 'embassy'
+  | 'shared_vision'
+  | 'technology'
+  | 'gold'
+  | 'map'
+  | 'seamap'
+  | 'city';
 
-export interface TreatyClause {
-  type: TreatyClauseType;
-}
+export type TreatyClause =
+  | { type: 'ceasefire' | 'peace' | 'alliance' | 'embassy' | 'shared_vision' | 'map' | 'seamap' }
+  | { type: 'technology'; techId: string }
+  | { type: 'gold'; amount: number }
+  | { type: 'city'; cityId: string };
 
 export interface TreatyProposal {
   id: string;
@@ -71,6 +83,12 @@ export interface DiplomacySnapshot {
  */
 export class DiplomacyManager {
   private readonly pairLocks = new Map<string, Promise<unknown>>();
+  private transferExecutor?: (
+    gameId: string,
+    proposerId: string,
+    recipientId: string,
+    clauses: TreatyClause[]
+  ) => Promise<void>;
 
   constructor(
     private readonly databaseProvider: DatabaseProvider,
@@ -82,6 +100,17 @@ export class DiplomacyManager {
     private readonly effectsManager: EffectsManager = new EffectsManager(),
     private readonly ruleset: Pick<RulesetLoader, 'getNation'> = rulesetLoader
   ) {}
+
+  setTransferExecutor(
+    executor: (
+      gameId: string,
+      proposerId: string,
+      recipientId: string,
+      clauses: TreatyClause[]
+    ) => Promise<void>
+  ): void {
+    this.transferExecutor = executor;
+  }
 
   async getSnapshot(gameId: string, playerId: string): Promise<DiplomacySnapshot> {
     const db = this.databaseProvider.getDatabase();
@@ -206,6 +235,18 @@ export class DiplomacyManager {
       status: accept ? 'accepted' : 'rejected',
       resolvedAt: new Date().toISOString(),
     };
+    const transferClauses = proposal.clauses.filter(clause =>
+      ['technology', 'gold', 'map', 'seamap', 'city'].includes(clause.type)
+    );
+    if (accept && transferClauses.length > 0) {
+      if (!this.transferExecutor) throw new Error('Treaty transfers are not configured');
+      await this.transferExecutor(
+        gameId,
+        proposal.proposerId,
+        proposal.recipientId,
+        transferClauses
+      );
+    }
     await this.persistPair(player, other, current =>
       accept
         ? this.applyClauses(
@@ -325,6 +366,11 @@ export class DiplomacyManager {
       'alliance',
       'embassy',
       'shared_vision',
+      'technology',
+      'gold',
+      'map',
+      'seamap',
+      'city',
     ]);
     const stateClauses = clauses.filter(clause =>
       ['ceasefire', 'peace', 'alliance'].includes(clause.type)
@@ -334,6 +380,17 @@ export class DiplomacyManager {
       throw new Error('Unsupported treaty clause');
     if (new Set(clauses.map(clause => clause.type)).size !== clauses.length) {
       throw new Error('Treaty clauses must be unique');
+    }
+    for (const clause of clauses) {
+      if (clause.type === 'technology' && !clause.techId) {
+        throw new Error('Technology clause requires a technology');
+      }
+      if (clause.type === 'gold' && (!Number.isInteger(clause.amount) || clause.amount <= 0)) {
+        throw new Error('Gold clause requires a positive integer amount');
+      }
+      if (clause.type === 'city' && !clause.cityId) {
+        throw new Error('City clause requires a city');
+      }
     }
   }
 

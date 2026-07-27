@@ -143,7 +143,7 @@ describe('CityManager', () => {
   });
 
   describe('airport airlift usage', () => {
-    it('persists one reservation per endpoint city per turn', async () => {
+    it('requires source capacity while allowing unlimited classic destinations', async () => {
       const source = {
         id: 'source-city',
         playerId: 'player-123',
@@ -152,7 +152,7 @@ describe('CityManager', () => {
       const destination = {
         id: 'destination-city',
         playerId: 'player-123',
-        buildings: ['airport'],
+        buildings: [],
       };
       (cityManager as any).cities.set(source.id, source);
       (cityManager as any).cities.set(destination.id, destination);

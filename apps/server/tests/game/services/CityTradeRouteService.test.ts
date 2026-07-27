@@ -93,6 +93,50 @@ describe('CityTradeRouteService', () => {
     ]);
   });
 
+  it('selects classic relationship types, goods, and both one-time bonuses', async () => {
+    source.tradePerTurn = 8;
+    partner.tradePerTurn = 4;
+    const service = new CityTradeRouteService(
+      new Map([
+        [source.id, source],
+        [partner.id, partner],
+      ]),
+      3,
+      {
+        width: 80,
+        height: 50,
+        getContinentId: () => 1,
+        getCurrentTurn: () => 7,
+      }
+    );
+
+    expect(service.calculateTradeSettlement(source, partner, 'alliance')).toEqual({
+      routeType: 'Ally',
+      bonusType: 'Both',
+      bonus: 13,
+      goods: 'good',
+    });
+    await service.establishTradeRoute(source.id, partner.id, 'p1', 'alliance');
+    expect(source.tradeRoutes[0]).toEqual(
+      expect.objectContaining({ routeType: 'Ally', goods: 'good' })
+    );
+  });
+
+  it('cancels classic routes when diplomacy changes their relationship type', async () => {
+    const service = new CityTradeRouteService(
+      new Map([
+        [source.id, source],
+        [partner.id, partner],
+      ])
+    );
+    await service.establishTradeRoute(source.id, partner.id, 'p1', 'alliance');
+
+    service.updateRoutesForDiplomacy('p1', 'p2', 'war');
+
+    expect(source.tradeRoutes).toEqual([]);
+    expect(partner.tradeRoutes).toEqual([]);
+  });
+
   it('enforces the classic minimum distance only for domestic routes', async () => {
     const nearby = city('nearby', 'p1', 3, 3, 4);
     const foreign = city('foreign', 'p2', 3, 3, 4);
@@ -107,7 +151,7 @@ describe('CityTradeRouteService', () => {
     await expect(service.establishTradeRoute(source.id, foreign.id, 'p1')).resolves.toBe(true);
   });
 
-  it('recalculates reciprocal revenue when ownership changes', async () => {
+  it('cancels reciprocal routes when ownership changes their classic type', async () => {
     const service = new CityTradeRouteService(
       new Map([
         [source.id, source],
@@ -118,10 +162,10 @@ describe('CityTradeRouteService', () => {
     expect(source.tradeRoutes[0].value).toBe(4);
 
     partner.playerId = 'p1';
-    service.updateRoutesOnPlayerChange(partner.id);
+    await service.updateRoutesOnPlayerChange(partner.id, async () => 'no_contact');
 
-    expect(source.tradeRoutes[0].value).toBe(2);
-    expect(partner.tradeRoutes[0].value).toBe(2);
+    expect(source.tradeRoutes).toEqual([]);
+    expect(partner.tradeRoutes).toEqual([]);
   });
 
   it('removes reciprocal routes when a city is destroyed', async () => {

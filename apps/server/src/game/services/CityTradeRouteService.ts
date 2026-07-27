@@ -63,7 +63,8 @@ export class CityTradeRouteService extends BaseGameService {
    */
   public calculateTradeRouteValue(
     sourceCity: CityState,
-    partnerCity: CityState
+    partnerCity: CityState,
+    relation: string = 'no_contact'
   ): TradeRouteCalculation {
     // Classic revenue uses real (Chebyshev) distance, with half of the
     // distance normalized to a 40-tile-wide world by the default setting.
@@ -82,14 +83,7 @@ export class CityTradeRouteService extends BaseGameService {
       sourceContinent !== undefined &&
       partnerContinent !== undefined &&
       sourceContinent !== partnerContinent;
-    const international = sourceCity.playerId !== partnerCity.playerId;
-    const routeType = international
-      ? intercontinental
-        ? 'INIC'
-        : 'IN'
-      : intercontinental
-        ? 'NationalIC'
-        : 'National';
+    const routeType = this.getRouteType(sourceCity, partnerCity, relation, intercontinental);
     const tradePercent =
       this.tradeRules.settings.find(setting => setting.type === routeType)?.pct ?? 0;
     const sizeValue = sourceCity.population + partnerCity.population;
@@ -108,6 +102,61 @@ export class CityTradeRouteService extends BaseGameService {
     };
   }
 
+  public calculateTradeSettlement(
+    sourceCity: CityState,
+    partnerCity: CityState,
+    relation: string = 'no_contact'
+  ): {
+    routeType: string;
+    bonusType: 'None' | 'Gold' | 'Science' | 'Both';
+    bonus: number;
+    goods: string;
+  } {
+    const distance = Math.max(
+      Math.abs(sourceCity.x - partnerCity.x),
+      Math.abs(sourceCity.y - partnerCity.y)
+    );
+    const relativeDistance = Math.floor(
+      (distance * 40) / Math.max(this.mapContext.width, this.mapContext.height)
+    );
+    const weightedDistance = Math.floor((50 * distance + 50 * relativeDistance) / 100);
+    const sourceContinent = this.mapContext.getContinentId(sourceCity.x, sourceCity.y);
+    const partnerContinent = this.mapContext.getContinentId(partnerCity.x, partnerCity.y);
+    const routeType = this.getRouteType(
+      sourceCity,
+      partnerCity,
+      relation,
+      sourceContinent !== undefined &&
+        partnerContinent !== undefined &&
+        sourceContinent !== partnerContinent
+    );
+    const setting = this.tradeRules.settings.find(candidate => candidate.type === routeType);
+    return {
+      routeType,
+      bonusType: setting?.bonus ?? 'None',
+      bonus: Math.ceil(
+        ((weightedDistance + 10) *
+          ((sourceCity.tradePerTurn ?? 0) + (partnerCity.tradePerTurn ?? 0))) /
+          24
+      ),
+      goods: Object.keys(rulesetLoader.loadGameRulesRuleset().goods)[0] ?? 'good',
+    };
+  }
+
+  private getRouteType(
+    sourceCity: CityState,
+    partnerCity: CityState,
+    relation: string,
+    intercontinental: boolean
+  ): string {
+    const suffix = intercontinental ? 'IC' : '';
+    if (sourceCity.playerId === partnerCity.playerId) return `National${suffix}`;
+    if (relation === 'alliance') return `Ally${suffix}`;
+    if (relation === 'team') return `Team${suffix}`;
+    if (relation === 'war') return `Enemy${suffix}`;
+    return `IN${suffix}`;
+  }
+
   /**
    * Establish a trade route between two cities
    * @reference Original CityManager.establishTradeRoute()
@@ -115,7 +164,8 @@ export class CityTradeRouteService extends BaseGameService {
   public async establishTradeRoute(
     sourceCityId: string,
     partnerCityId: string,
-    playerId: string
+    playerId: string,
+    relation: string = 'no_contact'
   ): Promise<boolean> {
     const sourceCity = this.cities.get(sourceCityId);
     const partnerCity = this.cities.get(partnerCityId);
@@ -166,7 +216,8 @@ export class CityTradeRouteService extends BaseGameService {
     }
 
     // Calculate trade value
-    const calculation = this.calculateTradeRouteValue(sourceCity, partnerCity);
+    const calculation = this.calculateTradeRouteValue(sourceCity, partnerCity, relation);
+    const settlement = this.calculateTradeSettlement(sourceCity, partnerCity, relation);
     if (
       !this.canMakeRoomForRoute(sourceCity, calculation.totalValue) ||
       !this.canMakeRoomForRoute(partnerCity, calculation.totalValue)
@@ -188,6 +239,8 @@ export class CityTradeRouteService extends BaseGameService {
         Math.abs(sourceCity.y - partnerCity.y)
       ),
       isCaravan: true,
+      routeType: settlement.routeType,
+      goods: settlement.goods,
     };
 
     // Initialize trade routes array if needed
@@ -313,20 +366,70 @@ export class CityTradeRouteService extends BaseGameService {
    * values frozen when the caravan arrived.
    * @reference reference/freeciv/server/citytools.c:953-1009
    */
-  public updateRoutesOnPlayerChange(cityId: string): void {
+  public async updateRoutesOnPlayerChange(
+    cityId: string,
+    relationProvider: (playerId: string, otherPlayerId: string) => Promise<string>
+  ): Promise<void> {
     const city = this.cities.get(cityId);
     if (!city) return;
 
-    for (const route of city.tradeRoutes ?? []) {
+    for (const route of [...(city.tradeRoutes ?? [])]) {
       const partner = this.cities.get(route.partnerCity);
       if (!partner) continue;
-      const value = this.calculateTradeRouteValue(city, partner).totalValue;
+      const relation =
+        city.playerId === partner.playerId
+          ? 'domestic'
+          : await relationProvider(city.playerId, partner.playerId);
+      const settlement = this.calculateTradeSettlement(city, partner, relation);
+      if (this.shouldCancelRoute(route.routeType, settlement.routeType)) {
+        await this.removeTradeRoute(city.id, partner.id);
+        continue;
+      }
+      const value = this.calculateTradeRouteValue(city, partner, relation).totalValue;
       route.value = value;
       const reciprocal = (partner.tradeRoutes ?? []).find(
         candidate => candidate.partnerCity === cityId
       );
       if (reciprocal) reciprocal.value = value;
     }
+  }
+
+  public updateRoutesForDiplomacy(
+    firstPlayerId: string,
+    secondPlayerId: string,
+    relation: string
+  ): void {
+    for (const city of this.cities.values()) {
+      for (const route of [...(city.tradeRoutes ?? [])]) {
+        const partner = this.cities.get(route.partnerCity);
+        if (
+          !partner ||
+          !(
+            (city.playerId === firstPlayerId && partner.playerId === secondPlayerId) ||
+            (city.playerId === secondPlayerId && partner.playerId === firstPlayerId)
+          )
+        ) {
+          continue;
+        }
+        const nextType = this.calculateTradeSettlement(city, partner, relation).routeType;
+        if (this.shouldCancelRoute(route.routeType, nextType)) {
+          city.tradeRoutes = city.tradeRoutes.filter(
+            candidate => candidate.partnerCity !== partner.id
+          );
+          partner.tradeRoutes = partner.tradeRoutes.filter(
+            candidate => candidate.partnerCity !== city.id
+          );
+        }
+      }
+    }
+  }
+
+  private shouldCancelRoute(previousType: string | undefined, nextType: string): boolean {
+    if (!previousType || previousType === nextType) return false;
+    return (
+      this.tradeRules.settings.find(setting => setting.type === previousType)?.cancelling ===
+      'Cancel'
+    );
   }
 
   /**

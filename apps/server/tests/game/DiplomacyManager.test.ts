@@ -98,6 +98,26 @@ describe('DiplomacyManager', () => {
     });
   });
 
+  it('executes classic material clauses when the recipient accepts', async () => {
+    const executeTransfers = jest.fn().mockResolvedValue(undefined);
+    manager.setTransferExecutor(executeTransfers);
+    const clauses = [
+      { type: 'technology' as const, techId: 'alphabet' },
+      { type: 'gold' as const, amount: 50 },
+      { type: 'map' as const },
+      { type: 'seamap' as const },
+      { type: 'city' as const, cityId: 'rome' },
+    ];
+    const proposal = await manager.proposeTreaty('game-1', 'p1', 'p2', clauses);
+
+    await manager.respondToTreaty('game-1', 'p2', 'p1', proposal.id, true);
+
+    expect(executeTransfers).toHaveBeenCalledWith('game-1', 'p1', 'p2', clauses);
+    expect((await manager.getSnapshot('game-1', 'p1')).nations[0].relation.proposal).toEqual(
+      expect.objectContaining({ status: 'accepted' })
+    );
+  });
+
   it('serializes simultaneous meetings for the same pair', async () => {
     const results = await Promise.allSettled([
       manager.proposeTreaty('game-1', 'p1', 'p2', [{ type: 'peace' }], 'from-p1'),

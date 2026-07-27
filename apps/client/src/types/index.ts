@@ -186,7 +186,23 @@ export type DiplomaticState =
   | 'peace'
   | 'alliance';
 
-export type TreatyClauseType = 'ceasefire' | 'peace' | 'alliance' | 'embassy' | 'shared_vision';
+export type TreatyClauseType =
+  | 'ceasefire'
+  | 'peace'
+  | 'alliance'
+  | 'embassy'
+  | 'shared_vision'
+  | 'technology'
+  | 'gold'
+  | 'map'
+  | 'seamap'
+  | 'city';
+
+export type TreatyClause =
+  | { type: 'ceasefire' | 'peace' | 'alliance' | 'embassy' | 'shared_vision' | 'map' | 'seamap' }
+  | { type: 'technology'; techId: string }
+  | { type: 'gold'; amount: number }
+  | { type: 'city'; cityId: string };
 
 export interface DiplomacyNation {
   id: string;
@@ -204,7 +220,7 @@ export interface DiplomacyNation {
       id: string;
       proposerId: string;
       recipientId: string;
-      clauses: Array<{ type: TreatyClauseType }>;
+      clauses: TreatyClause[];
       status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
       createdAt: string;
     };

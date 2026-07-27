@@ -1,5 +1,5 @@
 /* eslint-disable complexity */
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { Server as SocketServer } from 'socket.io';
 import { DatabaseProvider, productionDatabaseProvider } from '@database';
 import { gameState } from '@database/redis';
@@ -203,6 +203,9 @@ export class GameManager {
             ?.cityManager.getCitiesByPlayer(playerId)
             .flatMap(city => city.buildings) ?? []
         )
+    );
+    this.diplomacyManager.setTransferExecutor((gameId, proposerId, recipientId, clauses) =>
+      this.executeTreatyTransfers(gameId, proposerId, recipientId, clauses)
     );
     this.aiAdapter = new CivJSAIAdapter(this.diplomacyManager);
 
@@ -499,6 +502,11 @@ export class GameManager {
       .respondToTreaty(gameId, playerId, otherPlayerId, proposalId, accept)
       .then(async proposal => {
         await this.refreshSharedVision(gameId);
+        if (accept) {
+          await this.games
+            .get(gameId)
+            ?.cityManager.updateTradeRoutesForDiplomacy(playerId, otherPlayerId);
+        }
         return proposal;
       });
   }
@@ -515,6 +523,9 @@ export class GameManager {
   public declareWar(gameId: string, playerId: string, otherPlayerId: string): Promise<void> {
     return this.diplomacyManager.declareWar(gameId, playerId, otherPlayerId).then(async () => {
       await this.refreshSharedVision(gameId);
+      await this.games
+        .get(gameId)
+        ?.cityManager.updateTradeRoutesForDiplomacy(playerId, otherPlayerId);
     });
   }
 
@@ -759,6 +770,76 @@ export class GameManager {
     );
   }
 
+  private async executeTreatyTransfers(
+    gameId: string,
+    proposerId: string,
+    recipientId: string,
+    clauses: TreatyClause[]
+  ): Promise<void> {
+    const game = this.games.get(gameId);
+    if (!game) throw new Error('Game is not active');
+    const rows = await this.databaseProvider.getDatabase().query.players.findMany({
+      where: eq(players.gameId, gameId),
+    });
+    const proposer = rows.find(player => player.id === proposerId);
+    const recipient = rows.find(player => player.id === recipientId);
+    if (!proposer || !recipient) throw new Error('Treaty player not found');
+
+    for (const clause of clauses) {
+      if (clause.type === 'technology') {
+        if (!game.researchManager.getResearchedTechs(proposerId).includes(clause.techId)) {
+          throw new Error('Proposer does not know the offered technology');
+        }
+        if (game.researchManager.getResearchedTechs(recipientId).includes(clause.techId)) {
+          throw new Error('Recipient already knows the offered technology');
+        }
+      }
+      if (clause.type === 'gold' && proposer.gold < clause.amount) {
+        throw new Error('Proposer cannot afford the offered gold');
+      }
+      if (
+        clause.type === 'city' &&
+        game.cityManager.getCity(clause.cityId)?.playerId !== proposerId
+      ) {
+        throw new Error('Proposer does not own the offered city');
+      }
+    }
+
+    for (const clause of clauses) {
+      if (clause.type === 'technology') {
+        await game.researchManager.grantTechnology(recipientId, clause.techId);
+      } else if (clause.type === 'gold') {
+        const db = this.databaseProvider.getDatabase();
+        await db
+          .update(players)
+          .set({ gold: sql`${players.gold} - ${clause.amount}` })
+          .where(eq(players.id, proposerId));
+        await db
+          .update(players)
+          .set({ gold: sql`${players.gold} + ${clause.amount}` })
+          .where(eq(players.id, recipientId));
+      } else if (clause.type === 'city') {
+        if (!(await game.cityManager.transferCity(clause.cityId, recipientId))) {
+          throw new Error('Offered city could not be transferred');
+        }
+      } else if (clause.type === 'map' || clause.type === 'seamap') {
+        const explored = game.visibilityManager.getExploredTiles(proposerId);
+        const granted =
+          clause.type === 'map'
+            ? explored
+            : [...explored].filter(tileKey => {
+                const [x, y] = tileKey.split(',').map(Number);
+                return ['ocean', 'coast', 'deep_ocean', 'lake'].includes(
+                  game.mapManager.getTile(x, y)?.terrain ?? ''
+                );
+              });
+        game.visibilityManager.grantExploredTiles(recipientId, granted);
+      }
+    }
+    game.visibilityManager.updatePlayerVisibility(recipientId);
+    this.gameBroadcastManager.broadcastVisibilityState(gameId);
+  }
+
   /**
    * @reference reference/freeciv/common/unit.c:2371-2471 unit_bribe_cost()
    */
@@ -834,6 +915,17 @@ export class GameManager {
   private async configureMultiplayerInstance(gameId: string): Promise<void> {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) return;
+    const economicManager = gameInstance.turnManager.getEconomicManager();
+    gameInstance.cityManager.setTradeProviders(
+      async (playerId, amount) =>
+        economicManager
+          ? economicManager.addPlayerGold(playerId, amount, 'Caravan trade bonus')
+          : false,
+      async (playerId, amount) => {
+        await gameInstance.researchManager.addResearchPoints(playerId, amount);
+      },
+      (playerId, otherPlayerId) => this.getDiplomaticState(gameId, playerId, otherPlayerId)
+    );
     gameInstance.visibilityManager.setSharedVisionProvider(
       playerId => this.sharedVisionByGame.get(gameId)?.get(playerId) ?? new Set()
     );

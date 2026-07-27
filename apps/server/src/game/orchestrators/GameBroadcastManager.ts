@@ -13,6 +13,7 @@ import type { GameInstance } from '@game/managers/GameManager';
 import { getUnitType } from '@game/constants/UnitConstants';
 import { rulesetActionsService } from '@game/services/RulesetActionsService';
 import { resolveCityPresentations } from '@game/services/CityPresentationService';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 export interface BroadcastService {
   broadcastToGame(gameId: string, event: string, data: any): void;
@@ -615,10 +616,23 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
     const allCities = gameInstance.cityManager.getAllCities();
     const debugVisibility = this.isDebugVisibilityEnabled(gameId, playerId);
+    const rulesetName = gameInstance.config?.ruleset ?? 'classic';
+    const smallWonderVisibility =
+      rulesetLoader.loadGameRulesRuleset(rulesetName).wonder_visibility.small_wonders;
     const visibleCities = debugVisibility
       ? allCities
       : allCities.filter(
-          (city: any) => city.playerId === playerId || exploredTiles.has(`${city.x},${city.y}`)
+          (city: any) =>
+            city.playerId === playerId ||
+            exploredTiles.has(`${city.x},${city.y}`) ||
+            (smallWonderVisibility === 'Always' &&
+              city.buildings.some((buildingId: string) => {
+                try {
+                  return rulesetLoader.getBuilding(buildingId, rulesetName).genus === 'SmallWonder';
+                } catch {
+                  return false;
+                }
+              }))
         );
 
     const presentations = resolveCityPresentations(
@@ -628,7 +642,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     );
     const clientCityData = CityDataService.transformCitiesForClient(
       visibleCities,
-      'classic',
+      rulesetName,
       undefined,
       presentations
     );
