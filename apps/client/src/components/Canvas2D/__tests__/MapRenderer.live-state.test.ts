@@ -162,6 +162,33 @@ describe('MapRenderer live-state updates', () => {
     expect(context.fillText).not.toHaveBeenCalled();
   });
 
+  it('keeps unit sprites in the overdraw margin while panning', () => {
+    const context = createContext();
+    const unitSprite = {} as HTMLImageElement;
+    const tilesetLoader = {
+      getSprite: (key: string) => (key === 'u.warriors' ? unitSprite : null),
+    };
+    const renderer = new UnitRenderer(context, tilesetLoader as never, 96, 48);
+    const unit: Unit = {
+      id: 'edge-unit',
+      playerId: 'player',
+      unitTypeId: 'warriors',
+      x: 0,
+      y: 0,
+      hp: 100,
+      movesLeft: 1,
+      veteranLevel: 0,
+    };
+
+    renderer.renderUnits({
+      ...createRenderState(),
+      viewport: { x: 100, y: 0, width: 800, height: 600 },
+      units: { [unit.id]: unit },
+    });
+
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, -81, -14);
+  });
+
   it('culls known tiles that are outside the canvas overdraw margin', () => {
     const renderer = new MapRenderer(createContext());
     const nearTile = {

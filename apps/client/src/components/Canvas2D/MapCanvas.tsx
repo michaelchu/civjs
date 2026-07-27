@@ -6,7 +6,7 @@ import { TileHoverOverlay } from './TileHoverOverlay';
 import { UnitContextMenu } from '../GameUI/UnitContextMenu';
 import { CityNameDialog } from '../GameUI/CityNameDialog';
 import { CityInfoOverlay } from '../GameUI/CityInfoOverlay';
-import type { Unit, City, ProductionOption } from '../../types';
+import type { Unit, City, ProductionOption, MapViewport } from '../../types';
 import { ActionType } from '../../types/shared/actions';
 import { gameClient } from '../../services/GameClient';
 import { pathfindingService, type GotoPath } from '../../services/PathfindingService';
@@ -99,7 +99,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const map = useGameStore(state => state.map);
   const units = useGameStore(state => state.units);
   const cities = useGameStore(state => state.cities);
-  const players = useGameStore(state => state.players);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const focusedUnits = useGameStore(state => state.focusedUnits);
   const selectedUnitId = useGameStore(state => state.selectedUnitId);
@@ -241,6 +240,33 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     rendererRef.current?.setFogOfWarEnabled(fogOfWarEnabled);
   }, [fogOfWarEnabled]);
 
+  const renderLatestSnapshot = useCallback(
+    (viewportOverride?: MapViewport, immediate = false) => {
+      const renderer = rendererRef.current;
+      if (!renderer) return;
+
+      // Read the store once so a redraw cannot mix entities from one state
+      // revision with the viewport from another.
+      const state = useGameStore.getState();
+      renderer.render(
+        {
+          viewport: viewportOverride ?? state.viewport,
+          map: state.map,
+          units: state.units,
+          cities: state.cities,
+          players: state.players,
+          selectedUnitId: state.selectedUnitId,
+          focusedUnits: state.focusedUnits,
+          gotoPath: gotoMode.currentPath,
+          currentPlayerId: state.currentPlayerId,
+          researchedTechs: state.research?.researchedTechs,
+        },
+        immediate
+      );
+    },
+    [gotoMode.currentPath]
+  );
+
   // Update canvas size
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -346,23 +372,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   useEffect(() => {
     if (!rendererReady || !rendererRef.current || !canvasRef.current) return;
 
-    const renderSnapshot = () => {
-      const state = useGameStore.getState();
-      rendererRef.current?.render({
-        viewport: state.viewport,
-        map: state.map,
-        units: state.units,
-        cities: state.cities,
-        players: state.players,
-        selectedUnitId: state.selectedUnitId,
-        focusedUnits: state.focusedUnits,
-        gotoPath: gotoMode.currentPath,
-        currentPlayerId: state.currentPlayerId,
-        researchedTechs: state.research?.researchedTechs,
-      });
-    };
-
-    renderSnapshot();
+    renderLatestSnapshot();
     return useGameStore.subscribe(
       state =>
         [
@@ -376,95 +386,64 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           state.currentPlayerId,
           state.research?.researchedTechs,
         ] as const,
-      renderSnapshot,
+      () => renderLatestSnapshot(),
       { equalityFn: shallow }
     );
-  }, [gotoMode.currentPath, rendererReady]);
+  }, [renderLatestSnapshot, rendererReady]);
 
   // Optimized animation for selection pulsing - use a simple timer instead of continuous animation loop
   useEffect(() => {
-    const currentSelectedUnitId = selectedUnitId;
-
     // Don't run animation while dragging to prevent conflicts
-    if (currentSelectedUnitId && rendererRef.current && !isDragging) {
+    if (selectedUnitId && rendererRef.current && !isDragging) {
       // Use setInterval with a reasonable refresh rate to avoid stuttering during scrolling
       const intervalId = setInterval(() => {
-        // Double-check we're still not dragging
-        if (rendererRef.current && !isDragging) {
-          rendererRef.current.render(
-            {
-              viewport,
-              map,
-              units,
-              cities,
-              players,
-              selectedUnitId: currentSelectedUnitId,
-              focusedUnits,
-              gotoPath: gotoMode.currentPath,
-            },
-            true
-          ); // immediate flag for selection animation
-        }
+        renderLatestSnapshot(undefined, true);
       }, 100); // 10fps for smooth pulsing without interfering with scrolling
 
       return () => {
         clearInterval(intervalId);
-        // Force a final render without selection to clear the outline
-        if (rendererRef.current) {
-          rendererRef.current.render(
-            {
-              viewport,
-              map,
-              units,
-              cities,
-              players,
-              selectedUnitId: null,
-              focusedUnits,
-              gotoPath: gotoMode.currentPath,
-            },
-            true
-          ); // immediate flag to clear selection
-        }
+        // Redraw from the current store revision. Rendering captured React
+        // values here could restore units or a viewport from the prior effect.
+        renderLatestSnapshot(undefined, true);
       };
     } else if (!isDragging) {
-      // Force a render without selection to clear any lingering outline (but not while dragging)
-      if (rendererRef.current) {
-        rendererRef.current.render(
-          {
-            viewport,
-            map,
-            units,
-            cities,
-            players,
-            selectedUnitId: null,
-            focusedUnits,
-            gotoPath: gotoMode.currentPath,
-          },
-          true
-        ); // immediate flag to clear selection
-      }
+      renderLatestSnapshot(undefined, true);
     }
-  }, [
-    selectedUnitId,
-    viewport,
-    map,
-    units,
-    cities,
-    players,
-    focusedUnits,
-    gotoMode.currentPath,
-    isDragging,
-  ]);
+  }, [selectedUnitId, isDragging, renderLatestSnapshot]);
 
   // Drag tracking refs
   const dragStart = useRef({ x: 0, y: 0 });
   const dragStartViewport = useRef(viewport);
   const currentRenderViewport = useRef(viewport);
+  const dragRenderFrame = useRef<number | null>(null);
   const dragStartTime = useRef<number>(0);
   const DRAG_THRESHOLD = 5; // pixels
   const LONG_PRESS_MS = 500; // touch and hold duration to emulate right-click
   const longPressTimeoutRef = useRef<number | null>(null);
   const longPressFiredRef = useRef<boolean>(false);
+
+  const scheduleDragRender = useCallback(
+    (nextViewport: MapViewport) => {
+      currentRenderViewport.current = nextViewport;
+      if (dragRenderFrame.current !== null) {
+        cancelAnimationFrame(dragRenderFrame.current);
+      }
+      dragRenderFrame.current = requestAnimationFrame(() => {
+        dragRenderFrame.current = null;
+        renderLatestSnapshot(currentRenderViewport.current, true);
+      });
+    },
+    [renderLatestSnapshot]
+  );
+
+  useEffect(
+    () => () => {
+      if (dragRenderFrame.current !== null) {
+        cancelAnimationFrame(dragRenderFrame.current);
+      }
+    },
+    []
+  );
 
   // Deactivate goto mode
   const deactivateGotoMode = useCallback(() => {
@@ -718,27 +697,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         y: dragStartViewport.current.y + totalDiffY,
       };
 
-      // Store current render viewport
-      currentRenderViewport.current = newViewport;
-
-      // Directly render without any state updates during drag - use requestAnimationFrame for smoothness
-      requestAnimationFrame(() => {
-        if (rendererRef.current) {
-          rendererRef.current.render(
-            {
-              viewport: newViewport,
-              map: useGameStore.getState().map,
-              units: useGameStore.getState().units,
-              cities: useGameStore.getState().cities,
-              players: useGameStore.getState().players,
-              selectedUnitId: useGameStore.getState().selectedUnitId,
-              focusedUnits: useGameStore.getState().focusedUnits,
-              gotoPath: gotoMode.currentPath,
-            },
-            true
-          ); // immediate flag for drag updates
-        }
-      });
+      // Coalesce pointer events to one frame and render one atomic snapshot.
+      scheduleDragRender(newViewport);
     },
     [
       isDragging,
@@ -748,6 +708,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       gotoMode.targetTile,
       requestGotoPath,
       gotoMode.currentPath,
+      scheduleDragRender,
+      map.tiles,
     ]
   );
 
@@ -995,28 +957,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         y: dragStartViewport.current.y + totalDiffY,
       };
 
-      // Store current render viewport
-      currentRenderViewport.current = newViewport;
-
       if (isDragging) {
-        // Directly render without any state updates during drag
-        requestAnimationFrame(() => {
-          if (rendererRef.current) {
-            rendererRef.current.render(
-              {
-                viewport: newViewport,
-                map: useGameStore.getState().map,
-                units: useGameStore.getState().units,
-                cities: useGameStore.getState().cities,
-                players: useGameStore.getState().players,
-                selectedUnitId: useGameStore.getState().selectedUnitId,
-                focusedUnits: useGameStore.getState().focusedUnits,
-                gotoPath: gotoMode.currentPath,
-              },
-              true
-            ); // immediate flag for touch drag
-          }
-        });
+        scheduleDragRender(newViewport);
       } else {
         // Not dragging: if in goto mode, show live path preview under finger
         if (gotoMode.active) {
@@ -1038,11 +980,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     },
     [
       isDragging,
-      gotoMode.currentPath,
       gotoMode.active,
       gotoMode.targetTile,
       requestGotoPath,
       viewport,
+      scheduleDragRender,
     ]
   );
 

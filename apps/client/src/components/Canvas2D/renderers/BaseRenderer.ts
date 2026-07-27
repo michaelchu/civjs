@@ -59,11 +59,19 @@ export abstract class BaseRenderer {
    */
   protected isInViewport(mapX: number, mapY: number, viewport: MapViewport): boolean {
     const screenPos = this.mapToScreen(mapX, mapY, viewport);
+    const width = this.ctx.canvas?.width || viewport.width;
+    const height = this.ctx.canvas?.height || viewport.height;
+    // Unit and city sprites extend above and beside the tile diamond. Match
+    // terrain culling's overdraw so a sprite is not removed while part of it
+    // is still visible, and prefer the current backing buffer during resize.
+    const horizontalMargin = this.tileWidth;
+    const verticalMargin = this.tileHeight * 2;
+
     return (
-      screenPos.x + this.tileWidth >= 0 &&
-      screenPos.x <= viewport.width &&
-      screenPos.y + this.tileHeight >= 0 &&
-      screenPos.y <= viewport.height
+      screenPos.x + this.tileWidth >= -horizontalMargin &&
+      screenPos.x <= width + horizontalMargin &&
+      screenPos.y + this.tileHeight >= -verticalMargin &&
+      screenPos.y <= height + verticalMargin
     );
   }
 
