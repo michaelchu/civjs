@@ -5,7 +5,9 @@
 The first supported release target is the classic ruleset, conquest victory,
 standard 80×50 maps, and up to eight participants. Turns are simultaneous and
 the server is authoritative. Science and culture contribute to the final score
-but are not advertised as victory conditions.
+but are not advertised as victory conditions. The supported classic covert
+surface includes embassies, city investigation, technology theft, city and
+unit sabotage, poisoning, bribery, and incitement.
 
 ## Pre-deploy
 
@@ -33,6 +35,12 @@ the new nullable columns.
 | Research progress | `research` and player technology IDs | `ResearchManager.test.ts` |
 | Turn audit, actions, events, phase metrics | `game_turns`, `turn_events`, `turn_phases` | `TurnManager.test.ts` |
 | Final scores and report | `players.score`, `games.end_game_report` | `EndGameService.test.ts` |
+
+Ownership, treasury, population, health, and production changes caused by
+covert actions use these same authoritative player, city, and unit records.
+Their rule and persistence boundaries are covered by
+`GameManager.espionage.test.ts`, `CityManager.test.ts`, and
+`UnitManager.test.ts`.
 
 Runtime state snapshots carry a version number. Rule entities remain in their
 normalized tables; snapshots do not become a competing source of truth.

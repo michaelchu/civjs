@@ -1,6 +1,6 @@
 # CivJS Porting Inventory
 
-**Audit baseline:** Milestone 2 working tree (2026-07-26).
+**Audit baseline:** Milestone 8 commit `9ea9d1e2` (2026-07-26).
 **Purpose:** the evidence record for Milestone 0 in [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md). It distinguishes implemented transport/data from unported or unverified upstream behavior.
 
 ## Classic ruleset inventory

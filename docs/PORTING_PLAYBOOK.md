@@ -1,6 +1,7 @@
 # CivJS Porting Playbook
 
-**Status:** active working plan  
+**Status:** Milestones 0–8 complete; further milestones require an explicit
+scope decision
 **Baseline:** [`PORT_STATUS.md`](PORT_STATUS.md)  
 **Goal:** a playable, testable TypeScript port of the Freeciv classic ruleset with a freeciv-web-compatible 2D client experience.
 
@@ -167,7 +168,7 @@ application and authoritative action feedback; the client renders the
 corresponding classic sprites; and `MapManager.test.ts` pins the topology
 summary of a named seed.
 
-### Milestone 5 — Client parity for core play
+### Milestone 5 — Client parity for core play — complete (2026-07-26)
 
 **Outcome:** no core server feature requires a developer tool or missing UI to use.
 
@@ -180,7 +181,12 @@ summary of a named seed.
 
 **Exit criteria:** a player can discover and use all Milestones 1–4 features from the client without console commands.
 
-### Milestone 6 — Diplomacy, AI, and multiplayer robustness
+**Completion evidence:** `GameClient.state-packets.test.ts`,
+`GameClient.management.test.ts`, `GameClient.actions.test.ts`,
+`UnitContextMenu.test.tsx`, both production type checks, and both production
+builds.
+
+### Milestone 6 — Diplomacy, AI, and multiplayer robustness — complete (2026-07-26)
 
 **Outcome:** games remain valid with multiple humans and non-human participants.
 
@@ -190,6 +196,11 @@ summary of a named seed.
 - Test packet ordering, duplicate requests, disconnects, reloads, and race conditions.
 
 **Exit criteria:** a multi-player game handles normal disconnect/reconnect and turn-timeout scenarios without corrupting state.
+
+**Completion evidence:** `DiplomacyManager.test.ts`,
+`CivJSAIAdapter.test.ts`, `GameManager.turns.test.ts`,
+`PacketHandler.ordering.test.ts`, `SocketCoordinator.test.ts`, and
+`UnitActionHandler.test.ts`.
 
 ### Milestone 7 — End game, saves, and release quality — complete (2026-07-26)
 
@@ -251,8 +262,18 @@ Run `npm run format:check`, `npm run lint`, `npm run test:unit`, and `npm run ty
 - Review the status document after each merged feature and perform a broader parity audit at each milestone exit.
 - Maintain a decision log in issues for intentional deviations from Freeciv or freeciv-web.
 
-## First actions
+## Next scope decision
 
-1. Build the Milestone 0 packet and classic-ruleset inventories.
-2. Run the Milestone 1 two-player, 20-turn smoke test and turn every failure into a scoped vertical-slice issue.
-3. Prioritize failures that block city economy, worker actions, or client access to already-supported server mechanics.
+The defined roadmap is complete through Milestone 8. Do not infer a Milestone 9
+from Freeciv's generic action catalogue: the remaining plague, suitcase-nuke,
+and direct gold/map-theft outcomes are not enabled by the classic ruleset.
+
+Before adding another milestone, choose and document one of these scope
+expansions:
+
+1. Support another Freeciv ruleset and port the additional data, requirements,
+   actions, and compatibility tests it enables.
+2. Replace or deepen the documented `CivJSAIAdapter` toward upstream default-AI
+   behavior.
+3. Perform a new classic/freeciv-web parity audit and define a bounded
+   player-visible gap with reference and end-to-end acceptance evidence.

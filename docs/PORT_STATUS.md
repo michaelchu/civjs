@@ -1,9 +1,10 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 8 working tree (2026-07-26)
-**Verification method:** source-tree audit plus passing client/unit tests and the
-production type check/build. Database-backed integration remains separately
-dependent on the configured PostgreSQL test service.
+**Verified against:** Milestone 8 commit `9ea9d1e2` (2026-07-26)
+**Verification method:** source-tree audit, 834 passing unit tests (53 client,
+781 server), and passing formatting, lint, production type checks, and
+production builds. Database-backed integration remains separately dependent on
+the configured PostgreSQL test service.
 
 **External verification blocker (2026-07-26):** `npm run test:integration` was
 attempted, but all 13 suites stopped in shared setup because neither
