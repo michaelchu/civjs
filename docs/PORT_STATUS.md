@@ -1,6 +1,6 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 7 working tree (2026-07-26)
+**Verified against:** Milestone 8 working tree (2026-07-26)
 **Verification method:** source-tree audit plus passing client/unit tests and the
 production type check/build. Database-backed integration remains separately
 dependent on the configured PostgreSQL test service.
@@ -238,12 +238,34 @@ Evidence includes `EndGameService.test.ts`, `TurnManager.test.ts`,
 `GameClient.state-packets.test.ts`, the recovery and integration suites, both
 production builds, and [`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md).
 
+## Milestone 8 — complete
+
+The remaining covert outcomes enabled by the classic ruleset are now playable.
+Diplomats can bribe a lone eligible foreign unit and incite a non-capital,
+non-Democracy city; spies additionally poison size-two-or-larger enemy cities
+and sabotage lone enemy units while at war. The same server-supplied
+capabilities feed the unit menu and the existing cancelable map-target flow.
+
+The server validates movement, adjacency, ownership, stack/city-center,
+`Unbribable`, diplomatic-state, government, capital, and population
+requirements. Classic ruleset data supplies bribe/incite base values and
+factors. Successful actions persist treasury changes, population loss, halved
+unit health, ownership transfers, cleared production, and nearby
+home-supported unit defections. Non-spy diplomats are consumed; surviving
+spies expend their remaining movement.
+
+Freeciv's generic plague, suitcase-nuke, gold-theft, and map-theft outcomes
+remain unadvertised because the classic ruleset does not enable them.
+Evidence includes `GameManager.espionage.test.ts`, `UnitActionHandler.test.ts`,
+`UnitManager.test.ts`, `CityManager.test.ts`, and
+`UnitContextMenu.espionage.test.tsx`.
+
 ## Partial or incomplete areas
 
 These are confirmed by explicit TODOs, placeholders, or unintegrated paths; they are not a complete feature roadmap.
 
-- Covert actions beyond the Milestone 6 playable set (unit bribery, poisoning,
-  plague, nuclear sabotage, and direct gold/map theft) remain unadvertised.
+- Non-classic generic covert outcomes (plague, suitcase-nuke, and direct
+  gold/map theft) remain unadvertised.
 - Freeciv's full default AI is not ported; CivJS uses the replaceable adapter
   documented above.
 

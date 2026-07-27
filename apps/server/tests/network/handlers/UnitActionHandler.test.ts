@@ -404,5 +404,34 @@ describe('UnitActionHandler', () => {
         result: { success: true, message: 'Embassy established' },
       });
     });
+
+    it.each(['bribe_unit', 'incite_city', 'poison_water', 'sabotage_unit'])(
+      'routes the classic %s operation through the diplomacy API',
+      async actionType => {
+        const unit = { id: mockUnitId, playerId: mockPlayerId, x: 4, y: 5 };
+        mockGameManager.getGameInstance.mockReturnValue({
+          players: new Map([[mockPlayerId, { userId: mockUserId }]]),
+          unitManager: { getUnit: jest.fn().mockReturnValue(unit) },
+        } as any);
+        mockGameManager.executeDiplomatAction.mockResolvedValue({
+          success: true,
+          message: 'Completed',
+        });
+
+        await getUnitActionHandler()(
+          { unitId: mockUnitId, actionType, targetX: 5, targetY: 5 },
+          jest.fn()
+        );
+
+        expect(mockGameManager.executeDiplomatAction).toHaveBeenCalledWith(
+          mockGameId,
+          mockPlayerId,
+          mockUnitId,
+          actionType,
+          5,
+          5
+        );
+      }
+    );
   });
 });

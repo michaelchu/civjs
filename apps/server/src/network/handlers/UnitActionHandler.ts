@@ -491,6 +491,10 @@ export class UnitActionHandler extends BaseSocketHandler {
       ActionType.INVESTIGATE_CITY,
       ActionType.STEAL_TECH,
       ActionType.SABOTAGE_CITY,
+      ActionType.BRIBE_UNIT,
+      ActionType.INCITE_CITY,
+      ActionType.POISON_WATER,
+      ActionType.SABOTAGE_UNIT,
     ]);
     const result = diplomatActions.has(data.actionType)
       ? await this.gameManager.executeDiplomatAction(

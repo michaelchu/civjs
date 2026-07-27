@@ -198,6 +198,10 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
         [ActionType.INVESTIGATE_CITY]: 'Investigate City',
         [ActionType.STEAL_TECH]: 'Steal Technology',
         [ActionType.SABOTAGE_CITY]: 'Sabotage City',
+        [ActionType.BRIBE_UNIT]: 'Bribe Unit',
+        [ActionType.INCITE_CITY]: 'Incite Revolt',
+        [ActionType.POISON_WATER]: 'Poison City',
+        [ActionType.SABOTAGE_UNIT]: 'Sabotage Unit',
       };
       actions.push({ separator: true });
       for (const action of unit.capabilities.diplomatActions) {

@@ -203,6 +203,35 @@ summary of a named seed.
 
 **Exit criteria:** a full game can be played to a supported victory condition, saved/reloaded repeatedly, and deployed with monitoring and recovery procedures.
 
+### Milestone 8 — Classic espionage action completion — complete (2026-07-26)
+
+**Outcome:** every remaining covert action enabled by the classic ruleset is
+discoverable and resolved by the authoritative game state.
+
+- Add poison city, bribe unit, sabotage unit, and incite city to the
+  server-advertised diplomat/spy capabilities and client map-target flow.
+- Enforce classic adjacency, movement, actor, target, diplomatic-state,
+  Democracy, capital, city-size, city-center, stack, and `Unbribable`
+  requirements on the server.
+- Drive bribe and incite prices from classic ruleset parameters and persist
+  treasury, unit ownership/health, city population/ownership, production, and
+  nearby supported-unit defections.
+- Keep plague, suitcase-nuke, gold-theft, and map-theft actions unadvertised:
+  they exist in Freeciv's generic action catalogue but have no classic action
+  enablers.
+
+**Primary references:** `server/diplomats.c`, `server/cityturn.c`,
+`common/unit.c`, classic `actions.ruleset`/`game.ruleset`, and freeciv-web
+`action_dialog.js`.
+
+**Exit criteria:** a player can select every classic covert action from a
+diplomat or spy, receive authoritative validation/feedback, and recover its
+persisted city, unit, and treasury result.
+
+**Completion evidence:** `GameManager.espionage.test.ts`,
+`UnitActionHandler.test.ts`, `UnitManager.test.ts`, `CityManager.test.ts`, and
+`UnitContextMenu.espionage.test.tsx`.
+
 ## Testing strategy
 
 | Layer         | Required evidence                                                              |

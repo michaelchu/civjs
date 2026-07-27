@@ -1513,7 +1513,17 @@ export class CityManager {
 
   async transferCity(cityId: string, newPlayerId: string): Promise<boolean> {
     if (!this.captureService) return false;
-    return this.captureService.transferCity(cityId, newPlayerId);
+    const city = this.cities.get(cityId);
+    if (!city) return false;
+    const oldPlayerId = city.playerId;
+    const transferred = await this.captureService.transferCity(cityId, newPlayerId);
+    if (transferred && oldPlayerId !== newPlayerId) {
+      this.calculateCityOutputs(cityId);
+      this.applyCityHappiness(cityId);
+      await this.saveCityToDatabase(city);
+      this.callbacks.onCityCaptured?.(city, oldPlayerId);
+    }
+    return transferred;
   }
 
   // === UTILITY METHODS ===
@@ -1594,6 +1604,25 @@ export class CityManager {
     this.applyCityHappiness(city.id);
     await this.saveCityToDatabase(city);
     return target;
+  }
+
+  /**
+   * A successful classic poison action removes exactly one citizen.
+   * Classic keeps the food stock (`poison_empties_food_stock = FALSE`).
+   * @reference reference/freeciv/server/diplomats.c:97-212
+   * @reference reference/freeciv/data/classic/actions.ruleset:111-113
+   */
+  public async poisonCity(cityId: string, actingPlayerId: string): Promise<CityState> {
+    const city = this.cities.get(cityId);
+    if (!city) throw new Error('Target city not found');
+    if (city.playerId === actingPlayerId) throw new Error('Cannot poison your own city');
+    if (city.size < 2) throw new Error('Target city must have at least two citizens');
+    city.size -= 1;
+    city.population = city.size;
+    this.calculateCityOutputs(city.id);
+    this.applyCityHappiness(city.id);
+    await this.saveCityToDatabase(city);
+    return city;
   }
 
   public getPlayerCityCount(playerId: string): number {

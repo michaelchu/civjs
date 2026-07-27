@@ -10,7 +10,7 @@
 | `buildings.json`   | `data/classic/buildings.ruleset`                 | Loaded and cross-validated; playable-loop costs, upkeep, production gates, defense, happiness, output, veteran/healing, and food retention have parity evidence.                                                |
 | `cities.json`      | `data/classic/cities.ruleset`                    | Present.                                                                                                                                                                                                        |
 | `effects.json`     | `data/classic/effects.ruleset`                   | Loaded, schema-constrained, cross-validated, and evaluated for the Milestone 1 playable loop.                                                                                                                   |
-| `game.json`        | `data/classic/game.ruleset`                      | Loaded; initial buildings, food cost, granary sizing, and city-center minimums drive runtime behavior.                                                                                                          |
+| `game.json`        | `data/classic/game.ruleset`                      | Loaded; initial buildings, food/granary/city-center values, and classic bribe/incite cost parameters drive runtime behavior.                                                                                     |
 | `governments.json` | `data/classic/governments.ruleset`               | Loaded and cross-validated; playable-loop corruption, happiness, martial law, and support effects are active.                                                                                                   |
 | `nations.json`     | `data/classic/nations.ruleset`                   | Present.                                                                                                                                                                                                        |
 | `techs.json`       | `data/classic/techs.ruleset`                     | Present; the research manager now uses the full loaded catalogue for costs, prerequisites, and flags.                                                                                                           |
@@ -18,7 +18,7 @@
 | `units.json`       | `data/classic/units.ruleset`                     | Loaded and cross-validated; values, classes/flags, movement, vision, upkeep, and combat contexts drive runtime behavior.                                                                                        |
 | extras             | `data/classic/terrain.ruleset`                   | No standalone CivJS extras data file; terrain-derived extras and worker integration remain partial.                                                                                                             |
 | requirements       | requirement clauses in the classic ruleset files | Effect requirement evaluation covers the requirement kinds currently present in `effects.json` and fails closed for unsupported or context-free clauses. Action and entity requirement loading remains partial. |
-| —                  | `data/classic/actions.ruleset`                   | No equivalent JSON data file identified; action coverage requires an explicit audit.                                                                                                                            |
+| —                  | `data/classic/actions.ruleset`                   | No equivalent JSON file; exposed actions are explicitly audited against classic enablers. Milestone 8 covers the remaining poison, bribe, unit-sabotage, and incite outcomes.                                   |
 | —                  | `data/classic/styles.ruleset`                    | No equivalent JSON data file identified; client style/rendering coverage requires an explicit audit.                                                                                                            |
 
 The loader parses every `classic/*.json` file with `JSON.parse`, then validates it with Zod. Therefore comments are not valid in these data files. `RulesetLoader.effects.test.ts` loads every supported classic JSON ruleset and covers an effects pair ported from `effects.ruleset:262–278`. The classic effects file previously contained JavaScript comments and could not load; technologies also use `null` to represent an absent `root_req`.
@@ -41,10 +41,10 @@ injects a fresh `RulesetLoader` into each affected boundary. Mutating an effect,
 unit, building, technology, terrain, or game parameter changes the
 corresponding result without modifying the process-wide singleton.
 
-Later-milestone effects remain intentionally inert where their authoritative
-consumer does not yet exist: capture population protection and incite-cost
-effects require the capture/incite action flows, and visible-wall effects
-require client rendering support.
+Effects without a verified authoritative consumer remain inert. The incite
+action flow now consumes the classic cost parameters; requirement/effect
+modifiers beyond the currently represented classic runtime context remain
+fail-closed.
 
 ## Packet inventory
 
@@ -128,7 +128,7 @@ from the isolated `TEST_DATABASE_URL` database, reconnects the host, and
 completes another two-player turn with the recovered city present. It is part
 of `npm run test:integration`.
 
-## Prioritized next slices
+## Original prioritized slices
 
 1. **Generic requirements and effects:** establish a validated representation
    for classic requirements and evaluate it in the player, city, unit, tile,
@@ -148,12 +148,16 @@ city, road/railroad/irrigation/mine work, pillage, cleanup, terrain
 transformation, disband, ruleset transport load/unload, and trade routes.
 The client exposes only capability-appropriate core actions and routes target
 selection through the map. Diplomats and spies additionally expose embassy,
-investigation, technology theft, and city-improvement sabotage through an
-authoritative target-city flow. Unit bribery and the remaining covert,
-bombardment, paradrop, airlift, and automation actions remain outside the
-advertised playable catalogue.
+investigation, technology theft, city-improvement sabotage, unit bribery,
+incitement, poisoning, and unit sabotage through authoritative target flows.
+Generic non-classic covert outcomes, bombardment, paradrop, airlift, and
+automation actions remain outside the advertised playable catalogue.
 
-The local ruleset has no `actions.json`; Freeciv’s action definitions remain in `reference/freeciv/data/classic/actions.ruleset`. The first action-focused port slice should therefore establish a data representation and choose one supported action whose rule legality, packet, state update, and client feedback can be verified end-to-end.
+The local ruleset has no `actions.json`; Freeciv’s action definitions remain in
+`reference/freeciv/data/classic/actions.ruleset`. Supported action exposure is
+therefore maintained as an explicit audited mapping. Milestone 8 completed the
+remaining classic covert outcomes through the existing `unit_action` contract;
+generic non-classic covert outcomes stay unadvertised.
 
 ## Smoke-test status
 

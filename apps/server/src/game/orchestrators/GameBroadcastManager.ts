@@ -453,7 +453,11 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
               'establish_embassy',
               'investigate_city',
               'steal_tech',
-              ...(unitType.flags.includes('Spy') ? ['sabotage_city'] : []),
+              'bribe_unit',
+              'incite_city',
+              ...(unitType.flags.includes('Spy')
+                ? ['sabotage_city', 'poison_water', 'sabotage_unit']
+                : []),
             ]
           : [],
       },

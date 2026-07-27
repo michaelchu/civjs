@@ -716,6 +716,37 @@ describe('UnitManager', () => {
     });
   });
 
+  describe('classic espionage mutations', () => {
+    it('persists bribed ownership and clears the unit orders and movement', async () => {
+      const unit = await unitManager.createUnit('player-456', 'warriors', 10, 10);
+      unit.orders = [{ type: 'move', targetX: 11, targetY: 10 }];
+
+      await unitManager.bribeUnit(unit.id, 'player-123', 'home-city');
+
+      expect(unit).toMatchObject({
+        playerId: 'player-123',
+        homeCityId: 'home-city',
+        movementLeft: 0,
+        orders: [],
+        fortified: false,
+      });
+      expect((mockDbProvider.getDatabase() as any).set).toHaveBeenLastCalledWith(
+        expect.objectContaining({ playerId: 'player-123', movementPoints: '0' })
+      );
+    });
+
+    it('halves the target unit remaining health', async () => {
+      const unit = await unitManager.createUnit('player-456', 'warriors', 10, 10);
+      unit.health = 75;
+
+      await expect(unitManager.sabotageUnit(unit.id)).resolves.toMatchObject({
+        destroyed: false,
+        unit: { health: 37 },
+      });
+      expect(unitManager.getUnit(unit.id)?.health).toBe(37);
+    });
+  });
+
   describe('unit queries', () => {
     beforeEach(async () => {
       await unitManager.createUnit('player-123', 'warriors', 10, 10);

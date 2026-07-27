@@ -40,6 +40,7 @@ export enum ActionType {
   BRIBE_UNIT = 'bribe_unit',
   STEAL_TECH = 'steal_tech',
   INVESTIGATE_CITY = 'investigate_city',
+  INCITE_CITY = 'incite_city',
 
   // Spy actions
   SABOTAGE_CITY = 'sabotage_city',

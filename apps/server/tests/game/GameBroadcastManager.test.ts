@@ -246,6 +246,32 @@ describe('GameBroadcastManager visibility sync', () => {
     ]);
   });
 
+  it('advertises the audited classic covert actions for spies', () => {
+    const formatted = (manager as any).formatUnitForClient(
+      {
+        id: 'spy-1',
+        playerId: playerOne,
+        unitTypeId: 'spy',
+        x: 0,
+        y: 0,
+        movementLeft: 9,
+        health: 100,
+      },
+      { getUnitMaxMovement: () => 3 }
+    );
+
+    expect(formatted.capabilities.diplomatActions).toEqual([
+      'establish_embassy',
+      'investigate_city',
+      'steal_tech',
+      'bribe_unit',
+      'incite_city',
+      'sabotage_city',
+      'poison_water',
+      'sabotage_unit',
+    ]);
+  });
+
   it('visibility-scopes unit destruction using the last-known tile', () => {
     manager.broadcastUnitDestroyed(gameId, {
       id: 'lost-unit',

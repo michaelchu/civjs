@@ -17,10 +17,11 @@ describe('CityManager', () => {
   let cityManager: CityManager;
   let effectsManager: EffectsManager;
   let mockMapManager: MapManager;
+  let mockDbProvider: ReturnType<typeof createMockDatabaseProvider>;
   const gameId = 'test-game-id';
 
   beforeEach(async () => {
-    const mockDbProvider = createMockDatabaseProvider();
+    mockDbProvider = createMockDatabaseProvider();
     effectsManager = new EffectsManager();
 
     // Create a mock MapManager with required methods
@@ -341,6 +342,38 @@ describe('CityManager', () => {
     it('should check if player can support more cities', () => {
       expect(cityManager.canPlayerSupportMoreCities('player-123')).toBe(true);
       expect(cityManager.canPlayerSupportMoreCities('player-456')).toBe(true);
+    });
+  });
+
+  describe('classic espionage mutations', () => {
+    it('poisoning removes one citizen while retaining food stock', async () => {
+      const city = await cityManager.foundCity(10, 10, 'Target', 'player-456');
+      city.size = 3;
+      city.population = 3;
+      city.foodStock = 17;
+
+      const poisoned = await cityManager.poisonCity(city.id, 'player-123');
+
+      expect(poisoned).toMatchObject({ size: 2, population: 2, foodStock: 17 });
+    });
+
+    it('rejects poisoning a size-one city', async () => {
+      const city = await cityManager.foundCity(10, 10, 'Target', 'player-456');
+
+      await expect(cityManager.poisonCity(city.id, 'player-123')).rejects.toThrow(
+        'at least two citizens'
+      );
+    });
+
+    it('persists a diplomatic city transfer through the authoritative manager', async () => {
+      const city = await cityManager.foundCity(10, 10, 'Target', 'player-456');
+
+      await expect(cityManager.transferCity(city.id, 'player-123')).resolves.toBe(true);
+
+      expect(city.playerId).toBe('player-123');
+      expect((mockDbProvider.getDatabase() as any).values).toHaveBeenLastCalledWith(
+        expect.arrayContaining([expect.objectContaining({ playerId: 'player-123' })])
+      );
     });
   });
 

@@ -1312,6 +1312,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           ActionType.INVESTIGATE_CITY,
           ActionType.STEAL_TECH,
           ActionType.SABOTAGE_CITY,
+          ActionType.BRIBE_UNIT,
+          ActionType.INCITE_CITY,
+          ActionType.POISON_WATER,
+          ActionType.SABOTAGE_UNIT,
         ].includes(action)
       ) {
         setTargetActionMode({ unit: selectedUnit, action });
@@ -1320,7 +1324,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           message:
             action === ActionType.TRADE_ROUTE
               ? 'Select the destination city for this trade route'
-              : 'Select an adjacent foreign city',
+              : [ActionType.BRIBE_UNIT, ActionType.SABOTAGE_UNIT].includes(action)
+                ? 'Select an adjacent foreign unit'
+                : 'Select an adjacent foreign city',
         });
         return;
       }
@@ -1485,7 +1491,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       )}
       {targetActionMode && (
         <div className="absolute right-3 top-3 z-[1100] rounded bg-amber-700 px-3 py-2 text-sm text-white shadow">
-          Select a target city · Esc to cancel
+          Select a target · Esc to cancel
         </div>
       )}
       <canvas

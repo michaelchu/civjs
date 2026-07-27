@@ -1113,6 +1113,66 @@ export class UnitManager {
   }
 
   /**
+   * Transfer a bribed unit to its new owner and persist the authoritative
+   * owner/order state.
+   * @reference reference/freeciv/server/diplomats.c:650-760
+   */
+  async bribeUnit(unitId: string, newPlayerId: string, homeCityId?: string): Promise<Unit> {
+    const unit = this.units.get(unitId);
+    if (!unit) throw new Error('Target unit not found');
+    unit.playerId = newPlayerId;
+    unit.homeCityId = homeCityId;
+    unit.orders = [];
+    unit.movementLeft = 0;
+    unit.fortified = false;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({
+        playerId: newPlayerId,
+        homeCityId: homeCityId ?? null,
+        orders: [],
+        currentOrder: null,
+        movementPoints: '0',
+        isFortified: false,
+      })
+      .where(eq(units.id, unitId));
+    return unit;
+  }
+
+  /**
+   * Classic sabotage removes half of the target's remaining hit points.
+   * @reference reference/freeciv/server/diplomats.c:549-635
+   */
+  async sabotageUnit(unitId: string): Promise<{ unit?: Unit; destroyed: boolean }> {
+    const unit = this.units.get(unitId);
+    if (!unit) throw new Error('Target unit not found');
+    if (unit.health < 2) {
+      await this.destroyUnit(unitId);
+      return { destroyed: true };
+    }
+    unit.health = Math.floor(unit.health / 2);
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ health: unit.health })
+      .where(eq(units.id, unitId));
+    return { unit, destroyed: false };
+  }
+
+  async finishDiplomatMission(unitId: string): Promise<void> {
+    const unit = this.units.get(unitId);
+    if (!unit) return;
+    unit.movementLeft = 0;
+    unit.orders = [];
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ movementPoints: '0', orders: [], currentOrder: null })
+      .where(eq(units.id, unitId));
+  }
+
+  /**
    * Get unit by ID
    */
   getUnit(unitId: string): Unit | undefined {

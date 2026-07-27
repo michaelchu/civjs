@@ -23,14 +23,14 @@ import type {
   TaxRateValidation,
   TaxRateRecommendation,
 } from './types/TaxRateTypes';
-import type {
-  TaxRates,
-  PlayerEconomicSummary,
-  CityEconomicOutput,
-  EconomicWarning,
-  RushBuildingCalculation,
-  GoldTransaction,
+import {
   GoldSpendingType,
+  type TaxRates,
+  type PlayerEconomicSummary,
+  type CityEconomicOutput,
+  type EconomicWarning,
+  type RushBuildingCalculation,
+  type GoldTransaction,
 } from './types/EconomicTypes';
 // Economic constants available but not currently used in this manager
 
@@ -198,15 +198,10 @@ export class EconomicManager {
     playerId: string,
     amount: number,
     description: string,
-    metadata?: { cityId?: string; turn?: number }
+    metadata?: { cityId?: string; unitId?: string; turn?: number },
+    type: GoldSpendingType = GoldSpendingType.RUSH_PRODUCTION
   ): Promise<{ success: boolean; newBalance?: number; error?: string }> {
-    return this.treasuryService.spendGold(
-      playerId,
-      amount,
-      'RUSH_PRODUCTION' as GoldSpendingType, // Default type, could be parameterized
-      description,
-      metadata
-    );
+    return this.treasuryService.spendGold(playerId, amount, type, description, metadata);
   }
 
   // ============================================================================

@@ -19,7 +19,7 @@ import { VisibilityMapService } from '@game/services/VisibilityMapService';
 import { GameInstanceRecoveryService } from '@game/services/GameInstanceRecoveryService';
 
 // Keep existing imports for delegation
-import { CityManager } from '@game/managers/CityManager';
+import { BUILDING_TYPES, CityManager, type CityState } from '@game/managers/CityManager';
 import { MapManager } from '@game/managers/MapManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
@@ -38,6 +38,8 @@ import { CivJSAIAdapter } from '@game/services/CivJSAIAdapter';
 import { EndGameService } from '@game/services/EndGameService';
 import { ActionType, type ActionResult } from '@app-types/shared/actions';
 import { getUnitType } from '@game/constants/UnitConstants';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { GoldSpendingType } from '@game/systems/Economic/types/EconomicTypes';
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
@@ -524,13 +526,31 @@ export class GameManager {
       return { success: false, message: 'A diplomat or spy owned by the player is required' };
     }
     if (Math.max(Math.abs(unit.x - targetX), Math.abs(unit.y - targetY)) > 1) {
-      return { success: false, message: 'Target city must be adjacent' };
+      return { success: false, message: 'Target must be adjacent' };
     }
+    if (unit.movementLeft < 1) {
+      return { success: false, message: 'The diplomat has no movement remaining' };
+    }
+
+    const unitTargetActions = new Set([ActionType.BRIBE_UNIT, ActionType.SABOTAGE_UNIT]);
+    if (unitTargetActions.has(actionType)) {
+      return this.executeDiplomatUnitAction(
+        gameId,
+        playerId,
+        unit,
+        unitFlags,
+        actionType,
+        targetX,
+        targetY
+      );
+    }
+
     const city = game.cityManager.getCityAt(targetX, targetY);
     if (!city || city.playerId === playerId) {
       return { success: false, message: 'An adjacent foreign city is required' };
     }
     await this.diplomacyManager.establishContact(gameId, playerId, city.playerId);
+    const relation = await this.getDiplomaticState(gameId, playerId, city.playerId);
 
     let result: ActionResult;
     if (actionType === ActionType.ESTABLISH_EMBASSY) {
@@ -551,10 +571,73 @@ export class GameManager {
       await game.researchManager.grantTechnology(playerId, stolenTech);
       result = { success: true, message: `Stole ${stolenTech} from ${city.name}` };
     } else if (actionType === ActionType.SABOTAGE_CITY) {
+      if (!unitFlags.includes('Spy')) {
+        return { success: false, message: 'Only spies can sabotage a city' };
+      }
       const building = await game.cityManager.sabotageCityBuilding(city.id, playerId);
       if (!building) return { success: false, message: 'No eligible improvement to sabotage' };
       this.gameBroadcastManager.broadcastCityData(gameId);
       result = { success: true, message: `Sabotaged ${building} in ${city.name}` };
+    } else if (actionType === ActionType.POISON_WATER) {
+      if (!unitFlags.includes('Spy')) {
+        return { success: false, message: 'Only spies can poison a city' };
+      }
+      if (relation !== 'war') {
+        return { success: false, message: 'Poisoning a city requires a state of war' };
+      }
+      await game.cityManager.poisonCity(city.id, playerId);
+      this.gameBroadcastManager.broadcastCityData(gameId);
+      result = { success: true, message: `Poisoned ${city.name}; its population fell by one` };
+    } else if (actionType === ActionType.INCITE_CITY) {
+      if (city.buildings.includes('palace')) {
+        return { success: false, message: 'A capital cannot be incited' };
+      }
+      if (
+        game.governmentManager?.getPlayerGovernment(city.playerId)?.currentGovernment ===
+        'democracy'
+      ) {
+        return { success: false, message: 'Cities under Democracy cannot be incited' };
+      }
+      if (relation === 'alliance') {
+        return { success: false, message: 'An allied city cannot be incited' };
+      }
+      const economicManager = game.turnManager.getEconomicManager();
+      if (!economicManager) return { success: false, message: 'Treasury is unavailable' };
+      const cost = await this.calculateInciteCost(game, city);
+      const payment = await economicManager.spendPlayerGold(
+        playerId,
+        cost,
+        `Incited a revolt in ${city.name}`,
+        { cityId: city.id, turn: game.currentTurn },
+        GoldSpendingType.DIPLOMACY
+      );
+      if (!payment.success) {
+        return { success: false, message: `Inciting ${city.name} costs ${cost} gold` };
+      }
+      const formerOwnerId = city.playerId;
+      if (city.size > 1) {
+        await game.cityManager.poisonCity(city.id, playerId);
+      }
+      city.productionStock = 0;
+      await game.cityManager.transferCity(city.id, playerId);
+      const defectingUnits = game.unitManager
+        .getPlayerUnits(formerOwnerId)
+        .filter(
+          candidate =>
+            candidate.homeCityId === city.id &&
+            game.mapManager.getDistance(candidate.x, candidate.y, city.x, city.y) <= 1
+        );
+      for (const defectingUnit of defectingUnits) {
+        await game.unitManager.bribeUnit(defectingUnit.id, playerId, city.id);
+        this.broadcastUnitInfo(gameId, defectingUnit);
+      }
+      const stolenTech = await this.stealFirstAvailableTechnology(game, playerId, formerOwnerId);
+      this.gameBroadcastManager.broadcastCityData(gameId);
+      result = {
+        success: true,
+        message: `Revolt incited in ${city.name} for ${cost} gold${stolenTech ? `; gained ${stolenTech}` : ''}`,
+        cityId: city.id,
+      };
     } else {
       return { success: false, message: 'Unsupported diplomat action' };
     }
@@ -562,9 +645,181 @@ export class GameManager {
     if (!unitFlags.includes('Spy')) {
       await game.unitManager.removeUnit(unit.id);
       result.unitDestroyed = true;
+    } else {
+      await game.unitManager.finishDiplomatMission(unit.id);
     }
     await this.refreshSharedVision(gameId);
     return result;
+  }
+
+  private async executeDiplomatUnitAction(
+    gameId: string,
+    playerId: string,
+    actor: Unit,
+    actorFlags: string[],
+    actionType: ActionType,
+    targetX: number,
+    targetY: number
+  ): Promise<ActionResult> {
+    const game = this.games.get(gameId)!;
+    const targets = game.unitManager
+      .getUnitsAt(targetX, targetY)
+      .filter(candidate => candidate.id !== actor.id);
+    if (targets.length !== 1 || targets[0]!.playerId === playerId) {
+      return { success: false, message: 'An adjacent, single foreign unit is required' };
+    }
+    const target = targets[0]!;
+    const targetType = getUnitType(target.unitTypeId);
+    await this.diplomacyManager.establishContact(gameId, playerId, target.playerId);
+    const relation = await this.getDiplomaticState(gameId, playerId, target.playerId);
+    let result: ActionResult;
+
+    if (actionType === ActionType.BRIBE_UNIT) {
+      if (targetType?.flags?.includes('Unbribable')) {
+        return { success: false, message: 'That unit cannot be bribed' };
+      }
+      if (game.cityManager.getCityAt(targetX, targetY)) {
+        return { success: false, message: 'Units in a city center cannot be bribed' };
+      }
+      if (relation === 'alliance') {
+        return { success: false, message: 'An allied unit cannot be bribed' };
+      }
+      if (
+        game.governmentManager?.getPlayerGovernment(target.playerId)?.currentGovernment ===
+        'democracy'
+      ) {
+        return { success: false, message: 'Units under Democracy cannot be bribed' };
+      }
+      const economicManager = game.turnManager.getEconomicManager();
+      if (!economicManager) return { success: false, message: 'Treasury is unavailable' };
+      const ownerGold = await economicManager.getPlayerGold(target.playerId);
+      const cost = this.calculateBribeCost(game, target, ownerGold);
+      const payment = await economicManager.spendPlayerGold(
+        playerId,
+        cost,
+        `Bribed ${target.unitTypeId}`,
+        { unitId: target.id, turn: game.currentTurn },
+        GoldSpendingType.DIPLOMACY
+      );
+      if (!payment.success) {
+        return { success: false, message: `Bribing ${target.unitTypeId} costs ${cost} gold` };
+      }
+      await game.unitManager.bribeUnit(target.id, playerId, actor.homeCityId);
+      this.broadcastUnitInfo(gameId, target);
+      result = { success: true, message: `Bribed ${target.unitTypeId} for ${cost} gold` };
+    } else {
+      if (!actorFlags.includes('Spy')) {
+        return { success: false, message: 'Only spies can sabotage a unit' };
+      }
+      if (relation !== 'war') {
+        return { success: false, message: 'Sabotaging a unit requires a state of war' };
+      }
+      if (game.cityManager.getCityAt(targetX, targetY)) {
+        return { success: false, message: 'Units in a city center cannot be sabotaged' };
+      }
+      if (target.health < 2) {
+        return { success: false, message: 'Target must have at least two hit points' };
+      }
+      const sabotage = await game.unitManager.sabotageUnit(target.id);
+      if (sabotage.destroyed) this.broadcastUnitDestroyed(gameId, target);
+      else this.broadcastUnitInfo(gameId, sabotage.unit!);
+      result = {
+        success: true,
+        message: `Sabotaged ${target.unitTypeId}; remaining health ${sabotage.unit?.health ?? 0}`,
+        targetDestroyed: sabotage.destroyed,
+      };
+    }
+
+    if (!actorFlags.includes('Spy')) {
+      await game.unitManager.removeUnit(actor.id);
+      result.unitDestroyed = true;
+    } else {
+      await game.unitManager.finishDiplomatMission(actor.id);
+    }
+    return result;
+  }
+
+  private async getDiplomaticState(
+    gameId: string,
+    playerId: string,
+    otherPlayerId: string
+  ): Promise<string> {
+    const snapshot = await this.diplomacyManager.getSnapshot(gameId, playerId);
+    return (
+      snapshot.nations.find(nation => nation.id === otherPlayerId)?.relation.state ?? 'no_contact'
+    );
+  }
+
+  /**
+   * @reference reference/freeciv/common/unit.c:2371-2471 unit_bribe_cost()
+   */
+  private calculateBribeCost(game: GameInstance, target: Unit, ownerGold: number): number {
+    const targetType = getUnitType(target.unitTypeId);
+    const capital = game.cityManager
+      .getPlayerCities(target.playerId)
+      .find(city => city.buildings.includes('palace'));
+    const distance = capital
+      ? game.mapManager.getDistance(capital.x, capital.y, target.x, target.y)
+      : 32;
+    const { base_bribe_cost: baseBribeCost } = rulesetLoader.loadGameRulesRuleset().game_parameters;
+    let cost = (baseBribeCost + ownerGold) / (distance + 2);
+    cost *= (targetType?.cost ?? 10) / 10;
+    cost *= 0.5 * (1 + target.health / 100);
+    return Math.max(1, Math.floor(cost));
+  }
+
+  /**
+   * Available CivJS state is applied to the classic incite formula: treasury,
+   * local units, improvements, stability, city size, and capital distance.
+   * @reference reference/freeciv/server/cityturn.c:3556-3630
+   * @reference reference/freeciv/data/classic/game.ruleset:208-216
+   */
+  private async calculateInciteCost(game: GameInstance, city: CityState): Promise<number> {
+    const economicManager = game.turnManager.getEconomicManager()!;
+    const ownerGold = await economicManager.getPlayerGold(city.playerId);
+    const parameters = rulesetLoader.loadGameRulesRuleset().game_parameters;
+    const unitCost = game.unitManager
+      .getUnitsAt(city.x, city.y)
+      .reduce(
+        (sum, unit) =>
+          sum + (getUnitType(unit.unitTypeId)?.cost ?? 0) * parameters.incite_unit_factor,
+        0
+      );
+    const improvementCost = city.buildings.reduce(
+      (sum, building) =>
+        sum + (BUILDING_TYPES[building]?.cost ?? 0) * parameters.incite_improvement_factor,
+      0
+    );
+    let cost = ownerGold + parameters.base_incite_cost + unitCost + improvementCost;
+    if (city.happiness.unhappy === 0 && city.happiness.angry === 0) cost *= 2;
+    const capital = game.cityManager
+      .getPlayerCities(city.playerId)
+      .find(candidate => candidate.buildings.includes('palace'));
+    const distance = capital
+      ? game.mapManager.getDistance(capital.x, capital.y, city.x, city.y)
+      : 32;
+    const effectiveSize = Math.max(
+      1,
+      city.size + city.happiness.happy - city.happiness.unhappy - city.happiness.angry * 3
+    );
+    return Math.max(
+      1,
+      Math.floor((cost * effectiveSize * parameters.incite_total_factor) / ((distance + 3) * 100))
+    );
+  }
+
+  private async stealFirstAvailableTechnology(
+    game: GameInstance,
+    playerId: string,
+    targetPlayerId: string
+  ): Promise<string | undefined> {
+    const known = new Set(game.researchManager.getResearchedTechs(playerId));
+    const technology = game.researchManager
+      .getResearchedTechs(targetPlayerId)
+      .filter(tech => !known.has(tech))
+      .sort()[0];
+    if (technology) await game.researchManager.grantTechnology(playerId, technology);
+    return technology;
   }
 
   private async configureMultiplayerInstance(gameId: string): Promise<void> {
