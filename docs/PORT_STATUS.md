@@ -1,16 +1,13 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 12 working tree (2026-07-27)
-**Verification method:** source-tree audit, 880 passing unit tests (61 client,
-819 server), 6 passing desktop/mobile Chromium tests, and passing formatting,
-lint, production type checks, and production builds. Database-backed
-integration remains separately dependent on the configured PostgreSQL test
-service.
-
-**External verification blocker (2026-07-26):** `npm run test:integration` was
-attempted, but all 13 suites stopped in shared setup because neither
-`TEST_DATABASE_URL` nor a local PostgreSQL test database was available. No
-database-backed integration assertion ran, so none failed.
+**Verified against:** Milestone 13 working tree (2026-07-27)
+**Verification method:** source-tree audit, 885 passing unit tests (61 client,
+824 server), 6 passing desktop/mobile Chromium tests, 152 passing assertions
+across all 13 PostgreSQL integration suites, release-limit map/turn soaks,
+formatting, lint, production type checks, and production builds. Local
+integration verification is reproducible with
+`npm run test:integration:docker`; CI provisions the same isolated PostgreSQL
+16 service.
 
 ## Purpose
 
@@ -192,10 +189,15 @@ technology, and sabotaging an eligible city improvement. Those operations use
 the same city, research, unit-removal, visibility, and packet paths as human
 gameplay.
 
-CivJS intentionally uses the documented `CivJSAIAdapter` instead of embedding
-a partial copy of Freeciv's tightly coupled default AI. AI participants select
-legal research and production through the authoritative managers and respond
-to non-alliance diplomatic proposals during the normal AI phase.
+CivJS intentionally uses the versioned `CIVJS_AI_CONTRACT` instead of
+embedding a partial copy of Freeciv's tightly coupled default AI. AI
+participants found legal cities; select research and deficit, expansion, or
+defense production; enable worker/exploration automation; attack adjacent
+hostiles; and accept cease-fire/peace while rejecting alliances. Every
+mutation uses the same authoritative managers as human actions. Long-range
+campaign planning, advisor wants, difficulty levels, proactive diplomacy,
+espionage, government planning, and full tax/citizen optimization are explicit
+compatibility deviations rather than implied parity.
 
 Turns are simultaneous: all living humans must finish, while AI participants
 act during turn processing. A disconnected human retains their turn until the
@@ -342,17 +344,39 @@ feedback. CI retains browser traces, screenshots, and videos on failure.
 Evidence includes `PresentationResolver.test.ts`, `RulesetsRoute.test.ts`,
 `renderer-parity.spec.ts`, and `creation-flow.spec.ts`.
 
+## Milestone 13 — complete
+
+The bounded CivJS AI contract is executable and versioned. Deterministic
+reference scenarios cover expansion, economy, research, production, workers,
+combat, diplomacy, action use, restart-safe replay prevention, optional-action
+failure isolation, and completed games. The implementation delegates to
+`ResearchManager`, `CityManager`, `UnitManager`, `DiplomacyManager`, and the
+existing conquest evaluator rather than maintaining a second rules engine.
+
+An isolated PostgreSQL 16 service now runs every database-backed suite locally
+and in CI. The release job executes the browser flow and the real Socket.IO
+restart/reconnect flow in one gate. All 13 integration suites pass with 152
+assertions. Release-limit evidence generates an 80×50 map for eight
+participants and processes 100 eight-participant turns without state drift.
+The database audit also exposed and fixed city assignment capacity: the free
+city center no longer consumes a tile-worker or specialist assignment.
+
+Evidence includes `CivJSAIAdapter.test.ts`, `SocketGameFlow.integration.test.ts`,
+`MapManager.test.ts`, `TurnManager.test.ts`, `docker-compose.test.yml`, the CI
+PostgreSQL service, and [`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md).
+
 ## Partial or incomplete areas
 
 These are confirmed by the post-Milestone 8 audit and are now scheduled in
 [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md):
 
-- Freeciv's full default AI is not ported, and the database-backed integration
-  evidence still depends on an externally configured PostgreSQL service
-  (Milestone 13).
 - Enabled caravan, city/unit-management, worker-extra, nuclear/combat,
   hut/extras, and civil-war outcomes enumerated by the executable audit remain
   scheduled (Milestones 14–15).
+
+Full Freeciv default-AI parity remains outside the agreed target; the supported
+CivJS-specific behavior and deviations are now explicit in
+`CIVJS_AI_CONTRACT`.
 
 Non-classic generic covert outcomes (plague, suitcase-nuke, and direct
 gold/map theft) remain intentionally unadvertised and are not roadmap gaps

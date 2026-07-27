@@ -553,7 +553,7 @@ export class CityOptimizationService extends BaseGameService {
         const bTotal = b.outputs.food + b.outputs.shields + b.outputs.trade;
         return bTotal - aTotal;
       })
-      .slice(0, Math.min(city.population - 1, availableTiles.length)); // -1 for city center
+      .slice(0, Math.min(city.population, availableTiles.length));
 
     const potentialOutput = bestTiles.reduce(
       (total, tile) => ({

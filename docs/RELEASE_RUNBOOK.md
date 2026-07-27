@@ -15,8 +15,9 @@ unit sabotage, poisoning, bribery, and incitement.
 2. Run `npm ci` in the repository root and both applications.
 3. Run `npm run format:check`, `npm run lint`, `npm run typecheck`,
    `npm run test:unit`, `npm run test:e2e`, and `npm run build`.
-4. Run PostgreSQL integration tests with an isolated database:
-   `TEST_DATABASE_URL=... npm run test:integration`.
+4. Run all PostgreSQL integration tests in a disposable local service with
+   `npm run test:integration:docker`. To use an already isolated database
+   instead, run `TEST_DATABASE_URL=... npm run test:integration`.
 5. Apply migrations with `npm run db:migrate:prod` from `apps/server`.
 6. Start the server only after migrations succeed.
 
@@ -34,6 +35,11 @@ screenshots, and video are retained on failure. CI also uploads that directory
 and `playwright-report`. Inspect the trace before accepting a screenshot
 change, because a changed image may indicate missing sprites, fog, borders, or
 responsive controls rather than an intentional visual update.
+
+CI runs this browser flow and all PostgreSQL integration/recovery suites in the
+same release job. The database-backed `SocketGameFlow.integration.test.ts`
+clears server memory, restores the active game from PostgreSQL, reconnects the
+host, and completes another turn.
 
 Migration `0007_add_game_end_report.sql` is additive and preserves existing
 saves. A rollback may run the previous application version without dropping
@@ -86,9 +92,9 @@ normalized tables; snapshots do not become a competing source of truth.
 
 ## Performance and soak checks
 
-The release gate includes the standard-map generation and pathfinding
-performance suites plus `TurnManager.test.ts`, which processes 100 sequential
-audited turns without turn-number drift. Run:
+The release gate includes an 80×50 map generated for eight participants,
+standard-map pathfinding, and `TurnManager.test.ts`, which processes 100
+eight-participant audited turns without turn-number drift. Run:
 
 ```sh
 cd apps/server
@@ -98,6 +104,8 @@ npx jest --runInBand --runTestsByPath \
   tests/game/TurnManager.test.ts
 ```
 
-For a deployment soak, run an eight-participant standard-map game for 100 turns
-while sampling `/metrics`. Fail the gate on a turn-processing error, readiness
-failure, state mismatch after restart, or sustained heap growth.
+The automated tests pin dimensions, participant count, turn count, and state
+drift. For a deployment soak, repeat that game while sampling `/metrics` to
+add process-level readiness and heap evidence. Fail the gate on a
+turn-processing error, readiness failure, state mismatch after restart, or
+sustained heap growth.

@@ -308,7 +308,7 @@ export class CityGovernorService extends BaseGameService {
 
     // Calculate how many workers we can assign
     const totalSpecialists = Object.values(city.specialists).reduce((sum, count) => sum + count, 0);
-    const maxWorkers = city.population - 1 - totalSpecialists; // -1 for city center
+    const maxWorkers = city.population - totalSpecialists;
     const availableWorkerSlots = Math.max(0, maxWorkers - workedTiles.length);
 
     // Assign workers to best available tiles

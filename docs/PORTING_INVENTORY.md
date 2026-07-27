@@ -1,6 +1,6 @@
 # CivJS Porting Inventory
 
-**Audit baseline:** Milestone 10 working tree (2026-07-26).
+**Audit baseline:** Milestone 13 working tree (2026-07-27).
 **Purpose:** the evidence record for Milestone 0 in [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md). It distinguishes implemented transport/data from unported or unverified upstream behavior.
 
 ## Classic ruleset inventory
@@ -137,7 +137,9 @@ combat, city founding, production, research, and 20 complete turns. It then
 clears in-memory games to simulate a server restart, recovers persistent state
 from the isolated `TEST_DATABASE_URL` database, reconnects the host, and
 completes another two-player turn with the recovered city present. It is part
-of `npm run test:integration`.
+of `npm run test:integration`. `npm run test:integration:docker` provisions a
+disposable PostgreSQL 16 service, runs all 13 integration suites, and removes
+the service and its data; CI uses the same database version and suite.
 
 ## Original prioritized slices
 
@@ -188,7 +190,9 @@ start, map/visibility access, city founding, unit creation, research, turn
 advancement, and rejoin. `SocketGameFlow.integration.test.ts` verifies the
 same baseline through the network transport, including restart recovery and a
 continued turn. Both require `TEST_DATABASE_URL` to point to an isolated
-PostgreSQL database.
+PostgreSQL database. Milestone 13 verifies all 13 suites through the disposable
+local runner and the CI PostgreSQL service; this evidence no longer depends on
+an externally maintained test database.
 
 ## Update rule
 

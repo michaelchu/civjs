@@ -75,6 +75,37 @@ describe('MapManager', () => {
   });
 
   describe('map generation', () => {
+    it('generates the supported 80x50 release map for eight participants', async () => {
+      const releasePlayers = new Map(
+        Array.from({ length: 8 }, (_, index) => {
+          const number = index + 1;
+          return [
+            `release-player-${number}`,
+            {
+              id: `release-player-${number}`,
+              userId: `release-user-${number}`,
+              playerNumber: number,
+              civilization: `Civilization ${number}`,
+              isReady: true,
+              hasEndedTurn: false,
+              isConnected: true,
+              lastSeen: new Date(0),
+            },
+          ];
+        })
+      );
+      const releaseMap = new MapManager(80, 50, 'release-soak-seed');
+
+      await releaseMap.generateMap(releasePlayers as any);
+
+      const mapData = releaseMap.getMapData();
+      expect(mapData).toMatchObject({ width: 80, height: 50 });
+      expect(mapData?.startingPositions).toHaveLength(8);
+      expect(mapData?.startingPositions.map(position => position.playerId).sort()).toEqual(
+        Array.from(releasePlayers.keys()).sort()
+      );
+    });
+
     it('should generate a complete map with proper structure', async () => {
       await mapManager.generateMap(testPlayers);
 

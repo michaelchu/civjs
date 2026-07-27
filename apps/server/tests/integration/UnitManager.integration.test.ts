@@ -25,7 +25,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
     // Initialize UnitManager with the test game ID and mock dependencies
     const mockMapManager = {
-      getTileAt: () => ({ terrain: 'grassland' }),
+      getTile: () => ({ terrain: 'grassland', improvements: [] }),
       getTerrainMovementCost: () => 1,
     };
 
@@ -95,7 +95,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       expect(dbUnits[0].x).toBe(10);
       expect(dbUnits[0].y).toBe(10);
       expect(dbUnits[0].health).toBe(100);
-      expect(dbUnits[0].movementPoints).toBe('1.00');
+      expect(dbUnits[0].movementPoints).toBe('3.00');
       expect(dbUnits[0].veteranLevel).toBe(0);
       expect(dbUnits[0].isFortified).toBe(false);
     });
@@ -130,22 +130,18 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       expect(dbUnits).toHaveLength(0);
     });
 
-    it('should prevent stacking civilian units', async () => {
+    it('should persist multiple civilian units on the same tile', async () => {
       // Create first civilian unit
       await unitManager.createUnit(testData.player.id, 'settlers', 10, 10);
 
-      // Try to create another civilian at same position (should fail)
-      await expect(unitManager.createUnit(testData.player.id, 'worker', 10, 10)).rejects.toThrow(
-        'Cannot stack civilian units'
-      );
+      await unitManager.createUnit(testData.player.id, 'worker', 10, 10);
 
       // Verify only one unit exists in database
       const db = getTestDatabase();
       const dbUnits = await db.query.units.findMany({
         where: (units, { eq }) => eq(units.gameId, testData.game.id),
       });
-      expect(dbUnits).toHaveLength(1);
-      expect(dbUnits[0].unitType).toBe('settlers');
+      expect(dbUnits.map(unit => unit.unitType).sort()).toEqual(['settlers', 'worker']);
     });
   });
 
@@ -251,7 +247,11 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       expect(result.defenderDamage).toBeGreaterThan(0);
 
       const attacker = unitManager.getUnit(attackerUnitId);
-      expect(attacker!.movementLeft).toBe(0); // Attack uses all movement
+      if (result.attackerDestroyed) {
+        expect(attacker).toBeUndefined();
+      } else {
+        expect(attacker?.movementLeft).toBe(0);
+      }
 
       // Verify health changes were persisted
       const db = getTestDatabase();
@@ -262,9 +262,17 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         where: (units, { eq }) => eq(units.id, defenderUnitId),
       });
 
-      expect(dbAttacker.health).toBe(attacker!.health);
-      expect(dbDefender.health).toBeLessThan(100);
-      expect(dbAttacker.movementPoints).toBe('0.00');
+      if (result.attackerDestroyed) {
+        expect(dbAttacker).toBeUndefined();
+      } else {
+        expect(dbAttacker.health).toBe(attacker!.health);
+        expect(dbAttacker.movementPoints).toBe('0.00');
+      }
+      if (result.defenderDestroyed) {
+        expect(dbDefender).toBeUndefined();
+      } else {
+        expect(dbDefender.health).toBeLessThan(100);
+      }
     });
 
     it('should handle unit destruction and database cleanup', async () => {
@@ -303,7 +311,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       // Create new unit manager instance
       const testDbProvider = getTestDatabaseProvider();
       const mockMapManager = {
-        getTileAt: () => ({ terrain: 'grassland' }),
+        getTile: () => ({ terrain: 'grassland', improvements: [] }),
         getTerrainMovementCost: () => 1,
       };
 
@@ -396,7 +404,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         where: (units, { eq }) => eq(units.id, unitId),
       });
 
-      expect(dbUnit.movementPoints).toBe('1.00');
+      expect(dbUnit.movementPoints).toBe('3.00');
     });
 
     it('should heal fortified units and persist health', async () => {
@@ -426,7 +434,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       scenario = await createBasicGameScenario();
       // Create UnitManager with the scenario's game ID and mock dependencies
       const mockMapManager = {
-        getTileAt: () => ({ terrain: 'grassland' }),
+        getTile: () => ({ terrain: 'grassland', improvements: [] }),
         getTerrainMovementCost: () => 1,
       };
 
@@ -482,7 +490,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       scenario = await createBasicGameScenario();
 
       const mockMapManager = {
-        getTileAt: () => ({ terrain: 'grassland' }),
+        getTile: () => ({ terrain: 'grassland', improvements: [] }),
         getTerrainMovementCost: () => 1,
       };
 

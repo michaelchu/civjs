@@ -18,25 +18,25 @@ describe('City Population Growth Integration', () => {
       getMapData: jest.fn().mockReturnValue({
         width: 80,
         height: 50,
-        tiles: Array(80 * 50)
-          .fill(null)
-          .map((_, index) => ({
-            x: index % 80,
-            y: Math.floor(index / 80),
+        tiles: Array.from({ length: 80 }, (_, x) =>
+          Array.from({ length: 50 }, (_, y) => ({
+            x,
+            y,
             terrain: 'grassland',
-            resource: null,
+            resource: 'wheat',
             special: null,
             improvement: null,
             city: null,
             units: [],
             isVisible: true,
-          })),
+          }))
+        ),
       }),
       getTile: jest.fn((x: number, y: number) => ({
         x,
         y,
         terrain: 'grassland',
-        resource: null,
+        resource: 'wheat',
         special: null,
         improvement: null,
         city: null,
@@ -61,6 +61,11 @@ describe('City Population Growth Integration', () => {
       // Record initial state
       const initialPopulation = city.population;
       expect(initialPopulation).toBe(1);
+      expect(city.foodPerTurn).toBeGreaterThan(0);
+      expect(
+        (city.workableTiles?.filter(tile => tile.isWorked && !tile.isCenter).length ?? 0) +
+          Object.values(city.specialists).reduce((total, count) => total + count, 0)
+      ).toBe(city.population);
 
       // Set up for guaranteed growth by starting very close to growth threshold
       // Since grassland provides ~1 net food surplus per turn, start at 19
@@ -77,6 +82,10 @@ describe('City Population Growth Integration', () => {
       expect(afterTurn.population).toBe(initialPopulation + 1);
       expect(afterTurn.population).toBe(2);
       expect(afterTurn.size).toBe(2);
+      expect(
+        (afterTurn.workableTiles?.filter(tile => tile.isWorked && !tile.isCenter).length ?? 0) +
+          Object.values(afterTurn.specialists).reduce((total, count) => total + count, 0)
+      ).toBe(afterTurn.population);
 
       // Verify food stock was handled correctly after growth
       expect(afterTurn.foodStock).toBeGreaterThanOrEqual(0);

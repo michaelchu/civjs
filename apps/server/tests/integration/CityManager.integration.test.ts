@@ -162,7 +162,7 @@ describe('CityManager - Integration Tests with Real Database', () => {
         where: (cities, { eq }) => eq(cities.id, cityId),
       });
 
-      expect(dbCity.buildings).toEqual(['library', 'marketplace']);
+      expect(dbCity.buildings).toEqual(['palace', 'library', 'marketplace']);
     });
   });
 

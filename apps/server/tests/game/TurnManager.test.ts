@@ -244,7 +244,13 @@ describe('TurnManager', () => {
       expect(turnManager.getCurrentTurn()).toBe(2);
     });
 
-    it('soaks 100 sequential audit-safe turns without state drift', async () => {
+    it('soaks 100 sequential eight-participant turns without state drift', async () => {
+      const releasePlayerIds = Array.from({ length: 8 }, (_, index) => `player${index + 1}`);
+      await turnManager.initializeTurn(releasePlayerIds, {
+        currentTurn: 1,
+        createTurnRecord: false,
+        broadcastTurnStart: false,
+      });
       const mockTurnPhaseService = (turnManager as any).turnPhaseService;
       mockTurnPhaseService.executePhaseProcessing = jest.fn().mockResolvedValue({
         success: true,
@@ -259,6 +265,11 @@ describe('TurnManager', () => {
 
       expect(turnManager.getCurrentTurn()).toBe(101);
       expect(mockTurnPhaseService.executePhaseProcessing).toHaveBeenCalledTimes(100);
+      expect(mockTurnPhaseService.executePhaseProcessing).toHaveBeenLastCalledWith(
+        100,
+        expect.any(Number),
+        releasePlayerIds
+      );
       expect(mockDatabase.getDatabase().update).toHaveBeenCalled();
     });
 

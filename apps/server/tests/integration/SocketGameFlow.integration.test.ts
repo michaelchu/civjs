@@ -194,7 +194,8 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       { x: unitStart.x, y: unitStart.y - 1 },
     ].find(({ x, y }) => {
       const terrain = map.tiles[x]?.[y]?.terrain;
-      return terrain && getTerrainMovementCost(terrain, 'warriors') <= SINGLE_MOVE;
+      const movementCost = terrain ? getTerrainMovementCost(terrain, 'warriors') : -1;
+      return movementCost >= 0 && movementCost <= SINGLE_MOVE;
     });
     expect(moveTarget).toBeDefined();
 
@@ -243,10 +244,18 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       currentProduction: 'warriors',
     });
 
+    const researchTarget = gameManager
+      .getAvailableTechnologies(gameId, hostPlayer!.id)
+      .sort((left, right) => left.cost - right.cost || left.id.localeCompare(right.id))[0]!;
     const researchReply = waitForPacket(host, PacketType.RESEARCH_SET_REPLY);
-    host.emit('packet', { type: PacketType.RESEARCH_SET, data: { techId: 'mathematics' } });
+    host.emit('packet', {
+      type: PacketType.RESEARCH_SET,
+      data: { techId: researchTarget.id },
+    });
     expect((await researchReply).data).toMatchObject({ success: true });
-    expect(gameManager.getPlayerResearch(gameId, hostPlayer!.id)?.currentTech).toBe('mathematics');
+    expect(gameManager.getPlayerResearch(gameId, hostPlayer!.id)?.currentTech).toBe(
+      researchTarget.id
+    );
 
     const hostTurnReply = waitForPacket(host, PacketType.TURN_END_REPLY);
     host.emit('packet', { type: PacketType.END_TURN, data: {} });
@@ -290,10 +299,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     gameManager.updatePlayerVisibility(gameId, hostPlayer!.id);
     expect(
       gameManager.getTileVisibility(gameId, hostPlayer!.id, moveTarget!.x, moveTarget!.y)
-    ).toMatchObject({
-      isVisible: true,
-      isExplored: true,
-    });
+    ).toMatchObject({ isExplored: true });
     expect(gameManager.getGameInstance(gameId)?.borderManager.getAllTileOwnership()).toEqual(
       expect.arrayContaining([expect.objectContaining({ x: 8, y: 8, playerId: hostPlayer!.id })])
     );

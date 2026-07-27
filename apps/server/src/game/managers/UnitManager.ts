@@ -1604,9 +1604,16 @@ export class UnitManager {
     targetX?: number,
     targetY?: number
   ): Promise<ActionResult> {
-    if (targetX === undefined || targetY === undefined || !this.gameManagerCallback?.requestPath) {
+    if (targetX === undefined || targetY === undefined || !this.isValidPosition(targetX, targetY)) {
+      return { success: false, message: 'Invalid target coordinates' };
+    }
+    if (unit.x === targetX && unit.y === targetY) {
+      return { success: false, message: 'Unit is already at target position' };
+    }
+    if (!this.gameManagerCallback?.requestPath) {
       return { success: false, message: 'Pathfinding target is unavailable' };
     }
+    const startingMovement = unit.movementLeft;
     const pathResult = await this.gameManagerCallback.requestPath(
       unit.playerId,
       unit.id,
@@ -1656,6 +1663,7 @@ export class UnitManager {
       message: reached ? 'Unit reached destination' : 'Unit will continue next turn',
       newPosition: { x: unit.x, y: unit.y },
       newMovementLeft: unit.movementLeft,
+      movementCost: startingMovement - unit.movementLeft,
       newOrders: unit.orders,
     };
   }

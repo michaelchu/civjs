@@ -2,6 +2,29 @@ import { GameManager } from '@game/managers/GameManager';
 import { getTestDatabase } from '../utils/testDatabase';
 import { TestGameScenario } from '../fixtures/gameFixtures';
 import { setupGameManagerWithScenario, cleanupGameManager } from '../utils/gameTestUtils';
+import { getTerrainMovementCost } from '@game/constants/MovementConstants';
+
+function findPassableStep(game: NonNullable<ReturnType<GameManager['getGameInstance']>>): {
+  start: { x: number; y: number };
+  target: { x: number; y: number };
+} {
+  const map = game.mapManager.getMapData()!;
+  for (let x = 0; x < map.width; x++) {
+    for (let y = 0; y < map.height; y++) {
+      const sourceTerrain = map.tiles[x]?.[y]?.terrain;
+      if (!sourceTerrain || getTerrainMovementCost(sourceTerrain, 'warriors') < 0) continue;
+      const target = [
+        { x: x + 1, y },
+        { x, y: y + 1 },
+      ].find(candidate => {
+        const terrain = map.tiles[candidate.x]?.[candidate.y]?.terrain;
+        return terrain !== undefined && getTerrainMovementCost(terrain, 'warriors') >= 0;
+      });
+      if (target) return { start: { x, y }, target };
+    }
+  }
+  throw new Error('Generated map has no adjacent passable land tiles');
+}
 
 describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
   let gameManager: GameManager;
@@ -95,14 +118,18 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
     let playerId: string;
     let enemyPlayerId: string;
     let unitId: string;
+    let unitStart: { x: number; y: number };
+    let moveTarget: { x: number; y: number };
 
     beforeEach(async () => {
       gameId = scenario.game.id;
       playerId = scenario.players[0].id;
       enemyPlayerId = scenario.players[1].id;
 
-      // Create a unit for movement
-      unitId = await gameManager.createUnit(gameId, playerId, 'warriors', 8, 8);
+      const step = findPassableStep(gameManager.getGameInstance(gameId)!);
+      unitStart = step.start;
+      moveTarget = step.target;
+      unitId = await gameManager.createUnit(gameId, playerId, 'warriors', unitStart.x, unitStart.y);
     });
 
     // TODO: Skip until fog of war system is implemented
@@ -113,13 +140,18 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       gameManager.updatePlayerVisibility(gameId, playerId);
 
       // Move unit to new position
-      const moveResult = await game.unitManager.moveUnit(unitId, 9, 8);
+      const moveResult = await game.unitManager.moveUnit(unitId, moveTarget.x, moveTarget.y);
       expect(moveResult).toBe(true);
 
       // Update visibility after movement
       gameManager.updatePlayerVisibility(gameId, playerId);
 
-      const newVisibility = gameManager.getTileVisibility(gameId, playerId, 9, 8);
+      const newVisibility = gameManager.getTileVisibility(
+        gameId,
+        playerId,
+        moveTarget.x,
+        moveTarget.y
+      );
       expect(newVisibility.isVisible).toBe(true);
       expect(newVisibility.isExplored).toBe(true);
 
@@ -129,8 +161,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
         where: (units, { eq }) => eq(units.id, unitId),
       });
 
-      expect(dbUnit.x).toBe(9);
-      expect(dbUnit.y).toBe(8);
+      expect(dbUnit.x).toBe(moveTarget.x);
+      expect(dbUnit.y).toBe(moveTarget.y);
     });
 
     it('should prevent movement into enemy city and maintain city integrity', async () => {
@@ -144,8 +176,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
 
       // Verify unit didn't move
       const unit = game.unitManager.getUnit(unitId);
-      expect(unit!.x).toBe(8);
-      expect(unit!.y).toBe(8);
+      expect(unit!.x).toBe(unitStart.x);
+      expect(unit!.y).toBe(unitStart.y);
 
       // Verify enemy city is intact
       const enemyCity = game.cityManager.getCity(enemyCityId);
@@ -162,8 +194,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
         where: (cities, { eq }) => eq(cities.id, enemyCityId),
       });
 
-      expect(dbUnit.x).toBe(8);
-      expect(dbUnit.y).toBe(8);
+      expect(dbUnit.x).toBe(unitStart.x);
+      expect(dbUnit.y).toBe(unitStart.y);
       expect(dbCity.x).toBe(10);
       expect(dbCity.y).toBe(8);
     });
@@ -258,7 +290,14 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
 
       // Create some game state to process
       const cityId = await gameManager.foundCity(gameId, playerId1, 'TurnCity', 6, 6);
-      const unitId = await gameManager.createUnit(gameId, playerId1, 'warriors', 7, 7);
+      const step = findPassableStep(game);
+      const unitId = await gameManager.createUnit(
+        gameId,
+        playerId1,
+        'warriors',
+        step.start.x,
+        step.start.y
+      );
 
       // Set city production
       await game.cityManager.setCityProduction(cityId, 'unit', 'warriors', playerId1);
@@ -267,7 +306,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       await gameManager.setPlayerResearch(gameId, playerId1, 'pottery');
 
       // Use some unit movement
-      await game.unitManager.moveUnit(unitId, 8, 7);
+      await game.unitManager.moveUnit(unitId, step.target.x, step.target.y);
 
       // End turns for both players
       await gameManager.endTurn(playerId1);
@@ -302,7 +341,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       expect(dbGame.currentTurn).toBe(initialTurn + 1);
       expect(dbCity.food).toBe(city.foodStock);
       expect(dbCity.production).toBe(city.productionStock);
-      expect(dbUnit.movementPoints).toBe('1.00');
+      expect(dbUnit.movementPoints).toBe('3.00');
     });
 
     it('should handle concurrent turn ending safely', async () => {

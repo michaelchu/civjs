@@ -188,8 +188,10 @@ export class CityTileManagementService extends BaseGameService {
       }
     });
 
-    // Assign citizens to best tiles (population - 1 because city center is free)
-    const citizensToAssign = Math.max(0, city.population - 1);
+    // The center is worked for free; every citizen may therefore work one
+    // additional tile. At size one this produces the center plus one worker,
+    // matching Freeciv's city-map accounting.
+    const citizensToAssign = Math.max(0, city.population);
     for (let i = 0; i < Math.min(citizensToAssign, availableTiles.length); i++) {
       availableTiles[i].isWorked = true;
     }
@@ -306,7 +308,7 @@ export class CityTileManagementService extends BaseGameService {
     // Check if city has available workers
     const workedTiles = city.workableTiles.filter(t => t.isWorked && !t.isCenter).length;
     const totalSpecialists = Object.values(city.specialists).reduce((sum, count) => sum + count, 0);
-    const availableWorkers = city.population - 1 - workedTiles - totalSpecialists; // -1 for city center
+    const availableWorkers = city.population - workedTiles - totalSpecialists;
 
     if (availableWorkers <= 0) {
       logger.warn('Cannot assign citizen to tile: no available workers', { cityId });

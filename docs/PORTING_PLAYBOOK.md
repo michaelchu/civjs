@@ -402,7 +402,7 @@ navigation, and reduced motion; `creation-flow.spec.ts` covers responsive game
 creation and the ruleset-loading error path. CI installs Chromium, retains
 trace/screenshot/video artifacts on failure, and runs `npm run test:e2e`.
 
-### Milestone 13 — AI depth and release-verification closure
+### Milestone 13 — AI depth and release-verification closure — complete (2026-07-27)
 
 **Outcome:** the remaining intentional AI deviation is bounded by explicit
 compatibility scenarios, and all release evidence runs in an automated,
@@ -428,6 +428,24 @@ reproducible environment.
 **Exit criteria:** the chosen AI contract passes deterministic reference
 scenarios; every unit, integration, browser, recovery, and soak suite runs in
 CI; and no release claim depends on an unavailable external test service.
+
+**Completion evidence:** `CIVJS_AI_CONTRACT` versions the supported bounded
+behavior and explicit non-parity cases. The adapter now makes deterministic
+expansion, deficit production, research, worker automation, adjacent combat,
+exploration, and treaty decisions through authoritative managers; it resumes
+from recovered state without replaying completed decisions and leaves conquest
+completion to `EndGameService`. `CivJSAIAdapter.test.ts` pins every named
+scenario and isolates unsuitable optional decisions.
+
+`docker-compose.test.yml` and `npm run test:integration:docker` create and
+remove a disposable PostgreSQL 16 database locally. CI provisions the same
+service and runs all 13 integration suites after unit and browser tests, so the
+real socket restart/reconnect flow shares one release gate with the Milestone
+12 browser flow. The database audit also corrected stale movement, palace,
+research, terrain, visibility, and combat fixtures and restored the rule that
+the free city center does not consume a citizen assignment.
+`MapManager.test.ts` generates the supported 80×50/eight-participant map, and
+`TurnManager.test.ts` processes 100 eight-participant turns without drift.
 
 ### Milestone 14 — Enabled city, caravan, worker, and unit-management actions
 
