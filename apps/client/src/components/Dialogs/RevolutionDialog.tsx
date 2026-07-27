@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useGameStore } from '../../store/gameStore';
-import type { Government } from '../../types';
+import type { Government, GovernmentState } from '../../types';
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,8 @@ interface RevolutionDialogProps {
   isOpen: boolean;
   onClose: () => void;
   currentGovernment: Government | null;
+  availability: GovernmentState['availableGovernments'];
+  onStartRevolution: (governmentId: string) => Promise<void>;
 }
 
 interface GovernmentOption {
@@ -30,37 +32,15 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
   isOpen,
   onClose,
   currentGovernment,
+  availability,
+  onStartRevolution,
 }) => {
-  const { governments, technologies, getCurrentPlayer, startRevolution } = useGameStore();
+  const { governments, getCurrentPlayer } = useGameStore();
   const [selectedGovernment, setSelectedGovernment] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const currentPlayer = getCurrentPlayer();
-
-  // Helper function to map tech names to IDs
-  const getTechIdFromName = (techName: string): string | null => {
-    const techNameMap: Record<string, string> = {
-      Monarchy: 'monarchy',
-      'The Republic': 'the_republic',
-      Communism: 'communism',
-      Democracy: 'democracy',
-    };
-    return techNameMap[techName] || null;
-  };
-
-  // Mock researched technologies for now - in real implementation this would come from player data
-  const researchedTechs = useMemo(() => {
-    const researched = new Set(['alphabet', 'pottery']); // Basic starting techs
-
-    // Add some mock researched techs for testing
-    if (technologies && Object.keys(technologies).length > 0) {
-      // In real implementation, this would be currentPlayer.technologies or similar
-      researched.add('currency');
-      researched.add('monarchy');
-      researched.add('literature');
-    }
-
-    return researched;
-  }, [technologies]);
 
   const governmentOptions: GovernmentOption[] = useMemo(() => {
     // Ensure governments is initialized before processing
@@ -70,22 +50,9 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
 
     return Object.entries(governments).map(([id, government]) => {
       const isCurrent = id === currentPlayer?.government;
-      let available = true;
-      let reason: string | undefined;
-
-      // Check technology requirements
-      if (government.reqs) {
-        for (const req of government.reqs) {
-          if (req.type === 'tech') {
-            const techId = getTechIdFromName(req.name);
-            if (techId && !researchedTechs.has(techId)) {
-              available = false;
-              reason = `Requires ${req.name} technology`;
-              break;
-            }
-          }
-        }
-      }
+      const serverAvailability = availability.find(entry => entry.id === id);
+      let available = serverAvailability?.available ?? false;
+      let reason = serverAvailability?.reason;
 
       // Can't change to current government
       if (isCurrent) {
@@ -101,7 +68,7 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
         isCurrent,
       };
     });
-  }, [governments, currentPlayer?.government, researchedTechs]);
+  }, [availability, governments, currentPlayer?.government]);
 
   const getGovernmentIcon = (govId: string): string => {
     const icons: Record<string, string> = {
@@ -115,10 +82,19 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
     return icons[govId] || '🏛️';
   };
 
-  const handleStartRevolution = () => {
-    if (selectedGovernment) {
-      startRevolution(selectedGovernment);
-      onClose();
+  const handleStartRevolution = async () => {
+    if (selectedGovernment && !submitting) {
+      setSubmitting(true);
+      setError(null);
+      try {
+        await onStartRevolution(selectedGovernment);
+        setSelectedGovernment(null);
+        onClose();
+      } catch (startError) {
+        setError(startError instanceof Error ? startError.message : 'Failed to start revolution');
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -206,6 +182,10 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
           </div>
         )}
 
+        {error && (
+          <div className="rounded border border-red-700 bg-red-950 p-3 text-red-200">{error}</div>
+        )}
+
         <DialogFooter className="gap-3 mt-6">
           <Button
             onClick={onClose}
@@ -215,11 +195,11 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
             Cancel
           </Button>
           <Button
-            onClick={handleStartRevolution}
-            disabled={!selectedGovernment}
+            onClick={() => void handleStartRevolution()}
+            disabled={!selectedGovernment || submitting}
             className="bg-red-600 hover:bg-red-500 text-white disabled:bg-gray-600 disabled:text-gray-400 px-6 py-2"
           >
-            Start Revolution!
+            {submitting ? 'Starting...' : 'Start Revolution!'}
           </Button>
         </DialogFooter>
       </DialogContent>

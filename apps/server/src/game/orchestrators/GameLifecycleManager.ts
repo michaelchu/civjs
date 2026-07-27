@@ -23,6 +23,7 @@ import { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { BorderManager } from '@game/managers/BorderManager';
+import { GovernmentManager } from '@game/managers/GovernmentManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
 import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
 import { MapStartpos } from '@game/map/MapTypes';
@@ -239,6 +240,14 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     // Create managers in dependency order
     const mapManager = this.createMapManager(game, terrainSettings);
     const effectsManager = new EffectsManager(); // Shared effects manager
+    const governmentManager = new GovernmentManager(gameId, this.databaseProvider, effectsManager);
+    for (const player of game.players) {
+      await governmentManager.loadPlayerGovernment(
+        player.id,
+        player.government,
+        player.revolutionTurns
+      );
+    }
     const cityManager = this.createCityManager(gameId, effectsManager);
     const borderManager = this.createBorderManager(mapManager, cityManager, effectsManager);
     this.borderNetworkService = this.createBorderNetworkService(borderManager);
@@ -287,11 +296,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
     );
     cityManager.setPlayerGovernmentProvider(playerId => {
-      const player = game.players.find((candidate: any) => candidate.id === playerId);
-      if (!player?.government) {
+      const government = governmentManager.getPlayerGovernment(playerId)?.currentGovernment;
+      if (!government) {
         throw new Error(`No government found for player '${playerId}'`);
       }
-      return player.government;
+      return government;
     });
     const visibilityManager = this.createVisibilityManager(
       gameId,
@@ -311,7 +320,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       researchManager,
       borderManager,
       visibilityManager,
-      game.players
+      game.players,
+      governmentManager
     );
     // @reference reference/freeciv/server/techtools.c:665-719
     // Research completion belongs to the active authoritative turn.
@@ -476,7 +486,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       cityManager,
       researchManager,
       pathfindingManager,
-      borderManager
+      borderManager,
+      governmentManager
     );
 
     this.logger.info('Game instance initialized successfully', {
@@ -892,7 +903,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     researchManager: ResearchManager,
     borderManager: BorderManager,
     visibilityManager: VisibilityManager,
-    databasePlayers: any[]
+    databasePlayers: any[],
+    governmentManager: GovernmentManager
   ): Promise<TurnManager> {
     // Create a simple broadcast manager for the TurnManager
     // TODO: Proper dependency injection should be implemented
@@ -933,7 +945,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       visibilityManager,
       cultureManager,
       mockBroadcastManager,
-      economicManager
+      economicManager,
+      governmentManager
     );
     const playerIds = Array.from(players.keys());
     await tm.initializeTurn(playerIds);
@@ -1065,7 +1078,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     cityManager: CityManager,
     researchManager: ResearchManager,
     pathfindingManager: PathfindingManager,
-    borderManager: BorderManager
+    borderManager: BorderManager,
+    governmentManager: GovernmentManager
   ): GameInstance {
     return {
       id: gameId,
@@ -1093,6 +1107,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       researchManager,
       pathfindingManager,
       borderManager,
+      governmentManager,
       lastActivity: new Date(),
     };
   }

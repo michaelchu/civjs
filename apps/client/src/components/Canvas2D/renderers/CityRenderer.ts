@@ -44,7 +44,9 @@ export class CityRenderer extends BaseRenderer {
   // Sprite scaling factors for visual size control
   private cityScale = 1.0; // Normal size cities
   private cityStyles: Record<string, CityStyle> = {};
+  private nationStyles: Record<string, string> = {};
   private stylesLoaded = false;
+  private stylesLoading = false;
 
   // Text rendering constants
   private static readonly BASE_FONT_SIZE = 10; // Base font size in pixels before scaling
@@ -53,9 +55,19 @@ export class CityRenderer extends BaseRenderer {
    * Initialize city styles from ruleset
    */
   private async initializeCityStyles(): Promise<void> {
-    if (!this.stylesLoaded) {
-      this.cityStyles = await rulesetService.getCityStyles('classic');
-      this.stylesLoaded = true;
+    if (!this.stylesLoaded && !this.stylesLoading) {
+      this.stylesLoading = true;
+      try {
+        [this.cityStyles, this.nationStyles] = await Promise.all([
+          rulesetService.getCityStyles('classic'),
+          rulesetService.getNationStyles('classic'),
+        ]);
+      } catch (error) {
+        console.error('Failed to load authoritative city styles:', error);
+      } finally {
+        this.stylesLoaded = true;
+        this.stylesLoading = false;
+      }
     }
   }
 
@@ -73,16 +85,16 @@ export class CityRenderer extends BaseRenderer {
 
     Object.values(state.cities).forEach(city => {
       if (this.isInViewport(city.x, city.y, state.viewport)) {
-        this.renderCity(city, state.viewport);
+        this.renderCity(city, state.viewport, state);
       }
     });
   }
 
-  private renderCity(city: City, viewport: MapViewport): void {
+  private renderCity(city: City, viewport: MapViewport, state: RenderState): void {
     const screenPos = this.mapToScreen(city.x, city.y, viewport);
 
     // Get city sprite based on size and nation
-    const citySprites = this.getCitySprites(city);
+    const citySprites = this.getCitySprites(city, state);
     let spriteRendered = false;
 
     // Render city sprites (main city + walls if applicable)
@@ -139,11 +151,14 @@ export class CityRenderer extends BaseRenderer {
    * Reference: freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js get_city_sprite()
    * Reference: freeciv/data/classic/styles.ruleset citystyle definitions
    */
-  private getCitySprites(city: City): Array<{ key: string; offset_x?: number; offset_y?: number }> {
+  private getCitySprites(
+    city: City,
+    state: RenderState
+  ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
     const sprites: Array<{ key: string; offset_x?: number; offset_y?: number }> = [];
 
     // Get authentic Freeciv city style based on player's nation and tech
-    const cityStyleGraphic = this.getCityStyleGraphic(city);
+    const cityStyleGraphic = this.getCityStyleGraphic(city, state);
 
     // Use authentic Freeciv size mapping
     // Reference: freeciv-web tilespec.js:get_city_sprite() size calculation
@@ -171,36 +186,24 @@ export class CityRenderer extends BaseRenderer {
    * Reference: freeciv/data/classic/styles.ruleset citystyle definitions
    * Reference: freeciv-web client/player.js city style logic
    */
-  private getCityStyleGraphic(city: City): string {
+  private getCityStyleGraphic(city: City, state: RenderState): string {
     // Get available city styles from ruleset
     const styleNames = Object.keys(this.cityStyles);
     if (styleNames.length === 0) {
       return 'city.european'; // Fallback
     }
 
-    // Default style graphic based on player ID (simulating different nations)
-    const playerNum = parseInt(city.playerId.replace(/\D/g, '')) || 0;
-
-    // Filter to classic/base styles (no tech requirements)
-    const baseStyles = styleNames.filter(styleName => !this.cityStyles[styleName].techreq);
-
-    if (baseStyles.length === 0) {
-      return 'city.european'; // Fallback
-    }
-
-    // Use modulo to distribute players across available base styles
-    const styleIndex = playerNum % baseStyles.length;
-    const selectedStyleName = baseStyles[styleIndex];
-
-    return this.cityStyles[selectedStyleName].graphic;
-
-    // TODO: Add tech-based evolution:
-    // - Check player's tech level against techreq field
-    // - Use replaced_by field for style upgrades
-    // - Industrial style when player has Railroad tech
-    // - Electric Age style when player has Automobile tech
-    // - Modern style when player has Rocketry tech
-    // - PostModern style for advanced tech
+    const nationId = state.players[city.playerId]?.nation;
+    const nationStyle = nationId ? this.nationStyles[nationId] : undefined;
+    const styleAliases: Record<string, string> = {
+      african: 'tropical',
+      american: 'european',
+      asian: 'asian',
+      european: 'european',
+      'middle eastern': 'babylonian',
+    };
+    const styleId = nationStyle ? styleAliases[nationStyle.toLowerCase()] : undefined;
+    return (styleId && this.cityStyles[styleId]?.graphic) || 'city.european';
   }
 
   /**

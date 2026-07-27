@@ -27,6 +27,7 @@ import { TurnManager } from '@game/managers/TurnManager';
 import { UnitManager, type Unit } from '@game/managers/UnitManager';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { BorderManager } from '@game/managers/BorderManager';
+import { GovernmentManager } from '@game/managers/GovernmentManager';
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
@@ -70,6 +71,7 @@ export interface GameInstance {
   researchManager: ResearchManager;
   pathfindingManager: PathfindingManager;
   borderManager: BorderManager;
+  governmentManager?: GovernmentManager;
   lastActivity: Date;
 }
 

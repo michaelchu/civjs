@@ -8,3 +8,5 @@ export { ResearchHandler } from './ResearchHandler';
 export { MapVisibilityHandler } from './MapVisibilityHandler';
 export { ChatCommunicationHandler } from './ChatCommunicationHandler';
 export { TurnManagementHandler } from './TurnManagementHandler';
+export { GovernmentHandler } from './GovernmentHandler';
+export { EconomicHandler } from './EconomicHandler';

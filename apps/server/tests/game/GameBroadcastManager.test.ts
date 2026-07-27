@@ -181,7 +181,19 @@ describe('GameBroadcastManager visibility sync', () => {
     expect(
       playerOnePackets.find(emission => emission.data.type === PacketType.UNIT_INFO)?.data.data
         .units
-    ).toEqual([expect.objectContaining({ id: 'own-unit', owner: playerOne })]);
+    ).toEqual([
+      expect.objectContaining({
+        id: 'own-unit',
+        owner: playerOne,
+        capabilities: {
+          canFortify: true,
+          canFoundCity: false,
+          canBuildImprovements: false,
+          canPillage: true,
+          canTrade: false,
+        },
+      }),
+    ]);
     expect(
       playerTwoPackets.find(emission => emission.data.type === PacketType.UNIT_INFO)?.data.data
         .units

@@ -12,38 +12,51 @@ describe('CityManagementHandler production socket flow', () => {
   const userId = 'user-1';
   const playerId = 'player-1';
   const gameId = 'game-1';
-  let socketEvents: Map<string, (data: any) => Promise<void>>;
+  let socketEvents: Map<string, (...args: any[]) => Promise<void>>;
   let mockSocket: jest.Mocked<Socket>;
-  let cityManager: { getCitiesMap: jest.Mock; setCityProduction: jest.Mock };
+  let cityManager: {
+    getCitiesMap: jest.Mock;
+    getCity: jest.Mock;
+    setCityProduction: jest.Mock;
+    configureCityGovernor: jest.Mock;
+    getCityGovernorInfo: jest.Mock;
+    optimizeCityManually: jest.Mock;
+    buyProduction: jest.Mock;
+  };
 
   beforeEach(() => {
     socketEvents = new Map();
+    const city = {
+      id: 'city-1',
+      name: 'Capital',
+      playerId,
+      size: 3,
+      buildings: [],
+      productionStock: 10,
+      currentProduction: 'warriors',
+      productionType: 'unit',
+      productionPerTurn: 4,
+    };
     cityManager = {
-      getCitiesMap: jest.fn(
-        () =>
-          new Map([
-            [
-              'city-1',
-              {
-                id: 'city-1',
-                name: 'Capital',
-                playerId,
-                size: 3,
-                buildings: [],
-                productionStock: 10,
-                currentProduction: 'warriors',
-                productionType: 'unit',
-                productionPerTurn: 4,
-              },
-            ],
-          ])
-      ),
+      getCitiesMap: jest.fn(() => new Map([['city-1', city]])),
+      getCity: jest.fn((cityId: string) => (cityId === city.id ? city : undefined)),
       setCityProduction: jest.fn().mockResolvedValue(true),
+      configureCityGovernor: jest.fn().mockResolvedValue(true),
+      getCityGovernorInfo: jest.fn().mockReturnValue({
+        isEnabled: true,
+        priority: 'food',
+      }),
+      optimizeCityManually: jest.fn().mockResolvedValue(true),
+      buyProduction: jest.fn().mockResolvedValue({
+        success: true,
+        goldSpent: 20,
+        completed: true,
+      }),
     };
     mockSocket = {
       id: socketId,
       emit: jest.fn(),
-      on: jest.fn((event: string, callback: (data: any) => Promise<void>) => {
+      on: jest.fn((event: string, callback: (...args: any[]) => Promise<void>) => {
         socketEvents.set(event, callback);
         return mockSocket;
       }),
@@ -81,5 +94,74 @@ describe('CityManagementHandler production socket flow', () => {
       'city:productionChanged',
       expect.objectContaining({ cityId: 'city-1' })
     );
+  });
+
+  it('authorizes and applies governor settings for an owned city', async () => {
+    const gameManager = {
+      getGameInstance: jest.fn().mockReturnValue({
+        players: new Map([[playerId, { id: playerId, userId }]]),
+        cityManager,
+        researchManager: { hasPlayerResearched: jest.fn().mockReturnValue(true) },
+      }),
+    } as unknown as GameManager;
+    const handler = new CityManagementHandler(
+      new Map([[socketId, { userId, gameId }]]),
+      gameManager
+    );
+    handler.register({ register: jest.fn() } as unknown as PacketHandler, {} as Server, mockSocket);
+    const callback = jest.fn();
+
+    await socketEvents.get('city:configureGovernor')!(
+      {
+        cityId: 'city-1',
+        enabled: true,
+        priority: 'food',
+        autoManageSpecialists: true,
+        autoManageTiles: true,
+        autoManageProduction: false,
+        preventStarvation: true,
+        maintainHappiness: true,
+      },
+      callback
+    );
+
+    expect(cityManager.configureCityGovernor).toHaveBeenCalledWith(
+      'city-1',
+      playerId,
+      expect.objectContaining({ enabled: true, priority: 'food' })
+    );
+    expect(callback).toHaveBeenCalledWith({
+      success: true,
+      governor: { isEnabled: true, priority: 'food' },
+    });
+  });
+
+  it('exposes citizen optimization and rush production for an owned city', async () => {
+    const gameManager = {
+      getGameInstance: jest.fn().mockReturnValue({
+        players: new Map([[playerId, { id: playerId, userId }]]),
+        cityManager,
+        researchManager: { hasPlayerResearched: jest.fn().mockReturnValue(true) },
+      }),
+    } as unknown as GameManager;
+    const handler = new CityManagementHandler(
+      new Map([[socketId, { userId, gameId }]]),
+      gameManager
+    );
+    handler.register({ register: jest.fn() } as unknown as PacketHandler, {} as Server, mockSocket);
+    const optimizeCallback = jest.fn();
+    const buyCallback = jest.fn();
+
+    await socketEvents.get('city:optimizeCitizens')!({ cityId: 'city-1' }, optimizeCallback);
+    await socketEvents.get('city:buyProduction')!({ cityId: 'city-1' }, buyCallback);
+
+    expect(cityManager.optimizeCityManually).toHaveBeenCalledWith('city-1');
+    expect(optimizeCallback).toHaveBeenCalledWith({ success: true });
+    expect(cityManager.buyProduction).toHaveBeenCalledWith('city-1', playerId);
+    expect(buyCallback).toHaveBeenCalledWith({
+      success: true,
+      result: { success: true, goldSpent: 20, completed: true, remainingGold: undefined },
+      error: undefined,
+    });
   });
 });

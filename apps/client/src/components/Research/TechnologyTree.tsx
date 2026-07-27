@@ -23,6 +23,7 @@ import {
   calculateResearchProgress,
 } from './utils/technologyData';
 import { getLayoutedElements } from './utils/layoutUtils';
+import { gameClient } from '../../services/GameClient';
 
 // Move nodeTypes outside component and memoize to fix React Flow warning
 const nodeTypes: NodeTypes = {
@@ -31,7 +32,7 @@ const nodeTypes: NodeTypes = {
 
 const TechnologyTreeInner: React.FC = () => {
   const store = useGameStore();
-  const { setCurrentResearch, updateResearchState } = store;
+  const { updateResearchState } = store;
   const [selectedTech, setSelectedTech] = useState<string | null>(null);
   const { fitView } = useReactFlow();
 
@@ -70,12 +71,15 @@ const TechnologyTreeInner: React.FC = () => {
 
       // Double-click to set as current research (if available)
       if (!isResearched && canResearch) {
-        setCurrentResearch(techId);
-        console.log('Set current research:', techId);
+        void gameClient.setResearch(techId);
       }
     },
-    [store.research, setCurrentResearch]
+    [store.research]
   );
+
+  useEffect(() => {
+    gameClient.refreshResearch();
+  }, []);
 
   // Fit view when component mounts
   useEffect(() => {

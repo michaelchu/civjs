@@ -5,12 +5,40 @@ export class UnitRenderer extends BaseRenderer {
   // Animation state for unit selection
   private selectionAnimationStartTime: number | null = null;
   private lastSelectedUnitId: string | null = null;
+  private lastPositions = new Map<string, { x: number; y: number }>();
+  private movementAnimations = new Map<
+    string,
+    { fromX: number; fromY: number; toX: number; toY: number; startedAt: number }
+  >();
+  private readonly movementDurationMs = 180;
 
   /**
    * Render all units visible in the viewport with proper stacking behavior.
    * Only renders the first unit on each tile (freeciv-web stacking behavior).
    */
   renderUnits(state: RenderState): void {
+    const now = performance.now();
+    const activeIds = new Set(Object.keys(state.units));
+    for (const unit of Object.values(state.units)) {
+      const previous = this.lastPositions.get(unit.id);
+      if (previous && (previous.x !== unit.x || previous.y !== unit.y)) {
+        this.movementAnimations.set(unit.id, {
+          fromX: previous.x,
+          fromY: previous.y,
+          toX: unit.x,
+          toY: unit.y,
+          startedAt: now,
+        });
+      }
+      this.lastPositions.set(unit.id, { x: unit.x, y: unit.y });
+    }
+    for (const unitId of this.lastPositions.keys()) {
+      if (!activeIds.has(unitId)) {
+        this.lastPositions.delete(unitId);
+        this.movementAnimations.delete(unitId);
+      }
+    }
+
     // Group units by position to handle stacking
     const unitsAtPosition = new Map<string, Unit[]>();
 
@@ -64,7 +92,7 @@ export class UnitRenderer extends BaseRenderer {
 
     // Get unit animation offset for smooth movement
     // @reference freeciv-web/.../unit.js:get_unit_anim_offset()
-    const animOffset = this.getUnitAnimOffset();
+    const animOffset = this.getUnitAnimOffset(unit, viewport);
 
     // Apply freeciv-web's unit positioning offsets to properly center units on tiles
     // @reference freeciv-web/tileset_config_amplio2.js: unit_offset_x = 19, unit_offset_y = 14
@@ -113,10 +141,28 @@ export class UnitRenderer extends BaseRenderer {
    * Get unit animation offset for smooth movement
    * @reference freeciv-web/.../unit.js:get_unit_anim_offset()
    */
-  private getUnitAnimOffset(): { x: number; y: number } {
-    // For now, return no offset (static units)
-    // TODO: Implement smooth movement animation system
-    return { x: 0, y: 0 };
+  private getUnitAnimOffset(unit: Unit, viewport: MapViewport): { x: number; y: number } {
+    const animation = this.movementAnimations.get(unit.id);
+    if (!animation) return { x: 0, y: 0 };
+    const progress = Math.min(
+      1,
+      (performance.now() - animation.startedAt) / this.movementDurationMs
+    );
+    if (progress >= 1) {
+      this.movementAnimations.delete(unit.id);
+      return { x: 0, y: 0 };
+    }
+    const easedProgress = 1 - Math.pow(1 - progress, 3);
+    const from = this.mapToScreen(animation.fromX, animation.fromY, viewport);
+    const to = this.mapToScreen(animation.toX, animation.toY, viewport);
+    return {
+      x: (from.x - to.x) * (1 - easedProgress),
+      y: (from.y - to.y) * (1 - easedProgress),
+    };
+  }
+
+  hasActiveMovementAnimations(): boolean {
+    return this.movementAnimations.size > 0;
   }
 
   /**

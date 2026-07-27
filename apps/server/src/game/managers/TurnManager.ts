@@ -19,6 +19,7 @@ import type { VisibilityManager } from '@game/managers/VisibilityManager';
 import type { CultureManager } from '@game/managers/CultureManager';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
+import type { GovernmentManager } from '@game/managers/GovernmentManager';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -62,6 +63,8 @@ export class TurnManager {
   private broadcastManager: GameBroadcastManager;
   private cultureManager: CultureManager;
   private economicManager?: EconomicManager;
+  private governmentManager?: GovernmentManager;
+  private cityManager: CityManager;
 
   constructor(
     gameId: string,
@@ -74,13 +77,16 @@ export class TurnManager {
     visibilityManager: VisibilityManager,
     cultureManager: CultureManager,
     broadcastManager: GameBroadcastManager,
-    economicManager?: EconomicManager
+    economicManager?: EconomicManager,
+    governmentManager?: GovernmentManager
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
     this.io = io;
     this.cultureManager = cultureManager;
     this.economicManager = economicManager;
+    this.governmentManager = governmentManager;
+    this.cityManager = cityManager;
 
     // Initialize services
     this.turnProcessingService = new TurnProcessingService(
@@ -186,6 +192,8 @@ export class TurnManager {
           phasesCompleted: phaseResult.phases.filter(p => p.success).length,
         });
 
+        await this.processGovernmentTurns(playerIds);
+
         // Advance to next turn after successful processing
         await this.advanceToNextTurn();
 
@@ -229,6 +237,17 @@ export class TurnManager {
     this.playerActions.get(playerId)!.push(playerAction);
 
     logger.debug('Added player action', { gameId: this.gameId, playerId, actionType: action.type });
+  }
+
+  private async processGovernmentTurns(playerIds: string[]): Promise<void> {
+    if (!this.governmentManager) return;
+    for (const playerId of playerIds) {
+      const completedGovernment = await this.governmentManager.processRevolutionTurn(playerId);
+      if (!completedGovernment) continue;
+      for (const city of this.cityManager.getPlayerCities(playerId)) {
+        this.cityManager.refreshCityWithGovernmentEffects(city.id);
+      }
+    }
   }
 
   private async createTurnRecord(): Promise<void> {

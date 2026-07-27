@@ -10,6 +10,7 @@ import { logger } from '@utils/logger';
 import type { Server as SocketServer } from 'socket.io';
 import { PacketType, PACKET_NAMES } from '@app-types/packet';
 import type { GameInstance } from '@game/managers/GameManager';
+import { getUnitType } from '@game/constants/UnitConstants';
 
 export interface BroadcastService {
   broadcastToGame(gameId: string, event: string, data: any): void;
@@ -421,6 +422,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
    * @reference Original GameManager.ts:800-832 formatUnitForClient()
    */
   private formatUnitForClient(unit: any, unitManager: any): any {
+    const unitType = getUnitType(unit.unitTypeId || unit.type);
     return {
       id: unit.id,
       owner: unit.playerId,
@@ -437,6 +439,16 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       orders: unit.orders || null,
       transportedBy: unit.transportedBy,
       cargoUnits: unit.cargoUnits || [],
+      capabilities: {
+        canFortify: Boolean(
+          unitType?.rulesetUnitClassFlags.includes('CanFortify') &&
+            !unitType.flags?.includes('Cant_Fortify')
+        ),
+        canFoundCity: Boolean(unitType?.canFoundCity),
+        canBuildImprovements: Boolean(unitType?.canBuildImprovements),
+        canPillage: Boolean(unitType?.rulesetUnitClassFlags.includes('CanPillage')),
+        canTrade: Boolean(unitType?.flags?.includes('TradeRoute')),
+      },
     };
   }
 

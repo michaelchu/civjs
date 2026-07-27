@@ -12,6 +12,8 @@ import {
   MapVisibilityHandler,
   ChatCommunicationHandler,
   TurnManagementHandler,
+  GovernmentHandler,
+  EconomicHandler,
 } from './handlers';
 import { PacketType } from '../types/packet';
 import { db, type Database } from '@database';
@@ -55,6 +57,8 @@ export class SocketCoordinator {
       new MapVisibilityHandler(activeConnections, this.gameManager),
       new ChatCommunicationHandler(activeConnections),
       new TurnManagementHandler(activeConnections, this.gameManager),
+      new GovernmentHandler(activeConnections, this.gameManager),
+      new EconomicHandler(activeConnections, this.gameManager, this.database),
     ];
 
     logger.info(`SocketCoordinator initialized with ${this.handlers.length} handlers`);

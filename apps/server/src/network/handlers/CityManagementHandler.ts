@@ -6,6 +6,7 @@ import { PacketType, CityFoundSchema, CityProductionChangeSchema } from '@app-ty
 import { GameManager } from '@game/managers/GameManager';
 import { CityProductionHandler } from './CityProductionHandler';
 import { getUnitType } from '@game/constants/UnitConstants';
+import { GovernorPriority } from '@game/managers/CityManager';
 
 /**
  * Handles city management packets: founding cities, production changes
@@ -122,7 +123,86 @@ export class CityManagementHandler extends BaseSocketHandler {
       });
     });
 
+    socket.on('city:configureGovernor', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      if (!context) {
+        callback({ success: false, error: 'City not found or not owned by player' });
+        return;
+      }
+      const priorities = new Set(Object.values(GovernorPriority));
+      if (!priorities.has(data.priority)) {
+        callback({ success: false, error: 'Invalid governor priority' });
+        return;
+      }
+
+      const success = await context.game.cityManager.configureCityGovernor(
+        data.cityId,
+        context.player.id,
+        {
+          enabled: Boolean(data.enabled),
+          priority: data.priority,
+          autoManageSpecialists: Boolean(data.autoManageSpecialists),
+          autoManageTiles: Boolean(data.autoManageTiles),
+          autoManageProduction: Boolean(data.autoManageProduction),
+          preventStarvation: Boolean(data.preventStarvation),
+          maintainHappiness: Boolean(data.maintainHappiness),
+        }
+      );
+      callback({
+        success,
+        governor: context.game.cityManager.getCityGovernorInfo(data.cityId),
+      });
+    });
+
+    socket.on('city:optimizeCitizens', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      if (!context) {
+        callback({ success: false, error: 'City not found or not owned by player' });
+        return;
+      }
+      const success = await context.game.cityManager.optimizeCityManually(data.cityId);
+      callback({ success });
+    });
+
+    socket.on('city:buyProduction', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      if (!context) {
+        callback({ success: false, error: 'City not found or not owned by player' });
+        return;
+      }
+      const result = await context.game.cityManager.buyProduction(data.cityId, context.player.id);
+      const remainingGold = await context.game.turnManager
+        ?.getEconomicManager()
+        ?.getPlayerGold(context.player.id);
+      callback({
+        success: result.success,
+        result: { ...result, remainingGold },
+        error: result.reason,
+      });
+    });
+
     logger.debug(`${this.handlerName} registered handlers for socket ${socket.id}`);
+  }
+
+  private resolveLiveCityContext(
+    socket: Socket,
+    cityId: string
+  ):
+    | {
+        game: NonNullable<ReturnType<GameManager['getGameInstance']>>;
+        player: { id: string };
+      }
+    | undefined {
+    const connection = this.getConnection(socket, this.activeConnections);
+    if (!this.isAuthenticated(connection) || !this.isInGame(connection)) return undefined;
+    const game = this.gameManager.getGameInstance(connection.gameId!);
+    if (!game) return undefined;
+    const player = Array.from(game.players.values()).find(
+      candidate => candidate.userId === connection.userId
+    );
+    const city = game.cityManager.getCity(cityId);
+    if (!player || !city || city.playerId !== player.id) return undefined;
+    return { game, player };
   }
 
   private async handleCityFound(

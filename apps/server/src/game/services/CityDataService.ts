@@ -112,6 +112,18 @@ interface ClientCityData {
     value: number;
   }>;
 
+  governor?: {
+    isEnabled: boolean;
+    priority: string;
+    settings: {
+      autoManageSpecialists: boolean;
+      autoManageTiles: boolean;
+      autoManageProduction: boolean;
+      preventStarvation: boolean;
+      maintainHappiness: boolean;
+    };
+  };
+
   // City state
   celebrating: boolean;
   disorder: boolean;
@@ -261,6 +273,13 @@ export class CityDataService {
         goods: 'Trade',
         value: route.value,
       })),
+      governor: city.governor
+        ? {
+            isEnabled: city.governor.isEnabled,
+            priority: city.governor.priority,
+            settings: { ...city.governor.settings },
+          }
+        : undefined,
 
       // City state
       celebrating: this.isCelebrating(city),

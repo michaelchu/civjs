@@ -13,8 +13,14 @@ import { ActionType } from '../types/shared/actions';
  * Hook to handle keyboard controls integration
  */
 export function useKeyboardControls() {
-  const { focusedUnits, getPrimaryFocusedUnit, advanceUnitFocus, activeTab, clientState } =
-    useGameStore();
+  const {
+    focusedUnits,
+    getPrimaryFocusedUnit,
+    advanceUnitFocus,
+    activeTab,
+    clientState,
+    addNotification,
+  } = useGameStore();
 
   /**
    * Handle directional movement
@@ -46,9 +52,13 @@ export function useKeyboardControls() {
         await gameClient.moveUnit(unit.id, newX, newY);
       } catch (error) {
         console.error(`Failed to move unit ${unit.id}:`, error);
+        addNotification({
+          message: error instanceof Error ? error.message : 'Unit movement failed',
+          tone: 'error',
+        });
       }
     },
-    [getPrimaryFocusedUnit]
+    [addNotification, getPrimaryFocusedUnit]
   );
 
   /**
@@ -159,12 +169,20 @@ export function useKeyboardControls() {
               break;
             }
           }
+          addNotification({
+            message: `${action.replaceAll('_', ' ')} completed`,
+            tone: 'success',
+          });
         } catch (error) {
           console.error(`Failed to execute ${action} for unit ${unitId}:`, error);
+          addNotification({
+            message: error instanceof Error ? error.message : `${action} failed`,
+            tone: 'error',
+          });
         }
       }
     },
-    [focusedUnits, getPrimaryFocusedUnit]
+    [addNotification, focusedUnits, getPrimaryFocusedUnit]
   );
 
   /**

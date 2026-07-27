@@ -20,6 +20,7 @@ import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastMana
 import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
 import { Server as SocketServer } from 'socket.io';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
+import { GovernmentManager } from '@game/managers/GovernmentManager';
 
 /**
  * GameInstanceRecoveryService - Extracted game recovery operations from GameManager
@@ -179,9 +180,18 @@ export class GameInstanceRecoveryService extends BaseGameService {
     borderManager: BorderManager;
     mapManager: MapManager;
     economicManager: EconomicManager;
+    governmentManager: GovernmentManager;
   }> {
     // Create managers in dependency order
     const effectsManager = new EffectsManager();
+    const governmentManager = new GovernmentManager(gameId, this.databaseProvider, effectsManager);
+    for (const player of game.players) {
+      await governmentManager.loadPlayerGovernment(
+        player.id,
+        player.government,
+        player.revolutionTurns
+      );
+    }
 
     // BorderNetworkService will be created after BorderManager
 
@@ -250,11 +260,11 @@ export class GameInstanceRecoveryService extends BaseGameService {
       playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
     );
     cityManager.setPlayerGovernmentProvider(playerId => {
-      const player = game.players.find((candidate: any) => candidate.id === playerId);
-      if (!player?.government) {
+      const government = governmentManager.getPlayerGovernment(playerId)?.currentGovernment;
+      if (!government) {
         throw new Error(`No government found for player '${playerId}'`);
       }
-      return player.government;
+      return government;
     });
 
     const unitManager = new UnitManager(
@@ -359,7 +369,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       visibilityManager,
       cultureManager,
       this.broadcastManager,
-      economicManager
+      economicManager,
+      governmentManager
     );
 
     const playerIds = Array.from(players.keys());
@@ -386,6 +397,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       borderManager,
       mapManager,
       economicManager,
+      governmentManager,
     };
   }
 
@@ -402,6 +414,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       visibilityManager: VisibilityManager;
       borderManager: BorderManager;
       mapManager: MapManager;
+      governmentManager: GovernmentManager;
     }
   ): GameInstance {
     return {
@@ -432,6 +445,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       researchManager: managers.researchManager,
       pathfindingManager: managers.pathfindingManager,
       borderManager: managers.borderManager,
+      governmentManager: managers.governmentManager,
       lastActivity: new Date(),
     } as unknown as GameInstance;
   }

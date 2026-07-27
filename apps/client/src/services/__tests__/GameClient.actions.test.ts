@@ -80,6 +80,13 @@ describe('GameClient unit action feedback', () => {
             orders: [],
             transportedBy: undefined,
             cargoUnits: [],
+            capabilities: {
+              canFortify: true,
+              canFoundCity: false,
+              canBuildImprovements: false,
+              canPillage: true,
+              canTrade: false,
+            },
           },
         ],
       },
@@ -100,6 +107,13 @@ describe('GameClient unit action feedback', () => {
       orders: [],
       transportedBy: undefined,
       cargoUnits: [],
+      capabilities: {
+        canFortify: true,
+        canFoundCity: false,
+        canBuildImprovements: false,
+        canPillage: true,
+        canTrade: false,
+      },
     });
   });
 });

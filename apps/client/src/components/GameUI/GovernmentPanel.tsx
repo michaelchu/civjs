@@ -1,12 +1,28 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
+import { gameClient } from '../../services/GameClient';
+import type { GovernmentState } from '../../types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { RevolutionDialog } from '../Dialogs/RevolutionDialog';
 
 export const GovernmentPanel: React.FC = () => {
-  const { governments, getCurrentPlayer } = useGameStore();
+  const { governments, getCurrentPlayer, turn } = useGameStore();
   const [isRevolutionDialogOpen, setIsRevolutionDialogOpen] = useState(false);
+  const [availability, setAvailability] = useState<GovernmentState['availableGovernments']>([]);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    void gameClient
+      .getGovernmentState()
+      .then(state => {
+        setAvailability(state.availableGovernments);
+        setFeedback(null);
+      })
+      .catch(error =>
+        setFeedback(error instanceof Error ? error.message : 'Failed to load government state')
+      );
+  }, [turn]);
 
   const currentPlayer = getCurrentPlayer();
   const currentGovernment =
@@ -93,6 +109,15 @@ export const GovernmentPanel: React.FC = () => {
         </Button>
       </div>
 
+      {feedback && (
+        <div
+          role="status"
+          className="rounded border border-amber-700 bg-amber-950 p-3 text-amber-100"
+        >
+          {feedback}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Current Government Card */}
         <Card className="bg-gray-800 border-gray-700">
@@ -172,6 +197,13 @@ export const GovernmentPanel: React.FC = () => {
         isOpen={isRevolutionDialogOpen}
         onClose={() => setIsRevolutionDialogOpen(false)}
         currentGovernment={currentGovernment}
+        availability={availability}
+        onStartRevolution={async governmentId => {
+          const message = await gameClient.startRevolution(governmentId);
+          setFeedback(message);
+          const state = await gameClient.getGovernmentState();
+          setAvailability(state.availableGovernments);
+        }}
       />
     </div>
   );

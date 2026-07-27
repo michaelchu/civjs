@@ -3,6 +3,7 @@ import { X, ExternalLink, Zap, Clock, Target } from 'lucide-react';
 import { TECHNOLOGIES } from './utils/technologyData';
 import { useGameStore } from '../../store/gameStore';
 import { cn } from '../../lib/utils';
+import { gameClient } from '../../services/GameClient';
 
 interface TechnologyDetailsProps {
   techId: string;
@@ -11,7 +12,10 @@ interface TechnologyDetailsProps {
 
 export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, onClose }) => {
   const store = useGameStore();
-  const { setCurrentResearch, setResearchGoal } = store;
+  const [requestState, setRequestState] = React.useState<{
+    pending: boolean;
+    error?: string;
+  }>({ pending: false });
   const tech = TECHNOLOGIES[techId];
 
   if (!tech) {
@@ -27,17 +31,33 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
     (!isResearched &&
       tech.requirements.every(req => researchState?.researchedTechs.has(req) || false));
 
-  const handleSetCurrentResearch = () => {
+  const handleSetCurrentResearch = async () => {
     if (canResearch && !isResearched) {
-      setCurrentResearch(techId);
-      onClose();
+      setRequestState({ pending: true });
+      try {
+        await gameClient.setResearch(techId);
+        onClose();
+      } catch (error) {
+        setRequestState({
+          pending: false,
+          error: error instanceof Error ? error.message : 'Failed to set research',
+        });
+      }
     }
   };
 
-  const handleSetResearchGoal = () => {
+  const handleSetResearchGoal = async () => {
     if (!isResearched) {
-      setResearchGoal(techId);
-      onClose();
+      setRequestState({ pending: true });
+      try {
+        await gameClient.setResearchGoal(techId);
+        onClose();
+      } catch (error) {
+        setRequestState({
+          pending: false,
+          error: error instanceof Error ? error.message : 'Failed to set research goal',
+        });
+      }
     }
   };
 
@@ -86,6 +106,14 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
 
       {/* Content */}
       <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
+        {requestState.error && (
+          <div
+            role="alert"
+            className="rounded border border-red-600 bg-red-950 p-2 text-sm text-red-200"
+          >
+            {requestState.error}
+          </div>
+        )}
         {/* Status */}
         <div className="flex items-center space-x-2">
           {isResearched && (
@@ -192,8 +220,8 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
         <div className="flex space-x-2 pt-2 border-t border-gray-600">
           {canResearch && !isResearched && (
             <button
-              onClick={handleSetCurrentResearch}
-              disabled={isCurrent}
+              onClick={() => void handleSetCurrentResearch()}
+              disabled={requestState.pending || isCurrent}
               className={cn(
                 'flex-1 px-3 py-2 text-sm font-medium rounded transition-colors',
                 isCurrent
@@ -207,8 +235,8 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
 
           {!isResearched && (
             <button
-              onClick={handleSetResearchGoal}
-              disabled={isGoal}
+              onClick={() => void handleSetResearchGoal()}
+              disabled={requestState.pending || isGoal}
               className={cn(
                 'flex-1 px-3 py-2 text-sm font-medium rounded transition-colors',
                 isGoal

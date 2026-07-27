@@ -1,6 +1,6 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 4 working tree (2026-07-26)
+**Verified against:** Milestone 5 working tree (2026-07-26)
 **Verification method:** source-tree audit plus passing client/unit tests and the
 production type check/build. Database-backed integration remains separately
 dependent on the configured PostgreSQL test service.
@@ -8,7 +8,7 @@ dependent on the configured PostgreSQL test service.
 **External verification blocker (2026-07-26):** `npm run test:integration` was
 attempted, but all 13 suites stopped in shared setup because neither
 `TEST_DATABASE_URL` nor a local PostgreSQL test database was available. No
-Milestone 4 integration assertion ran, so none failed.
+database-backed integration assertion ran, so none failed.
 
 ## Purpose
 
@@ -79,11 +79,10 @@ Classic ruleset data is authoritative for the Milestone 1 playable loop:
   copied fixtures to prove that effect, unit, building, technology, terrain,
   and game-data mutations change authoritative results.
 
-Effects requiring later systems remain deliberately inert: capture population
-protection and incite-cost rules await their Milestone 3/4 action flows, and
-visible-wall effects await Milestone 5 rendering support. This completion claim
-is limited to the Milestone 1 playable loop; it does not imply that later city,
-worker, action, client, AI, diplomacy, or metagame milestones are complete.
+At the Milestone 2 boundary, effects requiring later action and rendering
+systems remained deliberately inert. The later milestone sections below record
+their current player-facing status; this completion claim remains limited to
+the Milestone 1 playable loop.
 
 ## Milestone 3 — complete
 
@@ -148,17 +147,41 @@ visible recipients receive the dynamic state while explored-but-hidden
 recipients do not. `MapManager.test.ts` pins a named seeded topology fixture,
 including terrain distribution, landmass count, and edge terrain.
 
+## Milestone 5 — complete
+
+The playable Milestones 1–4 surface is now available through client controls.
+The Cities screen exposes production, output, happiness, supported units,
+governor configuration, manual citizen optimization, and rush buying. The
+Options screen exposes persisted tax/luxury/science allocation. Research
+selection, goals, lists, and progress use authoritative request/reply packets
+instead of local-only state.
+
+The Government screen loads classic ruleset definitions and availability from
+the live game. Revolution requests are validated against researched
+technologies, persisted, restored after restart, advanced during turn
+processing, and refresh affected city effects. Unit menus use server-supplied
+capabilities for founding, fortifying, worker activities, pillage, and trade;
+trade routes have map targeting and all actions show server feedback.
+Unsupported production-queue controls are hidden rather than acting as no-ops.
+
+Map play includes selection/focus, keyboard movement, pan/drag and touch
+controls, goto previews, cancelable target modes, visible notifications,
+terrain/city/unit/border/fog/extra rendering, and short interpolated unit
+movement. City and nation style data is loaded from the server ruleset API
+rather than duplicated in the client. Client packet/state tests cover map,
+tile, border, player, city,
+unit, turn, research, management, and notification state paths. Diplomacy and
+foreign-nation intelligence remain explicitly deferred to Milestone 6.
+
 Evidence also includes `MovementConstants.test.ts`, `UnitManager.test.ts`,
-`PathfindingManager.test.ts`, the 741-test server unit suite, the 35-test
-client suite, both production type checks, and both production builds.
+`PathfindingManager.test.ts`, the server and client unit suites, both
+production type checks, and both production builds.
 
 ## Partial or incomplete areas
 
 These are confirmed by explicit TODOs, placeholders, or unintegrated paths; they are not a complete feature roadmap.
 
 - AI turn processing is deferred (`TurnPhaseService.ts`).
-- Diplomacy, city-management, and game-options areas have client placeholders (`apps/client/src/components/GameUI/GameLayout.tsx`).
-- Smooth unit movement animation is not implemented (`apps/client/src/components/Canvas2D/renderers/UnitRenderer.ts`).
 - Diplomatic states, treaties, embassies, espionage/sabotage, and their UI
   remain the explicit Milestone 6 scope; their action enums are not exposed.
 

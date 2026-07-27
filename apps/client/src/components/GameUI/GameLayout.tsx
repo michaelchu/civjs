@@ -7,6 +7,9 @@ import { StatusPanel } from './StatusPanel';
 import { TurnDoneButton } from './TurnDoneButton';
 import { TechnologyTree } from '../Research/TechnologyTree';
 import { GovernmentPanel } from './GovernmentPanel';
+import { CitiesPanel } from './CitiesPanel';
+import { GameOptionsPanel } from './GameOptionsPanel';
+import { NotificationFeed } from './NotificationFeed';
 import { useKeyboardControls } from '../../hooks/useKeyboardControls';
 
 export const GameLayout: React.FC = () => {
@@ -60,6 +63,7 @@ export const GameLayout: React.FC = () => {
 
   return (
     <div className="h-screen bg-gray-800 text-white overflow-hidden flex flex-col">
+      <NotificationFeed />
       {/* Header with tabs and status */}
       <div className="flex items-center justify-between bg-gray-700 px-4 py-1 border-b border-gray-600">
         <GameTabs />
@@ -117,17 +121,17 @@ export const GameLayout: React.FC = () => {
             >
               Nations
             </h2>
-            <p style={{ color: '#cbd5e0' }}>Diplomacy and nation info will be implemented here</p>
+            <p style={{ color: '#cbd5e0' }}>
+              Diplomacy and foreign-nation intelligence are planned for Milestone 6.
+            </p>
           </div>
 
-          <div className={`p-6 ${activeTab === 'cities' ? 'block' : 'hidden'}`}>
-            <h2 className="text-2xl font-bold mb-4">Cities</h2>
-            <p className="text-gray-300">City management will be implemented here</p>
+          <div className={`h-full ${activeTab === 'cities' ? 'block' : 'hidden'}`}>
+            <CitiesPanel />
           </div>
 
-          <div className={`p-6 ${activeTab === 'options' ? 'block' : 'hidden'}`}>
-            <h2 className="text-2xl font-bold mb-4">Options</h2>
-            <p className="text-gray-300">Game options will be implemented here</p>
+          <div className={`h-full ${activeTab === 'options' ? 'block' : 'hidden'}`}>
+            <GameOptionsPanel />
           </div>
         </div>
       </div>

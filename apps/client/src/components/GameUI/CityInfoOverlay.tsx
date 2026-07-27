@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
@@ -36,6 +36,7 @@ import {
   ChevronDown,
   ArrowUp,
   ArrowDown,
+  Settings2,
 } from 'lucide-react';
 import type { City, Unit, ProductionOption } from '../../types';
 
@@ -54,6 +55,20 @@ interface CityInfoOverlayProps {
   onQueueAdd?: (cityId: string, productionId: string, type: 'unit' | 'building' | 'wonder') => void;
   onQueueRemove?: (cityId: string, index: number) => void;
   onQueueReorder?: (cityId: string, fromIndex: number, toIndex: number) => void;
+  onGovernorChange?: (
+    cityId: string,
+    config: {
+      enabled: boolean;
+      priority: string;
+      autoManageSpecialists: boolean;
+      autoManageTiles: boolean;
+      autoManageProduction: boolean;
+      preventStarvation: boolean;
+      maintainHappiness: boolean;
+    }
+  ) => Promise<void>;
+  onOptimizeCitizens?: (cityId: string) => Promise<void>;
+  onBuyProduction?: (cityId: string) => Promise<void>;
 }
 
 /**
@@ -81,8 +96,21 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
   onQueueAdd,
   onQueueRemove,
   onQueueReorder,
+  onGovernorChange,
+  onOptimizeCitizens,
+  onBuyProduction,
 }) => {
   const [activeTab, setActiveTab] = useState('main');
+  const [governorEnabled, setGovernorEnabled] = useState(city?.governor?.isEnabled ?? false);
+  const [governorPriority, setGovernorPriority] = useState(city?.governor?.priority ?? 'balanced');
+  const [managementMessage, setManagementMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setGovernorEnabled(city?.governor?.isEnabled ?? false);
+    setGovernorPriority(city?.governor?.priority ?? 'balanced');
+    setManagementMessage(null);
+  }, [city?.id, city?.governor?.isEnabled, city?.governor?.priority]);
+
   if (!city) {
     return null;
   }
@@ -198,7 +226,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
           onValueChange={setActiveTab}
           className="w-full flex flex-col flex-1 min-h-0"
         >
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="main" className="flex items-center gap-2">
               <Home className="h-4 w-4" />
               Main
@@ -210,6 +238,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
             <TabsTrigger value="happiness" className="flex items-center gap-2">
               <Heart className="h-4 w-4" />
               Happiness
+            </TabsTrigger>
+            <TabsTrigger value="management" className="flex items-center gap-2">
+              <Settings2 className="h-4 w-4" />
+              Manage
             </TabsTrigger>
           </TabsList>
 
@@ -625,183 +657,185 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
               </div>
             )}
 
-            {/* Production Queue Management */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Production Queue ({cityData.worklist.length})
-                </h3>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8"
-                      disabled={isLoadingProductions}
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      {isLoadingProductions ? 'Loading...' : 'Add to Queue'}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    <DropdownMenuLabel>Add to Production Queue</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-
-                    {isLoadingProductions ? (
-                      <DropdownMenuItem disabled>
-                        <span className="text-sm text-muted-foreground">
-                          Loading production options...
-                        </span>
-                      </DropdownMenuItem>
-                    ) : (
-                      <>
-                        <DropdownMenuLabel className="text-xs text-muted-foreground">
-                          Units
-                        </DropdownMenuLabel>
-                        {availableProductions
-                          .filter(p => p.type === 'unit')
-                          .map(option => (
-                            <DropdownMenuItem
-                              key={option.id}
-                              onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
-                              className="flex items-center justify-between"
-                              disabled={!option.available}
-                            >
-                              <div>
-                                <div className="font-medium">{option.name}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {option.description}
-                                </div>
-                              </div>
-                              <span className="text-xs">{option.cost} shields</span>
-                            </DropdownMenuItem>
-                          ))}
-
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel className="text-xs text-muted-foreground">
-                          Buildings
-                        </DropdownMenuLabel>
-                        {availableProductions
-                          .filter(p => p.type === 'building')
-                          .map(option => (
-                            <DropdownMenuItem
-                              key={option.id}
-                              onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
-                              className="flex items-center justify-between"
-                              disabled={!option.available}
-                            >
-                              <div>
-                                <div className="font-medium">{option.name}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {option.description}
-                                </div>
-                              </div>
-                              <span className="text-xs">{option.cost} shields</span>
-                            </DropdownMenuItem>
-                          ))}
-
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel className="text-xs text-muted-foreground">
-                          Wonders
-                        </DropdownMenuLabel>
-                        {availableProductions
-                          .filter(p => p.type === 'wonder')
-                          .map(option => (
-                            <DropdownMenuItem
-                              key={option.id}
-                              onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
-                              className="flex items-center justify-between"
-                              disabled={!option.available}
-                            >
-                              <div>
-                                <div className="font-medium">{option.name}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {option.description}
-                                </div>
-                              </div>
-                              <span className="text-xs">{option.cost} shields</span>
-                            </DropdownMenuItem>
-                          ))}
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-
-              {/* Queue Items */}
-              <div className="h-44 overflow-hidden">
-                {cityData.worklist.length > 0 ? (
-                  <div className="space-y-2 h-full overflow-y-auto">
-                    {cityData.worklist.map((item, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded border hover:bg-gray-100 transition-colors group"
+            {/* Production queues are hidden until the server exposes authoritative queue actions. */}
+            {onQueueAdd && onQueueRemove && onQueueReorder && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Production Queue ({cityData.worklist.length})
+                  </h3>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        disabled={isLoadingProductions}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="flex flex-col gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() =>
-                                onQueueReorder?.(city.id, index, Math.max(0, index - 1))
-                              }
-                              disabled={index === 0}
-                            >
-                              <ArrowUp className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() =>
-                                onQueueReorder?.(
-                                  city.id,
-                                  index,
-                                  Math.min(cityData.worklist.length - 1, index + 1)
-                                )
-                              }
-                              disabled={index === cityData.worklist.length - 1}
-                            >
-                              <ArrowDown className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          <span className="text-xs bg-gray-200 rounded-full w-6 h-6 flex items-center justify-center font-medium">
-                            {index + 1}
+                        <Plus className="h-3 w-3 mr-1" />
+                        {isLoadingProductions ? 'Loading...' : 'Add to Queue'}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64">
+                      <DropdownMenuLabel>Add to Production Queue</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+
+                      {isLoadingProductions ? (
+                        <DropdownMenuItem disabled>
+                          <span className="text-sm text-muted-foreground">
+                            Loading production options...
                           </span>
-                          <div>
-                            <span className="font-medium">{item.target}</span>
-                            <div className="text-xs text-gray-500">{item.cost} shields</div>
+                        </DropdownMenuItem>
+                      ) : (
+                        <>
+                          <DropdownMenuLabel className="text-xs text-muted-foreground">
+                            Units
+                          </DropdownMenuLabel>
+                          {availableProductions
+                            .filter(p => p.type === 'unit')
+                            .map(option => (
+                              <DropdownMenuItem
+                                key={option.id}
+                                onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
+                                className="flex items-center justify-between"
+                                disabled={!option.available}
+                              >
+                                <div>
+                                  <div className="font-medium">{option.name}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {option.description}
+                                  </div>
+                                </div>
+                                <span className="text-xs">{option.cost} shields</span>
+                              </DropdownMenuItem>
+                            ))}
+
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel className="text-xs text-muted-foreground">
+                            Buildings
+                          </DropdownMenuLabel>
+                          {availableProductions
+                            .filter(p => p.type === 'building')
+                            .map(option => (
+                              <DropdownMenuItem
+                                key={option.id}
+                                onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
+                                className="flex items-center justify-between"
+                                disabled={!option.available}
+                              >
+                                <div>
+                                  <div className="font-medium">{option.name}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {option.description}
+                                  </div>
+                                </div>
+                                <span className="text-xs">{option.cost} shields</span>
+                              </DropdownMenuItem>
+                            ))}
+
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel className="text-xs text-muted-foreground">
+                            Wonders
+                          </DropdownMenuLabel>
+                          {availableProductions
+                            .filter(p => p.type === 'wonder')
+                            .map(option => (
+                              <DropdownMenuItem
+                                key={option.id}
+                                onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
+                                className="flex items-center justify-between"
+                                disabled={!option.available}
+                              >
+                                <div>
+                                  <div className="font-medium">{option.name}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {option.description}
+                                  </div>
+                                </div>
+                                <span className="text-xs">{option.cost} shields</span>
+                              </DropdownMenuItem>
+                            ))}
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                {/* Queue Items */}
+                <div className="h-44 overflow-hidden">
+                  {cityData.worklist.length > 0 ? (
+                    <div className="space-y-2 h-full overflow-y-auto">
+                      {cityData.worklist.map((item, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded border hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex flex-col gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() =>
+                                  onQueueReorder?.(city.id, index, Math.max(0, index - 1))
+                                }
+                                disabled={index === 0}
+                              >
+                                <ArrowUp className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() =>
+                                  onQueueReorder?.(
+                                    city.id,
+                                    index,
+                                    Math.min(cityData.worklist.length - 1, index + 1)
+                                  )
+                                }
+                                disabled={index === cityData.worklist.length - 1}
+                              >
+                                <ArrowDown className="h-3 w-3" />
+                              </Button>
+                            </div>
+                            <span className="text-xs bg-gray-200 rounded-full w-6 h-6 flex items-center justify-center font-medium">
+                              {index + 1}
+                            </span>
+                            <div>
+                              <span className="font-medium">{item.target}</span>
+                              <div className="text-xs text-gray-500">{item.cost} shields</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="capitalize text-xs">
+                              {item.type}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => onQueueRemove?.(city.id, index)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="capitalize text-xs">
-                            {item.type}
-                          </Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => onQueueRemove?.(city.id, index)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No items in production queue</p>
-                    <p className="text-xs text-muted-foreground">
-                      Add items to queue using the button above
-                    </p>
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                      <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No items in production queue</p>
+                      <p className="text-xs text-muted-foreground">
+                        Add items to queue using the button above
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Trade Routes */}
             {cityData.tradeRoutes && cityData.tradeRoutes.length > 0 && (
@@ -929,6 +963,104 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="management" className="space-y-4 flex-1 overflow-y-auto min-h-0 p-1">
+            {managementMessage && (
+              <div role="status" className="rounded border bg-gray-50 p-3 text-sm text-gray-700">
+                {managementMessage}
+              </div>
+            )}
+
+            <div className="rounded-lg border p-4">
+              <h3 className="mb-3 font-medium">Citizen governor</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={governorEnabled}
+                    onChange={event => setGovernorEnabled(event.target.checked)}
+                  />
+                  Enable automatic management
+                </label>
+                <label className="text-sm">
+                  Priority
+                  <select
+                    className="mt-1 w-full rounded border bg-background p-2"
+                    value={governorPriority}
+                    onChange={event => setGovernorPriority(event.target.value)}
+                  >
+                    {['balanced', 'food', 'shields', 'trade', 'science', 'gold', 'luxury'].map(
+                      priority => (
+                        <option key={priority} value={priority}>
+                          {priority[0].toUpperCase() + priority.slice(1)}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </label>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  onClick={() => {
+                    void onGovernorChange?.(city.id, {
+                      enabled: governorEnabled,
+                      priority: governorPriority,
+                      autoManageSpecialists: true,
+                      autoManageTiles: true,
+                      autoManageProduction: false,
+                      preventStarvation: true,
+                      maintainHappiness: true,
+                    })
+                      .then(() => setManagementMessage('Governor settings saved'))
+                      .catch(error =>
+                        setManagementMessage(
+                          error instanceof Error ? error.message : 'Governor update failed'
+                        )
+                      );
+                  }}
+                  disabled={!onGovernorChange}
+                >
+                  Save governor
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    void onOptimizeCitizens?.(city.id)
+                      .then(() => setManagementMessage('Citizen assignments optimized'))
+                      .catch(error =>
+                        setManagementMessage(
+                          error instanceof Error ? error.message : 'Optimization failed'
+                        )
+                      );
+                  }}
+                  disabled={!onOptimizeCitizens}
+                >
+                  Optimize citizens now
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-lg border p-4">
+              <h3 className="font-medium">Rush production</h3>
+              <p className="my-2 text-sm text-muted-foreground">
+                Spend treasury gold to finish some or all of the current production.
+              </p>
+              <Button
+                onClick={() => {
+                  void onBuyProduction?.(city.id)
+                    .then(() => setManagementMessage('Production purchase completed'))
+                    .catch(error =>
+                      setManagementMessage(
+                        error instanceof Error ? error.message : 'Production purchase failed'
+                      )
+                    );
+                }}
+                disabled={!onBuyProduction || !city.production}
+              >
+                Buy production
+              </Button>
             </div>
           </TabsContent>
         </Tabs>

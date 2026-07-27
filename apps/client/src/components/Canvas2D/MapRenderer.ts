@@ -107,6 +107,7 @@ export class MapRenderer {
   }
 
   render(state: RenderState, immediate = false) {
+    this.renderState = state;
     // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:688-700
     // Implement freeciv-web's performance timing system
     const currentTime = new Date().getTime();
@@ -195,6 +196,13 @@ export class MapRenderer {
 
     // Render paths and overlays on top of everything
     this.pathRenderer.renderPaths(state);
+
+    if (this.unitRenderer.hasActiveMovementAnimations() && this.movementAnimationFrameId === null) {
+      this.movementAnimationFrameId = requestAnimationFrame(() => {
+        this.movementAnimationFrameId = null;
+        if (this.renderState) this.render(this.renderState, true);
+      });
+    }
 
     // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:522-540
     // Complete timing measurement and adjust refresh interval
@@ -597,6 +605,7 @@ export class MapRenderer {
    * Start the requestAnimationFrame-based render loop like freeciv-web
    */
   private animationFrameId: number | null = null;
+  private movementAnimationFrameId: number | null = null;
   private renderState: RenderState | null = null;
 
   startRenderLoop(initialState: RenderState) {
@@ -636,6 +645,10 @@ export class MapRenderer {
 
   cleanup() {
     this.stopRenderLoop();
+    if (this.movementAnimationFrameId !== null) {
+      cancelAnimationFrame(this.movementAnimationFrameId);
+      this.movementAnimationFrameId = null;
+    }
     this.tilesetLoader.cleanup();
     this.isInitialized = false;
   }

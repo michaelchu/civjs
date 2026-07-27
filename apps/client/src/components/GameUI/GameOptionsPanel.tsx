@@ -1,0 +1,114 @@
+import React, { useEffect, useState } from 'react';
+import { useGameStore } from '../../store/gameStore';
+import { gameClient } from '../../services/GameClient';
+import { Button } from '../ui/button';
+
+type TaxRates = { tax: number; luxury: number; science: number };
+
+export const GameOptionsPanel: React.FC = () => {
+  const { map, turn, year, currentGameId } = useGameStore();
+  const [rates, setRates] = useState<TaxRates>({ tax: 50, luxury: 20, science: 30 });
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const total = rates.tax + rates.luxury + rates.science;
+
+  useEffect(() => {
+    void gameClient
+      .getTaxRates()
+      .then(setRates)
+      .catch(error =>
+        setFeedback(error instanceof Error ? error.message : 'Failed to load tax rates')
+      );
+  }, []);
+
+  return (
+    <section className="h-full overflow-y-auto bg-gray-900 p-6 text-white">
+      <h2 className="text-2xl font-bold">Game information</h2>
+      <p className="mt-1 text-sm text-gray-400">
+        Map-generation and player-count options are selected when creating the game and remain fixed
+        during play.
+      </p>
+
+      <dl className="mt-6 grid max-w-3xl gap-3 sm:grid-cols-2">
+        <Info label="Game ID" value={currentGameId || '—'} />
+        <Info label="Turn" value={String(turn)} />
+        <Info label="Year" value={year === undefined ? '—' : String(year)} />
+        <Info label="Map size" value={`${map.width} × ${map.height}`} />
+      </dl>
+
+      <div className="mt-8 max-w-3xl rounded-lg border border-gray-700 bg-gray-800 p-5">
+        <h3 className="font-semibold">Trade allocation</h3>
+        <p className="mt-1 text-sm text-gray-400">
+          Divide city trade among taxes, luxuries, and science. The total must equal 100%.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          {(['tax', 'luxury', 'science'] as const).map(rate => (
+            <label key={rate} className="text-sm capitalize text-gray-300">
+              {rate}
+              <input
+                className="mt-1 w-full rounded border border-gray-600 bg-gray-900 p-2"
+                type="number"
+                min={0}
+                max={100}
+                step={10}
+                value={rates[rate]}
+                onChange={event =>
+                  setRates(current => ({
+                    ...current,
+                    [rate]: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+          ))}
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <Button
+            disabled={total !== 100}
+            onClick={() => {
+              void gameClient
+                .setTaxRates(rates)
+                .then(savedRates => {
+                  setRates(savedRates);
+                  setFeedback('Trade allocation saved');
+                })
+                .catch(error =>
+                  setFeedback(
+                    error instanceof Error ? error.message : 'Failed to save trade allocation'
+                  )
+                );
+            }}
+          >
+            Save allocation
+          </Button>
+          <span className={total === 100 ? 'text-sm text-green-400' : 'text-sm text-red-400'}>
+            Total: {total}%
+          </span>
+        </div>
+        {feedback && (
+          <div role="status" className="mt-3 rounded bg-gray-900 p-3 text-sm text-gray-200">
+            {feedback}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8 max-w-3xl rounded-lg border border-gray-700 bg-gray-800 p-5">
+        <h3 className="font-semibold">Core controls</h3>
+        <ul className="mt-3 grid gap-2 text-sm text-gray-300 sm:grid-cols-2">
+          <li>Left click: select or focus</li>
+          <li>Right click / long press: actions</li>
+          <li>Arrow keys: move focused unit</li>
+          <li>G: choose a Go To destination</li>
+          <li>F1–F6: switch game screens</li>
+          <li>Escape: cancel targeting</li>
+        </ul>
+      </div>
+    </section>
+  );
+};
+
+const Info: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+    <dt className="text-xs uppercase tracking-wide text-gray-400">{label}</dt>
+    <dd className="mt-1 break-all font-medium">{value}</dd>
+  </div>
+);

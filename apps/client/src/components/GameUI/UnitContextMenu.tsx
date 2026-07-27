@@ -22,6 +22,7 @@ import {
   Zap,
   SkipForward,
   Trash2,
+  HandCoins,
 } from 'lucide-react';
 import type { Unit } from '../../types';
 import { ActionType } from '../../types/shared/actions';
@@ -85,12 +86,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     );
 
     // Military unit actions
-    if (
-      unit.unitTypeId === 'warriors' ||
-      unit.unitTypeId === 'archers' ||
-      unit.unitTypeId === 'phalanx' ||
-      unit.unitTypeId === 'explorer'
-    ) {
+    if (unit.capabilities?.canFortify) {
       actions.push(
         { separator: true },
         {
@@ -109,7 +105,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     }
 
     // Settler actions
-    if (unit.unitTypeId === 'settlers') {
+    if (unit.capabilities?.canFoundCity) {
       actions.push(
         { separator: true },
         {
@@ -123,7 +119,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
 
     // Worker actions. Classic Settlers, Workers, and Engineers all carry the
     // ruleset's Workers flag and therefore share terrain activities.
-    if (['settlers', 'worker', 'engineers'].includes(unit.unitTypeId)) {
+    if (unit.capabilities?.canBuildImprovements) {
       actions.push({ separator: true });
 
       // Build submenu for workers
@@ -163,11 +159,6 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
           icon: Zap,
           hotkey: 'C',
         },
-        {
-          action: ActionType.PILLAGE,
-          name: 'Pillage Improvement',
-          icon: Trash2,
-        },
       ];
 
       actions.push({
@@ -176,6 +167,29 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
         icon: Hammer,
         submenu: buildActions,
       });
+    }
+
+    if (unit.capabilities?.canPillage) {
+      actions.push(
+        { separator: true },
+        {
+          action: ActionType.PILLAGE,
+          name: 'Pillage Improvement',
+          icon: Trash2,
+        }
+      );
+    }
+
+    if (unit.capabilities?.canTrade) {
+      actions.push(
+        { separator: true },
+        {
+          action: ActionType.TRADE_ROUTE,
+          name: 'Establish Trade Route',
+          icon: HandCoins,
+          hotkey: 'T',
+        }
+      );
     }
 
     actions.push(

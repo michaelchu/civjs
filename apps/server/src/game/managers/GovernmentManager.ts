@@ -1,6 +1,6 @@
 import { DatabaseProvider } from '@database';
-import { players as playersTable } from '@database/schema';
-import { eq, and } from 'drizzle-orm';
+import { governmentChanges, players as playersTable } from '@database/schema';
+import { eq, and, desc } from 'drizzle-orm';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { GovernmentRuleset } from '@shared/data/rulesets/schemas';
 import { logger } from '@utils/logger';
@@ -106,10 +106,37 @@ export class GovernmentManager {
       .where(and(eq(playersTable.gameId, this.gameId), eq(playersTable.id, playerId)));
   }
 
+  public async loadPlayerGovernment(
+    playerId: string,
+    currentGovernment: string,
+    revolutionTurns: number
+  ): Promise<void> {
+    let requestedGovernment: string | undefined;
+    if (revolutionTurns > 0) {
+      const [latestChange] = await this.databaseProvider
+        .getDatabase()
+        .select()
+        .from(governmentChanges)
+        .where(
+          and(eq(governmentChanges.gameId, this.gameId), eq(governmentChanges.playerId, playerId))
+        )
+        .orderBy(desc(governmentChanges.createdAt))
+        .limit(1);
+      requestedGovernment = latestChange?.toGovernment;
+    }
+    this.playerGovernments.set(playerId, {
+      playerId,
+      currentGovernment,
+      revolutionTurns,
+      requestedGovernment,
+    });
+  }
+
   public async startRevolution(
     playerId: string,
     requestedGovernment: string,
-    playerResearchedTechs: Set<string>
+    playerResearchedTechs: Set<string>,
+    currentTurn: number = 0
   ): Promise<{ success: boolean; message?: string }> {
     const playerGov = this.playerGovernments.get(playerId);
     if (!playerGov) {
@@ -124,6 +151,9 @@ export class GovernmentManager {
     // Check if requesting current government
     if (requestedGovernment === playerGov.currentGovernment) {
       return { success: false, message: 'Already using this government' };
+    }
+    if (requestedGovernment === getRevolutionGovernment()) {
+      return { success: false, message: 'Anarchy cannot be selected as a target government' };
     }
 
     // Validate requested government exists
@@ -142,6 +172,7 @@ export class GovernmentManager {
     // Start revolution - 3 turns of anarchy for most government changes
     const anarchyTurns = this.getRevolutionTurns(playerGov.currentGovernment, requestedGovernment);
 
+    const previousGovernment = playerGov.currentGovernment;
     playerGov.currentGovernment = 'anarchy';
     playerGov.revolutionTurns = anarchyTurns;
     playerGov.requestedGovernment = requestedGovernment;
@@ -155,6 +186,15 @@ export class GovernmentManager {
         revolutionTurns: anarchyTurns,
       })
       .where(and(eq(playersTable.gameId, this.gameId), eq(playersTable.id, playerId)));
+
+    await this.databaseProvider.getDatabase().insert(governmentChanges).values({
+      gameId: this.gameId,
+      playerId,
+      fromGovernment: previousGovernment,
+      toGovernment: requestedGovernment,
+      changeTurn: currentTurn,
+      anarchyTurns,
+    });
 
     return {
       success: true,

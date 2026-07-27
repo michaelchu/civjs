@@ -84,6 +84,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     targetTile: null,
     currentPath: null,
   });
+  const [targetActionMode, setTargetActionMode] = useState<{
+    unit: Unit;
+    action: ActionType;
+  } | null>(null);
 
   const {
     viewport,
@@ -120,8 +124,17 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
 
     const handleShowActionDialog = (event: CustomEvent) => {
       const { unit } = event.detail;
-      // TODO: Show action selection dialog
-      console.log('Action dialog requested for unit:', unit.id);
+      if (!unit || !canvasRef.current) return;
+      const bounds = canvasRef.current.getBoundingClientRect();
+      setSelectedUnit(unit);
+      selectUnit(unit.id);
+      setContextMenu({
+        unit,
+        position: {
+          x: bounds.left + bounds.width / 2,
+          y: bounds.top + Math.min(bounds.height / 2, 300),
+        },
+      });
     };
 
     const handleShowCityNameDialog = (event: CustomEvent) => {
@@ -145,7 +158,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         handleShowCityNameDialog as EventListener
       );
     };
-  }, [focusedUnits, setGotoMode]);
+  }, [focusedUnits, selectUnit, setGotoMode]);
 
   // Handle mouse and touch events - copied from freeciv-web 2D canvas behavior
   const [isDragging, setIsDragging] = useState(false);
@@ -593,6 +606,32 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     [gotoMode.unit, deactivateGotoMode, selectUnit]
   );
 
+  const executeTargetAction = useCallback(
+    async (targetX: number, targetY: number) => {
+      if (!targetActionMode) return;
+      try {
+        const result = await gameClient.executeUnitAction(
+          targetActionMode.unit.id,
+          targetActionMode.action,
+          targetX,
+          targetY
+        );
+        setActionFeedback({
+          success: true,
+          message: result.message || `${targetActionMode.action.replaceAll('_', ' ')} completed`,
+        });
+      } catch (error) {
+        setActionFeedback({
+          success: false,
+          message: error instanceof Error ? error.message : 'Targeted action failed',
+        });
+      } finally {
+        setTargetActionMode(null);
+      }
+    },
+    [targetActionMode]
+  );
+
   // City overlay handlers - placed early to avoid dependency issues
   const handleOpenCityInfoOverlay = useCallback(async (city: City) => {
     setCityInfoOverlay({
@@ -818,6 +857,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           dragStartTime.current = 0;
           return;
         }
+        if (targetActionMode) {
+          void executeTargetAction(tileX, tileY);
+          dragStartTime.current = 0;
+          return;
+        }
 
         // Enhanced unit selection with multi-select support
         const clickOptions: ClickOptions = {
@@ -887,6 +931,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       viewport,
       gotoMode.active,
       executeGoto,
+      targetActionMode,
+      executeTargetAction,
       currentPlayerId,
       focusedUnits,
     ]
@@ -1113,6 +1159,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           window.setTimeout(() => {
             executeGoto(tileX, tileY);
           }, 150);
+        } else if (targetActionMode) {
+          void executeTargetAction(tileX, tileY);
         } else {
           // Normal selection
           const unitAtPosition = Object.values(units).find(
@@ -1143,6 +1191,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       gotoMode.active,
       requestGotoPath,
       executeGoto,
+      targetActionMode,
+      executeTargetAction,
       selectUnit,
       units,
     ]
@@ -1167,6 +1217,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       if (gotoMode.active) {
         console.log('Right-click - deactivating goto mode');
         deactivateGotoMode();
+        return;
+      }
+      if (targetActionMode) {
+        setTargetActionMode(null);
         return;
       }
 
@@ -1213,6 +1267,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       gotoMode.active,
       deactivateGotoMode,
       handleOpenCityInfoOverlay,
+      targetActionMode,
     ]
   );
 
@@ -1247,6 +1302,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         });
         // Close context menu since we're opening the dialog
         setContextMenu(null);
+        return;
+      }
+
+      if (action === ActionType.TRADE_ROUTE) {
+        setTargetActionMode({ unit: selectedUnit, action });
+        setActionFeedback({
+          success: true,
+          message: 'Select the destination city for this trade route',
+        });
         return;
       }
 
@@ -1326,49 +1390,34 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       console.log('Production change:', { cityId, productionId, type });
       try {
         await gameClient.changeProduction(cityId, productionId, type);
-        console.log('Production changed successfully');
+        setActionFeedback({ success: true, message: 'Production updated' });
       } catch (error) {
         console.error('Failed to change production:', error);
-        // TODO: Show error message to user
+        setActionFeedback({
+          success: false,
+          message: error instanceof Error ? error.message : 'Production change failed',
+        });
       }
     },
     []
   );
 
-  const handleQueueAdd = useCallback(
-    (cityId: string, productionId: string, type: 'unit' | 'building' | 'wonder') => {
-      console.log('Queue add:', { cityId, productionId, type });
-      // TODO: Implement queue add action when server supports it
-    },
-    []
-  );
-
-  const handleQueueRemove = useCallback((cityId: string, index: number) => {
-    console.log('Queue remove:', { cityId, index });
-    // TODO: Implement queue remove action when server supports it
-  }, []);
-
-  const handleQueueReorder = useCallback((cityId: string, fromIndex: number, toIndex: number) => {
-    console.log('Queue reorder:', { cityId, fromIndex, toIndex });
-    // TODO: Implement queue reorder action when server supports it
-  }, []);
-
   // Global keyboard handler for ESC key to exit goto mode
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && gotoMode.active) {
-        console.log('ESC pressed - deactivating goto mode');
-        deactivateGotoMode();
+      if (event.key === 'Escape' && (gotoMode.active || targetActionMode)) {
+        if (gotoMode.active) deactivateGotoMode();
+        setTargetActionMode(null);
         event.preventDefault();
         event.stopPropagation();
       }
     };
 
-    if (gotoMode.active) {
+    if (gotoMode.active || targetActionMode) {
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
-  }, [gotoMode.active, deactivateGotoMode]);
+  }, [gotoMode.active, targetActionMode, deactivateGotoMode]);
 
   // Global mouse up handler to catch mouse up events outside the canvas
   useEffect(() => {
@@ -1423,6 +1472,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           {actionFeedback.message}
         </div>
       )}
+      {targetActionMode && (
+        <div className="absolute right-3 top-3 z-[1100] rounded bg-amber-700 px-3 py-2 text-sm text-white shadow">
+          Select a target city · Esc to cancel
+        </div>
+      )}
       <canvas
         ref={canvasRef}
         width={width}
@@ -1467,9 +1521,17 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         availableProductions={productionData.availableProductions}
         isLoadingProductions={productionData.isLoading}
         onProductionChange={handleProductionChange}
-        onQueueAdd={handleQueueAdd}
-        onQueueRemove={handleQueueRemove}
-        onQueueReorder={handleQueueReorder}
+        onGovernorChange={(cityId, config) => gameClient.configureCityGovernor(cityId, config)}
+        onOptimizeCitizens={cityId => gameClient.optimizeCityCitizens(cityId)}
+        onBuyProduction={async cityId => {
+          const result = await gameClient.buyCityProduction(cityId);
+          setActionFeedback({
+            success: true,
+            message: `Spent ${result.goldSpent} gold${
+              result.completed ? '; production completed' : ''
+            }`,
+          });
+        }}
       />
     </div>
   );

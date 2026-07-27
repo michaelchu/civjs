@@ -66,10 +66,12 @@ describe('SocketCoordinator', () => {
     it('should initialize with all handlers', () => {
       const stats = coordinator.getHandlerStats();
 
-      expect(stats).toHaveLength(8);
+      expect(stats).toHaveLength(10);
       expect(stats.map(s => s.name)).toContain('ConnectionHandler');
       expect(stats.map(s => s.name)).toContain('GameManagementHandler');
       expect(stats.map(s => s.name)).toContain('UnitActionHandler');
+      expect(stats.map(s => s.name)).toContain('GovernmentHandler');
+      expect(stats.map(s => s.name)).toContain('EconomicHandler');
       expect(stats.map(s => s.name)).toContain('CityManagementHandler');
       expect(stats.map(s => s.name)).toContain('ResearchHandler');
       expect(stats.map(s => s.name)).toContain('MapVisibilityHandler');

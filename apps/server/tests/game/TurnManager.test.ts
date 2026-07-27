@@ -53,6 +53,8 @@ const mockUnitManager = {
 
 const mockCityManager = {
   getAllCities: jest.fn().mockResolvedValue([]),
+  getPlayerCities: jest.fn().mockReturnValue([]),
+  refreshCityWithGovernmentEffects: jest.fn(),
   processProduction: jest.fn(),
   updateCityState: jest.fn(),
 } as any;
@@ -222,6 +224,41 @@ describe('TurnManager', () => {
 
       // Should not advance turn on failure
       expect(turnManager.getCurrentTurn()).toBe(1);
+    });
+
+    it('advances revolutions and refreshes city effects when one completes', async () => {
+      const governmentManager = {
+        processRevolutionTurn: jest.fn().mockResolvedValue('monarchy'),
+      };
+      const manager = new TurnManager(
+        'test-game-id',
+        mockDatabase,
+        mockIo,
+        mockUnitManager,
+        mockCityManager,
+        mockResearchManager,
+        mockBorderManager,
+        mockVisibilityManager,
+        mockCultureManager,
+        {
+          broadcastCityData: jest.fn(),
+        } as any,
+        undefined,
+        governmentManager as any
+      );
+      await manager.initializeTurn(['player1']);
+      (manager as any).turnPhaseService.executePhaseProcessing = jest.fn().mockResolvedValue({
+        success: true,
+        totalDuration: 1,
+        phases: [],
+        errors: [],
+      });
+      mockCityManager.getPlayerCities.mockReturnValue([{ id: 'city-1' }]);
+
+      await manager.processTurn();
+
+      expect(governmentManager.processRevolutionTurn).toHaveBeenCalledWith('player1');
+      expect(mockCityManager.refreshCityWithGovernmentEffects).toHaveBeenCalledWith('city-1');
     });
   });
 

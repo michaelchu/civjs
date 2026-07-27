@@ -7,7 +7,7 @@ import { ActionType, type ActionResult } from '../types/shared/actions';
 import { pathfindingService } from './PathfindingService';
 import { playerColorToHex } from '../utils/playerColors';
 import { storeUsername } from '../utils/gameSession';
-import type { ProductionOption } from '../types';
+import type { GovernmentState, ProductionOption } from '../types';
 
 // Mock government data for development
 const getMockGovernments = () => ({
@@ -438,6 +438,7 @@ class GameClient {
               orders: unitData.orders,
               transportedBy: unitData.transportedBy,
               cargoUnits: unitData.cargoUnits,
+              capabilities: unitData.capabilities,
             };
 
             // Check if unit position changed and clear cached paths if so
@@ -501,11 +502,79 @@ class GameClient {
       case PacketType.RESEARCH_SET_REPLY:
         console.log('Research set reply:', packet.data);
         if (packet.data.success && packet.data.availableTechs) {
-          // TODO: Add availableTechnologies to GameState interface
-          console.log('Available technologies updated:', packet.data.availableTechs);
+          const availableTechs = packet.data.availableTechs as Array<{
+            id: string;
+            name: string;
+            cost: number;
+            requirements: string[];
+            description?: string;
+          }>;
+          const { technologies } = useGameStore.getState();
+          useGameStore.getState().updateGameState({
+            technologies: {
+              ...technologies,
+              ...Object.fromEntries(
+                availableTechs.map(tech => [
+                  tech.id,
+                  {
+                    ...tech,
+                    discovered: false,
+                  },
+                ])
+              ),
+            },
+          });
+          useGameStore.getState().updateResearchState({
+            availableTechs: new Set(availableTechs.map(tech => tech.id)),
+          });
         } else if (!packet.data.success) {
           console.error('Research setting failed:', packet.data.message);
         }
+        break;
+
+      case PacketType.RESEARCH_LIST_REPLY: {
+        const availableTechs = Array.isArray(packet.data.availableTechs)
+          ? packet.data.availableTechs
+          : [];
+        const researchedTechIds = Array.isArray(packet.data.researchedTechs)
+          ? packet.data.researchedTechs
+          : [];
+        const { technologies } = useGameStore.getState();
+        useGameStore.getState().updateGameState({
+          technologies: {
+            ...technologies,
+            ...Object.fromEntries(
+              availableTechs.map(
+                (tech: {
+                  id: string;
+                  name: string;
+                  cost: number;
+                  requirements: string[];
+                  description?: string;
+                }) => [
+                  tech.id,
+                  {
+                    ...tech,
+                    discovered: false,
+                  },
+                ]
+              )
+            ),
+          },
+        });
+        useGameStore.getState().updateResearchState({
+          researchedTechs: new Set(researchedTechIds),
+          availableTechs: new Set(availableTechs.map((tech: { id: string }) => tech.id)),
+        });
+        break;
+      }
+
+      case PacketType.RESEARCH_PROGRESS_REPLY:
+        useGameStore.getState().updateResearchState({
+          currentTech: packet.data.currentTech,
+          techGoal: packet.data.techGoal,
+          bulbsAccumulated: packet.data.current ?? 0,
+        });
         break;
 
       case PacketType.SERVER_JOIN_REPLY:
@@ -521,12 +590,16 @@ class GameClient {
         console.log('Connection message:', packet.data);
         if (packet.data.type === 'error') {
           console.error('Server error:', packet.data.message);
+          useGameStore.getState().addNotification({ message: packet.data.message, tone: 'error' });
         }
         break;
 
       case PacketType.CHAT_MSG:
         console.log('Chat message:', packet.data);
-        // Handle chat messages
+        useGameStore.getState().addNotification({
+          message: packet.data.message,
+          tone: packet.data.type === 'error' ? 'error' : 'info',
+        });
         break;
 
       case PacketType.MAP_INFO:
@@ -880,18 +953,73 @@ class GameClient {
     });
   }
 
-  setResearch(techId: string) {
+  async setResearch(techId: string): Promise<void> {
+    await this.requestPacket(
+      PacketType.RESEARCH_SET,
+      PacketType.RESEARCH_SET_REPLY,
+      { techId },
+      data => Boolean(data.success),
+      'Failed to set research'
+    );
+    useGameStore.getState().setCurrentResearch(techId);
+  }
+
+  async setResearchGoal(techId: string): Promise<void> {
+    await this.requestPacket(
+      PacketType.RESEARCH_GOAL_SET,
+      PacketType.RESEARCH_GOAL_SET_REPLY,
+      { techId },
+      data => Boolean(data.success),
+      'Failed to set research goal'
+    );
+    useGameStore.getState().setResearchGoal(techId);
+  }
+
+  refreshResearch(): void {
+    this.emitPacket(PacketType.RESEARCH_LIST, {});
+    this.emitPacket(PacketType.RESEARCH_PROGRESS, {});
+  }
+
+  private emitPacket(type: PacketType, data: unknown): void {
     if (!this.socket) return;
-
-    const packet: Packet = {
-      type: PacketType.RESEARCH_SET,
-      data: {
-        techId,
-      },
+    this.socket.emit('packet', {
+      type,
+      data,
       timestamp: Date.now(),
-    };
+    } satisfies Packet);
+  }
 
-    this.socket.emit('packet', packet);
+  private requestPacket(
+    requestType: PacketType,
+    replyType: PacketType,
+    data: unknown,
+    isSuccess: (data: Record<string, unknown>) => boolean,
+    fallbackError: string
+  ): Promise<Record<string, unknown>> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Socket not connected'));
+        return;
+      }
+
+      const timeoutId = window.setTimeout(() => {
+        this.socket?.off('packet', responseHandler);
+        reject(new Error(`${fallbackError}: request timed out`));
+      }, 5000);
+      const responseHandler = (reply: Packet<Record<string, unknown>>) => {
+        if (reply.type !== replyType) return;
+        window.clearTimeout(timeoutId);
+        this.socket?.off('packet', responseHandler);
+        if (isSuccess(reply.data)) {
+          resolve(reply.data);
+        } else {
+          reject(new Error((reply.data.message as string | undefined) || fallbackError));
+        }
+      };
+
+      this.socket.on('packet', responseHandler);
+      this.emitPacket(requestType, data);
+    });
   }
 
   async getMapData(): Promise<any> {
@@ -1453,13 +1581,19 @@ class GameClient {
 
     if (data.playerId && data.tilesGained?.length > 0) {
       console.log(`Player ${data.playerId} gained ${data.tilesGained.length} tiles`);
+      useGameStore.getState().addNotification({
+        message: `${data.tilesGained.length} territory tiles gained`,
+        tone: 'success',
+      });
     }
 
     if (data.playerId && data.tilesLost?.length > 0) {
       console.log(`Player ${data.playerId} lost ${data.tilesLost.length} tiles`);
+      useGameStore.getState().addNotification({
+        message: `${data.tilesLost.length} territory tiles lost`,
+        tone: 'info',
+      });
     }
-
-    // Could show UI notifications here for territory changes
   }
 
   /**
@@ -1568,6 +1702,163 @@ class GameClient {
         cityId,
         productionId,
         productionType,
+      });
+    });
+  }
+
+  async configureCityGovernor(
+    cityId: string,
+    config: {
+      enabled: boolean;
+      priority: string;
+      autoManageSpecialists: boolean;
+      autoManageTiles: boolean;
+      autoManageProduction: boolean;
+      preventStarvation: boolean;
+      maintainHappiness: boolean;
+    }
+  ): Promise<void> {
+    const response = await this.requestSocketEvent<{
+      success: boolean;
+      governor?: import('../types').City['governor'];
+      error?: string;
+    }>('city:configureGovernor', { cityId, ...config });
+    if (!response.success) throw new Error(response.error || 'Failed to configure governor');
+
+    const { cities } = useGameStore.getState();
+    const city = cities[cityId];
+    if (city && response.governor) {
+      useGameStore.getState().updateGameState({
+        cities: {
+          ...cities,
+          [cityId]: { ...city, governor: response.governor },
+        },
+      });
+    }
+  }
+
+  async optimizeCityCitizens(cityId: string): Promise<void> {
+    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
+      'city:optimizeCitizens',
+      { cityId }
+    );
+    if (!response.success) throw new Error(response.error || 'Failed to optimize citizens');
+  }
+
+  async buyCityProduction(cityId: string): Promise<{
+    goldSpent: number;
+    completed: boolean;
+    remainingGold?: number;
+  }> {
+    const response = await this.requestSocketEvent<{
+      success: boolean;
+      result?: { goldSpent: number; completed: boolean; remainingGold?: number };
+      error?: string;
+    }>('city:buyProduction', { cityId });
+    if (!response.success || !response.result) {
+      throw new Error(response.error || 'Failed to buy production');
+    }
+    if (response.result.remainingGold !== undefined) {
+      const store = useGameStore.getState();
+      const player = store.players[store.currentPlayerId];
+      if (player) {
+        store.updateGameState({
+          players: {
+            ...store.players,
+            [player.id]: { ...player, gold: response.result.remainingGold },
+          },
+        });
+      }
+    }
+    return response.result;
+  }
+
+  async getGovernmentState(): Promise<GovernmentState> {
+    const response = await this.requestSocketEvent<{
+      success: boolean;
+      state?: GovernmentState;
+      error?: string;
+    }>('government:getState', {});
+    if (!response.success || !response.state) {
+      throw new Error(response.error || 'Failed to load government state');
+    }
+    this.applyGovernmentState(response.state);
+    return response.state;
+  }
+
+  async startRevolution(governmentId: string): Promise<string> {
+    const response = await this.requestSocketEvent<{
+      success: boolean;
+      state?: GovernmentState;
+      message?: string;
+      error?: string;
+    }>('government:startRevolution', { governmentId });
+    if (!response.success || !response.state) {
+      throw new Error(response.error || 'Failed to start revolution');
+    }
+    this.applyGovernmentState(response.state);
+    return response.message || 'Revolution started';
+  }
+
+  async getTaxRates(): Promise<{ tax: number; luxury: number; science: number }> {
+    const response = await this.requestSocketEvent<{
+      success: boolean;
+      rates?: { tax: number; luxury: number; science: number };
+      error?: string;
+    }>('economy:getTaxRates', {});
+    if (!response.success || !response.rates) {
+      throw new Error(response.error || 'Failed to load tax rates');
+    }
+    return response.rates;
+  }
+
+  async setTaxRates(rates: {
+    tax: number;
+    luxury: number;
+    science: number;
+  }): Promise<{ tax: number; luxury: number; science: number }> {
+    const response = await this.requestSocketEvent<{
+      success: boolean;
+      rates?: { tax: number; luxury: number; science: number };
+      error?: string;
+    }>('economy:setTaxRates', rates);
+    if (!response.success || !response.rates) {
+      throw new Error(response.error || 'Failed to update tax rates');
+    }
+    return response.rates;
+  }
+
+  private applyGovernmentState(state: GovernmentState): void {
+    const store = useGameStore.getState();
+    const player = store.players[store.currentPlayerId];
+    useGameStore.getState().updateGameState({
+      governments: state.governments,
+      players: player
+        ? {
+            ...store.players,
+            [player.id]: {
+              ...player,
+              government: state.currentGovernment || player.government,
+              revolutionTurns: state.revolutionTurns,
+            },
+          }
+        : store.players,
+    });
+  }
+
+  private requestSocketEvent<T>(event: string, data: unknown): Promise<T> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Socket not connected'));
+        return;
+      }
+      const timeoutId = window.setTimeout(
+        () => reject(new Error(`${event} request timed out`)),
+        5000
+      );
+      this.socket.emit(event, data, (response: T) => {
+        window.clearTimeout(timeoutId);
+        resolve(response);
       });
     });
   }

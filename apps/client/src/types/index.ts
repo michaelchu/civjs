@@ -33,6 +33,13 @@ export interface Unit {
   orders?: unknown;
   transportedBy?: string;
   cargoUnits?: string[];
+  capabilities?: {
+    canFortify: boolean;
+    canFoundCity: boolean;
+    canBuildImprovements: boolean;
+    canPillage: boolean;
+    canTrade: boolean;
+  };
 }
 
 export interface ProductionOption {
@@ -124,6 +131,17 @@ export interface City {
     goods: string;
     value: number;
   }>;
+  governor?: {
+    isEnabled: boolean;
+    priority: string;
+    settings: {
+      autoManageSpecialists: boolean;
+      autoManageTiles: boolean;
+      autoManageProduction: boolean;
+      preventStarvation: boolean;
+      maintainHappiness: boolean;
+    };
+  };
   // City state
   celebrating: boolean;
   disorder: boolean;
@@ -189,6 +207,18 @@ export interface Government {
   ruler_male_title: string;
   ruler_female_title: string;
   helptext: string;
+}
+
+export interface GovernmentState {
+  governments: Record<string, Government>;
+  currentGovernment?: string;
+  revolutionTurns: number;
+  requestedGovernment?: string;
+  availableGovernments: Array<{
+    id: string;
+    available: boolean;
+    reason?: string;
+  }>;
 }
 
 export interface GameState {

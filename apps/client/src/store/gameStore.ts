@@ -19,6 +19,12 @@ export interface TurnProcessingStep {
   active: boolean;
 }
 
+export interface GameNotification {
+  id: string;
+  message: string;
+  tone: 'info' | 'success' | 'error';
+}
+
 interface GameStore extends GameState {
   // Client state
   clientState: ClientState;
@@ -37,6 +43,7 @@ interface GameStore extends GameState {
   // Turn processing state
   turnProcessingState: TurnProcessingState;
   turnProcessingSteps: TurnProcessingStep[];
+  notifications: GameNotification[];
 
   // Actions
   setClientState: (state: ClientState) => void;
@@ -64,6 +71,8 @@ interface GameStore extends GameState {
   startTurnProcessing: () => void;
   completeTurnProcessing: () => void;
   resetTurnProcessing: () => void;
+  addNotification: (notification: Omit<GameNotification, 'id'>) => void;
+  dismissNotification: (id: string) => void;
 
   // Government actions
   requestGovernmentChange: (governmentId: string) => void;
@@ -142,6 +151,7 @@ export const useGameStore = create<GameStore>()(
     // Turn processing initial state
     turnProcessingState: 'idle',
     turnProcessingSteps: [],
+    notifications: [],
 
     // Actions
     setClientState: (state: ClientState) => {
@@ -233,6 +243,24 @@ export const useGameStore = create<GameStore>()(
         turnProcessingState: 'idle',
         turnProcessingSteps: [],
       });
+    },
+
+    addNotification: notification => {
+      set(state => ({
+        notifications: [
+          ...state.notifications.slice(-3),
+          {
+            ...notification,
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          },
+        ],
+      }));
+    },
+
+    dismissNotification: id => {
+      set(state => ({
+        notifications: state.notifications.filter(notification => notification.id !== id),
+      }));
     },
 
     // Government actions
