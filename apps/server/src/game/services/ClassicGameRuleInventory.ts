@@ -50,13 +50,12 @@ export const CLASSIC_GAME_RULE_COVERAGE: Readonly<Record<string, ClassicGameRule
   ]),
   borders: implemented('BorderManager'),
   research: implemented('ResearchManager'),
-  culture: partial('CultureManager and game creation', [
-    'cultural victory',
+  culture: partial('CultureManager, EndGameService, and game creation', [
     'culture-driven migration',
   ]),
-  world_peace: partial('EndGameService', ['world-peace victory']),
+  world_peace: implemented('EndGameService'),
   calendar: implemented('CalendarService and TurnManager effects'),
-  disasters: partial('DisasterManager definitions', ['ruleset-native disaster execution']),
+  disasters: implemented('DisasterManager and TurnPhaseService'),
   trade: partial('CityTradeRouteService', [
     'alliance/team/enemy route relationship selection',
     'one-time gold/science bonuses',

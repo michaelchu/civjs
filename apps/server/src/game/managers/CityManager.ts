@@ -1807,6 +1807,96 @@ export class CityManager {
     return city;
   }
 
+  /**
+   * Apply Freeciv's ReducePopulation disaster effect. A city of size one is
+   * unaffected unless the ruleset uses ReducePopDestroy (classic does not).
+   */
+  public async reducePopulationForDisaster(cityId: string): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city || city.size <= 1) return false;
+    city.size -= 1;
+    city.population = city.size;
+    this.calculateCityOutputs(city.id);
+    this.applyCityHappiness(city.id);
+    await this.saveCityToDatabase(city);
+    return true;
+  }
+
+  /**
+   * Destroy one ordinary, non-wonder improvement selected by the caller's
+   * random source. Freeciv excludes wonders and disaster-proof improvements.
+   */
+  public async destroyDisasterBuilding(
+    cityId: string,
+    random: () => number = Math.random
+  ): Promise<string | null> {
+    const city = this.cities.get(cityId);
+    if (!city) return null;
+    const candidates = city.buildings.filter(buildingId => {
+      try {
+        return rulesetLoader.getBuilding(buildingId).genus === 'Improvement';
+      } catch {
+        return false;
+      }
+    });
+    if (candidates.length === 0) return null;
+    const buildingId = candidates[Math.floor(random() * candidates.length)];
+    city.buildings = city.buildings.filter(building => building !== buildingId);
+    this.calculateCityOutputs(city.id);
+    this.applyCityHappiness(city.id);
+    await this.saveCityToDatabase(city);
+    return buildingId;
+  }
+
+  /**
+   * Place one pollution or fallout extra on an eligible workable land tile.
+   */
+  public async placeDisasterExtra(
+    cityId: string,
+    extra: 'pollution' | 'fallout',
+    random: () => number = Math.random
+  ): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city || !this.mapManager) return false;
+    const candidates = (city.workableTiles ?? [])
+      .filter(tile => !tile.isCenter)
+      .map(tile => this.mapManager!.getTile(tile.x, tile.y))
+      .filter(
+        tile =>
+          tile !== null &&
+          !['ocean', 'deep_ocean', 'coast', 'lake'].includes(tile.terrain) &&
+          !(tile.improvements ?? []).includes(extra)
+      );
+    if (candidates.length === 0) return false;
+    const tile = candidates[Math.floor(random() * candidates.length)]!;
+    this.mapManager.updateTileProperty(tile.x, tile.y, 'improvements', [
+      ...(tile.improvements ?? []),
+      extra,
+    ]);
+    await this.databaseProvider
+      .getDatabase()
+      .update(games)
+      .set({ mapData: this.mapManager.getMapData() })
+      .where(eq(games.id, this.gameId));
+    this.mapChangedCallback?.(this.gameId, this.mapManager.getMapData());
+    return true;
+  }
+
+  public async emptyDisasterStock(cityId: string, stock: 'food' | 'production'): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city) return false;
+    if (stock === 'food') {
+      if ((city.foodStock ?? 0) <= 0) return false;
+      city.foodStock = 0;
+    } else {
+      if ((city.productionStock ?? city.shieldStock ?? 0) <= 0) return false;
+      city.productionStock = 0;
+      city.shieldStock = 0;
+    }
+    await this.saveCityToDatabase(city);
+    return true;
+  }
+
   public getPlayerCityCount(playerId: string): number {
     return this.getPlayerCities(playerId).length;
   }

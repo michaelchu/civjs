@@ -14,6 +14,7 @@ import type { TurnProcessingService } from './TurnProcessingService';
 import type { TurnCoordinationService } from './TurnCoordinationService';
 import type { TurnPacketService } from './TurnPacketService';
 import type { RandomEventsManager } from '@game/managers/RandomEventsManager';
+import type { DisasterManager } from '@game/managers/DisasterManager';
 import type { CultureManager } from '@game/managers/CultureManager';
 import { GameEventService, GameEventType } from './GameEventService';
 import { db } from '@database/index';
@@ -100,6 +101,7 @@ export class TurnPhaseService {
   private turnCoordinationService: TurnCoordinationService;
   private turnPacketService: TurnPacketService;
   private randomEventsManager?: RandomEventsManager;
+  private disasterManager?: DisasterManager;
   private cultureManager?: CultureManager;
   private gameEventService: GameEventService;
   private aiProcessor?: () => Promise<number>;
@@ -115,7 +117,8 @@ export class TurnPhaseService {
     turnPacketService: TurnPacketService,
     gameEventService: GameEventService,
     randomEventsManager?: RandomEventsManager,
-    cultureManager?: CultureManager
+    cultureManager?: CultureManager,
+    disasterManager?: DisasterManager
   ) {
     this.gameId = gameId;
     this.turnProcessingService = turnProcessingService;
@@ -124,6 +127,7 @@ export class TurnPhaseService {
     this.gameEventService = gameEventService;
     this.randomEventsManager = randomEventsManager;
     this.cultureManager = cultureManager;
+    this.disasterManager = disasterManager;
 
     // Register built-in event handlers for turn processing
     this.registerBuiltInEventHandlers();
@@ -801,39 +805,66 @@ export class TurnPhaseService {
   ): Promise<void> {
     logger.debug('Processing random events phase', { gameId: context.gameId });
 
-    if (!this.randomEventsManager) {
-      logger.debug('RandomEventsManager not configured, skipping random events phase');
+    if (!this.randomEventsManager && !this.disasterManager) {
+      logger.debug('No random-event consumers configured, skipping random events phase');
       result.playersProcessed = context.playerIds.length;
       result.itemsProcessed = 0;
       return;
     }
 
     try {
-      // Execute Phase 3 random events using the RandomEventsManager
-      const eventsResult = await this.randomEventsManager.processRandomEvents(
-        context.turn,
-        context.year,
-        context.playerIds
-      );
+      const eventsResult = this.randomEventsManager
+        ? await this.randomEventsManager.processRandomEvents(
+            context.turn,
+            context.year,
+            context.playerIds
+          )
+        : {
+            totalEvents: 0,
+            duration: 0,
+            barbarianEvents: 0,
+            disasterEvents: 0,
+            unitMovements: 0,
+            resourceChanges: 0,
+            goodyHutDiscoveries: 0,
+            results: [],
+          };
+      const disasters = this.disasterManager
+        ? (
+            await Promise.all(
+              context.playerIds.map(playerId =>
+                this.disasterManager!.checkPlayerDisasters(playerId, context.turn, context.year)
+              )
+            )
+          ).flat()
+        : [];
+      const disasterResults = disasters.map(disaster => ({
+        eventType: 'city_disaster',
+        success: disaster.success,
+        playersAffected: [] as string[],
+        details: disaster,
+        timestamp: disaster.timestamp,
+      }));
+      const totalEvents = eventsResult.totalEvents + disasters.length;
 
       result.playersProcessed = context.playerIds.length;
-      result.itemsProcessed = eventsResult.totalEvents;
+      result.itemsProcessed = totalEvents;
       result.data = {
         duration: eventsResult.duration,
         breakdown: {
           barbarianEvents: eventsResult.barbarianEvents,
-          disasterEvents: eventsResult.disasterEvents,
+          disasterEvents: eventsResult.disasterEvents + disasters.length,
           unitMovements: eventsResult.unitMovements,
           resourceChanges: eventsResult.resourceChanges,
           goodyHutDiscoveries: eventsResult.goodyHutDiscoveries,
         },
-        results: eventsResult.results,
+        results: [...eventsResult.results, ...disasterResults],
       };
 
       logger.info('Random events phase completed', {
         gameId: context.gameId,
         turn: context.turn,
-        totalEvents: eventsResult.totalEvents,
+        totalEvents,
         duration: eventsResult.duration,
       });
     } catch (error) {

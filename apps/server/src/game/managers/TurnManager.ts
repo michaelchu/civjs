@@ -18,6 +18,7 @@ import type { ResearchManager } from '@game/managers/ResearchManager';
 import type { BorderManager } from '@game/managers/BorderManager';
 import type { VisibilityManager } from '@game/managers/VisibilityManager';
 import type { CultureManager } from '@game/managers/CultureManager';
+import { DisasterManager } from '@game/managers/DisasterManager';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
@@ -127,7 +128,14 @@ export class TurnManager {
       this.turnPacketService,
       this.gameEventService,
       undefined, // randomEventsManager - not passed yet
-      this.cultureManager
+      this.cultureManager,
+      new DisasterManager(
+        gameId,
+        DisasterManager.createRulesetConfig(rulesetName),
+        cityManager,
+        databaseProvider,
+        economicManager
+      )
     );
 
     this.calendarService = new CalendarService(
