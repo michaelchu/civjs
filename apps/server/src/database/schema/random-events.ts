@@ -9,7 +9,7 @@ import { games } from './games';
 export const randomEvents = pgTable('random_events', {
   id: uuid('id').defaultRandom().primaryKey(),
   gameId: uuid('game_id')
-    .references(() => games.id)
+    .references(() => games.id, { onDelete: 'cascade' })
     .notNull(),
 
   // Event classification

@@ -987,10 +987,11 @@ export class GameManager {
 
         // User can join if:
         // 1. Game is waiting and has space, OR
-        // 2. User is already a player (can rejoin regardless of status)
+        // 2. User is already a player in a game that has not finished
         const canJoin =
-          isExistingPlayer ||
-          (game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers);
+          game.status !== 'ended' &&
+          (isExistingPlayer ||
+            (game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers));
 
         return {
           id: game.id,
@@ -1372,8 +1373,13 @@ export class GameManager {
    * Delete game - delegates to GameLifecycleManager
    */
   public async deleteGame(gameId: string, userId?: string): Promise<void> {
-    // Clean up local tracking
     const gameInstance = this.games.get(gameId);
+
+    // Verify authorization and remove the persisted game before mutating
+    // local tracking. This keeps a rejected delete from disrupting a game.
+    await this.gameLifecycleManager.deleteGame(gameId, userId);
+
+    // Clean up local tracking
     if (gameInstance) {
       gameInstance.turnManager.clearTurnTimer();
       // Remove from player mappings
@@ -1385,9 +1391,6 @@ export class GameManager {
     }
     this.sharedVisionByGame.delete(gameId);
     this.endTurnLocks.delete(gameId);
-
-    // Delegate to lifecycle manager
-    return this.gameLifecycleManager.deleteGame(gameId, userId);
   }
 
   public async setGamePaused(gameId: string, userId: string, paused: boolean): Promise<void> {

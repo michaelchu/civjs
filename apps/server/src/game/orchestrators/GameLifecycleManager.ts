@@ -500,7 +500,15 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       throw new Error('Game not found');
     }
 
+    if (userId && game.hostId !== userId) {
+      throw new Error('Only the host can delete a game');
+    }
+
     this.logger.info('Deleting game', { gameId, userId });
+
+    // A completed game is marked as ended by EndGameService. Explicit
+    // deletion removes the record entirely (related records cascade).
+    await this.databaseProvider.getDatabase().delete(games).where(eq(games.id, gameId));
 
     // Remove from active games map if it exists
     const gameInstance = this.games.get(gameId);
@@ -512,16 +520,6 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       // Remove from games map after all cleanup operations are complete
       this.games.delete(gameId);
     }
-
-    // Update database to mark game as ended
-    await this.databaseProvider
-      .getDatabase()
-      .update(games)
-      .set({
-        status: 'ended',
-        endedAt: new Date(),
-      })
-      .where(eq(games.id, gameId));
 
     // Clear Redis cache
     await gameState.clearGameState(gameId);

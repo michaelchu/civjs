@@ -243,6 +243,20 @@ describe('PlayerConnectionManager - Nation Selection', () => {
   });
 
   describe('joinGame with nation selection', () => {
+    it('should reject an existing player rejoining a finished game', async () => {
+      mockDatabase.query.games.findFirst.mockResolvedValue({
+        id: mockGameId,
+        status: 'ended',
+        maxPlayers: 4,
+        players: [{ id: 'existing-player-id', userId: mockUserId }],
+      });
+
+      await expect(playerManager.joinGame(mockGameId, mockUserId, 'american')).rejects.toThrow(
+        'Game has finished'
+      );
+      expect(mockDatabase.insert).not.toHaveBeenCalled();
+    });
+
     it('should create player with specified nation', async () => {
       // Arrange
       const civilization = 'chinese';

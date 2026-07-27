@@ -93,8 +93,10 @@ export const GameLobby: React.FC = () => {
 
     try {
       await gameClient.deleteGame(gameId);
-      // Refresh the games list after successful deletion
-      await loadGames();
+      // Remove the deleted row immediately. The server has already confirmed
+      // the deletion, so a second list request only introduces a stale-read
+      // window where the game can briefly reappear.
+      setGames(currentGames => currentGames.filter(game => game.id !== gameId));
     } catch (err) {
       console.error('Game delete error:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete game');

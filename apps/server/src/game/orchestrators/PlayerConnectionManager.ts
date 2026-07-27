@@ -64,9 +64,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       },
     });
 
-    if (!game) {
-      throw new Error('Game not found');
-    }
+    this.assertGameCanBeJoined(game);
 
     // Check if user is already in the game first
     const existingPlayer = game.players.find(p => p.userId === userId);
@@ -169,6 +167,20 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       assignedColor: safeTheme.primary,
     };
     return finalResult;
+  }
+
+  private assertGameCanBeJoined<T extends { status: string }>(
+    game: T | null | undefined
+  ): asserts game is T {
+    if (!game) {
+      throw new Error('Game not found');
+    }
+
+    // Finished games are immutable. Validate before the existing-player
+    // rejoin path so nobody can enter an ended game.
+    if (game.status === 'ended') {
+      throw new Error('Game has finished');
+    }
   }
 
   /**

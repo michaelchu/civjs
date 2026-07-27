@@ -1,4 +1,5 @@
 import { GameLifecycleManager } from '@game/orchestrators/GameLifecycleManager';
+import { gameState } from '@database/redis';
 
 // Minimal stubs for dependencies
 const stubIo = {} as any;
@@ -30,6 +31,56 @@ function createManager(overrides?: {
 }
 
 describe('GameLifecycleManager helper behavior', () => {
+  test('deleteGame permanently removes a host-owned game', async () => {
+    const where = jest.fn().mockResolvedValue(undefined);
+    const deleteTable = jest.fn(() => ({ where }));
+    const findFirst = jest.fn().mockResolvedValue({
+      id: 'g1',
+      hostId: 'hostA',
+      players: [],
+    });
+    const clearGameState = jest.spyOn(gameState, 'clearGameState').mockResolvedValue(undefined);
+    const io = { to: jest.fn(() => ({ emit: jest.fn() })) } as any;
+    const databaseProvider = {
+      getDatabase: () => ({
+        query: { games: { findFirst } },
+        delete: deleteTable,
+      }),
+    } as any;
+    const manager = new GameLifecycleManager(io, databaseProvider, new Map());
+
+    await manager.deleteGame('g1', 'hostA');
+
+    expect(deleteTable).toHaveBeenCalledWith(expect.anything());
+    expect(where).toHaveBeenCalled();
+    expect(clearGameState).toHaveBeenCalledWith('g1');
+    clearGameState.mockRestore();
+  });
+
+  test('deleteGame rejects a non-host', async () => {
+    const deleteTable = jest.fn();
+    const databaseProvider = {
+      getDatabase: () => ({
+        query: {
+          games: {
+            findFirst: jest.fn().mockResolvedValue({
+              id: 'g1',
+              hostId: 'hostA',
+              players: [],
+            }),
+          },
+        },
+        delete: deleteTable,
+      }),
+    } as any;
+    const manager = new GameLifecycleManager(stubIo, databaseProvider, new Map());
+
+    await expect(manager.deleteGame('g1', 'hostB')).rejects.toThrow(
+      'Only the host can delete a game'
+    );
+    expect(deleteTable).not.toHaveBeenCalled();
+  });
+
   test('validateStartConditions throws for non-host', () => {
     const manager = createManager();
     const game = { hostId: 'hostA', gameType: 'single', players: [{}, {}], status: 'waiting' };

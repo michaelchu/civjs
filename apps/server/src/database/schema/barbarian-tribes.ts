@@ -9,7 +9,7 @@ import { games } from './games';
 export const barbarianTribes = pgTable('barbarian_tribes', {
   id: uuid('id').defaultRandom().primaryKey(),
   gameId: uuid('game_id')
-    .references(() => games.id)
+    .references(() => games.id, { onDelete: 'cascade' })
     .notNull(),
 
   // Tribe identification

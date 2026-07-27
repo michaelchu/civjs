@@ -50,9 +50,7 @@ const GameActions: React.FC<GameActionsProps> = ({
     <div className="flex justify-end gap-2">
       <button
         onClick={() => onJoinGame(game.id)}
-        // An active game may be resumed by an existing player after they
-        // identify themselves on the game route.
-        disabled={(!game.canJoin && game.status !== 'active') || joiningGameId === game.id}
+        disabled={game.status === 'finished' || !game.canJoin || joiningGameId === game.id}
         className="px-3 py-1 bg-primary hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 text-primary-foreground text-sm font-medium rounded transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
       >
         {joiningGameId === game.id ? (
