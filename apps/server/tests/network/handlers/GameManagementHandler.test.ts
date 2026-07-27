@@ -1,6 +1,6 @@
 import { GameManagementHandler } from '@network/handlers/GameManagementHandler';
 import { PacketHandler } from '@network/PacketHandler';
-import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
+import { GameCreateSchema, GameJoinSchema, PacketType, PROTOCOL_VERSION } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
 import { Server, Socket } from 'socket.io';
 
@@ -87,11 +87,13 @@ describe('GameManagementHandler', () => {
       );
       expect(mockPacketHandler.register).toHaveBeenCalledWith(
         PacketType.GAME_CREATE,
-        expect.any(Function)
+        expect.any(Function),
+        GameCreateSchema
       );
       expect(mockPacketHandler.register).toHaveBeenCalledWith(
         PacketType.GAME_JOIN,
-        expect.any(Function)
+        expect.any(Function),
+        GameJoinSchema
       );
       expect(mockPacketHandler.register).toHaveBeenCalledWith(
         PacketType.GAME_START,
@@ -401,6 +403,21 @@ describe('GameManagementHandler', () => {
         success: false,
         error: 'Not authenticated',
       });
+    });
+
+    it('rejects malformed join events before invoking game services', async () => {
+      const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'join_game'
+      )[1];
+      const mockCallback = jest.fn();
+
+      await eventHandler({ gameId: '' }, mockCallback);
+
+      expect(mockCallback).toHaveBeenCalledWith({
+        success: false,
+        error: 'Invalid join game request',
+      });
+      expect(mockGameManager.joinGame).not.toHaveBeenCalled();
     });
 
     it('should reject an active-game join when snapshot recovery fails', async () => {

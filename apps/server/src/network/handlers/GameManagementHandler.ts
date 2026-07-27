@@ -2,7 +2,13 @@ import { Server, Socket } from 'socket.io';
 import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
-import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
+import {
+  GameCreateSchema,
+  GameIdSchema,
+  GameJoinSchema,
+  PacketType,
+  PROTOCOL_VERSION,
+} from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
 import { CityDataService } from '@game/services/CityDataService';
 
@@ -45,13 +51,21 @@ export class GameManagementHandler extends BaseSocketHandler {
       await this.handleGameList(handler, socket);
     });
 
-    handler.register(PacketType.GAME_CREATE, async (socket, data) => {
-      await this.handleGameCreate(handler, socket, data);
-    });
+    handler.register(
+      PacketType.GAME_CREATE,
+      async (socket, data) => {
+        await this.handleGameCreate(handler, socket, data);
+      },
+      GameCreateSchema
+    );
 
-    handler.register(PacketType.GAME_JOIN, async (socket, data) => {
-      await this.handleGameJoin(handler, socket, data);
-    });
+    handler.register(
+      PacketType.GAME_JOIN,
+      async (socket, data) => {
+        await this.handleGameJoin(handler, socket, data);
+      },
+      GameJoinSchema
+    );
 
     handler.register(PacketType.GAME_START, async (socket, _data) => {
       await this.handleGameStart(handler, socket);
@@ -69,12 +83,22 @@ export class GameManagementHandler extends BaseSocketHandler {
   private registerSocketEvents(socket: Socket, _io: Server): void {
     // Handle join_game event
     socket.on('join_game', async (data, callback) => {
-      await this.handleJoinGameEvent(socket, data, callback);
+      const parsed = GameJoinSchema.safeParse(data);
+      if (!parsed.success) {
+        callback({ success: false, error: 'Invalid join game request' });
+        return;
+      }
+      await this.handleJoinGameEvent(socket, parsed.data, callback);
     });
 
     // Handle observe_game event
     socket.on('observe_game', async (data, callback) => {
-      await this.handleObserveGameEvent(socket, data, callback);
+      const parsed = GameIdSchema.safeParse(data);
+      if (!parsed.success) {
+        callback({ success: false, error: 'Invalid observe game request' });
+        return;
+      }
+      await this.handleObserveGameEvent(socket, parsed.data, callback);
     });
 
     // Handle get_game_list event
@@ -84,7 +108,12 @@ export class GameManagementHandler extends BaseSocketHandler {
 
     // Handle delete_game event
     socket.on('delete_game', async (data, callback) => {
-      await this.handleDeleteGameEvent(socket, data, callback);
+      const parsed = GameIdSchema.safeParse(data);
+      if (!parsed.success) {
+        callback({ success: false, error: 'Invalid delete game request' });
+        return;
+      }
+      await this.handleDeleteGameEvent(socket, parsed.data, callback);
     });
 
     socket.on('host:getControls', async (_data, callback) => {

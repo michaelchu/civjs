@@ -554,20 +554,22 @@ export const ThawClientSchema = z.object({
 //Game management packets
 export const GameCreateSchema = z.object({
   name: z.string().min(1).max(100),
-  maxPlayers: z.number().min(2).max(16).optional(),
-  mapWidth: z.number().min(40).max(200).optional(),
-  mapHeight: z.number().min(30).max(150).optional(),
+  gameType: z.enum(['single', 'multiplayer']).optional(),
+  maxPlayers: z.number().int().min(1).max(16).optional(),
+  mapWidth: z.number().int().min(40).max(200).optional(),
+  mapHeight: z.number().int().min(25).max(150).optional(),
   ruleset: z.string().optional(),
-  turnTimeLimit: z.number().optional(),
+  selectedNation: z.string().min(1).optional(),
+  turnTimeLimit: z.number().int().min(0).max(86_400).optional(),
   victoryConditions: z.array(z.string()).optional(),
   terrainSettings: z
     .object({
       generator: z.string(),
       landmass: z.string(),
-      huts: z.number(),
-      temperature: z.number(),
-      wetness: z.number(),
-      rivers: z.number(),
+      huts: z.number().min(0).max(100),
+      temperature: z.number().min(0).max(100),
+      wetness: z.number().min(0).max(100),
+      rivers: z.number().min(0).max(100),
       resources: z.string(),
       startpos: z.number().optional(),
     })
@@ -581,8 +583,14 @@ export const GameCreateReplySchema = z.object({
 });
 
 export const GameJoinSchema = z.object({
-  gameId: z.string(),
+  gameId: z.string().min(1),
+  playerName: z.string().min(1).max(32).optional(),
+  selectedNation: z.string().min(1).optional(),
   civilization: z.string().optional(),
+});
+
+export const GameIdSchema = z.object({
+  gameId: z.string().min(1),
 });
 
 export const GameJoinReplySchema = z.object({
