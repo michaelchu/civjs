@@ -226,8 +226,9 @@ export interface EndGameReportData {
   gameId: string;
   turn: number;
   year: number;
-  reason: 'conquest';
+  reason: 'conquest' | 'culture' | 'world_peace';
   winnerPlayerId: string;
+  winnerPlayerIds: string[];
   endedAt: string;
   standings: Array<{
     playerId: string;

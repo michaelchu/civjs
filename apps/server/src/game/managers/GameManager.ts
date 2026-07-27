@@ -848,6 +848,9 @@ export class GameManager {
         cityManager: gameInstance.cityManager,
         unitManager: gameInstance.unitManager,
         researchManager: gameInstance.researchManager,
+        cultureManager: gameInstance.turnManager.getCultureManager(),
+        diplomacyManager: this.diplomacyManager,
+        rulesetName: gameInstance.config.ruleset,
       });
       if (!evaluation.ended) return false;
       gameInstance.state = 'ended';

@@ -194,6 +194,7 @@ const seedFixture = (): void => {
           year: 1200,
           reason: 'conquest',
           winnerPlayerId: 'player-one',
+          winnerPlayerIds: ['player-one'],
           endedAt: '2026-07-27T12:00:00.000Z',
           standings: [
             {

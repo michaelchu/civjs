@@ -14,6 +14,7 @@ describe('EndGamePanel', () => {
         year: -2320,
         reason: 'conquest',
         winnerPlayerId: 'player-1',
+        winnerPlayerIds: ['player-1'],
         endedAt: '2026-07-26T12:00:00.000Z',
         standings: [
           {

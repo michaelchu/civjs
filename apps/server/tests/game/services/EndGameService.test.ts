@@ -108,4 +108,86 @@ describe('EndGameService', () => {
     expect(emit).not.toHaveBeenCalled();
     unitsByPlayer.defeated = [];
   });
+
+  it('uses the classic minimum and lead thresholds for cultural domination', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const database = databaseProvider.getDatabase() as any;
+    database.query.players.findMany.mockResolvedValue([
+      { id: 'winner', civilization: 'Roman', history: 0, isAlive: true },
+      { id: 'defeated', civilization: 'Greek', history: 0, isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+    const cultureManager = {
+      getPlayerCultureInfo: jest.fn(async (playerId: string) => ({
+        totalCulture: playerId === 'winner' ? 1201 : 400,
+      })),
+    } as any;
+
+    const result = await new EndGameService(databaseProvider, io).evaluate({
+      gameId: 'game-1',
+      turn: 80,
+      year: 1000,
+      victoryConditions: ['culture'],
+      playerIds: ['winner', 'defeated'],
+      cityManager,
+      unitManager,
+      researchManager,
+      cultureManager,
+    });
+
+    expect(result.report).toEqual(
+      expect.objectContaining({
+        reason: 'culture',
+        winnerPlayerId: 'winner',
+        winnerPlayerIds: ['winner'],
+      })
+    );
+    unitsByPlayer.defeated = [];
+  });
+
+  it('awards all survivors after the configured uninterrupted world-peace period', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const database = databaseProvider.getDatabase() as any;
+    database.query.players.findMany.mockResolvedValue([
+      { id: 'winner', civilization: 'Roman', history: 0, isAlive: true },
+      { id: 'defeated', civilization: 'Greek', history: 0, isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+    const diplomacyManager = {
+      getSnapshot: jest.fn(async (_gameId: string, playerId: string) => ({
+        playerId,
+        nations: [
+          {
+            id: playerId === 'winner' ? 'defeated' : 'winner',
+            relation: {
+              state: 'peace',
+              sinceTurn: 10,
+              embassy: false,
+              sharedVision: false,
+            },
+          },
+        ],
+      })),
+    } as any;
+
+    const result = await new EndGameService(databaseProvider, io).evaluate({
+      gameId: 'game-1',
+      turn: 30,
+      year: -2800,
+      victoryConditions: ['world_peace'],
+      playerIds: ['winner', 'defeated'],
+      cityManager,
+      unitManager,
+      researchManager,
+      diplomacyManager,
+    });
+
+    expect(result.report).toEqual(
+      expect.objectContaining({
+        reason: 'world_peace',
+        winnerPlayerIds: ['winner', 'defeated'],
+      })
+    );
+    unitsByPlayer.defeated = [];
+  });
 });

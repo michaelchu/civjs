@@ -304,8 +304,9 @@ export const EndgameReportSchema = z.object({
   gameId: z.string(),
   turn: z.number(),
   year: z.number(),
-  reason: z.literal('conquest'),
+  reason: z.enum(['conquest', 'culture', 'world_peace']),
   winnerPlayerId: z.string(),
+  winnerPlayerIds: z.array(z.string()),
   endedAt: z.string(),
   standings: z.array(
     z.object({

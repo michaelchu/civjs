@@ -11,8 +11,15 @@ export const EndGamePanel: React.FC = () => {
   }, [report]);
 
   if (!report) return null;
-  const won = report.winnerPlayerId === currentPlayerId;
-  const winner = report.standings.find(standing => standing.playerId === report.winnerPlayerId);
+  const winnerIds = report.winnerPlayerIds ?? [report.winnerPlayerId];
+  const won = currentPlayerId !== null && winnerIds.includes(currentPlayerId);
+  const winners = report.standings.filter(standing => winnerIds.includes(standing.playerId));
+  const victoryDescription =
+    report.reason === 'world_peace'
+      ? `${winners.map(winner => winner.civilization).join(', ')} achieved world peace`
+      : report.reason === 'culture'
+        ? `${winners[0]?.civilization ?? 'The winning civilization'} achieved cultural domination`
+        : `${winners[0]?.civilization ?? 'The winning civilization'} achieved conquest`;
 
   return (
     <div
@@ -31,8 +38,7 @@ export const EndGamePanel: React.FC = () => {
           {won ? 'Victory' : 'Game complete'}
         </h1>
         <p className="mt-2 text-gray-300">
-          {winner?.civilization ?? 'The winning civilization'} achieved conquest on turn{' '}
-          {report.turn} ({formatYear(report.year)}).
+          {victoryDescription} on turn {report.turn} ({formatYear(report.year)}).
         </p>
 
         <div className="mt-6 overflow-x-auto">
