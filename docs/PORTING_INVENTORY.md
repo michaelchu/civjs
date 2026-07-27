@@ -1,13 +1,13 @@
 # CivJS Porting Inventory
 
-**Audit baseline:** Milestone 13 working tree (2026-07-27).
+**Audit baseline:** post-Milestone 15 parity audit working tree (2026-07-27).
 **Purpose:** the evidence record for Milestone 0 in [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md). It distinguishes implemented transport/data from unported or unverified upstream behavior.
 
 ## Classic ruleset inventory
 
 | CivJS JSON data    | Freeciv classic source                           | Status                                                                                                                                                                                                                 |
 | ------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `buildings.json`   | `data/classic/buildings.ruleset`                 | Loaded and cross-validated; playable-loop costs, upkeep, production gates, defense, happiness, output, veteran/healing, and food retention have parity evidence.                                                       |
+| `buildings.json`   | `data/classic/buildings.ruleset`                 | Loaded and cross-validated; costs, upkeep, production gates, Great Wonder availability and uniqueness, defense, happiness, output, veteran/healing, and food retention have parity evidence.                           |
 | `cities.json`      | `data/classic/cities.ruleset`                    | Present.                                                                                                                                                                                                               |
 | `effects.json`     | `data/classic/effects.ruleset`                   | Loaded, schema-constrained, cross-validated, and evaluated for the Milestone 1 playable loop.                                                                                                                          |
 | `game.json`        | `data/classic/game.ruleset`                      | Loaded; initial buildings, food/granary/city-center values, and classic bribe/incite cost parameters drive runtime behavior.                                                                                           |

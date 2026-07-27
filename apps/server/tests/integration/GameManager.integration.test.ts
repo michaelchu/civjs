@@ -473,7 +473,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
       await gameManager.loadGame(gameId);
 
       // Make some changes
-      const cityId = await gameManager.foundCity(gameId, scenario.players[0].id, 'NewCity', 8, 8);
+      const cityId = await gameManager.foundCity(gameId, scenario.players[0].id, 'NewCity', 7, 7);
       const unitId = await gameManager.createUnit(gameId, scenario.players[0].id, 'settlers', 9, 9);
 
       // Create new GameManager instance
@@ -509,9 +509,9 @@ describe('GameManager - Integration Tests with Real Database', () => {
       // Simulate concurrent operations
       const operations = [
         gameManager.foundCity(gameId, player1Id, 'City1', 7, 7),
-        gameManager.foundCity(gameId, player2Id, 'City2', 17, 17),
+        gameManager.foundCity(gameId, player2Id, 'City2', 18, 18),
         gameManager.createUnit(gameId, player1Id, 'warriors', 6, 7),
-        gameManager.createUnit(gameId, player2Id, 'warriors', 18, 17),
+        gameManager.createUnit(gameId, player2Id, 'warriors', 19, 18),
       ];
 
       const results = await Promise.all(operations);

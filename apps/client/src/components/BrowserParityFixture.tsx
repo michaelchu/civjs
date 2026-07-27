@@ -39,6 +39,7 @@ const makeCity = (): City => ({
 });
 
 const seedFixture = (): void => {
+  const showEndGame = new URLSearchParams(window.location.search).get('state') === 'endgame';
   const terrain = [
     'deep_ocean',
     'coast',
@@ -96,6 +97,18 @@ const seedFixture = (): void => {
         isHuman: true,
         isActive: true,
       },
+      'player-two': {
+        id: 'player-two',
+        name: 'Caesar',
+        nation: 'romans',
+        color: '#2563eb',
+        gold: 80,
+        science: 24,
+        history: 16,
+        government: 'monarchy',
+        isHuman: false,
+        isActive: true,
+      },
     },
     map: {
       width: 5,
@@ -118,11 +131,96 @@ const seedFixture = (): void => {
       },
     },
     research: {
+      currentTech: 'writing',
       bulbsAccumulated: 20,
       bulbsLastTurn: 4,
       researchedTechs: new Set(['alphabet']),
-      availableTechs: new Set(),
+      availableTechs: new Set(['writing']),
     },
+    technologies: {
+      alphabet: {
+        id: 'alphabet',
+        name: 'Alphabet',
+        cost: 20,
+        requirements: [],
+        discovered: true,
+      },
+      writing: {
+        id: 'writing',
+        name: 'Writing',
+        cost: 40,
+        requirements: ['alphabet'],
+        discovered: false,
+      },
+    },
+    governments: {
+      republic: {
+        id: 'republic',
+        name: 'Republic',
+        graphic: 'gov.republic',
+        graphic_alt: '-',
+        sound: 'e_revolution',
+        sound_alt: '-',
+        sound_alt2: '-',
+        ruler_male_title: 'Consul %s',
+        ruler_female_title: 'Consul %s',
+        helptext: 'Representative government with strong trade and limited corruption.',
+      },
+    },
+    diplomacy: {
+      playerId: 'player-one',
+      nations: [
+        {
+          id: 'player-two',
+          civilization: 'Romans',
+          leaderName: 'Caesar',
+          isAlive: true,
+          isAI: true,
+          known: true,
+          relation: {
+            state: 'peace',
+            sinceTurn: 31,
+            embassy: true,
+            sharedVision: false,
+          },
+        },
+      ],
+    },
+    endGameReport: showEndGame
+      ? {
+          version: 1,
+          gameId: 'browser-parity',
+          turn: 42,
+          year: 1200,
+          reason: 'conquest',
+          winnerPlayerId: 'player-one',
+          endedAt: '2026-07-27T12:00:00.000Z',
+          standings: [
+            {
+              playerId: 'player-one',
+              civilization: 'Japanese',
+              score: 320,
+              cities: 1,
+              population: 8,
+              units: 1,
+              technologies: 12,
+              history: 20,
+              alive: true,
+            },
+            {
+              playerId: 'player-two',
+              civilization: 'Romans',
+              score: 210,
+              cities: 0,
+              population: 0,
+              units: 0,
+              technologies: 9,
+              history: 16,
+              alive: false,
+            },
+          ],
+        }
+      : undefined,
     viewport: { x: -400, y: -250, width: 800, height: 600 },
   });
 };

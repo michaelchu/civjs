@@ -16,7 +16,6 @@ export default defineConfig({
     {
       name: 'chromium-mobile',
       use: { ...devices['Pixel 7'] },
-      testMatch: /creation-flow\.spec\.ts/,
     },
   ],
   webServer: {

@@ -214,6 +214,7 @@ export interface CityState {
 export interface BuildingType {
   id: string;
   name: string;
+  genus: 'Improvement' | 'SmallWonder' | 'GreatWonder' | 'Special' | 'Convert';
   cost: number;
   requiredTech?: string;
   requires?: string[]; // Required buildings
@@ -292,6 +293,9 @@ export class CityManager {
   private playerTaxRatesProvider: (playerId: string) => TaxRates = () => ({
     ...DEFAULT_TAX_RATES,
   });
+  private playerGoldProvider: (playerId: string) => Promise<number> = async () => 0;
+  private spendPlayerGoldProvider: (playerId: string, amount: number) => Promise<boolean> =
+    async () => false;
   private unitSupportProvider: (city: CityState) => UnitSupportData[] = () => [];
   private mapChangedCallback?: (gameId: string, mapData: unknown) => void;
   private readonly unitSupportManager: UnitSupportManager;
@@ -384,22 +388,11 @@ export class CityManager {
       getCurrentTurn: () => this.currentTurnProvider?.() ?? 0,
     });
 
-    // Create getter functions for player resources (would be implemented by GameManager)
-    const getPlayerGold = (_playerId: string): number => {
-      // Placeholder implementation
-      return 1000;
-    };
-
-    const spendPlayerGold = async (_playerId: string, _amount: number): Promise<boolean> => {
-      // Placeholder implementation
-      return true;
-    };
-
     this.productionService = new CityProductionService(
       this.cities,
       BUILDING_TYPES,
-      getPlayerGold,
-      spendPlayerGold
+      this.playerGoldProvider,
+      this.spendPlayerGoldProvider
     );
 
     this.governorService = new CityGovernorService(
@@ -421,7 +414,13 @@ export class CityManager {
     // Initialize optimization service (will be fully initialized after setMapManager)
     this.optimizationService = new CityOptimizationService(
       this.cities,
-      this.citizenManagementService
+      this.citizenManagementService,
+      undefined,
+      playerId => this.playerTaxRatesProvider(playerId),
+      cityId => {
+        this.calculateCityOutputs(cityId);
+        this.applyCityHappiness(cityId);
+      }
     );
 
     // setMapManager is commonly called before initialize. Rebuild the
@@ -433,6 +432,24 @@ export class CityManager {
     // Initialize high-level coordination service
     // Note: CityManagementService needs different constructor parameters
     // this.managementService = new CityManagementService(...);
+  }
+
+  /**
+   * Connect rush production to the authoritative per-game treasury.
+   * This is configured once TurnManager has created its EconomicManager.
+   */
+  setTreasuryProviders(
+    getPlayerGold: (playerId: string) => Promise<number>,
+    spendPlayerGold: (playerId: string, amount: number) => Promise<boolean>
+  ): void {
+    this.playerGoldProvider = getPlayerGold;
+    this.spendPlayerGoldProvider = spendPlayerGold;
+    this.productionService = new CityProductionService(
+      this.cities,
+      BUILDING_TYPES,
+      getPlayerGold,
+      spendPlayerGold
+    );
   }
 
   /**
@@ -629,8 +646,11 @@ export class CityManager {
     // Initialize workable tiles using the service
     if (this.tileManagementService) {
       this.tileManagementService.initializeWorkableTiles(city);
-      // Auto-assign citizens to best available tiles for new city
-      await this.optimizeCitizens(cityId);
+      // A newly founded city starts with its citizen working the land. Player
+      // governors may opt into specialists on later optimization passes.
+      const initialParameters = CitizenParameterFactory.createDefault();
+      initialParameters.allow_specialists = false;
+      await this.optimizeCitizens(cityId, initialParameters);
     } else {
       // Fallback if service is not available
       logger.warn('TileManagementService not available, providing fallback workable tiles', {
@@ -771,11 +791,8 @@ export class CityManager {
 
     // Validate each item can be built by this city
     const validItems = items.filter(item => {
-      // Filter out wonder types for now since they're not supported in canCityQueueItem
-      if (item.kind === 'wonder') {
-        return false;
-      }
-      return this.canCityQueueItem(city, item.kind, item.value);
+      const kind = item.kind === 'wonder' ? 'building' : item.kind;
+      return this.canCityQueueItem(city, kind, item.value);
     });
 
     city.worklist.push(...validItems);
@@ -819,6 +836,17 @@ export class CityManager {
       }
       if (!BUILDING_TYPES[productionId]) {
         throw new Error(`Unknown building type: ${productionId}`);
+      }
+      const building = BUILDING_TYPES[productionId];
+      if (
+        building.genus === 'GreatWonder' &&
+        [...this.cities.values()].some(
+          other =>
+            other.buildings.includes(productionId) ||
+            (other.id !== city.id && other.currentProduction === productionId)
+        )
+      ) {
+        throw new Error(`Great Wonder is already built or under construction: ${productionId}`);
       }
     } else if (productionType === 'unit') {
       if (!Object.values(UNIT_TYPES).some(unitType => unitType.id === productionId)) {
@@ -995,17 +1023,23 @@ export class CityManager {
       // Apply timeout in all environments to prevent database hangs
       const DB_OPERATION_TIMEOUT = process.env.NODE_ENV === 'test' ? 5000 : 10000; // 5s for tests, 10s for production
 
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => {
           reject(
             new Error(
               `Database operation timed out for city ${city.id} after ${DB_OPERATION_TIMEOUT}ms`
             )
           );
         }, DB_OPERATION_TIMEOUT);
+        timeout.unref?.();
       });
 
-      await Promise.race([dbOperation(), timeoutPromise]);
+      try {
+        await Promise.race([dbOperation(), timeoutPromise]);
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
 

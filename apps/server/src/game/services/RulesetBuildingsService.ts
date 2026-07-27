@@ -61,7 +61,9 @@ export class RulesetBuildingsService {
 
   getPlayableBuildingTypes(rulesetName: string = 'classic'): Record<string, RulesetBuildingType> {
     return Object.fromEntries(
-      Object.entries(this.getBuildingTypes(rulesetName)).filter(([, building]) => building.playable)
+      Object.entries(this.getBuildingTypes(rulesetName)).filter(
+        ([, building]) => building.playable || building.genus === 'GreatWonder'
+      )
     );
   }
 

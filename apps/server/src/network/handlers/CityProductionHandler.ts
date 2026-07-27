@@ -186,7 +186,9 @@ export class CityProductionHandler {
     if (!(await this.canCityBuild(city, productionId, productionType, player))) {
       throw new Error('Production not available');
     }
-    if (productionType === 'wonder') throw new Error('Wonders are not supported yet');
+    if (productionType === 'wonder') {
+      productionType = 'building';
+    }
 
     const penalty = this.calculateProductionChangePenalty(city, productionId, productionType);
     const previousProduction = city.currentProduction;
@@ -246,7 +248,12 @@ export class CityProductionHandler {
       return false;
     }
 
-    // Check if unit is obsoleted by newer technology
+    if (unitType.flags?.includes('NoBuild') || unitType.flags?.includes('BarbarianOnly')) {
+      return false;
+    }
+
+    // A unit is obsolete as soon as the player can build any replacement in
+    // its obsolete_by chain.
     if (this.isUnitObsolete(unitType, player)) {
       return false;
     }
@@ -262,6 +269,20 @@ export class CityProductionHandler {
     // Check if already built (can't build duplicates)
     if (city.buildings?.includes(buildingType.id)) {
       return false;
+    }
+
+    if (buildingType.genus === 'GreatWonder') {
+      const claimed = [...this.cities.values()].some(
+        other =>
+          other.buildings?.includes(buildingType.id) ||
+          (other.id !== city.id && other.currentProduction === buildingType.id)
+      );
+      if (claimed) return false;
+    } else if (buildingType.genus === 'SmallWonder') {
+      const owned = [...this.cities.values()].some(
+        other => other.playerId === player.id && other.buildings?.includes(buildingType.id)
+      );
+      if (owned) return false;
     }
 
     // Check if player has required technology
@@ -311,8 +332,10 @@ export class CityProductionHandler {
       const buildingType = BUILDING_TYPES[productionId];
       return buildingType ? this.canCityBuildBuilding(city, buildingType, player) : false;
     } else if (productionType === 'wonder') {
-      // Wonder logic would go here
-      return false; // Not implemented yet
+      const buildingType = BUILDING_TYPES[productionId];
+      return buildingType?.genus === 'GreatWonder'
+        ? this.canCityBuildBuilding(city, buildingType, player)
+        : false;
     }
     return false;
   }
@@ -334,13 +357,28 @@ export class CityProductionHandler {
       return 0;
     }
 
-    // In Freeciv, changing production typically loses 50% of accumulated shields
-    // but there are exceptions for related units/buildings
     const currentShields = city.productionStock ?? city.shieldStock ?? 0;
+    const currentClass = this.getProductionClass(city.currentProduction, city.productionType);
+    const newClass = this.getProductionClass(newProductionId, newProductionType);
 
-    // For now, apply standard 50% penalty
-    // TODO: Implement more sophisticated penalty calculation based on production relationships
-    return Math.floor(currentShields * 0.5);
+    // Freeciv preserves stock when switching within the unit, improvement, or
+    // Wonder class. Crossing classes retains half, so this method returns the
+    // amount to subtract from the current stock.
+    if (!currentClass || currentClass === newClass) return 0;
+    return currentShields - Math.floor(currentShields / 2);
+  }
+
+  private getProductionClass(
+    productionId: string | undefined,
+    productionType: 'unit' | 'building' | 'wonder' | null | undefined
+  ): 'unit' | 'improvement' | 'wonder' | undefined {
+    if (!productionId || !productionType) return undefined;
+    if (productionType === 'unit') return 'unit';
+    if (productionType === 'wonder') return 'wonder';
+    const building = BUILDING_TYPES[productionId];
+    return building?.genus === 'GreatWonder' || building?.genus === 'SmallWonder'
+      ? 'wonder'
+      : 'improvement';
   }
 
   /**
@@ -405,11 +443,9 @@ export class CityProductionHandler {
     return 'City improvement';
   }
 
-  /**
-   * Get available wonders (placeholder)
-   */
   private getAvailableWonders(_city: any, _player: any): ProductionOption[] {
-    // TODO: Implement wonder system
+    // Great Wonders are part of BUILDING_TYPES and are returned above. Keep
+    // this adapter empty so older clients do not receive duplicate entries.
     return [];
   }
 
@@ -434,8 +470,22 @@ export class CityProductionHandler {
   /**
    * Check if unit is obsolete
    */
-  private isUnitObsolete(_unitType: any, _player: any): boolean {
-    // TODO: Implement obsolescence logic
+  private isUnitObsolete(unitType: any, player: any): boolean {
+    const visited = new Set<string>();
+    let replacementId = unitType.obsolete_by;
+    while (replacementId && !visited.has(replacementId)) {
+      visited.add(replacementId);
+      const replacement = UNIT_TYPES[replacementId];
+      if (!replacement) return false;
+      if (
+        (!replacement.requiredTech || this.hasPlayerResearched(player, replacement.requiredTech)) &&
+        !replacement.flags?.includes('NoBuild') &&
+        !replacement.flags?.includes('BarbarianOnly')
+      ) {
+        return true;
+      }
+      replacementId = replacement.obsolete_by;
+    }
     return false;
   }
 

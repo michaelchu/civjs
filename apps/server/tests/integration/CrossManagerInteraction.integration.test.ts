@@ -23,7 +23,11 @@ function findPassableStep(game: NonNullable<ReturnType<GameManager['getGameInsta
       if (target) return { start: { x, y }, target };
     }
   }
-  throw new Error('Generated map has no adjacent passable land tiles');
+  // The generated integration map may occasionally be all water. Keep this
+  // movement fixture deterministic without weakening production validation.
+  map.tiles[0][0].terrain = 'grassland';
+  map.tiles[1][0].terrain = 'grassland';
+  return { start: { x: 0, y: 0 }, target: { x: 1, y: 0 } };
 }
 
 describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
@@ -167,12 +171,12 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
 
     it('should prevent movement into enemy city and maintain city integrity', async () => {
       // Create enemy city
-      const enemyCityId = await gameManager.foundCity(gameId, enemyPlayerId, 'EnemyCity', 10, 8);
+      const enemyCityId = await gameManager.foundCity(gameId, enemyPlayerId, 'EnemyCity', 10, 7);
 
       const game = gameManager.getGameInstance(gameId)!;
 
       // Try to move unit into enemy city (should fail)
-      await expect(game.unitManager.moveUnit(unitId, 10, 8)).rejects.toThrow();
+      await expect(game.unitManager.moveUnit(unitId, 10, 7)).rejects.toThrow();
 
       // Verify unit didn't move
       const unit = game.unitManager.getUnit(unitId);
@@ -183,7 +187,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       const enemyCity = game.cityManager.getCity(enemyCityId);
       expect(enemyCity).toBeDefined();
       expect(enemyCity!.x).toBe(10);
-      expect(enemyCity!.y).toBe(8);
+      expect(enemyCity!.y).toBe(7);
 
       // Verify database reflects no movement
       const db = getTestDatabase();
@@ -197,7 +201,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       expect(dbUnit.x).toBe(unitStart.x);
       expect(dbUnit.y).toBe(unitStart.y);
       expect(dbCity.x).toBe(10);
-      expect(dbCity.y).toBe(8);
+      expect(dbCity.y).toBe(7);
     });
   });
 
@@ -382,7 +386,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       const game = gameManager.getGameInstance(gameId)!;
 
       // Found a city
-      const cityId = await gameManager.foundCity(gameId, playerId, 'GrowthCity', 12, 12);
+      const cityId = await gameManager.foundCity(gameId, playerId, 'GrowthCity', 12, 7);
 
       // Set up city for growth
       const city = game.cityManager.getCity(cityId)!;
@@ -400,10 +404,10 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
         expect(city.workableTiles?.length || 0).toBeGreaterThanOrEqual(1);
 
         // Create unit near city
-        const unitId = await gameManager.createUnit(gameId, playerId, 'settlers', 13, 12);
+        const unitId = await gameManager.createUnit(gameId, playerId, 'settlers', 13, 7);
 
         // Unit should be able to move (not blocked by city growth)
-        const moveResult = await game.unitManager.moveUnit(unitId, 14, 12);
+        const moveResult = await game.unitManager.moveUnit(unitId, 14, 7);
         expect(moveResult).toBe(true);
 
         // Verify all changes persisted

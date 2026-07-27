@@ -17,7 +17,7 @@ export class CityProductionService extends BaseGameService {
   constructor(
     private cities: Map<string, CityState>,
     private buildingTypes: typeof BUILDING_TYPES,
-    private getPlayerGold: (playerId: string) => number,
+    private getPlayerGold: (playerId: string) => Promise<number>,
     private spendPlayerGold: (playerId: string, amount: number) => Promise<boolean>
   ) {
     super(logger);
@@ -156,7 +156,7 @@ export class CityProductionService extends BaseGameService {
     }
 
     // Check player has enough gold
-    const playerGold = this.getPlayerGold(playerId);
+    const playerGold = await this.getPlayerGold(playerId);
     if (playerGold < buyCost.goldCost) {
       return {
         success: false,
@@ -215,14 +215,14 @@ export class CityProductionService extends BaseGameService {
    * Check if production can be bought
    * @reference Original CityManager.canBuyProduction()
    */
-  public canBuyProduction(
+  public async canBuyProduction(
     cityId: string,
     playerId: string
-  ): {
+  ): Promise<{
     canBuy: boolean;
     reason?: string;
     goldCost?: number;
-  } {
+  }> {
     const city = this.cities.get(cityId);
     if (!city) {
       return { canBuy: false, reason: 'City not found' };
@@ -244,7 +244,7 @@ export class CityProductionService extends BaseGameService {
       return { canBuy: false, reason: buyCost.reason };
     }
 
-    const playerGold = this.getPlayerGold(playerId);
+    const playerGold = await this.getPlayerGold(playerId);
     if (playerGold < buyCost.goldCost) {
       return {
         canBuy: false,
@@ -263,7 +263,7 @@ export class CityProductionService extends BaseGameService {
    * Get production buy information
    * @reference Original CityManager.getProductionBuyInfo()
    */
-  public getProductionBuyInfo(cityId: string): {
+  public async getProductionBuyInfo(cityId: string): Promise<{
     hasProduction: boolean;
     productionName: string;
     productionType: string;
@@ -273,7 +273,7 @@ export class CityProductionService extends BaseGameService {
     goldCost: number;
     canAfford: boolean;
     playerGold: number;
-  } {
+  }> {
     const city = this.cities.get(cityId);
     if (!city) {
       return {
@@ -299,7 +299,7 @@ export class CityProductionService extends BaseGameService {
         shieldsRemaining: 0,
         goldCost: 0,
         canAfford: false,
-        playerGold: this.getPlayerGold(city.playerId),
+        playerGold: await this.getPlayerGold(city.playerId),
       };
     }
 
@@ -323,7 +323,7 @@ export class CityProductionService extends BaseGameService {
     const shieldStock = city.productionStock ?? city.shieldStock ?? 0;
     const shieldsRemaining = Math.max(0, totalCost - shieldStock);
     const goldCost = shieldsRemaining * 2;
-    const playerGold = this.getPlayerGold(city.playerId);
+    const playerGold = await this.getPlayerGold(city.playerId);
 
     return {
       hasProduction: true,

@@ -362,6 +362,15 @@ export class GameInstanceRecoveryService extends BaseGameService {
         science: player.scienceRate,
       });
     }
+    cityManager.setTreasuryProviders(
+      playerId => economicManager.getPlayerGold(playerId),
+      async (playerId, amount) =>
+        (
+          await economicManager.spendPlayerGold(playerId, amount, 'Rush city production', {
+            turn: game.currentTurn,
+          })
+        ).success
+    );
     cityManager.setPlayerTaxRatesProvider(playerId => economicManager.getPlayerTaxRates(playerId));
 
     // Create TurnManager last with all dependencies

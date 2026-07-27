@@ -187,17 +187,14 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     expect(hostPlayer).toBeDefined();
     const unitStart = { x: 10, y: 10 };
     const map = gameManager.getGameInstance(gameId)!.mapManager.getMapData()!;
-    const moveTarget = [
-      { x: unitStart.x + 1, y: unitStart.y },
-      { x: unitStart.x - 1, y: unitStart.y },
-      { x: unitStart.x, y: unitStart.y + 1 },
-      { x: unitStart.x, y: unitStart.y - 1 },
-    ].find(({ x, y }) => {
-      const terrain = map.tiles[x]?.[y]?.terrain;
-      const movementCost = terrain ? getTerrainMovementCost(terrain, 'warriors') : -1;
-      return movementCost >= 0 && movementCost <= SINGLE_MOVE;
-    });
-    expect(moveTarget).toBeDefined();
+    const moveTarget = { x: unitStart.x + 1, y: unitStart.y };
+    // Map generation is intentionally variable; pin only the two tiles this
+    // transport-boundary movement assertion needs.
+    map.tiles[unitStart.x][unitStart.y].terrain = 'grassland';
+    map.tiles[moveTarget.x][moveTarget.y].terrain = 'grassland';
+    expect(getTerrainMovementCost(map.tiles[moveTarget.x][moveTarget.y].terrain, 'warriors')).toBe(
+      SINGLE_MOVE
+    );
 
     const unitId = await gameManager.createUnit(
       gameId,
@@ -209,7 +206,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     const moveReply = waitForPacket(host, PacketType.UNIT_MOVE_REPLY);
     host.emit('packet', {
       type: PacketType.UNIT_MOVE,
-      data: { unitId, x: moveTarget!.x, y: moveTarget!.y },
+      data: { unitId, x: moveTarget.x, y: moveTarget.y },
     });
     const moveResponse = await moveReply;
     if (!(moveResponse.data as { success: boolean }).success) {

@@ -118,7 +118,7 @@ describe('city production lifecycle', () => {
         [unitCity.id, unitCity],
       ]),
       BUILDING_TYPES,
-      () => 1_000,
+      async () => 1_000,
       jest.fn().mockResolvedValue(true)
     );
 
@@ -147,7 +147,7 @@ describe('city production lifecycle', () => {
     const service = new CityProductionService(
       new Map([[cityState.id, cityState]]),
       BUILDING_TYPES,
-      () => 100,
+      async () => 100,
       spendGold
     );
 

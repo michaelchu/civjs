@@ -81,14 +81,14 @@ describe('CityManagementHandler production socket flow', () => {
 
     await socketEvents.get('city:changeProduction')!({
       cityId: 'city-1',
-      productionId: 'archers',
+      productionId: 'explorer',
       productionType: 'unit',
     });
 
     expect(cityManager.setCityProduction).toHaveBeenCalledWith(
       'city-1',
       'unit',
-      'archers',
+      'explorer',
       playerId
     );
     expect(mockSocket.emit).toHaveBeenCalledWith(
@@ -125,14 +125,14 @@ describe('CityManagementHandler production socket flow', () => {
 
     await packetCallback(mockSocket, {
       cityId: 'city-1',
-      production: 'archers',
+      production: 'explorer',
       type: 'unit',
     });
 
     expect(cityManager.setCityProduction).toHaveBeenCalledWith(
       'city-1',
       'unit',
-      'archers',
+      'explorer',
       playerId
     );
     expect(packetHandler.send).toHaveBeenCalledWith(

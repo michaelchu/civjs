@@ -935,6 +935,15 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
     // Initialize economic system
     await economicManager.initialize();
+    cityManager.setTreasuryProviders(
+      playerId => economicManager.getPlayerGold(playerId),
+      async (playerId, amount) =>
+        (
+          await economicManager.spendPlayerGold(playerId, amount, 'Rush city production', {
+            turn: tm.getCurrentTurn(),
+          })
+        ).success
+    );
 
     // Restore authoritative treasury and rates instead of resetting persisted
     // players to EconomicManager's new-player defaults.

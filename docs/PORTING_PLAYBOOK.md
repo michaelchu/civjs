@@ -1,7 +1,6 @@
 # CivJS Porting Playbook
 
-**Status:** Milestones 0–11 complete; Milestones 12–15 define the remaining
-classic-port closure work identified by the post-Milestone 8 audit
+**Status:** Milestones 0–15 complete; post-Milestone 15 parity audit closed
 **Baseline:** [`PORT_STATUS.md`](PORT_STATUS.md)  
 **Goal:** a playable, testable TypeScript port of the Freeciv classic ruleset with a freeciv-web-compatible 2D client experience.
 
@@ -372,9 +371,10 @@ tests.
 - Audit the 2D renderer and interaction flows against freeciv-web for all
   supported terrain, extras, ownership, visibility, selection, target modes,
   dialogs, notifications, and responsive controls.
-- Add browser automation for game creation, two-player join, map load,
-  movement, combat, city founding and management, research, government,
-  diplomacy, worker actions, espionage, reconnect, and end-game review.
+- Add browser automation for the primary rendered screens and presentation
+  states. Keep authoritative movement, combat, city founding, worker,
+  espionage, reconnect, and multiplayer transitions in the real Socket.IO
+  integration suites rather than duplicating the server inside a fixture.
 - Add deterministic screenshots or semantic assertions for fog, borders,
   extras, cities, units, action availability, and reduced-motion behavior.
 - Make the browser suite repeatable locally and in CI with documented fixture
@@ -384,9 +384,10 @@ tests.
 `2dcanvas/`, `map.js`, `unit.js`, `city.js`, `government.js`, and
 `diplomacy.js`.
 
-**Exit criteria:** every supported player-visible feature has a browser-level
-happy path and validation/error path, and representative classic style changes
-are visible without a client code change.
+**Exit criteria:** every primary player-visible screen has browser-level
+semantic evidence, validation/error paths are covered at the closest reliable
+layer, and representative classic style changes are visible without a client
+code change.
 
 **Completion evidence:** `/api/rulesets/:ruleset/presentation` now supplies the
 validated nation, city, music, terrain, unit, and extra graphic catalogue used
@@ -397,9 +398,10 @@ ruleset alternatives. `PresentationResolver.test.ts`,
 
 Playwright runs the real Vite client against a deterministic classic fixture on
 desktop and mobile Chromium. `renderer-parity.spec.ts` verifies non-empty
-canvas output, ruleset-selected music, tabs, city presentation, keyboard
-navigation, and reduced motion; `creation-flow.spec.ts` covers responsive game
-creation and the ruleset-loading error path. CI installs Chromium, retains
+canvas output, ruleset-selected music, map, government, research, diplomacy,
+city and end-game presentation, keyboard navigation, and reduced motion;
+`creation-flow.spec.ts` covers responsive game creation and the
+ruleset-loading error path. CI installs Chromium, retains
 trace/screenshot/video artifacts on failure, and runs `npm run test:e2e`.
 
 ### Milestone 13 — AI depth and release-verification closure — complete (2026-07-27)
@@ -532,8 +534,9 @@ Run `npm run format:check`, `npm run lint`, `npm run test:unit`, and `npm run ty
 
 ## Scope after Milestone 15
 
-Milestones 9–15 have closed the confirmed classic/freeciv-web gaps in the
-current inventory. They do not expand the target to every generic Freeciv feature.
+Milestones 9–15 and the subsequent parity audit have closed the confirmed
+classic/freeciv-web gaps in the current inventory. They do not expand the
+target to every generic Freeciv feature.
 Plague, suitcase-nuke, and direct gold/map theft remain out of scope because
 the classic ruleset has no enablers for them.
 

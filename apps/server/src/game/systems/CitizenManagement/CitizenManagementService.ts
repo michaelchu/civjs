@@ -20,6 +20,11 @@ import {
 } from './CitizenTileType';
 import { OutputType } from '@game/constants/GameConstants';
 import { logger } from '@utils/logger';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+
+export interface CitizenOptimizationContext {
+  taxRates?: { tax: number; luxury: number; science: number };
+}
 
 /**
  * Main service for citizen management optimization
@@ -85,7 +90,8 @@ export class CitizenManagementService {
   public queryResult(
     city: CityState,
     parameters?: CitizenParameter,
-    allowNegative: boolean = false
+    allowNegative: boolean = false,
+    context: CitizenOptimizationContext = {}
   ): CitizenResult {
     const startTime = Date.now();
     this.performanceStats.totalQueries++;
@@ -95,7 +101,7 @@ export class CitizenManagementService {
       const params = parameters || CitizenParameterFactory.createDefault();
 
       // Check cache first
-      const cacheKey = this.generateCacheKey(city, params);
+      const cacheKey = this.generateCacheKey(city, params, context);
       const cachedResult = this.resultCache.get(cacheKey);
       if (cachedResult) {
         this.performanceStats.cacheHits++;
@@ -104,7 +110,7 @@ export class CitizenManagementService {
       }
 
       // Perform optimization with timeout protection
-      const result = this.performOptimizationWithTimeout(city, params, allowNegative);
+      const result = this.performOptimizationWithTimeout(city, params, allowNegative, context);
 
       // Cache the result if valid and within cache size limits
       if (result.found_valid && this.resultCache.size < this.CACHE_SIZE_LIMIT) {
@@ -188,9 +194,24 @@ export class CitizenManagementService {
   /**
    * Generate a cache key for a city and parameters
    */
-  private generateCacheKey(city: CityState, parameters: CitizenParameter): string {
+  private generateCacheKey(
+    city: CityState,
+    parameters: CitizenParameter,
+    context: CitizenOptimizationContext
+  ): string {
     // Create a simple hash of the city state and parameters that affect optimization
-    const cityHash = `${city.id}:${city.population}:${city.x}:${city.y}`;
+    const cityHash = JSON.stringify({
+      id: city.id,
+      population: city.population,
+      happiness: city.happiness,
+      specialists: city.specialists,
+      tiles: city.workableTiles?.map(tile => ({
+        outputs: tile.outputs,
+        blocked: tile.isBlocked,
+        center: tile.isCenter,
+      })),
+      taxRates: context.taxRates,
+    });
     const paramsHash = JSON.stringify({
       factors: parameters.factor,
       minimal: parameters.minimal_surplus,
@@ -209,16 +230,22 @@ export class CitizenManagementService {
    * Create tile types from city's workable tiles and available specialists
    * @reference freeciv/common/aicore/cm.c - init_tile_lattice()
    */
-  private createTileTypes(city: CityState, parameters: CitizenParameter): CitizenTileType[] {
+  private createTileTypes(
+    city: CityState,
+    parameters: CitizenParameter,
+    context: CitizenOptimizationContext
+  ): CitizenTileType[] {
     const tileTypes: CitizenTileType[] = [];
 
     // Create tile types from workable tiles (excluding city center)
     if (city.workableTiles) {
-      const nonCenterTiles = city.workableTiles.filter(tile => !tile.isCenter && !tile.isBlocked);
-      const tileProductions = nonCenterTiles.map((tile, index) => ({
-        index,
-        production: this.calculateTileOutputs(tile),
-      }));
+      const tileProductions = city.workableTiles
+        .map((tile, index) => ({ tile, index }))
+        .filter(({ tile }) => !tile.isCenter && !tile.isBlocked)
+        .map(({ tile, index }) => ({
+          index,
+          production: this.calculateTileOutputs(tile, context.taxRates),
+        }));
 
       // Group tiles by production output and create tile types
       const tileTileTypes = CitizenTileTypeUtils.groupTilesByProduction(tileProductions);
@@ -266,27 +293,16 @@ export class CitizenManagementService {
   private performOptimizationWithTimeout(
     city: CityState,
     parameters: CitizenParameter,
-    allowNegative: boolean
+    allowNegative: boolean,
+    context: CitizenOptimizationContext
   ): CitizenResult {
     const startTime = Date.now();
     const iterations = 0;
 
     try {
-      // Create tile types with complexity check
-      const tileTypes = this.createTileTypes(city, parameters);
-
-      // Check if problem is too complex
-      const complexityScore = this.calculateComplexityScore(city, tileTypes);
-      if (complexityScore > 100000) {
-        // Arbitrary complexity limit
-        logger.warn('Problem too complex, using emergency solution', {
-          cityId: city.id,
-          complexityScore,
-          population: city.population,
-          tileTypes: tileTypes.length,
-        });
-        return this.createEmergencyResult(city);
-      }
+      // Create tile types. Search limits below bound every problem without
+      // manufacturing an invalid "successful" emergency assignment.
+      const tileTypes = this.createTileTypes(city, parameters, context);
 
       // Build dominance relationships and sort by fitness
       CitizenTileTypeUtils.buildDominanceRelationships(tileTypes);
@@ -298,7 +314,8 @@ export class CitizenManagementService {
         sortedTileTypes,
         parameters,
         allowNegative,
-        startTime
+        startTime,
+        context
       );
     } catch (error: unknown) {
       logger.error('Error during optimization with timeout', {
@@ -318,66 +335,86 @@ export class CitizenManagementService {
     city: CityState,
     tileTypes: CitizenTileType[],
     parameters: CitizenParameter,
-    _allowNegative: boolean,
-    startTime: number
+    allowNegative: boolean,
+    startTime: number,
+    context: CitizenOptimizationContext
   ): CitizenResult {
-    const iterations = 0;
-
-    // Initialize result structures
-    const bestResult = CitizenResultFactory.create(5); // TODO: Get actual city radius
+    let iterations = 0;
+    let bestResult = CitizenResultFactory.create(this.getCityRadiusSq(city));
     let bestFitness = -Infinity;
-    let bestValid = false;
+    let aborted = false;
+    const assignments = new Map<string, number>();
 
-    // Simple greedy assignment as starting point and fallback
-    const greedyResult = this.performGreedyAssignment(city, tileTypes, parameters);
+    const evaluate = (): void => {
+      const candidate = CitizenResultFactory.create(this.getCityRadiusSq(city));
+      this.convertAssignmentsToResult(assignments, tileTypes, candidate);
+      this.calculateResultOutputs(candidate, assignments, tileTypes, parameters, city, context);
+      const happinessState = this.evaluateHappiness(city, candidate);
+      candidate.happy = happinessState.happy;
+      candidate.disorder = happinessState.disorder;
+      const meetsMinimum = Object.values(OutputType).every(
+        output =>
+          allowNegative || candidate.surplus[output] >= (parameters.minimal_surplus[output] ?? 0)
+      );
+      if (
+        meetsMinimum &&
+        this.checkHappinessConstraints(happinessState, parameters) &&
+        candidate.fitness > bestFitness
+      ) {
+        candidate.found_valid = true;
+        bestResult = candidate;
+        bestFitness = candidate.fitness;
+      }
+    };
 
-    // Evaluate happiness/disorder for the greedy result
-    const happinessState = this.evaluateHappiness(greedyResult, parameters);
-    greedyResult.happy = happinessState.happy;
-    greedyResult.disorder = happinessState.disorder;
+    const search = (typeIndex: number, remaining: number): void => {
+      if (
+        aborted ||
+        iterations >= this.MAX_ITERATIONS ||
+        Date.now() - startTime > this.TIMEOUT_MS
+      ) {
+        aborted = true;
+        return;
+      }
+      iterations++;
+      if (typeIndex === tileTypes.length) {
+        if (remaining === 0) evaluate();
+        return;
+      }
+      const tileType = tileTypes[typeIndex];
+      const maximum = Math.min(tileType.available_count, remaining);
+      for (let count = maximum; count >= 0; count--) {
+        assignments.set(tileType.id, count);
+        search(typeIndex + 1, remaining - count);
+        if (aborted) break;
+      }
+      assignments.delete(tileType.id);
+    };
 
-    // Check if result satisfies happiness constraints
-    const satisfiesHappinessConstraints = this.checkHappinessConstraints(
-      happinessState,
-      parameters
-    );
-
-    if (greedyResult.found_valid && satisfiesHappinessConstraints) {
-      bestResult.found_valid = true;
-      bestResult.surplus = { ...greedyResult.surplus };
-      bestResult.worker_positions = [...greedyResult.worker_positions];
-      bestResult.specialists = { ...greedyResult.specialists };
-      bestResult.workers_count = greedyResult.workers_count;
-      bestResult.specialists_count = greedyResult.specialists_count;
-      bestResult.fitness = greedyResult.fitness;
-      bestResult.happy = greedyResult.happy;
-      bestResult.disorder = greedyResult.disorder;
-      bestFitness = greedyResult.fitness;
-      bestValid = true;
-    } else if (!satisfiesHappinessConstraints && !parameters.allow_disorder) {
-      // Try to fix happiness by adding entertainers
-      const fixedResult = this.tryFixHappinessWithEntertainers(city, parameters, greedyResult);
-      if (fixedResult.found_valid) {
-        Object.assign(bestResult, fixedResult);
-        bestValid = true;
+    search(0, city.population);
+    if (!bestResult.found_valid) {
+      const fallback = this.performGreedyAssignment(city, tileTypes, parameters, context);
+      const happinessState = this.evaluateHappiness(city, fallback);
+      fallback.happy = happinessState.happy;
+      fallback.disorder = happinessState.disorder;
+      const fallbackMeetsMinimum = Object.values(OutputType).every(
+        output =>
+          allowNegative || fallback.surplus[output] >= (parameters.minimal_surplus[output] ?? 0)
+      );
+      if (
+        fallback.workers_count + fallback.specialists_count === city.population &&
+        fallbackMeetsMinimum &&
+        this.checkHappinessConstraints(happinessState, parameters)
+      ) {
+        fallback.found_valid = true;
+        bestResult = fallback;
+        bestFitness = fallback.fitness;
       }
     }
 
-    // Check for timeout or iteration limit
     const elapsedMs = Date.now() - startTime;
-    if (elapsedMs > this.TIMEOUT_MS || iterations > this.MAX_ITERATIONS) {
-      bestResult.aborted = true;
-      this.performanceStats.timeouts++;
-
-      logger.warn('Citizen management optimization timed out', {
-        cityId: city.id,
-        elapsedMs,
-        iterations,
-        population: city.population,
-      });
-    }
-
-    // Update performance stats
+    bestResult.aborted = !bestResult.found_valid;
+    if (aborted) this.performanceStats.timeouts++;
     this.performanceStats.totalIterations += iterations;
 
     logger.debug('Branch-and-bound search completed', {
@@ -385,7 +422,7 @@ export class CitizenManagementService {
       iterations,
       elapsedMs,
       bestFitness,
-      foundValid: bestValid,
+      foundValid: bestResult.found_valid,
       happy: bestResult.happy,
       disorder: bestResult.disorder,
       aborted: bestResult.aborted,
@@ -401,9 +438,10 @@ export class CitizenManagementService {
   private performGreedyAssignment(
     city: CityState,
     tileTypes: CitizenTileType[],
-    parameters: CitizenParameter
+    parameters: CitizenParameter,
+    context: CitizenOptimizationContext = {}
   ): CitizenResult {
-    const result = CitizenResultFactory.create(5); // TODO: Get actual city radius
+    const result = CitizenResultFactory.create(this.getCityRadiusSq(city));
 
     // Sort tile types by fitness (best first)
     const sortedTypes = [...tileTypes].sort((a, b) => b.estimated_fitness - a.estimated_fitness);
@@ -426,9 +464,9 @@ export class CitizenManagementService {
     this.convertAssignmentsToResult(assignments, tileTypes, result);
 
     // Calculate surplus and fitness
-    this.calculateResultOutputs(result, assignments, tileTypes, parameters);
+    this.calculateResultOutputs(result, assignments, tileTypes, parameters, city, context);
 
-    result.found_valid = true;
+    result.found_valid = result.workers_count + result.specialists_count === city.population;
     result.aborted = false;
 
     return result;
@@ -455,15 +493,13 @@ export class CitizenManagementService {
       if (!tileType || count === 0) continue;
 
       if (tileType.is_specialist) {
-        if (tileType.specialist_type && tileType.specialist_type !== SpecialistType.WORKER) {
+        if (tileType.specialist_type !== undefined) {
           result.specialists[tileType.specialist_type] += count;
           specialistsCount += count;
         }
-        // Idle workers are not counted as specialists in our system
       } else {
-        // Assign workers to tiles (simplified - just mark first N positions)
-        for (let i = 0; i < count && workersCount < result.worker_positions.length; i++) {
-          result.worker_positions[workersCount] = true;
+        for (let i = 0; i < count && i < tileType.tile_indices.length; i++) {
+          result.worker_positions[tileType.tile_indices[i]] = true;
           workersCount++;
         }
       }
@@ -482,14 +518,23 @@ export class CitizenManagementService {
     result: CitizenResult,
     assignments: Map<string, number>,
     tileTypes: CitizenTileType[],
-    parameters: CitizenParameter
+    parameters: CitizenParameter,
+    city: CityState,
+    context: CitizenOptimizationContext
   ): void {
     // Reset surplus
     Object.keys(result.surplus).forEach(key => {
       result.surplus[key as OutputType] = 0;
     });
 
-    // Sum production from all assignments
+    const center = city.workableTiles?.find(tile => tile.isCenter && !tile.isBlocked);
+    if (center) {
+      const centerOutputs = this.calculateTileOutputs(center, context.taxRates);
+      for (const output of Object.values(OutputType)) {
+        result.surplus[output] += centerOutputs[output];
+      }
+    }
+
     for (const [tileTypeId, count] of assignments) {
       const tileType = tileTypes.find(t => t.id === tileTypeId);
       if (!tileType || count === 0) continue;
@@ -500,7 +545,8 @@ export class CitizenManagementService {
     }
 
     // Subtract consumption (food for population)
-    result.surplus[OutputType.FOOD] -= result.workers_count + result.specialists_count;
+    result.surplus[OutputType.FOOD] -=
+      (result.workers_count + result.specialists_count) * rulesetLoader.getCivstyle().food_cost;
 
     // Calculate fitness
     result.fitness = Object.entries(result.surplus).reduce((sum, [type, amount]) => {
@@ -512,28 +558,7 @@ export class CitizenManagementService {
    * Create a failed result when optimization fails
    */
   private createFailedResult(_city: CityState): CitizenResult {
-    const result = CitizenResultFactory.createFailed(5); // TODO: Get actual city radius
-    return result;
-  }
-
-  /**
-   * Create an emergency result that always works (all specialists)
-   */
-  private createEmergencyResult(city: CityState): CitizenResult {
-    const result = CitizenResultFactory.create(5); // TODO: Get actual city radius
-
-    // All citizens become idle specialists (workers)
-    result.found_valid = true;
-    result.aborted = false;
-    result.specialists[SpecialistType.WORKER] = city.population;
-    result.specialists_count = city.population;
-    result.workers_count = 0;
-
-    // Calculate basic outputs
-    const workerOutput = SPECIALIST_TYPES[SpecialistType.WORKER].outputAmount;
-    result.surplus[OutputType.FOOD] = workerOutput * city.population - city.population;
-    result.fitness = result.surplus[OutputType.FOOD]; // Simple fitness
-
+    const result = CitizenResultFactory.createFailed(this.getCityRadiusSq(_city));
     return result;
   }
 
@@ -541,17 +566,22 @@ export class CitizenManagementService {
    * Calculate all output types from a workable tile
    * Includes trade conversion to gold/luxury/science
    */
-  private calculateTileOutputs(tile: WorkableTile): Record<OutputType, number> {
+  private calculateTileOutputs(
+    tile: WorkableTile,
+    taxRates: { tax: number; luxury: number; science: number } = {
+      tax: 30,
+      luxury: 20,
+      science: 50,
+    }
+  ): Record<OutputType, number> {
     // Base outputs from tile
     const baseFood = tile.outputs.food;
     const baseShields = tile.outputs.shields;
     const baseTrade = tile.outputs.trade;
 
-    // TODO: Get actual tax/luxury/science rates from player/city
-    // For now, assume standard 50% science, 30% tax, 20% luxury split
-    const scienceRate = 0.5;
-    const taxRate = 0.3;
-    const luxuryRate = 0.2;
+    const scienceRate = taxRates.science / 100;
+    const taxRate = taxRates.tax / 100;
+    const luxuryRate = taxRates.luxury / 100;
 
     return {
       [OutputType.FOOD]: baseFood,
@@ -602,9 +632,6 @@ export class CitizenManagementService {
         break;
     }
 
-    // TODO: Apply specialist bonuses from buildings, wonders, and effects
-    // This would involve loading effects from ruleset and checking city buildings
-
     return production;
   }
 
@@ -613,8 +640,8 @@ export class CitizenManagementService {
    * @reference freeciv/common/city.c - city_happy(), city_unhappy()
    */
   private evaluateHappiness(
-    result: CitizenResult,
-    _parameters: CitizenParameter
+    city: CityState,
+    result: CitizenResult
   ): {
     happy: boolean;
     disorder: boolean;
@@ -624,16 +651,12 @@ export class CitizenManagementService {
   } {
     const totalCitizens = result.workers_count + result.specialists_count;
 
-    // Base happiness calculation (simplified)
-    // In Freeciv, this would involve government effects, buildings, wonders, etc.
-    let happyCitizens = 0;
-    let unhappyCitizens = 0;
-    let angryCitizens = 0;
-
-    // Start with base citizen moods
-    const baseHappy = Math.floor(totalCitizens * 0.5); // Assume 50% start content/happy
-    const baseUnhappy = Math.floor(totalCitizens * 0.3); // 30% start unhappy
-    const baseAngry = Math.max(0, totalCitizens - baseHappy - baseUnhappy); // Rest angry
+    let happyCitizens = Math.min(totalCitizens, city.happiness.happy);
+    let unhappyCitizens = Math.min(totalCitizens - happyCitizens, city.happiness.unhappy);
+    let angryCitizens = Math.min(
+      totalCitizens - happyCitizens - unhappyCitizens,
+      city.happiness.angry
+    );
 
     // Apply luxury effects from specialists
     const entertainers = result.specialists[SpecialistType.ENTERTAINER] || 0;
@@ -643,8 +666,9 @@ export class CitizenManagementService {
     const luxuryEffect = entertainers * 3 + Math.floor(luxuryOutput / 2);
 
     // Convert angry to unhappy, then unhappy to content/happy
-    angryCitizens = Math.max(0, baseAngry - luxuryEffect);
-    unhappyCitizens = Math.max(0, baseUnhappy - Math.max(0, luxuryEffect - baseAngry));
+    const baseAngry = angryCitizens;
+    angryCitizens = Math.max(0, angryCitizens - luxuryEffect);
+    unhappyCitizens = Math.max(0, unhappyCitizens - Math.max(0, luxuryEffect - baseAngry));
     happyCitizens = totalCitizens - angryCitizens - unhappyCitizens;
 
     // Apply Freeciv happiness rules
@@ -683,146 +707,9 @@ export class CitizenManagementService {
     return true;
   }
 
-  /**
-   * Attempt to fix happiness by converting workers to entertainers
-   * @reference freeciv/common/aicore/cm.c - similar logic in CM optimization
-   */
-  private tryFixHappinessWithEntertainers(
-    city: CityState,
-    parameters: CitizenParameter,
-    originalResult: CitizenResult
-  ): CitizenResult {
-    if (!parameters.allow_specialists) {
-      return originalResult; // Can't use specialists
-    }
-
-    const result = CitizenResultFactory.create(originalResult.city_radius_sq);
-
-    // Copy original result
-    result.surplus = { ...originalResult.surplus };
-    result.worker_positions = [...originalResult.worker_positions];
-    result.specialists = { ...originalResult.specialists };
-    result.workers_count = originalResult.workers_count;
-    result.specialists_count = originalResult.specialists_count;
-    result.fitness = originalResult.fitness;
-
-    // Try adding entertainers until happiness constraints are satisfied
-    const maxEntertainers = Math.min(3, result.workers_count); // Don't convert too many workers
-
-    for (let entertainersToAdd = 1; entertainersToAdd <= maxEntertainers; entertainersToAdd++) {
-      // Remove workers from least productive tiles
-      let workersRemoved = 0;
-      for (
-        let i = result.worker_positions.length - 1;
-        i >= 0 && workersRemoved < entertainersToAdd;
-        i--
-      ) {
-        if (result.worker_positions[i]) {
-          result.worker_positions[i] = false;
-          workersRemoved++;
-        }
-      }
-
-      // Add entertainers
-      result.specialists[SpecialistType.ENTERTAINER] =
-        (result.specialists[SpecialistType.ENTERTAINER] || 0) + entertainersToAdd;
-      result.workers_count -= entertainersToAdd;
-      result.specialists_count += entertainersToAdd;
-
-      // Recalculate outputs
-      this.recalculateResultOutputs(result, parameters);
-
-      // Check if happiness is now satisfied
-      const happinessState = this.evaluateHappiness(result, parameters);
-      result.happy = happinessState.happy;
-      result.disorder = happinessState.disorder;
-
-      if (this.checkHappinessConstraints(happinessState, parameters)) {
-        result.found_valid = true;
-        result.aborted = false;
-
-        logger.debug('Fixed happiness with entertainers', {
-          cityId: city.id,
-          entertainersAdded: entertainersToAdd,
-          happy: result.happy,
-          disorder: result.disorder,
-        });
-
-        return result;
-      }
-    }
-
-    // Could not fix happiness
-    result.found_valid = false;
-    return result;
-  }
-
-  /**
-   * Recalculate result outputs after citizen reassignment
-   */
-  private recalculateResultOutputs(result: CitizenResult, parameters: CitizenParameter): void {
-    // Reset surplus
-    Object.keys(result.surplus).forEach(key => {
-      result.surplus[key as OutputType] = 0;
-    });
-
-    // Add outputs from worked tiles (simplified - would need actual tile data)
-    // For now, assume each worked tile produces average outputs
-    const averageTileFood = 2;
-    const averageTileShields = 1;
-    const averageTileTrade = 1;
-
-    result.surplus[OutputType.FOOD] += result.workers_count * averageTileFood;
-    result.surplus[OutputType.SHIELD] += result.workers_count * averageTileShields;
-    result.surplus[OutputType.TRADE] += result.workers_count * averageTileTrade;
-
-    // Add specialist outputs
-    Object.entries(result.specialists).forEach(([specialistType, count]) => {
-      const specialist = SPECIALIST_TYPES[specialistType as unknown as SpecialistType];
-      if (specialist && count > 0) {
-        switch (specialist.outputType) {
-          case 'food':
-            result.surplus[OutputType.FOOD] += count * specialist.outputAmount;
-            break;
-          case 'shield':
-            result.surplus[OutputType.SHIELD] += count * specialist.outputAmount;
-            break;
-          case 'trade':
-            result.surplus[OutputType.TRADE] += count * specialist.outputAmount;
-            break;
-          case 'gold':
-            result.surplus[OutputType.GOLD] += count * specialist.outputAmount;
-            break;
-          case 'luxury':
-            result.surplus[OutputType.LUXURY] += count * specialist.outputAmount;
-            break;
-          case 'science':
-            result.surplus[OutputType.SCIENCE] += count * specialist.outputAmount;
-            break;
-        }
-      }
-    });
-
-    // Subtract food consumption
-    result.surplus[OutputType.FOOD] -= result.workers_count + result.specialists_count;
-
-    // Recalculate fitness
-    result.fitness = Object.entries(result.surplus).reduce((sum, [type, amount]) => {
-      return sum + amount * parameters.factor[type as OutputType];
-    }, 0);
-  }
-
-  /**
-   * Calculate complexity score to detect problems that might be too expensive
-   * @reference freeciv/common/aicore/cm.c - complexity estimation
-   */
-  private calculateComplexityScore(city: CityState, tileTypes: CitizenTileType[]): number {
-    const population = city.population;
-    const numTileTypes = tileTypes.length;
-
-    // Rough complexity estimate: population^2 * tileTypes
-    // This is a simplification of the actual branching factor
-    return population * population * numTileTypes;
+  private getCityRadiusSq(city: CityState): number {
+    const radius = city.cityRadius || 2;
+    return radius * radius + 1;
   }
 
   /**

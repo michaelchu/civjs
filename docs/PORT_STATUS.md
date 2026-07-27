@@ -1,8 +1,8 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 14 working tree (2026-07-27)
-**Verification method:** source-tree audit, 894 passing unit tests (62 client,
-832 server), 6 passing desktop/mobile Chromium tests, 153 passing assertions
+**Verified against:** post-Milestone 15 parity audit working tree (2026-07-27)
+**Verification method:** source-tree audit, 937 passing unit tests (74 client,
+863 server), 10 passing desktop/mobile Chromium tests, 154 passing assertions
 across all 13 PostgreSQL integration suites, release-limit map/turn soaks,
 formatting, lint, production type checks, and production builds. Local
 integration verification is reproducible with
@@ -336,11 +336,15 @@ the latest eligible city and music style. Terrain, unit, resource, road, rail,
 and improvement sprites use loaded primary and alternate graphics rather than
 client-only presentation maps.
 
-A deterministic browser fixture exercises the real canvas and game screens
+A deterministic browser fixture exercises the real canvas and representative game screens
 without requiring PostgreSQL. Desktop and mobile Chromium cover responsive
-creation, renderer readiness and non-empty output, tabs, city display,
-keyboard navigation, music-theme selection, reduced motion, and API error
-feedback. CI retains browser traces, screenshots, and videos on failure.
+creation, renderer readiness and non-empty output, map, government, research,
+diplomacy, city and end-game display, keyboard navigation, music-theme
+selection, reduced motion, and API error feedback. Authoritative gameplay
+state transitions remain covered at the Socket.IO/integration and component
+layers; the deterministic browser fixture is not described as a second
+full-stack gameplay suite. CI retains browser traces, screenshots, and videos
+on failure.
 Evidence includes `PresentationResolver.test.ts`, `RulesetsRoute.test.ts`,
 `renderer-parity.spec.ts`, and `creation-flow.spec.ts`.
 
@@ -355,7 +359,7 @@ existing conquest evaluator rather than maintaining a second rules engine.
 
 An isolated PostgreSQL 16 service now runs every database-backed suite locally
 and in CI. The release job executes the browser flow and the real Socket.IO
-restart/reconnect flow in one gate. All 13 integration suites pass with 153
+restart/reconnect flow in one gate. All 13 integration suites pass with 154
 assertions. Release-limit evidence generates an 80×50 map for eight
 participants and processes 100 eight-participant turns without state drift.
 The database audit also exposed and fixed city assignment capacity: the free
@@ -413,6 +417,26 @@ scheduled. Evidence includes `UnitManager.test.ts`, `CityManager.test.ts`,
 `VisibilityManager.test.ts`, `UnitActionHandler.test.ts`,
 `ClassicActionInventory.test.ts`, `UnitContextMenu.specialActions.test.tsx`,
 and the PostgreSQL nuclear persistence scenario.
+
+## Post-Milestone 15 parity audit closure
+
+The audit removed five latent gaps that milestone-level inventory counts did
+not expose:
+
+- Rush buying now reads and debits the authoritative `EconomicManager`
+  treasury in new and recovered games.
+- Great Wonders are production candidates, use building production semantics,
+  and enforce global uniqueness.
+- Unit obsolescence follows the loaded replacement/technology chain, while
+  production switching preserves shields within a production class and applies
+  the classic half-stock loss across classes.
+- Citizen optimization now performs bounded assignment search over real tile
+  positions, live tax rates, food support, blocked tiles, city radius,
+  specialists, and happiness constraints; applied assignments are followed by
+  the authoritative city-output pipeline.
+- Browser claims now match their evidence, and the fixture covers all primary
+  screens plus the accessible end-game report. Full command/state-transition
+  evidence remains in the real Socket.IO integration suites.
 
 ## Partial or incomplete areas
 

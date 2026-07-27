@@ -74,10 +74,10 @@ describe('CityProductionHandler', () => {
         cityId: 'city-1',
         productions: expect.arrayContaining([
           expect.objectContaining({
-            id: 'warriors',
-            name: 'Warriors', // From freeciv ruleset
+            id: 'explorer',
+            name: 'Explorer',
             type: 'unit',
-            cost: 10, // Exact cost from freeciv
+            cost: 30,
             available: true,
           }),
           expect.objectContaining({
@@ -89,6 +89,47 @@ describe('CityProductionHandler', () => {
           }),
         ]),
       });
+    });
+
+    it('exposes unclaimed classic Great Wonders through normal building production', async () => {
+      await handler.getAvailableProductions(mockSocket, {
+        cityId: 'city-1',
+        playerId: 'player-1',
+      });
+
+      const call = (mockSocket.emit as jest.MockedFunction<any>).mock.calls.find(
+        (entry: any) => entry[0] === 'city:availableProductions'
+      );
+      expect(call[1].productions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'colossus',
+            name: 'Colossus',
+            type: 'building',
+            available: true,
+          }),
+        ])
+      );
+    });
+
+    it('prevents another city from building a claimed Great Wonder', async () => {
+      mockCities.set('city-2', {
+        id: 'city-2',
+        playerId: 'player-2',
+        buildings: ['colossus'],
+      });
+
+      await handler.getAvailableProductions(mockSocket, {
+        cityId: 'city-1',
+        playerId: 'player-1',
+      });
+
+      const call = (mockSocket.emit as jest.MockedFunction<any>).mock.calls.find(
+        (entry: any) => entry[0] === 'city:availableProductions'
+      );
+      expect(call[1].productions.find((production: any) => production.id === 'colossus')).toEqual(
+        expect.objectContaining({ available: false })
+      );
     });
 
     it('should emit error for non-existent city', async () => {
@@ -196,18 +237,18 @@ describe('CityProductionHandler', () => {
       await authoritativeHandler.changeProduction(mockSocket, {
         cityId: 'city-1',
         playerId: 'player-1',
-        productionId: 'archers',
+        productionId: 'explorer',
         productionType: 'unit',
       });
 
-      expect(persistProduction).toHaveBeenCalledWith('city-1', 'unit', 'archers', 'player-1');
+      expect(persistProduction).toHaveBeenCalledWith('city-1', 'unit', 'explorer', 'player-1');
     });
 
     it('should successfully change production to a valid unit', async () => {
       await handler.changeProduction(mockSocket, {
         cityId: 'city-1',
         playerId: 'player-1',
-        productionId: 'archers', // Correct unit ID from freeciv
+        productionId: 'explorer',
         productionType: 'unit',
       });
 
@@ -227,14 +268,14 @@ describe('CityProductionHandler', () => {
       });
     });
 
-    it('should apply production change penalty', async () => {
+    it('preserves shields when changing within the unit production class', async () => {
       const city = mockCities.get('city-1');
       city.shieldStock = 20;
 
       await handler.changeProduction(mockSocket, {
         cityId: 'city-1',
         playerId: 'player-1',
-        productionId: 'archers', // Correct unit ID from freeciv
+        productionId: 'explorer',
         productionType: 'unit',
       });
 
@@ -242,8 +283,8 @@ describe('CityProductionHandler', () => {
         (call: any) => call[0] === 'city:productionChanged'
       );
 
-      expect(call[1].penalty).toBeGreaterThan(0);
-      expect(call[1].shieldStock).toBeLessThan(20);
+      expect(call[1].penalty).toBe(0);
+      expect(call[1].shieldStock).toBe(20);
     });
 
     it('should emit error for unavailable production', async () => {
@@ -317,6 +358,24 @@ describe('CityProductionHandler', () => {
 
       const result = (handler as any).canCityBuildUnit(city, unitType, player);
       expect(result).toBe(true);
+    });
+
+    it('hides a unit when its researched replacement is buildable', () => {
+      const city = mockCities.get('city-1');
+      const player = mockPlayers.get('player-1');
+      mockResearchManager.hasPlayerResearched.mockReturnValue(true);
+
+      expect(
+        (handler as any).canCityBuildUnit(
+          city,
+          {
+            id: 'archers',
+            obsolete_by: 'pikemen',
+            flags: [],
+          },
+          player
+        )
+      ).toBe(false);
     });
 
     it('should prevent building settlers in size 1 city', () => {
@@ -432,20 +491,37 @@ describe('CityProductionHandler', () => {
       expect(penalty).toBe(0);
     });
 
-    it('should apply 50% penalty for production change', () => {
+    it('does not penalize a change within the unit class', () => {
       const city = mockCities.get('city-1');
       city.shieldStock = 20;
 
-      const penalty = (handler as any).calculateProductionChangePenalty(city, 'archer', 'unit');
+      const penalty = (handler as any).calculateProductionChangePenalty(city, 'explorer', 'unit');
 
-      expect(penalty).toBe(10); // 50% of 20
+      expect(penalty).toBe(0);
+    });
+
+    it('retains half the shields when crossing production classes', () => {
+      const city = mockCities.get('city-1');
+      city.shieldStock = 20;
+
+      const penalty = (handler as any).calculateProductionChangePenalty(
+        city,
+        'barracks',
+        'building'
+      );
+
+      expect(penalty).toBe(10);
     });
 
     it('should handle no shield stock gracefully', () => {
       const city = mockCities.get('city-1');
       city.shieldStock = 0;
 
-      const penalty = (handler as any).calculateProductionChangePenalty(city, 'archer', 'unit');
+      const penalty = (handler as any).calculateProductionChangePenalty(
+        city,
+        'barracks',
+        'building'
+      );
 
       expect(penalty).toBe(0);
     });

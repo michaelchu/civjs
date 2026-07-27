@@ -17,7 +17,6 @@ import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { CitizenManagementService } from '@game/systems/CitizenManagement/CitizenManagementService';
 import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
-import { OutputType } from '@game/constants/GameConstants';
 import type { CityTileManagementService } from './CityTileManagementService';
 
 // Re-export shared types
@@ -165,7 +164,13 @@ export class CityOptimizationService extends BaseGameService {
   constructor(
     cities: Map<string, CityState>,
     citizenManagementService: CitizenManagementService,
-    tileManagementService?: CityTileManagementService
+    tileManagementService?: CityTileManagementService,
+    private readonly getTaxRates: (playerId: string) => {
+      tax: number;
+      luxury: number;
+      science: number;
+    } = () => ({ tax: 30, luxury: 20, science: 50 }),
+    private readonly refreshAuthoritativeOutputs?: (cityId: string) => void
   ) {
     super(logger);
     this.cities = cities;
@@ -256,7 +261,8 @@ export class CityOptimizationService extends BaseGameService {
       const result = this.citizenManagementService.queryResult(
         city,
         optimizationParams,
-        !optimizationParams.allowNegativeSurpluses // Don't allow negative surpluses by default
+        Boolean(optimizationParams.allowNegativeSurpluses),
+        { taxRates: this.getTaxRates(city.playerId) }
       );
 
       if (result.found_valid) {
@@ -278,11 +284,9 @@ export class CityOptimizationService extends BaseGameService {
         // Update specialist assignments
         city.specialists = { ...result.specialists };
 
-        // Update output calculations based on optimized assignments
-        city.foodPerTurn = result.surplus[OutputType.FOOD];
-        city.productionPerTurn = result.surplus[OutputType.SHIELD];
-        city.tradePerTurn = result.surplus[OutputType.TRADE];
-        city.sciencePerTurn = result.surplus[OutputType.SCIENCE];
+        // Recalculate through the same ruleset/effects pipeline used by turns.
+        // Optimizer surplus is a search score, not authoritative city state.
+        this.refreshAuthoritativeOutputs?.(city.id);
 
         const newAssignments = {
           workedTiles: city.workableTiles?.filter(t => t.isWorked).length || 0,
