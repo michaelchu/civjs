@@ -647,7 +647,8 @@ export class CityManager {
     // Free initial buildings for the player's very first city. Freeciv checks
     // this before the city joins the owner's city list.
     // @reference reference/freeciv/server/citytools.c:1559-1564 create_city()
-    if (!this.playersWithFirstCity.has(playerId)) {
+    const isFirstCity = !this.playersWithFirstCity.has(playerId);
+    if (isFirstCity) {
       this.buildFreeBuildings(city);
       this.playersWithFirstCity.add(playerId);
     }
@@ -658,6 +659,14 @@ export class CityManager {
     // A river center requires Bridge Building, so leave that case untouched.
     // @reference reference/freeciv/data/classic/terrain.ruleset extra_road
     const centerTile = this.mapManager?.getTile(x, y);
+    const previousCenterRoad = centerTile
+      ? {
+          hasRoad: centerTile.hasRoad,
+          improvements: Array.isArray(centerTile.improvements)
+            ? [...centerTile.improvements]
+            : undefined,
+        }
+      : undefined;
     if (centerTile && centerTile.riverMask === 0) {
       centerTile.hasRoad = true;
       if (!centerTile.improvements.includes('road')) {
@@ -694,7 +703,21 @@ export class CityManager {
     this.calculateCityOutputs(cityId);
 
     // Save to database
-    await this.saveCityToDatabase(city);
+    try {
+      await this.saveCityToDatabase(city);
+    } catch (error) {
+      // Founding is authoritative only after persistence succeeds. Roll back
+      // provisional state so the tile and first-city grant can be retried.
+      this.cities.delete(cityId);
+      if (isFirstCity) this.playersWithFirstCity.delete(playerId);
+      if (centerTile && previousCenterRoad) {
+        centerTile.hasRoad = previousCenterRoad.hasRoad;
+        if (previousCenterRoad.improvements) {
+          centerTile.improvements = previousCenterRoad.improvements;
+        }
+      }
+      throw error;
+    }
 
     // Trigger callback
     if (this.callbacks.onCityFounded) {

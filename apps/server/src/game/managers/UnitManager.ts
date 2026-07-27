@@ -148,6 +148,7 @@ export class UnitManager {
       y: number,
       movementLeft: number
     ) => void;
+    broadcastUnitDestroyed?: (gameId: string, unit: Unit) => void;
     getCityAt?: (x: number, y: number) => CityAtLocation | null;
     getPlayerBuildings?: (playerId: string) => string[];
     reserveAirlift?: (
@@ -211,6 +212,7 @@ export class UnitManager {
         y: number,
         movementLeft: number
       ) => void;
+      broadcastUnitDestroyed?: (gameId: string, unit: Unit) => void;
       getCityAt?: (x: number, y: number) => CityAtLocation | null;
       getPlayerBuildings?: (playerId: string) => string[];
       reserveAirlift?: (
@@ -2368,6 +2370,7 @@ export class UnitManager {
   private async handleFoundCity(unit: Unit, result: ActionResult): Promise<boolean> {
     if (result.unitDestroyed) {
       await this.destroyUnit(unit.id);
+      this.gameManagerCallback?.broadcastUnitDestroyed?.(this.gameId, unit);
       return true;
     }
     return false;

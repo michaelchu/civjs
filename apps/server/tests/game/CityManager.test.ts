@@ -205,6 +205,20 @@ describe('CityManager', () => {
       expect(city!.specialists[SpecialistType.ENTERTAINER]).toBe(0);
     });
 
+    it('rolls back provisional city state when persistence fails', async () => {
+      const database = mockDbProvider.getDatabase() as any;
+      database.values.mockRejectedValueOnce(new Error('database schema is outdated'));
+
+      await expect(cityManager.foundCity(10, 10, 'Failed City', 'player-123')).rejects.toThrow(
+        'database schema is outdated'
+      );
+      expect(cityManager.getPlayerCities('player-123')).toHaveLength(0);
+
+      database.values.mockReturnThis();
+      const retriedCity = await cityManager.foundCity(10, 10, 'Retried City', 'player-123');
+      expect(retriedCity.buildings).toContain('palace');
+    });
+
     it('rejects a city two tiles from another player city', async () => {
       await cityManager.foundCity(10, 10, 'AI City', 'ai-player');
 

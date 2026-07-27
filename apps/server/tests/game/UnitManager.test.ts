@@ -249,6 +249,31 @@ describe('UnitManager', () => {
   });
 
   describe('Milestone 14 city actions', () => {
+    it('broadcasts settler destruction after a successful found-city action', async () => {
+      const broadcastUnitDestroyed = jest.fn();
+      const foundCity = jest.fn().mockResolvedValue('city-1');
+      unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, undefined, {
+        foundCity,
+        requestPath: jest.fn(),
+        broadcastUnitMoved: jest.fn(),
+        broadcastUnitDestroyed,
+      });
+      const settlers = await unitManager.createUnit('player-123', 'settlers', 10, 10);
+
+      await expect(
+        unitManager.executeUnitAction(
+          settlers.id,
+          ActionType.FOUND_CITY,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true, unitDestroyed: true, cityId: 'city-1' });
+
+      expect(unitManager.getUnit(settlers.id)).toBeUndefined();
+      expect(broadcastUnitDestroyed).toHaveBeenCalledWith(gameId, settlers);
+    });
+
     it('delegates a legal join-city action and consumes the actor', async () => {
       const executeCityUnitAction = jest.fn().mockResolvedValue({
         success: true,
