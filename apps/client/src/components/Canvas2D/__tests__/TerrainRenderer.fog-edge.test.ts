@@ -3,6 +3,50 @@ import { TerrainRenderer } from '../renderers/TerrainRenderer';
 import type { RenderState } from '../renderers/BaseRenderer';
 
 describe('TerrainRenderer fog-edge neighbors', () => {
+  it('draws terrain layer-first across the visible tile set', () => {
+    const drawOrder: string[] = [];
+    const context = {
+      canvas: { width: 800, height: 600 },
+      drawImage: vi.fn((sprite: { key: string }) => drawOrder.push(sprite.key)),
+      fillRect: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const renderer = new TerrainRenderer(
+      context,
+      { getSprite: (key: string) => ({ key }) } as never,
+      96,
+      48
+    );
+    (
+      renderer as unknown as {
+        fillTerrainSpriteArraySimple: (
+          layer: number,
+          tile: { x: number }
+        ) => Array<{ key: string }>;
+      }
+    ).fillTerrainSpriteArraySimple = (layer, tile) => [{ key: `${layer}:${tile.x}` }];
+    const tiles = [
+      { x: 0, y: 0, terrain: 'plains', known: true, visible: true },
+      { x: 1, y: 0, terrain: 'grassland', known: true, visible: true },
+    ];
+
+    renderer.renderTerrain(
+      {
+        viewport: { x: 0, y: 0, width: 800, height: 600 },
+        map: {
+          width: 2,
+          height: 1,
+          tiles: Object.fromEntries(tiles.map(tile => [`${tile.x},${tile.y}`, tile])),
+        },
+        units: {},
+        cities: {},
+        players: {},
+      },
+      tiles
+    );
+
+    expect(drawOrder).toEqual(['0:0', '0:1', '1:0', '1:1', '2:0', '2:1']);
+  });
+
   it('extends the current terrain into unknown neighbors like Freeciv', () => {
     const renderer = new TerrainRenderer({} as CanvasRenderingContext2D, {} as never, 96, 48);
     renderer.invalidateTileCache({

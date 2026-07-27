@@ -60,6 +60,7 @@ describe('MapRenderer live-state updates', () => {
       terrainRenderer: {
         invalidateTileCache: vi.fn(),
         renderTerrain: vi.fn(),
+        renderSpecials: vi.fn(),
         renderOceanPadding: vi.fn(),
       },
       borderRenderer: { render: vi.fn() },
@@ -105,6 +106,7 @@ describe('MapRenderer live-state updates', () => {
       terrainRenderer: {
         invalidateTileCache: vi.fn(),
         renderTerrain: vi.fn(),
+        renderSpecials: vi.fn(),
         renderOceanPadding: vi.fn(),
       },
       borderRenderer: { render: vi.fn() },
@@ -127,11 +129,13 @@ describe('MapRenderer live-state updates', () => {
     expect(cityRenderer.renderCities).toHaveBeenCalledTimes(1);
   });
 
-  it('does not draw a unit placeholder when only an optional stack badge is missing', () => {
+  it('uses the Amplio2 stack badge key without drawing a placeholder', () => {
     const context = createContext();
     const unitSprite = {} as HTMLImageElement;
+    const stackSprite = {} as HTMLImageElement;
     const tilesetLoader = {
-      getSprite: (key: string) => (key === 'u.warriors' ? unitSprite : null),
+      getSprite: (key: string) =>
+        key === 'u.warriors' ? unitSprite : key === 'unit.stack2' ? stackSprite : null,
     };
     const renderer = new UnitRenderer(context, tilesetLoader as never, 96, 48);
     const unit: Unit = {
@@ -154,7 +158,37 @@ describe('MapRenderer live-state updates', () => {
     });
 
     expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 19, -14);
+    expect(context.drawImage).toHaveBeenCalledWith(stackSprite, 19, -45);
     expect(context.fillText).not.toHaveBeenCalled();
+  });
+
+  it('culls known tiles that are outside the canvas overdraw margin', () => {
+    const renderer = new MapRenderer(createContext());
+    const nearTile = {
+      x: 0,
+      y: 0,
+      terrain: 'plains',
+      known: true,
+      visible: true,
+    };
+    const farTile = {
+      x: 100,
+      y: 100,
+      terrain: 'plains',
+      known: true,
+      visible: true,
+    };
+
+    const visible = (
+      renderer as unknown as {
+        getVisibleTiles: (
+          tiles: (typeof nearTile)[],
+          viewport: RenderState['viewport']
+        ) => (typeof nearTile)[];
+      }
+    ).getVisibleTiles([nearTile, farTile], createRenderState().viewport);
+
+    expect(visible).toEqual([nearTile]);
   });
 
   it('reveals unknown terrain and skips the fog layer when debug fog is disabled', () => {
@@ -166,6 +200,7 @@ describe('MapRenderer live-state updates', () => {
       terrainRenderer: {
         invalidateTileCache: vi.fn(),
         renderTerrain,
+        renderSpecials: vi.fn(),
         renderOceanPadding: vi.fn(),
       },
       borderRenderer: { render: vi.fn() },

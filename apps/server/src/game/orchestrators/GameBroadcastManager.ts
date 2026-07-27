@@ -12,6 +12,7 @@ import { PacketType, PACKET_NAMES, PROTOCOL_VERSION } from '@app-types/packet';
 import type { GameInstance } from '@game/managers/GameManager';
 import { getUnitType } from '@game/constants/UnitConstants';
 import { rulesetActionsService } from '@game/services/RulesetActionsService';
+import { resolveCityPresentations } from '@game/services/CityPresentationService';
 
 export interface BroadcastService {
   broadcastToGame(gameId: string, event: string, data: any): void;
@@ -620,7 +621,17 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
           (city: any) => city.playerId === playerId || exploredTiles.has(`${city.x},${city.y}`)
         );
 
-    const clientCityData = CityDataService.transformCitiesForClient(visibleCities);
+    const presentations = resolveCityPresentations(
+      visibleCities,
+      gameInstance.players,
+      playerId => gameInstance.researchManager?.getResearchedTechs(playerId) ?? []
+    );
+    const clientCityData = CityDataService.transformCitiesForClient(
+      visibleCities,
+      'classic',
+      undefined,
+      presentations
+    );
 
     const recipientId = gameInstance.players.get(playerId)?.userId || playerId;
     this.broadcastToPlayer(recipientId, 'cities_updated', {

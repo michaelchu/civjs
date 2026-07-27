@@ -65,6 +65,16 @@ map snapshot, preventing mixed-size reload artifacts.
 React components use selector-based Zustand subscriptions. The canvas drawing
 path subscribes imperatively to its relevant slices so packet bursts can be
 throttled by the renderer without requiring unrelated React reconciliation.
+Each frame computes a viewport-cropped tile set with an overdraw margin, then
+renders that set layer-first in Freeciv painter order. Static terrain, roads,
+borders, specials, cities, units, fog, and paths must not be interleaved
+tile-first.
+
+Public city presentation is server-resolved. City packets carry the selected
+style, wall state, and public overlays so foreign cities render correctly
+without disclosing another player's research. Renderers consume the supplied
+snapshot and do not reach back into the Zustand store while drawing.
+
 Tileset sprite tables may still be loaded by the legacy-compatible asset
 loader through browser globals; those tables are presentation assets, not game
 state.
@@ -83,6 +93,8 @@ state.
    rendering work.
 7. Add recovery, ordering, cancellation, and render regression coverage when a
    lifecycle boundary changes.
+8. Preserve global painter order and viewport culling when adding a map layer.
+9. Resolve presentation that depends on hidden game state on the server.
 
 ## Primary verification
 
@@ -93,6 +105,8 @@ state.
 - `GameClient.state-packets.test.ts`
 - `MapRenderer.live-state.test.ts`
 - `TerrainRenderer.fog-edge.test.ts`
+- `CityRenderer.presentation.test.ts`
+- `CityPresentationService.test.ts`
 - `gameStore.rendering.test.tsx`
 - `GameManagementHandler.test.ts`
 - `PacketHandler.ordering.test.ts`

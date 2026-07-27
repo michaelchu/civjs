@@ -12,6 +12,7 @@ import { SPECIALIST_TYPES, type CityState, type SpecialistType } from '@game/man
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { rulesetUnitsService } from './RulesetUnitsService';
 import { rulesetBuildingsService, type RulesetBuildingsService } from './RulesetBuildingsService';
+import type { CityPresentation } from './CityPresentationService';
 
 export interface CityDataRulesetDependencies {
   loader: Pick<RulesetLoader, 'getCivstyle'>;
@@ -23,7 +24,7 @@ const defaultRulesetDependencies: CityDataRulesetDependencies = {
   buildings: rulesetBuildingsService,
 };
 
-interface ClientCityData {
+export interface ClientCityData {
   id: string;
   name: string;
   playerId: string;
@@ -31,6 +32,7 @@ interface ClientCityData {
   y: number;
   size: number;
   actualPopulation?: number;
+  presentation?: CityPresentation;
 
   // Basic output values (for legacy compatibility)
   food: number;
@@ -145,7 +147,8 @@ export class CityDataService {
   static transformCityForClient(
     city: CityState,
     rulesetName: string = 'classic',
-    dependencies: CityDataRulesetDependencies = defaultRulesetDependencies
+    dependencies: CityDataRulesetDependencies = defaultRulesetDependencies,
+    presentation?: CityPresentation
   ): ClientCityData {
     // Use actual calculated values from CityManager
     const civstyle = dependencies.loader.getCivstyle(rulesetName);
@@ -242,6 +245,7 @@ export class CityDataService {
       y: city.y,
       size: city.population,
       actualPopulation: city.population * 1000, // Actual population count
+      presentation,
 
       // Legacy compatibility (for backward compatibility)
       food: foodPerTurn,
@@ -298,12 +302,18 @@ export class CityDataService {
   static transformCitiesForClient(
     cities: CityState[],
     rulesetName: string = 'classic',
-    dependencies: CityDataRulesetDependencies = defaultRulesetDependencies
+    dependencies: CityDataRulesetDependencies = defaultRulesetDependencies,
+    presentations: Record<string, CityPresentation> = {}
   ): Record<string, ClientCityData> {
     const result: Record<string, ClientCityData> = {};
 
     for (const city of cities) {
-      result[city.id] = this.transformCityForClient(city, rulesetName, dependencies);
+      result[city.id] = this.transformCityForClient(
+        city,
+        rulesetName,
+        dependencies,
+        presentations[city.id]
+      );
     }
 
     return result;

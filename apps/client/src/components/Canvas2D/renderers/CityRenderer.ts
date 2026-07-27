@@ -2,7 +2,6 @@ import type { City, MapViewport } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 import type { CityStyle, NationStyle } from '../../../services/RulesetService';
 import { resolveCityGraphic } from '../../../services/PresentationResolver';
-import { useGameStore } from '../../../store/gameStore';
 
 /**
  * CityRenderer - Authentic Freeciv-compliant city sprite rendering
@@ -112,7 +111,7 @@ export class CityRenderer extends BaseRenderer {
     }
 
     // Render city name and population
-    this.renderCityText(city, screenPos);
+    this.renderCityText(city, screenPos, state);
   }
 
   /**
@@ -144,24 +143,40 @@ export class CityRenderer extends BaseRenderer {
     const sprites: Array<{ key: string; offset_x?: number; offset_y?: number }> = [];
 
     // Get authentic Freeciv city style based on player's nation and tech
-    const cityStyleGraphic = this.getCityStyleGraphic(city, state);
+    const cityStyleGraphic = city.presentation?.graphic ?? this.getCityStyleGraphic(city, state);
 
     // Use authentic Freeciv size mapping
     // Reference: freeciv-web tilespec.js:get_city_sprite() size calculation
     const sizeIndex = this.getCitySizeIndex(city.size);
 
     // Check if city has walls - use authentic walls system
-    const hasWalls = this.cityHasWalls(city);
+    const hasWalls = city.presentation?.hasWalls ?? this.cityHasWalls(city);
     const spriteType = hasWalls ? 'wall' : 'city';
 
     // Generate authentic Freeciv sprite key format
-    const spriteKey = `${cityStyleGraphic}_${spriteType}_${sizeIndex}`;
+    let spriteKey = `${cityStyleGraphic}_${spriteType}_${sizeIndex}`;
+    if (!this.tilesetLoader.getSprite(spriteKey) && city.presentation?.graphicAlt) {
+      spriteKey = `${city.presentation.graphicAlt}_${spriteType}_${sizeIndex}`;
+    }
 
+    const overlays = city.presentation?.overlays ?? [];
+    for (const key of overlays.filter(key => key.endsWith('_underlay'))) {
+      sprites.push({ key });
+    }
     sprites.push({
       key: spriteKey,
       offset_x: 0,
       offset_y: 0, // Could add unit_offset_y for authentic positioning
     });
+    for (const key of overlays.filter(key => !key.endsWith('_underlay'))) {
+      sprites.push({ key });
+    }
+    if (city.granaryTurns === -1) {
+      sprites.push({ key: 'city.starve' });
+    }
+    if (city.disorder) {
+      sprites.push({ key: 'city.disorder' });
+    }
 
     return sprites;
   }
@@ -215,18 +230,8 @@ export class CityRenderer extends BaseRenderer {
    * Reference: freeciv-web city walls detection system
    */
   private cityHasWalls(city: City): boolean {
-    // Check for various wall building types that Freeciv recognizes
-    const wallBuildings = [
-      'walls', // Basic walls
-      'city_walls', // City walls
-      'coastal_defense', // Coastal defense
-      'fortress', // Fortress-like structures
-      'castle', // Castle
-      'citadel', // Citadel
-    ];
-
-    return wallBuildings.some(building =>
-      city.buildings.some(b => (typeof b === 'string' ? b === building : b.name === building))
+    return city.buildings.some(
+      building => (typeof building === 'string' ? building : building.id) === 'walls'
     );
   }
 
@@ -249,7 +254,11 @@ export class CityRenderer extends BaseRenderer {
    * Format: [POP] | CITY NAME
    *               | PRODUCTION (empty for now)
    */
-  private renderCityText(city: City, screenPos: { x: number; y: number }): void {
+  private renderCityText(
+    city: City,
+    screenPos: { x: number; y: number },
+    state: RenderState
+  ): void {
     const centerX = screenPos.x + this.tileWidth / 2;
     const bannerY = screenPos.y + this.tileHeight - 2;
 
@@ -281,8 +290,7 @@ export class CityRenderer extends BaseRenderer {
     this.ctx.fillRect(bannerX, bannerY, totalWidth, totalHeight);
 
     // Draw highlighted population square using player's actual nation color
-    const gameState = useGameStore.getState();
-    const player = gameState.players[city.playerId];
+    const player = state.players[city.playerId];
     const playerColor = player?.color || this.getPlayerColor(city.playerId); // Fallback to BaseRenderer method
     this.ctx.fillStyle = playerColor;
     this.ctx.fillRect(popSquareX, bannerY, popSquareSize, totalHeight);

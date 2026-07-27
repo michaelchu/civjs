@@ -26,8 +26,43 @@ export class TerrainRenderer extends BaseRenderer {
    */
   renderTerrain(state: RenderState, visibleTiles: Tile[]): void {
     this.invalidateTileCache(state.map.tiles);
+
+    const entries = visibleTiles.map(tile => ({
+      tile,
+      screenPos: this.mapToScreen(tile.x, tile.y, state.viewport),
+      layers: [0, 1, 2].map(layer => this.fillTerrainSpriteArraySimple(layer, tile)),
+    }));
+
+    // Freeciv's painter order is layer-first: every visible tile in terrain
+    // layer 1, then every tile in terrain layer 2, and so on. Rendering all
+    // layers tile-by-tile lets a later base tile cover an earlier overlay.
+    for (const entry of entries) {
+      if (entry.layers.every(sprites => sprites.length === 0)) {
+        this.drawTerrainFallback(entry.tile, entry.screenPos);
+      }
+    }
+    for (let layer = 0; layer <= 2; layer++) {
+      for (const entry of entries) {
+        this.drawSprites(entry.layers[layer], entry.screenPos);
+      }
+    }
+
+    // Irrigation belongs to TERRAIN3, followed by the road/rail/river layer.
+    for (const entry of entries) {
+      this.drawInfrastructure(entry.tile, entry.screenPos, 'terrain');
+    }
+    for (const entry of entries) {
+      this.drawRiver(entry.tile, entry.screenPos);
+      this.drawInfrastructure(entry.tile, entry.screenPos, 'roads');
+    }
+  }
+
+  renderSpecials(state: RenderState, visibleTiles: Tile[]): void {
+    this.invalidateTileCache(state.map.tiles);
     for (const tile of visibleTiles) {
-      this.renderTile(tile, state.viewport);
+      const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
+      this.drawInfrastructure(tile, screenPos, 'specials');
+      this.drawResource(tile, screenPos);
     }
   }
 
@@ -149,12 +184,6 @@ export class TerrainRenderer extends BaseRenderer {
     }
   }
 
-  private renderTile(tile: Tile, viewport: any): void {
-    const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
-    // Render multi-layer terrain like freeciv-web does
-    this.renderTerrainLayers(tile, screenPos);
-  }
-
   private renderTerrainLayers(tile: Tile, screenPos: { x: number; y: number }): void {
     let hasAnySprites = false;
 
@@ -166,61 +195,49 @@ export class TerrainRenderer extends BaseRenderer {
         hasAnySprites = true;
       }
 
-      for (const spriteInfo of sprites) {
-        const sprite = this.tilesetLoader.getSprite(spriteInfo.key);
-        if (sprite) {
-          const offsetX = spriteInfo.offset_x || 0;
-          const offsetY = spriteInfo.offset_y || 0;
-
-          // Copy freeciv-web logic exactly: pcanvas.drawImage(sprites[tag], canvas_x, canvas_y);
-          this.ctx.drawImage(sprite, screenPos.x + offsetX, screenPos.y + offsetY);
-        } else {
-          // Try fallback sprites for water terrains
-          if (tile.terrain === 'ocean' || tile.terrain === 'coast') {
-            const mappedTerrain = this.mapTerrainName(tile.terrain);
-            // Try the simplest CELL_CORNER sprite for water
-            const fallbackKey = `t.l${layer}.${mappedTerrain}_cell_u_w_w_w`;
-            const fallbackSprite = this.tilesetLoader.getSprite(fallbackKey);
-            if (fallbackSprite) {
-              this.ctx.drawImage(fallbackSprite, screenPos.x, screenPos.y);
-              hasAnySprites = true;
-            }
-          }
-        }
-      }
+      hasAnySprites = this.drawSprites(sprites, screenPos, tile, layer) || hasAnySprites;
     }
 
-    // ADD: River rendering layer (matches freeciv-web LAYER_SPECIAL1)
+    hasAnySprites = this.drawRiver(tile, screenPos) || hasAnySprites;
+    hasAnySprites = this.drawInfrastructure(tile, screenPos, 'terrain') || hasAnySprites;
+    hasAnySprites = this.drawInfrastructure(tile, screenPos, 'roads') || hasAnySprites;
+    hasAnySprites = this.drawInfrastructure(tile, screenPos, 'specials') || hasAnySprites;
+    hasAnySprites = this.drawResource(tile, screenPos) || hasAnySprites;
+
+    if (!hasAnySprites) {
+      this.drawTerrainFallback(tile, screenPos);
+    }
+  }
+
+  private drawRiver(tile: Tile, screenPos: { x: number; y: number }): boolean {
     const riverSprite = this.getTileRiverSprite(tile);
     if (riverSprite) {
       const sprite = this.tilesetLoader.getSprite(riverSprite.key);
       if (sprite) {
         this.ctx.drawImage(sprite, screenPos.x, screenPos.y);
-        hasAnySprites = true;
-        if (import.meta.env.DEV) {
-          console.debug(
-            `River sprite rendered: ${riverSprite.key} at (${screenPos.x},${screenPos.y})`
-          );
-        }
-      } else {
-        if (import.meta.env.DEV) {
-          console.warn(`River sprite not found: ${riverSprite.key}`);
-        }
+        return true;
       }
     }
+    return false;
+  }
 
-    // Roads, rails, and worked-tile extras use Freeciv's SPECIAL layers.
-    // @reference freeciv-web/javascript/2dcanvas/tilespec.js:2600-2706
-    for (const key of this.getInfrastructureSprites(tile)) {
+  private drawInfrastructure(
+    tile: Tile,
+    screenPos: { x: number; y: number },
+    layer: 'terrain' | 'roads' | 'specials'
+  ): boolean {
+    let rendered = false;
+    for (const key of this.getInfrastructureSprites(tile, layer)) {
       const sprite = this.tilesetLoader.getSprite(key);
       if (sprite) {
         this.ctx.drawImage(sprite, screenPos.x, screenPos.y);
-        hasAnySprites = true;
+        rendered = true;
       }
     }
+    return rendered;
+  }
 
-    // ADD: Resource rendering layer (matches freeciv-web LAYER_SPECIAL1)
-    // Resources render underneath cities in authentic freeciv-web
+  private drawResource(tile: Tile, screenPos: { x: number; y: number }): boolean {
     const resourceSprite = this.getTileResourceSprite(tile);
     if (resourceSprite) {
       const sprite = this.tilesetLoader.getSprite(resourceSprite.key);
@@ -239,28 +256,52 @@ export class TerrainRenderer extends BaseRenderer {
           scaledWidth,
           scaledHeight
         );
-        hasAnySprites = true;
-        if (import.meta.env.DEV) {
-          console.debug(
-            `Resource sprite rendered: ${resourceSprite.key} at (${screenPos.x},${screenPos.y}) scale=${resourceScale}`
-          );
-        }
-      } else {
-        if (import.meta.env.DEV) {
-          console.warn(`Resource sprite not found: ${resourceSprite.key}`);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private drawSprites(
+    sprites: Array<{ key: string; offset_x?: number; offset_y?: number }>,
+    screenPos: { x: number; y: number },
+    tile?: Tile,
+    layer?: number
+  ): boolean {
+    let rendered = false;
+    for (const spriteInfo of sprites) {
+      const sprite = this.tilesetLoader.getSprite(spriteInfo.key);
+      if (sprite) {
+        this.ctx.drawImage(
+          sprite,
+          screenPos.x + (spriteInfo.offset_x || 0),
+          screenPos.y + (spriteInfo.offset_y || 0)
+        );
+        rendered = true;
+      } else if (
+        tile &&
+        layer !== undefined &&
+        (tile.terrain === 'ocean' || tile.terrain === 'coast')
+      ) {
+        const mappedTerrain = this.mapTerrainName(tile.terrain);
+        const fallbackSprite = this.tilesetLoader.getSprite(
+          `t.l${layer}.${mappedTerrain}_cell_u_w_w_w`
+        );
+        if (fallbackSprite) {
+          this.ctx.drawImage(fallbackSprite, screenPos.x, screenPos.y);
+          rendered = true;
         }
       }
     }
-
-    // Fallback: if no sprites rendered, show solid color
-    if (!hasAnySprites) {
-      const color = this.getTerrainColor(tile.terrain);
-      this.ctx.fillStyle = color;
-      this.ctx.fillRect(screenPos.x, screenPos.y, this.tileWidth, this.tileHeight);
-    }
+    return rendered;
   }
 
-  private getInfrastructureSprites(tile: Tile): string[] {
+  private drawTerrainFallback(tile: Tile, screenPos: { x: number; y: number }): void {
+    this.ctx.fillStyle = this.getTerrainColor(tile.terrain);
+    this.ctx.fillRect(screenPos.x, screenPos.y, this.tileWidth, this.tileHeight);
+  }
+
+  private getInfrastructureSprites(tile: Tile, layer: 'terrain' | 'roads' | 'specials'): string[] {
     this.buildTileMap();
     const directions = [
       { dx: 0, dy: -1, name: 'n' },
@@ -285,10 +326,15 @@ export class TerrainRenderer extends BaseRenderer {
       }
     };
 
-    addConnections('hasRoad', this.extraGraphic('road', 'road.road'));
-    addConnections('hasRailroad', this.extraGraphic('railroad', 'road.rail'));
+    if (layer === 'roads') {
+      addConnections('hasRoad', this.extraGraphic('road', 'road.road'));
+      addConnections('hasRailroad', this.extraGraphic('railroad', 'road.rail'));
+    }
     for (const improvement of tile.improvements ?? []) {
       if (tile.cityId && (improvement === 'irrigation' || improvement === 'mine')) continue;
+      const targetLayer =
+        improvement === 'irrigation' || improvement === 'farmland' ? 'terrain' : 'specials';
+      if (layer !== targetLayer) continue;
       const graphic = this.extraGraphic(improvement);
       if (graphic) sprites.push(graphic);
     }

@@ -216,7 +216,7 @@ export class MapRenderer {
       this.clearCanvas(true, '#4682B4');
     }
 
-    const visibleTiles = this.getVisibleTiles(mapTiles);
+    const visibleTiles = this.getVisibleTiles(mapTiles, state.viewport);
 
     // Follow freeciv-web layer order exactly:
     // LAYER_TERRAIN1, LAYER_TERRAIN2, LAYER_TERRAIN3, LAYER_ROADS,
@@ -226,10 +226,10 @@ export class MapRenderer {
     // Resources render in LAYER_SPECIAL1 in freeciv-web - they are NOT hidden by cities
     this.terrainRenderer.renderTerrain(state, visibleTiles);
 
-    // LAYER_SPECIAL1: Render borders, specials, mines (after terrain but before cities)
+    // LAYER_SPECIAL1: Render borders before resources and other specials.
     // @reference freeciv-web/javascript/2dcanvas/mapview.js:580-720 - Border rendering in layer order
-    // Note: BorderRenderer now properly saves/restores canvas state to avoid affecting subsequent layers
     this.borderRenderer.render(state);
+    this.terrainRenderer.renderSpecials(state, visibleTiles);
 
     // LAYER_CITY1: Render cities layer BEFORE units (freeciv-web order)
     this.cityRenderer.renderCities(state);
@@ -724,13 +724,27 @@ export class MapRenderer {
     this.isInitialized = false;
   }
 
-  private getVisibleTiles(mapTiles: Tile[]): Tile[] {
+  private getVisibleTiles(mapTiles: Tile[], viewport: MapViewport): Tile[] {
     const tiles: Tile[] = [];
+    const canvasWidth = this.ctx.canvas?.width || viewport.width;
+    const canvasHeight = this.ctx.canvas?.height || viewport.height;
+    // Tall terrain and overlay sprites extend beyond their tile bounding box.
+    // Keep one tile of horizontal and two tiles of vertical overdraw around
+    // the canvas so viewport culling cannot clip those sprites.
+    const horizontalMargin = this.tileWidth;
+    const verticalMargin = this.tileHeight * 2;
 
-    // For now, let's do a simple approach - get all tiles that have data
-    // Later we can add the complex isometric culling logic
     for (const tile of mapTiles) {
-      if (tile.terrain && (!this.fogOfWarEnabled || tile.known)) {
+      const position = this.mapToGuiVector(tile.x, tile.y);
+      const screenX = position.guiDx - viewport.x;
+      const screenY = position.guiDy - viewport.y;
+      const intersectsViewport =
+        screenX + this.tileWidth >= -horizontalMargin &&
+        screenX <= canvasWidth + horizontalMargin &&
+        screenY + this.tileHeight >= -verticalMargin &&
+        screenY <= canvasHeight + verticalMargin;
+
+      if (intersectsViewport && tile.terrain && (!this.fogOfWarEnabled || tile.known)) {
         tiles.push(
           this.fogOfWarEnabled
             ? tile

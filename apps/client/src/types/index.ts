@@ -62,6 +62,12 @@ export interface City {
   y: number;
   size: number;
   actualPopulation?: number; // Actual population count (server-calculated)
+  presentation?: {
+    graphic: string;
+    graphicAlt?: string;
+    hasWalls: boolean;
+    overlays: string[];
+  };
   // Current output
   food: number;
   shields: number;

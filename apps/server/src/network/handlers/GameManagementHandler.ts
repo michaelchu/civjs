@@ -11,6 +11,7 @@ import {
 } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
 import { CityDataService } from '@game/services/CityDataService';
+import { resolveCityPresentations } from '@game/services/CityPresentationService';
 
 /**
  * Handles game management packets: creation, joining, starting, listing, deletion
@@ -581,9 +582,19 @@ export class GameManagementHandler extends BaseSocketHandler {
         (city: any) =>
           !playerId || city.playerId === playerId || exploredTiles.has(`${city.x},${city.y}`)
       );
+    const cityPresentations = resolveCityPresentations(
+      cities,
+      gameInstance.players,
+      id => gameInstance.researchManager?.getResearchedTechs(id) ?? []
+    );
     socket.emit('cities_updated', {
       gameId,
-      cities: CityDataService.transformCitiesForClient(cities),
+      cities: CityDataService.transformCitiesForClient(
+        cities,
+        'classic',
+        undefined,
+        cityPresentations
+      ),
       timestamp: Date.now(),
     });
 

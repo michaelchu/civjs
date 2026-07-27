@@ -58,7 +58,7 @@ export class UnitRenderer extends BaseRenderer {
       if (unitsAtPos.length > 0) {
         // Render the first unit (top of stack)
         const topUnit = unitsAtPos[0];
-        this.renderUnit(topUnit, state.viewport, unitsAtPos.length);
+        this.renderUnit(topUnit, state.viewport, unitsAtPos.length, state);
       }
     });
   }
@@ -88,7 +88,12 @@ export class UnitRenderer extends BaseRenderer {
     }
   }
 
-  private renderUnit(unit: Unit, viewport: MapViewport, stackSize: number = 1): void {
+  private renderUnit(
+    unit: Unit,
+    viewport: MapViewport,
+    stackSize: number,
+    state: RenderState
+  ): void {
     const screenPos = this.mapToScreen(unit.x, unit.y, viewport);
 
     // Get unit animation offset for smooth movement
@@ -105,7 +110,7 @@ export class UnitRenderer extends BaseRenderer {
 
     // Render unit sprites using freeciv-web approach
     // @reference freeciv-web/.../tilespec.js:fill_unit_sprite_array()
-    const unitSprites = this.fillUnitSpriteArray(unit, stackSize);
+    const unitSprites = this.fillUnitSpriteArray(unit, stackSize, state);
 
     for (const spriteInfo of unitSprites) {
       if (spriteInfo.key) {
@@ -138,7 +143,6 @@ export class UnitRenderer extends BaseRenderer {
     }
 
     // Render unit status indicators (fortified, etc.)
-    this.renderUnitStatusIndicators();
   }
 
   /**
@@ -175,7 +179,8 @@ export class UnitRenderer extends BaseRenderer {
    */
   private fillUnitSpriteArray(
     unit: Unit,
-    stackSize: number = 1
+    stackSize: number,
+    state: RenderState
   ): Array<{ key: string; offset_x?: number; offset_y?: number; required?: boolean }> {
     const sprites: Array<{
       key: string;
@@ -186,7 +191,7 @@ export class UnitRenderer extends BaseRenderer {
 
     // Get nation flag sprite
     // @reference freeciv-web: get_unit_nation_flag_sprite(punit)
-    const flagSprite = this.getUnitNationFlagSprite();
+    const flagSprite = this.getUnitNationFlagSprite(state.players[unit.playerId]?.nation);
     if (flagSprite) {
       sprites.push(flagSprite);
     }
@@ -203,7 +208,7 @@ export class UnitRenderer extends BaseRenderer {
 
     // Get activity sprite if unit has activity
     // @reference freeciv-web: get_unit_activity_sprite(punit)
-    const activitySprite = this.getUnitActivitySprite();
+    const activitySprite = this.getUnitActivitySprite(unit);
     if (activitySprite) {
       sprites.push(activitySprite);
     }
@@ -213,9 +218,9 @@ export class UnitRenderer extends BaseRenderer {
     if (stackSize > 1) {
       const stackIndicator = Math.min(stackSize, 9); // Max 9 in freeciv-web
       sprites.push({
-        key: `unit.stack_${stackIndicator}`,
+        key: `unit.stack${stackIndicator}`,
         offset_x: 0,
-        offset_y: 0,
+        offset_y: -31,
       });
     }
 
@@ -226,10 +231,15 @@ export class UnitRenderer extends BaseRenderer {
    * Get unit nation flag sprite
    * @reference freeciv-web: get_unit_nation_flag_sprite()
    */
-  private getUnitNationFlagSprite(): { key: string; offset_x?: number; offset_y?: number } | null {
-    // For now, return null (no flag rendering)
-    // TODO: Implement nation flag sprites based on player nation
-    return null;
+  private getUnitNationFlagSprite(
+    nation: string | undefined
+  ): { key: string; offset_x?: number; offset_y?: number } | null {
+    if (!nation) return null;
+    return {
+      key: `f.shield.${nation}`,
+      offset_x: 25,
+      offset_y: -16,
+    };
   }
 
   /**
@@ -265,9 +275,30 @@ export class UnitRenderer extends BaseRenderer {
    * Get unit activity sprite
    * @reference freeciv-web: get_unit_activity_sprite()
    */
-  private getUnitActivitySprite(): { key: string; offset_x?: number; offset_y?: number } | null {
-    // TODO: Implement activity sprites (fortified, sentry, etc.)
-    return null;
+  private getUnitActivitySprite(
+    unit: Unit
+  ): { key: string; offset_x?: number; offset_y?: number } | null {
+    const activity = typeof unit.activity === 'string' ? unit.activity.toLowerCase() : '';
+    const activitySprites: Record<string, string> = {
+      road: 'unit.road',
+      build_road: 'unit.road',
+      railroad: 'unit.rail',
+      build_railroad: 'unit.rail',
+      sentry: 'unit.sentry',
+      fortify: 'unit.fortifying',
+      fortified: 'unit.fortified',
+      goto: 'unit.goto',
+      explore: 'unit.auto_explore',
+      auto_explore: 'unit.auto_explore',
+      irrigate: 'unit.irrigate',
+      irrigation: 'unit.irrigate',
+      mine: 'unit.mine',
+      pillage: 'unit.pillage',
+      pollution: 'unit.pollution',
+      fallout: 'unit.fallout',
+    };
+    const key = unit.fortified ? 'unit.fortified' : activitySprites[activity];
+    return key ? { key, offset_x: 0, offset_y: 0 } : null;
   }
 
   /**
@@ -315,18 +346,6 @@ export class UnitRenderer extends BaseRenderer {
     this.ctx.strokeStyle = '#000000';
     this.ctx.lineWidth = 1;
     this.ctx.strokeRect(barX, barY, barWidth, barHeight);
-  }
-
-  /**
-   * Render unit status indicators (fortified, activity, etc.)
-   * @reference freeciv-web status indicator rendering
-   */
-  private renderUnitStatusIndicators(): void {
-    // TODO: Implement status indicators
-    // - Fortified indicator
-    // - Sentry indicator
-    // - Goto indicator
-    // - Activity indicators
   }
 
   /**
