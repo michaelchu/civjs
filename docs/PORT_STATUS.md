@@ -263,12 +263,24 @@ Evidence includes `GameManager.espionage.test.ts`, `UnitActionHandler.test.ts`,
 
 ## Partial or incomplete areas
 
-These are confirmed by explicit TODOs, placeholders, or unintegrated paths; they are not a complete feature roadmap.
+These are confirmed by the post-Milestone 8 audit and are now scheduled in
+[`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md):
 
-- Non-classic generic covert outcomes (plague, suitcase-nuke, and direct
-  gold/map theft) remain unadvertised.
-- Freeciv's full default AI is not ported; CivJS uses the replaceable adapter
-  documented above.
+- Classic extras, action enablers, styles, and action/entity requirements are
+  not yet fully loaded as validated runtime data (Milestone 9).
+- Client and server packet enums can drift, and gameplay still mixes structured
+  packets with named Socket.IO events (Milestone 10).
+- Bombardment, paradrop, airlift, and applicable automation are not yet in the
+  advertised classic action surface (Milestone 11).
+- Style/rendering parity and the playable flow lack browser-level automated
+  evidence (Milestone 12).
+- Freeciv's full default AI is not ported, and the database-backed integration
+  evidence still depends on an externally configured PostgreSQL service
+  (Milestone 13).
+
+Non-classic generic covert outcomes (plague, suitcase-nuke, and direct
+gold/map theft) remain intentionally unadvertised and are not roadmap gaps
+because the classic ruleset does not enable them.
 
 ## Porting workflow
 

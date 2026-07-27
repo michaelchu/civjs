@@ -1,7 +1,7 @@
 # CivJS Porting Playbook
 
-**Status:** Milestones 0–8 complete; further milestones require an explicit
-scope decision
+**Status:** Milestones 0–8 complete; Milestones 9–13 define the remaining
+classic-port closure work identified by the post-Milestone 8 audit
 **Baseline:** [`PORT_STATUS.md`](PORT_STATUS.md)  
 **Goal:** a playable, testable TypeScript port of the Freeciv classic ruleset with a freeciv-web-compatible 2D client experience.
 
@@ -243,6 +243,142 @@ persisted city, unit, and treasury result.
 `UnitActionHandler.test.ts`, `UnitManager.test.ts`, `CityManager.test.ts`, and
 `UnitContextMenu.espionage.test.tsx`.
 
+### Milestone 9 — Ruleset authority and requirement completeness
+
+**Outcome:** the complete classic ruleset surface used by CivJS is represented
+as validated data instead of being maintained through manual mappings or
+TypeScript assumptions.
+
+- Add validated representations for classic extras, action enablers, and
+  styles, with cross-file reference checks and source provenance.
+- Extend requirement loading and evaluation to action and entity requirements,
+  including range, negation, and context behavior used by the classic data.
+- Audit every classic effect and requirement against an authoritative runtime
+  consumer; keep unsupported contexts fail-closed and identify them in fixture
+  evidence rather than silently ignoring them.
+- Replace the manually maintained action-enabler mapping and terrain-derived
+  extras assumptions with loaded ruleset authority.
+- Add mutation and rejection fixtures proving that extras, action enablers,
+  styles, requirements, and their referenced entities affect the appropriate
+  server or client behavior.
+
+**Primary references:** `data/classic/actions.ruleset`,
+`data/classic/terrain.ruleset`, `data/classic/styles.ruleset`,
+`common/requirements.*`, `common/effects.*`, and `common/actions.*`.
+
+**Exit criteria:** every classic ruleset domain is parsed and schema-validated;
+every loaded requirement/effect used by the supported game has a tested
+consumer; and changing an extra, action enabler, or style fixture changes
+observable behavior without a TypeScript constant edit.
+
+### Milestone 10 — Canonical protocol and transport convergence
+
+**Outcome:** client and server share one versioned gameplay contract, and each
+supported operation has one canonical transport path.
+
+- Create a shared packet-contract module covering identifier, direction,
+  schema, handler, consumer, protocol version, and upstream mapping.
+- Reconcile the separate client/server `PacketType` enums and prevent numeric
+  drift with a contract test; do not renumber deployed traffic without a
+  compatibility version.
+- Migrate named Socket.IO families to structured request/reply packets one
+  vertical slice at a time, retaining thin compatibility adapters only for a
+  documented transition window.
+- Resolve duplicate or unused paths such as city production and the caller-less
+  tile-visibility request; remove dead declarations after consumers migrate.
+- Test malformed input, authorization, authoritative mutation, reply/error
+  behavior, packet ordering, and client state application for every migrated
+  family.
+
+**Primary references:** `common/networking/packets.def`, freeciv-web
+`packets.js` and `packhand.js`, the shared CivJS packet types, and the active
+named-event inventory in [`PORTING_INVENTORY.md`](PORTING_INVENTORY.md).
+
+**Exit criteria:** no shared packet name has different client/server IDs; every
+active gameplay transport appears once in the canonical contract; and named
+events that remain are explicitly classified as Socket.IO lifecycle or
+versioned compatibility adapters.
+
+### Milestone 11 — Remaining classic unit actions and automation
+
+**Outcome:** every action enabled by the classic ruleset is discoverable and
+resolved through the same authoritative legality, result, visibility, and
+persistence paths.
+
+- Re-audit `actions.ruleset` enablers against the executable action catalogue
+  after Milestone 9 replaces the manual mapping.
+- Implement the currently unadvertised classic-capable families: bombardment,
+  paradrop, airlift, and applicable unit or worker automation.
+- Drive actor, target, range, terrain, technology, building, movement, and
+  diplomatic legality from loaded requirements rather than UI assumptions.
+- Add client controls and target flows, scoped result packets, recovery
+  coverage, AI-accessible commands, and reference-scenario tests for each
+  enabled action.
+- Continue to exclude plague, suitcase-nuke, and direct gold/map theft unless a
+  selected ruleset actually enables them.
+
+**Primary references:** classic `actions.ruleset`, `server/unithand.c`,
+`server/unittools.c`, `server/actiontools.c`, `common/actions.*`, and
+freeciv-web `unit.js` and `action_dialog.js`.
+
+**Exit criteria:** an automated inventory test accounts for every classic
+action enabler as implemented or inapplicable, and every implemented action is
+usable from the client with authoritative feedback and reload-safe state.
+
+### Milestone 12 — Client style fidelity and browser-level parity
+
+**Outcome:** loaded classic style data and the supported gameplay surface are
+verified in a real browser rather than only through reducers and component
+tests.
+
+- Consume the Milestone 9 style catalogue for nation, city, unit, terrain, and
+  extra presentation; remove remaining duplicated style assumptions.
+- Audit the 2D renderer and interaction flows against freeciv-web for all
+  supported terrain, extras, ownership, visibility, selection, target modes,
+  dialogs, notifications, and responsive controls.
+- Add browser automation for game creation, two-player join, map load,
+  movement, combat, city founding and management, research, government,
+  diplomacy, worker actions, espionage, reconnect, and end-game review.
+- Add deterministic screenshots or semantic assertions for fog, borders,
+  extras, cities, units, action availability, and reduced-motion behavior.
+- Make the browser suite repeatable locally and in CI with documented fixture
+  setup and failure artifacts.
+
+**Primary references:** `data/classic/styles.ruleset` and freeciv-web
+`2dcanvas/`, `map.js`, `unit.js`, `city.js`, `government.js`, and
+`diplomacy.js`.
+
+**Exit criteria:** every supported player-visible feature has a browser-level
+happy path and validation/error path, and representative classic style changes
+are visible without a client code change.
+
+### Milestone 13 — AI depth and release-verification closure
+
+**Outcome:** the remaining intentional AI deviation is bounded by explicit
+compatibility scenarios, and all release evidence runs in an automated,
+reproducible environment.
+
+- Define the supported AI behavior target: either deepen `CivJSAIAdapter`
+  against selected upstream default-AI decisions or record a narrower
+  CivJS-specific contract with explicit non-parity cases.
+- Add deterministic scenarios for expansion, economy, research, production,
+  worker use, combat, diplomacy, action use, recovery, and game completion.
+- Provision an isolated PostgreSQL service for local and CI integration tests;
+  run all database-backed suites rather than treating missing
+  `TEST_DATABASE_URL` as verification.
+- Exercise restart recovery and the Milestone 12 browser flow together, then
+  repeat the supported full-game soak at the release map/player limits.
+- Refresh the inventories and `PORT_STATUS.md` from the resulting evidence,
+  removing resolved risks and recording any approved compatibility deviations.
+
+**Primary references:** Freeciv `ai/default/`, the documented
+`CivJSAIAdapter`, the integration suites, and
+[`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md).
+
+**Exit criteria:** the chosen AI contract passes deterministic reference
+scenarios; every unit, integration, browser, recovery, and soak suite runs in
+CI; and no release claim depends on an unavailable external test service.
+
 ## Testing strategy
 
 | Layer         | Required evidence                                                              |
@@ -262,18 +398,13 @@ Run `npm run format:check`, `npm run lint`, `npm run test:unit`, and `npm run ty
 - Review the status document after each merged feature and perform a broader parity audit at each milestone exit.
 - Maintain a decision log in issues for intentional deviations from Freeciv or freeciv-web.
 
-## Next scope decision
+## Scope after Milestone 13
 
-The defined roadmap is complete through Milestone 8. Do not infer a Milestone 9
-from Freeciv's generic action catalogue: the remaining plague, suitcase-nuke,
-and direct gold/map-theft outcomes are not enabled by the classic ruleset.
+Milestones 9–13 close the confirmed classic/freeciv-web gaps in the current
+inventory. They do not expand the target to every generic Freeciv feature.
+Plague, suitcase-nuke, and direct gold/map theft remain out of scope because
+the classic ruleset has no enablers for them.
 
-Before adding another milestone, choose and document one of these scope
-expansions:
-
-1. Support another Freeciv ruleset and port the additional data, requirements,
-   actions, and compatibility tests it enables.
-2. Replace or deepen the documented `CivJSAIAdapter` toward upstream default-AI
-   behavior.
-3. Perform a new classic/freeciv-web parity audit and define a bounded
-   player-visible gap with reference and end-to-end acceptance evidence.
+After Milestone 13, adding another Freeciv ruleset or claiming broader
+default-AI parity requires a new explicit scope decision, inventory, and
+compatibility baseline.

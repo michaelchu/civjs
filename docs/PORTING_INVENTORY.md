@@ -5,21 +5,21 @@
 
 ## Classic ruleset inventory
 
-| CivJS JSON data    | Freeciv classic source                           | Status                                                                                                                                                                                                          |
-| ------------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `buildings.json`   | `data/classic/buildings.ruleset`                 | Loaded and cross-validated; playable-loop costs, upkeep, production gates, defense, happiness, output, veteran/healing, and food retention have parity evidence.                                                |
-| `cities.json`      | `data/classic/cities.ruleset`                    | Present.                                                                                                                                                                                                        |
-| `effects.json`     | `data/classic/effects.ruleset`                   | Loaded, schema-constrained, cross-validated, and evaluated for the Milestone 1 playable loop.                                                                                                                   |
-| `game.json`        | `data/classic/game.ruleset`                      | Loaded; initial buildings, food/granary/city-center values, and classic bribe/incite cost parameters drive runtime behavior.                                                                                     |
-| `governments.json` | `data/classic/governments.ruleset`               | Loaded and cross-validated; playable-loop corruption, happiness, martial law, and support effects are active.                                                                                                   |
-| `nations.json`     | `data/classic/nations.ruleset`                   | Present.                                                                                                                                                                                                        |
-| `techs.json`       | `data/classic/techs.ruleset`                     | Present; the research manager now uses the full loaded catalogue for costs, prerequisites, and flags.                                                                                                           |
-| `terrain.json`     | `data/classic/terrain.ruleset`                   | Loaded; movement costs, base yields, and effect terrain context drive playable-loop calculations.                                                                                                               |
-| `units.json`       | `data/classic/units.ruleset`                     | Loaded and cross-validated; values, classes/flags, movement, vision, upkeep, and combat contexts drive runtime behavior.                                                                                        |
-| extras             | `data/classic/terrain.ruleset`                   | No standalone CivJS extras data file; terrain-derived extras and worker integration remain partial.                                                                                                             |
-| requirements       | requirement clauses in the classic ruleset files | Effect requirement evaluation covers the requirement kinds currently present in `effects.json` and fails closed for unsupported or context-free clauses. Action and entity requirement loading remains partial. |
-| —                  | `data/classic/actions.ruleset`                   | No equivalent JSON file; exposed actions are explicitly audited against classic enablers. Milestone 8 covers the remaining poison, bribe, unit-sabotage, and incite outcomes.                                   |
-| —                  | `data/classic/styles.ruleset`                    | No equivalent JSON data file identified; client style/rendering coverage requires an explicit audit.                                                                                                            |
+| CivJS JSON data    | Freeciv classic source                           | Status                                                                                                                                                                                                     |
+| ------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `buildings.json`   | `data/classic/buildings.ruleset`                 | Loaded and cross-validated; playable-loop costs, upkeep, production gates, defense, happiness, output, veteran/healing, and food retention have parity evidence.                                           |
+| `cities.json`      | `data/classic/cities.ruleset`                    | Present.                                                                                                                                                                                                   |
+| `effects.json`     | `data/classic/effects.ruleset`                   | Loaded, schema-constrained, cross-validated, and evaluated for the Milestone 1 playable loop.                                                                                                              |
+| `game.json`        | `data/classic/game.ruleset`                      | Loaded; initial buildings, food/granary/city-center values, and classic bribe/incite cost parameters drive runtime behavior.                                                                               |
+| `governments.json` | `data/classic/governments.ruleset`               | Loaded and cross-validated; playable-loop corruption, happiness, martial law, and support effects are active.                                                                                              |
+| `nations.json`     | `data/classic/nations.ruleset`                   | Present.                                                                                                                                                                                                   |
+| `techs.json`       | `data/classic/techs.ruleset`                     | Present; the research manager now uses the full loaded catalogue for costs, prerequisites, and flags.                                                                                                      |
+| `terrain.json`     | `data/classic/terrain.ruleset`                   | Loaded; movement costs, base yields, and effect terrain context drive playable-loop calculations.                                                                                                          |
+| `units.json`       | `data/classic/units.ruleset`                     | Loaded and cross-validated; values, classes/flags, movement, vision, upkeep, and combat contexts drive runtime behavior.                                                                                   |
+| extras             | `data/classic/terrain.ruleset`                   | No standalone CivJS extras data file; terrain-derived extras and worker integration remain partial. Milestone 9 closes this data-authority gap.                                                            |
+| requirements       | requirement clauses in the classic ruleset files | Effect requirement evaluation covers the requirement kinds currently present in `effects.json` and fails closed for unsupported or context-free clauses. Milestone 9 covers partial action/entity loading. |
+| —                  | `data/classic/actions.ruleset`                   | No equivalent JSON file; exposed actions are manually audited against classic enablers. Milestone 9 loads the definitions and Milestone 11 closes enabled action gaps.                                     |
+| —                  | `data/classic/styles.ruleset`                    | No equivalent JSON data file identified. Milestone 9 adds validated data and Milestone 12 verifies client consumption and rendering.                                                                       |
 
 The loader parses every `classic/*.json` file with `JSON.parse`, then validates it with Zod. Therefore comments are not valid in these data files. `RulesetLoader.effects.test.ts` loads every supported classic JSON ruleset and covers an effects pair ported from `effects.ruleset:262–278`. The classic effects file previously contained JavaScript comments and could not load; technologies also use `null` to represent an absent `root_req`.
 
@@ -91,6 +91,9 @@ handler, client consumer, and test exist.
 3. Gameplay traffic uses both the structured `packet` envelope and named Socket.IO events. Examples of named-event flows are `join_game`, `get_map_data`, `unit_action`, `path_request`, and `city:changeProduction`.
 4. Some structured packet types are declared but are not the path used by the client. City production is the clearest example: the client uses `city:changeProduction`, while the server also declares `CITY_PRODUCTION_CHANGE` and its reply.
 
+Milestone 10 addresses all four protocol risks through a shared, versioned
+contract and family-by-family compatibility migration.
+
 ### Active named-event inventory
 
 The following named events bypass or supplement the `packet` envelope and must be accounted for before a family is migrated.
@@ -136,10 +139,10 @@ of `npm run test:integration`.
 2. **Ruleset-driven values:** replace duplicated unit, building, technology,
    and effect constants with loaded classic ruleset data, backed by fixture
    parity tests.
-3. **Classic actions ruleset:** inventory `actions.ruleset` against
-   `ActionSystem` and identify the first missing ruleset-driven action.
-4. **Client-browser smoke test:** add an automated browser layer over the
-   Socket.IO smoke path once a browser test runner is selected.
+3. **Classic actions ruleset:** continued as Milestones 9 and 11, which load
+   `actions.ruleset` and close enabled action gaps.
+4. **Client-browser smoke test:** continued as Milestone 12 with a defined
+   browser-level compatibility suite.
 
 ## Action-system inventory
 
@@ -152,6 +155,10 @@ investigation, technology theft, city-improvement sabotage, unit bribery,
 incitement, poisoning, and unit sabotage through authoritative target flows.
 Generic non-classic covert outcomes, bombardment, paradrop, airlift, and
 automation actions remain outside the advertised playable catalogue.
+
+Milestone 11 covers bombardment, paradrop, airlift, and applicable automation
+when the loaded classic enablers permit them. Non-classic covert outcomes
+remain intentionally excluded.
 
 The local ruleset has no `actions.json`; Freeciv’s action definitions remain in
 `reference/freeciv/data/classic/actions.ruleset`. Supported action exposure is
