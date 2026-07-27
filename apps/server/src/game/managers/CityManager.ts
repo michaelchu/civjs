@@ -480,7 +480,6 @@ export class CityManager {
       governorService: this.governorService,
       tileManagementService: this.tileManagementService,
       refreshCityWithGovernmentEffects: this.refreshCityWithGovernmentEffects.bind(this),
-      optimizeCitizens: this.optimizeCitizens.bind(this),
       calculateCityOutputs: this.calculateCityOutputs.bind(this),
       calculateHappiness: this.calculateHappiness.bind(this),
       checkPollution: this.checkPollution.bind(this),

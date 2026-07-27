@@ -55,7 +55,6 @@ function turnService(
     callbacks: { onCityProductionComplete: onComplete },
     effectsManager: new EffectsManager(),
     refreshCityWithGovernmentEffects: jest.fn(),
-    optimizeCitizens: jest.fn().mockResolvedValue(true),
     calculateCityOutputs: jest.fn(),
     calculateHappiness: jest.fn(),
     checkPollution: jest.fn().mockResolvedValue(false),

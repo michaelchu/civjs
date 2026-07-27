@@ -220,6 +220,15 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     });
 
     // @reference reference/freeciv/server/cityturn.c:338-390
+    // Give the city a deterministic, unimproved grassland radius so this
+    // twenty-turn flow also proves natural food accumulation and growth.
+    for (let x = 6; x <= 10; x += 1) {
+      for (let y = 6; y <= 10; y += 1) {
+        map.tiles[x][y].terrain = 'grassland';
+        map.tiles[x][y].resource = undefined;
+        map.tiles[x][y].improvements = [];
+      }
+    }
     const settlerId = await gameManager.createUnit(gameId, hostPlayer!.id, 'settlers', 8, 8);
     const cityReply = waitForPacket(host, PacketType.CITY_FOUND_REPLY);
     host.emit('packet', {
@@ -290,6 +299,8 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     expect(gameManager.getGameInstance(gameId)?.currentTurn).toBe(21);
     expect(gameManager.getGameInstance(gameId)?.cityManager.getCity(cityId)).toMatchObject({
       id: cityId,
+      population: 2,
+      foodStock: 20,
     });
     const hostResearchBeforeRecovery = gameManager.getPlayerResearch(gameId, hostPlayer!.id);
     expect(hostResearchBeforeRecovery).toBeDefined();

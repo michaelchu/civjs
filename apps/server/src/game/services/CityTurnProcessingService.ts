@@ -123,7 +123,6 @@ export interface CityTurnProcessingDependencies {
 
   // Method dependencies (functions from CityManager)
   refreshCityWithGovernmentEffects: (cityId: string) => void;
-  optimizeCitizens: (cityId: string) => Promise<boolean>;
   calculateCityOutputs: (cityId: string) => any;
   calculateHappiness: (cityId: string) => any;
   checkPollution: (cityId: string, currentTurn: number) => Promise<boolean>;
@@ -180,10 +179,6 @@ export class CityTurnProcessingService extends BaseGameService {
         await this.dependencies.governorService.applyGovernorAutomation(cityId);
       }
       recordStep('governor_automation');
-
-      // Optimize citizen assignments
-      await this.dependencies.optimizeCitizens(cityId);
-      recordStep('citizen_optimization');
 
       // Calculate city outputs
       this.dependencies.calculateCityOutputs(cityId);
@@ -302,8 +297,6 @@ export class CityTurnProcessingService extends BaseGameService {
         // Re-run auto-assignment to allocate the new citizen
         this.dependencies.tileManagementService.reassignCitizensAfterGrowth(city);
       }
-      // Re-optimize citizens after growth to ensure best assignment
-      await this.dependencies.optimizeCitizens(city.id);
 
       // Recalculate outputs after assigning new citizen
       this.dependencies.calculateCityOutputs(city.id);

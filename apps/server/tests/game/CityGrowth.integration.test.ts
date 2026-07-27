@@ -23,7 +23,7 @@ describe('City Population Growth Integration', () => {
             x,
             y,
             terrain: 'grassland',
-            resource: 'wheat',
+            resource: null,
             special: null,
             improvement: null,
             city: null,
@@ -36,7 +36,7 @@ describe('City Population Growth Integration', () => {
         x,
         y,
         terrain: 'grassland',
-        resource: 'wheat',
+        resource: null,
         special: null,
         improvement: null,
         city: null,
@@ -68,17 +68,17 @@ describe('City Population Growth Integration', () => {
       ).toBe(city.population);
 
       // Set up for guaranteed growth by starting very close to growth threshold
-      // Since grassland provides ~1 net food surplus per turn, start at 19
+      // Grassland center + one grassland worker yields 4 gross food and a
+      // size-one city consumes 2, for +2 net food per turn.
       city.foodStock = 19; // Almost at growth threshold (need 20 to grow)
 
-      // Process one turn - this will call optimizeCitizens and calculateCityOutputs
-      // With grassland terrain, this should produce enough to trigger growth
+      // Process one turn through the complete output and growth pipeline.
       await cityManager.processCityTurn(city.id, 1);
 
       const afterTurn = cityManager.getCity(city.id)!;
 
       // Verify that population actually grew from the turn processing
-      // Starting at 19 food + 1 net surplus = 20 food, which should trigger growth
+      // Starting at 19 food + 2 net surplus crosses the 20-food threshold.
       expect(afterTurn.population).toBe(initialPopulation + 1);
       expect(afterTurn.population).toBe(2);
       expect(afterTurn.size).toBe(2);
@@ -126,24 +126,26 @@ describe('City Population Growth Integration', () => {
       expect(grownCity.size).toBe(2);
     });
 
-    it('should process multiple city turns without growth errors', async () => {
+    it('should grow naturally over ten turns on unimproved grassland', async () => {
       const city = await cityManager.foundCity(25, 25, 'MultiTurnCity', 'player-123');
 
-      // Process multiple turns to ensure the growth system is stable
       for (let turn = 1; turn <= 10; turn++) {
         await cityManager.processCityTurn(city.id, turn);
 
         const currentCity = cityManager.getCity(city.id)!;
-
-        // Verify city is still valid after each turn
-        expect(currentCity).toBeDefined();
-        expect(currentCity.population).toBeGreaterThanOrEqual(1);
         expect(currentCity.foodStock).toBeGreaterThanOrEqual(0);
+        if (turn < 10) {
+          expect(currentCity.population).toBe(1);
+          expect(currentCity.foodStock).toBe(turn * 2);
+        }
       }
 
-      // After 10 turns, city should still exist and be functional
       const finalCity = cityManager.getCity(city.id)!;
-      expect(finalCity.population).toBeGreaterThanOrEqual(1);
+      expect(finalCity.population).toBe(2);
+      expect(finalCity.foodStock).toBe(0);
+      expect(finalCity.workableTiles?.filter(tile => tile.isWorked && !tile.isCenter)).toHaveLength(
+        2
+      );
     });
   });
 });
