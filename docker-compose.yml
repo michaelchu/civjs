@@ -50,6 +50,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      # Always migrate from the checked-out journal, even when the local
+      # migration image predates newly added SQL files.
+      - ./apps/server/drizzle:/app/drizzle:ro
+      - ./apps/server/drizzle.config.ts:/app/drizzle.config.ts:ro
     networks:
       - civjs-network
     restart: "no"  # Run once and exit
@@ -97,6 +102,9 @@ services:
     volumes:
       - ./apps/client:/app
       - /app/node_modules
+      # Vite's @protocol alias resolves this canonical server contract at
+      # /server/src/types/shared/packetContract.ts inside the container.
+      - ./apps/server/src/types/shared/packetContract.ts:/server/src/types/shared/packetContract.ts:ro
     networks:
       - civjs-network
     depends_on:
