@@ -117,6 +117,10 @@ export const TileVisibilityReqSchema = z.object({
   y: z.number(),
 });
 
+export const DebugVisibilitySetSchema = z.object({
+  enabled: z.boolean(),
+});
+
 // City packets
 export const CityFoundSchema = z.object({
   name: z.string().min(1).max(100),
@@ -678,6 +682,7 @@ export type UnitAttackReply = z.infer<typeof UnitAttackReplySchema>;
 export type UnitFortifyReply = z.infer<typeof UnitFortifyReplySchema>;
 export type UnitCreateReply = z.infer<typeof UnitCreateReplySchema>;
 export type TileVisibilityReq = z.infer<typeof TileVisibilityReqSchema>;
+export type DebugVisibilitySet = z.infer<typeof DebugVisibilitySetSchema>;
 export type MapViewReply = z.infer<typeof MapViewReplySchema>;
 export type TileVisibilityReply = z.infer<typeof TileVisibilityReplySchema>;
 export type TurnProcessingStep = z.infer<typeof TurnProcessingStepSchema>;

@@ -2,10 +2,17 @@ export interface UserPreferences {
   muted: boolean;
   volume: number;
   reducedMotion: boolean;
+  disableFogOfWar: boolean;
 }
 
 const STORAGE_KEY = 'civjs:user-preferences:v1';
-const defaults: UserPreferences = { muted: false, volume: 0.5, reducedMotion: false };
+export const USER_PREFERENCES_CHANGED_EVENT = 'civjs-user-preferences-changed';
+const defaults: UserPreferences = {
+  muted: false,
+  volume: 0.5,
+  reducedMotion: false,
+  disableFogOfWar: false,
+};
 
 export const loadUserPreferences = (): UserPreferences => {
   try {
@@ -18,6 +25,10 @@ export const loadUserPreferences = (): UserPreferences => {
           : defaults.volume,
       reducedMotion:
         typeof stored.reducedMotion === 'boolean' ? stored.reducedMotion : defaults.reducedMotion,
+      disableFogOfWar:
+        typeof stored.disableFogOfWar === 'boolean'
+          ? stored.disableFogOfWar
+          : defaults.disableFogOfWar,
     };
   } catch {
     return defaults;
@@ -27,6 +38,11 @@ export const loadUserPreferences = (): UserPreferences => {
 export const saveUserPreferences = (preferences: UserPreferences): void => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
   document.documentElement.classList.toggle('reduce-motion', preferences.reducedMotion);
+  document.dispatchEvent(
+    new CustomEvent<UserPreferences>(USER_PREFERENCES_CHANGED_EVENT, {
+      detail: preferences,
+    })
+  );
 };
 
 export const playEndGameSound = (): void => {

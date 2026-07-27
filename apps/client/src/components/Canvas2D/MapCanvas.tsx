@@ -16,6 +16,11 @@ import {
   shouldIgnoreClick,
   type ClickOptions,
 } from '../../utils/mapInteraction';
+import {
+  loadUserPreferences,
+  USER_PREFERENCES_CHANGED_EVENT,
+  type UserPreferences,
+} from '../../services/UserPreferences';
 
 interface MapCanvasProps {
   width: number;
@@ -26,6 +31,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<MapRenderer | null>(null);
   const [rendererReady, setRendererReady] = useState(false);
+  const [fogOfWarEnabled, setFogOfWarEnabled] = useState(
+    () => !loadUserPreferences().disableFogOfWar
+  );
 
   // Track initial centering to prevent multiple centering events (freeciv-web compliance)
   const [hasInitiallyCentered, setHasInitiallyCentered] = useState(false);
@@ -206,6 +214,21 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     };
   }, []); // Empty dependency array - initialize only once!
 
+  useEffect(() => {
+    const handlePreferencesChanged = (event: Event) => {
+      const preferences = (event as CustomEvent<UserPreferences>).detail;
+      setFogOfWarEnabled(!preferences.disableFogOfWar);
+    };
+
+    document.addEventListener(USER_PREFERENCES_CHANGED_EVENT, handlePreferencesChanged);
+    return () =>
+      document.removeEventListener(USER_PREFERENCES_CHANGED_EVENT, handlePreferencesChanged);
+  }, []);
+
+  useEffect(() => {
+    rendererRef.current?.setFogOfWarEnabled(fogOfWarEnabled);
+  }, [fogOfWarEnabled]);
+
   // Update canvas size
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -367,6 +390,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     globalTilesVersion,
     gameState.currentPlayerId,
     gameState.research?.researchedTechs,
+    fogOfWarEnabled,
   ]); // Include map for React Hook dependency
 
   // Monitor global tiles changes and trigger canvas reinitialization (like window resize)

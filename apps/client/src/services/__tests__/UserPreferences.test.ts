@@ -8,12 +8,18 @@ describe('UserPreferences', () => {
   });
 
   it('persists bounded audio and reduced-motion settings', () => {
-    saveUserPreferences({ muted: true, volume: 0.75, reducedMotion: true });
+    saveUserPreferences({
+      muted: true,
+      volume: 0.75,
+      reducedMotion: true,
+      disableFogOfWar: true,
+    });
 
     expect(loadUserPreferences()).toEqual({
       muted: true,
       volume: 0.75,
       reducedMotion: true,
+      disableFogOfWar: true,
     });
     expect(document.documentElement.classList.contains('reduce-motion')).toBe(true);
   });
@@ -24,6 +30,7 @@ describe('UserPreferences', () => {
       muted: false,
       volume: 0.5,
       reducedMotion: false,
+      disableFogOfWar: false,
     });
   });
 });

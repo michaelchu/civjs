@@ -35,6 +35,7 @@ describe('MapVisibilityHandler tile visibility flow', () => {
         isExplored: true,
         lastSeen: 12,
       }),
+      setDebugVisibility: jest.fn().mockReturnValue(true),
     } as any;
   });
 
@@ -42,6 +43,11 @@ describe('MapVisibilityHandler tile visibility flow', () => {
     (packetHandler.register as jest.Mock).mock.calls.find(
       call => call[0] === PacketType.TILE_VISIBILITY_REQ
     )[1] as (socket: Socket, data: { x: number; y: number }) => Promise<void>;
+
+  const registeredDebugHandler = () =>
+    (packetHandler.register as jest.Mock).mock.calls.find(
+      call => call[0] === PacketType.DEBUG_VISIBILITY_SET
+    )[1] as (socket: Socket, data: { enabled: boolean }) => Promise<void>;
 
   it('registers a validated request and returns player-scoped visibility', async () => {
     const handler = new MapVisibilityHandler(
@@ -85,5 +91,22 @@ describe('MapVisibilityHandler tile visibility flow', () => {
         message: 'Not authenticated or not in a game',
       })
     );
+  });
+
+  it('enables development debug visibility for the authenticated player', async () => {
+    const handler = new MapVisibilityHandler(
+      new Map([[socketId, { userId, gameId }]]),
+      gameManager
+    );
+    handler.register(packetHandler, {} as Server, socket);
+
+    await registeredDebugHandler()(socket, { enabled: true });
+
+    expect(gameManager.setDebugVisibility).toHaveBeenCalledWith(gameId, playerId, true);
+    expect(packetHandler.send).toHaveBeenCalledWith(socket, PacketType.DEBUG_VISIBILITY_REPLY, {
+      success: true,
+      enabled: true,
+      message: undefined,
+    });
   });
 });

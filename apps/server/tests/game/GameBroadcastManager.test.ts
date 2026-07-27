@@ -68,6 +68,33 @@ describe('GameBroadcastManager visibility sync', () => {
               ]
             : [],
         getUnitMaxMovement: () => 1,
+        getAllUnits: () =>
+          new Map([
+            [
+              'own-unit',
+              {
+                id: 'own-unit',
+                playerId: playerOne,
+                type: 'warriors',
+                x: 0,
+                y: 0,
+                movementLeft: 1,
+                health: 100,
+              },
+            ],
+            [
+              'hidden-unit',
+              {
+                id: 'hidden-unit',
+                playerId: playerTwo,
+                type: 'warriors',
+                x: 1,
+                y: 0,
+                movementLeft: 1,
+                health: 100,
+              },
+            ],
+          ]),
       },
       cityManager: { getAllCities: () => [] },
       borderManager: { getAllTileOwnership: () => [] },
@@ -253,6 +280,41 @@ describe('GameBroadcastManager visibility sync', () => {
         hp: 100,
         movesleft: 1,
       }),
+    ]);
+  });
+
+  it('sends and maintains a complete development visibility snapshot', () => {
+    expect(manager.setDebugVisibility(gameId, playerOne, true)).toBe(true);
+
+    const packets = emitted.filter(
+      emission => emission.room === `player:${userOne}` && emission.event === 'packet'
+    );
+    const tiles = packets.find(emission => emission.data.type === PacketType.TILE_INFO)?.data.data
+      .tiles;
+    const units = packets.find(emission => emission.data.type === PacketType.UNIT_INFO)?.data.data
+      .units;
+
+    expect(tiles).toEqual([
+      expect.objectContaining({ terrain: 'grassland', known: 2, seen: 1 }),
+      expect.objectContaining({ terrain: 'hills', known: 2, seen: 1 }),
+    ]);
+    expect(units).toEqual([
+      expect.objectContaining({ id: 'own-unit' }),
+      expect.objectContaining({ id: 'hidden-unit' }),
+    ]);
+
+    emitted = [];
+    manager.broadcastVisibilityState(gameId);
+    expect(
+      emitted.find(
+        emission =>
+          emission.room === `player:${userOne}` &&
+          emission.event === 'packet' &&
+          emission.data.type === PacketType.UNIT_INFO
+      )?.data.data.units
+    ).toEqual([
+      expect.objectContaining({ id: 'own-unit' }),
+      expect.objectContaining({ id: 'hidden-unit' }),
     ]);
   });
 

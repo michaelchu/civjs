@@ -15,6 +15,7 @@ export const GameOptionsPanel: React.FC = () => {
   const { map, turn, year, currentGameId } = useGameStore();
   const [rates, setRates] = useState<TaxRates>({ tax: 50, luxury: 20, science: 30 });
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [debugFeedback, setDebugFeedback] = useState<string | null>(null);
   const [hostControls, setHostControls] = useState<HostControls | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences>(loadUserPreferences);
   const total = rates.tax + rates.luxury + rates.science;
@@ -22,6 +23,23 @@ export const GameOptionsPanel: React.FC = () => {
   useEffect(() => {
     saveUserPreferences(preferences);
   }, [preferences]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    const requested = preferences.disableFogOfWar;
+    void gameClient
+      .setDebugVisibility(requested)
+      .then(() => setDebugFeedback(null))
+      .catch(error => {
+        setDebugFeedback(
+          error instanceof Error ? error.message : 'Failed to update debug visibility'
+        );
+        if (requested) {
+          setPreferences(current => ({ ...current, disableFogOfWar: false }));
+        }
+      });
+  }, [preferences.disableFogOfWar]);
 
   useEffect(() => {
     void gameClient
@@ -38,12 +56,45 @@ export const GameOptionsPanel: React.FC = () => {
 
   return (
     <section className="h-full overflow-y-auto bg-gray-900 p-6 text-white">
-      <h2 className="text-2xl font-bold">Game information</h2>
+      <h2 className="text-2xl font-bold">Settings</h2>
       <p className="mt-1 text-sm text-gray-400">
-        Map-generation and player-count options are selected when creating the game and remain fixed
-        during play.
+        Configure this browser and inspect the current game's fixed settings.
       </p>
 
+      {import.meta.env.DEV && (
+        <div className="mt-6 max-w-3xl rounded-lg border border-amber-700/70 bg-gray-800 p-5">
+          <h3 className="font-semibold">Map display</h3>
+          <p className="mt-1 text-sm text-gray-400">
+            Debug display preferences are stored only in this browser.
+          </p>
+          <label className="mt-4 flex items-start gap-3 text-sm text-gray-200">
+            <input
+              className="mt-0.5"
+              type="checkbox"
+              checked={preferences.disableFogOfWar}
+              onChange={event =>
+                setPreferences(current => ({
+                  ...current,
+                  disableFogOfWar: event.target.checked,
+                }))
+              }
+            />
+            <span>
+              Disable fog of war (debug)
+              <span className="mt-1 block text-xs text-amber-300">
+                Reveals the complete terrain, units, cities, and borders.
+              </span>
+            </span>
+          </label>
+          {debugFeedback && (
+            <p role="alert" className="mt-3 text-sm text-red-400">
+              {debugFeedback}
+            </p>
+          )}
+        </div>
+      )}
+
+      <h3 className="mt-6 font-semibold">Game information</h3>
       <dl className="mt-6 grid max-w-3xl gap-3 sm:grid-cols-2">
         <Info label="Game ID" value={currentGameId || '—'} />
         <Info label="Turn" value={String(turn)} />

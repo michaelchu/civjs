@@ -52,4 +52,28 @@ describe('GameClient canonical protocol', () => {
       })
     );
   });
+
+  it('requests a server snapshot when debug visibility changes', async () => {
+    mockSocket.on.mockImplementation((event: string, callback: (data: unknown) => void) => {
+      if (event === 'packet') {
+        queueMicrotask(() =>
+          callback({
+            type: PacketType.DEBUG_VISIBILITY_REPLY,
+            version: PROTOCOL_VERSION,
+            data: { success: true, enabled: true },
+          })
+        );
+      }
+    });
+
+    await expect(gameClient.setDebugVisibility(true)).resolves.toBe(true);
+    expect(mockSocket.emit).toHaveBeenCalledWith(
+      'packet',
+      expect.objectContaining({
+        type: PacketType.DEBUG_VISIBILITY_SET,
+        version: PROTOCOL_VERSION,
+        data: { enabled: true },
+      })
+    );
+  });
 });

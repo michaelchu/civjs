@@ -117,4 +117,54 @@ describe('MapRenderer live-state updates', () => {
     expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 19, -14);
     expect(context.fillText).not.toHaveBeenCalled();
   });
+
+  it('reveals unknown terrain and skips the fog layer when debug fog is disabled', () => {
+    (window as unknown as { tiles: unknown[] }).tiles = [
+      { x: 2, y: 3, terrain: 'grassland', known: 0 },
+    ];
+    (window as unknown as { map: { xsize: number; ysize: number; wrap_id: number } }).map = {
+      xsize: 10,
+      ysize: 10,
+      wrap_id: 0,
+    };
+
+    const renderer = new MapRenderer(createContext());
+    const renderTerrain = vi.fn();
+    const renderFog = vi.fn();
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      isInitialized: true,
+      terrainRenderer: {
+        invalidateTileCache: vi.fn(),
+        renderTerrain,
+        renderOceanPadding: vi.fn(),
+      },
+      borderRenderer: { render: vi.fn() },
+      cityRenderer: { renderCities: vi.fn() },
+      unitRenderer: {
+        renderUnitSelection: vi.fn(),
+        renderUnits: vi.fn(),
+        hasActiveMovementAnimations: () => false,
+      },
+      fogRenderer: { render: renderFog },
+      pathRenderer: { renderPaths: vi.fn() },
+      checkViewportBounds: () => false,
+    });
+
+    renderer.setFogOfWarEnabled(false);
+    renderer.render(createRenderState(), true);
+
+    expect(renderTerrain).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining([
+        expect.objectContaining({
+          x: 2,
+          y: 3,
+          terrain: 'grassland',
+          visible: true,
+          known: true,
+        }),
+      ])
+    );
+    expect(renderFog).not.toHaveBeenCalled();
+  });
 });

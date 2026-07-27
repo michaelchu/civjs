@@ -16,7 +16,7 @@ const tabs: TabInfo[] = [
   { id: 'research', label: 'Research', icon: '🧪', shortcut: 'F3' },
   { id: 'nations', label: 'Nations', icon: '🏳️', shortcut: 'F4' },
   { id: 'cities', label: 'Cities', icon: '🏰', shortcut: 'F5' },
-  { id: 'options', label: 'Options', icon: '⚙️', shortcut: 'F6' },
+  { id: 'options', label: 'Settings', icon: '⚙️', shortcut: 'F6' },
 ];
 
 export const GameTabs: React.FC = () => {

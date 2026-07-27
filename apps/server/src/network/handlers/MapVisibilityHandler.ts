@@ -2,7 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
-import { PacketType, TileVisibilityReqSchema } from '@app-types/packet';
+import { DebugVisibilitySetSchema, PacketType, TileVisibilityReqSchema } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
 import { db } from '@database';
 import { games } from '@database/schema';
@@ -19,6 +19,8 @@ export class MapVisibilityHandler extends BaseSocketHandler {
     PacketType.MAP_VIEW_REPLY,
     PacketType.TILE_VISIBILITY_REQ,
     PacketType.TILE_VISIBILITY_REPLY,
+    PacketType.DEBUG_VISIBILITY_SET,
+    PacketType.DEBUG_VISIBILITY_REPLY,
   ];
 
   protected handlerName = 'MapVisibilityHandler';
@@ -43,10 +45,69 @@ export class MapVisibilityHandler extends BaseSocketHandler {
       TileVisibilityReqSchema
     );
 
+    handler.register(
+      PacketType.DEBUG_VISIBILITY_SET,
+      async (socket, data) => {
+        await this.handleDebugVisibilityRequest(handler, socket, data);
+      },
+      DebugVisibilitySetSchema
+    );
+
     // Register socket event handlers
     this.registerSocketEvents(socket, _io);
 
     logger.debug(`${this.handlerName} registered handlers for socket ${socket.id}`);
+  }
+
+  private async handleDebugVisibilityRequest(
+    handler: PacketHandler,
+    socket: Socket,
+    data: { enabled: boolean }
+  ): Promise<void> {
+    const connection = this.getConnection(socket, this.activeConnections);
+    if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
+      handler.send(socket, PacketType.DEBUG_VISIBILITY_REPLY, {
+        success: false,
+        enabled: false,
+        message: 'Not authenticated or not in a game',
+      });
+      return;
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      handler.send(socket, PacketType.DEBUG_VISIBILITY_REPLY, {
+        success: false,
+        enabled: false,
+        message: 'Debug visibility is unavailable in production',
+      });
+      return;
+    }
+
+    const game = await this.gameManager.getGame(connection.gameId!);
+    const player = game
+      ? Array.from(game.players.values()).find(
+          (candidate: any) => candidate.userId === connection.userId
+        )
+      : undefined;
+    if (!player) {
+      handler.send(socket, PacketType.DEBUG_VISIBILITY_REPLY, {
+        success: false,
+        enabled: false,
+        message: 'Player not found in game',
+      });
+      return;
+    }
+
+    const success = this.gameManager.setDebugVisibility(
+      connection.gameId!,
+      (player as any).id,
+      data.enabled
+    );
+    handler.send(socket, PacketType.DEBUG_VISIBILITY_REPLY, {
+      success,
+      enabled: success ? data.enabled : false,
+      message: success ? undefined : 'Failed to update debug visibility',
+    });
   }
 
   private registerSocketEvents(socket: Socket, _io: Server): void {

@@ -22,11 +22,13 @@ export interface BroadcastService {
   broadcastCityData(gameId: string): void;
   broadcastCityDataToPlayer(gameId: string, playerId: string): void;
   syncGameStateToPlayer(gameId: string, playerId: string): void;
+  setDebugVisibility(gameId: string, playerId: string, enabled: boolean): boolean;
 }
 
 export class GameBroadcastManager extends BaseGameService implements BroadcastService {
   private io: SocketServer;
   private games = new Map<string, GameInstance>();
+  private debugVisibilityPlayers = new Set<string>();
 
   constructor(io: SocketServer) {
     super(logger);
@@ -173,6 +175,22 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     }
   }
 
+  setDebugVisibility(gameId: string, playerId: string, enabled: boolean): boolean {
+    const gameInstance = this.games.get(gameId);
+    const mapData = gameInstance?.mapManager.getMapData();
+    if (!gameInstance || !mapData || !gameInstance.players.has(playerId)) return false;
+
+    const key = this.debugVisibilityKey(gameId, playerId);
+    if (enabled) {
+      this.debugVisibilityPlayers.add(key);
+    } else {
+      this.debugVisibilityPlayers.delete(key);
+    }
+
+    this.sendVisibilitySnapshotToPlayer(gameInstance, gameId, playerId, mapData);
+    return true;
+  }
+
   /**
    * Remove a unit only for its owner and players who could see its last tile.
    * The last-known unit snapshot is required because the authoritative unit
@@ -187,7 +205,11 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       // Use the pre-destruction visibility snapshot. Recomputing after the
       // unit has been removed can hide its last tile and leave a client ghost.
       const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
-      if (unit.playerId !== playerId && !visibleTiles.has(`${unit.x},${unit.y}`)) {
+      if (
+        !this.isDebugVisibilityEnabled(gameId, playerId) &&
+        unit.playerId !== playerId &&
+        !visibleTiles.has(`${unit.x},${unit.y}`)
+      ) {
         continue;
       }
 
@@ -277,8 +299,12 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       // Map knowledge is player-specific: explored tiles retain terrain, while
       // resources and units are sent only while currently visible.
       gameInstance.visibilityManager.updatePlayerVisibility(playerId);
-      const visibleTilesSet = gameInstance.visibilityManager.getVisibleTiles(playerId);
-      const exploredTilesSet = gameInstance.visibilityManager.getExploredTiles(playerId);
+      const debugVisibility = this.isDebugVisibilityEnabled(gameId, playerId);
+      const allTilesSet = debugVisibility ? this.getAllTileKeys(mapData) : undefined;
+      const visibleTilesSet =
+        allTilesSet ?? gameInstance.visibilityManager.getVisibleTiles(playerId);
+      const exploredTilesSet =
+        allTilesSet ?? gameInstance.visibilityManager.getExploredTiles(playerId);
       const visibleTiles = this.processMapTilesForPlayer(
         mapData,
         visibleTilesSet,
@@ -286,7 +312,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       );
 
       // Get units visible to this player (delegate to UnitManager)
-      const visibleUnits = gameInstance.unitManager.getVisibleUnits(playerId, visibleTilesSet);
+      const visibleUnits = debugVisibility
+        ? Array.from(gameInstance.unitManager.getAllUnits().values())
+        : gameInstance.unitManager.getVisibleUnits(playerId, visibleTilesSet);
       const formattedUnits = visibleUnits.map((unit: any) =>
         this.formatUnitForClient(unit, gameInstance.unitManager)
       );
@@ -331,14 +359,19 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     mapData: any
   ): void {
     gameInstance.visibilityManager.updatePlayerVisibility(playerId);
-    const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
-    const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
+    const debugVisibility = this.isDebugVisibilityEnabled(gameId, playerId);
+    const allTilesSet = debugVisibility ? this.getAllTileKeys(mapData) : undefined;
+    const visibleTiles = allTilesSet ?? gameInstance.visibilityManager.getVisibleTiles(playerId);
+    const exploredTiles = allTilesSet ?? gameInstance.visibilityManager.getExploredTiles(playerId);
     const tiles = this.processMapTilesForPlayer(mapData, visibleTiles, exploredTiles);
     this.sendTileDataInBatches(gameInstance, playerId, tiles);
 
-    const units = gameInstance.unitManager
-      .getVisibleUnits(playerId, visibleTiles)
-      .map((unit: any) => this.formatUnitForClient(unit, gameInstance.unitManager));
+    const visibleUnits = debugVisibility
+      ? Array.from(gameInstance.unitManager.getAllUnits().values())
+      : gameInstance.unitManager.getVisibleUnits(playerId, visibleTiles);
+    const units = visibleUnits.map((unit: any) =>
+      this.formatUnitForClient(unit, gameInstance.unitManager)
+    );
     this.sendPacketToPlayer(gameInstance, playerId, PacketType.UNIT_INFO, {
       units,
       fullSnapshot: true,
@@ -350,7 +383,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       .getAllTileOwnership()
       .filter(
         (ownership: any) =>
-          ownership.playerId === playerId || exploredTiles.has(`${ownership.x},${ownership.y}`)
+          debugVisibility ||
+          ownership.playerId === playerId ||
+          exploredTiles.has(`${ownership.x},${ownership.y}`)
       )
       .map((ownership: any) => ({
         x: ownership.x,
@@ -363,6 +398,24 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       updateType: 'full_update',
       tiles: borderTiles,
     });
+  }
+
+  private getAllTileKeys(mapData: any): Set<string> {
+    const keys = new Set<string>();
+    for (let y = 0; y < mapData.height; y++) {
+      for (let x = 0; x < mapData.width; x++) {
+        keys.add(`${x},${y}`);
+      }
+    }
+    return keys;
+  }
+
+  private debugVisibilityKey(gameId: string, playerId: string): string {
+    return `${gameId}:${playerId}`;
+  }
+
+  private isDebugVisibilityEnabled(gameId: string, playerId: string): boolean {
+    return this.debugVisibilityPlayers.has(this.debugVisibilityKey(gameId, playerId));
   }
 
   /**
@@ -560,9 +613,12 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     gameInstance.visibilityManager.updatePlayerVisibility(playerId);
     const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
     const allCities = gameInstance.cityManager.getAllCities();
-    const visibleCities = allCities.filter(
-      (city: any) => city.playerId === playerId || exploredTiles.has(`${city.x},${city.y}`)
-    );
+    const debugVisibility = this.isDebugVisibilityEnabled(gameId, playerId);
+    const visibleCities = debugVisibility
+      ? allCities
+      : allCities.filter(
+          (city: any) => city.playerId === playerId || exploredTiles.has(`${city.x},${city.y}`)
+        );
 
     const clientCityData = CityDataService.transformCitiesForClient(visibleCities);
 

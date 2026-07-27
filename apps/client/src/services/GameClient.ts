@@ -1128,6 +1128,18 @@ class GameClient {
     };
   }
 
+  async setDebugVisibility(enabled: boolean): Promise<boolean> {
+    const data = await this.requestPacket(
+      PacketType.DEBUG_VISIBILITY_SET,
+      PacketType.DEBUG_VISIBILITY_REPLY,
+      { enabled },
+      reply => Boolean(reply.success),
+      'Failed to update debug visibility',
+      reply => reply.enabled === enabled || reply.success === false
+    );
+    return data.enabled === true;
+  }
+
   async getVisibleTiles(): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.socket) {

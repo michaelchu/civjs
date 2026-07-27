@@ -47,6 +47,7 @@ export class MapRenderer {
   private pathRenderer: PathRenderer;
   private borderRenderer: BorderRenderer;
   private fogRenderer: FogRenderer;
+  private fogOfWarEnabled = true;
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
@@ -238,7 +239,9 @@ export class MapRenderer {
 
     // LAYER_FOG: Freeciv draws fog after units so unseen dynamic entities
     // cannot leak through the remembered terrain layer.
-    this.fogRenderer.render(state, globalTiles);
+    if (this.fogOfWarEnabled) {
+      this.fogRenderer.render(state, globalTiles);
+    }
 
     // Render paths and overlays on top of everything
     this.pathRenderer.renderPaths(state);
@@ -278,6 +281,10 @@ export class MapRenderer {
    */
   setImmediateRenderMode(enabled: boolean): void {
     this.forceImmediateRender = enabled;
+  }
+
+  setFogOfWarEnabled(enabled: boolean): void {
+    this.fogOfWarEnabled = enabled;
   }
 
   private clearCanvas(fillBackground = true, backgroundColor = '#4682B4') {
@@ -712,14 +719,14 @@ export class MapRenderer {
     // Later we can add the complex isometric culling logic
     for (let i = 0; i < globalTiles.length; i++) {
       const tile = globalTiles[i];
-      if (tile && tile.terrain && tile.known > 0) {
+      if (tile && tile.terrain && (!this.fogOfWarEnabled || tile.known > 0)) {
         // Convert to our expected format
         tiles.push({
           x: tile.x,
           y: tile.y,
           terrain: tile.terrain,
-          visible: tile.known === 2,
-          known: tile.known >= 1,
+          visible: !this.fogOfWarEnabled || tile.known === 2,
+          known: !this.fogOfWarEnabled || tile.known >= 1,
           units: [],
           city: undefined,
           elevation: tile.elevation || 0,

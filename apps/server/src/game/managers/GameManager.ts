@@ -1347,6 +1347,10 @@ export class GameManager {
     this.gameBroadcastManager.syncGameStateToPlayer(gameId, playerId);
   }
 
+  public setDebugVisibility(gameId: string, playerId: string, enabled: boolean): boolean {
+    return this.gameBroadcastManager.setDebugVisibility(gameId, playerId, enabled);
+  }
+
   /**
    * Get count of connected players for a game
    */

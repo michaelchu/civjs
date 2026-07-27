@@ -108,6 +108,8 @@ export enum PacketType {
   DIPLOMACY_TREATY_CANCEL = 254,
   DIPLOMACY_DECLARE_WAR = 255,
   DIPLOMACY_UPDATE = 256,
+  DEBUG_VISIBILITY_SET = 257,
+  DEBUG_VISIBILITY_REPLY = 258,
 }
 
 export const PACKET_NAMES: Record<number, string> = Object.fromEntries(
@@ -214,6 +216,13 @@ export const ACTIVE_PACKET_CONTRACT: readonly PacketContractEntry[] = [
   }),
   active(PacketType.TILE_VISIBILITY_REPLY, 'map', 'server_to_client', {
     clientConsumer: 'GameClient.getTileVisibility',
+  }),
+  active(PacketType.DEBUG_VISIBILITY_SET, 'map', 'client_to_server', {
+    schema: 'DebugVisibilitySetSchema',
+    serverHandler: 'MapVisibilityHandler',
+  }),
+  active(PacketType.DEBUG_VISIBILITY_REPLY, 'map', 'server_to_client', {
+    clientConsumer: 'GameClient.setDebugVisibility',
   }),
   active(PacketType.UNIT_MOVE, 'units', 'client_to_server', {
     serverHandler: 'UnitActionHandler',
