@@ -305,6 +305,7 @@ export class CityManager {
   private mapChangedCallback?: (gameId: string, mapData: unknown) => void;
   private readonly unitSupportManager: UnitSupportManager;
   private optimizationService?: CityOptimizationService;
+  private readonly nuclearPopulationLossPct: number;
 
   constructor(
     gameId: string,
@@ -316,6 +317,7 @@ export class CityManager {
     this.databaseProvider = databaseProvider;
     this.callbacks = callbacks;
     this.effectsManager = effectsManager;
+    this.nuclearPopulationLossPct = rulesetLoader.getCombatRules().nuke_pop_loss_pct;
     this.unitSupportManager = new UnitSupportManager(gameId, effectsManager);
 
     // Every city service evaluates requirements against the same game-owned
@@ -1698,7 +1700,7 @@ export class CityManager {
       const dy = city.y - centerY;
       if (dx * dx + dy * dy > radiusSquared) continue;
       affected.push(city.id);
-      const populationLoss = Math.round(city.population * 0.49);
+      const populationLoss = Math.round((city.population * this.nuclearPopulationLossPct) / 100);
       city.population = Math.max(1, city.population - populationLoss);
       city.size = city.population;
       await this.saveCityToDatabase(city);

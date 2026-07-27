@@ -77,13 +77,13 @@ function parseSecfile(fileName) {
     }
     if (!current) continue;
 
-    const assignment = line.match(/^([a-zA-Z0-9_]+)\s*=\s*(.*)$/);
+    const assignment = line.match(/^([a-zA-Z0-9_.]+)\s*=\s*(.*)$/);
     if (!assignment) continue;
     const [, key] = assignment;
     const valueLines = [assignment[2]];
     while (index + 1 < lines.length) {
       const next = lines[index + 1].trim();
-      if (/^\[[^\]]+\]$/.test(next) || /^[a-zA-Z0-9_]+\s*=/.test(next)) break;
+      if (/^\[[^\]]+\]$/.test(next) || /^[a-zA-Z0-9_.]+\s*=/.test(next)) break;
       index += 1;
       if (next) valueLines.push(next);
     }
@@ -155,10 +155,101 @@ function convertStyles() {
   };
 }
 
+function asArray(value) {
+  if (value === undefined || value === '') return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function selectSections(sections, prefix) {
+  return Object.fromEntries(
+    Object.entries(sections)
+      .filter(([id]) => id.startsWith(prefix))
+      .map(([id, section]) => [id.slice(prefix.length), section])
+  );
+}
+
+function convertGame() {
+  const sections = parseSecfile('game.ruleset');
+  const civstyle = sections.civstyle;
+  const incite = sections.incite_cost;
+
+  return {
+    ...metadata(sections.datafile, 'reference/freeciv/data/classic/game.ruleset'),
+    ruledit: sections.ruledit,
+    about: sections.about,
+    capabilities: asArray(sections.about.capabilities),
+    options: sections.options,
+    tileset: sections.tileset,
+    soundset: sections.soundset,
+    musicset: sections.musicset,
+    civstyle: {
+      base_pollution: civstyle.base_pollution,
+      happy_cost: civstyle.happy_cost,
+      food_cost: civstyle.food_cost,
+      granary_food_ini: civstyle.granary_food_ini,
+      granary_food_inc: civstyle.granary_food_inc,
+      min_city_center_food: civstyle.min_city_center_food,
+      min_city_center_shield: civstyle.min_city_center_shield,
+      min_city_center_trade: civstyle.min_city_center_trade,
+    },
+    game_parameters: {
+      init_city_radius_sq: civstyle.init_city_radius_sq,
+      init_vis_radius_sq: civstyle.init_vis_radius_sq,
+      base_bribe_cost: civstyle.base_bribe_cost,
+      ransom_gold: civstyle.ransom_gold,
+      upgrade_veteran_loss: civstyle.upgrade_veteran_loss,
+      autoupgrade_veteran_loss: civstyle.autoupgrade_veteran_loss,
+      pillage_select: civstyle.pillage_select,
+      tech_steal_allow_holes: civstyle.tech_steal_allow_holes,
+      tech_trade_allow_holes: civstyle.tech_trade_allow_holes,
+      tech_trade_loss_allow_holes: civstyle.tech_trade_loss_allow_holes,
+      tech_parasite_allow_holes: civstyle.tech_parasite_allow_holes,
+      tech_loss_allow_holes: civstyle.tech_loss_allow_holes,
+      gameloss_style: civstyle.gameloss_style,
+      paradrop_to_transport: civstyle.paradrop_to_transport,
+      gold_upkeep_style: civstyle.gold_upkeep_style,
+      output_granularity: civstyle.output_granularity,
+      airlift_from_always_enabled: civstyle.airlift_from_always_enabled,
+      airlift_to_always_enabled: civstyle.airlift_to_always_enabled,
+      base_incite_cost: incite.base_incite_cost,
+      incite_improvement_factor: incite.improvement_factor,
+      incite_unit_factor: incite.unit_factor,
+      incite_total_factor: incite.total_factor,
+    },
+    wonder_visibility: sections.wonder_visibility,
+    illness: sections.illness,
+    combat_rules: sections.combat_rules,
+    borders: sections.borders,
+    research: sections.research,
+    culture: sections.culture,
+    world_peace: sections.world_peace,
+    calendar: {
+      start_year: sections.calendar.start_year,
+      skip_year_0: sections.calendar.skip_year_0,
+      fragments: sections.calendar.fragments,
+      fragment_names: Object.entries(sections.calendar)
+        .filter(([key]) => /^fragment_name\d+$/.test(key))
+        .sort(([left], [right]) => Number(left.slice(13)) - Number(right.slice(13)))
+        .map(([, value]) => value),
+      positive_label: sections.calendar.positive_label,
+      negative_label: sections.calendar.negative_label,
+    },
+    disasters: selectSections(sections, 'disaster_'),
+    trade: sections.trade,
+    goods: selectSections(sections, 'goods_'),
+    access_area: sections.aarea,
+    diplomacy_clauses: selectSections(sections, 'clause_'),
+    player_colors: sections.playercolors,
+    teams: sections.teams,
+    settings: sections.settings,
+  };
+}
+
 const generatedFiles = [];
 for (const [fileName, data] of [
   ['actions.json', convertActions()],
   ['extras.json', convertExtras()],
+  ['game.json', convertGame()],
   ['styles.json', convertStyles()],
 ]) {
   const target = join(targetDir, fileName);

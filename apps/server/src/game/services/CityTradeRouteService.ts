@@ -2,6 +2,8 @@ import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import type { CityState, TradeRoute, TradeRouteCalculation } from '@game/managers/CityManager';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import type { TradeRules } from '@shared/data/rulesets/schemas';
 
 /**
  * CityTradeRouteService - Manages trade routes between cities
@@ -30,7 +32,8 @@ export class CityTradeRouteService extends BaseGameService {
       getContinentId: () => undefined,
       getCurrentTurn: () => 0,
     },
-    private readonly effectsManager: EffectsManager = new EffectsManager()
+    private readonly effectsManager: EffectsManager = new EffectsManager(),
+    private readonly tradeRules: TradeRules = rulesetLoader.getTradeRules()
   ) {
     super(logger);
   }
@@ -80,10 +83,21 @@ export class CityTradeRouteService extends BaseGameService {
       partnerContinent !== undefined &&
       sourceContinent !== partnerContinent;
     const international = sourceCity.playerId !== partnerCity.playerId;
-    const tradePercent = (international ? 200 : 100) * (intercontinental ? 2 : 1);
+    const routeType = international
+      ? intercontinental
+        ? 'INIC'
+        : 'IN'
+      : intercontinental
+        ? 'NationalIC'
+        : 'National';
+    const tradePercent =
+      this.tradeRules.settings.find(setting => setting.type === routeType)?.pct ?? 0;
     const sizeValue = sourceCity.population + partnerCity.population;
     const beforeTypeBonus = weightedDistance + sizeValue;
-    const totalValue = Math.floor(Math.floor((beforeTypeBonus * tradePercent) / 100) / 12);
+    const totalValue = Math.max(
+      this.tradeRules.min_trade_route_val,
+      Math.floor(Math.floor((beforeTypeBonus * tradePercent) / 100) / 12)
+    );
 
     return {
       baseTradeValue: sizeValue,

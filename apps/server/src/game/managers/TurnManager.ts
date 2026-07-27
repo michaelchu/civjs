@@ -11,6 +11,7 @@ import { TurnPacketService } from '@game/services/TurnPacketService';
 import { TurnPhaseService } from '@game/services/TurnPhaseService';
 import { GameEventService } from '@game/services/GameEventService';
 import { CalendarService } from '@game/services/CalendarService';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { UnitManager } from '@game/managers/UnitManager';
 import type { CityManager } from '@game/managers/CityManager';
 import type { ResearchManager } from '@game/managers/ResearchManager';
@@ -20,7 +21,7 @@ import type { CultureManager } from '@game/managers/CultureManager';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
-import { EffectsManager } from '@game/managers/EffectsManager';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -71,6 +72,8 @@ export class TurnManager {
   private economicManager?: EconomicManager;
   private governmentManager?: GovernmentManager;
   private cityManager: CityManager;
+  private researchManager: ResearchManager;
+  private effectsManager: EffectsManager;
 
   constructor(
     gameId: string,
@@ -85,7 +88,8 @@ export class TurnManager {
     broadcastManager: GameBroadcastManager,
     economicManager?: EconomicManager,
     governmentManager?: GovernmentManager,
-    effectsManager: EffectsManager = new EffectsManager()
+    effectsManager: EffectsManager = new EffectsManager(),
+    rulesetName: string = 'classic'
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -94,6 +98,8 @@ export class TurnManager {
     this.economicManager = economicManager;
     this.governmentManager = governmentManager;
     this.cityManager = cityManager;
+    this.researchManager = researchManager;
+    this.effectsManager = effectsManager;
 
     // Initialize services
     this.turnProcessingService = new TurnProcessingService(
@@ -124,9 +130,9 @@ export class TurnManager {
       this.cultureManager
     );
 
-    // Initialize calendar service with default configuration
-    // Can be enhanced to support different calendar types in game settings
-    this.calendarService = new CalendarService(CalendarService.createDefaultConfig());
+    this.calendarService = new CalendarService(
+      CalendarService.createRulesetConfig(rulesetLoader.getCalendarRules(rulesetName))
+    );
   }
 
   public async initializeTurn(
@@ -143,11 +149,7 @@ export class TurnManager {
     // Reconstruct the calendar when restoring an existing game so packets and
     // future turn processing continue from the persisted turn rather than turn 1.
     for (let turn = 2; turn <= this.currentTurn; turn += 1) {
-      this.calendarService.advanceYear({
-        turnYears: this.getYearIncrementForTurn(turn),
-        turnFragments: 0,
-        slowDownTimeline: 0,
-      });
+      this.calendarService.advanceYear(this.getTimelineBonuses(playerIds));
     }
     this.currentYear = this.calendarService.getState().year;
     this.turnStartTime = new Date();
@@ -351,11 +353,7 @@ export class TurnManager {
 
     // Use CalendarService for freeciv-compliant year calculation
     // TODO: Get actual world bonuses from effects system when implemented
-    this.calendarService.advanceYear({
-      turnYears: this.getYearIncrementForTurn(this.currentTurn),
-      turnFragments: 0, // No fragments for default config
-      slowDownTimeline: 0, // No slowdown effect active
-    });
+    this.calendarService.advanceYear(this.getTimelineBonuses([...this.playerActions.keys()]));
     this.currentYear = this.calendarService.getState().year;
 
     this.turnStartTime = new Date();
@@ -402,12 +400,24 @@ export class TurnManager {
     });
   }
 
-  private getYearIncrementForTurn(turn: number): number {
-    // Civilization-style year progression - return increment per turn, not absolute year
-    if (turn <= 75) return 40; // 40 years per turn (4000 BC - 1000 BC)
-    if (turn <= 175) return 20; // 20 years per turn (1000 BC - 1000 AD)
-    if (turn <= 275) return 10; // 10 years per turn (1000 AD - 2000 AD)
-    return 5; // 5 years per turn (2000 AD+)
+  private getTimelineBonuses(playerIds: string[]): {
+    turnYears: number;
+    turnFragments: number;
+    slowDownTimeline: number;
+  } {
+    const playerTechs = new Set(
+      playerIds.flatMap(playerId => this.researchManager.getResearchedTechs?.(playerId) ?? [])
+    );
+    const context = {
+      currentYear: this.calendarService.getState().year,
+      playerTechs,
+    };
+    return {
+      turnYears: this.effectsManager.calculateEffect(EffectType.TURN_YEARS, context).value,
+      turnFragments: this.effectsManager.calculateEffect(EffectType.TURN_FRAGMENTS, context).value,
+      slowDownTimeline: this.effectsManager.calculateEffect(EffectType.SLOW_DOWN_TIMELINE, context)
+        .value,
+    };
   }
 
   private broadcastTurnStart(): void {

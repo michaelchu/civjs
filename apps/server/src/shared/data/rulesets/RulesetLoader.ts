@@ -28,6 +28,11 @@ import {
   type GameParameters,
   type Civstyle,
   type GameOptions,
+  type CombatRules,
+  type BorderRules,
+  type CultureRules,
+  type CalendarRules,
+  type TradeRules,
   EffectsRulesetFileSchema,
   type EffectsRulesetFile,
   type Effect,
@@ -497,6 +502,26 @@ export class RulesetLoader {
   getCivstyle(rulesetName: string = 'classic'): Civstyle {
     const ruleset = this.loadGameRulesRuleset(rulesetName);
     return ruleset.civstyle;
+  }
+
+  getCombatRules(rulesetName: string = 'classic'): CombatRules {
+    return this.loadGameRulesRuleset(rulesetName).combat_rules;
+  }
+
+  getBorderRules(rulesetName: string = 'classic'): BorderRules {
+    return this.loadGameRulesRuleset(rulesetName).borders;
+  }
+
+  getCultureRules(rulesetName: string = 'classic'): CultureRules {
+    return this.loadGameRulesRuleset(rulesetName).culture;
+  }
+
+  getCalendarRules(rulesetName: string = 'classic'): CalendarRules {
+    return this.loadGameRulesRuleset(rulesetName).calendar;
+  }
+
+  getTradeRules(rulesetName: string = 'classic'): TradeRules {
+    return this.loadGameRulesRuleset(rulesetName).trade;
   }
 
   /**

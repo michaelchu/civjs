@@ -18,6 +18,7 @@ const implemented = (consumer: string): ClassicEffectCoverage => ({
  */
 export const CLASSIC_EFFECT_COVERAGE: Readonly<Record<string, ClassicEffectCoverage>> = {
   Border_Strength_Pct: implemented('BorderManager'),
+  Slow_Down_Timeline: implemented('TurnManager calendar progression'),
   City_Unhappy_Size: implemented('CityHappinessService'),
   Defend_Bonus: implemented('UnitManager combat'),
   Fortify_Defense_Bonus: implemented('UnitManager combat'),
@@ -57,6 +58,7 @@ export const CLASSIC_EFFECT_COVERAGE: Readonly<Record<string, ClassicEffectCover
   Specialist_Output: implemented('city output and happiness'),
   Tech_Parasite: implemented('research turn processing'),
   Tech_Upkeep_Free: implemented('ResearchManager; inert under classic None style'),
+  Turn_Years: implemented('TurnManager calendar progression'),
   Unhappy_Factor: implemented('UnitSupportManager'),
   Unit_Upkeep_Free_Per_City: implemented('UnitSupportManager'),
   Unit_Vision_Radius_Sq: implemented('VisibilityManager'),

@@ -93,6 +93,9 @@ export enum EffectType {
   NO_ANARCHY = 'No_Anarchy',
   HAS_SENATE = 'Has_Senate',
   NO_DIPLOMACY = 'No_Diplomacy',
+  TURN_YEARS = 'Turn_Years',
+  TURN_FRAGMENTS = 'Turn_Fragments',
+  SLOW_DOWN_TIMELINE = 'Slow_Down_Timeline',
 }
 
 // Output types for effect calculations
@@ -133,6 +136,7 @@ export interface EffectContext {
   playerNationGroups?: Set<string>;
   age?: number;
   cityCelebrating?: boolean;
+  currentYear?: number;
   playerTechs?: Set<string>; // Player's researched technologies
   playerBuildings?: Set<string>; // Buildings owned anywhere by the player
   cityBuildings?: Set<string>; // Buildings in the city
@@ -634,6 +638,12 @@ export class EffectsManager {
         'Age',
         req,
         context.age === undefined ? undefined : context.age >= Number(req.name)
+      );
+    this.requirementHandlers['MinYear'] = (req, context) =>
+      this.requirementResult(
+        'MinYear',
+        req,
+        context.currentYear === undefined ? undefined : context.currentYear >= Number(req.name)
       );
     this.requirementHandlers['CityStatus'] = (req, context) =>
       this.requirementResult(

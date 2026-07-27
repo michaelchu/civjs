@@ -17,8 +17,8 @@ import {
   BORDER_DEFAULT_CITY_RADIUS_SQ,
   BORDER_DEFAULT_SIZE_EFFECT,
   BORDER_DEFAULT_STRENGTH_PCT,
+  CITY_MAP_MAX_RADIUS_SQ,
   FC_INFINITY,
-  calculateCityBorderRadiusSq,
 } from '@game/constants/BorderConstants';
 import type { BorderSource, TileOwnership, BorderUpdate } from '../../types/shared/BorderTypes';
 
@@ -135,13 +135,17 @@ export class BorderManager {
     let radiusSq = 0;
 
     if (source.type === 'city') {
-      const cityCulture = this.getCityCulture(source.x, source.y);
-      radiusSq = calculateCityBorderRadiusSq(cityCulture);
+      const city = this.cityManager.getCityAt(source.x, source.y);
+      radiusSq =
+        this.gameSettings.borderCityRadiusSq +
+        Math.min(city?.size ?? 0, CITY_MAP_MAX_RADIUS_SQ) * this.gameSettings.borderSizeEffect;
 
-      logger.debug('🏘️ City border radius calculation', {
+      logger.debug('City border radius calculation', {
         x: source.x,
         y: source.y,
-        cityCulture,
+        citySize: city?.size ?? 0,
+        baseRadiusSq: this.gameSettings.borderCityRadiusSq,
+        sizeEffect: this.gameSettings.borderSizeEffect,
         radiusSq,
         effectiveRadius: Math.sqrt(radiusSq),
       });

@@ -1282,6 +1282,73 @@
           "range": "Player"
         }
       ]
+    },
+    "calendar_base": {
+      "id": "calendar_base",
+      "type": "Turn_Years",
+      "value": 50,
+      "reqs": []
+    },
+    "calendar_1": {
+      "id": "calendar_1",
+      "type": "Turn_Years",
+      "value": -25,
+      "reqs": [{ "type": "MinYear", "name": "-1000", "range": "World" }]
+    },
+    "calendar_2": {
+      "id": "calendar_2",
+      "type": "Turn_Years",
+      "value": -5,
+      "reqs": [{ "type": "MinYear", "name": "0", "range": "World" }]
+    },
+    "calendar_3": {
+      "id": "calendar_3",
+      "type": "Turn_Years",
+      "value": -10,
+      "reqs": [{ "type": "MinYear", "name": "1000", "range": "World" }]
+    },
+    "calendar_4": {
+      "id": "calendar_4",
+      "type": "Turn_Years",
+      "value": -5,
+      "reqs": [{ "type": "MinYear", "name": "1500", "range": "World" }]
+    },
+    "calendar_5": {
+      "id": "calendar_5",
+      "type": "Turn_Years",
+      "value": -3,
+      "reqs": [{ "type": "MinYear", "name": "1750", "range": "World" }]
+    },
+    "calendar_6": {
+      "id": "calendar_6",
+      "type": "Turn_Years",
+      "value": -1,
+      "reqs": [{ "type": "MinYear", "name": "1900", "range": "World" }]
+    },
+    "plastics_slowdown": {
+      "id": "plastics_slowdown",
+      "type": "Slow_Down_Timeline",
+      "value": 1,
+      "reqs": [{ "type": "Tech", "name": "Plastics", "range": "World", "survives": true }]
+    },
+    "superconductor_slowdown": {
+      "id": "superconductor_slowdown",
+      "type": "Slow_Down_Timeline",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Superconductors",
+          "range": "World",
+          "survives": true
+        }
+      ]
+    },
+    "spaceflight_slowdown": {
+      "id": "spaceflight_slowdown",
+      "type": "Slow_Down_Timeline",
+      "value": 1,
+      "reqs": [{ "type": "Tech", "name": "Space Flight", "range": "World", "survives": true }]
     }
   }
 }

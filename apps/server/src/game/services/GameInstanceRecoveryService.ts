@@ -20,6 +20,7 @@ import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastMana
 import { Server as SocketServer } from 'socket.io';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { GovernmentManager } from '@game/managers/GovernmentManager';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 /**
  * GameInstanceRecoveryService - Extracted game recovery operations from GameManager
@@ -355,7 +356,11 @@ export class GameInstanceRecoveryService extends BaseGameService {
     // Initialize BorderManager after CityManager is created, reusing the
     // game-owned effects instance so recovered games evaluate the same
     // ruleset context as newly created ones.
-    borderManager = new BorderManager(mapManager, cityManager, effectsManager);
+    const borderRules = rulesetLoader.getBorderRules(game.ruleset ?? 'classic');
+    borderManager = new BorderManager(mapManager, cityManager, effectsManager, {
+      borderCityRadiusSq: borderRules.radius_sq_city,
+      borderSizeEffect: borderRules.size_effect,
+    });
     const borderNetworkService = new BorderNetworkService(this.io, borderManager, gameId =>
       this.games.get(gameId)
     );
@@ -411,7 +416,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       this.broadcastManager,
       economicManager,
       governmentManager,
-      effectsManager
+      effectsManager,
+      game.ruleset ?? 'classic'
     );
 
     const playerIds = Array.from(players.keys());

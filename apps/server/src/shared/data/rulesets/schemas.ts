@@ -459,6 +459,7 @@ export const EffectRequirementTypeSchema = z.enum([
   'Extra',
   'Gov',
   'MaxUnitsOnTile',
+  'MinYear',
   'NationGroup',
   'OutputType',
   'Specialist',
@@ -643,6 +644,11 @@ export const GameParametersSchema = z.object({
   tech_parasite_allow_holes: z.boolean(),
   tech_loss_allow_holes: z.boolean(),
   gameloss_style: z.string(),
+  paradrop_to_transport: z.boolean(),
+  gold_upkeep_style: z.enum(['City', 'Mixed', 'Nation']),
+  output_granularity: z.number().positive(),
+  airlift_from_always_enabled: z.boolean(),
+  airlift_to_always_enabled: z.boolean(),
 });
 
 export const CivstyleSchema = z.object({
@@ -671,11 +677,73 @@ export const ResearchRulesSchema = z.object({
   free_tech_method: z.string(),
 });
 
+export const CombatRulesSchema = z.object({
+  tired_attack: z.boolean(),
+  only_killing_makes_veteran: z.boolean(),
+  only_real_fight_makes_veteran: z.boolean(),
+  combat_odds_scaled_veterancy: z.boolean(),
+  damage_reduces_bombard_rate: z.boolean(),
+  low_firepower_badwallattacker: z.number().int().min(0),
+  low_firepower_pearl_harbor: z.number().int().min(0),
+  low_firepower_combat_bonus: z.number().int().min(0),
+  low_firepower_nonnat_bombard: z.number().int().min(0),
+  nuke_pop_loss_pct: z.number().min(0).max(100),
+  nuke_defender_survival_chance_pct: z.number().min(0).max(100),
+});
+
+export const BorderRulesSchema = z.object({
+  radius_sq_city: z.number().int().min(0),
+  size_effect: z.number().int(),
+  radius_sq_city_permanent: z.number().int(),
+});
+
+export const CultureRulesSchema = z.object({
+  victory_min_points: z.number().int().min(0),
+  victory_lead_pct: z.number().min(0),
+  history_interest_pml: z.number().int(),
+  migration_pml: z.number().int(),
+});
+
+export const CalendarRulesSchema = z.object({
+  start_year: z.number().int(),
+  skip_year_0: z.boolean(),
+  fragments: z.number().int().min(0),
+  fragment_names: z.array(z.string()),
+  positive_label: z.string(),
+  negative_label: z.string(),
+});
+
+export const DisasterRulesSchema = z.object({
+  name: z.string(),
+  reqs: z.array(RulesetRequirementSchema).optional().default([]),
+  frequency: z.number().int().min(0),
+  effects: z.union([z.string(), z.array(z.string())]),
+});
+
+export const TradeSettingSchema = z.object({
+  type: z.string(),
+  pct: z.number().int().min(0),
+  cancelling: z.enum(['Active', 'Inactive', 'Cancel']),
+  bonus: z.enum(['None', 'Gold', 'Science', 'Both']),
+});
+
+export const TradeRulesSchema = z.object({
+  settings: z.array(TradeSettingSchema),
+  min_trade_route_val: z.number().int().min(0),
+  reveal_trade_partner: z.boolean(),
+  goods_selection: z.enum(['Leaving', 'Arrival']),
+});
+
 export const GameRulesetFileSchema = z.object({
+  source: z.string(),
   datafile: z.object({
     description: z.string(),
     options: z.string(),
     format_version: z.number(),
+  }),
+  ruledit: z.object({
+    description_file: z.string(),
+    std_tileset_compat: z.boolean(),
   }),
   about: z.object({
     name: z.string(),
@@ -683,10 +751,53 @@ export const GameRulesetFileSchema = z.object({
     description: z.string(),
   }),
   options: GameOptionsSchema,
+  tileset: z.record(z.string(), z.unknown()),
+  soundset: z.record(z.string(), z.unknown()),
+  musicset: z.record(z.string(), z.unknown()),
   civstyle: CivstyleSchema,
   capabilities: z.array(z.string()),
   game_parameters: GameParametersSchema,
+  wonder_visibility: z.object({ small_wonders: z.enum(['Always', 'Never', 'Embassy']) }),
+  illness: z.object({
+    illness_on: z.boolean(),
+    illness_base_factor: z.number().int().min(0),
+    illness_min_size: z.number().int().min(0),
+    illness_trade_infection: z.number().int().min(0),
+    illness_pollution_factor: z.number().int().min(0),
+  }),
+  combat_rules: CombatRulesSchema,
+  borders: BorderRulesSchema,
   research: ResearchRulesSchema,
+  culture: CultureRulesSchema,
+  world_peace: z.object({ victory_turns: z.number().int().min(0) }),
+  calendar: CalendarRulesSchema,
+  disasters: z.record(z.string(), DisasterRulesSchema),
+  trade: TradeRulesSchema,
+  goods: z.record(z.string(), z.record(z.string(), z.unknown())),
+  access_area: z.object({ access_unit: z.string() }),
+  diplomacy_clauses: z.record(
+    z.string(),
+    z.object({
+      type: z.string(),
+      giver_reqs: z.array(RulesetRequirementSchema).optional(),
+      receiver_reqs: z.array(RulesetRequirementSchema).optional(),
+      either_reqs: z.array(RulesetRequirementSchema).optional(),
+    })
+  ),
+  player_colors: z.object({
+    'background.r': z.number().int().min(0).max(255),
+    'background.g': z.number().int().min(0).max(255),
+    'background.b': z.number().int().min(0).max(255),
+    colorlist: z.array(
+      z.object({
+        r: z.number().int().min(0).max(255),
+        g: z.number().int().min(0).max(255),
+        b: z.number().int().min(0).max(255),
+      })
+    ),
+  }),
+  teams: z.record(z.string(), z.unknown()),
+  settings: z.record(z.string(), z.unknown()),
 });
 
 // Effects system schemas
@@ -752,6 +863,9 @@ export const EffectTypeSchema = z.enum([
   'Has_Senate',
   // Shipped but intentionally inert until their gameplay systems are ported.
   'No_Diplomacy',
+  'Turn_Years',
+  'Turn_Fragments',
+  'Slow_Down_Timeline',
   'Retire_Pct',
   'Tech_Upkeep_Free',
   'Min_HP_Pct',
@@ -865,6 +979,11 @@ export type StylesRulesetFile = z.infer<typeof StylesRulesetFileSchema>;
 export type GameParameters = z.infer<typeof GameParametersSchema>;
 export type Civstyle = z.infer<typeof CivstyleSchema>;
 export type GameOptions = z.infer<typeof GameOptionsSchema>;
+export type CombatRules = z.infer<typeof CombatRulesSchema>;
+export type BorderRules = z.infer<typeof BorderRulesSchema>;
+export type CultureRules = z.infer<typeof CultureRulesSchema>;
+export type CalendarRules = z.infer<typeof CalendarRulesSchema>;
+export type TradeRules = z.infer<typeof TradeRulesSchema>;
 export type GameRulesetFile = z.infer<typeof GameRulesetFileSchema>;
 
 export type Effect = z.infer<typeof EffectSchema>;

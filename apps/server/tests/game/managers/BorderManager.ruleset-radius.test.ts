@@ -1,20 +1,7 @@
 import { BorderManager } from '@game/managers/BorderManager';
-import { calculateCityBorderRadiusSq } from '@game/constants/BorderConstants';
 
-describe('BorderManager culture-driven territory', () => {
-  it.each([
-    [0, 2],
-    [9, 2],
-    [10, 5],
-    [99, 5],
-    [100, 10],
-    [1_000, 17],
-    [10_000, 26],
-  ])('maps %i accumulated culture to radius squared %i', (culture, expectedRadiusSq) => {
-    expect(calculateCityBorderRadiusSq(culture)).toBe(expectedRadiusSq);
-  });
-
-  it('claims one surrounding tile initially and expands after a culture milestone', () => {
+describe('BorderManager classic population-driven territory', () => {
+  it('uses the classic base radius plus the capped city-size effect', () => {
     const tiles = new Map<string, any>();
     for (let x = 0; x < 9; x++) {
       for (let y = 0; y < 9; y++) {
@@ -43,7 +30,15 @@ describe('BorderManager culture-driven territory', () => {
     const effectsManager = {
       calculateEffect: jest.fn(() => ({ value: 0, effects: [] })),
     };
-    const manager = new BorderManager(mapManager as any, cityManager as any, effectsManager as any);
+    const manager = new BorderManager(
+      mapManager as any,
+      cityManager as any,
+      effectsManager as any,
+      {
+        borderCityRadiusSq: 2,
+        borderSizeEffect: 1,
+      }
+    );
     const onBorderUpdate = jest.fn();
     manager.setCallbacks({ onBorderUpdate });
 
@@ -55,14 +50,14 @@ describe('BorderManager culture-driven territory', () => {
     expect(tiles.get('3,3').owner).toBe(city.playerId);
     expect(tiles.get('2,4').owner).toBeUndefined();
 
-    city.history = 10;
+    city.size = 3;
     const update = manager.recalculateAllBorders();
 
     expect(
       manager.getAllTileOwnership().filter(tile => tile.playerId === city.playerId)
     ).toHaveLength(21);
     expect(tiles.get('2,4').owner).toBe(city.playerId);
-    expect(update.tiles).toHaveLength(12);
+    expect(update.tiles).toHaveLength(20);
     expect(onBorderUpdate).toHaveBeenCalledTimes(2);
   });
 });

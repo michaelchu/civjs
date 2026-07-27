@@ -36,6 +36,7 @@ import type {
   PlayerState,
   TerrainSettings,
 } from '@game/managers/GameManager';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 export interface GameLifecycleService {
   createGame(gameConfig: GameConfig): Promise<string>;
@@ -127,6 +128,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
    */
   async createGame(gameConfig: GameConfig): Promise<string> {
     this.logger.info('Creating new game', { name: gameConfig.name, hostId: gameConfig.hostId });
+    const rulesetName = gameConfig.ruleset || 'classic';
 
     // Prepare game data for database
     const gameData = {
@@ -136,7 +138,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       maxPlayers: gameConfig.maxPlayers || 8,
       mapWidth: gameConfig.mapWidth || 80,
       mapHeight: gameConfig.mapHeight || 50,
-      ruleset: gameConfig.ruleset || 'classic',
+      ruleset: rulesetName,
+      historyInterestPml: rulesetLoader.getCultureRules(rulesetName).history_interest_pml,
       turnTimeLimit: gameConfig.turnTimeLimit,
       victoryConditions: gameConfig.victoryConditions?.length
         ? gameConfig.victoryConditions
@@ -252,7 +255,12 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       );
     }
     const cityManager = this.createCityManager(gameId, effectsManager);
-    const borderManager = this.createBorderManager(mapManager, cityManager, effectsManager);
+    const borderManager = this.createBorderManager(
+      mapManager,
+      cityManager,
+      effectsManager,
+      game.ruleset ?? 'classic'
+    );
     this.borderNetworkService = this.createBorderNetworkService(borderManager);
     const researchManager = this.createResearchManager(gameId);
     await this.initializePlayerResearch(researchManager, players);
@@ -943,7 +951,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       mockBroadcastManager,
       economicManager,
       governmentManager,
-      effectsManager
+      effectsManager,
+      rulesetName
     );
     const playerIds = Array.from(players.keys());
     await tm.initializeTurn(playerIds);
@@ -987,9 +996,14 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   private createBorderManager(
     mapManager: MapManager,
     cityManager: CityManager,
-    effectsManager: EffectsManager
+    effectsManager: EffectsManager,
+    rulesetName: string
   ): BorderManager {
-    return new BorderManager(mapManager, cityManager, effectsManager);
+    const borders = rulesetLoader.getBorderRules(rulesetName);
+    return new BorderManager(mapManager, cityManager, effectsManager, {
+      borderCityRadiusSq: borders.radius_sq_city,
+      borderSizeEffect: borders.size_effect,
+    });
   }
 
   private createBorderNetworkService(borderManager: BorderManager): BorderNetworkService {

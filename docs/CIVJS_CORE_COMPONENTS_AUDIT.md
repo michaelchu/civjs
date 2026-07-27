@@ -43,6 +43,12 @@ This document provides a component inventory for gap review. It does not perform
 - **Presentation assets:** Tilesets, city/unit graphics, nation flags, soundsets, music, help text, translations, and fallback asset behavior.
 - **Scenarios and alternate rulesets:** Scenario maps, metadata, packaged rulesets, compatibility/version handling, and non-classic data sets.
 
+#### Game constants and options implementation status
+
+The complete top-level `classic/game.ruleset` structure is now reproducibly converted into `classic/game.json`, schema-validated, and guarded by `ClassicGameRuleInventory`. Existing engines consume the classic initial state, city/economy values, research rules, upkeep style, nuclear population loss, population-based borders, culture interest, calendar labels and timeline effects, initial visibility, and trade-route percentages.
+
+Remaining high-level gaps are explicitly classified in the executable inventory: gameloss variants, cultural/world-peace victories, migration, ruleset-native disasters and illness variants, advanced trade goods/bonuses/cancellation, several diplomacy clause transfers, and non-default combat/airlift/paradrop variants. General Freeciv server-setting breadth—beyond the options exposed by CivJS game creation—also remains a separate parity surface.
+
 ### World, map, and spatial simulation
 
 - **Map model:** Tile coordinates, topology, adjacency, oceans/continents, borders, terrain, resources, rivers, roads, bases, and terrain transformations.

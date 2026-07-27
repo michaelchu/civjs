@@ -6,6 +6,7 @@
  */
 
 export interface CalendarServiceConfig {
+  startYear: number;
   calendarFragments: number;
   fragmentNames: string[];
   positiveYearLabel: string;
@@ -26,7 +27,7 @@ export class CalendarService {
   constructor(config: CalendarServiceConfig, initialState?: CalendarState) {
     this.config = config;
     this.state = initialState || {
-      year: -4000,
+      year: config.startYear,
       fragmentCount: 0,
       year0Hack: false,
     };
@@ -122,6 +123,7 @@ export class CalendarService {
 
   static createDefaultConfig(): CalendarServiceConfig {
     return {
+      startYear: -4000,
       calendarFragments: 0,
       positiveYearLabel: 'AD',
       negativeYearLabel: 'BC',
@@ -132,6 +134,7 @@ export class CalendarService {
 
   static createMonthlyConfig(): CalendarServiceConfig {
     return {
+      startYear: -4000,
       calendarFragments: 12,
       positiveYearLabel: 'AD',
       negativeYearLabel: 'BC',
@@ -155,11 +158,30 @@ export class CalendarService {
 
   static createSeasonalConfig(): CalendarServiceConfig {
     return {
+      startYear: -4000,
       calendarFragments: 4,
       positiveYearLabel: 'AD',
       negativeYearLabel: 'BC',
       fragmentNames: ['Spring', 'Summer', 'Autumn', 'Winter'],
       calendarSkip0: true,
+    };
+  }
+
+  static createRulesetConfig(calendar: {
+    start_year: number;
+    fragments: number;
+    fragment_names: string[];
+    positive_label: string;
+    negative_label: string;
+    skip_year_0: boolean;
+  }): CalendarServiceConfig {
+    return {
+      startYear: calendar.start_year,
+      calendarFragments: calendar.fragments,
+      fragmentNames: [...calendar.fragment_names],
+      positiveYearLabel: calendar.positive_label,
+      negativeYearLabel: calendar.negative_label,
+      calendarSkip0: calendar.skip_year_0,
     };
   }
 }

@@ -2,6 +2,7 @@
  * Nation color system with 3-color themes for visual distinction
  * Colors are chosen to be distinct, historically appropriate, and avoid ocean-like blues
  */
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 export interface PlayerColor {
   r: number;
@@ -20,105 +21,22 @@ export interface NationColorTheme {
  * Predefined nation color themes - avoiding ocean-like blues
  * Each theme has primary, secondary, and tertiary colors
  */
-export const NATION_COLOR_THEMES: NationColorTheme[] = [
-  // Classic Empire Colors
-  {
-    name: 'Roman Red',
-    primary: { r: 204, g: 0, b: 0 }, // Deep Red
-    secondary: { r: 255, g: 215, b: 0 }, // Gold
-    tertiary: { r: 139, g: 69, b: 19 }, // Saddle Brown
-  },
-  {
-    name: 'Imperial Purple',
-    primary: { r: 138, g: 43, b: 226 }, // Blue Violet
-    secondary: { r: 255, g: 255, b: 255 }, // White
-    tertiary: { r: 255, g: 215, b: 0 }, // Gold
-  },
-  {
-    name: 'Turquoise Empire',
-    primary: { r: 64, g: 224, b: 208 }, // Turquoise
-    secondary: { r: 255, g: 255, b: 255 }, // White
-    tertiary: { r: 139, g: 69, b: 19 }, // Saddle Brown
-  },
-  {
-    name: 'Royal Gold',
-    primary: { r: 255, g: 215, b: 0 }, // Gold
-    secondary: { r: 139, g: 0, b: 0 }, // Dark Red
-    tertiary: { r: 0, g: 0, b: 0 }, // Black
-  },
-  {
-    name: 'Crimson Empire',
-    primary: { r: 220, g: 20, b: 60 }, // Crimson
-    secondary: { r: 255, g: 255, b: 255 }, // White
-    tertiary: { r: 255, g: 215, b: 0 }, // Gold
-  },
-  {
-    name: 'Bright Azure',
-    primary: { r: 0, g: 127, b: 255 }, // Bright Blue (not ocean-like)
-    secondary: { r: 255, g: 255, b: 255 }, // White
-    tertiary: { r: 255, g: 215, b: 0 }, // Gold
-  },
-  {
-    name: 'Orange Dynasty',
-    primary: { r: 255, g: 140, b: 0 }, // Dark Orange
-    secondary: { r: 0, g: 0, b: 0 }, // Black
-    tertiary: { r: 255, g: 255, b: 255 }, // White
-  },
-  {
-    name: 'Burgundy Kingdom',
-    primary: { r: 128, g: 0, b: 32 }, // Burgundy
-    secondary: { r: 255, g: 255, b: 255 }, // White
-    tertiary: { r: 139, g: 69, b: 19 }, // Saddle Brown
-  },
-  {
-    name: 'Magenta Empire',
-    primary: { r: 255, g: 0, b: 255 }, // Magenta
-    secondary: { r: 255, g: 255, b: 255 }, // White
-    tertiary: { r: 0, g: 0, b: 0 }, // Black
-  },
-  {
-    name: 'Copper Bronze',
-    primary: { r: 184, g: 115, b: 51 }, // Copper
-    secondary: { r: 255, g: 255, b: 255 }, // White
-    tertiary: { r: 139, g: 0, b: 0 }, // Dark Red
-  },
-  {
-    name: 'Silver Steel',
-    primary: { r: 192, g: 192, b: 192 }, // Silver
-    secondary: { r: 0, g: 0, b: 0 }, // Black
-    tertiary: { r: 0, g: 127, b: 255 }, // Bright Blue
-  },
-  {
-    name: 'Rose Kingdom',
-    primary: { r: 255, g: 20, b: 147 }, // Deep Pink
-    secondary: { r: 255, g: 255, b: 255 }, // White
-    tertiary: { r: 139, g: 0, b: 139 }, // Dark Magenta
-  },
-  {
-    name: 'Amber Empire',
-    primary: { r: 255, g: 191, b: 0 }, // Amber
-    secondary: { r: 139, g: 69, b: 19 }, // Saddle Brown
-    tertiary: { r: 255, g: 255, b: 255 }, // White
-  },
-  {
-    name: 'Indigo Dynasty',
-    primary: { r: 75, g: 0, b: 130 }, // Indigo
-    secondary: { r: 255, g: 215, b: 0 }, // Gold
-    tertiary: { r: 139, g: 0, b: 0 }, // Dark Red
-  },
-  {
-    name: 'Violet Reign',
-    primary: { r: 148, g: 0, b: 211 }, // Dark Violet
-    secondary: { r: 255, g: 255, b: 255 }, // White
-    tertiary: { r: 255, g: 215, b: 0 }, // Gold
-  },
-  {
-    name: 'Coral Empire',
-    primary: { r: 255, g: 127, b: 80 }, // Coral
-    secondary: { r: 255, g: 255, b: 255 }, // White
-    tertiary: { r: 0, g: 0, b: 139 }, // Dark Blue
-  },
-];
+const classicColors = rulesetLoader.loadGameRulesRuleset().player_colors;
+
+export const NATION_COLOR_THEMES: NationColorTheme[] = classicColors.colorlist.map(
+  (primary, index) => ({
+    name: `Classic ${index + 1}`,
+    primary,
+    // CivJS keeps secondary/tertiary UI accents around Freeciv's authoritative
+    // player color. The ruleset background is the stable contrasting fallback.
+    secondary: { r: 255, g: 255, b: 255 },
+    tertiary: {
+      r: classicColors['background.r'],
+      g: classicColors['background.g'],
+      b: classicColors['background.b'],
+    },
+  })
+);
 
 /**
  * Convert PlayerColor object to CSS hex string

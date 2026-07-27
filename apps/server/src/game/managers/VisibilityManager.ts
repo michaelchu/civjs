@@ -3,6 +3,7 @@ import { UnitManager } from '@game/managers/UnitManager';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { MapManager } from '@game/managers/MapManager';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 export interface PlayerVisibility {
   playerId: string;
@@ -40,6 +41,7 @@ export class VisibilityManager {
   private visibilityPersistence?: VisibilityPersistence;
   private persistenceQueues = new Map<string, Promise<void>>();
   private lastQueuedSnapshots = new Map<string, string>();
+  private readonly initialVisionRadiusSq = rulesetLoader.getGameParameters().init_vis_radius_sq;
 
   constructor(
     gameId: string,
@@ -168,7 +170,7 @@ export class VisibilityManager {
       const cityVisibleTiles = this.calculateTileVisibility(
         city.x,
         city.y,
-        city.visionRadiusSq ?? 5
+        city.visionRadiusSq ?? this.initialVisionRadiusSq
       );
       for (const tileKey of cityVisibleTiles) visibleTiles.add(tileKey);
     }

@@ -18,6 +18,7 @@ import {
   OutputType,
   EffectContext,
 } from '@game/managers/EffectsManager';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 // Unit upkeep cost structure - matches freeciv O_LAST output types
 export interface UnitUpkeep {
@@ -69,6 +70,12 @@ export class UnitSupportManager {
   constructor(gameId: string, effectsManager?: EffectsManager) {
     this._gameId = gameId;
     this.effectsManager = effectsManager ?? new EffectsManager();
+    const gameRules = rulesetLoader.loadGameRulesRuleset();
+    this.goldUpkeepStyle =
+      GoldUpkeepStyle[
+        gameRules.game_parameters.gold_upkeep_style.toUpperCase() as keyof typeof GoldUpkeepStyle
+      ];
+    this.foodCostPerCitizen = gameRules.civstyle.food_cost;
   }
 
   /**
