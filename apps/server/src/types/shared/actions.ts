@@ -24,6 +24,9 @@ export enum ActionType {
   BUILD_IRRIGATION = 'build_irrigation',
   BUILD_MINE = 'build_mine',
   BUILD_FORTRESS = 'build_fortress',
+  BUILD_AIRBASE = 'build_airbase',
+  CULTIVATE = 'cultivate',
+  PLANT = 'plant',
   TRANSFORM_TERRAIN = 'transform_terrain',
   CLEAN_POLLUTION = 'clean_pollution',
   CLEAN_FALLOUT = 'clean_fallout',
@@ -67,6 +70,7 @@ export enum ActionType {
 
   // Unit management
   DISBAND_UNIT = 'disband_unit',
+  DISBAND_UNIT_RECOVER = 'disband_unit_recover',
   UPGRADE_UNIT = 'upgrade_unit',
   CHANGE_HOME_CITY = 'change_home_city',
 }

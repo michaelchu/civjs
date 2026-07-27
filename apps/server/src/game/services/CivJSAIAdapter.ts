@@ -19,6 +19,7 @@ export const CIVJS_AI_CONTRACT = {
     'prioritize deficit-reducing city production, then expansion and defense',
     'select the cheapest available research target with an ID tie-break',
     'enable authoritative worker and exploration automation',
+    'use legal caravan, city-join, home-city, and unit-upgrade outcomes',
     'resolve adjacent combat with a ready military unit',
     'accept peace and cease-fire proposals and reject alliances',
     'resume deterministically from manager state restored after a restart',
@@ -50,6 +51,9 @@ export class CivJSAIAdapter {
       actions += await this.attempt('research', () => this.selectResearch(game, playerId));
       actions += await this.attempt('production', () => this.selectCityProduction(game, playerId));
       actions += await this.attempt('expansion', () => this.foundReadyCities(game, playerId));
+      actions += await this.attempt('city unit actions', () =>
+        this.executeCityUnitActions(game, playerId)
+      );
       actions += await this.attempt('workers', () => this.automateWorkers(game, playerId));
       actions += await this.attempt('combat', () => this.attackAdjacentEnemies(game, playerId));
       actions += await this.attempt('exploration', () => this.automateExploration(game, playerId));
@@ -146,6 +150,36 @@ export class CivJSAIAdapter {
         playerId
       );
       if (result.success) actions++;
+    }
+    return actions;
+  }
+
+  private async executeCityUnitActions(game: GameInstance, playerId: string): Promise<number> {
+    const preferences = [
+      ActionType.HELP_WONDER,
+      ActionType.MARKETPLACE,
+      ActionType.JOIN_CITY,
+      ActionType.CHANGE_HOME_CITY,
+      ActionType.UPGRADE_UNIT,
+    ];
+    let actions = 0;
+    for (const unit of this.sortedUnits(game, playerId)) {
+      if (!game.unitManager.getUnit(unit.id)) continue;
+      if (!game.cityManager.getCityAt?.(unit.x, unit.y)) continue;
+      for (const action of preferences) {
+        const targetX = action === ActionType.UPGRADE_UNIT ? undefined : unit.x;
+        const targetY = action === ActionType.UPGRADE_UNIT ? undefined : unit.y;
+        if (!game.unitManager.canUnitPerformAction(unit.id, action, targetX, targetY)) continue;
+        const result = await game.unitManager.executeUnitAction(
+          unit.id,
+          action,
+          targetX,
+          targetY,
+          playerId
+        );
+        if (result.success) actions++;
+        break;
+      }
     }
     return actions;
   }

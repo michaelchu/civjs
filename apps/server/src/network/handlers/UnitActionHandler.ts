@@ -457,6 +457,19 @@ export class UnitActionHandler extends BaseSocketHandler {
         targetUnitsBeforeAction,
         gameInstance
       );
+      if (
+        [
+          ActionType.MARKETPLACE,
+          ActionType.HELP_WONDER,
+          ActionType.JOIN_CITY,
+          ActionType.DISBAND_UNIT_RECOVER,
+          ActionType.CHANGE_HOME_CITY,
+          ActionType.UPGRADE_UNIT,
+        ].includes(data.actionType)
+      ) {
+        this.gameManager.broadcastCityData(connection.gameId!);
+        this.gameManager.syncGameStateToPlayer(connection.gameId!, playerId);
+      }
       callback({ success: true, result });
       logger.info(`Unit action executed successfully`, {
         unitId: data.unitId,

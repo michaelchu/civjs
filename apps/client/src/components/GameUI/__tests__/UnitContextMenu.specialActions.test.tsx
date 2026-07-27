@@ -55,4 +55,35 @@ describe('UnitContextMenu classic special actions', () => {
     expect(screen.queryByText('Airlift')).not.toBeInTheDocument();
     expect(screen.queryByText('Auto Explore')).not.toBeInTheDocument();
   });
+
+  it('renders Milestone 14 actions only when advertised by the server', () => {
+    const onActionSelect = vi.fn();
+    render(
+      <UnitContextMenu
+        unit={{
+          ...unit,
+          capabilities: {
+            ...unit.capabilities!,
+            unitActions: [
+              ActionType.MARKETPLACE,
+              ActionType.HELP_WONDER,
+              ActionType.CHANGE_HOME_CITY,
+              ActionType.UPGRADE_UNIT,
+              ActionType.DISBAND_UNIT_RECOVER,
+            ],
+          },
+        }}
+        position={{ x: 10, y: 10 }}
+        onClose={vi.fn()}
+        onActionSelect={onActionSelect}
+      />
+    );
+
+    expect(screen.getByText('Sell Goods')).toBeInTheDocument();
+    expect(screen.getByText('Help Wonder')).toBeInTheDocument();
+    expect(screen.getByText('Change Home City')).toBeInTheDocument();
+    expect(screen.getByText('Upgrade Unit')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Disband and Recover Shields'));
+    expect(onActionSelect).toHaveBeenCalledWith(ActionType.DISBAND_UNIT_RECOVER);
+  });
 });

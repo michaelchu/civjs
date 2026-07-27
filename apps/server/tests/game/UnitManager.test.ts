@@ -181,6 +181,118 @@ describe('UnitManager', () => {
       expect(tile.improvements).not.toContain('road');
       expect(worker.orders).toEqual([]);
     });
+
+    it('persists cultivate, plant, fortress, and airbase ruleset outcomes', async () => {
+      unitManager.setPlayerTechsProvider(() => new Set(['construction', 'radio']));
+      tile.terrain = 'forest';
+      const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
+
+      await expect(
+        unitManager.executeUnitAction(
+          worker.id,
+          ActionType.CULTIVATE,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      for (let turn = 0; turn < 5; turn++) await unitManager.processUnitOrders('player-123');
+      expect(tile.terrain).toBe('plains');
+
+      worker.movementLeft = 3;
+      await expect(
+        unitManager.executeUnitAction(
+          worker.id,
+          ActionType.PLANT,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      for (let turn = 0; turn < 15; turn++) await unitManager.processUnitOrders('player-123');
+      expect(tile.terrain).toBe('forest');
+
+      worker.movementLeft = 3;
+      await expect(
+        unitManager.executeUnitAction(
+          worker.id,
+          ActionType.BUILD_FORTRESS,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      for (let turn = 0; turn < 3; turn++) await unitManager.processUnitOrders('player-123');
+      expect(tile.improvements).toContain('fortress');
+
+      const engineer = await unitManager.createUnit('player-123', 'engineers', 10, 10);
+      await expect(
+        unitManager.executeUnitAction(
+          engineer.id,
+          ActionType.BUILD_AIRBASE,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      for (let turn = 0; turn < 2; turn++) await unitManager.processUnitOrders('player-123');
+      expect(tile.improvements).toContain('airbase');
+    });
+
+    it('enforces base technology requirements', async () => {
+      const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_FORTRESS)).toBe(false);
+      unitManager.setPlayerTechsProvider(() => new Set(['construction']));
+      expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_FORTRESS)).toBe(true);
+    });
+  });
+
+  describe('Milestone 14 city actions', () => {
+    it('delegates a legal join-city action and consumes the actor', async () => {
+      const executeCityUnitAction = jest.fn().mockResolvedValue({
+        success: true,
+        message: 'Unit joined the city',
+        unitDestroyed: true,
+      });
+      unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, undefined, {
+        foundCity: jest.fn(),
+        requestPath: jest.fn(),
+        broadcastUnitMoved: jest.fn(),
+        getCityAt: () => ({ id: 'city-1', playerId: 'player-123' }),
+        executeCityUnitAction,
+      });
+      const settlers = await unitManager.createUnit('player-123', 'settlers', 10, 10, 'city-1');
+
+      await expect(
+        unitManager.executeUnitAction(settlers.id, ActionType.JOIN_CITY, 10, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, unitDestroyed: true });
+      expect(executeCityUnitAction).toHaveBeenCalledWith(
+        ActionType.JOIN_CITY,
+        'player-123',
+        'settlers',
+        'city-1',
+        10,
+        10
+      );
+      expect(unitManager.getUnit(settlers.id)).toBeUndefined();
+    });
+
+    it('persists home-city reassignment only in a friendly city under the unit', async () => {
+      unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, undefined, {
+        foundCity: jest.fn(),
+        requestPath: jest.fn(),
+        broadcastUnitMoved: jest.fn(),
+        getCityAt: () => ({ id: 'city-2', playerId: 'player-123' }),
+      });
+      const unit = await unitManager.createUnit('player-123', 'warriors', 10, 10, 'city-1');
+
+      await expect(
+        unitManager.executeUnitAction(unit.id, ActionType.CHANGE_HOME_CITY, 10, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true });
+      expect(unit.homeCityId).toBe('city-2');
+      expect(unit.movementLeft).toBe(0);
+    });
   });
 
   describe('unit movement', () => {

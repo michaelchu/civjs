@@ -66,6 +66,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
   // Determine available actions based on unit type and capabilities
   const getAvailableActions = (unit: Unit): UnitMenuItem[] => {
     const actions: UnitMenuItem[] = [];
+    const unitActions = new Set(unit.capabilities?.unitActions ?? []);
 
     // Basic movement actions - available to all units
     actions.push(
@@ -151,6 +152,24 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
           icon: Pickaxe,
           hotkey: 'M',
         },
+        ...(unitActions.has(ActionType.CULTIVATE)
+          ? [{ action: ActionType.CULTIVATE, name: 'Cultivate Terrain', icon: Zap }]
+          : []),
+        ...(unitActions.has(ActionType.PLANT)
+          ? [{ action: ActionType.PLANT, name: 'Plant Terrain', icon: Mountain }]
+          : []),
+        ...(unitActions.has(ActionType.BUILD_FORTRESS)
+          ? [{ action: ActionType.BUILD_FORTRESS, name: 'Build Fortress', icon: Shield }]
+          : []),
+        ...(unitActions.has(ActionType.BUILD_AIRBASE)
+          ? [
+              {
+                action: ActionType.BUILD_AIRBASE,
+                name: 'Build Airbase',
+                icon: Plane,
+              },
+            ]
+          : []),
         {
           action: ActionType.TRANSFORM_TERRAIN,
           name: 'Transform Terrain',
@@ -218,8 +237,42 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
       }
     }
 
-    const unitActions = new Set(unit.capabilities?.unitActions ?? []);
     const specialActions: UnitActionInfo[] = [];
+    if (unitActions.has(ActionType.MARKETPLACE)) {
+      specialActions.push({
+        action: ActionType.MARKETPLACE,
+        name: 'Sell Goods',
+        icon: HandCoins,
+      });
+    }
+    if (unitActions.has(ActionType.HELP_WONDER)) {
+      specialActions.push({
+        action: ActionType.HELP_WONDER,
+        name: 'Help Wonder',
+        icon: Hammer,
+      });
+    }
+    if (unitActions.has(ActionType.JOIN_CITY)) {
+      specialActions.push({
+        action: ActionType.JOIN_CITY,
+        name: 'Join City',
+        icon: Home,
+      });
+    }
+    if (unitActions.has(ActionType.CHANGE_HOME_CITY)) {
+      specialActions.push({
+        action: ActionType.CHANGE_HOME_CITY,
+        name: 'Change Home City',
+        icon: Home,
+      });
+    }
+    if (unitActions.has(ActionType.UPGRADE_UNIT)) {
+      specialActions.push({
+        action: ActionType.UPGRADE_UNIT,
+        name: 'Upgrade Unit',
+        icon: Zap,
+      });
+    }
     if (unitActions.has(ActionType.PARADROP)) {
       specialActions.push({
         action: ActionType.PARADROP,
@@ -287,7 +340,16 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
         name: 'Disband Unit',
         icon: Trash2,
         hotkey: 'Shift+D',
-      }
+      },
+      ...(unitActions.has(ActionType.DISBAND_UNIT_RECOVER)
+        ? [
+            {
+              action: ActionType.DISBAND_UNIT_RECOVER,
+              name: 'Disband and Recover Shields',
+              icon: Hammer,
+            },
+          ]
+        : [])
     );
 
     return actions;

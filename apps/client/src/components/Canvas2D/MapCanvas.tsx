@@ -1327,6 +1327,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           ActionType.PARADROP,
           ActionType.BOMBARD,
           ActionType.AIRLIFT,
+          ActionType.MARKETPLACE,
+          ActionType.HELP_WONDER,
+          ActionType.JOIN_CITY,
+          ActionType.CHANGE_HOME_CITY,
+          ActionType.DISBAND_UNIT_RECOVER,
         ].includes(action)
       ) {
         setTargetActionMode({ unit: selectedUnit, action });
@@ -1335,15 +1340,25 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           message:
             action === ActionType.TRADE_ROUTE
               ? 'Select the destination city for this trade route'
-              : action === ActionType.AIRLIFT
-                ? 'Select a friendly city with an unused airport'
-                : action === ActionType.PARADROP
-                  ? 'Select a paradrop destination'
-                  : action === ActionType.BOMBARD
-                    ? 'Select a tile containing enemy units'
-                    : [ActionType.BRIBE_UNIT, ActionType.SABOTAGE_UNIT].includes(action)
-                      ? 'Select an adjacent foreign unit'
-                      : 'Select an adjacent foreign city',
+              : action === ActionType.MARKETPLACE
+                ? 'Select the city where these goods will be sold'
+                : action === ActionType.HELP_WONDER
+                  ? 'Select a friendly city building a Great Wonder'
+                  : [
+                        ActionType.JOIN_CITY,
+                        ActionType.CHANGE_HOME_CITY,
+                        ActionType.DISBAND_UNIT_RECOVER,
+                      ].includes(action)
+                    ? 'Select the friendly city under this unit'
+                    : action === ActionType.AIRLIFT
+                      ? 'Select a friendly city with an unused airport'
+                      : action === ActionType.PARADROP
+                        ? 'Select a paradrop destination'
+                        : action === ActionType.BOMBARD
+                          ? 'Select a tile containing enemy units'
+                          : [ActionType.BRIBE_UNIT, ActionType.SABOTAGE_UNIT].includes(action)
+                            ? 'Select an adjacent foreign unit'
+                            : 'Select an adjacent foreign city',
         });
         return;
       }

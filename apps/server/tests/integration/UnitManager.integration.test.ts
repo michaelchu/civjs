@@ -9,6 +9,8 @@ import {
 } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
 import * as schema from '@database/schema';
+import { ActionType } from '@app-types/shared/actions';
+import { eq } from 'drizzle-orm';
 
 describe('UnitManager - Integration Tests with Real Database', () => {
   let unitManager: UnitManager;
@@ -142,6 +144,60 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         where: (units, { eq }) => eq(units.gameId, testData.game.id),
       });
       expect(dbUnits.map(unit => unit.unitType).sort()).toEqual(['settlers', 'worker']);
+    });
+  });
+
+  describe('Milestone 14 action persistence', () => {
+    it('charges and persists a ruleset unit upgrade in a friendly city', async () => {
+      const db = getTestDatabase();
+      const [city] = await db
+        .insert(schema.cities)
+        .values({
+          gameId: testData.game.id,
+          playerId: testData.player.id,
+          name: 'Upgrade City',
+          x: 10,
+          y: 10,
+          foundedTurn: 1,
+        })
+        .returning();
+      await db
+        .update(schema.players)
+        .set({ gold: 1000 })
+        .where(eq(schema.players.id, testData.player.id));
+      unitManager = new UnitManager(
+        testData.game.id,
+        getTestDatabaseProvider(),
+        mapWidth,
+        mapHeight,
+        { getTile: () => ({ terrain: 'grassland', improvements: [] }) },
+        {
+          foundCity: async () => city.id,
+          requestPath: async () => ({ success: true }),
+          broadcastUnitMoved: () => {},
+          getCityAt: () => ({ id: city.id, playerId: testData.player.id }),
+        }
+      );
+      unitManager.setPlayerTechsProvider(() => new Set(['feudalism']));
+      const unit = await unitManager.createUnit(testData.player.id, 'warriors', 10, 10, city.id);
+
+      await expect(
+        unitManager.executeUnitAction(
+          unit.id,
+          ActionType.UPGRADE_UNIT,
+          undefined,
+          undefined,
+          testData.player.id
+        )
+      ).resolves.toMatchObject({ success: true });
+
+      const [persisted] = await db.select().from(schema.units).where(eq(schema.units.id, unit.id));
+      const [player] = await db
+        .select()
+        .from(schema.players)
+        .where(eq(schema.players.id, testData.player.id));
+      expect(persisted.unitType).toBe('pikemen');
+      expect(player.gold).toBeLessThan(1000);
     });
   });
 

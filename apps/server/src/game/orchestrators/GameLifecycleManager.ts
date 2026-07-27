@@ -313,6 +313,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       researchManager
     );
     unitManager.setExploredTilesProvider(playerId => visibilityManager.getExploredTiles(playerId));
+    unitManager.setPlayerTechsProvider(
+      playerId => new Set(researchManager.getResearchedTechs(playerId))
+    );
     const pathfindingManager = this.createPathfindingManager(game, mapManager);
 
     // Create TurnManager last since it depends on all other managers
@@ -1040,6 +1043,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
             ? cityManager.establishTradeRoute(homeCityId, destination.id, playerId)
             : false;
         },
+        executeCityUnitAction: (...args) => cityManager.executeUnitCityAction(...args),
         captureCity: async (cityId, playerId, unitId) =>
           (await cityManager.captureCity(cityId, playerId, unitId)).success,
         broadcastMapChanged: (changedGameId, mapData) =>

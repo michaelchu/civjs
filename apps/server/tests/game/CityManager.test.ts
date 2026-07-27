@@ -101,6 +101,32 @@ describe('CityManager', () => {
     });
   });
 
+  describe('Milestone 14 unit-to-city outcomes', () => {
+    it('joins population and recovers full unit shields into production', async () => {
+      const city = await cityManager.foundCity(10, 10, 'Target', 'player-123');
+      city.currentProduction = 'warriors';
+
+      await expect(cityManager.joinCity(city.id, 'player-123', 1)).resolves.toBe(true);
+      await expect(cityManager.recoverUnitShields(city.id, 'player-123', 20)).resolves.toBe(true);
+
+      expect(city.population).toBe(2);
+      expect(city.size).toBe(2);
+      expect(city.productionStock).toBe(20);
+    });
+
+    it('accepts wonder help only for a friendly Great Wonder production target', async () => {
+      const city = await cityManager.foundCity(10, 10, 'Wonder', 'player-123');
+      city.currentProduction = 'colossus';
+
+      await expect(cityManager.helpWonder(city.id, 'player-123', 50)).resolves.toBe(true);
+      expect(city.productionStock).toBe(50);
+
+      city.currentProduction = 'marketplace';
+      await expect(cityManager.helpWonder(city.id, 'player-123', 50)).resolves.toBe(false);
+      await expect(cityManager.helpWonder(city.id, 'player-456', 50)).resolves.toBe(false);
+    });
+  });
+
   describe('airport airlift usage', () => {
     it('persists one reservation per endpoint city per turn', async () => {
       const source = {

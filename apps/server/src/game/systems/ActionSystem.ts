@@ -126,6 +126,50 @@ const ACTION_DEFINITIONS: Partial<Record<ActionType, ActionDefinition>> = {
     moves_actor: ActionMovesActor.STAYS,
   },
 
+  [ActionType.CULTIVATE]: {
+    id: ActionType.CULTIVATE,
+    name: 'Cultivate',
+    description: 'Cultivate this tile into its ruleset terrain result',
+    category: ActionCategory.BUILD,
+    requirements: [{ type: 'unit_flag', value: 'canBuildImprovements', present: true }],
+    targetType: ActionTargetType.NONE,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.PLANT]: {
+    id: ActionType.PLANT,
+    name: 'Plant',
+    description: 'Plant this tile into its ruleset terrain result',
+    category: ActionCategory.BUILD,
+    requirements: [{ type: 'unit_flag', value: 'canBuildImprovements', present: true }],
+    targetType: ActionTargetType.NONE,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.BUILD_FORTRESS]: {
+    id: ActionType.BUILD_FORTRESS,
+    name: 'Build Fortress',
+    description: 'Build a fortress on this tile',
+    category: ActionCategory.BUILD,
+    requirements: [{ type: 'unit_flag', value: 'canBuildImprovements', present: true }],
+    targetType: ActionTargetType.NONE,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.BUILD_AIRBASE]: {
+    id: ActionType.BUILD_AIRBASE,
+    name: 'Build Airbase',
+    description: 'Build an airbase on this tile',
+    category: ActionCategory.BUILD,
+    requirements: [{ type: 'unit_flag', value: 'canBuildImprovements', present: true }],
+    targetType: ActionTargetType.NONE,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
   [ActionType.PILLAGE]: {
     id: ActionType.PILLAGE,
     name: 'Pillage',
@@ -173,12 +217,78 @@ const ACTION_DEFINITIONS: Partial<Record<ActionType, ActionDefinition>> = {
     moves_actor: ActionMovesActor.STAYS,
   },
 
+  [ActionType.DISBAND_UNIT_RECOVER]: {
+    id: ActionType.DISBAND_UNIT_RECOVER,
+    name: 'Disband and Recover',
+    description: 'Disband this unit and add its shields to city production',
+    category: ActionCategory.MANAGEMENT,
+    requirements: [],
+    targetType: ActionTargetType.CITY,
+    consumes_actor: true,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.JOIN_CITY]: {
+    id: ActionType.JOIN_CITY,
+    name: 'Join City',
+    description: 'Add this unit population to a friendly city',
+    category: ActionCategory.BUILD,
+    requirements: [],
+    targetType: ActionTargetType.CITY,
+    consumes_actor: true,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.CHANGE_HOME_CITY]: {
+    id: ActionType.CHANGE_HOME_CITY,
+    name: 'Change Home City',
+    description: 'Reassign support to the friendly city under this unit',
+    category: ActionCategory.MANAGEMENT,
+    requirements: [],
+    targetType: ActionTargetType.CITY,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.UPGRADE_UNIT]: {
+    id: ActionType.UPGRADE_UNIT,
+    name: 'Upgrade Unit',
+    description: 'Upgrade this unit through its ruleset obsolescence chain',
+    category: ActionCategory.MANAGEMENT,
+    requirements: [],
+    targetType: ActionTargetType.SELF,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
   [ActionType.TRADE_ROUTE]: {
     id: ActionType.TRADE_ROUTE,
     name: 'Establish Trade Route',
     description: 'Establish trade route between cities',
     category: ActionCategory.TRADE,
     requirements: [{ type: 'unit_type', value: ['caravan'], present: true }],
+    targetType: ActionTargetType.CITY,
+    consumes_actor: true,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.MARKETPLACE]: {
+    id: ActionType.MARKETPLACE,
+    name: 'Enter Marketplace',
+    description: 'Sell caravan goods for a one-time gold payment',
+    category: ActionCategory.TRADE,
+    requirements: [],
+    targetType: ActionTargetType.CITY,
+    consumes_actor: true,
+    moves_actor: ActionMovesActor.STAYS,
+  },
+
+  [ActionType.HELP_WONDER]: {
+    id: ActionType.HELP_WONDER,
+    name: 'Help Wonder',
+    description: 'Contribute this unit shield value to a Great Wonder',
+    category: ActionCategory.TRADE,
+    requirements: [],
     targetType: ActionTargetType.CITY,
     consumes_actor: true,
     moves_actor: ActionMovesActor.STAYS,
@@ -290,6 +400,7 @@ export class ActionSystem {
       targetX: number,
       targetY: number
     ) => Promise<boolean>;
+    getCityAt?: (x: number, y: number) => { id: string; playerId: string } | null;
   };
 
   constructor(
@@ -314,6 +425,7 @@ export class ActionSystem {
         targetX: number,
         targetY: number
       ) => Promise<boolean>;
+      getCityAt?: (x: number, y: number) => { id: string; playerId: string } | null;
     },
     private readonly mapManager?: Pick<MapManager, 'getTile'>
   ) {
@@ -385,6 +497,10 @@ export class ActionSystem {
     [ActionType.BUILD_RAILROAD, unit => this.canBuildRailroad(unit)],
     [ActionType.BUILD_IRRIGATION, unit => this.canBuildIrrigation(unit)],
     [ActionType.BUILD_MINE, unit => this.canBuildMine(unit)],
+    [ActionType.CULTIVATE, unit => this.canCultivate(unit)],
+    [ActionType.PLANT, unit => this.canPlant(unit)],
+    [ActionType.BUILD_FORTRESS, unit => this.canBuildBase(unit, 'Fortress')],
+    [ActionType.BUILD_AIRBASE, unit => this.canBuildBase(unit, 'Airbase')],
     [ActionType.PILLAGE, unit => this.canPillage(unit)],
     [ActionType.TRANSFORM_TERRAIN, unit => this.canTransformTerrain(unit)],
     [ActionType.CLEAN_POLLUTION, unit => this.canCleanPollution(unit)],
@@ -578,6 +694,45 @@ export class ActionSystem {
     );
   }
 
+  private canCultivate(unit: Unit): boolean {
+    const tile = this.mapManager?.getTile(unit.x, unit.y);
+    const terrain = tile && rulesetLoader.getTerrain(tile.terrain);
+    return Boolean(
+      this.canBuildImprovement(unit) &&
+        unit.movementLeft > 0 &&
+        terrain?.cultivateTo &&
+        terrain.cultivateTime > 0
+    );
+  }
+
+  private canPlant(unit: Unit): boolean {
+    const tile = this.mapManager?.getTile(unit.x, unit.y);
+    const terrain = tile && rulesetLoader.getTerrain(tile.terrain);
+    return Boolean(
+      this.canBuildImprovement(unit) &&
+        unit.movementLeft > 0 &&
+        terrain?.plantTo &&
+        terrain.plantTime > 0
+    );
+  }
+
+  private canBuildBase(unit: Unit, extraName: 'Fortress' | 'Airbase'): boolean {
+    const tile = this.mapManager?.getTile(unit.x, unit.y);
+    const unitType = getUnitType(unit.unitTypeId);
+    if (
+      !tile ||
+      !unitType ||
+      !this.canBuildImprovement(unit) ||
+      unit.movementLeft <= 0 ||
+      tile.improvements.some(extra => extra.toLowerCase() === extraName.toLowerCase())
+    ) {
+      return false;
+    }
+    if (this.gameManagerCallback?.getCityAt?.(unit.x, unit.y)) return false;
+    if (extraName === 'Airbase' && !unitType.flags?.includes('Airbase')) return false;
+    return !['ocean', 'deep_ocean', 'coast', 'lake'].includes(tile.terrain);
+  }
+
   /**
    * Check if unit can pillage
    * @reference freeciv-web/javascript/unit.js get_what_can_unit_pillage_from()
@@ -698,6 +853,10 @@ export class ActionSystem {
     [ActionType.BUILD_RAILROAD, async unit => this.executeBuildRailroad(unit)],
     [ActionType.BUILD_IRRIGATION, async unit => this.executeBuildIrrigation(unit)],
     [ActionType.BUILD_MINE, async unit => this.executeBuildMine(unit)],
+    [ActionType.CULTIVATE, async unit => this.executeWorkerActivity(unit, 'cultivating')],
+    [ActionType.PLANT, async unit => this.executeWorkerActivity(unit, 'planting')],
+    [ActionType.BUILD_FORTRESS, async unit => this.executeWorkerActivity(unit, 'fortress')],
+    [ActionType.BUILD_AIRBASE, async unit => this.executeWorkerActivity(unit, 'airbase')],
     [ActionType.PILLAGE, async unit => this.executePillage(unit)],
     [ActionType.TRANSFORM_TERRAIN, async unit => this.executeTransformTerrain(unit)],
     [ActionType.CLEAN_POLLUTION, async unit => this.executeCleanPollution(unit)],
@@ -1200,6 +1359,13 @@ export class ActionSystem {
     return {
       success: true,
       message: `${unit.unitTypeId} started building mine on ${terrainType}`,
+    };
+  }
+
+  private async executeWorkerActivity(unit: Unit, activity: string): Promise<ActionResult> {
+    return {
+      success: true,
+      message: `${unit.unitTypeId} started ${activity}`,
     };
   }
 

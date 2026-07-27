@@ -8,6 +8,10 @@ the server is authoritative. Science and culture contribute to the final score
 but are not advertised as victory conditions. The supported classic covert
 surface includes embassies, city investigation, technology theft, city and
 unit sabotage, poisoning, bribery, and incitement.
+The supported unit-action surface also includes caravan marketplace/Wonder
+outcomes, city joining and home reassignment, treasury-backed upgrades,
+shield-recovery disbanding, and ruleset-driven cultivate, plant, fortress, and
+airbase activities.
 
 ## Pre-deploy
 
@@ -52,14 +56,15 @@ the new nullable columns.
 | Game configuration, map, timer, pause state                         | `games`                                    | `GameInstanceRecoveryService.test.ts`, `MapManager.integration.test.ts` |
 | Players, economy, government, technology IDs, visibility, diplomacy | `players`                                  | `GameManager.integration.test.ts`, manager and handler unit suites      |
 | Cities, citizens, production, buildings, trade, governor state      | `cities`                                   | `CityManager.integration.test.ts`, city recovery/economy suites         |
-| Units, health, movement, orders, activities, transport              | `units`                                    | `UnitManager.integration.test.ts`, `UnitManager.test.ts`                |
+| Units, health, movement, orders, activities, transport, upgrades    | `units`                                    | `UnitManager.integration.test.ts`, `UnitManager.test.ts`                |
 | Research progress                                                   | `research` and player technology IDs       | `ResearchManager.test.ts`                                               |
 | Turn audit, actions, events, phase metrics                          | `game_turns`, `turn_events`, `turn_phases` | `TurnManager.test.ts`                                                   |
 | Final scores and report                                             | `players.score`, `games.end_game_report`   | `EndGameService.test.ts`                                                |
 
 Ownership, treasury, population, health, and production changes caused by
-covert actions use these same authoritative player, city, and unit records.
-Their rule and persistence boundaries are covered by
+covert, caravan, and unit-management actions use these same authoritative
+player, city, and unit records. Worker terrain/base completion also rewrites
+the persisted game map. Their rule and persistence boundaries are covered by
 `GameManager.espionage.test.ts`, `CityManager.test.ts`, and
 `UnitManager.test.ts`.
 

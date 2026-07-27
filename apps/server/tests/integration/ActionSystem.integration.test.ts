@@ -385,6 +385,12 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
         ActionType.AIRLIFT,
         ActionType.AUTO_EXPLORE,
         ActionType.AUTO_SETTLER,
+        ActionType.MARKETPLACE,
+        ActionType.HELP_WONDER,
+        ActionType.JOIN_CITY,
+        ActionType.DISBAND_UNIT_RECOVER,
+        ActionType.CHANGE_HOME_CITY,
+        ActionType.UPGRADE_UNIT,
       ]);
       const directExecutors = (actionSystem as any).actionExecutors as Map<ActionType, unknown>;
 

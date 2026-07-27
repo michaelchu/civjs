@@ -2,8 +2,8 @@
 import { randomUUID } from 'crypto';
 import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
-import { cities, games } from '@database/schema';
-import { eq } from 'drizzle-orm';
+import { cities, games, players } from '@database/schema';
+import { eq, sql } from 'drizzle-orm';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import {
   SpecialistType,
@@ -25,6 +25,7 @@ import { Server as SocketServer } from 'socket.io';
 import type { TaxRates } from '@game/systems/Economic/types/EconomicTypes';
 import { DEFAULT_TAX_RATES } from '@game/systems/Economic/constants/EconomicConstants';
 import { UnitSupportManager, type UnitSupportData } from '@game/managers/UnitSupportManager';
+import { ActionType, type ActionResult } from '@app-types/shared/actions';
 
 // Import the specialized services
 import { CityManagementService } from '@game/services/CityManagementService';
@@ -1648,6 +1649,132 @@ export class CityManager {
 
   public getCity(cityId: string): CityState | undefined {
     return this.cities.get(cityId);
+  }
+
+  /**
+   * Consume a population-adding unit in a friendly city.
+   * @reference reference/freeciv/server/citytools.c unit_do_add_to_city()
+   */
+  public async joinCity(cityId: string, playerId: string, population: number): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city || city.playerId !== playerId || population <= 0) return false;
+    city.size += population;
+    city.population = city.size;
+    this.calculateCityOutputs(city.id);
+    this.applyCityHappiness(city.id);
+    await this.saveCityToDatabase(city);
+    return true;
+  }
+
+  /**
+   * Add a caravan's full shield value to a friendly Great Wonder build.
+   * @reference reference/freeciv/server/unithand.c unit_do_help_build()
+   */
+  public async helpWonder(cityId: string, playerId: string, shields: number): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city || city.playerId !== playerId || !city.currentProduction || shields <= 0) {
+      return false;
+    }
+    const building = rulesetBuildingsService.getBuildingTypes()[city.currentProduction];
+    if (building?.genus !== 'GreatWonder') return false;
+    city.productionStock = (city.productionStock ?? city.shieldStock ?? 0) + shields;
+    city.shieldStock = city.productionStock;
+    await this.saveCityToDatabase(city);
+    return true;
+  }
+
+  /**
+   * Recover a disbanded unit's full ruleset shield value in a friendly city.
+   */
+  public async recoverUnitShields(
+    cityId: string,
+    playerId: string,
+    shields: number
+  ): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city || city.playerId !== playerId || !city.currentProduction || shields <= 0) {
+      return false;
+    }
+    city.productionStock = (city.productionStock ?? city.shieldStock ?? 0) + shields;
+    city.shieldStock = city.productionStock;
+    await this.saveCityToDatabase(city);
+    return true;
+  }
+
+  /**
+   * Sell caravan goods for the classic one-time distance/trade bonus.
+   * @reference reference/freeciv/common/traderoutes.c
+   * get_caravan_enter_city_trade_bonus()
+   */
+  public async enterMarketplace(
+    homeCityId: string,
+    destinationCityId: string,
+    playerId: string
+  ): Promise<number | null> {
+    const home = this.cities.get(homeCityId);
+    const destination = this.cities.get(destinationCityId);
+    if (!home || !destination || home.playerId !== playerId || home.id === destination.id) {
+      return null;
+    }
+    const distance = Math.max(Math.abs(home.x - destination.x), Math.abs(home.y - destination.y));
+    const mapData = this.mapManager?.getMapData();
+    const nativeWidth = Math.max(mapData?.width ?? 80, mapData?.height ?? 50);
+    const weightedDistance = Math.floor(
+      (50 * distance + 50 * Math.floor((distance * 40) / nativeWidth)) / 100
+    );
+    const revenue = Math.ceil(
+      ((weightedDistance + 10) * ((home.tradePerTurn ?? 0) + (destination.tradePerTurn ?? 0))) / 24
+    );
+    await this.databaseProvider
+      .getDatabase()
+      .update(players)
+      .set({ gold: sql`${players.gold} + ${revenue}` })
+      .where(eq(players.id, playerId));
+    return revenue;
+  }
+
+  public async executeUnitCityAction(
+    actionType: ActionType,
+    playerId: string,
+    unitTypeId: string,
+    homeCityId: string | undefined,
+    targetX: number,
+    targetY: number
+  ): Promise<ActionResult> {
+    const city = this.getCityAt(targetX, targetY);
+    const unitType = UNIT_TYPES[unitTypeId];
+    if (!city || !unitType) return { success: false, message: 'Target city not found' };
+
+    let success = false;
+    let message = '';
+    switch (actionType) {
+      case ActionType.JOIN_CITY:
+        success = await this.joinCity(city.id, playerId, unitType.pop_cost ?? 1);
+        message = 'Unit joined the city';
+        break;
+      case ActionType.HELP_WONDER:
+        success = await this.helpWonder(city.id, playerId, unitType.cost);
+        message = `Added ${unitType.cost} shields to the wonder`;
+        break;
+      case ActionType.DISBAND_UNIT_RECOVER:
+        success = await this.recoverUnitShields(city.id, playerId, unitType.cost);
+        message = `Recovered ${unitType.cost} shields`;
+        break;
+      case ActionType.MARKETPLACE: {
+        const revenue = homeCityId
+          ? await this.enterMarketplace(homeCityId, city.id, playerId)
+          : null;
+        success = revenue !== null;
+        message = `Sold goods for ${revenue ?? 0} gold`;
+        break;
+      }
+    }
+    return {
+      success,
+      message: success ? message : `Cannot perform ${actionType} in this city`,
+      unitDestroyed: success,
+      cityId: city.id,
+    };
   }
 
   public getAllCities(): CityState[] {

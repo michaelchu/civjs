@@ -257,6 +257,31 @@ describe('CivJSAIAdapter compatibility contract', () => {
     );
   });
 
+  it('uses a legal Milestone 14 city-unit command through UnitManager', async () => {
+    const scenario = createScenario();
+    for (const id of ['settler', 'worker', 'scout', 'enemy']) scenario.units.delete(id);
+    scenario.game.researchManager.getPlayerResearch = () => ({ currentTech: 'alphabet' });
+    (scenario.game.cityManager as any).getPlayerCities = () => [
+      { id: 'capital', currentProduction: 'warriors', goldPerTurn: 0, buildings: [] },
+    ];
+    (scenario.game.cityManager as any).getCityAt = () => ({ id: 'capital', playerId: 'ai' });
+    (scenario.game.unitManager as any).canUnitPerformAction = jest.fn(
+      (_unitId: string, action: ActionType) => action === ActionType.UPGRADE_UNIT
+    );
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
+
+    await expect(
+      new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn('game', scenario.game as any)
+    ).resolves.toBe(1);
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith(
+      'warrior',
+      ActionType.UPGRADE_UNIT,
+      undefined,
+      undefined,
+      'ai'
+    );
+  });
+
   it('queues one expansion unit and otherwise falls back to deterministic defense production', async () => {
     const scenario = createScenario();
     scenario.game.cityManager.getPlayerCities = () =>

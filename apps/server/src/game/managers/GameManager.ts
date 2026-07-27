@@ -1338,6 +1338,14 @@ export class GameManager {
     this.gameBroadcastManager.broadcastUnitDestroyed(gameId, unit);
   }
 
+  public broadcastCityData(gameId: string): void {
+    this.gameBroadcastManager.broadcastCityData(gameId);
+  }
+
+  public syncGameStateToPlayer(gameId: string, playerId: string): void {
+    this.gameBroadcastManager.syncGameStateToPlayer(gameId, playerId);
+  }
+
   /**
    * Get count of connected players for a game
    */

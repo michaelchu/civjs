@@ -1,8 +1,8 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 13 working tree (2026-07-27)
-**Verification method:** source-tree audit, 885 passing unit tests (61 client,
-824 server), 6 passing desktop/mobile Chromium tests, 152 passing assertions
+**Verified against:** Milestone 14 working tree (2026-07-27)
+**Verification method:** source-tree audit, 894 passing unit tests (62 client,
+832 server), 6 passing desktop/mobile Chromium tests, 153 passing assertions
 across all 13 PostgreSQL integration suites, release-limit map/turn soaks,
 formatting, lint, production type checks, and production builds. Local
 integration verification is reproducible with
@@ -355,7 +355,7 @@ existing conquest evaluator rather than maintaining a second rules engine.
 
 An isolated PostgreSQL 16 service now runs every database-backed suite locally
 and in CI. The release job executes the browser flow and the real Socket.IO
-restart/reconnect flow in one gate. All 13 integration suites pass with 152
+restart/reconnect flow in one gate. All 13 integration suites pass with 153
 assertions. Release-limit evidence generates an 80×50 map for eight
 participants and processes 100 eight-participant turns without state drift.
 The database audit also exposed and fixed city assignment capacity: the free
@@ -365,14 +365,35 @@ Evidence includes `CivJSAIAdapter.test.ts`, `SocketGameFlow.integration.test.ts`
 `MapManager.test.ts`, `TurnManager.test.ts`, `docker-compose.test.yml`, the CI
 PostgreSQL service, and [`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md).
 
+## Milestone 14 — complete
+
+Every classic caravan, city-unit, worker-extra, and unit-management entry from
+the executable inventory now has an authoritative command. Caravans can sell
+goods or contribute their full shield value to a Great Wonder. Units can join
+friendly cities, reassign home support, follow their ruleset upgrade chain
+with the classic treasury cost, or disband into city production.
+
+Cultivate and plant use the loaded classic terrain results and activity times.
+Fortress and airbase construction use loaded extra build times, unit flags,
+terrain class, city-center exclusion, and Construction/Radio requirements.
+All four are persisted as multi-turn unit orders and committed to
+authoritative map storage on completion. Capability-derived client menus,
+city target flows, recovered-game wiring, and the bounded AI use the same
+commands.
+
+All Milestone 14 entries in `CLASSIC_ACTION_COVERAGE` are now `implemented`.
+Evidence includes `UnitManager.test.ts`, `CityManager.test.ts`,
+`ClassicActionInventory.test.ts`, `ActionSystem.goto.test.ts`,
+`UnitContextMenu.specialActions.test.tsx`, and the real-PostgreSQL unit-upgrade
+scenario in `UnitManager.integration.test.ts`.
+
 ## Partial or incomplete areas
 
 These are confirmed by the post-Milestone 8 audit and are now scheduled in
 [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md):
 
-- Enabled caravan, city/unit-management, worker-extra, nuclear/combat,
-  hut/extras, and civil-war outcomes enumerated by the executable audit remain
-  scheduled (Milestones 14–15).
+- Enabled nuclear/combat, hut/extras, and civil-war outcomes enumerated by the
+  executable audit remain scheduled in Milestone 15.
 
 Full Freeciv default-AI parity remains outside the agreed target; the supported
 CivJS-specific behavior and deviations are now explicit in

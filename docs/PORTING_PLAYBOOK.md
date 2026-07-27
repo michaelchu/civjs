@@ -447,7 +447,7 @@ the free city center does not consume a citizen assignment.
 `MapManager.test.ts` generates the supported 80×50/eight-participant map, and
 `TurnManager.test.ts` processes 100 eight-participant turns without drift.
 
-### Milestone 14 — Enabled city, caravan, worker, and unit-management actions
+### Milestone 14 — Enabled city, caravan, worker, and unit-management actions — complete
 
 **Outcome:** the enabled classic outcomes exposed by the Milestone 11 inventory
 for caravans, cities, workers, and unit management are authoritative and
@@ -463,6 +463,18 @@ player-usable.
 
 **Exit criteria:** every Milestone 14 entry in `CLASSIC_ACTION_COVERAGE` moves
 from `scheduled` to `implemented` or an evidence-backed `inapplicable` state.
+
+**Completion evidence:** marketplace revenue, Great Wonder help, population
+joining, home-city reassignment, ruleset-chain upgrades, and production-shield
+recovery execute through `UnitManager` and `CityManager`, consume actors where
+classic does, and persist treasury, city, or unit changes. Cultivate, plant,
+fortress, and airbase are reload-safe multi-turn activities driven by loaded
+terrain and extra data. `RulesetActionsService` advertises only statically
+capable actors, the client provides the corresponding build and city-target
+flows, and `CivJSAIAdapter` can select legal actions through the same manager
+surface. The executable inventory contains no remaining Milestone 14
+`scheduled` entry. Unit, client, action-contract, recovery wiring, and
+PostgreSQL upgrade tests pin the behavior.
 
 ### Milestone 15 — Enabled combat consequences, huts, and extras
 

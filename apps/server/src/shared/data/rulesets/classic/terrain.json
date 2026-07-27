@@ -134,6 +134,10 @@
       "irrigationTime": 0,
       "miningShieldIncr": 0,
       "miningTime": 0,
+      "cultivateTo": "plains",
+      "cultivateTime": 5,
+      "plantTo": "swamp",
+      "plantTime": 15,
       "transformTo": "plains",
       "transformTime": 24,
       "canHaveRiver": true
@@ -158,6 +162,10 @@
       "irrigationTime": 0,
       "miningShieldIncr": 0,
       "miningTime": 0,
+      "cultivateTo": "grassland",
+      "cultivateTime": 15,
+      "plantTo": "forest",
+      "plantTime": 15,
       "transformTo": "forest",
       "transformTime": 24,
       "canHaveRiver": true
@@ -180,6 +188,10 @@
       "irrigationTime": 0,
       "miningShieldIncr": 0,
       "miningTime": 0,
+      "cultivateTo": "grassland",
+      "cultivateTime": 15,
+      "plantTo": "forest",
+      "plantTime": 15,
       "transformTo": "grassland",
       "transformTime": 24,
       "canHaveRiver": true
@@ -203,6 +215,8 @@
       "irrigationTime": 5,
       "miningShieldIncr": 0,
       "miningTime": 0,
+      "plantTo": "forest",
+      "plantTime": 10,
       "transformTo": "forest",
       "transformTime": 24,
       "canHaveRiver": true
@@ -226,6 +240,8 @@
       "irrigationTime": 5,
       "miningShieldIncr": 0,
       "miningTime": 0,
+      "plantTo": "forest",
+      "plantTime": 15,
       "transformTo": "forest",
       "transformTime": 24,
       "canHaveRiver": true

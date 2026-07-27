@@ -38,6 +38,16 @@ const CLASSIC_UNIT_ACTIONS: ReadonlyArray<{
     upstream: ['Paradrop Unit Enter', 'Paradrop Unit Enter Conquer'],
   },
   { id: ActionType.AIRLIFT, upstream: ['Airlift Unit'] },
+  { id: ActionType.MARKETPLACE, upstream: ['Enter Marketplace'] },
+  { id: ActionType.HELP_WONDER, upstream: ['Help Wonder'] },
+  { id: ActionType.DISBAND_UNIT_RECOVER, upstream: ['Disband Unit Recover'] },
+  { id: ActionType.JOIN_CITY, upstream: ['Join City'] },
+  { id: ActionType.CHANGE_HOME_CITY, upstream: ['Home City'] },
+  { id: ActionType.UPGRADE_UNIT, upstream: ['Upgrade Unit'] },
+  { id: ActionType.CULTIVATE, upstream: ['Cultivate'] },
+  { id: ActionType.PLANT, upstream: ['Plant'] },
+  { id: ActionType.BUILD_FORTRESS, upstream: ['Build Base'] },
+  { id: ActionType.BUILD_AIRBASE, upstream: ['Build Base'] },
 ];
 
 /**
@@ -71,13 +81,15 @@ export class RulesetActionsService {
   getUnitActions(unitType: UnitType): ActionType[] {
     const flags = new Set(unitType.flags ?? []);
     const unitClass = unitType.rulesetUnitClass;
-    const actions = CLASSIC_UNIT_ACTIONS.filter(action =>
-      action.upstream.some(upstream =>
+    const actions = CLASSIC_UNIT_ACTIONS.filter(action => {
+      if (action.id === ActionType.BUILD_AIRBASE && !flags.has('Airbase')) return false;
+      if (action.id === ActionType.UPGRADE_UNIT && !unitType.obsolete_by) return false;
+      return action.upstream.some(upstream =>
         this.loader
           .getActionEnablersFor(upstream, this.rulesetName)
           .some(enabler => this.matchesStaticActorFacts(enabler, flags, unitClass))
-      )
-    ).map(action => action.id);
+      );
+    }).map(action => action.id);
 
     // Classic has bombard range settings but no unit with bombard_rate. Keep
     // the generic outcome available to rulesets that define a capable unit.

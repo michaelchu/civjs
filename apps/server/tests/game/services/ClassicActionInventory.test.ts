@@ -43,4 +43,21 @@ describe('classic action inventory', () => {
       )
     ).toBe(true);
   });
+
+  it('closes every Milestone 14 inventory entry and advertises capable actors', () => {
+    expect(
+      Object.values(CLASSIC_ACTION_COVERAGE).filter(coverage => coverage.milestone === 14)
+    ).toEqual([]);
+
+    const service = new RulesetActionsService();
+    expect(service.getUnitActions(UNIT_TYPES.caravan)).toEqual(
+      expect.arrayContaining([ActionType.MARKETPLACE, ActionType.HELP_WONDER])
+    );
+    expect(service.getUnitActions(UNIT_TYPES.settlers)).toContain(ActionType.JOIN_CITY);
+    expect(service.getUnitActions(UNIT_TYPES.worker)).toEqual(
+      expect.arrayContaining([ActionType.CULTIVATE, ActionType.PLANT, ActionType.BUILD_FORTRESS])
+    );
+    expect(service.getUnitActions(UNIT_TYPES.worker)).toContain(ActionType.BUILD_AIRBASE);
+    expect(service.getUnitActions(UNIT_TYPES.engineers)).toContain(ActionType.BUILD_AIRBASE);
+  });
 });

@@ -100,6 +100,8 @@ describe('ruleset-backed city values', () => {
         irrigationTime: 5,
         miningShieldIncr: 0,
         miningTime: 0,
+        cultivateTime: 0,
+        plantTime: 0,
       }),
       getCivstyle: () => ({ ...baseCivstyle, food_cost: 3 }),
     });

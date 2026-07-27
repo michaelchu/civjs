@@ -2,7 +2,7 @@ import { DatabaseProvider } from '@database';
 import { units } from '@database/schema/units';
 import { games } from '@database/schema/games';
 import { players } from '@database/schema/players';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { logger } from '@utils/logger';
 import { getTerrainMovementCost, SINGLE_MOVE } from '@game/constants/MovementConstants';
 import { UNIT_TYPES, getUnitType, UnitType } from '@game/constants/UnitConstants';
@@ -58,6 +58,10 @@ export interface UnitOrder {
     | 'patrol'
     | 'irrigate'
     | 'mine'
+    | 'cultivate'
+    | 'plant'
+    | 'fortress'
+    | 'airbase'
     | 'road'
     | 'railroad'
     | 'transform'
@@ -85,6 +89,10 @@ export interface UnitActivity {
     | 'building_railroad'
     | 'irrigating'
     | 'mining'
+    | 'cultivating'
+    | 'planting'
+    | 'building_fortress'
+    | 'building_airbase'
     | 'pillaging'
     | 'transforming'
     | 'cleaning_pollution'
@@ -156,8 +164,17 @@ export class UnitManager {
       targetY: number
     ) => Promise<boolean>;
     captureCity?: (cityId: string, playerId: string, unitId: string) => Promise<boolean>;
+    executeCityUnitAction?: (
+      actionType: ActionType,
+      playerId: string,
+      unitTypeId: string,
+      homeCityId: string | undefined,
+      targetX: number,
+      targetY: number
+    ) => Promise<ActionResult>;
     broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
   };
+  private playerTechsProvider: (playerId: string) => Set<string> = () => new Set();
 
   constructor(
     gameId: string,
@@ -202,6 +219,14 @@ export class UnitManager {
         targetY: number
       ) => Promise<boolean>;
       captureCity?: (cityId: string, playerId: string, unitId: string) => Promise<boolean>;
+      executeCityUnitAction?: (
+        actionType: ActionType,
+        playerId: string,
+        unitTypeId: string,
+        homeCityId: string | undefined,
+        targetX: number,
+        targetY: number
+      ) => Promise<ActionResult>;
       broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
     },
     effectsManager?: EffectsManager,
@@ -219,6 +244,10 @@ export class UnitManager {
 
   public setCurrentTurnProvider(provider: () => number): void {
     this.currentTurnProvider = provider;
+  }
+
+  public setPlayerTechsProvider(provider: (playerId: string) => Set<string>): void {
+    this.playerTechsProvider = provider;
   }
 
   public setExploredTilesProvider(provider: (playerId: string) => Set<string>): void {
@@ -1282,6 +1311,28 @@ export class UnitManager {
     if (actionType === ActionType.GOTO) {
       return this.executeAuthoritativeGoto(unit, targetX, targetY);
     }
+    if (
+      [
+        ActionType.MARKETPLACE,
+        ActionType.HELP_WONDER,
+        ActionType.JOIN_CITY,
+        ActionType.DISBAND_UNIT_RECOVER,
+      ].includes(actionType)
+    ) {
+      return this.executeCityUnitAction(unit, actionType, targetX, targetY);
+    }
+    if (actionType === ActionType.CHANGE_HOME_CITY) {
+      return this.executeChangeHomeCity(unit, targetX, targetY);
+    }
+    if (actionType === ActionType.UPGRADE_UNIT) {
+      return this.executeUpgradeUnit(unit);
+    }
+    if (
+      [ActionType.BUILD_FORTRESS, ActionType.BUILD_AIRBASE].includes(actionType) &&
+      !this.canUnitPerformAction(unit.id, actionType, targetX, targetY)
+    ) {
+      return { success: false, message: `Unit cannot perform ${actionType}` };
+    }
 
     // Execute action through ActionSystem
     const result = await this.actionSystem.executeAction(unit, actionType, targetX, targetY);
@@ -1292,6 +1343,136 @@ export class UnitManager {
     }
 
     return result;
+  }
+
+  private async executeCityUnitAction(
+    unit: Unit,
+    actionType: ActionType,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    if (targetX === undefined || targetY === undefined) {
+      return { success: false, message: 'A target city is required' };
+    }
+    if (!this.canPerformCityUnitAction(unit, actionType, targetX, targetY)) {
+      return { success: false, message: `Unit cannot perform ${actionType}` };
+    }
+    const result = await this.gameManagerCallback!.executeCityUnitAction!(
+      actionType,
+      unit.playerId,
+      unit.unitTypeId,
+      unit.homeCityId,
+      targetX,
+      targetY
+    );
+    if (result.success && result.unitDestroyed) {
+      await this.destroyUnit(unit.id);
+    }
+    return result;
+  }
+
+  private canPerformCityUnitAction(
+    unit: Unit,
+    actionType: ActionType,
+    targetX: number,
+    targetY: number
+  ): boolean {
+    const city = this.gameManagerCallback?.getCityAt?.(targetX, targetY);
+    const unitType = UNIT_TYPES[unit.unitTypeId];
+    if (!city || !unitType || !this.gameManagerCallback?.executeCityUnitAction) return false;
+    if (unit.x !== targetX || unit.y !== targetY) return false;
+    if (actionType === ActionType.MARKETPLACE) {
+      return Boolean(unit.homeCityId && unitType.flags?.includes('TradeRoute'));
+    }
+    if (city.playerId !== unit.playerId) return false;
+    if (actionType === ActionType.HELP_WONDER) {
+      return Boolean(unitType.flags?.includes('HelpWonder'));
+    }
+    if (actionType === ActionType.JOIN_CITY) {
+      return Boolean(unitType.flags?.includes('AddToCity') && unit.movementLeft > 0);
+    }
+    return actionType === ActionType.DISBAND_UNIT_RECOVER;
+  }
+
+  private async executeChangeHomeCity(
+    unit: Unit,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    const city =
+      targetX === undefined || targetY === undefined
+        ? null
+        : this.gameManagerCallback?.getCityAt?.(targetX, targetY);
+    const unitType = UNIT_TYPES[unit.unitTypeId];
+    if (
+      !city ||
+      city.playerId !== unit.playerId ||
+      unit.x !== targetX ||
+      unit.y !== targetY ||
+      !unit.homeCityId ||
+      unitType.flags?.includes('NoHome')
+    ) {
+      return { success: false, message: 'Unit cannot change home city' };
+    }
+    unit.homeCityId = city.id;
+    unit.movementLeft = 0;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ homeCityId: city.id, movementPoints: '0' })
+      .where(eq(units.id, unit.id));
+    return { success: true, message: `Home city changed to ${city.id}` };
+  }
+
+  private async executeUpgradeUnit(unit: Unit): Promise<ActionResult> {
+    const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
+    const from = UNIT_TYPES[unit.unitTypeId];
+    const to = from ? this.getBestUpgrade(from, unit.playerId) : undefined;
+    if (!city || city.playerId !== unit.playerId || !to) {
+      return { success: false, message: 'Unit cannot be upgraded here' };
+    }
+    const missingShields = Math.max(0, to.cost - from.cost);
+    const goldCost = 2 * missingShields + Math.floor((missingShields * missingShields) / 20);
+    const db = this.databaseProvider.getDatabase();
+    const [player] = await db
+      .select({ gold: players.gold })
+      .from(players)
+      .where(and(eq(players.id, unit.playerId), eq(players.gameId, this.gameId)));
+    if (!player || player.gold < goldCost) {
+      return { success: false, message: `Upgrade requires ${goldCost} gold` };
+    }
+    unit.unitTypeId = to.id;
+    unit.movementLeft = 0;
+    await db
+      .update(players)
+      .set({ gold: sql`${players.gold} - ${goldCost}` })
+      .where(and(eq(players.id, unit.playerId), eq(players.gameId, this.gameId)));
+    await db
+      .update(units)
+      .set({
+        unitType: to.id,
+        attackStrength: to.attack ?? 0,
+        defenseStrength: to.defense ?? 0,
+        movementPoints: '0',
+        maxMovementPoints: String(to.movement * SINGLE_MOVE),
+      })
+      .where(eq(units.id, unit.id));
+    return { success: true, message: `${from.name} upgraded to ${to.name} for ${goldCost} gold` };
+  }
+
+  private getBestUpgrade(from: UnitType, playerId: string): UnitType | undefined {
+    const techs = this.playerTechsProvider(playerId);
+    const visited = new Set([from.id]);
+    let candidate = from;
+    let best: UnitType | undefined;
+    while (candidate.obsolete_by && !visited.has(candidate.obsolete_by)) {
+      visited.add(candidate.obsolete_by);
+      const next = UNIT_TYPES[candidate.obsolete_by];
+      if (!next) break;
+      if (!next.requiredTech || techs.has(next.requiredTech)) best = next;
+      candidate = next;
+    }
+    return best;
   }
 
   private canParadrop(unit: Unit, targetX?: number, targetY?: number): boolean {
@@ -1701,6 +1882,46 @@ export class UnitManager {
     if (actionType === ActionType.AUTO_SETTLER) {
       return UNIT_TYPES[unit.unitTypeId].canBuildImprovements;
     }
+    if (
+      [
+        ActionType.MARKETPLACE,
+        ActionType.HELP_WONDER,
+        ActionType.JOIN_CITY,
+        ActionType.DISBAND_UNIT_RECOVER,
+      ].includes(actionType)
+    ) {
+      return (
+        targetX !== undefined &&
+        targetY !== undefined &&
+        this.canPerformCityUnitAction(unit, actionType, targetX, targetY)
+      );
+    }
+    if (actionType === ActionType.CHANGE_HOME_CITY) {
+      const city =
+        targetX === undefined || targetY === undefined
+          ? null
+          : this.gameManagerCallback?.getCityAt?.(targetX, targetY);
+      return Boolean(
+        city &&
+          city.playerId === unit.playerId &&
+          unit.x === targetX &&
+          unit.y === targetY &&
+          unit.homeCityId &&
+          !UNIT_TYPES[unit.unitTypeId].flags?.includes('NoHome')
+      );
+    }
+    if (actionType === ActionType.UPGRADE_UNIT) {
+      const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
+      const from = UNIT_TYPES[unit.unitTypeId];
+      const to = from ? this.getBestUpgrade(from, unit.playerId) : undefined;
+      return Boolean(city && city.playerId === unit.playerId && to);
+    }
+    if (actionType === ActionType.BUILD_FORTRESS) {
+      if (!this.playerTechsProvider(unit.playerId).has('construction')) return false;
+    }
+    if (actionType === ActionType.BUILD_AIRBASE) {
+      if (!this.playerTechsProvider(unit.playerId).has('radio')) return false;
+    }
 
     return this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY);
   }
@@ -1758,6 +1979,10 @@ export class UnitManager {
       case ActionType.BUILD_RAILROAD:
       case ActionType.BUILD_IRRIGATION:
       case ActionType.BUILD_MINE:
+      case ActionType.CULTIVATE:
+      case ActionType.PLANT:
+      case ActionType.BUILD_FORTRESS:
+      case ActionType.BUILD_AIRBASE:
       case ActionType.PILLAGE:
       case ActionType.TRANSFORM_TERRAIN:
       case ActionType.CLEAN_POLLUTION:
@@ -1838,6 +2063,10 @@ export class UnitManager {
       [ActionType.BUILD_RAILROAD]: 'railroad',
       [ActionType.BUILD_IRRIGATION]: 'irrigate',
       [ActionType.BUILD_MINE]: 'mine',
+      [ActionType.CULTIVATE]: 'cultivate',
+      [ActionType.PLANT]: 'plant',
+      [ActionType.BUILD_FORTRESS]: 'fortress',
+      [ActionType.BUILD_AIRBASE]: 'airbase',
       [ActionType.PILLAGE]: 'pillage',
       [ActionType.TRANSFORM_TERRAIN]: 'transform',
       [ActionType.CLEAN_POLLUTION]: 'cleanPollution',
@@ -1906,6 +2135,10 @@ export class UnitManager {
       case 'railroad':
       case 'irrigate':
       case 'mine':
+      case 'cultivate':
+      case 'plant':
+      case 'fortress':
+      case 'airbase':
       case 'transform':
       case 'pillage':
       case 'cleanPollution':
@@ -1944,6 +2177,10 @@ export class UnitManager {
       'railroad',
       'irrigate',
       'mine',
+      'cultivate',
+      'plant',
+      'fortress',
+      'airbase',
       'transform',
       'pillage',
       'cleanPollution',
@@ -2147,10 +2384,12 @@ export class UnitManager {
       [ActionType.BUILD_ROAD, 'road'],
       [ActionType.BUILD_IRRIGATION, 'irrigate'],
       [ActionType.BUILD_MINE, 'mine'],
+      [ActionType.CULTIVATE, 'cultivate'],
+      [ActionType.PLANT, 'plant'],
+      [ActionType.BUILD_FORTRESS, 'fortress'],
+      [ActionType.BUILD_AIRBASE, 'airbase'],
     ];
-    const selected = candidates.find(([action]) =>
-      this.actionSystem.canUnitPerformAction(unit, action)
-    );
+    const selected = candidates.find(([action]) => this.canUnitPerformAction(unit.id, action));
     if (selected) {
       const [action, orderType] = selected;
       const result = await this.actionSystem.executeAction(unit, action);
@@ -2276,6 +2515,10 @@ export class UnitManager {
       railroad: 'building_railroad',
       irrigate: 'irrigating',
       mine: 'mining',
+      cultivate: 'cultivating',
+      plant: 'planting',
+      fortress: 'building_fortress',
+      airbase: 'building_airbase',
       transform: 'transforming',
       pillage: 'pillaging',
       cleanPollution: 'cleaning_pollution',
@@ -2295,6 +2538,10 @@ export class UnitManager {
       railroad: rulesetLoader.getExtra('Railroad').build_time ?? 0,
       irrigate: terrain?.irrigationTime ?? 0,
       mine: terrain?.miningTime ?? 0,
+      cultivate: terrain?.cultivateTime ?? 0,
+      plant: terrain?.plantTime ?? 0,
+      fortress: rulesetLoader.getExtra('Fortress').build_time ?? 0,
+      airbase: rulesetLoader.getExtra('Airbase').build_time ?? 0,
       transform: terrain?.transformTime ?? 0,
       pillage: 1,
       cleanPollution:
@@ -2339,6 +2586,30 @@ export class UnitManager {
       case 'mine':
         extras.delete('irrigation');
         extras.add('mine');
+        break;
+      case 'cultivate': {
+        const cultivated = rulesetLoader.getTerrain(tile.terrain).cultivateTo;
+        if (cultivated) {
+          this.mapManager.updateTileProperty(unit.x, unit.y, 'terrain', cultivated as TerrainType);
+          extras.delete('irrigation');
+          extras.delete('mine');
+        }
+        break;
+      }
+      case 'plant': {
+        const planted = rulesetLoader.getTerrain(tile.terrain).plantTo;
+        if (planted) {
+          this.mapManager.updateTileProperty(unit.x, unit.y, 'terrain', planted as TerrainType);
+          extras.delete('irrigation');
+          extras.delete('mine');
+        }
+        break;
+      }
+      case 'fortress':
+        extras.add('fortress');
+        break;
+      case 'airbase':
+        extras.add('airbase');
         break;
       case 'transform': {
         const transformed = rulesetLoader.getTerrain(tile.terrain).transformTo;

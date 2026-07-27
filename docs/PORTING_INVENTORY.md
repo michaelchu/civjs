@@ -157,8 +157,10 @@ the service and its data; CI uses the same database version and suite.
 ## Action-system inventory
 
 The executable action surface covers fortify, sentry, wait/skip, goto, found
-city, road/railroad/irrigation/mine work, pillage, cleanup, terrain
-transformation, disband, ruleset transport load/unload, and trade routes.
+and join city, road/railroad/irrigation/mine work, cultivate, plant, fortress,
+airbase, pillage, cleanup, terrain transformation, ordinary and
+shield-recovery disbanding, home-city reassignment, unit upgrades, ruleset
+transport load/unload, trade routes, marketplace sales, and Wonder help.
 The client exposes only capability-appropriate core actions and routes target
 selection through the map. Diplomats and spies additionally expose embassy,
 investigation, technology theft, city-improvement sabotage, unit bribery,
@@ -169,18 +171,19 @@ Bombardment has a generic non-lethal authoritative outcome but is correctly
 not advertised by classic because no classic unit defines `bombard_rate`.
 
 `CLASSIC_ACTION_COVERAGE` and `ClassicActionInventory.test.ts` account for all
-82 enablers and 64 distinct upstream action names. That audit corrected the
-earlier claim that only the Milestone 11 families remained: enabled caravan,
-city/unit management, worker-extra, nuclear/combat-consequence, hut, extras,
-and civil-war outcomes are scheduled in Milestones 14 and 15. Non-classic
-covert outcomes remain intentionally excluded.
+82 enablers and 64 distinct upstream action names. Milestone 14 closes every
+enabled caravan, city/unit-management, and worker-extra entry.
+Nuclear/combat-consequence, hut, extras, and civil-war outcomes remain
+scheduled in Milestone 15. Non-classic covert outcomes remain intentionally
+excluded.
 
 The local `actions.json` is generated from
 `reference/freeciv/data/classic/actions.ruleset`; it is not a separately
 maintained approximation. Milestone 9 uses its enablers for capability
 discovery. Milestone 11 connects paradrop, airlift, generic bombardment, and
-automation; Milestones 14 and 15 close the newly enumerated enabled outcomes.
-Generic non-classic covert outcomes stay unadvertised.
+automation; Milestone 14 connects caravan, city/unit-management, and
+worker-extra outcomes; Milestone 15 closes the remaining enabled
+consequences. Generic non-classic covert outcomes stay unadvertised.
 
 ## Smoke-test status
 

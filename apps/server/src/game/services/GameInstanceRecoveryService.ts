@@ -294,6 +294,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
             ? cityManager.establishTradeRoute(homeCityId, destination.id, playerId)
             : false;
         },
+        executeCityUnitAction: (...args) => cityManager.executeUnitCityAction(...args),
         captureCity: async (cityId, playerId, unitId) =>
           (await cityManager.captureCity(cityId, playerId, unitId)).success,
         broadcastMapChanged: (changedGameId, mapData) =>
@@ -331,6 +332,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
       playerId => new Set(researchManager.getResearchedTechs(playerId))
     );
     unitManager.setExploredTilesProvider(playerId => visibilityManager.getExploredTiles(playerId));
+    unitManager.setPlayerTechsProvider(
+      playerId => new Set(researchManager.getResearchedTechs(playerId))
+    );
 
     // Initialize BorderManager after CityManager is created, reusing the
     // game-owned effects instance so recovered games evaluate the same
