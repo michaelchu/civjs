@@ -1,6 +1,6 @@
 # CivJS Porting Playbook
 
-**Status:** Milestones 0–10 complete; Milestones 11–13 define the remaining
+**Status:** Milestones 0–11 complete; Milestones 12–15 define the remaining
 classic-port closure work identified by the post-Milestone 8 audit
 **Baseline:** [`PORT_STATUS.md`](PORT_STATUS.md)  
 **Goal:** a playable, testable TypeScript port of the Freeciv classic ruleset with a freeciv-web-compatible 2D client experience.
@@ -325,9 +325,10 @@ error coverage in `MapVisibilityHandler.test.ts` and
 
 ### Milestone 11 — Remaining classic unit actions and automation
 
-**Outcome:** every action enabled by the classic ruleset is discoverable and
-resolved through the same authoritative legality, result, visibility, and
-persistence paths.
+**Outcome:** the previously identified bombardment, paradrop, airlift, and
+automation families are discoverable and use authoritative legality, result,
+visibility, and persistence paths; the full enabler inventory no longer hides
+unimplemented outcomes.
 
 - Re-audit `actions.ruleset` enablers against the executable action catalogue
   after Milestone 9 replaces the manual mapping.
@@ -346,8 +347,19 @@ persistence paths.
 freeciv-web `unit.js` and `action_dialog.js`.
 
 **Exit criteria:** an automated inventory test accounts for every classic
-action enabler as implemented or inapplicable, and every implemented action is
-usable from the client with authoritative feedback and reload-safe state.
+action enabler as implemented, engine-resolved, scheduled, or inapplicable,
+and every Milestone 11 action is usable from the client with authoritative
+feedback and reload-safe state.
+
+**Completion evidence:** `ClassicActionInventory.test.ts` accounts for all 82
+enablers and 64 distinct upstream action names. Ruleset capabilities advertise
+paradrop, airlift, and applicable explore/settler automation; classic
+bombardment remains hidden because no classic unit defines `bombard_rate`,
+while the generic result is available to a capable ruleset. `UnitManager.test.ts`
+covers range, source, contested landing, persisted airport usage, non-lethal
+bombardment, automated orders, and recovery. `UnitActionHandler.test.ts` proves
+affected units use visibility-scoped updates, and
+`UnitContextMenu.specialActions.test.tsx` covers the client controls.
 
 ### Milestone 12 — Client style fidelity and browser-level parity
 
@@ -403,6 +415,40 @@ reproducible environment.
 scenarios; every unit, integration, browser, recovery, and soak suite runs in
 CI; and no release claim depends on an unavailable external test service.
 
+### Milestone 14 — Enabled city, caravan, worker, and unit-management actions
+
+**Outcome:** the enabled classic outcomes exposed by the Milestone 11 inventory
+for caravans, cities, workers, and unit management are authoritative and
+player-usable.
+
+- Implement marketplace and help-wonder caravan outcomes.
+- Implement join-city, home-city reassignment, upgrades, and shield-recovery
+  disbanding.
+- Implement cultivate, plant, fortress, and airbase construction from loaded
+  terrain and extra requirements.
+- Add capability discovery, client target flows, persistence, AI commands, and
+  reference scenarios for each family.
+
+**Exit criteria:** every Milestone 14 entry in `CLASSIC_ACTION_COVERAGE` moves
+from `scheduled` to `implemented` or an evidence-backed `inapplicable` state.
+
+### Milestone 15 — Enabled combat consequences, huts, and extras
+
+**Outcome:** remaining classic action consequences are no longer approximated
+by ordinary movement or combat.
+
+- Implement regular nuclear explosion, city/stack damage, fallout, and actor
+  consumption; this is distinct from the intentionally excluded spy
+  suitcase-nuke outcome.
+- Implement collect-ransom and suicide-attack consequences.
+- Implement hut entry/frighten results and extras conquest.
+- Implement the classic civil-war consequence or document an approved
+  compatibility deviation.
+
+**Exit criteria:** the executable inventory has no `scheduled` classic
+enablers, with deterministic result, visibility, recovery, and client evidence
+for each added family.
+
 ## Testing strategy
 
 | Layer         | Required evidence                                                              |
@@ -422,13 +468,13 @@ Run `npm run format:check`, `npm run lint`, `npm run test:unit`, and `npm run ty
 - Review the status document after each merged feature and perform a broader parity audit at each milestone exit.
 - Maintain a decision log in issues for intentional deviations from Freeciv or freeciv-web.
 
-## Scope after Milestone 13
+## Scope after Milestone 15
 
-Milestones 9–13 close the confirmed classic/freeciv-web gaps in the current
+Milestones 9–15 close the confirmed classic/freeciv-web gaps in the current
 inventory. They do not expand the target to every generic Freeciv feature.
 Plague, suitcase-nuke, and direct gold/map theft remain out of scope because
 the classic ruleset has no enablers for them.
 
-After Milestone 13, adding another Freeciv ruleset or claiming broader
+After Milestone 15, adding another Freeciv ruleset or claiming broader
 default-AI parity requires a new explicit scope decision, inventory, and
 compatibility baseline.

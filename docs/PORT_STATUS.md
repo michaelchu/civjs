@@ -277,8 +277,10 @@ API; loaded extra and terrain settings determine railroad and pollution-cleanup
 activity times. Mutation fixtures prove these behaviors change through data
 without TypeScript constant edits.
 
-Remaining classic action outcomes belong to Milestone 11, while complete
-style/music rendering and browser evidence belong to Milestone 12.
+The first remaining classic action slice belongs to Milestone 11; the
+executable audit schedules the additional enabled outcomes in Milestones
+14–15. Complete style/music rendering and browser evidence belong to
+Milestone 12.
 
 ## Milestone 10 — complete
 
@@ -300,18 +302,40 @@ Evidence includes `PacketContract.test.ts`,
 `CityManagementHandler.production.test.ts`,
 `GameClient.protocol.test.ts`, and `GameClient.production.test.ts`.
 
+## Milestone 11 — complete
+
+Ruleset-derived unit capabilities now advertise paradrop, airlift, and
+applicable explore/settler automation. Paradrop enforces the classic source,
+range, movement, terrain, territorial, and contested-landing behavior.
+Airlift validates land units and domestic/allied airport endpoints, consumes
+movement, and persists the one-use-per-city-per-turn limit. Automated orders
+survive recovery and execute through authoritative pathfinding and worker
+activity paths.
+
+The generic bombard result updates all affected defenders through
+visibility-scoped unit broadcasts, but classic does not advertise it because
+its unit catalogue contains no positive `bombard_rate`. Evidence includes
+`ClassicActionInventory.test.ts`, `UnitManager.test.ts`,
+`CityManager.test.ts`, `UnitActionHandler.test.ts`, and
+`UnitContextMenu.specialActions.test.tsx`.
+
+The executable 82-enabler audit found additional enabled outcomes that the
+earlier manual audit had missed. They are now explicitly scheduled in
+Milestones 14 and 15 rather than being mislabeled complete.
+
 ## Partial or incomplete areas
 
 These are confirmed by the post-Milestone 8 audit and are now scheduled in
 [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md):
 
-- Bombardment, paradrop, airlift, and applicable automation are not yet in the
-  advertised classic action surface (Milestone 11).
 - Style/rendering parity and the playable flow lack browser-level automated
   evidence (Milestone 12).
 - Freeciv's full default AI is not ported, and the database-backed integration
   evidence still depends on an externally configured PostgreSQL service
   (Milestone 13).
+- Enabled caravan, city/unit-management, worker-extra, nuclear/combat,
+  hut/extras, and civil-war outcomes enumerated by the executable audit remain
+  scheduled (Milestones 14–15).
 
 Non-classic generic covert outcomes (plague, suitcase-nuke, and direct
 gold/map theft) remain intentionally unadvertised and are not roadmap gaps

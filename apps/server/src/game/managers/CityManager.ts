@@ -204,6 +204,9 @@ export interface CityState {
 
   // Defense
   defenseStrength?: number;
+
+  // A classic airport may participate in one airlift per turn.
+  airliftUsedTurn?: number;
 }
 
 export interface BuildingType {
@@ -608,6 +611,7 @@ export class CityManager {
       },
       worklist: [],
       defenseStrength: 1,
+      airliftUsedTurn: undefined,
     };
 
     // Free initial buildings for the player's very first city. Freeciv checks
@@ -894,6 +898,7 @@ export class CityManager {
           },
           worklist: (record.productionQueue as ProductionItem[]) || [],
           defenseStrength: record.defenseStrength || 1,
+          airliftUsedTurn: record.airliftUsedTurn ?? undefined,
         };
 
         this.cities.set(city.id, city);
@@ -953,6 +958,7 @@ export class CityManager {
         productionQueue: city.worklist,
         happiness: city.happiness.content - city.happiness.unhappy, // Simplified happiness mapping
         defenseStrength: city.defenseStrength || 1,
+        airliftUsedTurn: city.airliftUsedTurn ?? null,
         // Default values for other required fields
         health: 100,
         isCapital: false,
@@ -1650,6 +1656,47 @@ export class CityManager {
 
   public getCityCount(): number {
     return this.cities.size;
+  }
+
+  /**
+   * Atomically reserve both endpoint airports for this turn.
+   * @reference reference/freeciv/server/unittools.c:3062-3095 do_airline()
+   */
+  public async reserveAirlift(
+    sourceCityId: string,
+    destinationCityId: string,
+    playerId: string,
+    turn: number
+  ): Promise<boolean> {
+    const source = this.cities.get(sourceCityId);
+    const destination = this.cities.get(destinationCityId);
+    if (
+      !source ||
+      !destination ||
+      source.id === destination.id ||
+      source.playerId !== playerId ||
+      !source.buildings.includes('airport') ||
+      !destination.buildings.includes('airport') ||
+      source.airliftUsedTurn === turn ||
+      destination.airliftUsedTurn === turn
+    ) {
+      return false;
+    }
+
+    const sourcePrevious = source.airliftUsedTurn;
+    const destinationPrevious = destination.airliftUsedTurn;
+    source.airliftUsedTurn = turn;
+    destination.airliftUsedTurn = turn;
+    try {
+      const db = this.databaseProvider.getDatabase();
+      await db.update(cities).set({ airliftUsedTurn: turn }).where(eq(cities.id, source.id));
+      await db.update(cities).set({ airliftUsedTurn: turn }).where(eq(cities.id, destination.id));
+      return true;
+    } catch (error) {
+      source.airliftUsedTurn = sourcePrevious;
+      destination.airliftUsedTurn = destinationPrevious;
+      throw error;
+    }
   }
 
   // Get the specialized services for direct access if needed

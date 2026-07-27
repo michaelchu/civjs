@@ -286,6 +286,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
         },
         getPlayerBuildings: playerId =>
           cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings),
+        reserveAirlift: (sourceCityId, destinationCityId, playerId, turn) =>
+          cityManager.reserveAirlift(sourceCityId, destinationCityId, playerId, turn),
         establishTradeRoute: async (playerId, homeCityId, targetX, targetY) => {
           const destination = cityManager.getCityAt(targetX, targetY);
           return destination
@@ -328,6 +330,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       effectsManager,
       playerId => new Set(researchManager.getResearchedTechs(playerId))
     );
+    unitManager.setExploredTilesProvider(playerId => visibilityManager.getExploredTiles(playerId));
 
     // Initialize BorderManager after CityManager is created, reusing the
     // game-owned effects instance so recovered games evaluate the same

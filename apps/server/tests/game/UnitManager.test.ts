@@ -747,6 +747,216 @@ describe('UnitManager', () => {
     });
   });
 
+  describe('classic special actions and automation', () => {
+    const tile = {
+      x: 10,
+      y: 10,
+      terrain: 'grassland',
+      owner: undefined as string | undefined,
+      improvements: [] as string[],
+      hasRoad: false,
+      hasRailroad: false,
+    };
+    const specialMap = {
+      getTile: jest.fn((x: number, y: number) => ({ ...tile, x, y })),
+      updateTileProperty: jest.fn(),
+    };
+
+    it('paradrops a capable unit from a friendly city within ruleset range', async () => {
+      const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, specialMap, {
+        foundCity: jest.fn(),
+        requestPath: jest.fn(),
+        broadcastUnitMoved: jest.fn(),
+        getCityAt: (x, y) =>
+          x === 10 && y === 10
+            ? { id: 'source-city', playerId: 'player-123', buildings: [] }
+            : null,
+      });
+      const paratroopers = await manager.createUnit('player-123', 'paratroopers', 10, 10);
+
+      await expect(
+        manager.executeUnitAction(paratroopers.id, ActionType.PARADROP, 16, 10, 'player-123')
+      ).resolves.toMatchObject({
+        success: true,
+        newPosition: { x: 16, y: 10 },
+        newMovementLeft: 3,
+      });
+      expect(manager.getUnit(paratroopers.id)).toMatchObject({ x: 16, y: 10 });
+    });
+
+    it('resolves a contested paradrop by destroying the landing unit', async () => {
+      const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, specialMap, {
+        foundCity: jest.fn(),
+        requestPath: jest.fn(),
+        broadcastUnitMoved: jest.fn(),
+        getCityAt: (x, y) =>
+          x === 10 && y === 10
+            ? { id: 'source-city', playerId: 'player-123', buildings: [] }
+            : null,
+      });
+      const paratroopers = await manager.createUnit('player-123', 'paratroopers', 10, 10);
+      await manager.createUnit('player-456', 'warriors', 16, 10);
+
+      await expect(
+        manager.executeUnitAction(paratroopers.id, ActionType.PARADROP, 16, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, unitDestroyed: true });
+      expect(manager.getUnit(paratroopers.id)).toBeUndefined();
+    });
+
+    it('airlifts a land unit between unused friendly airports and spends movement', async () => {
+      const usedCities = new Set<string>();
+      const reserveAirlift = jest.fn(async (source: string, destination: string) => {
+        if (usedCities.has(source) || usedCities.has(destination)) return false;
+        usedCities.add(source);
+        usedCities.add(destination);
+        return true;
+      });
+      const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, specialMap, {
+        foundCity: jest.fn(),
+        requestPath: jest.fn(),
+        broadcastUnitMoved: jest.fn(),
+        getCityAt: (x, y) => {
+          if (x === 10 && y === 10)
+            return { id: 'source-city', playerId: 'player-123', buildings: ['airport'] };
+          if (x === 30 && y === 20)
+            return { id: 'destination-city', playerId: 'player-123', buildings: ['airport'] };
+          return null;
+        },
+        reserveAirlift,
+      });
+      manager.setCurrentTurnProvider(() => 8);
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      await expect(
+        manager.executeUnitAction(warrior.id, ActionType.AIRLIFT, 30, 20, 'player-123')
+      ).resolves.toMatchObject({
+        success: true,
+        newPosition: { x: 30, y: 20 },
+        newMovementLeft: 0,
+      });
+      expect(reserveAirlift).toHaveBeenCalledWith(
+        'source-city',
+        'destination-city',
+        'player-123',
+        8
+      );
+    });
+
+    it('persists auto-explore and advances toward authoritative unexplored tiles', async () => {
+      const requestPath = jest.fn(async () => ({
+        success: true,
+        path: {
+          tiles: [
+            { x: 10, y: 10 },
+            { x: 11, y: 10 },
+          ],
+        },
+      }));
+      const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, specialMap, {
+        foundCity: jest.fn(),
+        requestPath,
+        broadcastUnitMoved: jest.fn(),
+      });
+      manager.setExploredTilesProvider(() => {
+        const explored = new Set<string>();
+        for (let y = 0; y < mapHeight; y++) {
+          for (let x = 0; x < mapWidth; x++) explored.add(`${x},${y}`);
+        }
+        explored.delete('11,10');
+        return explored;
+      });
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      await expect(
+        manager.executeUnitAction(
+          warrior.id,
+          ActionType.AUTO_EXPLORE,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      await manager.processUnitOrders('player-123');
+
+      expect(warrior).toMatchObject({
+        x: 11,
+        y: 10,
+        automation: 'explore',
+        orders: [{ type: 'autoExplore' }],
+      });
+    });
+
+    it('keeps auto-settler queued behind the selected worker activity', async () => {
+      const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, specialMap);
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      await manager.executeUnitAction(
+        worker.id,
+        ActionType.AUTO_SETTLER,
+        undefined,
+        undefined,
+        'player-123'
+      );
+      await manager.processUnitOrders('player-123');
+
+      expect(worker.orders).toEqual([{ type: 'road' }, { type: 'autoSettler' }]);
+      expect(worker.automation).toBe('settler');
+    });
+
+    it('applies non-lethal bombard damage for a ruleset-capable unit', async () => {
+      const originalRate = UNIT_TYPES.archers.bombardRate;
+      UNIT_TYPES.archers.bombardRate = 1;
+      try {
+        const attacker = await unitManager.createUnit('player-123', 'archers', 10, 10);
+        const defender = await unitManager.createUnit('player-456', 'warriors', 11, 10);
+
+        await expect(
+          unitManager.executeUnitAction(attacker.id, ActionType.BOMBARD, 11, 10, 'player-123')
+        ).resolves.toMatchObject({
+          success: true,
+          affectedUnitIds: [defender.id],
+        });
+        expect(defender.health).toBeGreaterThanOrEqual(1);
+        expect(defender.health).toBeLessThan(100);
+        expect(attacker.movementLeft).toBe(0);
+      } finally {
+        UNIT_TYPES.archers.bombardRate = originalRate;
+      }
+    });
+
+    it('recovers persisted automation mode and order', async () => {
+      const db = mockDbProvider.getDatabase() as any;
+      db.where.mockResolvedValueOnce([
+        {
+          id: 'automated-unit',
+          gameId,
+          playerId: 'player-123',
+          unitType: 'warriors',
+          x: 10,
+          y: 10,
+          movementPoints: '3',
+          health: 100,
+          veteranLevel: 0,
+          experience: 0,
+          isFortified: false,
+          isAutomated: true,
+          orders: [{ type: 'autoExplore' }],
+          currentOrder: 'autoExplore',
+          transportedBy: null,
+          cargoUnits: [],
+          homeCityId: null,
+        },
+      ]);
+
+      await unitManager.loadUnits();
+
+      expect(unitManager.getUnit('automated-unit')).toMatchObject({
+        automation: 'explore',
+        orders: [{ type: 'autoExplore' }],
+      });
+    });
+  });
+
   describe('unit queries', () => {
     beforeEach(async () => {
       await unitManager.createUnit('player-123', 'warriors', 10, 10);

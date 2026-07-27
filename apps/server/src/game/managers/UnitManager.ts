@@ -1,6 +1,7 @@
 import { DatabaseProvider } from '@database';
 import { units } from '@database/schema/units';
 import { games } from '@database/schema/games';
+import { players } from '@database/schema/players';
 import { eq } from 'drizzle-orm';
 import { logger } from '@utils/logger';
 import { getTerrainMovementCost, SINGLE_MOVE } from '@game/constants/MovementConstants';
@@ -33,6 +34,7 @@ export interface Unit {
   activity?: UnitActivity;
   sentryUntil?: 'turn_start' | 'enemy_sighted' | 'manual';
   autoExploreTarget?: { x: number; y: number };
+  automation?: 'explore' | 'settler';
   transportedBy?: string; // ID of unit transporting this unit
   cargoUnits?: string[]; // IDs of units being transported by this unit
   homeCityId?: string;
@@ -62,7 +64,9 @@ export interface UnitOrder {
     | 'cleanPollution'
     | 'sentry'
     | 'wait'
-    | 'disband';
+    | 'disband'
+    | 'autoExplore'
+    | 'autoSettler';
   targetX?: number;
   targetY?: number;
   targetId?: string;
@@ -138,6 +142,13 @@ export class UnitManager {
     ) => void;
     getCityAt?: (x: number, y: number) => CityAtLocation | null;
     getPlayerBuildings?: (playerId: string) => string[];
+    reserveAirlift?: (
+      sourceCityId: string,
+      destinationCityId: string,
+      playerId: string,
+      turn: number
+    ) => Promise<boolean>;
+    getExploredTiles?: (playerId: string) => Set<string>;
     establishTradeRoute?: (
       playerId: string,
       homeCityId: string,
@@ -177,6 +188,13 @@ export class UnitManager {
       ) => void;
       getCityAt?: (x: number, y: number) => CityAtLocation | null;
       getPlayerBuildings?: (playerId: string) => string[];
+      reserveAirlift?: (
+        sourceCityId: string,
+        destinationCityId: string,
+        playerId: string,
+        turn: number
+      ) => Promise<boolean>;
+      getExploredTiles?: (playerId: string) => Set<string>;
       establishTradeRoute?: (
         playerId: string,
         homeCityId: string,
@@ -201,6 +219,12 @@ export class UnitManager {
 
   public setCurrentTurnProvider(provider: () => number): void {
     this.currentTurnProvider = provider;
+  }
+
+  public setExploredTilesProvider(provider: (playerId: string) => Set<string>): void {
+    if (this.gameManagerCallback) {
+      this.gameManagerCallback.getExploredTiles = provider;
+    }
   }
 
   /**
@@ -254,6 +278,7 @@ export class UnitManager {
         maxMovementPoints: (unitType.movement * 3).toString(),
         veteranLevel,
         homeCityId,
+        isAutomated: false,
         // @reference reference/freeciv/server/unittools.c:1215-1280
         createdTurn: this.currentTurnProvider?.() ?? 1,
       })
@@ -272,6 +297,7 @@ export class UnitManager {
       experience: 0,
       fortified: false,
       homeCityId,
+      automation: undefined,
     };
 
     this.units.set(unit.id, unit);
@@ -761,6 +787,11 @@ export class UnitManager {
         transportedBy: dbUnit.transportedBy ?? undefined,
         cargoUnits: Array.isArray(dbUnit.cargoUnits) ? (dbUnit.cargoUnits as string[]) : [],
         homeCityId: dbUnit.homeCityId ?? undefined,
+        automation: dbUnit.isAutomated
+          ? dbUnit.currentOrder === 'autoSettler'
+            ? 'settler'
+            : 'explore'
+          : undefined,
       };
       this.units.set(unit.id, unit);
     }
@@ -1217,6 +1248,22 @@ export class UnitManager {
       };
     }
 
+    if (![ActionType.AUTO_EXPLORE, ActionType.AUTO_SETTLER].includes(actionType)) {
+      await this.clearAutomation(unit);
+    }
+    if (actionType === ActionType.PARADROP) {
+      return this.executeParadrop(unit, targetX, targetY);
+    }
+    if (actionType === ActionType.AIRLIFT) {
+      return this.executeAirlift(unit, targetX, targetY);
+    }
+    if (actionType === ActionType.BOMBARD) {
+      return this.executeBombard(unit, targetX, targetY);
+    }
+    if (actionType === ActionType.AUTO_EXPLORE || actionType === ActionType.AUTO_SETTLER) {
+      return this.setAutomation(unit, actionType);
+    }
+
     if (actionType === ActionType.LOAD_UNIT) {
       const transport = this.findAvailableTransportAt(unit, targetX ?? unit.x, targetY ?? unit.y);
       const loaded = transport ? await this.loadUnitOntoTransport(transport.id, unit.id) : false;
@@ -1245,6 +1292,311 @@ export class UnitManager {
     }
 
     return result;
+  }
+
+  private canParadrop(unit: Unit, targetX?: number, targetY?: number): boolean {
+    const unitType = UNIT_TYPES[unit.unitTypeId];
+    if (!this.isParadropActorReady(unit, unitType)) return false;
+    if (
+      targetX === undefined ||
+      targetY === undefined ||
+      !this.isValidPosition(targetX, targetY) ||
+      this.calculateDistance(unit.x, unit.y, targetX, targetY) > unitType.paratroopersRange ||
+      getTerrainMovementCost(this.getTerrainAt(targetX, targetY), unit.unitTypeId) < 0
+    ) {
+      return false;
+    }
+    return this.hasParadropSource(unit);
+  }
+
+  private isParadropActorReady(unit: Unit, unitType: UnitType): boolean {
+    return Boolean(
+      unitType.flags?.includes('Paratroopers') &&
+        unitType.paratroopersRange > 0 &&
+        !unit.transportedBy &&
+        unit.movementLeft >= SINGLE_MOVE
+    );
+  }
+
+  private hasParadropSource(unit: Unit): boolean {
+    const sourceCity = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
+    if (sourceCity?.playerId === unit.playerId) return true;
+    const sourceTile = this.mapManager?.getTile(unit.x, unit.y);
+    if (!sourceTile || !this.tileHasExtra(sourceTile, 'airbase')) return false;
+    return sourceTile.owner === undefined || sourceTile.owner === unit.playerId;
+  }
+
+  private tileHasExtra(tile: { improvements?: string[] }, extraName: string): boolean {
+    return Boolean(
+      tile.improvements?.some(extra => extra.toLowerCase() === extraName.toLowerCase())
+    );
+  }
+
+  /**
+   * @reference reference/freeciv/server/unittools.c:3140-3288 do_paradrop()
+   */
+  private async executeParadrop(
+    unit: Unit,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    if (!this.canParadrop(unit, targetX, targetY)) {
+      return { success: false, message: 'Unit cannot paradrop to the target tile' };
+    }
+    const x = targetX as number;
+    const y = targetY as number;
+    const targetCity = this.gameManagerCallback?.getCityAt?.(x, y);
+    const hostileUnits = this.getUnitsAt(x, y).filter(target => target.playerId !== unit.playerId);
+    const territoryError = await this.validateParadropTerritory(unit, x, y, targetCity);
+    if (territoryError) return territoryError;
+    if (hostileUnits.length > 0) {
+      await this.destroyUnit(unit.id);
+      return {
+        success: true,
+        message: 'The unit was lost while paradropping onto enemy units',
+        unitDestroyed: true,
+      };
+    }
+
+    unit.x = x;
+    unit.y = y;
+    unit.fortified = false;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ x, y, isFortified: false, lastActionTurn: this.currentTurnProvider?.() ?? 1 })
+      .where(eq(units.id, unit.id));
+    this.gameManagerCallback?.broadcastUnitMoved(this.gameId, unit.id, x, y, unit.movementLeft);
+    return {
+      success: true,
+      message: `Unit paradropped to (${x}, ${y})`,
+      newPosition: { x, y },
+      newMovementLeft: unit.movementLeft,
+    };
+  }
+
+  private async validateParadropTerritory(
+    unit: Unit,
+    x: number,
+    y: number,
+    targetCity: CityAtLocation | null | undefined
+  ): Promise<ActionResult | undefined> {
+    const targetOwner = targetCity?.playerId ?? this.mapManager?.getTile(x, y)?.owner;
+    if (!targetOwner || targetOwner === unit.playerId) return undefined;
+    const relation = await this.getDiplomaticState(unit.playerId, targetOwner);
+    if (relation !== 'war') {
+      return { success: false, message: 'Cannot paradrop onto foreign territory without war' };
+    }
+    if (!targetCity) return undefined;
+    return this.captureParadropCity(unit, targetCity);
+  }
+
+  private async captureParadropCity(
+    unit: Unit,
+    targetCity: CityAtLocation
+  ): Promise<ActionResult | undefined> {
+    const captured = await this.gameManagerCallback?.captureCity?.(
+      targetCity.id,
+      unit.playerId,
+      unit.id
+    );
+    return captured
+      ? undefined
+      : { success: false, message: 'Paradrop could not capture the target city' };
+  }
+
+  private canAirlift(unit: Unit, targetX?: number, targetY?: number): boolean {
+    const actorInvalid =
+      UNIT_TYPES[unit.unitTypeId].rulesetUnitClass !== 'Land' ||
+      unit.transportedBy ||
+      unit.movementLeft <= 0;
+    if (actorInvalid || targetX === undefined || targetY === undefined) return false;
+    const source = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
+    const destination = this.gameManagerCallback?.getCityAt?.(targetX, targetY);
+    return this.areAirliftEndpointsReady(unit, source, destination);
+  }
+
+  private areAirliftEndpointsReady(
+    unit: Unit,
+    source: CityAtLocation | null | undefined,
+    destination: CityAtLocation | null | undefined
+  ): boolean {
+    return Boolean(
+      source &&
+        destination &&
+        source.id !== destination.id &&
+        source.playerId === unit.playerId &&
+        source.buildings?.includes('airport') &&
+        destination.buildings?.includes('airport') &&
+        this.gameManagerCallback?.reserveAirlift
+    );
+  }
+
+  /**
+   * @reference reference/freeciv/server/unittools.c:3062-3095 do_airline()
+   */
+  private async executeAirlift(
+    unit: Unit,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    if (!this.canAirlift(unit, targetX, targetY)) {
+      return { success: false, message: 'Unit cannot airlift to the target city' };
+    }
+    const destination = this.gameManagerCallback!.getCityAt!(targetX!, targetY!)!;
+    const source = this.gameManagerCallback!.getCityAt!(unit.x, unit.y)!;
+    if (destination.playerId !== unit.playerId) {
+      const relation = await this.getDiplomaticState(unit.playerId, destination.playerId);
+      if (relation !== 'alliance') {
+        return { success: false, message: 'Units may airlift only to domestic or allied cities' };
+      }
+    }
+    const reserved = await this.gameManagerCallback!.reserveAirlift!(
+      source.id,
+      destination.id,
+      unit.playerId,
+      this.currentTurnProvider?.() ?? 1
+    );
+    if (!reserved) {
+      return { success: false, message: 'An endpoint airport already airlifted this turn' };
+    }
+
+    unit.x = targetX as number;
+    unit.y = targetY as number;
+    unit.movementLeft = 0;
+    unit.fortified = false;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({
+        x: unit.x,
+        y: unit.y,
+        movementPoints: '0',
+        isFortified: false,
+        lastActionTurn: this.currentTurnProvider?.() ?? 1,
+      })
+      .where(eq(units.id, unit.id));
+    this.gameManagerCallback?.broadcastUnitMoved(
+      this.gameId,
+      unit.id,
+      unit.x,
+      unit.y,
+      unit.movementLeft
+    );
+    return {
+      success: true,
+      message: `Unit airlifted to ${destination.id}`,
+      newPosition: { x: unit.x, y: unit.y },
+      newMovementLeft: 0,
+    };
+  }
+
+  private canBombard(unit: Unit, targetX?: number, targetY?: number): boolean {
+    const type = UNIT_TYPES[unit.unitTypeId];
+    if (
+      type.bombardRate <= 0 ||
+      unit.movementLeft <= 0 ||
+      targetX === undefined ||
+      targetY === undefined ||
+      this.calculateDistance(unit.x, unit.y, targetX, targetY) > type.range
+    ) {
+      return false;
+    }
+    return this.getUnitsAt(targetX, targetY).some(target => target.playerId !== unit.playerId);
+  }
+
+  /**
+   * Non-lethal generic bombard. Classic exposes no bombard-capable unit, but
+   * rulesets with bombard_rate use this authoritative result.
+   * @reference reference/freeciv/server/unithand.c:4626-4734 unit_bombard()
+   */
+  private async executeBombard(
+    unit: Unit,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    if (!this.canBombard(unit, targetX, targetY)) {
+      return { success: false, message: 'Unit cannot bombard the target tile' };
+    }
+    const type = UNIT_TYPES[unit.unitTypeId];
+    const targets = this.getUnitsAt(targetX!, targetY!).filter(
+      target => target.playerId !== unit.playerId && !target.transportedBy
+    );
+    const affectedUnitIds: string[] = [];
+    for (const target of targets) {
+      const targetType = UNIT_TYPES[target.unitTypeId];
+      const damage = Math.max(
+        1,
+        Math.round((type.bombardRate * (type.firepower ?? 1) * 100) / (targetType.hitpoints ?? 10))
+      );
+      target.health = Math.max(1, target.health - damage);
+      affectedUnitIds.push(target.id);
+      await this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set({ health: target.health })
+        .where(eq(units.id, target.id));
+    }
+    unit.movementLeft = 0;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ movementPoints: '0', lastActionTurn: this.currentTurnProvider?.() ?? 1 })
+      .where(eq(units.id, unit.id));
+    return {
+      success: true,
+      message: `Bombarded ${affectedUnitIds.length} unit(s)`,
+      newMovementLeft: 0,
+      affectedUnitIds,
+    };
+  }
+
+  private async setAutomation(unit: Unit, actionType: ActionType): Promise<ActionResult> {
+    const automation = actionType === ActionType.AUTO_SETTLER ? 'settler' : 'explore';
+    if (
+      (automation === 'settler' && !UNIT_TYPES[unit.unitTypeId].canBuildImprovements) ||
+      (automation === 'explore' && UNIT_TYPES[unit.unitTypeId].movement <= 0)
+    ) {
+      return { success: false, message: `Unit cannot use ${automation} automation` };
+    }
+    if (unit.automation === automation) {
+      await this.clearAutomation(unit);
+      return { success: true, message: `${automation} automation stopped`, newOrders: [] };
+    }
+    unit.automation = automation;
+    unit.orders = [{ type: automation === 'settler' ? 'autoSettler' : 'autoExplore' }];
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ isAutomated: true, orders: unit.orders, currentOrder: unit.orders[0].type })
+      .where(eq(units.id, unit.id));
+    return {
+      success: true,
+      message: `${automation} automation enabled`,
+      newOrders: unit.orders,
+    };
+  }
+
+  private async clearAutomation(unit: Unit): Promise<void> {
+    if (!unit.automation) return;
+    unit.automation = undefined;
+    unit.autoExploreTarget = undefined;
+    unit.orders = [];
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ isAutomated: false, orders: [], currentOrder: null })
+      .where(eq(units.id, unit.id));
+  }
+
+  private async getDiplomaticState(playerId: string, otherPlayerId: string): Promise<string> {
+    const player = await this.databaseProvider.getDatabase().query.players.findFirst({
+      where: eq(players.id, playerId),
+    });
+    const relations = player?.diplomaticRelations;
+    if (!relations || typeof relations !== 'object') return 'no_contact';
+    const relation = (relations as Record<string, { state?: string }>)[otherPlayerId];
+    return relation?.state ?? 'no_contact';
   }
 
   private async executeAuthoritativeGoto(
@@ -1325,6 +1677,21 @@ export class UnitManager {
     }
     if (actionType === ActionType.UNLOAD_UNIT) {
       return this.canUnloadUnit(unitId, targetX ?? unit.x, targetY ?? unit.y);
+    }
+    if (actionType === ActionType.PARADROP) {
+      return this.canParadrop(unit, targetX, targetY);
+    }
+    if (actionType === ActionType.AIRLIFT) {
+      return this.canAirlift(unit, targetX, targetY);
+    }
+    if (actionType === ActionType.BOMBARD) {
+      return this.canBombard(unit, targetX, targetY);
+    }
+    if (actionType === ActionType.AUTO_EXPLORE) {
+      return UNIT_TYPES[unit.unitTypeId].movement > 0;
+    }
+    if (actionType === ActionType.AUTO_SETTLER) {
+      return UNIT_TYPES[unit.unitTypeId].canBuildImprovements;
     }
 
     return this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY);
@@ -1542,6 +1909,12 @@ export class UnitManager {
       case 'sentry':
         await this.processSentryOrder(unit, order);
         break;
+      case 'autoExplore':
+        await this.processAutoExploreOrder(unit);
+        break;
+      case 'autoSettler':
+        await this.processAutoSettlerOrder(unit);
+        break;
       default:
         logger.warn(`Unknown order type: ${order.type} for unit ${unit.id}`);
         this.removeCurrentOrder(unit);
@@ -1744,6 +2117,137 @@ export class UnitManager {
     unit.movementLeft = 0; // Sentry consumes all movement
     this.removeCurrentOrder(unit);
     logger.info(`Unit ${unit.id} on sentry duty`);
+  }
+
+  /**
+   * Keep a reload-safe auto-explore order while selecting targets from the
+   * authoritative player knowledge map.
+   * @reference reference/freeciv/server/unittools.c:3101-3120 do_explore()
+   */
+  private async processAutoExploreOrder(unit: Unit): Promise<void> {
+    const moved = await this.moveAutomatedUnitTowardUnexplored(unit);
+    if (!moved) {
+      await this.clearAutomation(unit);
+      return;
+    }
+    await this.persistAutomationOrder(unit);
+  }
+
+  private async processAutoSettlerOrder(unit: Unit): Promise<void> {
+    const candidates: Array<[ActionType, UnitOrder['type']]> = [
+      [ActionType.CLEAN_POLLUTION, 'cleanPollution'],
+      [ActionType.BUILD_ROAD, 'road'],
+      [ActionType.BUILD_IRRIGATION, 'irrigate'],
+      [ActionType.BUILD_MINE, 'mine'],
+    ];
+    const selected = candidates.find(([action]) =>
+      this.actionSystem.canUnitPerformAction(unit, action)
+    );
+    if (selected) {
+      const [action, orderType] = selected;
+      const result = await this.actionSystem.executeAction(unit, action);
+      if (result.success) {
+        unit.orders = [{ type: orderType }, { type: 'autoSettler' }];
+        unit.movementLeft = 0;
+        await this.databaseProvider
+          .getDatabase()
+          .update(units)
+          .set({
+            movementPoints: '0',
+            isAutomated: true,
+            orders: unit.orders,
+            currentOrder: orderType,
+          })
+          .where(eq(units.id, unit.id));
+        return;
+      }
+    }
+
+    const moved = await this.moveAutomatedUnitTowardUnexplored(unit);
+    if (!moved) {
+      await this.clearAutomation(unit);
+      return;
+    }
+    await this.persistAutomationOrder(unit);
+  }
+
+  private async moveAutomatedUnitTowardUnexplored(unit: Unit): Promise<boolean> {
+    const targets = this.getUnexploredTargets(unit);
+    for (const target of targets.slice(0, 32)) {
+      if (await this.tryMoveAutomatedUnit(unit, target.x, target.y)) return true;
+    }
+    return false;
+  }
+
+  private getUnexploredTargets(unit: Unit): Array<{ x: number; y: number; distance: number }> {
+    const explored =
+      this.gameManagerCallback?.getExploredTiles?.(unit.playerId) ?? new Set<string>();
+    const targets: Array<{ x: number; y: number; distance: number }> = [];
+    for (let y = 0; y < this.mapHeight; y++) {
+      for (let x = 0; x < this.mapWidth; x++) {
+        if (!explored.has(`${x},${y}`)) {
+          targets.push({ x, y, distance: this.calculateDistance(unit.x, unit.y, x, y) });
+        }
+      }
+    }
+    targets.sort(
+      (left, right) => left.distance - right.distance || left.y - right.y || left.x - right.x
+    );
+    return targets;
+  }
+
+  private async tryMoveAutomatedUnit(
+    unit: Unit,
+    targetX: number,
+    targetY: number
+  ): Promise<boolean> {
+    const pathResult = await this.gameManagerCallback?.requestPath(
+      unit.playerId,
+      unit.id,
+      targetX,
+      targetY
+    );
+    const path = pathResult?.path?.tiles;
+    if (!pathResult?.success || !Array.isArray(path) || path.length < 2) return false;
+
+    const moved = await this.moveAutomatedUnitAlongPath(unit, path.slice(1));
+    if (!moved) return false;
+    unit.autoExploreTarget = { x: targetX, y: targetY };
+    this.gameManagerCallback?.broadcastUnitMoved(
+      this.gameId,
+      unit.id,
+      unit.x,
+      unit.y,
+      unit.movementLeft
+    );
+    return true;
+  }
+
+  private async moveAutomatedUnitAlongPath(
+    unit: Unit,
+    path: Array<{ x: number; y: number }>
+  ): Promise<boolean> {
+    let moved = false;
+    for (const step of path) {
+      if (unit.movementLeft <= 0) break;
+      try {
+        await this.moveUnit(unit.id, step.x, step.y);
+        moved = true;
+      } catch {
+        break;
+      }
+    }
+    return moved;
+  }
+
+  private async persistAutomationOrder(unit: Unit): Promise<void> {
+    const orderType = unit.automation === 'settler' ? 'autoSettler' : 'autoExplore';
+    unit.orders = [{ type: orderType }];
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ isAutomated: true, orders: unit.orders, currentOrder: orderType })
+      .where(eq(units.id, unit.id));
   }
 
   /**

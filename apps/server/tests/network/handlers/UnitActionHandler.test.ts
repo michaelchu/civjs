@@ -369,6 +369,31 @@ describe('UnitActionHandler', () => {
       expect(mockIo.to).not.toHaveBeenCalled();
     });
 
+    it('visibility-scopes updates for units affected by a targeted action', async () => {
+      const actor = { id: mockUnitId, playerId: mockPlayerId, x: 4, y: 5 };
+      const target = { id: 'target-unit', playerId: 'other-player', x: 5, y: 5, health: 60 };
+      const executeUnitAction = jest.fn().mockResolvedValue({
+        success: true,
+        affectedUnitIds: [target.id],
+      });
+      mockGameManager.getGameInstance.mockReturnValue({
+        players: new Map([[mockPlayerId, { userId: mockUserId }]]),
+        unitManager: {
+          getUnit: jest.fn((unitId: string) => (unitId === actor.id ? actor : target)),
+          getUnitsAt: jest.fn().mockReturnValue([target]),
+          executeUnitAction,
+        },
+      } as any);
+
+      await getUnitActionHandler()(
+        { unitId: mockUnitId, actionType: 'bombard', targetX: 5, targetY: 5 },
+        jest.fn()
+      );
+
+      expect(mockGameManager.broadcastUnitInfo).toHaveBeenCalledWith(mockGameId, actor);
+      expect(mockGameManager.broadcastUnitInfo).toHaveBeenCalledWith(mockGameId, target);
+    });
+
     it('routes diplomat operations through the authoritative diplomacy action API', async () => {
       const unit = { id: mockUnitId, playerId: mockPlayerId, x: 4, y: 5 };
       mockGameManager.getGameInstance.mockReturnValue({

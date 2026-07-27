@@ -40,6 +40,7 @@ export interface Unit {
     canPillage: boolean;
     canTrade: boolean;
     diplomatActions?: string[];
+    unitActions?: string[];
   };
 }
 

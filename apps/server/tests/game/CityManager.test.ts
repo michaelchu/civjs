@@ -101,6 +101,36 @@ describe('CityManager', () => {
     });
   });
 
+  describe('airport airlift usage', () => {
+    it('persists one reservation per endpoint city per turn', async () => {
+      const source = {
+        id: 'source-city',
+        playerId: 'player-123',
+        buildings: ['airport'],
+      };
+      const destination = {
+        id: 'destination-city',
+        playerId: 'player-123',
+        buildings: ['airport'],
+      };
+      (cityManager as any).cities.set(source.id, source);
+      (cityManager as any).cities.set(destination.id, destination);
+
+      await expect(
+        cityManager.reserveAirlift(source.id, destination.id, 'player-123', 12)
+      ).resolves.toBe(true);
+      await expect(
+        cityManager.reserveAirlift(source.id, destination.id, 'player-123', 12)
+      ).resolves.toBe(false);
+      await expect(
+        cityManager.reserveAirlift(source.id, destination.id, 'player-123', 13)
+      ).resolves.toBe(true);
+
+      expect(source).toMatchObject({ airliftUsedTurn: 13 });
+      expect(destination).toMatchObject({ airliftUsedTurn: 13 });
+    });
+  });
+
   describe('VUT conversion functions', () => {
     it('should convert between VUT and production kinds', () => {
       expect(vutToProductionKind(VUT_UTYPE)).toBe('unit');

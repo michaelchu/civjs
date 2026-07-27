@@ -1316,6 +1316,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           ActionType.INCITE_CITY,
           ActionType.POISON_WATER,
           ActionType.SABOTAGE_UNIT,
+          ActionType.PARADROP,
+          ActionType.BOMBARD,
+          ActionType.AIRLIFT,
         ].includes(action)
       ) {
         setTargetActionMode({ unit: selectedUnit, action });
@@ -1324,9 +1327,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           message:
             action === ActionType.TRADE_ROUTE
               ? 'Select the destination city for this trade route'
-              : [ActionType.BRIBE_UNIT, ActionType.SABOTAGE_UNIT].includes(action)
-                ? 'Select an adjacent foreign unit'
-                : 'Select an adjacent foreign city',
+              : action === ActionType.AIRLIFT
+                ? 'Select a friendly city with an unused airport'
+                : action === ActionType.PARADROP
+                  ? 'Select a paradrop destination'
+                  : action === ActionType.BOMBARD
+                    ? 'Select a tile containing enemy units'
+                    : [ActionType.BRIBE_UNIT, ActionType.SABOTAGE_UNIT].includes(action)
+                      ? 'Select an adjacent foreign unit'
+                      : 'Select an adjacent foreign city',
         });
         return;
       }

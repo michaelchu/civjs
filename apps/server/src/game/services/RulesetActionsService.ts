@@ -1,6 +1,8 @@
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { ActionEnabler } from '@shared/data/rulesets/schemas';
 import { RulesetRequirementEvaluator } from './RulesetRequirementEvaluator';
+import { ActionType } from '@app-types/shared/actions';
+import type { UnitType } from './RulesetUnitsService';
 
 const CLIENT_ACTIONS: ReadonlyArray<{ id: string; upstream: readonly string[] }> = [
   {
@@ -27,6 +29,17 @@ const CLIENT_ACTIONS: ReadonlyArray<{ id: string; upstream: readonly string[] }>
   { id: 'sabotage_unit', upstream: ['Sabotage Unit Escape'] },
 ];
 
+const CLASSIC_UNIT_ACTIONS: ReadonlyArray<{
+  id: ActionType;
+  upstream: readonly string[];
+}> = [
+  {
+    id: ActionType.PARADROP,
+    upstream: ['Paradrop Unit Enter', 'Paradrop Unit Enter Conquer'],
+  },
+  { id: ActionType.AIRLIFT, upstream: ['Airlift Unit'] },
+];
+
 /**
  * Resolves coarse unit capabilities from classic action enablers. Target,
  * diplomatic, movement, and local-state requirements remain authoritative at
@@ -51,11 +64,47 @@ export class RulesetActionsService {
     ).map(action => action.id);
   }
 
+  /**
+   * Resolve coarse, player-visible capabilities. Dynamic source/target facts
+   * are still checked by UnitManager when the command executes.
+   */
+  getUnitActions(unitType: UnitType): ActionType[] {
+    const flags = new Set(unitType.flags ?? []);
+    const unitClass = unitType.rulesetUnitClass;
+    const actions = CLASSIC_UNIT_ACTIONS.filter(action =>
+      action.upstream.some(upstream =>
+        this.loader
+          .getActionEnablersFor(upstream, this.rulesetName)
+          .some(enabler => this.matchesStaticActorFacts(enabler, flags, unitClass))
+      )
+    ).map(action => action.id);
+
+    // Classic has bombard range settings but no unit with bombard_rate. Keep
+    // the generic outcome available to rulesets that define a capable unit.
+    if (unitType.bombardRate > 0) actions.push(ActionType.BOMBARD);
+    if (unitType.movement > 0) actions.push(ActionType.AUTO_EXPLORE);
+    if (unitType.canBuildImprovements) actions.push(ActionType.AUTO_SETTLER);
+    return actions;
+  }
+
   private matchesUnitTypeFlags(enabler: ActionEnabler, flags: Set<string>): boolean {
     return this.requirements.evaluateAll(
       enabler.actor_reqs.filter(requirement => requirement.type === 'UnitTypeFlag'),
       { Local: { unitTypeFlags: flags } }
     );
+  }
+
+  private matchesStaticActorFacts(
+    enabler: ActionEnabler,
+    flags: Set<string>,
+    unitClass: string | undefined
+  ): boolean {
+    const staticRequirements = enabler.actor_reqs.filter(requirement =>
+      ['UnitTypeFlag', 'UnitClass'].includes(requirement.type)
+    );
+    return this.requirements.evaluateAll(staticRequirements, {
+      Local: { unitTypeFlags: flags, unitClass },
+    });
   }
 }
 

@@ -453,6 +453,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         diplomatActions: unitType?.flags?.includes('Diplomat')
           ? rulesetActionsService.getDiplomatActions(unitType.flags)
           : [],
+        unitActions: unitType ? rulesetActionsService.getUnitActions(unitType) : [],
       },
     };
   }

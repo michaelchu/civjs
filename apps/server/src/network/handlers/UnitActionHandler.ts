@@ -426,6 +426,12 @@ export class UnitActionHandler extends BaseSocketHandler {
       }
 
       const unitBeforeAction = gameInstance.unitManager.getUnit(data.unitId);
+      const targetUnitsBeforeAction =
+        data.targetX === undefined || data.targetY === undefined
+          ? []
+          : (gameInstance.unitManager.getUnitsAt?.(data.targetX, data.targetY) ?? []).map(unit => ({
+              ...unit,
+            }));
       const result = await this.executeRequestedUnitAction(
         gameInstance,
         connection.gameId!,
@@ -448,6 +454,7 @@ export class UnitActionHandler extends BaseSocketHandler {
         data.unitId,
         result.unitDestroyed,
         unitBeforeAction,
+        targetUnitsBeforeAction,
         gameInstance
       );
       callback({ success: true, result });
@@ -470,6 +477,7 @@ export class UnitActionHandler extends BaseSocketHandler {
     unitId: string,
     unitDestroyed: boolean | undefined,
     unitBeforeAction: any,
+    targetUnitsBeforeAction: any[],
     gameInstance: NonNullable<ReturnType<GameManager['getGameInstance']>>
   ): void {
     if (unitDestroyed) {
@@ -478,6 +486,11 @@ export class UnitActionHandler extends BaseSocketHandler {
     }
     const updatedUnit = gameInstance.unitManager.getUnit(unitId);
     if (updatedUnit) this.gameManager.broadcastUnitInfo(gameId, updatedUnit);
+    for (const targetBefore of targetUnitsBeforeAction) {
+      const targetAfter = gameInstance.unitManager.getUnit(targetBefore.id);
+      if (targetAfter) this.gameManager.broadcastUnitInfo(gameId, targetAfter);
+      else this.gameManager.broadcastUnitDestroyed(gameId, targetBefore);
+    }
   }
 
   private async executeRequestedUnitAction(

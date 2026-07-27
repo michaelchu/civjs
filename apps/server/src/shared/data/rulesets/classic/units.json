@@ -431,6 +431,7 @@
       "defense": 4,
       "hitpoints": 20,
       "firepower": 1,
+      "paratroopers_range": 10,
       "vision_radius_sq": 2,
       "transport_cap": 0,
       "fuel": 0,

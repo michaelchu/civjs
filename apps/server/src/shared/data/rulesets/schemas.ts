@@ -195,6 +195,8 @@ export const UnitTypeRulesetSchema = z.object({
   defense: z.number().min(0), // Separate defense from attack
   hitpoints: z.number().positive(), // Unit health
   firepower: z.number().positive().optional().default(1),
+  bombard_rate: z.number().min(0).optional().default(0),
+  paratroopers_range: z.number().min(0).optional().default(0),
   vision_radius_sq: z.number().min(0).optional().default(1),
   transport_cap: z.number().min(0).optional().default(0),
   cargo: z.array(UnitClassSchema).optional().default([]),

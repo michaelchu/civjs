@@ -143,4 +143,5 @@ export interface ActionResult {
   movementCost?: number;
   newMovementLeft?: number;
   newOrders?: any[];
+  affectedUnitIds?: string[];
 }

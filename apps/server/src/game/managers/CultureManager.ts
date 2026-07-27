@@ -25,9 +25,10 @@ import { eq } from 'drizzle-orm';
 import { EffectsManager, EffectType, type EffectContext } from './EffectsManager';
 
 // Type definitions for culture calculations
-export interface CityWithBuildings extends DatabaseCity {
+export type CityWithBuildings = Omit<DatabaseCity, 'buildings' | 'airliftUsedTurn'> & {
   buildings: string[]; // Building IDs in the city
-}
+  airliftUsedTurn?: number | null;
+};
 
 export interface PlayerWithTechs extends DatabasePlayer {
   technologies: string[]; // Technology IDs researched by player

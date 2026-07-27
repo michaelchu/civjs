@@ -23,6 +23,10 @@ import {
   SkipForward,
   Trash2,
   HandCoins,
+  Plane,
+  Crosshair,
+  Compass,
+  Bot,
 } from 'lucide-react';
 import type { Unit } from '../../types';
 import { ActionType } from '../../types/shared/actions';
@@ -212,6 +216,52 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
           icon: actionType === ActionType.INVESTIGATE_CITY ? Eye : Zap,
         });
       }
+    }
+
+    const unitActions = new Set(unit.capabilities?.unitActions ?? []);
+    const specialActions: UnitActionInfo[] = [];
+    if (unitActions.has(ActionType.PARADROP)) {
+      specialActions.push({
+        action: ActionType.PARADROP,
+        name: 'Paradrop',
+        icon: Plane,
+      });
+    }
+    if (unitActions.has(ActionType.BOMBARD)) {
+      specialActions.push({
+        action: ActionType.BOMBARD,
+        name: 'Bombard',
+        icon: Crosshair,
+      });
+    }
+    if (unitActions.has(ActionType.AIRLIFT)) {
+      specialActions.push({
+        action: ActionType.AIRLIFT,
+        name: 'Airlift',
+        icon: Plane,
+      });
+    }
+    if (specialActions.length) {
+      actions.push({ separator: true }, ...specialActions);
+    }
+
+    const automationActions: UnitActionInfo[] = [];
+    if (unitActions.has(ActionType.AUTO_EXPLORE)) {
+      automationActions.push({
+        action: ActionType.AUTO_EXPLORE,
+        name: 'Auto Explore',
+        icon: Compass,
+      });
+    }
+    if (unitActions.has(ActionType.AUTO_SETTLER)) {
+      automationActions.push({
+        action: ActionType.AUTO_SETTLER,
+        name: 'Auto Settler',
+        icon: Bot,
+      });
+    }
+    if (automationActions.length) {
+      actions.push({ separator: true }, ...automationActions);
     }
 
     actions.push(

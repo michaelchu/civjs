@@ -31,6 +31,8 @@ export interface UnitType {
   // Additional freeciv fields
   hitpoints?: number;
   firepower?: number;
+  bombardRate: number;
+  paratroopersRange: number;
   fuel?: number;
   uk_happy?: number;
   uk_shield?: number;
@@ -131,6 +133,8 @@ export class RulesetUnitsService {
       // Additional freeciv fields
       hitpoints: unit.hitpoints,
       firepower: unit.firepower,
+      bombardRate: unit.bombard_rate,
+      paratroopersRange: unit.paratroopers_range,
       fuel: unit.fuel,
       uk_happy: unit.uk_happy,
       uk_shield: unit.uk_shield,

@@ -356,7 +356,15 @@ describe('ActionSystem - Goto Actions', () => {
 
   describe('exposed action contract', () => {
     it('has an authoritative execution route for every exposed generic action', () => {
-      const delegatedToUnitManager = new Set([ActionType.LOAD_UNIT, ActionType.UNLOAD_UNIT]);
+      const delegatedToUnitManager = new Set([
+        ActionType.LOAD_UNIT,
+        ActionType.UNLOAD_UNIT,
+        ActionType.PARADROP,
+        ActionType.BOMBARD,
+        ActionType.AIRLIFT,
+        ActionType.AUTO_EXPLORE,
+        ActionType.AUTO_SETTLER,
+      ]);
       const directExecutors = (actionSystem as any).actionExecutors as Map<ActionType, unknown>;
 
       for (const actionType of Object.values(ActionType)) {

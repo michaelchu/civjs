@@ -58,6 +58,7 @@ export const cities = pgTable('cities', {
   // Defense
   defenseStrength: integer('defense_strength').default(1).notNull(),
   wallsLevel: integer('walls_level').default(0).notNull(),
+  airliftUsedTurn: integer('airlift_used_turn'),
 
   // Timestamps
   foundedTurn: integer('founded_turn').notNull(),

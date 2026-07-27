@@ -18,7 +18,7 @@
 | `units.json`       | `data/classic/units.ruleset`                     | Loaded and cross-validated; values, classes/flags, movement, vision, upkeep, and combat contexts drive runtime behavior.                                                                                               |
 | `extras.json`      | `data/classic/terrain.ruleset`                   | Reproducibly converted and schema-validated: 34 extras, 20 resources, 3 bases, 3 roads, and terrain-specific removal settings. Loaded definitions drive worker timing; Milestones 11–12 complete action/rendering use. |
 | requirements       | requirement clauses in the classic ruleset files | Effect requirements and all universal kinds present in the converted action, extra, and style data are schema-validated. The shared evaluator is range/negation aware and fails closed without context.                |
-| `actions.json`     | `data/classic/actions.ruleset`                   | Reproducibly converted and schema-validated with all 82 enablers and action settings. Enablers drive current capability discovery; Milestone 11 implements remaining enabled action outcomes.                          |
+| `actions.json`     | `data/classic/actions.ruleset`                   | Reproducibly converted and schema-validated with all 82 enablers and action settings. The executable inventory drives discovery and schedules unresolved outcomes in Milestones 14–15.                              |
 | `styles.json`      | `data/classic/styles.ruleset`                    | Reproducibly converted and schema-validated with 6 nation, 10 city, and 11 music styles. City styles feed the existing API; Milestone 12 completes renderer and music consumption.                                     |
 
 The loader parses every `classic/*.json` file with `JSON.parse`, then validates it with Zod. Therefore comments are not valid in these data files. `RulesetLoader.effects.test.ts` loads every supported classic JSON ruleset and covers an effects pair ported from `effects.ruleset:262–278`. The classic effects file previously contained JavaScript comments and could not load; technologies also use `null` to represent an absent `root_req`.
@@ -161,18 +161,24 @@ The client exposes only capability-appropriate core actions and routes target
 selection through the map. Diplomats and spies additionally expose embassy,
 investigation, technology theft, city-improvement sabotage, unit bribery,
 incitement, poisoning, and unit sabotage through authoritative target flows.
-Generic non-classic covert outcomes, bombardment, paradrop, airlift, and
-automation actions remain outside the advertised playable catalogue.
+Paradrop and domestic/allied airport airlift now use authoritative target
+flows. Explore and worker automation persist as reload-safe unit orders.
+Bombardment has a generic non-lethal authoritative outcome but is correctly
+not advertised by classic because no classic unit defines `bombard_rate`.
 
-Milestone 11 covers bombardment, paradrop, airlift, and applicable automation
-when the loaded classic enablers permit them. Non-classic covert outcomes
-remain intentionally excluded.
+`CLASSIC_ACTION_COVERAGE` and `ClassicActionInventory.test.ts` account for all
+82 enablers and 64 distinct upstream action names. That audit corrected the
+earlier claim that only the Milestone 11 families remained: enabled caravan,
+city/unit management, worker-extra, nuclear/combat-consequence, hut, extras,
+and civil-war outcomes are scheduled in Milestones 14 and 15. Non-classic
+covert outcomes remain intentionally excluded.
 
 The local `actions.json` is generated from
 `reference/freeciv/data/classic/actions.ruleset`; it is not a separately
 maintained approximation. Milestone 9 uses its enablers for capability
-discovery. Milestone 11 will connect the remaining enabled action families to
-authoritative outcomes. Generic non-classic covert outcomes stay unadvertised.
+discovery. Milestone 11 connects paradrop, airlift, generic bombardment, and
+automation; Milestones 14 and 15 close the newly enumerated enabled outcomes.
+Generic non-classic covert outcomes stay unadvertised.
 
 ## Smoke-test status
 
