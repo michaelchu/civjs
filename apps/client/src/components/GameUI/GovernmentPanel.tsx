@@ -7,7 +7,9 @@ import { Button } from '../ui/button';
 import { RevolutionDialog } from '../Dialogs/RevolutionDialog';
 
 export const GovernmentPanel: React.FC = () => {
-  const { governments, getCurrentPlayer, turn } = useGameStore();
+  const governments = useGameStore(state => state.governments);
+  const currentPlayer = useGameStore(state => state.players[state.currentPlayerId]);
+  const turn = useGameStore(state => state.turn);
   const [isRevolutionDialogOpen, setIsRevolutionDialogOpen] = useState(false);
   const [availability, setAvailability] = useState<GovernmentState['availableGovernments']>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -24,7 +26,6 @@ export const GovernmentPanel: React.FC = () => {
       );
   }, [turn]);
 
-  const currentPlayer = getCurrentPlayer();
   const currentGovernment =
     currentPlayer && governments ? governments[currentPlayer.government] : null;
   const isInRevolution = currentPlayer && (currentPlayer.revolutionTurns || 0) > 0;

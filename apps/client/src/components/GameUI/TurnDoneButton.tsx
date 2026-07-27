@@ -3,9 +3,11 @@ import { useGameStore } from '../../store/gameStore';
 import { gameClient } from '../../services/GameClient';
 
 export const TurnDoneButton: React.FC = () => {
-  const { getCurrentPlayer, phase, clientState, startTurnProcessing, turnProcessingState } =
-    useGameStore();
-  const currentPlayer = getCurrentPlayer();
+  const currentPlayer = useGameStore(state => state.players[state.currentPlayerId]);
+  const phase = useGameStore(state => state.phase);
+  const clientState = useGameStore(state => state.clientState);
+  const startTurnProcessing = useGameStore(state => state.startTurnProcessing);
+  const turnProcessingState = useGameStore(state => state.turnProcessingState);
 
   const handleTurnDone = () => {
     // Start the turn processing animation

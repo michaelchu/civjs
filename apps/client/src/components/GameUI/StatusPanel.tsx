@@ -13,8 +13,8 @@ const formatNationName = (nation: string): string => {
 };
 
 export const StatusPanel: React.FC = () => {
-  const { turn, getCurrentPlayer } = useGameStore();
-  const currentPlayer = getCurrentPlayer();
+  const turn = useGameStore(state => state.turn);
+  const currentPlayer = useGameStore(state => state.players[state.currentPlayerId]);
 
   if (!currentPlayer) {
     return (

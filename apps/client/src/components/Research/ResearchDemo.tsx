@@ -6,7 +6,8 @@ import { useGameStore } from '../../store/gameStore';
  * This simulates what would normally come from the server
  */
 export const ResearchDemo: React.FC = () => {
-  const { updateResearchState, setCurrentResearch } = useGameStore();
+  const updateResearchState = useGameStore(state => state.updateResearchState);
+  const setCurrentResearch = useGameStore(state => state.setCurrentResearch);
 
   useEffect(() => {
     // Initialize demo research state

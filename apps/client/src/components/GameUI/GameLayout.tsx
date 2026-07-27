@@ -23,21 +23,24 @@ export const GameLayout: React.FC = () => {
     height: window.innerHeight,
   });
 
-  const { activeTab, clientState, players, currentPlayerId, research } = useGameStore();
+  const activeTab = useGameStore(state => state.activeTab);
+  const clientState = useGameStore(state => state.clientState);
+  const currentPlayerId = useGameStore(state => state.currentPlayerId);
+  const currentPlayer = useGameStore(state => state.players[state.currentPlayerId]);
+  const researchedTechs = useGameStore(state => state.research?.researchedTechs);
 
   useEffect(() => {
     let active = true;
     const applyMusicTheme = async () => {
       const presentation = await rulesetService.loadPresentationRuleset('classic');
       if (!active) return;
-      const player = players[currentPlayerId];
       const theme = resolveMusicStyle({
-        requestedNationStyle: player
-          ? (await rulesetService.getNationStyles('classic'))[player.nation]
+        requestedNationStyle: currentPlayer
+          ? (await rulesetService.getNationStyles('classic'))[currentPlayer.nation]
           : undefined,
         nationStyles: presentation.nation_styles,
         musicStyles: presentation.music_styles,
-        researchedTechs: research?.researchedTechs,
+        researchedTechs,
       });
       if (theme) {
         document.documentElement.dataset.musicTheme = theme;
@@ -50,7 +53,7 @@ export const GameLayout: React.FC = () => {
     return () => {
       active = false;
     };
-  }, [currentPlayerId, players, research?.researchedTechs]);
+  }, [currentPlayer, currentPlayerId, researchedTechs]);
 
   // Initialize keyboard controls
   useKeyboardControls();

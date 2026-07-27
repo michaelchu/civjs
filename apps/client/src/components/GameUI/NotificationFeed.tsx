@@ -2,7 +2,8 @@ import React from 'react';
 import { useGameStore } from '../../store/gameStore';
 
 export const NotificationFeed: React.FC = () => {
-  const { notifications, dismissNotification } = useGameStore();
+  const notifications = useGameStore(state => state.notifications);
+  const dismissNotification = useGameStore(state => state.dismissNotification);
   if (notifications.length === 0) return null;
 
   return (

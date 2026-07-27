@@ -31,8 +31,8 @@ const nodeTypes: NodeTypes = {
 } as const;
 
 const TechnologyTreeInner: React.FC = () => {
-  const store = useGameStore();
-  const { updateResearchState } = store;
+  const research = useGameStore(state => state.research);
+  const updateResearchState = useGameStore(state => state.updateResearchState);
   const [selectedTech, setSelectedTech] = useState<string | null>(null);
   const { fitView } = useReactFlow();
 
@@ -63,18 +63,18 @@ const TechnologyTreeInner: React.FC = () => {
     (event: React.MouseEvent, node: Node) => {
       event.preventDefault();
 
-      if (!store.research) return;
+      if (!research) return;
 
       const techId = node.id;
-      const isResearched = store.research.researchedTechs.has(techId);
-      const canResearch = store.research.availableTechs.has(techId);
+      const isResearched = research.researchedTechs.has(techId);
+      const canResearch = research.availableTechs.has(techId);
 
       // Double-click to set as current research (if available)
       if (!isResearched && canResearch) {
         void gameClient.setResearch(techId);
       }
     },
-    [store.research]
+    [research]
   );
 
   useEffect(() => {
@@ -92,16 +92,16 @@ const TechnologyTreeInner: React.FC = () => {
   // Update available technologies when research state changes
   const prevResearchedTechsSize = useRef<number>(0);
   useEffect(() => {
-    if (!store.research) return;
+    if (!research) return;
 
-    const currentSize = store.research.researchedTechs.size;
+    const currentSize = research.researchedTechs.size;
     // Only run if the number of researched techs has actually changed
     if (prevResearchedTechsSize.current === currentSize) return;
 
     prevResearchedTechsSize.current = currentSize;
 
-    const availableTechs = getAvailableTechnologies(store.research.researchedTechs);
-    const currentAvailableTechs = store.research.availableTechs;
+    const availableTechs = getAvailableTechnologies(research.researchedTechs);
+    const currentAvailableTechs = research.availableTechs;
 
     // Only update if the available techs have actually changed
     const availableTechsSet = new Set(availableTechs);
@@ -113,25 +113,25 @@ const TechnologyTreeInner: React.FC = () => {
         availableTechs: availableTechsSet,
       });
     }
-  }, [store.research, updateResearchState]);
+  }, [research, updateResearchState]);
 
   // Update nodes when game state changes
   useEffect(() => {
-    if (!store.research) return;
+    if (!research) return;
 
     setNodes(nds =>
       nds.map(node => {
         const techId = node.id;
-        const isResearched = store.research!.researchedTechs.has(techId);
-        const isCurrent = store.research!.currentTech === techId;
-        const isGoal = store.research!.techGoal === techId;
-        const isAvailable = store.research!.availableTechs.has(techId);
+        const isResearched = research.researchedTechs.has(techId);
+        const isCurrent = research.currentTech === techId;
+        const isGoal = research.techGoal === techId;
+        const isAvailable = research.availableTechs.has(techId);
 
         // Calculate progress for current research
         let progress = 0;
-        if (isCurrent && store.research!.currentTech) {
+        if (isCurrent && research.currentTech) {
           const tech = node.data;
-          progress = calculateResearchProgress(store.research!.bulbsAccumulated, tech.cost);
+          progress = calculateResearchProgress(research.bulbsAccumulated, tech.cost);
         }
 
         return {
@@ -147,7 +147,7 @@ const TechnologyTreeInner: React.FC = () => {
         };
       })
     );
-  }, [store.research, setNodes]);
+  }, [research, setNodes]);
 
   // Add a check to see if nodes are being created
   if (nodes.length === 0) {

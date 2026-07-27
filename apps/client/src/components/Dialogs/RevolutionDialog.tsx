@@ -35,12 +35,11 @@ export const RevolutionDialog: React.FC<RevolutionDialogProps> = ({
   availability,
   onStartRevolution,
 }) => {
-  const { governments, getCurrentPlayer } = useGameStore();
+  const governments = useGameStore(state => state.governments);
+  const currentPlayer = useGameStore(state => state.players[state.currentPlayerId]);
   const [selectedGovernment, setSelectedGovernment] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  const currentPlayer = getCurrentPlayer();
 
   const governmentOptions: GovernmentOption[] = useMemo(() => {
     // Ensure governments is initialized before processing

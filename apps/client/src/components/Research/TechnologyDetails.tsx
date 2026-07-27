@@ -11,7 +11,7 @@ interface TechnologyDetailsProps {
 }
 
 export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, onClose }) => {
-  const store = useGameStore();
+  const researchState = useGameStore(state => state.research);
   const [requestState, setRequestState] = React.useState<{
     pending: boolean;
     error?: string;
@@ -22,7 +22,6 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
     return null;
   }
 
-  const researchState = store.research;
   const isResearched = researchState?.researchedTechs.has(techId) || false;
   const isCurrent = researchState?.currentTech === techId;
   const isGoal = researchState?.techGoal === techId;

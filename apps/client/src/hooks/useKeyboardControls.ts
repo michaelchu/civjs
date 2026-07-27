@@ -13,14 +13,12 @@ import { ActionType } from '../types/shared/actions';
  * Hook to handle keyboard controls integration
  */
 export function useKeyboardControls() {
-  const {
-    focusedUnits,
-    getPrimaryFocusedUnit,
-    advanceUnitFocus,
-    activeTab,
-    clientState,
-    addNotification,
-  } = useGameStore();
+  const focusedUnits = useGameStore(state => state.focusedUnits);
+  const getPrimaryFocusedUnit = useGameStore(state => state.getPrimaryFocusedUnit);
+  const advanceUnitFocus = useGameStore(state => state.advanceUnitFocus);
+  const activeTab = useGameStore(state => state.activeTab);
+  const clientState = useGameStore(state => state.clientState);
+  const addNotification = useGameStore(state => state.addNotification);
 
   /**
    * Handle directional movement

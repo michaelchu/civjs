@@ -16,18 +16,29 @@ const mockPlayer = {
 const { mockUseGameStore } = vi.hoisted(() => ({
   mockUseGameStore: {
     turn: 5,
-    getCurrentPlayer: vi.fn(),
+    currentPlayerId: 'player-1',
+    players: {
+      'player-1': {
+        id: 'player-1',
+        name: 'TestPlayer',
+        nation: 'american',
+        color: '#0066cc',
+        gold: 50,
+        science: 10,
+        government: 'republic',
+      },
+    },
   },
 }));
 
 vi.mock('../../../store/gameStore', () => ({
-  useGameStore: vi.fn(() => mockUseGameStore),
+  useGameStore: vi.fn(selector => selector(mockUseGameStore)),
 }));
 
 describe('StatusPanel - Nation Display', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseGameStore.getCurrentPlayer.mockReturnValue(mockPlayer);
+    mockUseGameStore.players['player-1'] = mockPlayer;
   });
 
   it.each([
@@ -41,7 +52,7 @@ describe('StatusPanel - Nation Display', () => {
     { input: 'UPPERCASE', expected: 'Uppercase' },
     { input: 'mixed_CASE-nation name', expected: 'Mixed Case Nation Name' },
   ])('formats $input as $expected', ({ input, expected }) => {
-    mockUseGameStore.getCurrentPlayer.mockReturnValue({ ...mockPlayer, nation: input });
+    mockUseGameStore.players['player-1'] = { ...mockPlayer, nation: input };
 
     const { getByText } = render(<StatusPanel />);
 

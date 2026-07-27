@@ -11,7 +11,9 @@ import { CityInfoOverlay } from './CityInfoOverlay';
  * @reference reference/freeciv-web/javascript/city.js:277-990
  */
 export const CitiesPanel: React.FC = () => {
-  const { cities, units, currentPlayerId } = useGameStore();
+  const cities = useGameStore(state => state.cities);
+  const units = useGameStore(state => state.units);
+  const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [productions, setProductions] = useState<ProductionOption[]>([]);
   const [loading, setLoading] = useState(false);

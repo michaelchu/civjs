@@ -22,7 +22,7 @@ transport orchestration should follow native TypeScript and React patterns.
 | GS-06 | Medium   | Model the session lifecycle explicitly, including reconnect, resync, cancellation, and failure.      | Complete | Session state-machine tests                        |
 | GS-07 | Medium   | Make the Zustand game model the sole map source and remove `window.map`/`window.tiles` dependencies. | Complete | Renderer and recovery tests                        |
 | GS-08 | Medium   | Split the monolithic client into transport, session, snapshot, and domain reducer responsibilities.  | Complete | Unit tests for each boundary                       |
-| GS-09 | Low      | Replace whole-store React subscriptions with narrow selectors and imperative renderer subscriptions. | Pending  | Render-count and canvas regression tests           |
+| GS-09 | Low      | Replace whole-store React subscriptions with narrow selectors and imperative renderer subscriptions. | Complete | Render-count and canvas regression tests           |
 
 ## Target architecture
 
@@ -73,4 +73,7 @@ transport orchestration should follow native TypeScript and React patterns.
 - 2026-07-27: GS-08 completed. Socket connection mechanics, session intent,
   chunked snapshot assembly, and wire-to-domain tile conversion now have
   isolated typed services with focused tests.
+- 2026-07-27: GS-09 completed. React consumers now subscribe only to the fields
+  they render, while the canvas redraw path observes relevant Zustand slices
+  imperatively; unrelated packet updates no longer rerender session UI.
 - 2026-07-27: Recorded the architecture review and remediation sequence.

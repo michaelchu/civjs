@@ -21,7 +21,8 @@ const tabs: TabInfo[] = [
 const shortcutTabs: GameTab[] = ['map', 'government', 'research', 'nations', 'cities', 'options'];
 
 export const GameTabs: React.FC = () => {
-  const { activeTab, setActiveTab } = useGameStore();
+  const activeTab = useGameStore(state => state.activeTab);
+  const setActiveTab = useGameStore(state => state.setActiveTab);
 
   React.useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {

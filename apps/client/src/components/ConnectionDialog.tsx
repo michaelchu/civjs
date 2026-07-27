@@ -12,7 +12,8 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({ showForm = t
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState('');
 
-  const { clientState, setClientState } = useGameStore();
+  const clientState = useGameStore(state => state.clientState);
+  const setClientState = useGameStore(state => state.setClientState);
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();

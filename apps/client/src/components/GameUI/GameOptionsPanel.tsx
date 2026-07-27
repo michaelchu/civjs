@@ -12,7 +12,10 @@ type TaxRates = { tax: number; luxury: number; science: number };
 type HostControls = { isHost: boolean; paused: boolean; turnTimeLimit: number };
 
 export const GameOptionsPanel: React.FC = () => {
-  const { map, turn, year, currentGameId } = useGameStore();
+  const map = useGameStore(state => state.map);
+  const turn = useGameStore(state => state.turn);
+  const year = useGameStore(state => state.year);
+  const currentGameId = useGameStore(state => state.currentGameId);
   const [rates, setRates] = useState<TaxRates>({ tax: 50, luxury: 20, science: 30 });
   const [feedback, setFeedback] = useState<string | null>(null);
   const [debugFeedback, setDebugFeedback] = useState<string | null>(null);

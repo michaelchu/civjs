@@ -21,6 +21,7 @@ import {
   USER_PREFERENCES_CHANGED_EVENT,
   type UserPreferences,
 } from '../../services/UserPreferences';
+import { shallow } from 'zustand/shallow';
 
 interface MapCanvasProps {
   width: number;
@@ -94,19 +95,18 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     action: ActionType;
   } | null>(null);
 
-  const {
-    viewport,
-    map,
-    units,
-    cities,
-    players,
-    currentPlayerId,
-    focusedUnits,
-    setViewport,
-    selectUnit,
-    addToFocus,
-  } = useGameStore();
-  const gameState = useGameStore();
+  const viewport = useGameStore(state => state.viewport);
+  const map = useGameStore(state => state.map);
+  const units = useGameStore(state => state.units);
+  const cities = useGameStore(state => state.cities);
+  const players = useGameStore(state => state.players);
+  const currentPlayerId = useGameStore(state => state.currentPlayerId);
+  const focusedUnits = useGameStore(state => state.focusedUnits);
+  const selectedUnitId = useGameStore(state => state.selectedUnitId);
+  const mapData = useGameStore(state => state.mapData);
+  const setViewport = useGameStore(state => state.setViewport);
+  const selectUnit = useGameStore(state => state.selectUnit);
+  const addToFocus = useGameStore(state => state.addToFocus);
 
   // Track click state for multi-select
   const lastClickTime = useRef<number>(0);
@@ -278,8 +278,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     let startTile = null;
 
     // FIRST: Try to find player's assigned starting position from map generation
-    const currentPlayerId = gameState.currentPlayerId;
-    const playerStartPos = gameState.mapData?.startingPositions?.find(
+    const playerStartPos = mapData?.startingPositions?.find(
       pos => pos.playerId === currentPlayerId
     );
 
@@ -330,8 +329,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     }
   }, [
     // Minimal dependencies to reduce race conditions
-    gameState.mapData,
-    gameState.currentPlayerId,
+    mapData,
+    currentPlayerId,
     map,
     hasInitiallyCentered,
     // Use extracted variables instead of complex expressions
@@ -343,52 +342,48 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     viewport,
   ]);
 
-  // Render from the same authoritative map snapshot used by the rest of the UI.
+  // Draw store changes directly; React remains responsible for interaction UI.
   useEffect(() => {
     if (!rendererReady || !rendererRef.current || !canvasRef.current) return;
 
-    console.log('MapCanvas render effect triggered:', {
-      storeTileCount: Object.keys(map.tiles).length,
-      unitCount: Object.keys(units).length,
-      cityCount: Object.keys(cities).length,
-      viewport,
-      gotoModeActive: gotoMode.active,
-      gotoPath: gotoMode.currentPath ? `${gotoMode.currentPath.tiles.length} tiles` : 'null',
-    });
-
-    if (rendererRef.current) {
-      // Render is now synchronous for better performance and no race conditions
-      rendererRef.current.render({
-        viewport,
-        map,
-        units,
-        cities,
-        players,
-        selectedUnitId: useGameStore.getState().selectedUnitId,
-        focusedUnits: useGameStore.getState().focusedUnits,
+    const renderSnapshot = () => {
+      const state = useGameStore.getState();
+      rendererRef.current?.render({
+        viewport: state.viewport,
+        map: state.map,
+        units: state.units,
+        cities: state.cities,
+        players: state.players,
+        selectedUnitId: state.selectedUnitId,
+        focusedUnits: state.focusedUnits,
         gotoPath: gotoMode.currentPath,
-        currentPlayerId: gameState.currentPlayerId,
-        researchedTechs: gameState.research?.researchedTechs,
+        currentPlayerId: state.currentPlayerId,
+        researchedTechs: state.research?.researchedTechs,
       });
-    }
-  }, [
-    viewport,
-    map,
-    units,
-    cities,
-    players,
-    focusedUnits,
-    gotoMode.active,
-    gotoMode.currentPath,
-    gameState.currentPlayerId,
-    gameState.research?.researchedTechs,
-    fogOfWarEnabled,
-    rendererReady,
-  ]); // Include map for React Hook dependency
+    };
+
+    renderSnapshot();
+    return useGameStore.subscribe(
+      state =>
+        [
+          state.viewport,
+          state.map,
+          state.units,
+          state.cities,
+          state.players,
+          state.selectedUnitId,
+          state.focusedUnits,
+          state.currentPlayerId,
+          state.research?.researchedTechs,
+        ] as const,
+      renderSnapshot,
+      { equalityFn: shallow }
+    );
+  }, [gotoMode.currentPath, rendererReady]);
 
   // Optimized animation for selection pulsing - use a simple timer instead of continuous animation loop
   useEffect(() => {
-    const currentSelectedUnitId = gameState.selectedUnitId;
+    const currentSelectedUnitId = selectedUnitId;
 
     // Don't run animation while dragging to prevent conflicts
     if (currentSelectedUnitId && rendererRef.current && !isDragging) {
@@ -450,7 +445,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       }
     }
   }, [
-    gameState.selectedUnitId,
+    selectedUnitId,
     viewport,
     map,
     units,

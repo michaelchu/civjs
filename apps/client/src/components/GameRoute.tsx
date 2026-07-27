@@ -12,7 +12,8 @@ export const GameRoute: React.FC = () => {
   const [isJoining, setIsJoining] = useState(false);
   const [readyGameId, setReadyGameId] = useState<string | null>(null);
 
-  const { clientState, setClientState } = useGameStore();
+  const clientState = useGameStore(state => state.clientState);
+  const setClientState = useGameStore(state => state.setClientState);
 
   const loadGame = useCallback(async () => {
     if (!gameId) {
