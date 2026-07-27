@@ -1,0 +1,3 @@
+ALTER TABLE "players" ALTER COLUMN "tax_rate" SET DEFAULT 40;
+ALTER TABLE "players" ALTER COLUMN "luxury_rate" SET DEFAULT 0;
+ALTER TABLE "players" ALTER COLUMN "science_rate" SET DEFAULT 60;

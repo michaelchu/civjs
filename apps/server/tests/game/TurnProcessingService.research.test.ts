@@ -75,4 +75,104 @@ describe('TurnProcessingService economic processing', () => {
       3
     );
   });
+
+  it('sells an improvement when upkeep would make the treasury negative', async () => {
+    const city = {
+      id: 'city-1',
+      playerId: 'player-1',
+      tradePerTurn: 0,
+      goldPerTurn: 0,
+      buildings: ['cathedral'],
+      grossProductionPerTurn: 1,
+      unitShieldUpkeep: 0,
+    };
+    const cityManager = {
+      getCitiesByPlayer: jest.fn().mockReturnValue([city]),
+      sellBuilding: jest.fn().mockResolvedValue(true),
+      calculateCityOutputs: jest.fn(),
+    };
+    const unitManager = {
+      getPlayerUnits: jest.fn().mockReturnValue([]),
+    };
+    const economicOutput = {
+      cityId: city.id,
+      playerId: city.playerId,
+      totalGoldProduced: 0,
+      rawTrade: 0,
+      costs: { buildingUpkeep: 3, unitUpkeep: 0, total: 3 },
+      netGoldContribution: -3,
+    };
+    const economicManager = {
+      calculateCityEconomicOutput: jest.fn().mockReturnValue(economicOutput),
+      getPlayerGold: jest.fn().mockResolvedValue(0),
+      addPlayerGold: jest.fn().mockResolvedValue(true),
+      processTurnEconomics: jest.fn().mockResolvedValue({}),
+    };
+    const service = new TurnProcessingService(
+      'game-1',
+      unitManager as never,
+      cityManager as never,
+      {} as never,
+      economicManager as never
+    );
+
+    await expect(service.processPlayerEconomics(city.playerId, 3)).resolves.toBe(true);
+
+    expect(cityManager.sellBuilding).toHaveBeenCalledWith(city.id, 'cathedral');
+    expect(economicManager.addPlayerGold).toHaveBeenCalledWith(
+      city.playerId,
+      expect.any(Number),
+      'Insolvency building sale',
+      expect.objectContaining({ cityId: city.id, turn: 3 })
+    );
+  });
+
+  it('disbands a unit when its home city cannot pay shield upkeep', async () => {
+    const city = {
+      id: 'city-1',
+      playerId: 'player-1',
+      tradePerTurn: 0,
+      goldPerTurn: 0,
+      buildings: [],
+      grossProductionPerTurn: 0,
+      unitShieldUpkeep: 1,
+    };
+    const cityManager = {
+      getCitiesByPlayer: jest.fn().mockReturnValue([city]),
+      calculateCityOutputs: jest.fn(),
+    };
+    const unitManager = {
+      getPlayerUnits: jest.fn().mockReturnValue([
+        {
+          id: 'warrior-1',
+          playerId: city.playerId,
+          unitTypeId: 'warriors',
+          homeCityId: city.id,
+        },
+      ]),
+      removeUnit: jest.fn().mockResolvedValue(undefined),
+    };
+    const economicManager = {
+      calculateCityEconomicOutput: jest.fn().mockReturnValue({
+        cityId: city.id,
+        playerId: city.playerId,
+        costs: { buildingUpkeep: 0, unitUpkeep: 0, total: 0 },
+        netGoldContribution: 0,
+      }),
+      getPlayerGold: jest.fn().mockResolvedValue(0),
+      processTurnEconomics: jest.fn().mockResolvedValue({}),
+    };
+    const service = new TurnProcessingService(
+      'game-1',
+      unitManager as never,
+      cityManager as never,
+      {} as never,
+      economicManager as never
+    );
+
+    await service.processPlayerEconomics(city.playerId, 3);
+
+    expect(unitManager.removeUnit).toHaveBeenCalledWith('warrior-1');
+    expect(cityManager.calculateCityOutputs).toHaveBeenCalledWith(city.id);
+  });
 });

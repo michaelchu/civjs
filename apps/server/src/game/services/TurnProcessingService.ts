@@ -14,6 +14,7 @@ import type { CityManager } from '@game/managers/CityManager';
 import type { ResearchManager } from '@game/managers/ResearchManager';
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
+import { UNIT_TYPES } from '@game/constants/UnitConstants';
 
 export interface PlayerAction {
   id: string; // Unique action identifier
@@ -665,10 +666,13 @@ export class TurnProcessingService {
     try {
       // Each city contributes its science output to the player's research pool.
       // @reference reference/freeciv/server/techtools.c:650-719
-      const researchBulbs = this.cityManager
-        .getPlayerCities(playerId)
-        .reduce((total, city) => total + (city.sciencePerTurn ?? 0), 0);
+      const cities = this.cityManager.getPlayerCities(playerId);
+      const researchBulbs = cities.reduce((total, city) => total + (city.sciencePerTurn ?? 0), 0);
       const completedTech = await this.researchManager.addResearchPoints(playerId, researchBulbs);
+      const ownsGreatLibrary = cities.some(city => city.buildings.includes('great_library'));
+      if (ownsGreatLibrary) {
+        await this.researchManager.processTechParasite(playerId, 2);
+      }
 
       logger.info('Research processed', {
         gameId: this.gameId,
@@ -700,6 +704,7 @@ export class TurnProcessingService {
     try {
       // Get all cities for this player
       const cities = this.cityManager.getCitiesByPlayer(playerId);
+      await this.resolveShieldDeficits(playerId, cities);
       const cityOutputs = [];
 
       // Calculate economic output for each city
@@ -721,6 +726,8 @@ export class TurnProcessingService {
         cityOutputs.push(economicOutput);
       }
 
+      await this.resolveTreasuryDeficit(playerId, turn, cities, cityOutputs);
+
       // Process player turn economics
       await this.economicManager.processTurnEconomics(playerId, cityOutputs, turn);
 
@@ -740,6 +747,116 @@ export class TurnProcessingService {
         error: error instanceof Error ? error.message : error,
       });
       return false;
+    }
+  }
+
+  private async resolveShieldDeficits(
+    playerId: string,
+    cities: ReturnType<CityManager['getCitiesByPlayer']>
+  ): Promise<void> {
+    if (typeof this.unitManager.getPlayerUnits !== 'function') return;
+    for (const city of cities) {
+      const supported = this.unitManager
+        .getPlayerUnits(playerId)
+        .filter(unit => unit.homeCityId === city.id)
+        .sort(
+          (left, right) =>
+            (UNIT_TYPES[right.unitTypeId]?.uk_shield ?? 0) -
+            (UNIT_TYPES[left.unitTypeId]?.uk_shield ?? 0)
+        );
+      let upkeep = city.unitShieldUpkeep ?? 0;
+      const available = city.grossProductionPerTurn ?? 0;
+      let removedUnit = false;
+      while (upkeep > available) {
+        const unit = supported.shift();
+        if (!unit) break;
+        const cost = UNIT_TYPES[unit.unitTypeId]?.uk_shield ?? 0;
+        if (cost <= 0) continue;
+        await this.unitManager.removeUnit(unit.id);
+        removedUnit = true;
+        upkeep -= cost;
+      }
+      if (removedUnit) this.cityManager.calculateCityOutputs(city.id);
+    }
+  }
+
+  private async resolveTreasuryDeficit(
+    playerId: string,
+    turn: number,
+    cities: ReturnType<CityManager['getCitiesByPlayer']>,
+    cityOutputs: Array<ReturnType<EconomicManager['calculateCityEconomicOutput']>>
+  ): Promise<void> {
+    if (!this.economicManager || typeof this.economicManager.getPlayerGold !== 'function') return;
+    let projected =
+      (await this.economicManager.getPlayerGold(playerId)) +
+      cityOutputs.reduce((sum, output) => sum + output.netGoldContribution, 0);
+    if (projected >= 0) return;
+
+    const buildingTypes = rulesetBuildingsService.getBuildingTypes();
+    const sellable = cities
+      .flatMap(city =>
+        city.buildings.map(buildingId => ({
+          city,
+          buildingId,
+          building: buildingTypes[buildingId],
+        }))
+      )
+      .filter(
+        candidate => candidate.building?.genus === 'Improvement' && candidate.building.upkeep > 0
+      )
+      .sort((left, right) => right.building.upkeep - left.building.upkeep);
+
+    for (const candidate of sellable) {
+      if (projected >= 0) break;
+      if (!(await this.cityManager.sellBuilding(candidate.city.id, candidate.buildingId))) continue;
+      const saleGold = Math.floor(candidate.building.cost / 2);
+      await this.economicManager.addPlayerGold(playerId, saleGold, 'Insolvency building sale', {
+        cityId: candidate.city.id,
+        turn,
+      });
+      const output = cityOutputs.find(item => item.cityId === candidate.city.id);
+      if (output) {
+        output.costs.buildingUpkeep -= candidate.building.upkeep;
+        output.costs.total -= candidate.building.upkeep;
+        output.netGoldContribution += candidate.building.upkeep;
+      }
+      projected += saleGold + candidate.building.upkeep;
+    }
+
+    const units = this.unitManager
+      .getPlayerUnits(playerId)
+      .filter(unit => {
+        const output = cityOutputs.find(item => item.cityId === unit.homeCityId);
+        return (output?.costs.unitUpkeep ?? 0) > 0;
+      })
+      .sort(
+        (left, right) =>
+          Math.max(
+            UNIT_TYPES[right.unitTypeId]?.uk_gold ?? 0,
+            UNIT_TYPES[right.unitTypeId]?.uk_shield ?? 0
+          ) -
+          Math.max(
+            UNIT_TYPES[left.unitTypeId]?.uk_gold ?? 0,
+            UNIT_TYPES[left.unitTypeId]?.uk_shield ?? 0
+          )
+      );
+    for (const unit of units) {
+      if (projected >= 0) break;
+      const output = cityOutputs.find(item => item.cityId === unit.homeCityId);
+      if (!output || output.costs.unitUpkeep <= 0) continue;
+      const upkeep = Math.min(
+        output.costs.unitUpkeep,
+        Math.max(
+          1,
+          UNIT_TYPES[unit.unitTypeId]?.uk_gold ?? 0,
+          UNIT_TYPES[unit.unitTypeId]?.uk_shield ?? 0
+        )
+      );
+      await this.unitManager.removeUnit(unit.id);
+      output.costs.unitUpkeep -= upkeep;
+      output.costs.total -= upkeep;
+      output.netGoldContribution += upkeep;
+      projected += upkeep;
     }
   }
 

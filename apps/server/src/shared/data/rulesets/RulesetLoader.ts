@@ -732,6 +732,23 @@ export class RulesetLoader {
     return this.loadExtrasRuleset(rulesetName).extras;
   }
 
+  getResources(rulesetName: string = 'classic'): Record<string, Record<string, unknown>> {
+    return this.loadExtrasRuleset(rulesetName).resources;
+  }
+
+  getResource(resourceIdOrName: string, rulesetName: string = 'classic'): Record<string, unknown> {
+    const normalized = this.normalizeRuleName(resourceIdOrName);
+    const match = Object.entries(this.getResources(rulesetName)).find(
+      ([id, resource]) =>
+        this.normalizeRuleName(id.replace(/^resource_/, '')) === normalized ||
+        this.normalizeRuleName(String(resource.extra ?? '')) === normalized
+    );
+    if (!match) {
+      throw new Error(`Resource '${resourceIdOrName}' not found in ruleset '${rulesetName}'`);
+    }
+    return match[1];
+  }
+
   getExtra(extraIdOrName: string, rulesetName: string = 'classic'): ExtraRuleset {
     const normalized = this.normalizeRuleName(extraIdOrName);
     const match = Object.entries(this.getExtras(rulesetName)).find(

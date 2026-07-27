@@ -19,8 +19,8 @@ export class ResourceGenerator {
       for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
 
-        if (!this.isLandTile(tile.terrain) || this.random() > 0.15) {
-          // 15% chance of resource
+        if (this.random() > 0.25) {
+          // Classic MAP_DEFAULT_RICHES is 250 parts per thousand.
           continue;
         }
 
@@ -39,28 +39,21 @@ export class ResourceGenerator {
    */
   private getResourcesForTerrain(terrain: TerrainType): ResourceType[] {
     const resourceMap: Record<TerrainType, ResourceType[]> = {
-      ocean: ['fish'],
+      ocean: ['fish', 'whales'],
       coast: ['fish'],
-      deep_ocean: ['fish'],
+      deep_ocean: [],
       lake: ['fish'],
-      grassland: ['wheat', 'cattle', 'horses'],
-      plains: ['horses', 'wheat', 'cattle'],
-      desert: ['gold', 'gems', 'oil'],
-      tundra: ['horses', 'iron', 'oil', 'uranium'],
-      forest: ['spices', 'silk'],
-      jungle: ['spices', 'gems', 'gold'],
-      swamp: ['spices', 'oil'],
-      hills: ['iron', 'copper', 'gold', 'gems', 'horses'],
-      mountains: ['iron', 'copper', 'gold', 'gems', 'uranium'],
+      grassland: ['resources'],
+      plains: ['buffalo', 'wheat'],
+      desert: ['oasis', 'oil'],
+      tundra: ['game', 'furs'],
+      forest: ['pheasant', 'silk'],
+      jungle: ['gems', 'fruit'],
+      swamp: ['peat', 'spice'],
+      hills: ['coal', 'wine'],
+      mountains: ['gold', 'iron'],
     };
 
     return resourceMap[terrain] || [];
-  }
-
-  /**
-   * Check if terrain type is land (not water)
-   */
-  private isLandTile(terrain: TerrainType): boolean {
-    return !['ocean', 'coast', 'deep_ocean', 'lake'].includes(terrain);
   }
 }

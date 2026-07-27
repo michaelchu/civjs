@@ -31,6 +31,7 @@ export class TaxRateService extends BaseGameService {
   private gameId: string;
   private playerTaxRates: Map<string, TaxRates> = new Map();
   private playerTaxLocks: Map<string, TaxRateLocks> = new Map();
+  private maxRateProvider: (playerId: string) => number = () => 60;
 
   constructor(gameId: string) {
     super(logger);
@@ -39,6 +40,10 @@ export class TaxRateService extends BaseGameService {
 
   getServiceName(): string {
     return 'TaxRateService';
+  }
+
+  public setMaxRateProvider(provider: (playerId: string) => number): void {
+    this.maxRateProvider = provider;
   }
 
   /**
@@ -147,7 +152,10 @@ export class TaxRateService extends BaseGameService {
     const { playerId, newRates } = request;
 
     // Validate the new rates
-    const validation = this.validateTaxRates(newRates);
+    const validation = this.validateTaxRates(newRates, {
+      ...TAX_RATE_CONSTRAINTS,
+      maxRate: this.maxRateProvider(playerId),
+    });
     if (!validation.isValid) {
       return validation;
     }

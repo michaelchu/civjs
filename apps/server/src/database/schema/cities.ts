@@ -50,6 +50,7 @@ export const cities = pgTable('cities', {
 
   // Status
   happiness: integer('happiness').default(0).notNull(),
+  wasHappy: boolean('was_happy').default(false).notNull(),
   health: integer('health').default(100).notNull(),
   isCapital: boolean('is_capital').default(false).notNull(),
   isPuppet: boolean('is_puppet').default(false).notNull(),

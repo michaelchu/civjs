@@ -10,12 +10,13 @@ import type { TaxRates, TaxRateConstraints } from '../types/EconomicTypes';
 
 /**
  * Default tax rate allocation for new players
- * Matches Freeciv default: 50% tax, 20% luxury, 30% science
+ * Classic begins at 100% science, then Despotism's 60% maximum rate
+ * redistributes the excess to tax.
  */
 export const DEFAULT_TAX_RATES: TaxRates = {
-  tax: 50,
-  luxury: 20,
-  science: 30,
+  tax: 40,
+  luxury: 0,
+  science: 60,
 };
 
 /**

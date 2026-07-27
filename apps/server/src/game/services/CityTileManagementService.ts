@@ -16,17 +16,24 @@ import type { TerrainType } from '@shared/data/rulesets/schemas';
  * - City output calculations from worked tiles
  */
 export class CityTileManagementService extends BaseGameService {
+  private playerGovernmentProvider: (playerId: string) => string = () => 'despotism';
+
   constructor(
     private cities: Map<string, CityState>,
     private mapManager: MapManager,
     private CITY_MAP_DEFAULT_RADIUS_SQ: number,
-    private readonly ruleset: Pick<RulesetLoader, 'getTerrain' | 'getCivstyle'> = rulesetLoader
+    private readonly ruleset: Pick<RulesetLoader, 'getTerrain' | 'getCivstyle'> &
+      Partial<Pick<RulesetLoader, 'getResource'>> = rulesetLoader
   ) {
     super(logger);
   }
 
   getServiceName(): string {
     return 'CityTileManagementService';
+  }
+
+  setPlayerGovernmentProvider(provider: (playerId: string) => string): void {
+    this.playerGovernmentProvider = provider;
   }
 
   /**
@@ -178,7 +185,7 @@ export class CityTileManagementService extends BaseGameService {
 
     // Sort tiles by total output (food + shields + trade), excluding city center
     const availableTiles = city.workableTiles
-      .filter(t => !t.isCenter && !t.isBlocked)
+      .filter(t => !t.isCenter && !t.isBlocked && !this.isWorkedByAnotherCity(city.id, t.x, t.y))
       .sort((a, b) => getTileScore(b) - getTileScore(a));
 
     // Reset all non-center tiles to not worked
@@ -197,22 +204,21 @@ export class CityTileManagementService extends BaseGameService {
     }
   }
 
+  private isWorkedByAnotherCity(cityId: string, x: number, y: number): boolean {
+    return Array.from(this.cities.values()).some(
+      other =>
+        other.id !== cityId &&
+        other.workableTiles?.some(tile => tile.x === x && tile.y === y && tile.isWorked)
+    );
+  }
+
   /**
    * Calculate food output from a map tile
    */
   private calculateTileFood(mapTile: any): number {
     let food = this.getTerrainBaseOutputs(mapTile.terrain).food;
 
-    // Resource bonuses
-    if (mapTile.resource) {
-      const resourceFood: Record<string, number> = {
-        wheat: 1,
-        cattle: 1,
-        fish: 2,
-        game: 1,
-      };
-      food += resourceFood[mapTile.resource] || 0;
-    }
+    food += this.getResourceOutput(mapTile.resource, 'food');
 
     return food;
   }
@@ -223,14 +229,7 @@ export class CityTileManagementService extends BaseGameService {
   private calculateTileShields(mapTile: any): number {
     let shields = this.getTerrainBaseOutputs(mapTile.terrain).shields;
 
-    if (mapTile.resource) {
-      const resourceShields: Record<string, number> = {
-        coal: 2,
-        iron: 2,
-        gold: 1,
-      };
-      shields += resourceShields[mapTile.resource] || 0;
-    }
+    shields += this.getResourceOutput(mapTile.resource, 'shield');
 
     return shields;
   }
@@ -241,16 +240,25 @@ export class CityTileManagementService extends BaseGameService {
   private calculateTileTradeFromTerrain(mapTile: any): number {
     let trade = this.getTerrainBaseOutputs(mapTile.terrain).trade;
 
-    if (mapTile.resource) {
-      const resourceTrade: Record<string, number> = {
-        silk: 2,
-        spice: 2,
-        wine: 2,
-      };
-      trade += resourceTrade[mapTile.resource] || 0;
-    }
+    trade += this.getResourceOutput(mapTile.resource, 'trade');
 
     return trade;
+  }
+
+  private getResourceOutput(
+    resource: string | undefined,
+    output: 'food' | 'shield' | 'trade'
+  ): number {
+    if (!resource) return 0;
+    try {
+      const value = (this.ruleset.getResource ?? rulesetLoader.getResource.bind(rulesetLoader))(
+        resource
+      )[output];
+      return typeof value === 'number' ? value : 0;
+    } catch {
+      logger.warn('Ignoring unknown map resource', { resource });
+      return 0;
+    }
   }
 
   /**
@@ -302,8 +310,14 @@ export class CityTileManagementService extends BaseGameService {
       return false;
     }
 
-    // Note: Blocking logic would be handled by checking if other cities work this tile
-    // For now, we'll skip the blocking check
+    if (this.isWorkedByAnotherCity(city.id, tileX, tileY)) {
+      logger.warn('Cannot assign citizen to tile: tile worked by another city', {
+        cityId,
+        tileX,
+        tileY,
+      });
+      return false;
+    }
 
     // Check if city has available workers
     const workedTiles = city.workableTiles.filter(t => t.isWorked && !t.isCenter).length;
@@ -421,9 +435,26 @@ export class CityTileManagementService extends BaseGameService {
         if (mapTile?.improvements?.includes('mine')) {
           outputs.shields += this.ruleset.getTerrain(mapTile.terrain).miningShieldIncr;
         }
+        const terrain = mapTile?.terrain ?? tile.terrain ?? '';
+        const hasRoad = mapTile?.hasRoad || mapTile?.improvements?.includes('road');
+        if (hasRoad && ['grassland', 'plains'].includes(terrain)) {
+          outputs.trade += 1;
+        }
+        if ((mapTile?.riverMask ?? 0) !== 0) {
+          outputs.trade += 1;
+        }
+        if (mapTile?.hasRailroad || mapTile?.improvements?.includes('railroad')) {
+          outputs.shields = Math.floor(outputs.shields * 1.5);
+        }
+        const oceanic = ['ocean', 'coast', 'deep_ocean', 'lake'].includes(terrain);
+        if (oceanic && city.buildings.includes('harbor')) outputs.food += 1;
+        if (oceanic && city.buildings.includes('offshore_platform')) outputs.shields += 1;
+        if (city.buildings.includes('colossus')) outputs.trade += 1;
+        if (city.buildings.includes('king_richards_crusade')) outputs.shields += 1;
         if (tile.isCenter) {
           outputs = this.applyCityCenterMinimums(outputs);
         }
+        outputs = this.applyGovernmentTileEffects(city, outputs);
         tile.outputs = outputs;
         food += outputs.food;
         shields += outputs.shields;
@@ -432,6 +463,32 @@ export class CityTileManagementService extends BaseGameService {
     }
 
     return { food, shields, trade };
+  }
+
+  private applyGovernmentTileEffects(
+    city: CityState,
+    outputs: { food: number; shields: number; trade: number }
+  ): { food: number; shields: number; trade: number } {
+    const government = this.playerGovernmentProvider(city.playerId).toLowerCase();
+    const celebrating =
+      city.wasHappy === true &&
+      city.population >= 3 &&
+      city.happiness.unhappy === 0 &&
+      city.happiness.angry === 0 &&
+      city.happiness.happy >= Math.ceil(city.population / 2);
+    const adjusted = { ...outputs };
+
+    if (!celebrating && (government === 'despotism' || government === 'anarchy')) {
+      for (const output of ['food', 'shields', 'trade'] as const) {
+        if (adjusted[output] > 2) adjusted[output] -= 1;
+      }
+    }
+    if (government === 'republic' || government === 'democracy') {
+      adjusted.trade += 1;
+    } else if (celebrating && (government === 'monarchy' || government === 'communism')) {
+      adjusted.trade += 1;
+    }
+    return adjusted;
   }
 
   /**

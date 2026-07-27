@@ -197,5 +197,45 @@ describe('City Population Growth', () => {
       expect(city.population).toBe(1);
       expect(city.foodStock).toBe(20); // Should remain unchanged
     });
+
+    it('requires an Aqueduct and Sewer System at the classic size gates', async () => {
+      const city = await cityManager.foundCity(55, 45, 'GatedCity', 'player-123');
+      city.population = 8;
+      city.size = 8;
+      city.foodPerTurn = 2;
+      city.foodStock = cityManager.calculateGranarySize(8);
+
+      await cityManager['processFoodAndGrowth'](city, 1);
+      expect(city.population).toBe(8);
+
+      city.buildings.push('aqueduct');
+      await cityManager['processFoodAndGrowth'](city, 2);
+      expect(city.population).toBe(9);
+
+      city.population = 12;
+      city.size = 12;
+      city.foodStock = cityManager.calculateGranarySize(12);
+      await cityManager['processFoodAndGrowth'](city, 3);
+      expect(city.population).toBe(12);
+
+      city.buildings.push('sewer_system');
+      await cityManager['processFoodAndGrowth'](city, 4);
+      expect(city.population).toBe(13);
+    });
+
+    it('grows a consecutively celebrating Republic city by rapture', async () => {
+      cityManager.setPlayerGovernmentProvider(() => 'republic');
+      const city = await cityManager.foundCity(60, 45, 'RaptureCity', 'player-123');
+      city.population = 3;
+      city.size = 3;
+      city.foodPerTurn = 1;
+      city.foodStock = 0;
+      city.happiness = { happy: 2, content: 1, unhappy: 0, angry: 0 };
+      city.wasHappy = true;
+
+      await cityManager['processFoodAndGrowth'](city, 1);
+
+      expect(city.population).toBe(4);
+    });
   });
 });

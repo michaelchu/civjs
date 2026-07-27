@@ -51,6 +51,20 @@ export enum EffectType {
   SPECIALIST_OUTPUT = 'Specialist_Output',
   OUTPUT_BONUS = 'Output_Bonus',
   OUTPUT_BONUS_2 = 'Output_Bonus_2',
+  OUTPUT_ADD_TILE = 'Output_Add_Tile',
+  OUTPUT_INC_TILE = 'Output_Inc_Tile',
+  OUTPUT_INC_TILE_CELEBRATE = 'Output_Inc_Tile_Celebrate',
+  OUTPUT_PENALTY_TILE = 'Output_Penalty_Tile',
+  SIZE_ADJ = 'Size_Adj',
+  SIZE_UNLIMIT = 'Size_Unlimit',
+  RAPTURE_GROW = 'Rapture_Grow',
+  MAX_RATES = 'Max_Rates',
+  MAX_TRADE_ROUTES = 'Max_Trade_Routes',
+  POLLU_POP_PCT = 'Pollu_Pop_Pct',
+  POLLU_POP_PCT_2 = 'Pollu_Pop_Pct_2',
+  POLLU_PROD_PCT = 'Pollu_Prod_Pct',
+  GIVE_IMMEDIATE_TECH = 'Give_Imm_Tech',
+  TECH_PARASITE = 'Tech_Parasite',
   UNIT_VISION_RADIUS_SQ = 'Unit_Vision_Radius_Sq',
   FORTIFY_DEFENSE_BONUS = 'Fortify_Defense_Bonus',
   DEFEND_BONUS = 'Defend_Bonus',
@@ -110,6 +124,7 @@ export interface EffectContext {
   maxUnitsOnTile?: number;
   playerNationGroups?: Set<string>;
   age?: number;
+  cityCelebrating?: boolean;
   playerTechs?: Set<string>; // Player's researched technologies
   playerBuildings?: Set<string>; // Buildings owned anywhere by the player
   cityBuildings?: Set<string>; // Buildings in the city
@@ -595,6 +610,12 @@ export class EffectsManager {
         'Age',
         req,
         context.age === undefined ? undefined : context.age === Number(req.name)
+      );
+    this.requirementHandlers['CityStatus'] = (req, context) =>
+      this.requirementResult(
+        'CityStatus',
+        req,
+        this.matches(req.name, 'Celebration') ? context.cityCelebrating : undefined
       );
   }
 

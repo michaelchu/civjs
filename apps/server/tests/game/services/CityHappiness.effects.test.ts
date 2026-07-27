@@ -74,6 +74,8 @@ describe('city happiness from loaded effects', () => {
 
   it('uses loaded elvis output and excludes specialists from base mood', () => {
     const entertainerCity = city({
+      population: 3,
+      size: 3,
       specialists: {
         [SpecialistType.SCIENTIST]: 0,
         [SpecialistType.TAX_COLLECTOR]: 0,
@@ -87,6 +89,7 @@ describe('city happiness from loaded effects', () => {
     const result = serviceFor('republic').calculateDetailedHappiness(entertainerCity);
 
     expect(result.luxuryEffect).toBe(2);
-    expect(result.content + result.unhappy).toBe(7);
+    expect(result.happy).toBe(1);
+    expect(result.happy + result.content + result.unhappy).toBe(2);
   });
 });

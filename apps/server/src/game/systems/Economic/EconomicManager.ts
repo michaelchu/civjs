@@ -118,6 +118,20 @@ export class EconomicManager {
     return this.taxRateService.getPlayerTaxRates(playerId);
   }
 
+  public setGovernmentProvider(provider: (playerId: string) => string): void {
+    const maximums: Record<string, number> = {
+      anarchy: 100,
+      despotism: 60,
+      monarchy: 70,
+      communism: 80,
+      republic: 80,
+      democracy: 100,
+    };
+    this.taxRateService.setMaxRateProvider(
+      playerId => maximums[provider(playerId).toLowerCase()] ?? 100
+    );
+  }
+
   /**
    * Set new tax rates for a player
    */

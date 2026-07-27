@@ -65,6 +65,40 @@ function turnService(
 }
 
 describe('city production lifecycle', () => {
+  it('suppresses surplus production while a city is in civil disorder', async () => {
+    const cityState = city({
+      currentProduction: 'warriors',
+      productionType: 'unit',
+      foodPerTurn: 3,
+      productionPerTurn: 4,
+      sciencePerTurn: 2,
+      goldPerTurn: 1,
+      happiness: { happy: 0, content: 0, unhappy: 1, angry: 0 },
+    });
+    const onTurn = jest.fn();
+    const service = new CityTurnProcessingService({
+      gameId: 'game-1',
+      cities: new Map([[cityState.id, cityState]]),
+      callbacks: { onCityTurnProcessed: onTurn },
+      effectsManager: new EffectsManager(),
+      refreshCityWithGovernmentEffects: jest.fn(),
+      calculateCityOutputs: jest.fn(),
+      calculateHappiness: jest.fn(),
+      applyCityHappiness: jest.fn(),
+      getPlayerGovernment: () => 'despotism',
+      checkPollution: jest.fn().mockResolvedValue(false),
+      saveCityToDatabase: jest.fn().mockResolvedValue(undefined),
+    });
+
+    await service.processCityTurn(cityState.id, 1);
+
+    expect(cityState.foodStock).toBe(0);
+    expect(cityState.productionStock).toBe(0);
+    expect(cityState.sciencePerTurn).toBe(0);
+    expect(cityState.goldPerTurn).toBe(0);
+    expect(onTurn).toHaveBeenCalledWith(cityState);
+  });
+
   it('retains excess shields after completing a building', async () => {
     const cityState = city({
       currentProduction: 'granary',

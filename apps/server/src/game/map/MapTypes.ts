@@ -103,17 +103,31 @@ export type TerrainType =
   | 'mountains';
 
 export type ResourceType =
+  | 'resources'
   | 'wheat'
-  | 'cattle'
+  | 'buffalo'
   | 'fish'
-  | 'horses'
+  | 'whales'
+  | 'game'
+  | 'furs'
+  | 'fruit'
+  | 'oasis'
+  | 'peat'
+  | 'pheasant'
   | 'iron'
-  | 'copper'
+  | 'coal'
   | 'gold'
   | 'gems'
-  | 'spices'
+  | 'spice'
   | 'silk'
+  | 'wine'
   | 'oil'
+  | 'ivory'
+  // Legacy save aliases accepted during recovery; new maps never generate these.
+  | 'cattle'
+  | 'horses'
+  | 'copper'
+  | 'spices'
   | 'uranium';
 
 export interface MapTile {

@@ -17,6 +17,7 @@
 import { logger } from '@utils/logger';
 import { MapTile, TerrainType, TemperatureType, MapStartpos } from './MapTypes';
 import { PlayerState } from '@game/managers/GameManager';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 /**
  * Island data structure matching freeciv's islands_data_type
@@ -124,24 +125,9 @@ export class StartingPositionGenerator {
    * Simplified version of freeciv's city_tile_output calculation
    */
   private getCityTileOutput(tile: MapTile, outputType: 'food' | 'production' | 'trade'): number {
-    const terrainOutputs: Record<TerrainType, { food: number; production: number; trade: number }> =
-      {
-        grassland: { food: 2, production: 0, trade: 0 },
-        plains: { food: 1, production: 1, trade: 0 },
-        forest: { food: 1, production: 2, trade: 0 },
-        hills: { food: 1, production: 0, trade: 0 },
-        desert: { food: 0, production: 1, trade: 0 },
-        tundra: { food: 1, production: 0, trade: 0 },
-        jungle: { food: 1, production: 0, trade: 0 },
-        swamp: { food: 1, production: 0, trade: 0 },
-        mountains: { food: 0, production: 1, trade: 0 },
-        coast: { food: 2, production: 0, trade: 2 },
-        lake: { food: 2, production: 0, trade: 2 },
-        ocean: { food: 1, production: 0, trade: 2 },
-        deep_ocean: { food: 1, production: 0, trade: 2 },
-      };
-
-    let output = terrainOutputs[tile.terrain]?.[outputType] || 0;
+    const terrain = rulesetLoader.getTerrain(tile.terrain);
+    const field = outputType === 'production' ? 'shields' : outputType;
+    let output = terrain[field] ?? 0;
 
     // Add resource bonuses
     if (tile.resource) {
@@ -161,22 +147,14 @@ export class StartingPositionGenerator {
    * Get resource output bonus
    */
   private getResourceOutput(resource: string, outputType: 'food' | 'production' | 'trade'): number {
-    const resourceOutputs: Record<string, { food: number; production: number; trade: number }> = {
-      wheat: { food: 1, production: 0, trade: 0 },
-      cattle: { food: 1, production: 0, trade: 0 },
-      fish: { food: 2, production: 0, trade: 0 },
-      horses: { food: 0, production: 1, trade: 0 },
-      iron: { food: 0, production: 3, trade: 0 },
-      copper: { food: 0, production: 2, trade: 0 },
-      gold: { food: 0, production: 0, trade: 6 },
-      gems: { food: 0, production: 0, trade: 4 },
-      spices: { food: 0, production: 0, trade: 3 },
-      silk: { food: 0, production: 0, trade: 3 },
-      oil: { food: 0, production: 3, trade: 0 },
-      uranium: { food: 0, production: 2, trade: 0 },
-    };
-
-    return resourceOutputs[resource]?.[outputType] || 0;
+    try {
+      const definition = rulesetLoader.getResource(resource);
+      const field = outputType === 'production' ? 'shield' : outputType;
+      const value = definition[field];
+      return typeof value === 'number' ? value : 0;
+    } catch {
+      return 0;
+    }
   }
 
   /**

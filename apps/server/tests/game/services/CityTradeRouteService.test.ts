@@ -137,4 +137,34 @@ describe('CityTradeRouteService', () => {
 
     expect(source.tradeRoutes).toEqual([]);
   });
+
+  it('uses two base routes and adds capacity from classic technologies', async () => {
+    const partners = [
+      city('p2-city', 'p2', 20, 0, 4),
+      city('p3-city', 'p3', 30, 0, 4),
+      city('p4-city', 'p4', 40, 0, 4),
+      city('p5-city', 'p5', 50, 0, 4),
+    ];
+    const service = new CityTradeRouteService(
+      new Map([
+        [source.id, source],
+        ...partners.map(candidate => [candidate.id, candidate] as const),
+      ])
+    );
+    const techs = new Set<string>();
+    service.setPlayerTechsProvider(() => techs);
+
+    for (const candidate of partners.slice(0, 2)) {
+      await service.establishTradeRoute(source.id, candidate.id, source.playerId);
+    }
+    expect(source.tradeRoutes).toHaveLength(2);
+
+    techs.add('magnetism');
+    await service.establishTradeRoute(source.id, partners[2].id, source.playerId);
+    expect(source.tradeRoutes).toHaveLength(3);
+
+    techs.add('the_corporation');
+    await service.establishTradeRoute(source.id, partners[3].id, source.playerId);
+    expect(source.tradeRoutes).toHaveLength(4);
+  });
 });

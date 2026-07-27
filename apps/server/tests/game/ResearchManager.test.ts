@@ -107,6 +107,18 @@ describe('ResearchManager', () => {
       await researchManager.setCurrentResearch('player-123', 'mathematics');
       expect(research.currentTech).toBe('mathematics');
     });
+
+    it('applies the classic 100 percent penalty when switching targets', async () => {
+      await researchManager.setCurrentResearch('player-123', 'pottery');
+      await researchManager.addResearchPoints('player-123', 5);
+
+      await researchManager.setCurrentResearch('player-123', 'warrior_code');
+
+      expect(researchManager.getPlayerResearch('player-123')).toMatchObject({
+        currentTech: 'warrior_code',
+        bulbsAccumulated: 0,
+      });
+    });
   });
 
   describe('research goals', () => {
@@ -125,6 +137,31 @@ describe('ResearchManager', () => {
       await expect(researchManager.setResearchGoal('player-123', 'invalid-tech')).rejects.toThrow(
         'Unknown technology: invalid-tech'
       );
+    });
+  });
+
+  describe('wonder research effects', () => {
+    it('grants two immediately available technologies for Darwin’s Voyage', async () => {
+      await researchManager.initializePlayerResearch('darwin-player');
+
+      const granted = await researchManager.grantAvailableTechnologies('darwin-player', 2);
+
+      expect(granted).toHaveLength(2);
+      expect(researchManager.getResearchedTechs('darwin-player')).toEqual(
+        expect.arrayContaining(granted)
+      );
+    });
+
+    it('grants Great Library knowledge known by two other players', async () => {
+      for (const player of ['library-player', 'peer-1', 'peer-2']) {
+        await researchManager.initializePlayerResearch(player);
+      }
+      await researchManager.grantTechnology('peer-1', 'pottery');
+      await researchManager.grantTechnology('peer-2', 'pottery');
+
+      await researchManager.processTechParasite('library-player', 2);
+
+      expect(researchManager.hasResearchedTech('library-player', 'pottery')).toBe(true);
     });
   });
 

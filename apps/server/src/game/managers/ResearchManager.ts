@@ -112,6 +112,14 @@ export class ResearchManager {
       }
     }
 
+    const switchingTargets =
+      playerResearch.currentTech !== undefined && playerResearch.currentTech !== techId;
+    if (switchingTargets && playerResearch.bulbsAccumulated > 0) {
+      // Classic's default techpenalty is 100 percent.
+      // @reference reference/freeciv/common/game.h GAME_DEFAULT_TECHPENALTY
+      // @reference reference/freeciv/server/techtools.c:1048-1062
+      playerResearch.bulbsAccumulated = 0;
+    }
     playerResearch.currentTech = techId;
 
     // Update database - create research entry if it doesn't exist
@@ -135,6 +143,7 @@ export class ResearchManager {
         .update(researchTable)
         .set({
           currentTech: techId,
+          bulbsAccumulated: playerResearch.bulbsAccumulated,
         })
         .where(and(eq(researchTable.gameId, this.gameId), eq(researchTable.playerId, playerId)));
     }
@@ -351,6 +360,39 @@ export class ResearchManager {
       researchedTurn: this.getCurrentTurn(),
     });
     return true;
+  }
+
+  public async grantAvailableTechnologies(playerId: string, count: number): Promise<string[]> {
+    const granted: string[] = [];
+    for (let index = 0; index < count; index++) {
+      const next = this.getAvailableTechnologies(playerId)[0];
+      if (!next || !(await this.grantTechnology(playerId, next.id))) break;
+      granted.push(next.id);
+    }
+    return granted;
+  }
+
+  /**
+   * Great Library: learn a technology once at least two other players know it.
+   * @reference reference/freeciv/data/classic/effects.ruleset effect_great_library
+   */
+  public async processTechParasite(
+    playerId: string,
+    requiredPlayers: number = 2
+  ): Promise<string[]> {
+    const research = this.playerResearch.get(playerId);
+    if (!research) return [];
+    const granted: string[] = [];
+    for (const tech of Object.values(this.technologies)) {
+      if (research.researchedTechs.has(tech.id)) continue;
+      const knownByOthers = [...this.playerResearch.values()].filter(
+        other => other.playerId !== playerId && other.researchedTechs.has(tech.id)
+      ).length;
+      if (knownByOthers >= requiredPlayers && (await this.grantTechnology(playerId, tech.id))) {
+        granted.push(tech.id);
+      }
+    }
+    return granted;
   }
 
   public async loadPlayerResearch(): Promise<void> {

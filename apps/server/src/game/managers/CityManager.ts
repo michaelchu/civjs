@@ -180,6 +180,9 @@ export interface CityState {
   luxuryPerTurn?: number;
   pollution?: number;
   unitGoldUpkeep?: number;
+  unitShieldUpkeep?: number;
+  grossProductionPerTurn?: number;
+  wasHappy?: boolean;
 
   // Culture system (freeciv-based)
   history: number; // Accumulated culture history
@@ -333,6 +336,7 @@ export class CityManager {
   public setPlayerTechsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
     this.playerTechsProvider = provider;
     this.happinessService.setPlayerTechsProvider(provider);
+    this.tradeRouteService?.setPlayerTechsProvider(provider);
   }
 
   public setPlayerBuildingsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
@@ -355,6 +359,7 @@ export class CityManager {
   public setPlayerGovernmentProvider(provider: (playerId: string) => string): void {
     this.playerGovernmentProvider = provider;
     this.happinessService.setPlayerGovernmentProvider(provider);
+    this.tileManagementService?.setPlayerGovernmentProvider(provider);
   }
 
   private getPlayerGovernment(playerId: string): string {
@@ -381,12 +386,13 @@ export class CityManager {
     );
 
     const mapData = this.mapManager?.getMapData();
-    this.tradeRouteService = new CityTradeRouteService(this.cities, 3, {
+    this.tradeRouteService = new CityTradeRouteService(this.cities, 2, {
       width: mapData?.width ?? 80,
       height: mapData?.height ?? 50,
       getContinentId: (x, y) => this.mapManager?.getTile(x, y)?.continentId,
       getCurrentTurn: () => this.currentTurnProvider?.() ?? 0,
     });
+    this.tradeRouteService.setPlayerTechsProvider(this.playerTechsProvider);
 
     this.productionService = new CityProductionService(
       this.cities,
@@ -464,6 +470,9 @@ export class CityManager {
       this.mapManager,
       CITY_MAP_DEFAULT_RADIUS_SQ
     );
+    if (this.playerGovernmentProvider) {
+      this.tileManagementService.setPlayerGovernmentProvider(this.playerGovernmentProvider);
+    }
 
     // Update optimization service with tile management service
     if (this.optimizationService) {
@@ -482,6 +491,8 @@ export class CityManager {
       refreshCityWithGovernmentEffects: this.refreshCityWithGovernmentEffects.bind(this),
       calculateCityOutputs: this.calculateCityOutputs.bind(this),
       calculateHappiness: this.calculateHappiness.bind(this),
+      applyCityHappiness: this.applyCityHappiness.bind(this),
+      getPlayerGovernment: this.getPlayerGovernment.bind(this),
       checkPollution: this.checkPollution.bind(this),
       saveCityToDatabase: this.saveCityToDatabase.bind(this),
     });
@@ -611,6 +622,7 @@ export class CityManager {
       tradePerTurn: 1, // Base city center trade
       sciencePerTurn: 0, // Will be calculated
       history: 0, // Start with no culture history
+      wasHappy: false,
       buildings: [],
       specialists: {
         [SpecialistType.SCIENTIST]: 0,
@@ -641,6 +653,17 @@ export class CityManager {
     }
 
     this.cities.set(cityId, city);
+
+    // Classic roads are automatically present on eligible city centers.
+    // A river center requires Bridge Building, so leave that case untouched.
+    // @reference reference/freeciv/data/classic/terrain.ruleset extra_road
+    const centerTile = this.mapManager?.getTile(x, y);
+    if (centerTile && centerTile.riverMask === 0) {
+      centerTile.hasRoad = true;
+      if (!centerTile.improvements.includes('road')) {
+        centerTile.improvements.push('road');
+      }
+    }
 
     // Initialize workable tiles using the service
     if (this.tileManagementService) {
@@ -907,6 +930,7 @@ export class CityManager {
           luxuryPerTurn: record.luxuryPerTurn || 0,
           pollution: record.pollution || 0,
           history: record.history || 0, // Culture history
+          wasHappy: record.wasHappy,
           productionStock: record.production || 0,
           buildings: (record.buildings as string[]) || [],
           specialists: (record.specialists as Record<SpecialistType, number>) || {
@@ -986,6 +1010,7 @@ export class CityManager {
         specialists: city.specialists,
         productionQueue: city.worklist,
         happiness: city.happiness.content - city.happiness.unhappy, // Simplified happiness mapping
+        wasHappy: city.wasHappy ?? false,
         defenseStrength: city.defenseStrength || 1,
         airliftUsedTurn: city.airliftUsedTurn ?? null,
         // Default values for other required fields
@@ -1105,7 +1130,7 @@ export class CityManager {
     }
 
     // Delegate to CityHappinessService for all happiness calculations
-    return this.happinessService.calculateDetailedHappiness(city);
+    return this.happinessService.calculateDetailedHappiness(city, city.luxuryPerTurn ?? 0);
   }
 
   public calculateHappiness(cityId: string): Happiness {
@@ -1115,7 +1140,7 @@ export class CityManager {
     }
 
     // Delegate to CityHappinessService for happiness calculation
-    return this.happinessService.calculateHappiness(city);
+    return this.happinessService.calculateHappiness(city, city.luxuryPerTurn ?? 0);
   }
 
   public isCityUnhappy(cityId: string): boolean {
@@ -1138,7 +1163,7 @@ export class CityManager {
     if (!city) return;
 
     // Delegate to CityHappinessService to apply happiness to city state
-    this.happinessService.applyCityHappiness(city);
+    this.happinessService.applyCityHappiness(city, city.luxuryPerTurn ?? 0);
   }
 
   public calculateCityOutputs(cityId: string): {
@@ -1165,6 +1190,7 @@ export class CityManager {
 
     // Delegate to CityCalculationService for all calculations
     const tileOutputs = this.tileManagementService?.calculateCityOutputs(city.id);
+    city.grossProductionPerTurn = tileOutputs?.shields ?? 0;
     if (tileOutputs && this.tradeRouteService) {
       tileOutputs.trade += this.tradeRouteService.getCityTradeRouteRevenue(city.id);
     }
@@ -1205,6 +1231,7 @@ export class CityManager {
     city.luxuryPerTurn = outputs.luxury;
     city.pollution = outputs.pollution;
     city.unitGoldUpkeep = unitUpkeep.gold;
+    city.unitShieldUpkeep = unitUpkeep.shield;
 
     return outputs;
   }
@@ -1405,7 +1432,10 @@ export class CityManager {
 
   async sellBuilding(cityId: string, buildingId: string): Promise<boolean> {
     if (!this.buildingService) return false;
-    return this.buildingService.sellBuilding(cityId, buildingId);
+    const sold = await this.buildingService.sellBuilding(cityId, buildingId);
+    const city = this.cities.get(cityId);
+    if (sold && city) await this.saveCityToDatabase(city);
+    return sold;
   }
 
   calculateBuildingMaintenanceCost(cityId: string): number {

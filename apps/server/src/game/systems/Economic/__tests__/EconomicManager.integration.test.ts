@@ -54,9 +54,9 @@ describe('EconomicManager Integration', () => {
       await economicManager.initializePlayer(playerId);
 
       const taxRates = economicManager.getPlayerTaxRates(playerId);
-      expect(taxRates.tax).toBe(50);
-      expect(taxRates.luxury).toBe(20);
-      expect(taxRates.science).toBe(30);
+      expect(taxRates.tax).toBe(40);
+      expect(taxRates.luxury).toBe(0);
+      expect(taxRates.science).toBe(60);
     });
 
     test('should initialize player with custom values', async () => {
@@ -83,16 +83,16 @@ describe('EconomicManager Integration', () => {
     test('should validate and set tax rates', () => {
       const validation = economicManager.setPlayerTaxRates({
         playerId,
-        newRates: { tax: 70, luxury: 20, science: 10 },
+        newRates: { tax: 60, luxury: 20, science: 20 },
         immediate: true,
       });
 
       expect(validation.isValid).toBe(true);
 
       const updatedRates = economicManager.getPlayerTaxRates(playerId);
-      expect(updatedRates.tax).toBe(70);
+      expect(updatedRates.tax).toBe(60);
       expect(updatedRates.luxury).toBe(20);
-      expect(updatedRates.science).toBe(10);
+      expect(updatedRates.science).toBe(20);
     });
 
     test('should reject invalid tax rates', () => {

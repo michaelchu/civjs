@@ -96,4 +96,29 @@ describe('city output pipeline', () => {
     expect(result.food).toBe(1);
     expect(result.shields).toBe(1);
   });
+
+  it('applies technology-driven pollution and building reductions', () => {
+    const service = new CityCalculationService(new EffectsManager());
+    const dirty = city({ population: 20 });
+    const techs = new Set(['automobile', 'industrialization', 'mass_production', 'plastics']);
+    const dirtyOutput = service.calculateCityOutputs(
+      dirty,
+      { food: 40, shields: 30, trade: 0 },
+      undefined,
+      context(dirty, { playerTechs: techs })
+    );
+    const clean = city({
+      population: 20,
+      buildings: ['mass_transit', 'recycling_center'],
+    });
+    const cleanOutput = service.calculateCityOutputs(
+      clean,
+      { food: 40, shields: 30, trade: 0 },
+      undefined,
+      context(clean, { playerTechs: techs })
+    );
+
+    expect(dirtyOutput.pollution).toBeGreaterThan(0);
+    expect(cleanOutput.pollution).toBeLessThan(dirtyOutput.pollution);
+  });
 });

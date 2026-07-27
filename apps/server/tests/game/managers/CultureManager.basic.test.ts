@@ -71,6 +71,7 @@ describe('CultureManager - Core Calculations', () => {
         wallsLevel: 0,
         foundedTurn: 1,
         capturedTurn: null,
+        wasHappy: false,
         createdAt: new Date(),
       };
 
@@ -137,6 +138,7 @@ describe('CultureManager - Core Calculations', () => {
         wallsLevel: 0,
         foundedTurn: 1,
         capturedTurn: null,
+        wasHappy: false,
         createdAt: new Date(),
       };
 
@@ -195,6 +197,7 @@ describe('CultureManager - Core Calculations', () => {
         wallsLevel: 0,
         foundedTurn: 1,
         capturedTurn: null,
+        wasHappy: false,
         createdAt: new Date(),
       };
 
@@ -259,6 +262,7 @@ describe('CultureManager - Core Calculations', () => {
         wallsLevel: 0,
         foundedTurn: 1,
         capturedTurn: null,
+        wasHappy: false,
         createdAt: new Date(),
       };
 
@@ -320,6 +324,7 @@ describe('CultureManager - Core Calculations', () => {
         wallsLevel: 0,
         foundedTurn: 1,
         capturedTurn: null,
+        wasHappy: false,
         createdAt: new Date(),
       };
 
@@ -380,6 +385,7 @@ describe('CultureManager - Core Calculations', () => {
         wallsLevel: 0,
         foundedTurn: 10,
         capturedTurn: null,
+        wasHappy: false,
         createdAt: new Date(),
       };
 
@@ -439,6 +445,7 @@ describe('CultureManager - Core Calculations', () => {
         wallsLevel: 0,
         foundedTurn: 1,
         capturedTurn: null,
+        wasHappy: false,
         createdAt: new Date(),
       };
 
@@ -486,6 +493,7 @@ describe('CultureManager - Core Calculations', () => {
         wallsLevel: 0,
         foundedTurn: 1,
         capturedTurn: null,
+        wasHappy: false,
         createdAt: new Date(),
       };
 

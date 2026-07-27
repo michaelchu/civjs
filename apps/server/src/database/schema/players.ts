@@ -32,9 +32,9 @@ export const players = pgTable('players', {
   faith: integer('faith').default(0).notNull(),
 
   // Economic system (tax rate allocation)
-  taxRate: integer('tax_rate').default(50).notNull(), // Percentage of trade converted to gold
-  luxuryRate: integer('luxury_rate').default(20).notNull(), // Percentage of trade converted to luxury
-  scienceRate: integer('science_rate').default(30).notNull(), // Percentage of trade converted to science
+  taxRate: integer('tax_rate').default(40).notNull(), // Percentage of trade converted to gold
+  luxuryRate: integer('luxury_rate').default(0).notNull(), // Percentage of trade converted to luxury
+  scienceRate: integer('science_rate').default(60).notNull(), // Percentage of trade converted to science
 
   // Culture system (freeciv-based)
   history: integer('history').default(0).notNull(), // National history accumulation

@@ -218,7 +218,7 @@ export class CityCalculationService extends BaseGameService {
       science,
       gold,
       luxury,
-      pollution: this.calculatePollution(city, grossShields),
+      pollution: this.calculatePollution(city, grossShields, playerContext),
     };
 
     // Defensive programming to ensure no undefined values
@@ -273,9 +273,31 @@ export class CityCalculationService extends BaseGameService {
    *
    * @reference reference/freeciv/common/city.c:2785-2823 city_pollution_types()
    */
-  private calculatePollution(city: CityState, shieldProduction: number): number {
+  private calculatePollution(
+    city: CityState,
+    shieldProduction: number,
+    playerContext?: CityPlayerContext
+  ): number {
     const basePollution = rulesetLoader.getCivstyle('classic').base_pollution;
-    return Math.max(0, shieldProduction + city.population + basePollution);
+    const techNames = new Set(
+      [...(playerContext?.playerTechs ?? [])].map(tech =>
+        tech.toLowerCase().replace(/[^a-z0-9]/g, '')
+      )
+    );
+    const pollutionTechs = ['automobile', 'industrialization', 'massproduction', 'plastics'];
+    const populationPct = city.buildings.includes('mass_transit')
+      ? 0
+      : pollutionTechs.filter(tech => techNames.has(tech)).length * 25;
+    const populationPollution = Math.floor((city.population * populationPct) / 100);
+
+    let productionPct = 100;
+    if (city.buildings.includes('recycling_center')) productionPct = 34;
+    else if (city.buildings.includes('solar_plant')) productionPct = 50;
+    else if (city.buildings.includes('hydro_plant') || city.buildings.includes('nuclear_plant')) {
+      productionPct = 75;
+    }
+    const productionPollution = Math.floor((shieldProduction * productionPct) / 100);
+    return Math.max(0, productionPollution + populationPollution + basePollution);
   }
 
   /**

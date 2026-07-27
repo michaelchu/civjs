@@ -47,6 +47,9 @@ export interface CityState {
   tradePerTurn?: number;
   shieldStock?: number;
   sciencePerTurn?: number;
+  goldPerTurn?: number;
+  luxuryPerTurn?: number;
+  wasHappy?: boolean;
   history: number;
   buildings: string[];
   specialists: Record<number, number>;
@@ -125,6 +128,8 @@ export interface CityTurnProcessingDependencies {
   refreshCityWithGovernmentEffects: (cityId: string) => void;
   calculateCityOutputs: (cityId: string) => any;
   calculateHappiness: (cityId: string) => any;
+  applyCityHappiness?: (cityId: string) => void;
+  getPlayerGovernment?: (playerId: string) => string;
   checkPollution: (cityId: string, currentTurn: number) => Promise<boolean>;
   saveCityToDatabase: (city: CityState) => Promise<void>;
 }
@@ -184,6 +189,19 @@ export class CityTurnProcessingService extends BaseGameService {
       this.dependencies.calculateCityOutputs(cityId);
       recordStep('calculate_outputs');
 
+      // Happiness must be refreshed before outputs are accumulated because
+      // disorder suppresses the current turn's surplus.
+      this.dependencies.applyCityHappiness?.(cityId);
+      const inDisorder = city.happiness.unhappy + 2 * city.happiness.angry > city.happiness.happy;
+      if (inDisorder) {
+        city.foodPerTurn = Math.min(0, city.foodPerTurn ?? 0);
+        city.productionPerTurn = 0;
+        city.sciencePerTurn = 0;
+        city.goldPerTurn = 0;
+        city.luxuryPerTurn = 0;
+      }
+      recordStep('happiness');
+
       // Trigger callback for city turn processing (science accumulation)
       if (this.dependencies.callbacks.onCityTurnProcessed) {
         this.dependencies.callbacks.onCityTurnProcessed(city);
@@ -197,10 +215,7 @@ export class CityTurnProcessingService extends BaseGameService {
       // Process production
       await this.processProduction(city, currentTurn);
       recordStep('production');
-
-      // Process happiness
-      this.dependencies.calculateHappiness(cityId);
-      recordStep('happiness');
+      city.wasHappy = this.isHappy(city);
 
       await this.dependencies.checkPollution(cityId, currentTurn);
       recordStep('pollution');
@@ -276,8 +291,23 @@ export class CityTurnProcessingService extends BaseGameService {
     const newFoodStock = currentFoodStock + foodSurplus;
 
     const granarySize = this.calculateGranarySize(city.population);
+    const government = (
+      this.dependencies.getPlayerGovernment?.(city.playerId) ?? 'despotism'
+    ).toLowerCase();
+    const celebrating = city.wasHappy === true && this.isHappy(city);
+    const raptureGrowth =
+      foodSurplus > 0 && celebrating && (government === 'republic' || government === 'democracy');
 
-    if (newFoodStock >= granarySize && foodSurplus > 0) {
+    if ((newFoodStock >= granarySize && foodSurplus > 0) || raptureGrowth) {
+      const sizeLimit = city.buildings.includes('sewer_system')
+        ? Number.POSITIVE_INFINITY
+        : city.buildings.includes('aqueduct')
+          ? 12
+          : 8;
+      if (city.population >= sizeLimit) {
+        city.foodStock = Math.min(newFoodStock, granarySize);
+        return;
+      }
       // City grows
       const oldSize = city.population;
       city.population += 1;
@@ -287,8 +317,9 @@ export class CityTurnProcessingService extends BaseGameService {
         cityId: city.id,
         cityBuildings: new Set(city.buildings),
       }).value;
-      city.foodStock =
-        newFoodStock - granarySize + Math.floor((granarySize * growthFoodRetention) / 100);
+      city.foodStock = raptureGrowth
+        ? Math.min(newFoodStock, this.calculateGranarySize(city.population))
+        : newFoodStock - granarySize + Math.floor((granarySize * growthFoodRetention) / 100);
 
       logger.info(`City ${city.name} grew from size ${oldSize} to ${city.population}`);
 
@@ -323,6 +354,15 @@ export class CityTurnProcessingService extends BaseGameService {
     } else {
       city.foodStock = newFoodStock;
     }
+  }
+
+  private isHappy(city: CityState): boolean {
+    return (
+      city.population >= 3 &&
+      city.happiness.unhappy === 0 &&
+      city.happiness.angry === 0 &&
+      city.happiness.happy >= Math.ceil(city.population / 2)
+    );
   }
 
   /**

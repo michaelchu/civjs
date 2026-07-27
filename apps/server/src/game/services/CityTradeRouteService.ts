@@ -13,9 +13,11 @@ import type { CityState, TradeRoute, TradeRouteCalculation } from '@game/manager
  * - Available trade partner discovery
  */
 export class CityTradeRouteService extends BaseGameService {
+  private playerTechsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
+
   constructor(
     private cities: Map<string, CityState>,
-    private MAX_TRADE_ROUTES_PER_CITY: number = 3,
+    private MAX_TRADE_ROUTES_PER_CITY: number = 2,
     private readonly mapContext: {
       width: number;
       height: number;
@@ -33,6 +35,19 @@ export class CityTradeRouteService extends BaseGameService {
 
   getServiceName(): string {
     return 'CityTradeRouteService';
+  }
+
+  setPlayerTechsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
+    this.playerTechsProvider = provider;
+  }
+
+  private getMaxTradeRoutes(city: CityState): number {
+    const techs = this.playerTechsProvider(city.playerId);
+    const has = (expected: string) =>
+      [...techs].some(tech => tech.toLowerCase().replace(/[^a-z0-9]/g, '') === expected);
+    return (
+      this.MAX_TRADE_ROUTES_PER_CITY + (has('magnetism') ? 1 : 0) + (has('thecorporation') ? 1 : 0)
+    );
   }
 
   /**
@@ -185,7 +200,7 @@ export class CityTradeRouteService extends BaseGameService {
 
   private canMakeRoomForRoute(city: CityState, newValue: number): boolean {
     city.tradeRoutes ??= [];
-    if (city.tradeRoutes.length < this.MAX_TRADE_ROUTES_PER_CITY) return true;
+    if (city.tradeRoutes.length < this.getMaxTradeRoutes(city)) return true;
     const weakest = city.tradeRoutes.reduce((candidate, route) =>
       route.value < candidate.value ? route : candidate
     );
@@ -193,7 +208,7 @@ export class CityTradeRouteService extends BaseGameService {
   }
 
   private makeRoomForRoute(city: CityState): void {
-    if (city.tradeRoutes.length < this.MAX_TRADE_ROUTES_PER_CITY) return;
+    if (city.tradeRoutes.length < this.getMaxTradeRoutes(city)) return;
     const weakest = city.tradeRoutes.reduce((candidate, route) =>
       route.value < candidate.value ? route : candidate
     );

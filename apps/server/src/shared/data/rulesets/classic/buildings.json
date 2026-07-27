@@ -104,9 +104,7 @@
       "upkeep": 3,
       "playable": true,
       "requiredTech": "monotheism",
-      "requires": [
-        "temple"
-      ],
+      "requires": ["temple"],
       "effects": {
         "happinessBonus": 3,
         "scienceBonus": 25
@@ -134,7 +132,9 @@
     "aqueduct": {
       "id": "aqueduct",
       "name": "Aqueduct",
-      "effects": {},
+      "effects": {
+        "maxCitySize": 12
+      },
       "cost": 60,
       "upkeep": 2,
       "requiredTech": "construction"
@@ -146,9 +146,7 @@
       "cost": 80,
       "upkeep": 2,
       "requiredTech": "banking",
-      "requires": [
-        "marketplace"
-      ]
+      "requires": ["marketplace"]
     },
     "barracks_ii": {
       "id": "barracks_ii",
@@ -193,7 +191,9 @@
     "harbor": {
       "id": "harbor",
       "name": "Harbor",
-      "effects": {},
+      "effects": {
+        "oceanFood": 1
+      },
       "cost": 40,
       "upkeep": 1,
       "requiredTech": "seafaring"
@@ -205,9 +205,7 @@
       "cost": 180,
       "upkeep": 4,
       "requiredTech": "electronics",
-      "requires": [
-        "factory"
-      ]
+      "requires": ["factory"]
     },
     "mass_transit": {
       "id": "mass_transit",
@@ -224,9 +222,7 @@
       "cost": 220,
       "upkeep": 6,
       "requiredTech": "robotics",
-      "requires": [
-        "factory"
-      ]
+      "requires": ["factory"]
     },
     "nuclear_plant": {
       "id": "nuclear_plant",
@@ -235,14 +231,14 @@
       "cost": 120,
       "upkeep": 2,
       "requiredTech": "nuclear_power",
-      "requires": [
-        "factory"
-      ]
+      "requires": ["factory"]
     },
     "offshore_platform": {
       "id": "offshore_platform",
       "name": "Offshore Platform",
-      "effects": {},
+      "effects": {
+        "oceanShields": 1
+      },
       "cost": 120,
       "upkeep": 3,
       "requiredTech": "miniaturization"
@@ -270,9 +266,7 @@
       "cost": 130,
       "upkeep": 4,
       "requiredTech": "refining",
-      "requires": [
-        "factory"
-      ]
+      "requires": ["factory"]
     },
     "recycling_center": {
       "id": "recycling_center",
@@ -289,9 +283,7 @@
       "cost": 120,
       "upkeep": 3,
       "requiredTech": "computers",
-      "requires": [
-        "university"
-      ]
+      "requires": ["university"]
     },
     "sam_battery": {
       "id": "sam_battery",
@@ -312,13 +304,13 @@
     "sewer_system": {
       "id": "sewer_system",
       "name": "Sewer System",
-      "effects": {},
+      "effects": {
+        "unlimitedCitySize": true
+      },
       "cost": 80,
       "upkeep": 2,
       "requiredTech": "sanitation",
-      "requires": [
-        "aqueduct"
-      ]
+      "requires": ["aqueduct"]
     },
     "solar_plant": {
       "id": "solar_plant",
@@ -327,9 +319,7 @@
       "cost": 320,
       "upkeep": 4,
       "requiredTech": "environmentalism",
-      "requires": [
-        "factory"
-      ]
+      "requires": ["factory"]
     },
     "space_component": {
       "id": "space_component",
@@ -338,9 +328,7 @@
       "cost": 160,
       "upkeep": 0,
       "requiredTech": "plastics",
-      "requires": [
-        "factory"
-      ],
+      "requires": ["factory"],
       "genus": "Special"
     },
     "space_module": {
@@ -350,9 +338,7 @@
       "cost": 320,
       "upkeep": 0,
       "requiredTech": "superconductors",
-      "requires": [
-        "factory"
-      ],
+      "requires": ["factory"],
       "genus": "Special"
     },
     "space_structural": {
@@ -362,9 +348,7 @@
       "cost": 80,
       "upkeep": 0,
       "requiredTech": "space_flight",
-      "requires": [
-        "factory"
-      ],
+      "requires": ["factory"],
       "genus": "Special"
     },
     "stock_exchange": {
@@ -374,9 +358,7 @@
       "cost": 120,
       "upkeep": 3,
       "requiredTech": "economics",
-      "requires": [
-        "bank"
-      ]
+      "requires": ["bank"]
     },
     "super_highways": {
       "id": "super_highways",
@@ -401,9 +383,7 @@
       "cost": 120,
       "upkeep": 3,
       "requiredTech": "university",
-      "requires": [
-        "library"
-      ]
+      "requires": ["library"]
     },
     "apollo_program": {
       "id": "apollo_program",
@@ -453,7 +433,9 @@
     "darwins_voyage": {
       "id": "darwins_voyage",
       "name": "Darwin's Voyage",
-      "effects": {},
+      "effects": {
+        "immediateTechs": 2
+      },
       "cost": 300,
       "upkeep": 0,
       "requiredTech": "railroad",
@@ -471,7 +453,9 @@
     "great_library": {
       "id": "great_library",
       "name": "Great Library",
-      "effects": {},
+      "effects": {
+        "techParasitePlayers": 2
+      },
       "cost": 300,
       "upkeep": 0,
       "requiredTech": "literacy",

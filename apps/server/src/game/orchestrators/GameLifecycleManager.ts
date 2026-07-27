@@ -20,6 +20,7 @@ import { EffectsManager } from '@game/managers/EffectsManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
 import { CultureManager } from '@game/managers/CultureManager';
 import { EconomicManager } from '@game/systems/Economic/EconomicManager';
+import { DEFAULT_TAX_RATES } from '@game/systems/Economic/constants/EconomicConstants';
 import { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { BorderManager } from '@game/managers/BorderManager';
@@ -380,6 +381,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
               y: city.y,
             });
           }
+        } else if (item.value === 'darwins_voyage') {
+          await researchManager.grantAvailableTechnologies(city.playerId, 2);
         }
       },
       onCityFounded: city => {
@@ -912,6 +915,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       getPlayer: playerId => players.get(playerId),
     });
     const economicManager = this.createEconomicManager(gameId);
+    economicManager.setGovernmentProvider(
+      playerId => governmentManager.getPlayerGovernment(playerId)?.currentGovernment ?? 'despotism'
+    );
     const tm = new TurnManager(
       gameId,
       this.databaseProvider,
@@ -951,9 +957,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     for (const playerId of playerIds) {
       const player = databasePlayers.find(candidate => candidate.id === playerId);
       await economicManager.initializePlayer(playerId, player?.gold ?? 0, {
-        tax: player?.taxRate ?? 50,
-        luxury: player?.luxuryRate ?? 20,
-        science: player?.scienceRate ?? 30,
+        tax: player?.taxRate ?? DEFAULT_TAX_RATES.tax,
+        luxury: player?.luxuryRate ?? DEFAULT_TAX_RATES.luxury,
+        science: player?.scienceRate ?? DEFAULT_TAX_RATES.science,
       });
     }
     cityManager.setPlayerTaxRatesProvider(playerId => economicManager.getPlayerTaxRates(playerId));

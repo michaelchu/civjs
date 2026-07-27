@@ -226,7 +226,8 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       for (let y = 6; y <= 10; y += 1) {
         map.tiles[x][y].terrain = 'grassland';
         map.tiles[x][y].resource = undefined;
-        map.tiles[x][y].improvements = [];
+        map.tiles[x][y].improvements = ['road'];
+        map.tiles[x][y].riverMask = 1;
       }
     }
     const settlerId = await gameManager.createUnit(gameId, hostPlayer!.id, 'settlers', 8, 8);
@@ -242,12 +243,21 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     const productionReply = waitForPacket(host, PacketType.CITY_PRODUCTION_CHANGE_REPLY);
     host.emit('packet', {
       type: PacketType.CITY_PRODUCTION_CHANGE,
-      data: { cityId, production: 'warriors', type: 'unit' },
+      data: { cityId, production: 'barracks', type: 'building' },
     });
     expect((await productionReply).data).toMatchObject({ success: true });
     expect(gameManager.getGameInstance(gameId)?.cityManager.getCity(cityId)).toMatchObject({
       id: cityId,
-      currentProduction: 'warriors',
+      currentProduction: 'barracks',
+    });
+
+    const taxRateReply = await emitWithAck<{
+      success: boolean;
+      rates: { tax: number; luxury: number; science: number };
+    }>(host, 'economy:setTaxRates', { tax: 30, luxury: 30, science: 40 });
+    expect(taxRateReply).toEqual({
+      success: true,
+      rates: { tax: 30, luxury: 30, science: 40 },
     });
 
     const researchTarget = gameManager
@@ -263,12 +273,111 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       researchTarget.id
     );
 
-    const hostTurnReply = waitForPacket(host, PacketType.TURN_END_REPLY);
-    host.emit('packet', { type: PacketType.END_TURN, data: {} });
-    expect((await hostTurnReply).data).toMatchObject({ success: true, turnAdvanced: false });
-    const guestTurnReply = waitForPacket(guest, PacketType.TURN_END_REPLY);
-    guest.emit('packet', { type: PacketType.END_TURN, data: {} });
-    expect((await guestTurnReply).data).toMatchObject({ success: true, turnAdvanced: true });
+    type TurnSnapshot = {
+      turn: number;
+      population: number;
+      foodStock: number;
+      shieldStock: number;
+      history: number;
+      food: number;
+      shields: number;
+      trade: number;
+      science: number;
+      goldOutput: number;
+      luxury: number;
+      treasury: number;
+      currentTech?: string;
+      techCost: number;
+      bulbs: number;
+      bulbsLastTurn: number;
+      researchedTechs: number;
+    };
+
+    const takeTurnSnapshot = async (): Promise<TurnSnapshot> => {
+      const game = gameManager.getGameInstance(gameId)!;
+      const city = game.cityManager.getCity(cityId)!;
+      const research = game.researchManager.getPlayerResearch(hostPlayer!.id)!;
+      const researchProgress = game.researchManager.getResearchProgress(hostPlayer!.id);
+      return {
+        turn: game.currentTurn,
+        population: city.population,
+        foodStock: city.foodStock ?? 0,
+        shieldStock: city.shieldStock ?? 0,
+        history: city.history,
+        food: city.foodPerTurn ?? 0,
+        shields: city.productionPerTurn ?? 0,
+        trade: city.tradePerTurn ?? 0,
+        science: city.sciencePerTurn ?? 0,
+        goldOutput: city.goldPerTurn ?? 0,
+        luxury: city.luxuryPerTurn ?? 0,
+        treasury: await game.turnManager.getEconomicManager()!.getPlayerGold(hostPlayer!.id),
+        currentTech: research.currentTech,
+        techCost: researchProgress?.required ?? 0,
+        bulbs: research.bulbsAccumulated,
+        bulbsLastTurn: research.bulbsLastTurn,
+        researchedTechs: research.researchedTechs.size,
+      };
+    };
+
+    const assertTurnAccumulation = (before: TurnSnapshot, after: TurnSnapshot): void => {
+      expect(after.turn).toBe(before.turn + 1);
+      expect(after.food).toBeGreaterThan(0);
+      expect(after.shields).toBeGreaterThan(0);
+      expect(after.trade).toBeGreaterThan(0);
+      expect(after.science + after.goldOutput + after.luxury).toBe(after.trade);
+
+      if (after.population === before.population) {
+        expect(after.foodStock).toBe(before.foodStock + after.food);
+      } else {
+        expect(after.population).toBe(before.population + 1);
+        expect(after.foodStock).toBeGreaterThanOrEqual(0);
+      }
+      expect(after.shieldStock).toBe(before.shieldStock + after.shields);
+      expect(after.history).toBeGreaterThan(before.history);
+      expect(after.treasury).toBe(before.treasury + after.goldOutput);
+      expect(after.bulbsLastTurn).toBe(after.science);
+
+      if (after.currentTech === before.currentTech) {
+        expect(after.bulbs).toBe(before.bulbs + after.science);
+        expect(after.researchedTechs).toBe(before.researchedTechs);
+      } else {
+        expect(after.currentTech).toBeDefined();
+        expect(after.bulbs).toBe(before.bulbs + after.science - before.techCost);
+        expect(after.researchedTechs).toBeGreaterThan(before.researchedTechs);
+      }
+    };
+
+    const ensureResearchTarget = async (): Promise<void> => {
+      if (gameManager.getPlayerResearch(gameId, hostPlayer!.id)?.currentTech) return;
+      const nextTarget = gameManager
+        .getAvailableTechnologies(gameId, hostPlayer!.id)
+        .sort((left, right) => right.cost - left.cost || left.id.localeCompare(right.id))[0]!;
+      const reply = waitForPacket(host, PacketType.RESEARCH_SET_REPLY);
+      host.emit('packet', {
+        type: PacketType.RESEARCH_SET,
+        data: { techId: nextTarget.id },
+      });
+      expect((await reply).data).toMatchObject({ success: true });
+    };
+
+    const advanceTurn = async (): Promise<void> => {
+      const hostTurnReply = waitForPacket(host, PacketType.TURN_END_REPLY);
+      host.emit('packet', { type: PacketType.END_TURN, data: {} });
+      expect((await hostTurnReply).data).toMatchObject({ success: true, turnAdvanced: false });
+      const guestTurnReply = waitForPacket(guest, PacketType.TURN_END_REPLY);
+      guest.emit('packet', { type: PacketType.END_TURN, data: {} });
+      expect((await guestTurnReply).data).toMatchObject({ success: true, turnAdvanced: true });
+    };
+
+    const turnSnapshots: TurnSnapshot[] = [];
+    for (let completedTurns = 0; completedTurns < 20; completedTurns += 1) {
+      await ensureResearchTarget();
+      const before = await takeTurnSnapshot();
+      await advanceTurn();
+      const after = await takeTurnSnapshot();
+      assertTurnAccumulation(before, after);
+      turnSnapshots.push(after);
+    }
 
     const guestPlayer = Array.from(gameManager.getGameInstance(gameId)!.players.values()).find(
       player => player.userId === guestUserId
@@ -287,23 +396,25 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     });
     expect((await attackReply).data).toMatchObject({ success: true });
 
-    for (let completedTurns = 1; completedTurns < 20; completedTurns += 1) {
-      const hostTurnReply = waitForPacket(host, PacketType.TURN_END_REPLY);
-      host.emit('packet', { type: PacketType.END_TURN, data: {} });
-      expect((await hostTurnReply).data).toMatchObject({ success: true, turnAdvanced: false });
-
-      const guestTurnReply = waitForPacket(guest, PacketType.TURN_END_REPLY);
-      guest.emit('packet', { type: PacketType.END_TURN, data: {} });
-      expect((await guestTurnReply).data).toMatchObject({ success: true, turnAdvanced: true });
-    }
     expect(gameManager.getGameInstance(gameId)?.currentTurn).toBe(21);
-    expect(gameManager.getGameInstance(gameId)?.cityManager.getCity(cityId)).toMatchObject({
+    const cityAfterTwentyTurns = gameManager.getGameInstance(gameId)?.cityManager.getCity(cityId);
+    expect(cityAfterTwentyTurns).toMatchObject({
       id: cityId,
       population: 2,
       foodStock: 20,
     });
+    expect(cityAfterTwentyTurns!.productionPerTurn).toBeGreaterThan(0);
+    expect(cityAfterTwentyTurns!.tradePerTurn).toBeGreaterThan(0);
+    expect(cityAfterTwentyTurns!.sciencePerTurn).toBeGreaterThan(0);
+    expect(cityAfterTwentyTurns!.goldPerTurn).toBeGreaterThanOrEqual(0);
+    expect(turnSnapshots.some(snapshot => snapshot.luxury > 0)).toBe(true);
+    expect(cityAfterTwentyTurns!.history).toBeGreaterThan(0);
     const hostResearchBeforeRecovery = gameManager.getPlayerResearch(gameId, hostPlayer!.id);
     expect(hostResearchBeforeRecovery).toBeDefined();
+    expect(
+      hostResearchBeforeRecovery!.researchedTechs.size > 1 ||
+        hostResearchBeforeRecovery!.bulbsAccumulated > 0
+    ).toBe(true);
     gameManager.updatePlayerVisibility(gameId, hostPlayer!.id);
     expect(
       gameManager.getTileVisibility(gameId, hostPlayer!.id, moveTarget!.x, moveTarget!.y)

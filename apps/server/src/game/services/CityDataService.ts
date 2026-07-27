@@ -379,16 +379,21 @@ export class CityDataService {
   /**
    * Check if city is celebrating
    */
-  private static isCelebrating(_city: CityState): boolean {
-    // TODO: Implement celebration logic (happy citizens >= 50% and size >= celebrate_size)
-    return false;
+  private static isCelebrating(city: CityState): boolean {
+    return (
+      city.wasHappy === true &&
+      city.population >= 3 &&
+      city.happiness.unhappy === 0 &&
+      city.happiness.angry === 0 &&
+      city.happiness.happy >= Math.ceil(city.population / 2)
+    );
   }
 
   /**
    * Check if city is in disorder
    */
   private static isInDisorder(city: CityState): boolean {
-    return city.happiness.unhappy > city.happiness.content + city.happiness.happy;
+    return city.happiness.happy < city.happiness.unhappy + 2 * city.happiness.angry;
   }
 
   /**

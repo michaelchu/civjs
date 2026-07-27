@@ -180,7 +180,7 @@ export class CityHappinessService extends BaseGameService {
     ).value;
 
     // Start with ruleset-driven base population happiness.
-    const happy = 0;
+    let happy = 0;
     let content = Math.min(ordinaryCitizens, Math.max(0, baseContent));
     let unhappy = Math.max(0, ordinaryCitizens - content);
     const angry = 0;
@@ -212,14 +212,21 @@ export class CityHappinessService extends BaseGameService {
       militaryUnitsPresent
     ).happyBonus;
 
-    // Apply happiness improvements
-    // Freeciv spends two luxury points per citizen mood improvement.
-    // @reference reference/freeciv/common/city.c:2545-2623 citizen_happy_luxury()
-    const totalHappinessBonus = Math.floor(totalLuxury / 2) + buildingEffect + unitEffect;
-    const happinessToApply = Math.min(totalHappinessBonus, unhappy);
+    const contentToApply = Math.min(buildingEffect + unitEffect, unhappy);
+    unhappy -= contentToApply;
+    content += contentToApply;
 
-    unhappy = Math.max(0, unhappy - happinessToApply);
-    content += happinessToApply;
+    // Freeciv spends two luxury points per citizen mood improvement and can
+    // continue improving content citizens into happy citizens.
+    // @reference reference/freeciv/common/city.c:2545-2623 citizen_happy_luxury()
+    let luxurySteps = Math.floor(totalLuxury / 2);
+    const calmedByLuxury = Math.min(luxurySteps, unhappy);
+    unhappy -= calmedByLuxury;
+    content += calmedByLuxury;
+    luxurySteps -= calmedByLuxury;
+    const madeHappy = Math.min(luxurySteps, content);
+    content -= madeHappy;
+    happy += madeHappy;
 
     return {
       stage: FEELING_FINAL,

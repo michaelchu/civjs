@@ -6,6 +6,7 @@
 
 import { BaseGameService } from './GameService';
 import { logger } from '@utils/logger';
+import { DEFAULT_TAX_RATES } from '@game/systems/Economic/constants/EconomicConstants';
 import { DatabaseProvider } from '@database';
 import { gameState } from '@database/redis';
 import { games, players } from '@database/schema';
@@ -127,6 +128,9 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       civilization: selectedNation || `Civilization${playerNumber}`,
       leaderName: `Leader${playerNumber}`,
       color: safeTheme.primary, // Store primary color for backward compatibility
+      taxRate: DEFAULT_TAX_RATES.tax,
+      luxuryRate: DEFAULT_TAX_RATES.luxury,
+      scienceRate: DEFAULT_TAX_RATES.science,
     };
 
     const [newPlayer] = await this.databaseProvider
@@ -280,6 +284,9 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         connectionStatus: 'connected',
         isAI: true,
         isReady: true,
+        taxRate: DEFAULT_TAX_RATES.tax,
+        luxuryRate: DEFAULT_TAX_RATES.luxury,
+        scienceRate: DEFAULT_TAX_RATES.science,
       };
 
       try {

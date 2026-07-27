@@ -81,7 +81,7 @@ describe('ruleset-backed city values', () => {
     expect(result.surplus.food).toBe(-1);
   });
 
-  it('uses injected terrain yields while preserving resource modifiers', () => {
+  it('uses ruleset-backed terrain and resource yields', () => {
     const cityState = city({ population: 1 });
     const cities = new Map([[cityState.id, cityState]]);
     const baseCivstyle = rulesetLoader.getCivstyle();
@@ -104,16 +104,37 @@ describe('ruleset-backed city values', () => {
         plantTime: 0,
       }),
       getCivstyle: () => ({ ...baseCivstyle, food_cost: 3 }),
+      getResource: () => ({ food: 2 }),
     });
 
     service.initializeWorkableTiles(cityState);
     const center = cityState.workableTiles!.find(tile => tile.isCenter)!;
 
-    expect(center.outputs).toEqual({ food: 5, shields: 2, trade: 1 });
+    expect(center.outputs).toEqual({ food: 6, shields: 2, trade: 1 });
     expect(service.calculateCityOutputs(cityState.id)).toEqual({
       food: 5,
       shields: 2,
       trade: 1,
+    });
+  });
+
+  it('applies road, river, and railroad output bonuses', () => {
+    const cityState = city({ population: 1 });
+    const cities = new Map([[cityState.id, cityState]]);
+    const map = mapFor('plains');
+    const mapTile = (map.getTile as jest.Mock)();
+    mapTile.improvements = ['road', 'railroad'];
+    mapTile.hasRoad = true;
+    mapTile.hasRailroad = true;
+    mapTile.riverMask = 1;
+    const service = new CityTileManagementService(cities, map, 5);
+
+    service.initializeWorkableTiles(cityState);
+
+    expect(service.calculateCityOutputs(cityState.id)).toEqual({
+      food: 1,
+      shields: 1,
+      trade: 2,
     });
   });
 
@@ -124,11 +145,76 @@ describe('ruleset-backed city values', () => {
     const mapTile = (map.getTile as jest.Mock)();
     mapTile.improvements = [];
     const service = new CityTileManagementService(cities, map, 5);
+    service.setPlayerGovernmentProvider(() => 'republic');
 
     service.initializeWorkableTiles(cityState);
     expect(service.calculateCityOutputs(cityState.id).food).toBe(2);
 
     mapTile.improvements.push('irrigation');
     expect(service.calculateCityOutputs(cityState.id).food).toBe(3);
+  });
+
+  it('prevents two cities from working the same map tile', async () => {
+    const first = city({
+      id: 'first',
+      workableTiles: [
+        {
+          x: 6,
+          y: 5,
+          isWorked: true,
+          outputs: { food: 2, shields: 0, trade: 0 },
+        },
+      ],
+    });
+    const second = city({
+      id: 'second',
+      workableTiles: [
+        {
+          x: 6,
+          y: 5,
+          isWorked: false,
+          outputs: { food: 2, shields: 0, trade: 0 },
+        },
+      ],
+    });
+    const cities = new Map([
+      [first.id, first],
+      [second.id, second],
+    ]);
+    const service = new CityTileManagementService(cities, mapFor('grassland'), 5);
+
+    await expect(service.assignCitizenToTile(second.id, 6, 5)).resolves.toBe(false);
+  });
+
+  it('applies classic Harbor and Offshore Platform ocean bonuses', () => {
+    const cityState = city({
+      population: 1,
+      buildings: ['harbor', 'offshore_platform'],
+    });
+    const cities = new Map([[cityState.id, cityState]]);
+    const service = new CityTileManagementService(cities, mapFor('ocean'), 5);
+
+    service.initializeWorkableTiles(cityState);
+
+    expect(service.calculateCityOutputs(cityState.id)).toEqual({
+      food: 2,
+      shields: 1,
+      trade: 2,
+    });
+  });
+
+  it('applies the Republic per-tile trade bonus', () => {
+    const cityState = city({ population: 1 });
+    const cities = new Map([[cityState.id, cityState]]);
+    const map = mapFor('grassland');
+    const mapTile = (map.getTile as jest.Mock)();
+    mapTile.hasRoad = true;
+    mapTile.improvements = ['road'];
+    const service = new CityTileManagementService(cities, map, 5);
+    service.setPlayerGovernmentProvider(() => 'republic');
+
+    service.initializeWorkableTiles(cityState);
+
+    expect(service.calculateCityOutputs(cityState.id).trade).toBe(2);
   });
 });
