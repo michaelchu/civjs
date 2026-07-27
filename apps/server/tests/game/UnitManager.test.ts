@@ -849,7 +849,32 @@ describe('UnitManager', () => {
 
       await unitManager.resetMovement('player-123');
 
-      expect(unit.health).toBe(90); // Healed 10 points
+      // Classic base regeneration (10%) stacks with fortified regeneration
+      // (10%), both sourced from effects.json.
+      expect(unit.health).toBe(100);
+    });
+
+    it('retires an isolated age-five Barbarian unit through Retire_Pct', async () => {
+      const database = mockDbProvider.getDatabase() as any;
+      database.query.players.findFirst.mockResolvedValue({ nation: 'barbarian' });
+      let turn = 1;
+      const retiringManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        new EffectsManager(),
+        () => 0
+      );
+      retiringManager.setCurrentTurnProvider(() => turn);
+      const barbarian = await retiringManager.createUnit('barbarian-player', 'warriors', 20, 20);
+      turn = 6;
+
+      await retiringManager.resetMovement('barbarian-player');
+
+      expect(retiringManager.getUnit(barbarian.id)).toBeUndefined();
     });
   });
 

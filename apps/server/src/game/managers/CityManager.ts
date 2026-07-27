@@ -183,6 +183,7 @@ export interface CityState {
   unitShieldUpkeep?: number;
   grossProductionPerTurn?: number;
   wasHappy?: boolean;
+  disorderTurns?: number;
 
   // Culture system (freeciv-based)
   history: number; // Accumulated culture history
@@ -288,6 +289,7 @@ export class CityManager {
   // Newly extracted services
   private turnProcessingService?: CityTurnProcessingService;
   private effectsManager: EffectsManager;
+  private governmentManager?: GovernmentManager;
   private calculationService: CityCalculationService;
   private happinessService: CityHappinessService;
   private playerGovernmentProvider?: (playerId: string) => string;
@@ -314,7 +316,7 @@ export class CityManager {
     this.databaseProvider = databaseProvider;
     this.callbacks = callbacks;
     this.effectsManager = effectsManager;
-    this.unitSupportManager = new UnitSupportManager(gameId);
+    this.unitSupportManager = new UnitSupportManager(gameId, effectsManager);
 
     // Every city service evaluates requirements against the same game-owned
     // ruleset instance so effects cannot diverge between subsystems.
@@ -386,12 +388,17 @@ export class CityManager {
     );
 
     const mapData = this.mapManager?.getMapData();
-    this.tradeRouteService = new CityTradeRouteService(this.cities, 2, {
-      width: mapData?.width ?? 80,
-      height: mapData?.height ?? 50,
-      getContinentId: (x, y) => this.mapManager?.getTile(x, y)?.continentId,
-      getCurrentTurn: () => this.currentTurnProvider?.() ?? 0,
-    });
+    this.tradeRouteService = new CityTradeRouteService(
+      this.cities,
+      2,
+      {
+        width: mapData?.width ?? 80,
+        height: mapData?.height ?? 50,
+        getContinentId: (x, y) => this.mapManager?.getTile(x, y)?.continentId,
+        getCurrentTurn: () => this.currentTurnProvider?.() ?? 0,
+      },
+      this.effectsManager
+    );
     this.tradeRouteService.setPlayerTechsProvider(this.playerTechsProvider);
 
     this.productionService = new CityProductionService(
@@ -468,7 +475,9 @@ export class CityManager {
     this.tileManagementService = new CityTileManagementService(
       this.cities,
       this.mapManager,
-      CITY_MAP_DEFAULT_RADIUS_SQ
+      CITY_MAP_DEFAULT_RADIUS_SQ,
+      rulesetLoader,
+      this.effectsManager
     );
     if (this.playerGovernmentProvider) {
       this.tileManagementService.setPlayerGovernmentProvider(this.playerGovernmentProvider);
@@ -494,6 +503,12 @@ export class CityManager {
       applyCityHappiness: this.applyCityHappiness.bind(this),
       getPlayerGovernment: this.getPlayerGovernment.bind(this),
       checkPollution: this.checkPollution.bind(this),
+      forceGovernmentRevolution: async playerId => {
+        await this.governmentManager?.overthrowGovernment(
+          playerId,
+          this.currentTurnProvider?.() ?? 0
+        );
+      },
       saveCityToDatabase: this.saveCityToDatabase.bind(this),
     });
   }
@@ -522,9 +537,8 @@ export class CityManager {
   /**
    * Set the GovernmentManager dependency
    */
-  setGovernmentManager(_governmentManager: GovernmentManager): void {
-    // Store governmentManager reference if needed in future
-    // this.governmentManager = governmentManager;
+  setGovernmentManager(governmentManager: GovernmentManager): void {
+    this.governmentManager = governmentManager;
   }
 
   // === CORE CITY LIFECYCLE METHODS ===
@@ -954,6 +968,7 @@ export class CityManager {
           pollution: record.pollution || 0,
           history: record.history || 0, // Culture history
           wasHappy: record.wasHappy,
+          disorderTurns: record.disorderTurns,
           productionStock: record.production || 0,
           buildings: (record.buildings as string[]) || [],
           specialists: (record.specialists as Record<SpecialistType, number>) || {
@@ -1034,6 +1049,7 @@ export class CityManager {
         productionQueue: city.worklist,
         happiness: city.happiness.content - city.happiness.unhappy, // Simplified happiness mapping
         wasHappy: city.wasHappy ?? false,
+        disorderTurns: city.disorderTurns ?? 0,
         defenseStrength: city.defenseStrength || 1,
         airliftUsedTurn: city.airliftUsedTurn ?? null,
         // Default values for other required fields
@@ -1152,8 +1168,13 @@ export class CityManager {
       };
     }
 
-    // Delegate to CityHappinessService for all happiness calculations
-    return this.happinessService.calculateDetailedHappiness(city, city.luxuryPerTurn ?? 0);
+    const support = this.getCityHappinessSupport(city);
+    return this.happinessService.calculateDetailedHappiness(
+      city,
+      city.luxuryPerTurn ?? 0,
+      support.militaryUnitsPresent,
+      support.militaryUnhappiness
+    );
   }
 
   public calculateHappiness(cityId: string): Happiness {
@@ -1162,8 +1183,13 @@ export class CityManager {
       return { happy: 0, content: 0, unhappy: 0, angry: 0 };
     }
 
-    // Delegate to CityHappinessService for happiness calculation
-    return this.happinessService.calculateHappiness(city, city.luxuryPerTurn ?? 0);
+    const support = this.getCityHappinessSupport(city);
+    return this.happinessService.calculateHappiness(
+      city,
+      city.luxuryPerTurn ?? 0,
+      support.militaryUnitsPresent,
+      support.militaryUnhappiness
+    );
   }
 
   public isCityUnhappy(cityId: string): boolean {
@@ -1185,8 +1211,35 @@ export class CityManager {
     const city = this.cities.get(cityId);
     if (!city) return;
 
-    // Delegate to CityHappinessService to apply happiness to city state
-    this.happinessService.applyCityHappiness(city, city.luxuryPerTurn ?? 0);
+    const support = this.getCityHappinessSupport(city);
+    this.happinessService.applyCityHappiness(
+      city,
+      city.luxuryPerTurn ?? 0,
+      support.militaryUnitsPresent,
+      support.militaryUnhappiness
+    );
+  }
+
+  private getCityHappinessSupport(city: CityState): {
+    militaryUnitsPresent: number;
+    militaryUnhappiness: number;
+  } {
+    const units = this.unitSupportProvider(city);
+    const support = this.unitSupportManager.calculateCityUnitSupport(
+      city.id,
+      city.playerId,
+      this.getPlayerGovernment(city.playerId).toLowerCase(),
+      city.population,
+      units,
+      new Set(city.buildings),
+      new Set(this.playerBuildingsProvider(city.playerId))
+    );
+    return {
+      militaryUnitsPresent: units.filter(
+        unit => unit.isMilitaryUnit && unit.currentLocation === city.id
+      ).length,
+      militaryUnhappiness: support.happinessEffect,
+    };
   }
 
   public calculateCityOutputs(cityId: string): {
@@ -1223,7 +1276,9 @@ export class CityManager {
       city.playerId,
       this.getPlayerGovernment(city.playerId).toLowerCase(),
       city.population,
-      supportedUnits
+      supportedUnits,
+      new Set(city.buildings),
+      new Set(this.playerBuildingsProvider(city.playerId))
     );
     const populationFood = city.population * rulesetLoader.getCivstyle().food_cost;
     const unitUpkeep = {
@@ -1240,6 +1295,8 @@ export class CityManager {
         playerTechs: this.playerTechsProvider(city.playerId),
         playerBuildings: this.playerBuildingsProvider(city.playerId),
         playerCities: this.getPlayerCities(city.playerId),
+        mapWidth: this.mapManager?.getMapData()?.width,
+        mapHeight: this.mapManager?.getMapData()?.height,
         taxRates: this.playerTaxRatesProvider(city.playerId),
         unitUpkeep,
       }

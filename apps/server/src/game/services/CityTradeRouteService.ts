@@ -1,6 +1,7 @@
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import type { CityState, TradeRoute, TradeRouteCalculation } from '@game/managers/CityManager';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 
 /**
  * CityTradeRouteService - Manages trade routes between cities
@@ -28,7 +29,8 @@ export class CityTradeRouteService extends BaseGameService {
       height: 50,
       getContinentId: () => undefined,
       getCurrentTurn: () => 0,
-    }
+    },
+    private readonly effectsManager: EffectsManager = new EffectsManager()
   ) {
     super(logger);
   }
@@ -43,11 +45,13 @@ export class CityTradeRouteService extends BaseGameService {
 
   private getMaxTradeRoutes(city: CityState): number {
     const techs = this.playerTechsProvider(city.playerId);
-    const has = (expected: string) =>
-      [...techs].some(tech => tech.toLowerCase().replace(/[^a-z0-9]/g, '') === expected);
-    return (
-      this.MAX_TRADE_ROUTES_PER_CITY + (has('magnetism') ? 1 : 0) + (has('thecorporation') ? 1 : 0)
-    );
+    const configured = this.effectsManager.calculateEffect(EffectType.MAX_TRADE_ROUTES, {
+      playerId: city.playerId,
+      cityId: city.id,
+      cityBuildings: new Set(city.buildings),
+      playerTechs: new Set(techs),
+    }).value;
+    return Math.max(0, configured || this.MAX_TRADE_ROUTES_PER_CITY);
   }
 
   /**

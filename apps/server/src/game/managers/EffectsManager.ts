@@ -72,6 +72,10 @@ export enum EffectType {
   SHRINK_FOOD = 'Shrink_Food',
   VETERAN_BUILD = 'Veteran_Build',
   HP_REGEN = 'HP_Regen',
+  MIN_HP_PCT = 'Min_HP_Pct',
+  HP_REGEN_2 = 'HP_Regen_2',
+  RETIRE_PCT = 'Retire_Pct',
+  TECH_UPKEEP_FREE = 'Tech_Upkeep_Free',
 
   // Culture system effects (freeciv culture.c and effects_enums.def)
   PERFORMANCE = 'Performance', // EFT_PERFORMANCE (123) - Immediate culture boost
@@ -88,6 +92,7 @@ export enum EffectType {
   ANY_GOVERNMENT = 'Any_Government',
   NO_ANARCHY = 'No_Anarchy',
   HAS_SENATE = 'Has_Senate',
+  NO_DIPLOMACY = 'No_Diplomacy',
 }
 
 // Output types for effect calculations
@@ -107,6 +112,8 @@ export interface EffectContext {
   unitId?: string;
   tileX?: number;
   tileY?: number;
+  mapWidth?: number;
+  mapHeight?: number;
   buildingId?: string;
   government?: string;
   outputType?: OutputType;
@@ -119,6 +126,7 @@ export interface EffectContext {
   unitHasHomeCity?: boolean;
   tileTerrain?: string;
   tileTerrainClass?: string;
+  adjacentTerrainClasses?: Set<string>;
   tileExtras?: Set<string>;
   tileIsCityCenter?: boolean;
   maxUnitsOnTile?: number;
@@ -256,9 +264,19 @@ export class EffectsManager {
       const distanceWaste = this.calculateEffect(EffectType.OUTPUT_WASTE_BY_DISTANCE, context);
       wasteLevel += Math.floor((distanceWaste.value * distanceToGovCenter) / 100);
 
-      // Relative distance waste (scales with map size)
-      // const relDistanceWaste = this.calculateEffect(EffectType.OUTPUT_WASTE_BY_REL_DISTANCE, context);
-      // TODO: Implement relative distance calculation when map size data available
+      const relativeDistanceWaste = this.calculateEffect(
+        EffectType.OUTPUT_WASTE_BY_REL_DISTANCE,
+        context
+      );
+      if (relativeDistanceWaste.value > 0 && context.mapWidth && context.mapHeight) {
+        // Freeciv normalizes relative corruption to a standard 50-tile map.
+        // @reference reference/freeciv/common/city.c:3291-3309
+        wasteLevel += Math.floor(
+          (relativeDistanceWaste.value * 50 * distanceToGovCenter) /
+            100 /
+            Math.max(context.mapWidth, context.mapHeight)
+        );
+      }
     }
 
     // Convert the percentage to an integer penalty before applying reductions.
@@ -576,7 +594,13 @@ export class EffectsManager {
     this.requirementHandlers['Terrain'] = (req, context) =>
       this.requirementResult('Terrain', req, this.matches(context.tileTerrain, req.name));
     this.requirementHandlers['TerrainClass'] = (req, context) =>
-      this.requirementResult('TerrainClass', req, this.matches(context.tileTerrainClass, req.name));
+      this.requirementResult(
+        'TerrainClass',
+        req,
+        req.range === 'Adjacent'
+          ? this.setContains(context.adjacentTerrainClasses, req.name)
+          : this.matches(context.tileTerrainClass, req.name)
+      );
     this.requirementHandlers['Extra'] = (req, context) =>
       this.requirementResult('Extra', req, this.setContains(context.tileExtras, req.name));
     this.requirementHandlers['CityTile'] = (req, context) =>
@@ -597,7 +621,7 @@ export class EffectsManager {
         req,
         context.maxUnitsOnTile === undefined
           ? undefined
-          : context.maxUnitsOnTile === Number(req.name)
+          : context.maxUnitsOnTile <= Number(req.name)
       );
     this.requirementHandlers['NationGroup'] = (req, context) =>
       this.requirementResult(
@@ -609,7 +633,7 @@ export class EffectsManager {
       this.requirementResult(
         'Age',
         req,
-        context.age === undefined ? undefined : context.age === Number(req.name)
+        context.age === undefined ? undefined : context.age >= Number(req.name)
       );
     this.requirementHandlers['CityStatus'] = (req, context) =>
       this.requirementResult(

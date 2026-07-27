@@ -68,6 +68,12 @@ describe('ResearchManager', () => {
 
       // Database operations handled by MockDatabaseProvider
     });
+
+    it('charges no technology upkeep under the classic None setting', async () => {
+      await researchManager.initializePlayerResearch('player-123');
+
+      expect(researchManager.calculateTechnologyUpkeep('player-123', 4)).toBe(0);
+    });
   });
 
   describe('research selection', () => {

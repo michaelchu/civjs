@@ -18,6 +18,7 @@ import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
 import { TaxRateService } from './services/TaxRateService';
 import { TreasuryService } from './services/TreasuryService';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import type {
   TaxRateChangeRequest,
   TaxRateValidation,
@@ -42,9 +43,15 @@ export class EconomicManager {
   private taxRateService: TaxRateService;
   private treasuryService: TreasuryService;
   private isInitialized = false;
+  private readonly effectsManager: EffectsManager;
 
-  constructor(gameId: string, databaseProvider: DatabaseProvider) {
+  constructor(
+    gameId: string,
+    databaseProvider: DatabaseProvider,
+    effectsManager: EffectsManager = new EffectsManager()
+  ) {
     this.gameId = gameId;
+    this.effectsManager = effectsManager;
 
     // Initialize services
     this.taxRateService = new TaxRateService(gameId);
@@ -119,17 +126,14 @@ export class EconomicManager {
   }
 
   public setGovernmentProvider(provider: (playerId: string) => string): void {
-    const maximums: Record<string, number> = {
-      anarchy: 100,
-      despotism: 60,
-      monarchy: 70,
-      communism: 80,
-      republic: 80,
-      democracy: 100,
-    };
-    this.taxRateService.setMaxRateProvider(
-      playerId => maximums[provider(playerId).toLowerCase()] ?? 100
-    );
+    this.taxRateService.setMaxRateProvider(playerId => {
+      const configured = this.effectsManager.calculateEffect(EffectType.MAX_RATES, {
+        playerId,
+        government: provider(playerId),
+      }).value;
+      // @reference reference/freeciv/server/plrhand.c:267-278
+      return configured === 0 ? 100 : Math.max(34, Math.min(100, configured));
+    });
   }
 
   /**

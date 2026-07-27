@@ -16,7 +16,7 @@ import { MapManager, MapGeneratorType } from '@game/managers/MapManager';
 import { UnitManager } from '@game/managers/UnitManager';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { CityManager } from '@game/managers/CityManager';
-import { EffectsManager } from '@game/managers/EffectsManager';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
 import { CultureManager } from '@game/managers/CultureManager';
 import { EconomicManager } from '@game/systems/Economic/EconomicManager';
@@ -336,6 +336,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       visibilityManager,
       game.players,
       governmentManager,
+      effectsManager,
       game.ruleset ?? 'classic'
     );
     // @reference reference/freeciv/server/techtools.c:665-719
@@ -381,8 +382,20 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
               y: city.y,
             });
           }
-        } else if (item.value === 'darwins_voyage') {
-          await researchManager.grantAvailableTechnologies(city.playerId, 2);
+        } else {
+          const immediateTechs = effectsManager.calculateEffect(EffectType.GIVE_IMMEDIATE_TECH, {
+            playerId: city.playerId,
+            cityId: city.id,
+            buildingId: item.value,
+            cityBuildings: new Set(city.buildings),
+            playerBuildings: new Set(
+              cityManager.getCitiesByPlayer(city.playerId).flatMap(candidate => candidate.buildings)
+            ),
+            playerTechs: new Set(researchManager.getResearchedTechs(city.playerId)),
+          }).value;
+          if (immediateTechs > 0) {
+            await researchManager.grantAvailableTechnologies(city.playerId, immediateTechs);
+          }
         }
       },
       onCityFounded: city => {
@@ -877,6 +890,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     visibilityManager: VisibilityManager,
     databasePlayers: any[],
     governmentManager: GovernmentManager,
+    effectsManager: EffectsManager,
     rulesetName: string
   ): Promise<TurnManager> {
     // Create a simple broadcast manager for the TurnManager
@@ -912,7 +926,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       getCity: cityId => cityManager.getCity(cityId),
       getPlayer: playerId => players.get(playerId),
     });
-    const economicManager = this.createEconomicManager(gameId);
+    const economicManager = this.createEconomicManager(gameId, effectsManager);
     economicManager.setGovernmentProvider(
       playerId => governmentManager.getPlayerGovernment(playerId)?.currentGovernment ?? 'despotism'
     );
@@ -928,7 +942,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       cultureManager,
       mockBroadcastManager,
       economicManager,
-      governmentManager
+      governmentManager,
+      effectsManager
     );
     const playerIds = Array.from(players.keys());
     await tm.initializeTurn(playerIds);
@@ -1071,8 +1086,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return new CultureManager(this.databaseProvider, rulesetName);
   }
 
-  private createEconomicManager(gameId: string): EconomicManager {
-    return new EconomicManager(gameId, this.databaseProvider);
+  private createEconomicManager(gameId: string, effectsManager: EffectsManager): EconomicManager {
+    return new EconomicManager(gameId, this.databaseProvider, effectsManager);
   }
 
   private createPathfindingManager(game: any, mapManager: MapManager): PathfindingManager {

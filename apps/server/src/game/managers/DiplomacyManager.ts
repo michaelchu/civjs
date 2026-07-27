@@ -1,6 +1,8 @@
 import { and, eq } from 'drizzle-orm';
 import type { DatabaseProvider } from '@database';
 import { players } from '@database/schema';
+import { EffectsManager, EffectType, type EffectContext } from '@game/managers/EffectsManager';
+import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 export type DiplomaticState =
   | 'no_contact'
@@ -40,7 +42,9 @@ interface DiplomacyPlayerRow {
   gameId: string;
   playerNumber: number;
   civilization: string;
+  nation: string;
   leaderName: string;
+  government: string;
   isAlive: boolean;
   isAI: boolean;
   knownPlayers: unknown;
@@ -70,7 +74,13 @@ export class DiplomacyManager {
 
   constructor(
     private readonly databaseProvider: DatabaseProvider,
-    private readonly currentTurnProvider: (gameId: string) => number = () => 0
+    private readonly currentTurnProvider: (gameId: string) => number = () => 0,
+    private readonly playerBuildingProvider: (
+      gameId: string,
+      playerId: string
+    ) => Set<string> = () => new Set(),
+    private readonly effectsManager: EffectsManager = new EffectsManager(),
+    private readonly ruleset: Pick<RulesetLoader, 'getNation'> = rulesetLoader
   ) {}
 
   async getSnapshot(gameId: string, playerId: string): Promise<DiplomacySnapshot> {
@@ -136,6 +146,7 @@ export class DiplomacyManager {
   ): Promise<TreatyProposal> {
     this.validateClauses(clauses);
     const [proposer, recipient] = await this.loadPair(gameId, proposerId, recipientId);
+    this.assertDiplomacyAllowed(gameId, proposer, recipient);
     const proposerRelation = this.getRelation(proposer, recipientId);
 
     if (
@@ -248,6 +259,7 @@ export class DiplomacyManager {
   async establishEmbassy(gameId: string, playerId: string, otherPlayerId: string): Promise<void> {
     return this.withPairLock(gameId, playerId, otherPlayerId, async () => {
       const [player, other] = await this.loadPair(gameId, playerId, otherPlayerId);
+      this.assertDiplomacyAllowed(gameId, player, other);
       await this.persistPair(player, other, relation => ({ ...relation, embassy: true }));
     });
   }
@@ -258,6 +270,20 @@ export class DiplomacyManager {
     otherPlayerId: string
   ): Promise<void> {
     const [player, other] = await this.loadPair(gameId, playerId, otherPlayerId);
+    const relation = this.getRelation(player, otherPlayerId);
+    const playerContext = this.getEffectContext(gameId, player);
+    const senate = this.effectsManager.calculateEffect(EffectType.HAS_SENATE, playerContext).value;
+    const noAnarchy = this.effectsManager.calculateEffect(
+      EffectType.NO_ANARCHY,
+      playerContext
+    ).value;
+    if (
+      senate > 0 &&
+      noAnarchy <= 0 &&
+      ['ceasefire', 'armistice', 'peace', 'alliance'].includes(relation.state)
+    ) {
+      throw new Error('The senate refuses to break the treaty');
+    }
     await this.persistPair(player, other, relation => ({
       ...relation,
       state: 'war',
@@ -309,6 +335,37 @@ export class DiplomacyManager {
     if (new Set(clauses.map(clause => clause.type)).size !== clauses.length) {
       throw new Error('Treaty clauses must be unique');
     }
+  }
+
+  private assertDiplomacyAllowed(
+    gameId: string,
+    first: DiplomacyPlayerRow,
+    second: DiplomacyPlayerRow
+  ): void {
+    const noDiplomacy = [first, second].some(
+      player =>
+        this.effectsManager.calculateEffect(
+          EffectType.NO_DIPLOMACY,
+          this.getEffectContext(gameId, player)
+        ).value > 0
+    );
+    if (noDiplomacy) throw new Error('Diplomacy is not possible with this nation');
+  }
+
+  private getEffectContext(gameId: string, player: DiplomacyPlayerRow): EffectContext {
+    let nationGroups = new Set<string>();
+    try {
+      const nation = this.ruleset.getNation(player.nation ?? player.civilization);
+      nationGroups = new Set([nation.class, ...(nation.groups ?? [])]);
+    } catch {
+      // Invalid/missing nation data fails closed for nation-group effects.
+    }
+    return {
+      playerId: player.id,
+      government: player.government,
+      playerNationGroups: nationGroups,
+      playerBuildings: this.playerBuildingProvider(gameId, player.id),
+    };
   }
 
   private async loadPair(

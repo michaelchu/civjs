@@ -24,6 +24,15 @@
     "min_city_center_trade": 0
   },
   "capabilities": ["std-terrains"],
+  "research": {
+    "tech_cost_style": "Classic",
+    "base_tech_cost": 20,
+    "min_tech_cost": 20,
+    "tech_leakage": "None",
+    "tech_upkeep_style": "None",
+    "tech_upkeep_divider": 2000,
+    "free_tech_method": "Goal"
+  },
   "game_parameters": {
     "init_city_radius_sq": 5,
     "init_vis_radius_sq": 5,

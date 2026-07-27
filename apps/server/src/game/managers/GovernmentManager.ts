@@ -241,6 +241,34 @@ export class GovernmentManager {
     return null;
   }
 
+  /**
+   * Force a government into anarchy after prolonged civil disorder.
+   * @reference reference/freeciv/server/cityturn.c:3860-3875
+   */
+  public async overthrowGovernment(playerId: string, currentTurn: number): Promise<boolean> {
+    const playerGov = this.playerGovernments.get(playerId);
+    if (!playerGov || playerGov.currentGovernment === 'anarchy') return false;
+    const previousGovernment = playerGov.currentGovernment;
+    playerGov.currentGovernment = 'anarchy';
+    playerGov.revolutionTurns = 0;
+    playerGov.requestedGovernment = undefined;
+
+    await this.databaseProvider
+      .getDatabase()
+      .update(playersTable)
+      .set({ government: 'anarchy', revolutionTurns: 0 })
+      .where(and(eq(playersTable.gameId, this.gameId), eq(playersTable.id, playerId)));
+    await this.databaseProvider.getDatabase().insert(governmentChanges).values({
+      gameId: this.gameId,
+      playerId,
+      fromGovernment: previousGovernment,
+      toGovernment: 'anarchy',
+      changeTurn: currentTurn,
+      anarchyTurns: 0,
+    });
+    return true;
+  }
+
   public canPlayerUseGovernment(
     governmentId: string,
     playerResearchedTechs: Set<string>

@@ -112,6 +112,8 @@ export interface CityPlayerContext {
   playerTechs: ReadonlySet<string>;
   playerBuildings: ReadonlySet<string>;
   playerCities: readonly CityState[];
+  mapWidth?: number;
+  mapHeight?: number;
   taxRates?: TaxRates;
   unitUpkeep?: { food: number; shield: number; gold: number };
 }
@@ -279,24 +281,21 @@ export class CityCalculationService extends BaseGameService {
     playerContext?: CityPlayerContext
   ): number {
     const basePollution = rulesetLoader.getCivstyle('classic').base_pollution;
-    const techNames = new Set(
-      [...(playerContext?.playerTechs ?? [])].map(tech =>
-        tech.toLowerCase().replace(/[^a-z0-9]/g, '')
-      )
-    );
-    const pollutionTechs = ['automobile', 'industrialization', 'massproduction', 'plastics'];
-    const populationPct = city.buildings.includes('mass_transit')
-      ? 0
-      : pollutionTechs.filter(tech => techNames.has(tech)).length * 25;
-    const populationPollution = Math.floor((city.population * populationPct) / 100);
-
-    let productionPct = 100;
-    if (city.buildings.includes('recycling_center')) productionPct = 34;
-    else if (city.buildings.includes('solar_plant')) productionPct = 50;
-    else if (city.buildings.includes('hydro_plant') || city.buildings.includes('nuclear_plant')) {
-      productionPct = 75;
-    }
-    const productionPollution = Math.floor((shieldProduction * productionPct) / 100);
+    const context = playerContext
+      ? this.buildCityEffectContext(city, playerContext)
+      : {
+          playerId: city.playerId,
+          cityId: city.id,
+          cityBuildings: new Set(city.buildings),
+        };
+    const productionPct =
+      100 + this.effectsManager.calculateEffect(EffectType.POLLU_PROD_PCT, context).value;
+    const populationPct =
+      ((100 + this.effectsManager.calculateEffect(EffectType.POLLU_POP_PCT, context).value) *
+        (100 + this.effectsManager.calculateEffect(EffectType.POLLU_POP_PCT_2, context).value)) /
+      100;
+    const productionPollution = Math.floor((shieldProduction * Math.max(productionPct, 0)) / 100);
+    const populationPollution = Math.floor((city.population * Math.max(populationPct, 0)) / 100);
     return Math.max(0, productionPollution + populationPollution + basePollution);
   }
 
@@ -310,6 +309,8 @@ export class CityCalculationService extends BaseGameService {
       cityId: city.id,
       tileX: city.x,
       tileY: city.y,
+      mapWidth: playerContext.mapWidth,
+      mapHeight: playerContext.mapHeight,
       government: playerContext.government,
       cityBuildings: new Set(city.buildings),
       playerTechs: new Set(playerContext.playerTechs),

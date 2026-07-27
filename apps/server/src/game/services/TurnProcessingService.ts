@@ -15,6 +15,7 @@ import type { ResearchManager } from '@game/managers/ResearchManager';
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 
 export interface PlayerAction {
   id: string; // Unique action identifier
@@ -53,6 +54,7 @@ export class TurnProcessingService {
   private cityManager: CityManager;
   private researchManager: ResearchManager;
   private economicManager?: EconomicManager;
+  private effectsManager: EffectsManager;
   private actionQueues: Map<string, ActionQueue> = new Map(); // playerId -> ActionQueue
   private actionHistory: Map<string, PlayerAction[]> = new Map(); // playerId -> completed actions
 
@@ -61,13 +63,15 @@ export class TurnProcessingService {
     unitManager: UnitManager,
     cityManager: CityManager,
     researchManager: ResearchManager,
-    economicManager?: EconomicManager
+    economicManager?: EconomicManager,
+    effectsManager: EffectsManager = new EffectsManager()
   ) {
     this.gameId = gameId;
     this.unitManager = unitManager;
     this.cityManager = cityManager;
     this.researchManager = researchManager;
     this.economicManager = economicManager;
+    this.effectsManager = effectsManager;
   }
 
   /**
@@ -667,17 +671,31 @@ export class TurnProcessingService {
       // Each city contributes its science output to the player's research pool.
       // @reference reference/freeciv/server/techtools.c:650-719
       const cities = this.cityManager.getPlayerCities(playerId);
-      const researchBulbs = cities.reduce((total, city) => total + (city.sciencePerTurn ?? 0), 0);
+      const grossResearchBulbs = cities.reduce(
+        (total, city) => total + (city.sciencePerTurn ?? 0),
+        0
+      );
+      const techUpkeep = this.researchManager.calculateTechnologyUpkeep(
+        playerId,
+        cities.length,
+        new Set(cities.flatMap(city => city.buildings))
+      );
+      const researchBulbs = grossResearchBulbs - techUpkeep;
       const completedTech = await this.researchManager.addResearchPoints(playerId, researchBulbs);
-      const ownsGreatLibrary = cities.some(city => city.buildings.includes('great_library'));
-      if (ownsGreatLibrary) {
-        await this.researchManager.processTechParasite(playerId, 2);
+      const parasiteThreshold = this.effectsManager.calculateEffect(EffectType.TECH_PARASITE, {
+        playerId,
+        playerBuildings: new Set(cities.flatMap(city => city.buildings)),
+        playerTechs: new Set(this.researchManager.getResearchedTechs(playerId)),
+      }).value;
+      if (parasiteThreshold > 0) {
+        await this.researchManager.processTechParasite(playerId, parasiteThreshold);
       }
 
       logger.info('Research processed', {
         gameId: this.gameId,
         playerId,
         bulbsAdded: researchBulbs,
+        techUpkeep,
         completedTech,
       });
 

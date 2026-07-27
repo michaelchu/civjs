@@ -4,8 +4,10 @@ const createPlayer = (id: string, playerNumber: number) => ({
   id,
   gameId: 'game-1',
   playerNumber,
+  nation: id === 'p1' ? 'roman' : 'greek',
   civilization: id === 'p1' ? 'roman' : 'greek',
   leaderName: id === 'p1' ? 'Caesar' : 'Pericles',
+  government: 'despotism',
   isAlive: true,
   isAI: id === 'p2',
   knownPlayers: [],
@@ -114,6 +116,32 @@ describe('DiplomacyManager', () => {
           }),
         ],
       })
+    );
+  });
+
+  it('lets the classic senate block an unprovoked treaty break', async () => {
+    rows[0].government = 'republic';
+    const proposal = await manager.proposeTreaty(
+      'game-1',
+      'p1',
+      'p2',
+      [{ type: 'peace' }],
+      'peace'
+    );
+    await manager.respondToTreaty('game-1', 'p2', 'p1', proposal.id, true);
+
+    await expect(manager.declareWar('game-1', 'p1', 'p2')).rejects.toThrow('senate refuses');
+  });
+
+  it('prohibits treaties and embassies with the classic Barbarian nation group', async () => {
+    rows[1].nation = 'barbarian';
+    rows[1].civilization = 'barbarian';
+
+    await expect(manager.proposeTreaty('game-1', 'p1', 'p2', [{ type: 'peace' }])).rejects.toThrow(
+      'Diplomacy is not possible'
+    );
+    await expect(manager.establishEmbassy('game-1', 'p1', 'p2')).rejects.toThrow(
+      'Diplomacy is not possible'
     );
   });
 });

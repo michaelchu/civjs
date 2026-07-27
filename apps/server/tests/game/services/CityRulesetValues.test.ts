@@ -217,4 +217,28 @@ describe('ruleset-backed city values', () => {
 
     expect(service.calculateCityOutputs(cityState.id).trade).toBe(2);
   });
+
+  it('applies celebration and wonder tile effects from the classic ruleset', () => {
+    const cityState = city({
+      population: 3,
+      wasHappy: true,
+      happiness: { happy: 2, content: 1, unhappy: 0, angry: 0 },
+      buildings: ['colossus', 'king_richards_crusade'],
+    });
+    const cities = new Map([[cityState.id, cityState]]);
+    const map = mapFor('grassland');
+    const mapTile = (map.getTile as jest.Mock)();
+    mapTile.hasRoad = true;
+    mapTile.improvements = ['road'];
+    const service = new CityTileManagementService(cities, map, 5);
+    service.setPlayerGovernmentProvider(() => 'monarchy');
+
+    service.initializeWorkableTiles(cityState);
+
+    expect(service.calculateCityOutputs(cityState.id)).toEqual({
+      food: 2,
+      shields: 1,
+      trade: 3,
+    });
+  });
 });

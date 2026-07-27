@@ -12,6 +12,7 @@ describe('TurnProcessingService research processing', () => {
         ]),
     };
     const researchManager = {
+      calculateTechnologyUpkeep: jest.fn().mockReturnValue(0),
       addResearchPoints: jest.fn().mockResolvedValue(null),
     };
     const service = new TurnProcessingService(

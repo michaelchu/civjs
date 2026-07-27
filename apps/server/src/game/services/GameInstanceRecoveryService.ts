@@ -5,7 +5,7 @@ import { GameInstance, PlayerState, TurnPhase, GameState } from '@game/managers/
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { logger } from '@utils/logger';
 import { CityManager } from '@game/managers/CityManager';
-import { EffectsManager } from '@game/managers/EffectsManager';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { MapManager } from '@game/managers/MapManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
@@ -284,6 +284,27 @@ export class GameInstanceRecoveryService extends BaseGameService {
       },
       effectsManager
     );
+    cityManager.setCallbacks({
+      onCityProductionComplete: async (city, item) => {
+        if (item.kind === 'unit') {
+          await unitManager.createUnit(city.playerId, item.value, city.x, city.y, city.id);
+          return;
+        }
+        const immediateTechs = effectsManager.calculateEffect(EffectType.GIVE_IMMEDIATE_TECH, {
+          playerId: city.playerId,
+          cityId: city.id,
+          buildingId: item.value,
+          cityBuildings: new Set(city.buildings),
+          playerBuildings: new Set(
+            cityManager.getCitiesByPlayer(city.playerId).flatMap(candidate => candidate.buildings)
+          ),
+          playerTechs: new Set(researchManager.getResearchedTechs(city.playerId)),
+        }).value;
+        if (immediateTechs > 0) {
+          await researchManager.grantAvailableTechnologies(city.playerId, immediateTechs);
+        }
+      },
+    });
     cityManager.setUnitSupportProvider(city =>
       [...unitManager.getAllUnits().values()]
         .filter(unit => unit.homeCityId === city.id)
@@ -353,7 +374,10 @@ export class GameInstanceRecoveryService extends BaseGameService {
       getCity: cityId => cityManager.getCity(cityId),
       getPlayer: playerId => players.get(playerId),
     });
-    const economicManager = new EconomicManager(gameId, this.databaseProvider);
+    const economicManager = new EconomicManager(gameId, this.databaseProvider, effectsManager);
+    economicManager.setGovernmentProvider(
+      playerId => governmentManager.getPlayerGovernment(playerId)?.currentGovernment ?? 'despotism'
+    );
     await economicManager.initialize();
     for (const player of game.players) {
       await economicManager.initializePlayer(player.id, player.gold, {
@@ -386,7 +410,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       cultureManager,
       this.broadcastManager,
       economicManager,
-      governmentManager
+      governmentManager,
+      effectsManager
     );
 
     const playerIds = Array.from(players.keys());

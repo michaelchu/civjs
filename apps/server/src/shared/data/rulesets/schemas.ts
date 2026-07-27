@@ -661,6 +661,16 @@ export const GameOptionsSchema = z.object({
   global_init_buildings: z.string(),
 });
 
+export const ResearchRulesSchema = z.object({
+  tech_cost_style: z.string(),
+  base_tech_cost: z.number(),
+  min_tech_cost: z.number(),
+  tech_leakage: z.string(),
+  tech_upkeep_style: z.enum(['None', 'Basic', 'Cities']),
+  tech_upkeep_divider: z.number().positive(),
+  free_tech_method: z.string(),
+});
+
 export const GameRulesetFileSchema = z.object({
   datafile: z.object({
     description: z.string(),
@@ -676,6 +686,7 @@ export const GameRulesetFileSchema = z.object({
   civstyle: CivstyleSchema,
   capabilities: z.array(z.string()),
   game_parameters: GameParametersSchema,
+  research: ResearchRulesSchema,
 });
 
 // Effects system schemas

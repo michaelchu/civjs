@@ -2,6 +2,7 @@ import { DatabaseProvider } from '@database';
 import { research as researchTable, playerTechs } from '@database/schema';
 import { eq, and } from 'drizzle-orm';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 
 export interface Technology {
   id: string;
@@ -56,7 +57,8 @@ export class ResearchManager {
   constructor(
     gameId: string,
     databaseProvider: DatabaseProvider,
-    private readonly technologies: Record<string, Technology> = TECHNOLOGIES
+    private readonly technologies: Record<string, Technology> = TECHNOLOGIES,
+    private readonly effectsManager: EffectsManager = new EffectsManager()
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -64,6 +66,36 @@ export class ResearchManager {
 
   public setCurrentTurnProvider(provider: () => number): void {
     this.currentTurnProvider = provider;
+  }
+
+  /**
+   * Calculate per-turn research upkeep. Classic explicitly selects "None",
+   * but keeping the full formula here makes Tech_Upkeep_Free executable if
+   * the ruleset setting is changed.
+   * @reference reference/freeciv/common/research.c:1062-1142
+   */
+  public calculateTechnologyUpkeep(
+    playerId: string,
+    cityCount: number,
+    playerBuildings: Set<string> = new Set()
+  ): number {
+    const rules = rulesetLoader.loadGameRulesRuleset().research;
+    if (rules.tech_upkeep_style === 'None') return 0;
+    const research = this.playerResearch.get(playerId);
+    if (!research) return 0;
+
+    const totalCost = [...research.researchedTechs].reduce(
+      (sum, techId) => sum + (this.technologies[techId]?.cost ?? 0),
+      0
+    );
+    const free = this.effectsManager.calculateEffect(EffectType.TECH_UPKEEP_FREE, {
+      playerId,
+      playerTechs: new Set(research.researchedTechs),
+      playerBuildings,
+    }).value;
+    let upkeep = Math.max(0, totalCost / rules.tech_upkeep_divider - free);
+    if (rules.tech_upkeep_style === 'Cities') upkeep *= cityCount;
+    return Math.floor(upkeep);
   }
 
   public async initializePlayerResearch(playerId: string): Promise<void> {

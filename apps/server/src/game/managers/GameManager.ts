@@ -195,7 +195,14 @@ export class GameManager {
     this.visibilityMapService = new VisibilityMapService(this.games);
     this.diplomacyManager = new DiplomacyManager(
       this.databaseProvider,
-      gameId => this.games.get(gameId)?.currentTurn ?? 0
+      gameId => this.games.get(gameId)?.currentTurn ?? 0,
+      (gameId, playerId) =>
+        new Set(
+          this.games
+            .get(gameId)
+            ?.cityManager.getCitiesByPlayer(playerId)
+            .flatMap(city => city.buildings) ?? []
+        )
     );
     this.aiAdapter = new CivJSAIAdapter(this.diplomacyManager);
 

@@ -8,7 +8,7 @@ import { getTerrainMovementCost, SINGLE_MOVE } from '@game/constants/MovementCon
 import { UNIT_TYPES, getUnitType, UnitType } from '@game/constants/UnitConstants';
 import { ActionSystem } from '@game/systems/ActionSystem';
 import { ActionType, ActionResult } from '@app-types/shared/actions';
-import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
+import { EffectsManager, EffectType, type EffectContext } from '@game/managers/EffectsManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { TerrainType } from '@game/map/MapTypes';
 
@@ -38,6 +38,7 @@ export interface Unit {
   transportedBy?: string; // ID of unit transporting this unit
   cargoUnits?: string[]; // IDs of units being transported by this unit
   homeCityId?: string;
+  createdTurn?: number;
 }
 
 export interface VeteranLevel {
@@ -256,7 +257,7 @@ export class UnitManager {
     this.mapHeight = mapHeight;
     this.mapManager = mapManager;
     this.gameManagerCallback = gameManagerCallback;
-    this.effectsManager = effectsManager;
+    this.effectsManager = effectsManager ?? new EffectsManager();
     this.actionSystem = new ActionSystem(gameId, gameManagerCallback, mapManager);
   }
 
@@ -312,6 +313,7 @@ export class UnitManager {
           }).value
         : 0;
 
+    const createdTurn = this.currentTurnProvider?.() ?? 1;
     // Save to database and get the generated ID
     const [dbUnit] = await this.databaseProvider
       .getDatabase()
@@ -333,7 +335,7 @@ export class UnitManager {
         homeCityId,
         isAutomated: false,
         // @reference reference/freeciv/server/unittools.c:1215-1280
-        createdTurn: this.currentTurnProvider?.() ?? 1,
+        createdTurn,
       })
       .returning();
 
@@ -350,6 +352,7 @@ export class UnitManager {
       experience: 0,
       fortified: false,
       homeCityId,
+      createdTurn,
       automation: undefined,
     };
 
@@ -853,26 +856,39 @@ export class UnitManager {
    * @reference freeciv/server/unithand.c unit_restore_movepoints()
    */
   async resetMovement(playerId: string): Promise<void> {
+    await this.retireEligibleUnits(playerId);
     for (const unit of this.units.values()) {
       if (unit.playerId === playerId) {
         const unitType = UNIT_TYPES[unit.unitTypeId];
         // Restore full movement points in fragments
         unit.movementLeft = unitType.movement * 3;
 
-        // Heal fortified units
-        // @reference freeciv/server/unithand.c unit_restore_movepoints() - heal_unit()
-        if (unit.fortified && unit.health < 100) {
-          unit.health = Math.min(100, unit.health + 10);
-        }
         const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
-        if (city && city.playerId === playerId && this.effectsManager) {
-          const regeneration = this.effectsManager.calculateEffect(EffectType.HP_REGEN, {
+        if (this.effectsManager && unit.health < 100) {
+          const tile = this.mapManager?.getTile?.(unit.x, unit.y);
+          const context: EffectContext = {
             playerId,
             unitType: unit.unitTypeId,
             unitClass: unitType.rulesetUnitClass,
-            cityBuildings: new Set(city.buildings ?? []),
-          }).value;
-          unit.health = Math.min(100, unit.health + regeneration);
+            unitClassFlags: new Set(unitType.rulesetUnitClassFlags),
+            unitActivity: unit.fortified ? 'Fortified' : 'Idle',
+            tileIsCityCenter: city !== undefined,
+            tileExtras: new Set<string>((tile?.improvements ?? []) as string[]),
+            cityBuildings: new Set(
+              city && city.playerId === playerId ? (city.buildings ?? []) : []
+            ),
+          };
+          const regeneration = this.effectsManager.calculateEffect(
+            EffectType.HP_REGEN,
+            context
+          ).value;
+          const minimum = this.effectsManager.calculateEffect(EffectType.MIN_HP_PCT, context).value;
+          const secondary = this.effectsManager.calculateEffect(
+            EffectType.HP_REGEN_2,
+            context
+          ).value;
+          const gain = Math.max(regeneration, minimum) + secondary;
+          unit.health = Math.min(100, unit.health + Math.max(0, gain));
         }
       }
     }
@@ -889,6 +905,82 @@ export class UnitManager {
           })
           .where(eq(units.id, unit.id));
       }
+    }
+  }
+
+  /**
+   * Retire idle units using ruleset probability effects.
+   * @reference reference/freeciv/server/srv_main.c:1206-1220
+   * @reference reference/freeciv/server/unittools.c:5092-5108
+   */
+  private async retireEligibleUnits(playerId: string): Promise<void> {
+    const currentTurn = this.currentTurnProvider?.();
+    if (!this.effectsManager || currentTurn === undefined) return;
+    const nationGroups = await this.getPlayerNationGroups(playerId);
+
+    for (const unit of [...this.units.values()]) {
+      if (unit.playerId !== playerId || this.hasForeignUnitOrCityNearby(unit, 3)) continue;
+      const tile = this.mapManager?.getTile?.(unit.x, unit.y);
+      const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
+      const adjacentTerrainClasses = new Set<string>();
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const adjacent = this.mapManager?.getTile?.(unit.x + dx, unit.y + dy);
+          if (adjacent) adjacentTerrainClasses.add(this.getTerrainClass(adjacent.terrain));
+        }
+      }
+      const retirementChance = this.effectsManager.calculateEffect(EffectType.RETIRE_PCT, {
+        playerId,
+        unitId: unit.id,
+        unitType: unit.unitTypeId,
+        age: currentTurn - (unit.createdTurn ?? currentTurn),
+        playerNationGroups: nationGroups,
+        tileTerrain: tile?.terrain,
+        tileTerrainClass: tile ? this.getTerrainClass(tile.terrain) : undefined,
+        adjacentTerrainClasses,
+        tileIsCityCenter: Boolean(city),
+        maxUnitsOnTile: this.getUnitsAt(unit.x, unit.y).filter(
+          candidate => !candidate.transportedBy
+        ).length,
+      }).value;
+      if (retirementChance > 0 && this.random() * 100 < retirementChance) {
+        await this.destroyUnit(unit.id);
+        this.gameManagerCallback?.broadcastUnitDestroyed?.(this.gameId, unit);
+      }
+    }
+  }
+
+  private hasForeignUnitOrCityNearby(unit: Unit, radius: number): boolean {
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        const x = unit.x + dx;
+        const y = unit.y + dy;
+        const city = this.gameManagerCallback?.getCityAt?.(x, y);
+        if (city && city.playerId !== unit.playerId) return true;
+        if (this.getUnitsAt(x, y).some(candidate => candidate.playerId !== unit.playerId)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private getTerrainClass(terrain: TerrainType): string {
+    return rulesetLoader.getTerrain(terrain).properties?.MG_OCEAN_DEPTH !== undefined
+      ? 'Oceanic'
+      : 'Land';
+  }
+
+  private async getPlayerNationGroups(playerId: string): Promise<Set<string>> {
+    const findFirst = (this.databaseProvider.getDatabase() as any).query?.players?.findFirst;
+    if (typeof findFirst !== 'function') return new Set();
+    const player = await findFirst({ where: eq(players.id, playerId) });
+    if (!player?.nation) return new Set();
+    try {
+      const nation = rulesetLoader.getNation(player.nation);
+      return new Set([nation.class, ...(nation.groups ?? [])]);
+    } catch {
+      return new Set();
     }
   }
 
@@ -950,6 +1042,7 @@ export class UnitManager {
         transportedBy: dbUnit.transportedBy ?? undefined,
         cargoUnits: Array.isArray(dbUnit.cargoUnits) ? (dbUnit.cargoUnits as string[]) : [],
         homeCityId: dbUnit.homeCityId ?? undefined,
+        createdTurn: dbUnit.createdTurn,
         automation: dbUnit.isAutomated
           ? dbUnit.currentOrder === 'autoSettler'
             ? 'settler'

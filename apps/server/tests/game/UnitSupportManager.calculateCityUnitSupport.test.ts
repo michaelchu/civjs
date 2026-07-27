@@ -17,14 +17,14 @@ function makeUnit(overrides?: Partial<UnitSupportData>): UnitSupportData {
 }
 
 describe('UnitSupportManager.calculateCityUnitSupport', () => {
-  test('despotism: 3 units with 1 food/shield each and pop 1 => city food 3, shield 1, gold 0', () => {
+  test('despotism: classic free support applies to shields only', () => {
     const mgr = new UnitSupportManager('g1');
     const units: UnitSupportData[] = [makeUnit(), makeUnit(), makeUnit()];
 
     const res = mgr.calculateCityUnitSupport('city-1', 'p1', 'despotism', 1, units) as any;
 
-    expect(res.upkeepCosts.shield).toBe(1); // 3 shield - 2 free = 1
-    expect(res.upkeepCosts.food).toBe(3); // (3 food - 2 free = 1) + population(1)*2 = 3
+    expect(res.upkeepCosts.shield).toBe(0); // 3 shield units are free
+    expect(res.upkeepCosts.food).toBe(5); // 3 unit food + population(1)*2
     expect(res.upkeepCosts.gold).toBe(0); // no gold upkeep
     // freeUnitsSupported uses min across resources (shield=2, food=2, gold=0) => 0
     expect(res.freeUnitsSupported).toBe(0);
@@ -43,13 +43,13 @@ describe('UnitSupportManager.calculateCityUnitSupport', () => {
 
     // Shield: 2 units, free shield 3 (monarchy) => 0
     expect(res.upkeepCosts.shield).toBe(0);
-    // Food: 2 units, free food 2 (monarchy) => 0 + population 2*2 = 4
-    expect(res.upkeepCosts.food).toBe(4);
-    // Gold: city pays (default style CITY), free gold 0 => 2
-    expect(res.upkeepCosts.gold).toBe(2);
+    // Classic monarchy has no free food upkeep.
+    expect(res.upkeepCosts.food).toBe(6);
+    // Classic Warriors have no gold upkeep.
+    expect(res.upkeepCosts.gold).toBe(0);
   });
 
-  test('republic: away military units cause 1 unhappiness each', () => {
+  test('republic: the first military unhappiness point is made content', () => {
     const mgr = new UnitSupportManager('g1');
     const units: UnitSupportData[] = [
       makeUnit({ isAwayFromHome: true }),
@@ -58,7 +58,7 @@ describe('UnitSupportManager.calculateCityUnitSupport', () => {
 
     const res = mgr.calculateCityUnitSupport('city-3', 'p1', 'republic', 1, units) as any;
 
-    expect(res.happinessEffect).toBe(2);
+    expect(res.happinessEffect).toBe(1);
   });
 
   test('nation gold upkeep style: city does not pay gold upkeep', () => {

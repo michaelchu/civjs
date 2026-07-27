@@ -143,7 +143,8 @@ export class CityHappinessService extends BaseGameService {
   calculateDetailedHappiness(
     city: CityState,
     luxuryFromTrade: number = 0,
-    militaryUnitsPresent: number = 0
+    militaryUnitsPresent: number = 0,
+    militaryUnhappiness: number = 0
   ): DetailedHappiness {
     if (!city) {
       return {
@@ -216,6 +217,11 @@ export class CityHappinessService extends BaseGameService {
     unhappy -= contentToApply;
     content += contentToApply;
 
+    const additionalUnhappiness = Math.max(0, militaryUnhappiness);
+    const madeUnhappy = Math.min(additionalUnhappiness, content);
+    content -= madeUnhappy;
+    unhappy += madeUnhappy;
+
     // Freeciv spends two luxury points per citizen mood improvement and can
     // continue improving content citizens into happy citizens.
     // @reference reference/freeciv/common/city.c:2545-2623 citizen_happy_luxury()
@@ -250,12 +256,14 @@ export class CityHappinessService extends BaseGameService {
   calculateHappiness(
     city: CityState,
     luxuryFromTrade: number = 0,
-    militaryUnitsPresent: number = 0
+    militaryUnitsPresent: number = 0,
+    militaryUnhappiness: number = 0
   ): Happiness {
     const detailedHappiness = this.calculateDetailedHappiness(
       city,
       luxuryFromTrade,
-      militaryUnitsPresent
+      militaryUnitsPresent,
+      militaryUnhappiness
     );
     return {
       happy: detailedHappiness.happy,
@@ -298,14 +306,16 @@ export class CityHappinessService extends BaseGameService {
   applyCityHappiness(
     city: CityState,
     luxuryFromTrade: number = 0,
-    militaryUnitsPresent: number = 0
+    militaryUnitsPresent: number = 0,
+    militaryUnhappiness: number = 0
   ): void {
     if (!city) return;
 
     const detailedHappiness = this.calculateDetailedHappiness(
       city,
       luxuryFromTrade,
-      militaryUnitsPresent
+      militaryUnitsPresent,
+      militaryUnhappiness
     );
     city.happiness = {
       happy: detailedHappiness.happy,

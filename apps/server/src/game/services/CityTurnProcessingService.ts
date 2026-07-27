@@ -50,6 +50,7 @@ export interface CityState {
   goldPerTurn?: number;
   luxuryPerTurn?: number;
   wasHappy?: boolean;
+  disorderTurns?: number;
   history: number;
   buildings: string[];
   specialists: Record<number, number>;
@@ -131,6 +132,7 @@ export interface CityTurnProcessingDependencies {
   applyCityHappiness?: (cityId: string) => void;
   getPlayerGovernment?: (playerId: string) => string;
   checkPollution: (cityId: string, currentTurn: number) => Promise<boolean>;
+  forceGovernmentRevolution?: (playerId: string) => Promise<void>;
   saveCityToDatabase: (city: CityState) => Promise<void>;
 }
 
@@ -200,6 +202,7 @@ export class CityTurnProcessingService extends BaseGameService {
         city.goldPerTurn = 0;
         city.luxuryPerTurn = 0;
       }
+      await this.processCivilDisorder(city, inDisorder);
       recordStep('happiness');
 
       // Trigger callback for city turn processing (science accumulation)
@@ -264,6 +267,30 @@ export class CityTurnProcessingService extends BaseGameService {
   }
 
   /**
+   * Democracy falls after more consecutive disorder turns than allowed by
+   * Revolution_Unhappiness. Other governments have a zero threshold.
+   * @reference reference/freeciv/server/cityturn.c:3821-3875
+   */
+  private async processCivilDisorder(city: CityState, inDisorder: boolean): Promise<void> {
+    if (!inDisorder) {
+      city.disorderTurns = 0;
+      return;
+    }
+
+    city.disorderTurns = (city.disorderTurns ?? 0) + 1;
+    const threshold = this.effectsManager.calculateEffect(EffectType.REVOLUTION_UNHAPPINESS, {
+      playerId: city.playerId,
+      cityId: city.id,
+      government: this.dependencies.getPlayerGovernment?.(city.playerId),
+      cityBuildings: new Set(city.buildings),
+    }).value;
+    if (threshold > 0 && city.disorderTurns > threshold) {
+      await this.dependencies.forceGovernmentRevolution?.(city.playerId);
+      city.disorderTurns = 0;
+    }
+  }
+
+  /**
    * Process all cities' turns in parallel
    */
   async processAllCitiesTurn(currentTurn: number): Promise<void> {
@@ -291,19 +318,27 @@ export class CityTurnProcessingService extends BaseGameService {
     const newFoodStock = currentFoodStock + foodSurplus;
 
     const granarySize = this.calculateGranarySize(city.population);
-    const government = (
-      this.dependencies.getPlayerGovernment?.(city.playerId) ?? 'despotism'
-    ).toLowerCase();
+    const government = this.dependencies.getPlayerGovernment?.(city.playerId) ?? 'despotism';
+    const effectContext = {
+      playerId: city.playerId,
+      cityId: city.id,
+      government,
+      cityBuildings: new Set(city.buildings),
+    };
     const celebrating = city.wasHappy === true && this.isHappy(city);
     const raptureGrowth =
-      foodSurplus > 0 && celebrating && (government === 'republic' || government === 'democracy');
+      foodSurplus > 0 &&
+      celebrating &&
+      this.effectsManager.calculateEffect(EffectType.RAPTURE_GROW, effectContext).value > 0;
 
     if ((newFoodStock >= granarySize && foodSurplus > 0) || raptureGrowth) {
-      const sizeLimit = city.buildings.includes('sewer_system')
-        ? Number.POSITIVE_INFINITY
-        : city.buildings.includes('aqueduct')
-          ? 12
-          : 8;
+      const unlimited =
+        this.effectsManager.calculateEffect(EffectType.SIZE_UNLIMIT, effectContext).value > 0;
+      const configuredSize = this.effectsManager.calculateEffect(
+        EffectType.SIZE_ADJ,
+        effectContext
+      ).value;
+      const sizeLimit = unlimited ? Number.POSITIVE_INFINITY : configuredSize;
       if (city.population >= sizeLimit) {
         city.foodStock = Math.min(newFoodStock, granarySize);
         return;

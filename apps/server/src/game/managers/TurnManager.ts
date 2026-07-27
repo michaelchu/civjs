@@ -20,6 +20,7 @@ import type { CultureManager } from '@game/managers/CultureManager';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -83,7 +84,8 @@ export class TurnManager {
     cultureManager: CultureManager,
     broadcastManager: GameBroadcastManager,
     economicManager?: EconomicManager,
-    governmentManager?: GovernmentManager
+    governmentManager?: GovernmentManager,
+    effectsManager: EffectsManager = new EffectsManager()
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -99,7 +101,8 @@ export class TurnManager {
       unitManager,
       cityManager,
       researchManager,
-      economicManager
+      economicManager,
+      effectsManager
     );
     this.turnCoordinationService = new TurnCoordinationService(
       gameId,

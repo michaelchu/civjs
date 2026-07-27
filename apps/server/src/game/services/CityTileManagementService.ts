@@ -4,6 +4,7 @@ import { CityState, WorkableTile, SpecialistType } from '@game/managers/CityMana
 import type { MapManager } from '@game/managers/MapManager';
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { TerrainType } from '@shared/data/rulesets/schemas';
+import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsManager';
 
 /**
  * CityTileManagementService - Manages city workable tiles and citizen assignments
@@ -23,7 +24,8 @@ export class CityTileManagementService extends BaseGameService {
     private mapManager: MapManager,
     private CITY_MAP_DEFAULT_RADIUS_SQ: number,
     private readonly ruleset: Pick<RulesetLoader, 'getTerrain' | 'getCivstyle'> &
-      Partial<Pick<RulesetLoader, 'getResource'>> = rulesetLoader
+      Partial<Pick<RulesetLoader, 'getResource'>> = rulesetLoader,
+    private readonly effectsManager: EffectsManager = new EffectsManager()
   ) {
     super(logger);
   }
@@ -446,15 +448,8 @@ export class CityTileManagementService extends BaseGameService {
         if (mapTile?.hasRailroad || mapTile?.improvements?.includes('railroad')) {
           outputs.shields = Math.floor(outputs.shields * 1.5);
         }
-        const oceanic = ['ocean', 'coast', 'deep_ocean', 'lake'].includes(terrain);
-        if (oceanic && city.buildings.includes('harbor')) outputs.food += 1;
-        if (oceanic && city.buildings.includes('offshore_platform')) outputs.shields += 1;
-        if (city.buildings.includes('colossus')) outputs.trade += 1;
-        if (city.buildings.includes('king_richards_crusade')) outputs.shields += 1;
-        if (tile.isCenter) {
-          outputs = this.applyCityCenterMinimums(outputs);
-        }
-        outputs = this.applyGovernmentTileEffects(city, outputs);
+        outputs = this.applyRulesetTileEffects(city, tile, terrain, outputs);
+        if (tile.isCenter) outputs = this.applyCityCenterMinimums(outputs);
         tile.outputs = outputs;
         food += outputs.food;
         shields += outputs.shields;
@@ -465,11 +460,16 @@ export class CityTileManagementService extends BaseGameService {
     return { food, shields, trade };
   }
 
-  private applyGovernmentTileEffects(
+  /**
+   * Apply ruleset tile effects in Freeciv's city_tile_output() order.
+   * @reference reference/freeciv/common/city.c:1334-1358
+   */
+  private applyRulesetTileEffects(
     city: CityState,
+    tile: WorkableTile,
+    terrain: string,
     outputs: { food: number; shields: number; trade: number }
   ): { food: number; shields: number; trade: number } {
-    const government = this.playerGovernmentProvider(city.playerId).toLowerCase();
     const celebrating =
       city.wasHappy === true &&
       city.population >= 3 &&
@@ -477,16 +477,56 @@ export class CityTileManagementService extends BaseGameService {
       city.happiness.angry === 0 &&
       city.happiness.happy >= Math.ceil(city.population / 2);
     const adjusted = { ...outputs };
+    const terrainRules = this.ruleset.getTerrain(terrain as TerrainType);
+    const terrainClass = terrainRules.properties?.MG_OCEAN_DEPTH !== undefined ? 'Oceanic' : 'Land';
+    const outputTypes = {
+      food: OutputType.FOOD,
+      shields: OutputType.SHIELD,
+      trade: OutputType.TRADE,
+    } as const;
 
-    if (!celebrating && (government === 'despotism' || government === 'anarchy')) {
-      for (const output of ['food', 'shields', 'trade'] as const) {
-        if (adjusted[output] > 2) adjusted[output] -= 1;
+    for (const output of ['food', 'shields', 'trade'] as const) {
+      const context = {
+        playerId: city.playerId,
+        cityId: city.id,
+        tileX: tile.x,
+        tileY: tile.y,
+        government: this.playerGovernmentProvider(city.playerId),
+        outputType: outputTypes[output],
+        tileTerrain: terrain,
+        tileTerrainClass: terrainClass,
+        tileIsCityCenter: tile.isCenter,
+        cityCelebrating: celebrating,
+        cityBuildings: new Set(city.buildings),
+      };
+
+      adjusted[output] += this.effectsManager.calculateEffect(
+        EffectType.OUTPUT_ADD_TILE,
+        context
+      ).value;
+      if (adjusted[output] <= 0) continue;
+
+      const penaltyLimit = this.effectsManager.calculateEffect(
+        EffectType.OUTPUT_PENALTY_TILE,
+        context
+      ).value;
+      // Classic's output granularity is one. Increment effects do not make a
+      // zero-output tile productive.
+      if (adjusted[output] >= 1) {
+        adjusted[output] += this.effectsManager.calculateEffect(
+          EffectType.OUTPUT_INC_TILE,
+          context
+        ).value;
+        if (celebrating) {
+          adjusted[output] += this.effectsManager.calculateEffect(
+            EffectType.OUTPUT_INC_TILE_CELEBRATE,
+            context
+          ).value;
+        }
       }
-    }
-    if (government === 'republic' || government === 'democracy') {
-      adjusted.trade += 1;
-    } else if (celebrating && (government === 'monarchy' || government === 'communism')) {
-      adjusted.trade += 1;
+      if (penaltyLimit > 0 && adjusted[output] > penaltyLimit) {
+        adjusted[output] = adjusted[output] <= 1 ? 0 : adjusted[output] - 1;
+      }
     }
     return adjusted;
   }

@@ -68,7 +68,7 @@ export class UnitSupportManager {
 
   constructor(gameId: string, effectsManager?: EffectsManager) {
     this._gameId = gameId;
-    this.effectsManager = effectsManager;
+    this.effectsManager = effectsManager ?? new EffectsManager();
   }
 
   /**
@@ -98,7 +98,9 @@ export class UnitSupportManager {
     playerId: string,
     currentGovernment: string,
     cityPopulation: number,
-    unitsSupported: UnitSupportData[]
+    unitsSupported: UnitSupportData[],
+    cityBuildings?: ReadonlySet<string>,
+    playerBuildings?: ReadonlySet<string>
   ): UnitSupportResult;
 
   /**
@@ -112,7 +114,9 @@ export class UnitSupportManager {
     playerId?: string,
     currentGovernment?: string,
     cityPopulation?: number,
-    unitsSupported?: UnitSupportData[]
+    unitsSupported?: UnitSupportData[],
+    cityBuildings: ReadonlySet<string> = new Set(),
+    playerBuildings: ReadonlySet<string> = new Set()
   ): UnitSupportResult | Promise<UnitSupportResult> {
     // For integration tests, validate that non-existent cities throw an error
     if (cityId.includes('non-existent') || !cityId) {
@@ -131,6 +135,8 @@ export class UnitSupportManager {
       playerId: effectivePlayerId,
       cityId,
       government: effectiveGovernment,
+      cityBuildings: new Set(cityBuildings),
+      playerBuildings: new Set(playerBuildings),
     };
 
     // Initialize result
@@ -182,15 +188,7 @@ export class UnitSupportManager {
    * Reference: freeciv city_unit_unhappiness()
    */
   private calculateMilitaryUnhappiness(context: EffectContext, _unitType: string): number {
-    // Republic: 1 unhappy per military unit away from home
-    // Democracy: 2 unhappy per military unit away from home
-    // Other governments: 0 unhappy
-    const penaltyByGovernment: Record<string, number> = {
-      republic: 1,
-      democracy: 2,
-    };
-    const govKey = (context.government ?? '').toString();
-    return penaltyByGovernment[govKey] ?? 0;
+    return this.effectsManager?.calculateEffect(EffectType.UNHAPPY_FACTOR, context).value ?? 0;
   }
 
   /**
@@ -269,31 +267,28 @@ export class UnitSupportManager {
 
   private computeFreeSupport(
     context: EffectContext,
-    unitCount: number,
+    _unitCount: number,
     government: string
   ): { shield: number; food: number; gold: number } {
     const freeShieldUnits = this.effectsManager
-      ? this.effectsManager.calculateUnitSupport(
-          { ...context, outputType: OutputType.SHIELD },
-          OutputType.SHIELD,
-          unitCount
-        )
+      ? this.effectsManager.calculateEffect(EffectType.UNIT_UPKEEP_FREE_PER_CITY, {
+          ...context,
+          outputType: OutputType.SHIELD,
+        }).value
       : this.getGovernmentFreeUnits(government, 'shield');
 
     const freeFoodUnits = this.effectsManager
-      ? this.effectsManager.calculateUnitSupport(
-          { ...context, outputType: OutputType.FOOD },
-          OutputType.FOOD,
-          unitCount
-        )
+      ? this.effectsManager.calculateEffect(EffectType.UNIT_UPKEEP_FREE_PER_CITY, {
+          ...context,
+          outputType: OutputType.FOOD,
+        }).value
       : this.getGovernmentFreeUnits(government, 'food');
 
     const freeGoldUnits = this.effectsManager
-      ? this.effectsManager.calculateUnitSupport(
-          { ...context, outputType: OutputType.GOLD },
-          OutputType.GOLD,
-          unitCount
-        )
+      ? this.effectsManager.calculateEffect(EffectType.UNIT_UPKEEP_FREE_PER_CITY, {
+          ...context,
+          outputType: OutputType.GOLD,
+        }).value
       : this.getGovernmentFreeUnits(government, 'gold');
 
     return { shield: freeShieldUnits, food: freeFoodUnits, gold: freeGoldUnits };
@@ -322,6 +317,9 @@ export class UnitSupportManager {
         militaryUnhappiness += this.calculateMilitaryUnhappiness(context, unit.unitType);
       }
     }
+    const freeMilitaryContent =
+      this.effectsManager?.calculateEffect(EffectType.MAKE_CONTENT_MIL, context).value ?? 0;
+    militaryUnhappiness = Math.max(0, militaryUnhappiness - freeMilitaryContent);
 
     return {
       shieldUnitsRequiringSupport,
