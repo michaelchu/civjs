@@ -5,6 +5,7 @@ import { GameTabs } from './GameTabs';
 import { StatusPanel } from './StatusPanel';
 // import { ChatBox } from './ChatBox'; // Commented out while ChatBox is disabled
 import { TurnDoneButton } from './TurnDoneButton';
+import { GameMenu } from './GameMenu';
 import { TechnologyTree } from '../Research/TechnologyTree';
 import { GovernmentPanel } from './GovernmentPanel';
 import { CitiesPanel } from './CitiesPanel';
@@ -102,6 +103,7 @@ export const GameLayout: React.FC = () => {
         <div className="flex items-center space-x-4">
           <StatusPanel />
           <TurnDoneButton />
+          <GameMenu />
         </div>
       </div>
 

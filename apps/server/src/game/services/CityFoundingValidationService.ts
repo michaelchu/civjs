@@ -13,7 +13,9 @@ import type { CityFoundingRules } from '@shared/data/rulesets/schemas';
 
 // Game constants from freeciv reference
 // Reference: freeciv/common/game.h:492-494
-export const GAME_DEFAULT_CITYMINDIST = 2;
+// Keep at least two tiles between city centers. A value of 3 rejects cities
+// whose centers are only two tiles apart while still allowing distance 3.
+export const GAME_DEFAULT_CITYMINDIST = 3;
 export const GAME_MIN_CITYMINDIST = 1;
 export const GAME_MAX_CITYMINDIST = 11;
 

@@ -205,13 +205,23 @@ describe('CityManager', () => {
       expect(city!.specialists[SpecialistType.ENTERTAINER]).toBe(0);
     });
 
-    it('should reject cities founded too close together', async () => {
-      await cityManager.foundCity(10, 10, 'FirstCity', 'player-123');
+    it('rejects a city two tiles from another player city', async () => {
+      await cityManager.foundCity(10, 10, 'AI City', 'ai-player');
 
-      // Try to found a city too close (within minimum distance)
-      await expect(cityManager.foundCity(11, 11, 'SecondCity', 'player-123')).rejects.toThrow(
+      await expect(cityManager.foundCity(12, 10, 'Player City', 'player-123')).rejects.toThrow(
         'Too close to existing city'
       );
+    });
+
+    it('allows a city at the three-tile minimum distance', async () => {
+      await cityManager.foundCity(10, 10, 'FirstCity', 'player-123');
+
+      await expect(
+        cityManager.foundCity(13, 10, 'SecondCity', 'player-123')
+      ).resolves.toMatchObject({
+        x: 13,
+        y: 10,
+      });
     });
   });
 

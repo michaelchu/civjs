@@ -50,8 +50,9 @@ export const CITY_MAP_DEFAULT_RADIUS_SQ = CITY_MAP_DEFAULT_RADIUS * CITY_MAP_DEF
 export const CITY_MAP_MAX_RADIUS = 3;
 export const CITY_MAP_MAX_RADIUS_SQ = CITY_MAP_MAX_RADIUS * CITY_MAP_MAX_RADIUS + 1; // 10
 
-// Following Freeciv city minimum distance constants (reference: freeciv/common/game.h:492-494)
-export const GAME_DEFAULT_CITYMINDIST = 2;
+// CivJS uses a stricter default than Freeciv so neighboring city centers have
+// at least two intervening tiles.
+export const GAME_DEFAULT_CITYMINDIST = 3;
 export const GAME_MIN_CITYMINDIST = 1;
 export const GAME_MAX_CITYMINDIST = 11;
 

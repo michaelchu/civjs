@@ -16,20 +16,21 @@ const tabs: TabInfo[] = [
   { id: 'research', label: 'Research', icon: '🧪', shortcut: 'F3' },
   { id: 'nations', label: 'Nations', icon: '🏳️', shortcut: 'F4' },
   { id: 'cities', label: 'Cities', icon: '🏰', shortcut: 'F5' },
-  { id: 'options', label: 'Settings', icon: '⚙️', shortcut: 'F6' },
 ];
+
+const shortcutTabs: GameTab[] = ['map', 'government', 'research', 'nations', 'cities', 'options'];
 
 export const GameTabs: React.FC = () => {
   const { activeTab, setActiveTab } = useGameStore();
 
   React.useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
-      // Handle F1-F6 keys for tab switching
+      // Settings remains available with F6 even though it lives in the game menu.
       if (event.key >= 'F1' && event.key <= 'F6') {
         event.preventDefault();
         const tabIndex = parseInt(event.key.slice(1)) - 1;
-        if (tabs[tabIndex]) {
-          setActiveTab(tabs[tabIndex].id);
+        if (shortcutTabs[tabIndex]) {
+          setActiveTab(shortcutTabs[tabIndex]);
         }
       }
     };
