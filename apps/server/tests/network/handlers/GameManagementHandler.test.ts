@@ -402,6 +402,30 @@ describe('GameManagementHandler', () => {
         error: 'Not authenticated',
       });
     });
+
+    it('should reject an active-game join when snapshot recovery fails', async () => {
+      mockGameManager.joinGame.mockResolvedValue({
+        playerId: mockPlayerId,
+        assignedNation: 'romans',
+        assignedColor: { r: 255, g: 0, b: 0 },
+      });
+      mockGameManager.getGame.mockResolvedValue({ status: 'active' } as any);
+      mockGameManager.getGameInstance.mockReturnValue(null);
+      mockGameManager.recoverGameInstance.mockResolvedValue(null);
+
+      const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'join_game'
+      )[1];
+      const mockCallback = jest.fn();
+
+      await eventHandler({ gameId: mockGameId }, mockCallback);
+
+      expect(mockCallback).toHaveBeenCalledWith({
+        success: false,
+        error: 'Unable to recover active game',
+      });
+      expect(mockCallback).not.toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
   });
 
   describe('get_game_list socket event', () => {

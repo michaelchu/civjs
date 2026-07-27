@@ -45,7 +45,10 @@ describe('GameManagementHandler - Nation Selection', () => {
       deleteGame: jest.fn(),
       updatePlayerConnection: jest.fn(),
       getPlayerById: jest.fn(),
+      getGameInstance: jest.fn(),
+      recoverGameInstance: jest.fn(),
     } as any;
+    mockGameManager.getGame.mockResolvedValue({ status: 'waiting' } as any);
 
     // Mock PacketHandler
     mockPacketHandler = {

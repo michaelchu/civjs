@@ -324,11 +324,16 @@ export class GameManagementHandler extends BaseSocketHandler {
       socket.join(`game:${data.gameId}`);
       await this.gameManager.updatePlayerConnection(result.playerId, true);
 
-      // Send map data to the player if the game has started
-      try {
+      const joinedGame = await this.gameManager.getGame(data.gameId);
+      const hasLiveInstance = Boolean(this.gameManager.getGameInstance(data.gameId));
+      const requiresSnapshot =
+        hasLiveInstance || Boolean(joinedGame && joinedGame.status !== 'waiting');
+
+      // A successful active-game join means the client can render a complete
+      // recovery snapshot. Propagate recovery failures instead of mounting an
+      // empty game and asking the browser to recover through a refresh.
+      if (requiresSnapshot) {
         await this.sendPlayerMapData(data.gameId, result.playerId, socket);
-      } catch (mapError) {
-        logger.warn('Could not send map data to player:', mapError);
       }
 
       callback({
