@@ -627,12 +627,19 @@ export class TerrainRenderer extends BaseRenderer {
       const neighborTile = this.tileMap.get(key);
       let neighborTerrain = null;
 
-      if (neighborTile && neighborTile.terrain) {
+      const neighborIsKnown =
+        neighborTile?.known === true ||
+        (typeof neighborTile?.known === 'number' && neighborTile.known > 0);
+
+      if (neighborTile?.terrain && neighborTile.terrain !== 'unknown' && neighborIsKnown) {
         neighborTerrain = {
           graphic_str: this.mapTerrainName(neighborTile.terrain),
         };
       } else {
-        // If no neighbor found, assume same terrain as current tile
+        // Freeciv extends the current terrain into unknown/off-map neighbors.
+        // Treating the "unknown" sentinel as a real terrain selects incomplete
+        // corner cells and exposes the blue map background at the fog edge.
+        // @reference reference/freeciv-web/javascript/terrain.js:46-63
         neighborTerrain = { graphic_str: this.mapTerrainName(tile.terrain) };
       }
 
