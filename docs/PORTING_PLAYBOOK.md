@@ -1,6 +1,6 @@
 # CivJS Porting Playbook
 
-**Status:** Milestones 0–8 complete; Milestones 9–13 define the remaining
+**Status:** Milestones 0–9 complete; Milestones 10–13 define the remaining
 classic-port closure work identified by the post-Milestone 8 audit
 **Baseline:** [`PORT_STATUS.md`](PORT_STATUS.md)  
 **Goal:** a playable, testable TypeScript port of the Freeciv classic ruleset with a freeciv-web-compatible 2D client experience.
@@ -243,7 +243,7 @@ persisted city, unit, and treasury result.
 `UnitActionHandler.test.ts`, `UnitManager.test.ts`, `CityManager.test.ts`, and
 `UnitContextMenu.espionage.test.tsx`.
 
-### Milestone 9 — Ruleset authority and requirement completeness
+### Milestone 9 — Ruleset authority and requirement completeness — complete (2026-07-26)
 
 **Outcome:** the complete classic ruleset surface used by CivJS is represented
 as validated data instead of being maintained through manual mappings or
@@ -270,6 +270,20 @@ TypeScript assumptions.
 every loaded requirement/effect used by the supported game has a tested
 consumer; and changing an extra, action enabler, or style fixture changes
 observable behavior without a TypeScript constant edit.
+
+**Completion evidence:** `tools/convert-classic-rulesets.mjs` reproducibly
+converts the upstream secfiles into source-attributed JSON containing all 82
+classic action enablers, 34 extras, 20 resources, 6 nation styles, 10 city
+styles, and 11 music styles. `RulesetLoader` schema-validates those catalogues
+and rejects unresolved action, extra, and style references.
+`RulesetRequirementEvaluator` handles every universal requirement kind present
+in the converted data with range-aware, negation-aware, fail-closed behavior.
+Loaded enablers now determine diplomat/spy capability advertisement, loaded
+styles feed the city-style API, and loaded extra/terrain settings determine
+railroad construction and pollution cleanup time. Evidence includes
+`RulesetLoader.validation.test.ts`, `RulesetMutation.test.ts`,
+`RulesetRequirementEvaluator.test.ts`, `UnitManager.test.ts`, and
+`GameBroadcastManager.test.ts`.
 
 ### Milestone 10 — Canonical protocol and transport convergence
 

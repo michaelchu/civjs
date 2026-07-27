@@ -19,6 +19,7 @@ import { RulesetBuildingsService } from '@game/services/RulesetBuildingsService'
 import { RulesetUnitsService } from '@game/services/RulesetUnitsService';
 import type { CityState } from '@game/managers/CityManager';
 import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { RulesetActionsService } from '@game/services/RulesetActionsService';
 
 type JsonObject = Record<string, unknown>;
 
@@ -135,6 +136,38 @@ describe('isolated ruleset mutations', () => {
         getUnitMovementType: unitId => units.getMovementType(unitId) as MovementType | undefined,
       })
     ).toBe(12);
+  });
+
+  it('changes advertised diplomat capabilities through action enablers', () => {
+    mutate('actions.json', document => {
+      const enablers = document.enablers as Array<{
+        id: string;
+        actor_reqs: Array<{ type: string; name: string }>;
+      }>;
+      const poison = enablers.find(enabler => enabler.id === 'enabler_poison_city')!;
+      poison.actor_reqs.find(requirement => requirement.type === 'UnitTypeFlag')!.name = 'Diplomat';
+    });
+    const actions = new RulesetActionsService(new RulesetLoader(fixtureRoot));
+
+    expect(actions.getDiplomatActions(['Diplomat'])).toContain('poison_water');
+  });
+
+  it('changes extra activity data through the loaded extras catalogue', () => {
+    mutate('extras.json', document => {
+      const extras = document.extras as Record<string, { build_time: number }>;
+      extras.extra_railroad.build_time = 9;
+    });
+
+    expect(new RulesetLoader(fixtureRoot).getExtra('Railroad').build_time).toBe(9);
+  });
+
+  it('changes client city style data through the loaded styles catalogue', () => {
+    mutate('styles.json', document => {
+      const styles = document.city_styles as Record<string, { graphic: string }>;
+      styles.citystyle_european.graphic = 'city.mutated';
+    });
+
+    expect(new RulesetLoader(fixtureRoot).getCityStyles().european.graphic).toBe('city.mutated');
   });
 
   it('changes city food consumption through the loaded game parameter', () => {

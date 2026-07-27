@@ -39,6 +39,9 @@ describe('RulesetLoader validation', () => {
     ['effects.json', 'loadEffectsRuleset'],
     ['nations.json', 'loadNationsRuleset'],
     ['cities.json', 'loadCitiesRuleset'],
+    ['actions.json', 'loadActionsRuleset'],
+    ['extras.json', 'loadExtrasRuleset'],
+    ['styles.json', 'loadStylesRuleset'],
   ] as const)('rejects malformed %s data', (fileName, loadMethod) => {
     writeRuleset(fileName, {});
 
@@ -77,6 +80,21 @@ describe('RulesetLoader validation', () => {
     // Freeciv rejects unresolved rule references while loading a ruleset.
     // @reference reference/freeciv/server/ruleset/ruleload.c:6275-6282
     expect(() => new RulesetLoader(baseDir).validateRuleset()).not.toThrow();
+  });
+
+  it('retains the complete generated classic action, extra, and style catalogues', () => {
+    const loader = new RulesetLoader(baseDir);
+    const actions = loader.loadActionsRuleset();
+    const extras = loader.loadExtrasRuleset();
+    const styles = loader.loadStylesRuleset();
+
+    expect(actions.source).toBe('reference/freeciv/data/classic/actions.ruleset');
+    expect(actions.enablers).toHaveLength(82);
+    expect(Object.keys(extras.extras)).toHaveLength(34);
+    expect(Object.keys(extras.resources)).toHaveLength(20);
+    expect(Object.keys(styles.nation_styles)).toHaveLength(6);
+    expect(Object.keys(styles.city_styles)).toHaveLength(10);
+    expect(Object.keys(styles.music_styles)).toHaveLength(11);
   });
 
   it('rejects a unit technology reference that does not resolve', () => {
@@ -135,5 +153,33 @@ describe('RulesetLoader validation', () => {
     writeRuleset('effects.json', effects);
 
     expect(() => new RulesetLoader(baseDir).validateRuleset()).not.toThrow();
+  });
+
+  it('rejects an unresolved action-enabler entity requirement', () => {
+    const actions = readRuleset<{
+      enablers: Array<{
+        id: string;
+        actor_reqs: Array<{ type: string; name: string }>;
+      }>;
+    }>('actions.json');
+    const railroad = actions.enablers.find(enabler => enabler.id === 'enabler_desert_oil')!;
+    railroad.actor_reqs.find(requirement => requirement.type === 'Tech')!.name = 'Missing Tech';
+    writeRuleset('actions.json', actions);
+
+    expect(() => new RulesetLoader(baseDir).validateRuleset()).toThrow(
+      "Action enabler 'enabler_desert_oil' actor Tech requirement 'Missing Tech' does not exist"
+    );
+  });
+
+  it('rejects an unresolved style technology requirement', () => {
+    const styles = readRuleset<{
+      city_styles: Record<string, { reqs: Array<{ type: string; name: string }> }>;
+    }>('styles.json');
+    styles.city_styles.citystyle_industrial.reqs[0].name = 'Missing Tech';
+    writeRuleset('styles.json', styles);
+
+    expect(() => new RulesetLoader(baseDir).validateRuleset()).toThrow(
+      "City style 'citystyle_industrial' tech requirement 'Missing Tech' does not exist"
+    );
   });
 });

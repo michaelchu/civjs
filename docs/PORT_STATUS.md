@@ -1,8 +1,8 @@
 # CivJS Port Status
 
-**Verified against:** Milestone 8 commit `9ea9d1e2` (2026-07-26)
-**Verification method:** source-tree audit, 834 passing unit tests (53 client,
-781 server), and passing formatting, lint, production type checks, and
+**Verified against:** Milestone 9 working tree (2026-07-26)
+**Verification method:** source-tree audit, 851 passing unit tests (53 client,
+798 server), and passing formatting, lint, production type checks, and
 production builds. Database-backed integration remains separately dependent on
 the configured PostgreSQL test service.
 
@@ -261,13 +261,30 @@ Evidence includes `GameManager.espionage.test.ts`, `UnitActionHandler.test.ts`,
 `UnitManager.test.ts`, `CityManager.test.ts`, and
 `UnitContextMenu.espionage.test.tsx`.
 
+## Milestone 9 — complete
+
+Classic actions, extras, and styles are now complete, source-attributed,
+validated ruleset domains. A reproducible converter retains all 82 action
+enablers, 34 extras, 20 resources, 6 nation styles, 10 city styles, and 11
+music styles from the upstream secfiles. Cross-file validation rejects
+unresolved entity references in addition to malformed definitions.
+
+The shared ruleset requirement evaluator covers every requirement kind present
+in those domains, selects context by Freeciv range, applies negation, and fails
+closed when context is absent. Loaded action enablers determine diplomat and
+spy capability advertisement; loaded city styles feed the existing ruleset
+API; loaded extra and terrain settings determine railroad and pollution-cleanup
+activity times. Mutation fixtures prove these behaviors change through data
+without TypeScript constant edits.
+
+Remaining classic action outcomes belong to Milestone 11, while complete
+style/music rendering and browser evidence belong to Milestone 12.
+
 ## Partial or incomplete areas
 
 These are confirmed by the post-Milestone 8 audit and are now scheduled in
 [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md):
 
-- Classic extras, action enablers, styles, and action/entity requirements are
-  not yet fully loaded as validated runtime data (Milestone 9).
 - Client and server packet enums can drift, and gameplay still mixes structured
   packets with named Socket.IO events (Milestone 10).
 - Bombardment, paradrop, airlift, and applicable automation are not yet in the

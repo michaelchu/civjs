@@ -11,6 +11,7 @@ import type { Server as SocketServer } from 'socket.io';
 import { PacketType, PACKET_NAMES } from '@app-types/packet';
 import type { GameInstance } from '@game/managers/GameManager';
 import { getUnitType } from '@game/constants/UnitConstants';
+import { rulesetActionsService } from '@game/services/RulesetActionsService';
 
 export interface BroadcastService {
   broadcastToGame(gameId: string, event: string, data: any): void;
@@ -449,16 +450,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         canPillage: Boolean(unitType?.rulesetUnitClassFlags.includes('CanPillage')),
         canTrade: Boolean(unitType?.flags?.includes('TradeRoute')),
         diplomatActions: unitType?.flags?.includes('Diplomat')
-          ? [
-              'establish_embassy',
-              'investigate_city',
-              'steal_tech',
-              'bribe_unit',
-              'incite_city',
-              ...(unitType.flags.includes('Spy')
-                ? ['sabotage_city', 'poison_water', 'sabotage_unit']
-                : []),
-            ]
+          ? rulesetActionsService.getDiplomatActions(unitType.flags)
           : [],
       },
     };

@@ -40,6 +40,15 @@ import {
   type CitiesRulesetFile,
   type CityStyle,
   type CityFoundingRules,
+  ActionsRulesetFileSchema,
+  type ActionsRulesetFile,
+  type ActionEnabler,
+  ExtrasRulesetFileSchema,
+  type ExtrasRulesetFile,
+  type ExtraRuleset,
+  StylesRulesetFileSchema,
+  type StylesRulesetFile,
+  type RulesetCityStyle,
 } from './schemas';
 
 export class RulesetLoader {
@@ -53,6 +62,9 @@ export class RulesetLoader {
   private effectsCache = new Map<string, EffectsRulesetFile>();
   private nationsCache = new Map<string, NationsRulesetFile>();
   private citiesCache = new Map<string, CitiesRulesetFile>();
+  private actionsCache = new Map<string, ActionsRulesetFile>();
+  private extrasCache = new Map<string, ExtrasRulesetFile>();
+  private stylesCache = new Map<string, StylesRulesetFile>();
   private readonly baseDir: string;
 
   constructor(baseDir?: string) {
@@ -667,6 +679,113 @@ export class RulesetLoader {
     return ruleset.compatibility;
   }
 
+  loadActionsRuleset(rulesetName: string = 'classic'): ActionsRulesetFile {
+    const cached = this.actionsCache.get(rulesetName);
+    if (cached) return cached;
+    try {
+      const rawData = JSON.parse(
+        readFileSync(join(this.baseDir, rulesetName, 'actions.json'), 'utf8')
+      );
+      const ruleset = ActionsRulesetFileSchema.parse(rawData);
+      this.actionsCache.set(rulesetName, ruleset);
+      return ruleset;
+    } catch (error) {
+      throw new Error(
+        `Failed to load actions ruleset '${rulesetName}': ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+    }
+  }
+
+  getActionEnablers(rulesetName: string = 'classic'): ActionEnabler[] {
+    return this.loadActionsRuleset(rulesetName).enablers;
+  }
+
+  getActionEnablersFor(action: string, rulesetName: string = 'classic'): ActionEnabler[] {
+    const normalizedAction = this.normalizeRuleName(action);
+    return this.getActionEnablers(rulesetName).filter(
+      enabler => this.normalizeRuleName(enabler.action) === normalizedAction
+    );
+  }
+
+  loadExtrasRuleset(rulesetName: string = 'classic'): ExtrasRulesetFile {
+    const cached = this.extrasCache.get(rulesetName);
+    if (cached) return cached;
+    try {
+      const rawData = JSON.parse(
+        readFileSync(join(this.baseDir, rulesetName, 'extras.json'), 'utf8')
+      );
+      const ruleset = ExtrasRulesetFileSchema.parse(rawData);
+      this.extrasCache.set(rulesetName, ruleset);
+      return ruleset;
+    } catch (error) {
+      throw new Error(
+        `Failed to load extras ruleset '${rulesetName}': ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+    }
+  }
+
+  getExtras(rulesetName: string = 'classic'): Record<string, ExtraRuleset> {
+    return this.loadExtrasRuleset(rulesetName).extras;
+  }
+
+  getExtra(extraIdOrName: string, rulesetName: string = 'classic'): ExtraRuleset {
+    const normalized = this.normalizeRuleName(extraIdOrName);
+    const match = Object.entries(this.getExtras(rulesetName)).find(
+      ([id, extra]) =>
+        this.normalizeRuleName(id) === normalized ||
+        this.normalizeRuleName(extra.name) === normalized ||
+        (extra.rule_name ? this.normalizeRuleName(extra.rule_name) === normalized : false)
+    );
+    if (!match) {
+      throw new Error(`Extra '${extraIdOrName}' not found in ruleset '${rulesetName}'`);
+    }
+    return match[1];
+  }
+
+  getTerrainExtraRemovalTime(
+    terrainIdOrName: string,
+    extraIdOrName: string,
+    rulesetName: string = 'classic'
+  ): number | undefined {
+    const normalizedTerrain = this.normalizeRuleName(terrainIdOrName);
+    const normalizedExtra = this.normalizeRuleName(extraIdOrName);
+    const terrainAliases: Record<string, string> = { tundra: 'tundra', glacier: 'glacier' };
+    const expectedTerrain = terrainAliases[normalizedTerrain] ?? normalizedTerrain;
+    const settings = Object.values(this.loadExtrasRuleset(rulesetName).terrain_extra_settings).find(
+      entry => this.normalizeRuleName(entry.terrain) === expectedTerrain
+    );
+    return settings?.extra_settings.find(
+      entry => this.normalizeRuleName(entry.extra) === normalizedExtra
+    )?.removal_time;
+  }
+
+  loadStylesRuleset(rulesetName: string = 'classic'): StylesRulesetFile {
+    const cached = this.stylesCache.get(rulesetName);
+    if (cached) return cached;
+    try {
+      const rawData = JSON.parse(
+        readFileSync(join(this.baseDir, rulesetName, 'styles.json'), 'utf8')
+      );
+      const ruleset = StylesRulesetFileSchema.parse(rawData);
+      this.stylesCache.set(rulesetName, ruleset);
+      return ruleset;
+    } catch (error) {
+      throw new Error(
+        `Failed to load styles ruleset '${rulesetName}': ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+    }
+  }
+
+  getRulesetCityStyles(rulesetName: string = 'classic'): Record<string, RulesetCityStyle> {
+    return this.loadStylesRuleset(rulesetName).city_styles;
+  }
+
   /**
    * Load every ruleset file and reject unresolved cross-file references.
    * Freeciv resolves named universals while loading rulesets and treats an
@@ -682,6 +801,9 @@ export class RulesetLoader {
     const techs = this.loadTechsRuleset(rulesetName).techs;
     const governments = this.loadGovernmentsRuleset(rulesetName).governments;
     const effects = this.loadEffectsRuleset(rulesetName).effects;
+    const actions = this.loadActionsRuleset(rulesetName);
+    const extrasRuleset = this.loadExtrasRuleset(rulesetName);
+    const styles = this.loadStylesRuleset(rulesetName);
 
     // Loading the remaining files here makes validateRuleset the single schema
     // integrity entry point even though they do not contribute entity indexes.
@@ -694,6 +816,10 @@ export class RulesetLoader {
     const buildingNames = this.buildRuleNameIndex(buildings);
     const techNames = this.buildRuleNameIndex(techs);
     const governmentNames = this.buildRuleNameIndex(governments.types);
+    const extraNames = this.buildRuleNameIndex(extrasRuleset.extras);
+    const styleNames = this.buildRuleNameIndex(styles.nation_styles);
+    // Freeciv's Glacier is represented by CivJS's tundra terrain identifier.
+    terrainNames.add('glacier');
     const errors: string[] = [];
 
     for (const [unitId, unit] of Object.entries(units)) {
@@ -770,6 +896,53 @@ export class RulesetLoader {
           );
         }
       }
+    }
+
+    const requirementIndexes: Partial<Record<string, Set<string>>> = {
+      Building: buildingNames,
+      Extra: extraNames,
+      Gov: governmentNames,
+      Style: styleNames,
+      Tech: techNames,
+      tech: techNames,
+      Terrain: terrainNames,
+      UnitClass: new Set(
+        Object.entries(unitClasses).flatMap(([id, unitClass]) => [
+          this.normalizeRuleName(id),
+          this.normalizeRuleName(unitClass.name),
+        ])
+      ),
+    };
+    const validateRequirements = (
+      owner: string,
+      requirements: Array<{ type: string; name: string }>
+    ): void => {
+      for (const requirement of requirements) {
+        const index = requirementIndexes[requirement.type];
+        if (index) {
+          this.validateReference(
+            errors,
+            `${owner} ${requirement.type} requirement`,
+            requirement.name,
+            index
+          );
+        }
+      }
+    };
+
+    validateRequirements('Auto attack', actions.auto_attack.if_attacker);
+    for (const enabler of actions.enablers) {
+      validateRequirements(`Action enabler '${enabler.id}' actor`, enabler.actor_reqs);
+      validateRequirements(`Action enabler '${enabler.id}' target`, enabler.target_reqs);
+    }
+    for (const [extraId, extra] of Object.entries(extrasRuleset.extras)) {
+      validateRequirements(`Extra '${extraId}'`, extra.reqs ?? []);
+    }
+    for (const [styleId, style] of Object.entries(styles.city_styles)) {
+      validateRequirements(`City style '${styleId}'`, style.reqs);
+    }
+    for (const [styleId, style] of Object.entries(styles.music_styles)) {
+      validateRequirements(`Music style '${styleId}'`, style.reqs);
     }
 
     this.validateReference(
@@ -871,8 +1044,21 @@ export class RulesetLoader {
    * Get all city styles from a ruleset
    */
   getCityStyles(rulesetName: string = 'classic'): Record<string, CityStyle> {
-    const ruleset = this.loadCitiesRuleset(rulesetName);
-    return ruleset.city_styles;
+    const styles = this.getRulesetCityStyles(rulesetName);
+    return Object.fromEntries(
+      Object.entries(styles).map(([id, style]) => [
+        id.replace(/^citystyle_/, ''),
+        {
+          name: style.name,
+          graphic: style.graphic,
+          graphic_alt: style.graphic_alt,
+          citizens_graphic: style.citizens_graphic,
+          techreq: style.reqs.find(
+            requirement => requirement.type.toLowerCase() === 'tech' && requirement.present
+          )?.name,
+        },
+      ])
+    );
   }
 
   /**
@@ -910,6 +1096,9 @@ export class RulesetLoader {
     this.effectsCache.clear();
     this.nationsCache.clear();
     this.citiesCache.clear();
+    this.actionsCache.clear();
+    this.extrasCache.clear();
+    this.stylesCache.clear();
   }
 }
 

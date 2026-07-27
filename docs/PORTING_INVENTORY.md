@@ -1,25 +1,25 @@
 # CivJS Porting Inventory
 
-**Audit baseline:** Milestone 8 commit `9ea9d1e2` (2026-07-26).
+**Audit baseline:** Milestone 9 working tree (2026-07-26).
 **Purpose:** the evidence record for Milestone 0 in [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md). It distinguishes implemented transport/data from unported or unverified upstream behavior.
 
 ## Classic ruleset inventory
 
-| CivJS JSON data    | Freeciv classic source                           | Status                                                                                                                                                                                                     |
-| ------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `buildings.json`   | `data/classic/buildings.ruleset`                 | Loaded and cross-validated; playable-loop costs, upkeep, production gates, defense, happiness, output, veteran/healing, and food retention have parity evidence.                                           |
-| `cities.json`      | `data/classic/cities.ruleset`                    | Present.                                                                                                                                                                                                   |
-| `effects.json`     | `data/classic/effects.ruleset`                   | Loaded, schema-constrained, cross-validated, and evaluated for the Milestone 1 playable loop.                                                                                                              |
-| `game.json`        | `data/classic/game.ruleset`                      | Loaded; initial buildings, food/granary/city-center values, and classic bribe/incite cost parameters drive runtime behavior.                                                                               |
-| `governments.json` | `data/classic/governments.ruleset`               | Loaded and cross-validated; playable-loop corruption, happiness, martial law, and support effects are active.                                                                                              |
-| `nations.json`     | `data/classic/nations.ruleset`                   | Present.                                                                                                                                                                                                   |
-| `techs.json`       | `data/classic/techs.ruleset`                     | Present; the research manager now uses the full loaded catalogue for costs, prerequisites, and flags.                                                                                                      |
-| `terrain.json`     | `data/classic/terrain.ruleset`                   | Loaded; movement costs, base yields, and effect terrain context drive playable-loop calculations.                                                                                                          |
-| `units.json`       | `data/classic/units.ruleset`                     | Loaded and cross-validated; values, classes/flags, movement, vision, upkeep, and combat contexts drive runtime behavior.                                                                                   |
-| extras             | `data/classic/terrain.ruleset`                   | No standalone CivJS extras data file; terrain-derived extras and worker integration remain partial. Milestone 9 closes this data-authority gap.                                                            |
-| requirements       | requirement clauses in the classic ruleset files | Effect requirement evaluation covers the requirement kinds currently present in `effects.json` and fails closed for unsupported or context-free clauses. Milestone 9 covers partial action/entity loading. |
-| —                  | `data/classic/actions.ruleset`                   | No equivalent JSON file; exposed actions are manually audited against classic enablers. Milestone 9 loads the definitions and Milestone 11 closes enabled action gaps.                                     |
-| —                  | `data/classic/styles.ruleset`                    | No equivalent JSON data file identified. Milestone 9 adds validated data and Milestone 12 verifies client consumption and rendering.                                                                       |
+| CivJS JSON data    | Freeciv classic source                           | Status                                                                                                                                                                                                                 |
+| ------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `buildings.json`   | `data/classic/buildings.ruleset`                 | Loaded and cross-validated; playable-loop costs, upkeep, production gates, defense, happiness, output, veteran/healing, and food retention have parity evidence.                                                       |
+| `cities.json`      | `data/classic/cities.ruleset`                    | Present.                                                                                                                                                                                                               |
+| `effects.json`     | `data/classic/effects.ruleset`                   | Loaded, schema-constrained, cross-validated, and evaluated for the Milestone 1 playable loop.                                                                                                                          |
+| `game.json`        | `data/classic/game.ruleset`                      | Loaded; initial buildings, food/granary/city-center values, and classic bribe/incite cost parameters drive runtime behavior.                                                                                           |
+| `governments.json` | `data/classic/governments.ruleset`               | Loaded and cross-validated; playable-loop corruption, happiness, martial law, and support effects are active.                                                                                                          |
+| `nations.json`     | `data/classic/nations.ruleset`                   | Present.                                                                                                                                                                                                               |
+| `techs.json`       | `data/classic/techs.ruleset`                     | Present; the research manager now uses the full loaded catalogue for costs, prerequisites, and flags.                                                                                                                  |
+| `terrain.json`     | `data/classic/terrain.ruleset`                   | Loaded; movement costs, base yields, and effect terrain context drive playable-loop calculations.                                                                                                                      |
+| `units.json`       | `data/classic/units.ruleset`                     | Loaded and cross-validated; values, classes/flags, movement, vision, upkeep, and combat contexts drive runtime behavior.                                                                                               |
+| `extras.json`      | `data/classic/terrain.ruleset`                   | Reproducibly converted and schema-validated: 34 extras, 20 resources, 3 bases, 3 roads, and terrain-specific removal settings. Loaded definitions drive worker timing; Milestones 11–12 complete action/rendering use. |
+| requirements       | requirement clauses in the classic ruleset files | Effect requirements and all universal kinds present in the converted action, extra, and style data are schema-validated. The shared evaluator is range/negation aware and fails closed without context.                |
+| `actions.json`     | `data/classic/actions.ruleset`                   | Reproducibly converted and schema-validated with all 82 enablers and action settings. Enablers drive current capability discovery; Milestone 11 implements remaining enabled action outcomes.                          |
+| `styles.json`      | `data/classic/styles.ruleset`                    | Reproducibly converted and schema-validated with 6 nation, 10 city, and 11 music styles. City styles feed the existing API; Milestone 12 completes renderer and music consumption.                                     |
 
 The loader parses every `classic/*.json` file with `JSON.parse`, then validates it with Zod. Therefore comments are not valid in these data files. `RulesetLoader.effects.test.ts` loads every supported classic JSON ruleset and covers an effects pair ported from `effects.ruleset:262–278`. The classic effects file previously contained JavaScript comments and could not load; technologies also use `null` to represent an absent `root_req`.
 
@@ -160,11 +160,11 @@ Milestone 11 covers bombardment, paradrop, airlift, and applicable automation
 when the loaded classic enablers permit them. Non-classic covert outcomes
 remain intentionally excluded.
 
-The local ruleset has no `actions.json`; Freeciv’s action definitions remain in
-`reference/freeciv/data/classic/actions.ruleset`. Supported action exposure is
-therefore maintained as an explicit audited mapping. Milestone 8 completed the
-remaining classic covert outcomes through the existing `unit_action` contract;
-generic non-classic covert outcomes stay unadvertised.
+The local `actions.json` is generated from
+`reference/freeciv/data/classic/actions.ruleset`; it is not a separately
+maintained approximation. Milestone 9 uses its enablers for capability
+discovery. Milestone 11 will connect the remaining enabled action families to
+authoritative outcomes. Generic non-classic covert outcomes stay unadvertised.
 
 ## Smoke-test status
 

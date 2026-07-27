@@ -1780,12 +1780,15 @@ export class UnitManager {
     const terrain = tile ? rulesetLoader.getTerrain(tile.terrain) : undefined;
     const baseTimes: Record<string, number> = {
       road: terrain?.roadTime ?? 0,
-      railroad: 3,
+      railroad: rulesetLoader.getExtra('Railroad').build_time ?? 0,
       irrigate: terrain?.irrigationTime ?? 0,
       mine: terrain?.miningTime ?? 0,
       transform: terrain?.transformTime ?? 0,
       pillage: 1,
-      cleanPollution: 3,
+      cleanPollution:
+        rulesetLoader.getTerrainExtraRemovalTime(tile?.terrain ?? '', 'Pollution') ??
+        rulesetLoader.getExtra('Pollution').removal_time ??
+        0,
     };
 
     let baseTurns = baseTimes[orderType] || 1;

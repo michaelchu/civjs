@@ -459,6 +459,154 @@ export const EffectRequirementSchema = RequirementSchema.extend({
   type: EffectRequirementTypeSchema,
 });
 
+// Requirement rows retained from classic actions, extras, and styles. These
+// are the universal kinds present in the shipped source files, rather than a
+// hand-picked subset of the kinds already consumed by EffectsManager.
+// @reference reference/freeciv/common/requirements.c:4803-4828
+export const RulesetRequirementTypeSchema = z.enum([
+  'Activity',
+  'Building',
+  'BuildingGenus',
+  'CityTile',
+  'DiplRel',
+  'Extra',
+  'Gov',
+  'MaxHitPoints',
+  'MaxLatitude',
+  'MaxUnitsOnTile',
+  'MinHitPoints',
+  'MinLatitude',
+  'MinMoveFrags',
+  'MinSize',
+  'NationGroup',
+  'PlayerState',
+  'Style',
+  'Tech',
+  'Terrain',
+  'TerrainAlter',
+  'TerrainClass',
+  'TerrainFlag',
+  'UnitClass',
+  'UnitClassFlag',
+  'UnitState',
+  'UnitTypeFlag',
+  'tech',
+]);
+
+export const RulesetRequirementRangeSchema = z.enum([
+  'Local',
+  'CAdjacent',
+  'Adjacent',
+  'Tile',
+  'City',
+  'TradeRoute',
+  'Continent',
+  'Player',
+  'Team',
+  'Alliance',
+  'World',
+]);
+
+export const RulesetRequirementSchema = z.object({
+  type: RulesetRequirementTypeSchema,
+  name: z.string(),
+  range: RulesetRequirementRangeSchema,
+  present: z.boolean().optional().default(true),
+});
+
+const RulesetMetadataSchema = z.object({
+  source: z.string().min(1),
+  datafile: z.object({
+    description: z.string(),
+    options: z.string(),
+    format_version: z.number(),
+  }),
+});
+
+export const ActionEnablerSchema = z.object({
+  id: z.string().startsWith('enabler_'),
+  action: z.string().min(1),
+  actor_reqs: z.array(RulesetRequirementSchema),
+  target_reqs: z.array(RulesetRequirementSchema),
+  comment: z.string().optional(),
+});
+
+export const ActionsRulesetFileSchema = RulesetMetadataSchema.extend({
+  auto_attack: z
+    .object({
+      if_attacker: z.array(RulesetRequirementSchema),
+      attack_actions: z.array(z.string()),
+    })
+    .passthrough(),
+  settings: z.record(z.string(), z.unknown()),
+  action_properties: z.record(z.string(), z.record(z.string(), z.unknown())),
+  enablers: z.array(ActionEnablerSchema).min(1),
+});
+
+export const ExtraRulesetSchema = z
+  .object({
+    name: z.string(),
+    rule_name: z.string().optional(),
+    category: z.string(),
+    causes: z.union([z.string(), z.array(z.string())]).optional(),
+    rmcauses: z.union([z.string(), z.array(z.string())]).optional(),
+    flags: z.union([z.string(), z.array(z.string())]).optional(),
+    buildable: z.boolean().optional(),
+    build_time: z.number().min(0).optional(),
+    removal_time: z.number().min(0).optional(),
+    graphic: z.string().optional(),
+    graphic_alt: z.string().optional(),
+    reqs: z.array(RulesetRequirementSchema).optional(),
+  })
+  .passthrough();
+
+export const ExtrasRulesetFileSchema = RulesetMetadataSchema.extend({
+  resources: z.record(z.string(), z.record(z.string(), z.unknown())),
+  extras: z.record(z.string(), ExtraRulesetSchema),
+  bases: z.record(z.string(), z.record(z.string(), z.unknown())),
+  roads: z.record(z.string(), z.record(z.string(), z.unknown())),
+  terrain_extra_settings: z.record(
+    z.string(),
+    z.object({
+      terrain: z.string(),
+      extra_settings: z.array(
+        z.object({
+          extra: z.string(),
+          removal_time: z.number().min(0),
+        })
+      ),
+    })
+  ),
+});
+
+export const NationStyleSchema = z.object({
+  name: z.string(),
+  rule_name: z.string().optional(),
+});
+
+export const RulesetCityStyleSchema = z
+  .object({
+    name: z.string(),
+    rule_name: z.string().optional(),
+    graphic: z.string(),
+    graphic_alt: z.string().optional(),
+    citizens_graphic: z.string().optional(),
+    reqs: z.array(RulesetRequirementSchema),
+  })
+  .passthrough();
+
+export const MusicStyleSchema = z.object({
+  music_peaceful: z.string(),
+  music_combat: z.string(),
+  reqs: z.array(RulesetRequirementSchema),
+});
+
+export const StylesRulesetFileSchema = RulesetMetadataSchema.extend({
+  nation_styles: z.record(z.string(), NationStyleSchema),
+  city_styles: z.record(z.string(), RulesetCityStyleSchema),
+  music_styles: z.record(z.string(), MusicStyleSchema),
+});
+
 // Game rules and parameters schemas
 export const GameParametersSchema = z.object({
   init_city_radius_sq: z.number(),
@@ -662,6 +810,16 @@ export const NationsRulesetFileSchema = z.object({
 // Export inferred types
 export type Requirement = z.infer<typeof RequirementSchema>;
 export type EffectRequirement = z.infer<typeof EffectRequirementSchema>;
+export type RulesetRequirement = z.infer<typeof RulesetRequirementSchema>;
+export type RulesetRequirementRange = z.infer<typeof RulesetRequirementRangeSchema>;
+export type ActionEnabler = z.infer<typeof ActionEnablerSchema>;
+export type ActionsRulesetFile = z.infer<typeof ActionsRulesetFileSchema>;
+export type ExtraRuleset = z.infer<typeof ExtraRulesetSchema>;
+export type ExtrasRulesetFile = z.infer<typeof ExtrasRulesetFileSchema>;
+export type NationStyle = z.infer<typeof NationStyleSchema>;
+export type RulesetCityStyle = z.infer<typeof RulesetCityStyleSchema>;
+export type MusicStyle = z.infer<typeof MusicStyleSchema>;
+export type StylesRulesetFile = z.infer<typeof StylesRulesetFileSchema>;
 export type GameParameters = z.infer<typeof GameParametersSchema>;
 export type Civstyle = z.infer<typeof CivstyleSchema>;
 export type GameOptions = z.infer<typeof GameOptionsSchema>;

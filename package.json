@@ -4,6 +4,7 @@
   "description": "CivJS - A modern civilization game built with TypeScript, React, and Node.js",
   "private": true,
   "scripts": {
+    "rulesets:convert-classic": "node tools/convert-classic-rulesets.mjs",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "cd apps/client && npm run dev",
     "dev:server": "cd apps/server && npm run dev",
