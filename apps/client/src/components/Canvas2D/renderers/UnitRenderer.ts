@@ -115,7 +115,7 @@ export class UnitRenderer extends BaseRenderer {
           const offsetY = spriteInfo.offset_y || 0;
 
           this.ctx.drawImage(sprite, unitX + offsetX, unitY + offsetY);
-        } else {
+        } else if (spriteInfo.required) {
           // Freeciv tries the ruleset alternate graphic before a local placeholder.
           const alternateGraphic = this.unitGraphics[unit.unitTypeId]?.graphic_alt;
           const fallbackSprite =
@@ -176,8 +176,13 @@ export class UnitRenderer extends BaseRenderer {
   private fillUnitSpriteArray(
     unit: Unit,
     stackSize: number = 1
-  ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
-    const sprites: Array<{ key: string; offset_x?: number; offset_y?: number }> = [];
+  ): Array<{ key: string; offset_x?: number; offset_y?: number; required?: boolean }> {
+    const sprites: Array<{
+      key: string;
+      offset_x?: number;
+      offset_y?: number;
+      required?: boolean;
+    }> = [];
 
     // Get nation flag sprite
     // @reference freeciv-web: get_unit_nation_flag_sprite(punit)
@@ -193,6 +198,7 @@ export class UnitRenderer extends BaseRenderer {
       key: unitGraphic,
       offset_x: 0,
       offset_y: 0,
+      required: true,
     });
 
     // Get activity sprite if unit has activity

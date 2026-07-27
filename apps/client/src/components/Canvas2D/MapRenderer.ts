@@ -27,6 +27,7 @@ export class MapRenderer {
 
   // Flag to force immediate render bypassing timing checks
   private forceImmediateRender = false;
+  private pendingRenderTimeoutId: number | null = null;
 
   // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:27-36
   // Performance timing system ported from freeciv-web
@@ -145,7 +146,20 @@ export class MapRenderer {
       this.lastRedrawTime > 0 &&
       timeSinceLastRender < this.MAPVIEW_REFRESH_INTERVAL
     ) {
+      if (this.pendingRenderTimeoutId === null) {
+        this.pendingRenderTimeoutId = window.setTimeout(() => {
+          this.pendingRenderTimeoutId = null;
+          if (this.renderState) {
+            this.render(this.renderState, true);
+          }
+        }, this.MAPVIEW_REFRESH_INTERVAL - timeSinceLastRender);
+      }
       return;
+    }
+
+    if (this.pendingRenderTimeoutId !== null) {
+      window.clearTimeout(this.pendingRenderTimeoutId);
+      this.pendingRenderTimeoutId = null;
     }
 
     const renderStart = performance.now();
