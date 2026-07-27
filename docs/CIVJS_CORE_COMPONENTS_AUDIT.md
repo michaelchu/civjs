@@ -1,0 +1,119 @@
+# CivJS Core Components Audit
+
+High-level completeness rubric against the checked-in Freeciv reference implementation.
+
+## Purpose
+
+This document provides a component inventory for gap review. It does not perform detailed behavioral parity testing; it identifies the original game's major components and flags only high-level areas that appear incomplete, intentionally adapted, or not yet evidenced in the CivJS repository.
+
+## Scope and status language
+
+- **Reference baseline:** the vendored `reference/freeciv` tree, including `common/`, `server/`, `ai/`, `client/`, `data/`, `utility/`, `tools/`, and documentation.
+- **CivJS evidence:** the current `apps/server`, `apps/client`, tests, docs, and converted classic ruleset data.
+- **Implemented:** the component is visibly represented in the current codebase; this is not a claim of full Freeciv parity.
+- **Partial:** a recognizable slice exists, but the original component family is broader or some runtime paths remain unresolved.
+- **Gap candidate:** no obvious CivJS counterpart was found at this high level, or the area appears intentionally omitted from the current port scope.
+- **Not assessed:** the component needs a focused follow-up audit; this is not proof of absence.
+
+## Executive component map
+
+| Component family               | What the original game contains                                                                                                                                         | CivJS evidence                                                                                                  | Rubric status |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------- |
+| Rulesets & content             | Buildings, cities, effects, game settings, governments, nations, technologies, terrain, units, extras, actions, requirements, styles, graphics, sound/music, scenarios. | `RulesetLoader`, classic JSON, `Ruleset*` services, action inventory, presentation resolver.                    | Partial       |
+| World & map simulation         | Map topology, terrain, oceans, rivers, resources, extras, borders, visibility/fog, map generation, starting positions, climate/biomes, pathfinding.                     | `game/map`, `MapManager`, `BorderManager`, `VisibilityManager`, `PathfindingManager`, Canvas2D renderers.       | Partial       |
+| Turn & game lifecycle          | Turn phases, calendar/year, player readiness, simultaneous turn coordination, game start/pause/end, victory evaluation, replay/event history.                           | `TurnManager`, `TurnPhaseService`, `TurnProcessingService`, `CalendarService`, `EndGameService`, recovery flow. | Partial       |
+| Cities & population            | Founding, ownership/capture, city map, worked tiles, specialists, food/growth/starvation, production queues, buildings/wonders, happiness, corruption, trade, governor. | `CityManager` and city services, `CitizenManagement`, Economic system, city UI.                                 | Partial       |
+| Units & military               | Unit types/classes, movement, combat, veteran levels, healing, support/upkeep, transports, bases, bombardment, visibility, orders, diplomacy actions.                   | `UnitManager`, `UnitManagementService`, `ActionSystem`, `UnitRenderer`, action coverage inventory.              | Partial       |
+| Research & governments         | Technology graph, prerequisites, research progress, goals, government types, revolution, taxation, corruption, martial law, effects.                                    | `ResearchManager`, `GovernmentManager`, `EconomicManager`, effects/requirements.                                | Implemented   |
+| Diplomacy & international play | Players/nations, treaties, embassies, proposals, alliances, ceasefires, war, diplomacy state, reputation/attitude.                                                      | `DiplomacyManager`, `DiplomacyHandler`, `NationsPanel`.                                                         | Partial       |
+| AI & automation                | AI player lifecycle, city planning, production, research, diplomacy, military tactics, worker automation, exploration, advisors.                                        | `CivJSAIAdapter` and limited worker/explore automation; no broad AI subsystem equivalent found.                 | Gap candidate |
+| Networking & multiplayer       | Connection/session protocol, packets, request validation, broadcasts, lobby, observers, chat, synchronization, host controls, capability/version negotiation.           | Socket handlers, packet contract, `GameClient`/`GameTransport`, lobby and chat.                                 | Implemented   |
+| Persistence & recovery         | Save/load, savegame formats, database/state persistence, replay, server restart, migration/versioning, game recovery.                                                   | Drizzle schema/migrations, `GameInstanceRecoveryService`, client savegame artifacts, integration coverage.      | Partial       |
+| Client/UI & presentation       | Map GUI, city/dialog screens, unit actions, diplomacy, research, government, economy, reports, notifications, help, menus, input, tilesets.                             | React client, Canvas2D, GameUI, research and management panels, keyboard controller.                            | Partial       |
+| Scripting & extensibility      | Lua/script core, server callbacks, ruleset scripting, modding APIs, scenario scripting, event hooks.                                                                    | Reference Lua exists; no comparable CivJS scripting runtime surfaced in the current source inventory.           | Gap candidate |
+| Tools & operations             | Server/client executables, command line, map editor, ruleset editor, mod installer, format converters, diagnostics, logging, profiling, packaging.                      | Conversion tools, Docker, integration runner, docs/release runbook; no full editor/tool suite equivalent.       | Partial       |
+
+## Detailed high-level rubric
+
+### Rulesets, data, and content authority
+
+- **Ruleset loading and validation:** Parse, validate, and expose ruleset sections at runtime; preserve requirements, effects, flags, defaults, and cross-references.
+- **Game constants and options:** Difficulty, pacing, map settings, victory conditions, diplomacy rules, costs, starting state, calendar, and server options.
+- **Content catalogues:** Nations, governments, technologies, units, buildings, wonders, terrain, resources, extras, actions, and styles.
+- **Presentation assets:** Tilesets, city/unit graphics, nation flags, soundsets, music, help text, translations, and fallback asset behavior.
+- **Scenarios and alternate rulesets:** Scenario maps, metadata, packaged rulesets, compatibility/version handling, and non-classic data sets.
+
+### World, map, and spatial simulation
+
+- **Map model:** Tile coordinates, topology, adjacency, oceans/continents, borders, terrain, resources, rivers, roads, bases, and terrain transformations.
+- **Map generation:** Random generation, fractal/height/climate passes, island/continent formation, fairness/starting positions, validation, and reproducibility.
+- **Visibility:** Per-player fog of war, explored memory, shared vision, borders, and visibility updates.
+- **Movement and spatial actions:** Movement costs, pathfinding, zones/occupancy, goto/orders, embarkation, airlift/paradrop, worker work, and action targeting.
+
+### Turn, lifecycle, and outcomes
+
+- **Turn engine:** Turn start/end, phase boundaries, action ordering, simultaneous play coordination, deadlines, pause/resume, and reconnect semantics.
+- **Calendar and progression:** Year/turn calculation, era pacing, research timeline, anarchy/revolution timing, and score/history chronology.
+- **Game outcomes:** Conquest, spaceship/space race, diplomatic and other victory modes, defeat/elimination, end-game report, ranking, and hall of fame.
+- **Event and replay model:** Authoritative event log, notifications, replay recording/playback, deterministic reconstruction, and post-game inspection.
+
+### Cities, population, and economy
+
+- **City lifecycle:** Founding, naming, ownership, capture, razing/disbanding, capital/special city state, and city visibility.
+- **City production:** Queues, units/buildings/wonders, shields, buy/rush, conversion, progress, obsolescence, prerequisites, and production change.
+- **Population and citizens:** Food box, growth/starvation, granary behavior, specialists, worked tiles, citizen moods, luxury/tax/science allocation, and governor optimization.
+- **City effects and administration:** Buildings/wonders, happiness, corruption/waste, pollution/disasters, trade routes, output calculation, support, healing, and city defense.
+- **Empire management:** City list, production overview, economy/rates, research overview, government, reports, and bulk management.
+
+### Units, combat, and special actions
+
+- **Unit lifecycle:** Creation, home city, upkeep, movement points, transport, loading/unloading, disbanding, upgrade, veteran status, healing, and deletion.
+- **Combat resolution:** Attack/defense, terrain and city modifiers, fortification, veteran effects, bombardment, retreat/defeat, capture, and combat feedback.
+- **Unit orders:** Wait, sentry, fortify, goto, patrol/explore, auto-worker, clean-up, transform terrain, build extras, pillage, and air/sea orders.
+- **Specialist and covert actions:** Diplomat/spy actions, bribery, incitement, investigation, sabotage, poisoning, technology theft, embassy, and target validation.
+- **Military infrastructure:** Bases, roads/railroads, airbases, airports, zones of control, supply/support, airlift, paradrop, and trade/transport units.
+
+### Players, diplomacy, and AI
+
+- **Player/nation model:** Nation identity, team, diplomacy state, capital, score, research, treasury, government, tax rates, and eliminated/observer state.
+- **Diplomatic relations:** Embassy, treaties, ceasefire, peace, alliance, proposals, cancellation, shared vision, reputation, and diplomatic messaging.
+- **AI players:** AI creation, personality/difficulty, city/economic planning, research, diplomacy, military movement/combat, tactical evaluation, and lifecycle.
+- **Automation and advisors:** Worker automation, explore, city governor, tax/research advice, military advice, and player-facing recommendations.
+
+### Client, UI, and user-facing systems
+
+- **Core map client:** Map rendering, tilesets, city/unit/extra/border/fog layers, selection, hover, movement paths, animation, and live state updates.
+- **Management screens:** Cities, production, research, government, economy/rates, nations/diplomacy, game options, reports, end-game, and history/score.
+- **Interaction and feedback:** Action menus, target selection, confirmations, errors, notifications, chat, keyboard controls, accessibility/focus, and responsive layout.
+- **Help and discoverability:** Ruleset help, unit/building/technology details, tooltips, keyboard shortcuts, onboarding, and contextual explanations.
+
+### Server, protocol, persistence, and operations
+
+- **Authoritative server:** Game instances, managers/services, validation, state ownership, broadcasts, event sequencing, and concurrency boundaries.
+- **Protocol:** Packet definitions, serialization, request/reply correlation, errors, subscriptions, capability negotiation, versioning, and compatibility adapters.
+- **Lobby and sessions:** Authentication/join, game creation, nation selection, observer flow, reconnect, host controls, game list, and chat.
+- **Persistence:** Savegames, database state, schema migrations, restart recovery, transactional updates, backups, and compatibility between versions.
+- **Testing and observability:** Unit/integration/e2e tests, deterministic fixtures, parity tests, logging, diagnostics, metrics, profiling, and release/runbook coverage.
+
+### Scripting, modding, and tools
+
+- **Scripting runtime:** Lua VM/script core, callbacks, hooks, access to game state, sandboxing, and script errors.
+- **Modding surface:** Ruleset authoring, data validation, asset packaging, scenario scripting, custom actions/effects, and mod discovery/install.
+- **Developer tools:** Map editor, ruleset editor, map converters, mod installer, command-line tools, packet/debug tools, and administrative controls.
+
+## High-level gap candidates to resolve
+
+- **AI breadth:** Determine whether CivJS is expected to support autonomous AI players, and if so define the AI lifecycle, decision systems, difficulty model, and tactical/economic coverage.
+- **Scripting/modding:** Decide whether the reference Lua/script-core surface is in scope, intentionally replaced by JSON/services, or deferred. Record the decision explicitly.
+- **Victory and end-game breadth:** Verify all original victory modes, defeat/elimination, score/history, and post-game reporting—not just the currently exercised game end path.
+- **Persistence parity:** Verify full save/load and replay semantics, not only database restart recovery and client savegame artifacts.
+- **Alternate rulesets/scenarios:** Confirm the intended scope beyond classic data, including scenarios, non-classic rulesets, and asset/style variants.
+- **Client feature breadth:** Audit help, reports, history, diplomacy detail, city/empire management, accessibility, animation, sound/music, and polish against the original client surface.
+- **Tooling/operations:** Decide which reference utilities/editors/mod-install workflows have CivJS equivalents or need explicit out-of-scope labels.
+
+## Source anchors
+
+- Reference implementation: `reference/freeciv/common`, `server`, `ai`, `client`, `data`, `utility`, `tools`, and `doc`.
+- CivJS inventory: `docs/PORTING_INVENTORY.md`, `docs/PORT_STATUS.md`, `docs/CLIENT_ARCHITECTURE.md`, and `docs/PORTING_PLAYBOOK.md`.
+- CivJS implementation areas: `apps/server/src/game`, `apps/client/src`, `tests`, `tools`, and converted ruleset data.
+- This is a high-level architecture/component inventory. It intentionally does not claim line-by-line parity, exhaustive feature behavior, or completion of every row.
