@@ -1072,9 +1072,9 @@ export class UnitManager {
   }
 
   private async getPlayerNationGroups(playerId: string): Promise<Set<string>> {
-    const findFirst = (this.databaseProvider.getDatabase() as any).query?.players?.findFirst;
-    if (typeof findFirst !== 'function') return new Set();
-    const player = await findFirst({ where: eq(players.id, playerId) });
+    const playersQuery = (this.databaseProvider.getDatabase() as any).query?.players;
+    if (typeof playersQuery?.findFirst !== 'function') return new Set();
+    const player = await playersQuery.findFirst({ where: eq(players.id, playerId) });
     if (!player?.nation) return new Set();
     try {
       const nation = rulesetLoader.getNation(player.nation);

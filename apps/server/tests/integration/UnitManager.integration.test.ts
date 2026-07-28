@@ -515,7 +515,8 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
       await unitManager.resetMovement(testData.player.id);
 
-      expect(unit.health).toBe(90); // Healed 10 points
+      // Classic stacks 10 base regeneration with 10 fortified regeneration.
+      expect(unit.health).toBe(100);
 
       // Verify health was persisted
       const db = getTestDatabase();
@@ -523,7 +524,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         where: (units, { eq }) => eq(units.id, unitId),
       });
 
-      expect(dbUnit.health).toBe(90);
+      expect(dbUnit.health).toBe(100);
     });
   });
 

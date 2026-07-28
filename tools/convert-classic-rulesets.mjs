@@ -529,6 +529,7 @@ function convertGovernments() {
 function convertNations() {
   const sections = parseSecfile('nations.ruleset');
   const main = parseSecfilePath(join(sourceDir, 'nations.ruleset'), new Set(), false);
+  const defaultTraits = main.default_traits;
   const nations = Object.fromEntries(
     Object.entries(sections)
       .filter(([id]) => id.startsWith('nation_'))
@@ -562,6 +563,16 @@ function convertNations() {
             cities: asArray(nation.cities),
             flag: nation.flag ? `f.${nation.flag}` : undefined,
             flag_alt: nation.flag_alt ? `f.${nation.flag_alt}` : undefined,
+            // Freeciv fills omitted nation trait limits from [default_traits].
+            // @reference reference/freeciv/server/ruleset/ruleload.c:5408-5427
+            traits: {
+              ...defaultTraits,
+              ...Object.fromEntries(
+                Object.entries(nation)
+                  .filter(([key]) => key.startsWith('trait_'))
+                  .map(([key, value]) => [key.slice('trait_'.length), value])
+              ),
+            },
           },
         ];
       })
@@ -574,7 +585,7 @@ function convertNations() {
       summary: asText(main.datafile.description),
     },
     compatibility: main.compatibility,
-    default_traits: main.default_traits,
+    default_traits: defaultTraits,
     nation_sets: Object.fromEntries(
       Object.entries(sections).filter(([id]) => id.startsWith('nset_'))
     ),
