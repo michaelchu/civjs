@@ -31,6 +31,9 @@ export class MapAccessService {
   public setMapData(mapData: MapData | null): void {
     this.mapData = mapData;
     if (mapData) {
+      this.width = mapData.width;
+      this.height = mapData.height;
+      this.mapValidator = new MapValidator(mapData.width, mapData.height);
       this.topology = new MapTopology(mapData.width, mapData.height, {
         topologyId: mapData.topologyId ?? this.topology.topologyId,
         wrapId: mapData.wrapId ?? this.topology.wrapId,

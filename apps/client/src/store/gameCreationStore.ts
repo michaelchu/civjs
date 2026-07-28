@@ -21,6 +21,7 @@ export interface TerrainSettings {
   startpos?: number;
   topologyId?: number;
   wrapId?: number;
+  scenarioId?: string;
 }
 
 interface GameCreationStore {
@@ -58,6 +59,7 @@ const initialTerrainSettings: TerrainSettings = {
   rivers: 50,
   resources: 'normal',
   startpos: 0,
+  scenarioId: 'earth-small',
 };
 
 export const useGameCreationStore = create<GameCreationStore>()(

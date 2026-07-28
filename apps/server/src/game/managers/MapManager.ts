@@ -7,6 +7,7 @@ import { FairIslandsService } from '@game/map/FairIslandsService';
 import { MapAccessService } from '@game/map/MapAccessService';
 import { ValidationResult } from '@game/map/MapValidator';
 import { MapTopology, type MapTopologyOptions } from '@game/map/MapTopology';
+import { FreecivScenarioLoader } from '@game/map/FreecivScenarioLoader';
 
 // Generator types based on freeciv map_generator enum
 export type MapGeneratorType = 'FRACTAL' | 'ISLAND' | 'RANDOM' | 'FAIR' | 'FRACTURE' | 'SCENARIO';
@@ -41,6 +42,8 @@ export class MapManager {
   private islandMapService: IslandMapService;
   private fairIslandsService: FairIslandsService;
   private mapAccessService: MapAccessService;
+  private scenarioLoader: FreecivScenarioLoader;
+  private scenarioId: string;
 
   constructor(
     width: number,
@@ -51,7 +54,8 @@ export class MapManager {
     defaultStartPosMode?: MapStartpos,
     cleanupTemperatureMapAfterUse: boolean = false,
     temperatureParam: number = 50,
-    topologyOptions: MapTopologyOptions = {}
+    topologyOptions: MapTopologyOptions = {},
+    scenarioId: string = 'earth-small'
   ) {
     this.width = width;
     this.height = height;
@@ -60,6 +64,8 @@ export class MapManager {
     this.defaultGeneratorType = defaultGeneratorType || 'FRACTAL';
     this.defaultStartPosMode = defaultStartPosMode || MapStartpos.ALL;
     this.random = this.createSeededRandom(this.seed);
+    this.scenarioId = scenarioId;
+    this.scenarioLoader = new FreecivScenarioLoader();
 
     // Initialize specialized services
     this.heightBasedMapService = new HeightBasedMapService(
@@ -70,7 +76,8 @@ export class MapManager {
       this.random,
       this.defaultStartPosMode,
       cleanupTemperatureMapAfterUse,
-      temperatureParam
+      temperatureParam,
+      topologyOptions
     );
 
     this.islandMapService = new IslandMapService(
@@ -81,7 +88,8 @@ export class MapManager {
       this.random,
       this.defaultStartPosMode,
       cleanupTemperatureMapAfterUse,
-      temperatureParam
+      temperatureParam,
+      topologyOptions
     );
 
     this.fairIslandsService = new FairIslandsService(
@@ -92,7 +100,8 @@ export class MapManager {
       this.random,
       this.defaultStartPosMode,
       cleanupTemperatureMapAfterUse,
-      temperatureParam
+      temperatureParam,
+      topologyOptions
     );
 
     this.mapAccessService = new MapAccessService(width, height, topologyOptions);
@@ -123,8 +132,8 @@ export class MapManager {
           ? await this.generateFairMap(players)
           : await this.generateByType(players, generator);
       const topology = this.mapAccessService.getTopology();
-      mapData.topologyId = topology.topologyId;
-      mapData.wrapId = topology.wrapId;
+      mapData.topologyId ??= topology.topologyId;
+      mapData.wrapId ??= topology.wrapId;
 
       this.mapAccessService.setMapData(mapData);
 
@@ -149,7 +158,15 @@ export class MapManager {
     } catch (error) {
       if (error instanceof Error && error.message === 'FALLBACK_TO_ISLAND') {
         logger.info('Fair islands generation failed, falling back to ISLAND generator');
-        return await this.islandMapService.generateMap(players, MapStartpos.ALL);
+        try {
+          return await this.islandMapService.generateMap(players, MapStartpos.ALL);
+        } catch (islandError) {
+          if (islandError instanceof Error && islandError.message === 'FALLBACK_TO_RANDOM') {
+            logger.info('Island fallback is infeasible, falling back to RANDOM');
+            return await this.generateHeightMapWithRetries(players, 'RANDOM');
+          }
+          throw islandError;
+        }
       }
       throw error;
     }
@@ -161,19 +178,47 @@ export class MapManager {
   ): Promise<MapData> {
     switch (generator) {
       case 'ISLAND':
-        return await this.islandMapService.generateMap(players, this.defaultStartPosMode);
+        try {
+          return await this.islandMapService.generateMap(players, this.defaultStartPosMode);
+        } catch (error) {
+          if (error instanceof Error && error.message === 'FALLBACK_TO_RANDOM') {
+            logger.info('Island generation is infeasible, falling back to RANDOM');
+            return await this.heightBasedMapService.generateMap(players, 'RANDOM');
+          }
+          throw error;
+        }
       case 'RANDOM':
-        return await this.heightBasedMapService.generateMap(players, 'RANDOM');
+        return await this.generateHeightMapWithRetries(players, 'RANDOM');
       case 'FRACTURE':
-        return await this.heightBasedMapService.generateMap(players, 'FRACTURE');
+        return await this.generateHeightMapWithRetries(players, 'FRACTURE');
       case 'SCENARIO':
-        throw new Error(
-          'SCENARIO generator not implemented - scenarios should be loaded from file'
-        );
+        return this.scenarioLoader.loadScenario(this.scenarioId, players).mapData;
       case 'FRACTAL':
       default:
-        return await this.heightBasedMapService.generateMap(players, 'FRACTAL');
+        return await this.generateHeightMapWithRetries(players, 'FRACTAL');
     }
+  }
+
+  private async generateHeightMapWithRetries(
+    players: Map<string, PlayerState>,
+    requested: 'RANDOM' | 'FRACTAL' | 'FRACTURE'
+  ): Promise<MapData> {
+    let lastError: Error | undefined;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const generator = attempt === 0 ? requested : 'RANDOM';
+      try {
+        return await this.heightBasedMapService.generateMap(players, generator);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (!/starting|city-capable|no land/i.test(lastError.message)) throw lastError;
+        logger.warn('Map generation produced no playable starts; retrying', {
+          requested,
+          generator,
+          attempt: attempt + 1,
+        });
+      }
+    }
+    throw lastError ?? new Error(`Unable to generate a playable ${requested} map`);
   }
 
   // === PUBLIC API METHODS (delegated to services) ===

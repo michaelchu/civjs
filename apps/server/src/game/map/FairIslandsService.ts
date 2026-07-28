@@ -4,6 +4,7 @@ import { MapData, MapTile, MapStartpos } from './MapTypes';
 import { BaseMapGenerationService } from './BaseMapGenerationService';
 import { IslandMapService } from './IslandMapService';
 import { Position } from './MapValidator';
+import { type MapTopologyOptions } from './MapTopology';
 
 /**
  * Resource balance validation result
@@ -32,7 +33,8 @@ export class FairIslandsService extends BaseMapGenerationService {
     random: () => number,
     defaultStartPosMode: MapStartpos,
     cleanupTemperatureMapAfterUse: boolean = false,
-    temperatureParam: number = 50
+    temperatureParam: number = 50,
+    topologyOptions: MapTopologyOptions = {}
   ) {
     super(
       width,
@@ -42,7 +44,8 @@ export class FairIslandsService extends BaseMapGenerationService {
       random,
       defaultStartPosMode,
       cleanupTemperatureMapAfterUse,
-      temperatureParam
+      temperatureParam,
+      topologyOptions
     );
 
     // Create island map service for actual generation
@@ -54,7 +57,8 @@ export class FairIslandsService extends BaseMapGenerationService {
       random,
       defaultStartPosMode,
       cleanupTemperatureMapAfterUse,
-      temperatureParam
+      temperatureParam,
+      topologyOptions
     );
   }
 
@@ -104,11 +108,16 @@ export class FairIslandsService extends BaseMapGenerationService {
         // Use 'ALL' startpos mode for fair islands (equivalent to mapgenerator4)
         const generationTimeout = 30000 + (attempt - 1) * 10000; // Increase timeout for later attempts
         const generationPromise = this.islandMapService.generateMap(players, MapStartpos.ALL);
+        let timeout: NodeJS.Timeout | undefined;
         const timeoutPromise = new Promise<MapData>((_, reject) => {
-          setTimeout(() => reject(new Error('Fair islands generation timeout')), generationTimeout);
+          timeout = setTimeout(
+            () => reject(new Error('Fair islands generation timeout')),
+            generationTimeout
+          );
         });
-
-        const mapData = await Promise.race([generationPromise, timeoutPromise]);
+        const mapData = await Promise.race([generationPromise, timeoutPromise]).finally(() => {
+          if (timeout) clearTimeout(timeout);
+        });
         this.currentMapData = mapData;
 
         // Restore original percentages
@@ -244,7 +253,9 @@ export class FairIslandsService extends BaseMapGenerationService {
     // @reference freeciv/server/generator/mapgen.c:3492-3497
     // Calculate playermass using freeciv's exact formula
     const landPercent = 30; // Default landpercent setting
-    const polarTiles = 0; // 'i' in freeciv - polar tiles, simplified to 0 for now
+    // Classic temperature 50 produces approximately two percent polar tiles
+    // on larger maps before fair-island player mass is allocated.
+    const polarTiles = Math.round(mapNumTiles * 0.02);
     const playermass = Math.floor((mapNumTiles * landPercent - polarTiles) / (playerCount * 100));
 
     // @reference freeciv/server/generator/mapgen.c:3498-3501

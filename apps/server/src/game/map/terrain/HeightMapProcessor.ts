@@ -8,14 +8,22 @@
  */
 import { MapTile } from '@game/map/MapTypes';
 import { TemperatureMap } from '@game/map/TemperatureMap';
+import { MapTopology, type MapTopologyOptions, WrapFlag } from '@game/map/MapTopology';
 
 export class HeightMapProcessor {
   private width: number;
   private height: number;
+  private topology: MapTopology;
 
-  constructor(width: number, height: number, _random: () => number) {
+  constructor(
+    width: number,
+    height: number,
+    _random: () => number,
+    topologyOptions: MapTopologyOptions = {}
+  ) {
     this.width = width;
     this.height = height;
+    this.topology = new MapTopology(width, height, topologyOptions);
     // _random parameter kept for future extensibility but not currently used
   }
 
@@ -40,8 +48,7 @@ export class HeightMapProcessor {
    * @reference freeciv/server/generator/mapgen.c HAS_POLES macro
    */
   public hasPoles(): boolean {
-    // For now, assume all maps have poles unless specifically disabled
-    // In freeciv, this checks for wld.map.server.world_edges
+    // CivJS's generated world currently uses the classic two-pole latitude range.
     return true;
   }
 
@@ -51,8 +58,8 @@ export class HeightMapProcessor {
    * Exact copy of freeciv pole normalization algorithm
    */
   public normalizeHmapPoles(heightMap: number[], _tiles: MapTile[][]): void {
-    const ICE_BASE_LEVEL = 200; // From freeciv mapgen_topology.h
-    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL; // 500
+    const ICE_BASE_LEVEL = 20;
+    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL;
 
     // Create TemperatureMap instance for colatitude calculation
     const tempMap = new TemperatureMap(this.width, this.height);
@@ -82,8 +89,8 @@ export class HeightMapProcessor {
    * Exact copy of freeciv pole renormalization algorithm
    */
   public renormalizeHmapPoles(heightMap: number[], _tiles: MapTile[][]): void {
-    const ICE_BASE_LEVEL = 200;
-    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL; // 500
+    const ICE_BASE_LEVEL = 20;
+    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL;
 
     // Create TemperatureMap instance for colatitude calculation
     const tempMap = new TemperatureMap(this.width, this.height);
@@ -177,8 +184,8 @@ export class HeightMapProcessor {
    * Used internally by pole normalization methods
    */
   private hmapPoleFactor(colatitude: number, x: number, y: number): number {
-    const ICE_BASE_LEVEL = 200;
-    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL; // 500
+    const ICE_BASE_LEVEL = 20;
+    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL;
     const flatpoles = 100; // Default flatpoles parameter (0-100)
     let factor = 1.0;
 
@@ -192,7 +199,7 @@ export class HeightMapProcessor {
       factor = 1 - ((1 - colatitude / POLAR_THRESHOLD) * flatpoles) / 100;
     }
 
-    // Additional reduction for separate poles (simplified)
+    // Separate-poles band from Freeciv's hmap_pole_factor().
     // @reference freeciv/server/generator/height_map.c:146-150
     if (colatitude >= 2 * ICE_BASE_LEVEL) {
       factor = Math.min(factor, 0.1);
@@ -208,8 +215,13 @@ export class HeightMapProcessor {
    */
   private nearSingularity(x: number, y: number): boolean {
     const CITY_MAP_DEFAULT_RADIUS = 2; // From freeciv
-    const edgeDistance = Math.min(x, this.width - 1 - x, y, this.height - 1 - y);
-    return edgeDistance <= CITY_MAP_DEFAULT_RADIUS;
+    const nearXEdge =
+      !this.topology.hasWrapFlag(WrapFlag.X) &&
+      Math.min(x, this.width - 1 - x) <= CITY_MAP_DEFAULT_RADIUS;
+    const nearYEdge =
+      !this.topology.hasWrapFlag(WrapFlag.Y) &&
+      Math.min(y, this.height - 1 - y) <= CITY_MAP_DEFAULT_RADIUS;
+    return nearXEdge || nearYEdge;
   }
 
   /**

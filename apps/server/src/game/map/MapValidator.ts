@@ -1,6 +1,7 @@
 import { MapTile, TerrainType } from './MapTypes';
 import { PlayerState } from '@game/managers/GameManager';
 import { logger } from '@utils/logger';
+import { MapTopology, type MapTopologyOptions } from './MapTopology';
 
 export interface ValidationResult {
   passed: boolean;
@@ -52,11 +53,13 @@ export class MapValidator {
   private width: number;
   private height: number;
   private totalTiles: number;
+  private topology: MapTopology;
 
-  constructor(width: number, height: number) {
+  constructor(width: number, height: number, topologyOptions: MapTopologyOptions = {}) {
     this.width = width;
     this.height = height;
     this.totalTiles = width * height;
+    this.topology = new MapTopology(width, height, topologyOptions);
   }
 
   /**
@@ -97,6 +100,14 @@ export class MapValidator {
       const positionResult = this.validateStartingPositions(tiles, startingPositions);
       issues.push(...positionResult.issues);
     }
+    if (players && startingPositions && startingPositions.length !== players.size) {
+      issues.push({
+        severity: 'error',
+        category: 'position',
+        message: 'Starting-position count does not match player count',
+        details: { positions: startingPositions.length, players: players.size },
+      });
+    }
 
     // Run performance validation if data provided
     if (performanceData) {
@@ -108,7 +119,7 @@ export class MapValidator {
     const score = this.calculateOverallScore(terrainResult, continentResult, issues);
 
     const result: ValidationResult = {
-      passed: score >= 70, // 70% threshold for passing validation
+      passed: score >= 70 && !issues.some(issue => issue.severity === 'error'),
       score,
       issues,
       metrics,
@@ -435,7 +446,7 @@ export class MapValidator {
       for (let j = i + 1; j < validPositions.length; j++) {
         const pos1 = validPositions[i];
         const pos2 = validPositions[j];
-        const distance = Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2));
+        const distance = this.topology.realDistance(pos1.x, pos1.y, pos2.x, pos2.y);
         distances.push(distance);
       }
     }
@@ -635,7 +646,7 @@ export class MapValidator {
         for (let j = i + 1; j < startingPositions.length; j++) {
           const pos1 = startingPositions[i];
           const pos2 = startingPositions[j];
-          const distance = Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2));
+          const distance = this.topology.realDistance(pos1.x, pos1.y, pos2.x, pos2.y);
           distances.push(distance);
         }
       }
@@ -870,27 +881,7 @@ export class MapValidator {
    * @returns Array of neighboring tiles
    */
   private getNeighbors(tiles: MapTile[][], x: number, y: number): MapTile[] {
-    const neighbors: MapTile[] = [];
-    const directions = [
-      [-1, -1],
-      [-1, 0],
-      [-1, 1],
-      [0, -1],
-      [0, 1],
-      [1, -1],
-      [1, 0],
-      [1, 1],
-    ];
-
-    directions.forEach(([dx, dy]) => {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-        neighbors.push(tiles[nx][ny]);
-      }
-    });
-
-    return neighbors;
+    return this.topology.getNeighbors(x, y).map(position => tiles[position.x][position.y]);
   }
 
   /**

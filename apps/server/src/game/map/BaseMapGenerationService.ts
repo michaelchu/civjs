@@ -10,6 +10,7 @@ import { StartingPositionGenerator } from './StartingPositionGenerator';
 import { TerrainGenerator } from './TerrainGenerator';
 import { MapValidator, ValidationResult } from './MapValidator';
 import { createBaseTile } from './TerrainUtils';
+import { MapTopology, type MapTopologyOptions } from './MapTopology';
 
 /**
  * Base abstract service class for map generation services
@@ -33,6 +34,7 @@ export abstract class BaseMapGenerationService {
   protected startingPositionGenerator: StartingPositionGenerator;
   protected terrainGenerator: TerrainGenerator;
   protected mapValidator: MapValidator;
+  protected topology: MapTopology;
 
   // Temperature map generation tracking
   protected temperatureMapGenerated: boolean = false;
@@ -55,7 +57,8 @@ export abstract class BaseMapGenerationService {
     random: () => number,
     defaultStartPosMode: MapStartpos,
     cleanupTemperatureMapAfterUse: boolean = false,
-    temperatureParam: number = 50
+    temperatureParam: number = 50,
+    topologyOptions: MapTopologyOptions = {}
   ) {
     this.width = width;
     this.height = height;
@@ -64,6 +67,7 @@ export abstract class BaseMapGenerationService {
     this.random = random;
     this.defaultStartPosMode = defaultStartPosMode;
     this.cleanupTemperatureMapAfterUse = cleanupTemperatureMapAfterUse;
+    this.topology = new MapTopology(width, height, topologyOptions);
 
     // Initialize sub-generators with shared parameters
     this.heightGenerator = new FractalHeightGenerator(
@@ -72,15 +76,28 @@ export abstract class BaseMapGenerationService {
       this.random,
       30,
       100,
-      this.generator
+      this.generator,
+      topologyOptions
     );
-    this.temperatureMap = new TemperatureMap(width, height, temperatureParam);
-    this.islandGenerator = new IslandGenerator(width, height, this.random);
-    this.riverGenerator = new RiverGenerator(width, height, this.random);
+    this.temperatureMap = new TemperatureMap(width, height, temperatureParam, topologyOptions);
+    this.islandGenerator = new IslandGenerator(
+      width,
+      height,
+      this.random,
+      undefined,
+      topologyOptions
+    );
+    this.riverGenerator = new RiverGenerator(width, height, this.random, topologyOptions);
     this.resourceGenerator = new ResourceGenerator(width, height, this.random);
-    this.startingPositionGenerator = new StartingPositionGenerator(width, height);
-    this.terrainGenerator = new TerrainGenerator(width, height, this.random, this.generator);
-    this.mapValidator = new MapValidator(width, height);
+    this.startingPositionGenerator = new StartingPositionGenerator(width, height, topologyOptions);
+    this.terrainGenerator = new TerrainGenerator(
+      width,
+      height,
+      this.random,
+      this.generator,
+      topologyOptions
+    );
+    this.mapValidator = new MapValidator(width, height, topologyOptions);
   }
 
   /**
@@ -135,6 +152,16 @@ export abstract class BaseMapGenerationService {
       players,
       this.defaultStartPosMode
     );
+    const uniqueStarts = new Set(startingPositions.map(position => `${position.x},${position.y}`));
+    if (
+      startingPositions.length !== players.size ||
+      uniqueStarts.size !== startingPositions.length ||
+      startingPositions.some(position => !this.topology.isValidCoordinate(position.x, position.y))
+    ) {
+      throw new Error(
+        `Generated map has invalid starts: ${startingPositions.length} positions for ${players.size} players`
+      );
+    }
     logger.debug('Generated starting positions', { count: startingPositions.length });
 
     // Clean up temperature map if configured
@@ -235,8 +262,11 @@ export abstract class BaseMapGenerationService {
    * Validate the generated map using the map validator
    * Common validation pattern across all generators
    */
-  protected validateMap(tiles: MapTile[][], players: Map<string, PlayerState>): ValidationResult {
-    const startingPositions = tiles.length > 0 ? [] : []; // Empty array for now
+  protected validateMap(
+    tiles: MapTile[][],
+    players: Map<string, PlayerState>,
+    startingPositions: MapData['startingPositions']
+  ): ValidationResult {
     return this.mapValidator.validateMap(tiles, startingPositions, players);
   }
 

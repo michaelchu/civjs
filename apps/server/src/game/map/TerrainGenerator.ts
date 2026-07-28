@@ -13,6 +13,7 @@ import { TerrainPlacementProcessor, TerrainParams } from './terrain/TerrainPlace
 import { BiomeProcessor } from './terrain/BiomeProcessor';
 import { OceanProcessor } from './terrain/OceanProcessor';
 import { ContinentProcessor } from './terrain/ContinentProcessor';
+import { MapTopology, type MapTopologyOptions } from './MapTopology';
 
 export class TerrainGenerator {
   private width: number;
@@ -30,16 +31,24 @@ export class TerrainGenerator {
   private biomeProcessor: BiomeProcessor;
   private oceanProcessor: OceanProcessor;
   private continentProcessor: ContinentProcessor;
+  private topology: MapTopology;
 
-  constructor(width: number, height: number, random: () => number, generator: string) {
+  constructor(
+    width: number,
+    height: number,
+    random: () => number,
+    generator: string,
+    topologyOptions: MapTopologyOptions = {}
+  ) {
     this.width = width;
     this.height = height;
     this.random = random;
     this.generator = generator;
     this.placementMap = new PlacementMap(width, height);
+    this.topology = new MapTopology(width, height, topologyOptions);
 
     // Initialize extracted components
-    this.heightMapProcessor = new HeightMapProcessor(width, height, random);
+    this.heightMapProcessor = new HeightMapProcessor(width, height, random, topologyOptions);
     this.terrainPlacementProcessor = new TerrainPlacementProcessor(
       width,
       height,
@@ -47,8 +56,12 @@ export class TerrainGenerator {
       this.placementMap
     );
     this.biomeProcessor = new BiomeProcessor(width, height, random);
-    this.oceanProcessor = new OceanProcessor(width, height, random);
-    this.continentProcessor = new ContinentProcessor(width, height, random);
+    this.oceanProcessor = new OceanProcessor(width, height, random, topologyOptions);
+    this.continentProcessor = new ContinentProcessor(width, height, random, topologyOptions);
+  }
+
+  public setGenerator(generator: string): void {
+    this.generator = generator.toLowerCase();
   }
 
   /**
@@ -76,9 +89,12 @@ export class TerrainGenerator {
     temperature: number
   ): TerrainParams {
     // Constants from freeciv
-    const ICE_BASE_LEVEL = 200; // From freeciv common/map.h
+    const ICE_BASE_LEVEL = 20; // Classic separate-poles default at temperature 50
     const MAX_COLATITUDE = 1000; // From freeciv common/map.h
-    const TROPICAL_LEVEL = 715; // Approximation from freeciv
+    const TROPICAL_LEVEL = Math.min(
+      (MAX_COLATITUDE * 9) / 10,
+      (MAX_COLATITUDE * (143 * 7 - temperature * 10)) / 700
+    );
 
     const polar = (2 * ICE_BASE_LEVEL * landpercent) / MAX_COLATITUDE;
     const mount_factor = (100.0 - polar - 30 * 0.8) / 10000;
@@ -140,6 +156,11 @@ export class TerrainGenerator {
     // Step 6: Renormalize poles post land classification
     this.renormalizePolesIfNeeded(heightMap, tiles);
 
+    // Recreate the real temperature map after oceans are known, then add the
+    // separate polar land used by Freeciv's random/fracture generators.
+    this.createTemperatureIfAvailable(tiles, heightMap, hmap_shore_level);
+    this.makePolarLand(tiles, hmap_shore_level);
+
     // Step 8: Initialize placement map and mark ocean tiles as placed
     this.initializePlacementMapForOceans(tiles);
 
@@ -152,10 +173,7 @@ export class TerrainGenerator {
     );
 
     // Step 9: Relief generation (fracture vs standard)
-    this.generateRelief(tiles, heightMap, hmap_shore_level, terrainParams.mountain_pct);
-
-    // Step 9.5: Temperature map before terrain selection
-    this.createTemperatureIfAvailable(tiles, heightMap);
+    this.generateRelief(tiles, heightMap, hmap_shore_level, params.steepness);
 
     // Step 10: Place forests/deserts/etc. (requires hmap_low_level init)
     this.placeTerrains(tiles, terrainParams, hmap_shore_level);
@@ -230,7 +248,36 @@ export class TerrainGenerator {
   private renormalizePolesIfNeeded(heightMap: number[], tiles: MapTile[][]): void {
     if (this.heightMapProcessor.hasPoles()) {
       this.heightMapProcessor.renormalizeHmapPoles(heightMap, tiles);
-      // Note: make_polar_land() is not implemented
+    }
+  }
+
+  private makePolarLand(tiles: MapTile[][], shoreLevel: number): void {
+    if (!['random', 'fracture'].includes(this.generator.toLowerCase())) return;
+
+    this.continentProcessor.generateContinents(tiles);
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        const tile = tiles[x][y];
+        if (!isOceanTerrain(tile.terrain)) continue;
+
+        const neighbors = this.topology.getNeighbors(x, y);
+        const separateFromLand = neighbors.every(
+          position => tiles[position.x][position.y].continentId <= 0
+        );
+        const nextToFrozen = neighbors.some(
+          position => tiles[position.x][position.y].temperature === TemperatureType.FROZEN
+        );
+        const shouldFreeze =
+          tile.temperature === TemperatureType.FROZEN ||
+          (tile.temperature === TemperatureType.COLD && nextToFrozen && this.random() > 0.7);
+
+        if (shouldFreeze && separateFromLand) {
+          tile.terrain = 'glacier';
+          tile.elevation = Math.max(tile.elevation, shoreLevel);
+          tile.continentId = 0;
+          setTerrainGameProperties(tile);
+        }
+      }
     }
   }
 
@@ -243,18 +290,22 @@ export class TerrainGenerator {
     tiles: MapTile[][],
     heightMap: number[],
     hmap_shore_level: number,
-    mountain_pct: number
+    steepness: number
   ): void {
     if (this.generator === 'fracture') {
-      this.makeFractureRelief(tiles, heightMap, hmap_shore_level);
+      this.makeFractureRelief(tiles, heightMap, hmap_shore_level, steepness);
     } else {
-      this.makeRelief(tiles, heightMap, hmap_shore_level, mountain_pct);
+      this.makeRelief(tiles, heightMap, hmap_shore_level, steepness);
     }
   }
 
-  private createTemperatureIfAvailable(tiles: MapTile[][], heightMap: number[]): void {
+  private createTemperatureIfAvailable(
+    tiles: MapTile[][],
+    heightMap: number[],
+    shoreLevel: number
+  ): void {
     if (this.temperatureMap) {
-      this.createTemperatureMapInternal(tiles, heightMap);
+      this.createTemperatureMapInternal(tiles, heightMap, shoreLevel);
     }
   }
 
@@ -273,7 +324,12 @@ export class TerrainGenerator {
   }
 
   private finalizeContinents(tiles: MapTile[][], isRandomMode: boolean): void {
-    this.continentProcessor.removeTinyIslands(tiles, isRandomMode);
+    // On compact maps every generated landmass can fall below the normal
+    // tiny-island threshold. Freeciv's production map-size constraints avoid
+    // this case; retaining those islands keeps direct small-map API use valid.
+    if (this.width * this.height >= 400) {
+      this.continentProcessor.removeTinyIslands(tiles, isRandomMode);
+    }
     this.continentProcessor.generateContinents(tiles);
   }
 
@@ -319,10 +375,14 @@ export class TerrainGenerator {
    * Internal temperature map creation (Phase 1 fix)
    * @reference freeciv/server/generator/mapgen.c:1133 create_tmap(TRUE)
    */
-  private createTemperatureMapInternal(tiles: MapTile[][], heightMap: number[]): void {
+  private createTemperatureMapInternal(
+    tiles: MapTile[][],
+    heightMap: number[],
+    shoreLevel: number
+  ): void {
     if (!this.temperatureMap) return;
 
-    this.temperatureMap.createTemperatureMap(tiles, heightMap);
+    this.temperatureMap.createTemperatureMap(tiles, heightMap, true, shoreLevel);
 
     // Apply temperature data to tiles
     for (let x = 0; x < this.width; x++) {
@@ -351,11 +411,9 @@ export class TerrainGenerator {
     tiles: MapTile[][],
     heightMap: number[],
     hmap_shore_level: number,
-    mountain_pct: number
+    steepness: number
   ): void {
-    // Calculate mountain level based on steepness
-    const hmap_max_level = 1000;
-    const steepness = 100 - mountain_pct;
+    const hmap_max_level = Math.max(...heightMap);
     const hmap_mountain_level =
       ((hmap_max_level - hmap_shore_level) * (100 - steepness)) / 100 + hmap_shore_level;
 
@@ -643,15 +701,17 @@ export class TerrainGenerator {
   private makeFractureRelief(
     tiles: MapTile[][],
     heightMap: number[],
-    hmap_shore_level: number
+    hmap_shore_level: number,
+    steepness: number
   ): void {
     // Calculate land area for mountain percentage calculations
     const landarea = this.computeLandAreaAboveShore(heightMap, hmap_shore_level);
 
     // Standard fracture relief parameters matching freeciv exactly
     // @reference freeciv/server/generator/fracture_map.c:335
-    const hmap_max_level = 1000;
-    const hmap_mountain_level = (hmap_max_level + hmap_shore_level) / 2;
+    const hmap_max_level = Math.max(...heightMap);
+    const hmap_mountain_level =
+      ((hmap_max_level - hmap_shore_level) * (100 - steepness)) / 100 + hmap_shore_level;
 
     // First iteration: Place mountains and hills based on local elevation
     // @reference freeciv/server/generator/fracture_map.c:313-338
@@ -664,7 +724,6 @@ export class TerrainGenerator {
 
     // Second iteration: Ensure minimum mountain percentage based on steepness
     // @reference freeciv/server/generator/fracture_map.c:340-366
-    const steepness = 30; // Default steepness setting (equivalent to wld.map.server.steepness)
     const min_mountains = (landarea * steepness) / 100;
 
     // Ensure we meet minimum mountains; return value unused, kept for clarity

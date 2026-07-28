@@ -18,6 +18,7 @@ import { logger } from '@utils/logger';
 import { MapTile, TerrainType, TemperatureType, MapStartpos } from './MapTypes';
 import { PlayerState } from '@game/managers/GameManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { MapTopology, type MapTopologyOptions } from './MapTopology';
 
 /**
  * Island data structure matching freeciv's islands_data_type
@@ -45,10 +46,12 @@ export class StartingPositionGenerator {
   private height: number;
   private islands: IslandData[] = [];
   private islandsIndex: number[] = [];
+  private topology: MapTopology;
 
-  constructor(width: number, height: number) {
+  constructor(width: number, height: number, topologyOptions: MapTopologyOptions = {}) {
     this.width = width;
     this.height = height;
+    this.topology = new MapTopology(width, height, topologyOptions);
   }
 
   /**
@@ -122,7 +125,7 @@ export class StartingPositionGenerator {
 
   /**
    * Calculate base city tile output for a terrain type
-   * Simplified version of freeciv's city_tile_output calculation
+   * Ruleset-backed city output calculation used by Freeciv start scoring
    */
   private getCityTileOutput(tile: MapTile, outputType: 'food' | 'production' | 'trade'): number {
     const terrain = rulesetLoader.getTerrain(tile.terrain);
@@ -161,22 +164,14 @@ export class StartingPositionGenerator {
    * Calculate potential irrigation bonus
    */
   private getIrrigationBonus(tile: MapTile): number {
-    // Simplified irrigation bonus calculation
-    if (tile.terrain === 'grassland' || tile.terrain === 'plains') {
-      return 1; // +1 food from irrigation
-    }
-    return 0;
+    return rulesetLoader.getTerrain(tile.terrain).irrigationFoodIncr ?? 0;
   }
 
   /**
    * Calculate potential mining bonus
    */
   private getMiningBonus(tile: MapTile): number {
-    // Simplified mining bonus calculation
-    if (tile.terrain === 'hills' || tile.terrain === 'mountains') {
-      return 1; // +1 production from mining
-    }
-    return 0;
+    return rulesetLoader.getTerrain(tile.terrain).miningShieldIncr ?? 0;
   }
 
   /**
@@ -217,7 +212,7 @@ export class StartingPositionGenerator {
     // Check minimum distance from other start positions
     if (!tile.continentId || tile.continentId <= 0) return false; // Tile must have a valid continent ID
     const contSize = this.getContinentSize(tiles, tile.continentId);
-    const island = this.islands[tile.continentId]; // Direct access since islands[continentId] is the island
+    const island = this.islands.find(candidate => candidate?.id === tile.continentId);
     if (!island) return false;
 
     for (const pos of existingPositions) {
@@ -245,15 +240,16 @@ export class StartingPositionGenerator {
    * Check if terrain has TER_STARTER flag equivalent
    */
   private isStarterTerrain(terrain: TerrainType): boolean {
-    // Based on freeciv rulesets, these terrains have the Starter flag
-    return ['grassland', 'plains', 'forest', 'hills'].includes(terrain);
+    const flags = rulesetLoader.getTerrain(terrain).flags;
+    return (Array.isArray(flags) ? flags : [flags]).includes('Starter');
   }
 
   /**
    * Check if terrain has TER_NO_CITIES flag equivalent
    */
   private isNoCitiesTerrain(terrain: TerrainType): boolean {
-    return ['ocean', 'deep_ocean'].includes(terrain);
+    const flags = rulesetLoader.getTerrain(terrain).flags;
+    return (Array.isArray(flags) ? flags : [flags]).includes('NoCities');
   }
 
   /**
@@ -508,26 +504,28 @@ export class StartingPositionGenerator {
       const playersForThisIsland = island.starters;
 
       for (let p = 0; p < playersForThisIsland && playerIndex < playerIds.length; p++) {
-        const position = this.findBestPositionOnIsland(tiles, filterData, positions, island.id);
+        let position = this.findBestPositionOnIsland(tiles, filterData, positions, island.id);
 
-        if (position) {
-          positions.push({
-            x: position.x,
-            y: position.y,
-            playerId: playerIds[playerIndex],
-          });
-
-          logger.debug('Assigned starting position', {
-            playerId: playerIds[playerIndex],
-            x: position.x,
-            y: position.y,
-            continentId: island.id,
-            tileValue: tileValue[position.y * this.width + position.x],
-          });
-        } else {
-          logger.warn('Could not find valid position for player', playerIds[playerIndex]);
+        if (!position) {
+          // Freeciv progressively relaxes its value/distance filter while
+          // retaining the selected island. Preserve that mode contract when
+          // the strict pass cannot place every player.
+          position = this.findFallbackPosition(tiles, positions, island.id);
+          logger.warn('Used relaxed start-position filter for player', playerIds[playerIndex]);
         }
 
+        positions.push({
+          x: position.x,
+          y: position.y,
+          playerId: playerIds[playerIndex],
+        });
+        logger.debug('Assigned starting position', {
+          playerId: playerIds[playerIndex],
+          x: position.x,
+          y: position.y,
+          continentId: island.id,
+          tileValue: tileValue[position.y * this.width + position.x],
+        });
         playerIndex++;
       }
     }
@@ -585,35 +583,52 @@ export class StartingPositionGenerator {
    */
   private findFallbackPosition(
     tiles: MapTile[][],
-    existingPositions: Array<{ x: number; y: number }>
+    existingPositions: Array<{ x: number; y: number }>,
+    preferredContinentId?: number
   ): { x: number; y: number } {
-    // Simple fallback: find any starter terrain not too close to others
-    for (let x = 5; x < this.width - 5; x++) {
-      for (let y = 5; y < this.height - 5; y++) {
+    const candidates: Array<{ x: number; y: number; starter: boolean; score: number }> = [];
+    const occupied = new Set(existingPositions.map(position => `${position.x},${position.y}`));
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
-
-        if (this.isStarterTerrain(tile.terrain)) {
-          const tooClose = existingPositions.some(pos => {
-            const distance = this.realMapDistance(x, y, pos.x, pos.y);
-            return distance < 8;
-          });
-
-          if (!tooClose) {
-            return { x, y };
-          }
+        if (
+          occupied.has(`${x},${y}`) ||
+          this.isNoCitiesTerrain(tile.terrain) ||
+          (preferredContinentId !== undefined && tile.continentId !== preferredContinentId)
+        ) {
+          continue;
         }
+        const spacing =
+          existingPositions.length === 0
+            ? Math.max(this.width, this.height)
+            : Math.min(
+                ...existingPositions.map(position =>
+                  this.realMapDistance(x, y, position.x, position.y)
+                )
+              );
+        candidates.push({
+          x,
+          y,
+          starter: this.isStarterTerrain(tile.terrain),
+          score: spacing * 100 + this.getTileValue(tile),
+        });
       }
     }
 
-    // Emergency fallback
-    return { x: 10, y: 10 };
+    candidates.sort((left, right) => {
+      if (left.starter !== right.starter) return left.starter ? -1 : 1;
+      return right.score - left.score;
+    });
+    const selected = candidates[0];
+    if (!selected) throw new Error('Generated map has no city-capable starting tile');
+    return { x: selected.x, y: selected.y };
   }
 
   /**
-   * Calculate real map distance (Manhattan distance for simplicity)
+   * Calculate topology-aware real map distance
    */
   private realMapDistance(x1: number, y1: number, x2: number, y2: number): number {
-    return Math.abs(x1 - x2) + Math.abs(y1 - y2);
+    return this.topology.realDistance(x1, y1, x2, y2);
   }
 
   /**
@@ -659,12 +674,9 @@ export class StartingPositionGenerator {
     let lcount = 0;
     let bcount = 0;
 
-    for (let dx = -cityRadius; dx <= cityRadius; dx++) {
-      for (let dy = -cityRadius; dy <= cityRadius; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-
-        if (this.isValidCoord(nx, ny) && this.isWithinCityRadius(dx, dy, cityRadius)) {
+    for (let nx = 0; nx < this.width; nx++) {
+      for (let ny = 0; ny < this.height; ny++) {
+        if (this.topology.squaredDistance(x, y, nx, ny) <= cityRadius * cityRadius) {
           const counts = this.compareTileValues(thisTileValue, tileValueAux, nx, ny);
           lcount += counts.lcount;
           bcount += counts.bcount;
@@ -673,13 +685,6 @@ export class StartingPositionGenerator {
     }
 
     return { lcount, bcount };
-  }
-
-  /**
-   * Check if offset is within city radius
-   */
-  private isWithinCityRadius(dx: number, dy: number, cityRadius: number): boolean {
-    return dx * dx + dy * dy <= cityRadius * cityRadius;
   }
 
   /**
@@ -700,12 +705,5 @@ export class StartingPositionGenerator {
     }
 
     return { lcount: 0, bcount: 0 };
-  }
-
-  /**
-   * Check if coordinates are valid
-   */
-  private isValidCoord(x: number, y: number): boolean {
-    return x >= 0 && x < this.width && y >= 0 && y < this.height;
   }
 }

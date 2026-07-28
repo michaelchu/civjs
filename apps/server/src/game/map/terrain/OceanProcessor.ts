@@ -5,6 +5,7 @@
  */
 import { MapTile, TerrainType } from '@game/map/MapTypes';
 import { isOceanTerrain, isFrozenTerrain, isLandTile } from '@game/map/TerrainUtils';
+import { MapTopology, type MapTopologyOptions } from '@game/map/MapTopology';
 
 /**
  * Handles ocean depth processing, water body identification, and ocean terrain selection
@@ -15,11 +16,18 @@ export class OceanProcessor {
   private width: number;
   private height: number;
   private random: () => number;
+  private topology: MapTopology;
 
-  constructor(width: number, height: number, random: () => number) {
+  constructor(
+    width: number,
+    height: number,
+    random: () => number,
+    topologyOptions: MapTopologyOptions = {}
+  ) {
     this.width = width;
     this.height = height;
     this.random = random;
+    this.topology = new MapTopology(width, height, topologyOptions);
   }
 
   /**
@@ -80,20 +88,9 @@ export class OceanProcessor {
    * Check if a tile has ocean neighbors
    */
   public hasOceanNeighbor(tiles: MapTile[][], x: number, y: number): boolean {
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          if (isOceanTerrain(tiles[nx][ny].terrain)) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
+    return this.topology
+      .getNeighbors(x, y)
+      .some(position => isOceanTerrain(tiles[position.x][position.y].terrain));
   }
 
   /**
@@ -107,29 +104,11 @@ export class OceanProcessor {
     y: number,
     maxDistance: number
   ): number {
-    // Search in expanding squares (like freeciv square_dxy_iterate)
-    for (let distance = 1; distance <= maxDistance; distance++) {
-      for (let dx = -distance; dx <= distance; dx++) {
-        for (let dy = -distance; dy <= distance; dy++) {
-          // Only check the perimeter of the current distance square
-          if (Math.abs(dx) !== distance && Math.abs(dy) !== distance) {
-            continue;
-          }
-
-          const nx = x + dx;
-          const ny = y + dy;
-
-          if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-            if (isLandTile(tiles[nx][ny].terrain)) {
-              // Return real euclidean distance (like freeciv map_vector_to_real_distance)
-              return Math.sqrt(dx * dx + dy * dy);
-            }
-          }
-        }
-      }
-    }
-
-    return maxDistance + 1;
+    const distances = this.topology
+      .getPositionsWithinRadius(x, y, maxDistance)
+      .filter(position => isLandTile(tiles[position.x][position.y].terrain))
+      .map(position => this.topology.realDistance(x, y, position.x, position.y));
+    return distances.length > 0 ? Math.min(...distances) : maxDistance + 1;
   }
 
   /**
@@ -148,9 +127,6 @@ export class OceanProcessor {
     } else {
       return 'deep_ocean'; // Deep ocean waters
     }
-
-    // Note: Frozen ocean handling would go here in full implementation
-    // For now, we focus on the depth-based selection
   }
 
   /**
@@ -161,28 +137,19 @@ export class OceanProcessor {
   private mostAdjacentOceanType(tiles: MapTile[][], x: number, y: number): string | null {
     // freeciv: const int need = 2 * MAP_NUM_VALID_DIRS / 3;
     // MAP_NUM_VALID_DIRS is typically 8 (8 directions), so need = 5.33 -> 5
-    const need = Math.floor((2 * 8) / 3); // Require 5 out of 8 neighbors (2/3 majority)
+    const neighbors = this.topology.getNeighbors(x, y);
+    const need = Math.floor((2 * neighbors.length) / 3);
 
     const oceanTerrainTypes = ['coast', 'ocean', 'deep_ocean'];
 
     for (const terrainType of oceanTerrainTypes) {
       let count = 0;
 
-      // Check all 8 adjacent tiles (like freeciv adjc_iterate)
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          if (dx === 0 && dy === 0) continue; // Skip center
-
-          const nx = x + dx;
-          const ny = y + dy;
-
-          if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-            if (tiles[nx][ny].terrain === terrainType) {
-              count++;
-              if (count >= need) {
-                return terrainType; // Early return when threshold met
-              }
-            }
+      for (const neighbor of neighbors) {
+        if (tiles[neighbor.x][neighbor.y].terrain === terrainType) {
+          count++;
+          if (count >= need) {
+            return terrainType;
           }
         }
       }
@@ -252,11 +219,7 @@ export class OceanProcessor {
       visited[x][y] = true;
       oceanTiles.push(tile);
 
-      // Add neighboring tiles to stack
-      stack.push({ x: x - 1, y });
-      stack.push({ x: x + 1, y });
-      stack.push({ x, y: y - 1 });
-      stack.push({ x, y: y + 1 });
+      stack.push(...this.topology.getCardinalNeighbors(x, y));
     }
   }
 

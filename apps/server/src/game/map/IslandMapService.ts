@@ -472,7 +472,7 @@ export class IslandMapService extends BaseMapGenerationService {
     const generationTime = Date.now() - startTime;
 
     // Validate generated map for quality assurance
-    const validationResult = this.validateMap(tiles, players);
+    const validationResult = this.validateMap(tiles, players, mapData.startingPositions);
 
     logger.info('Island-based map generation completed', {
       generationTime,

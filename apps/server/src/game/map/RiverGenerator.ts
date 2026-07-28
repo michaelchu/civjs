@@ -1,5 +1,6 @@
 import { logger } from '@utils/logger';
 import { MapTile, TerrainType, TerrainProperty } from './MapTypes';
+import { MapTopology, type MapTopologyOptions } from './MapTopology';
 
 /**
  * River map state tracking for sophisticated river generation
@@ -14,11 +15,18 @@ export class RiverGenerator {
   private width: number;
   private height: number;
   private random: () => number;
+  private topology: MapTopology;
 
-  constructor(width: number, height: number, random: () => number) {
+  constructor(
+    width: number,
+    height: number,
+    random: () => number,
+    topologyOptions: MapTopologyOptions = {}
+  ) {
     this.width = width;
     this.height = height;
     this.random = random;
+    this.topology = new MapTopology(width, height, topologyOptions);
   }
 
   /**
@@ -94,20 +102,9 @@ export class RiverGenerator {
    * Check if tile is near water
    */
   private isNearWater(x: number, y: number, tiles: MapTile[][]): boolean {
-    const radius = 2;
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const terrain = tiles[nx][ny].terrain;
-          if (!this.isLandTile(terrain)) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
+    return this.topology
+      .getPositionsWithinRadius(x, y, 2)
+      .some(position => !this.isLandTile(tiles[position.x][position.y].terrain));
   }
 
   /**
@@ -150,17 +147,10 @@ export class RiverGenerator {
     let riverCount = 0;
     let totalCount = 0;
 
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        const x = startX + dx;
-        const y = startY + dy;
-
-        if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-          totalCount++;
-          if (tiles[x][y].riverMask > 0) {
-            riverCount++;
-          }
-        }
+    for (const position of this.topology.getPositionsWithinRadius(startX, startY, radius)) {
+      totalCount++;
+      if (tiles[position.x][position.y].riverMask > 0) {
+        riverCount++;
       }
     }
 
@@ -323,19 +313,12 @@ export class RiverGenerator {
     const currentElevation = tiles[x][y].elevation;
     const candidates: { x: number; y: number; score: number }[] = [];
 
-    const directions = [
-      { dx: 0, dy: -1 }, // North
-      { dx: 1, dy: 0 }, // East
-      { dx: 0, dy: 1 }, // South
-      { dx: -1, dy: 0 }, // West
-    ];
-
-    for (const dir of directions) {
-      const nx = x + dir.dx;
-      const ny = y + dir.dy;
+    for (const position of this.topology.getCardinalNeighbors(x, y)) {
+      const nx = position.x;
+      const ny = position.y;
       const key = `${nx},${ny}`;
 
-      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height && !visited.has(key)) {
+      if (!visited.has(key)) {
         const neighborTile = tiles[nx][ny];
 
         // Don't flow through existing rivers
@@ -406,10 +389,8 @@ export class RiverGenerator {
     ];
 
     for (const dir of cardinalDirs) {
-      const nx = x + dir.dx;
-      const ny = y + dir.dy;
-
-      if (this.shouldConnectToNeighbor(tiles, nx, ny)) {
+      const neighbor = this.topology.normalize(x + dir.dx, y + dir.dy);
+      if (neighbor && this.shouldConnectToNeighbor(tiles, neighbor.x, neighbor.y)) {
         mask |= dir.mask;
       }
     }

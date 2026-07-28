@@ -325,15 +325,19 @@ describe('MapManager', () => {
         ],
       }).toEqual({
         terrainCounts: {
-          coast: 2,
-          deep_ocean: 250,
-          forest: 1,
-          grassland: 9,
-          hills: 1,
-          mountains: 2,
-          ocean: 35,
+          deep_ocean: 129,
+          desert: 1,
+          forest: 18,
+          grassland: 41,
+          hills: 12,
+          jungle: 3,
+          lake: 9,
+          mountains: 3,
+          ocean: 56,
+          plains: 21,
+          swamp: 7,
         },
-        landContinents: 6,
+        landContinents: 2,
         corners: ['deep_ocean', 'deep_ocean', 'deep_ocean', 'deep_ocean'],
       });
     });

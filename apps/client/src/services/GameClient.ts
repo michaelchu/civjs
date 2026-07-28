@@ -1049,6 +1049,7 @@ export class GameClient {
       resources: string;
       topologyId?: number;
       wrapId?: number;
+      scenarioId?: string;
     };
   }): Promise<string> {
     await this.authenticatePlayer(gameData.playerName);

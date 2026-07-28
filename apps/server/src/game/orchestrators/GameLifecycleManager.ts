@@ -654,6 +654,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         return 'ISLAND';
       case 'fair':
         return 'FAIR';
+      case 'fracture':
+        return 'FRACTURE';
       case 'scenario':
         return 'SCENARIO';
       default:
@@ -897,7 +899,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       {
         topologyId: terrainSettings?.topologyId,
         wrapId: terrainSettings?.wrapId,
-      }
+      },
+      terrainSettings?.scenarioId
     );
   }
 

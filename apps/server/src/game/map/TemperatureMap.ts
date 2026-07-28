@@ -1,4 +1,5 @@
 import { MapTile, TemperatureType } from './MapTypes';
+import { MapTopology, type MapTopologyOptions } from './MapTopology';
 
 /**
  * Climate constants ported from freeciv reference
@@ -11,30 +12,25 @@ const DEFAULT_TEMPERATURE = 50; // Default temperature parameter 0-100 (freeciv:
  * Calculate cold temperature threshold based on temperature parameter
  * @reference freeciv/server/generator/mapgen_topology.h:50-51
  * Original: #define COLD_LEVEL (MAX(0, MAX_COLATITUDE * (60*7 - wld.map.server.temperature * 6 ) / 700))
- * MODIFIED: Made much more restrictive to create minimal tundra only at map tips
  */
 function getColdLevel(temperature: number = DEFAULT_TEMPERATURE): number {
-  // Responsive to temperature parameter: lower temp setting = more cold zones
-  // At temp 0 (coldest): significant cold zones, at temp 100 (hottest): minimal cold zones
-  const originalColdLevel = Math.max(0, (MAX_COLATITUDE * (60 * 7 - temperature * 6)) / 700);
-
-  // Scale reduction: Allow meaningful tundra blocks with smooth transitions
-  // Temperature 30 should have moderate cold zones that blend well with temperate areas
-  const reductionFactor = 0.85 + (temperature / 100) * 0.15; // 0.85x reduction at temp=0, 1.0x at temp=100
-  return Math.max(100, originalColdLevel * reductionFactor); // Moderate minimum for natural cold zones
+  return Math.max(0, (MAX_COLATITUDE * (60 * 7 - temperature * 6)) / 700);
 }
 
 /**
  * Calculate ice base level dynamically based on temperature parameter
  * @reference freeciv/server/generator/mapgen_topology.c:243-245
  * Original: ice_base_colatitude = (MAX(0, 100 * COLD_LEVEL / 3 - 2 * MAX_COLATITUDE) + 2 * MAX_COLATITUDE * sqsize) / (100 * sqsize)
- * Simplified version for web play (assuming sqsize = 40 typical for medium maps)
- * MODIFIED: Made even more restrictive for minimal tundra generation
  */
 function getIceBaseLevel(temperature: number = DEFAULT_TEMPERATURE): number {
   const coldLevel = getColdLevel(temperature);
-  // Make ice zones extremely small - only the absolute tips
-  return Math.max(0, coldLevel / 10); // Ice zones are 1/10 the size of cold zones
+  // Use the classic default map scale. Generator topology initialization
+  // adjusts this further when map-size options are exposed independently.
+  const squareSize = 5;
+  return (
+    (Math.max(0, (100 * coldLevel) / 3 - MAX_COLATITUDE) + MAX_COLATITUDE * squareSize) /
+    (100 * squareSize)
+  );
 }
 
 /**
@@ -59,69 +55,56 @@ export class TemperatureMap {
   private width: number;
   private height: number;
   private temperatureParam: number;
+  private topology: MapTopology;
 
-  constructor(width: number, height: number, temperatureParam: number = DEFAULT_TEMPERATURE) {
+  constructor(
+    width: number,
+    height: number,
+    temperatureParam: number = DEFAULT_TEMPERATURE,
+    topologyOptions: MapTopologyOptions = {}
+  ) {
     this.width = width;
     this.height = height;
     this.temperatureParam = temperatureParam;
     this.temperatureMap = new Array(width * height);
+    this.topology = new MapTopology(width, height, topologyOptions);
   }
 
   /**
-   * Calculate colatitude for a tile (0 = equator, MAX_COLATITUDE = pole)
+   * Calculate colatitude for a tile (0 = pole, MAX_COLATITUDE = equator)
    * @reference freeciv/server/generator/mapgen_topology.c:map_colatitude()
-   * Simplified latitude calculation for rectangular maps
    */
-  public mapColatitude(x: number, y: number): number {
-    // Simple linear latitude calculation - equator at center, poles at edges
+  public mapColatitude(_x: number, y: number): number {
+    // Linear interpolation between Freeciv's default +1000/-1000 latitude
+    // limits, followed by colatitude conversion.
     const centerY = this.height / 2;
     const distanceFromEquator = Math.abs(y - centerY);
     const maxDistance = this.height / 2;
-
-    // Linear progression from equator (0) to poles (MAX_COLATITUDE)
-    let latitudeFactor = distanceFromEquator / maxDistance;
-
-    // Add minimal longitudinal variation to prevent perfect stripes
-    const longitudinalVariation = Math.sin((x / this.width) * Math.PI * 6) * 0.05;
-    latitudeFactor += longitudinalVariation * (1 - latitudeFactor);
-
-    // Clamp to valid range
-    latitudeFactor = Math.max(0, Math.min(1, latitudeFactor));
-
-    return Math.floor(latitudeFactor * MAX_COLATITUDE);
+    const latitudeFactor = Math.max(0, Math.min(1, distanceFromEquator / maxDistance));
+    return Math.floor((1 - latitudeFactor) * MAX_COLATITUDE);
   }
 
   /**
-   * Count ocean tiles around a position (simplified version of count_terrain_class_near_tile)
+   * Count ocean tiles around a position.
    * @reference freeciv/common/terrain.c:637-660 count_terrain_class_near_tile()
    * Used for ocean proximity temperature moderation effects
    */
   private countOceanNearTile(tiles: MapTile[][], x: number, y: number): number {
     let oceanCount = 0;
-    const radius = 2;
-    let totalCount = 0;
-
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          totalCount++;
-          const tile = tiles[nx][ny];
-          if (
-            tile.terrain === 'ocean' ||
-            tile.terrain === 'coast' ||
-            tile.terrain === 'deep_ocean' ||
-            tile.terrain === 'lake'
-          ) {
-            oceanCount++;
-          }
-        }
+    const positions = this.topology.getPositionsWithinRadius(x, y, 2);
+    for (const position of positions) {
+      const tile = tiles[position.x][position.y];
+      if (
+        tile.terrain === 'ocean' ||
+        tile.terrain === 'coast' ||
+        tile.terrain === 'deep_ocean' ||
+        tile.terrain === 'lake'
+      ) {
+        oceanCount++;
       }
     }
 
-    return totalCount > 0 ? Math.floor((oceanCount * 100) / totalCount) : 0;
+    return positions.length > 0 ? Math.floor((oceanCount * 100) / positions.length) : 0;
   }
 
   /**
@@ -134,23 +117,27 @@ export class TemperatureMap {
    * - Temperature distribution adjustment (lines 150-157)
    * - Discrete temperature type conversion (lines 160-172)
    */
-  public createTemperatureMap(tiles: MapTile[][], heightMap: number[], real: boolean = true): void {
+  public createTemperatureMap(
+    tiles: MapTile[][],
+    heightMap: number[],
+    real: boolean = true,
+    shoreLevel: number = Math.max(...heightMap) * 0.7
+  ): void {
     const maxHeight = Math.max(...heightMap);
-    const shoreLevel = maxHeight * 0.3; // Approximate shore level
 
     // Initialize base temperature from colatitude (inverted: higher colatitude = colder)
     for (let i = 0; i < this.width * this.height; i++) {
       const x = i % this.width;
       const y = Math.floor(i / this.width);
       const colatitude = this.mapColatitude(x, y);
-      const baseTemp = MAX_COLATITUDE - colatitude; // Invert: equator=hot, poles=cold
+      const baseTemp = colatitude;
 
       if (!real) {
         this.temperatureMap[i] = baseTemp;
       } else {
         // High land can be 30% cooler
         const heightFactor =
-          (-0.3 * Math.max(0, heightMap[i] - shoreLevel)) / (maxHeight - shoreLevel);
+          (-0.3 * Math.max(0, heightMap[i] - shoreLevel)) / Math.max(1, maxHeight - shoreLevel);
 
         // Near ocean temperature can be 15% more "temperate"
         const oceanCount = this.countOceanNearTile(tiles, x, y);
@@ -167,7 +154,7 @@ export class TemperatureMap {
       }
     }
 
-    // Adjust to get evenly distributed frequencies (simplified adjust_int_map)
+    // Rank-normalize values like Freeciv's adjust_int_map().
     this.adjustTemperatureDistribution();
 
     // Convert to discrete temperature types
@@ -178,23 +165,22 @@ export class TemperatureMap {
    * Adjust temperature distribution for better balance
    * @reference freeciv/server/generator/temperature_map.c:154-157
    * Original: adjust_int_map(temperature_map, MIN_REAL_COLATITUDE, MAX_REAL_COLATITUDE)
-   * Simplified implementation for even temperature distribution
    */
   private adjustTemperatureDistribution(): void {
-    const minTemp = Math.min(...this.temperatureMap);
-    const maxTemp = Math.max(...this.temperatureMap);
-
-    if (maxTemp <= minTemp) return;
-
-    const range = maxTemp - minTemp;
-    const targetMin = MAX_COLATITUDE * 0.1;
-    const targetMax = MAX_COLATITUDE * 0.9;
+    const targetMin = 0;
+    const targetMax = MAX_COLATITUDE;
     const targetRange = targetMax - targetMin;
-
-    for (let i = 0; i < this.temperatureMap.length; i++) {
-      const normalized = (this.temperatureMap[i] - minTemp) / range;
-      this.temperatureMap[i] = Math.floor(targetMin + normalized * targetRange);
+    const frequencies = new Map<number, number>();
+    for (const value of this.temperatureMap) {
+      frequencies.set(value, (frequencies.get(value) ?? 0) + 1);
     }
+    let count = 0;
+    const ranked = new Map<number, number>();
+    for (const [value, frequency] of [...frequencies].sort((left, right) => left[0] - right[0])) {
+      count += frequency;
+      ranked.set(value, Math.floor(targetMin + (count * targetRange) / this.temperatureMap.length));
+    }
+    this.temperatureMap = this.temperatureMap.map(value => ranked.get(value)!);
   }
 
   /**

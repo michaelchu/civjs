@@ -5,6 +5,7 @@
  */
 import { MapTile, TerrainType } from '@game/map/MapTypes';
 import { isOceanTerrain, isLandTile, isTinyIsland, isFrozenTerrain } from '@game/map/TerrainUtils';
+import { MapTopology, type MapTopologyOptions } from '@game/map/MapTopology';
 
 /**
  * Handles continent identification, tiny island removal, and landmass processing
@@ -15,11 +16,18 @@ export class ContinentProcessor {
   private width: number;
   private height: number;
   private _random: () => number;
+  private topology: MapTopology;
 
-  constructor(width: number, height: number, random: () => number) {
+  constructor(
+    width: number,
+    height: number,
+    random: () => number,
+    topologyOptions: MapTopologyOptions = {}
+  ) {
     this.width = width;
     this.height = height;
     this._random = random;
+    this.topology = new MapTopology(width, height, topologyOptions);
   }
 
   /**
@@ -72,11 +80,7 @@ export class ContinentProcessor {
       visited[x][y] = true;
       tiles[x][y].continentId = continentId;
 
-      // Add neighboring tiles to stack for 4-connectivity
-      stack.push({ x: x - 1, y });
-      stack.push({ x: x + 1, y });
-      stack.push({ x, y: y - 1 });
-      stack.push({ x, y: y + 1 });
+      stack.push(...this.topology.getCardinalNeighbors(x, y));
     }
   }
 
@@ -189,11 +193,7 @@ export class ContinentProcessor {
       visited[x][y] = true;
       oceanTiles.push(tile);
 
-      // Add neighboring tiles to stack
-      stack.push({ x: x - 1, y });
-      stack.push({ x: x + 1, y });
-      stack.push({ x, y: y - 1 });
-      stack.push({ x, y: y + 1 });
+      stack.push(...this.topology.getCardinalNeighbors(x, y));
     }
   }
 
@@ -218,11 +218,7 @@ export class ContinentProcessor {
       visited[x][y] = true;
       landTiles.push(tiles[x][y]);
 
-      // Add neighboring tiles to stack
-      stack.push({ x: x - 1, y });
-      stack.push({ x: x + 1, y });
-      stack.push({ x, y: y - 1 });
-      stack.push({ x, y: y + 1 });
+      stack.push(...this.topology.getCardinalNeighbors(x, y));
     }
 
     return landTiles;
@@ -239,19 +235,10 @@ export class ContinentProcessor {
       deep_ocean: 0,
     };
 
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-
-        const nx = x + dx;
-        const ny = y + dy;
-
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const neighborTerrain = tiles[nx][ny].terrain;
-          if (isOceanTerrain(neighborTerrain)) {
-            oceanTypeCounts[neighborTerrain]++;
-          }
-        }
+    for (const neighbor of this.topology.getNeighbors(x, y)) {
+      const neighborTerrain = tiles[neighbor.x][neighbor.y].terrain;
+      if (isOceanTerrain(neighborTerrain)) {
+        oceanTypeCounts[neighborTerrain]++;
       }
     }
 
@@ -295,64 +282,13 @@ export class ContinentProcessor {
   private findNearestLandContinentId(tiles: MapTile[][], x: number, y: number): number {
     const maxSearchRadius = 5;
 
-    for (let radius = 1; radius <= maxSearchRadius; radius++) {
-      const continentId = this.searchRadiusForLandContinent(tiles, x, y, radius);
-      if (continentId > 0) {
-        return continentId;
+    for (const position of this.topology.getPositionsWithinRadius(x, y, maxSearchRadius)) {
+      const tile = tiles[position.x][position.y];
+      if (isLandTile(tile.terrain) && tile.continentId > 0) {
+        return tile.continentId;
       }
     }
 
     return 0; // Default to ocean continent ID if no land found
-  }
-
-  /**
-   * Search a specific radius for land continent
-   */
-  private searchRadiusForLandContinent(
-    tiles: MapTile[][],
-    x: number,
-    y: number,
-    radius: number
-  ): number {
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        // Only check perimeter of search square
-        if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) {
-          continue;
-        }
-
-        const continentId = this.checkTileForLandContinent(tiles, x, y, dx, dy);
-        if (continentId > 0) {
-          return continentId;
-        }
-      }
-    }
-
-    return 0;
-  }
-
-  /**
-   * Check a specific tile offset for land continent
-   */
-  private checkTileForLandContinent(
-    tiles: MapTile[][],
-    x: number,
-    y: number,
-    dx: number,
-    dy: number
-  ): number {
-    const nx = x + dx;
-    const ny = y + dy;
-
-    if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) {
-      return 0;
-    }
-
-    const tile = tiles[nx][ny];
-    if (isLandTile(tile.terrain) && tile.continentId > 0) {
-      return tile.continentId;
-    }
-
-    return 0;
   }
 }

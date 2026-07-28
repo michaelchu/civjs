@@ -275,7 +275,7 @@ describe('MapValidator', () => {
       const result = validator.validateStartingPositions(landTiles, positions);
 
       expect(result.metrics.startingPositionDistance.minimum).toBeCloseTo(10, 1);
-      expect(result.metrics.startingPositionDistance.maximum).toBeCloseTo(Math.sqrt(200), 1);
+      expect(result.metrics.startingPositionDistance.maximum).toBeCloseTo(10, 1);
     });
 
     it('should assess starting position quality', () => {

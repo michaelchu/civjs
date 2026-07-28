@@ -576,6 +576,10 @@ export const GameCreateSchema = z.object({
       startpos: z.number().optional(),
       topologyId: z.number().int().min(0).max(3).optional(),
       wrapId: z.number().int().min(0).max(3).optional(),
+      scenarioId: z
+        .string()
+        .regex(/^[a-zA-Z0-9_-]+$/)
+        .optional(),
     })
     .optional(),
 });

@@ -13,6 +13,7 @@ import {
   WetnessCondition as TerrainUtilsWetnessCondition,
 } from './TerrainUtils';
 import { TemperatureMap } from './TemperatureMap';
+import { MapTopology, type MapTopologyOptions } from './MapTopology';
 
 // Generator state tracking for island-based generation
 export interface IslandGeneratorState {
@@ -221,18 +222,21 @@ export class IslandGenerator {
   private terrainLists: IslandTerrainLists;
   private bucketState?: BucketState;
   private temperatureMap?: TemperatureMap;
+  private topology: MapTopology;
 
   constructor(
     width: number,
     height: number,
     random: () => number,
-    temperatureMap?: TemperatureMap
+    temperatureMap?: TemperatureMap,
+    topologyOptions: MapTopologyOptions = {}
   ) {
     this.width = width;
     this.height = height;
     this.random = random;
     this.terrainLists = new IslandTerrainLists();
     this.temperatureMap = temperatureMap;
+    this.topology = new MapTopology(width, height, topologyOptions);
   }
 
   /**
@@ -553,22 +557,9 @@ export class IslandGenerator {
    */
   private countAdjacentElevatedTiles(x: number, y: number, state: IslandGeneratorState): number {
     let count = 0;
-    const neighbors = [
-      [x - 1, y - 1],
-      [x, y - 1],
-      [x + 1, y - 1],
-      [x - 1, y],
-      [x + 1, y],
-      [x - 1, y + 1],
-      [x, y + 1],
-      [x + 1, y + 1],
-    ];
-
-    for (const [nx, ny] of neighbors) {
-      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-        if (state.heightMap[nx][ny] > 0) {
-          count++;
-        }
+    for (const position of this.topology.getNeighbors(x, y)) {
+      if (state.heightMap[position.x][position.y] > 0) {
+        count++;
       }
     }
 
@@ -743,18 +734,9 @@ export class IslandGenerator {
     tiles: MapTile[][],
     terrain: string
   ): boolean {
-    const neighbors = [
-      [x - 1, y],
-      [x + 1, y],
-      [x, y - 1],
-      [x, y + 1],
-    ];
-
-    for (const [nx, ny] of neighbors) {
-      if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-        if (tiles[nx][ny].terrain === terrain) {
-          return true;
-        }
+    for (const position of this.topology.getCardinalNeighbors(x, y)) {
+      if (tiles[position.x][position.y].terrain === terrain) {
+        return true;
       }
     }
 
@@ -765,22 +747,10 @@ export class IslandGenerator {
    * Check if coast is nearby
    */
   private isCoastNearby(x: number, y: number, tiles: MapTile[][]): boolean {
-    const radius = 1; // Adjacent tiles only for coastal check
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        if (dx === 0 && dy === 0) continue;
-
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const terrain = tiles[nx][ny].terrain;
-          if (terrain === 'coast' || terrain === 'ocean' || terrain === 'deep_ocean') {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
+    return this.topology.getNeighbors(x, y).some(position => {
+      const terrain = tiles[position.x][position.y].terrain;
+      return terrain === 'coast' || terrain === 'ocean' || terrain === 'deep_ocean';
+    });
   }
 
   public cleanup(): void {

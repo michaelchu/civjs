@@ -133,6 +133,19 @@ export class MapTopology {
     return this.positionsForDirections(x, y, this.getCardinalDirections());
   }
 
+  getPositionsWithinRadius(x: number, y: number, radius: number): MapPosition[] {
+    const positions = new Map<string, MapPosition>();
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        const position = this.normalize(x + dx, y + dy);
+        if (position && this.realDistance(x, y, position.x, position.y) <= radius) {
+          positions.set(`${position.x},${position.y}`, position);
+        }
+      }
+    }
+    return [...positions.values()];
+  }
+
   private positionsForDirections(
     x: number,
     y: number,

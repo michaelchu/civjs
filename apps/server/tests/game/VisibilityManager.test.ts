@@ -317,6 +317,11 @@ describe('VisibilityManager', () => {
     });
 
     it('should handle fog of war correctly', async () => {
+      // Keep the movement path deterministic; generated maps may otherwise
+      // place ocean between these coordinates and leave the unit in sight.
+      mapManager.getTile(11, 10)!.terrain = 'grassland';
+      mapManager.getTile(12, 10)!.terrain = 'grassland';
+
       // Reset movement and move unit away to create fog of war
       await unitManager.resetMovement('player-123');
       const unit = unitManager.getPlayerUnits('player-123')[0];

@@ -93,6 +93,7 @@ export const TerrainSettingsDialog: React.FC = () => {
     { value: 'island', label: 'Islands' },
     { value: 'fair', label: 'Fair islands' },
     { value: 'fracture', label: 'Fracture' },
+    { value: 'scenario', label: 'Classic scenario' },
   ];
 
   const generatorDescriptions = {
@@ -101,7 +102,21 @@ export const TerrainSettingsDialog: React.FC = () => {
     island: 'Many small islands and varied landmasses',
     fair: 'Large continent with fair starting positions',
     fracture: 'Fractured landmasses with complex coastlines',
+    scenario: 'Load a packaged map from the Freeciv classic scenario library',
   };
+
+  const scenarioOptions = [
+    { value: 'british-isles', label: 'British Isles' },
+    { value: 'earth-large', label: 'Earth (large)' },
+    { value: 'earth-small', label: 'Earth (small)' },
+    { value: 'europe', label: 'Europe' },
+    { value: 'france', label: 'France' },
+    { value: 'hagworld', label: 'Hagworld' },
+    { value: 'iberian-peninsula', label: 'Iberian Peninsula' },
+    { value: 'italy', label: 'Italy' },
+    { value: 'japan', label: 'Japan' },
+    { value: 'north_america', label: 'North America' },
+  ];
 
   const landmassOptions = [
     { value: 'sparse', label: 'Sparse (30%)' },
@@ -200,27 +215,47 @@ export const TerrainSettingsDialog: React.FC = () => {
                   </p>
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="landmass"
-                    className="block text-sm font-medium text-foreground mb-2"
-                  >
-                    Landmass
-                  </label>
-                  <Combobox
-                    options={landmassOptions}
-                    value={terrainSettings.landmass}
-                    onValueChange={value => updateTerrainSettings({ landmass: value })}
-                    placeholder="Select landmass type"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {
-                      landmassDescriptions[
-                        terrainSettings.landmass as keyof typeof landmassDescriptions
-                      ]
-                    }
-                  </p>
-                </div>
+                {terrainSettings.generator === 'scenario' ? (
+                  <div>
+                    <label
+                      htmlFor="scenario"
+                      className="block text-sm font-medium text-foreground mb-2"
+                    >
+                      Scenario map
+                    </label>
+                    <Combobox
+                      options={scenarioOptions}
+                      value={terrainSettings.scenarioId ?? 'earth-small'}
+                      onValueChange={value => updateTerrainSettings({ scenarioId: value })}
+                      placeholder="Select scenario"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      The scenario controls map dimensions, terrain, starts, topology, and extras.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <label
+                      htmlFor="landmass"
+                      className="block text-sm font-medium text-foreground mb-2"
+                    >
+                      Landmass
+                    </label>
+                    <Combobox
+                      options={landmassOptions}
+                      value={terrainSettings.landmass}
+                      onValueChange={value => updateTerrainSettings({ landmass: value })}
+                      placeholder="Select landmass type"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {
+                        landmassDescriptions[
+                          terrainSettings.landmass as keyof typeof landmassDescriptions
+                        ]
+                      }
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Sliders in responsive grid layout */}

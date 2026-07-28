@@ -20,6 +20,8 @@ export class HeightBasedMapService extends BaseMapGenerationService {
     generatorType?: 'FRACTAL' | 'RANDOM' | 'FRACTURE'
   ): Promise<MapData> {
     const actualGeneratorType = generatorType || 'FRACTAL';
+    this.heightGenerator.setGenerator(actualGeneratorType);
+    this.terrainGenerator.setGenerator(actualGeneratorType);
     logger.info('Starting height-based map generation', {
       generator: generatorType,
       width: this.width,
@@ -126,42 +128,43 @@ export class HeightBasedMapService extends BaseMapGenerationService {
     // Implement fracture map algorithm based on freeciv make_fracture_map()
     const numLandmass = 20 + 15 * Math.floor(Math.sqrt(this.width * this.height) / 10);
     const fracturePoints: Array<{ x: number; y: number }> = [];
-    const landmasses: Array<{
-      minX: number;
-      minY: number;
-      maxX: number;
-      maxY: number;
-      elevation: number;
-    }> = [];
+    const insetX = Math.min(3, Math.floor((this.width - 1) / 2));
+    const insetY = Math.min(3, Math.floor((this.height - 1) / 2));
 
-    // Setup landmasses along the borders (these will be sunken to create ocean)
-    let nn = 0;
-    for (let x = 3; x < this.width; x += 5) {
-      fracturePoints.push({ x, y: 3 });
-      fracturePoints.push({ x, y: this.width - 3 });
-      nn += 2;
+    // Setup landmasses along the borders (these will be sunken to create ocean).
+    for (let x = insetX; x < this.width; x += 5) {
+      fracturePoints.push({ x, y: insetY });
     }
-    for (let y = 3; y < this.height; y += 5) {
-      fracturePoints.push({ x: 3, y });
-      fracturePoints.push({ x: this.width - 3, y });
-      nn += 2;
+    for (let x = insetX; x < this.width; x += 5) {
+      fracturePoints.push({ x, y: this.height - 1 - insetY });
+    }
+    for (let y = insetY; y < this.height; y += 5) {
+      fracturePoints.push({ x: insetX, y });
+    }
+    for (let y = insetY; y < this.height; y += 5) {
+      fracturePoints.push({ x: this.width - 1 - insetX, y });
     }
 
-    const borderPoints = nn;
+    const borderPoints = fracturePoints.length;
 
     // Add random interior fracture points
     for (let i = 0; i < numLandmass; i++) {
       fracturePoints.push({
-        x: Math.floor(this.random() * (this.width - 6)) + 3,
-        y: Math.floor(this.random() * (this.height - 6)) + 3,
+        x:
+          this.width > 6
+            ? Math.floor(this.random() * (this.width - 6)) + 3
+            : Math.floor(this.random() * this.width),
+        y:
+          this.height > 6
+            ? Math.floor(this.random() * (this.height - 6)) + 3
+            : Math.floor(this.random() * this.height),
       });
     }
 
     // Generate fracture-based height map
-    await this.generateFractureHeightMap(tiles, fracturePoints, landmasses, borderPoints);
+    const heightMap = this.generateFractureHeightMap(fracturePoints, borderPoints);
 
     // Apply height-based terrain generation
-    const heightMap = this.extractHeightMapFromTiles(tiles);
     await this.applyHeightBasedTerrain(tiles, heightMap);
 
     // Complete map generation with post-processing
@@ -229,7 +232,7 @@ export class HeightBasedMapService extends BaseMapGenerationService {
     const generationTime = Date.now() - startTime;
 
     // Validate generated map for quality assurance
-    const validationResult = this.validateMap(tiles, players);
+    const validationResult = this.validateMap(tiles, players, mapData.startingPositions);
 
     logger.info(`${generatorType} map generation completed`, {
       width: this.width,
@@ -250,131 +253,57 @@ export class HeightBasedMapService extends BaseMapGenerationService {
    * Generate fracture-based height map using fracture points
    * @reference freeciv/server/generator/mapgen.c make_fracture_map()
    */
-  private async generateFractureHeightMap(
-    tiles: MapTile[][],
+  private generateFractureHeightMap(
     fracturePoints: Array<{ x: number; y: number }>,
-    landmasses: Array<{
-      minX: number;
-      minY: number;
-      maxX: number;
-      maxY: number;
-      elevation: number;
-    }>,
     borderPoints: number
-  ): Promise<void> {
-    // Set all to land first
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        tiles[x][y].terrain = 'grassland';
-        tiles[x][y].elevation = 100; // Default land elevation
+  ): number[] {
+    const shoreLevel = 700;
+    const elevations = fracturePoints.map((_, index) =>
+      index < borderPoints ? 0 : Math.floor(this.random() * 1000)
+    );
+    const rawHeightMap = new Array(this.width * this.height).fill(0);
+
+    // Freeciv expands circles from every fracture point until every cell is
+    // claimed. Assigning each cell to its nearest point is the equivalent
+    // Voronoi result; array order provides the same deterministic tie-break.
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        let owner = 0;
+        let ownerDistance = Number.POSITIVE_INFINITY;
+        for (let index = 0; index < fracturePoints.length; index++) {
+          const point = fracturePoints[index];
+          const distance = this.topology.squaredDistance(x, y, point.x, point.y);
+          if (distance < ownerDistance) {
+            owner = index;
+            ownerDistance = distance;
+          }
+        }
+        rawHeightMap[y * this.width + x] = elevations[owner];
       }
     }
 
-    // Create landmasses based on fracture points
-    for (let i = 0; i < fracturePoints.length; i++) {
-      const point = fracturePoints[i];
-      let size = 0;
-      let isOcean = false;
-
-      if (i < borderPoints) {
-        // Border points become ocean (size = 0 elevation)
-        size = 0;
-        isOcean = true;
-      } else {
-        // Interior points become land of varying sizes
-        size = Math.floor(this.random() * 30) + 10;
-        isOcean = false;
+    // Match make_fracture_map(): retain high-mass variation, collapse all
+    // lower masses to one ocean shelf, and adjust back to the hmap range.
+    for (let index = 0; index < rawHeightMap.length; index++) {
+      if (rawHeightMap[index] > shoreLevel) {
+        rawHeightMap[index] += Math.floor(this.random() * 4) - 2;
       }
-
-      // Calculate landmass bounds
-      const landmass = {
-        minX: Math.max(0, point.x - size),
-        minY: Math.max(0, point.y - size),
-        maxX: Math.min(this.width - 1, point.x + size),
-        maxY: Math.min(this.height - 1, point.y + size),
-        elevation: isOcean ? 0 : Math.floor(this.random() * 100) + 50,
-      };
-
-      landmasses.push(landmass);
-
-      // Apply fracture circle around each point
-      this.applyFractureCircle(tiles, point, size, landmass.elevation);
+      if (rawHeightMap[index] <= shoreLevel) {
+        rawHeightMap[index] = shoreLevel + 1;
+      }
     }
+
+    const minHeight = Math.min(...rawHeightMap);
+    const maxHeight = Math.max(...rawHeightMap);
+    const range = Math.max(1, maxHeight - minHeight);
+    const heightMap = rawHeightMap.map(height => Math.floor(((height - minHeight) / range) * 255));
 
     logger.debug('Generated fracture height map', {
       totalPoints: fracturePoints.length,
       borderPoints,
       interiorPoints: fracturePoints.length - borderPoints,
-      landmasses: landmasses.length,
       reference: 'freeciv/server/generator/mapgen.c make_fracture_map()',
     });
-  }
-
-  /**
-   * Apply fracture circle around a point
-   */
-  private applyFractureCircle(
-    tiles: MapTile[][],
-    point: { x: number; y: number },
-    size: number,
-    elevation: number
-  ): void {
-    for (let dx = -size; dx <= size; dx++) {
-      for (let dy = -size; dy <= size; dy++) {
-        this.applyFracturePointIfValid(tiles, point, dx, dy, size, elevation);
-      }
-    }
-  }
-
-  /**
-   * Apply fracture effect to a single point if coordinates are valid
-   */
-  private applyFracturePointIfValid(
-    tiles: MapTile[][],
-    point: { x: number; y: number },
-    dx: number,
-    dy: number,
-    size: number,
-    elevation: number
-  ): void {
-    const x = point.x + dx;
-    const y = point.y + dy;
-
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
-      return;
-    }
-
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance <= size) {
-      tiles[x][y].elevation = elevation;
-      // Only set elevation - let makeLand() handle terrain and continent assignment
-      // based on elevation values, just like FRACTAL and RANDOM generators
-    }
-  }
-
-  /**
-   * Extract height map array from tile elevations
-   * Used for fracture generation where heights are set directly on tiles
-   */
-  private extractHeightMapFromTiles(tiles: MapTile[][]): number[] {
-    const heightMap: number[] = [];
-
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
-        const index = y * this.width + x;
-        heightMap[index] = tiles[x][y].elevation;
-      }
-    }
-
     return heightMap;
-  }
-
-  /**
-   * Override to return current tiles for land percentage calculation
-   */
-  protected getMapTiles(): MapTile[][] | null {
-    // This will be set by the concrete implementation
-    // For now return null as base behavior
-    return null;
   }
 }

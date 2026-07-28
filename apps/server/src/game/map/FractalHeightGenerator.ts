@@ -3,6 +3,7 @@
  * Advanced height map generation using diamond-square algorithm and fracture maps
  * @reference freeciv/server/generator/height_map.c and fracture_map.c
  */
+import { MapTopology, type MapTopologyOptions, WrapFlag } from './MapTopology';
 
 // Height map constants from freeciv reference
 const HMAP_MAX_LEVEL = 1000; // Maximum height value (freeciv: hmap_max_level)
@@ -15,7 +16,7 @@ const DEFAULT_FLATPOLES = 100; // Pole flattening parameter 0-100 (freeciv: wld.
  * @reference freeciv/server/generator/temperature_map.h and mapgen_topology.h
  */
 const MAX_COLATITUDE = 1000; // Normalized maximum colatitude (freeciv: MAP_MAX_LATITUDE)
-const ICE_BASE_LEVEL = 200; // Base level for polar ice formation (freeciv: ice_base_colatitude)
+const ICE_BASE_LEVEL = 20; // Classic separate-poles default at temperature 50
 
 // Constants for height generation
 
@@ -33,6 +34,7 @@ export class FractalHeightGenerator {
   private mountainLevel: number;
   private readonly steepness: number; // Used for mountain level calculation
   private flatpoles: number;
+  private topology: MapTopology;
 
   constructor(
     width: number,
@@ -40,7 +42,8 @@ export class FractalHeightGenerator {
     random: () => number,
     steepness: number = DEFAULT_STEEPNESS,
     flatpoles: number = DEFAULT_FLATPOLES,
-    generator: string = 'random'
+    generator: string = 'random',
+    topologyOptions: MapTopologyOptions = {}
   ) {
     this.width = width;
     this.height = height;
@@ -49,6 +52,7 @@ export class FractalHeightGenerator {
     this.generator = generator;
     this.steepness = steepness;
     this.flatpoles = flatpoles;
+    this.topology = new MapTopology(width, height, topologyOptions);
 
     // Calculate shore level based on land percentage (like freeciv make_land())
     const landPercent = 30; // MAP_DEFAULT_LANDMASS from freeciv reference
@@ -59,6 +63,10 @@ export class FractalHeightGenerator {
     this.mountainLevel = Math.floor(
       ((HMAP_MAX_LEVEL - this.shoreLevel) * (100 - this.steepness)) / 100 + this.shoreLevel
     );
+  }
+
+  public setGenerator(generator: string): void {
+    this.generator = generator.toLowerCase();
   }
 
   /**
@@ -107,12 +115,10 @@ export class FractalHeightGenerator {
     return factor;
   }
 
-  /**
-   * Calculate colatitude (distance from equator) for climate effects
-   */
+  /** Calculate Freeciv colatitude: zero at a pole, maximum at the equator. */
   private getColatitude(_x: number, y: number): number {
     const latitudeFactor = Math.abs(y - this.height / 2) / (this.height / 2);
-    return latitudeFactor * MAX_COLATITUDE;
+    return (1 - latitudeFactor) * MAX_COLATITUDE;
   }
 
   /**
@@ -120,12 +126,13 @@ export class FractalHeightGenerator {
    */
   private isNearMapEdge(x: number, y: number): boolean {
     const edgeDistance = 3;
-    return (
-      x < edgeDistance ||
-      y < edgeDistance ||
-      x >= this.width - edgeDistance ||
-      y >= this.height - edgeDistance
-    );
+    const nearXEdge =
+      !this.topology.hasWrapFlag(WrapFlag.X) &&
+      (x < edgeDistance || x >= this.width - edgeDistance);
+    const nearYEdge =
+      !this.topology.hasWrapFlag(WrapFlag.Y) &&
+      (y < edgeDistance || y >= this.height - edgeDistance);
+    return nearXEdge || nearYEdge;
   }
 
   /**
@@ -218,11 +225,9 @@ export class FractalHeightGenerator {
     // Apply advanced smoothing passes to create natural terrain variation
     this.applyAdvancedSmoothing(smooth);
 
-    // CRITICAL FIX: Set shore level BEFORE normalization using original height distribution
-    this.setShoreLevel();
-
-    // Adjust to proper height range (like freeciv adjust_int_map)
+    // Adjust to proper height range, then classify the final distribution.
     this.normalizeHeightMap();
+    this.setShoreLevel();
   }
 
   /**
@@ -271,12 +276,9 @@ export class FractalHeightGenerator {
       }
     }
 
-    // CRITICAL FIX: Add missing shore level setup (like generateRandomHeightMap)
-    // Set shore level BEFORE normalization using original height distribution
-    this.setShoreLevel();
-
-    // Adjust to proper height range (like freeciv adjust_int_map)
+    // Adjust to proper height range, then classify the final distribution.
     this.normalizeHeightMap();
+    this.setShoreLevel();
   }
 
   /**
@@ -296,7 +298,8 @@ export class FractalHeightGenerator {
         break;
       case 'island':
       case 'fair':
-        // For now, use fractal as fallback - these would need island-specific logic
+        // Island services own land placement; their shared height utility uses
+        // the same pseudofractal substrate as Freeciv's height-map generator.
         this.generatePseudoFractalHeightMap();
         break;
       default:
@@ -316,6 +319,9 @@ export class FractalHeightGenerator {
 
     // Normalize to final height range
     this.normalizeHeightMap();
+    // Pole normalization and final fuzz change the distribution, so derive the
+    // classification threshold from the final values used by terrain creation.
+    this.setShoreLevel();
   }
 
   /**
