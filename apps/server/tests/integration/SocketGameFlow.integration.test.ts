@@ -293,6 +293,317 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       researchedTechs: number;
     };
 
+    type GoldenTurn = Pick<
+      TurnSnapshot,
+      | 'turn'
+      | 'population'
+      | 'foodStock'
+      | 'shieldStock'
+      | 'food'
+      | 'shields'
+      | 'trade'
+      | 'science'
+      | 'goldOutput'
+      | 'luxury'
+    > & {
+      cumulativeGold: number;
+      cumulativeScience: number;
+    };
+
+    // Independent golden ledger for the pinned classic-ruleset fixture above:
+    // - each roaded river grassland tile yields 2 food and 2 gross trade;
+    // - the city center supplies the classic minimum of 1 shield;
+    // - size 1 works the center plus one tile, while size 2 works one more tile;
+    // - classic corruption removes 1 trade from this capital;
+    // - 30/30/40 tax rates distribute 3 trade as 1/1/1 and 5 as 2/1/2
+    //   (gold/luxury/science), using Freeciv's largest-remainder allocation;
+    // - 20 stored food grows the city from size 1 to size 2.
+    //
+    // Keep this table explicit: it is an external expectation for the full turn
+    // pipeline, not a restatement of the production implementation.
+    const goldenTurns: GoldenTurn[] = [
+      {
+        turn: 2,
+        population: 1,
+        foodStock: 2,
+        shieldStock: 1,
+        food: 2,
+        shields: 1,
+        trade: 3,
+        science: 1,
+        goldOutput: 1,
+        luxury: 1,
+        cumulativeGold: 1,
+        cumulativeScience: 1,
+      },
+      {
+        turn: 3,
+        population: 1,
+        foodStock: 4,
+        shieldStock: 2,
+        food: 2,
+        shields: 1,
+        trade: 3,
+        science: 1,
+        goldOutput: 1,
+        luxury: 1,
+        cumulativeGold: 2,
+        cumulativeScience: 2,
+      },
+      {
+        turn: 4,
+        population: 1,
+        foodStock: 6,
+        shieldStock: 3,
+        food: 2,
+        shields: 1,
+        trade: 3,
+        science: 1,
+        goldOutput: 1,
+        luxury: 1,
+        cumulativeGold: 3,
+        cumulativeScience: 3,
+      },
+      {
+        turn: 5,
+        population: 1,
+        foodStock: 8,
+        shieldStock: 4,
+        food: 2,
+        shields: 1,
+        trade: 3,
+        science: 1,
+        goldOutput: 1,
+        luxury: 1,
+        cumulativeGold: 4,
+        cumulativeScience: 4,
+      },
+      {
+        turn: 6,
+        population: 1,
+        foodStock: 10,
+        shieldStock: 5,
+        food: 2,
+        shields: 1,
+        trade: 3,
+        science: 1,
+        goldOutput: 1,
+        luxury: 1,
+        cumulativeGold: 5,
+        cumulativeScience: 5,
+      },
+      {
+        turn: 7,
+        population: 1,
+        foodStock: 12,
+        shieldStock: 6,
+        food: 2,
+        shields: 1,
+        trade: 3,
+        science: 1,
+        goldOutput: 1,
+        luxury: 1,
+        cumulativeGold: 6,
+        cumulativeScience: 6,
+      },
+      {
+        turn: 8,
+        population: 1,
+        foodStock: 14,
+        shieldStock: 7,
+        food: 2,
+        shields: 1,
+        trade: 3,
+        science: 1,
+        goldOutput: 1,
+        luxury: 1,
+        cumulativeGold: 7,
+        cumulativeScience: 7,
+      },
+      {
+        turn: 9,
+        population: 1,
+        foodStock: 16,
+        shieldStock: 8,
+        food: 2,
+        shields: 1,
+        trade: 3,
+        science: 1,
+        goldOutput: 1,
+        luxury: 1,
+        cumulativeGold: 8,
+        cumulativeScience: 8,
+      },
+      {
+        turn: 10,
+        population: 1,
+        foodStock: 18,
+        shieldStock: 9,
+        food: 2,
+        shields: 1,
+        trade: 3,
+        science: 1,
+        goldOutput: 1,
+        luxury: 1,
+        cumulativeGold: 9,
+        cumulativeScience: 9,
+      },
+      {
+        turn: 11,
+        population: 2,
+        foodStock: 0,
+        shieldStock: 10,
+        food: 2,
+        shields: 1,
+        trade: 5,
+        science: 2,
+        goldOutput: 2,
+        luxury: 1,
+        cumulativeGold: 11,
+        cumulativeScience: 11,
+      },
+      {
+        turn: 12,
+        population: 2,
+        foodStock: 2,
+        shieldStock: 11,
+        food: 2,
+        shields: 1,
+        trade: 5,
+        science: 2,
+        goldOutput: 2,
+        luxury: 1,
+        cumulativeGold: 13,
+        cumulativeScience: 13,
+      },
+      {
+        turn: 13,
+        population: 2,
+        foodStock: 4,
+        shieldStock: 12,
+        food: 2,
+        shields: 1,
+        trade: 5,
+        science: 2,
+        goldOutput: 2,
+        luxury: 1,
+        cumulativeGold: 15,
+        cumulativeScience: 15,
+      },
+      {
+        turn: 14,
+        population: 2,
+        foodStock: 6,
+        shieldStock: 13,
+        food: 2,
+        shields: 1,
+        trade: 5,
+        science: 2,
+        goldOutput: 2,
+        luxury: 1,
+        cumulativeGold: 17,
+        cumulativeScience: 17,
+      },
+      {
+        turn: 15,
+        population: 2,
+        foodStock: 8,
+        shieldStock: 14,
+        food: 2,
+        shields: 1,
+        trade: 5,
+        science: 2,
+        goldOutput: 2,
+        luxury: 1,
+        cumulativeGold: 19,
+        cumulativeScience: 19,
+      },
+      {
+        turn: 16,
+        population: 2,
+        foodStock: 10,
+        shieldStock: 15,
+        food: 2,
+        shields: 1,
+        trade: 5,
+        science: 2,
+        goldOutput: 2,
+        luxury: 1,
+        cumulativeGold: 21,
+        cumulativeScience: 21,
+      },
+      {
+        turn: 17,
+        population: 2,
+        foodStock: 12,
+        shieldStock: 16,
+        food: 2,
+        shields: 1,
+        trade: 5,
+        science: 2,
+        goldOutput: 2,
+        luxury: 1,
+        cumulativeGold: 23,
+        cumulativeScience: 23,
+      },
+      {
+        turn: 18,
+        population: 2,
+        foodStock: 14,
+        shieldStock: 17,
+        food: 2,
+        shields: 1,
+        trade: 5,
+        science: 2,
+        goldOutput: 2,
+        luxury: 1,
+        cumulativeGold: 25,
+        cumulativeScience: 25,
+      },
+      {
+        turn: 19,
+        population: 2,
+        foodStock: 16,
+        shieldStock: 18,
+        food: 2,
+        shields: 1,
+        trade: 5,
+        science: 2,
+        goldOutput: 2,
+        luxury: 1,
+        cumulativeGold: 27,
+        cumulativeScience: 27,
+      },
+      {
+        turn: 20,
+        population: 2,
+        foodStock: 18,
+        shieldStock: 19,
+        food: 2,
+        shields: 1,
+        trade: 5,
+        science: 2,
+        goldOutput: 2,
+        luxury: 1,
+        cumulativeGold: 29,
+        cumulativeScience: 29,
+      },
+      {
+        turn: 21,
+        population: 2,
+        foodStock: 20,
+        shieldStock: 20,
+        food: 2,
+        shields: 1,
+        trade: 5,
+        science: 2,
+        goldOutput: 2,
+        luxury: 1,
+        cumulativeGold: 31,
+        cumulativeScience: 31,
+      },
+    ];
+
     const takeTurnSnapshot = async (): Promise<TurnSnapshot> => {
       const game = gameManager.getGameInstance(gameId)!;
       const city = game.cityManager.getCity(cityId)!;
@@ -369,6 +680,18 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       expect((await guestTurnReply).data).toMatchObject({ success: true, turnAdvanced: true });
     };
 
+    const initialSnapshot = await takeTurnSnapshot();
+    expect(initialSnapshot).toMatchObject({
+      turn: 1,
+      population: 1,
+      foodStock: 0,
+      shieldStock: 0,
+      treasury: 0,
+      bulbs: 0,
+      bulbsLastTurn: 0,
+      researchedTechs: 1,
+    });
+
     const turnSnapshots: TurnSnapshot[] = [];
     for (let completedTurns = 0; completedTurns < 20; completedTurns += 1) {
       await ensureResearchTarget();
@@ -376,6 +699,13 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       await advanceTurn();
       const after = await takeTurnSnapshot();
       assertTurnAccumulation(before, after);
+      const { cumulativeGold, cumulativeScience, ...expectedSnapshot } =
+        goldenTurns[completedTurns];
+      expect(after).toMatchObject(expectedSnapshot);
+      expect(after.treasury).toBe(initialSnapshot.treasury + cumulativeGold);
+      expect(
+        turnSnapshots.reduce((total, snapshot) => total + snapshot.science, 0) + after.science
+      ).toBe(cumulativeScience);
       turnSnapshots.push(after);
     }
 
