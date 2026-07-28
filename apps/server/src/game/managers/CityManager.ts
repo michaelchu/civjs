@@ -1435,7 +1435,8 @@ export class CityManager {
     city.productionPerTurn = outputs.shields;
     city.tradePerTurn = outputs.trade;
     city.sciencePerTurn = outputs.science;
-    city.goldPerTurn = outputs.gold;
+    const wealthConversion = city.currentProduction === 'capitalization' ? outputs.shields : 0;
+    city.goldPerTurn = outputs.gold + wealthConversion;
     city.luxuryPerTurn = outputs.luxury;
     city.pollution = outputs.pollution;
     city.unitGoldUpkeep = unitUpkeep.gold;

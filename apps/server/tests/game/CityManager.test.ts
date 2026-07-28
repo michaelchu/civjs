@@ -332,6 +332,18 @@ describe('CityManager', () => {
       expect(outputs.luxury).toBeGreaterThanOrEqual(0);
     });
 
+    it("converts a Wealth city's shields into gold output", () => {
+      cityManager.calculateCityOutputs(city.id);
+      const normalGold = city.goldPerTurn;
+      const shields = city.productionPerTurn;
+
+      city.currentProduction = 'capitalization';
+      city.productionType = 'building';
+      cityManager.calculateCityOutputs(city.id);
+
+      expect(city.goldPerTurn).toBe(normalGold + shields);
+    });
+
     it('should calculate happiness', () => {
       const happiness = cityManager.calculateHappiness(city.id);
 

@@ -91,6 +91,7 @@ export interface CityManagerCallbacks {
 
 /** @reference reference/freeciv/data/classic/buildings.ruleset */
 const BUILDING_TYPES = rulesetBuildingsService.getBuildingTypes();
+const WEALTH_PRODUCTION_ID = 'capitalization';
 
 /**
  * Turn processing step timing information
@@ -423,6 +424,16 @@ export class CityTurnProcessingService extends BaseGameService {
       }
     }
     if (!city.currentProduction) {
+      return;
+    }
+
+    // Wealth is an indefinite conversion mode, not a project. Its shield
+    // output is converted to gold during city output calculation, so it must
+    // never accumulate shields or complete at the ruleset's 999 sentinel cost.
+    if (city.currentProduction === WEALTH_PRODUCTION_ID) {
+      city.productionStock = 0;
+      city.shieldStock = 0;
+      city.turnsToComplete = 0;
       return;
     }
 

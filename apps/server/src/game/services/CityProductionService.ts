@@ -56,6 +56,15 @@ export class CityProductionService extends BaseGameService {
       };
     }
 
+    if (city.currentProduction === 'capitalization') {
+      return {
+        canBuy: false,
+        goldCost: 0,
+        shieldsRemaining: 0,
+        reason: 'Wealth is an ongoing conversion and cannot be rushed',
+      };
+    }
+
     let totalCost: number;
 
     if (city.productionType === 'unit') {

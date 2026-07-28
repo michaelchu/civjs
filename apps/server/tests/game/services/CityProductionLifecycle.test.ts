@@ -135,6 +135,25 @@ describe('city production lifecycle', () => {
     expect(cityState.shieldStock).toBe(4);
   });
 
+  it('converts Wealth production without accumulating or completing shields', async () => {
+    const cityState = city({
+      currentProduction: 'capitalization',
+      productionType: 'building',
+      productionStock: 80,
+      shieldStock: 80,
+      productionPerTurn: 5,
+      turnsToComplete: 16,
+    });
+
+    await turnService(cityState).processCityTurn(cityState.id, 7);
+
+    expect(cityState.currentProduction).toBe('capitalization');
+    expect(cityState.productionType).toBe('building');
+    expect(cityState.productionStock).toBe(0);
+    expect(cityState.shieldStock).toBe(0);
+    expect(cityState.turnsToComplete).toBe(0);
+  });
+
   it('advances to and removes the next authoritative worklist item', async () => {
     const cityState = city({
       currentProduction: 'warriors',
@@ -209,10 +228,16 @@ describe('city production lifecycle', () => {
       currentProduction: 'warriors',
       productionType: 'unit',
     });
+    const wealthCity = city({
+      id: 'wealth-city',
+      currentProduction: 'capitalization',
+      productionType: 'building',
+    });
     const service = new CityProductionService(
       new Map([
         [buildingCity.id, buildingCity],
         [unitCity.id, unitCity],
+        [wealthCity.id, wealthCity],
       ]),
       BUILDING_TYPES,
       async () => 1_000,
@@ -228,6 +253,12 @@ describe('city production lifecycle', () => {
       canBuy: true,
       goldCost: 50,
       shieldsRemaining: 10,
+    });
+    expect(service.calculateBuyCost(wealthCity.id)).toEqual({
+      canBuy: false,
+      goldCost: 0,
+      shieldsRemaining: 0,
+      reason: 'Wealth is an ongoing conversion and cannot be rushed',
     });
 
     buildingCity.productionStock = 10;
