@@ -210,6 +210,45 @@ describe('CityInfoOverlay production', () => {
     expect(screen.queryByText('Turns remaining:')).not.toBeInTheDocument();
   });
 
+  it('recognizes legacy Wealth packets without the conversion marker', () => {
+    render(
+      <CityInfoOverlay
+        city={{
+          ...idleCity,
+          production: {
+            target: 'capitalization',
+            type: 'building',
+            progress: 0,
+            cost: 999,
+            turnsToComplete: 200,
+          },
+        }}
+        isOpen
+        onClose={vi.fn()}
+        availableProductions={[
+          {
+            id: 'capitalization',
+            name: 'Wealth',
+            type: 'building',
+            cost: 999,
+            available: true,
+          },
+        ]}
+      />
+    );
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Production/ }), {
+      button: 0,
+      ctrlKey: false,
+    });
+
+    expect(screen.getByText('Wealth')).toBeInTheDocument();
+    expect(
+      screen.getByText("Converts this city's shield production to gold each turn.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText('0 / 999')).not.toBeInTheDocument();
+  });
+
   it('shows an actionable production loading failure', () => {
     const retry = vi.fn();
     render(

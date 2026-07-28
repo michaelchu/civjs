@@ -256,14 +256,17 @@ export class CityDataService {
 
           return {
             target: city.currentProduction,
-            type: (city.productionType as 'unit' | 'building' | 'wonder') || 'unit',
+            type:
+              city.currentProduction === 'capitalization'
+                ? 'building'
+                : (city.productionType as 'unit' | 'building' | 'wonder') || 'unit',
             progress,
             cost,
             turnsToComplete: this.calculateTurnsToComplete(city, rulesetName, dependencies),
-            conversion:
-              city.currentProduction === 'capitalization' &&
-              dependencies.buildings.getBuildingTypes(rulesetName)[city.currentProduction]
-                ?.genus === 'Convert',
+            // Wealth is a production mode, not a normal building project. Keep
+            // this keyed to the stable ruleset id so the client can render it
+            // correctly even when a legacy ruleset adapter omits genus metadata.
+            conversion: city.currentProduction === 'capitalization',
             percentComplete,
             buyCost,
           };

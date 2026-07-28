@@ -293,6 +293,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
   const presentUnits = cityData.presentUnits?.map(id => units[id]).filter(Boolean) || [];
   const supportedUnits = cityData.supportedUnits?.map(id => units[id]).filter(Boolean) || [];
+  const isWealthProduction = city.production?.target === 'capitalization';
   const stateInfo = getCityStateInfo();
   const StateIcon = stateInfo.icon;
 
@@ -376,26 +377,35 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                     Production
                   </h3>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm">{city.production.target}</span>
-                      <Badge variant="secondary" className="capitalize text-xs">
-                        {city.production.type}
-                      </Badge>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-purple-600 h-2 rounded-full transition-all duration-300"
-                        style={{
-                          width: `${city.production.percentComplete || 0}%`,
-                        }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-xs text-purple-600">
-                      <span>
-                        {city.production.progress}/{city.production.cost}
-                      </span>
-                      <span>{city.production.turnsToComplete} turns</span>
-                    </div>
+                    {isWealthProduction ? (
+                      <div className="rounded-md border border-purple-200 bg-white/70 p-3 text-sm text-purple-800">
+                        <div className="font-medium text-purple-950">Wealth</div>
+                        Converts this city&apos;s shield production to gold each turn.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">{city.production.target}</span>
+                          <Badge variant="secondary" className="capitalize text-xs">
+                            {city.production.type}
+                          </Badge>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${city.production.percentComplete || 0}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-purple-600">
+                          <span>
+                            {city.production.progress}/{city.production.cost}
+                          </span>
+                          <span>{city.production.turnsToComplete} turns</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -698,9 +708,9 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                 </div>
               ) : city.production ? (
                 <div className="space-y-3">
-                  {city.production.conversion ? (
+                  {city.production.conversion || city.production.target === 'capitalization' ? (
                     <div className="rounded-md border border-purple-200 bg-white/70 p-4">
-                      <div className="font-medium text-purple-950">{city.production.target}</div>
+                      <div className="font-medium text-purple-950">Wealth</div>
                       <p className="mt-1 text-sm text-purple-800">
                         Converts this city&apos;s shield production to gold each turn.
                       </p>
