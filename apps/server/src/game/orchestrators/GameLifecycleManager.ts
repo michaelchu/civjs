@@ -40,6 +40,7 @@ import type {
   TerrainSettings,
 } from '@game/managers/GameManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { ScenarioUnavailableError } from '@game/map/ScenarioProvider';
 
 export interface GameLifecycleService {
   createGame(gameConfig: GameConfig): Promise<string>;
@@ -131,6 +132,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
    */
   async createGame(gameConfig: GameConfig): Promise<string> {
     this.logger.info('Creating new game', { name: gameConfig.name, hostId: gameConfig.hostId });
+    this.assertScenarioGamesEnabled(gameConfig.terrainSettings);
     const rulesetName = gameConfig.ruleset || 'classic';
 
     // Prepare game data for database
@@ -198,6 +200,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
     // Validate start conditions (preserves exact error messages)
     this.validateStartConditions(game, hostId);
+    this.assertScenarioGamesEnabled((game.gameState as any)?.terrainSettings);
 
     this.logger.info('Starting game', { gameId, playerCount: game.players.length });
 
@@ -627,6 +630,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     // Generate the map with starting positions based on terrain settings
     const generator = terrainSettings?.generator || 'random';
     const startpos = terrainSettings?.startpos ?? MapStartpos.DEFAULT;
+    this.assertScenarioGamesEnabled(terrainSettings);
 
     this.logger.debug('Map generation starting', { terrainSettings, generator, startpos });
 
@@ -670,6 +674,12 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       default:
         this.logger.warn(`Unknown generator type: ${generator}, defaulting to RANDOM`);
         return 'RANDOM';
+    }
+  }
+
+  private assertScenarioGamesEnabled(terrainSettings?: TerrainSettings): void {
+    if (terrainSettings?.generator?.toLowerCase() === 'scenario') {
+      throw new ScenarioUnavailableError();
     }
   }
 

@@ -608,6 +608,7 @@ export const GameCreateReplySchema = z.object({
   assignedColor: z.object({ r: z.number(), g: z.number(), b: z.number() }).optional(),
   maxPlayers: z.number().int().optional(),
   message: z.string().optional(),
+  errorCode: z.string().optional(),
 });
 
 export const GameJoinSchema = z.object({

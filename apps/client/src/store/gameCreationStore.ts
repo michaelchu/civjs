@@ -59,7 +59,6 @@ const initialTerrainSettings: TerrainSettings = {
   rivers: 50,
   resources: 'normal',
   startpos: 0,
-  scenarioId: 'earth-small',
 };
 
 export const useGameCreationStore = create<GameCreationStore>()(

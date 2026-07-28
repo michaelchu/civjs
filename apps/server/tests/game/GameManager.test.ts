@@ -11,6 +11,10 @@ jest.mock('@utils/playerColors', () => ({
 import { GameManager, GameConfig } from '@game/managers/GameManager';
 import { Server as SocketServer } from 'socket.io';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
+import {
+  SCENARIOS_NOT_ENABLED_MESSAGE,
+  ScenarioUnavailableError,
+} from '@game/map/ScenarioProvider';
 
 describe('GameManager', () => {
   let gameManager: GameManager;
@@ -118,6 +122,30 @@ describe('GameManager', () => {
           ruleset: 'classic',
         })
       );
+    });
+
+    it('rejects scenario creation without writing a game record', async () => {
+      const scenarioConfig: GameConfig = {
+        ...testConfig,
+        terrainSettings: {
+          generator: 'scenario',
+          scenarioId: 'earth-small',
+          landmass: 'normal',
+          huts: 15,
+          temperature: 50,
+          wetness: 50,
+          rivers: 50,
+          resources: 'normal',
+        },
+      };
+
+      await expect(gameManager.createGame(scenarioConfig)).rejects.toEqual(
+        expect.objectContaining<Partial<ScenarioUnavailableError>>({
+          code: 'SCENARIOS_NOT_ENABLED',
+          message: SCENARIOS_NOT_ENABLED_MESSAGE,
+        })
+      );
+      expect(mockDb.insert).not.toHaveBeenCalled();
     });
   });
 

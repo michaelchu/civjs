@@ -9,6 +9,7 @@ import {
   PacketType,
   PROTOCOL_VERSION,
 } from '@app-types/packet';
+import { ScenarioUnavailableError } from '@game/map/ScenarioProvider';
 import { GameManager } from '@game/managers/GameManager';
 import { CityDataService } from '@game/services/CityDataService';
 import { resolveCityPresentations } from '@game/services/CityPresentationService';
@@ -250,6 +251,7 @@ export class GameManagementHandler extends BaseSocketHandler {
       handler.send(socket, PacketType.GAME_CREATE_REPLY, {
         success: false,
         message: error instanceof Error ? error.message : 'Failed to create game',
+        ...(error instanceof ScenarioUnavailableError ? { errorCode: error.code } : {}),
       });
     }
   }

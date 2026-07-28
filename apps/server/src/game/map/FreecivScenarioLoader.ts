@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PlayerState } from '@game/managers/GameManager';
 import { MapTopology, TopologyFlag, WrapFlag } from './MapTopology';
-import { MapData, MapTile, ResourceType, TerrainType } from './MapTypes';
+import { MapTile, ResourceType, TerrainType } from './MapTypes';
 import { createBaseTile, isLandTile, setTerrainGameProperties } from './TerrainUtils';
+import type { LoadedScenario, ScenarioProvider } from './ScenarioProvider';
 
 export const CLASSIC_SCENARIOS = [
   'british-isles',
@@ -19,19 +20,6 @@ export const CLASSIC_SCENARIOS = [
 ] as const;
 
 export type ClassicScenarioId = (typeof CLASSIC_SCENARIOS)[number];
-
-export interface ScenarioMetadata {
-  id: string;
-  name: string;
-  authors?: string;
-  description?: string;
-  ruleset: string;
-}
-
-export interface LoadedScenario {
-  mapData: MapData;
-  metadata: ScenarioMetadata;
-}
 
 interface ScenarioStart {
   x: number;
@@ -87,7 +75,7 @@ const RESOURCE_NAMES: Record<string, ResourceType> = {
  *
  * @reference reference/freeciv/server/savegame/savegame3.c
  */
-export class FreecivScenarioLoader {
+export class FreecivScenarioLoader implements ScenarioProvider {
   constructor(
     private readonly scenarioDirectory = path.resolve(__dirname, '../../shared/data/scenarios')
   ) {}

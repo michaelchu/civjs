@@ -3,6 +3,7 @@ import { PacketHandler } from '@network/PacketHandler';
 import { GameCreateSchema, GameJoinSchema, PacketType, PROTOCOL_VERSION } from '@app-types/packet';
 import { GameManager } from '@game/managers/GameManager';
 import { Server, Socket } from 'socket.io';
+import { ScenarioUnavailableError } from '@game/map/ScenarioProvider';
 
 // Mock dependencies
 jest.mock('../../../src/utils/logger', () => ({
@@ -244,6 +245,33 @@ describe('GameManagementHandler', () => {
           success: false,
           message: 'Game creation failed',
         }
+      );
+    });
+
+    it('returns a stable error code when scenario creation is disabled', async () => {
+      mockGameManager.createGame.mockRejectedValue(new ScenarioUnavailableError());
+
+      const handlerFn = (mockPacketHandler.register as jest.Mock).mock.calls.find(
+        call => call[0] === PacketType.GAME_CREATE
+      )[1];
+
+      await handlerFn(mockSocket, {
+        name: 'Deferred Scenario',
+        terrainSettings: {
+          generator: 'scenario',
+          scenarioId: 'earth-small',
+        },
+      });
+
+      expect(mockGameManager.joinGame).not.toHaveBeenCalled();
+      expect(mockPacketHandler.send).toHaveBeenCalledWith(
+        mockSocket,
+        PacketType.GAME_CREATE_REPLY,
+        expect.objectContaining({
+          success: false,
+          errorCode: 'SCENARIOS_NOT_ENABLED',
+          message: 'Scenario games are not enabled in this release',
+        })
       );
     });
   });

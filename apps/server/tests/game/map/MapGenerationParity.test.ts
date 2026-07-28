@@ -6,6 +6,7 @@ import { ContinentProcessor } from '@game/map/terrain/ContinentProcessor';
 import { createBaseTile } from '@game/map/TerrainUtils';
 import { TopologyFlag, WrapFlag } from '@game/map/MapTopology';
 import { StartingPositionGenerator } from '@game/map/StartingPositionGenerator';
+import { FreecivScenarioLoader } from '@game/map/FreecivScenarioLoader';
 
 const players = new Map<string, PlayerState>([
   [
@@ -87,7 +88,7 @@ describe('map generation parity contracts', () => {
     }
   );
 
-  it('routes SCENARIO through the packaged Freeciv loader', async () => {
+  it('can route SCENARIO through an explicitly installed future provider', async () => {
     const manager = new MapManager(
       20,
       15,
@@ -100,6 +101,7 @@ describe('map generation parity contracts', () => {
       {},
       'earth-small'
     );
+    manager.setScenarioProvider(new FreecivScenarioLoader());
 
     await manager.generateMap(players, 'SCENARIO');
 

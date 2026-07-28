@@ -7,7 +7,7 @@ import { FairIslandsService } from '@game/map/FairIslandsService';
 import { MapAccessService } from '@game/map/MapAccessService';
 import { ValidationResult } from '@game/map/MapValidator';
 import { MapTopology, type MapTopologyOptions } from '@game/map/MapTopology';
-import { FreecivScenarioLoader } from '@game/map/FreecivScenarioLoader';
+import { DisabledScenarioProvider, type ScenarioProvider } from '@game/map/ScenarioProvider';
 
 // Generator types based on freeciv map_generator enum
 export type MapGeneratorType = 'FRACTAL' | 'ISLAND' | 'RANDOM' | 'FAIR' | 'FRACTURE' | 'SCENARIO';
@@ -42,7 +42,7 @@ export class MapManager {
   private islandMapService: IslandMapService;
   private fairIslandsService: FairIslandsService;
   private mapAccessService: MapAccessService;
-  private scenarioLoader: FreecivScenarioLoader;
+  private scenarioProvider: ScenarioProvider = new DisabledScenarioProvider();
   private scenarioId: string;
 
   constructor(
@@ -66,7 +66,6 @@ export class MapManager {
     this.defaultStartPosMode = defaultStartPosMode ?? MapStartpos.DEFAULT;
     this.random = this.createSeededRandom(this.seed);
     this.scenarioId = scenarioId;
-    this.scenarioLoader = new FreecivScenarioLoader();
 
     // Initialize specialized services
     this.heightBasedMapService = new HeightBasedMapService(
@@ -109,6 +108,11 @@ export class MapManager {
     );
 
     this.mapAccessService = new MapAccessService(width, height, topologyOptions);
+  }
+
+  /** Future capability hook; production defaults to the disabled provider. */
+  public setScenarioProvider(provider: ScenarioProvider): void {
+    this.scenarioProvider = provider;
   }
 
   /**
@@ -196,7 +200,7 @@ export class MapManager {
       case 'FRACTURE':
         return await this.generateHeightMapWithRetries(players, 'FRACTURE');
       case 'SCENARIO':
-        return this.scenarioLoader.loadScenario(this.scenarioId, players).mapData;
+        return this.scenarioProvider.loadScenario(this.scenarioId, players).mapData;
       case 'FRACTAL':
       default:
         return await this.generateHeightMapWithRetries(players, 'FRACTAL');
