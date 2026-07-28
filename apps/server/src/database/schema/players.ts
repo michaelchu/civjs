@@ -22,6 +22,11 @@ export const players = pgTable('players', {
   // Status
   isAlive: boolean('is_alive').default(true).notNull(),
   isAI: boolean('is_ai').default(false).notNull(),
+  aiLevel: varchar('ai_level', { length: 20 }).default('easy').notNull(),
+  aiTraits: jsonb('ai_traits')
+    .default({ expansionist: 50, trader: 50, aggressive: 50, builder: 50 })
+    .notNull(),
+  aiState: jsonb('ai_state').default({}).notNull(),
   isReady: boolean('is_ready').default(false).notNull(),
   hasEndedTurn: boolean('has_ended_turn').default(false).notNull(),
   hasConceded: boolean('has_conceded').default(false).notNull(),

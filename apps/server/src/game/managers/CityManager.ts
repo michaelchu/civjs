@@ -632,6 +632,11 @@ export class CityManager {
     };
   }
 
+  /** Tile-level founding query used by AI/advisor planning. */
+  public canFoundCityAt(x: number, y: number, playerId: string): boolean {
+    return this.validateCityFounding(x, y, playerId).canFound;
+  }
+
   async foundCity(
     x: number,
     y: number,

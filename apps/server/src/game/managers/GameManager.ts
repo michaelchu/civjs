@@ -35,6 +35,7 @@ import {
   type TreatyProposal,
 } from '@game/managers/DiplomacyManager';
 import { CivJSAIAdapter } from '@game/services/CivJSAIAdapter';
+import type { AILevel, AITraits } from '@game/ai/FreecivAIProfile';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { EndGameService } from '@game/services/EndGameService';
 import { GameReplayService, type GameReplay } from '@game/services/GameReplayService';
@@ -106,6 +107,9 @@ export interface PlayerState {
   userId: string | null; // Can be null for AI players
   /** AI players are processed by the server and never submit END_TURN packets. */
   isAI?: boolean;
+  aiLevel?: AILevel;
+  aiTraits?: AITraits;
+  aiState?: Record<string, unknown>;
   playerNumber: number;
   civilization: string;
   nation?: string;
@@ -243,7 +247,11 @@ export class GameManager {
       this.gameBroadcastManager.broadcastToGame(event.gameId, 'diplomacy_event', event);
     });
     this.hostilityPolicy = new DiplomacyHostilityPolicy(this.diplomacyManager);
-    this.aiAdapter = new CivJSAIAdapter(this.diplomacyManager, this.hostilityPolicy);
+    this.aiAdapter = new CivJSAIAdapter(
+      this.diplomacyManager,
+      this.hostilityPolicy,
+      this.databaseProvider
+    );
 
     this.gameInstanceRecoveryService = new GameInstanceRecoveryService(
       this.databaseProvider,

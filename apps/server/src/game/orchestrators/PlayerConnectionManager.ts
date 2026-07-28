@@ -295,6 +295,9 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         color: safeAiTheme.primary, // Store primary color for backward compatibility
         connectionStatus: 'connected',
         isAI: true,
+        aiLevel: 'easy',
+        aiTraits: { expansionist: 50, trader: 50, aggressive: 50, builder: 50 },
+        aiState: {},
         isReady: true,
         taxRate: DEFAULT_TAX_RATES.tax,
         luxuryRate: DEFAULT_TAX_RATES.luxury,

@@ -62,8 +62,6 @@ These are scope decisions, not untracked porting gaps:
 
 - additional Freeciv rulesets and metaserver/deployment compatibility;
 - literal line-for-line parity with the C server;
-- full Freeciv default-AI parity—CivJS uses the documented, versioned
-  `CIVJS_AI_CONTRACT`;
 - generic non-classic covert outcomes that the classic ruleset does not enable,
   including plague, suitcase-nuke, and direct gold/map theft;
 - mid-game civil-war player creation, because CivJS retains a fixed lobby
@@ -71,6 +69,11 @@ These are scope decisions, not untracked porting gaps:
 
 New scope must be explicitly agreed and added here before being described as a
 porting requirement.
+
+Full Freeciv classic/default-AI behavioral parity is required scope. The
+temporary `CIVJS_AI_CONTRACT` describes only the currently landed compatibility
+slice; it is not a product boundary or an accepted replacement for the
+subsystems tracked in [`AI_PORTING_INVENTORY.md`](AI_PORTING_INVENTORY.md).
 
 ## Verification
 

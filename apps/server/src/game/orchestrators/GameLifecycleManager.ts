@@ -955,6 +955,14 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         // The null-user fallback keeps games created before isAI was persisted
         // playable after a server restart.
         isAI: dbPlayer.isAI || dbPlayer.userId === null,
+        aiLevel: dbPlayer.aiLevel ?? 'easy',
+        aiTraits: dbPlayer.aiTraits ?? {
+          expansionist: 50,
+          trader: 50,
+          aggressive: 50,
+          builder: 50,
+        },
+        aiState: dbPlayer.aiState ?? {},
         playerNumber: dbPlayer.playerNumber,
         civilization: dbPlayer.civilization,
         nation: dbPlayer.nation,

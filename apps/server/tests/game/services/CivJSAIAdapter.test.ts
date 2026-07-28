@@ -128,6 +128,7 @@ function createScenario() {
       ],
     }),
     respondToTreaty: jest.fn().mockResolvedValue(undefined),
+    proposeTreaty: jest.fn().mockResolvedValue(undefined),
   };
   const unitTypes: Record<string, Record<string, unknown>> = {
     settlers: { canFoundCity: true, canBuildImprovements: false, attack: 0, movement: 1 },
@@ -192,18 +193,18 @@ function createScenario() {
 
 describe('CivJSAIAdapter compatibility contract', () => {
   it('publishes explicit supported behavior and non-parity boundaries', () => {
-    expect(CIVJS_AI_CONTRACT.version).toBe(1);
+    expect(CIVJS_AI_CONTRACT.version).toBe(2);
     expect(CIVJS_AI_CONTRACT.supported).toEqual(
       expect.arrayContaining([
         expect.stringContaining('city-founding'),
         expect.stringContaining('worker'),
-        expect.stringContaining('combat'),
+        expect.stringContaining('military'),
         expect.stringContaining('restart'),
         expect.stringContaining('completion'),
       ])
     );
-    expect(CIVJS_AI_CONTRACT.deviations).toEqual(
-      expect.arrayContaining([expect.stringContaining('no Freeciv default-AI')])
+    expect(CIVJS_AI_CONTRACT.remaining).toEqual(
+      expect.arrayContaining([expect.stringContaining('lifecycle')])
     );
   });
 
@@ -333,6 +334,48 @@ describe('CivJSAIAdapter compatibility contract', () => {
       undefined,
       'ai'
     );
+  });
+
+  it('persists relationship memory and proactively proposes valued treaties', async () => {
+    const scenario = createScenario();
+    scenario.game.players.set('ai', {
+      id: 'ai',
+      isAI: true,
+      aiLevel: 'normal',
+      aiTraits: { expansionist: 50, trader: 50, aggressive: 50, builder: 50 },
+      aiState: {},
+    } as any);
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({
+      nations: [
+        {
+          id: 'human',
+          known: true,
+          canMeet: true,
+          relation: {
+            state: 'peace',
+            attitude: 100,
+            reputation: 0,
+          },
+        },
+      ],
+    });
+
+    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.diplomacyManager.proposeTreaty).toHaveBeenCalledWith(
+      'game',
+      'ai',
+      'human',
+      [{ type: 'alliance' }],
+      expect.stringContaining('alliance')
+    );
+    expect((scenario.game.players.get('ai') as any).aiState.diplomacy.human).toMatchObject({
+      love: 100,
+      countdown: 5,
+    });
   });
 
   it('queues one expansion unit and otherwise falls back to deterministic defense production', async () => {
