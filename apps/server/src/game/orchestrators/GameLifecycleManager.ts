@@ -340,7 +340,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     unitManager.setPlayerTechsProvider(
       playerId => new Set(researchManager.getResearchedTechs(playerId))
     );
-    const pathfindingManager = this.createPathfindingManager(game, mapManager);
+    const pathfindingManager = this.createPathfindingManager(game, mapManager, unitManager);
 
     // Create TurnManager last since it depends on all other managers
     const turnManager = await this.createTurnManagerAndInitialize(
@@ -1117,8 +1117,12 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return new EconomicManager(gameId, this.databaseProvider, effectsManager);
   }
 
-  private createPathfindingManager(game: any, mapManager: MapManager): PathfindingManager {
-    return new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
+  private createPathfindingManager(
+    game: any,
+    mapManager: MapManager,
+    unitManager: UnitManager
+  ): PathfindingManager {
+    return new PathfindingManager(game.mapWidth, game.mapHeight, mapManager, unitManager);
   }
 
   private buildGameInstance(

@@ -112,6 +112,30 @@ describe('PathfindingManager', () => {
       expect(result.path[0].direction).toBe(6);
     });
 
+    it('uses authoritative occupancy and movement policy while selecting a route', async () => {
+      const movementPolicy = {
+        getPathStepCost: jest.fn(
+          (_unit: Unit, _fromX: number, _fromY: number, toX: number, toY: number) =>
+            toX === 6 && toY === 5 ? -1 : 1
+        ),
+        getUnitMaxMovement: jest.fn(() => 3),
+      };
+      mockMapManager.getTile.mockReturnValue({ terrain: 'grassland' });
+      const manager = new PathfindingManager(
+        mockMapWidth,
+        mockMapHeight,
+        mockMapManager,
+        movementPolicy
+      );
+
+      const result = await manager.findPath(mockUnit, 7, 5);
+
+      expect(result.valid).toBe(true);
+      expect(result.path).not.toContainEqual(expect.objectContaining({ x: 6, y: 5 }));
+      expect(movementPolicy.getPathStepCost).toHaveBeenCalled();
+      expect(movementPolicy.getUnitMaxMovement).toHaveBeenCalledWith('warriors');
+    });
+
     it('should calculate correct estimated turns', async () => {
       // Mock terrain
       mockMapManager.getTile.mockReturnValue({ terrain: 'grassland' });

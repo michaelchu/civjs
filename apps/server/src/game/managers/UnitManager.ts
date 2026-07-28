@@ -620,6 +620,16 @@ export class UnitManager {
    * @reference reference/freeciv/common/unit.c:1443-1510
    */
   private canMoveWithZoneOfControl(unit: Unit, newX: number, newY: number): boolean {
+    return this.canMoveWithZoneOfControlFrom(unit, unit.x, unit.y, newX, newY);
+  }
+
+  private canMoveWithZoneOfControlFrom(
+    unit: Unit,
+    fromX: number,
+    fromY: number,
+    newX: number,
+    newY: number
+  ): boolean {
     const type = UNIT_TYPES[unit.unitTypeId];
     const subjectToZoc =
       type?.rulesetUnitClassFlags.includes('ZOC') && !type.flags?.includes('IgZOC');
@@ -629,7 +639,7 @@ export class UnitManager {
       return true;
     }
     if (
-      this.gameManagerCallback?.getCityAt?.(unit.x, unit.y) ||
+      this.gameManagerCallback?.getCityAt?.(fromX, fromY) ||
       this.gameManagerCallback?.getCityAt?.(newX, newY)
     ) {
       return true;
@@ -637,14 +647,14 @@ export class UnitManager {
 
     const noZocTerrains = new Set(['ocean', 'deep_ocean', 'coast', 'lake']);
     if (
-      noZocTerrains.has(this.getTerrainAt(unit.x, unit.y)) ||
+      noZocTerrains.has(this.getTerrainAt(fromX, fromY)) ||
       noZocTerrains.has(this.getTerrainAt(newX, newY))
     ) {
       return true;
     }
 
     return (
-      !this.hasAdjacentEnemyZoc(unit.playerId, unit.x, unit.y) ||
+      !this.hasAdjacentEnemyZoc(unit.playerId, fromX, fromY) ||
       !this.hasAdjacentEnemyZoc(unit.playerId, newX, newY)
     );
   }
@@ -1399,7 +1409,10 @@ export class UnitManager {
    * Calculate distance between two points
    */
   private calculateDistance(x1: number, y1: number, x2: number, y2: number): number {
-    return Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
+    return (
+      this.mapManager?.getTopology?.().realDistance(x1, y1, x2, y2) ??
+      Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1))
+    );
   }
 
   /**
@@ -1469,11 +1482,36 @@ export class UnitManager {
     return unitType ? unitType.movement : 1;
   }
 
+  getPathStepCost(
+    unit: Unit,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    isDestination: boolean
+  ): number {
+    const occupyingUnits = this.getUnitsAt(toX, toY);
+    if (occupyingUnits.some(candidate => candidate.playerId !== unit.playerId)) return -1;
+    const city = this.gameManagerCallback?.getCityAt?.(toX, toY);
+    if (city && city.playerId !== unit.playerId) return -1;
+    if (!this.canMoveWithZoneOfControlFrom(unit, fromX, fromY, toX, toY)) return -1;
+
+    const movementCost = this.calculateTerrainMovementCost(unit, fromX, fromY, toX, toY);
+    if (movementCost >= 0) return movementCost;
+
+    // Embarkation is a valid final path step. Continuing beyond it would
+    // require modelling the transport's own route rather than the cargo's.
+    return isDestination && this.findAvailableTransportAt(unit, toX, toY) ? SINGLE_MOVE : -1;
+  }
+
   /**
    * Check if position is valid
    */
   private isValidPosition(x: number, y: number): boolean {
-    return x >= 0 && x < this.mapWidth && y >= 0 && y < this.mapHeight;
+    return (
+      this.mapManager?.getTopology?.().isValidCoordinate(x, y) ??
+      (x >= 0 && x < this.mapWidth && y >= 0 && y < this.mapHeight)
+    );
   }
 
   /**

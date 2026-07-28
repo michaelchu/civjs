@@ -27,6 +27,18 @@ interface AStarNode {
   moveCost: number; // Cost to move to this tile
 }
 
+export interface PathfindingMovementPolicy {
+  getPathStepCost(
+    unit: Unit,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    isDestination: boolean
+  ): number;
+  getUnitMaxMovement(unitTypeId: string): number;
+}
+
 /**
  * A* Pathfinding Manager for unit movement
  * Based on freeciv's pathfinding system and classic A* algorithm
@@ -41,12 +53,19 @@ export class PathfindingManager {
   private mapHeight: number;
   private mapManager: any; // MapManager instance for terrain access
   private topology: MapTopology;
+  private movementPolicy?: PathfindingMovementPolicy;
 
-  constructor(mapWidth: number, mapHeight: number, mapManager?: any) {
+  constructor(
+    mapWidth: number,
+    mapHeight: number,
+    mapManager?: any,
+    movementPolicy?: PathfindingMovementPolicy
+  ) {
     this.mapWidth = mapWidth;
     this.mapHeight = mapHeight;
     this.mapManager = mapManager;
     this.topology = mapManager?.getTopology?.() ?? new MapTopology(mapWidth, mapHeight);
+    this.movementPolicy = movementPolicy;
   }
 
   /**
@@ -258,7 +277,14 @@ export class PathfindingManager {
       return;
     }
 
-    const moveCost = this.getMovementCost(current.x, current.y, neighbor.x, neighbor.y, unit);
+    const moveCost = this.getMovementCost(
+      current.x,
+      current.y,
+      neighbor.x,
+      neighbor.y,
+      unit,
+      neighbor.x === goal.x && neighbor.y === goal.y
+    );
     if (moveCost < 0) {
       return; // Unwalkable terrain
     }
@@ -373,7 +399,8 @@ export class PathfindingManager {
     fromY: number,
     toX: number,
     toY: number,
-    unit: Unit
+    unit: Unit,
+    isDestination: boolean
   ): number {
     // MapManager is required for terrain validation
     if (!this.mapManager || !this.mapManager.getTile) {
@@ -390,6 +417,9 @@ export class PathfindingManager {
     }
 
     try {
+      if (this.movementPolicy) {
+        return this.movementPolicy.getPathStepCost(unit, fromX, fromY, toX, toY, isDestination);
+      }
       const tile = this.mapManager.getTile(toX, toY);
       if (!tile || !tile.terrain) {
         logger.warn('PathfindingManager: No terrain data for tile', {
@@ -473,10 +503,8 @@ export class PathfindingManager {
    * Calculate number of turns needed for path based on unit movement
    */
   private calculateTurns(totalCost: number, unit: Unit): number {
-    // Get unit's movement points per turn
-    // For now, assume 3 movement points per turn for most units
-    // This should be enhanced to use actual unit type data
-    const movementPerTurn = unit.movementLeft || 3;
+    const movementPerTurn =
+      this.movementPolicy?.getUnitMaxMovement(unit.unitTypeId) || unit.movementLeft || 3;
 
     return Math.ceil(totalCost / movementPerTurn);
   }

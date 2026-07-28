@@ -331,7 +331,12 @@ export class GameInstanceRecoveryService extends BaseGameService {
         })
     );
 
-    const pathfindingManager = new PathfindingManager(game.mapWidth, game.mapHeight, mapManager);
+    const pathfindingManager = new PathfindingManager(
+      game.mapWidth,
+      game.mapHeight,
+      mapManager,
+      unitManager
+    );
     const visibilityManager = new VisibilityManager(
       gameId,
       unitManager,
