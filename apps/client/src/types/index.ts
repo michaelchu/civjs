@@ -54,6 +54,44 @@ export interface ProductionOption {
   available: boolean;
 }
 
+export type CityBatchAction =
+  | {
+      action: 'production';
+      productionId: string;
+      productionType: 'unit' | 'building' | 'wonder';
+    }
+  | { action: 'optimize' }
+  | {
+      action: 'governor';
+      config: {
+        enabled: boolean;
+        priority: string;
+        autoManageSpecialists: boolean;
+        autoManageTiles: boolean;
+        autoManageProduction: boolean;
+        preventStarvation: boolean;
+        maintainHappiness: boolean;
+      };
+    }
+  | {
+      action: 'worklist';
+      mode: 'append' | 'replace';
+      items: Array<{
+        productionId: string;
+        type: 'unit' | 'building' | 'wonder';
+      }>;
+    }
+  | { action: 'buy' }
+  | { action: 'sellBuilding'; buildingId: string };
+
+export interface CityBatchResult {
+  success: boolean;
+  succeeded: Array<{ cityId: string; detail?: Record<string, unknown> }>;
+  failed: Array<{ cityId: string; reason: string }>;
+  treasury?: { after: number };
+  error?: string;
+}
+
 export interface City {
   id: string;
   name: string;
@@ -74,6 +112,7 @@ export interface City {
   trade: number;
   // Culture system (freeciv-based)
   history: number; // Accumulated culture history
+  continentId?: number;
   // Production breakdown (total production before usage)
   prod: {
     food: number;
@@ -138,6 +177,7 @@ export interface City {
     cost: number;
     turnsToComplete: number;
     percentComplete?: number; // Server-calculated percentage (0-100)
+    buyCost?: number;
   };
   // Worklist
   worklist: Array<{

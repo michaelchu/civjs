@@ -233,6 +233,7 @@ describe('CityManagementHandler production socket flow', () => {
         cityManager,
         researchManager: { hasPlayerResearched: jest.fn().mockReturnValue(true) },
       }),
+      broadcastCityData: jest.fn(),
     } as unknown as GameManager;
     const handler = new CityManagementHandler(
       new Map([[socketId, { userId, gameId }]]),
@@ -313,5 +314,65 @@ describe('CityManagementHandler production socket flow', () => {
     await socketEvents.get('city:disband')!({ cityId: 'city-1' }, disbandCallback);
     expect(cityManager.disbandCity).toHaveBeenCalledWith('city-1', playerId);
     expect(broadcastCityData).toHaveBeenCalledWith(gameId);
+  });
+
+  it('applies one validated production target to owned cities and reports invalid selections', async () => {
+    const secondCity = {
+      id: 'city-2',
+      name: 'Harbor',
+      playerId,
+      size: 2,
+      buildings: [],
+      productionStock: 0,
+      currentProduction: 'warriors',
+      productionType: 'unit',
+      productionPerTurn: 2,
+    };
+    const cities = new Map([
+      ['city-1', cityManager.getCity('city-1')],
+      ['city-2', secondCity],
+    ]);
+    cityManager.getCitiesMap.mockReturnValue(cities);
+    cityManager.getCity.mockImplementation((cityId: string) => cities.get(cityId));
+    const broadcastCityData = jest.fn();
+    const gameManager = {
+      getGameInstance: jest.fn().mockReturnValue({
+        id: gameId,
+        state: 'active',
+        players: new Map([[playerId, { id: playerId, userId }]]),
+        cityManager,
+        researchManager: { hasPlayerResearched: jest.fn().mockReturnValue(true) },
+      }),
+      broadcastCityData,
+    } as unknown as GameManager;
+    const handler = new CityManagementHandler(
+      new Map([[socketId, { userId, gameId }]]),
+      gameManager
+    );
+    handler.register({ register: jest.fn() } as unknown as PacketHandler, {} as Server, mockSocket);
+    const callback = jest.fn();
+
+    await socketEvents.get('city:batchManage')!(
+      {
+        cityIds: ['missing-city', 'city-1', 'city-2'],
+        action: 'production',
+        productionId: 'granary',
+        productionType: 'building',
+      },
+      callback
+    );
+
+    expect(cityManager.setCityProduction).toHaveBeenCalledTimes(2);
+    expect(callback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        succeeded: [
+          { cityId: 'city-1', detail: expect.any(Object) },
+          { cityId: 'city-2', detail: expect.any(Object) },
+        ],
+        failed: [{ cityId: 'missing-city', reason: 'City not found or not owned' }],
+      })
+    );
+    expect(broadcastCityData).toHaveBeenCalledTimes(1);
   });
 });

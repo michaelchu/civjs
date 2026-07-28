@@ -176,6 +176,11 @@ export class CityManagementHandler extends BaseSocketHandler {
         return;
       }
       const success = await context.game.cityManager.optimizeCityManually(data.cityId);
+      if (success) {
+        context.game.cityManager.refreshCityOutputs(data.cityId);
+        await context.game.cityManager.saveCity(data.cityId);
+        this.gameManager.broadcastCityData(context.game.id);
+      }
       callback({ success });
     });
 
@@ -394,6 +399,204 @@ export class CityManagementHandler extends BaseSocketHandler {
       const result = await context.game.cityManager.disbandCity(data.cityId, context.player.id);
       if (result.success) this.gameManager.broadcastCityData(context.game.id);
       callback({ success: result.success, error: result.reason });
+    });
+
+    socket.on('city:batchManage', async (data, callback) => {
+      const requestedCityIds: unknown[] = Array.isArray(data?.cityIds) ? data.cityIds : [];
+      const cityIds = [
+        ...new Set(requestedCityIds.filter((id: unknown): id is string => typeof id === 'string')),
+      ].slice(0, 100);
+      if (cityIds.length === 0) {
+        callback({ success: false, succeeded: [], failed: [], error: 'Select at least one city' });
+        return;
+      }
+
+      const context = cityIds
+        .map(cityId => this.resolveLiveCityContext(socket, cityId))
+        .find(candidate => candidate !== undefined);
+      if (!context) {
+        callback({
+          success: false,
+          succeeded: [],
+          failed: cityIds.map(cityId => ({ cityId, reason: 'City not found or not owned' })),
+        });
+        return;
+      }
+
+      const ownedCityIds = cityIds.filter(
+        cityId => context.game.cityManager.getCity(cityId)?.playerId === context.player.id
+      );
+      const succeeded: Array<{ cityId: string; detail?: Record<string, unknown> }> = [];
+      const failed = cityIds
+        .filter(cityId => !ownedCityIds.includes(cityId))
+        .map(cityId => ({ cityId, reason: 'City not found or not owned' }));
+      const fail = (cityId: string, reason: string) => failed.push({ cityId, reason });
+      let treasuryChanged = false;
+
+      try {
+        switch (data?.action) {
+          case 'production': {
+            if (
+              typeof data.productionId !== 'string' ||
+              !['unit', 'building', 'wonder'].includes(data.productionType)
+            ) {
+              throw new Error('Invalid production target');
+            }
+            const productionHandler = new CityProductionHandler(
+              context.game.cityManager.getCitiesMap(),
+              context.game.players,
+              context.game.researchManager,
+              context.game.cityManager.setCityProduction.bind(context.game.cityManager),
+              context.game.turnManager
+                ? new RequirementsManager(context.game.turnManager.getCultureManager())
+                : undefined
+            );
+            for (const cityId of ownedCityIds) {
+              try {
+                const detail = await productionHandler.applyProductionChange({
+                  cityId,
+                  playerId: context.player.id,
+                  productionId: data.productionId,
+                  productionType: data.productionType,
+                });
+                succeeded.push({ cityId, detail });
+              } catch (error) {
+                fail(cityId, error instanceof Error ? error.message : 'Production unavailable');
+              }
+            }
+            break;
+          }
+          case 'optimize': {
+            for (const cityId of ownedCityIds) {
+              const success = await context.game.cityManager.optimizeCityManually(cityId);
+              if (!success) {
+                fail(cityId, 'Citizen optimization failed');
+                continue;
+              }
+              context.game.cityManager.refreshCityOutputs(cityId);
+              await context.game.cityManager.saveCity(cityId);
+              succeeded.push({ cityId });
+            }
+            break;
+          }
+          case 'governor': {
+            const priorities = new Set(Object.values(GovernorPriority));
+            if (!priorities.has(data.config?.priority))
+              throw new Error('Invalid governor priority');
+            for (const cityId of ownedCityIds) {
+              const success = await context.game.cityManager.configureCityGovernor(
+                cityId,
+                context.player.id,
+                {
+                  enabled: Boolean(data.config.enabled),
+                  priority: data.config.priority,
+                  autoManageSpecialists: Boolean(data.config.autoManageSpecialists),
+                  autoManageTiles: Boolean(data.config.autoManageTiles),
+                  autoManageProduction: Boolean(data.config.autoManageProduction),
+                  preventStarvation: Boolean(data.config.preventStarvation),
+                  maintainHappiness: Boolean(data.config.maintainHappiness),
+                }
+              );
+              if (success) succeeded.push({ cityId });
+              else fail(cityId, 'Governor configuration failed');
+            }
+            break;
+          }
+          case 'worklist': {
+            const items: ProductionItem[] = Array.isArray(data.items)
+              ? data.items.map((item: any) => ({
+                  kind: item.type,
+                  value: item.productionId,
+                }))
+              : [];
+            if (
+              items.length === 0 ||
+              !items.every(
+                item =>
+                  ['unit', 'building', 'wonder'].includes(item.kind) &&
+                  typeof item.value === 'string' &&
+                  item.value.length > 0
+              )
+            ) {
+              throw new Error('Invalid worklist');
+            }
+            for (const cityId of ownedCityIds) {
+              const city = context.game.cityManager.getCity(cityId);
+              const originalWorklist = city ? [...city.worklist] : [];
+              if (data.mode === 'replace' && city) city.worklist = [];
+              const success = await context.game.cityManager.addToWorklist(
+                cityId,
+                items,
+                context.player.id
+              );
+              if (success) succeeded.push({ cityId });
+              else {
+                if (city) city.worklist = originalWorklist;
+                fail(cityId, 'One or more worklist items are unavailable');
+              }
+            }
+            break;
+          }
+          case 'buy': {
+            const ordered = [...ownedCityIds].sort(
+              (left, right) =>
+                context.game.cityManager.calculateBuyCost(left).goldCost -
+                context.game.cityManager.calculateBuyCost(right).goldCost
+            );
+            for (const cityId of ordered) {
+              const result = await context.game.cityManager.buyProduction(
+                cityId,
+                context.player.id
+              );
+              if (result.success) {
+                treasuryChanged = true;
+                succeeded.push({ cityId, detail: { goldSpent: result.goldSpent } });
+              } else {
+                fail(cityId, result.reason ?? 'Production could not be purchased');
+              }
+            }
+            break;
+          }
+          case 'sellBuilding': {
+            if (typeof data.buildingId !== 'string') throw new Error('Invalid building');
+            for (const cityId of ownedCityIds) {
+              const result = await context.game.cityManager.sellBuildingForPlayer(
+                cityId,
+                data.buildingId,
+                context.player.id
+              );
+              if (result.success) {
+                treasuryChanged = true;
+                succeeded.push({ cityId, detail: { goldReceived: result.goldReceived } });
+              } else {
+                fail(cityId, result.reason ?? 'Building could not be sold');
+              }
+            }
+            break;
+          }
+          default:
+            throw new Error('Unsupported batch action');
+        }
+      } catch (error) {
+        callback({
+          success: false,
+          succeeded,
+          failed,
+          error: error instanceof Error ? error.message : 'Batch operation failed',
+        });
+        return;
+      }
+
+      if (succeeded.length > 0) this.gameManager.broadcastCityData(context.game.id);
+      const remainingGold = treasuryChanged
+        ? await context.game.turnManager?.getEconomicManager()?.getPlayerGold(context.player.id)
+        : undefined;
+      callback({
+        success: failed.length === 0,
+        succeeded,
+        failed,
+        treasury: remainingGold === undefined ? undefined : { after: remainingGold },
+      });
     });
 
     logger.debug(`${this.handlerName} registered handlers for socket ${socket.id}`);

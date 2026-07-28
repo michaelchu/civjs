@@ -386,6 +386,19 @@ describe('CityManager', () => {
       // City should still exist after processing
       expect(updatedCity!.id).toBe(city.id);
     });
+
+    it('activates the first queued item when the city is idle', async () => {
+      city.currentProduction = null;
+      city.productionType = null;
+
+      await expect(
+        cityManager.addToWorklist(city.id, [{ kind: 'unit', value: 'warriors' }], 'player-123')
+      ).resolves.toBe(true);
+
+      expect(city.currentProduction).toBe('warriors');
+      expect(city.productionType).toBe('unit');
+      expect(city.worklist).toEqual([]);
+    });
   });
 
   describe('service delegation', () => {

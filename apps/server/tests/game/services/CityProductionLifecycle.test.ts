@@ -155,6 +155,22 @@ describe('city production lifecycle', () => {
     expect(cityState.productionStock).toBe(1);
   });
 
+  it('recovers an idle city by promoting its first valid worklist item', async () => {
+    const cityState = city({
+      currentProduction: null,
+      productionType: null,
+      productionPerTurn: 3,
+      worklist: [{ kind: 'building', value: 'granary' }],
+    });
+
+    await turnService(cityState).processCityTurn(cityState.id, 7);
+
+    expect(cityState.currentProduction).toBe('granary');
+    expect(cityState.productionType).toBe('building');
+    expect(cityState.worklist).toEqual([]);
+    expect(cityState.productionStock).toBe(3);
+  });
+
   it('charges unit population cost without consuming the final citizen', async () => {
     const completed = city({
       population: 2,

@@ -184,6 +184,8 @@ export interface CityState {
   unitGoldUpkeep?: number;
   unitShieldUpkeep?: number;
   grossProductionPerTurn?: number;
+  grossTradePerTurn?: number;
+  continentId?: number;
   wasHappy?: boolean;
   disorderTurns?: number;
 
@@ -892,10 +894,21 @@ export class CityManager {
       const kind = item.kind === 'wonder' ? 'building' : item.kind;
       return this.canCityQueueItem(city, kind, item.value);
     });
+    if (validItems.length !== items.length) return false;
 
-    city.worklist.push(...validItems);
+    // An idle city must immediately promote the first valid item. Otherwise
+    // processProduction() has no active target and the queued item can never
+    // advance.
+    if (!city.currentProduction && validItems.length > 0) {
+      const [next, ...rest] = validItems;
+      city.currentProduction = next.value;
+      city.productionType = next.kind === 'wonder' ? 'building' : next.kind;
+      city.worklist.push(...rest);
+    } else {
+      city.worklist.push(...validItems);
+    }
     await this.saveCityToDatabase(city);
-    return validItems.length === items.length;
+    return true;
   }
 
   async removeFromWorklist(cityId: string, index: number, playerId: string): Promise<boolean> {
@@ -1369,6 +1382,8 @@ export class CityManager {
     if (tileOutputs && this.tradeRouteService) {
       tileOutputs.trade += this.tradeRouteService.getCityTradeRouteRevenue(city.id);
     }
+    city.grossTradePerTurn = tileOutputs?.trade ?? 0;
+    city.continentId = this.mapManager?.getTile(city.x, city.y)?.continentId;
     const supportedUnits = this.unitSupportProvider(city);
     const support = this.unitSupportManager.calculateCityUnitSupport(
       city.id,

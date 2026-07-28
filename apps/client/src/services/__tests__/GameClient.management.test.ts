@@ -186,4 +186,35 @@ describe('GameClient management screens', () => {
       expect.any(Function)
     );
   });
+
+  it('sends one authoritative batch city request and returns partial results', async () => {
+    socket.emit.mockImplementation(
+      (event: string, data: unknown, callback: (value: unknown) => void) => {
+        expect(event).toBe('city:batchManage');
+        expect(data).toEqual({
+          cityIds: ['city-1', 'city-2'],
+          action: 'production',
+          productionId: 'granary',
+          productionType: 'building',
+        });
+        callback({
+          success: false,
+          succeeded: [{ cityId: 'city-1' }],
+          failed: [{ cityId: 'city-2', reason: 'Production unavailable' }],
+        });
+      }
+    );
+
+    await expect(
+      gameClient.batchManageCities(['city-1', 'city-2'], {
+        action: 'production',
+        productionId: 'granary',
+        productionType: 'building',
+      })
+    ).resolves.toEqual({
+      success: false,
+      succeeded: [{ cityId: 'city-1' }],
+      failed: [{ cityId: 'city-2', reason: 'Production unavailable' }],
+    });
+  });
 });

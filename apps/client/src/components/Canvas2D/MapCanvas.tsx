@@ -71,10 +71,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     availableProductions: ProductionOption[];
     isLoading: boolean;
     cityId: string | null;
+    error: string | null;
   }>({
     availableProductions: [],
     isLoading: false,
     cityId: null,
+    error: null,
   });
 
   // Goto mode state (similar to freeciv-web's goto_active)
@@ -568,6 +570,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       availableProductions: [],
       isLoading: true,
       cityId: city.id,
+      error: null,
     });
 
     try {
@@ -576,6 +579,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         availableProductions: productions,
         isLoading: false,
         cityId: city.id,
+        error: null,
       });
     } catch (error) {
       console.error('Failed to load production data:', error);
@@ -583,6 +587,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         availableProductions: [],
         isLoading: false,
         cityId: city.id,
+        error: error instanceof Error ? error.message : 'Failed to load production choices',
       });
     }
   }, []);
@@ -596,6 +601,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       availableProductions: [],
       isLoading: false,
       cityId: null,
+      error: null,
     });
   }, []);
 
@@ -1435,12 +1441,21 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       />
 
       <CityInfoOverlay
-        city={cityInfoOverlay.city}
+        city={
+          cityInfoOverlay.city ? (cities[cityInfoOverlay.city.id] ?? cityInfoOverlay.city) : null
+        }
         isOpen={cityInfoOverlay.isOpen}
         onClose={handleCloseCityInfoOverlay}
         units={units}
         availableProductions={productionData.availableProductions}
         isLoadingProductions={productionData.isLoading}
+        productionError={productionData.error}
+        onRetryProductions={() => {
+          const city = cityInfoOverlay.city
+            ? (cities[cityInfoOverlay.city.id] ?? cityInfoOverlay.city)
+            : null;
+          if (city) void handleOpenCityInfoOverlay(city);
+        }}
         onProductionChange={handleProductionChange}
         onQueueAdd={(cityId, productionId, type) =>
           gameClient.addCityWorklistItem(cityId, productionId, type)

@@ -46,6 +46,7 @@ export interface ClientCityData {
   shields: number;
   trade: number;
   history: number;
+  continentId?: number;
 
   // Detailed production breakdown
   prod: {
@@ -120,6 +121,7 @@ export interface ClientCityData {
     cost: number;
     turnsToComplete: number;
     percentComplete?: number;
+    buyCost: number;
   };
 
   // Worklist
@@ -245,6 +247,12 @@ export class CityDataService {
             dependencies
           );
           const percentComplete = cost > 0 ? Math.min((progress / cost) * 100, 100) : 0;
+          const remaining = Math.max(0, cost - progress);
+          let buyCost =
+            city.productionType === 'unit'
+              ? 2 * remaining + Math.floor((remaining * remaining) / 20)
+              : 2 * remaining;
+          if (progress === 0) buyCost *= 2;
 
           return {
             target: city.currentProduction,
@@ -253,6 +261,7 @@ export class CityDataService {
             cost,
             turnsToComplete: this.calculateTurnsToComplete(city, rulesetName, dependencies),
             percentComplete,
+            buyCost,
           };
         })()
       : undefined;
@@ -282,6 +291,7 @@ export class CityDataService {
       shields: productionPerTurn,
       trade: tradePerTurn,
       history: city.history,
+      continentId: city.continentId,
 
       // Freeciv-web compatible detailed breakdowns
       prod,
@@ -438,9 +448,17 @@ export class CityDataService {
   /**
    * Calculate waste and corruption
    */
-  private static calculateWaste(_city: CityState): { shields: number; trade: number } {
-    // TODO: Implement proper waste/corruption calculation based on distance from capital
-    return { shields: 0, trade: 0 };
+  private static calculateWaste(city: CityState): { shields: number; trade: number } {
+    return {
+      shields: Math.max(
+        0,
+        (city.grossProductionPerTurn ?? city.productionPerTurn ?? 0) - (city.productionPerTurn ?? 0)
+      ),
+      trade: Math.max(
+        0,
+        (city.grossTradePerTurn ?? city.tradePerTurn ?? 0) - (city.tradePerTurn ?? 0)
+      ),
+    };
   }
 
   /**

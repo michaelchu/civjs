@@ -405,6 +405,23 @@ export class CityTurnProcessingService extends BaseGameService {
    * Process production accumulation and completion
    */
   private async processProduction(city: CityState, _currentTurn: number): Promise<void> {
+    // Recovery guard for older saves and concurrent queue edits: an idle city
+    // with a worklist should promote the first valid target before accumulating
+    // shields.
+    while (!city.currentProduction && city.worklist.length > 0) {
+      const next = city.worklist.shift() as ProductionItem;
+      const nextType = next.kind === 'wonder' ? 'building' : next.kind;
+      const exists =
+        (nextType === 'unit' && Boolean(UNIT_TYPES[next.value])) ||
+        (nextType === 'building' && Boolean(BUILDING_TYPES[next.value]));
+      if (
+        exists &&
+        (this.dependencies.canCityContinueProduction?.(city.id, nextType, next.value) ?? true)
+      ) {
+        city.currentProduction = next.value;
+        city.productionType = nextType;
+      }
+    }
     if (!city.currentProduction) {
       return;
     }

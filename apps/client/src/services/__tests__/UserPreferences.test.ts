@@ -20,6 +20,8 @@ describe('UserPreferences', () => {
       volume: 0.75,
       reducedMotion: true,
       disableFogOfWar: true,
+      cityReportColumns: ['name', 'status', 'size', 'growth', 'resources', 'economy', 'production'],
+      cityWorklistPresets: [],
     });
     expect(document.documentElement.classList.contains('reduce-motion')).toBe(true);
   });
@@ -31,6 +33,8 @@ describe('UserPreferences', () => {
       volume: 0.5,
       reducedMotion: false,
       disableFogOfWar: false,
+      cityReportColumns: ['name', 'status', 'size', 'growth', 'resources', 'economy', 'production'],
+      cityWorklistPresets: [],
     });
   });
 });

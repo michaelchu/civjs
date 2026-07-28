@@ -3,20 +3,37 @@ export interface UserPreferences {
   volume: number;
   reducedMotion: boolean;
   disableFogOfWar: boolean;
+  cityReportColumns?: string[];
+  cityWorklistPresets?: CityWorklistPreset[];
 }
 
-const STORAGE_KEY = 'civjs:user-preferences:v1';
+export interface CityWorklistPreset {
+  id: string;
+  name: string;
+  ruleset: string;
+  items: Array<{
+    productionId: string;
+    type: 'unit' | 'building' | 'wonder';
+  }>;
+}
+
+const STORAGE_KEY = 'civjs:user-preferences:v2';
+const LEGACY_STORAGE_KEY = 'civjs:user-preferences:v1';
 export const USER_PREFERENCES_CHANGED_EVENT = 'civjs-user-preferences-changed';
 const defaults: UserPreferences = {
   muted: false,
   volume: 0.5,
   reducedMotion: false,
   disableFogOfWar: false,
+  cityReportColumns: ['name', 'status', 'size', 'growth', 'resources', 'economy', 'production'],
+  cityWorklistPresets: [],
 };
 
 export const loadUserPreferences = (): UserPreferences => {
   try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    const stored = JSON.parse(
+      localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY) || '{}'
+    );
     return {
       muted: typeof stored.muted === 'boolean' ? stored.muted : defaults.muted,
       volume:
@@ -29,6 +46,19 @@ export const loadUserPreferences = (): UserPreferences => {
         typeof stored.disableFogOfWar === 'boolean'
           ? stored.disableFogOfWar
           : defaults.disableFogOfWar,
+      cityReportColumns: Array.isArray(stored.cityReportColumns)
+        ? stored.cityReportColumns.filter((value: unknown) => typeof value === 'string')
+        : defaults.cityReportColumns,
+      cityWorklistPresets: Array.isArray(stored.cityWorklistPresets)
+        ? stored.cityWorklistPresets.filter(
+            (preset: unknown) =>
+              Boolean(preset) &&
+              typeof preset === 'object' &&
+              typeof (preset as CityWorklistPreset).id === 'string' &&
+              typeof (preset as CityWorklistPreset).name === 'string' &&
+              Array.isArray((preset as CityWorklistPreset).items)
+          )
+        : defaults.cityWorklistPresets,
     };
   } catch {
     return defaults;

@@ -12,6 +12,8 @@ import type {
   DiplomacyState,
   GovernmentState,
   ProductionOption,
+  CityBatchAction,
+  CityBatchResult,
   TreatyClause,
   TreatyClauseType,
 } from '../types';
@@ -1768,6 +1770,29 @@ export class GameClient {
       { cityId }
     );
     if (!response.success) throw new Error(response.error || 'Failed to optimize citizens');
+  }
+
+  async batchManageCities(cityIds: string[], action: CityBatchAction): Promise<CityBatchResult> {
+    const response = await this.requestSocketEvent<CityBatchResult>('city:batchManage', {
+      cityIds,
+      ...action,
+    });
+    if (response.error && response.succeeded.length === 0) {
+      throw new Error(response.error);
+    }
+    if (response.treasury) {
+      const store = useGameStore.getState();
+      const player = store.players[store.currentPlayerId];
+      if (player) {
+        store.updateGameState({
+          players: {
+            ...store.players,
+            [player.id]: { ...player, gold: response.treasury.after },
+          },
+        });
+      }
+    }
+    return response;
   }
 
   async buyCityProduction(cityId: string): Promise<{

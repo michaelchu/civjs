@@ -37,6 +37,8 @@ import {
   ArrowUp,
   ArrowDown,
   Settings2,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import type { City, Unit, ProductionOption } from '../../types';
 
@@ -53,6 +55,8 @@ interface CityInfoOverlayProps {
   units?: Record<string, Unit>; // For displaying present/supported units
   availableProductions?: ProductionOption[]; // Real production data from server
   isLoadingProductions?: boolean; // Loading state for production data
+  productionError?: string | null;
+  onRetryProductions?: () => void;
   onProductionChange?: (
     cityId: string,
     productionId: string,
@@ -118,6 +122,8 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
   units = {},
   availableProductions = [],
   isLoadingProductions = false,
+  productionError = null,
+  onRetryProductions,
   onProductionChange,
   onQueueAdd,
   onQueueRemove,
@@ -240,7 +246,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
             <Building2 className="h-6 w-6" />
             {city.name} ({city.size})
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription asChild>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
                 <MapPin className="h-4 w-4" />
@@ -571,115 +577,126 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
           <TabsContent value="production" className="space-y-4 flex-1 overflow-y-auto min-h-0 p-1">
             {/* Current Production */}
-            {city.production && (
-              <div className="p-4 border rounded-lg bg-purple-50">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-medium text-purple-800 flex items-center gap-2">
-                    <Hammer className="h-4 w-4" />
-                    Current Production
-                  </h3>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8"
-                        disabled={isLoadingProductions}
-                      >
-                        {isLoadingProductions ? 'Loading...' : 'Change'}{' '}
-                        <ChevronDown className="h-3 w-3 ml-1" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64">
-                      <DropdownMenuLabel>Select Production</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
+            <div className="p-4 border rounded-lg bg-purple-50">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-medium text-purple-800 flex items-center gap-2">
+                  <Hammer className="h-4 w-4" />
+                  Current Production
+                </h3>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      disabled={isLoadingProductions || Boolean(productionError)}
+                    >
+                      {isLoadingProductions ? 'Loading...' : 'Change'}{' '}
+                      <ChevronDown className="h-3 w-3 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuLabel>Select Production</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
 
-                      {isLoadingProductions ? (
-                        <DropdownMenuItem disabled>
-                          <span className="text-sm text-muted-foreground">
-                            Loading production options...
-                          </span>
-                        </DropdownMenuItem>
-                      ) : (
-                        <>
-                          <DropdownMenuLabel className="text-xs text-muted-foreground">
-                            Units
-                          </DropdownMenuLabel>
-                          {availableProductions
-                            .filter(p => p.type === 'unit')
-                            .map(option => (
-                              <DropdownMenuItem
-                                key={option.id}
-                                onClick={() =>
-                                  onProductionChange?.(city.id, option.id, option.type)
-                                }
-                                className="flex items-center justify-between"
-                                disabled={!option.available}
-                              >
-                                <div>
-                                  <div className="font-medium">{option.name}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {option.description}
-                                  </div>
+                    {isLoadingProductions ? (
+                      <DropdownMenuItem disabled>
+                        <span className="text-sm text-muted-foreground">
+                          Loading production options...
+                        </span>
+                      </DropdownMenuItem>
+                    ) : (
+                      <>
+                        <DropdownMenuLabel className="text-xs text-muted-foreground">
+                          Units
+                        </DropdownMenuLabel>
+                        {availableProductions
+                          .filter(p => p.type === 'unit')
+                          .map(option => (
+                            <DropdownMenuItem
+                              key={option.id}
+                              onClick={() => onProductionChange?.(city.id, option.id, option.type)}
+                              className="flex items-center justify-between"
+                              disabled={!option.available}
+                            >
+                              <div>
+                                <div className="font-medium">{option.name}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {option.description}
                                 </div>
-                                <span className="text-xs">{option.cost} shields</span>
-                              </DropdownMenuItem>
-                            ))}
+                              </div>
+                              <span className="text-xs">{option.cost} shields</span>
+                            </DropdownMenuItem>
+                          ))}
 
-                          <DropdownMenuSeparator />
-                          <DropdownMenuLabel className="text-xs text-muted-foreground">
-                            Buildings
-                          </DropdownMenuLabel>
-                          {availableProductions
-                            .filter(p => p.type === 'building')
-                            .map(option => (
-                              <DropdownMenuItem
-                                key={option.id}
-                                onClick={() =>
-                                  onProductionChange?.(city.id, option.id, option.type)
-                                }
-                                className="flex items-center justify-between"
-                                disabled={!option.available}
-                              >
-                                <div>
-                                  <div className="font-medium">{option.name}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {option.description}
-                                  </div>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-xs text-muted-foreground">
+                          Buildings
+                        </DropdownMenuLabel>
+                        {availableProductions
+                          .filter(p => p.type === 'building')
+                          .map(option => (
+                            <DropdownMenuItem
+                              key={option.id}
+                              onClick={() => onProductionChange?.(city.id, option.id, option.type)}
+                              className="flex items-center justify-between"
+                              disabled={!option.available}
+                            >
+                              <div>
+                                <div className="font-medium">{option.name}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {option.description}
                                 </div>
-                                <span className="text-xs">{option.cost} shields</span>
-                              </DropdownMenuItem>
-                            ))}
+                              </div>
+                              <span className="text-xs">{option.cost} shields</span>
+                            </DropdownMenuItem>
+                          ))}
 
-                          <DropdownMenuSeparator />
-                          <DropdownMenuLabel className="text-xs text-muted-foreground">
-                            Wonders
-                          </DropdownMenuLabel>
-                          {availableProductions
-                            .filter(p => p.type === 'wonder')
-                            .map(option => (
-                              <DropdownMenuItem
-                                key={option.id}
-                                onClick={() =>
-                                  onProductionChange?.(city.id, option.id, option.type)
-                                }
-                                className="flex items-center justify-between"
-                                disabled={!option.available}
-                              >
-                                <div>
-                                  <div className="font-medium">{option.name}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {option.description}
-                                  </div>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-xs text-muted-foreground">
+                          Wonders
+                        </DropdownMenuLabel>
+                        {availableProductions
+                          .filter(p => p.type === 'wonder')
+                          .map(option => (
+                            <DropdownMenuItem
+                              key={option.id}
+                              onClick={() => onProductionChange?.(city.id, option.id, option.type)}
+                              className="flex items-center justify-between"
+                              disabled={!option.available}
+                            >
+                              <div>
+                                <div className="font-medium">{option.name}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {option.description}
                                 </div>
-                                <span className="text-xs">{option.cost} shields</span>
-                              </DropdownMenuItem>
-                            ))}
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                              </div>
+                              <span className="text-xs">{option.cost} shields</span>
+                            </DropdownMenuItem>
+                          ))}
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              {productionError ? (
+                <div className="flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                  <span className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    {productionError}
+                  </span>
+                  {onRetryProductions && (
+                    <Button variant="outline" size="sm" onClick={onRetryProductions}>
+                      <RefreshCw className="mr-1 h-3 w-3" />
+                      Retry
+                    </Button>
+                  )}
                 </div>
+              ) : !isLoadingProductions && availableProductions.length === 0 ? (
+                <div className="rounded-md border border-dashed border-purple-300 p-4 text-sm text-purple-900">
+                  No production choices were returned for this city.
+                </div>
+              ) : city.production ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{city.production.target}</span>
@@ -714,8 +731,15 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="rounded-md border border-purple-200 bg-white/70 p-4">
+                  <div className="font-medium text-purple-950">This city is idle</div>
+                  <p className="mt-1 text-sm text-purple-800">
+                    Choose a unit or building with the Change menu to start production.
+                  </p>
+                </div>
+              )}
+            </div>
 
             {/* Production queues are hidden until the server exposes authoritative queue actions. */}
             {onQueueAdd && onQueueRemove && onQueueReorder && (
