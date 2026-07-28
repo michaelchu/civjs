@@ -38,16 +38,18 @@ This document provides a component inventory for gap review. It does not perform
 ### Rulesets, data, and content authority
 
 - **Ruleset loading and validation:** Parse, validate, and expose ruleset sections at runtime; preserve requirements, effects, flags, defaults, and cross-references.
-- **Game constants and options:** Difficulty, pacing, map settings, victory conditions, diplomacy rules, costs, starting state, calendar, and server options.
+- **Game constants and options — Implemented for classic:** Difficulty, pacing, map settings, victory conditions, diplomacy rules, costs, starting state, calendar, and server options.
 - **Content catalogues:** Nations, governments, technologies, units, buildings, wonders, terrain, resources, extras, actions, and styles.
 - **Presentation assets:** Tilesets, city/unit graphics, nation flags, soundsets, music, help text, translations, and fallback asset behavior.
 - **Scenarios and alternate rulesets:** Scenario maps, metadata, packaged rulesets, compatibility/version handling, and non-classic data sets.
 
-#### Game constants and options implementation status
+#### Game constants and options — Implemented for classic
 
 The complete top-level `classic/game.ruleset` structure is reproducibly converted into `classic/game.json`, schema-validated, and guarded by `ClassicGameRuleInventory`. Runtime consumers now cover every behavior selected by that file: initial state, city/economy and research rules, upkeep, combat and veterancy, airlift/paradrop policy, nuclear damage, borders, culture, calendar effects, visibility, disasters, all classic trade relationships and settlement bonuses, goods, treaty transfers, and cultural/world-peace victories.
 
 Sections that classic deliberately disables or leaves empty remain inert, including illness, game-loss effects, named teams, locked server settings, and migration (the reference server defaults its separate migration setting to disabled). Generic alternatives not selected by classic—such as embassy-only small-wonder visibility, scaled combat veterancy, or nonzero nuclear-defender survival—belong to alternate-ruleset/server-setting breadth rather than gaps in classic `game.ruleset` execution.
+
+**Parity evidence:** `ClassicGameRuleInventory` accounts for every converted top-level section with no remaining `partial` dispositions. The completion checkpoint passes client/server typechecks, 95 client tests, 918 server tests, lint, and production builds.
 
 ### World, map, and spatial simulation
 
