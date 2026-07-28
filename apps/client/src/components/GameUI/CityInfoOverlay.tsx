@@ -303,7 +303,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   <div>
                     Granary:{' '}
                     <span className="font-semibold">
-                      {city.foodStock || '--'}/{city.granarySize || '--'}
+                      {city.foodStock ?? '--'}/{city.granarySize ?? '--'}
                     </span>
                   </div>
                   <div className="text-xs text-blue-600">{formatGrowthText()}</div>

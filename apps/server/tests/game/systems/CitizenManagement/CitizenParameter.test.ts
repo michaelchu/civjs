@@ -43,6 +43,19 @@ describe('CitizenParameter', () => {
       });
     });
 
+    it('prioritizes growth for a newly founded size-one city', () => {
+      const params = CitizenParameterFactory.createInitialCity();
+
+      expect(params.factor[OutputType.FOOD]).toBe(20);
+      expect(params.factor[OutputType.SHIELD]).toBe(5);
+      expect(params.factor[OutputType.TRADE]).toBe(0);
+      expect(params.minimal_surplus[OutputType.FOOD]).toBe(1);
+      expect(params.minimal_surplus[OutputType.SHIELD]).toBe(1);
+      expect(params.minimal_surplus[OutputType.GOLD]).toBe(-Infinity);
+      expect(params.allow_specialists).toBe(false);
+      expect(params.happy_factor).toBe(0);
+    });
+
     it('should create growth-focused parameters', () => {
       const params = CitizenParameterFactory.createGrowthFocused();
 

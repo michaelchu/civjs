@@ -70,6 +70,29 @@ export class CitizenParameterFactory {
   }
 
   /**
+   * Create Freeciv's default parameters for a newly founded size-one city.
+   * Growth to size two is the highest priority, while a shield surplus is
+   * still required whenever the surrounding terrain permits both.
+   *
+   * @reference reference/freeciv/server/cityturn.c:313-360 set_default_city_manager()
+   */
+  static createInitialCity(): CitizenParameter {
+    const params = this.createDefault();
+    params.minimal_surplus[OutputType.FOOD] = 1;
+    params.minimal_surplus[OutputType.SHIELD] = 1;
+    params.minimal_surplus[OutputType.GOLD] = -Infinity;
+    params.factor[OutputType.FOOD] = 20;
+    params.factor[OutputType.SHIELD] = 5;
+    params.factor[OutputType.TRADE] = 0;
+    params.factor[OutputType.GOLD] = 2;
+    params.factor[OutputType.LUXURY] = 0;
+    params.factor[OutputType.SCIENCE] = 2;
+    params.happy_factor = 0;
+    params.allow_specialists = false;
+    return params;
+  }
+
+  /**
    * Create emergency parameters that always produce a valid result
    * @reference freeciv/common/aicore/cm.c - cm_init_emergency_parameter()
    */

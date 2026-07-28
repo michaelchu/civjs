@@ -36,7 +36,11 @@ import { CityProductionService } from '@game/services/CityProductionService';
 import { CityGovernorService } from '@game/services/CityGovernorService';
 import { CityCaptureService } from '@game/services/CityCaptureService';
 import { CitizenManagementService } from '@game/systems/CitizenManagement/CitizenManagementService';
-import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
+import {
+  CitizenParameterFactory,
+  CitizenParameterUtils,
+} from '@game/systems/CitizenManagement/CitizenParameter';
+import { OutputType } from '@game/constants/GameConstants';
 
 // Import the newly extracted services
 import { CityTurnProcessingService } from '@game/services/CityTurnProcessingService';
@@ -731,9 +735,19 @@ export class CityManager {
       this.tileManagementService.initializeWorkableTiles(city);
       // A newly founded city starts with its citizen working the land. Player
       // governors may opt into specialists on later optimization passes.
-      const initialParameters = CitizenParameterFactory.createDefault();
-      initialParameters.allow_specialists = false;
-      await this.optimizeCitizens(cityId, initialParameters);
+      const initialParameters = CitizenParameterFactory.createInitialCity();
+      const optimized = await this.optimizeCitizens(cityId, initialParameters);
+      if (!optimized) {
+        // Freeciv drops its preferred minimum surpluses and tries again when
+        // local terrain cannot support growth. This keeps harsh starts valid
+        // without allowing a productive site to stall at size one.
+        const fallbackParameters = CitizenParameterUtils.copy(initialParameters);
+        Object.values(OutputType).forEach(output => {
+          fallbackParameters.minimal_surplus[output] = 0;
+        });
+        fallbackParameters.minimal_surplus[OutputType.GOLD] = -Infinity;
+        await this.optimizeCitizens(cityId, fallbackParameters);
+      }
     } else {
       // Fallback if service is not available
       logger.warn('TileManagementService not available, providing fallback workable tiles', {

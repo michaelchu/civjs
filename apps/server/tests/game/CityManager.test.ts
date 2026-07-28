@@ -205,6 +205,53 @@ describe('CityManager', () => {
       expect(city!.specialists[SpecialistType.ENTERTAINER]).toBe(0);
     });
 
+    it('prioritizes positive food surplus over a high-shield tile for a new city', async () => {
+      const tileAt = (x: number, y: number) => {
+        const isCenter = x === 10 && y === 10;
+        const isFoodTile = x === 11 && y === 10;
+        const isShieldTile = x === 9 && y === 10;
+        return {
+          x,
+          y,
+          terrain:
+            isCenter || isFoodTile ? 'grassland' : isShieldTile ? 'mountains' : 'inaccessible',
+          resource: isShieldTile ? 'Iron' : undefined,
+          improvements: [],
+          riverMask: 0,
+          units: [],
+          isVisible: true,
+        };
+      };
+      (mockMapManager.getTile as jest.Mock).mockImplementation(tileAt);
+      ((mockMapManager as any).getTileAt as jest.Mock).mockImplementation(tileAt);
+
+      const city = await cityManager.foundCity(10, 10, 'Growing City', 'player-123');
+      const workedTile = city.workableTiles?.find(tile => tile.isWorked && !tile.isCenter);
+
+      expect(workedTile).toMatchObject({ x: 11, y: 10 });
+      expect(city.foodPerTurn).toBeGreaterThanOrEqual(1);
+    });
+
+    it('falls back to a non-growing assignment when local terrain cannot provide surplus food', async () => {
+      const tileAt = (x: number, y: number) => ({
+        x,
+        y,
+        terrain: x === 10 && y === 10 ? 'grassland' : 'mountains',
+        resource: x === 9 && y === 10 ? 'Iron' : undefined,
+        improvements: [],
+        riverMask: 0,
+        units: [],
+        isVisible: true,
+      });
+      (mockMapManager.getTile as jest.Mock).mockImplementation(tileAt);
+      ((mockMapManager as any).getTileAt as jest.Mock).mockImplementation(tileAt);
+
+      const city = await cityManager.foundCity(10, 10, 'Mountain City', 'player-123');
+
+      expect(city.foodPerTurn).toBe(0);
+      expect(city.workableTiles?.filter(tile => tile.isWorked)).toHaveLength(2);
+    });
+
     it('rolls back provisional city state when persistence fails', async () => {
       const database = mockDbProvider.getDatabase() as any;
       database.values.mockRejectedValueOnce(new Error('database schema is outdated'));

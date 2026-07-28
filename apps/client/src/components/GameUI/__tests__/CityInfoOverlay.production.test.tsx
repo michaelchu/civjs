@@ -32,6 +32,12 @@ const idleCity = {
 } as City;
 
 describe('CityInfoOverlay production', () => {
+  it('displays an empty granary as zero rather than missing data', () => {
+    render(<CityInfoOverlay city={{ ...idleCity, foodStock: 0 }} isOpen onClose={vi.fn()} />);
+
+    expect(screen.getByText('0/20')).toBeInTheDocument();
+  });
+
   it('keeps the production chooser visible when the city is idle', () => {
     render(
       <CityInfoOverlay
