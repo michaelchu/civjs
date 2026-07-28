@@ -270,6 +270,39 @@ describe('MapRenderer live-state updates', () => {
     expect(renderFog).not.toHaveBeenCalled();
   });
 
+  it('covers finite-map padding with opaque fog instead of decorative ocean', () => {
+    const context = createContext();
+    const renderer = new MapRenderer(context);
+    const renderOceanPadding = vi.fn();
+    const renderFog = vi.fn();
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      isInitialized: true,
+      terrainRenderer: {
+        invalidateTileCache: vi.fn(),
+        renderTerrain: vi.fn(),
+        renderSpecials: vi.fn(),
+        renderOceanPadding,
+      },
+      borderRenderer: { render: vi.fn() },
+      cityRenderer: { renderCities: vi.fn() },
+      unitRenderer: {
+        renderUnitSelection: vi.fn(),
+        renderUnits: vi.fn(),
+        hasActiveMovementAnimations: () => false,
+      },
+      fogRenderer: { render: renderFog },
+      pathRenderer: { renderPaths: vi.fn() },
+      checkViewportBounds: () => true,
+    });
+
+    renderer.render(createRenderState(), true);
+
+    expect(context.fillStyle).toBe('#000');
+    expect(context.fillRect).toHaveBeenCalledWith(0, 0, 800, 600);
+    expect(renderOceanPadding).not.toHaveBeenCalled();
+    expect(renderFog).toHaveBeenCalled();
+  });
+
   it('checks map bounds using the full canvas when viewport dimensions lag', () => {
     const renderer = new MapRenderer(createContext());
     Object.assign(renderer as unknown as Record<string, unknown>, {

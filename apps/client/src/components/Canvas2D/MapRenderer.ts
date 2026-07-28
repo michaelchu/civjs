@@ -207,7 +207,12 @@ export class MapRenderer {
      */
     const viewportExceedsMapBounds = this.checkViewportBounds(state.viewport);
 
-    if (viewportExceedsMapBounds) {
+    if (this.fogOfWarEnabled) {
+      // Unknown space includes both unrevealed map tiles and any finite-map
+      // padding visible around the isometric diamond. Start from opaque black
+      // so the decorative ocean padding cannot leak around the fog sprites.
+      this.clearCanvas(true, '#000');
+    } else if (viewportExceedsMapBounds) {
       // Clear canvas without background fill (freeciv-web uses rgb(0,0,0) black)
       // We improve on this by rendering actual ocean tiles instead of solid color
       this.clearCanvas(false);
