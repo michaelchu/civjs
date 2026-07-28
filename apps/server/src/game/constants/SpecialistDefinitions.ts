@@ -1,3 +1,5 @@
+import classicCities from '@shared/data/rulesets/classic/cities.json';
+
 /**
  * Stable CivJS specialist ids and their Freeciv rule names.
  *
@@ -31,12 +33,14 @@ export interface SpecialistDefinition {
   outputAmount: number;
 }
 
+const classicSpecialists = classicCities.specialists;
+
 export const SPECIALIST_TYPES: Record<SpecialistType, SpecialistDefinition> = {
   [SpecialistType.SCIENTIST]: {
     id: SpecialistType.SCIENTIST,
     name: 'Scientist',
-    pluralName: 'Scientists',
-    shortName: 'Sci',
+    pluralName: classicSpecialists.scientist.name,
+    shortName: classicSpecialists.scientist.short_name,
     outputType: 'science',
     ruleName: 'scientist',
     outputAmount: 3,
@@ -44,8 +48,8 @@ export const SPECIALIST_TYPES: Record<SpecialistType, SpecialistDefinition> = {
   [SpecialistType.TAX_COLLECTOR]: {
     id: SpecialistType.TAX_COLLECTOR,
     name: 'Tax Collector',
-    pluralName: 'Tax Collectors',
-    shortName: 'Tax',
+    pluralName: classicSpecialists.taxman.name,
+    shortName: classicSpecialists.taxman.short_name,
     outputType: 'gold',
     ruleName: 'taxman',
     outputAmount: 3,
@@ -53,8 +57,8 @@ export const SPECIALIST_TYPES: Record<SpecialistType, SpecialistDefinition> = {
   [SpecialistType.ENTERTAINER]: {
     id: SpecialistType.ENTERTAINER,
     name: 'Entertainer',
-    pluralName: 'Entertainers',
-    shortName: 'Ent',
+    pluralName: classicSpecialists.elvis.name,
+    shortName: classicSpecialists.elvis.short_name,
     outputType: 'luxury',
     ruleName: 'elvis',
     outputAmount: 2,

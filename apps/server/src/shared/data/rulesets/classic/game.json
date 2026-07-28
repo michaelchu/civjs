@@ -11,7 +11,7 @@
   },
   "about": {
     "name": "Classic ruleset",
-    "summary": "\\\nYou are playing with classic Freeciv ruleset for single player games. \\\nNote that in addition to the ruleset, also server settings affect \\\nthe rules of the game.\\n\\n\\\nThis was the default ruleset until Freeciv 2.6.\\\n",
+    "summary": "You are playing with classic Freeciv ruleset for single player games. Note that in addition to the ruleset, also server settings affect the rules of the game.\n\nThis was the default ruleset until Freeciv 2.6.",
     "description": "*classic/README.classic*",
     "capabilities": "std-terrains"
   },

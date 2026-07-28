@@ -82,10 +82,12 @@ describe('RulesetLoader validation', () => {
     expect(() => new RulesetLoader(baseDir).validateRuleset()).not.toThrow();
   });
 
-  it('retains the complete generated classic action, extra, and style catalogues', () => {
+  it('retains the complete generated classic action, extra, style, nation, and specialist catalogues', () => {
     const loader = new RulesetLoader(baseDir);
     const actions = loader.loadActionsRuleset();
+    const cities = loader.loadCitiesRuleset();
     const extras = loader.loadExtrasRuleset();
+    const nations = loader.loadNationsRuleset();
     const styles = loader.loadStylesRuleset();
 
     expect(actions.source).toBe('reference/freeciv/data/classic/actions.ruleset');
@@ -95,6 +97,11 @@ describe('RulesetLoader validation', () => {
     expect(Object.keys(styles.nation_styles)).toHaveLength(6);
     expect(Object.keys(styles.city_styles)).toHaveLength(10);
     expect(Object.keys(styles.music_styles)).toHaveLength(11);
+    expect(Object.keys(nations.nations)).toHaveLength(571);
+    expect(Object.keys(nations.nation_sets)).toHaveLength(2);
+    expect(Object.keys(nations.nation_groups)).toHaveLength(11);
+    expect(nations.nations.roman.leaders).toHaveLength(23);
+    expect(Object.keys(cities.specialists)).toEqual(['elvis', 'scientist', 'taxman']);
   });
 
   it('rejects a unit technology reference that does not resolve', () => {

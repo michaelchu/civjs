@@ -915,34 +915,30 @@ export const TraitRangeSchema = z.object({
   builder_default: z.number(),
 });
 
-export const NationRulesetSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  plural: z.string(),
-  adjective: z.string(),
-  class: z.string(),
-  style: z.string(),
-  init_government: z.string(),
-  leaders: z.array(LeaderSchema),
-  init_techs: z.array(z.string()).optional(),
-  init_buildings: z.array(z.string()).optional(),
-  init_units: z.array(z.string()).optional(),
-  civilwar_nations: z.array(z.string()).optional(),
-  legend: z.string().optional(),
-  flag: z.string().optional(),
-  flag_alt: z.string().optional(),
-  city_style: z.string().optional(),
-  traits: z
-    .object({
-      expansionist: z.number().optional(),
-      trader: z.number().optional(),
-      aggressive: z.number().optional(),
-      builder: z.number().optional(),
-    })
-    .optional(),
-  groups: z.array(z.string()).optional(),
-  conflicts: z.array(z.string()).optional(),
-});
+export const NationRulesetSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    plural: z.string(),
+    adjective: z.string(),
+    class: z.string(),
+    style: z.string(),
+    init_government: z.string(),
+    leaders: z.array(LeaderSchema),
+    init_techs: z.array(z.string()).optional(),
+    init_buildings: z.array(z.string()).optional(),
+    init_units: z.array(z.string()).optional(),
+    civilwar_nations: z.array(z.string()).optional(),
+    legend: z.string().or(z.array(z.string())).optional(),
+    flag: z.string().optional(),
+    flag_alt: z.string().optional(),
+    city_style: z.string().optional(),
+    traits: z.record(z.string(), z.number()).optional(),
+    groups: z.array(z.string()).optional(),
+    conflicts: z.array(z.string()).optional(),
+    cities: z.array(z.string()).optional(),
+  })
+  .passthrough();
 
 export const NationsCompatibilitySchema = z.object({
   default_government: z.string(),
@@ -960,6 +956,8 @@ export const NationsRulesetFileSchema = z.object({
   }),
   compatibility: NationsCompatibilitySchema,
   default_traits: TraitRangeSchema,
+  nation_sets: z.record(z.string(), z.record(z.string(), z.unknown())).optional().default({}),
+  nation_groups: z.record(z.string(), z.record(z.string(), z.unknown())).optional().default({}),
   nations: z.record(z.string(), NationRulesetSchema),
 });
 
@@ -1024,6 +1022,17 @@ export const CityFoundingRulesSchema = z.object({
   exploration_requirement: z.number().min(0).max(2).default(1),
 });
 
+export const SpecialistRulesetSchema = z
+  .object({
+    name: z.string(),
+    rule_name: z.string(),
+    short_name: z.string(),
+    graphic: z.string(),
+    reqs: z.array(RequirementSchema).optional().default([]),
+    helptext: z.string().or(z.array(z.string())).optional(),
+  })
+  .passthrough();
+
 export const CitiesRulesetFileSchema = z.object({
   datafile: z.object({
     description: z.string(),
@@ -1034,6 +1043,9 @@ export const CitiesRulesetFileSchema = z.object({
     name: z.string(),
     summary: z.string(),
   }),
+  specialists: z.record(z.string(), SpecialistRulesetSchema),
+  parameters: z.record(z.string(), z.unknown()),
+  citizen: z.record(z.string(), z.unknown()),
   city_styles: z.record(z.string(), CityStyleSchema),
   founding_rules: CityFoundingRulesSchema,
 });

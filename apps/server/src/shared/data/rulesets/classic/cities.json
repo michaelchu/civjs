@@ -1,12 +1,54 @@
 {
+  "source": "reference/freeciv/data/classic/cities.ruleset",
   "datafile": {
-    "description": "Classic cities data for CivJS (ported from Freeciv)",
-    "options": "+CivJS-ruleset-1.0.0 freeciv-compatible",
-    "format_version": 1
+    "description": "Classic cities data for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17 web-compatible",
+    "format_version": 50
   },
   "about": {
-    "name": "Classic Cities Ruleset",
-    "summary": "City styles and founding rules based on Freeciv classic ruleset"
+    "name": "Freeciv Classic Cities Ruleset",
+    "summary": "Classic cities data for Freeciv"
+  },
+  "specialists": {
+    "elvis": {
+      "name": "Entertainers",
+      "rule_name": "elvis",
+      "short_name": "E",
+      "graphic": "specialist.entertainer",
+      "reqs": [],
+      "helptext": "Each entertainer produces two luxury points for their city per turn. See the section on Happiness for the effects of luxury points."
+    },
+    "scientist": {
+      "name": "Scientists",
+      "rule_name": "scientist",
+      "short_name": "S",
+      "graphic": "specialist.scientist",
+      "reqs": [],
+      "helptext": "Each scientist adds three points to your empire's research output per turn."
+    },
+    "taxman": {
+      "name": "Taxmen",
+      "rule_name": "taxman",
+      "short_name": "T",
+      "graphic": "specialist.taxman",
+      "reqs": [],
+      "helptext": "Each tax collector produces three extra gold for your treasury per turn."
+    }
+  },
+  "parameters": {
+    "add_to_size_limit": 8,
+    "angry_citizens": true,
+    "celebrate_size_limit": 3,
+    "changable_tax": true,
+    "vision_reveal_tiles": true,
+    "pop_report_zeroes": 4
+  },
+  "citizen": {
+    "nationality": true,
+    "ubuilder_nationality": false,
+    "convert_speed": 50,
+    "partisans_pct": 0,
+    "conquest_convert_pct": 0
   },
   "city_styles": {
     "european": {

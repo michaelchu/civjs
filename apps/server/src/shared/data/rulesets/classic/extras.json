@@ -133,9 +133,9 @@
       "conflicts": ["Mine", "Oil Well"],
       "hidden_by": "Farmland",
       "helptext": [
-        "\\\nBuilding an irrigation system on a suitable tile causes it to \\\nproduce one extra food each turn. This requires a nearby source of \\\nwater: an ocean, lake, or river tile, or another tile with an \\\nirrigation system, must share an edge (not just a corner) with the \\\ntarget tile. However, once irrigated, land remains so even if the \\\nwater source is removed.\\\n",
-        "\\\nBuilding irrigation on a tile with a mine or oil well will destroy it.\\\n",
-        "\\\nCity center tiles get their terrain's irrigation bonus automatically, \\\nif there is no conflicting mine or oil well on the tile\nthis does not make cities count as a water source for further \\\nirrigation. Irrigation can be built on the city tile simply to allow \\\nbuilding further irrigation elsewhere, but will not give the tile any \\\nfurther bonus.\\\n"
+        "Building an irrigation system on a suitable tile causes it to produce one extra food each turn. This requires a nearby source of water: an ocean, lake, or river tile, or another tile with an irrigation system, must share an edge (not just a corner) with the target tile. However, once irrigated, land remains so even if the water source is removed.",
+        "Building irrigation on a tile with a mine or oil well will destroy it.",
+        "City center tiles get their terrain's irrigation bonus automatically, if there is no conflicting mine or oil well on the tile; however, this does not make cities count as a water source for further irrigation. Irrigation can be built on the city tile simply to allow building further irrigation elsewhere, but will not give the tile any further bonus."
       ]
     },
     "extra_mine": {
@@ -164,8 +164,8 @@
       "removal_time": 0,
       "conflicts": ["Irrigation", "Farmland"],
       "helptext": [
-        "\\\nMines can be built on some types of terrain, which increases the \\\nnumber of production points produced by that tile. Hills get an extra \\\n3 production points per tile\npoint.\\\n",
-        "\\\nBuilding a mine on an irrigated tile will destroy the irrigation.\\\n"
+        "Mines can be built on some types of terrain, which increases the number of production points produced by that tile. Hills get an extra 3 production points per tile; other terrains get 1 extra production point.",
+        "Building a mine on an irrigated tile will destroy the irrigation."
       ]
     },
     "extra_oil_well": {
@@ -193,8 +193,8 @@
       "removal_time": 0,
       "conflicts": ["Irrigation", "Farmland"],
       "helptext": [
-        "\\\nOil wells behave like mines (giving an extra production point), but \\\nrequire more technology. Oil wells can be built on Desert with knowledge \\\nof Construction, and on Glacier with knowledge of Refining.\\\n",
-        "\\\nBuilding an oil well on an irrigated tile will destroy the irrigation.\\\n"
+        "Oil wells behave like mines (giving an extra production point), but require more technology. Oil wells can be built on Desert with knowledge of Construction, and on Glacier with knowledge of Refining.",
+        "Building an oil well on an irrigated tile will destroy the irrigation."
       ]
     },
     "extra_pollution": {
@@ -222,14 +222,13 @@
       "removal_time": 0,
       "flags": "GlobalWarming",
       "helptext": [
-        "\\\nPollution appears on land tiles around cities with high production or \\\npopulation, or when a Mfg. Plant suffers an industrial accident. \\\nIt halves all output from its tile, and contributes to the risk of \\\nglobal warming.\\\n",
-        "\\\nThe pollution can only be cleared by dispatching Workers, \\\nSettlers, or Engineers with the \\",
-        " order.\\\n",
-        "\\\nPollution from production is likely to start becoming important as \\\nyour civilization becomes more industrialized, giving you buildings \\\nsuch as Factory and Power Plant which boost production. Replacing a \\\nPower Plant with cleaner forms of energy -- a Hydro Plant / Hoover \\\nDam, Nuclear Plant, or Solar Plant -- will reduce pollution from \\\nproduction, as will a Recycling Center.\\\n",
-        "\\\nThe city's population starts adding to pollution with the discovery of \\\nIndustrialization, and Automobile, Mass Production, and Plastics make \\\nthis worse. Building a Mass Transit in a city eliminates the \\\npopulation's contribution to pollution.\\\n",
-        "\\\nThe contribution of these factors can be seen in the city dialog\nit exceeds a threshold, the excess is the percent chance of pollution \\\nappearing each turn.\\\n",
-        "\\\nWhen an unused tile becomes polluted, there is the temptation to avoid \\\nthe effort of cleaning it\nterrible results than the immediate economic impact -- every polluted \\\ntile increases the chance of global warming. Each time global warming \\\nadvances, the entire world loses coastal land to the sea and to jungles \\\nand swamps, and inland tiles are lost to desert. This tends to \\\ndevastate cities and leads to global impoverishment.\\\n",
-        "\\\nThe risk of global warming is cumulative\nare left uncleaned, the higher the risk becomes, and the risk can \\\nlinger for some time even after all pollution has been cleaned. If a \\\nlong time passes with an elevated risk of warming, its effects will be \\\nall the more severe when it does occur.\\\n"
+        "Pollution appears on land tiles around cities with high production or population, or when a Mfg. Plant suffers an industrial accident. It halves all output from its tile, and contributes to the risk of global warming.",
+        "The pollution can only be cleared by dispatching Workers, Settlers, or Engineers with the \"clean pollution\" order.",
+        "Pollution from production is likely to start becoming important as your civilization becomes more industrialized, giving you buildings such as Factory and Power Plant which boost production. Replacing a Power Plant with cleaner forms of energy -- a Hydro Plant / Hoover Dam, Nuclear Plant, or Solar Plant -- will reduce pollution from production, as will a Recycling Center.",
+        "The city's population starts adding to pollution with the discovery of Industrialization, and Automobile, Mass Production, and Plastics make this worse. Building a Mass Transit in a city eliminates the population's contribution to pollution.",
+        "The contribution of these factors can be seen in the city dialog; once it exceeds a threshold, the excess is the percent chance of pollution appearing each turn.",
+        "When an unused tile becomes polluted, there is the temptation to avoid the effort of cleaning it; but the spread of pollution has far more terrible results than the immediate economic impact -- every polluted tile increases the chance of global warming. Each time global warming advances, the entire world loses coastal land to the sea and to jungles and swamps, and inland tiles are lost to desert. This tends to devastate cities and leads to global impoverishment.",
+        "The risk of global warming is cumulative; the longer polluted tiles are left uncleaned, the higher the risk becomes, and the risk can linger for some time even after all pollution has been cleaned. If a long time passes with an elevated risk of warming, its effects will be all the more severe when it does occur."
       ]
     },
     "extra_hut": {
@@ -264,9 +263,8 @@
         }
       ],
       "helptext": [
-        "\\\nVillages (also called \\",
-        ") are primitive communities spread \\\nacross the world at the beginning of the game. Any land unit can enter \\\na village, making the village disappear and deliver a random response. \\\nIf the village proves hostile, it could produce barbarians or the unit \\\nentering may simply be destroyed. If they are friendly, the player \\\ncould receive gold, a new technology, a military unit (occasionally a \\\nsettler\neven a new city.\\\n",
-        "\\\nLater in the game, helicopters may also enter villages, but overflight \\\nby other aircraft will cause the villagers to take fright and disband.\\\n"
+        "Villages (also called \"huts\") are primitive communities spread across the world at the beginning of the game. Any land unit can enter a village, making the village disappear and deliver a random response. If the village proves hostile, it could produce barbarians or the unit entering may simply be destroyed. If they are friendly, the player could receive gold, a new technology, a military unit (occasionally a settler; and sometimes a unit that the player cannot yet create), or even a new city.",
+        "Later in the game, helicopters may also enter villages, but overflight by other aircraft will cause the villagers to take fright and disband."
       ]
     },
     "extra_farmland": {
@@ -298,8 +296,8 @@
       "removal_time": 0,
       "conflicts": ["Mine", "Oil Well"],
       "helptext": [
-        "\\\nOnce Refrigeration is known, irrigation systems can be upgraded to \\\nfarmland by irrigating them a second time\nhas a Supermarket, a farmland tile provides 50% more food. (Hence, \\\nfarmland is only useful on tiles which with irrigation yield 2 or more \\\nfood.)\\\n",
-        "\\\nLike irrigation, farmland is incompatible with mines and oil wells.\\\n"
+        "Once Refrigeration is known, irrigation systems can be upgraded to farmland by irrigating them a second time; if the city working the tile has a Supermarket, a farmland tile provides 50% more food. (Hence, farmland is only useful on tiles which with irrigation yield 2 or more food.)",
+        "Like irrigation, farmland is incompatible with mines and oil wells."
       ]
     },
     "extra_fallout": {
@@ -327,9 +325,9 @@
       "removal_time": 0,
       "flags": "NuclearWinter",
       "helptext": [
-        "\\\nNuclear fallout can appear on land tiles when a Nuclear unit is \\\ndetonated, or when a city's Nuclear Plant has an accident. It halves \\\nall output from its tile.\\\n",
-        "\\\nEvery tile with nuclear fallout also increases the risk of global \\\nnuclear winter. If nuclear winter occurs, land across the globe \\\nchanges into desert, tundra, and ice, and lakes and oceans freeze.\\\n",
-        "\\\nSettlers, Workers, and Engineers can clean up nuclear fallout.\\\n"
+        "Nuclear fallout can appear on land tiles when a Nuclear unit is detonated, or when a city's Nuclear Plant has an accident. It halves all output from its tile.",
+        "Every tile with nuclear fallout also increases the risk of global nuclear winter. If nuclear winter occurs, land across the globe changes into desert, tundra, and ice, and lakes and oceans freeze.",
+        "Settlers, Workers, and Engineers can clean up nuclear fallout."
       ]
     },
     "extra_fortress": {
@@ -382,8 +380,8 @@
       "no_aggr_near_city": 3,
       "flags": "NoStackDeath",
       "helptext": [
-        "\\\nFortresses improve defense for land units outside cities. Among other \\\neffects, a land unit remaining in a fortress for a whole turn without \\\nmoving recovers a quarter of its hit points. With Invention, fortresses \\\ngain watchtowers from which land units can see further afield.\\\n",
-        "\\\nDiplomatic units get a 25% defense bonus in diplomatic fights.\\\n"
+        "Fortresses improve defense for land units outside cities. Among other effects, a land unit remaining in a fortress for a whole turn without moving recovers a quarter of its hit points. With Invention, fortresses gain watchtowers from which land units can see further afield.",
+        "Diplomatic units get a 25% defense bonus in diplomatic fights."
       ]
     },
     "extra_airbase": {
@@ -434,8 +432,8 @@
       "native_to": ["Air", "Helicopter", "Missile"],
       "flags": ["Refuel", "NoStackDeath"],
       "helptext": [
-        "\\\nAirbases allow your air units to land and refuel outside cities. \\\nAir units in an airbase may be attacked also by land units.\\\n",
-        "\\\nUnits can paradrop from this tile.\\\n"
+        "Airbases allow your air units to land and refuel outside cities. Air units in an airbase may be attacked also by land units.",
+        "Units can paradrop from this tile."
       ]
     },
     "extra_buoy": {
@@ -484,7 +482,7 @@
       "build_time": 3,
       "removal_time": 0,
       "flags": "ShowFlag",
-      "helptext": "\\\nBuoys may be built in the ocean (by units on a sea-going vessel) to \\\nallow their owner to see the surrounding tiles.\\\n"
+      "helptext": "Buoys may be built in the ocean (by units on a sea-going vessel) to allow their owner to see the surrounding tiles."
     },
     "extra_ruins": {
       "name": "Ruins",
@@ -517,7 +515,7 @@
       "buildable": false,
       "removal_time": 0,
       "flags": "TerrChangeRemoves",
-      "helptext": "\\\nRuins mark the former site of a city that was destroyed or abandoned. \\\nThey have no effect on gameplay.\\\n"
+      "helptext": "Ruins mark the former site of a city that was destroyed or abandoned. They have no effect on gameplay."
     },
     "extra_road": {
       "name": "Road",
@@ -551,8 +549,8 @@
       "flags": "AutoOnCityCenter",
       "bridged_over": "River",
       "helptext": [
-        "\\\nRoads allow your land units to move more quickly, and on some terrain,\\\nalso provide a trade bonus.\\\n",
-        "\\\nBuilding roads on river tiles requires knowledge of Bridge Building.\\\nCity center tiles automatically get roads (unless they are on a river\\\ntile and you do not yet know Bridge Building).\\\n"
+        "Roads allow your land units to move more quickly, and on some terrain,also provide a trade bonus.",
+        "Building roads on river tiles requires knowledge of Bridge Building.City center tiles automatically get roads (unless they are on a rivertile and you do not yet know Bridge Building)."
       ]
     },
     "extra_railroad": {
@@ -596,9 +594,9 @@
       "flags": "AutoOnCityCenter",
       "bridged_over": "River",
       "helptext": [
-        "\\\nOnce you learn the Railroad technology, you may upgrade your roads\\\nto railroads. Units expend no movement points when moving along a\\\nrailroad\n",
-        "\\\nA railroad also increases any shield resources produced by a tile by half.\\\nA tile whose road is upgraded to a railroad retains any trade bonus\\\nfrom the road as well.\\\n",
-        "\\\nCity center tiles with roads are automatically upgraded to railroads\\\nwhen you learn the Railroad technology.\\\n"
+        "Once you learn the Railroad technology, you may upgrade your roadsto railroads. Units expend no movement points when moving along arailroad; you may ride a railroad indefinitely. (As may your enemies!)",
+        "A railroad also increases any shield resources produced by a tile by half.A tile whose road is upgraded to a railroad retains any trade bonusfrom the road as well.",
+        "City center tiles with roads are automatically upgraded to railroadswhen you learn the Railroad technology."
       ]
     },
     "extra_river": {
@@ -617,8 +615,8 @@
       "defense_bonus": 50,
       "native_to": "Land",
       "helptext": [
-        "\\\nAny land terrain type may have a River on it.  A River adds 1\\\ntrade to the resources produced by that tile.  It also increases a tile's\\\ndefense factor by 50%.  Finally, land units may move along a River (but\\\nnot diagonally) for fast travel.\\\n",
-        "\\\nRoads and railroads can only be built on River tiles if your\\\ncivilization has learned Bridge Building technology.\\\n"
+        "Any land terrain type may have a River on it.  A River adds 1trade to the resources produced by that tile.  It also increases a tile'sdefense factor by 50%.  Finally, land units may move along a River (butnot diagonally) for fast travel.",
+        "Roads and railroads can only be built on River tiles if yourcivilization has learned Bridge Building technology."
       ]
     },
     "extra_gold": {

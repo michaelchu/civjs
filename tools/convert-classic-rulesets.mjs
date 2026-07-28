@@ -6,19 +6,22 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const dataRoot = join(root, 'reference/freeciv/data');
 const sourceDir = join(root, 'reference/freeciv/data/classic');
 const targetDir = join(root, 'apps/server/src/shared/data/rulesets/classic');
 
-function stripComment(line) {
+function stripComments(lines) {
   let quoted = false;
-  let result = '';
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index];
-    if (character === '"' && line[index - 1] !== '\\') quoted = !quoted;
-    if ((character === ';' || character === '#') && !quoted) break;
-    result += character;
-  }
-  return result.trimEnd();
+  return lines.map(line => {
+    let result = '';
+    for (let index = 0; index < line.length; index += 1) {
+      const character = line[index];
+      if (character === '"' && line[index - 1] !== '\\') quoted = !quoted;
+      if ((character === ';' || character === '#') && !quoted) break;
+      result += character;
+    }
+    return result.trimEnd();
+  });
 }
 
 function parseTable(value) {
@@ -50,6 +53,18 @@ function parseValue(rawValue) {
   const value = rawValue.trim();
   if (value.startsWith('{')) return parseTable(value);
 
+  const translations = [...value.matchAll(/_\("((?:\\.|[^"\\])*)"\)/gs)].map(match =>
+    match[1]
+      .replace(/^\?[^:]+:/, '')
+      .replace(/\\\n/g, '')
+      .replace(/\\n/g, '\n')
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\')
+      .trim()
+  );
+  if (translations.length > 1) return translations;
+  if (translations.length === 1) return translations[0];
+
   const translated = value.match(/^_\("(?:\?[^:"]+:)?([^"]*)"\)$/);
   if (translated) return translated[1];
   const quoted = [...value.matchAll(/"([^"]*)"/g)].map(match => match[1]);
@@ -61,14 +76,25 @@ function parseValue(rawValue) {
   return value;
 }
 
-function parseSecfile(fileName) {
-  const lines = readFileSync(join(sourceDir, fileName), 'utf8').split(/\r?\n/).map(stripComment);
+function parseSecfilePath(filePath, seen = new Set(), followIncludes = true) {
+  const absolutePath = filePath.startsWith('/') ? filePath : join(sourceDir, filePath);
+  if (seen.has(absolutePath)) return {};
+  seen.add(absolutePath);
+  const lines = stripComments(readFileSync(absolutePath, 'utf8').split(/\r?\n/));
   const sections = {};
   let current;
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index].trim();
     if (!line) continue;
+    const includeMatch = line.match(/^\*include\s+"([^"]+)"$/);
+    if (includeMatch) {
+      if (followIncludes) {
+        const includePath = join(dataRoot, includeMatch[1]);
+        Object.assign(sections, parseSecfilePath(includePath, seen, true));
+      }
+      continue;
+    }
     const sectionMatch = line.match(/^\[([^\]]+)\]$/);
     if (sectionMatch) {
       current = {};
@@ -83,13 +109,23 @@ function parseSecfile(fileName) {
     const valueLines = [assignment[2]];
     while (index + 1 < lines.length) {
       const next = lines[index + 1].trim();
-      if (/^\[[^\]]+\]$/.test(next) || /^[a-zA-Z0-9_.]+\s*=/.test(next)) break;
+      if (
+        /^\[[^\]]+\]$/.test(next) ||
+        /^\*include\s+"/.test(next) ||
+        /^[a-zA-Z0-9_.]+\s*=/.test(next)
+      ) {
+        break;
+      }
       index += 1;
       if (next) valueLines.push(next);
     }
     current[key] = parseValue(valueLines.join('\n'));
   }
   return sections;
+}
+
+function parseSecfile(fileName) {
+  return parseSecfilePath(join(sourceDir, fileName));
 }
 
 function metadata(datafile, source) {
@@ -166,6 +202,94 @@ function selectSections(sections, prefix) {
       .filter(([id]) => id.startsWith(prefix))
       .map(([id, section]) => [id.slice(prefix.length), section])
   );
+}
+
+function loadTargetJson(fileName) {
+  return JSON.parse(readFileSync(join(targetDir, fileName), 'utf8'));
+}
+
+function normalizeId(value) {
+  return value
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+}
+
+function convertNations() {
+  const sections = parseSecfile('nations.ruleset');
+  const main = parseSecfilePath(join(sourceDir, 'nations.ruleset'), new Set(), false);
+  const nations = Object.fromEntries(
+    Object.entries(sections)
+      .filter(([id]) => id.startsWith('nation_'))
+      .map(([sectionId, nation]) => {
+        const id = sectionId.slice('nation_'.length);
+        const groups = asArray(nation.groups);
+        return [
+          id,
+          {
+            ...nation,
+            id,
+            name: nation.name,
+            plural: nation.plural,
+            adjective: nation.name,
+            class: groups[0] ?? 'Other',
+            style: nation.style ?? 'European',
+            init_government: nation.init_government ?? main.compatibility.default_government,
+            leaders: (nation.leaders ?? []).map(leader => ({
+              ...leader,
+              sex:
+                typeof leader.sex === 'string'
+                  ? `${leader.sex.charAt(0).toUpperCase()}${leader.sex.slice(1).toLowerCase()}`
+                  : leader.sex,
+            })),
+            init_techs: asArray(nation.init_techs),
+            init_buildings: asArray(nation.init_buildings),
+            init_units: asArray(nation.init_units),
+            civilwar_nations: asArray(nation.civilwar_nations),
+            groups,
+            conflicts: asArray(nation.conflicts_with),
+            cities: asArray(nation.cities),
+            flag: nation.flag ? `f.${nation.flag}` : undefined,
+            flag_alt: nation.flag_alt ? `f.${nation.flag_alt}` : undefined,
+          },
+        ];
+      })
+  );
+
+  return {
+    datafile: metadata(main.datafile, 'reference/freeciv/data/classic/nations.ruleset').datafile,
+    about: {
+      name: 'Freeciv Classic Nations Ruleset',
+      summary: main.datafile.description,
+    },
+    compatibility: main.compatibility,
+    default_traits: main.default_traits,
+    nation_sets: Object.fromEntries(
+      Object.entries(sections).filter(([id]) => id.startsWith('nset_'))
+    ),
+    nation_groups: Object.fromEntries(
+      Object.entries(sections).filter(([id]) => id.startsWith('ngroup_'))
+    ),
+    nations,
+  };
+}
+
+function convertCities() {
+  const sections = parseSecfile('cities.ruleset');
+  const legacy = loadTargetJson('cities.json');
+  return {
+    ...metadata(sections.datafile, 'reference/freeciv/data/classic/cities.ruleset'),
+    about: {
+      name: 'Freeciv Classic Cities Ruleset',
+      summary: sections.datafile.description,
+    },
+    specialists: selectSections(sections, 'specialist_'),
+    parameters: sections.parameters,
+    citizen: sections.citizen,
+    city_styles: legacy.city_styles,
+    founding_rules: legacy.founding_rules,
+  };
 }
 
 function convertGame() {
@@ -248,8 +372,10 @@ function convertGame() {
 const generatedFiles = [];
 for (const [fileName, data] of [
   ['actions.json', convertActions()],
+  ['cities.json', convertCities()],
   ['extras.json', convertExtras()],
   ['game.json', convertGame()],
+  ['nations.json', convertNations()],
   ['styles.json', convertStyles()],
 ]) {
   const target = join(targetDir, fileName);
