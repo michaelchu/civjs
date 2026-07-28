@@ -33,8 +33,29 @@ describe('GameBroadcastManager visibility sync', () => {
     ]);
     const game = {
       players: new Map([
-        [playerOne, { id: playerOne, userId: userOne, isConnected: true }],
-        [playerTwo, { id: playerTwo, userId: userTwo, isConnected: true }],
+        [
+          playerOne,
+          {
+            id: playerOne,
+            userId: userOne,
+            isConnected: true,
+            civilization: 'romans',
+            leaderName: 'Caesar',
+            color: { r: 255, g: 0, b: 0 },
+          },
+        ],
+        [
+          playerTwo,
+          {
+            id: playerTwo,
+            userId: userTwo,
+            isConnected: true,
+            isAI: true,
+            civilization: 'greeks',
+            leaderName: 'Pericles',
+            color: { r: 0, g: 170, b: 51 },
+          },
+        ],
       ]),
       currentTurn: 1,
       mapManager: {
@@ -146,10 +167,22 @@ describe('GameBroadcastManager visibility sync', () => {
     const playerOneTiles = playerOnePackets.find(
       emission => emission.data.type === PacketType.TILE_INFO
     )?.data.data.tiles;
+    const playerOnePlayerInfo = playerOnePackets
+      .filter(emission => emission.data.type === PacketType.PLAYER_INFO)
+      .map(emission => emission.data.data);
 
     expect(
       emitted.some(emission => emission.room === `game:${gameId}` && emission.event === 'packet')
     ).toBe(false);
+    expect(playerOnePlayerInfo).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: playerTwo,
+          isAI: true,
+          color: { r: 0, g: 170, b: 51 },
+        }),
+      ])
+    );
     expect(playerOneTiles).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

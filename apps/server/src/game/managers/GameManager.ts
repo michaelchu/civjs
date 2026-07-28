@@ -98,6 +98,13 @@ export interface PlayerState {
   isAI?: boolean;
   playerNumber: number;
   civilization: string;
+  nation?: string;
+  leaderName?: string;
+  color?: { r: number; g: number; b: number };
+  isAlive?: boolean;
+  gold?: number;
+  science?: number;
+  government?: string;
   history?: number;
   isReady: boolean;
   hasEndedTurn: boolean;

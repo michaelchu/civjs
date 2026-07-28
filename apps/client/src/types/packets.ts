@@ -214,6 +214,7 @@ export interface PlayerInfoPacket {
     culture: number;
     government: string;
     alive: boolean;
+    isAI?: boolean;
     color: {
       r: number;
       g: number;

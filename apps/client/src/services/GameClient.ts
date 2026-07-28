@@ -301,7 +301,7 @@ export class GameClient {
           history: players[packet.data.id]?.history ?? 0,
           culture: packet.data.culture,
           government: packet.data.government,
-          isHuman: true, // Assume human for now, could be sent from server
+          isHuman: !packet.data.isAI,
           isActive: packet.data.alive,
         };
 

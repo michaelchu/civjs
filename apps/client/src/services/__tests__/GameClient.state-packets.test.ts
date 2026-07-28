@@ -44,6 +44,7 @@ describe('GameClient state-bearing packets', () => {
         culture: 34,
         government: 'republic',
         alive: true,
+        isAI: true,
       },
     });
     handlePacket({ type: PacketType.NEW_YEAR, data: { turn: 5, year: -3840 } });
@@ -60,6 +61,8 @@ describe('GameClient state-bearing packets', () => {
         gold: 75,
         history: 0,
         culture: 34,
+        color: '#ff0000',
+        isHuman: false,
       })
     );
     expect(useGameStore.getState()).toEqual(expect.objectContaining({ turn: 5, year: -3840 }));

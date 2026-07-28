@@ -297,6 +297,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     mapData: any
   ): void {
     try {
+      this.sendPlayerInfoSnapshot(gameInstance, playerId);
+
       // @reference reference/freeciv/server/maphand.c:442-613
       // Map knowledge is player-specific: explored tiles retain terrain, while
       // resources and units are sent only while currently visible.
@@ -361,6 +363,25 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         error: error instanceof Error ? error.message : error,
         gameId,
         playerId,
+      });
+    }
+  }
+
+  private sendPlayerInfoSnapshot(gameInstance: GameInstance, recipientPlayerId: string): void {
+    for (const player of gameInstance.players.values()) {
+      if (!player.color) continue;
+      this.sendPacketToPlayer(gameInstance, recipientPlayerId, PacketType.PLAYER_INFO, {
+        id: player.id,
+        name: player.leaderName ?? player.civilization,
+        nation: player.nation ?? player.civilization,
+        score: 0,
+        gold: player.gold ?? 0,
+        science: player.science ?? 0,
+        culture: player.history ?? 0,
+        government: player.government ?? 'despotism',
+        alive: player.isAlive ?? true,
+        isAI: player.isAI ?? false,
+        color: player.color,
       });
     }
   }

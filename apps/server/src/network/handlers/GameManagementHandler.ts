@@ -506,6 +506,28 @@ export class GameManagementHandler extends BaseSocketHandler {
         ))
       : new Map<string, any>();
 
+    for (const player of gameInstance.players?.values?.() ?? []) {
+      if (!player.color) continue;
+      socket.emit('packet', {
+        version: PROTOCOL_VERSION,
+        type: PacketType.PLAYER_INFO,
+        data: {
+          id: player.id,
+          name: player.leaderName ?? player.civilization,
+          nation: player.nation ?? player.civilization,
+          score: 0,
+          gold: player.gold ?? 0,
+          science: player.science ?? 0,
+          culture: player.history ?? 0,
+          government: player.government ?? 'despotism',
+          alive: player.isAlive ?? true,
+          isAI: player.isAI ?? false,
+          color: player.color,
+        },
+        timestamp: Date.now(),
+      });
+    }
+
     socket.emit('packet', {
       version: PROTOCOL_VERSION,
       type: PacketType.MAP_INFO,
