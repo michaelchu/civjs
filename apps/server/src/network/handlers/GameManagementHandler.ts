@@ -502,8 +502,8 @@ export class GameManagementHandler extends BaseSocketHandler {
       data: {
         xsize: mapData.width,
         ysize: mapData.height,
-        wrap_id: 0,
-        topology_id: 0,
+        wrap_id: mapData.wrapId ?? 0,
+        topology_id: mapData.topologyId ?? 0,
       },
       timestamp: Date.now(),
     });

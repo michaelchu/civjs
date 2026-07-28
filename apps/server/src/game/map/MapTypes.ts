@@ -159,6 +159,8 @@ export interface MapTile {
 export interface MapData {
   width: number;
   height: number;
+  topologyId?: number;
+  wrapId?: number;
   tiles: MapTile[][];
   startingPositions: Array<{ x: number; y: number; playerId: string }>;
   seed: string;

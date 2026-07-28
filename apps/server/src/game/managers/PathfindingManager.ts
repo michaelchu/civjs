@@ -1,6 +1,7 @@
 import { logger } from '@utils/logger';
 import { calculateMovementCost } from '@game/constants/MovementConstants';
 import type { Unit } from '@game/managers/UnitManager';
+import { MapTopology } from '@game/map/MapTopology';
 
 export interface PathTile {
   x: number;
@@ -39,11 +40,13 @@ export class PathfindingManager {
   private mapWidth: number;
   private mapHeight: number;
   private mapManager: any; // MapManager instance for terrain access
+  private topology: MapTopology;
 
   constructor(mapWidth: number, mapHeight: number, mapManager?: any) {
     this.mapWidth = mapWidth;
     this.mapHeight = mapHeight;
     this.mapManager = mapManager;
+    this.topology = mapManager?.getTopology?.() ?? new MapTopology(mapWidth, mapHeight);
   }
 
   /**
@@ -350,38 +353,16 @@ export class PathfindingManager {
    * Get valid neighbor coordinates
    */
   private getNeighbors(x: number, y: number): Array<{ x: number; y: number }> {
-    const neighbors: Array<{ x: number; y: number }> = [];
-
-    // 8-directional movement (includes diagonals)
-    const directions = [
-      { dx: -1, dy: -1 },
-      { dx: 0, dy: -1 },
-      { dx: 1, dy: -1 },
-      { dx: -1, dy: 0 },
-      { dx: 1, dy: 0 },
-      { dx: -1, dy: 1 },
-      { dx: 0, dy: 1 },
-      { dx: 1, dy: 1 },
-    ];
-
-    for (const dir of directions) {
-      const newX = x + dir.dx;
-      const newY = y + dir.dy;
-
-      if (this.isValidCoordinate(newX, newY)) {
-        neighbors.push({ x: newX, y: newY });
-      }
-    }
-
-    return neighbors;
+    return this.topology.getNeighbors(x, y);
   }
 
   /**
    * Calculate heuristic cost (Manhattan distance)
    */
   private heuristic(x1: number, y1: number, x2: number, y2: number): number {
-    // Use Manhattan distance as heuristic
-    return Math.abs(x2 - x1) + Math.abs(y2 - y1);
+    // The minimum terrain cost is one movement fragment. A topology-aware
+    // real distance is therefore admissible for every supported map.
+    return this.topology.realDistance(x1, y1, x2, y2);
   }
 
   /**
@@ -438,7 +419,7 @@ export class PathfindingManager {
    * Check if coordinate is valid on the map
    */
   private isValidCoordinate(x: number, y: number): boolean {
-    return x >= 0 && x < this.mapWidth && y >= 0 && y < this.mapHeight;
+    return this.topology.isValidCoordinate(x, y);
   }
 
   /**
@@ -471,8 +452,7 @@ export class PathfindingManager {
    * Calculate direction from one tile to another (freeciv 8-direction system)
    */
   private calculateDirection(fromX: number, fromY: number, toX: number, toY: number): number {
-    const dx = toX - fromX;
-    const dy = toY - fromY;
+    const { dx, dy } = this.topology.distanceVector(fromX, fromY, toX, toY);
 
     // Freeciv directions: 0=North, 1=NE, 2=East, 3=SE, 4=South, 5=SW, 6=West, 7=NW
     const directionMap: Record<string, number> = {

@@ -19,6 +19,8 @@ export interface TerrainSettings {
   rivers: number;
   resources: string;
   startpos?: number;
+  topologyId?: number;
+  wrapId?: number;
 }
 
 interface GameCreationStore {

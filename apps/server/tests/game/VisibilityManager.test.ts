@@ -2,6 +2,7 @@ import { beforeAll } from '@jest/globals';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { UnitManager } from '@game/managers/UnitManager';
 import { MapManager } from '@game/managers/MapManager';
+import { WrapFlag } from '@game/map/MapTopology';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('VisibilityManager', () => {
@@ -92,7 +93,7 @@ describe('VisibilityManager', () => {
       persistentManager.updatePlayerVisibility('player-123');
       await new Promise(resolve => setImmediate(resolve));
 
-      expect(persist).toHaveBeenCalledWith('player-123', ['3,4'], []);
+      expect(persist).toHaveBeenCalledWith('player-123', ['3,4'], [], {});
     });
   });
 
@@ -266,10 +267,24 @@ describe('VisibilityManager', () => {
       const visibleTile = visibilityManager.getTileVisibility('player-123', 10, 10);
       expect(visibleTile.isVisible).toBe(true);
       expect(visibleTile.isExplored).toBe(true);
+      expect(visibleTile.lastSeen).toBeInstanceOf(Date);
 
       const unknownTile = visibilityManager.getTileVisibility('player-123', 0, 0);
       expect(unknownTile.isVisible).toBe(false);
       expect(unknownTile.isExplored).toBe(false);
+      expect(unknownTile.lastSeen).toBeUndefined();
+    });
+
+    it('retains the actual observation time after a tile becomes fogged', () => {
+      visibilityManager.restorePlayerVisibility('historian', ['4,5'], [], {
+        '4,5': '2001-02-03T04:05:06.000Z',
+      });
+
+      expect(visibilityManager.getTileVisibility('historian', 4, 5)).toEqual({
+        isVisible: false,
+        isExplored: true,
+        lastSeen: new Date('2001-02-03T04:05:06.000Z'),
+      });
     });
   });
 
@@ -413,6 +428,34 @@ describe('VisibilityManager', () => {
   });
 
   describe('edge cases', () => {
+    it('applies wrapping when calculating visibility', async () => {
+      const wrappedMap = new MapManager(
+        10,
+        10,
+        'visibility-wrap',
+        'random',
+        undefined,
+        undefined,
+        false,
+        50,
+        { wrapId: WrapFlag.X }
+      );
+      await wrappedMap.generateMap(new Map());
+      const wrappedUnits = new UnitManager(
+        gameId,
+        createMockDatabaseProvider(),
+        10,
+        10,
+        wrappedMap
+      );
+      const wrappedVisibility = new VisibilityManager(gameId, wrappedUnits, wrappedMap);
+      await wrappedUnits.createUnit('edge-player', 'warriors', 0, 5);
+
+      wrappedVisibility.updatePlayerVisibility('edge-player');
+
+      expect(wrappedVisibility.getVisibleTiles('edge-player').has('9,5')).toBe(true);
+    });
+
     it('should handle non-existent players gracefully', () => {
       const visibleTiles = visibilityManager.getVisibleTiles('non-existent');
       const exploredTiles = visibilityManager.getExploredTiles('non-existent');

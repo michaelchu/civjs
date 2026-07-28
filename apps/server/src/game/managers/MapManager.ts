@@ -6,6 +6,7 @@ import { IslandMapService } from '@game/map/IslandMapService';
 import { FairIslandsService } from '@game/map/FairIslandsService';
 import { MapAccessService } from '@game/map/MapAccessService';
 import { ValidationResult } from '@game/map/MapValidator';
+import { MapTopology, type MapTopologyOptions } from '@game/map/MapTopology';
 
 // Generator types based on freeciv map_generator enum
 export type MapGeneratorType = 'FRACTAL' | 'ISLAND' | 'RANDOM' | 'FAIR' | 'FRACTURE' | 'SCENARIO';
@@ -49,7 +50,8 @@ export class MapManager {
     defaultGeneratorType?: MapGeneratorType,
     defaultStartPosMode?: MapStartpos,
     cleanupTemperatureMapAfterUse: boolean = false,
-    temperatureParam: number = 50
+    temperatureParam: number = 50,
+    topologyOptions: MapTopologyOptions = {}
   ) {
     this.width = width;
     this.height = height;
@@ -93,7 +95,7 @@ export class MapManager {
       temperatureParam
     );
 
-    this.mapAccessService = new MapAccessService(width, height);
+    this.mapAccessService = new MapAccessService(width, height, topologyOptions);
   }
 
   /**
@@ -120,6 +122,9 @@ export class MapManager {
         generator === 'FAIR'
           ? await this.generateFairMap(players)
           : await this.generateByType(players, generator);
+      const topology = this.mapAccessService.getTopology();
+      mapData.topologyId = topology.topologyId;
+      mapData.wrapId = topology.wrapId;
 
       this.mapAccessService.setMapData(mapData);
 
@@ -178,6 +183,10 @@ export class MapManager {
    */
   public getMapData(): MapData | null {
     return this.mapAccessService.getMapData();
+  }
+
+  public getTopology(): MapTopology {
+    return this.mapAccessService.getTopology();
   }
 
   /**

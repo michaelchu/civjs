@@ -226,6 +226,8 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       const serializedMapData = {
         width: mapData.width,
         height: mapData.height,
+        topologyId: mapData.topologyId ?? 0,
+        wrapId: mapData.wrapId ?? 0,
         seed: mapData.seed,
         generatedAt: mapData.generatedAt.toISOString(),
         startingPositions: mapData.startingPositions,

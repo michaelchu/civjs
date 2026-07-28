@@ -296,6 +296,7 @@ export interface GameState {
     tiles: Record<string, Tile>;
     xsize?: number;
     ysize?: number;
+    topology_id?: number;
     wrap_id?: number;
   };
   units: Record<string, Unit>;

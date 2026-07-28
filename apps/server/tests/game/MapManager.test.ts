@@ -7,6 +7,7 @@ import {
   TerrainProperty,
   TerrainType,
 } from '@game/managers/MapManager';
+import { WrapFlag } from '@game/map/MapTopology';
 // import { MapStartpos } from '@game/map/MapTypes'; // Commented out - used in disabled tests
 
 // Mock island terrain functions for tests
@@ -71,6 +72,24 @@ describe('MapManager', () => {
       const mapWithoutSeed = new MapManager(10, 10);
       expect(mapWithoutSeed['seed']).toBeDefined();
       expect(mapWithoutSeed['seed'].length).toBeGreaterThan(0);
+    });
+
+    it('uses one topology authority for wrapping, neighbors, and distance', () => {
+      const wrappedMap = new MapManager(
+        10,
+        8,
+        'wrapped-map',
+        'random',
+        undefined,
+        undefined,
+        false,
+        50,
+        { wrapId: WrapFlag.X }
+      );
+
+      expect(wrappedMap.getTopology().wrapId).toBe(WrapFlag.X);
+      expect(wrappedMap.isValidPosition(-1, 3)).toBe(true);
+      expect(wrappedMap.getDistance(0, 3, 9, 3)).toBe(1);
     });
   });
 

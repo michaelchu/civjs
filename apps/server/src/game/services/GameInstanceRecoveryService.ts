@@ -161,7 +161,11 @@ export class GameInstanceRecoveryService extends BaseGameService {
       undefined,
       undefined,
       false,
-      temperatureParam
+      temperatureParam,
+      {
+        topologyId: storedTerrainSettings?.topologyId,
+        wrapId: storedTerrainSettings?.wrapId,
+      }
     );
     await this.restoreMapDataToManager(mapManager, game.mapData as any, game.mapSeed!);
     return mapManager;
@@ -334,11 +338,11 @@ export class GameInstanceRecoveryService extends BaseGameService {
       mapManager,
       effectsManager,
       playerId => new Set(researchManager.getResearchedTechs(playerId)),
-      async (playerId, exploredTiles, visibleTiles) => {
+      async (playerId, exploredTiles, visibleTiles, tileLastSeen) => {
         await this.databaseProvider
           .getDatabase()
           .update(playerRecords)
-          .set({ exploredTiles, visibleTiles })
+          .set({ exploredTiles, visibleTiles, tileLastSeen })
           .where(eq(playerRecords.id, playerId));
       }
     );
@@ -361,6 +365,15 @@ export class GameInstanceRecoveryService extends BaseGameService {
       borderCityRadiusSq: borderRules.radius_sq_city,
       borderSizeEffect: borderRules.size_effect,
     });
+    unitManager.setTileExtrasChangedCallback(change =>
+      borderManager.synchronizeTileExtras(
+        change.x,
+        change.y,
+        change.playerId,
+        change.added,
+        change.removed
+      )
+    );
     const borderNetworkService = new BorderNetworkService(this.io, borderManager, gameId =>
       this.games.get(gameId)
     );
@@ -517,6 +530,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
     for (const city of cityManager.getAllCities()) {
       borderManager.addCityBorderSource(city);
     }
+    borderManager.restoreExtraBorderSources();
   }
 
   private async initializeResearchAndVisibility(
@@ -536,6 +550,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
         id: playerRecords.id,
         exploredTiles: playerRecords.exploredTiles,
         visibleTiles: playerRecords.visibleTiles,
+        tileLastSeen: playerRecords.tileLastSeen,
       })
       .from(playerRecords)
       .where(eq(playerRecords.gameId, gameId));
@@ -549,7 +564,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       visibilityManager.restorePlayerVisibility(
         player.id,
         this.asTileKeys(stored?.exploredTiles),
-        this.asTileKeys(stored?.visibleTiles)
+        this.asTileKeys(stored?.visibleTiles),
+        this.asLastSeenMap(stored?.tileLastSeen)
       );
       visibilityManager.updatePlayerVisibility(player.id);
     }
@@ -559,6 +575,15 @@ export class GameInstanceRecoveryService extends BaseGameService {
     return Array.isArray(value)
       ? value.filter((tile): tile is string => typeof tile === 'string')
       : [];
+  }
+
+  private asLastSeenMap(value: unknown): Record<string, string> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return Object.fromEntries(
+      Object.entries(value).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string'
+      )
+    );
   }
 
   /**
@@ -590,6 +615,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       const restoredMapData = {
         width: mapData.width,
         height: mapData.height,
+        topologyId: mapData.topologyId,
+        wrapId: mapData.wrapId,
         seed: mapSeed,
         generatedAt: new Date(mapData.generatedAt),
         startingPositions: mapData.startingPositions || [],

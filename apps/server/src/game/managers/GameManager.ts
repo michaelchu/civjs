@@ -53,6 +53,8 @@ export interface TerrainSettings {
   rivers: number;
   resources: string;
   startpos?: number; // MapStartpos enum value for island generator routing
+  topologyId?: number;
+  wrapId?: number;
 }
 
 export interface GameConfig {

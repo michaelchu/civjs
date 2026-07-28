@@ -325,8 +325,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       const mapInfoPacket = {
         xsize: mapData.width,
         ysize: mapData.height,
-        wrap_id: 0, // Flat earth
-        topology_id: 0,
+        wrap_id: mapData.wrapId ?? 0,
+        topology_id: mapData.topologyId ?? 0,
       };
       this.sendPacketToPlayer(gameInstance, playerId, PacketType.MAP_INFO, mapInfoPacket);
 

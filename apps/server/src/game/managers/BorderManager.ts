@@ -21,6 +21,8 @@ import {
   FC_INFINITY,
 } from '@game/constants/BorderConstants';
 import type { BorderSource, TileOwnership, BorderUpdate } from '../../types/shared/BorderTypes';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { MapTopology } from '@game/map/MapTopology';
 
 interface GameSettings {
   borders: number; // BORDERS_DISABLED or BORDERS_ENABLED
@@ -96,9 +98,7 @@ export class BorderManager {
    * @reference freeciv/common/borders.c:104
    */
   private getSquaredDistance(x1: number, y1: number, x2: number, y2: number): number {
-    const dx = x1 - x2;
-    const dy = y1 - y2;
-    return dx * dx + dy * dy;
+    return this.getTopology().squaredDistance(x1, y1, x2, y2);
   }
 
   /**
@@ -116,11 +116,7 @@ export class BorderManager {
       return true;
     }
 
-    // Check for territory-claiming extras (forts, bases)
-    // TODO: Implement when extras system is available
-    // This would check tile.improvements for territory-claiming extras
-
-    return false;
+    return Boolean(tile?.improvements.some(extra => this.getExtraBorderRadius(extra) > 0));
   }
 
   /**
@@ -150,9 +146,7 @@ export class BorderManager {
         effectiveRadius: Math.sqrt(radiusSq),
       });
     } else if (source.type === 'fort' || source.type === 'extra') {
-      // TODO: Implement when extras system is available
-      // Would get radius from base/extra definition
-      radiusSq = 1; // Default small radius for now
+      radiusSq = this.getExtraBorderRadius(source.extraType);
     }
 
     return radiusSq;
@@ -292,6 +286,10 @@ export class BorderManager {
    * Get the owner of a specific tile
    */
   getTileOwner(x: number, y: number): string | null {
+    const position = this.getTopology().normalize(x, y);
+    if (!position) return null;
+    x = position.x;
+    y = position.y;
     const key = this.getTileKey(x, y);
     const ownership = this.tileOwnership.get(key);
 
@@ -342,23 +340,10 @@ export class BorderManager {
   isOnBorder(x: number, y: number): boolean {
     const owner = this.getTileOwner(x, y);
 
-    // Check adjacent tiles for different ownership
-    const directions = [
-      { dx: 0, dy: -1 }, // North
-      { dx: 1, dy: 0 }, // East
-      { dx: 0, dy: 1 }, // South
-      { dx: -1, dy: 0 }, // West
-    ];
-
-    for (const { dx, dy } of directions) {
-      const adjX = x + dx;
-      const adjY = y + dy;
-
-      if (this.isValidCoordinate(adjX, adjY)) {
-        const adjOwner = this.getTileOwner(adjX, adjY);
-        if (adjOwner !== owner) {
-          return true;
-        }
+    for (const adjacent of this.getTopology().getCardinalNeighbors(x, y)) {
+      const adjacentOwner = this.getTileOwner(adjacent.x, adjacent.y);
+      if (adjacentOwner !== owner) {
+        return true;
       }
     }
 
@@ -381,6 +366,65 @@ export class BorderManager {
     source.radius = this.getBorderSourceRadius(source);
     source.strength = this.getBorderSourceStrength(source);
     this.addBorderSource(source);
+  }
+
+  addExtraBorderSource(
+    x: number,
+    y: number,
+    playerId: string,
+    extraType: string
+  ): BorderSource | null {
+    const radius = this.getExtraBorderRadius(extraType);
+    if (radius <= 0) return null;
+
+    const source: BorderSource = {
+      x,
+      y,
+      playerId,
+      type: 'extra',
+      extraType,
+      strength: 0,
+      radius,
+    };
+    source.strength = this.getBorderSourceStrength(source);
+    this.addBorderSource(source);
+    return source;
+  }
+
+  synchronizeTileExtras(
+    x: number,
+    y: number,
+    playerId: string,
+    added: Iterable<string>,
+    removed: Iterable<string>
+  ): void {
+    const existing = this.borderSources.get(this.getTileKey(x, y));
+    for (const extra of removed) {
+      if (
+        existing?.type !== 'city' &&
+        this.normalizeExtra(existing?.extraType) === this.normalizeExtra(extra)
+      ) {
+        this.removeBorderSource(x, y);
+      }
+    }
+
+    if (this.borderSources.has(this.getTileKey(x, y))) return;
+    for (const extra of added) {
+      if (this.addExtraBorderSource(x, y, playerId, extra)) return;
+    }
+  }
+
+  restoreExtraBorderSources(): void {
+    const mapData = this.mapManager.getMapData();
+    if (!mapData) return;
+    for (let x = 0; x < mapData.width; x++) {
+      for (let y = 0; y < mapData.height; y++) {
+        const tile = mapData.tiles[x][y];
+        if (!tile.owner || tile.cityId) continue;
+        const extra = tile.improvements.find(candidate => this.getExtraBorderRadius(candidate) > 0);
+        if (extra) this.addExtraBorderSource(x, y, tile.owner, extra);
+      }
+    }
   }
 
   /**
@@ -624,23 +668,31 @@ export class BorderManager {
    * @reference freeciv/common/borders.c:89 get_tile_bonus(ptile, EFT_BORDER_STRENGTH_PCT)
    */
   private getTileBorderBonus(x: number, y: number): number {
-    // For now, return 0 since extras system is not yet implemented
-    // When extras are implemented, this should check tile extras and calculate
-    // border strength effects similar to getCultureBorderBonus but for tile context
     const tile = this.mapManager.getTile(x, y);
-    if (!tile) {
-      return 0;
-    }
+    if (!tile) return 0;
 
-    // TODO: Implement when extras/improvements system is available
-    // const context: EffectContext = {
-    //   tileX: x,
-    //   tileY: y,
-    //   tileExtras: new Set(tile.extras || []),
-    // };
-    // return this.effectsManager.calculateEffect(EffectType.BORDER_STRENGTH_PCT, context).value;
+    return (
+      this.effectsManager.calculateEffect(EffectType.BORDER_STRENGTH_PCT, {
+        tileX: x,
+        tileY: y,
+        tileTerrain: tile.terrain,
+        tileExtras: new Set(tile.improvements),
+        tileIsCityCenter: Boolean(tile.cityId),
+      })?.value ?? 0
+    );
+  }
 
-    return 0; // No tile-based border bonuses yet
+  private getExtraBorderRadius(extraType?: string): number {
+    if (!extraType) return 0;
+    const borderSq = rulesetLoader.getBaseForExtra(extraType)?.border_sq;
+    return typeof borderSq === 'number' ? borderSq : 0;
+  }
+
+  private normalizeExtra(extraType?: string): string {
+    return (extraType ?? '')
+      .toLowerCase()
+      .replace(/^extra_/, '')
+      .replace(/[\s_-]+/g, '');
   }
 
   private getCityCulture(x: number, y: number): number {
@@ -652,11 +704,14 @@ export class BorderManager {
    * Check if coordinates are valid on the map
    */
   private isValidCoordinate(x: number, y: number): boolean {
+    return this.getTopology().normalize(x, y) !== null;
+  }
+
+  private getTopology(): MapTopology {
+    const topology = this.mapManager.getTopology?.();
+    if (topology) return topology;
     const mapData = this.mapManager.getMapData();
-    if (!mapData) {
-      return false;
-    }
-    return x >= 0 && y >= 0 && x < mapData.width && y < mapData.height;
+    return new MapTopology(mapData?.width ?? 1, mapData?.height ?? 1);
   }
 
   /**

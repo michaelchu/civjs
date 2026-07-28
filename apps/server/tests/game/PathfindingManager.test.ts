@@ -1,5 +1,6 @@
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import type { Unit } from '@game/managers/UnitManager';
+import { MapTopology, WrapFlag } from '@game/map/MapTopology';
 
 describe('PathfindingManager', () => {
   let pathfindingManager: PathfindingManager;
@@ -93,6 +94,22 @@ describe('PathfindingManager', () => {
       // Classic rules use pythagorean_diagonal = FALSE, so diagonal movement
       // has the same fragment cost as orthogonal movement.
       expect(result.totalCost).toBe(3);
+    });
+
+    it('uses the shared topology to cross a wrapped edge', async () => {
+      const wrappedMap = {
+        getTile: jest.fn((_x: number, _y: number) => ({ terrain: 'grassland' })),
+        getTopology: () => new MapTopology(10, 8, { wrapId: WrapFlag.X }),
+      };
+      const manager = new PathfindingManager(10, 8, wrappedMap);
+      const edgeUnit = { ...mockUnit, x: 0, y: 3 };
+
+      const result = await manager.findPath(edgeUnit, 9, 3);
+
+      expect(result.valid).toBe(true);
+      expect(result.path).toHaveLength(2);
+      expect(result.path[1]).toMatchObject({ x: 9, y: 3 });
+      expect(result.path[0].direction).toBe(6);
     });
 
     it('should calculate correct estimated turns', async () => {

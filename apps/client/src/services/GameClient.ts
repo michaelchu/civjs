@@ -1047,6 +1047,8 @@ export class GameClient {
       wetness: number;
       rivers: number;
       resources: string;
+      topologyId?: number;
+      wrapId?: number;
     };
   }): Promise<string> {
     await this.authenticatePlayer(gameData.playerName);

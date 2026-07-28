@@ -3,6 +3,7 @@ import { PlayerState } from '@game/managers/GameManager';
 import { MapData, MapTile } from './MapTypes';
 import { MapValidator, ValidationResult } from './MapValidator';
 import { getTerrainMovementCost } from '@game/constants/MovementConstants';
+import { MapTopology, type MapTopologyOptions } from './MapTopology';
 
 /**
  * Map access and utility service
@@ -15,11 +16,13 @@ export class MapAccessService {
   private height: number;
   private mapData: MapData | null = null;
   private mapValidator: MapValidator;
+  private topology: MapTopology;
 
-  constructor(width: number, height: number) {
+  constructor(width: number, height: number, topologyOptions: MapTopologyOptions = {}) {
     this.width = width;
     this.height = height;
     this.mapValidator = new MapValidator(width, height);
+    this.topology = new MapTopology(width, height, topologyOptions);
   }
 
   /**
@@ -27,6 +30,16 @@ export class MapAccessService {
    */
   public setMapData(mapData: MapData | null): void {
     this.mapData = mapData;
+    if (mapData) {
+      this.topology = new MapTopology(mapData.width, mapData.height, {
+        topologyId: mapData.topologyId ?? this.topology.topologyId,
+        wrapId: mapData.wrapId ?? this.topology.wrapId,
+      });
+    }
+  }
+
+  public getTopology(): MapTopology {
+    return this.topology;
   }
 
   /**
@@ -43,10 +56,9 @@ export class MapAccessService {
    * @returns MapTile or null if coordinates are invalid or no map data
    */
   public getTile(x: number, y: number): MapTile | null {
-    if (!this.mapData || x < 0 || x >= this.width || y < 0 || y >= this.height) {
-      return null;
-    }
-    return this.mapData.tiles[x][y];
+    if (!this.mapData) return null;
+    const position = this.topology.normalize(x, y);
+    return position ? (this.mapData.tiles[position.x]?.[position.y] ?? null) : null;
   }
 
   /**
@@ -56,7 +68,7 @@ export class MapAccessService {
    * @returns true if position is valid, false otherwise
    */
   public isValidPosition(x: number, y: number): boolean {
-    return x >= 0 && x < this.width && y >= 0 && y < this.height;
+    return this.topology.normalize(x, y) !== null;
   }
 
   /**
@@ -68,27 +80,9 @@ export class MapAccessService {
   public getNeighbors(x: number, y: number): MapTile[] {
     if (!this.mapData) return [];
 
-    const neighbors: MapTile[] = [];
-    const directions = [
-      [-1, -1],
-      [-1, 0],
-      [-1, 1],
-      [0, -1],
-      [0, 1],
-      [1, -1],
-      [1, 0],
-      [1, 1],
-    ];
-
-    for (const [dx, dy] of directions) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (this.isValidPosition(nx, ny)) {
-        neighbors.push(this.mapData.tiles[nx][ny]);
-      }
-    }
-
-    return neighbors;
+    return this.topology
+      .getNeighbors(x, y)
+      .map(({ x: neighborX, y: neighborY }) => this.mapData!.tiles[neighborX][neighborY]);
   }
 
   /**
@@ -102,15 +96,10 @@ export class MapAccessService {
     if (!this.mapData) return [];
 
     const visible: MapTile[] = [];
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          if (distance <= radius) {
-            visible.push(this.mapData.tiles[nx][ny]);
-          }
+    for (let tileX = 0; tileX < this.width; tileX++) {
+      for (let tileY = 0; tileY < this.height; tileY++) {
+        if (this.topology.squaredDistance(x, y, tileX, tileY) <= radius * radius) {
+          visible.push(this.mapData.tiles[tileX][tileY]);
         }
       }
     }
@@ -150,14 +139,16 @@ export class MapAccessService {
    * @param value New value for the property
    */
   public updateTileProperty(x: number, y: number, property: string, value: any): void {
-    if (!this.mapData || !this.isValidPosition(x, y)) return;
+    if (!this.mapData) return;
+    const position = this.topology.normalize(x, y);
+    if (!position) return;
 
-    const tile = this.mapData.tiles[x][y];
+    const tile = this.mapData.tiles[position.x][position.y];
     (tile as any)[property] = value;
 
     logger.debug('Updated tile property', {
-      x,
-      y,
+      x: position.x,
+      y: position.y,
       property,
       value,
     });
@@ -189,14 +180,7 @@ export class MapAccessService {
    * @returns distance between the two points
    */
   public getDistance(x1: number, y1: number, x2: number, y2: number): number {
-    const dx = Math.abs(x2 - x1);
-    const dy = Math.abs(y2 - y1);
-
-    // Handle wrapping for world maps (simplified for now)
-    const wrappedDx = Math.min(dx, this.width - dx);
-    const wrappedDy = Math.min(dy, this.height - dy);
-
-    return Math.max(wrappedDx, wrappedDy);
+    return this.topology.realDistance(x1, y1, x2, y2);
   }
 
   /**

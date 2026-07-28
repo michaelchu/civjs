@@ -9,6 +9,7 @@ export interface PlayerVisibility {
   playerId: string;
   exploredTiles: Set<string>; // tiles that have been seen before
   visibleTiles: Set<string>; // tiles currently visible
+  lastSeenByTile: Map<string, Date>;
   lastUpdated: Date;
 }
 
@@ -26,7 +27,8 @@ export type CityVisionProvider = (
 export type VisibilityPersistence = (
   playerId: string,
   exploredTiles: string[],
-  visibleTiles: string[]
+  visibleTiles: string[],
+  lastSeenByTile: Record<string, string>
 ) => Promise<void>;
 
 export class VisibilityManager {
@@ -75,6 +77,7 @@ export class VisibilityManager {
       playerId,
       exploredTiles: new Set(),
       visibleTiles: new Set(),
+      lastSeenByTile: new Map(),
       lastUpdated: new Date(),
     };
 
@@ -85,12 +88,19 @@ export class VisibilityManager {
   public restorePlayerVisibility(
     playerId: string,
     exploredTiles: Iterable<string>,
-    visibleTiles: Iterable<string> = []
+    visibleTiles: Iterable<string> = [],
+    lastSeenByTile: Readonly<Record<string, string | Date>> = {}
   ): void {
+    const restoredLastSeen = new Map<string, Date>();
+    for (const [tile, value] of Object.entries(lastSeenByTile)) {
+      const timestamp = value instanceof Date ? value : new Date(value);
+      if (!Number.isNaN(timestamp.getTime())) restoredLastSeen.set(tile, timestamp);
+    }
     this.playerVisibility.set(playerId, {
       playerId,
       exploredTiles: new Set(exploredTiles),
       visibleTiles: new Set(visibleTiles),
+      lastSeenByTile: restoredLastSeen,
       lastUpdated: new Date(),
     });
   }
@@ -114,11 +124,13 @@ export class VisibilityManager {
       this.addCityVision(sourcePlayerId, visibility.visibleTiles);
     }
 
+    const observedAt = new Date();
     for (const tileKey of visibility.visibleTiles) {
       visibility.exploredTiles.add(tileKey);
+      visibility.lastSeenByTile.set(tileKey, observedAt);
     }
 
-    visibility.lastUpdated = new Date();
+    visibility.lastUpdated = observedAt;
     this.queuePersistence(visibility);
     logger.debug(
       `Updated visibility for player ${playerId}: ${visibility.visibleTiles.size} visible, ${visibility.exploredTiles.size} explored`
@@ -189,15 +201,10 @@ export class VisibilityManager {
     const mapData = this.mapManager.getMapData();
     if (!mapData) return visibleTiles;
 
-    // Simple circular sight range using freeciv vision_radius_sq
-    const maxRadius = Math.ceil(Math.sqrt(visionRadiusSq));
-    for (let x = centerX - maxRadius; x <= centerX + maxRadius; x++) {
-      for (let y = centerY - maxRadius; y <= centerY + maxRadius; y++) {
-        // Check bounds manually since isValidCoord is private
-        if (x < 0 || x >= mapData.width || y < 0 || y >= mapData.height) continue;
-
-        const distanceSquared = (x - centerX) ** 2 + (y - centerY) ** 2;
-        if (distanceSquared <= visionRadiusSq) {
+    const topology = this.mapManager.getTopology();
+    for (let x = 0; x < mapData.width; x++) {
+      for (let y = 0; y < mapData.height; y++) {
+        if (topology.squaredDistance(centerX, centerY, x, y) <= visionRadiusSq) {
           visibleTiles.add(`${x},${y}`);
         }
       }
@@ -238,8 +245,12 @@ export class VisibilityManager {
       this.initializePlayerVisibility(playerId);
       visibility = this.playerVisibility.get(playerId)!;
     }
-    for (const tile of tiles) visibility.exploredTiles.add(tile);
-    visibility.lastUpdated = new Date();
+    const observedAt = new Date();
+    for (const tile of tiles) {
+      visibility.exploredTiles.add(tile);
+      visibility.lastSeenByTile.set(tile, observedAt);
+    }
+    visibility.lastUpdated = observedAt;
     this.queuePersistence(visibility);
     return new Set(visibility.exploredTiles);
   }
@@ -260,8 +271,12 @@ export class VisibilityManager {
       visibility = this.playerVisibility.get(playerId)!;
     }
     const revealed = this.calculateTileVisibility(centerX, centerY, radiusSquared);
-    for (const tile of revealed) visibility.exploredTiles.add(tile);
-    visibility.lastUpdated = new Date();
+    const observedAt = new Date();
+    for (const tile of revealed) {
+      visibility.exploredTiles.add(tile);
+      visibility.lastSeenByTile.set(tile, observedAt);
+    }
+    visibility.lastUpdated = observedAt;
     this.queuePersistence(visibility);
     return new Set(visibility.exploredTiles);
   }
@@ -271,13 +286,25 @@ export class VisibilityManager {
 
     const exploredTiles = [...visibility.exploredTiles].sort();
     const visibleTiles = [...visibility.visibleTiles].sort();
-    const snapshot = JSON.stringify([exploredTiles, visibleTiles]);
+    const lastSeenByTile = Object.fromEntries(
+      [...visibility.lastSeenByTile.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([tile, timestamp]) => [tile, timestamp.toISOString()])
+    );
+    const snapshot = JSON.stringify([exploredTiles, visibleTiles, lastSeenByTile]);
     if (this.lastQueuedSnapshots.get(visibility.playerId) === snapshot) return;
     this.lastQueuedSnapshots.set(visibility.playerId, snapshot);
 
     const previous = this.persistenceQueues.get(visibility.playerId) ?? Promise.resolve();
     const next = previous
-      .then(() => this.visibilityPersistence!(visibility.playerId, exploredTiles, visibleTiles))
+      .then(() =>
+        this.visibilityPersistence!(
+          visibility.playerId,
+          exploredTiles,
+          visibleTiles,
+          lastSeenByTile
+        )
+      )
       .catch(error => {
         if (this.lastQueuedSnapshots.get(visibility.playerId) === snapshot) {
           this.lastQueuedSnapshots.delete(visibility.playerId);
@@ -311,13 +338,15 @@ export class VisibilityManager {
    * Get visibility info for a specific tile
    */
   public getTileVisibility(playerId: string, x: number, y: number): TileVisibility {
-    const isVisible = this.isTileVisible(playerId, x, y);
-    const isExplored = this.isTileExplored(playerId, x, y);
+    const visibility = this.playerVisibility.get(playerId);
+    const tileKey = `${x},${y}`;
+    const isVisible = visibility?.visibleTiles.has(tileKey) ?? false;
+    const isExplored = visibility?.exploredTiles.has(tileKey) ?? false;
 
     return {
       isExplored,
       isVisible,
-      lastSeen: isExplored ? new Date() : undefined, // simplified for now
+      lastSeen: visibility?.lastSeenByTile.get(tileKey),
     };
   }
 

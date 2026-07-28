@@ -574,6 +574,8 @@ export const GameCreateSchema = z.object({
       rivers: z.number().min(0).max(100),
       resources: z.string(),
       startpos: z.number().optional(),
+      topologyId: z.number().int().min(0).max(3).optional(),
+      wrapId: z.number().int().min(0).max(3).optional(),
     })
     .optional(),
 });

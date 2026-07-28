@@ -760,6 +760,20 @@ export class RulesetLoader {
     return this.loadExtrasRuleset(rulesetName).extras;
   }
 
+  getBases(rulesetName: string = 'classic'): Record<string, Record<string, unknown>> {
+    return this.loadExtrasRuleset(rulesetName).bases;
+  }
+
+  getBaseForExtra(
+    extraIdOrName: string,
+    rulesetName: string = 'classic'
+  ): Record<string, unknown> | undefined {
+    const normalized = this.normalizeRuleName(extraIdOrName);
+    return Object.values(this.getBases(rulesetName)).find(
+      base => this.normalizeRuleName(String(base.extra ?? '')) === normalized
+    );
+  }
+
   getResources(rulesetName: string = 'classic'): Record<string, Record<string, unknown>> {
     return this.loadExtrasRuleset(rulesetName).resources;
   }

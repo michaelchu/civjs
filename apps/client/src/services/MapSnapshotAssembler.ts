@@ -6,6 +6,7 @@ type GameMap = GameState['map'];
 export interface MapInfoWireData {
   xsize: number;
   ysize: number;
+  topology_id?: number;
   wrap_id?: number;
 }
 
@@ -30,6 +31,7 @@ export class MapSnapshotAssembler {
       height: data.ysize,
       xsize: data.xsize,
       ysize: data.ysize,
+      topology_id: data.topology_id ?? 0,
       wrap_id: data.wrap_id ?? 0,
       tiles: {},
     };

@@ -189,6 +189,13 @@ export class UnitManager {
     broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
   };
   private playerTechsProvider: (playerId: string) => Set<string> = () => new Set();
+  private tileExtrasChangedCallback?: (change: {
+    x: number;
+    y: number;
+    playerId: string;
+    added: string[];
+    removed: string[];
+  }) => void;
 
   constructor(
     gameId: string,
@@ -267,6 +274,18 @@ export class UnitManager {
 
   public setCurrentTurnProvider(provider: () => number): void {
     this.currentTurnProvider = provider;
+  }
+
+  public setTileExtrasChangedCallback(
+    callback: (change: {
+      x: number;
+      y: number;
+      playerId: string;
+      added: string[];
+      removed: string[];
+    }) => void
+  ): void {
+    this.tileExtrasChangedCallback = callback;
   }
 
   public setPlayerTechsProvider(provider: (playerId: string) => Set<string>): void {
@@ -3087,7 +3106,8 @@ export class UnitManager {
       throw new Error(`No map tile at (${unit.x}, ${unit.y})`);
     }
 
-    const extras = new Set(tile.improvements);
+    const previousExtras = new Set<string>(tile.improvements as string[]);
+    const extras = new Set<string>(previousExtras);
     switch (order.type) {
       case 'road':
         extras.add('road');
@@ -3153,6 +3173,17 @@ export class UnitManager {
         break;
     }
     this.mapManager.updateTileProperty(unit.x, unit.y, 'improvements', [...extras]);
+    const added = [...extras].filter(extra => !previousExtras.has(extra));
+    const removed = [...previousExtras].filter(extra => !extras.has(extra));
+    if (added.length > 0 || removed.length > 0) {
+      this.tileExtrasChangedCallback?.({
+        x: unit.x,
+        y: unit.y,
+        playerId: unit.playerId,
+        added,
+        removed,
+      });
+    }
     const mapData = this.mapManager.getMapData?.();
     if (mapData) {
       // Worker extras are part of the authoritative map and must survive a

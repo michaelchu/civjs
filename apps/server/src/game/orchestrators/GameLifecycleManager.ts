@@ -272,6 +272,15 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       effectsManager,
       researchManager
     );
+    unitManager.setTileExtrasChangedCallback(change =>
+      borderManager.synchronizeTileExtras(
+        change.x,
+        change.y,
+        change.playerId,
+        change.added,
+        change.removed
+      )
+    );
     cityManager.setUnitSupportProvider(city =>
       [...unitManager.getAllUnits().values()]
         .filter(unit => unit.homeCityId === city.id)
@@ -884,7 +893,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       undefined,
       undefined,
       false,
-      temperatureParam
+      temperatureParam,
+      {
+        topologyId: terrainSettings?.topologyId,
+        wrapId: terrainSettings?.wrapId,
+      }
     );
   }
 
@@ -1082,11 +1095,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       mapManager,
       effectsManager,
       playerId => new Set(researchManager.getResearchedTechs(playerId)),
-      async (playerId, exploredTiles, visibleTiles) => {
+      async (playerId, exploredTiles, visibleTiles, tileLastSeen) => {
         await this.databaseProvider
           .getDatabase()
           .update(playerRecords)
-          .set({ exploredTiles, visibleTiles })
+          .set({ exploredTiles, visibleTiles, tileLastSeen })
           .where(eq(playerRecords.id, playerId));
       }
     );

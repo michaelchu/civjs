@@ -110,6 +110,7 @@ export interface MapInfoPacket {
     xsize: number;
     ysize: number;
     topology?: number;
+    topology_id?: number;
     wrap_id?: number;
     startpos?: Array<{
       x: number;
