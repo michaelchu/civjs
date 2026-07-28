@@ -11,6 +11,7 @@ interface ProductionOption {
   cost: number;
   description?: string;
   requirements?: string[];
+  conversion?: boolean;
   available: boolean;
 }
 
@@ -92,6 +93,7 @@ export class CityProductionHandler {
           type: 'building',
           cost: buildingType.cost,
           description: this.getBuildingDescription(buildingType),
+          conversion: buildingType.genus === 'Convert',
           requirements: [
             ...(buildingType.requiredTech ? [buildingType.requiredTech] : []),
             ...cultureRequirements,
@@ -211,6 +213,8 @@ export class CityProductionHandler {
       progress: city.productionStock ?? city.shieldStock ?? 0,
       cost: productionDetails.cost,
       turnsToComplete: this.calculateTurnsToComplete(city, productionDetails),
+      conversion:
+        productionType === 'building' && BUILDING_TYPES[productionId]?.genus === 'Convert',
     };
 
     const result = {
@@ -418,7 +422,7 @@ export class CityProductionHandler {
   private getUnitDescription(unitType: any): string {
     const parts = [];
     if (unitType.combat > 0) parts.push(`Attack: ${unitType.combat}`);
-    if (unitType.movement) parts.push(`Movement: ${unitType.movement / 3}`);
+    if (unitType.movement) parts.push(`Movement: ${unitType.movement}`);
     if (unitType.canFoundCity) parts.push('Can found cities');
     if (unitType.canBuildImprovements) parts.push('Can build improvements');
     return parts.join(', ') || 'Basic unit';
@@ -428,6 +432,9 @@ export class CityProductionHandler {
    * Get building description for tooltip
    */
   private getBuildingDescription(buildingType: any): string {
+    if (buildingType.genus === 'Convert' && buildingType.flags === 'Gold') {
+      return 'Converts shields to gold while selected';
+    }
     if (buildingType.effects) {
       const effects = [];
       if (buildingType.effects.foodBonus)

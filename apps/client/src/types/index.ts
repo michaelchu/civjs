@@ -51,6 +51,7 @@ export interface ProductionOption {
   cost: number;
   description?: string;
   requirements?: string[];
+  conversion?: boolean;
   available: boolean;
 }
 
@@ -176,6 +177,7 @@ export interface City {
     progress: number;
     cost: number;
     turnsToComplete: number;
+    conversion?: boolean;
     percentComplete?: number; // Server-calculated percentage (0-100)
     buyCost?: number;
   };

@@ -2122,7 +2122,7 @@
       "effects": {}
     },
     "capitalization": {
-      "name": "Coinage",
+      "name": "Wealth",
       "genus": "Convert",
       "flags": "Gold",
       "reqs": [],
@@ -2133,7 +2133,7 @@
       "build_cost": 999,
       "upkeep": 0,
       "sabotage": 0,
-      "helptext": "This is not a normal improvement. Instead, setting a city'sproduction to Coinage means its shield production isconverted to tax output (money, coins!).",
+      "helptext": "This is not a normal improvement. Instead, setting a city's production to Wealth converts its shield production to tax output (money, coins!).",
       "id": "capitalization",
       "cost": 999,
       "playable": true,

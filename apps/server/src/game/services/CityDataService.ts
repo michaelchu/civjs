@@ -260,6 +260,10 @@ export class CityDataService {
             progress,
             cost,
             turnsToComplete: this.calculateTurnsToComplete(city, rulesetName, dependencies),
+            conversion:
+              city.productionType === 'building' &&
+              dependencies.buildings.getBuildingTypes(rulesetName)[city.currentProduction]
+                ?.genus === 'Convert',
             percentComplete,
             buyCost,
           };

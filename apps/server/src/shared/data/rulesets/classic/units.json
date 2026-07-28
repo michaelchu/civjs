@@ -122,13 +122,6 @@
     "worker": {
       "name": "Workers",
       "class": "Land",
-      "reqs": [
-        {
-          "type": "Tech",
-          "name": "Pottery",
-          "range": "Player"
-        }
-      ],
       "obsolete_by": "engineers",
       "graphic": "u.worker",
       "graphic_alt": "u.engineers",
@@ -136,7 +129,7 @@
       "sound_move_alt": "m_generic",
       "sound_fight": "f_worker",
       "sound_fight_alt": "f_generic",
-      "build_cost": 30,
+      "build_cost": 10,
       "pop_cost": 0,
       "attack": 0,
       "defense": 1,
@@ -163,13 +156,12 @@
         "Workers can build airbases and buoys, which Settlers cannot. Workers must be on board a ship to build buoys."
       ],
       "id": "worker",
-      "cost": 30,
+      "cost": 10,
       "movement": 1,
       "bombard_rate": 0,
       "paratroopers_range": 0,
       "cargo": [],
       "unit_class": "Land",
-      "required_tech": "pottery",
       "veteran_levels": 1
     },
     "engineers": {

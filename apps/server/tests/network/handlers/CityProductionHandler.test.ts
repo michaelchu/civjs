@@ -1,6 +1,7 @@
 import { Socket } from 'socket.io';
 import { CityProductionHandler } from '@network/handlers/CityProductionHandler';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
+import { UNIT_TYPES } from '@game/constants/UnitConstants';
 
 // Mock dependencies with proper Jest mock typing
 const mockSocket = {
@@ -342,6 +343,14 @@ describe('CityProductionHandler', () => {
   });
 
   describe('canCityBuildUnit', () => {
+    it('allows Workers before any technology is researched', () => {
+      const city = mockCities.get('city-1');
+      const player = mockPlayers.get('player-1');
+      mockResearchManager.hasPlayerResearched.mockReturnValue(false);
+
+      expect((handler as any).canCityBuildUnit(city, UNIT_TYPES.worker, player)).toBe(true);
+    });
+
     it('should allow building warrior with no tech requirements', () => {
       const city = mockCities.get('city-1');
       const player = mockPlayers.get('player-1');
@@ -531,7 +540,7 @@ describe('CityProductionHandler', () => {
 
   describe('getUnitDescription', () => {
     it('should generate description for combat unit', () => {
-      const unitType = { combat: 5, movement: 3 };
+      const unitType = { combat: 5, movement: 1 };
       const description = (handler as any).getUnitDescription(unitType);
 
       expect(description).toContain('Attack: 5');
@@ -541,7 +550,7 @@ describe('CityProductionHandler', () => {
     it('should handle special abilities', () => {
       const unitType = {
         combat: 0,
-        movement: 3,
+        movement: 1,
         canFoundCity: true,
         canBuildImprovements: true,
       };
@@ -560,6 +569,15 @@ describe('CityProductionHandler', () => {
   });
 
   describe('getBuildingDescription', () => {
+    it('describes Wealth as an ongoing shield-to-gold conversion', () => {
+      const description = (handler as any).getBuildingDescription({
+        genus: 'Convert',
+        flags: 'Gold',
+      });
+
+      expect(description).toBe('Converts shields to gold while selected');
+    });
+
     it('should generate description from effects', () => {
       const buildingType = {
         effects: {

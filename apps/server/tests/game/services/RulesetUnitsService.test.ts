@@ -72,4 +72,14 @@ describe('RulesetUnitsService', () => {
     expect(rulesetUnitsService.getMovementType('cruise_missile')).toBe('air');
     expect(rulesetUnitsService.getMovementType('unknown_unit')).toBeUndefined();
   });
+
+  it('keeps Workers buildable without a technology prerequisite', () => {
+    expect(rulesetUnitsService.getUnitType('worker')).toEqual(
+      expect.objectContaining({
+        id: 'worker',
+        cost: 10,
+        requiredTech: undefined,
+      })
+    );
+  });
 });

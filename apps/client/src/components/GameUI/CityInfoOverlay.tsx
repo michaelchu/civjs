@@ -158,6 +158,64 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
     return null;
   }
 
+  const productionGroups = [
+    {
+      label: 'Units',
+      options: availableProductions.filter(option => option.available && option.type === 'unit'),
+    },
+    {
+      label: 'Buildings',
+      options: availableProductions.filter(
+        option => option.available && option.type === 'building' && !option.conversion
+      ),
+    },
+    {
+      label: 'Wonders',
+      options: availableProductions.filter(option => option.available && option.type === 'wonder'),
+    },
+  ].filter(group => group.options.length > 0);
+  const conversionOptions = availableProductions.filter(
+    option => option.available && option.conversion
+  );
+
+  const renderProductionItem = (
+    option: ProductionOption,
+    onSelect: (option: ProductionOption) => void
+  ) => (
+    <DropdownMenuItem
+      key={option.id}
+      onClick={() => onSelect(option)}
+      className="flex items-center justify-between"
+    >
+      <div>
+        <div className="font-medium">{option.name}</div>
+        <div className="text-xs text-muted-foreground">{option.description}</div>
+      </div>
+      {!option.conversion && <span className="text-xs">{option.cost} shields</span>}
+    </DropdownMenuItem>
+  );
+
+  const renderProductionGroups = (
+    onSelect: (option: ProductionOption) => void
+  ): React.ReactNode[] =>
+    productionGroups.flatMap((group, groupIndex) => [
+      ...(groupIndex > 0 ? [<DropdownMenuSeparator key={`${group.label}-separator`} />] : []),
+      <React.Fragment key={group.label}>
+        <DropdownMenuLabel className="text-xs text-muted-foreground">
+          {group.label}
+        </DropdownMenuLabel>
+        {group.options.map(option => renderProductionItem(option, onSelect))}
+      </React.Fragment>,
+    ]);
+
+  const renderConversionOptions = (onSelect: (option: ProductionOption) => void) =>
+    conversionOptions.length > 0 ? (
+      <>
+        {productionGroups.length > 0 && <DropdownMenuSeparator />}
+        {conversionOptions.map(option => renderProductionItem(option, onSelect))}
+      </>
+    ) : null;
+
   // Helper functions for data access - server data only, no calculations
   const getCityData = () => {
     // Server must provide all production and surplus data
@@ -595,7 +653,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                       <ChevronDown className="h-3 w-3 ml-1" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuContent
+                    align="end"
+                    className="max-h-[min(32rem,var(--radix-dropdown-menu-content-available-height))] w-72 overscroll-contain overflow-y-auto"
+                  >
                     <DropdownMenuLabel>Select Production</DropdownMenuLabel>
                     <DropdownMenuSeparator />
 
@@ -607,73 +668,12 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                       </DropdownMenuItem>
                     ) : (
                       <>
-                        <DropdownMenuLabel className="text-xs text-muted-foreground">
-                          Units
-                        </DropdownMenuLabel>
-                        {availableProductions
-                          .filter(p => p.type === 'unit')
-                          .map(option => (
-                            <DropdownMenuItem
-                              key={option.id}
-                              onClick={() => onProductionChange?.(city.id, option.id, option.type)}
-                              className="flex items-center justify-between"
-                              disabled={!option.available}
-                            >
-                              <div>
-                                <div className="font-medium">{option.name}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {option.description}
-                                </div>
-                              </div>
-                              <span className="text-xs">{option.cost} shields</span>
-                            </DropdownMenuItem>
-                          ))}
-
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel className="text-xs text-muted-foreground">
-                          Buildings
-                        </DropdownMenuLabel>
-                        {availableProductions
-                          .filter(p => p.type === 'building')
-                          .map(option => (
-                            <DropdownMenuItem
-                              key={option.id}
-                              onClick={() => onProductionChange?.(city.id, option.id, option.type)}
-                              className="flex items-center justify-between"
-                              disabled={!option.available}
-                            >
-                              <div>
-                                <div className="font-medium">{option.name}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {option.description}
-                                </div>
-                              </div>
-                              <span className="text-xs">{option.cost} shields</span>
-                            </DropdownMenuItem>
-                          ))}
-
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel className="text-xs text-muted-foreground">
-                          Wonders
-                        </DropdownMenuLabel>
-                        {availableProductions
-                          .filter(p => p.type === 'wonder')
-                          .map(option => (
-                            <DropdownMenuItem
-                              key={option.id}
-                              onClick={() => onProductionChange?.(city.id, option.id, option.type)}
-                              className="flex items-center justify-between"
-                              disabled={!option.available}
-                            >
-                              <div>
-                                <div className="font-medium">{option.name}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {option.description}
-                                </div>
-                              </div>
-                              <span className="text-xs">{option.cost} shields</span>
-                            </DropdownMenuItem>
-                          ))}
+                        {renderProductionGroups(option =>
+                          onProductionChange?.(city.id, option.id, option.type)
+                        )}
+                        {renderConversionOptions(option =>
+                          onProductionChange?.(city.id, option.id, option.type)
+                        )}
                       </>
                     )}
                   </DropdownMenuContent>
@@ -698,38 +698,49 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                 </div>
               ) : city.production ? (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{city.production.target}</span>
-                    <Badge variant="secondary" className="capitalize">
-                      {city.production.type}
-                    </Badge>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Progress:</span>
-                      <span>
-                        {city.production.progress} / {city.production.cost}
-                      </span>
+                  {city.production.conversion ? (
+                    <div className="rounded-md border border-purple-200 bg-white/70 p-4">
+                      <div className="font-medium text-purple-950">{city.production.target}</div>
+                      <p className="mt-1 text-sm text-purple-800">
+                        Converts this city&apos;s shield production to gold each turn.
+                      </p>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className="bg-purple-600 h-3 rounded-full transition-all duration-300"
-                        style={{
-                          width: `${city.production.percentComplete || 0}%`,
-                        }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>
-                        Shields per turn:{' '}
-                        <span className="font-semibold">{cityData.surplus.shields}</span>
-                      </span>
-                      <span>
-                        Turns remaining:{' '}
-                        <span className="font-semibold">{city.production.turnsToComplete}</span>
-                      </span>
-                    </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{city.production.target}</span>
+                        <Badge variant="secondary" className="capitalize">
+                          {city.production.type}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Progress:</span>
+                          <span>
+                            {city.production.progress} / {city.production.cost}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div
+                            className="bg-purple-600 h-3 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${city.production.percentComplete || 0}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>
+                            Shields per turn:{' '}
+                            <span className="font-semibold">{cityData.surplus.shields}</span>
+                          </span>
+                          <span>
+                            Turns remaining:{' '}
+                            <span className="font-semibold">{city.production.turnsToComplete}</span>
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="rounded-md border border-purple-200 bg-white/70 p-4">
@@ -761,7 +772,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                         {isLoadingProductions ? 'Loading...' : 'Add to Queue'}
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuContent
+                      align="end"
+                      className="max-h-[min(32rem,var(--radix-dropdown-menu-content-available-height))] w-72 overscroll-contain overflow-y-auto"
+                    >
                       <DropdownMenuLabel>Add to Production Queue</DropdownMenuLabel>
                       <DropdownMenuSeparator />
 
@@ -773,73 +787,12 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                         </DropdownMenuItem>
                       ) : (
                         <>
-                          <DropdownMenuLabel className="text-xs text-muted-foreground">
-                            Units
-                          </DropdownMenuLabel>
-                          {availableProductions
-                            .filter(p => p.type === 'unit')
-                            .map(option => (
-                              <DropdownMenuItem
-                                key={option.id}
-                                onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
-                                className="flex items-center justify-between"
-                                disabled={!option.available}
-                              >
-                                <div>
-                                  <div className="font-medium">{option.name}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {option.description}
-                                  </div>
-                                </div>
-                                <span className="text-xs">{option.cost} shields</span>
-                              </DropdownMenuItem>
-                            ))}
-
-                          <DropdownMenuSeparator />
-                          <DropdownMenuLabel className="text-xs text-muted-foreground">
-                            Buildings
-                          </DropdownMenuLabel>
-                          {availableProductions
-                            .filter(p => p.type === 'building')
-                            .map(option => (
-                              <DropdownMenuItem
-                                key={option.id}
-                                onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
-                                className="flex items-center justify-between"
-                                disabled={!option.available}
-                              >
-                                <div>
-                                  <div className="font-medium">{option.name}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {option.description}
-                                  </div>
-                                </div>
-                                <span className="text-xs">{option.cost} shields</span>
-                              </DropdownMenuItem>
-                            ))}
-
-                          <DropdownMenuSeparator />
-                          <DropdownMenuLabel className="text-xs text-muted-foreground">
-                            Wonders
-                          </DropdownMenuLabel>
-                          {availableProductions
-                            .filter(p => p.type === 'wonder')
-                            .map(option => (
-                              <DropdownMenuItem
-                                key={option.id}
-                                onClick={() => onQueueAdd?.(city.id, option.id, option.type)}
-                                className="flex items-center justify-between"
-                                disabled={!option.available}
-                              >
-                                <div>
-                                  <div className="font-medium">{option.name}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {option.description}
-                                  </div>
-                                </div>
-                                <span className="text-xs">{option.cost} shields</span>
-                              </DropdownMenuItem>
-                            ))}
+                          {renderProductionGroups(option =>
+                            onQueueAdd?.(city.id, option.id, option.type)
+                          )}
+                          {renderConversionOptions(option =>
+                            onQueueAdd?.(city.id, option.id, option.type)
+                          )}
                         </>
                       )}
                     </DropdownMenuContent>

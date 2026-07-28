@@ -66,6 +66,150 @@ describe('CityInfoOverlay production', () => {
     expect(screen.getByRole('button', { name: /Change/ })).toBeEnabled();
   });
 
+  it('keeps long production choices within a scrollable viewport menu', () => {
+    render(
+      <CityInfoOverlay
+        city={idleCity}
+        isOpen
+        onClose={vi.fn()}
+        availableProductions={[
+          {
+            id: 'worker',
+            name: 'Workers',
+            type: 'unit',
+            cost: 30,
+            available: true,
+          },
+        ]}
+        onProductionChange={vi.fn()}
+      />
+    );
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Production/ }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.keyDown(screen.getByRole('button', { name: /Change/ }), { key: 'ArrowDown' });
+
+    expect(screen.getByRole('menu')).toHaveClass(
+      'max-h-[min(32rem,var(--radix-dropdown-menu-content-available-height))]',
+      'overflow-y-auto',
+      'overscroll-contain'
+    );
+  });
+
+  it('hides production choices the city cannot build yet', () => {
+    render(
+      <CityInfoOverlay
+        city={idleCity}
+        isOpen
+        onClose={vi.fn()}
+        availableProductions={[
+          {
+            id: 'warriors',
+            name: 'Warriors',
+            type: 'unit',
+            cost: 10,
+            available: true,
+          },
+          {
+            id: 'engineers',
+            name: 'Engineers',
+            type: 'unit',
+            cost: 40,
+            available: false,
+          },
+        ]}
+        onProductionChange={vi.fn()}
+      />
+    );
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Production/ }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.keyDown(screen.getByRole('button', { name: /Change/ }), { key: 'ArrowDown' });
+
+    expect(screen.getByRole('menuitem', { name: /Warriors/ })).toBeInTheDocument();
+    expect(screen.queryByText('Engineers')).not.toBeInTheDocument();
+    expect(screen.queryByText('Buildings')).not.toBeInTheDocument();
+    expect(screen.queryByText('Wonders')).not.toBeInTheDocument();
+  });
+
+  it('labels Wealth as a conversion instead of a 999-shield project', () => {
+    render(
+      <CityInfoOverlay
+        city={idleCity}
+        isOpen
+        onClose={vi.fn()}
+        availableProductions={[
+          {
+            id: 'capitalization',
+            name: 'Wealth',
+            type: 'building',
+            cost: 999,
+            conversion: true,
+            description: 'Converts shields to gold while selected',
+            available: true,
+          },
+        ]}
+        onProductionChange={vi.fn()}
+      />
+    );
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Production/ }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.keyDown(screen.getByRole('button', { name: /Change/ }), { key: 'ArrowDown' });
+
+    expect(screen.getByRole('menuitem', { name: /Wealth/ })).toBeInTheDocument();
+    expect(screen.getByText('Converts shields to gold while selected')).toBeInTheDocument();
+    expect(screen.queryByText('Conversion')).not.toBeInTheDocument();
+    expect(screen.queryByText('999 shields')).not.toBeInTheDocument();
+  });
+
+  it('renders active Wealth without progress or a completion countdown', () => {
+    render(
+      <CityInfoOverlay
+        city={{
+          ...idleCity,
+          production: {
+            target: 'Wealth',
+            type: 'building',
+            progress: 0,
+            cost: 999,
+            turnsToComplete: 200,
+            conversion: true,
+          },
+        }}
+        isOpen
+        onClose={vi.fn()}
+        availableProductions={[
+          {
+            id: 'capitalization',
+            name: 'Wealth',
+            type: 'building',
+            cost: 999,
+            conversion: true,
+            available: true,
+          },
+        ]}
+      />
+    );
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Production/ }), {
+      button: 0,
+      ctrlKey: false,
+    });
+
+    expect(
+      screen.getByText("Converts this city's shield production to gold each turn.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText('0 / 999')).not.toBeInTheDocument();
+    expect(screen.queryByText('Turns remaining:')).not.toBeInTheDocument();
+  });
+
   it('shows an actionable production loading failure', () => {
     const retry = vi.fn();
     render(

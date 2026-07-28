@@ -81,7 +81,7 @@ describe('Freeciv classic content catalogues', () => {
       cost: 60,
     });
     expect(rulesetLoader.getBuildings().capitalization).toMatchObject({
-      name: 'Coinage',
+      name: 'Wealth',
       genus: 'Convert',
       cost: 999,
     });
