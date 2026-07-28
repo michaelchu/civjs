@@ -72,11 +72,16 @@ export class FogRenderer extends BaseRenderer {
     maxY: number;
   } {
     const { viewport } = state;
+    // The Zustand viewport dimensions can lag the canvas during resize and
+    // route transitions. Fog culling must use the actual backing buffer or
+    // the rendered fog rectangle appears to slide as the camera moves.
+    const width = this.ctx.canvas?.width || viewport.width;
+    const height = this.ctx.canvas?.height || viewport.height;
     const guiCorners = [
       { x: viewport.x, y: viewport.y },
-      { x: viewport.x + viewport.width, y: viewport.y },
-      { x: viewport.x, y: viewport.y + viewport.height },
-      { x: viewport.x + viewport.width, y: viewport.y + viewport.height },
+      { x: viewport.x + width, y: viewport.y },
+      { x: viewport.x, y: viewport.y + height },
+      { x: viewport.x + width, y: viewport.y + height },
     ];
     const mapCorners = guiCorners.map(({ x, y }) => ({
       x: x / this.tileWidth + y / this.tileHeight,
