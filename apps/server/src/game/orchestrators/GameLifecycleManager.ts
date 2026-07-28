@@ -8,7 +8,15 @@ import { BaseGameService } from './GameService';
 import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
 import { gameState } from '@database/redis';
-import { games, players as playerRecords } from '@database/schema';
+import {
+  cities,
+  games,
+  gameTurns,
+  playerTechs,
+  players as playerRecords,
+  research,
+  units,
+} from '@database/schema';
 import { eq } from 'drizzle-orm';
 import serverConfig from '@config';
 import { TurnManager } from '@game/managers/TurnManager';
@@ -203,42 +211,52 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     this.assertScenarioGamesEnabled((game.gameState as any)?.terrainSettings);
 
     this.logger.info('Starting game', { gameId, playerCount: game.players.length });
+    await this.markGameStarting(gameId);
 
-    // Freeciv assigns the configured starting treasury when a new game begins.
-    // Recovery follows a separate path and therefore retains persisted balances.
-    // @reference reference/freeciv/server/srv_main.c:3406-3412
-    await this.initializeNewGamePlayerResources(gameId, game.players);
+    try {
+      // Freeciv assigns the configured starting treasury when a new game begins.
+      // Recovery follows a separate path and therefore retains persisted balances.
+      // @reference reference/freeciv/server/srv_main.c:3406-3412
+      await this.initializeNewGamePlayerResources(gameId, game.players);
 
-    // Update database to active state
-    await this.activateGameRecord(gameId);
+      // Create a preliminary game instance with players to enable internal initialization callbacks.
+      const preliminaryPlayers = this.buildPlayersMapFromDb(game.players);
+      const preliminaryInstance = this.buildPreliminaryInstance(gameId, game, preliminaryPlayers);
+      this.games.set(gameId, preliminaryInstance);
 
-    // Update Redis cache
-    await this.updateRedisForGameStart(gameId, game.players.length);
+      // Initialize and persist the complete game before making it externally active.
+      const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
+      const gameInstance = await this.initializeGameInstance(gameId, game, storedTerrainSettings);
+      this.games.set(gameId, gameInstance);
 
-    // Create a preliminary game instance with players to enable broadcasts during initialization
-    const preliminaryPlayers = this.buildPlayersMapFromDb(game.players);
+      await this.activateGameRecord(gameId);
+      await this.updateRedisForGameStart(gameId, game.players.length);
 
-    // Store preliminary instance to enable broadcasts during initialization
-    const preliminaryInstance = this.buildPreliminaryInstance(gameId, game, preliminaryPlayers);
-    this.games.set(gameId, preliminaryInstance);
+      this.onBroadcastMapData?.(gameId, gameInstance.mapManager.getMapData());
+      this.onBroadcast?.(gameId, 'game-started', {
+        gameId,
+        currentTurn: 1,
+      });
 
-    // Initialize the full game instance with map generation
-    const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
-    const gameInstance = await this.initializeGameInstance(gameId, game, storedTerrainSettings);
-
-    // Replace with the fully initialized instance
-    this.games.set(gameId, gameInstance);
-
-    // Broadcast initial map data now that all managers are initialized
-    this.onBroadcastMapData?.(gameId, gameInstance.mapManager.getMapData());
-
-    // Notify all players that the game has started
-    this.onBroadcast?.(gameId, 'game-started', {
-      gameId,
-      currentTurn: 1,
-    });
-
-    this.logger.info('Game started successfully', { gameId });
+      this.logger.info('Game started successfully', { gameId });
+    } catch (error) {
+      this.games.delete(gameId);
+      try {
+        await this.markGameStartFailed(gameId, game, error);
+        await gameState.setGameState(gameId, {
+          state: 'waiting',
+          currentTurn: 0,
+          turnPhase: 'movement',
+          playerCount: game.players.length,
+        });
+      } catch (recoveryError) {
+        this.logger.error('Failed to persist recoverable game-start state', {
+          gameId,
+          error: recoveryError instanceof Error ? recoveryError.message : recoveryError,
+        });
+      }
+      throw error;
+    }
   }
 
   /**
@@ -837,6 +855,71 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         currentTurn: 1,
       })
       .where(eq(games.id, gameId));
+  }
+
+  private async markGameStarting(gameId: string): Promise<void> {
+    await this.databaseProvider
+      .getDatabase()
+      .update(games)
+      .set({ status: 'starting', updatedAt: new Date() })
+      .where(eq(games.id, gameId));
+  }
+
+  private async markGameStartFailed(
+    gameId: string,
+    originalGame: any,
+    error: unknown
+  ): Promise<void> {
+    const existingState = originalGame.gameState;
+    const priorState =
+      existingState && typeof existingState === 'object' && !Array.isArray(existingState)
+        ? existingState
+        : {};
+    await this.databaseProvider.getDatabase().transaction(async transaction => {
+      // A failed first start is rolled back to its pre-start database boundary.
+      // All of these records are generated during initialization and are safe
+      // to discard while the game is still a waiting lobby.
+      await transaction.delete(units).where(eq(units.gameId, gameId));
+      await transaction.delete(cities).where(eq(cities.gameId, gameId));
+      await transaction.delete(playerTechs).where(eq(playerTechs.gameId, gameId));
+      await transaction.delete(research).where(eq(research.gameId, gameId));
+      await transaction.delete(gameTurns).where(eq(gameTurns.gameId, gameId));
+
+      for (const player of originalGame.players) {
+        await transaction
+          .update(playerRecords)
+          .set({
+            gold: player.gold,
+            technologies: player.technologies,
+            currentResearch: player.currentResearch,
+            researchProgress: player.researchProgress,
+            government: player.government,
+            revolutionTurns: player.revolutionTurns,
+          })
+          .where(eq(playerRecords.id, player.id));
+      }
+
+      await transaction
+        .update(games)
+        .set({
+          // Keep the lobby retryable while retaining structured failure details
+          // for operators and the next start attempt.
+          status: 'waiting',
+          currentTurn: originalGame.currentTurn,
+          startedAt: originalGame.startedAt,
+          mapSeed: originalGame.mapSeed,
+          mapData: originalGame.mapData,
+          gameState: {
+            ...priorState,
+            startFailure: {
+              message: error instanceof Error ? error.message : String(error),
+              occurredAt: new Date().toISOString(),
+            },
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(games.id, gameId));
+    });
   }
 
   private async initializeNewGamePlayerResources(

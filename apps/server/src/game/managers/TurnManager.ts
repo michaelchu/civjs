@@ -1,8 +1,9 @@
 import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
 import { gameState } from '@database/redis';
-import { gameTurns, games, players } from '@database/schema';
-import { and, eq } from 'drizzle-orm';
+import { gameTurns, games, players, turnActions } from '@database/schema';
+import { randomUUID } from 'node:crypto';
+import { and, eq, inArray, isNull, lt, or } from 'drizzle-orm';
 import { Server as SocketServer } from 'socket.io';
 // PacketType removed - handled by TurnPacketService
 import { TurnProcessingService, type PlayerAction } from '@game/services/TurnProcessingService';
@@ -63,6 +64,7 @@ export class TurnManager {
   private endGameEvaluator?: (turn: number, year: number) => Promise<boolean>;
   private replaySnapshotProvider?: () => Record<string, unknown>;
   private diplomacyProcessor?: () => Promise<void>;
+  private readonly processingOwner = randomUUID();
 
   // Service dependencies
   private turnProcessingService: TurnProcessingService;
@@ -114,7 +116,8 @@ export class TurnManager {
       cityManager,
       researchManager,
       economicManager,
-      effectsManager
+      effectsManager,
+      (action, errorMessage) => this.persistActionStatus(action, errorMessage)
     );
     this.turnCoordinationService = new TurnCoordinationService(
       gameId,
@@ -180,9 +183,13 @@ export class TurnManager {
     for (const playerId of playerIds) {
       this.playerActions.set(playerId, []);
     }
+    this.turnProcessingService.initializeActionQueues(playerIds);
 
     if (createTurnRecord) await this.createTurnRecord();
-    else await this.restoreOrCreateTurnRecord();
+    else {
+      await this.restoreOrCreateTurnRecord();
+      await this.restorePendingActions();
+    }
 
     if (broadcastTurnStart) {
       this.broadcastTurnStart();
@@ -205,6 +212,15 @@ export class TurnManager {
 
   private async processTurnInternal(): Promise<void> {
     logger.info('Processing turn', { gameId: this.gameId, turn: this.currentTurn });
+
+    const processingTurn = this.currentTurn;
+    if (!(await this.claimTurnProcessingLease(processingTurn))) {
+      throw new Error(`Turn ${processingTurn} is already being processed`);
+    }
+    const leaseHeartbeat = setInterval(() => {
+      void this.renewTurnProcessingLease(processingTurn);
+    }, 30_000);
+    leaseHeartbeat.unref();
 
     try {
       // Clear any existing timer
@@ -265,16 +281,95 @@ export class TurnManager {
         error: error instanceof Error ? error.message : error,
       });
       throw error;
+    } finally {
+      clearInterval(leaseHeartbeat);
+      await this.releaseTurnProcessingLease(processingTurn);
     }
   }
 
-  public addPlayerAction(playerId: string, action: any): void {
+  private async claimTurnProcessingLease(turn: number): Promise<boolean> {
+    const now = new Date();
+    const leaseExpiresAt = new Date(now.getTime() + 90_000);
+    const claimed = await this.databaseProvider
+      .getDatabase()
+      .update(gameTurns)
+      .set({
+        processingOwner: this.processingOwner,
+        processingLeaseExpiresAt: leaseExpiresAt,
+      })
+      .where(
+        and(
+          eq(gameTurns.gameId, this.gameId),
+          eq(gameTurns.turnNumber, turn),
+          or(
+            isNull(gameTurns.processingOwner),
+            lt(gameTurns.processingLeaseExpiresAt, now),
+            eq(gameTurns.processingOwner, this.processingOwner)
+          )
+        )
+      )
+      .returning({ id: gameTurns.id });
+    return claimed.length === 1;
+  }
+
+  private async renewTurnProcessingLease(turn: number): Promise<void> {
+    try {
+      await this.databaseProvider
+        .getDatabase()
+        .update(gameTurns)
+        .set({ processingLeaseExpiresAt: new Date(Date.now() + 90_000) })
+        .where(
+          and(
+            eq(gameTurns.gameId, this.gameId),
+            eq(gameTurns.turnNumber, turn),
+            eq(gameTurns.processingOwner, this.processingOwner)
+          )
+        );
+    } catch (error) {
+      logger.error('Failed to renew turn processing lease', {
+        gameId: this.gameId,
+        turn,
+        error: error instanceof Error ? error.message : error,
+      });
+    }
+  }
+
+  private async releaseTurnProcessingLease(turn: number): Promise<void> {
+    try {
+      await this.databaseProvider
+        .getDatabase()
+        .update(gameTurns)
+        .set({
+          processingOwner: null,
+          processingLeaseExpiresAt: null,
+        })
+        .where(
+          and(
+            eq(gameTurns.gameId, this.gameId),
+            eq(gameTurns.turnNumber, turn),
+            eq(gameTurns.processingOwner, this.processingOwner)
+          )
+        );
+    } catch (error) {
+      logger.warn('Failed to release turn processing lease', {
+        gameId: this.gameId,
+        turn,
+        error: error instanceof Error ? error.message : error,
+      });
+    }
+  }
+
+  public async addPlayerAction(playerId: string, action: any): Promise<string> {
     if (!this.playerActions.has(playerId)) {
       this.playerActions.set(playerId, []);
+      this.turnProcessingService.initializeActionQueues([playerId]);
     }
 
     const playerAction: PlayerAction = {
-      id: `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id:
+        action.id ??
+        action.requestId ??
+        `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type: action.type,
       playerId,
       priority: action.priority || 5, // Default priority
@@ -284,10 +379,94 @@ export class TurnManager {
       status: 'queued' as const,
     };
 
+    const inserted = await this.databaseProvider
+      .getDatabase()
+      .insert(turnActions)
+      .values({
+        id: playerAction.id,
+        gameId: this.gameId,
+        playerId,
+        turnNumber: this.currentTurn,
+        actionType: playerAction.type,
+        priority: playerAction.priority,
+        payload: playerAction.data,
+        dependencies: playerAction.dependencies ?? [],
+        status: playerAction.status,
+        createdAt: playerAction.timestamp,
+        updatedAt: playerAction.timestamp,
+      })
+      .onConflictDoNothing({
+        target: [turnActions.gameId, turnActions.turnNumber, turnActions.id],
+      })
+      .returning({ id: turnActions.id });
+
+    // A stable request ID makes client retries idempotent. Once its durable row
+    // exists, do not enqueue the same action a second time.
+    if (inserted.length === 0) return playerAction.id;
+
     this.playerActions.get(playerId)!.push(playerAction);
     this.turnProcessingService.queuePlayerAction(playerAction);
 
     logger.debug('Added player action', { gameId: this.gameId, playerId, actionType: action.type });
+    return playerAction.id;
+  }
+
+  private async restorePendingActions(): Promise<void> {
+    const persisted = await this.databaseProvider
+      .getDatabase()
+      .select()
+      .from(turnActions)
+      .where(
+        and(
+          eq(turnActions.gameId, this.gameId),
+          eq(turnActions.turnNumber, this.currentTurn),
+          inArray(turnActions.status, ['queued', 'processing'])
+        )
+      );
+
+    for (const record of persisted) {
+      const action: PlayerAction = {
+        id: record.id,
+        type: record.actionType as PlayerAction['type'],
+        playerId: record.playerId,
+        priority: record.priority,
+        data: record.payload,
+        dependencies: Array.isArray(record.dependencies)
+          ? record.dependencies.filter((value): value is string => typeof value === 'string')
+          : undefined,
+        timestamp: record.createdAt,
+        // A process death during execution retries from the durable queued boundary.
+        status: 'queued',
+      };
+      if (!this.playerActions.has(record.playerId)) {
+        this.playerActions.set(record.playerId, []);
+        this.turnProcessingService.initializeActionQueues([record.playerId]);
+      }
+      this.playerActions.get(record.playerId)!.push(action);
+      this.turnProcessingService.queuePlayerAction(action);
+      if (record.status === 'processing') await this.persistActionStatus(action);
+    }
+  }
+
+  private async persistActionStatus(action: PlayerAction, errorMessage?: string): Promise<void> {
+    await this.databaseProvider
+      .getDatabase()
+      .update(turnActions)
+      .set({
+        status: action.status,
+        errorMessage: errorMessage ?? null,
+        updatedAt: new Date(),
+        completedAt: ['completed', 'failed', 'cancelled'].includes(action.status)
+          ? new Date()
+          : null,
+      })
+      .where(
+        and(
+          eq(turnActions.gameId, this.gameId),
+          eq(turnActions.turnNumber, this.currentTurn),
+          eq(turnActions.id, action.id)
+        )
+      );
   }
 
   public getCultureManager(): CultureManager {
@@ -355,11 +534,23 @@ export class TurnManager {
       .getDatabase()
       .insert(gameTurns)
       .values(turnData)
+      .onConflictDoNothing({
+        target: [gameTurns.gameId, gameTurns.turnNumber],
+      })
       .returning({ id: gameTurns.id });
-    if (!record?.id) throw new Error('Failed to create authoritative turn record');
-    this.setCurrentTurnRecord(record.id);
+    let turnId = record?.id;
+    if (!turnId) {
+      const [existing] = await this.databaseProvider
+        .getDatabase()
+        .select({ id: gameTurns.id })
+        .from(gameTurns)
+        .where(and(eq(gameTurns.gameId, this.gameId), eq(gameTurns.turnNumber, this.currentTurn)));
+      turnId = existing?.id;
+    }
+    if (!turnId) throw new Error('Failed to create authoritative turn record');
+    this.setCurrentTurnRecord(turnId);
     logger.debug('Created turn record', { gameId: this.gameId, turn: this.currentTurn });
-    return record.id;
+    return turnId;
   }
 
   private async completeTurnRecord(phaseResult: {

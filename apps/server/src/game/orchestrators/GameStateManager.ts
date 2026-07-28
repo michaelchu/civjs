@@ -219,45 +219,40 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
     mapData: any,
     terrainSettings?: TerrainSettings
   ): Promise<void> {
-    try {
-      this.logger.info('Persisting map data to database', { gameId });
+    this.logger.info('Persisting map data to database', { gameId });
 
-      // Serialize map data for storage
-      const serializedMapData = {
-        width: mapData.width,
-        height: mapData.height,
-        topologyId: mapData.topologyId ?? 0,
-        wrapId: mapData.wrapId ?? 0,
-        seed: mapData.seed,
-        generatedAt: mapData.generatedAt.toISOString(),
-        startingPositions: mapData.startingPositions,
-        tiles: this.serializeMapTiles(mapData.tiles),
-      };
+    // Serialize map data for storage
+    const serializedMapData = {
+      width: mapData.width,
+      height: mapData.height,
+      topologyId: mapData.topologyId ?? 0,
+      wrapId: mapData.wrapId ?? 0,
+      seed: mapData.seed,
+      generatedAt: mapData.generatedAt.toISOString(),
+      startingPositions: mapData.startingPositions,
+      tiles: this.serializeMapTiles(mapData.tiles),
+    };
 
-      // Update database with map data and seed
-      await this.databaseProvider
-        .getDatabase()
-        .update(games)
-        .set({
-          mapSeed: mapData.seed,
-          mapData: serializedMapData,
-          gameState: {
-            terrainSettings: terrainSettings || null,
-            mapGenerated: true,
-            generatedAt: mapData.generatedAt.toISOString(),
-          },
-          updatedAt: new Date(),
-        })
-        .where(eq(games.id, gameId));
+    // A game must never become active unless this authoritative write succeeds.
+    await this.databaseProvider
+      .getDatabase()
+      .update(games)
+      .set({
+        mapSeed: mapData.seed,
+        mapData: serializedMapData,
+        gameState: {
+          terrainSettings: terrainSettings || null,
+          mapGenerated: true,
+          generatedAt: mapData.generatedAt.toISOString(),
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(games.id, gameId));
 
-      this.logger.info('Map data persisted successfully', {
-        gameId,
-        mapSize: `${mapData.width}x${mapData.height}`,
-      });
-    } catch (error) {
-      this.logger.error('Failed to persist map data to database:', error);
-      // Don't throw error to avoid breaking game initialization
-    }
+    this.logger.info('Map data persisted successfully', {
+      gameId,
+      mapSize: `${mapData.width}x${mapData.height}`,
+    });
   }
 
   /**

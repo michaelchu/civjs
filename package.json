@@ -25,6 +25,8 @@
     "test:all": "npm run test:unit && npm run test:integration",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
+    "backup:create": "node tools/postgres-backup.mjs create",
+    "backup:verify": "node tools/postgres-backup.mjs verify",
     "lint": "npm run lint:client && npm run lint:server",
     "lint:client": "cd apps/client && npm run lint",
     "lint:server": "cd apps/server && npm run lint",

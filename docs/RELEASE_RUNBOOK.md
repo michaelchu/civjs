@@ -15,7 +15,12 @@ airbase activities.
 
 ## Pre-deploy
 
-1. Back up PostgreSQL and record the deployed commit SHA.
+1. Back up PostgreSQL with `DATABASE_URL=... npm run backup:create -- <archive.dump>`,
+   record the deployed commit SHA, then verify that archive against a disposable
+   database with `VERIFY_DATABASE_URL=... CONFIRM_REPLACE_VERIFY_DATABASE=yes
+npm run backup:verify -- <archive.dump>`. The verifier checks the SHA-256
+   sidecar, performs a real restore, and queries both the migration journal and
+   restored games.
 2. Run `npm ci` in the repository root and both applications.
 3. Run `npm run format:check`, `npm run lint`, `npm run typecheck`,
    `npm run test:unit`, `npm run test:e2e`, and `npm run build`.
@@ -53,15 +58,15 @@ rollback.
 
 ## Persistence compatibility
 
-| Entity                                                              | Authoritative storage                      | Reload evidence                                                         |
-| ------------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------- |
-| Game configuration, map, timer, pause state                         | `games`                                    | `GameInstanceRecoveryService.test.ts`, `MapManager.integration.test.ts` |
-| Players, economy, government, technology IDs, visibility, diplomacy | `players`                                  | `GameManager.integration.test.ts`, manager and handler unit suites      |
-| Cities, citizens, production, buildings, trade, governor state      | `cities`                                   | `CityManager.integration.test.ts`, city recovery/economy suites         |
-| Units, health, movement, orders, activities, transport, upgrades    | `units`                                    | `UnitManager.integration.test.ts`, `UnitManager.test.ts`                |
-| Research progress                                                   | `research` and player technology IDs       | `ResearchManager.test.ts`                                               |
-| Turn audit, actions, events, phase metrics                          | `game_turns`, `turn_events`, `turn_phases` | `TurnManager.test.ts`                                                   |
-| Final scores and report                                             | `players.score`, `games.end_game_report`   | `EndGameService.test.ts`                                                |
+| Entity                                                              | Authoritative storage                                      | Reload evidence                                                         |
+| ------------------------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Game configuration, map, timer, pause state                         | `games`                                                    | `GameInstanceRecoveryService.test.ts`, `MapManager.integration.test.ts` |
+| Players, economy, government, technology IDs, visibility, diplomacy | `players`                                                  | `GameManager.integration.test.ts`, manager and handler unit suites      |
+| Cities, citizens, production, buildings, trade, governor state      | `cities`                                                   | `CityManager.integration.test.ts`, city recovery/economy suites         |
+| Units, health, movement, orders, activities, transport, upgrades    | `units`                                                    | `UnitManager.integration.test.ts`, `UnitManager.test.ts`                |
+| Research progress                                                   | `research` and player technology IDs                       | `ResearchManager.test.ts`                                               |
+| Turn audit, durable action queue, events, phase checkpoints         | `game_turns`, `turn_actions`, `turn_events`, `turn_phases` | `TurnManager.test.ts`                                                   |
+| Final scores and report                                             | `players.score`, `games.end_game_report`                   | `EndGameService.test.ts`                                                |
 
 Ownership, treasury, population, health, and production changes caused by
 covert, caravan, and unit-management actions use these same authoritative
@@ -72,6 +77,12 @@ the persisted game map. Their rule and persistence boundaries are covered by
 
 Runtime state snapshots carry a version number. Rule entities remain in their
 normalized tables; snapshots do not become a competing source of truth.
+`GameStateCodec` is the single compatibility boundary for snapshot upgrades.
+`NativeSaveService` emits checksummed `civjs-native-save@1` archives for
+portable replay/inspection and validates them before loading. Native archives
+do not implement or depend on Freeciv savegame compatibility, and loading an
+archive does not overwrite a live game; authoritative live recovery continues
+to use the normalized PostgreSQL records.
 
 ## Monitoring
 
@@ -86,7 +97,8 @@ normalized tables; snapshots do not become a competing source of truth.
 
 ## Recovery
 
-1. Stop new traffic and take a database backup before repair.
+1. Stop new traffic, create a database backup, and verify its checksum and
+   restore against an isolated database before repair.
 2. Confirm `/ready` dependencies independently.
 3. Restart the application. Active and paused games reconstruct map, players,
    cities, units, research, government, visibility, and timers from PostgreSQL.

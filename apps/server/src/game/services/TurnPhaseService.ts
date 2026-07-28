@@ -19,7 +19,7 @@ import type { CultureManager } from '@game/managers/CultureManager';
 import { GameEventService, GameEventType } from './GameEventService';
 import type { DatabaseProvider } from '@database';
 import { turnPhases, NewTurnPhase } from '@database/schema/turn-phases';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 export enum TurnPhase {
   // Phase 1: Begin turn processing
@@ -209,9 +209,50 @@ export class TurnPhaseService {
   /**
    * Create a new turn phase record in the database
    */
-  private async createPhaseRecord(phase: TurnPhase, phaseOrder: number): Promise<string> {
+  private async getOrCreatePhaseRecord(
+    phase: TurnPhase,
+    phaseOrder: number
+  ): Promise<{ id: string; completed?: PhaseResult }> {
     if (!this.currentTurnId) {
       throw new Error('Turn ID must be set before creating phase records');
+    }
+
+    if (!this.databaseProvider) throw new Error('Database provider is required for phase tracking');
+    const database = this.databaseProvider.getDatabase();
+    const [existing] = await database
+      .select()
+      .from(turnPhases)
+      .where(and(eq(turnPhases.turnId, this.currentTurnId), eq(turnPhases.phase, phase)));
+    if (existing) {
+      if (existing.status === 'completed' && existing.success) {
+        return {
+          id: existing.id,
+          completed: {
+            phase,
+            success: true,
+            duration: existing.duration ?? 0,
+            playersProcessed: existing.playersProcessed,
+            itemsProcessed:
+              existing.actionsProcessed + existing.unitsProcessed + existing.citiesProcessed,
+            errors: [],
+            data:
+              existing.phaseData && typeof existing.phaseData === 'object'
+                ? existing.phaseData
+                : {},
+          },
+        };
+      }
+      await database
+        .update(turnPhases)
+        .set({
+          status: 'running',
+          success: null,
+          errorMessage: null,
+          startedAt: new Date(),
+          completedAt: null,
+        })
+        .where(eq(turnPhases.id, existing.id));
+      return { id: existing.id };
     }
 
     const phaseRecord: NewTurnPhase = {
@@ -219,7 +260,8 @@ export class TurnPhaseService {
       turnId: this.currentTurnId,
       phase,
       phaseOrder,
-      status: 'pending',
+      status: 'running',
+      startedAt: new Date(),
       phaseData: {},
       playersProcessed: 0,
       unitsProcessed: 0,
@@ -227,13 +269,18 @@ export class TurnPhaseService {
       actionsProcessed: 0,
     };
 
-    if (!this.databaseProvider) throw new Error('Database provider is required for phase tracking');
-    const [inserted] = await this.databaseProvider
-      .getDatabase()
+    const [inserted] = await database
       .insert(turnPhases)
       .values(phaseRecord)
+      .onConflictDoNothing({
+        target: [turnPhases.turnId, turnPhases.phase],
+      })
       .returning({ id: turnPhases.id });
-    return inserted.id;
+    if (inserted?.id) return { id: inserted.id };
+
+    // Another worker won the unique checkpoint insert. Resolve that row through
+    // the same completed/failed rules instead of executing an untracked phase.
+    return this.getOrCreatePhaseRecord(phase, phaseOrder);
   }
 
   /**
@@ -328,20 +375,18 @@ export class TurnPhaseService {
         const phase = phases[i];
         context.phaseStartTime = Date.now();
 
-        // Create database record for this phase
-        let phaseId: string | null = null;
-        try {
-          phaseId = await this.createPhaseRecord(phase, i + 1);
-        } catch (error) {
-          logger.warn('Failed to create phase database record', {
+        const phaseRecord = await this.getOrCreatePhaseRecord(phase, i + 1);
+        if (phaseRecord.completed) {
+          result.phases.push(phaseRecord.completed);
+          logger.info('Skipping durably completed turn phase', {
             gameId: this.gameId,
             turn,
             phase,
-            error: error instanceof Error ? error.message : error,
           });
+          continue;
         }
 
-        const phaseResult = await this.executePhase(phase, context, phaseId);
+        const phaseResult = await this.executePhase(phase, context, phaseRecord.id);
         result.phases.push(phaseResult);
 
         if (!phaseResult.success) {
@@ -497,18 +542,10 @@ export class TurnPhaseService {
       phaseResult.success = phaseResult.errors.length === 0;
       phaseResult.duration = Date.now() - phaseStartTime;
 
-      // Update database record
+      // A completed checkpoint is authoritative. If it cannot be written, the
+      // phase must fail visibly instead of allowing the turn to advance.
       if (phaseId) {
-        try {
-          await this.updatePhaseRecord(phaseId, phaseResult, new Date(phaseStartTime), new Date());
-        } catch (error) {
-          logger.warn('Failed to update phase database record', {
-            gameId: this.gameId,
-            turn: context.turn,
-            phase,
-            error: error instanceof Error ? error.message : error,
-          });
-        }
+        await this.updatePhaseRecord(phaseId, phaseResult, new Date(phaseStartTime), new Date());
       }
 
       // Emit phase end event

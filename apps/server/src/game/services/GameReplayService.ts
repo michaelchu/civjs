@@ -1,6 +1,7 @@
 import { and, asc, eq, lte } from 'drizzle-orm';
 import type { DatabaseProvider } from '@database';
 import { gameTurns, games, turnEvents, turnPhases } from '@database/schema';
+import { gameStateCodec, type AuthoritativeGameState } from './GameStateCodec';
 
 export interface GameReplay {
   gameId: string;
@@ -70,14 +71,30 @@ export class GameReplayService {
     };
   }
 
-  async reconstructAtTurn(gameId: string, turn: number): Promise<unknown | null> {
+  async reconstructAtTurn(gameId: string, turn: number): Promise<AuthoritativeGameState | null> {
     const replay = await this.getReplay(gameId, turn);
-    const checkpoint = replay?.turns.at(-1);
+    const checkpoint = replay?.turns.find(candidate => candidate.turn === turn);
     if (!checkpoint?.snapshot) return null;
-    const snapshot = checkpoint.snapshot as { version?: number };
-    if (snapshot.version !== 2) {
-      throw new Error(`Unsupported replay snapshot version: ${snapshot.version ?? 'missing'}`);
+    if (checkpoint.endedAt === null) {
+      throw new Error(`Turn ${turn} has not reached a durable replay checkpoint`);
     }
-    return checkpoint.snapshot;
+    const failedPhase = checkpoint.phases.find(
+      phase =>
+        typeof phase === 'object' &&
+        phase !== null &&
+        ('status' in phase || 'success' in phase) &&
+        ((phase as { status?: unknown }).status !== 'completed' ||
+          (phase as { success?: unknown }).success !== true)
+    );
+    if (failedPhase) {
+      throw new Error(`Turn ${turn} contains an incomplete or failed replay phase`);
+    }
+    const snapshot = gameStateCodec.decode(checkpoint.snapshot);
+    if (snapshot.turn !== turn) {
+      throw new Error(
+        `Replay checkpoint turn mismatch: expected ${turn}, received ${snapshot.turn}`
+      );
+    }
+    return snapshot;
   }
 }

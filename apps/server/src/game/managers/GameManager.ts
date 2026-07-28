@@ -38,6 +38,11 @@ import { CivJSAIAdapter } from '@game/services/CivJSAIAdapter';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { EndGameService } from '@game/services/EndGameService';
 import { GameReplayService, type GameReplay } from '@game/services/GameReplayService';
+import {
+  NativeSaveService,
+  type LoadedNativeSave,
+  type NativeSaveArchive,
+} from '@game/services/NativeSaveService';
 import { ActionType, type ActionResult } from '@app-types/shared/actions';
 import { getUnitType } from '@game/constants/UnitConstants';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
@@ -159,6 +164,7 @@ export class GameManager {
   private aiAdapter!: CivJSAIAdapter;
   private endGameService!: EndGameService;
   private replayService!: GameReplayService;
+  private nativeSaveService!: NativeSaveService;
 
   private constructor(io: SocketServer, databaseProvider?: DatabaseProvider) {
     this.io = io;
@@ -185,6 +191,7 @@ export class GameManager {
     this.gameBroadcastManager = new GameBroadcastManager(this.io);
     this.endGameService = new EndGameService(this.databaseProvider, this.io);
     this.replayService = new GameReplayService(this.databaseProvider);
+    this.nativeSaveService = new NativeSaveService(this.replayService);
 
     this.playerConnectionManager = new PlayerConnectionManager(
       this.databaseProvider,
@@ -1320,6 +1327,22 @@ export class GameManager {
 
   public async reconstructGameAtTurn(gameId: string, turn: number): Promise<unknown | null> {
     return this.replayService.reconstructAtTurn(gameId, turn);
+  }
+
+  public async exportNativeSave(
+    gameId: string,
+    throughTurn?: number
+  ): Promise<NativeSaveArchive | null> {
+    return this.nativeSaveService.export(gameId, throughTurn);
+  }
+
+  /**
+   * Validate and decode a portable archive. Mounting it as a live game remains
+   * an explicit administrative operation so an upload cannot overwrite an
+   * active authoritative game by accident.
+   */
+  public loadNativeSave(archive: unknown): LoadedNativeSave {
+    return this.nativeSaveService.load(archive);
   }
 
   public getGameInstance(gameId: string): GameInstance | null {

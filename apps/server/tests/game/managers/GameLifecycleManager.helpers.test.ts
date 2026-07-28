@@ -1,4 +1,5 @@
 import { GameLifecycleManager } from '@game/orchestrators/GameLifecycleManager';
+import { GameStateManager } from '@game/orchestrators/GameStateManager';
 import { gameState } from '@database/redis';
 
 // Minimal stubs for dependencies
@@ -31,6 +32,77 @@ function createManager(overrides?: {
 }
 
 describe('GameLifecycleManager helper behavior', () => {
+  test('map persistence failures propagate to the game-start caller', async () => {
+    const persistenceError = new Error('map write failed');
+    const where = jest.fn().mockRejectedValue(persistenceError);
+    const databaseProvider = {
+      getDatabase: () => ({
+        update: jest.fn(() => ({
+          set: jest.fn(() => ({ where })),
+        })),
+      }),
+    } as any;
+    const stateManager = new GameStateManager(
+      { info: jest.fn(), error: jest.fn(), debug: jest.fn() },
+      databaseProvider
+    );
+
+    await expect(
+      stateManager.persistMapData('g1', {
+        width: 1,
+        height: 1,
+        seed: 'seed',
+        generatedAt: new Date(0),
+        startingPositions: [],
+        tiles: [[{ terrain: 'ocean' }]],
+      })
+    ).rejects.toThrow('map write failed');
+  });
+
+  test('failed first-start initialization rolls generated state back to a retryable lobby', async () => {
+    const where = jest.fn().mockResolvedValue(undefined);
+    const transactionDatabase = {
+      delete: jest.fn(() => ({ where })),
+      update: jest.fn(() => ({
+        set: jest.fn(() => ({ where })),
+      })),
+    };
+    const transaction = jest.fn(async callback => callback(transactionDatabase));
+    const manager = new GameLifecycleManager(
+      stubIo,
+      { getDatabase: () => ({ transaction }) } as any,
+      new Map()
+    );
+
+    await (manager as any).markGameStartFailed(
+      'g1',
+      {
+        currentTurn: 0,
+        startedAt: null,
+        mapSeed: null,
+        mapData: null,
+        gameState: { terrainSettings: { generator: 'random' } },
+        players: [
+          {
+            id: 'p1',
+            gold: 0,
+            technologies: [],
+            currentResearch: null,
+            researchProgress: 0,
+            government: 'despotism',
+            revolutionTurns: 0,
+          },
+        ],
+      },
+      new Error('map write failed')
+    );
+
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(transactionDatabase.delete).toHaveBeenCalledTimes(5);
+    expect(transactionDatabase.update).toHaveBeenCalledTimes(2);
+    expect(where).toHaveBeenCalledTimes(7);
+  });
+
   test('deleteGame permanently removes a host-owned game', async () => {
     const where = jest.fn().mockResolvedValue(undefined);
     const deleteTable = jest.fn(() => ({ where }));

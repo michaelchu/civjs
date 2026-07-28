@@ -25,6 +25,7 @@ jest.mock('@game/services/TurnPacketService', () => {
 jest.mock('@game/services/TurnProcessingService', () => {
   return {
     TurnProcessingService: jest.fn().mockImplementation(() => ({
+      initializeActionQueues: jest.fn(),
       queuePlayerAction: jest.fn(),
     })),
   };
@@ -160,15 +161,16 @@ describe('TurnManager', () => {
       await turnManager.initializeTurn(['player1', 'player2']);
     });
 
-    it('should add player actions correctly', () => {
+    it('should persist player actions before queueing them', async () => {
       const action = {
         type: 'unit_move',
         data: { unitId: 'unit1', x: 5, y: 5 },
         priority: 3,
       };
 
-      turnManager.addPlayerAction('player1', action);
+      await turnManager.addPlayerAction('player1', action);
 
+      expect(mockDatabase.getDatabase().insert).toHaveBeenCalledWith(expect.anything());
       expect((turnManager as any).turnProcessingService.queuePlayerAction).toHaveBeenCalledWith(
         expect.objectContaining({
           playerId: 'player1',
@@ -178,16 +180,33 @@ describe('TurnManager', () => {
       );
     });
 
-    it('should handle actions for new players', () => {
+    it('should handle actions for new players', async () => {
       const action = {
         type: 'city_build',
         data: { cityId: 'city1', buildingId: 'granary' },
       };
 
       // Should not throw error even if player wasn't in initial list
-      expect(() => {
-        turnManager.addPlayerAction('player3', action);
-      }).not.toThrow();
+      await expect(turnManager.addPlayerAction('player3', action)).resolves.toEqual(
+        expect.stringMatching(/^action_/)
+      );
+    });
+
+    it('does not queue a retried durable action twice', async () => {
+      const queuePlayerAction = (turnManager as any).turnProcessingService
+        .queuePlayerAction as jest.Mock;
+      queuePlayerAction.mockClear();
+      mockDatabase.getDatabase().returning.mockResolvedValueOnce([]);
+
+      await expect(
+        turnManager.addPlayerAction('player1', {
+          id: 'stable-request-id',
+          type: 'unit_move',
+          data: { unitId: 'unit1', x: 5, y: 5 },
+        })
+      ).resolves.toBe('stable-request-id');
+
+      expect(queuePlayerAction).not.toHaveBeenCalled();
     });
   });
 
@@ -221,6 +240,13 @@ describe('TurnManager', () => {
       expect(turnManager.getCurrentTurn()).toBe(2);
     });
 
+    it('rejects concurrent processing when another server owns the turn lease', async () => {
+      mockDatabase.getDatabase().returning.mockResolvedValueOnce([]);
+
+      await expect(turnManager.processTurn()).rejects.toThrow('Turn 1 is already being processed');
+      expect((turnManager as any).turnPhaseService.executePhaseProcessing).not.toHaveBeenCalled();
+    });
+
     it('should handle turn processing failures', async () => {
       const mockTurnPhaseService = (turnManager as any).turnPhaseService;
       mockTurnPhaseService.executePhaseProcessing = jest.fn().mockResolvedValue({
@@ -245,6 +271,7 @@ describe('TurnManager', () => {
 
       const first = turnManager.processTurn();
       const duplicate = turnManager.processTurn();
+      await new Promise(resolve => setImmediate(resolve));
       resolvePhase({ success: true, totalDuration: 1, phases: [], errors: [] });
       await Promise.all([first, duplicate]);
 

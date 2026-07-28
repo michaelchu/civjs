@@ -55,6 +55,7 @@ export class TurnProcessingService {
   private researchManager: ResearchManager;
   private economicManager?: EconomicManager;
   private effectsManager: EffectsManager;
+  private onActionStatusChanged?: (action: PlayerAction, errorMessage?: string) => Promise<void>;
   private actionQueues: Map<string, ActionQueue> = new Map(); // playerId -> ActionQueue
   private actionHistory: Map<string, PlayerAction[]> = new Map(); // playerId -> completed actions
 
@@ -64,7 +65,8 @@ export class TurnProcessingService {
     cityManager: CityManager,
     researchManager: ResearchManager,
     economicManager?: EconomicManager,
-    effectsManager: EffectsManager = new EffectsManager()
+    effectsManager: EffectsManager = new EffectsManager(),
+    onActionStatusChanged?: (action: PlayerAction, errorMessage?: string) => Promise<void>
   ) {
     this.gameId = gameId;
     this.unitManager = unitManager;
@@ -72,6 +74,7 @@ export class TurnProcessingService {
     this.researchManager = researchManager;
     this.economicManager = economicManager;
     this.effectsManager = effectsManager;
+    this.onActionStatusChanged = onActionStatusChanged;
   }
 
   /**
@@ -100,13 +103,15 @@ export class TurnProcessingService {
    * Queue a player action for processing during turn
    * @reference freeciv action queuing system
    */
-  queuePlayerAction(action: Omit<PlayerAction, 'id' | 'status'>): string {
-    const actionId = `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  queuePlayerAction(
+    action: Omit<PlayerAction, 'id' | 'status'> & { id?: string; status?: PlayerAction['status'] }
+  ): string {
+    const actionId = action.id ?? `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     const playerAction: PlayerAction = {
       ...action,
       id: actionId,
-      status: 'queued',
+      status: action.status ?? 'queued',
     };
 
     const queue = this.actionQueues.get(action.playerId);
@@ -254,10 +259,12 @@ export class TurnProcessingService {
           }
 
           action.status = 'processing';
+          await this.onActionStatusChanged?.(action);
 
           await this.processPlayerAction(action);
 
           action.status = 'completed';
+          await this.onActionStatusChanged?.(action);
           result.actionsProcessed++;
 
           // Move to history
@@ -266,6 +273,10 @@ export class TurnProcessingService {
           this.actionHistory.set(playerId, history);
         } catch (error) {
           action.status = 'failed';
+          await this.onActionStatusChanged?.(
+            action,
+            error instanceof Error ? error.message : String(error)
+          );
 
           logger.error('Error processing player action', {
             gameId: this.gameId,

@@ -19,7 +19,15 @@ describe('GameReplayService', () => {
           statistics: {},
           phases: [],
           events: [],
-          snapshot: { version: 2, turn: 2, cities: [], units: [] },
+          snapshot: {
+            version: 2,
+            turn: 2,
+            year: -3960,
+            calendar: {},
+            cities: [],
+            units: [],
+            research: {},
+          },
         },
       ],
     });
@@ -52,7 +60,52 @@ describe('GameReplayService', () => {
     });
 
     await expect(service.reconstructAtTurn('game-1', 1)).rejects.toThrow(
-      'Unsupported replay snapshot version'
+      'Unsupported game-state snapshot version'
     );
+  });
+
+  it('does not substitute an earlier checkpoint for the requested turn', async () => {
+    const service = new GameReplayService(createMockDatabaseProvider());
+    jest.spyOn(service, 'getReplay').mockResolvedValue({
+      gameId: 'game-1',
+      status: 'active',
+      endGameReport: {},
+      turns: [
+        {
+          id: 'turn-1',
+          turn: 1,
+          year: -4000,
+          startedAt: new Date(),
+          endedAt: new Date(),
+          actions: {},
+          statistics: {},
+          phases: [],
+          events: [],
+          snapshot: {
+            version: 2,
+            turn: 1,
+            year: -4000,
+            calendar: {},
+            cities: [],
+            units: [],
+            research: {},
+          },
+        },
+        {
+          id: 'turn-2',
+          turn: 2,
+          year: -3960,
+          startedAt: new Date(),
+          endedAt: null,
+          actions: {},
+          statistics: {},
+          phases: [],
+          events: [],
+          snapshot: null,
+        },
+      ],
+    });
+
+    await expect(service.reconstructAtTurn('game-1', 2)).resolves.toBeNull();
   });
 });

@@ -13,20 +13,27 @@ export class MockDatabaseProvider implements DatabaseProvider {
   }
 
   private createMockDatabase() {
+    const returning = jest.fn().mockImplementation(() => {
+      const id = `test-id-${MockDatabaseProvider.idCounter++}`;
+      return Promise.resolve([{ id, createdAt: new Date(), updatedAt: new Date() }]);
+    });
+    const where = jest.fn().mockImplementation(() =>
+      Object.assign(Promise.resolve([]), {
+        returning,
+      })
+    );
     return {
       select: jest.fn().mockReturnThis(),
       insert: jest.fn().mockReturnThis(),
       update: jest.fn().mockReturnThis(),
       delete: jest.fn().mockReturnThis(),
       from: jest.fn().mockReturnThis(),
-      where: jest.fn().mockResolvedValue([]), // Return empty array for select queries
+      where, // Thenable for selects and chainable into returning() for writes
       values: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
+      onConflictDoNothing: jest.fn().mockReturnThis(),
       // Mock insert operations to return objects with generated IDs
-      returning: jest.fn().mockImplementation(() => {
-        const id = `test-id-${MockDatabaseProvider.idCounter++}`;
-        return Promise.resolve([{ id, createdAt: new Date(), updatedAt: new Date() }]);
-      }),
+      returning,
       query: {
         games: {
           findFirst: jest.fn().mockResolvedValue(null),
