@@ -286,6 +286,7 @@ export class ResearchHandler extends BaseSocketHandler {
       current: progress?.current || 0,
       required: progress?.required || 0,
       turnsRemaining: progress?.turnsRemaining || -1,
+      bulbsLastTurn: playerResearch?.bulbsLastTurn ?? 0,
     };
   }
 

@@ -515,6 +515,7 @@ export class GameClient {
           currentTech: packet.data.currentTech,
           techGoal: packet.data.techGoal,
           bulbsAccumulated: packet.data.current ?? 0,
+          bulbsLastTurn: packet.data.bulbsLastTurn ?? 0,
         });
         break;
 

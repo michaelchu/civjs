@@ -389,6 +389,32 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     }
   }
 
+  /** Send the recipient's authoritative research state after turn processing. */
+  private sendResearchSnapshot(gameInstance: GameInstance, playerId: string): void {
+    const research = gameInstance.researchManager.getPlayerResearch(playerId);
+    const progress = gameInstance.researchManager.getResearchProgress(playerId);
+    const availableTechs = gameInstance.researchManager.getAvailableTechnologies(playerId);
+
+    this.sendPacketToPlayer(gameInstance, playerId, PacketType.RESEARCH_LIST_REPLY, {
+      availableTechs: availableTechs.map(tech => ({
+        id: tech.id,
+        name: tech.name,
+        cost: tech.cost,
+        requirements: tech.requirements,
+        description: tech.description,
+      })),
+      researchedTechs: research ? Array.from(research.researchedTechs) : [],
+    });
+    this.sendPacketToPlayer(gameInstance, playerId, PacketType.RESEARCH_PROGRESS_REPLY, {
+      currentTech: research?.currentTech,
+      techGoal: research?.techGoal,
+      current: progress?.current ?? 0,
+      required: progress?.required ?? 0,
+      turnsRemaining: progress?.turnsRemaining ?? -1,
+      bulbsLastTurn: research?.bulbsLastTurn ?? 0,
+    });
+  }
+
   /**
    * Refresh and broadcast authoritative resources after turn processing.
    */
@@ -409,7 +435,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     }
 
     for (const recipient of gameInstance.players.values()) {
-      if (recipient.isConnected) this.sendPlayerInfoSnapshot(gameInstance, recipient.id);
+      if (!recipient.isConnected) continue;
+      this.sendPlayerInfoSnapshot(gameInstance, recipient.id);
+      this.sendResearchSnapshot(gameInstance, recipient.id);
     }
   }
 

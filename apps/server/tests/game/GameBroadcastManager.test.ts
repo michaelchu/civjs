@@ -148,9 +148,20 @@ describe('GameBroadcastManager visibility sync', () => {
       },
       researchManager: {
         getPlayerResearch: () => ({
+          currentTech: 'pottery',
           bulbsAccumulated: 18,
           bulbsLastTurn: 2,
+          researchedTechs: new Set(['alphabet']),
         }),
+        getResearchProgress: () => ({ current: 18, required: 20, turnsRemaining: 1 }),
+        getAvailableTechnologies: () => [
+          {
+            id: 'pottery',
+            name: 'Pottery',
+            cost: 20,
+            requirements: [],
+          },
+        ],
       },
     };
     manager.setGamesReference(new Map([[gameId, game as any]]));
@@ -170,6 +181,35 @@ describe('GameBroadcastManager visibility sync', () => {
               goldPerTurn: -1,
               science: 18,
               sciencePerTurn: 2,
+            }),
+          }),
+        }),
+      ])
+    );
+    expect(emitted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          room: `player:${userOne}`,
+          event: 'packet',
+          data: expect.objectContaining({
+            type: PacketType.RESEARCH_PROGRESS_REPLY,
+            data: {
+              currentTech: 'pottery',
+              techGoal: undefined,
+              current: 18,
+              required: 20,
+              turnsRemaining: 1,
+              bulbsLastTurn: 2,
+            },
+          }),
+        }),
+        expect.objectContaining({
+          room: `player:${userOne}`,
+          event: 'packet',
+          data: expect.objectContaining({
+            type: PacketType.RESEARCH_LIST_REPLY,
+            data: expect.objectContaining({
+              researchedTechs: ['alphabet'],
             }),
           }),
         }),

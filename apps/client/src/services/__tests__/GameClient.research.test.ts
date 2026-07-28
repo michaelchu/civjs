@@ -130,6 +130,7 @@ describe('GameClient research packets', () => {
         currentTech: 'writing',
         techGoal: 'literacy',
         current: 17,
+        bulbsLastTurn: 3,
       },
     });
 
@@ -144,6 +145,7 @@ describe('GameClient research packets', () => {
         currentTech: 'writing',
         techGoal: 'literacy',
         bulbsAccumulated: 17,
+        bulbsLastTurn: 3,
       })
     );
   });

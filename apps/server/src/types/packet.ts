@@ -235,6 +235,7 @@ export const ResearchProgressReplySchema = z.object({
   current: z.number(),
   required: z.number(),
   turnsRemaining: z.number(),
+  bulbsLastTurn: z.number(),
 });
 
 // Connection & Authentication packets
