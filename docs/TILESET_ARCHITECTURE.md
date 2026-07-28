@@ -164,7 +164,7 @@ format-specific globals and parsing must remain behind this boundary.
 
 Map projection should be a separate strategy owned or selected by the
 provider. The first implementation only needs an Amplio2-compatible isometric
-strategy, while preserving a clean path for overhead and hexagonal projections.
+strategy, while preserving a clean path for overhead projections.
 
 ## Amplio2 provider
 
