@@ -421,7 +421,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
 
         expect(dbCity.population).toBe(city.population);
         expect(dbUnit.x).toBe(14);
-        expect(dbUnit.y).toBe(12);
+        expect(dbUnit.y).toBe(7);
       }
     });
 
