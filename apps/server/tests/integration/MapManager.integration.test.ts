@@ -1,5 +1,7 @@
 import { MapManager } from '@game/managers/MapManager';
 import { GameManager } from '@game/managers/GameManager';
+import { PathfindingManager } from '@game/managers/PathfindingManager';
+import type { Unit } from '@game/managers/UnitManager';
 import { MapTile } from '@game/map/MapTypes';
 import { clearAllTables, createTestGameAndPlayer } from '../utils/testDatabase';
 import { createMockSocketServer } from '../utils/gameTestUtils';
@@ -527,7 +529,25 @@ describe('MapManager - Integration Tests with Real Terrain Generation', () => {
     });
 
     it('should identify accessible tiles within movement range', () => {
-      const accessibleTiles = testMapManager.getAccessibleTiles(10, 10, 6); // 6 movement points
+      const unit = {
+        id: 'range-unit',
+        gameId: 'range-game',
+        playerId: 'range-player',
+        unitTypeId: 'warriors',
+        x: 10,
+        y: 10,
+        health: 100,
+        movementLeft: 18,
+        fortified: false,
+        veteranLevel: 0,
+        experience: 0,
+      } satisfies Unit;
+      const pathfinder = new PathfindingManager(20, 20, testMapManager, {
+        getPathStepCost: (_unit, _fromX, _fromY, toX, toY) =>
+          testMapManager.getMovementCost(toX, toY, 'warriors'),
+        getUnitMaxMovement: () => 3,
+      });
+      const accessibleTiles = pathfinder.findAccessibleTiles(unit);
 
       expect(accessibleTiles).toBeDefined();
       expect(accessibleTiles.length).toBeGreaterThan(0);

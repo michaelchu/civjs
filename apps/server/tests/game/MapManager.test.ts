@@ -9,7 +9,6 @@ import {
 } from '@game/managers/MapManager';
 import { WrapFlag } from '@game/map/MapTopology';
 import { MapStartpos } from '@game/map/MapTypes';
-import { createBaseTile } from '@game/map/TerrainUtils';
 
 // Mock island terrain functions for tests
 jest.mock('../../src/game/map/TerrainUtils', () => {
@@ -243,33 +242,6 @@ describe('MapManager', () => {
         expect(tile.isVisible).toBe(true);
         expect(tile.isExplored).toBe(true);
       }
-    });
-
-    it('keeps the best remaining-movement route when finding accessible tiles', () => {
-      const manager = new MapManager(3, 2);
-      const tiles = Array.from({ length: 3 }, (_, x) =>
-        Array.from({ length: 2 }, (_, y) => {
-          const tile = createBaseTile(x, y);
-          tile.terrain = 'grassland';
-          return tile;
-        })
-      );
-      tiles[1][0].terrain = 'hills';
-      tiles[1][0].hasRailroad = true;
-      tiles[0][1].hasRailroad = true;
-      tiles[2][0].terrain = 'hills';
-      manager.setMapData({
-        width: 3,
-        height: 2,
-        tiles,
-        startingPositions: [],
-        seed: 'accessible-routes',
-        generatedAt: new Date(0),
-      });
-
-      const accessible = manager.getAccessibleTiles(0, 0, 3, 'warriors');
-
-      expect(accessible).toContain(tiles[2][0]);
     });
   });
 

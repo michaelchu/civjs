@@ -1508,6 +1508,10 @@ export class UnitManager {
     return isDestination && this.findAvailableTransportAt(unit, toX, toY) ? SINGLE_MOVE : -1;
   }
 
+  canContinuePathFrom(unit: Unit, x: number, y: number): boolean {
+    return this.calculateTerrainMovementCost(unit, x, y, x, y) >= 0;
+  }
+
   /**
    * Check if position is valid
    */

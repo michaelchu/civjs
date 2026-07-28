@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { City } from '../../../types';
 import { CityRenderer } from '../renderers/CityRenderer';
 import type { RenderState } from '../renderers/BaseRenderer';
@@ -45,5 +45,53 @@ describe('CityRenderer presentation state', () => {
       'city.starve',
       'city.disorder',
     ]);
+  });
+
+  it('does not render a leaked city on an unknown tile', () => {
+    const renderer = new CityRenderer(
+      { canvas: { width: 800, height: 600 } } as CanvasRenderingContext2D,
+      { getSprite: () => undefined } as never,
+      96,
+      48
+    );
+    const renderCity = vi.spyOn(renderer as never, 'renderCity').mockImplementation(() => {});
+    const city = { id: 'hidden', x: 2, y: 2 } as City;
+    const state = {
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+      map: {
+        tiles: {
+          '2,2': { x: 2, y: 2, terrain: 'unknown', known: false, visible: false },
+        },
+      },
+      cities: { hidden: city },
+    } as unknown as RenderState;
+
+    renderer.renderCities(state);
+
+    expect(renderCity).not.toHaveBeenCalled();
+  });
+
+  it('renders a city once its tile is known', () => {
+    const renderer = new CityRenderer(
+      { canvas: { width: 800, height: 600 } } as CanvasRenderingContext2D,
+      { getSprite: () => undefined } as never,
+      96,
+      48
+    );
+    const renderCity = vi.spyOn(renderer as never, 'renderCity').mockImplementation(() => {});
+    const city = { id: 'known', x: 2, y: 2 } as City;
+    const state = {
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+      map: {
+        tiles: {
+          '2,2': { x: 2, y: 2, terrain: 'plains', known: true, visible: false },
+        },
+      },
+      cities: { known: city },
+    } as unknown as RenderState;
+
+    renderer.renderCities(state);
+
+    expect(renderCity).toHaveBeenCalledWith(city, state.viewport, state);
   });
 });

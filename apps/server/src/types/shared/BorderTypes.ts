@@ -43,6 +43,6 @@ export interface BorderEdge {
 export interface BorderUpdate {
   tiles: TileOwnership[];
   sources: BorderSource[];
-  removedSources: Array<{ x: number; y: number }>;
+  removedSources: Array<{ x: number; y: number; playerId?: string }>;
   affectedPlayers: string[];
 }

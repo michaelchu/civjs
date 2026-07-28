@@ -3,7 +3,7 @@ import { PacketType } from '@app-types/packet';
 import type { BorderUpdate } from '@app-types/shared/BorderTypes';
 
 describe('BorderNetworkService', () => {
-  it('sends incremental borders to owners and players who previously explored the tile', () => {
+  it('does not reveal incremental opponent borders on explored but fogged tiles', () => {
     const hostEmit = jest.fn();
     const guestEmit = jest.fn();
     const io = {
@@ -49,10 +49,7 @@ describe('BorderNetworkService', () => {
       expect.objectContaining({
         type: PacketType.BORDER_UPDATE,
         data: expect.objectContaining({
-          tiles: [
-            { x: 1, y: 1, owner: 'host-player', strength: 1 },
-            { x: 2, y: 2, owner: 'guest-player', strength: 1 },
-          ],
+          tiles: [{ x: 1, y: 1, owner: 'host-player', strength: 1 }],
         }),
       })
     );
@@ -61,11 +58,52 @@ describe('BorderNetworkService', () => {
       expect.objectContaining({
         type: PacketType.BORDER_UPDATE,
         data: expect.objectContaining({
-          tiles: [
-            { x: 1, y: 1, owner: 'host-player', strength: 1 },
-            { x: 2, y: 2, owner: 'guest-player', strength: 1 },
-          ],
+          tiles: [{ x: 2, y: 2, owner: 'guest-player', strength: 1 }],
         }),
+      })
+    );
+  });
+
+  it('only reveals removed border sources to their owner or a current observer', () => {
+    const hostEmit = jest.fn();
+    const guestEmit = jest.fn();
+    const io = {
+      to: jest.fn((room: string) => ({
+        emit: room === 'player:host-user' ? hostEmit : guestEmit,
+      })),
+    } as any;
+    const game = {
+      players: new Map([
+        ['host-player', { id: 'host-player', userId: 'host-user' }],
+        ['guest-player', { id: 'guest-player', userId: 'guest-user' }],
+      ]),
+      visibilityManager: {
+        updatePlayerVisibility: jest.fn(),
+        getVisibleTiles: (playerId: string) =>
+          playerId === 'guest-player' ? new Set(['4,4']) : new Set(),
+      },
+    } as any;
+    const service = new BorderNetworkService(io, {} as any, () => game);
+
+    service.broadcastBorderUpdate('game-1', {
+      tiles: [],
+      sources: [],
+      removedSources: [{ x: 4, y: 4, playerId: 'host-player' }],
+      affectedPlayers: ['host-player'],
+    });
+
+    expect(hostEmit).toHaveBeenCalledWith(
+      'packet',
+      expect.objectContaining({
+        type: PacketType.BORDER_SOURCE_UPDATE,
+        data: expect.objectContaining({ removed: [{ x: 4, y: 4, playerId: 'host-player' }] }),
+      })
+    );
+    expect(guestEmit).toHaveBeenCalledWith(
+      'packet',
+      expect.objectContaining({
+        type: PacketType.BORDER_SOURCE_UPDATE,
+        data: expect.objectContaining({ removed: [{ x: 4, y: 4, playerId: 'host-player' }] }),
       })
     );
   });

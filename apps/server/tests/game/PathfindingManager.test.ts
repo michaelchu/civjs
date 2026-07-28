@@ -187,6 +187,56 @@ describe('PathfindingManager', () => {
     });
   });
 
+  describe('findAccessibleTiles', () => {
+    it('uses the authoritative movement policy and preserves the best remaining movement', () => {
+      const movementPolicy = {
+        getPathStepCost: jest.fn(
+          (_unit: Unit, fromX: number, fromY: number, toX: number, toY: number) => {
+            if (toX === 6 && toY === 5) return -1;
+            if (fromX === 5 && fromY === 5 && toX === 5 && toY === 6) return 2;
+            return 1;
+          }
+        ),
+        getUnitMaxMovement: jest.fn(() => 6),
+      };
+      const manager = new PathfindingManager(
+        mockMapWidth,
+        mockMapHeight,
+        mockMapManager,
+        movementPolicy
+      );
+
+      const accessible = manager.findAccessibleTiles(mockUnit, 3);
+
+      expect(accessible).not.toContainEqual(expect.objectContaining({ x: 6, y: 5 }));
+      expect(accessible).toContainEqual({ x: 5, y: 6, remainingMovement: 1 });
+      expect(movementPolicy.getPathStepCost).toHaveBeenCalled();
+    });
+
+    it('includes a minimum-move destination but does not continue from a terminal endpoint', () => {
+      const movementPolicy = {
+        getPathStepCost: jest.fn(
+          (_unit: Unit, _fromX: number, _fromY: number, toX: number, toY: number) =>
+            toX === 6 && toY === 5 ? 3 : -1
+        ),
+        getUnitMaxMovement: jest.fn(() => 6),
+        canContinuePathFrom: jest.fn((_unit: Unit, x: number, y: number) => x === 5 && y === 5),
+      };
+      const manager = new PathfindingManager(
+        mockMapWidth,
+        mockMapHeight,
+        mockMapManager,
+        movementPolicy
+      );
+
+      expect(manager.findAccessibleTiles(mockUnit, 1)).toContainEqual({
+        x: 6,
+        y: 5,
+        remainingMovement: 0,
+      });
+    });
+  });
+
   describe('path calculation', () => {
     beforeEach(() => {
       mockMapManager.getTile.mockReturnValue({ terrain: 'grassland' });

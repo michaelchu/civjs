@@ -385,7 +385,7 @@ describe('GameBroadcastManager visibility sync', () => {
     ).toEqual({});
   });
 
-  it('reveals classic small-wonder cities even before their tile is explored', () => {
+  it('does not reveal classic small-wonder cities before their tile is explored', () => {
     const game = (manager as any).games.get(gameId);
     game.cityManager.getAllCities = () => [
       {
@@ -410,7 +410,7 @@ describe('GameBroadcastManager visibility sync', () => {
       emitted.find(
         emission => emission.room === `player:${userTwo}` && emission.event === 'cities_updated'
       )?.data.cities
-    ).toHaveProperty('palace-city');
+    ).toEqual({});
   });
 
   it('advertises the audited classic covert actions for spies', () => {

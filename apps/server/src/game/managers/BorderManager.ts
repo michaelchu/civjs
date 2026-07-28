@@ -493,7 +493,7 @@ export class BorderManager {
 
       // Update borders around former source and collect changes
       const borderUpdate = this.updateBordersAroundTileWithUpdate(x, y, source.radius);
-      borderUpdate.removedSources = [{ x, y }];
+      borderUpdate.removedSources = [{ x, y, playerId: source.playerId }];
 
       // Trigger callbacks
       this.callbacks.onBorderSourceRemoved?.(x, y);

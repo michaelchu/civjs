@@ -324,18 +324,6 @@ export class MapManager {
   }
 
   /**
-   * Get tiles accessible within movement range
-   */
-  public getAccessibleTiles(
-    x: number,
-    y: number,
-    movementPoints: number,
-    unitTypeId?: string
-  ): MapTile[] {
-    return this.mapAccessService.getAccessibleTiles(x, y, movementPoints, unitTypeId);
-  }
-
-  /**
    * Validate map structure and properties
    */
   public validateMap(): { valid: boolean; issues: string[] } {

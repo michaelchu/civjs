@@ -85,7 +85,7 @@ export class VisibilityMapService extends BaseGameService {
   }
 
   /**
-   * Get tiles visible to a player (typically around starting position initially)
+   * Get the current authoritative visible tiles for a player.
    * @reference Original GameManager.getPlayerVisibleTiles()
    */
   public getPlayerVisibleTiles(gameId: string, playerId: string) {
@@ -94,37 +94,38 @@ export class VisibilityMapService extends BaseGameService {
       throw new Error('Game not found');
     }
 
-    // Get player's starting position if they don't have units yet
     const mapData = gameInstance.mapManager.getMapData();
-    const startPos = mapData?.startingPositions.find(pos => pos.playerId === playerId);
-
-    if (!startPos) {
-      throw new Error('Player starting position not found');
+    if (!mapData) {
+      throw new Error('Map not generated yet');
     }
 
-    const visibleTiles = gameInstance.mapManager.getVisibleTiles(
-      startPos.x,
-      startPos.y,
-      2 // Initial sight radius
-    );
+    gameInstance.visibilityManager.updatePlayerVisibility(playerId);
+    const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
 
-    return visibleTiles.map(tile => ({
-      x: tile.x,
-      y: tile.y,
-      terrain: tile.terrain,
-      resource: tile.resource,
-      elevation: tile.elevation,
-      riverMask: tile.riverMask,
-      continentId: tile.continentId,
-      isExplored: true,
-      isVisible: true,
-      hasRoad: tile.hasRoad,
-      hasRailroad: tile.hasRailroad,
-      improvements: tile.improvements,
-      cityId: tile.cityId,
-      unitIds: tile.unitIds,
-      owner: tile.owner,
-      claimer: tile.claimer,
-    }));
+    return [...visibleTiles].flatMap(key => {
+      const [x, y] = key.split(',').map(Number);
+      const tile = gameInstance.mapManager.getTile(x, y);
+      if (!tile) return [];
+      return [
+        {
+          x: tile.x,
+          y: tile.y,
+          terrain: tile.terrain,
+          resource: tile.resource,
+          elevation: tile.elevation,
+          riverMask: tile.riverMask,
+          continentId: tile.continentId,
+          isExplored: true,
+          isVisible: true,
+          hasRoad: tile.hasRoad,
+          hasRailroad: tile.hasRailroad,
+          improvements: tile.improvements,
+          cityId: tile.cityId,
+          unitIds: tile.unitIds,
+          owner: tile.owner,
+          claimer: tile.claimer,
+        },
+      ];
+    });
   }
 }

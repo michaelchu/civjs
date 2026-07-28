@@ -69,7 +69,8 @@ export class CityRenderer extends BaseRenderer {
    */
   renderCities(state: RenderState): void {
     Object.values(state.cities).forEach(city => {
-      if (this.isInViewport(city.x, city.y, state.viewport)) {
+      const tile = state.map.tiles[`${city.x},${city.y}`];
+      if (tile?.known && this.isInViewport(city.x, city.y, state.viewport)) {
         this.renderCity(city, state.viewport, state);
       }
     });

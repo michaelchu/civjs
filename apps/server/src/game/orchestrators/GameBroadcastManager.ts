@@ -700,6 +700,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
 
     gameInstance.visibilityManager.updatePlayerVisibility(playerId);
     const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
+    const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
     const allCities = gameInstance.cityManager.getAllCities();
     const debugVisibility = this.isDebugVisibilityEnabled(gameId, playerId);
     const rulesetName = gameInstance.config?.ruleset ?? 'classic';
@@ -712,6 +713,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
             city.playerId === playerId ||
             visibleTiles.has(`${city.x},${city.y}`) ||
             (smallWonderVisibility === 'Always' &&
+              exploredTiles.has(`${city.x},${city.y}`) &&
               city.buildings.some((buildingId: string) => {
                 try {
                   return rulesetLoader.getBuilding(buildingId, rulesetName).genus === 'SmallWonder';

@@ -187,64 +187,6 @@ export class MapAccessService {
   }
 
   /**
-   * Get tiles accessible within movement range
-   * @reference freeciv/common/aicore/path_finding.c pf_create_map()
-   * @param x starting x coordinate
-   * @param y starting y coordinate
-   * @param movementPoints available movement points
-   * @param unitTypeId unit type for movement rules
-   * @returns array of accessible tiles
-   */
-  public getAccessibleTiles(
-    x: number,
-    y: number,
-    movementPoints: number,
-    unitTypeId?: string
-  ): MapTile[] {
-    const accessibleTiles = new Map<string, MapTile>();
-    const bestRemaining = new Map<string, number>();
-    const queue: Array<{ x: number; y: number; remainingMoves: number }> = [
-      { x, y, remainingMoves: movementPoints * 3 },
-    ]; // Convert to movement fragments
-
-    bestRemaining.set(`${x},${y}`, movementPoints * 3);
-
-    while (queue.length > 0) {
-      queue.sort((left, right) => right.remainingMoves - left.remainingMoves);
-      const current = queue.shift()!;
-      const currentKey = `${current.x},${current.y}`;
-      if (current.remainingMoves < (bestRemaining.get(currentKey) ?? -1)) continue;
-
-      const tile = this.getTile(current.x, current.y);
-      if (tile) {
-        accessibleTiles.set(currentKey, tile);
-      }
-
-      const neighbors = this.getNeighbors(current.x, current.y);
-      for (const neighbor of neighbors) {
-        const key = `${neighbor.x},${neighbor.y}`;
-        const fromTile = this.getTile(current.x, current.y);
-        let moveCost = this.getMovementCost(neighbor.x, neighbor.y, unitTypeId);
-        if (fromTile?.hasRailroad && neighbor.hasRailroad) moveCost = 0;
-        else if (fromTile?.hasRoad && neighbor.hasRoad) moveCost = 1;
-        if (moveCost < 0) continue; // Impassable
-
-        const remainingAfterMove = current.remainingMoves - moveCost;
-        if (remainingAfterMove >= 0 && remainingAfterMove > (bestRemaining.get(key) ?? -1)) {
-          bestRemaining.set(key, remainingAfterMove);
-          queue.push({
-            x: neighbor.x,
-            y: neighbor.y,
-            remainingMoves: remainingAfterMove,
-          });
-        }
-      }
-    }
-
-    return [...accessibleTiles.values()];
-  }
-
-  /**
    * Validate the current map data using the comprehensive validation system
    * @param players Optional player states for enhanced validation context
    * @returns Comprehensive validation result with metrics and issues

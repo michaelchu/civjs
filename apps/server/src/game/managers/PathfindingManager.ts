@@ -17,6 +17,12 @@ export interface PathfindingResult {
   valid: boolean;
 }
 
+export interface AccessibleTile {
+  x: number;
+  y: number;
+  remainingMovement: number;
+}
+
 interface AStarNode {
   x: number;
   y: number;
@@ -37,6 +43,7 @@ export interface PathfindingMovementPolicy {
     isDestination: boolean
   ): number;
   getUnitMaxMovement(unitTypeId: string): number;
+  canContinuePathFrom?(unit: Unit, x: number, y: number): boolean;
 }
 
 /**
@@ -164,6 +171,71 @@ export class PathfindingManager {
         estimatedTurns: 0,
         valid: false,
       };
+    }
+  }
+
+  /**
+   * Find every tile the unit can reach with its currently available movement.
+   * Uses the same authoritative policy as goto pathfinding so occupancy, zones
+   * of control, infrastructure, unit-class restrictions, and embarkation are
+   * evaluated consistently.
+   */
+  findAccessibleTiles(unit: Unit, availableMovement: number = unit.movementLeft): AccessibleTile[] {
+    if (!this.movementPolicy || availableMovement < 0) return [];
+
+    const bestRemaining = new Map<string, number>();
+    const queue: AccessibleTile[] = [
+      { x: unit.x, y: unit.y, remainingMovement: availableMovement },
+    ];
+    bestRemaining.set(`${unit.x},${unit.y}`, availableMovement);
+
+    while (queue.length > 0) {
+      queue.sort((left, right) => right.remainingMovement - left.remainingMovement);
+      const current = queue.shift()!;
+      const currentKey = `${current.x},${current.y}`;
+      if (current.remainingMovement < (bestRemaining.get(currentKey) ?? -1)) continue;
+      if (!this.canExpandAccessibleTile(unit, current)) continue;
+      this.enqueueAccessibleNeighbors(unit, current, bestRemaining, queue);
+    }
+
+    return [...bestRemaining.entries()].map(([key, remainingMovement]) => {
+      const [x, y] = key.split(',').map(Number);
+      return { x, y, remainingMovement };
+    });
+  }
+
+  private canExpandAccessibleTile(unit: Unit, tile: AccessibleTile): boolean {
+    if (tile.remainingMovement <= 0) return false;
+    return (
+      !this.movementPolicy?.canContinuePathFrom ||
+      this.movementPolicy.canContinuePathFrom(unit, tile.x, tile.y)
+    );
+  }
+
+  private enqueueAccessibleNeighbors(
+    unit: Unit,
+    current: AccessibleTile,
+    bestRemaining: Map<string, number>,
+    queue: AccessibleTile[]
+  ): void {
+    for (const neighbor of this.getNeighbors(current.x, current.y)) {
+      const moveCost = this.movementPolicy!.getPathStepCost(
+        unit,
+        current.x,
+        current.y,
+        neighbor.x,
+        neighbor.y,
+        true
+      );
+      if (moveCost < 0) continue;
+
+      // Freeciv permits one adjacent step with any positive movement
+      // remaining, even when the terrain cost exceeds those fragments.
+      const remainingMovement = Math.max(0, current.remainingMovement - moveCost);
+      const key = `${neighbor.x},${neighbor.y}`;
+      if (remainingMovement <= (bestRemaining.get(key) ?? -1)) continue;
+      bestRemaining.set(key, remainingMovement);
+      queue.push({ ...neighbor, remainingMovement });
     }
   }
 

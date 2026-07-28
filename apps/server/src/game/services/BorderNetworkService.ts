@@ -153,17 +153,15 @@ export class BorderNetworkService {
   ): void {
     for (const [playerId, player] of gameInstance.players) {
       gameInstance.visibilityManager.updatePlayerVisibility(playerId);
-      const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
+      const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
       const canSee = (x: number, y: number, ownerId?: string | null): boolean =>
-        ownerId === playerId || exploredTiles.has(`${x},${y}`);
+        ownerId === playerId || visibleTiles.has(`${x},${y}`);
       const tiles = borderUpdate.tiles.filter(tile => canSee(tile.x, tile.y, tile.playerId));
       const sources = borderUpdate.sources.filter(source =>
         canSee(source.x, source.y, source.playerId)
       );
-      const removed = borderUpdate.removedSources.filter(
-        source =>
-          exploredTiles.has(`${source.x},${source.y}`) ||
-          borderUpdate.affectedPlayers.includes(playerId)
+      const removed = borderUpdate.removedSources.filter(source =>
+        canSee(source.x, source.y, source.playerId)
       );
 
       if (tiles.length > 0) {
