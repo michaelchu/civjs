@@ -1,8 +1,8 @@
 {
-  "watch": ["src"],
-  "ext": "ts",
+  "watch": ["src", "drizzle"],
+  "ext": "ts,sql,json",
   "ignore": ["src/**/*.test.ts"],
-  "exec": "ts-node --require tsconfig-paths/register src/index.ts",
+  "exec": "npm run db:migrate && ts-node --require tsconfig-paths/register src/index.ts",
   "env": {
     "NODE_ENV": "development"
   }
