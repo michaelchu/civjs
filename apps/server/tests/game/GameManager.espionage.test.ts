@@ -18,6 +18,7 @@ describe('GameManager classic espionage actions', () => {
       getSnapshot: jest.fn().mockResolvedValue({
         nations: [{ id: targetPlayerId, relation: { state: 'war' } }],
       }),
+      recordIncident: jest.fn(),
     };
     (manager as any).gameBroadcastManager = {
       broadcastCityData: jest.fn(),

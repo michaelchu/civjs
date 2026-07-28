@@ -317,6 +317,24 @@ export class VisibilityManager {
     return new Set(visibility.exploredTiles);
   }
 
+  public replaceExploredTiles(playerId: string, tiles: Iterable<string>): void {
+    let visibility = this.playerVisibility.get(playerId);
+    if (!visibility) {
+      this.initializePlayerVisibility(playerId);
+      visibility = this.playerVisibility.get(playerId)!;
+    }
+    const replacement = new Set(tiles);
+    visibility.exploredTiles = replacement;
+    for (const tile of [...visibility.lastSeenByTile.keys()]) {
+      if (!replacement.has(tile)) visibility.lastSeenByTile.delete(tile);
+    }
+    for (const tile of [...visibility.rememberedTiles.keys()]) {
+      if (!replacement.has(tile)) visibility.rememberedTiles.delete(tile);
+    }
+    visibility.lastUpdated = new Date();
+    this.queuePersistence(visibility);
+  }
+
   /**
    * Permanently reveal a circular area, as used by classic hut map scrolls.
    * @reference reference/freeciv/data/default/default.lua:133-143

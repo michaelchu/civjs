@@ -247,6 +247,12 @@ export class GameClient {
     });
 
     this.socket.on('culture_updated', data => this.applyCultureUpdate(data));
+    this.socket.on('diplomacy_event', data => {
+      if (typeof data?.message === 'string') {
+        useGameStore.getState().addNotification({ message: data.message, tone: 'info' });
+      }
+      this.requestDiplomacy();
+    });
 
     // Handle production completion events
     this.socket.on('production:completed', data => {
@@ -1344,6 +1350,14 @@ export class GameClient {
 
   declareWar(otherPlayerId: string): void {
     this.sendPacket(PacketType.DIPLOMACY_DECLARE_WAR, { otherPlayerId });
+  }
+
+  cancelDiplomaticPact(otherPlayerId: string): void {
+    this.sendPacket(PacketType.DIPLOMACY_PACT_CANCEL, { otherPlayerId });
+  }
+
+  cancelSharedVision(otherPlayerId: string): void {
+    this.sendPacket(PacketType.DIPLOMACY_VISION_CANCEL, { otherPlayerId });
   }
 
   private sendPacket(type: PacketType, data: unknown): void {

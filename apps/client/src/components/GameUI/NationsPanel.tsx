@@ -1,7 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { gameClient } from '../../services/GameClient';
 import { useGameStore } from '../../store/gameStore';
-import type { DiplomacyNation, TreatyClauseType } from '../../types';
+import type {
+  City,
+  DiplomacyNation,
+  Technology,
+  TreatyClause,
+  TreatyClauseType,
+} from '../../types';
 import { Button } from '../ui/button';
 
 const stateLabels: Record<DiplomacyNation['relation']['state'], string> = {
@@ -11,11 +17,15 @@ const stateLabels: Record<DiplomacyNation['relation']['state'], string> = {
   armistice: 'Armistice',
   peace: 'Peace',
   alliance: 'Alliance',
+  team: 'Team',
 };
 
 export const NationsPanel: React.FC = () => {
   const diplomacy = useGameStore(state => state.diplomacy);
-  const [selectedClauses, setSelectedClauses] = useState<Record<string, TreatyClauseType>>({});
+  const currentPlayer = useGameStore(state => state.players[state.currentPlayerId]);
+  const technologies = useGameStore(state => state.technologies);
+  const researchedTechs = useGameStore(state => state.research?.researchedTechs);
+  const cities = useGameStore(state => state.cities);
 
   useEffect(() => {
     gameClient.requestDiplomacy();
@@ -40,10 +50,10 @@ export const NationsPanel: React.FC = () => {
               key={nation.id}
               nation={nation}
               currentPlayerId={diplomacy.playerId}
-              selectedClause={selectedClauses[nation.id] ?? 'peace'}
-              onClauseChange={clause =>
-                setSelectedClauses(current => ({ ...current, [nation.id]: clause }))
-              }
+              currentPlayerGold={currentPlayer?.gold ?? 0}
+              technologies={technologies}
+              researchedTechs={researchedTechs ?? new Set()}
+              cities={cities}
             />
           ))}
         </div>
@@ -55,12 +65,32 @@ export const NationsPanel: React.FC = () => {
 const NationCard: React.FC<{
   nation: DiplomacyNation;
   currentPlayerId: string;
-  selectedClause: TreatyClauseType;
-  onClauseChange: (clause: TreatyClauseType) => void;
-}> = ({ nation, currentPlayerId, selectedClause, onClauseChange }) => {
+  currentPlayerGold: number;
+  technologies: Record<string, Technology>;
+  researchedTechs: Set<string>;
+  cities: Record<string, City>;
+}> = ({ nation, currentPlayerId, currentPlayerGold, technologies, researchedTechs, cities }) => {
   const proposal = nation.relation.proposal;
   const incoming = proposal?.status === 'pending' && proposal.recipientId === currentPlayerId;
   const outgoing = proposal?.status === 'pending' && proposal.proposerId === currentPlayerId;
+  const [draftClauses, setDraftClauses] = useState<TreatyClause[]>([]);
+  const canMeet = nation.canMeet ?? nation.known;
+
+  if (!nation.known) {
+    return (
+      <article className="rounded-lg border border-gray-700 bg-gray-800 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold">Unknown nation</h3>
+            <p className="text-sm text-gray-400">
+              Establish contact to learn this nation&apos;s identity.
+            </p>
+          </div>
+          <span className="rounded bg-gray-900 px-2 py-1 text-xs text-gray-300">No contact</span>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article className="rounded-lg border border-gray-700 bg-gray-800 p-5">
@@ -79,15 +109,34 @@ const NationCard: React.FC<{
       <div className="mt-3 flex gap-2 text-xs text-gray-300">
         {nation.relation.embassy && <span className="rounded bg-gray-700 px-2 py-1">Embassy</span>}
         {nation.relation.sharedVision && (
-          <span className="rounded bg-gray-700 px-2 py-1">Shared vision</span>
+          <span className="rounded bg-gray-700 px-2 py-1">Receiving vision</span>
+        )}
+        {nation.relation.givesSharedVision && (
+          <span className="rounded bg-gray-700 px-2 py-1">Giving vision</span>
         )}
       </div>
+      <p className="mt-2 text-xs text-gray-400">
+        Reputation {nation.relation.reputation ?? 1000}/1000 · Attitude{' '}
+        {nation.relation.attitude ?? 0}
+        {(nation.relation.turnsLeft ?? 0) > 0
+          ? ` · ${nation.relation.turnsLeft} treaty turns remaining`
+          : ''}
+      </p>
 
-      {incoming && proposal ? (
+      {!canMeet && nation.relation.state !== 'team' ? (
+        <p className="mt-4 rounded border border-gray-700 bg-gray-900 p-3 text-sm text-gray-300">
+          Renew diplomatic contact or establish an embassy before negotiating.
+        </p>
+      ) : incoming && proposal ? (
         <div className="mt-4 rounded border border-amber-600 bg-amber-950/40 p-3">
-          <p className="text-sm">
-            Proposed: {proposal.clauses.map(clause => clause.type.replace('_', ' ')).join(', ')}
-          </p>
+          <p className="text-sm font-medium">Incoming proposal</p>
+          <ClauseList
+            clauses={proposal.clauses}
+            currentPlayerId={currentPlayerId}
+            otherPlayerId={nation.id}
+            technologies={technologies}
+            cities={cities}
+          />
           <div className="mt-3 flex gap-2">
             <Button onClick={() => gameClient.respondToTreaty(nation.id, proposal.id, true)}>
               Accept
@@ -101,38 +150,356 @@ const NationCard: React.FC<{
           </div>
         </div>
       ) : outgoing && proposal ? (
-        <div className="mt-4 flex items-center justify-between rounded bg-gray-900 p-3 text-sm">
-          <span>Waiting for a response</span>
-          <Button variant="outline" onClick={() => gameClient.cancelTreaty(nation.id, proposal.id)}>
-            Cancel
-          </Button>
+        <div className="mt-4 rounded bg-gray-900 p-3 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="font-medium">Waiting for a response</span>
+            <Button
+              variant="outline"
+              onClick={() => gameClient.cancelTreaty(nation.id, proposal.id)}
+            >
+              Cancel
+            </Button>
+          </div>
+          <ClauseList
+            clauses={proposal.clauses}
+            currentPlayerId={currentPlayerId}
+            otherPlayerId={nation.id}
+            technologies={technologies}
+            cities={cities}
+          />
         </div>
       ) : (
-        <div className="mt-4 flex flex-wrap items-end gap-2">
-          <label className="text-sm text-gray-300">
-            Treaty clause
-            <select
-              className="mt-1 block rounded border border-gray-600 bg-gray-900 p-2"
-              value={selectedClause}
-              onChange={event => onClauseChange(event.target.value as TreatyClauseType)}
+        <div className="mt-4">
+          <TreatyBuilder
+            currentPlayerId={currentPlayerId}
+            nation={nation}
+            currentPlayerGold={currentPlayerGold}
+            technologies={technologies}
+            researchedTechs={researchedTechs}
+            cities={cities}
+            clauses={draftClauses}
+            onChange={setDraftClauses}
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              disabled={draftClauses.length === 0}
+              onClick={() => {
+                gameClient.proposeTreaty(nation.id, draftClauses);
+                setDraftClauses([]);
+              }}
             >
-              <option value="ceasefire">Ceasefire</option>
-              <option value="peace">Peace</option>
-              <option value="alliance">Alliance</option>
-              <option value="embassy">Exchange embassies</option>
-              <option value="shared_vision">Share vision</option>
-            </select>
-          </label>
-          <Button onClick={() => gameClient.proposeTreaty(nation.id, [selectedClause])}>
-            Propose
-          </Button>
-          {nation.relation.state !== 'war' && (
-            <Button variant="outline" onClick={() => gameClient.declareWar(nation.id)}>
-              Declare war
+              Propose treaty
             </Button>
-          )}
+            {nation.relation.state !== 'war' && (
+              <Button variant="outline" onClick={() => gameClient.declareWar(nation.id)}>
+                Declare war
+              </Button>
+            )}
+            {!['war', 'no_contact', 'team'].includes(nation.relation.state) && (
+              <Button variant="outline" onClick={() => gameClient.cancelDiplomaticPact(nation.id)}>
+                Cancel pact
+              </Button>
+            )}
+            {nation.relation.givesSharedVision && (
+              <Button variant="outline" onClick={() => gameClient.cancelSharedVision(nation.id)}>
+                Stop sharing vision
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </article>
   );
 };
+
+const clauseLabels: Record<TreatyClauseType, string> = {
+  ceasefire: 'Ceasefire',
+  peace: 'Peace',
+  alliance: 'Alliance',
+  embassy: 'Embassy',
+  shared_vision: 'Shared vision',
+  technology: 'Technology',
+  gold: 'Gold',
+  map: 'World map',
+  seamap: 'Sea map',
+  city: 'City',
+};
+
+const clauseAllowedForState = (
+  type: TreatyClauseType,
+  state: DiplomacyNation['relation']['state']
+): boolean => {
+  if (type === 'ceasefire') return state === 'war';
+  if (type === 'peace') return state === 'war' || state === 'ceasefire';
+  if (type === 'alliance') return state !== 'alliance' && state !== 'team';
+  return state !== 'team';
+};
+
+const TreatyBuilder: React.FC<{
+  currentPlayerId: string;
+  nation: DiplomacyNation;
+  currentPlayerGold: number;
+  technologies: Record<string, Technology>;
+  researchedTechs: Set<string>;
+  cities: Record<string, City>;
+  clauses: TreatyClause[];
+  onChange: (clauses: TreatyClause[]) => void;
+}> = ({
+  currentPlayerId,
+  nation,
+  currentPlayerGold,
+  technologies,
+  researchedTechs,
+  cities,
+  clauses,
+  onChange,
+}) => {
+  const [type, setType] = useState<TreatyClauseType>('peace');
+  const [giverId, setGiverId] = useState(currentPlayerId);
+  const [amount, setAmount] = useState('1');
+  const eligibleTechnologies = useMemo(
+    () =>
+      Object.values(technologies)
+        .filter(technology => giverId !== currentPlayerId || researchedTechs.has(technology.id))
+        .sort((left, right) => left.name.localeCompare(right.name)),
+    [currentPlayerId, giverId, researchedTechs, technologies]
+  );
+  const eligibleCities = useMemo(
+    () =>
+      Object.values(cities)
+        .filter(city => city.playerId === giverId)
+        .sort((left, right) => left.name.localeCompare(right.name)),
+    [cities, giverId]
+  );
+  const [itemId, setItemId] = useState('');
+  useEffect(() => {
+    if (clauseAllowedForState(type, nation.relation.state)) return;
+    const fallback = (Object.keys(clauseLabels) as TreatyClauseType[]).find(candidate =>
+      clauseAllowedForState(candidate, nation.relation.state)
+    );
+    if (fallback) setType(fallback);
+  }, [nation.relation.state, type]);
+  const selectedItemId =
+    type === 'technology'
+      ? eligibleTechnologies.some(technology => technology.id === itemId)
+        ? itemId
+        : (eligibleTechnologies[0]?.id ?? '')
+      : type === 'city'
+        ? eligibleCities.some(city => city.id === itemId)
+          ? itemId
+          : (eligibleCities[0]?.id ?? '')
+        : '';
+  const numericAmount = Number(amount);
+  const exceedsTreasury =
+    type === 'gold' && giverId === currentPlayerId && numericAmount > currentPlayerGold;
+  const canAdd =
+    type === 'gold'
+      ? Number.isInteger(numericAmount) && numericAmount > 0 && !exceedsTreasury
+      : type === 'technology' || type === 'city'
+        ? Boolean(selectedItemId)
+        : true;
+
+  const addClause = () => {
+    let clause: TreatyClause;
+    if (type === 'technology') {
+      clause = { type, techId: selectedItemId, giverId };
+    } else if (type === 'gold') {
+      clause = { type, amount: numericAmount, giverId };
+    } else if (type === 'city') {
+      clause = { type, cityId: selectedItemId, giverId };
+    } else {
+      clause = { type, giverId };
+    }
+    onChange([...clauses, clause]);
+  };
+
+  return (
+    <div className="rounded border border-gray-700 bg-gray-900/60 p-3">
+      <p className="text-sm font-medium">Build a treaty</p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <label className="text-xs text-gray-300">
+          Clause
+          <select
+            aria-label="Treaty clause"
+            className="mt-1 block w-full rounded border border-gray-600 bg-gray-900 p-2 text-sm"
+            value={type}
+            onChange={event => {
+              setType(event.target.value as TreatyClauseType);
+              setItemId('');
+            }}
+          >
+            {Object.entries(clauseLabels)
+              .filter(([value]) =>
+                clauseAllowedForState(value as TreatyClauseType, nation.relation.state)
+              )
+              .map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label className="text-xs text-gray-300">
+          Given by
+          <select
+            aria-label="Clause giver"
+            className="mt-1 block w-full rounded border border-gray-600 bg-gray-900 p-2 text-sm"
+            value={giverId}
+            onChange={event => {
+              setGiverId(event.target.value);
+              setItemId('');
+            }}
+          >
+            <option value={currentPlayerId}>You</option>
+            <option value={nation.id}>{nation.civilization}</option>
+          </select>
+        </label>
+      </div>
+
+      {type === 'gold' && (
+        <label className="mt-2 block text-xs text-gray-300">
+          Gold amount
+          <input
+            aria-label="Gold amount"
+            className="mt-1 block w-full rounded border border-gray-600 bg-gray-900 p-2 text-sm"
+            type="number"
+            min={1}
+            max={giverId === currentPlayerId ? currentPlayerGold : undefined}
+            value={amount}
+            onChange={event => setAmount(event.target.value)}
+          />
+          {exceedsTreasury && (
+            <span className="mt-1 block text-red-300">You have only {currentPlayerGold} gold.</span>
+          )}
+        </label>
+      )}
+
+      {type === 'technology' && (
+        <ItemSelect
+          label="Technology"
+          value={selectedItemId}
+          emptyMessage={
+            giverId === currentPlayerId
+              ? 'You have no known technologies to offer.'
+              : 'No technologies are available to request.'
+          }
+          options={eligibleTechnologies.map(technology => ({
+            id: technology.id,
+            label: technology.name,
+          }))}
+          onChange={setItemId}
+        />
+      )}
+
+      {type === 'city' && (
+        <ItemSelect
+          label="City"
+          value={selectedItemId}
+          emptyMessage={
+            giverId === currentPlayerId
+              ? 'You have no cities to offer.'
+              : 'No known cities are available to request.'
+          }
+          options={eligibleCities.map(city => ({ id: city.id, label: city.name }))}
+          onChange={setItemId}
+        />
+      )}
+
+      <Button className="mt-3" variant="outline" disabled={!canAdd} onClick={addClause}>
+        Add clause
+      </Button>
+
+      {clauses.length > 0 && (
+        <div className="mt-3 border-t border-gray-700 pt-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Draft clauses</p>
+          <ClauseList
+            clauses={clauses}
+            currentPlayerId={currentPlayerId}
+            otherPlayerId={nation.id}
+            technologies={technologies}
+            cities={cities}
+            onRemove={index => onChange(clauses.filter((_, clauseIndex) => clauseIndex !== index))}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ItemSelect: React.FC<{
+  label: string;
+  value: string;
+  emptyMessage: string;
+  options: Array<{ id: string; label: string }>;
+  onChange: (value: string) => void;
+}> = ({ label, value, emptyMessage, options, onChange }) => (
+  <label className="mt-2 block text-xs text-gray-300">
+    {label}
+    {options.length > 0 ? (
+      <select
+        aria-label={label}
+        className="mt-1 block w-full rounded border border-gray-600 bg-gray-900 p-2 text-sm"
+        value={value}
+        onChange={event => onChange(event.target.value)}
+      >
+        {options.map(option => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    ) : (
+      <span className="mt-1 block rounded border border-gray-700 p-2 text-gray-400">
+        {emptyMessage}
+      </span>
+    )}
+  </label>
+);
+
+const ClauseList: React.FC<{
+  clauses: TreatyClause[];
+  currentPlayerId: string;
+  otherPlayerId: string;
+  technologies: Record<string, Technology>;
+  cities: Record<string, City>;
+  onRemove?: (index: number) => void;
+}> = ({ clauses, currentPlayerId, otherPlayerId, technologies, cities, onRemove }) => (
+  <ul className="mt-2 space-y-1 text-sm">
+    {clauses.map((clause, index) => {
+      const giver =
+        clause.giverId === currentPlayerId
+          ? 'You give'
+          : clause.giverId === otherPlayerId
+            ? 'They give'
+            : 'Agreement';
+      const detail =
+        clause.type === 'technology'
+          ? (technologies[clause.techId]?.name ?? clause.techId)
+          : clause.type === 'gold'
+            ? `${clause.amount} gold`
+            : clause.type === 'city'
+              ? (cities[clause.cityId]?.name ?? clause.cityId)
+              : clauseLabels[clause.type];
+      return (
+        <li
+          className="flex items-center justify-between gap-2 rounded bg-gray-950/60 px-2 py-1.5"
+          key={`${clause.type}-${index}`}
+        >
+          <span>
+            <span className="text-gray-400">{giver}:</span> {detail}
+          </span>
+          {onRemove && (
+            <button
+              className="text-xs text-red-300 hover:text-red-200"
+              type="button"
+              aria-label={`Remove ${detail}`}
+              onClick={() => onRemove(index)}
+            >
+              Remove
+            </button>
+          )}
+        </li>
+      );
+    })}
+  </ul>
+);

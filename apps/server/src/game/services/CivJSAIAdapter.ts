@@ -3,6 +3,7 @@ import type { DiplomacyManager } from '@game/managers/DiplomacyManager';
 import type { Unit } from '@game/managers/UnitManager';
 import { ActionType } from '@app-types/shared/actions';
 import { logger } from '@utils/logger';
+import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 
 /**
  * Versioned compatibility contract for the intentionally bounded CivJS AI.
@@ -39,7 +40,14 @@ export const CIVJS_AI_CONTRACT = {
  * city cannot abort turn processing for every AI player.
  */
 export class CivJSAIAdapter {
-  constructor(private readonly diplomacyManager: DiplomacyManager) {}
+  private readonly hostilityPolicy: DiplomacyHostilityPolicy;
+
+  constructor(
+    private readonly diplomacyManager: DiplomacyManager,
+    hostilityPolicy?: DiplomacyHostilityPolicy
+  ) {
+    this.hostilityPolicy = hostilityPolicy ?? new DiplomacyHostilityPolicy(diplomacyManager);
+  }
 
   async processTurn(gameId: string, game: GameInstance): Promise<number> {
     if (game.state !== 'active') return 0;
@@ -55,7 +63,9 @@ export class CivJSAIAdapter {
         this.executeCityUnitActions(game, playerId)
       );
       actions += await this.attempt('workers', () => this.automateWorkers(game, playerId));
-      actions += await this.attempt('combat', () => this.attackAdjacentEnemies(game, playerId));
+      actions += await this.attempt('combat', () =>
+        this.attackAdjacentEnemies(gameId, game, playerId)
+      );
       actions += await this.attempt('exploration', () => this.automateExploration(game, playerId));
       actions += await this.attempt('diplomacy', () => this.respondToDiplomacy(gameId, playerId));
     }
@@ -184,9 +194,14 @@ export class CivJSAIAdapter {
     return actions;
   }
 
-  private async attackAdjacentEnemies(game: GameInstance, playerId: string): Promise<number> {
+  private async attackAdjacentEnemies(
+    gameId: string,
+    game: GameInstance,
+    playerId: string
+  ): Promise<number> {
+    const hostilePlayerIds = await this.hostilityPolicy.getHostilePlayerIds(gameId, playerId);
     const enemies = Array.from(game.unitManager.getAllUnits().values())
-      .filter(unit => unit.playerId !== playerId && !unit.transportedBy)
+      .filter(unit => hostilePlayerIds.has(unit.playerId) && !unit.transportedBy)
       .sort((a, b) => a.id.localeCompare(b.id));
     let actions = 0;
 

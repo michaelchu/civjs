@@ -99,6 +99,8 @@ describe('GameClient management screens', () => {
     gameClient.requestDiplomacy();
     gameClient.proposeTreaty('player-2', ['peace', 'embassy']);
     gameClient.respondToTreaty('player-2', 'proposal-1', true);
+    gameClient.cancelDiplomaticPact('player-2');
+    gameClient.cancelSharedVision('player-2');
 
     expect(socket.emit).toHaveBeenNthCalledWith(
       1,
@@ -115,6 +117,22 @@ describe('GameClient management screens', () => {
           requestId: expect.any(String),
           clauses: [{ type: 'peace' }, { type: 'embassy' }],
         }),
+      })
+    );
+    expect(socket.emit).toHaveBeenNthCalledWith(
+      4,
+      'packet',
+      expect.objectContaining({
+        type: PacketType.DIPLOMACY_PACT_CANCEL,
+        data: { otherPlayerId: 'player-2' },
+      })
+    );
+    expect(socket.emit).toHaveBeenNthCalledWith(
+      5,
+      'packet',
+      expect.objectContaining({
+        type: PacketType.DIPLOMACY_VISION_CANCEL,
+        data: { otherPlayerId: 'player-2' },
       })
     );
     expect(socket.emit).toHaveBeenNthCalledWith(

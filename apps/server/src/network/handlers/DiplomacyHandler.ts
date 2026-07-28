@@ -13,6 +13,8 @@ export class DiplomacyHandler extends BaseSocketHandler {
     PacketType.DIPLOMACY_TREATY_RESPONSE,
     PacketType.DIPLOMACY_TREATY_CANCEL,
     PacketType.DIPLOMACY_DECLARE_WAR,
+    PacketType.DIPLOMACY_PACT_CANCEL,
+    PacketType.DIPLOMACY_VISION_CANCEL,
   ];
   protected handlerName = 'DiplomacyHandler';
 
@@ -57,6 +59,16 @@ export class DiplomacyHandler extends BaseSocketHandler {
     handler.register(PacketType.DIPLOMACY_DECLARE_WAR, async (_socket, data) => {
       await this.handleMutation(handler, socket, io, async (gameId, playerId) => {
         await this.gameManager.declareWar(gameId, playerId, data.otherPlayerId);
+      });
+    });
+    handler.register(PacketType.DIPLOMACY_PACT_CANCEL, async (_socket, data) => {
+      await this.handleMutation(handler, socket, io, async (gameId, playerId) => {
+        await this.gameManager.cancelDiplomaticPact(gameId, playerId, data.otherPlayerId);
+      });
+    });
+    handler.register(PacketType.DIPLOMACY_VISION_CANCEL, async (_socket, data) => {
+      await this.handleMutation(handler, socket, io, async (gameId, playerId) => {
+        await this.gameManager.cancelSharedVision(gameId, playerId, data.otherPlayerId);
       });
     });
   }

@@ -110,6 +110,8 @@ export enum PacketType {
   DIPLOMACY_UPDATE = 256,
   DEBUG_VISIBILITY_SET = 257,
   DEBUG_VISIBILITY_REPLY = 258,
+  DIPLOMACY_PACT_CANCEL = 259,
+  DIPLOMACY_VISION_CANCEL = 260,
 }
 
 export const PACKET_NAMES: Record<number, string> = Object.fromEntries(
@@ -348,6 +350,8 @@ export const ACTIVE_PACKET_CONTRACT: readonly PacketContractEntry[] = [
     PacketType.DIPLOMACY_TREATY_RESPONSE,
     PacketType.DIPLOMACY_TREATY_CANCEL,
     PacketType.DIPLOMACY_DECLARE_WAR,
+    PacketType.DIPLOMACY_PACT_CANCEL,
+    PacketType.DIPLOMACY_VISION_CANCEL,
   ].map(type =>
     active(type, 'diplomacy', 'client_to_server', { serverHandler: 'DiplomacyHandler' })
   ),
@@ -503,6 +507,12 @@ export const SOCKET_EVENT_CONTRACT: readonly SocketEventContractEntry[] = [
   {
     event: 'turn-started',
     family: 'turn',
+    classification: 'notification',
+    sinceVersion: 1,
+  },
+  {
+    event: 'diplomacy_event',
+    family: 'diplomacy',
     classification: 'notification',
     sinceVersion: 1,
   },

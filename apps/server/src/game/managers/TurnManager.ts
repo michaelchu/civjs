@@ -62,6 +62,7 @@ export class TurnManager {
   private onTurnAdvanced?: (turn: number) => void | Promise<void>;
   private endGameEvaluator?: (turn: number, year: number) => Promise<boolean>;
   private replaySnapshotProvider?: () => Record<string, unknown>;
+  private diplomacyProcessor?: () => Promise<void>;
 
   // Service dependencies
   private turnProcessingService: TurnProcessingService;
@@ -233,6 +234,7 @@ export class TurnManager {
         });
 
         await this.processGovernmentTurns(playerIds);
+        await this.diplomacyProcessor?.();
 
         await this.completeTurnRecord(phaseResult);
         if (await this.endGameEvaluator?.(this.currentTurn, this.currentYear)) {
@@ -630,6 +632,10 @@ export class TurnManager {
 
   public setTurnAdvancedCallback(callback: (turn: number) => void | Promise<void>): void {
     this.onTurnAdvanced = callback;
+  }
+
+  public setDiplomacyProcessor(callback: () => Promise<void>): void {
+    this.diplomacyProcessor = callback;
   }
 
   public setEndGameEvaluator(evaluator: (turn: number, year: number) => Promise<boolean>): void {

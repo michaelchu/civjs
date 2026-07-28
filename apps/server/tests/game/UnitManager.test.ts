@@ -450,6 +450,15 @@ describe('UnitManager', () => {
       await expect(unitManager.moveUnit(mover.id, 11, 10)).rejects.toThrow('enemy zone of control');
     });
 
+    it('does not treat allied units as enemy zones of control', async () => {
+      unitManager.setHostilePlayersProvider(() => new Set());
+      const mover = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.createUnit('player-456', 'warriors', 9, 10);
+      await unitManager.createUnit('player-456', 'warriors', 12, 10);
+
+      await expect(unitManager.moveUnit(mover.id, 11, 10)).resolves.toBe(true);
+    });
+
     it('loads ruleset-compatible cargo, moves it, and unloads onto land', async () => {
       terrain.set('10,10', 'ocean');
       terrain.set('11,10', 'ocean');
@@ -522,6 +531,37 @@ describe('UnitManager', () => {
       );
       expect(captureCity).not.toHaveBeenCalled();
     });
+
+    it('requires war for city capture and permits entry into an allied city', async () => {
+      const captureCity = jest.fn(async () => true);
+      const cityAwareManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        mapManager,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          getCityAt: (x, y) =>
+            x === 11 && y === 10
+              ? { id: 'foreign-city', playerId: 'player-456', buildings: [] }
+              : null,
+          captureCity,
+        }
+      );
+      cityAwareManager.setHostilityProvider(async () => false);
+      cityAwareManager.setContactProvider(async () => undefined);
+      const blocked = await cityAwareManager.createUnit('player-123', 'warriors', 10, 10);
+      await expect(cityAwareManager.moveUnit(blocked.id, 11, 10)).rejects.toThrow(
+        'unless its owner is at war'
+      );
+
+      cityAwareManager.setAlliedPlayersProvider(() => new Set(['player-456']));
+      await expect(cityAwareManager.moveUnit(blocked.id, 11, 10)).resolves.toBe(true);
+      expect(captureCity).not.toHaveBeenCalled();
+    });
   });
 
   describe('unit combat', () => {
@@ -554,6 +594,35 @@ describe('UnitManager', () => {
       await expect(unitManager.attackUnit(attackerUnitId, friendly.id)).rejects.toThrow(
         'friendly unit'
       );
+    });
+
+    it('rejects attacks when diplomacy does not report war', async () => {
+      unitManager.setHostilityProvider(async () => false);
+
+      await expect(unitManager.attackUnit(attackerUnitId, defenderUnitId)).rejects.toThrow(
+        'Cannot attack a player unless at war'
+      );
+    });
+
+    it('allows attacks when diplomacy reports war', async () => {
+      unitManager.setHostilityProvider(async () => true);
+
+      await expect(unitManager.attackUnit(attackerUnitId, defenderUnitId)).resolves.toMatchObject({
+        attackerId: attackerUnitId,
+        defenderId: defenderUnitId,
+      });
+    });
+
+    it('does not select a non-hostile defender from a mixed-owner stack', async () => {
+      const ally = await unitManager.createUnit('player-ally', 'legion', 11, 10);
+      unitManager.setHostilityProvider(
+        async (_attackerPlayerId, defenderPlayerId) => defenderPlayerId === 'player-456'
+      );
+
+      const result = await unitManager.attackUnit(attackerUnitId, defenderUnitId);
+
+      expect(result.defenderId).toBe(defenderUnitId);
+      expect(result.defenderId).not.toBe(ally.id);
     });
 
     it('should reject attack out of range', async () => {

@@ -104,6 +104,7 @@ function createScenario() {
         {
           id: 'human',
           relation: {
+            state: 'war',
             proposal: {
               id: 'peace-proposal',
               recipientId: 'ai',
@@ -115,6 +116,7 @@ function createScenario() {
         {
           id: 'other-ai',
           relation: {
+            state: 'peace',
             proposal: {
               id: 'alliance-proposal',
               recipientId: 'ai',
@@ -292,6 +294,20 @@ describe('CivJSAIAdapter compatibility contract', () => {
       'ai'
     );
     expect(scenario.attackUnit).not.toHaveBeenCalledWith('nuclear', 'enemy');
+  });
+
+  it('does not target players unless diplomacy says they are at war', async () => {
+    const scenario = createScenario();
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({
+      nations: [{ id: 'human', relation: { state: 'peace' } }],
+    });
+
+    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.attackUnit).not.toHaveBeenCalled();
   });
 
   it('uses a legal Milestone 14 city-unit command through UnitManager', async () => {

@@ -35,6 +35,7 @@ import {
   type TreatyProposal,
 } from '@game/managers/DiplomacyManager';
 import { CivJSAIAdapter } from '@game/services/CivJSAIAdapter';
+import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { EndGameService } from '@game/services/EndGameService';
 import { GameReplayService, type GameReplay } from '@game/services/GameReplayService';
 import { ActionType, type ActionResult } from '@app-types/shared/actions';
@@ -137,7 +138,10 @@ export class GameManager {
   private games = new Map<string, GameInstance>();
   private playerToGame = new Map<string, string>();
   private sharedVisionByGame = new Map<string, Map<string, Set<string>>>();
+  private hostilePlayersByGame = new Map<string, Map<string, Set<string>>>();
+  private alliedPlayersByGame = new Map<string, Map<string, Set<string>>>();
   private endTurnLocks = new Map<string, Promise<boolean>>();
+  private treatyPlayerLocks = new Map<string, Promise<unknown>>();
 
   // Extracted service components
   private serviceRegistry!: ServiceRegistry;
@@ -151,6 +155,7 @@ export class GameManager {
   private visibilityMapService!: VisibilityMapService;
   private gameInstanceRecoveryService!: GameInstanceRecoveryService;
   private diplomacyManager!: DiplomacyManager;
+  private hostilityPolicy!: DiplomacyHostilityPolicy;
   private aiAdapter!: CivJSAIAdapter;
   private endGameService!: EndGameService;
   private replayService!: GameReplayService;
@@ -227,7 +232,11 @@ export class GameManager {
     this.diplomacyManager.setTransferExecutor((gameId, proposerId, recipientId, clauses) =>
       this.executeTreatyTransfers(gameId, proposerId, recipientId, clauses)
     );
-    this.aiAdapter = new CivJSAIAdapter(this.diplomacyManager);
+    this.diplomacyManager.setEventSink(event => {
+      this.gameBroadcastManager.broadcastToGame(event.gameId, 'diplomacy_event', event);
+    });
+    this.hostilityPolicy = new DiplomacyHostilityPolicy(this.diplomacyManager);
+    this.aiAdapter = new CivJSAIAdapter(this.diplomacyManager, this.hostilityPolicy);
 
     this.gameInstanceRecoveryService = new GameInstanceRecoveryService(
       this.databaseProvider,
@@ -294,7 +303,10 @@ export class GameManager {
     this.games.clear();
     this.playerToGame.clear();
     this.sharedVisionByGame.clear();
+    this.hostilePlayersByGame.clear();
+    this.alliedPlayersByGame.clear();
     this.endTurnLocks.clear();
+    this.treatyPlayerLocks.clear();
   }
 
   /**
@@ -549,6 +561,29 @@ export class GameManager {
     });
   }
 
+  public cancelDiplomaticPact(
+    gameId: string,
+    playerId: string,
+    otherPlayerId: string
+  ): Promise<void> {
+    return this.diplomacyManager.cancelPact(gameId, playerId, otherPlayerId).then(async () => {
+      await this.refreshSharedVision(gameId);
+      await this.games
+        .get(gameId)
+        ?.cityManager.updateTradeRoutesForDiplomacy(playerId, otherPlayerId);
+    });
+  }
+
+  public cancelSharedVision(
+    gameId: string,
+    playerId: string,
+    otherPlayerId: string
+  ): Promise<void> {
+    return this.diplomacyManager
+      .cancelSharedVision(gameId, playerId, otherPlayerId)
+      .then(() => this.refreshSharedVision(gameId));
+  }
+
   public async executeDiplomatAction(
     gameId: string,
     playerId: string,
@@ -593,8 +628,9 @@ export class GameManager {
     if (!city || city.playerId === playerId) {
       return { success: false, message: 'An adjacent foreign city is required' };
     }
-    await this.diplomacyManager.establishContact(gameId, playerId, city.playerId);
-    const relation = await this.getDiplomaticState(gameId, playerId, city.playerId);
+    const targetOwnerId = city.playerId;
+    await this.diplomacyManager.establishContact(gameId, playerId, targetOwnerId);
+    const relation = await this.getDiplomaticState(gameId, playerId, targetOwnerId);
 
     let result: ActionResult;
     let actorSurvives = unitFlags.includes('Spy');
@@ -731,6 +767,16 @@ export class GameManager {
       return { success: false, message: 'Unsupported diplomat action' };
     }
 
+    if (
+      [
+        ActionType.STEAL_TECH,
+        ActionType.SABOTAGE_CITY,
+        ActionType.POISON_WATER,
+        ActionType.INCITE_CITY,
+      ].includes(actionType)
+    ) {
+      await this.diplomacyManager.recordIncident(gameId, playerId, targetOwnerId);
+    }
     if (!actorSurvives) {
       await game.unitManager.removeUnit(unit.id);
       result.unitDestroyed = true;
@@ -842,6 +888,7 @@ export class GameManager {
       };
     }
 
+    await this.diplomacyManager.recordIncident(gameId, playerId, target.playerId);
     if (!actorSurvives) {
       await game.unitManager.removeUnit(actor.id);
       result.unitDestroyed = true;
@@ -867,69 +914,168 @@ export class GameManager {
     proposerId: string,
     recipientId: string,
     clauses: TreatyClause[]
-  ): Promise<void> {
+  ): Promise<void | (() => Promise<void>)> {
+    return this.withTreatyPlayerLocks(gameId, [proposerId, recipientId], () =>
+      this.executeTreatyTransfersLocked(gameId, proposerId, recipientId, clauses)
+    );
+  }
+
+  private async executeTreatyTransfersLocked(
+    gameId: string,
+    proposerId: string,
+    recipientId: string,
+    clauses: TreatyClause[]
+  ): Promise<() => Promise<void>> {
     const game = this.games.get(gameId);
     if (!game) throw new Error('Game is not active');
     const rows = await this.databaseProvider.getDatabase().query.players.findMany({
       where: eq(players.gameId, gameId),
     });
-    const proposer = rows.find(player => player.id === proposerId);
-    const recipient = rows.find(player => player.id === recipientId);
-    if (!proposer || !recipient) throw new Error('Treaty player not found');
+    const playerRows = new Map(rows.map(player => [player.id, player]));
+    if (!playerRows.has(proposerId) || !playerRows.has(recipientId)) {
+      throw new Error('Treaty player not found');
+    }
+    const otherPlayer = (playerId: string) => (playerId === proposerId ? recipientId : proposerId);
+    const materialClauses = clauses.map(clause => {
+      const giverId = clause.giverId ?? proposerId;
+      return { clause, giverId, receiverId: otherPlayer(giverId) };
+    });
+    const goldByGiver = new Map<string, number>();
 
-    for (const clause of clauses) {
+    for (const { clause, giverId, receiverId } of materialClauses) {
       if (clause.type === 'technology') {
-        if (!game.researchManager.getResearchedTechs(proposerId).includes(clause.techId)) {
-          throw new Error('Proposer does not know the offered technology');
+        if (!game.researchManager.getResearchedTechs(giverId).includes(clause.techId)) {
+          throw new Error('Treaty giver does not know the offered technology');
         }
-        if (game.researchManager.getResearchedTechs(recipientId).includes(clause.techId)) {
-          throw new Error('Recipient already knows the offered technology');
+        if (game.researchManager.getResearchedTechs(receiverId).includes(clause.techId)) {
+          throw new Error('Treaty recipient already knows the offered technology');
         }
       }
-      if (clause.type === 'gold' && proposer.gold < clause.amount) {
-        throw new Error('Proposer cannot afford the offered gold');
+      if (clause.type === 'gold') {
+        goldByGiver.set(giverId, (goldByGiver.get(giverId) ?? 0) + clause.amount);
       }
-      if (
-        clause.type === 'city' &&
-        game.cityManager.getCity(clause.cityId)?.playerId !== proposerId
-      ) {
-        throw new Error('Proposer does not own the offered city');
+      if (clause.type === 'city' && game.cityManager.getCity(clause.cityId)?.playerId !== giverId) {
+        throw new Error('Treaty giver does not own the offered city');
+      }
+    }
+    for (const [giverId, amount] of goldByGiver) {
+      if ((playerRows.get(giverId)?.gold ?? -1) < amount) {
+        throw new Error('Treaty giver cannot afford the offered gold');
       }
     }
 
-    for (const clause of clauses) {
-      if (clause.type === 'technology') {
-        await game.researchManager.grantTechnology(recipientId, clause.techId);
-      } else if (clause.type === 'gold') {
-        const db = this.databaseProvider.getDatabase();
-        await db
-          .update(players)
-          .set({ gold: sql`${players.gold} - ${clause.amount}` })
-          .where(eq(players.id, proposerId));
-        await db
-          .update(players)
-          .set({ gold: sql`${players.gold} + ${clause.amount}` })
-          .where(eq(players.id, recipientId));
-      } else if (clause.type === 'city') {
-        if (!(await game.cityManager.transferCity(clause.cityId, recipientId))) {
-          throw new Error('Offered city could not be transferred');
-        }
-      } else if (clause.type === 'map' || clause.type === 'seamap') {
-        const explored = game.visibilityManager.getExploredTiles(proposerId);
-        const granted =
-          clause.type === 'map'
-            ? explored
-            : [...explored].filter(tileKey => {
-                const [x, y] = tileKey.split(',').map(Number);
-                return ['ocean', 'coast', 'deep_ocean', 'lake'].includes(
-                  game.mapManager.getTile(x, y)?.terrain ?? ''
-                );
-              });
-        game.visibilityManager.grantExploredTiles(recipientId, granted);
+    const transferredCities: Array<{ cityId: string; originalOwnerId: string }> = [];
+    const grantedTechnologies: Array<{ playerId: string; techId: string }> = [];
+    const exploredSnapshots = new Map<string, Set<string>>();
+    const goldTransfers: Array<{ giverId: string; receiverId: string; amount: number }> = [];
+    let goldPersisted = false;
+    const rollback = async () => {
+      for (const [playerId, explored] of exploredSnapshots) {
+        game.visibilityManager.replaceExploredTiles(playerId, explored);
       }
+      for (const transfer of [...grantedTechnologies].reverse()) {
+        await game.researchManager.revokeGrantedTechnology(transfer.playerId, transfer.techId);
+      }
+      for (const transfer of [...transferredCities].reverse()) {
+        await game.cityManager.transferCity(transfer.cityId, transfer.originalOwnerId);
+      }
+      if (goldPersisted) {
+        await this.persistGoldTreatyTransfers(
+          goldTransfers.map(transfer => ({
+            giverId: transfer.receiverId,
+            receiverId: transfer.giverId,
+            amount: transfer.amount,
+          }))
+        );
+      }
+      game.visibilityManager.updateAllPlayersVisibility([proposerId, recipientId]);
+      this.gameBroadcastManager.broadcastVisibilityState(gameId);
+    };
+
+    try {
+      for (const { clause, giverId, receiverId } of materialClauses) {
+        if (clause.type === 'city') {
+          if (!(await game.cityManager.transferCity(clause.cityId, receiverId))) {
+            throw new Error('Offered city could not be transferred');
+          }
+          transferredCities.push({ cityId: clause.cityId, originalOwnerId: giverId });
+        } else if (clause.type === 'technology') {
+          if (!(await game.researchManager.grantTechnology(receiverId, clause.techId))) {
+            throw new Error('Offered technology could not be transferred');
+          }
+          grantedTechnologies.push({ playerId: receiverId, techId: clause.techId });
+        } else if (clause.type === 'gold') {
+          goldTransfers.push({ giverId, receiverId, amount: clause.amount });
+        } else if (clause.type === 'map' || clause.type === 'seamap') {
+          if (!exploredSnapshots.has(receiverId)) {
+            exploredSnapshots.set(
+              receiverId,
+              new Set(game.visibilityManager.getExploredTiles(receiverId))
+            );
+          }
+          const explored = game.visibilityManager.getExploredTiles(giverId);
+          const granted =
+            clause.type === 'map'
+              ? explored
+              : [...explored].filter(tileKey => {
+                  const [x, y] = tileKey.split(',').map(Number);
+                  return ['ocean', 'coast', 'deep_ocean', 'lake'].includes(
+                    game.mapManager.getTile(x, y)?.terrain ?? ''
+                  );
+                });
+          game.visibilityManager.grantExploredTiles(receiverId, granted);
+        }
+      }
+      await this.persistGoldTreatyTransfers(goldTransfers);
+      goldPersisted = true;
+    } catch (error) {
+      await rollback();
+      throw error;
     }
-    game.visibilityManager.updatePlayerVisibility(recipientId);
+    game.visibilityManager.updateAllPlayersVisibility([proposerId, recipientId]);
     this.gameBroadcastManager.broadcastVisibilityState(gameId);
+    return rollback;
+  }
+
+  private async persistGoldTreatyTransfers(
+    transfers: Array<{ giverId: string; receiverId: string; amount: number }>
+  ): Promise<void> {
+    if (transfers.length === 0) return;
+    const db = this.databaseProvider.getDatabase();
+    const persist = async (executor: typeof db) => {
+      for (const transfer of transfers) {
+        await executor
+          .update(players)
+          .set({ gold: sql`${players.gold} - ${transfer.amount}` })
+          .where(eq(players.id, transfer.giverId));
+        await executor
+          .update(players)
+          .set({ gold: sql`${players.gold} + ${transfer.amount}` })
+          .where(eq(players.id, transfer.receiverId));
+      }
+    };
+    if (typeof (db as any).transaction === 'function') {
+      await (db as any).transaction((transaction: typeof db) => persist(transaction));
+    } else {
+      await persist(db);
+    }
+  }
+
+  private async withTreatyPlayerLocks<T>(
+    gameId: string,
+    playerIds: string[],
+    operation: () => Promise<T>
+  ): Promise<T> {
+    const keys = [...new Set(playerIds)].sort().map(playerId => `${gameId}:${playerId}`);
+    const previous = keys.map(key => this.treatyPlayerLocks.get(key) ?? Promise.resolve());
+    const ready = Promise.all(previous.map(lock => lock.catch(() => undefined)));
+    const next = ready.then(operation).finally(() => {
+      for (const key of keys) {
+        if (this.treatyPlayerLocks.get(key) === next) this.treatyPlayerLocks.delete(key);
+      }
+    });
+    for (const key of keys) this.treatyPlayerLocks.set(key, next);
+    return next;
   }
 
   /**
@@ -1007,6 +1153,19 @@ export class GameManager {
   private async configureMultiplayerInstance(gameId: string): Promise<void> {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) return;
+    gameInstance.unitManager.setHostilityProvider((attackerPlayerId, defenderPlayerId) =>
+      this.hostilityPolicy.canAttack(gameId, attackerPlayerId, defenderPlayerId)
+    );
+    gameInstance.unitManager.setContactProvider(async (firstPlayerId, secondPlayerId) => {
+      await this.diplomacyManager.establishContact(gameId, firstPlayerId, secondPlayerId);
+      await this.refreshSharedVision(gameId);
+    });
+    gameInstance.unitManager.setHostilePlayersProvider(
+      playerId => this.hostilePlayersByGame.get(gameId)?.get(playerId) ?? new Set()
+    );
+    gameInstance.unitManager.setAlliedPlayersProvider(
+      playerId => this.alliedPlayersByGame.get(gameId)?.get(playerId) ?? new Set()
+    );
     const economicManager = gameInstance.turnManager.getEconomicManager();
     gameInstance.cityManager.setTradeProviders(
       async (playerId, amount) =>
@@ -1022,6 +1181,24 @@ export class GameManager {
       playerId => this.sharedVisionByGame.get(gameId)?.get(playerId) ?? new Set()
     );
     gameInstance.turnManager.setAIProcessor(() => this.aiAdapter.processTurn(gameId, gameInstance));
+    gameInstance.turnManager.setDiplomacyProcessor(async () => {
+      const events = await this.diplomacyManager.processTurn(gameId);
+      for (const event of events) {
+        if (event.type === 'armistice_completed') {
+          await this.removeIllegalPeaceUnits(gameId, event.playerIds[0], event.playerIds[1]);
+        }
+      }
+      await this.refreshSharedVision(gameId);
+      for (const firstPlayerId of gameInstance.players.keys()) {
+        for (const secondPlayerId of gameInstance.players.keys()) {
+          if (firstPlayerId >= secondPlayerId) continue;
+          await gameInstance.cityManager.updateTradeRoutesForDiplomacy(
+            firstPlayerId,
+            secondPlayerId
+          );
+        }
+      }
+    });
     gameInstance.turnManager.setReplaySnapshotProvider(() => ({
       map: gameInstance.mapManager.getMapData(),
     }));
@@ -1070,17 +1247,67 @@ export class GameManager {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) return;
     const sharedVision = new Map<string, Set<string>>();
+    const hostilePlayers = new Map<string, Set<string>>();
+    const alliedPlayers = new Map<string, Set<string>>();
     for (const playerId of gameInstance.players.keys()) {
       const snapshot = await this.diplomacyManager.getSnapshot(gameId, playerId);
       sharedVision.set(
         playerId,
         new Set(
-          snapshot.nations.filter(nation => nation.relation.sharedVision).map(nation => nation.id)
+          snapshot.nations
+            .filter(nation => nation.relation.sharedVision)
+            .map(nation => nation.id)
+            .concat(
+              snapshot.nations
+                .filter(
+                  nation => nation.relation.state === 'alliance' || nation.relation.state === 'team'
+                )
+                .map(nation => nation.id)
+            )
+        )
+      );
+      hostilePlayers.set(
+        playerId,
+        new Set(
+          snapshot.nations
+            .filter(nation => nation.relation.state === 'war')
+            .map(nation => nation.id)
+        )
+      );
+      alliedPlayers.set(
+        playerId,
+        new Set(
+          snapshot.nations
+            .filter(
+              nation => nation.relation.state === 'alliance' || nation.relation.state === 'team'
+            )
+            .map(nation => nation.id)
         )
       );
     }
     this.sharedVisionByGame.set(gameId, sharedVision);
+    this.hostilePlayersByGame.set(gameId, hostilePlayers);
+    this.alliedPlayersByGame.set(gameId, alliedPlayers);
     gameInstance.visibilityManager.updateAllPlayersVisibility([...gameInstance.players.keys()]);
+  }
+
+  private async removeIllegalPeaceUnits(
+    gameId: string,
+    firstPlayerId: string,
+    secondPlayerId: string
+  ): Promise<void> {
+    const game = this.games.get(gameId);
+    if (!game) return;
+    const pair = new Set([firstPlayerId, secondPlayerId]);
+    for (const unit of [...game.unitManager.getAllUnits().values()]) {
+      if (!pair.has(unit.playerId)) continue;
+      const tileOwner = game.mapManager.getTile(unit.x, unit.y)?.owner;
+      const otherPlayerId = unit.playerId === firstPlayerId ? secondPlayerId : firstPlayerId;
+      const unitType = getUnitType(unit.unitTypeId);
+      if (tileOwner !== otherPlayerId || unitType?.flags?.includes('NonMil')) continue;
+      await game.unitManager.removeUnit(unit.id);
+      this.gameBroadcastManager.broadcastUnitDestroyed(gameId, unit);
+    }
   }
 
   public async getGame(gameId: string): Promise<any | null> {
@@ -1622,6 +1849,8 @@ export class GameManager {
       this.games.delete(gameId);
     }
     this.sharedVisionByGame.delete(gameId);
+    this.hostilePlayersByGame.delete(gameId);
+    this.alliedPlayersByGame.delete(gameId);
     this.endTurnLocks.delete(gameId);
   }
 
@@ -1708,6 +1937,8 @@ export class GameManager {
 
           this.games.delete(gameId);
           this.sharedVisionByGame.delete(gameId);
+          this.hostilePlayersByGame.delete(gameId);
+          this.alliedPlayersByGame.delete(gameId);
           this.endTurnLocks.delete(gameId);
 
           // Update database

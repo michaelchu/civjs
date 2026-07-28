@@ -198,6 +198,13 @@ export class UnitManager {
     broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
   };
   private playerTechsProvider: (playerId: string) => Set<string> = () => new Set();
+  private hostilityProvider?: (
+    attackerPlayerId: string,
+    defenderPlayerId: string
+  ) => Promise<boolean>;
+  private contactProvider?: (firstPlayerId: string, secondPlayerId: string) => Promise<void>;
+  private hostilePlayersProvider?: (playerId: string) => ReadonlySet<string>;
+  private alliedPlayersProvider?: (playerId: string) => ReadonlySet<string>;
   private tileExtrasChangedCallback?: (change: {
     x: number;
     y: number;
@@ -283,6 +290,26 @@ export class UnitManager {
 
   public setCurrentTurnProvider(provider: () => number): void {
     this.currentTurnProvider = provider;
+  }
+
+  public setHostilityProvider(
+    provider: (attackerPlayerId: string, defenderPlayerId: string) => Promise<boolean>
+  ): void {
+    this.hostilityProvider = provider;
+  }
+
+  public setContactProvider(
+    provider: (firstPlayerId: string, secondPlayerId: string) => Promise<void>
+  ): void {
+    this.contactProvider = provider;
+  }
+
+  public setHostilePlayersProvider(provider: (playerId: string) => ReadonlySet<string>): void {
+    this.hostilePlayersProvider = provider;
+  }
+
+  public setAlliedPlayersProvider(provider: (playerId: string) => ReadonlySet<string>): void {
+    this.alliedPlayersProvider = provider;
   }
 
   public setTileExtrasChangedCallback(
@@ -414,7 +441,17 @@ export class UnitManager {
     }
     const targetUnit = this.getUnitAt(newX, newY);
     const targetCity = this.gameManagerCallback?.getCityAt?.(newX, newY);
-    if (targetCity && targetCity.playerId !== unit.playerId && !targetUnit) {
+    const targetCityIsAllied = Boolean(
+      targetCity && this.alliedPlayersProvider?.(unit.playerId).has(targetCity.playerId)
+    );
+    if (targetCity && targetCity.playerId !== unit.playerId && !targetUnit && !targetCityIsAllied) {
+      await this.contactProvider?.(unit.playerId, targetCity.playerId);
+      if (
+        this.hostilityProvider &&
+        !(await this.hostilityProvider(unit.playerId, targetCity.playerId))
+      ) {
+        throw new Error('Cannot capture a city unless its owner is at war');
+      }
       const unitType = UNIT_TYPES[unit.unitTypeId];
       const canCapture =
         unitType?.rulesetUnitClassFlags.includes('CanOccupyCity') &&
@@ -477,9 +514,26 @@ export class UnitManager {
     }
     await Promise.all(cargo.map(cargoUnit => this.updateUnitPositionInDb(cargoUnit.id, cargoUnit)));
     await this.resolveEnteredTile(unit);
+    await this.establishAdjacentContacts(unit);
 
     logger.info(`Unit ${unitId} moved to (${newX}, ${newY})`);
     return true;
+  }
+
+  private async establishAdjacentContacts(unit: Unit): Promise<void> {
+    if (!this.contactProvider) return;
+    const foreignPlayers = new Set(
+      [...this.units.values()]
+        .filter(
+          other =>
+            other.playerId !== unit.playerId &&
+            this.calculateDistance(unit.x, unit.y, other.x, other.y) <= 1
+        )
+        .map(other => other.playerId)
+    );
+    for (const otherPlayerId of foreignPlayers) {
+      await this.contactProvider(unit.playerId, otherPlayerId);
+    }
   }
 
   /**
@@ -611,13 +665,21 @@ export class UnitManager {
     newX: number,
     newY: number
   ): void {
-    if (targetUnit && targetUnit.playerId !== unit.playerId) {
+    if (
+      targetUnit &&
+      targetUnit.playerId !== unit.playerId &&
+      !this.alliedPlayersProvider?.(unit.playerId).has(targetUnit.playerId)
+    ) {
       throw new Error('Cannot move to tile occupied by enemy unit');
     }
 
     if (this.gameManagerCallback?.getCityAt) {
       const targetCity = this.gameManagerCallback.getCityAt(newX, newY);
-      if (targetCity && targetCity.playerId !== unit.playerId) {
+      if (
+        targetCity &&
+        targetCity.playerId !== unit.playerId &&
+        !this.alliedPlayersProvider?.(unit.playerId).has(targetCity.playerId)
+      ) {
         throw new Error('Cannot move to tile occupied by enemy city');
       }
     }
@@ -674,6 +736,8 @@ export class UnitManager {
     return [...this.units.values()].some(candidate => {
       if (
         candidate.playerId === playerId ||
+        (this.hostilePlayersProvider &&
+          !this.hostilePlayersProvider(playerId).has(candidate.playerId)) ||
         candidate.transportedBy ||
         this.calculateDistance(x, y, candidate.x, candidate.y) > 1
       ) {
@@ -707,7 +771,28 @@ export class UnitManager {
     if (attacker.playerId === requestedDefender.playerId) {
       throw new Error('Cannot attack a friendly unit');
     }
-    const defender = this.selectBestDefender(attacker, requestedDefender.x, requestedDefender.y);
+    const targetPlayers = new Set(
+      this.getUnitsAt(requestedDefender.x, requestedDefender.y).map(unit => unit.playerId)
+    );
+    const hostilePlayers = new Set<string>();
+    for (const targetPlayerId of targetPlayers) {
+      if (
+        targetPlayerId !== attacker.playerId &&
+        (!this.hostilityProvider ||
+          (await this.hostilityProvider(attacker.playerId, targetPlayerId)))
+      ) {
+        hostilePlayers.add(targetPlayerId);
+      }
+    }
+    if (!hostilePlayers.has(requestedDefender.playerId)) {
+      throw new Error('Cannot attack a player unless at war');
+    }
+    const defender = this.selectBestDefender(
+      attacker,
+      requestedDefender.x,
+      requestedDefender.y,
+      hostilePlayers
+    );
     if (!defender) {
       throw new Error('No eligible defender on target tile');
     }
@@ -863,9 +948,19 @@ export class UnitManager {
    * defender. Do not allow a client-supplied unit id to bypass a stronger
    * member of the stack.
    */
-  private selectBestDefender(attacker: Unit, x: number, y: number): Unit | undefined {
+  private selectBestDefender(
+    attacker: Unit,
+    x: number,
+    y: number,
+    hostilePlayers?: ReadonlySet<string>
+  ): Unit | undefined {
     return this.getUnitsAt(x, y)
-      .filter(candidate => candidate.playerId !== attacker.playerId && !candidate.transportedBy)
+      .filter(
+        candidate =>
+          candidate.playerId !== attacker.playerId &&
+          !candidate.transportedBy &&
+          (!hostilePlayers || hostilePlayers.has(candidate.playerId))
+      )
       .sort((left, right) => {
         const leftType = UNIT_TYPES[left.unitTypeId];
         const rightType = UNIT_TYPES[right.unitTypeId];
@@ -1587,9 +1682,23 @@ export class UnitManager {
     isDestination: boolean
   ): number {
     const occupyingUnits = this.getUnitsAt(toX, toY);
-    if (occupyingUnits.some(candidate => candidate.playerId !== unit.playerId)) return -1;
+    if (
+      occupyingUnits.some(
+        candidate =>
+          candidate.playerId !== unit.playerId &&
+          !this.alliedPlayersProvider?.(unit.playerId).has(candidate.playerId)
+      )
+    ) {
+      return -1;
+    }
     const city = this.gameManagerCallback?.getCityAt?.(toX, toY);
-    if (city && city.playerId !== unit.playerId) return -1;
+    if (
+      city &&
+      city.playerId !== unit.playerId &&
+      !this.alliedPlayersProvider?.(unit.playerId).has(city.playerId)
+    ) {
+      return -1;
+    }
     if (!this.canMoveWithZoneOfControlFrom(unit, fromX, fromY, toX, toY)) return -1;
 
     const movementCost = this.calculateTerrainMovementCost(unit, fromX, fromY, toX, toY);
@@ -2248,6 +2357,9 @@ export class UnitManager {
     if (!this.canBombard(unit, targetX, targetY)) {
       return { success: false, message: 'Unit cannot bombard the target tile' };
     }
+    if (!(await this.isHostileArea(unit, targetX!, targetY!, 0))) {
+      return { success: false, message: 'Bombardment requires a state of war' };
+    }
     const type = UNIT_TYPES[unit.unitTypeId];
     const combatRules = rulesetLoader.getCombatRules();
     const bombardRate = combatRules.damage_reduces_bombard_rate
@@ -2326,6 +2438,9 @@ export class UnitManager {
     }
     const centerX = targetX ?? unit.x;
     const centerY = targetY ?? unit.y;
+    if (!(await this.isHostileArea(unit, centerX, centerY, 1))) {
+      return { success: false, message: 'Nuclear attack would strike a non-hostile nation' };
+    }
     const affectedUnitIds = [...this.units.values()]
       .filter(target => this.calculateDistance(target.x, target.y, centerX, centerY) <= 1)
       .map(target => target.id);
@@ -2409,6 +2524,37 @@ export class UnitManager {
       affectedUnitIds: targets.map(target => target.id),
       newMovementLeft: 0,
     };
+  }
+
+  private async isHostileArea(
+    actor: Unit,
+    centerX: number,
+    centerY: number,
+    radius: number
+  ): Promise<boolean> {
+    if (!this.hostilityProvider) return true;
+    const targetPlayerIds = new Set<string>();
+    for (const target of this.units.values()) {
+      if (
+        target.playerId !== actor.playerId &&
+        this.calculateDistance(target.x, target.y, centerX, centerY) <= radius
+      ) {
+        targetPlayerIds.add(target.playerId);
+      }
+    }
+    for (const position of this.getMapTopology().getPositionsWithinRadius(
+      centerX,
+      centerY,
+      radius
+    )) {
+      const city = this.gameManagerCallback?.getCityAt?.(position.x, position.y);
+      if (city && city.playerId !== actor.playerId) targetPlayerIds.add(city.playerId);
+    }
+    if (targetPlayerIds.size === 0) return false;
+    for (const targetPlayerId of targetPlayerIds) {
+      if (!(await this.hostilityProvider(actor.playerId, targetPlayerId))) return false;
+    }
+    return true;
   }
 
   private async executeSuicideAttack(

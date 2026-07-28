@@ -460,6 +460,21 @@ export class ResearchManager {
     return true;
   }
 
+  public async revokeGrantedTechnology(playerId: string, techId: string): Promise<void> {
+    const playerResearch = this.playerResearch.get(playerId);
+    if (!playerResearch?.researchedTechs.delete(techId)) return;
+    await this.databaseProvider
+      .getDatabase()
+      .delete(playerTechs)
+      .where(
+        and(
+          eq(playerTechs.gameId, this.gameId),
+          eq(playerTechs.playerId, playerId),
+          eq(playerTechs.techId, techId)
+        )
+      );
+  }
+
   public async grantAvailableTechnologies(playerId: string, count: number): Promise<string[]> {
     const granted: string[] = [];
     for (let index = 0; index < count; index++) {
