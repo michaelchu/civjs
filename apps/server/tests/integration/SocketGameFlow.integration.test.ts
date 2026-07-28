@@ -16,14 +16,12 @@ import { SocketCoordinator } from '@network/SocketCoordinator';
 import { GameManager } from '@game/managers/GameManager';
 import { PacketType, type Packet } from '@app-types/packet';
 import { SINGLE_MOVE, getTerrainMovementCost } from '@game/constants/MovementConstants';
-import { playerTechs } from '@database/schema';
 import {
   clearAllTables,
   generateTestUUID,
   getTestDatabase,
   getTestDatabaseProvider,
 } from '../utils/testDatabase';
-import { and, eq } from 'drizzle-orm';
 
 const timeoutMs = 10_000;
 
@@ -699,7 +697,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       treasury: 50,
       bulbs: 0,
       bulbsLastTurn: 0,
-      researchedTechs: 1,
+      researchedTechs: 0,
     });
 
     const turnSnapshots: TurnSnapshot[] = [];
@@ -736,6 +734,12 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       moveTarget!.x + 1,
       moveTarget!.y
     );
+    await (gameManager as any).diplomacyManager.establishContact(
+      gameId,
+      hostPlayer!.id,
+      guestPlayer!.id
+    );
+    await gameManager.declareWar(gameId, hostPlayer!.id, guestPlayer!.id);
     const attackReply = waitForPacket(host, PacketType.UNIT_ATTACK_REPLY);
     host.emit('packet', {
       type: PacketType.UNIT_ATTACK,
@@ -759,7 +763,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     const hostResearchBeforeRecovery = gameManager.getPlayerResearch(gameId, hostPlayer!.id);
     expect(hostResearchBeforeRecovery).toBeDefined();
     expect(
-      hostResearchBeforeRecovery!.researchedTechs.size > 1 ||
+      hostResearchBeforeRecovery!.researchedTechs.size > 0 ||
         hostResearchBeforeRecovery!.bulbsAccumulated > 0
     ).toBe(true);
     gameManager.updatePlayerVisibility(gameId, hostPlayer!.id);
@@ -793,12 +797,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     ).toBe(turnSnapshots.at(-1)?.treasury);
     expect(
       recoveredGame?.researchManager.getPlayerResearch(guestPlayer!.id)?.researchedTechs
-    ).toEqual(new Set(['alphabet']));
-    const guestStartingTechRows = await getTestDatabase()
-      .select()
-      .from(playerTechs)
-      .where(and(eq(playerTechs.gameId, gameId), eq(playerTechs.playerId, guestPlayer!.id)));
-    expect(guestStartingTechRows).toHaveLength(1);
+    ).toEqual(new Set());
     expect(recoveredGame?.borderManager.getAllTileOwnership()).toEqual(
       expect.arrayContaining([expect.objectContaining({ x: 8, y: 8, playerId: hostPlayer!.id })])
     );

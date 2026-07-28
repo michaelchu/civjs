@@ -429,10 +429,11 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
       // Verify research persisted to database
       const db = getTestDatabase();
-      const dbResearch = await db.query.playerTechs.findMany({
-        where: (tech, { eq }) => eq(tech.playerId, playerId),
+      const dbResearch = await db.query.research.findMany({
+        where: (state, { eq }) => eq(state.playerId, playerId),
       });
-      expect(dbResearch.length).toBeGreaterThan(0);
+      expect(dbResearch).toHaveLength(1);
+      expect(dbResearch[0].currentTech).toBe('pottery');
 
       const availableTechs = gameManager.getAvailableTechnologies(gameId, playerId);
       expect(availableTechs.length).toBeGreaterThan(0);

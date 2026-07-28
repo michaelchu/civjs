@@ -385,6 +385,7 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
         ActionType.NUCLEAR_EXPLOSION,
         ActionType.COLLECT_RANSOM,
         ActionType.SUICIDE_ATTACK,
+        ActionType.PATROL,
         ActionType.AIRLIFT,
         ActionType.AUTO_EXPLORE,
         ActionType.AUTO_SETTLER,

@@ -403,11 +403,17 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
         // City might work more tiles now
         expect(city.workableTiles?.length || 0).toBeGreaterThanOrEqual(1);
 
-        // Create unit near city
-        const unitId = await gameManager.createUnit(gameId, playerId, 'settlers', 13, 7);
+        const step = findPassableStep(game);
+        const unitId = await gameManager.createUnit(
+          gameId,
+          playerId,
+          'settlers',
+          step.start.x,
+          step.start.y
+        );
 
         // Unit should be able to move (not blocked by city growth)
-        const moveResult = await game.unitManager.moveUnit(unitId, 14, 7);
+        const moveResult = await game.unitManager.moveUnit(unitId, step.target.x, step.target.y);
         expect(moveResult).toBe(true);
 
         // Verify all changes persisted
@@ -420,8 +426,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
         });
 
         expect(dbCity.population).toBe(city.population);
-        expect(dbUnit.x).toBe(14);
-        expect(dbUnit.y).toBe(7);
+        expect(dbUnit.x).toBe(step.target.x);
+        expect(dbUnit.y).toBe(step.target.y);
       }
     });
 
@@ -451,13 +457,14 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       const dbUnits = await db.query.units.findMany({
         where: (units, { eq }) => eq(units.gameId, gameId),
       });
-      const dbResearch = await db.query.playerTechs.findMany({
-        where: (tech, { eq }) => eq(tech.playerId, playerId),
+      const dbResearch = await db.query.research.findMany({
+        where: (state, { eq }) => eq(state.playerId, playerId),
       });
 
       expect(dbCities.length).toBeGreaterThanOrEqual(4); // Original 2 + new 2
       expect(dbUnits.length).toBeGreaterThanOrEqual(5); // Original 3 + new 2
-      expect(dbResearch.length).toBeGreaterThan(0);
+      expect(dbResearch).toHaveLength(1);
+      expect(dbResearch[0].currentTech).toBe('pottery');
 
       // Verify managers are consistent
       const allCities = game.cityManager.getPlayerCities(playerId);
