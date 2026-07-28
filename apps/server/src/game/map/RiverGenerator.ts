@@ -32,7 +32,10 @@ export class RiverGenerator {
   /**
    * Generate advanced river system with flowing networks
    */
-  public async generateAdvancedRivers(tiles: MapTile[][]): Promise<void> {
+  public async generateAdvancedRivers(
+    tiles: MapTile[][],
+    densityPercent: number = 50
+  ): Promise<void> {
     logger.info('Starting advanced river generation');
     const startTime = Date.now();
 
@@ -44,7 +47,10 @@ export class RiverGenerator {
 
     // Calculate number of river networks based on map size (fewer networks, longer rivers)
     const mapArea = this.width * this.height;
-    const targetNetworks = Math.max(3, Math.floor(Math.sqrt(mapArea) / 8)); // Scale with map size
+    const densityScale = Math.max(0, Math.min(100, densityPercent)) / 50;
+    const baselineNetworks = Math.max(3, Math.floor(Math.sqrt(mapArea) / 8));
+    const targetNetworks =
+      densityScale === 0 ? 0 : Math.max(1, Math.round(baselineNetworks * densityScale));
 
     let networksCreated = 0;
     let totalRiverTiles = 0;

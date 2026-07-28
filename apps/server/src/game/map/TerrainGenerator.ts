@@ -44,7 +44,7 @@ export class TerrainGenerator {
     this.height = height;
     this.random = random;
     this.generator = generator;
-    this.placementMap = new PlacementMap(width, height);
+    this.placementMap = new PlacementMap(width, height, topologyOptions);
     this.topology = new MapTopology(width, height, topologyOptions);
 
     // Initialize extracted components
@@ -55,7 +55,7 @@ export class TerrainGenerator {
       random,
       this.placementMap
     );
-    this.biomeProcessor = new BiomeProcessor(width, height, random);
+    this.biomeProcessor = new BiomeProcessor(width, height, random, topologyOptions);
     this.oceanProcessor = new OceanProcessor(width, height, random, topologyOptions);
     this.continentProcessor = new ContinentProcessor(width, height, random, topologyOptions);
   }
@@ -97,7 +97,7 @@ export class TerrainGenerator {
     );
 
     const polar = (2 * ICE_BASE_LEVEL * landpercent) / MAX_COLATITUDE;
-    const mount_factor = (100.0 - polar - 30 * 0.8) / 10000;
+    const mount_factor = (100.0 - polar - steepness * 0.8) / 10000;
     const factor = (100.0 - polar - steepness * 0.8) / 10000;
 
     const mountain_pct = mount_factor * steepness * 90;
@@ -133,7 +133,13 @@ export class TerrainGenerator {
   public async makeLand(
     tiles: MapTile[][],
     heightMap: number[],
-    params: { landpercent: number; steepness: number; wetness: number; temperature: number },
+    params: {
+      landpercent: number;
+      steepness: number;
+      wetness: number;
+      temperature: number;
+      riverDensity?: number;
+    },
     heightGenerator?: any,
     temperatureMap?: TemperatureMap,
     riverGenerator?: any
@@ -188,7 +194,7 @@ export class TerrainGenerator {
     this.finalPoleRenormalization();
 
     // Step 14: River generation
-    await this.generateRiversIfAvailable(tiles);
+    await this.generateRiversIfAvailable(tiles, params.riverDensity);
 
     // Debug sampling preserved (no side effects)
     this.debugSampleTiles(tiles);
@@ -343,9 +349,12 @@ export class TerrainGenerator {
     }
   }
 
-  private async generateRiversIfAvailable(tiles: MapTile[][]): Promise<void> {
+  private async generateRiversIfAvailable(
+    tiles: MapTile[][],
+    riverDensity?: number
+  ): Promise<void> {
     if (this.riverGenerator) {
-      await this.makeRivers(tiles);
+      await this.makeRivers(tiles, riverDensity);
     }
   }
 
@@ -396,10 +405,10 @@ export class TerrainGenerator {
    * Internal river generation wrapper (Phase 1 fix)
    * @reference freeciv/server/generator/mapgen.c:1150 make_rivers()
    */
-  private async makeRivers(tiles: MapTile[][]): Promise<void> {
+  private async makeRivers(tiles: MapTile[][], riverDensity?: number): Promise<void> {
     if (!this.riverGenerator) return;
 
-    await this.riverGenerator.generateAdvancedRivers(tiles);
+    await this.riverGenerator.generateAdvancedRivers(tiles, riverDensity);
   }
 
   /**
@@ -621,36 +630,15 @@ export class TerrainGenerator {
     let ocean = 0;
     let land = 0;
 
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue; // Skip center tile
-
-        const nx = x + dx;
-        const ny = y + dy;
-
-        if (this.isValidCoordinate(nx, ny)) {
-          if (tiles[nx][ny].elevation < hmap_shore_level) {
-            ocean++;
-          } else {
-            land++;
-            // REMOVED: Early break that was causing rectangular ocean blocks
-            // The freeciv algorithm counts ALL neighbors for proper depth calculation
-          }
-        }
+    for (const { x: nx, y: ny } of this.topology.getNeighbors(x, y)) {
+      if (tiles[nx][ny].elevation < hmap_shore_level) {
+        ocean++;
+      } else {
+        land++;
       }
     }
 
     return { ocean, land };
-  }
-
-  /**
-   * Check if coordinates are within map bounds
-   * @param x X coordinate
-   * @param y Y coordinate
-   * @returns true if coordinates are valid
-   */
-  private isValidCoordinate(x: number, y: number): boolean {
-    return x >= 0 && x < this.width && y >= 0 && y < this.height;
   }
 
   /**
@@ -676,20 +664,13 @@ export class TerrainGenerator {
    * @returns true if ocean found at radius
    */
   private hasOceanAtRadius(tiles: MapTile[][], x: number, y: number, radius: number): boolean {
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        // Only check the border of the current radius square
-        if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
-
-        const nx = x + dx;
-        const ny = y + dy;
-
-        if (this.isValidCoordinate(nx, ny) && isOceanTerrain(tiles[nx][ny].terrain)) {
-          return true;
-        }
-      }
-    }
-    return false;
+    return this.topology
+      .getPositionsWithinRadius(x, y, radius)
+      .some(
+        position =>
+          this.topology.realDistance(x, y, position.x, position.y) === radius &&
+          isOceanTerrain(tiles[position.x][position.y].terrain)
+      );
   }
 
   /**
@@ -940,17 +921,10 @@ export class TerrainGenerator {
     const hmap_max_level = 1000;
     const hmap_mountain_level = thill; // Use passed threshold
 
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const neighborHeight = tiles[nx][ny].elevation || 0;
-          // Check if neighbor is significantly lower
-          if (neighborHeight + (hmap_max_level - hmap_mountain_level) / 5 < thill) {
-            return false;
-          }
-        }
+    for (const { x: nx, y: ny } of this.topology.getPositionsWithinRadius(x, y, 1)) {
+      const neighborHeight = tiles[nx][ny].elevation || 0;
+      if (neighborHeight + (hmap_max_level - hmap_mountain_level) / 5 < thill) {
+        return false;
       }
     }
     return true;
@@ -974,30 +948,23 @@ export class TerrainGenerator {
 
     // Check surrounding tiles in a 5x5 square
     // @reference freeciv/server/generator/height_map.c:275-287
-    for (let dx = -2; dx <= 2; dx++) {
-      for (let dy = -2; dy <= 2; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
+    for (const { x: nx, y: ny } of this.topology.getPositionsWithinRadius(x, y, 2)) {
+      const neighborHeight = heightMap[ny * this.width + nx];
 
-        if (!this.isValidCoordinate(nx, ny)) continue;
+      // Early return if neighbor is above threshold - area is not flat
+      if (neighborHeight > thill) {
+        return false;
+      }
 
-        const neighborHeight = heightMap[ny * this.width + nx];
-
-        // Early return if neighbor is above threshold - area is not flat
-        if (neighborHeight > thill) {
-          return false;
+      // Check if neighbor is higher than current tile
+      if (neighborHeight > my_height) {
+        const distance = this.topology.mapDistance(x, y, nx, ny);
+        if (distance === 1) {
+          return false; // Adjacent tile is higher
         }
-
-        // Check if neighbor is higher than current tile
-        if (neighborHeight > my_height) {
-          const distance = Math.abs(dx) + Math.abs(dy);
-          if (distance === 1) {
-            return false; // Adjacent tile is higher
-          }
-          higher_than_me++;
-          if (higher_than_me > 2) {
-            return false;
-          }
+        higher_than_me++;
+        if (higher_than_me > 2) {
+          return false;
         }
       }
     }
@@ -1061,8 +1028,8 @@ export class TerrainGenerator {
    * Generate wetness map for terrain variation
    * Delegated to BiomeProcessor for better organization
    */
-  public generateWetnessMap(tiles: MapTile[][]): void {
-    return this.biomeProcessor.generateWetnessMap(tiles);
+  public generateWetnessMap(tiles: MapTile[][], baseWetness: number = 50): void {
+    return this.biomeProcessor.generateWetnessMap(tiles, baseWetness);
   }
 
   /**

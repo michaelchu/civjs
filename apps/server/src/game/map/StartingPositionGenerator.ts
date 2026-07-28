@@ -391,8 +391,21 @@ export class StartingPositionGenerator {
     }
 
     if (mode === MapStartpos.TWO_ON_THREE && numContinents < Math.floor(playerCount / 2) + 4) {
-      logger.debug('Not enough continents; falling back to startpos=ALL');
-      mode = MapStartpos.ALL;
+      logger.debug('Not enough continents; falling back to startpos=VARIABLE');
+      mode = MapStartpos.VARIABLE;
+    }
+
+    if (mode === MapStartpos.ALL && this.islands.length > 1) {
+      const totalGoodies = this.islands.slice(1).reduce((sum, island) => sum + island.goodies, 0);
+      const efactor = playerCount / (this.width * this.height) / 4;
+      const bestIsland = this.islands[1];
+      if (
+        bestIsland.goodies < playerCount * 1500 ||
+        bestIsland.goodies < (totalGoodies * (0.5 + 0.8 * efactor)) / (1 + efactor)
+      ) {
+        logger.debug('No good enough island; falling back to startpos=VARIABLE');
+        mode = MapStartpos.VARIABLE;
+      }
     }
 
     return mode;
@@ -406,7 +419,7 @@ export class StartingPositionGenerator {
     // Reset starters count
     for (let i = 1; i < this.islands.length; i++) {
       this.islands[i].starters = 0;
-      this.islands[i].total = playerCount;
+      this.islands[i].total = 0;
     }
 
     switch (mode) {
@@ -414,6 +427,7 @@ export class StartingPositionGenerator {
         // One player per island
         for (let i = 1; i <= Math.min(playerCount, this.islands.length - 1); i++) {
           this.islands[i].starters = 1;
+          this.islands[i].total = 1;
         }
         break;
 
@@ -423,6 +437,7 @@ export class StartingPositionGenerator {
         for (let i = 1; i < this.islands.length && playersLeft > 0; i++) {
           const playersForIsland = Math.min(playersLeft, playersLeft <= 3 ? playersLeft : 2);
           this.islands[i].starters = playersForIsland;
+          this.islands[i].total = playersForIsland;
           playersLeft -= playersForIsland;
         }
         break;
@@ -432,6 +447,7 @@ export class StartingPositionGenerator {
         // All players on best island
         if (this.islands.length > 1) {
           this.islands[1].starters = playerCount;
+          this.islands[1].total = playerCount;
         }
         break;
 
@@ -454,6 +470,7 @@ export class StartingPositionGenerator {
       const playersPerIsland = Math.ceil(playerCount / (this.islands.length - 1));
       for (let i = 1; i < this.islands.length; i++) {
         this.islands[i].starters = Math.min(playersPerIsland, playerCount);
+        this.islands[i].total = this.islands[i].starters;
         playerCount -= this.islands[i].starters;
         if (playerCount <= 0) break;
       }
@@ -466,6 +483,7 @@ export class StartingPositionGenerator {
       const ratio = this.islands[i].goodies / totalGoodies;
       const playersForIsland = Math.max(1, Math.floor(ratio * playerCount));
       this.islands[i].starters = Math.min(playersForIsland, playerCount - playersAssigned);
+      this.islands[i].total = this.islands[i].starters;
       playersAssigned += this.islands[i].starters;
     }
 
@@ -473,6 +491,7 @@ export class StartingPositionGenerator {
     while (playersAssigned < playerCount) {
       for (let i = 1; i < this.islands.length && playersAssigned < playerCount; i++) {
         this.islands[i].starters++;
+        this.islands[i].total++;
         playersAssigned++;
       }
     }

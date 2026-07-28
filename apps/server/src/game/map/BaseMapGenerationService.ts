@@ -1,6 +1,6 @@
 import { logger } from '@utils/logger';
 import { PlayerState } from '@game/managers/GameManager';
-import { MapData, MapTile, MapStartpos } from './MapTypes';
+import { MapData, MapTile, MapStartpos, type MapGenerationOptions } from './MapTypes';
 import { FractalHeightGenerator } from './FractalHeightGenerator';
 import { TemperatureMap } from './TemperatureMap';
 import { IslandGenerator, TerrainPercentages } from './IslandGenerator';
@@ -35,6 +35,7 @@ export abstract class BaseMapGenerationService {
   protected terrainGenerator: TerrainGenerator;
   protected mapValidator: MapValidator;
   protected topology: MapTopology;
+  protected generationOptions: Required<MapGenerationOptions>;
 
   // Temperature map generation tracking
   protected temperatureMapGenerated: boolean = false;
@@ -58,7 +59,8 @@ export abstract class BaseMapGenerationService {
     defaultStartPosMode: MapStartpos,
     cleanupTemperatureMapAfterUse: boolean = false,
     temperatureParam: number = 50,
-    topologyOptions: MapTopologyOptions = {}
+    topologyOptions: MapTopologyOptions = {},
+    generationOptions: MapGenerationOptions = {}
   ) {
     this.width = width;
     this.height = height;
@@ -68,18 +70,36 @@ export abstract class BaseMapGenerationService {
     this.defaultStartPosMode = defaultStartPosMode;
     this.cleanupTemperatureMapAfterUse = cleanupTemperatureMapAfterUse;
     this.topology = new MapTopology(width, height, topologyOptions);
+    this.generationOptions = {
+      landPercent: generationOptions.landPercent ?? 30,
+      steepness: generationOptions.steepness ?? 30,
+      wetness: generationOptions.wetness ?? 50,
+      temperature: generationOptions.temperature ?? temperatureParam,
+      riverDensity: generationOptions.riverDensity ?? 50,
+      resourceRichness: generationOptions.resourceRichness ?? 250,
+      hutDensity: generationOptions.hutDensity ?? 15,
+      tinyIsles: generationOptions.tinyIsles ?? false,
+      flatPoles: generationOptions.flatPoles ?? 100,
+      separatePoles: generationOptions.separatePoles ?? true,
+    };
 
     // Initialize sub-generators with shared parameters
     this.heightGenerator = new FractalHeightGenerator(
       width,
       height,
       this.random,
-      30,
-      100,
+      this.generationOptions.steepness,
+      this.generationOptions.flatPoles,
       this.generator,
+      topologyOptions,
+      this.generationOptions.landPercent
+    );
+    this.temperatureMap = new TemperatureMap(
+      width,
+      height,
+      this.generationOptions.temperature,
       topologyOptions
     );
-    this.temperatureMap = new TemperatureMap(width, height, temperatureParam, topologyOptions);
     this.islandGenerator = new IslandGenerator(
       width,
       height,
@@ -97,6 +117,19 @@ export abstract class BaseMapGenerationService {
       this.generator,
       topologyOptions
     );
+    const terrainParams = this.terrainGenerator.adjustTerrainParam(
+      this.generationOptions.landPercent,
+      this.generationOptions.steepness,
+      this.generationOptions.wetness,
+      this.generationOptions.temperature
+    );
+    this.terrainPercentages = {
+      river: Math.max(0, terrainParams.river_pct * (this.generationOptions.riverDensity / 50)),
+      mountain: Math.max(0, terrainParams.mountain_pct),
+      desert: Math.max(0, terrainParams.desert_pct),
+      forest: Math.max(0, terrainParams.forest_pct + terrainParams.jungle_pct),
+      swamp: Math.max(0, terrainParams.swamp_pct),
+    };
     this.mapValidator = new MapValidator(width, height, topologyOptions);
   }
 
@@ -143,7 +176,11 @@ export abstract class BaseMapGenerationService {
     });
 
     // Generate resources on the map
-    await this.resourceGenerator.generateResources(tiles);
+    await this.resourceGenerator.generateResourcesAtRichness(
+      tiles,
+      this.generationOptions.resourceRichness
+    );
+    await this.resourceGenerator.generateHuts(tiles, this.generationOptions.hutDensity);
     logger.debug('Generated resources on map');
 
     // Generate starting positions for players

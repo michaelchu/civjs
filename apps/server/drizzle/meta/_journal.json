@@ -99,6 +99,13 @@
       "when": 1785211200000,
       "tag": "0013_add_tile_last_seen",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1785290400000,
+      "tag": "0014_add_tile_memory",
+      "breakpoints": true
     }
   ]
 }

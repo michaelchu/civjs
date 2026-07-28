@@ -406,6 +406,14 @@ export class CityManager {
         height: mapData?.height ?? 50,
         getContinentId: (x, y) => this.mapManager?.getTile(x, y)?.continentId,
         getCurrentTurn: () => this.currentTurnProvider?.() ?? 0,
+        getRealDistance: (x1, y1, x2, y2) =>
+          (this.mapManager as Partial<MapManager> | undefined)
+            ?.getTopology?.()
+            .realDistance(x1, y1, x2, y2) ?? Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)),
+        getMapDistance: (x1, y1, x2, y2) =>
+          (this.mapManager as Partial<MapManager> | undefined)
+            ?.getTopology?.()
+            .mapDistance(x1, y1, x2, y2) ?? Math.abs(x2 - x1) + Math.abs(y2 - y1),
       },
       this.effectsManager
     );
@@ -490,6 +498,12 @@ export class CityManager {
    */
   setMapManager(mapManager: MapManager): void {
     this.mapManager = mapManager;
+    this.effectsManager.setRealDistanceProvider((x1, y1, x2, y2) => {
+      const topology = (mapManager as Partial<MapManager>).getTopology?.();
+      return (
+        topology?.realDistance(x1, y1, x2, y2) ?? Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1))
+      );
+    });
 
     // Initialize CityTileManagementService now that we have MapManager
     this.tileManagementService = new CityTileManagementService(
@@ -565,11 +579,12 @@ export class CityManager {
 
   private citymindistPreventsCityOnTile(x: number, y: number): boolean {
     const minDistance = GAME_DEFAULT_CITYMINDIST;
+    const topology = (this.mapManager as Partial<MapManager> | undefined)?.getTopology?.();
 
     for (const city of this.cities.values()) {
-      const dx = Math.abs(city.x - x);
-      const dy = Math.abs(city.y - y);
-      const distance = Math.max(dx, dy); // Chebyshev distance (square grid)
+      const distance =
+        topology?.realDistance(city.x, city.y, x, y) ??
+        Math.max(Math.abs(city.x - x), Math.abs(city.y - y));
 
       if (distance < minDistance) {
         return true;

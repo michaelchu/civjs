@@ -151,6 +151,42 @@ describe('map generation parity contracts', () => {
     expect(manager.getMapData()!.startingPositions).toHaveLength(players.size);
   });
 
+  it('builds FAIR maps from identical per-player island templates', async () => {
+    const fourPlayers = new Map(players);
+    fourPlayers.set('player-3', { ...players.get('player-1')!, id: 'player-3', playerNumber: 3 });
+    fourPlayers.set('player-4', { ...players.get('player-2')!, id: 'player-4', playerNumber: 4 });
+    const manager = new MapManager(
+      40,
+      25,
+      'fair-template-parity',
+      'fair',
+      'FAIR',
+      MapStartpos.DEFAULT
+    );
+
+    await manager.generateMap(fourPlayers, 'FAIR');
+
+    const map = manager.getMapData()!;
+    const signatures = map.startingPositions.map(start => {
+      const continentId = map.tiles[start.x][start.y].continentId;
+      const continent = map.tiles.flat().filter(tile => tile.continentId === continentId);
+      return JSON.stringify({
+        size: continent.length,
+        terrain: continent.reduce<Record<string, number>>((counts, tile) => {
+          counts[tile.terrain] = (counts[tile.terrain] ?? 0) + 1;
+          return counts;
+        }, {}),
+        resources: continent.filter(tile => tile.resource).length,
+        huts: continent.filter(tile => tile.improvements.includes('hut')).length,
+      });
+    });
+
+    expect(
+      new Set(map.startingPositions.map(start => map.tiles[start.x][start.y].continentId)).size
+    ).toBe(fourPlayers.size);
+    expect(new Set(signatures).size).toBe(1);
+  });
+
   it.each([
     MapStartpos.DEFAULT,
     MapStartpos.SINGLE,
@@ -193,8 +229,13 @@ describe('map generation parity contracts', () => {
         players.size
       );
     }
-    if (mode === MapStartpos.ALL || mode === MapStartpos.TWO_ON_THREE) {
+    if (mode === MapStartpos.TWO_ON_THREE) {
       expect(new Set(starts.map(start => tiles[start.x][start.y].continentId)).size).toBe(1);
+    }
+    if (mode === MapStartpos.ALL) {
+      // No island contains half of this synthetic map's goodies, so Freeciv
+      // falls back from ALL to VARIABLE.
+      expect(new Set(starts.map(start => tiles[start.x][start.y].continentId)).size).toBe(2);
     }
   });
 });

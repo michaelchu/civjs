@@ -19,6 +19,7 @@ export interface UnitType {
   range: number;
   sight: number; // For backward compatibility - maps to vision_radius_sq
   vision_radius_sq?: number; // Freeciv vision value
+  visionLayer: 'Main' | 'Stealth' | 'Subsurface';
   canFoundCity: boolean;
   canBuildImprovements: boolean;
   unitClass: 'military' | 'civilian' | 'naval' | 'air';
@@ -121,6 +122,7 @@ export class RulesetUnitsService {
       range: unit.range || 1, // Melee units need range 1 for adjacent combat
       sight: unit.vision_radius_sq || unit.sight || 2,
       vision_radius_sq: unit.vision_radius_sq,
+      visionLayer: unit.vision_layer,
       canFoundCity: unit.canFoundCity || unit.roles?.includes('CitiesStartUnit') || false,
       canBuildImprovements:
         unit.canBuildImprovements || unit.flags?.includes('Workers' as any) || false,

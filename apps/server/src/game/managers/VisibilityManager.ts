@@ -4,12 +4,33 @@ import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { MapManager } from '@game/managers/MapManager';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import type { MapTile } from '@game/map/MapTypes';
+
+export type RememberedTile = Pick<
+  MapTile,
+  | 'x'
+  | 'y'
+  | 'terrain'
+  | 'resource'
+  | 'elevation'
+  | 'riverMask'
+  | 'hasRoad'
+  | 'hasRailroad'
+  | 'improvements'
+  | 'cityId'
+  | 'owner'
+  | 'claimer'
+  | 'continentId'
+>;
 
 export interface PlayerVisibility {
   playerId: string;
   exploredTiles: Set<string>; // tiles that have been seen before
   visibleTiles: Set<string>; // tiles currently visible
+  invisibleDetectionTiles: Set<string>;
+  subsurfaceDetectionTiles: Set<string>;
   lastSeenByTile: Map<string, Date>;
+  rememberedTiles: Map<string, RememberedTile>;
   lastUpdated: Date;
 }
 
@@ -28,7 +49,8 @@ export type VisibilityPersistence = (
   playerId: string,
   exploredTiles: string[],
   visibleTiles: string[],
-  lastSeenByTile: Record<string, string>
+  lastSeenByTile: Record<string, string>,
+  rememberedTiles: Record<string, RememberedTile>
 ) => Promise<void>;
 
 export class VisibilityManager {
@@ -77,7 +99,10 @@ export class VisibilityManager {
       playerId,
       exploredTiles: new Set(),
       visibleTiles: new Set(),
+      invisibleDetectionTiles: new Set(),
+      subsurfaceDetectionTiles: new Set(),
       lastSeenByTile: new Map(),
+      rememberedTiles: new Map(),
       lastUpdated: new Date(),
     };
 
@@ -89,7 +114,8 @@ export class VisibilityManager {
     playerId: string,
     exploredTiles: Iterable<string>,
     visibleTiles: Iterable<string> = [],
-    lastSeenByTile: Readonly<Record<string, string | Date>> = {}
+    lastSeenByTile: Readonly<Record<string, string | Date>> = {},
+    rememberedTiles: Readonly<Record<string, RememberedTile>> = {}
   ): void {
     const restoredLastSeen = new Map<string, Date>();
     for (const [tile, value] of Object.entries(lastSeenByTile)) {
@@ -100,7 +126,10 @@ export class VisibilityManager {
       playerId,
       exploredTiles: new Set(exploredTiles),
       visibleTiles: new Set(visibleTiles),
+      invisibleDetectionTiles: new Set(),
+      subsurfaceDetectionTiles: new Set(),
       lastSeenByTile: restoredLastSeen,
+      rememberedTiles: new Map(Object.entries(rememberedTiles)),
       lastUpdated: new Date(),
     });
   }
@@ -117,17 +146,22 @@ export class VisibilityManager {
 
     // Clear current visibility
     visibility.visibleTiles.clear();
+    visibility.invisibleDetectionTiles.clear();
+    visibility.subsurfaceDetectionTiles.clear();
 
     const visionSources = new Set([playerId, ...this.sharedVisionProvider(playerId)]);
     for (const sourcePlayerId of visionSources) {
-      this.addUnitVision(sourcePlayerId, visibility.visibleTiles);
-      this.addCityVision(sourcePlayerId, visibility.visibleTiles);
+      this.addUnitVision(sourcePlayerId, visibility);
+      this.addCityVision(sourcePlayerId, visibility);
     }
 
     const observedAt = new Date();
     for (const tileKey of visibility.visibleTiles) {
       visibility.exploredTiles.add(tileKey);
       visibility.lastSeenByTile.set(tileKey, observedAt);
+      const [x, y] = tileKey.split(',').map(Number);
+      const tile = this.mapManager.getTile(x, y);
+      if (tile) visibility.rememberedTiles.set(tileKey, this.rememberTile(tile));
     }
 
     visibility.lastUpdated = observedAt;
@@ -137,7 +171,7 @@ export class VisibilityManager {
     );
   }
 
-  private addUnitVision(sourcePlayerId: string, visibleTiles: Set<string>): void {
+  private addUnitVision(sourcePlayerId: string, visibility: PlayerVisibility): void {
     for (const unit of this.unitManager.getPlayerUnits(sourcePlayerId)) {
       const unitType = UNIT_TYPES[unit.unitTypeId];
       if (!unitType) continue;
@@ -170,12 +204,21 @@ export class VisibilityManager {
       );
 
       for (const tileKey of unitVisibleTiles) {
-        visibleTiles.add(tileKey);
+        visibility.visibleTiles.add(tileKey);
+      }
+      const detectionTiles = this.calculateTileVisibility(
+        unit.x,
+        unit.y,
+        Math.min(2, Math.max(0, (unitType.vision_radius_sq || unitType.sight) + visionEffect.value))
+      );
+      for (const tileKey of detectionTiles) {
+        visibility.invisibleDetectionTiles.add(tileKey);
+        visibility.subsurfaceDetectionTiles.add(tileKey);
       }
     }
   }
 
-  private addCityVision(sourcePlayerId: string, visibleTiles: Set<string>): void {
+  private addCityVision(sourcePlayerId: string, visibility: PlayerVisibility): void {
     for (const city of this.cityVisionProvider(sourcePlayerId)) {
       // Freeciv city_refresh_vision() uses a base main-vision radius of 2,
       // represented as radius_sq 5 by the classic city-map geometry.
@@ -184,7 +227,11 @@ export class VisibilityManager {
         city.y,
         city.visionRadiusSq ?? this.initialVisionRadiusSq
       );
-      for (const tileKey of cityVisibleTiles) visibleTiles.add(tileKey);
+      for (const tileKey of cityVisibleTiles) visibility.visibleTiles.add(tileKey);
+      for (const tileKey of this.calculateTileVisibility(city.x, city.y, 2)) {
+        visibility.invisibleDetectionTiles.add(tileKey);
+        visibility.subsurfaceDetectionTiles.add(tileKey);
+      }
     }
   }
 
@@ -239,6 +286,18 @@ export class VisibilityManager {
     return new Set(visibility.exploredTiles);
   }
 
+  public getDetectionTiles(playerId: string): { invisible: Set<string>; subsurface: Set<string> } {
+    const visibility = this.playerVisibility.get(playerId);
+    return {
+      invisible: new Set(visibility?.invisibleDetectionTiles ?? []),
+      subsurface: new Set(visibility?.subsurfaceDetectionTiles ?? []),
+    };
+  }
+
+  public getRememberedTiles(playerId: string): Map<string, RememberedTile> {
+    return new Map(this.playerVisibility.get(playerId)?.rememberedTiles ?? []);
+  }
+
   public grantExploredTiles(playerId: string, tiles: Iterable<string>): Set<string> {
     let visibility = this.playerVisibility.get(playerId);
     if (!visibility) {
@@ -249,6 +308,9 @@ export class VisibilityManager {
     for (const tile of tiles) {
       visibility.exploredTiles.add(tile);
       visibility.lastSeenByTile.set(tile, observedAt);
+      const [x, y] = tile.split(',').map(Number);
+      const mapTile = this.mapManager.getTile(x, y);
+      if (mapTile) visibility.rememberedTiles.set(tile, this.rememberTile(mapTile));
     }
     visibility.lastUpdated = observedAt;
     this.queuePersistence(visibility);
@@ -275,6 +337,9 @@ export class VisibilityManager {
     for (const tile of revealed) {
       visibility.exploredTiles.add(tile);
       visibility.lastSeenByTile.set(tile, observedAt);
+      const [x, y] = tile.split(',').map(Number);
+      const mapTile = this.mapManager.getTile(x, y);
+      if (mapTile) visibility.rememberedTiles.set(tile, this.rememberTile(mapTile));
     }
     visibility.lastUpdated = observedAt;
     this.queuePersistence(visibility);
@@ -291,7 +356,10 @@ export class VisibilityManager {
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([tile, timestamp]) => [tile, timestamp.toISOString()])
     );
-    const snapshot = JSON.stringify([exploredTiles, visibleTiles, lastSeenByTile]);
+    const rememberedTiles = Object.fromEntries(
+      [...visibility.rememberedTiles.entries()].sort(([left], [right]) => left.localeCompare(right))
+    );
+    const snapshot = JSON.stringify([exploredTiles, visibleTiles, lastSeenByTile, rememberedTiles]);
     if (this.lastQueuedSnapshots.get(visibility.playerId) === snapshot) return;
     this.lastQueuedSnapshots.set(visibility.playerId, snapshot);
 
@@ -302,7 +370,8 @@ export class VisibilityManager {
           visibility.playerId,
           exploredTiles,
           visibleTiles,
-          lastSeenByTile
+          lastSeenByTile,
+          rememberedTiles
         )
       )
       .catch(error => {
@@ -382,12 +451,13 @@ export class VisibilityManager {
         } else if (!isVisible) {
           // Previously explored but not currently visible (fog of war)
           filteredTiles[x][y] = {
-            x,
-            y,
-            terrain: tile.terrain,
+            ...(this.playerVisibility.get(playerId)?.rememberedTiles.get(tileKey) ?? {
+              x,
+              y,
+              terrain: tile.terrain,
+            }),
             isVisible: false,
             isExplored: true,
-            // Don't show current units or dynamic info
           };
         } else {
           // Currently visible
@@ -403,6 +473,24 @@ export class VisibilityManager {
     return {
       ...mapData,
       tiles: filteredTiles,
+    };
+  }
+
+  private rememberTile(tile: MapTile): RememberedTile {
+    return {
+      x: tile.x,
+      y: tile.y,
+      terrain: tile.terrain,
+      resource: tile.resource,
+      elevation: tile.elevation,
+      riverMask: tile.riverMask,
+      hasRoad: tile.hasRoad,
+      hasRailroad: tile.hasRailroad,
+      improvements: [...tile.improvements],
+      cityId: tile.cityId,
+      owner: tile.owner,
+      claimer: tile.claimer,
+      continentId: tile.continentId,
     };
   }
 

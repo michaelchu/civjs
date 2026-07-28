@@ -8,7 +8,8 @@ import {
   TerrainType,
 } from '@game/managers/MapManager';
 import { WrapFlag } from '@game/map/MapTopology';
-// import { MapStartpos } from '@game/map/MapTypes'; // Commented out - used in disabled tests
+import { MapStartpos } from '@game/map/MapTypes';
+import { createBaseTile } from '@game/map/TerrainUtils';
 
 // Mock island terrain functions for tests
 jest.mock('../../src/game/map/TerrainUtils', () => {
@@ -243,6 +244,33 @@ describe('MapManager', () => {
         expect(tile.isExplored).toBe(true);
       }
     });
+
+    it('keeps the best remaining-movement route when finding accessible tiles', () => {
+      const manager = new MapManager(3, 2);
+      const tiles = Array.from({ length: 3 }, (_, x) =>
+        Array.from({ length: 2 }, (_, y) => {
+          const tile = createBaseTile(x, y);
+          tile.terrain = 'grassland';
+          return tile;
+        })
+      );
+      tiles[1][0].terrain = 'hills';
+      tiles[1][0].hasRailroad = true;
+      tiles[0][1].hasRailroad = true;
+      tiles[2][0].terrain = 'hills';
+      manager.setMapData({
+        width: 3,
+        height: 2,
+        tiles,
+        startingPositions: [],
+        seed: 'accessible-routes',
+        generatedAt: new Date(0),
+      });
+
+      const accessible = manager.getAccessibleTiles(0, 0, 3, 'warriors');
+
+      expect(accessible).toContain(tiles[2][0]);
+    });
   });
 
   describe('terrain generation', () => {
@@ -314,6 +342,45 @@ describe('MapManager', () => {
       expect(landRatio).toBeLessThanOrEqual(0.33);
     });
 
+    it('applies configured land, resource, and hut densities', async () => {
+      const createConfiguredMap = (landPercent: number, richness: number, huts: number) =>
+        new MapManager(
+          40,
+          25,
+          'map-setting-propagation',
+          'random',
+          'RANDOM',
+          MapStartpos.DEFAULT,
+          false,
+          50,
+          {},
+          'earth-small',
+          {
+            landPercent,
+            resourceRichness: richness,
+            hutDensity: huts,
+          }
+        );
+      const sparse = createConfiguredMap(30, 0, 0);
+      const dense = createConfiguredMap(70, 1000, 1000);
+
+      await sparse.generateMap(testPlayers, 'RANDOM');
+      await dense.generateMap(testPlayers, 'RANDOM');
+
+      const sparseTiles = sparse.getMapData()!.tiles.flat();
+      const denseTiles = dense.getMapData()!.tiles.flat();
+      const isLand = (terrain: string) =>
+        !['ocean', 'deep_ocean', 'coast', 'lake'].includes(terrain);
+
+      expect(denseTiles.filter(tile => isLand(tile.terrain)).length).toBeGreaterThan(
+        sparseTiles.filter(tile => isLand(tile.terrain)).length
+      );
+      expect(sparseTiles.some(tile => tile.resource)).toBe(false);
+      expect(sparseTiles.some(tile => tile.improvements.includes('hut'))).toBe(false);
+      expect(denseTiles.some(tile => tile.resource)).toBe(true);
+      expect(denseTiles.some(tile => tile.improvements.includes('hut'))).toBe(true);
+    });
+
     it('preserves the pinned classic topology reference case', async () => {
       const referenceMap = new MapManager(20, 15, 'classic-topology-v1');
       await referenceMap.generateMap(new Map());
@@ -345,17 +412,17 @@ describe('MapManager', () => {
         ],
       }).toEqual({
         terrainCounts: {
-          coast: 3,
+          coast: 2,
           deep_ocean: 132,
-          forest: 16,
-          grassland: 35,
-          hills: 10,
+          forest: 17,
+          grassland: 38,
+          hills: 7,
           jungle: 2,
           lake: 11,
-          mountains: 2,
-          ocean: 64,
-          plains: 19,
-          swamp: 6,
+          mountains: 3,
+          ocean: 65,
+          plains: 16,
+          swamp: 7,
         },
         landContinents: 2,
         corners: ['deep_ocean', 'deep_ocean', 'deep_ocean', 'deep_ocean'],

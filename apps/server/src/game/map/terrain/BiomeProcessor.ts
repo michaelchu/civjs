@@ -5,6 +5,7 @@
  */
 import { MapTile, TemperatureType, TerrainType } from '@game/map/MapTypes';
 import { isOceanTerrain, isLandTile, setTerrainGameProperties } from '@game/map/TerrainUtils';
+import { MapTopology, type MapTopologyOptions } from '@game/map/MapTopology';
 
 /**
  * Handles biome identification, wetness calculation, and biome-based terrain transitions
@@ -15,20 +16,24 @@ export class BiomeProcessor {
   private width: number;
   private height: number;
   private random: () => number;
+  private topology: MapTopology;
 
-  constructor(width: number, height: number, random: () => number) {
+  constructor(
+    width: number,
+    height: number,
+    random: () => number,
+    topologyOptions: MapTopologyOptions = {}
+  ) {
     this.width = width;
     this.height = height;
     this.random = random;
+    this.topology = new MapTopology(width, height, topologyOptions);
   }
 
   /**
    * Generate wetness map for terrain variation
    */
-  public generateWetnessMap(tiles: MapTile[][]): void {
-    // Use default wetness base for better terrain variety
-    const baseWetness = 50;
-
+  public generateWetnessMap(tiles: MapTile[][], baseWetness: number = 50): void {
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         // Start with user's wetness setting
@@ -261,16 +266,10 @@ export class BiomeProcessor {
     let totalDifference = 0;
     let count = 0;
 
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height && (dx !== 0 || dy !== 0)) {
-          const neighborElevation = tiles[nx][ny].elevation || 0;
-          totalDifference += Math.abs(centerElevation - neighborElevation);
-          count++;
-        }
-      }
+    for (const { x: nx, y: ny } of this.topology.getNeighbors(x, y)) {
+      const neighborElevation = tiles[nx][ny].elevation || 0;
+      totalDifference += Math.abs(centerElevation - neighborElevation);
+      count++;
     }
 
     return count > 0 ? totalDifference / count : 0;
@@ -284,16 +283,10 @@ export class BiomeProcessor {
     let totalDifference = 0;
     let count = 0;
 
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height && (dx !== 0 || dy !== 0)) {
-          const neighborTemp = tiles[nx][ny].temperature as number;
-          totalDifference += Math.abs(centerTemp - neighborTemp);
-          count++;
-        }
-      }
+    for (const { x: nx, y: ny } of this.topology.getNeighbors(x, y)) {
+      const neighborTemp = tiles[nx][ny].temperature as number;
+      totalDifference += Math.abs(centerTemp - neighborTemp);
+      count++;
     }
 
     return count > 0 ? totalDifference / count : 0;
@@ -307,16 +300,10 @@ export class BiomeProcessor {
     let totalDifference = 0;
     let count = 0;
 
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height && (dx !== 0 || dy !== 0)) {
-          const neighborWetness = tiles[nx][ny].wetness || 0;
-          totalDifference += Math.abs(centerWetness - neighborWetness);
-          count++;
-        }
-      }
+    for (const { x: nx, y: ny } of this.topology.getNeighbors(x, y)) {
+      const neighborWetness = tiles[nx][ny].wetness || 0;
+      totalDifference += Math.abs(centerWetness - neighborWetness);
+      count++;
     }
 
     return count > 0 ? totalDifference / count : 0;
@@ -386,17 +373,12 @@ export class BiomeProcessor {
     let avgWetness = 0;
     let count = 0;
 
-    for (let dx = -regionSize; dx <= regionSize; dx++) {
-      for (let dy = -regionSize; dy <= regionSize; dy++) {
-        const x = centerX + dx;
-        const y = centerY + dy;
-        if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-          avgTemp += tiles[x][y].temperature as number;
-          avgElevation += tiles[x][y].elevation || 0;
-          avgWetness += tiles[x][y].wetness || 0;
-          count++;
-        }
-      }
+    const region = this.topology.getPositionsWithinRadius(centerX, centerY, regionSize);
+    for (const { x, y } of region) {
+      avgTemp += tiles[x][y].temperature as number;
+      avgElevation += tiles[x][y].elevation || 0;
+      avgWetness += tiles[x][y].wetness || 0;
+      count++;
     }
 
     avgTemp /= count;
@@ -409,16 +391,8 @@ export class BiomeProcessor {
     } as MapTile);
 
     // Apply regional consistency
-    for (let dx = -regionSize; dx <= regionSize; dx++) {
-      for (let dy = -regionSize; dy <= regionSize; dy++) {
-        this.applyRegionalConsistencyToTile(
-          tiles,
-          newTerrain,
-          centerX + dx,
-          centerY + dy,
-          dominantBiome
-        );
-      }
+    for (const { x, y } of region) {
+      this.applyRegionalConsistencyToTile(tiles, newTerrain, x, y, dominantBiome);
     }
   }
 
@@ -633,16 +607,9 @@ export class BiomeProcessor {
   ): string[] {
     const neighbors: string[] = [];
 
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        if (dx === 0 && dy === 0) continue;
-
-        const x = centerX + dx;
-        const y = centerY + dy;
-
-        if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-          neighbors.push(tiles[x][y].terrain);
-        }
+    for (const position of this.topology.getPositionsWithinRadius(centerX, centerY, radius)) {
+      if (position.x !== centerX || position.y !== centerY) {
+        neighbors.push(tiles[position.x][position.y].terrain);
       }
     }
 
@@ -656,25 +623,16 @@ export class BiomeProcessor {
     let wetnessBonus = 0;
     const searchRadius = 3;
 
-    for (let dx = -searchRadius; dx <= searchRadius; dx++) {
-      for (let dy = -searchRadius; dy <= searchRadius; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
+    for (const position of this.topology.getPositionsWithinRadius(x, y, searchRadius)) {
+      const tile = tiles[position.x][position.y];
+      const distance = this.topology.realDistance(x, y, position.x, position.y);
 
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const tile = tiles[nx][ny];
-          const distance = Math.sqrt(dx * dx + dy * dy);
-
-          if (isOceanTerrain(tile.terrain)) {
-            // Ocean tiles contribute wetness based on distance
-            const contribution = Math.max(0, 30 - distance * 8);
-            wetnessBonus += contribution;
-          } else if (tile.riverMask > 0) {
-            // River tiles also contribute wetness
-            const contribution = Math.max(0, 15 - distance * 4);
-            wetnessBonus += contribution;
-          }
-        }
+      if (isOceanTerrain(tile.terrain)) {
+        const contribution = Math.max(0, 30 - distance * 8);
+        wetnessBonus += contribution;
+      } else if (tile.riverMask > 0) {
+        const contribution = Math.max(0, 15 - distance * 4);
+        wetnessBonus += contribution;
       }
     }
 
@@ -685,21 +643,6 @@ export class BiomeProcessor {
    * Get neighbor tiles
    */
   private getNeighbors(tiles: MapTile[][], x: number, y: number): MapTile[] {
-    const neighbors: MapTile[] = [];
-
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-
-        const nx = x + dx;
-        const ny = y + dy;
-
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          neighbors.push(tiles[nx][ny]);
-        }
-      }
-    }
-
-    return neighbors;
+    return this.topology.getNeighbors(x, y).map(position => tiles[position.x][position.y]);
   }
 }

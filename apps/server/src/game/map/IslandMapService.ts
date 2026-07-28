@@ -12,6 +12,10 @@ import { islandTerrainInit, fillIslandTerrain } from './TerrainUtils';
  * @reference freeciv/server/generator/mapgen.c:1320-1341 MAPSTARTPOS routing
  */
 export class IslandMapService extends BaseMapGenerationService {
+  public setTerrainPercentages(percentages: typeof this.terrainPercentages): void {
+    this.terrainPercentages = { ...percentages };
+  }
+
   /**
    * Generate map using island-based algorithms
    * Routes to specific island generation methods based on start position mode
@@ -274,7 +278,7 @@ export class IslandMapService extends BaseMapGenerationService {
     let bigweight = 70;
 
     // Adjust big island weight based on land percentage
-    const landPercent = 30; // Our default 30% land coverage
+    const landPercent = this.generationOptions.landPercent;
     if (landPercent > 60) {
       bigweight = 30;
     } else if (landPercent > 40) {
@@ -347,7 +351,7 @@ export class IslandMapService extends BaseMapGenerationService {
     // Phase 2 fix: Temperature map already handled during island generation
     // Only convert to enum format for compatibility
     this.terrainGenerator.convertTemperatureToEnum(tiles);
-    this.terrainGenerator.generateWetnessMap(tiles);
+    this.terrainGenerator.generateWetnessMap(tiles, this.generationOptions.wetness);
 
     // Apply climate-based terrain variety to islands using freeciv's terrain selection system
     await this.applyIslandTerrainVariety(tiles);

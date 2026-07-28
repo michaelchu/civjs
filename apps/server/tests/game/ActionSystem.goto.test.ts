@@ -67,10 +67,10 @@ describe('ActionSystem - Goto Actions', () => {
             success: true,
             path: {
               tiles: [
-                { x: unitX, y: unitY },
-                { x: targetX, y: targetY },
+                { x: unitX, y: unitY, moveCost: 0 },
+                { x: targetX, y: targetY, moveCost: 3 },
               ],
-              totalCost: dx === 1 && dy === 1 ? 4 : 3, // Diagonal costs more
+              totalCost: 3,
               estimatedTurns: 1,
             },
           };
@@ -133,12 +133,12 @@ describe('ActionSystem - Goto Actions', () => {
       expect(result.message).toContain('moved to (11, 10)');
     });
 
-    it('should calculate higher cost for diagonal movement', async () => {
+    it('should use the authoritative classic cost for diagonal movement', async () => {
       const result = await actionSystem.executeAction(mockUnit, ActionType.GOTO, 11, 11);
 
       expect(result.success).toBe(true);
       expect(result.newPosition).toEqual({ x: 11, y: 11 });
-      expect(result.movementCost).toBe(4); // Math.floor(3 * 1.5)
+      expect(result.movementCost).toBe(3);
     });
 
     it('should reject invalid coordinates', async () => {
@@ -186,6 +186,36 @@ describe('ActionSystem - Goto Actions', () => {
       expect(result.success).toBe(true); // Minimum move rule allows this
       expect(result.newPosition).toEqual({ x: 11, y: 11 });
       expect(result.newMovementLeft).toBe(0); // All movement consumed
+    });
+
+    it('consumes the authoritative per-step road and terrain costs', async () => {
+      const authoritativeSystem = new ActionSystem(gameId, {
+        ...mockGameManagerCallback,
+        requestPath: jest.fn(async () => ({
+          success: true,
+          path: {
+            tiles: [
+              { x: 10, y: 10, moveCost: 0 },
+              { x: 11, y: 10, moveCost: 0 },
+              { x: 12, y: 10, moveCost: 6 },
+            ],
+            totalCost: 6,
+            estimatedTurns: 1,
+          },
+        })),
+      });
+
+      const result = await authoritativeSystem.executeAction(
+        { ...mockUnit, movementLeft: 9 },
+        ActionType.GOTO,
+        12,
+        10
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.newPosition).toEqual({ x: 12, y: 10 });
+      expect(result.movementCost).toBe(6);
+      expect(result.newMovementLeft).toBe(3);
     });
 
     it('should reject movement when unit has no movement left', async () => {
@@ -263,9 +293,9 @@ describe('ActionSystem - Goto Actions', () => {
       expect(northResult.movementCost).toBe(3);
       expect(eastResult.movementCost).toBe(3);
 
-      // Diagonal movement costs more
+      // Classic diagonal movement uses the same cost.
       const diagonalResult = await actionSystem.executeAction(diagonalUnit, ActionType.GOTO, 11, 9);
-      expect(diagonalResult.movementCost).toBe(4); // Math.floor(3 * 1.5)
+      expect(diagonalResult.movementCost).toBe(3);
     });
   });
 

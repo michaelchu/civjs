@@ -218,6 +218,10 @@ export class UnitManagementService extends BaseGameService {
 
     // Use visibility manager if no visibleTiles provided
     const tiles = visibleTiles || gameInstance.visibilityManager.getVisibleTiles(playerId);
-    return gameInstance.unitManager.getVisibleUnits(playerId, tiles);
+    return gameInstance.unitManager.getVisibleUnits(
+      playerId,
+      tiles,
+      gameInstance.visibilityManager.getDetectionTiles(playerId)
+    );
   }
 }

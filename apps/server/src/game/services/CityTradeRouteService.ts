@@ -26,6 +26,8 @@ export class CityTradeRouteService extends BaseGameService {
       height: number;
       getContinentId: (x: number, y: number) => number | undefined;
       getCurrentTurn: () => number;
+      getRealDistance?: (x1: number, y1: number, x2: number, y2: number) => number;
+      getMapDistance?: (x1: number, y1: number, x2: number, y2: number) => number;
     } = {
       width: 80,
       height: 50,
@@ -69,10 +71,9 @@ export class CityTradeRouteService extends BaseGameService {
     // Classic revenue uses real (Chebyshev) distance, with half of the
     // distance normalized to a 40-tile-wide world by the default setting.
     // @reference reference/freeciv/common/traderoutes.c:332-363
-    const distance = Math.max(
-      Math.abs(sourceCity.x - partnerCity.x),
-      Math.abs(sourceCity.y - partnerCity.y)
-    );
+    const distance =
+      this.mapContext.getRealDistance?.(sourceCity.x, sourceCity.y, partnerCity.x, partnerCity.y) ??
+      Math.max(Math.abs(sourceCity.x - partnerCity.x), Math.abs(sourceCity.y - partnerCity.y));
     const relativeDistance = Math.floor(
       (distance * 40) / Math.max(this.mapContext.width, this.mapContext.height)
     );
@@ -112,10 +113,7 @@ export class CityTradeRouteService extends BaseGameService {
     bonus: number;
     goods: string;
   } {
-    const distance = Math.max(
-      Math.abs(sourceCity.x - partnerCity.x),
-      Math.abs(sourceCity.y - partnerCity.y)
-    );
+    const distance = this.getMapDistance(sourceCity, partnerCity);
     const relativeDistance = Math.floor(
       (distance * 40) / Math.max(this.mapContext.width, this.mapContext.height)
     );
@@ -192,13 +190,12 @@ export class CityTradeRouteService extends BaseGameService {
       logger.warn('Cannot establish trade route: cannot trade with same city');
       return false;
     }
-    const manhattanDistance =
-      Math.abs(sourceCity.x - partnerCity.x) + Math.abs(sourceCity.y - partnerCity.y);
-    if (sourceCity.playerId === partnerCity.playerId && manhattanDistance < 9) {
+    const mapDistance = this.getMapDistance(sourceCity, partnerCity);
+    if (sourceCity.playerId === partnerCity.playerId && mapDistance < 9) {
       logger.warn('Cannot establish domestic trade route below trademindist', {
         sourceCityId,
         partnerCityId,
-        manhattanDistance,
+        mapDistance,
       });
       return false;
     }
@@ -234,10 +231,7 @@ export class CityTradeRouteService extends BaseGameService {
       partnerCity: partnerCityId,
       value: calculation.totalValue,
       establishedTurn: this.mapContext.getCurrentTurn(),
-      distance: Math.max(
-        Math.abs(sourceCity.x - partnerCity.x),
-        Math.abs(sourceCity.y - partnerCity.y)
-      ),
+      distance: this.getRealDistance(sourceCity, partnerCity),
       isCaravan: true,
       routeType: settlement.routeType,
       goods: settlement.goods,
@@ -454,8 +448,7 @@ export class CityTradeRouteService extends BaseGameService {
       // Skip if already trading
       if (existingPartners.has(partnerId)) continue;
 
-      const distance =
-        Math.abs(partnerCity.x - sourceCity.x) + Math.abs(partnerCity.y - sourceCity.y);
+      const distance = this.getMapDistance(sourceCity, partnerCity);
       if (partnerCity.playerId === sourceCity.playerId && distance < 9) continue;
 
       availablePartners.push(partnerCity);
@@ -469,6 +462,20 @@ export class CityTradeRouteService extends BaseGameService {
     });
 
     return availablePartners;
+  }
+
+  private getRealDistance(sourceCity: CityState, partnerCity: CityState): number {
+    return (
+      this.mapContext.getRealDistance?.(sourceCity.x, sourceCity.y, partnerCity.x, partnerCity.y) ??
+      Math.max(Math.abs(sourceCity.x - partnerCity.x), Math.abs(sourceCity.y - partnerCity.y))
+    );
+  }
+
+  private getMapDistance(sourceCity: CityState, partnerCity: CityState): number {
+    return (
+      this.mapContext.getMapDistance?.(sourceCity.x, sourceCity.y, partnerCity.x, partnerCity.y) ??
+      Math.abs(sourceCity.x - partnerCity.x) + Math.abs(sourceCity.y - partnerCity.y)
+    );
   }
 
   /**

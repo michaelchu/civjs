@@ -214,6 +214,7 @@ export const UnitTypeRulesetSchema = z
     bombard_rate: z.number().min(0).optional().default(0),
     paratroopers_range: z.number().min(0).optional().default(0),
     vision_radius_sq: z.number().min(0).optional().default(1),
+    vision_layer: z.enum(['Main', 'Stealth', 'Subsurface']).optional().default('Main'),
     transport_cap: z.number().min(0).optional().default(0),
     cargo: z.array(UnitClassSchema).optional().default([]),
     fuel: z.number().min(0).optional().default(0),

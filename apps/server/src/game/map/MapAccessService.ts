@@ -201,35 +201,37 @@ export class MapAccessService {
     movementPoints: number,
     unitTypeId?: string
   ): MapTile[] {
-    const accessibleTiles: MapTile[] = [];
-    const visited = new Set<string>();
+    const accessibleTiles = new Map<string, MapTile>();
+    const bestRemaining = new Map<string, number>();
     const queue: Array<{ x: number; y: number; remainingMoves: number }> = [
       { x, y, remainingMoves: movementPoints * 3 },
     ]; // Convert to movement fragments
 
-    visited.add(`${x},${y}`);
+    bestRemaining.set(`${x},${y}`, movementPoints * 3);
 
     while (queue.length > 0) {
+      queue.sort((left, right) => right.remainingMoves - left.remainingMoves);
       const current = queue.shift()!;
+      const currentKey = `${current.x},${current.y}`;
+      if (current.remainingMoves < (bestRemaining.get(currentKey) ?? -1)) continue;
 
-      // Add current tile to accessible tiles
       const tile = this.getTile(current.x, current.y);
       if (tile) {
-        accessibleTiles.push(tile);
+        accessibleTiles.set(currentKey, tile);
       }
 
-      // Check all neighboring tiles
       const neighbors = this.getNeighbors(current.x, current.y);
       for (const neighbor of neighbors) {
         const key = `${neighbor.x},${neighbor.y}`;
-        if (visited.has(key)) continue;
-
-        const moveCost = this.getMovementCost(neighbor.x, neighbor.y, unitTypeId);
+        const fromTile = this.getTile(current.x, current.y);
+        let moveCost = this.getMovementCost(neighbor.x, neighbor.y, unitTypeId);
+        if (fromTile?.hasRailroad && neighbor.hasRailroad) moveCost = 0;
+        else if (fromTile?.hasRoad && neighbor.hasRoad) moveCost = 1;
         if (moveCost < 0) continue; // Impassable
 
         const remainingAfterMove = current.remainingMoves - moveCost;
-        if (remainingAfterMove >= 0) {
-          visited.add(key);
+        if (remainingAfterMove >= 0 && remainingAfterMove > (bestRemaining.get(key) ?? -1)) {
+          bestRemaining.set(key, remainingAfterMove);
           queue.push({
             x: neighbor.x,
             y: neighbor.y,
@@ -239,7 +241,7 @@ export class MapAccessService {
       }
     }
 
-    return accessibleTiles;
+    return [...accessibleTiles.values()];
   }
 
   /**

@@ -4,6 +4,7 @@
  * Collection of reusable terrain manipulation utilities
  */
 import { MapTile, TerrainType, TemperatureType } from './MapTypes';
+import { MapTopology, type MapTopologyOptions } from './MapTopology';
 import { MapgenTerrainPropertyEnum, getTerrainTransform } from './TerrainRuleset';
 
 /**
@@ -633,7 +634,8 @@ export function isTinyIsland(
   width: number,
   height: number,
   random: () => number,
-  isRandomMode: boolean = false
+  isRandomMode: boolean = false,
+  topologyOptions: MapTopologyOptions = {}
 ): boolean {
   const tile = tiles[x][y];
 
@@ -646,17 +648,10 @@ export function isTinyIsland(
   const radius = 2;
   let landCount = 0;
 
-  for (let dx = -radius; dx <= radius; dx++) {
-    for (let dy = -radius; dy <= radius; dy++) {
-      const nx = x + dx;
-      const ny = y + dy;
-
-      if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-        const neighborTile = tiles[nx][ny];
-        if (isLandTile(neighborTile.terrain)) {
-          landCount++;
-        }
-      }
+  const topology = new MapTopology(width, height, topologyOptions);
+  for (const position of topology.getPositionsWithinRadius(x, y, radius)) {
+    if (isLandTile(tiles[position.x][position.y].terrain)) {
+      landCount++;
     }
   }
 
@@ -1126,11 +1121,13 @@ export class PlacementMap {
   private width: number;
   private height: number;
   private isInitialized: boolean = false;
+  private topology: MapTopology;
 
-  constructor(width: number, height: number) {
+  constructor(width: number, height: number, topologyOptions: MapTopologyOptions = {}) {
     this.width = width;
     this.height = height;
     this.placedMap = [];
+    this.topology = new MapTopology(width, height, topologyOptions);
   }
 
   /**
@@ -1257,16 +1254,8 @@ export class PlacementMap {
       throw new Error('Placement map not initialized');
     }
 
-    // Iterate over square area around position (freeciv uses square_iterate)
-    for (let dx = -distance; dx <= distance; dx++) {
-      for (let dy = -distance; dy <= distance; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          this.setPlaced(nx, ny);
-        }
-      }
+    for (const position of this.topology.getPositionsWithinRadius(x, y, distance)) {
+      this.setPlaced(position.x, position.y);
     }
   }
 }

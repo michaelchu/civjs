@@ -42,10 +42,10 @@ describe('Unit Movement Integration Tests', () => {
             success: true,
             path: {
               tiles: [
-                { x: unit.x, y: unit.y },
-                { x: targetX, y: targetY },
+                { x: unit.x, y: unit.y, moveCost: 0 },
+                { x: targetX, y: targetY, moveCost: 3 },
               ],
-              totalCost: dx === 1 && dy === 1 ? 4 : 3, // Diagonal costs more
+              totalCost: 3,
               estimatedTurns: 1,
             },
           });
@@ -53,7 +53,7 @@ describe('Unit Movement Integration Tests', () => {
 
         // Multi-step path simulation for distant targets
         if (dx <= 3 && dy <= 3) {
-          const tiles = [{ x: unit.x, y: unit.y }];
+          const tiles = [{ x: unit.x, y: unit.y, moveCost: 0 }];
           let currentX = unit.x;
           let currentY = unit.y;
 
@@ -64,7 +64,7 @@ describe('Unit Movement Integration Tests', () => {
           if (targetY > currentY) currentY++;
           else if (targetY < currentY) currentY--;
 
-          tiles.push({ x: currentX, y: currentY });
+          tiles.push({ x: currentX, y: currentY, moveCost: 3 });
 
           return Promise.resolve({
             success: true,

@@ -87,6 +87,19 @@ export enum MapStartpos {
   VARIABLE = 4, // MAPSTARTPOS_VARIABLE - Depending on size of continents
 }
 
+export interface MapGenerationOptions {
+  landPercent?: number;
+  steepness?: number;
+  wetness?: number;
+  temperature?: number;
+  riverDensity?: number;
+  resourceRichness?: number;
+  hutDensity?: number;
+  tinyIsles?: boolean;
+  flatPoles?: number;
+  separatePoles?: boolean;
+}
+
 export type TerrainType =
   | 'ocean'
   | 'coast'

@@ -26,7 +26,7 @@ import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { BorderManager } from '@game/managers/BorderManager';
 import { GovernmentManager } from '@game/managers/GovernmentManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
-import { MapStartpos } from '@game/map/MapTypes';
+import { MapStartpos, type MapGenerationOptions } from '@game/map/MapTypes';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import type { Server as SocketServer } from 'socket.io';
 import { PROTOCOL_VERSION } from '@app-types/packet';
@@ -887,20 +887,41 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   private createMapManager(game: any, terrainSettings?: TerrainSettings): MapManager {
     const mapGenerator = terrainSettings?.generator || 'random';
     const temperatureParam = terrainSettings?.temperature ?? 50;
+    const startPosMode = (terrainSettings?.startpos ?? MapStartpos.DEFAULT) as MapStartpos;
+    const generationOptions: MapGenerationOptions = {
+      landPercent:
+        terrainSettings?.landmass === 'sparse'
+          ? 30
+          : terrainSettings?.landmass === 'dense'
+            ? 70
+            : 50,
+      steepness: 30,
+      wetness: terrainSettings?.wetness ?? 50,
+      temperature: temperatureParam,
+      riverDensity: terrainSettings?.rivers ?? 50,
+      resourceRichness:
+        terrainSettings?.resources === 'sparse'
+          ? 100
+          : terrainSettings?.resources === 'abundant'
+            ? 500
+            : 250,
+      hutDensity: terrainSettings?.huts ?? 15,
+    };
     return new MapManager(
       game.mapWidth,
       game.mapHeight,
       undefined,
       mapGenerator,
       undefined,
-      undefined,
+      startPosMode,
       false,
       temperatureParam,
       {
         topologyId: terrainSettings?.topologyId,
         wrapId: terrainSettings?.wrapId,
       },
-      terrainSettings?.scenarioId
+      terrainSettings?.scenarioId,
+      generationOptions
     );
   }
 
@@ -1098,11 +1119,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       mapManager,
       effectsManager,
       playerId => new Set(researchManager.getResearchedTechs(playerId)),
-      async (playerId, exploredTiles, visibleTiles, tileLastSeen) => {
+      async (playerId, exploredTiles, visibleTiles, tileLastSeen, tileMemory) => {
         await this.databaseProvider
           .getDatabase()
           .update(playerRecords)
-          .set({ exploredTiles, visibleTiles, tileLastSeen })
+          .set({ exploredTiles, visibleTiles, tileLastSeen, tileMemory })
           .where(eq(playerRecords.id, playerId));
       }
     );

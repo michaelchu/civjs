@@ -15,6 +15,7 @@ import { ActionType, ActionResult } from '@app-types/shared/actions';
 import { EffectsManager, EffectType, type EffectContext } from '@game/managers/EffectsManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { TerrainType } from '@game/map/MapTypes';
+import { MapTopology } from '@game/map/MapTopology';
 
 interface CityAtLocation {
   id: string;
@@ -1052,11 +1053,9 @@ export class UnitManager {
       const tile = this.mapManager?.getTile?.(unit.x, unit.y);
       const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
       const adjacentTerrainClasses = new Set<string>();
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          const adjacent = this.mapManager?.getTile?.(unit.x + dx, unit.y + dy);
-          if (adjacent) adjacentTerrainClasses.add(this.getTerrainClass(adjacent.terrain));
-        }
+      for (const position of this.getMapTopology().getNeighbors(unit.x, unit.y)) {
+        const adjacent = this.mapManager?.getTile?.(position.x, position.y);
+        if (adjacent) adjacentTerrainClasses.add(this.getTerrainClass(adjacent.terrain));
       }
       const retirementChance = this.effectsManager.calculateEffect(EffectType.RETIRE_PCT, {
         playerId,
@@ -1080,15 +1079,12 @@ export class UnitManager {
   }
 
   private hasForeignUnitOrCityNearby(unit: Unit, radius: number): boolean {
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        const x = unit.x + dx;
-        const y = unit.y + dy;
-        const city = this.gameManagerCallback?.getCityAt?.(x, y);
-        if (city && city.playerId !== unit.playerId) return true;
-        if (this.getUnitsAt(x, y).some(candidate => candidate.playerId !== unit.playerId)) {
-          return true;
-        }
+    const positions = this.getMapTopology().getPositionsWithinRadius(unit.x, unit.y, radius);
+    for (const { x, y } of positions) {
+      const city = this.gameManagerCallback?.getCityAt?.(x, y);
+      if (city && city.playerId !== unit.playerId) return true;
+      if (this.getUnitsAt(x, y).some(candidate => candidate.playerId !== unit.playerId)) {
+        return true;
       }
     }
     return false;
@@ -1409,10 +1405,18 @@ export class UnitManager {
    * Calculate distance between two points
    */
   private calculateDistance(x1: number, y1: number, x2: number, y2: number): number {
-    return (
-      this.mapManager?.getTopology?.().realDistance(x1, y1, x2, y2) ??
-      Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1))
-    );
+    return this.getMapTopology().realDistance(x1, y1, x2, y2);
+  }
+
+  private getMapTopology(): MapTopology {
+    const topology = this.mapManager?.getTopology?.();
+    if (topology) return topology;
+
+    const mapData = this.mapManager?.getMapData?.();
+    return new MapTopology(this.mapWidth, this.mapHeight, {
+      topologyId: mapData?.topologyId,
+      wrapId: mapData?.wrapId,
+    });
   }
 
   /**
@@ -2172,11 +2176,7 @@ export class UnitManager {
     const centerX = targetX ?? unit.x;
     const centerY = targetY ?? unit.y;
     const affectedUnitIds = [...this.units.values()]
-      .filter(target => {
-        const dx = target.x - centerX;
-        const dy = target.y - centerY;
-        return dx * dx + dy * dy <= 1;
-      })
+      .filter(target => this.calculateDistance(target.x, target.y, centerX, centerY) <= 1)
       .map(target => target.id);
     for (const targetId of affectedUnitIds) {
       await this.destroyUnit(targetId);
@@ -2189,23 +2189,16 @@ export class UnitManager {
         1,
         unit.playerId
       )) ?? [];
-    for (let x = Math.max(0, centerX - 1); x <= Math.min(this.mapWidth - 1, centerX + 1); x++) {
-      for (let y = Math.max(0, centerY - 1); y <= Math.min(this.mapHeight - 1, centerY + 1); y++) {
-        const dx = x - centerX;
-        const dy = y - centerY;
-        const tile = this.mapManager?.getTile(x, y);
-        if (
-          dx * dx + dy * dy <= 1 &&
-          tile &&
-          !['ocean', 'coast', 'deep_ocean', 'lake'].includes(tile.terrain) &&
-          this.random() >= 0.5 &&
-          !tile.improvements.includes('fallout')
-        ) {
-          this.mapManager.updateTileProperty(x, y, 'improvements', [
-            ...tile.improvements,
-            'fallout',
-          ]);
-        }
+    const falloutPositions = this.getMapTopology().getPositionsWithinRadius(centerX, centerY, 1);
+    for (const { x, y } of falloutPositions) {
+      const tile = this.mapManager?.getTile(x, y);
+      if (
+        tile &&
+        !['ocean', 'coast', 'deep_ocean', 'lake'].includes(tile.terrain) &&
+        this.random() >= 0.5 &&
+        !tile.improvements.includes('fallout')
+      ) {
+        this.mapManager.updateTileProperty(x, y, 'improvements', [...tile.improvements, 'fallout']);
       }
     }
     await this.persistMapState();
@@ -3294,13 +3287,20 @@ export class UnitManager {
   /**
    * Get visible units for a player (considering fog of war)
    */
-  getVisibleUnits(playerId: string, visibleTiles: Set<string>): Unit[] {
+  getVisibleUnits(
+    playerId: string,
+    visibleTiles: Set<string>,
+    detectionTiles?: { invisible: Set<string>; subsurface: Set<string> }
+  ): Unit[] {
     return Array.from(this.units.values()).filter(unit => {
       // Player always sees their own units
       if (unit.playerId === playerId) return true;
 
       // Check if unit is in visible tiles
       const tileKey = `${unit.x},${unit.y}`;
+      const layer = UNIT_TYPES[unit.unitTypeId]?.visionLayer ?? 'Main';
+      if (layer === 'Stealth') return detectionTiles?.invisible.has(tileKey) ?? false;
+      if (layer === 'Subsurface') return detectionTiles?.subsurface.has(tileKey) ?? false;
       return visibleTiles.has(tileKey);
     });
   }

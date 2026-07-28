@@ -35,6 +35,7 @@ export class FractalHeightGenerator {
   private readonly steepness: number; // Used for mountain level calculation
   private flatpoles: number;
   private topology: MapTopology;
+  private readonly landPercent: number;
 
   constructor(
     width: number,
@@ -43,7 +44,8 @@ export class FractalHeightGenerator {
     steepness: number = DEFAULT_STEEPNESS,
     flatpoles: number = DEFAULT_FLATPOLES,
     generator: string = 'random',
-    topologyOptions: MapTopologyOptions = {}
+    topologyOptions: MapTopologyOptions = {},
+    landPercent: number = 30
   ) {
     this.width = width;
     this.height = height;
@@ -53,10 +55,10 @@ export class FractalHeightGenerator {
     this.steepness = steepness;
     this.flatpoles = flatpoles;
     this.topology = new MapTopology(width, height, topologyOptions);
+    this.landPercent = Math.max(1, Math.min(99, landPercent));
 
     // Calculate shore level based on land percentage (like freeciv make_land())
-    const landPercent = 30; // MAP_DEFAULT_LANDMASS from freeciv reference
-    this.shoreLevel = Math.floor((HMAP_MAX_LEVEL * (100 - landPercent)) / 100);
+    this.shoreLevel = Math.floor((HMAP_MAX_LEVEL * (100 - this.landPercent)) / 100);
 
     // Calculate mountain level based on steepness parameter
     // Higher steepness = more mountains (lower mountain threshold)
@@ -254,8 +256,7 @@ export class FractalHeightGenerator {
 
         // Avoid edges (reduce land near map edges)
         if (this.isNearMapEdge(px, py)) {
-          const landPercent = 30;
-          const avoidedge = ((100 - landPercent) * step) / 100 + Math.floor(step / 3);
+          const avoidedge = ((100 - this.landPercent) * step) / 100 + Math.floor(step / 3);
           seedHeight -= avoidedge;
         }
 
@@ -785,7 +786,7 @@ export class FractalHeightGenerator {
    * @reference freeciv/server/generator/mapgen.c adjust_hmap_landmass()
    */
   private setShoreLevel(): void {
-    const targetLandPercent = 30; // MAP_DEFAULT_LANDMASS
+    const targetLandPercent = this.landPercent;
     const sortedHeights = [...this.heightMap].sort((a, b) => b - a); // Sort descending
 
     // Find the height that gives us the closest to 30% land

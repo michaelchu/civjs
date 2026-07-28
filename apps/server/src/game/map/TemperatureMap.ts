@@ -235,23 +235,9 @@ export class TemperatureMap {
    * Original: adjc_iterate checking for temperature type in adjacent tiles
    */
   public hasTemperatureTypeNear(x: number, y: number, tempType: TemperatureType): boolean {
-    const neighbors = [
-      { x: x - 1, y },
-      { x: x + 1, y },
-      { x, y: y - 1 },
-      { x, y: y + 1 },
-    ];
-
-    for (const neighbor of neighbors) {
-      if (
-        neighbor.x >= 0 &&
-        neighbor.x < this.width &&
-        neighbor.y >= 0 &&
-        neighbor.y < this.height
-      ) {
-        if (this.hasTemperatureType(neighbor.x, neighbor.y, tempType)) {
-          return true;
-        }
+    for (const neighbor of this.topology.getNeighbors(x, y)) {
+      if (this.hasTemperatureType(neighbor.x, neighbor.y, tempType)) {
+        return true;
       }
     }
     return false;

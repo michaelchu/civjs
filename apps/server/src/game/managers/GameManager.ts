@@ -548,7 +548,11 @@ export class GameManager {
     if (!unit || unit.playerId !== playerId || !unitFlags.includes('Diplomat')) {
       return { success: false, message: 'A diplomat or spy owned by the player is required' };
     }
-    if (Math.max(Math.abs(unit.x - targetX), Math.abs(unit.y - targetY)) > 1) {
+    const topology = (game.mapManager as Partial<MapManager>).getTopology?.();
+    const targetDistance =
+      topology?.realDistance(unit.x, unit.y, targetX, targetY) ??
+      Math.max(Math.abs(unit.x - targetX), Math.abs(unit.y - targetY));
+    if (targetDistance > 1) {
       return { success: false, message: 'Target must be adjacent' };
     }
     if (unit.movementLeft < 1) {

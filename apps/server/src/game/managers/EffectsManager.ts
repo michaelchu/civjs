@@ -167,6 +167,7 @@ export class EffectsManager {
   private effectsCache = new Map<string, Record<string, Effect>>();
   private rulesetName: string;
   private rulesetLoader: Pick<RulesetLoader, 'getEffects'>;
+  private realDistanceProvider?: (x1: number, y1: number, x2: number, y2: number) => number;
   private requirementHandlers: Record<
     string,
     (req: Requirement, context: EffectContext) => RequirementResult
@@ -179,6 +180,12 @@ export class EffectsManager {
     this.rulesetName = rulesetName;
     this.rulesetLoader = ruleset;
     this.initRequirementHandlers();
+  }
+
+  public setRealDistanceProvider(
+    provider: (x1: number, y1: number, x2: number, y2: number) => number
+  ): void {
+    this.realDistanceProvider = provider;
   }
 
   /**
@@ -797,10 +804,9 @@ export class EffectsManager {
         // topology CivJS uses, matching the Chebyshev distance already applied
         // to citymindist.
         // @reference reference/freeciv/common/map.c:623-654 map_vector_to_real_distance()
-        const distance = Math.max(
-          Math.abs(cityContext.tileX - city.x),
-          Math.abs(cityContext.tileY - city.y)
-        );
+        const distance = this.realDistanceProvider
+          ? this.realDistanceProvider(cityContext.tileX, cityContext.tileY, city.x, city.y)
+          : Math.max(Math.abs(cityContext.tileX - city.x), Math.abs(cityContext.tileY - city.y));
         nearestDistance = Math.min(nearestDistance, distance);
       }
     }

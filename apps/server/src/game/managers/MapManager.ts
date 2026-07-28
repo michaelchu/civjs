@@ -1,6 +1,6 @@
 import { logger } from '@utils/logger';
 import { PlayerState } from '@game/managers/GameManager';
-import { MapData, MapTile, MapStartpos } from '@game/map/MapTypes';
+import { MapData, MapTile, MapStartpos, type MapGenerationOptions } from '@game/map/MapTypes';
 import { HeightBasedMapService } from '@game/map/HeightBasedMapService';
 import { IslandMapService } from '@game/map/IslandMapService';
 import { FairIslandsService } from '@game/map/FairIslandsService';
@@ -55,14 +55,15 @@ export class MapManager {
     cleanupTemperatureMapAfterUse: boolean = false,
     temperatureParam: number = 50,
     topologyOptions: MapTopologyOptions = {},
-    scenarioId: string = 'earth-small'
+    scenarioId: string = 'earth-small',
+    generationOptions: MapGenerationOptions = {}
   ) {
     this.width = width;
     this.height = height;
     this.seed = seed || this.generateSeed();
     this.generator = generator;
     this.defaultGeneratorType = defaultGeneratorType || 'FRACTAL';
-    this.defaultStartPosMode = defaultStartPosMode || MapStartpos.ALL;
+    this.defaultStartPosMode = defaultStartPosMode ?? MapStartpos.DEFAULT;
     this.random = this.createSeededRandom(this.seed);
     this.scenarioId = scenarioId;
     this.scenarioLoader = new FreecivScenarioLoader();
@@ -77,7 +78,8 @@ export class MapManager {
       this.defaultStartPosMode,
       cleanupTemperatureMapAfterUse,
       temperatureParam,
-      topologyOptions
+      topologyOptions,
+      generationOptions
     );
 
     this.islandMapService = new IslandMapService(
@@ -89,7 +91,8 @@ export class MapManager {
       this.defaultStartPosMode,
       cleanupTemperatureMapAfterUse,
       temperatureParam,
-      topologyOptions
+      topologyOptions,
+      generationOptions
     );
 
     this.fairIslandsService = new FairIslandsService(
@@ -101,7 +104,8 @@ export class MapManager {
       this.defaultStartPosMode,
       cleanupTemperatureMapAfterUse,
       temperatureParam,
-      topologyOptions
+      topologyOptions,
+      generationOptions
     );
 
     this.mapAccessService = new MapAccessService(width, height, topologyOptions);

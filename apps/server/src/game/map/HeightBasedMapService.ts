@@ -182,10 +182,11 @@ export class HeightBasedMapService extends BaseMapGenerationService {
       tiles,
       heightMap,
       {
-        landpercent: 30,
-        steepness: 50,
-        wetness: 50,
-        temperature: 50,
+        landpercent: this.generationOptions.landPercent,
+        steepness: this.generationOptions.steepness,
+        wetness: this.generationOptions.wetness,
+        temperature: this.generationOptions.temperature,
+        riverDensity: this.generationOptions.riverDensity,
       },
       this.heightGenerator,
       this.temperatureMap,
@@ -211,7 +212,7 @@ export class HeightBasedMapService extends BaseMapGenerationService {
     // Phase 2 fix: Temperature map and rivers already handled inside makeLand()
     // Only convert to enum format for compatibility
     this.terrainGenerator.convertTemperatureToEnum(tiles);
-    this.terrainGenerator.generateWetnessMap(tiles);
+    this.terrainGenerator.generateWetnessMap(tiles, this.generationOptions.wetness);
   }
 
   /**

@@ -495,6 +495,16 @@ export class GameManagementHandler extends BaseSocketHandler {
     const exploredTiles = playerId
       ? gameInstance.visibilityManager.getExploredTiles(playerId)
       : new Set<string>();
+    const rememberedTiles = playerId
+      ? (gameInstance.visibilityManager.getRememberedTiles?.(playerId) ??
+        new Map(
+          [...exploredTiles].flatMap(key => {
+            const [x, y] = key.split(',').map(Number);
+            const tile = mapData.tiles[x]?.[y];
+            return tile ? [[key, tile] as const] : [];
+          })
+        ))
+      : new Map<string, any>();
 
     socket.emit('packet', {
       version: PROTOCOL_VERSION,
@@ -516,24 +526,25 @@ export class GameManagementHandler extends BaseSocketHandler {
         const tileKey = `${x},${y}`;
         const isVisible = !playerId || visibleTiles.has(tileKey);
         const isExplored = !playerId || exploredTiles.has(tileKey);
+        const knownTile = isVisible ? tile : rememberedTiles.get(tileKey);
         tiles.push({
           tile: x + y * mapData.width,
           x,
           y,
-          terrain: isExplored ? tile.terrain : 'unknown',
-          resource: isExplored ? tile.resource : undefined,
-          elevation: isExplored ? tile.elevation || 0 : 0,
-          riverMask: isExplored ? tile.riverMask || 0 : 0,
-          hasRoad: isExplored ? tile.hasRoad : false,
-          hasRailroad: isExplored ? tile.hasRailroad : false,
-          improvements: isExplored ? tile.improvements : [],
-          cityId: isExplored ? tile.cityId : undefined,
-          owner: isExplored ? tile.owner : undefined,
-          claimer: isExplored ? tile.claimer : undefined,
+          terrain: isExplored ? (knownTile?.terrain ?? 'unknown') : 'unknown',
+          resource: isExplored ? knownTile?.resource : undefined,
+          elevation: isExplored ? knownTile?.elevation || 0 : 0,
+          riverMask: isExplored ? knownTile?.riverMask || 0 : 0,
+          hasRoad: isExplored ? knownTile?.hasRoad : false,
+          hasRailroad: isExplored ? knownTile?.hasRailroad : false,
+          improvements: isExplored ? (knownTile?.improvements ?? []) : [],
+          cityId: isExplored ? knownTile?.cityId : undefined,
+          owner: isExplored ? knownTile?.owner : undefined,
+          claimer: isExplored ? knownTile?.claimer : undefined,
           // Freeciv known_type: 0 unknown, 1 known/fogged, 2 known/seen.
           known: isVisible ? 2 : isExplored ? 1 : 0,
           seen: isVisible ? 1 : 0,
-          player: isExplored ? (tile.owner ?? null) : null,
+          player: isExplored ? (knownTile?.owner ?? null) : null,
           worked: null,
           extras: 0,
         });
@@ -557,7 +568,11 @@ export class GameManagementHandler extends BaseSocketHandler {
     }
 
     const sourceUnits = playerId
-      ? gameInstance.unitManager.getVisibleUnits(playerId, visibleTiles)
+      ? gameInstance.unitManager.getVisibleUnits(
+          playerId,
+          visibleTiles,
+          gameInstance.visibilityManager.getDetectionTiles?.(playerId)
+        )
       : Array.from(gameInstance.unitManager.getAllUnits().values());
     const units = sourceUnits.map((unit: any) => ({
       id: unit.id,

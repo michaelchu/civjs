@@ -190,17 +190,19 @@ export class CityFoundingValidationService {
     // Reference: freeciv/common/city.c:1471-1475
     const radius = citymindist - 1;
 
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        const checkX = x + dx;
-        const checkY = y + dy;
-
-        // Check if there's a city at this position
-        for (const city of existingCities.values()) {
-          if (city.x === checkX && city.y === checkY) {
-            return true; // City found within minimum distance
-          }
-        }
+    const topology = (this.mapManager as Partial<MapManager>).getTopology?.();
+    const nearby = new Set(
+      topology
+        ? topology
+            .getPositionsWithinRadius(x, y, radius)
+            .map(position => `${position.x},${position.y}`)
+        : [...existingCities.values()]
+            .filter(city => Math.max(Math.abs(city.x - x), Math.abs(city.y - y)) <= radius)
+            .map(city => `${city.x},${city.y}`)
+    );
+    for (const city of existingCities.values()) {
+      if (nearby.has(`${city.x},${city.y}`)) {
+        return true;
       }
     }
 

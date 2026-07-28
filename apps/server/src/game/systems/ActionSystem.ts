@@ -457,7 +457,7 @@ export class ActionSystem {
       ) => Promise<boolean>;
       getCityAt?: (x: number, y: number) => { id: string; playerId: string } | null;
     },
-    private readonly mapManager?: Pick<MapManager, 'getTile'>
+    private readonly mapManager?: Pick<MapManager, 'getTile' | 'getTopology'>
   ) {
     this.gameId = gameId;
     this.gameManagerCallback = gameManagerCallback;
@@ -603,8 +603,11 @@ export class ActionSystem {
     }
 
     // Check if target is achievable with current movement points
-    const dx = Math.abs(targetX - unit.x);
-    const dy = Math.abs(targetY - unit.y);
+    const vector = this.mapManager
+      ?.getTopology?.()
+      .distanceVector(unit.x, unit.y, targetX, targetY);
+    const dx = Math.abs(vector?.dx ?? targetX - unit.x);
+    const dy = Math.abs(vector?.dy ?? targetY - unit.y);
     const isDiagonal = dx === 1 && dy === 1;
     const isAdjacent = (dx === 0 && dy === 1) || (dx === 1 && dy === 0) || isDiagonal;
 
@@ -1258,18 +1261,20 @@ export class ActionSystem {
 
     for (let i = 1; i < pathResult.path.tiles.length; i++) {
       const nextTile = pathResult.path.tiles[i];
-      const dx = Math.abs(nextTile.x - currentX);
-      const dy = Math.abs(nextTile.y - currentY);
-      const movementCost = dx === 1 && dy === 1 ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
+      const movementCost = Number(nextTile.moveCost);
+      if (!Number.isFinite(movementCost) || movementCost < 0) {
+        logger.warn('Path contained an invalid authoritative movement cost', {
+          unitId: unit.id,
+          nextTile,
+        });
+        break;
+      }
 
       logger.debug('Processing path tile', {
         unitId: unit.id,
         tileIndex: i,
         from: { x: currentX, y: currentY },
         to: { x: nextTile.x, y: nextTile.y },
-        dx,
-        dy,
-        isDiagonal: dx === 1 && dy === 1,
         movementCost,
         remainingMovement,
         tilesTraversed,

@@ -36,8 +36,8 @@ describe('ActionSystem - Integration Tests with Cross-Manager Operations', () =>
       requestPath: async (_playerId, _unitId, targetX, targetY) => {
         // Return a path in the format expected by ActionSystem
         const tiles = [
-          { x: 0, y: 0, cost: 0 },
-          { x: targetX, y: targetY, cost: 3 },
+          { x: 0, y: 0, moveCost: 0 },
+          { x: targetX, y: targetY, moveCost: 3 },
         ];
         return { success: true, path: { tiles } };
       },

@@ -386,9 +386,14 @@ export class PathfindingManager {
    * Calculate heuristic cost (Manhattan distance)
    */
   private heuristic(x1: number, y1: number, x2: number, y2: number): number {
-    // The minimum terrain cost is one movement fragment. A topology-aware
-    // real distance is therefore admissible for every supported map.
-    return this.topology.realDistance(x1, y1, x2, y2);
+    // Classic railroads can have zero-cost edges, so no positive geometric
+    // heuristic is admissible for every map. Dijkstra mode preserves optimal
+    // paths across mixed terrain, roads, and railroad networks.
+    void x1;
+    void y1;
+    void x2;
+    void y2;
+    return 0;
   }
 
   /**

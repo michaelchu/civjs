@@ -93,7 +93,45 @@ describe('VisibilityManager', () => {
       persistentManager.updatePlayerVisibility('player-123');
       await new Promise(resolve => setImmediate(resolve));
 
-      expect(persist).toHaveBeenCalledWith('player-123', ['3,4'], [], {});
+      expect(persist).toHaveBeenCalledWith('player-123', ['3,4'], [], {}, {});
+    });
+
+    it('serves the last observed tile state while a tile is fogged', () => {
+      visibilityManager.setCityVisionProvider(playerId =>
+        playerId === 'player-123' ? [{ x: 10, y: 10 }] : []
+      );
+      const tile = mapManager.getTile(10, 10)!;
+      tile.hasRoad = false;
+      visibilityManager.updatePlayerVisibility('player-123');
+
+      tile.hasRoad = true;
+      visibilityManager.setCityVisionProvider(() => []);
+      visibilityManager.updatePlayerVisibility('player-123');
+
+      expect(visibilityManager.getPlayerMapView('player-123')!.tiles[10][10]).toMatchObject({
+        hasRoad: false,
+        isVisible: false,
+        isExplored: true,
+      });
+    });
+
+    it('requires the matching detection layer for hidden units', async () => {
+      visibilityManager.setCityVisionProvider(playerId =>
+        playerId === 'player-123' ? [{ x: 10, y: 10, visionRadiusSq: 8 }] : []
+      );
+      const stealth = await unitManager.createUnit('enemy', 'stealth_fighter', 12, 10);
+      const normal = await unitManager.createUnit('enemy', 'warriors', 12, 11);
+      visibilityManager.updatePlayerVisibility('player-123');
+
+      const visibleTiles = visibilityManager.getVisibleTiles('player-123');
+      const units = unitManager.getVisibleUnits(
+        'player-123',
+        visibleTiles,
+        visibilityManager.getDetectionTiles('player-123')
+      );
+
+      expect(units.map(unit => unit.id)).toContain(normal.id);
+      expect(units.map(unit => unit.id)).not.toContain(stealth.id);
     });
   });
 

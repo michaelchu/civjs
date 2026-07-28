@@ -8,6 +8,7 @@ import { CityManager } from '@game/managers/CityManager';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { MapManager } from '@game/managers/MapManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
+import { MapStartpos } from '@game/map/MapTypes';
 import { ResearchManager } from '@game/managers/ResearchManager';
 import { TurnManager } from '@game/managers/TurnManager';
 import { UnitManager } from '@game/managers/UnitManager';
@@ -153,18 +154,39 @@ export class GameInstanceRecoveryService extends BaseGameService {
   private async createAndRestoreMapManager(game: any): Promise<MapManager> {
     const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
     const temperatureParam = storedTerrainSettings?.temperature ?? 50;
+    const startPosMode = (storedTerrainSettings?.startpos ?? MapStartpos.DEFAULT) as MapStartpos;
     const mapManager = new MapManager(
       game.mapWidth,
       game.mapHeight,
       undefined,
       'recovered',
       undefined,
-      undefined,
+      startPosMode,
       false,
       temperatureParam,
       {
         topologyId: storedTerrainSettings?.topologyId,
         wrapId: storedTerrainSettings?.wrapId,
+      },
+      storedTerrainSettings?.scenarioId,
+      {
+        landPercent:
+          storedTerrainSettings?.landmass === 'sparse'
+            ? 30
+            : storedTerrainSettings?.landmass === 'dense'
+              ? 70
+              : 50,
+        steepness: 30,
+        wetness: storedTerrainSettings?.wetness ?? 50,
+        temperature: temperatureParam,
+        riverDensity: storedTerrainSettings?.rivers ?? 50,
+        resourceRichness:
+          storedTerrainSettings?.resources === 'sparse'
+            ? 100
+            : storedTerrainSettings?.resources === 'abundant'
+              ? 500
+              : 250,
+        hutDensity: storedTerrainSettings?.huts ?? 15,
       }
     );
     await this.restoreMapDataToManager(mapManager, game.mapData as any, game.mapSeed!);
@@ -343,11 +365,11 @@ export class GameInstanceRecoveryService extends BaseGameService {
       mapManager,
       effectsManager,
       playerId => new Set(researchManager.getResearchedTechs(playerId)),
-      async (playerId, exploredTiles, visibleTiles, tileLastSeen) => {
+      async (playerId, exploredTiles, visibleTiles, tileLastSeen, tileMemory) => {
         await this.databaseProvider
           .getDatabase()
           .update(playerRecords)
-          .set({ exploredTiles, visibleTiles, tileLastSeen })
+          .set({ exploredTiles, visibleTiles, tileLastSeen, tileMemory })
           .where(eq(playerRecords.id, playerId));
       }
     );
@@ -556,6 +578,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
         exploredTiles: playerRecords.exploredTiles,
         visibleTiles: playerRecords.visibleTiles,
         tileLastSeen: playerRecords.tileLastSeen,
+        tileMemory: playerRecords.tileMemory,
       })
       .from(playerRecords)
       .where(eq(playerRecords.gameId, gameId));
@@ -570,7 +593,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
         player.id,
         this.asTileKeys(stored?.exploredTiles),
         this.asTileKeys(stored?.visibleTiles),
-        this.asLastSeenMap(stored?.tileLastSeen)
+        this.asLastSeenMap(stored?.tileLastSeen),
+        this.asTileMemory(stored?.tileMemory)
       );
       visibilityManager.updatePlayerVisibility(player.id);
     }
@@ -589,6 +613,12 @@ export class GameInstanceRecoveryService extends BaseGameService {
         (entry): entry is [string, string] => typeof entry[1] === 'string'
       )
     );
+  }
+
+  private asTileMemory(value: unknown): Record<string, any> {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, any>)
+      : {};
   }
 
   /**

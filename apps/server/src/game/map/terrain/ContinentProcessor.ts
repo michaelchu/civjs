@@ -103,7 +103,10 @@ export class ContinentProcessor {
 
           if (
             isLandTile(tile.terrain) &&
-            isTinyIsland(tiles, x, y, this.width, this.height, this._random, isRandomMode)
+            isTinyIsland(tiles, x, y, this.width, this.height, this._random, isRandomMode, {
+              topologyId: this.topology.topologyId,
+              wrapId: this.topology.wrapId,
+            })
           ) {
             // Gather connected tiny island tiles
             const islandTiles = this.getConnectedLandTiles(tiles, x, y);

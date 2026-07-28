@@ -307,16 +307,27 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         allTilesSet ?? gameInstance.visibilityManager.getVisibleTiles(playerId);
       const exploredTilesSet =
         allTilesSet ?? gameInstance.visibilityManager.getExploredTiles(playerId);
+      const rememberedTiles = this.getRememberedTiles(
+        gameInstance,
+        playerId,
+        mapData,
+        exploredTilesSet
+      );
       const visibleTiles = this.processMapTilesForPlayer(
         mapData,
         visibleTilesSet,
-        exploredTilesSet
+        exploredTilesSet,
+        rememberedTiles
       );
 
       // Get units visible to this player (delegate to UnitManager)
       const visibleUnits = debugVisibility
         ? Array.from(gameInstance.unitManager.getAllUnits().values())
-        : gameInstance.unitManager.getVisibleUnits(playerId, visibleTilesSet);
+        : gameInstance.unitManager.getVisibleUnits(
+            playerId,
+            visibleTilesSet,
+            gameInstance.visibilityManager.getDetectionTiles?.(playerId)
+          );
       const formattedUnits = visibleUnits.map((unit: any) =>
         this.formatUnitForClient(unit, gameInstance.unitManager)
       );
@@ -365,12 +376,22 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     const allTilesSet = debugVisibility ? this.getAllTileKeys(mapData) : undefined;
     const visibleTiles = allTilesSet ?? gameInstance.visibilityManager.getVisibleTiles(playerId);
     const exploredTiles = allTilesSet ?? gameInstance.visibilityManager.getExploredTiles(playerId);
-    const tiles = this.processMapTilesForPlayer(mapData, visibleTiles, exploredTiles);
+    const rememberedTiles = this.getRememberedTiles(gameInstance, playerId, mapData, exploredTiles);
+    const tiles = this.processMapTilesForPlayer(
+      mapData,
+      visibleTiles,
+      exploredTiles,
+      rememberedTiles
+    );
     this.sendTileDataInBatches(gameInstance, playerId, tiles);
 
     const visibleUnits = debugVisibility
       ? Array.from(gameInstance.unitManager.getAllUnits().values())
-      : gameInstance.unitManager.getVisibleUnits(playerId, visibleTiles);
+      : gameInstance.unitManager.getVisibleUnits(
+          playerId,
+          visibleTiles,
+          gameInstance.visibilityManager.getDetectionTiles?.(playerId)
+        );
     const units = visibleUnits.map((unit: any) =>
       this.formatUnitForClient(unit, gameInstance.unitManager)
     );
@@ -381,13 +402,13 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
 
     this.broadcastCityDataToPlayer(gameId, playerId);
 
-    const borderTiles = gameInstance.borderManager
+    const currentBorderTiles = gameInstance.borderManager
       .getAllTileOwnership()
       .filter(
         (ownership: any) =>
           debugVisibility ||
           ownership.playerId === playerId ||
-          exploredTiles.has(`${ownership.x},${ownership.y}`)
+          visibleTiles.has(`${ownership.x},${ownership.y}`)
       )
       .map((ownership: any) => ({
         x: ownership.x,
@@ -395,6 +416,26 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         owner: ownership.playerId,
         strength: ownership.strength,
       }));
+    const borderTiles = debugVisibility
+      ? currentBorderTiles
+      : [
+          ...currentBorderTiles,
+          ...[...rememberedTiles.values()]
+            .filter(
+              (tile: any) =>
+                tile.owner &&
+                !visibleTiles.has(`${tile.x},${tile.y}`) &&
+                !currentBorderTiles.some(
+                  (current: any) => current.x === tile.x && current.y === tile.y
+                )
+            )
+            .map((tile: any) => ({
+              x: tile.x,
+              y: tile.y,
+              owner: tile.owner,
+              strength: 0,
+            })),
+        ];
     this.sendPacketToPlayer(gameInstance, playerId, PacketType.BORDER_UPDATE, {
       type: 'border_update',
       updateType: 'full_update',
@@ -412,6 +453,26 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     return keys;
   }
 
+  private getRememberedTiles(
+    gameInstance: GameInstance,
+    playerId: string,
+    mapData: any,
+    exploredTiles: Set<string>
+  ): Map<string, any> {
+    const remembered = gameInstance.visibilityManager.getRememberedTiles?.(playerId);
+    if (remembered) return remembered;
+
+    // Compatibility for legacy/test visibility providers. Runtime
+    // VisibilityManager always supplies immutable observation memory.
+    const fallback = new Map<string, any>();
+    for (const key of exploredTiles) {
+      const [x, y] = key.split(',').map(Number);
+      const tile = mapData.tiles[x]?.[y];
+      if (tile) fallback.set(key, tile);
+    }
+    return fallback;
+  }
+
   private debugVisibilityKey(gameId: string, playerId: string): string {
     return `${gameId}:${playerId}`;
   }
@@ -426,7 +487,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   private processMapTilesForPlayer(
     mapData: any,
     currentlyVisibleTiles: Set<string>,
-    exploredTiles: Set<string>
+    exploredTiles: Set<string>,
+    rememberedTiles: Map<string, any>
   ): any[] {
     const clientTiles = [];
     for (let y = 0; y < mapData.height; y++) {
@@ -437,7 +499,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
           x,
           y,
           currentlyVisibleTiles.has(tileKey),
-          exploredTiles.has(tileKey)
+          exploredTiles.has(tileKey),
+          rememberedTiles.get(tileKey)
         );
         if (tileInfo) {
           clientTiles.push(tileInfo);
@@ -455,7 +518,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     x: number,
     y: number,
     isVisible: boolean,
-    isExplored: boolean
+    isExplored: boolean,
+    rememberedTile?: any
   ): any | null {
     const index = x + y * mapData.width;
     // Handle column-based tile array structure: mapData.tiles[x][y]
@@ -464,25 +528,26 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     if (!serverTile) {
       return null;
     }
+    const knownTile = isVisible ? serverTile : rememberedTile;
 
     // Format tile in exact freeciv-web format
     return {
       tile: index, // This is the key - tile index used by freeciv-web
       x: x,
       y: y,
-      terrain: isExplored ? serverTile.terrain : 'unknown',
-      resource: isExplored ? serverTile.resource : undefined,
-      elevation: isExplored ? serverTile.elevation || 0 : 0,
-      riverMask: isExplored ? serverTile.riverMask || 0 : 0,
-      hasRoad: isExplored ? serverTile.hasRoad : false,
-      hasRailroad: isExplored ? serverTile.hasRailroad : false,
-      improvements: isExplored ? serverTile.improvements : [],
-      cityId: isExplored ? serverTile.cityId : undefined,
-      owner: isExplored ? serverTile.owner : undefined,
-      claimer: isExplored ? serverTile.claimer : undefined,
+      terrain: isExplored ? (knownTile?.terrain ?? 'unknown') : 'unknown',
+      resource: isExplored ? knownTile?.resource : undefined,
+      elevation: isExplored ? knownTile?.elevation || 0 : 0,
+      riverMask: isExplored ? knownTile?.riverMask || 0 : 0,
+      hasRoad: isExplored ? knownTile?.hasRoad : false,
+      hasRailroad: isExplored ? knownTile?.hasRailroad : false,
+      improvements: isExplored ? (knownTile?.improvements ?? []) : [],
+      cityId: isExplored ? knownTile?.cityId : undefined,
+      owner: isExplored ? knownTile?.owner : undefined,
+      claimer: isExplored ? knownTile?.claimer : undefined,
       known: isVisible ? 2 : isExplored ? 1 : 0,
       seen: isVisible ? 1 : 0,
-      player: isExplored ? (serverTile.owner ?? null) : null,
+      player: isExplored ? (knownTile?.owner ?? null) : null,
       worked: null,
       extras: 0, // BitVector for extras
     };
@@ -613,7 +678,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     }
 
     gameInstance.visibilityManager.updatePlayerVisibility(playerId);
-    const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
+    const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
     const allCities = gameInstance.cityManager.getAllCities();
     const debugVisibility = this.isDebugVisibilityEnabled(gameId, playerId);
     const rulesetName = gameInstance.config?.ruleset ?? 'classic';
@@ -624,7 +689,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       : allCities.filter(
           (city: any) =>
             city.playerId === playerId ||
-            exploredTiles.has(`${city.x},${city.y}`) ||
+            visibleTiles.has(`${city.x},${city.y}`) ||
             (smallWonderVisibility === 'Always' &&
               city.buildings.some((buildingId: string) => {
                 try {

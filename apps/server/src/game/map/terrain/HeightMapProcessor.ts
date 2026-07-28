@@ -130,18 +130,11 @@ export class HeightMapProcessor {
     let ele = 0;
     let count = 0;
 
-    // Check 7x7 neighborhood (radius 3) to match freeciv's square_iterate(ptile, 3)
     // @reference freeciv/server/generator/fracture_map.c:274-277
-    for (let dx = -3; dx <= 3; dx++) {
-      for (let dy = -3; dy <= 3; dy++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const index = ny * this.width + nx;
-          ele += heightMap[index];
-          count++;
-        }
-      }
+    for (const position of this.topology.getPositionsWithinRadius(x, y, 3)) {
+      const index = position.y * this.width + position.x;
+      ele += heightMap[index];
+      count++;
     }
 
     return count > 0 ? ele / count : 0;

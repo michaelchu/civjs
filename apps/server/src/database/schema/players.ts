@@ -59,6 +59,7 @@ export const players = pgTable('players', {
   exploredTiles: jsonb('explored_tiles').default([]).notNull(), // array of tile coordinates
   visibleTiles: jsonb('visible_tiles').default([]).notNull(),
   tileLastSeen: jsonb('tile_last_seen').default({}).notNull(),
+  tileMemory: jsonb('tile_memory').default({}).notNull(),
 
   // Timestamps
   joinedAt: timestamp('joined_at').defaultNow().notNull(),

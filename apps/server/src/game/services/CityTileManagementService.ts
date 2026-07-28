@@ -43,8 +43,10 @@ export class CityTileManagementService extends BaseGameService {
    * @reference freeciv-web's city_map_includes_tile() and sq_map_distance()
    */
   private cityMapIncludesTile(tile: { x: number; y: number }, city: CityState): boolean {
-    const dx = tile.x - city.x;
-    const dy = tile.y - city.y;
+    const topology = (this.mapManager as Partial<MapManager>).getTopology?.();
+    const { dx, dy } = topology
+      ? topology.distanceVector(city.x, city.y, tile.x, tile.y)
+      : { dx: tile.x - city.x, dy: tile.y - city.y };
     const distanceSq = dx * dx + dy * dy;
     // Use <= comparison like freeciv-web: sq_map_distance(a,e) > c
     return distanceSq <= this.CITY_MAP_DEFAULT_RADIUS_SQ;
@@ -104,50 +106,54 @@ export class CityTileManagementService extends BaseGameService {
     // Generate all possible tiles within city radius
     // Calculate the linear radius from radius_sq, following freeciv-web's build_city_tile_map
     const linearRadius = Math.floor(Math.sqrt(this.CITY_MAP_DEFAULT_RADIUS_SQ));
-    for (let dx = -linearRadius; dx <= linearRadius; dx++) {
-      for (let dy = -linearRadius; dy <= linearRadius; dy++) {
-        const tileX = city.x + dx;
-        const tileY = city.y + dy;
+    const topology = (this.mapManager as Partial<MapManager>).getTopology?.();
+    const candidates = topology
+      ? topology.getPositionsWithinRadius(city.x, city.y, linearRadius)
+      : Array.from({ length: linearRadius * 2 + 1 }, (_, xIndex) =>
+          Array.from({ length: linearRadius * 2 + 1 }, (_, yIndex) => ({
+            x: city.x + xIndex - linearRadius,
+            y: city.y + yIndex - linearRadius,
+          }))
+        ).flat();
 
-        // Check if tile is within map bounds
-        if (!this.mapManager.isValidPosition(tileX, tileY)) {
-          continue;
-        }
-
-        // Check if tile is within workable radius
-        if (!this.cityMapIncludesTile({ x: tileX, y: tileY }, city)) {
-          continue;
-        }
-
-        const mapTile = this.mapManager.getTile(tileX, tileY);
-        if (!mapTile) {
-          continue;
-        }
-
-        // Create workable tile entry
-        const workableTile: WorkableTile = {
-          x: tileX,
-          y: tileY,
-          isWorked: false,
-          isCenter: tileX === city.x && tileY === city.y,
-          outputs: {
-            food: this.calculateTileFood(mapTile),
-            shields: this.calculateTileShields(mapTile),
-            trade: this.calculateTileTradeFromTerrain(mapTile),
-          },
-          terrain: mapTile.terrain,
-          resource: mapTile.resource,
-          improvements: [], // Could be roads, irrigation, etc.
-        };
-
-        // City center is always worked
-        if (workableTile.isCenter) {
-          workableTile.isWorked = true;
-          workableTile.outputs = this.applyCityCenterMinimums(workableTile.outputs);
-        }
-
-        city.workableTiles.push(workableTile);
+    for (const { x: tileX, y: tileY } of candidates) {
+      if (!this.mapManager.isValidPosition(tileX, tileY)) {
+        continue;
       }
+
+      // Check if tile is within workable radius
+      if (!this.cityMapIncludesTile({ x: tileX, y: tileY }, city)) {
+        continue;
+      }
+
+      const mapTile = this.mapManager.getTile(tileX, tileY);
+      if (!mapTile) {
+        continue;
+      }
+
+      // Create workable tile entry
+      const workableTile: WorkableTile = {
+        x: tileX,
+        y: tileY,
+        isWorked: false,
+        isCenter: tileX === city.x && tileY === city.y,
+        outputs: {
+          food: this.calculateTileFood(mapTile),
+          shields: this.calculateTileShields(mapTile),
+          trade: this.calculateTileTradeFromTerrain(mapTile),
+        },
+        terrain: mapTile.terrain,
+        resource: mapTile.resource,
+        improvements: [], // Could be roads, irrigation, etc.
+      };
+
+      // City center is always worked
+      if (workableTile.isCenter) {
+        workableTile.isWorked = true;
+        workableTile.outputs = this.applyCityCenterMinimums(workableTile.outputs);
+      }
+
+      city.workableTiles.push(workableTile);
     }
 
     // Auto-assign citizens to work the best tiles based on population
