@@ -52,4 +52,48 @@ describe('BorderRenderer player colors', () => {
     expect(strokeColors).toContain('#00aa33');
     expect(strokeColors).not.toContain('#808080');
   });
+
+  it('does not reveal borders on completely unknown tiles', () => {
+    const context = {
+      canvas: { width: 800, height: 600 },
+      save: vi.fn(),
+      restore: vi.fn(),
+      setLineDash: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const renderer = new BorderRenderer(context, {} as never, 96, 48);
+    const state: RenderState = {
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+      map: {
+        width: 1,
+        height: 1,
+        tiles: {
+          '0,0': {
+            x: 0,
+            y: 0,
+            terrain: 'unknown',
+            known: false,
+            visible: false,
+            owner: 'ai-player-uuid',
+          },
+        },
+      },
+      units: {},
+      cities: {},
+      players: {
+        'ai-player-uuid': {
+          name: 'AI Leader',
+          nation: 'greeks',
+          color: '#00aa33',
+        },
+      },
+    };
+
+    renderer.render(state);
+
+    expect(context.stroke).not.toHaveBeenCalled();
+  });
 });

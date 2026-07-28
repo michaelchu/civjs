@@ -428,6 +428,13 @@ export class BorderRenderer extends BaseRenderer {
     for (const tileKey in (map as any).tiles) {
       const tile = (map as any).tiles[tileKey] as Tile;
 
+      // Freeciv's put_one_tile skips every normal map layer for TILE_UNKNOWN.
+      // Do not leak ownership through fog by drawing a border from a tile the
+      // current player has never explored.
+      if (!tile.known) {
+        continue;
+      }
+
       // Skip if not in viewport
       if (!this.isInViewport(tile.x, tile.y, viewport)) {
         continue;
