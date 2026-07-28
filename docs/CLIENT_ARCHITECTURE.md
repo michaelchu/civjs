@@ -77,7 +77,8 @@ snapshot and do not reach back into the Zustand store while drawing.
 
 Tileset sprite tables may still be loaded by the legacy-compatible asset
 loader through browser globals; those tables are presentation assets, not game
-state.
+state. `MapRenderer` receives them through the provider boundary described in
+[`TILESET_ARCHITECTURE.md`](TILESET_ARCHITECTURE.md).
 
 ## Change rules
 

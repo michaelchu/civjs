@@ -1,6 +1,6 @@
 import type { MapViewport, Unit, City, GameState } from '../../../types';
 import type { GotoPath } from '../../../services/PathfindingService';
-import type { TilesetLoader } from '../TilesetLoader';
+import type { TilesetProvider } from '../tilesets/TilesetProvider';
 
 export interface RenderState {
   viewport: MapViewport;
@@ -17,14 +17,14 @@ export interface RenderState {
 
 export abstract class BaseRenderer {
   protected ctx: CanvasRenderingContext2D;
-  protected tilesetLoader: TilesetLoader;
+  protected tilesetLoader: TilesetProvider;
   protected tileWidth: number;
   protected tileHeight: number;
   private terrainGraphics: Record<string, string> = {};
 
   constructor(
     ctx: CanvasRenderingContext2D,
-    tilesetLoader: TilesetLoader,
+    tilesetLoader: TilesetProvider,
     tileWidth: number,
     tileHeight: number
   ) {

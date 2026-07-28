@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TilesetLoader } from '../TilesetLoader';
+import { Amplio2TilesetProvider } from '../tilesets/Amplio2TilesetProvider';
 
-describe('TilesetLoader lifecycle', () => {
+describe('Amplio2TilesetProvider lifecycle', () => {
   it('stops an in-flight tileset load after cleanup', async () => {
     let finishConfig!: () => void;
-    const loader = new TilesetLoader();
+    const loader = new Amplio2TilesetProvider();
     const loadSpec = vi.fn();
 
     Object.assign(loader as unknown as Record<string, unknown>, {
@@ -19,8 +19,8 @@ describe('TilesetLoader lifecycle', () => {
       cacheSprites: vi.fn(),
     });
 
-    const loading = loader.loadTileset();
-    loader.cleanup();
+    const loading = loader.load();
+    loader.dispose();
     finishConfig();
 
     await expect(loading).rejects.toThrow('Tileset load cancelled');

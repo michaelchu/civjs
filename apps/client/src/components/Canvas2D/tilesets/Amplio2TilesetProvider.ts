@@ -1,6 +1,8 @@
-// TilesetLoader - Port of freeciv-web's sprite loading system
+// Amplio2TilesetProvider - Port of freeciv-web's sprite loading system
 // Based on freeciv-web/mapview.js init_sprites() and init_cache_sprites()
 // NOTE: Freeciv constants are now loaded globally in index.html
+
+import type { TilesetMetadata, TilesetProvider } from './TilesetProvider';
 
 interface TilesetConfig {
   tileset_tile_width: number;
@@ -15,7 +17,14 @@ interface TilesetSpec {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export class TilesetLoader {
+export class Amplio2TilesetProvider implements TilesetProvider {
+  readonly metadata: TilesetMetadata = {
+    id: 'amplio2',
+    name: 'Amplio2',
+    format: 'freeciv-web',
+    projection: 'isometric',
+  };
+
   private config: TilesetConfig | null = null;
   private spec: TilesetSpec | null = null;
   private spriteSheets: HTMLImageElement[] = [];
@@ -26,7 +35,7 @@ export class TilesetLoader {
   private baseJsPath = '/js/2dcanvas';
   private baseTilesetPath = '/tilesets';
 
-  async loadTileset(): Promise<void> {
+  async load(): Promise<void> {
     const generation = ++this.loadGeneration;
 
     try {
@@ -180,6 +189,14 @@ export class TilesetLoader {
     return null;
   }
 
+  hasSprite(tag: string): boolean {
+    return this.getSprite(tag) !== null;
+  }
+
+  hasTerrainDefinition(graphic: string): boolean {
+    return Boolean((window as any).ts_tiles?.[graphic]);
+  }
+
   isReady(): boolean {
     return this.isLoaded;
   }
@@ -227,7 +244,7 @@ export class TilesetLoader {
     return { available, missing, globalVarsLoaded };
   }
 
-  cleanup(): void {
+  dispose(): void {
     this.loadGeneration++;
     this.sprites = {};
     this.spriteSheets = [];

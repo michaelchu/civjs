@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { GameState, MapViewport, Tile } from '../../types';
-import { TilesetLoader } from './TilesetLoader';
+import { Amplio2TilesetProvider } from './tilesets/Amplio2TilesetProvider';
+import type { TilesetProvider } from './tilesets/TilesetProvider';
 import { TerrainRenderer } from './renderers/TerrainRenderer';
 import { UnitRenderer } from './renderers/UnitRenderer';
 import { CityRenderer } from './renderers/CityRenderer';
@@ -23,7 +24,7 @@ export class MapRenderer {
   private tileHeight = 48;
 
   // Tileset loader for sprite management
-  private tilesetLoader: TilesetLoader;
+  private tilesetLoader: TilesetProvider;
   private isInitialized = false;
   private isDisposed = false;
 
@@ -51,9 +52,12 @@ export class MapRenderer {
   private fogOfWarEnabled = true;
   private currentMap: GameState['map'] = { width: 0, height: 0, tiles: {} };
 
-  constructor(ctx: CanvasRenderingContext2D) {
+  constructor(
+    ctx: CanvasRenderingContext2D,
+    tilesetProvider: TilesetProvider = new Amplio2TilesetProvider()
+  ) {
     this.ctx = ctx;
-    this.tilesetLoader = new TilesetLoader();
+    this.tilesetLoader = tilesetProvider;
     this.setupCanvas();
 
     // @reference freeciv-web/javascript/2dcanvas/mapview.js:3796
@@ -84,7 +88,7 @@ export class MapRenderer {
 
   async initialize(): Promise<void> {
     try {
-      await this.tilesetLoader.loadTileset();
+      await this.tilesetLoader.load();
       if (this.isDisposed) return;
 
       const [presentation, nationStyles] = await Promise.all([
@@ -108,7 +112,7 @@ export class MapRenderer {
         Object.entries(presentation.terrains)
           .map(([id, definition]) => [
             id,
-            resolveGraphic(definition, graphic => Boolean((window as any).ts_tiles?.[graphic])),
+            resolveGraphic(definition, graphic => this.tilesetLoader.hasTerrainDefinition(graphic)),
           ])
           .filter((entry): entry is [string, string] => Boolean(entry[1]))
       );
@@ -720,7 +724,7 @@ export class MapRenderer {
       this.movementAnimationFrameId = null;
     }
     this.renderState = null;
-    this.tilesetLoader.cleanup();
+    this.tilesetLoader.dispose();
     this.isInitialized = false;
   }
 
