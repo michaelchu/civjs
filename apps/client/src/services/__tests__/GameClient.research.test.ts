@@ -113,6 +113,22 @@ describe('GameClient research packets', () => {
     handlePacket({
       type: PacketType.RESEARCH_LIST_REPLY,
       data: {
+        technologies: [
+          {
+            id: 'alphabet',
+            name: 'Alphabet',
+            cost: 10,
+            requirements: [],
+            flags: [],
+          },
+          {
+            id: 'writing',
+            name: 'Writing',
+            cost: 20,
+            requirements: ['alphabet'],
+            flags: [],
+          },
+        ],
         researchedTechs: ['alphabet'],
         availableTechs: [
           {
@@ -120,8 +136,10 @@ describe('GameClient research packets', () => {
             name: 'Writing',
             cost: 40,
             requirements: ['alphabet'],
+            flags: [],
           },
         ],
+        futureTechs: 0,
       },
     });
     handlePacket({
@@ -140,6 +158,7 @@ describe('GameClient research packets', () => {
     );
     expect(state.research?.researchedTechs).toEqual(new Set(['alphabet']));
     expect(state.research?.availableTechs).toEqual(new Set(['writing']));
+    expect(state.research?.futureTechs).toBe(0);
     expect(state.research).toEqual(
       expect.objectContaining({
         currentTech: 'writing',

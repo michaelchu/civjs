@@ -161,6 +161,19 @@ export function useKeyboardControls() {
               break;
             }
 
+            case ActionType.PATROL: {
+              const unit = primaryUnit || useGameStore.getState().units[unitId];
+              if (unit) {
+                document.dispatchEvent(
+                  new CustomEvent('activate-target-action-mode', {
+                    detail: { unit, action: ActionType.PATROL },
+                  })
+                );
+                return;
+              }
+              break;
+            }
+
             default: {
               // Fall back to generic executeUnitAction for other actions
               await gameClient.executeUnitAction(unitId, action);

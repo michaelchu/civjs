@@ -396,14 +396,24 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     const availableTechs = gameInstance.researchManager.getAvailableTechnologies(playerId);
 
     this.sendPacketToPlayer(gameInstance, playerId, PacketType.RESEARCH_LIST_REPLY, {
+      technologies: gameInstance.researchManager.getTechnologyCatalogue(playerId).map(tech => ({
+        id: tech.id,
+        name: tech.name,
+        cost: tech.cost,
+        requirements: tech.requirements,
+        flags: tech.flags,
+        description: tech.description,
+      })),
       availableTechs: availableTechs.map(tech => ({
         id: tech.id,
         name: tech.name,
         cost: tech.cost,
         requirements: tech.requirements,
+        flags: tech.flags,
         description: tech.description,
       })),
       researchedTechs: research ? Array.from(research.researchedTechs) : [],
+      futureTechs: research?.futureTechs ?? 0,
     });
     this.sendPacketToPlayer(gameInstance, playerId, PacketType.RESEARCH_PROGRESS_REPLY, {
       currentTech: research?.currentTech,
@@ -696,6 +706,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       y: unit.y,
       movesleft: unit.movementLeft,
       maxmoves: unitManager.getUnitMaxMovement(unit.unitTypeId || unit.type) * 3,
+      fuel: unit.fuel ?? 0,
+      maxFuel: unitType?.fuel ?? 0,
       hp: unit.health ?? 100,
       veteran: unit.veteranLevel ?? unit.veteran ?? false,
       homeCity: unit.homeCity || null,

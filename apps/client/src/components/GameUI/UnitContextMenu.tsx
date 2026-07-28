@@ -77,6 +77,12 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
         hotkey: 'G',
       },
       {
+        action: ActionType.PATROL,
+        name: 'Patrol',
+        icon: Route,
+        hotkey: 'P',
+      },
+      {
         action: ActionType.WAIT,
         name: 'Wait',
         icon: Clock,

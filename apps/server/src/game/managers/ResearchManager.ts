@@ -21,6 +21,7 @@ export interface PlayerResearch {
   bulbsAccumulated: number;
   bulbsLastTurn: number;
   researchedTechs: Set<string>;
+  futureTechs: number;
 }
 
 /**
@@ -47,6 +48,7 @@ export function loadRulesetTechnologies(
 }
 
 export const TECHNOLOGIES: Record<string, Technology> = loadRulesetTechnologies();
+export const FUTURE_TECH_ID = 'future_tech';
 
 export class ResearchManager {
   private playerResearch: Map<string, PlayerResearch> = new Map();
@@ -107,18 +109,11 @@ export class ResearchManager {
       playerId,
       bulbsAccumulated: 0,
       bulbsLastTurn: 0,
-      researchedTechs: new Set(['alphabet']), // Start with alphabet
+      researchedTechs: new Set(),
+      futureTechs: 0,
     };
 
     this.playerResearch.set(playerId, research);
-
-    // Save to database
-    await this.databaseProvider.getDatabase().insert(playerTechs).values({
-      gameId: this.gameId,
-      playerId,
-      techId: 'alphabet',
-      researchedTurn: 1,
-    });
 
     await this.ensureCurrentResearch(playerId);
   }
@@ -138,9 +133,7 @@ export class ResearchManager {
     }
     if (playerResearch.currentTech) return playerResearch.currentTech;
 
-    const target = this.getAvailableTechnologies(playerId).sort(
-      (left, right) => left.cost - right.cost || left.id.localeCompare(right.id)
-    )[0];
+    const target = this.selectNextResearchTarget(playerResearch);
     if (!target) return undefined;
 
     await this.setCurrentResearch(playerId, target.id);
@@ -153,7 +146,7 @@ export class ResearchManager {
       throw new Error(`Player ${playerId} research not initialized`);
     }
 
-    const tech = this.technologies[techId];
+    const tech = this.getTechnologyForPlayer(playerResearch, techId);
     if (!tech) {
       throw new Error(`Unknown technology: ${techId}`);
     }
@@ -163,11 +156,15 @@ export class ResearchManager {
       throw new Error(`Technology ${techId} already researched`);
     }
 
-    // Check requirements
-    for (const reqTech of tech.requirements) {
-      if (!playerResearch.researchedTechs.has(reqTech)) {
-        throw new Error(`Missing requirement: ${reqTech} for ${techId}`);
-      }
+    if (!this.canResearch(playerId, techId)) {
+      const missingRequirement = tech.requirements.find(
+        reqTech => !playerResearch.researchedTechs.has(reqTech)
+      );
+      throw new Error(
+        missingRequirement
+          ? `Missing requirement: ${missingRequirement} for ${techId}`
+          : `Technology ${techId} is not currently researchable`
+      );
     }
 
     const switchingTargets =
@@ -213,9 +210,15 @@ export class ResearchManager {
       throw new Error(`Player ${playerId} research not initialized`);
     }
 
-    const tech = this.technologies[techId];
+    const tech = this.getTechnologyForPlayer(playerResearch, techId);
     if (!tech) {
       throw new Error(`Unknown technology: ${techId}`);
+    }
+    if (playerResearch.researchedTechs.has(techId)) {
+      throw new Error(`Technology ${techId} already researched`);
+    }
+    if (techId === FUTURE_TECH_ID && !this.canResearch(playerId, techId)) {
+      throw new Error('Future Tech is only available after completing the classic technology tree');
     }
 
     playerResearch.techGoal = techId;
@@ -248,7 +251,7 @@ export class ResearchManager {
       return null;
     }
 
-    const tech = this.technologies[playerResearch.currentTech];
+    const tech = this.getTechnologyForPlayer(playerResearch, playerResearch.currentTech);
     if (!tech) {
       return null;
     }
@@ -276,13 +279,17 @@ export class ResearchManager {
       return;
     }
 
-    const tech = this.technologies[techId];
+    const tech = this.getTechnologyForPlayer(playerResearch, techId);
     if (!tech) {
       return;
     }
 
-    // Mark technology as researched
-    playerResearch.researchedTechs.add(techId);
+    const isFutureTech = techId === FUTURE_TECH_ID;
+    if (isFutureTech) {
+      playerResearch.futureTechs++;
+    } else {
+      playerResearch.researchedTechs.add(techId);
+    }
 
     // Save excess bulbs
     const excessBulbs = playerResearch.bulbsAccumulated - tech.cost;
@@ -290,42 +297,45 @@ export class ResearchManager {
     playerResearch.currentTech = undefined;
 
     // Save to database
-    await this.databaseProvider.getDatabase().insert(playerTechs).values({
-      gameId: this.gameId,
-      playerId,
-      techId,
-      researchedTurn: this.getCurrentTurn(),
-    });
+    await this.databaseProvider
+      .getDatabase()
+      .insert(playerTechs)
+      .values({
+        gameId: this.gameId,
+        playerId,
+        techId: isFutureTech ? `${FUTURE_TECH_ID}_${playerResearch.futureTechs}` : techId,
+        researchedTurn: this.getCurrentTurn(),
+      });
 
-    // Handle bonus tech flag (Philosophy gives free tech)
-    if (tech.flags.some(flag => flag.toLowerCase().replace(/[^a-z0-9]/g, '') === 'bonustech')) {
-      const availableTechs = this.getAvailableTechnologies(playerId);
-      if (availableTechs.length > 0) {
-        // Give random available tech
-        const randomTech = availableTechs[Math.floor(Math.random() * availableTechs.length)];
-        playerResearch.researchedTechs.add(randomTech.id);
-        await this.databaseProvider.getDatabase().insert(playerTechs).values({
-          gameId: this.gameId,
-          playerId,
-          techId: randomTech.id,
-          researchedTurn: this.getCurrentTurn(),
-        });
+    // Classic awards Philosophy's bonus only to its first discoverer and,
+    // with free_tech_method = Goal, advances the selected goal path.
+    // @reference reference/freeciv/server/techtools.c:359-405, 1388-1425
+    const isFirstDiscovery = [...this.playerResearch.values()].every(
+      other => other.playerId === playerId || !other.researchedTechs.has(techId)
+    );
+    if (
+      !isFutureTech &&
+      isFirstDiscovery &&
+      tech.flags.some(flag => flag.toLowerCase().replace(/[^a-z0-9]/g, '') === 'bonustech')
+    ) {
+      const freeTech = this.selectNextResearchTarget(playerResearch);
+      if (freeTech && freeTech.id !== FUTURE_TECH_ID) {
+        await this.grantTechnology(playerId, freeTech.id);
       }
     }
 
-    // Auto-select next research if goal is set
-    if (playerResearch.techGoal && this.canResearch(playerId, playerResearch.techGoal)) {
-      playerResearch.currentTech = playerResearch.techGoal;
+    if (
+      playerResearch.techGoal &&
+      playerResearch.techGoal !== FUTURE_TECH_ID &&
+      playerResearch.researchedTechs.has(playerResearch.techGoal)
+    ) {
       playerResearch.techGoal = undefined;
+    }
+
+    const nextTech = this.selectNextResearchTarget(playerResearch);
+    if (nextTech) {
+      playerResearch.currentTech = nextTech.id;
       playerResearch.bulbsAccumulated = excessBulbs;
-    } else {
-      // Auto-select a random available tech
-      const availableTechs = this.getAvailableTechnologies(playerId);
-      if (availableTechs.length > 0) {
-        const nextTech = availableTechs[0]; // Pick first available
-        playerResearch.currentTech = nextTech.id;
-        playerResearch.bulbsAccumulated = excessBulbs;
-      }
     }
 
     await this.saveResearchState(playerResearch);
@@ -355,11 +365,15 @@ export class ResearchManager {
       return [];
     }
 
-    return Object.values(this.technologies).filter(
+    const available = Object.values(this.technologies).filter(
       tech =>
         !playerResearch.researchedTechs.has(tech.id) &&
         tech.requirements.every(req => playerResearch.researchedTechs.has(req))
     );
+    if (available.length === 0 && this.hasCompletedTechnologyTree(playerResearch)) {
+      available.push(this.createFutureTechnology(playerResearch));
+    }
+    return available;
   }
 
   public canResearch(playerId: string, techId: string): boolean {
@@ -368,16 +382,18 @@ export class ResearchManager {
       return false;
     }
 
-    const tech = this.technologies[techId];
+    const tech = this.getTechnologyForPlayer(playerResearch, techId);
     if (!tech) {
       return false;
     }
 
-    if (playerResearch.researchedTechs.has(techId)) {
+    if (techId !== FUTURE_TECH_ID && playerResearch.researchedTechs.has(techId)) {
       return false;
     }
 
-    return tech.requirements.every(req => playerResearch.researchedTechs.has(req));
+    return techId === FUTURE_TECH_ID
+      ? this.hasCompletedTechnologyTree(playerResearch)
+      : tech.requirements.every(req => playerResearch.researchedTechs.has(req));
   }
 
   public getPlayerResearch(playerId: string): PlayerResearch | undefined {
@@ -392,7 +408,7 @@ export class ResearchManager {
       return null;
     }
 
-    const tech = this.technologies[playerResearch.currentTech];
+    const tech = this.getTechnologyForPlayer(playerResearch, playerResearch.currentTech);
     if (!tech) {
       return null;
     }
@@ -418,10 +434,22 @@ export class ResearchManager {
     return playerResearch ? Array.from(playerResearch.researchedTechs) : [];
   }
 
+  public getTechnologyCatalogue(playerId: string): Technology[] {
+    const research = this.playerResearch.get(playerId);
+    const technologies = Object.values(this.technologies);
+    return research ? [...technologies, this.createFutureTechnology(research)] : technologies;
+  }
+
   public async grantTechnology(playerId: string, techId: string): Promise<boolean> {
     const playerResearch = this.playerResearch.get(playerId);
     if (!playerResearch) throw new Error(`Player ${playerId} research not initialized`);
-    if (!this.technologies[techId] || playerResearch.researchedTechs.has(techId)) return false;
+    if (
+      techId === FUTURE_TECH_ID ||
+      !this.technologies[techId] ||
+      playerResearch.researchedTechs.has(techId)
+    ) {
+      return false;
+    }
     playerResearch.researchedTechs.add(techId);
     await this.databaseProvider.getDatabase().insert(playerTechs).values({
       gameId: this.gameId,
@@ -489,13 +517,17 @@ export class ResearchManager {
 
     // Restore research state
     for (const researchEntry of researchData) {
+      const persistedTechs = playerTechMap.get(researchEntry.playerId) || [];
       const playerResearch: PlayerResearch = {
         playerId: researchEntry.playerId,
         currentTech: researchEntry.currentTech || undefined,
         techGoal: researchEntry.techGoal || undefined,
         bulbsAccumulated: researchEntry.bulbsAccumulated || 0,
         bulbsLastTurn: researchEntry.bulbsLastTurn || 0,
-        researchedTechs: new Set(playerTechMap.get(researchEntry.playerId) || ['alphabet']),
+        researchedTechs: new Set(
+          persistedTechs.filter(techId => !techId.startsWith(`${FUTURE_TECH_ID}_`))
+        ),
+        futureTechs: this.countPersistedFutureTechs(persistedTechs),
       };
 
       this.playerResearch.set(researchEntry.playerId, playerResearch);
@@ -511,7 +543,10 @@ export class ResearchManager {
         playerId,
         bulbsAccumulated: 0,
         bulbsLastTurn: 0,
-        researchedTechs: new Set(researchedTechs),
+        researchedTechs: new Set(
+          researchedTechs.filter(techId => !techId.startsWith(`${FUTURE_TECH_ID}_`))
+        ),
+        futureTechs: this.countPersistedFutureTechs(researchedTechs),
       });
     }
 
@@ -522,6 +557,76 @@ export class ResearchManager {
 
   private getCurrentTurn(): number {
     return this.currentTurnProvider?.() ?? 1;
+  }
+
+  private selectNextResearchTarget(playerResearch: PlayerResearch): Technology | undefined {
+    if (playerResearch.techGoal) {
+      const goalStep = this.getGoalStep(playerResearch, playerResearch.techGoal);
+      if (goalStep) return goalStep;
+    }
+    return this.getAvailableTechnologies(playerResearch.playerId).sort(
+      (left, right) => left.cost - right.cost || left.id.localeCompare(right.id)
+    )[0];
+  }
+
+  private getGoalStep(playerResearch: PlayerResearch, goalId: string): Technology | undefined {
+    if (goalId === FUTURE_TECH_ID) {
+      return this.hasCompletedTechnologyTree(playerResearch)
+        ? this.createFutureTechnology(playerResearch)
+        : undefined;
+    }
+
+    const goal = this.technologies[goalId];
+    if (!goal || playerResearch.researchedTechs.has(goalId)) return undefined;
+    const onGoalPath = new Set<string>();
+    const visit = (techId: string): void => {
+      if (playerResearch.researchedTechs.has(techId) || onGoalPath.has(techId)) return;
+      const technology = this.technologies[techId];
+      if (!technology) return;
+      onGoalPath.add(techId);
+      technology.requirements.forEach(visit);
+    };
+    visit(goalId);
+
+    return [...onGoalPath]
+      .filter(techId => this.canResearch(playerResearch.playerId, techId))
+      .map(techId => this.technologies[techId])
+      .sort((left, right) => left.cost - right.cost || left.id.localeCompare(right.id))[0];
+  }
+
+  private hasCompletedTechnologyTree(playerResearch: PlayerResearch): boolean {
+    return Object.keys(this.technologies).every(techId =>
+      playerResearch.researchedTechs.has(techId)
+    );
+  }
+
+  private createFutureTechnology(playerResearch: PlayerResearch): Technology {
+    const rules = rulesetLoader.loadGameRulesRuleset().research;
+    const researchedCount = Object.keys(this.technologies).length + playerResearch.futureTechs;
+    const prerequisites = new Set(
+      Object.values(this.technologies).flatMap(technology => technology.requirements)
+    );
+    return {
+      id: FUTURE_TECH_ID,
+      name: `Future Tech. ${playerResearch.futureTechs + 1}`,
+      cost: Math.max(rules.min_tech_cost, rules.base_tech_cost * researchedCount),
+      requirements: Object.keys(this.technologies).filter(techId => !prerequisites.has(techId)),
+      flags: [],
+      description: 'Continued scientific progress beyond the classic technology tree.',
+    };
+  }
+
+  private getTechnologyForPlayer(
+    playerResearch: PlayerResearch,
+    techId: string
+  ): Technology | undefined {
+    return techId === FUTURE_TECH_ID
+      ? this.createFutureTechnology(playerResearch)
+      : this.technologies[techId];
+  }
+
+  private countPersistedFutureTechs(techIds: string[]): number {
+    return techIds.filter(techId => techId.startsWith(`${FUTURE_TECH_ID}_`)).length;
   }
 
   public cleanup(): void {
@@ -542,6 +647,7 @@ export class ResearchManager {
             bulbsLastTurn: research.bulbsLastTurn,
             researchedTechCount: research.researchedTechs.size,
             researchedTechs: Array.from(research.researchedTechs),
+            futureTechs: research.futureTechs,
           },
         ])
       ),

@@ -1,6 +1,5 @@
 import React from 'react';
 import { X, ExternalLink, Zap, Clock, Target } from 'lucide-react';
-import { TECHNOLOGIES } from './utils/technologyData';
 import { useGameStore } from '../../store/gameStore';
 import { cn } from '../../lib/utils';
 import { gameClient } from '../../services/GameClient';
@@ -12,11 +11,12 @@ interface TechnologyDetailsProps {
 
 export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, onClose }) => {
   const researchState = useGameStore(state => state.research);
+  const technologies = useGameStore(state => state.technologies);
   const [requestState, setRequestState] = React.useState<{
     pending: boolean;
     error?: string;
   }>({ pending: false });
-  const tech = TECHNOLOGIES[techId];
+  const tech = technologies[techId];
 
   if (!tech) {
     return null;
@@ -67,7 +67,7 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
   };
 
   const getRequirementText = (reqId: string): string => {
-    const reqTech = TECHNOLOGIES[reqId];
+    const reqTech = technologies[reqId];
     return reqTech ? reqTech.name : reqId;
   };
 
@@ -164,7 +164,9 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
         {/* Description */}
         <div>
           <h4 className="text-sm font-semibold text-gray-300 mb-2">Description</h4>
-          <p className="text-sm text-gray-400 leading-relaxed">{tech.description}</p>
+          <p className="text-sm text-gray-400 leading-relaxed">
+            {tech.description || 'No ruleset description is available.'}
+          </p>
         </div>
 
         {/* Cost */}
@@ -197,17 +199,17 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
         )}
 
         {/* Special flags */}
-        {tech.flags.length > 0 && (
+        {(tech.flags?.length ?? 0) > 0 && (
           <div>
             <h4 className="text-sm font-semibold text-gray-300 mb-2">Special Properties</h4>
             <div className="space-y-1">
-              {tech.flags.map(flag => (
+              {tech.flags?.map(flag => (
                 <span
                   key={flag}
                   className="inline-block text-xs px-2 py-1 bg-yellow-900 text-yellow-200 rounded mr-2"
                 >
-                  {flag === 'bonus_tech' && 'Grants free technology'}
-                  {flag === 'bridge' && 'Enables bridge building'}
+                  {flag.toLowerCase() === 'bonus_tech' && 'Grants free technology: '}
+                  {flag.toLowerCase() === 'bridge' && 'Enables bridge building: '}
                   {flag}
                 </span>
               ))}

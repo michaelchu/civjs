@@ -66,6 +66,18 @@ const ACTION_DEFINITIONS: Partial<Record<ActionType, ActionDefinition>> = {
     moves_actor: ActionMovesActor.MOVES_TO_TARGET,
   },
 
+  [ActionType.PATROL]: {
+    id: ActionType.PATROL,
+    name: 'Patrol',
+    description: 'Patrol repeatedly between the current tile and a target tile',
+    hotkey: 'P',
+    category: ActionCategory.MOVEMENT,
+    requirements: [],
+    targetType: ActionTargetType.TILE,
+    consumes_actor: false,
+    moves_actor: ActionMovesActor.MOVES_TO_TARGET,
+  },
+
   [ActionType.FOUND_CITY]: {
     id: ActionType.FOUND_CITY,
     name: 'Found City',
@@ -806,10 +818,11 @@ export class ActionSystem {
   }
 
   private canCleanPollution(unit: Unit): boolean {
+    const improvements = this.mapManager?.getTile(unit.x, unit.y)?.improvements ?? [];
     return (
       this.canBuildImprovement(unit) &&
       unit.movementLeft > 0 &&
-      Boolean(this.mapManager?.getTile(unit.x, unit.y)?.improvements.includes('pollution'))
+      improvements.some(extra => ['pollution', 'fallout'].includes(extra.toLowerCase()))
     );
   }
 

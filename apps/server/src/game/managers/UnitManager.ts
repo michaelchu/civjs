@@ -31,6 +31,7 @@ export interface Unit {
   x: number;
   y: number;
   movementLeft: number;
+  fuel?: number;
   health: number;
   veteranLevel: number;
   experience: number;
@@ -121,6 +122,13 @@ export interface CombatResult {
     attacker: number;
     defender: number;
   };
+}
+
+export interface DiplomatActionResolution {
+  success: boolean;
+  actorSurvives: boolean;
+  successChance: number;
+  escapeChance: number;
 }
 
 export class UnitManager {
@@ -355,6 +363,7 @@ export class UnitManager {
         rangedStrength: unitType.range > 1 ? unitType.combat : 0,
         movementPoints: (unitType.movement * 3).toString(),
         maxMovementPoints: (unitType.movement * 3).toString(),
+        fuel: unitType.fuel ?? 0,
         veteranLevel,
         homeCityId,
         isAutomated: false,
@@ -371,6 +380,7 @@ export class UnitManager {
       x,
       y,
       movementLeft: unitType.movement * 3, // Convert movement points to fragments
+      fuel: unitType.fuel ?? 0,
       health: 100,
       veteranLevel,
       experience: 0,
@@ -689,14 +699,19 @@ export class UnitManager {
    */
   async attackUnit(attackerId: string, defenderId: string): Promise<CombatResult> {
     const attacker = this.units.get(attackerId);
-    const defender = this.units.get(defenderId);
+    const requestedDefender = this.units.get(defenderId);
 
-    if (!attacker || !defender) {
+    if (!attacker || !requestedDefender) {
       throw new Error('Unit not found');
     }
-    if (attacker.playerId === defender.playerId) {
+    if (attacker.playerId === requestedDefender.playerId) {
       throw new Error('Cannot attack a friendly unit');
     }
+    const defender = this.selectBestDefender(attacker, requestedDefender.x, requestedDefender.y);
+    if (!defender) {
+      throw new Error('No eligible defender on target tile');
+    }
+    defenderId = defender.id;
     if (attacker.transportedBy || defender.transportedBy) {
       throw new Error('Transported units cannot directly participate in combat');
     }
@@ -844,6 +859,29 @@ export class UnitManager {
   }
 
   /**
+   * Freeciv attacks a tile and lets the server choose the best eligible
+   * defender. Do not allow a client-supplied unit id to bypass a stronger
+   * member of the stack.
+   */
+  private selectBestDefender(attacker: Unit, x: number, y: number): Unit | undefined {
+    return this.getUnitsAt(x, y)
+      .filter(candidate => candidate.playerId !== attacker.playerId && !candidate.transportedBy)
+      .sort((left, right) => {
+        const leftType = UNIT_TYPES[left.unitTypeId];
+        const rightType = UNIT_TYPES[right.unitTypeId];
+        const leftScore =
+          this.calculateCombatStrength(left, leftType) *
+          Math.max(1, left.health) *
+          Math.max(1, leftType.firepower ?? 1);
+        const rightScore =
+          this.calculateCombatStrength(right, rightType) *
+          Math.max(1, right.health) *
+          Math.max(1, rightType.firepower ?? 1);
+        return rightScore - leftScore || left.id.localeCompare(right.id);
+      })[0];
+  }
+
+  /**
    * Apply classic's situational firepower overrides before combat rounds.
    * @reference reference/freeciv/common/combat.c:411-470 get_modified_firepower()
    */
@@ -987,9 +1025,12 @@ export class UnitManager {
    */
   async resetMovement(playerId: string): Promise<void> {
     await this.retireEligibleUnits(playerId);
-    for (const unit of this.units.values()) {
+    for (const unit of [...this.units.values()]) {
       if (unit.playerId === playerId) {
         const unitType = UNIT_TYPES[unit.unitTypeId];
+        if (!(await this.restoreUnitFuel(unit, unitType))) {
+          continue;
+        }
         // Restore full movement points in fragments
         unit.movementLeft = unitType.movement * 3;
 
@@ -1032,10 +1073,50 @@ export class UnitManager {
           .set({
             movementPoints: unit.movementLeft.toString(),
             health: unit.health,
+            fuel: unit.fuel,
           })
           .where(eq(units.id, unit.id));
       }
     }
+  }
+
+  /**
+   * Consume one turn of fuel and refuel in a friendly city, on a native
+   * Refuel extra, or while loaded on a carrier. Fueled units that reach zero
+   * away from a refuel point are destroyed.
+   * @reference reference/freeciv/server/unittools.c:516-617
+   */
+  private async restoreUnitFuel(unit: Unit, unitType: UnitType): Promise<boolean> {
+    const maximum = unitType.fuel ?? 0;
+    if (maximum <= 0) {
+      unit.fuel = 0;
+      return true;
+    }
+
+    unit.fuel = Math.max(0, (unit.fuel ?? maximum) - 1);
+    if (this.isUnitBeingRefueled(unit)) {
+      unit.fuel = maximum;
+      return true;
+    }
+    if (unit.fuel > 0) return true;
+
+    const lostUnit = { ...unit };
+    await this.destroyUnit(unit.id);
+    this.gameManagerCallback?.broadcastUnitDestroyed?.(this.gameId, lostUnit);
+    logger.info(`Unit ${unit.id} destroyed after running out of fuel`);
+    return false;
+  }
+
+  private isUnitBeingRefueled(unit: Unit): boolean {
+    if (unit.transportedBy) return true;
+    const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
+    if (city?.playerId === unit.playerId) return true;
+
+    const tile = this.mapManager?.getTile?.(unit.x, unit.y);
+    const extras = new Set<string>(
+      ((tile?.improvements ?? []) as string[]).map(extra => extra.toLowerCase())
+    );
+    return extras.has('airbase');
   }
 
   /**
@@ -1155,6 +1236,7 @@ export class UnitManager {
         x: dbUnit.x,
         y: dbUnit.y,
         movementLeft: Math.min(parseFloat(dbUnit.movementPoints) || 0, unitType.movement * 3),
+        fuel: Math.min(dbUnit.fuel ?? unitType.fuel ?? 0, unitType.fuel ?? 0),
         health: dbUnit.health,
         veteranLevel: dbUnit.veteranLevel,
         experience: dbUnit.experience || 0,
@@ -1204,6 +1286,16 @@ export class UnitManager {
     if (unitType.rulesetUnitClassFlags.includes('TerrainDefense')) {
       const terrainDefense = rulesetLoader.getTerrain(this.getTerrainAt(unit.x, unit.y)).defense;
       strength = Math.floor((strength * (100 + terrainDefense)) / 100);
+    }
+
+    const tileExtras = new Set(
+      ((this.mapManager?.getTile?.(unit.x, unit.y)?.improvements ?? []) as string[]).map(extra =>
+        extra.toLowerCase()
+      )
+    );
+    if (unitType.rulesetUnitClass === 'Land' && tileExtras.has('fortress')) {
+      const fortressDefense = Number(rulesetLoader.getExtra('Fortress').defense_bonus ?? 0);
+      strength = Math.floor((strength * (100 + fortressDefense)) / 100);
     }
 
     // @reference reference/freeciv/common/combat.c:697-708
@@ -1646,6 +1738,58 @@ export class UnitManager {
   }
 
   /**
+   * Resolve the action-specific diplomatic contest and, for spies, the
+   * separate escape check. Validation and the action's state mutation remain
+   * with GameManager.
+   * @reference reference/freeciv/server/diplomats.c
+   */
+  resolveDiplomatAction(
+    actorId: string,
+    actionType: ActionType,
+    defenderId?: string
+  ): DiplomatActionResolution {
+    const actor = this.units.get(actorId);
+    if (!actor) {
+      return { success: false, actorSurvives: false, successChance: 0, escapeChance: 0 };
+    }
+
+    const actorType = UNIT_TYPES[actor.unitTypeId];
+    const isSpy = actorType.flags?.includes('Spy') ?? false;
+    const guaranteedActions = new Set([
+      ActionType.ESTABLISH_EMBASSY,
+      ActionType.INVESTIGATE_CITY,
+      ActionType.BRIBE_UNIT,
+      ActionType.INCITE_CITY,
+    ]);
+    let successChance = guaranteedActions.has(actionType) ? 100 : isSpy ? 75 : 50;
+    successChance += actor.veteranLevel * 5;
+
+    const defender = defenderId ? this.units.get(defenderId) : undefined;
+    if (defender) {
+      const defenderType = UNIT_TYPES[defender.unitTypeId];
+      if (defenderType.flags?.includes('Diplomat')) {
+        successChance -= 20 + defender.veteranLevel * 5;
+      }
+    }
+    successChance = Math.max(5, Math.min(100, successChance));
+    const success = this.random() * 100 < successChance;
+
+    const escapeActions = new Set([
+      ActionType.STEAL_TECH,
+      ActionType.SABOTAGE_CITY,
+      ActionType.SABOTAGE_UNIT,
+      ActionType.POISON_WATER,
+    ]);
+    const escapeChance = isSpy
+      ? escapeActions.has(actionType)
+        ? Math.min(95, 75 + actor.veteranLevel * 5)
+        : 100
+      : 0;
+    const actorSurvives = success && isSpy && this.random() * 100 < escapeChance;
+    return { success, actorSurvives, successChance, escapeChance };
+  }
+
+  /**
    * Execute action for unit using ActionSystem
    */
   async executeUnitAction(
@@ -1711,6 +1855,9 @@ export class UnitManager {
     }
     if (actionType === ActionType.GOTO) {
       return this.executeAuthoritativeGoto(unit, targetX, targetY);
+    }
+    if (actionType === ActionType.PATROL) {
+      return this.executePatrol(unit, targetX, targetY);
     }
     if (
       [
@@ -2453,6 +2600,15 @@ export class UnitManager {
     if (actionType === ActionType.AUTO_SETTLER) {
       return UNIT_TYPES[unit.unitTypeId].canBuildImprovements;
     }
+    if (actionType === ActionType.PATROL) {
+      return Boolean(
+        targetX !== undefined &&
+          targetY !== undefined &&
+          unit.movementLeft > 0 &&
+          (unit.x !== targetX || unit.y !== targetY) &&
+          this.isValidPosition(targetX, targetY)
+      );
+    }
     if (
       [
         ActionType.MARKETPLACE,
@@ -2860,11 +3016,47 @@ export class UnitManager {
     const result = await this.executeAuthoritativeGoto(unit, targetX, targetY);
 
     if (result.success) {
+      unit.orders = [order];
+      await this.persistUnitOrders(unit);
       logger.info(`Unit ${unit.id} patrolling toward (${targetX}, ${targetY})`);
     } else {
       logger.warn(`Patrol failed for unit ${unit.id}: ${result.message}`);
       this.removeCurrentOrder(unit);
     }
+  }
+
+  private async executePatrol(
+    unit: Unit,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    if (!this.canUnitPerformAction(unit.id, ActionType.PATROL, targetX, targetY)) {
+      return { success: false, message: 'Unit cannot patrol to the target tile' };
+    }
+
+    const order: UnitOrder = {
+      type: 'patrol',
+      patrolStart: { x: unit.x, y: unit.y },
+      patrolEnd: { x: targetX!, y: targetY! },
+    };
+    const result = await this.executeAuthoritativeGoto(unit, targetX, targetY);
+    if (!result.success || !this.units.has(unit.id)) return result;
+
+    unit.orders = [order];
+    await this.persistUnitOrders(unit);
+    return {
+      ...result,
+      message: `Unit is patrolling between (${order.patrolStart!.x}, ${order.patrolStart!.y}) and (${targetX}, ${targetY})`,
+      newOrders: unit.orders,
+    };
+  }
+
+  private async persistUnitOrders(unit: Unit): Promise<void> {
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ orders: unit.orders ?? [], currentOrder: unit.orders?.[0]?.type ?? null })
+      .where(eq(units.id, unit.id));
   }
 
   /**
@@ -3117,8 +3309,11 @@ export class UnitManager {
       transform: terrain?.transformTime ?? 0,
       pillage: 1,
       cleanPollution:
-        rulesetLoader.getTerrainExtraRemovalTime(tile?.terrain ?? '', 'Pollution') ??
-        rulesetLoader.getExtra('Pollution').removal_time ??
+        rulesetLoader.getTerrainExtraRemovalTime(
+          tile?.terrain ?? '',
+          this.getCleanupExtraName(tile)
+        ) ??
+        rulesetLoader.getExtra(this.getCleanupExtraName(tile)).removal_time ??
         0,
     };
 
@@ -3204,7 +3399,8 @@ export class UnitManager {
         break;
       }
       case 'cleanPollution':
-        extras.delete('pollution');
+        if (extras.has('pollution')) extras.delete('pollution');
+        else extras.delete('fallout');
         break;
     }
     this.mapManager.updateTileProperty(unit.x, unit.y, 'improvements', [...extras]);
@@ -3507,5 +3703,13 @@ export class UnitManager {
         .where(eq(units.id, transport.id)),
     ]);
     return true;
+  }
+
+  private getCleanupExtraName(
+    tile: { improvements?: string[] } | undefined
+  ): 'Pollution' | 'Fallout' {
+    return tile?.improvements?.some(extra => extra.toLowerCase() === 'pollution')
+      ? 'Pollution'
+      : 'Fallout';
   }
 }

@@ -136,6 +136,16 @@ describe('UnitManager', () => {
       expect(worker.orders).toEqual([]);
     });
 
+    it('treats fallout as a cleanable extra and removes it on completion', async () => {
+      tile.improvements = ['fallout'];
+      const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(unitManager.canUnitPerformAction(worker.id, ActionType.CLEAN_POLLUTION)).toBe(true);
+      await (unitManager as any).completeActivity(worker, { type: 'cleanPollution' });
+
+      expect(tile.improvements).not.toContain('fallout');
+    });
+
     it('rejects acting on another player unit', async () => {
       const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
 
@@ -711,10 +721,31 @@ describe('UnitManager', () => {
 
       const result = await deterministicManager.attackUnit(attacker.id, defender.id);
 
-      expect(result.collateralDestroyedIds).toEqual([stackedDefender.id]);
+      expect(result.defenderId).toBe(stackedDefender.id);
+      expect(result.collateralDestroyedIds).toEqual([defender.id]);
       expect(deterministicManager.getUnit(defender.id)).toBeUndefined();
       expect(deterministicManager.getUnit(stackedDefender.id)).toBeUndefined();
       expect(deterministicManager.getUnit(attacker.id)).toMatchObject({ x: 11, y: 10 });
+    });
+
+    it('selects the strongest eligible defender instead of trusting the requested unit id', async () => {
+      const deterministicManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        undefined,
+        () => 0
+      );
+      const attacker = await deterministicManager.createUnit('player-123', 'warriors', 10, 10);
+      const weak = await deterministicManager.createUnit('player-456', 'warriors', 11, 10);
+      const strong = await deterministicManager.createUnit('player-456', 'musketeers', 11, 10);
+
+      const result = await deterministicManager.attackUnit(attacker.id, weak.id);
+
+      expect(result.defenderId).toBe(strong.id);
     });
 
     it('applies the classic terrain defense bonus only to TerrainDefense classes', async () => {
@@ -737,6 +768,19 @@ describe('UnitManager', () => {
 
       // Phalanx defense 2 receives the classic hills +100% defense bonus.
       expect(strength).toBe(4);
+    });
+
+    it('applies the ruleset Fortress defense bonus to land defenders', async () => {
+      const tile = { terrain: 'grassland', improvements: [] as string[] };
+      const fortressMap = { getTile: jest.fn(() => tile) };
+      const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, fortressMap);
+      const defender = await manager.createUnit('player-456', 'phalanx', 11, 10);
+      const unfortified = (manager as any).calculateCombatStrength(defender, UNIT_TYPES.phalanx);
+      tile.improvements = ['fortress'];
+
+      const inFortress = (manager as any).calculateCombatStrength(defender, UNIT_TYPES.phalanx);
+
+      expect(inFortress).toBe(unfortified * 2);
     });
 
     it('applies the classic City Walls defense bonus to a land defender in the city', async () => {
@@ -957,9 +1001,57 @@ describe('UnitManager', () => {
 
       expect(retiringManager.getUnit(barbarian.id)).toBeUndefined();
     });
+
+    it('consumes aircraft fuel and destroys an aircraft that cannot refuel', async () => {
+      const fighter = await unitManager.createUnit('player-123', 'fighter', 10, 10);
+      expect(fighter.fuel).toBe(1);
+
+      await unitManager.resetMovement('player-123');
+
+      expect(unitManager.getUnit(fighter.id)).toBeUndefined();
+    });
+
+    it('refuels fueled aircraft in a friendly city and on an airbase', async () => {
+      const tile = { terrain: 'grassland', improvements: ['airbase'] };
+      const mapManager = { getTile: jest.fn(() => tile) };
+      const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, mapManager, {
+        foundCity: jest.fn(),
+        requestPath: jest.fn(),
+        broadcastUnitMoved: jest.fn(),
+        getCityAt: jest.fn(() => null),
+      });
+      const bomber = await manager.createUnit('player-123', 'bomber', 10, 10);
+      bomber.fuel = 1;
+
+      await manager.resetMovement('player-123');
+
+      expect(manager.getUnit(bomber.id)?.fuel).toBe(UNIT_TYPES.bomber.fuel);
+    });
   });
 
   describe('classic espionage mutations', () => {
+    it('resolves covert success and spy escape as separate probability checks', async () => {
+      const random = jest.fn().mockReturnValueOnce(0.5).mockReturnValueOnce(0.99);
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        undefined,
+        random
+      );
+      const spy = await manager.createUnit('player-123', 'spy', 10, 10);
+
+      expect(manager.resolveDiplomatAction(spy.id, ActionType.SABOTAGE_CITY)).toMatchObject({
+        success: true,
+        actorSurvives: false,
+        successChance: 75,
+        escapeChance: 75,
+      });
+    });
+
     it('persists bribed ownership and clears the unit orders and movement', async () => {
       const unit = await unitManager.createUnit('player-456', 'warriors', 10, 10);
       unit.orders = [{ type: 'move', targetX: 11, targetY: 10 }];
@@ -1127,6 +1219,41 @@ describe('UnitManager', () => {
         automation: 'explore',
         orders: [{ type: 'autoExplore' }],
       });
+    });
+
+    it('creates and preserves a targeted patrol route', async () => {
+      const requestPath = jest.fn(
+        async (_playerId: string, _unitId: string, targetX: number, targetY: number) => ({
+          success: true,
+          path: {
+            tiles: [
+              { x: targetX === 10 ? 11 : 10, y: 10 },
+              { x: targetX, y: targetY },
+            ],
+          },
+        })
+      );
+      const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, specialMap, {
+        foundCity: jest.fn(),
+        requestPath,
+        broadcastUnitMoved: jest.fn(),
+      });
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      await expect(
+        manager.executeUnitAction(warrior.id, ActionType.PATROL, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true });
+      expect(warrior.orders).toEqual([
+        {
+          type: 'patrol',
+          patrolStart: { x: 10, y: 10 },
+          patrolEnd: { x: 11, y: 10 },
+        },
+      ]);
+
+      await manager.resetMovement('player-123');
+      await manager.processUnitOrders('player-123');
+      expect(warrior.orders?.[0]).toMatchObject({ type: 'patrol' });
     });
 
     it('keeps auto-settler queued behind the selected worker activity', async () => {

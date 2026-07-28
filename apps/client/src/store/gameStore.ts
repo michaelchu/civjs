@@ -125,8 +125,9 @@ export const useGameStore = create<GameStore>()(
     research: {
       bulbsAccumulated: 0,
       bulbsLastTurn: 0,
-      researchedTechs: new Set(['alphabet']), // Start with alphabet
+      researchedTechs: new Set(),
       availableTechs: new Set(),
+      futureTechs: 0,
     },
     governments: {},
     endGameReport: undefined,

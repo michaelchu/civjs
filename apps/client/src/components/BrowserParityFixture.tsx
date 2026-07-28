@@ -140,6 +140,7 @@ const seedFixture = (): void => {
       bulbsLastTurn: 4,
       researchedTechs: new Set(['alphabet']),
       availableTechs: new Set(['writing']),
+      futureTechs: 0,
     },
     technologies: {
       alphabet: {

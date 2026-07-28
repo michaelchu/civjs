@@ -143,6 +143,21 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       });
     };
 
+    const handleActivateTargetAction = (event: CustomEvent) => {
+      const { unit, action } = event.detail;
+      if (!unit || !action) return;
+      setSelectedUnit(unit);
+      selectUnit(unit.id);
+      setTargetActionMode({ unit, action });
+      setActionFeedback({
+        success: true,
+        message:
+          action === ActionType.PATROL
+            ? 'Select the other endpoint of this patrol route'
+            : 'Select a target tile',
+      });
+    };
+
     const handleShowCityNameDialog = (event: CustomEvent) => {
       const { unit } = event.detail;
       console.log('City name dialog requested for unit:', unit.id);
@@ -153,11 +168,19 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     };
 
     document.addEventListener('activate-goto-mode', handleActivateGoto as EventListener);
+    document.addEventListener(
+      'activate-target-action-mode',
+      handleActivateTargetAction as EventListener
+    );
     document.addEventListener('show-action-dialog', handleShowActionDialog as EventListener);
     document.addEventListener('show-city-name-dialog', handleShowCityNameDialog as EventListener);
 
     return () => {
       document.removeEventListener('activate-goto-mode', handleActivateGoto as EventListener);
+      document.removeEventListener(
+        'activate-target-action-mode',
+        handleActivateTargetAction as EventListener
+      );
       document.removeEventListener('show-action-dialog', handleShowActionDialog as EventListener);
       document.removeEventListener(
         'show-city-name-dialog',
@@ -1212,6 +1235,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           ActionType.JOIN_CITY,
           ActionType.CHANGE_HOME_CITY,
           ActionType.DISBAND_UNIT_RECOVER,
+          ActionType.PATROL,
         ].includes(action)
       ) {
         setTargetActionMode({ unit: selectedUnit, action });
@@ -1220,31 +1244,33 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
           message:
             action === ActionType.TRADE_ROUTE
               ? 'Select the destination city for this trade route'
-              : action === ActionType.MARKETPLACE
-                ? 'Select the city where these goods will be sold'
-                : action === ActionType.HELP_WONDER
-                  ? 'Select a friendly city building a Great Wonder'
-                  : [
-                        ActionType.JOIN_CITY,
-                        ActionType.CHANGE_HOME_CITY,
-                        ActionType.DISBAND_UNIT_RECOVER,
-                      ].includes(action)
-                    ? 'Select the friendly city under this unit'
-                    : action === ActionType.AIRLIFT
-                      ? 'Select a friendly city with an unused airport'
-                      : action === ActionType.PARADROP
-                        ? 'Select a paradrop destination'
-                        : action === ActionType.BOMBARD
-                          ? 'Select a tile containing enemy units'
-                          : action === ActionType.NUCLEAR_EXPLOSION
-                            ? 'Select the nuclear blast center'
-                            : [ActionType.COLLECT_RANSOM, ActionType.SUICIDE_ATTACK].includes(
-                                  action
-                                )
-                              ? 'Select an adjacent enemy unit'
-                              : [ActionType.BRIBE_UNIT, ActionType.SABOTAGE_UNIT].includes(action)
-                                ? 'Select an adjacent foreign unit'
-                                : 'Select an adjacent foreign city',
+              : action === ActionType.PATROL
+                ? 'Select the other endpoint of this patrol route'
+                : action === ActionType.MARKETPLACE
+                  ? 'Select the city where these goods will be sold'
+                  : action === ActionType.HELP_WONDER
+                    ? 'Select a friendly city building a Great Wonder'
+                    : [
+                          ActionType.JOIN_CITY,
+                          ActionType.CHANGE_HOME_CITY,
+                          ActionType.DISBAND_UNIT_RECOVER,
+                        ].includes(action)
+                      ? 'Select the friendly city under this unit'
+                      : action === ActionType.AIRLIFT
+                        ? 'Select a friendly city with an unused airport'
+                        : action === ActionType.PARADROP
+                          ? 'Select a paradrop destination'
+                          : action === ActionType.BOMBARD
+                            ? 'Select a tile containing enemy units'
+                            : action === ActionType.NUCLEAR_EXPLOSION
+                              ? 'Select the nuclear blast center'
+                              : [ActionType.COLLECT_RANSOM, ActionType.SUICIDE_ATTACK].includes(
+                                    action
+                                  )
+                                ? 'Select an adjacent enemy unit'
+                                : [ActionType.BRIBE_UNIT, ActionType.SABOTAGE_UNIT].includes(action)
+                                  ? 'Select an adjacent foreign unit'
+                                  : 'Select an adjacent foreign city',
         });
         return;
       }

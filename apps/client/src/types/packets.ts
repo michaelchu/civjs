@@ -81,6 +81,7 @@ export interface ResearchSetReplyPacket {
       name: string;
       cost: number;
       requirements: string[];
+      flags: string[];
       description?: string;
     }>;
   };

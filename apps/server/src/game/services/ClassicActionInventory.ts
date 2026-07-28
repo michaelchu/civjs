@@ -29,10 +29,10 @@ const engineResolved = (family: string, rationale: string): ClassicActionCoverag
  */
 export const CLASSIC_ACTION_COVERAGE: Readonly<Record<string, ClassicActionCoverage>> = {
   'Sabotage City': implemented('espionage', 'Authoritative city sabotage'),
-  'Sabotage City Escape': implemented('espionage', 'Spy escape variant converges on sabotage'),
+  'Sabotage City Escape': implemented('espionage', 'Sabotage with separate spy escape resolution'),
   'Targeted Sabotage City Escape': implemented(
     'espionage',
-    'Targeted variant converges on sabotage'
+    'Targeted sabotage with separate spy escape resolution'
   ),
   'Sabotage City Production Escape': implemented(
     'espionage',
@@ -43,14 +43,17 @@ export const CLASSIC_ACTION_COVERAGE: Readonly<Record<string, ClassicActionCover
   'Establish Embassy': implemented('espionage', 'Embassy command consumes diplomats'),
   'Investigate City Spend Unit': implemented('espionage', 'Investigation diplomat variant'),
   'Investigate City': implemented('espionage', 'Investigation spy variant'),
-  'Poison City Escape': implemented('espionage', 'Authoritative poison-city command'),
+  'Poison City Escape': implemented('espionage', 'Poisoning with separate spy escape resolution'),
   'Steal Tech': implemented('espionage', 'Authoritative technology theft'),
-  'Steal Tech Escape Expected': implemented('espionage', 'Spy theft variant'),
-  'Targeted Steal Tech Escape Expected': implemented('espionage', 'Targeted theft variant'),
+  'Steal Tech Escape Expected': implemented('espionage', 'Spy theft and escape resolution'),
+  'Targeted Steal Tech Escape Expected': implemented(
+    'espionage',
+    'Targeted spy theft and escape resolution'
+  ),
   'Incite City': implemented('espionage', 'Authoritative incite-city command'),
-  'Incite City Escape': implemented('espionage', 'Spy incite variant'),
+  'Incite City Escape': implemented('espionage', 'Spy incitement survival resolution'),
   'Bribe Unit': implemented('espionage', 'Authoritative unit bribery'),
-  'Sabotage Unit Escape': implemented('espionage', 'Authoritative unit sabotage'),
+  'Sabotage Unit Escape': implemented('espionage', 'Unit sabotage and spy escape resolution'),
   'Establish Trade Route': implemented('trade', 'Authoritative trade-route command'),
   'Enter Marketplace': implemented('caravan-alternatives', 'Authoritative one-time trade revenue'),
   'Help Wonder': implemented('caravan-alternatives', 'Authoritative Great Wonder contribution'),

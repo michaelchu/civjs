@@ -100,6 +100,32 @@ describe('GameManager classic espionage actions', () => {
     expect(game.unitManager.finishDiplomatMission).toHaveBeenCalledWith('actor');
   });
 
+  it('applies interception before a covert city mutation', async () => {
+    const city = {
+      id: 'city-1',
+      name: 'Target',
+      playerId: targetPlayerId,
+      x: 5,
+      y: 5,
+      size: 2,
+      buildings: [],
+    };
+    const { game } = installGame('spy');
+    game.cityManager.getCityAt.mockReturnValue(city);
+    game.unitManager.resolveDiplomatAction = jest.fn().mockReturnValue({
+      success: false,
+      actorSurvives: false,
+      successChance: 75,
+      escapeChance: 75,
+    });
+
+    await expect(
+      manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.POISON_WATER, 5, 5)
+    ).resolves.toMatchObject({ success: false, unitDestroyed: true });
+    expect(game.cityManager.poisonCity).not.toHaveBeenCalled();
+    expect(game.unitManager.removeUnit).toHaveBeenCalledWith('actor');
+  });
+
   it('bribes a lone eligible unit and charges the calculated cost', async () => {
     const target = {
       id: 'target',

@@ -375,6 +375,8 @@ export class GameClient {
               hp: unitData.hp,
               movesLeft: unitData.movesleft, // Server sends 'movesleft' not 'movesLeft'
               maxMoves: unitData.maxmoves,
+              fuel: unitData.fuel,
+              maxFuel: unitData.maxFuel,
               veteranLevel: unitData.veteran, // Server sends 'veteran' not 'veteranLevel'
               fortified: unitData.fortified,
               activity: unitData.activity,
@@ -450,6 +452,7 @@ export class GameClient {
             name: string;
             cost: number;
             requirements: string[];
+            flags: string[];
             description?: string;
           }>;
           const { technologies } = useGameStore.getState();
@@ -476,38 +479,39 @@ export class GameClient {
         break;
 
       case PacketType.RESEARCH_LIST_REPLY: {
+        const technologyCatalogue = Array.isArray(packet.data.technologies)
+          ? packet.data.technologies
+          : [];
         const availableTechs = Array.isArray(packet.data.availableTechs)
           ? packet.data.availableTechs
           : [];
         const researchedTechIds = Array.isArray(packet.data.researchedTechs)
           ? packet.data.researchedTechs
           : [];
-        const { technologies } = useGameStore.getState();
         useGameStore.getState().updateGameState({
-          technologies: {
-            ...technologies,
-            ...Object.fromEntries(
-              availableTechs.map(
-                (tech: {
-                  id: string;
-                  name: string;
-                  cost: number;
-                  requirements: string[];
-                  description?: string;
-                }) => [
-                  tech.id,
-                  {
-                    ...tech,
-                    discovered: false,
-                  },
-                ]
-              )
-            ),
-          },
+          technologies: Object.fromEntries(
+            technologyCatalogue.map(
+              (tech: {
+                id: string;
+                name: string;
+                cost: number;
+                requirements: string[];
+                flags: string[];
+                description?: string;
+              }) => [
+                tech.id,
+                {
+                  ...tech,
+                  discovered: researchedTechIds.includes(tech.id),
+                },
+              ]
+            )
+          ),
         });
         useGameStore.getState().updateResearchState({
           researchedTechs: new Set(researchedTechIds),
           availableTechs: new Set(availableTechs.map((tech: { id: string }) => tech.id)),
+          futureTechs: packet.data.futureTechs ?? 0,
         });
         break;
       }

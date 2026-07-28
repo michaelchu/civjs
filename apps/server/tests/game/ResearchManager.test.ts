@@ -1,4 +1,5 @@
 import {
+  FUTURE_TECH_ID,
   ResearchManager,
   TECHNOLOGIES,
   loadRulesetTechnologies,
@@ -57,15 +58,16 @@ describe('ResearchManager', () => {
   });
 
   describe('player initialization', () => {
-    it('should initialize player research with alphabet', async () => {
+    it('starts with no free technology and selects an initial research target', async () => {
       await researchManager.initializePlayerResearch('player-123');
 
       const research = researchManager.getPlayerResearch('player-123');
       expect(research).toBeDefined();
       expect(research!.playerId).toBe('player-123');
       expect(research!.bulbsAccumulated).toBe(0);
-      expect(research!.researchedTechs.has('alphabet')).toBe(true);
-      expect(research!.currentTech).toBeDefined();
+      expect(research!.researchedTechs).toEqual(new Set());
+      expect(research!.futureTechs).toBe(0);
+      expect(research!.currentTech).toBe('alphabet');
 
       // Database operations handled by MockDatabaseProvider
     });
@@ -80,6 +82,7 @@ describe('ResearchManager', () => {
   describe('research selection', () => {
     beforeEach(async () => {
       await researchManager.initializePlayerResearch('player-123');
+      await researchManager.grantTechnology('player-123', 'alphabet');
     });
 
     it('should set current research successfully', async () => {
@@ -186,6 +189,7 @@ describe('ResearchManager', () => {
   describe('research progress', () => {
     beforeEach(async () => {
       await researchManager.initializePlayerResearch('player-123');
+      await researchManager.grantTechnology('player-123', 'alphabet');
       await researchManager.setCurrentResearch('player-123', 'pottery');
     });
 
@@ -218,15 +222,15 @@ describe('ResearchManager', () => {
       expect(research!.bulbsAccumulated).toBe(5); // 15 - 10 = 5 excess
     });
 
-    it('should auto-select next research when goal is set', async () => {
-      await researchManager.setResearchGoal('player-123', 'code_of_laws');
+    it('routes the next research through a goal prerequisite chain', async () => {
+      await researchManager.setResearchGoal('player-123', 'mathematics');
 
       // Complete pottery
       await researchManager.addResearchPoints('player-123', 10);
 
       const research = researchManager.getPlayerResearch('player-123');
-      expect(research!.currentTech).toBe('code_of_laws');
-      expect(research!.techGoal).toBeUndefined(); // Goal cleared
+      expect(research!.currentTech).toBe('masonry');
+      expect(research!.techGoal).toBe('mathematics');
     });
   });
 
@@ -239,12 +243,10 @@ describe('ResearchManager', () => {
       const availableTechs = researchManager.getAvailableTechnologies('player-123');
 
       const expected = Object.values(TECHNOLOGIES)
-        .filter(
-          tech => tech.id !== 'alphabet' && tech.requirements.every(req => req === 'alphabet')
-        )
+        .filter(tech => tech.requirements.length === 0)
         .map(tech => tech.id);
       expect(availableTechs.map(t => t.id).sort()).toEqual(expected.sort());
-      expect(availableTechs.map(t => t.id)).not.toContain('alphabet'); // Already researched
+      expect(availableTechs.map(t => t.id)).toContain('alphabet');
     });
 
     it('should update available technologies as research progresses', async () => {
@@ -262,6 +264,7 @@ describe('ResearchManager', () => {
   describe('research progress queries', () => {
     beforeEach(async () => {
       await researchManager.initializePlayerResearch('player-123');
+      await researchManager.grantTechnology('player-123', 'alphabet');
       await researchManager.setCurrentResearch('player-123', 'pottery');
     });
 
@@ -294,6 +297,7 @@ describe('ResearchManager', () => {
   describe('technology queries', () => {
     beforeEach(async () => {
       await researchManager.initializePlayerResearch('player-123');
+      await researchManager.grantTechnology('player-123', 'alphabet');
     });
 
     it('should check if player has researched technology', () => {
@@ -328,11 +332,12 @@ describe('ResearchManager', () => {
       await researchManager.initializePlayerResearch('player-123');
     });
 
-    it('should grant bonus tech for philosophy', async () => {
+    it('grants the first Philosophy discoverer a goal-directed bonus tech', async () => {
       // Research prerequisites for philosophy
       const research = researchManager.getPlayerResearch('player-123')!;
       research.researchedTechs.add('mysticism');
       research.researchedTechs.add('literacy');
+      await researchManager.setResearchGoal('player-123', 'university');
 
       await researchManager.setCurrentResearch('player-123', 'philosophy');
       const completedTech = await researchManager.addResearchPoints(
@@ -344,7 +349,52 @@ describe('ResearchManager', () => {
       expect(research.researchedTechs.has('philosophy')).toBe(true);
 
       // Should have received a bonus tech
-      expect(research.researchedTechs.size).toBeGreaterThan(4); // alphabet + prerequisites + philosophy + bonus
+      expect(research.researchedTechs.has('alphabet')).toBe(true);
+      expect(research.researchedTechs.size).toBe(4);
+    });
+
+    it('does not award Philosophy a second time', async () => {
+      await researchManager.initializePlayerResearch('player-456');
+      for (const playerId of ['player-123', 'player-456']) {
+        const research = researchManager.getPlayerResearch(playerId)!;
+        research.researchedTechs.add('mysticism');
+        research.researchedTechs.add('literacy');
+        await researchManager.setCurrentResearch(playerId, 'philosophy');
+        await researchManager.addResearchPoints(playerId, TECHNOLOGIES.philosophy.cost);
+      }
+
+      expect(researchManager.getPlayerResearch('player-456')!.researchedTechs.size).toBe(3);
+    });
+  });
+
+  describe('complete age progression', () => {
+    it('can traverse every classic technology and continue into Future Tech', async () => {
+      await researchManager.initializePlayerResearch('player-123');
+
+      const granted = await researchManager.grantAvailableTechnologies(
+        'player-123',
+        Object.keys(TECHNOLOGIES).length
+      );
+
+      expect(new Set(granted).size).toBe(Object.keys(TECHNOLOGIES).length);
+      expect(researchManager.getResearchedTechs('player-123')).toHaveLength(
+        Object.keys(TECHNOLOGIES).length
+      );
+      expect(researchManager.getAvailableTechnologies('player-123')).toEqual([
+        expect.objectContaining({ id: FUTURE_TECH_ID, name: 'Future Tech. 1' }),
+      ]);
+
+      await researchManager.setCurrentResearch('player-123', FUTURE_TECH_ID);
+      const required = researchManager.getResearchProgress('player-123')!.required;
+      await researchManager.addResearchPoints('player-123', required);
+
+      expect(researchManager.getPlayerResearch('player-123')).toMatchObject({
+        currentTech: FUTURE_TECH_ID,
+        futureTechs: 1,
+      });
+      expect(researchManager.getTechnologyCatalogue('player-123')).toHaveLength(
+        Object.keys(TECHNOLOGIES).length + 1
+      );
     });
   });
 
@@ -407,8 +457,8 @@ describe('ResearchManager', () => {
       expect(debugInfo.playerCount).toBe(1);
       expect(debugInfo.players['player-123']).toBeDefined();
       expect(debugInfo.players['player-123'].currentTech).toBe('pottery');
-      expect(debugInfo.players['player-123'].researchedTechCount).toBe(1);
-      expect(debugInfo.players['player-123'].researchedTechs).toContain('alphabet');
+      expect(debugInfo.players['player-123'].researchedTechCount).toBe(0);
+      expect(debugInfo.players['player-123'].futureTechs).toBe(0);
     });
   });
 });

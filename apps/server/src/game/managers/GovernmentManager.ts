@@ -80,7 +80,12 @@ export class GovernmentManager {
   private databaseProvider: DatabaseProvider;
   private effectsManager: EffectsManager;
 
-  constructor(gameId: string, databaseProvider: DatabaseProvider, effectsManager?: EffectsManager) {
+  constructor(
+    gameId: string,
+    databaseProvider: DatabaseProvider,
+    effectsManager?: EffectsManager,
+    private readonly random: () => number = Math.random
+  ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
     this.effectsManager = effectsManager || new EffectsManager();
@@ -343,18 +348,11 @@ export class GovernmentManager {
     });
   }
 
-  private getRevolutionTurns(fromGovernment: string, toGovernment: string): number {
-    // Special cases for quicker transitions
-    if (fromGovernment === 'anarchy' || toGovernment === 'anarchy') {
-      return 1; // Quick transition to/from anarchy
-    }
-
-    if (fromGovernment === 'despotism' && toGovernment === 'monarchy') {
-      return 2; // Easier transition from despotism to monarchy
-    }
-
-    // Standard revolution time
-    return 3;
+  private getRevolutionTurns(_fromGovernment: string, _toGovernment: string): number {
+    // Freeciv's default server settings use REVOLEN_RANDOM with revolen = 5.
+    // @reference reference/freeciv/common/game.h:743-744
+    // @reference reference/freeciv/server/plrhand.c:515-559
+    return Math.floor(this.random() * 5) + 1;
   }
 
   public getAllGovernments(): Record<string, Government> {
@@ -725,15 +723,11 @@ export class GovernmentManager {
       .where(eq(playersTable.gameId, this.gameId));
 
     for (const result of results) {
-      const playerGov: PlayerGovernment = {
-        playerId: result.id,
-        currentGovernment: result.government || 'despotism',
-        revolutionTurns: result.revolutionTurns || 0,
-      };
-
-      // If in revolution, we'd need to restore the requested government
-      // For now, we'll leave it undefined and let the revolution complete naturally
-      this.playerGovernments.set(result.id, playerGov);
+      await this.loadPlayerGovernment(
+        result.id,
+        result.government || 'despotism',
+        result.revolutionTurns || 0
+      );
     }
   }
 
@@ -750,13 +744,7 @@ export class GovernmentManager {
     if (result.length > 0) {
       const { government, revolutionTurns } = result[0];
 
-      const playerGov: PlayerGovernment = {
-        playerId,
-        currentGovernment: government || 'despotism',
-        revolutionTurns: revolutionTurns || 0,
-      };
-
-      this.playerGovernments.set(playerId, playerGov);
+      await this.loadPlayerGovernment(playerId, government || 'despotism', revolutionTurns || 0);
     }
   }
 

@@ -6,7 +6,7 @@ export interface TechnologyNodeData {
   id: string;
   name: string;
   cost: number;
-  description: string;
+  description?: string;
   requirements: string[];
   flags: string[];
 

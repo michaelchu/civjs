@@ -207,8 +207,10 @@ export class ResearchHandler extends BaseSocketHandler {
       const playerResearch = this.gameManager.getPlayerResearch(connection.gameId!, player.id);
 
       handler.send(socket, PacketType.RESEARCH_LIST_REPLY, {
+        technologies: this.mapTechs(game.researchManager.getTechnologyCatalogue(player.id)),
         availableTechs: this.mapTechs(availableTechs),
         researchedTechs: playerResearch ? Array.from(playerResearch.researchedTechs) : [],
+        futureTechs: playerResearch?.futureTechs ?? 0,
       });
 
       logger.debug('Sent research list', {
@@ -296,6 +298,7 @@ export class ResearchHandler extends BaseSocketHandler {
       name: tech.name,
       cost: tech.cost,
       requirements: tech.requirements,
+      flags: tech.flags,
       description: tech.description,
     }));
   }

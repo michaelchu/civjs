@@ -27,6 +27,8 @@ export interface Unit {
   hp: number;
   movesLeft: number;
   maxMoves?: number;
+  fuel?: number;
+  maxFuel?: number;
   veteranLevel: number;
   fortified?: boolean;
   activity?: unknown;
@@ -305,6 +307,7 @@ export interface ResearchState {
   bulbsLastTurn: number;
   researchedTechs: Set<string>;
   availableTechs: Set<string>;
+  futureTechs: number;
 }
 
 export interface GovernmentRequirement {

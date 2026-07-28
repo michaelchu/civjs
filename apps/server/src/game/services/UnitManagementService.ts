@@ -136,14 +136,17 @@ export class UnitManagementService extends BaseGameService {
     }
 
     const attackerSnapshot = gameInstance.unitManager.getUnit(attackerUnitId);
-    const defenderSnapshot = gameInstance.unitManager.getUnit(defenderUnitId);
-    const defenderStackSnapshots = defenderSnapshot
+    const requestedDefenderSnapshot = gameInstance.unitManager.getUnit(defenderUnitId);
+    const defenderStackSnapshots = requestedDefenderSnapshot
       ? gameInstance.unitManager
-          .getUnitsAt(defenderSnapshot.x, defenderSnapshot.y)
-          .filter(unit => unit.playerId === defenderSnapshot.playerId)
+          .getUnitsAt(requestedDefenderSnapshot.x, requestedDefenderSnapshot.y)
+          .filter(unit => unit.playerId !== playerId)
           .map(unit => ({ ...unit }))
       : [];
     const combatResult = await gameInstance.unitManager.attackUnit(attackerUnitId, defenderUnitId);
+    const defenderSnapshot = defenderStackSnapshots.find(
+      unit => unit.id === combatResult.defenderId
+    );
 
     // Update visibility for relevant players if units were destroyed
     if (combatResult.attackerDestroyed) {
@@ -154,7 +157,9 @@ export class UnitManagementService extends BaseGameService {
     }
     if (combatResult.defenderDestroyed) {
       for (const destroyedUnit of defenderStackSnapshots.filter(
-        unit => unit.id === defenderUnitId || combatResult.collateralDestroyedIds?.includes(unit.id)
+        unit =>
+          unit.id === combatResult.defenderId ||
+          combatResult.collateralDestroyedIds?.includes(unit.id)
       )) {
         this.unitBroadcaster?.broadcastUnitDestroyed(gameId, destroyedUnit);
       }
@@ -164,7 +169,7 @@ export class UnitManagementService extends BaseGameService {
     }
 
     const survivingAttacker = gameInstance.unitManager.getUnit(attackerUnitId);
-    const survivingDefender = gameInstance.unitManager.getUnit(defenderUnitId);
+    const survivingDefender = gameInstance.unitManager.getUnit(combatResult.defenderId);
     if (survivingAttacker) this.unitBroadcaster?.broadcastUnitInfo(gameId, survivingAttacker);
     if (survivingDefender) this.unitBroadcaster?.broadcastUnitInfo(gameId, survivingDefender);
 

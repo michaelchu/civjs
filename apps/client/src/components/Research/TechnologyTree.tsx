@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, {
   type Node,
   useNodesState,
@@ -17,11 +17,7 @@ import { useGameStore } from '../../store/gameStore';
 import { TechnologyNode } from './TechnologyNode';
 import { TechnologyDetails } from './TechnologyDetails';
 // import { ResearchDemo } from './ResearchDemo'; // Hidden for now
-import {
-  createTechnologyGraph,
-  getAvailableTechnologies,
-  calculateResearchProgress,
-} from './utils/technologyData';
+import { createTechnologyGraph, calculateResearchProgress } from './utils/technologyData';
 import { getLayoutedElements } from './utils/layoutUtils';
 import { gameClient } from '../../services/GameClient';
 
@@ -32,18 +28,23 @@ const nodeTypes: NodeTypes = {
 
 const TechnologyTreeInner: React.FC = () => {
   const research = useGameStore(state => state.research);
-  const updateResearchState = useGameStore(state => state.updateResearchState);
+  const technologies = useGameStore(state => state.technologies);
   const [selectedTech, setSelectedTech] = useState<string | null>(null);
   const { fitView } = useReactFlow();
 
-  // Create nodes and edges from technology data
+  // Create nodes and edges from the complete server ruleset catalogue.
   const { initialNodes, initialEdges } = useMemo(() => {
-    const { nodes, edges } = createTechnologyGraph();
+    const { nodes, edges } = createTechnologyGraph(technologies);
     return getLayoutedElements(nodes, edges);
-  }, []);
+  }, [technologies]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  useEffect(() => {
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+  }, [initialEdges, initialNodes, setEdges, setNodes]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges(eds => addEdge(params, eds)),
@@ -88,32 +89,6 @@ const TechnologyTreeInner: React.FC = () => {
     }, 100);
     return () => clearTimeout(timer);
   }, [fitView]);
-
-  // Update available technologies when research state changes
-  const prevResearchedTechsSize = useRef<number>(0);
-  useEffect(() => {
-    if (!research) return;
-
-    const currentSize = research.researchedTechs.size;
-    // Only run if the number of researched techs has actually changed
-    if (prevResearchedTechsSize.current === currentSize) return;
-
-    prevResearchedTechsSize.current = currentSize;
-
-    const availableTechs = getAvailableTechnologies(research.researchedTechs);
-    const currentAvailableTechs = research.availableTechs;
-
-    // Only update if the available techs have actually changed
-    const availableTechsSet = new Set(availableTechs);
-    if (
-      currentAvailableTechs.size !== availableTechsSet.size ||
-      !Array.from(availableTechsSet).every(tech => currentAvailableTechs.has(tech))
-    ) {
-      updateResearchState({
-        availableTechs: availableTechsSet,
-      });
-    }
-  }, [research, updateResearchState]);
 
   // Update nodes when game state changes
   useEffect(() => {

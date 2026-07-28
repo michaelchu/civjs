@@ -397,6 +397,7 @@ describe('ActionSystem - Goto Actions', () => {
         ActionType.AIRLIFT,
         ActionType.AUTO_EXPLORE,
         ActionType.AUTO_SETTLER,
+        ActionType.PATROL,
         ActionType.MARKETPLACE,
         ActionType.HELP_WONDER,
         ActionType.JOIN_CITY,

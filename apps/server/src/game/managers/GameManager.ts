@@ -597,10 +597,41 @@ export class GameManager {
     const relation = await this.getDiplomaticState(gameId, playerId, city.playerId);
 
     let result: ActionResult;
+    let actorSurvives = unitFlags.includes('Spy');
+    const attemptMission = async (): Promise<ActionResult | null> => {
+      const defender = game.unitManager.getUnitsAt(targetX, targetY).find(candidate => {
+        const candidateType = getUnitType(candidate.unitTypeId);
+        return (
+          candidate.playerId !== playerId &&
+          candidateType?.flags?.includes('Diplomat') &&
+          !candidate.transportedBy
+        );
+      });
+      const resolution = game.unitManager.resolveDiplomatAction?.(
+        unit.id,
+        actionType,
+        defender?.id
+      ) ?? {
+        success: true,
+        actorSurvives: unitFlags.includes('Spy'),
+      };
+      actorSurvives = resolution.actorSurvives;
+      if (resolution.success) return null;
+      await game.unitManager.removeUnit(unit.id);
+      return {
+        success: false,
+        message: `The ${unitType!.name} was intercepted`,
+        unitDestroyed: true,
+      };
+    };
     if (actionType === ActionType.ESTABLISH_EMBASSY) {
+      const failure = await attemptMission();
+      if (failure) return failure;
       await this.diplomacyManager.establishEmbassy(gameId, playerId, city.playerId);
       result = { success: true, message: `Embassy established in ${city.name}` };
     } else if (actionType === ActionType.INVESTIGATE_CITY) {
+      const failure = await attemptMission();
+      if (failure) return failure;
       result = {
         success: true,
         message: `${city.name}: size ${city.size}, ${city.buildings.length} improvements, ${city.productionPerTurn ?? 0} shields/turn`,
@@ -612,12 +643,19 @@ export class GameManager {
         .filter(tech => !known.has(tech))
         .sort()[0];
       if (!stolenTech) return { success: false, message: 'No technology is available to steal' };
+      const failure = await attemptMission();
+      if (failure) return failure;
       await game.researchManager.grantTechnology(playerId, stolenTech);
       result = { success: true, message: `Stole ${stolenTech} from ${city.name}` };
     } else if (actionType === ActionType.SABOTAGE_CITY) {
       if (!unitFlags.includes('Spy')) {
         return { success: false, message: 'Only spies can sabotage a city' };
       }
+      if (!city.buildings.some(building => building !== 'palace')) {
+        return { success: false, message: 'No eligible improvement to sabotage' };
+      }
+      const failure = await attemptMission();
+      if (failure) return failure;
       const building = await game.cityManager.sabotageCityBuilding(city.id, playerId);
       if (!building) return { success: false, message: 'No eligible improvement to sabotage' };
       this.gameBroadcastManager.broadcastCityData(gameId);
@@ -629,6 +667,11 @@ export class GameManager {
       if (relation !== 'war') {
         return { success: false, message: 'Poisoning a city requires a state of war' };
       }
+      if (city.size < 2) {
+        return { success: false, message: 'Target city must have at least two citizens' };
+      }
+      const failure = await attemptMission();
+      if (failure) return failure;
       await game.cityManager.poisonCity(city.id, playerId);
       this.gameBroadcastManager.broadcastCityData(gameId);
       result = { success: true, message: `Poisoned ${city.name}; its population fell by one` };
@@ -648,6 +691,8 @@ export class GameManager {
       const economicManager = game.turnManager.getEconomicManager();
       if (!economicManager) return { success: false, message: 'Treasury is unavailable' };
       const cost = await this.calculateInciteCost(game, city);
+      const failure = await attemptMission();
+      if (failure) return failure;
       const payment = await economicManager.spendPlayerGold(
         playerId,
         cost,
@@ -686,7 +731,7 @@ export class GameManager {
       return { success: false, message: 'Unsupported diplomat action' };
     }
 
-    if (!unitFlags.includes('Spy')) {
+    if (!actorSurvives) {
       await game.unitManager.removeUnit(unit.id);
       result.unitDestroyed = true;
     } else {
@@ -717,6 +762,25 @@ export class GameManager {
     await this.diplomacyManager.establishContact(gameId, playerId, target.playerId);
     const relation = await this.getDiplomaticState(gameId, playerId, target.playerId);
     let result: ActionResult;
+    let actorSurvives = actorFlags.includes('Spy');
+    const attemptMission = async (): Promise<ActionResult | null> => {
+      const resolution = game.unitManager.resolveDiplomatAction?.(
+        actor.id,
+        actionType,
+        targetType?.flags?.includes('Diplomat') ? target.id : undefined
+      ) ?? {
+        success: true,
+        actorSurvives: actorFlags.includes('Spy'),
+      };
+      actorSurvives = resolution.actorSurvives;
+      if (resolution.success) return null;
+      await game.unitManager.removeUnit(actor.id);
+      return {
+        success: false,
+        message: `The ${getUnitType(actor.unitTypeId)?.name ?? actor.unitTypeId} was intercepted`,
+        unitDestroyed: true,
+      };
+    };
 
     if (actionType === ActionType.BRIBE_UNIT) {
       if (targetType?.flags?.includes('Unbribable')) {
@@ -738,6 +802,8 @@ export class GameManager {
       if (!economicManager) return { success: false, message: 'Treasury is unavailable' };
       const ownerGold = await economicManager.getPlayerGold(target.playerId);
       const cost = this.calculateBribeCost(game, target, ownerGold);
+      const failure = await attemptMission();
+      if (failure) return failure;
       const payment = await economicManager.spendPlayerGold(
         playerId,
         cost,
@@ -764,6 +830,8 @@ export class GameManager {
       if (target.health < 2) {
         return { success: false, message: 'Target must have at least two hit points' };
       }
+      const failure = await attemptMission();
+      if (failure) return failure;
       const sabotage = await game.unitManager.sabotageUnit(target.id);
       if (sabotage.destroyed) this.broadcastUnitDestroyed(gameId, target);
       else this.broadcastUnitInfo(gameId, sabotage.unit!);
@@ -774,7 +842,7 @@ export class GameManager {
       };
     }
 
-    if (!actorFlags.includes('Spy')) {
+    if (!actorSurvives) {
       await game.unitManager.removeUnit(actor.id);
       result.unitDestroyed = true;
     } else {

@@ -152,6 +152,7 @@ describe('GameBroadcastManager visibility sync', () => {
           bulbsAccumulated: 18,
           bulbsLastTurn: 2,
           researchedTechs: new Set(['alphabet']),
+          futureTechs: 0,
         }),
         getResearchProgress: () => ({ current: 18, required: 20, turnsRemaining: 1 }),
         getAvailableTechnologies: () => [
@@ -160,6 +161,23 @@ describe('GameBroadcastManager visibility sync', () => {
             name: 'Pottery',
             cost: 20,
             requirements: [],
+            flags: [],
+          },
+        ],
+        getTechnologyCatalogue: () => [
+          {
+            id: 'alphabet',
+            name: 'Alphabet',
+            cost: 10,
+            requirements: [],
+            flags: [],
+          },
+          {
+            id: 'pottery',
+            name: 'Pottery',
+            cost: 20,
+            requirements: [],
+            flags: [],
           },
         ],
       },
