@@ -35,8 +35,7 @@ export interface MovementRulesetLookup {
 
 const defaultMovementRulesetLookup: MovementRulesetLookup = {
   getTerrainMoveCost(terrain: string): number | undefined {
-    const terrains = rulesetLoader.getTerrains() as Record<string, { moveCost: number }>;
-    return terrains[terrain]?.moveCost;
+    return rulesetLoader.getTerrain(terrain as any).moveCost;
   },
   getUnitMovementType(unitTypeId: string): MovementType | undefined {
     return rulesetUnitsService.getMovementType(unitTypeId) as MovementType | undefined;

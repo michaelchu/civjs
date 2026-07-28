@@ -69,7 +69,11 @@ describe('CityManagementHandler production socket flow', () => {
       getGameInstance: jest.fn().mockReturnValue({
         players: new Map([[playerId, { id: playerId, userId }]]),
         cityManager,
-        researchManager: { hasPlayerResearched: jest.fn().mockReturnValue(true) },
+        researchManager: {
+          hasPlayerResearched: jest.fn(
+            (_ownerId: string, techId: string) => techId !== 'guerilla_warfare'
+          ),
+        },
       }),
     } as unknown as GameManager;
     const handler = new CityManagementHandler(
@@ -101,7 +105,11 @@ describe('CityManagementHandler production socket flow', () => {
     const gameInstance = {
       players: new Map([[playerId, { id: playerId, userId }]]),
       cityManager,
-      researchManager: { hasPlayerResearched: jest.fn().mockReturnValue(true) },
+      researchManager: {
+        hasPlayerResearched: jest.fn(
+          (_ownerId: string, techId: string) => techId !== 'guerilla_warfare'
+        ),
+      },
     };
     const gameManager = {
       getGame: jest.fn().mockResolvedValue({

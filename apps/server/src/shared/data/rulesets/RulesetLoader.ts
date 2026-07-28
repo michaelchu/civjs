@@ -119,7 +119,7 @@ export class RulesetLoader {
    */
   getTerrains(rulesetName: string = 'classic'): Record<TerrainType, TerrainRuleset> {
     const rulesetFile = this.loadTerrainRuleset(rulesetName);
-    return rulesetFile.terrains;
+    return rulesetFile.terrains as Record<TerrainType, TerrainRuleset>;
   }
 
   /**
@@ -127,7 +127,10 @@ export class RulesetLoader {
    */
   getTerrain(terrainType: TerrainType, rulesetName: string = 'classic'): TerrainRuleset {
     const terrains = this.getTerrains(rulesetName);
-    const terrain = terrains[terrainType];
+    // `coast` remains an internal map-generation label. Freeciv classic
+    // represents those shallow coastal tiles with its Ocean terrain.
+    const catalogueType = terrainType === 'coast' ? 'ocean' : terrainType;
+    const terrain = terrains[catalogueType];
 
     if (!terrain) {
       throw new Error(`Terrain type '${terrainType}' not found in ruleset '${rulesetName}'`);

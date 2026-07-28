@@ -39,7 +39,7 @@ This document provides a component inventory for gap review. It does not perform
 
 - **Ruleset loading and validation:** Parse, validate, and expose ruleset sections at runtime; preserve requirements, effects, flags, defaults, and cross-references.
 - **Game constants and options — Implemented for classic:** Difficulty, pacing, map settings, victory conditions, diplomacy rules, costs, starting state, calendar, and server options.
-- **Content catalogues:** Nations, governments, technologies, units, buildings, wonders, terrain, resources, extras, actions, and styles.
+- **Content catalogues — Implemented for classic:** Nations, governments, technologies, units, buildings, wonders, terrain, resources, extras, actions, specialists, and styles.
 - **Presentation assets:** Tilesets, city/unit graphics, nation flags, soundsets, music, help text, translations, and fallback asset behavior.
 - **Scenarios and alternate rulesets:** Scenario maps, metadata, packaged rulesets, compatibility/version handling, and non-classic data sets.
 
@@ -50,6 +50,14 @@ The complete top-level `classic/game.ruleset` structure is reproducibly converte
 Sections that classic deliberately disables or leaves empty remain inert, including illness, game-loss effects, named teams, locked server settings, and migration (the reference server defaults its separate migration setting to disabled). Generic alternatives not selected by classic—such as embassy-only small-wonder visibility, scaled combat veterancy, or nonzero nuclear-defender survival—belong to alternate-ruleset/server-setting breadth rather than gaps in classic `game.ruleset` execution.
 
 **Parity evidence:** `ClassicGameRuleInventory` accounts for every converted top-level section with no remaining `partial` dispositions. The completion checkpoint passes client/server typechecks, 95 client tests, 918 server tests, lint, and production builds.
+
+#### Content catalogues — Implemented for classic
+
+The classic catalogue is reproducibly generated from the checked-in Freeciv secfiles, including recursive nation includes and multiline/translatable values. It contains all 571 nations, 6 governments, 87 technologies, 52 units, 68 buildings and wonders, 14 terrains, 20 resources, 34 extras, 82 action enablers, 3 specialists, 6 nation styles, 10 city styles, and 11 music styles. CivJS-only catalogue entries formerly mixed into the classic data have been removed.
+
+The generated records preserve source requirements, flags, roles, classes, help text, graphics, raw source fields, and normalized runtime identifiers. `ClassicContentCatalogues.test.ts` guards the inventory counts, canonical identities, representative exact values, and absence of former extensions. The internal map-generation label `coast` remains a compatibility alias to classic Ocean and is not an extra catalogue terrain.
+
+This closes the classic content-catalogue item only. The overall Rulesets & content family remains `Partial` because presentation-asset parity and scenarios/alternate rulesets are separate rubric items below.
 
 ### World, map, and spatial simulation
 

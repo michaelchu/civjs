@@ -140,9 +140,9 @@ describe('GameManager classic espionage actions', () => {
 
   it('rejects bribing an Unbribable unit without charging gold', async () => {
     const target = {
-      id: 'target-diplomat',
+      id: 'target-leader',
       playerId: targetPlayerId,
-      unitTypeId: 'diplomat',
+      unitTypeId: 'leader',
       x: 5,
       y: 5,
       health: 100,

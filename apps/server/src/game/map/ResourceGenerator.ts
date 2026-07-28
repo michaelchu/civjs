@@ -40,9 +40,11 @@ export class ResourceGenerator {
   private getResourcesForTerrain(terrain: TerrainType): ResourceType[] {
     const resourceMap: Record<TerrainType, ResourceType[]> = {
       ocean: ['fish', 'whales'],
-      coast: ['fish'],
+      coast: ['fish', 'whales'],
       deep_ocean: [],
       lake: ['fish'],
+      inaccessible: [],
+      glacier: ['ivory', 'oil'],
       grassland: ['resources'],
       plains: ['buffalo', 'wheat'],
       desert: ['oasis', 'oil'],

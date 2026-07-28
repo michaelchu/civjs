@@ -26,6 +26,8 @@ export const TerrainTypeSchema = z.enum([
   'deep_ocean',
   'coast',
   'lake',
+  'inaccessible',
+  'glacier',
   'tundra',
   'desert',
   'forest',
@@ -38,45 +40,49 @@ export const TerrainTypeSchema = z.enum([
 ]);
 
 // Individual terrain ruleset schema
-export const TerrainRulesetSchema = z.object({
-  name: TerrainTypeSchema,
-  graphic: z.string(),
-  graphic_alt: z.string().optional(),
-  graphic_alt2: z.string().optional(),
-  properties: z.record(z.string(), z.number()).optional().default({}),
-  moveCost: z.number().positive(),
-  defense: z.number().min(0),
-  food: z.number().min(0),
-  shields: z.number().min(0),
-  trade: z.number().min(0),
-  roadTime: z.number().min(0).default(0),
-  irrigationFoodIncr: z.number().min(0).default(0),
-  irrigationTime: z.number().min(0).default(0),
-  miningShieldIncr: z.number().min(0).default(0),
-  miningTime: z.number().min(0).default(0),
-  cultivateTo: TerrainTypeSchema.optional(),
-  cultivateTime: z.number().min(0).default(0),
-  plantTo: TerrainTypeSchema.optional(),
-  plantTime: z.number().min(0).default(0),
-  transformTo: TerrainTypeSchema.optional(),
-  transformTime: z.number().positive().optional(),
-  canHaveRiver: z.boolean().optional(),
-  notGenerated: z.boolean().optional(),
-});
+export const TerrainRulesetSchema = z
+  .object({
+    name: TerrainTypeSchema,
+    graphic: z.string(),
+    graphic_alt: z.string().optional(),
+    graphic_alt2: z.string().optional(),
+    properties: z.record(z.string(), z.number()).optional().default({}),
+    moveCost: z.number().min(0),
+    defense: z.number().min(0),
+    food: z.number().min(0),
+    shields: z.number().min(0),
+    trade: z.number().min(0),
+    roadTime: z.number().min(0).default(0),
+    irrigationFoodIncr: z.number().min(0).default(0),
+    irrigationTime: z.number().min(0).default(0),
+    miningShieldIncr: z.number().min(0).default(0),
+    miningTime: z.number().min(0).default(0),
+    cultivateTo: TerrainTypeSchema.optional(),
+    cultivateTime: z.number().min(0).default(0),
+    plantTo: TerrainTypeSchema.optional(),
+    plantTime: z.number().min(0).default(0),
+    transformTo: TerrainTypeSchema.optional(),
+    transformTime: z.number().min(0).optional(),
+    canHaveRiver: z.boolean().optional(),
+    notGenerated: z.boolean().optional(),
+  })
+  .passthrough();
 
 // Terrain ruleset file schema
-export const TerrainRulesetFileSchema = z.object({
-  datafile: z.object({
-    description: z.string(),
-    options: z.string(),
-    format_version: z.number(),
-  }),
-  about: z.object({
-    name: z.string(),
-    summary: z.string(),
-  }),
-  terrains: z.record(TerrainTypeSchema, TerrainRulesetSchema),
-});
+export const TerrainRulesetFileSchema = z
+  .object({
+    datafile: z.object({
+      description: z.string(),
+      options: z.string(),
+      format_version: z.number(),
+    }),
+    about: z.object({
+      name: z.string(),
+      summary: z.string(),
+    }),
+    terrains: z.partialRecord(TerrainTypeSchema, TerrainRulesetSchema),
+  })
+  .passthrough();
 
 // Unit schemas - Enhanced for full freeciv compatibility
 export const UnitClassSchema = z.enum([
@@ -96,13 +102,15 @@ export const UnitClassSchema = z.enum([
  * @reference reference/freeciv/data/classic/units.ruleset:97-112
  * @reference reference/freeciv/data/classic/units.ruleset:143-188
  */
-export const UnitClassRulesetSchema = z.object({
-  id: UnitClassSchema,
-  name: UnitClassSchema,
-  min_speed: z.number().positive(),
-  hp_loss_pct: z.number().min(0),
-  flags: z.array(z.string()),
-});
+export const UnitClassRulesetSchema = z
+  .object({
+    id: UnitClassSchema,
+    name: UnitClassSchema,
+    min_speed: z.number().positive(),
+    hp_loss_pct: z.number().min(0),
+    flags: z.array(z.string()),
+  })
+  .passthrough();
 
 export const UnitRoleSchema = z.enum([
   'FirstBuild',
@@ -191,54 +199,56 @@ export const UnitTypeFlagSchema = z.enum([
   'Workers',
 ]);
 
-export const UnitTypeRulesetSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  internal_name: z.string().optional(),
-  cost: z.number().positive(),
-  movement: z.number().positive().optional(), // Legacy field
-  move_rate: z.number().positive().optional(), // Freeciv field
-  attack: z.number().min(0), // Separate attack from defense
-  defense: z.number().min(0), // Separate defense from attack
-  hitpoints: z.number().positive(), // Unit health
-  firepower: z.number().positive().optional().default(1),
-  bombard_rate: z.number().min(0).optional().default(0),
-  paratroopers_range: z.number().min(0).optional().default(0),
-  vision_radius_sq: z.number().min(0).optional().default(1),
-  transport_cap: z.number().min(0).optional().default(0),
-  cargo: z.array(UnitClassSchema).optional().default([]),
-  fuel: z.number().min(0).optional().default(0),
-  uk_happy: z.number().min(0).optional().default(0), // Unhappiness from unit
-  uk_shield: z.number().min(0).optional().default(1), // Shield upkeep cost
-  uk_food: z.number().min(0).optional().default(0), // Food upkeep cost
-  uk_gold: z.number().min(0).optional().default(0), // Gold upkeep cost
-  unit_class: UnitClassSchema,
-  roles: z.array(UnitRoleSchema).optional().default([]),
-  flags: z.array(UnitTypeFlagSchema).optional().default([]),
-  required_tech: z.string().optional(),
-  obsolete_by: z.string().optional(), // Technology that obsoletes this unit
-  build_cost: z.number().positive().optional(), // Alternative to cost
-  pop_cost: z.number().min(0).optional().default(0), // Population cost for settlers
-  convert_to: z.string().optional(), // Unit to convert to
-  convert_time: z.number().optional(), // Time to convert
-  veteran_levels: z.number().min(1).optional().default(1), // Number of veteran levels
-  graphic: z.string().optional(),
-  graphic_alt: z.string().optional(),
-  sound_move: z.string().optional(),
-  sound_move_alt: z.string().optional(),
-  sound_fight: z.string().optional(),
-  sound_fight_alt: z.string().optional(),
-  helptext: z.string().optional(),
+export const UnitTypeRulesetSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    internal_name: z.string().optional(),
+    cost: z.number().positive(),
+    movement: z.number().positive().optional(), // Legacy field
+    move_rate: z.number().positive().optional(), // Freeciv field
+    attack: z.number().min(0), // Separate attack from defense
+    defense: z.number().min(0), // Separate defense from attack
+    hitpoints: z.number().positive(), // Unit health
+    firepower: z.number().positive().optional().default(1),
+    bombard_rate: z.number().min(0).optional().default(0),
+    paratroopers_range: z.number().min(0).optional().default(0),
+    vision_radius_sq: z.number().min(0).optional().default(1),
+    transport_cap: z.number().min(0).optional().default(0),
+    cargo: z.array(UnitClassSchema).optional().default([]),
+    fuel: z.number().min(0).optional().default(0),
+    uk_happy: z.number().min(0).optional().default(0), // Unhappiness from unit
+    uk_shield: z.number().min(0).optional().default(1), // Shield upkeep cost
+    uk_food: z.number().min(0).optional().default(0), // Food upkeep cost
+    uk_gold: z.number().min(0).optional().default(0), // Gold upkeep cost
+    unit_class: UnitClassSchema,
+    roles: z.array(z.string()).optional().default([]),
+    flags: z.array(z.string()).optional().default([]),
+    required_tech: z.string().optional(),
+    obsolete_by: z.string().optional(), // Technology that obsoletes this unit
+    build_cost: z.number().positive().optional(), // Alternative to cost
+    pop_cost: z.number().min(0).optional().default(0), // Population cost for settlers
+    convert_to: z.string().optional(), // Unit to convert to
+    convert_time: z.number().optional(), // Time to convert
+    veteran_levels: z.number().min(1).optional().default(1), // Number of veteran levels
+    graphic: z.string().optional(),
+    graphic_alt: z.string().optional(),
+    sound_move: z.string().optional(),
+    sound_move_alt: z.string().optional(),
+    sound_fight: z.string().optional(),
+    sound_fight_alt: z.string().optional(),
+    helptext: z.string().or(z.array(z.string())).optional(),
 
-  // Backward compatibility fields (deprecated)
-  combat: z.number().min(0).optional(), // Keep for backward compatibility
-  range: z.number().min(0).optional().default(0), // Keep for backward compatibility
-  sight: z.number().positive().optional(), // Keep for backward compatibility
-  canFoundCity: z.boolean().optional(), // Keep for backward compatibility
-  canBuildImprovements: z.boolean().optional(), // Keep for backward compatibility
-  unitClass: UnitClassSchema.optional(), // Keep for backward compatibility
-  requiredTech: z.string().optional(), // Keep for backward compatibility
-});
+    // Backward compatibility fields (deprecated)
+    combat: z.number().min(0).optional(), // Keep for backward compatibility
+    range: z.number().min(0).optional().default(0), // Keep for backward compatibility
+    sight: z.number().positive().optional(), // Keep for backward compatibility
+    canFoundCity: z.boolean().optional(), // Keep for backward compatibility
+    canBuildImprovements: z.boolean().optional(), // Keep for backward compatibility
+    unitClass: UnitClassSchema.optional(), // Keep for backward compatibility
+    requiredTech: z.string().optional(), // Keep for backward compatibility
+  })
+  .passthrough();
 
 export const UnitsRulesetFileSchema = z.object({
   datafile: z.object({
@@ -250,6 +260,7 @@ export const UnitsRulesetFileSchema = z.object({
     name: z.string(),
     summary: z.string(),
   }),
+  veteran_system: z.record(z.string(), z.unknown()).optional(),
   unit_classes: z.record(z.string(), UnitClassRulesetSchema),
   units: z.record(z.string(), UnitTypeRulesetSchema),
 });
@@ -284,18 +295,20 @@ export const BuildingCultureRequirementSchema = z.object({
   present: z.boolean().optional().default(true),
 });
 
-export const BuildingTypeRulesetSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  genus: BuildingGenusSchema.optional().default('Improvement'),
-  cost: z.number().positive(),
-  upkeep: z.number().min(0),
-  requiredTech: z.string().optional(),
-  requires: z.array(z.string()).optional(),
-  cultureRequirements: z.array(BuildingCultureRequirementSchema).optional(),
-  playable: z.boolean().optional().default(false),
-  effects: BuildingEffectsSchema,
-});
+export const BuildingTypeRulesetSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    genus: BuildingGenusSchema.optional().default('Improvement'),
+    cost: z.number().positive(),
+    upkeep: z.number().min(0),
+    requiredTech: z.string().optional(),
+    requires: z.array(z.string()).optional(),
+    cultureRequirements: z.array(BuildingCultureRequirementSchema).optional(),
+    playable: z.boolean().optional().default(false),
+    effects: BuildingEffectsSchema,
+  })
+  .passthrough();
 
 export const BuildingsRulesetFileSchema = z.object({
   datafile: z.object({
@@ -311,29 +324,31 @@ export const BuildingsRulesetFileSchema = z.object({
 });
 
 // Technology schemas - Enhanced for full freeciv compatibility
-export const TechnologyRulesetSchema = z.object({
-  id: z.string(),
-  freeciv_id: z.number().optional(),
-  name: z.string(),
-  internal_name: z.string().optional(),
-  cost: z.number().positive(),
-  req1: z.string().optional(), // First requirement (freeciv dual system)
-  req2: z.string().optional(), // Second requirement (freeciv dual system)
-  requirements: z.array(z.string()), // Derived array from req1/req2
-  root_req: z.string().nullable().optional(), // Root requirement for advanced dependencies
-  flags: z.array(z.string()).optional().default([]),
-  graphic: z.string().optional(),
-  position: z
-    .object({
-      x: z.number(),
-      y: z.number(),
-    })
-    .optional(),
-  helptext: z.string().optional(),
-  bonus_message: z.string().optional(),
-  order: z.number().optional(),
-  description: z.string().optional(), // Keep for backward compatibility
-});
+export const TechnologyRulesetSchema = z
+  .object({
+    id: z.string(),
+    freeciv_id: z.number().optional(),
+    name: z.string(),
+    internal_name: z.string().optional(),
+    cost: z.number().positive(),
+    req1: z.string().optional(), // First requirement (freeciv dual system)
+    req2: z.string().optional(), // Second requirement (freeciv dual system)
+    requirements: z.array(z.string()), // Derived array from req1/req2
+    root_req: z.string().nullable().optional(), // Root requirement for advanced dependencies
+    flags: z.array(z.string()).optional().default([]),
+    graphic: z.string().optional(),
+    position: z
+      .object({
+        x: z.number(),
+        y: z.number(),
+      })
+      .optional(),
+    helptext: z.string().or(z.array(z.string())).optional(),
+    bonus_message: z.string().optional(),
+    order: z.number().optional(),
+    description: z.string().optional(), // Keep for backward compatibility
+  })
+  .passthrough();
 
 export const TechsRulesetFileSchema = z.object({
   datafile: z.object({
@@ -345,6 +360,7 @@ export const TechsRulesetFileSchema = z.object({
     name: z.string(),
     summary: z.string(),
   }),
+  control: z.record(z.string(), z.unknown()).optional(),
   techs: z.record(z.string(), TechnologyRulesetSchema),
 });
 
@@ -402,22 +418,24 @@ export const GovernmentRequirementSchema = z.object({
   range: z.string(),
 });
 
-export const GovernmentRulesetSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  rule_name: z.string().optional(), // Internal name for savegames/rulesets
-  reqs: z.array(GovernmentRequirementSchema).optional(),
-  graphic: z.string(),
-  graphic_alt: z.string(),
-  sound: z.string(),
-  sound_alt: z.string(),
-  sound_alt2: z.string(),
-  ai_better: z.string().optional(),
-  ruler_male_title: z.string(),
-  ruler_female_title: z.string(),
-  helptext: z.string().or(z.array(z.string())), // Support both single string and array format
-  flags: z.array(z.string()).optional(), // Government behavior flags
-});
+export const GovernmentRulesetSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    rule_name: z.string().optional(), // Internal name for savegames/rulesets
+    reqs: z.array(GovernmentRequirementSchema).optional(),
+    graphic: z.string(),
+    graphic_alt: z.string(),
+    sound: z.string(),
+    sound_alt: z.string(),
+    sound_alt2: z.string(),
+    ai_better: z.string().optional(),
+    ruler_male_title: z.string(),
+    ruler_female_title: z.string(),
+    helptext: z.string().or(z.array(z.string())), // Support both single string and array format
+    flags: z.array(z.string()).optional(), // Government behavior flags
+  })
+  .passthrough();
 
 export const GovernmentsRulesetFileSchema = z.object({
   datafile: z.object({

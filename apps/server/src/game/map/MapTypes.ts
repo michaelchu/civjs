@@ -92,6 +92,8 @@ export type TerrainType =
   | 'coast'
   | 'deep_ocean'
   | 'lake'
+  | 'inaccessible'
+  | 'glacier'
   | 'grassland'
   | 'plains'
   | 'desert'

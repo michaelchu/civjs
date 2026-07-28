@@ -670,7 +670,7 @@ describe('UnitManager', () => {
               ? {
                   id: 'walled-city',
                   playerId: 'player-456',
-                  buildings: ['walls'],
+                  buildings: ['city_walls'],
                 }
               : null,
         },
@@ -682,7 +682,7 @@ describe('UnitManager', () => {
       const firepower = (cityAwareManager as any).calculateModifiedFirepower(
         attacker,
         defender,
-        { ...UNIT_TYPES.catapult, firepower: 2 },
+        { ...UNIT_TYPES.catapult, firepower: 2, flags: ['BadWallAttacker'] },
         UNIT_TYPES.warriors
       );
 
@@ -752,7 +752,7 @@ describe('UnitManager', () => {
           broadcastUnitMoved: () => undefined,
           getCityAt: (x, y) =>
             x === 11 && y === 10
-              ? { id: 'city-walls', playerId: 'player-456', buildings: ['walls'] }
+              ? { id: 'city-walls', playerId: 'player-456', buildings: ['city_walls'] }
               : null,
         },
         new EffectsManager()

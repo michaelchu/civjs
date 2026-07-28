@@ -76,6 +76,10 @@ function parseValue(rawValue) {
   return value;
 }
 
+function asText(value) {
+  return Array.isArray(value) ? value.join('\n') : value;
+}
+
 function parseSecfilePath(filePath, seen = new Set(), followIncludes = true) {
   const absolutePath = filePath.startsWith('/') ? filePath : join(sourceDir, filePath);
   if (seen.has(absolutePath)) return {};
@@ -132,7 +136,9 @@ function metadata(datafile, source) {
   return {
     source,
     datafile: {
-      description: datafile.description,
+      description: Array.isArray(datafile.description)
+        ? datafile.description.join('\n')
+        : datafile.description,
       options: datafile.options,
       format_version: datafile.format_version,
     },
@@ -179,6 +185,80 @@ function convertExtras() {
   };
 }
 
+function convertTerrain() {
+  const sections = parseSecfile('terrain.ruleset');
+  const terrainSections = Object.entries(sections).filter(([id]) => id.startsWith('terrain_'));
+  const terrainNameToId = new Map(
+    terrainSections.map(([sectionId, terrain]) => [
+      normalizeId(terrain.name),
+      sectionId === 'terrain_inaccesible' ? 'inaccessible' : sectionId.slice('terrain_'.length),
+    ])
+  );
+  const resolveTerrain = value => {
+    if (!value || value.toLowerCase() === 'no') return undefined;
+    return terrainNameToId.get(normalizeId(value)) ?? normalizeId(value);
+  };
+  const properties = [
+    'cold',
+    'dry',
+    'foliage',
+    'frozen',
+    'green',
+    'mountainous',
+    'ocean_depth',
+    'temperate',
+    'tropical',
+    'wet',
+  ];
+  const terrains = Object.fromEntries(
+    terrainSections.map(([sectionId, terrain]) => {
+      const id =
+        sectionId === 'terrain_inaccesible' ? 'inaccessible' : sectionId.slice('terrain_'.length);
+      const flags = asArray(terrain.flags).filter(Boolean);
+      return [
+        id,
+        {
+          ...terrain,
+          source_section: sectionId,
+          id,
+          name: id,
+          display_name: terrain.name,
+          properties: Object.fromEntries(
+            properties
+              .filter(property => terrain[`property_${property}`] !== undefined)
+              .map(property => [`MG_${property.toUpperCase()}`, terrain[`property_${property}`]])
+          ),
+          moveCost: terrain.movement_cost,
+          defense: terrain.defense_bonus,
+          shields: terrain.shield,
+          roadTime: terrain.road_time,
+          irrigationFoodIncr: terrain.irrigation_food_incr,
+          irrigationTime: terrain.irrigation_time,
+          miningShieldIncr: terrain.mining_shield_incr,
+          miningTime: terrain.mining_time,
+          cultivateTo: resolveTerrain(terrain.cultivate_result),
+          cultivateTime: terrain.cultivate_time,
+          plantTo: resolveTerrain(terrain.plant_result),
+          plantTime: terrain.plant_time,
+          transformTo: resolveTerrain(terrain.transform_result),
+          transformTime: terrain.transform_time,
+          canHaveRiver: flags.includes('CanHaveRiver'),
+          notGenerated: flags.includes('NotGenerated'),
+        },
+      ];
+    })
+  );
+
+  return {
+    ...metadata(sections.datafile, 'reference/freeciv/data/classic/terrain.ruleset'),
+    about: {
+      name: 'Freeciv Classic Terrain Ruleset',
+      summary: asText(sections.datafile.description),
+    },
+    terrains,
+  };
+}
+
 function convertStyles() {
   const sections = parseSecfile('styles.ruleset');
   const select = prefix =>
@@ -214,6 +294,236 @@ function normalizeId(value) {
     .replace(/['’]/g, '')
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_|_$/g, '');
+}
+
+function buildNameToId(sections, prefix) {
+  return new Map(
+    Object.entries(sections)
+      .filter(([id]) => id.startsWith(prefix))
+      .map(([sectionId, section]) => [
+        normalizeId(section.rule_name ?? section.name),
+        sectionId.slice(prefix.length),
+      ])
+  );
+}
+
+function resolveNamedId(value, nameToId) {
+  if (value === undefined || value === '' || value === 'None' || value === 'Never') {
+    return undefined;
+  }
+  return nameToId.get(normalizeId(value)) ?? normalizeId(value);
+}
+
+function firstRequirement(section, type) {
+  return (section.reqs ?? []).find(
+    requirement => requirement.type?.toLowerCase() === type.toLowerCase()
+  );
+}
+
+function convertUnits() {
+  const sections = parseSecfile('units.ruleset');
+  const techSections = parseSecfile('techs.ruleset');
+  const unitNameToId = buildNameToId(sections, 'unit_');
+  const techNameToId = buildNameToId(techSections, 'advance_');
+  const unitClasses = Object.fromEntries(
+    Object.entries(sections)
+      .filter(([id]) => id.startsWith('unitclass_'))
+      .map(([, unitClass]) => [
+        unitClass.name,
+        {
+          ...unitClass,
+          id: unitClass.name,
+          name: unitClass.name,
+          min_speed: unitClass.min_speed,
+          hp_loss_pct: unitClass.hp_loss_pct,
+          flags: asArray(unitClass.flags),
+        },
+      ])
+  );
+  const units = Object.fromEntries(
+    Object.entries(sections)
+      .filter(([id]) => id.startsWith('unit_') && !id.startsWith('unitclass_'))
+      .map(([sectionId, unit]) => {
+        const id = sectionId.slice('unit_'.length);
+        const requiredTech = resolveNamedId(firstRequirement(unit, 'Tech')?.name, techNameToId);
+        const obsoleteBy = resolveNamedId(unit.obsolete_by, unitNameToId);
+        const convertTo = resolveNamedId(unit.convert_to, unitNameToId);
+        return [
+          id,
+          {
+            ...unit,
+            id,
+            name: unit.name,
+            cost: unit.build_cost,
+            movement: unit.move_rate,
+            attack: unit.attack,
+            defense: unit.defense,
+            hitpoints: unit.hitpoints,
+            firepower: unit.firepower,
+            bombard_rate: unit.bombard_rate ?? 0,
+            paratroopers_range: unit.paratroopers_range ?? 0,
+            vision_radius_sq: unit.vision_radius_sq,
+            transport_cap: unit.transport_cap,
+            cargo: asArray(unit.cargo),
+            fuel: unit.fuel,
+            uk_happy: unit.uk_happy,
+            uk_shield: unit.uk_shield,
+            uk_food: unit.uk_food,
+            uk_gold: unit.uk_gold,
+            unit_class: unit.class,
+            roles: asArray(unit.roles).filter(Boolean),
+            flags: asArray(unit.flags).filter(Boolean),
+            ...(requiredTech ? { required_tech: requiredTech } : {}),
+            obsolete_by: obsoleteBy,
+            convert_to: convertTo,
+            veteran_levels: Math.max(1, asArray(unit.veteran_names).length),
+          },
+        ];
+      })
+  );
+
+  return {
+    ...metadata(sections.datafile, 'reference/freeciv/data/classic/units.ruleset'),
+    about: {
+      name: 'Freeciv Classic Units Ruleset',
+      summary: asText(sections.datafile.description),
+    },
+    veteran_system: sections.veteran_system,
+    unit_classes: unitClasses,
+    units,
+  };
+}
+
+function convertBuildings() {
+  const sections = parseSecfile('buildings.ruleset');
+  const techSections = parseSecfile('techs.ruleset');
+  const legacy = loadTargetJson('buildings.json');
+  const legacyByName = new Map(
+    Object.values(legacy.buildings).map(building => [normalizeId(building.name), building])
+  );
+  const techNameToId = buildNameToId(techSections, 'advance_');
+  const buildingNameToId = buildNameToId(sections, 'building_');
+  const buildings = Object.fromEntries(
+    Object.entries(sections)
+      .filter(([id]) => id.startsWith('building_'))
+      .map(([sectionId, building]) => {
+        const id = sectionId.slice('building_'.length);
+        const legacyBuilding = legacyByName.get(normalizeId(building.name));
+        const requiredTech = resolveNamedId(firstRequirement(building, 'Tech')?.name, techNameToId);
+        const prerequisites = (building.reqs ?? [])
+          .filter(requirement => requirement.type?.toLowerCase() === 'building')
+          .map(requirement => resolveNamedId(requirement.name, buildingNameToId))
+          .filter(Boolean);
+        const cultureRequirements = (building.reqs ?? [])
+          .filter(requirement => requirement.type === 'MinCulture')
+          .map(requirement => ({
+            type: 'MinCulture',
+            value: Number(requirement.name),
+            range: requirement.range,
+            present: requirement.present ?? true,
+          }));
+        return [
+          id,
+          {
+            ...building,
+            id,
+            name: building.name,
+            genus: building.genus,
+            cost: building.build_cost,
+            upkeep: building.upkeep,
+            ...(requiredTech ? { requiredTech } : {}),
+            ...(prerequisites.length > 0 ? { requires: prerequisites } : {}),
+            ...(cultureRequirements.length > 0 ? { cultureRequirements } : {}),
+            playable: legacyBuilding?.playable ?? true,
+            effects: legacyBuilding?.effects ?? {},
+          },
+        ];
+      })
+  );
+
+  return {
+    ...metadata(sections.datafile, 'reference/freeciv/data/classic/buildings.ruleset'),
+    about: {
+      name: 'Freeciv Classic Buildings Ruleset',
+      summary: asText(sections.datafile.description),
+    },
+    buildings,
+  };
+}
+
+function convertTechs() {
+  const sections = parseSecfile('techs.ruleset');
+  const legacy = loadTargetJson('techs.json');
+  const techNameToId = buildNameToId(sections, 'advance_');
+  const techs = Object.fromEntries(
+    Object.entries(sections)
+      .filter(([id]) => id.startsWith('advance_'))
+      .map(([sectionId, tech], index) => {
+        const id = sectionId.slice('advance_'.length);
+        const legacyTech = legacy.techs[id];
+        const requirements = [tech.req1, tech.req2]
+          .map(requirement => resolveNamedId(requirement, techNameToId))
+          .filter(Boolean);
+        return [
+          id,
+          {
+            ...tech,
+            id,
+            freeciv_id: legacyTech?.freeciv_id ?? index + 1,
+            name: tech.name,
+            internal_name: tech.rule_name ?? tech.name,
+            cost: tech.cost ?? legacyTech?.cost ?? 1,
+            requirements,
+            root_req: resolveNamedId(tech.root_req, techNameToId) ?? null,
+            flags: asArray(tech.flags).filter(Boolean),
+            ...(legacyTech?.position ? { position: legacyTech.position } : {}),
+            order: legacyTech?.order ?? index + 1,
+          },
+        ];
+      })
+  );
+
+  return {
+    ...metadata(sections.datafile, 'reference/freeciv/data/classic/techs.ruleset'),
+    about: {
+      name: 'Freeciv Classic Technologies Ruleset',
+      summary: asText(sections.datafile.description),
+    },
+    control: sections.control,
+    techs,
+  };
+}
+
+function convertGovernments() {
+  const sections = parseSecfile('governments.ruleset');
+  const types = Object.fromEntries(
+    Object.entries(sections)
+      .filter(([id]) => id.startsWith('government_'))
+      .map(([sectionId, government]) => {
+        const id = sectionId.slice('government_'.length);
+        return [
+          id,
+          {
+            ...government,
+            id,
+            name: government.name,
+            reqs: government.reqs ?? [],
+            helptext: government.helptext ?? '',
+          },
+        ];
+      })
+  );
+  return {
+    ...metadata(sections.datafile, 'reference/freeciv/data/classic/governments.ruleset'),
+    about: {
+      name: 'Freeciv Classic Governments Ruleset',
+      summary: asText(sections.datafile.description),
+    },
+    governments: {
+      during_revolution: sections.governments.during_revolution,
+      types,
+    },
+  };
 }
 
 function convertNations() {
@@ -261,7 +571,7 @@ function convertNations() {
     datafile: metadata(main.datafile, 'reference/freeciv/data/classic/nations.ruleset').datafile,
     about: {
       name: 'Freeciv Classic Nations Ruleset',
-      summary: main.datafile.description,
+      summary: asText(main.datafile.description),
     },
     compatibility: main.compatibility,
     default_traits: main.default_traits,
@@ -282,7 +592,7 @@ function convertCities() {
     ...metadata(sections.datafile, 'reference/freeciv/data/classic/cities.ruleset'),
     about: {
       name: 'Freeciv Classic Cities Ruleset',
-      summary: sections.datafile.description,
+      summary: asText(sections.datafile.description),
     },
     specialists: selectSections(sections, 'specialist_'),
     parameters: sections.parameters,
@@ -372,11 +682,16 @@ function convertGame() {
 const generatedFiles = [];
 for (const [fileName, data] of [
   ['actions.json', convertActions()],
+  ['buildings.json', convertBuildings()],
   ['cities.json', convertCities()],
   ['extras.json', convertExtras()],
   ['game.json', convertGame()],
+  ['governments.json', convertGovernments()],
   ['nations.json', convertNations()],
   ['styles.json', convertStyles()],
+  ['terrain.json', convertTerrain()],
+  ['techs.json', convertTechs()],
+  ['units.json', convertUnits()],
 ]) {
   const target = join(targetDir, fileName);
   writeFileSync(target, `${JSON.stringify(data, null, 2)}\n`);

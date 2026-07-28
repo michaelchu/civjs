@@ -60,7 +60,9 @@ describe('CityProductionHandler', () => {
     handler = new CityProductionHandler(mockCities, mockPlayers, mockResearchManager);
 
     // Setup research manager mock
-    mockResearchManager.hasPlayerResearched.mockReturnValue(true);
+    mockResearchManager.hasPlayerResearched.mockImplementation(
+      (_playerId: string, techId: string) => techId !== 'guerilla_warfare'
+    );
   });
 
   describe('getAvailableProductions', () => {

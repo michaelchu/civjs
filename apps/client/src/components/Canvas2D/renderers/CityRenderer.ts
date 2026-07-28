@@ -231,7 +231,7 @@ export class CityRenderer extends BaseRenderer {
    */
   private cityHasWalls(city: City): boolean {
     return city.buildings.some(
-      building => (typeof building === 'string' ? building : building.id) === 'walls'
+      building => (typeof building === 'string' ? building : building.id) === 'city_walls'
     );
   }
 

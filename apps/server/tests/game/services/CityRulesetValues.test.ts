@@ -61,12 +61,12 @@ function mapFor(terrain: string, resource: string | null = null): MapManager {
 describe('ruleset-backed city values', () => {
   it('serializes building names and upkeep from the building ruleset', () => {
     const result = CityDataService.transformCityForClient(
-      city({ buildings: ['marketplace', 'walls'] })
+      city({ buildings: ['marketplace', 'city_walls'] })
     );
 
     expect(result.buildings).toEqual([
       { id: 'marketplace', name: 'Marketplace', upkeep: 0 },
-      { id: 'walls', name: 'City Walls', upkeep: 0 },
+      { id: 'city_walls', name: 'City Walls', upkeep: 0 },
     ]);
     expect(rulesetBuildingsService.getBuildingTypes().cathedral.upkeep).toBe(3);
   });

@@ -83,7 +83,7 @@ export function resolveCityPresentation(
     graphic: selected?.graphic ?? 'city.european',
     graphicAlt:
       selected?.graphic_alt && selected.graphic_alt !== '-' ? selected.graphic_alt : undefined,
-    hasWalls: buildings.has('walls'),
+    hasWalls: buildings.has('city_walls'),
     overlays,
   };
 }

@@ -10,7 +10,7 @@ describe('RulesetBuildingsService', () => {
 
     // @reference reference/freeciv/data/classic/buildings.ruleset
     expect(Object.keys(buildings)).toHaveLength(Object.keys(classicBuildings).length);
-    expect(buildings.walls.cost).toBe(classicBuildings.walls.cost);
+    expect(buildings.city_walls.cost).toBe(classicBuildings.city_walls.cost);
     expect(buildings.temple.effects.happinessEffect).toBe(
       classicBuildings.temple.effects.happinessBonus
     );
@@ -28,7 +28,7 @@ describe('RulesetBuildingsService', () => {
     expect(buildings.library.cost).toBe(60);
     expect(buildings.marketplace.cost).toBe(60);
     expect(buildings.temple.cost).toBe(30);
-    expect(buildings.walls.cost).toBe(60);
+    expect(buildings.city_walls.cost).toBe(60);
     expect(buildings.cathedral.cost).toBe(80);
     expect(buildings.courthouse.cost).toBe(60);
 
@@ -36,10 +36,11 @@ describe('RulesetBuildingsService', () => {
       expect.arrayContaining(['palace', 'granary', 'barracks', 'library', 'marketplace', 'temple'])
     );
 
-    // 68 classic definitions plus CivJS's legacy Monument entry.
+    // Every classic definition is present, with no CivJS-only catalogue entries.
     // @reference reference/freeciv/data/classic/buildings.ruleset
-    expect(Object.keys(buildings)).toHaveLength(69);
-    expect(buildings.airport).toMatchObject({ requiredTech: 'radio', playable: false });
+    expect(Object.keys(buildings)).toHaveLength(68);
+    expect(buildings).not.toHaveProperty('monument');
+    expect(buildings.airport).toMatchObject({ requiredTech: 'radio' });
     expect(buildings.bank.requires).toEqual(['marketplace']);
   });
 });

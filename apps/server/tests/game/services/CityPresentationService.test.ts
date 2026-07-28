@@ -23,7 +23,7 @@ describe('CityPresentationService', () => {
   it('resolves another player city era without exposing their research list', () => {
     const presentation = resolveCityPresentation(
       {
-        buildings: ['walls', 'coastal_defense', 'sam_battery'],
+        buildings: ['city_walls', 'coastal_defense', 'sam_battery'],
       } as CityState,
       player,
       new Set(['alphabet', 'railroad']),
