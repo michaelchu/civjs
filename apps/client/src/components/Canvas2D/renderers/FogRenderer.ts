@@ -19,8 +19,10 @@ interface FogTile {
  * Fog sprites describe the knowledge state of the four tiles surrounding a
  * map-grid corner. Rendering these masks at corners, rather than placing one
  * diamond on every tile, prevents seams at visibility transitions. Coordinates
- * outside the finite map are deliberately treated as unknown so fog also
- * covers the infinite ocean padding rendered beneath the map.
+ * outside the finite map are deliberately treated as unknown. Fully unknown
+ * corners are omitted because MapRenderer's opaque black backing already
+ * covers them; drawing their overlapping sprites can obscure remembered
+ * terrain at the edge of explored space.
  *
  * @reference reference/freeciv-web/javascript/2dcanvas/mapview.js:160-179
  * @reference reference/freeciv-web/javascript/2dcanvas/mapview_common.js:372-443
@@ -52,7 +54,12 @@ export class FogRenderer extends BaseRenderer {
           this.getKnowledge(mapX, mapY + 1, mapWidth, mapHeight, knowledgeByCoordinate),
         ];
 
-        if (states.every(knowledge => knowledge === TILE_KNOWN_SEEN)) continue;
+        if (
+          states.every(knowledge => knowledge === TILE_KNOWN_SEEN) ||
+          states.every(knowledge => knowledge === TILE_UNKNOWN)
+        ) {
+          continue;
+        }
 
         const sprite = this.tilesetLoader.getSprite(this.getFogSpriteKey(states));
         const screen = this.mapCornerToScreen(mapX, mapY, state);

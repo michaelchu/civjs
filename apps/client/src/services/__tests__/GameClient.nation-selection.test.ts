@@ -180,6 +180,47 @@ describe('GameClient - Nation Selection', () => {
       });
     });
 
+    it('preserves player snapshots received before the join reply', async () => {
+      const mockUpdateGameState = jest.fn();
+      const aiPlayer = {
+        id: 'ai-1',
+        name: 'Caesar',
+        nation: 'roman',
+        color: '#336699',
+        gold: 50,
+        science: 0,
+        history: 0,
+        government: 'despotism',
+        isHuman: false,
+        isActive: true,
+      };
+      (useGameStore.getState as jest.Mock).mockReturnValue({
+        players: { 'ai-1': aiPlayer },
+        updateGameState: mockUpdateGameState,
+        setClientState: jest.fn(),
+      });
+      mockSocket.emit.mockImplementation((event, _data, callback) => {
+        if (event === 'join_game') {
+          callback({
+            success: true,
+            playerId: 'player-123',
+            assignedNation: 'american',
+          });
+        }
+      });
+
+      await gameClient.joinSpecificGame('test-game-id', 'TestPlayer', 'american');
+
+      expect(mockUpdateGameState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          players: expect.objectContaining({
+            'ai-1': aiPlayer,
+            'player-123': expect.objectContaining({ isHuman: true }),
+          }),
+        })
+      );
+    });
+
     it('should fallback to selectedNation when assignedNation not provided', async () => {
       // Arrange
       const gameId = 'test-game-id';

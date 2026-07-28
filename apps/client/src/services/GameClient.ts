@@ -1229,6 +1229,7 @@ export class GameClient {
 
   private applyJoinedPlayer(response: any, playerName: string, selectedNation: string): void {
     if (!response.playerId) return;
+    const existingPlayers = useGameStore.getState().players ?? {};
     const finalNation =
       response.assignedNation && response.assignedNation !== 'random'
         ? response.assignedNation
@@ -1238,6 +1239,7 @@ export class GameClient {
     useGameStore.getState().updateGameState({
       currentPlayerId: response.playerId,
       players: {
+        ...existingPlayers,
         [response.playerId]: {
           id: response.playerId,
           name: playerName,
