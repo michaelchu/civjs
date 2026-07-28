@@ -27,7 +27,11 @@ import { and, eq } from 'drizzle-orm';
 
 const timeoutMs = 10_000;
 
-function waitForPacket(socket: ClientSocket, type: PacketType): Promise<Packet> {
+function waitForPacket(
+  socket: ClientSocket,
+  type: PacketType,
+  predicate: (packet: Packet) => boolean = () => true
+): Promise<Packet> {
   return new Promise((resolve, reject) => {
     const received: Packet[] = [];
     const timeout = setTimeout(() => {
@@ -44,7 +48,7 @@ function waitForPacket(socket: ClientSocket, type: PacketType): Promise<Packet> 
 
     const onPacket = (packet: Packet) => {
       received.push(packet);
-      if (packet.type !== type) return;
+      if (packet.type !== type || !predicate(packet)) return;
       clearTimeout(timeout);
       socket.off('packet', onPacket);
       resolve(packet);
@@ -671,13 +675,19 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       expect((await reply).data).toMatchObject({ success: true });
     };
 
-    const advanceTurn = async (): Promise<void> => {
+    const advanceTurn = async (): Promise<Packet> => {
       const hostTurnReply = waitForPacket(host, PacketType.TURN_END_REPLY);
       host.emit('packet', { type: PacketType.END_TURN, data: {} });
       expect((await hostTurnReply).data).toMatchObject({ success: true, turnAdvanced: false });
+      const playerInfoReply = waitForPacket(
+        host,
+        PacketType.PLAYER_INFO,
+        packet => (packet.data as { id?: string }).id === hostPlayer!.id
+      );
       const guestTurnReply = waitForPacket(guest, PacketType.TURN_END_REPLY);
       guest.emit('packet', { type: PacketType.END_TURN, data: {} });
       expect((await guestTurnReply).data).toMatchObject({ success: true, turnAdvanced: true });
+      return playerInfoReply;
     };
 
     const initialSnapshot = await takeTurnSnapshot();
@@ -686,7 +696,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       population: 1,
       foodStock: 0,
       shieldStock: 0,
-      treasury: 0,
+      treasury: 50,
       bulbs: 0,
       bulbsLastTurn: 0,
       researchedTechs: 1,
@@ -696,13 +706,20 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     for (let completedTurns = 0; completedTurns < 20; completedTurns += 1) {
       await ensureResearchTarget();
       const before = await takeTurnSnapshot();
-      await advanceTurn();
+      const playerInfo = await advanceTurn();
       const after = await takeTurnSnapshot();
       assertTurnAccumulation(before, after);
       const { cumulativeGold, cumulativeScience, ...expectedSnapshot } =
         goldenTurns[completedTurns];
       expect(after).toMatchObject(expectedSnapshot);
       expect(after.treasury).toBe(initialSnapshot.treasury + cumulativeGold);
+      expect(playerInfo.data).toMatchObject({
+        id: hostPlayer!.id,
+        gold: after.treasury,
+        goldPerTurn: after.goldOutput,
+        science: after.bulbs,
+        sciencePerTurn: after.science,
+      });
       expect(
         turnSnapshots.reduce((total, snapshot) => total + snapshot.science, 0) + after.science
       ).toBe(cumulativeScience);
@@ -771,6 +788,9 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     expect(recoveredHostResearch?.researchedTechs).toEqual(
       hostResearchBeforeRecovery?.researchedTechs
     );
+    expect(
+      await recoveredGame?.turnManager.getEconomicManager()?.getPlayerGold(hostPlayer!.id)
+    ).toBe(turnSnapshots.at(-1)?.treasury);
     expect(
       recoveredGame?.researchManager.getPlayerResearch(guestPlayer!.id)?.researchedTechs
     ).toEqual(new Set(['alphabet']));

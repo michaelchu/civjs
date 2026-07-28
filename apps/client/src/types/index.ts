@@ -168,7 +168,9 @@ export interface Player {
   nation: string;
   color: string;
   gold: number;
+  goldPerTurn?: number;
   science: number;
+  sciencePerTurn?: number;
   // Culture system (freeciv-based)
   history: number; // National history accumulation
   culture?: number; // Current national history plus performance and city culture

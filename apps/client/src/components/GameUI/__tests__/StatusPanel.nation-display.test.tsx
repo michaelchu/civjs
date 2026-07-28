@@ -9,7 +9,9 @@ const mockPlayer = {
   nation: 'american',
   color: '#0066cc',
   gold: 50,
+  goldPerTurn: 3,
   science: 10,
+  sciencePerTurn: 2,
   government: 'republic',
 };
 
@@ -24,7 +26,9 @@ const { mockUseGameStore } = vi.hoisted(() => ({
         nation: 'american',
         color: '#0066cc',
         gold: 50,
+        goldPerTurn: 3,
         science: 10,
+        sciencePerTurn: 2,
         government: 'republic',
       },
     },
@@ -57,5 +61,20 @@ describe('StatusPanel - Nation Display', () => {
     const { getByText } = render(<StatusPanel />);
 
     expect(getByText(expected)).toBeInTheDocument();
+  });
+
+  it('shows signed gold and science changes per turn', () => {
+    mockUseGameStore.players['player-1'] = {
+      ...mockPlayer,
+      gold: 42,
+      goldPerTurn: -1,
+      science: 18,
+      sciencePerTurn: 2,
+    };
+
+    const { getByLabelText } = render(<StatusPanel />);
+
+    expect(getByLabelText('Gold per turn')).toHaveTextContent('(-1)');
+    expect(getByLabelText('Science per turn')).toHaveTextContent('(+2)');
   });
 });

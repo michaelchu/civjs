@@ -123,6 +123,60 @@ describe('GameBroadcastManager visibility sync', () => {
     manager.setGamesReference(new Map([[gameId, game as any]]));
   });
 
+  it('broadcasts authoritative resource totals and per-turn changes', async () => {
+    const economicManager = {
+      getPlayerGold: jest.fn().mockResolvedValue(41),
+      getLastTurnSummary: jest.fn().mockReturnValue({
+        totals: { netGoldChange: -1 },
+      }),
+    };
+    const game = {
+      players: new Map([
+        [
+          playerOne,
+          {
+            id: playerOne,
+            userId: userOne,
+            isConnected: true,
+            civilization: 'romans',
+            color: { r: 255, g: 0, b: 0 },
+          },
+        ],
+      ]),
+      turnManager: {
+        getEconomicManager: () => economicManager,
+      },
+      researchManager: {
+        getPlayerResearch: () => ({
+          bulbsAccumulated: 18,
+          bulbsLastTurn: 2,
+        }),
+      },
+    };
+    manager.setGamesReference(new Map([[gameId, game as any]]));
+
+    await manager.broadcastPlayerInfo(gameId);
+
+    expect(emitted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          room: `player:${userOne}`,
+          event: 'packet',
+          data: expect.objectContaining({
+            type: PacketType.PLAYER_INFO,
+            data: expect.objectContaining({
+              id: playerOne,
+              gold: 41,
+              goldPerTurn: -1,
+              science: 18,
+              sciencePerTurn: 2,
+            }),
+          }),
+        }),
+      ])
+    );
+  });
+
   it('sends each user only their explored map and visible units', () => {
     manager.broadcastMapData(gameId, {
       width: 2,

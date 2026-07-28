@@ -108,6 +108,8 @@ export interface PlayerState {
   isAlive?: boolean;
   gold?: number;
   science?: number;
+  goldPerTurn?: number;
+  sciencePerTurn?: number;
   government?: string;
   history?: number;
   teamId?: string;
@@ -976,9 +978,10 @@ export class GameManager {
       gameInstance.turnManager.clearTurnTimer();
       return true;
     });
-    gameInstance.turnManager.setTurnAdvancedCallback(turn => {
+    gameInstance.turnManager.setTurnAdvancedCallback(async turn => {
       gameInstance.currentTurn = turn;
       for (const player of gameInstance.players.values()) player.hasEndedTurn = false;
+      await this.gameBroadcastManager.broadcastPlayerInfo(gameId);
       if (gameInstance.state === 'active') {
         gameInstance.turnManager.startTurnTimer(gameInstance.config.turnTimeLimit ?? 300);
       }

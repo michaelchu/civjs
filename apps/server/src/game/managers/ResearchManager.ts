@@ -119,6 +119,32 @@ export class ResearchManager {
       techId: 'alphabet',
       researchedTurn: 1,
     });
+
+    await this.ensureCurrentResearch(playerId);
+  }
+
+  /**
+   * Freeciv begins a new game with an available research target selected and
+   * also repairs an unset target at phase end. Use a stable cheapest-first
+   * choice so authoritative replays remain deterministic.
+   *
+   * @reference reference/freeciv/server/techtools.c:983-994
+   * @reference reference/freeciv/server/srv_main.c:1492-1510
+   */
+  public async ensureCurrentResearch(playerId: string): Promise<string | undefined> {
+    const playerResearch = this.playerResearch.get(playerId);
+    if (!playerResearch) {
+      throw new Error(`Player ${playerId} research not initialized`);
+    }
+    if (playerResearch.currentTech) return playerResearch.currentTech;
+
+    const target = this.getAvailableTechnologies(playerId).sort(
+      (left, right) => left.cost - right.cost || left.id.localeCompare(right.id)
+    )[0];
+    if (!target) return undefined;
+
+    await this.setCurrentResearch(playerId, target.id);
+    return target.id;
   }
 
   public async setCurrentResearch(playerId: string, techId: string): Promise<void> {
@@ -206,7 +232,19 @@ export class ResearchManager {
 
   public async addResearchPoints(playerId: string, bulbs: number): Promise<string | null> {
     const playerResearch = this.playerResearch.get(playerId);
-    if (!playerResearch || !playerResearch.currentTech) {
+    if (!playerResearch) {
+      return null;
+    }
+
+    // Freeciv keeps bulbs generated while no target is selected and then
+    // automatically chooses an available technology. Do not silently discard
+    // a city's science output.
+    // @reference reference/freeciv/server/techtools.c:650-726
+    if (!playerResearch.currentTech) await this.ensureCurrentResearch(playerId);
+    if (!playerResearch.currentTech) {
+      playerResearch.bulbsAccumulated += bulbs;
+      playerResearch.bulbsLastTurn = bulbs;
+      await this.saveResearchState(playerResearch);
       return null;
     }
 
@@ -475,6 +513,10 @@ export class ResearchManager {
         bulbsLastTurn: 0,
         researchedTechs: new Set(researchedTechs),
       });
+    }
+
+    for (const playerId of this.playerResearch.keys()) {
+      await this.ensureCurrentResearch(playerId);
     }
   }
 

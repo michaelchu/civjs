@@ -12,6 +12,16 @@ const formatNationName = (nation: string): string => {
     .join(' ');
 };
 
+const ResourceDelta: React.FC<{ label: string; value: number }> = ({ label, value }) => (
+  <span
+    aria-label={`${label} per turn`}
+    className={value > 0 ? 'text-emerald-400' : value < 0 ? 'text-red-400' : 'text-gray-500'}
+  >
+    ({value >= 0 ? '+' : ''}
+    {value})
+  </span>
+);
+
 export const StatusPanel: React.FC = () => {
   const turn = useGameStore(state => state.turn);
   const currentPlayer = useGameStore(state => state.players[state.currentPlayerId]);
@@ -37,11 +47,13 @@ export const StatusPanel: React.FC = () => {
         <div className="flex items-center space-x-1">
           <span className="text-gray-400">Gold:</span>
           <span className="font-bold text-primary">{currentPlayer.gold}</span>
+          <ResourceDelta label="Gold" value={currentPlayer.goldPerTurn ?? 0} />
         </div>
 
         <div className="flex items-center space-x-1">
           <span className="text-gray-400">Science:</span>
           <span className="font-bold text-blue-400">{currentPlayer.science}</span>
+          <ResourceDelta label="Science" value={currentPlayer.sciencePerTurn ?? 0} />
         </div>
       </div>
 

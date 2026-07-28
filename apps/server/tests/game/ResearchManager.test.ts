@@ -65,6 +65,7 @@ describe('ResearchManager', () => {
       expect(research!.playerId).toBe('player-123');
       expect(research!.bulbsAccumulated).toBe(0);
       expect(research!.researchedTechs.has('alphabet')).toBe(true);
+      expect(research!.currentTech).toBeDefined();
 
       // Database operations handled by MockDatabaseProvider
     });
@@ -86,6 +87,17 @@ describe('ResearchManager', () => {
 
       const research = researchManager.getPlayerResearch('player-123');
       expect(research!.currentTech).toBe('pottery');
+    });
+
+    it('automatically selects a target instead of discarding bulbs', async () => {
+      const research = researchManager.getPlayerResearch('player-123')!;
+      research.currentTech = undefined;
+
+      await researchManager.addResearchPoints('player-123', 3);
+
+      expect(research.currentTech).toBeDefined();
+      expect(research.bulbsAccumulated).toBe(3);
+      expect(research.bulbsLastTurn).toBe(3);
     });
 
     it('should reject invalid technology', async () => {
@@ -267,11 +279,15 @@ describe('ResearchManager', () => {
       });
     });
 
-    it('should return null when no current research', async () => {
+    it('should automatically expose progress for a newly initialized player', async () => {
       await researchManager.initializePlayerResearch('player-456');
 
       const progress = researchManager.getResearchProgress('player-456');
-      expect(progress).toBeNull();
+      expect(progress).toEqual({
+        current: 0,
+        required: 10,
+        turnsRemaining: -1,
+      });
     });
   });
 
@@ -355,11 +371,13 @@ describe('ResearchManager', () => {
       expect(progress).toBeNull();
     });
 
-    it('should handle player without current research', async () => {
+    it('should automatically research the initial target', async () => {
       await researchManager.initializePlayerResearch('player-123');
+      const initialTarget = researchManager.getPlayerResearch('player-123')!.currentTech;
 
       const completedTech = await researchManager.addResearchPoints('player-123', 10);
-      expect(completedTech).toBeNull();
+      expect(initialTarget).toBeDefined();
+      expect(completedTech).toBe(initialTarget);
     });
   });
 

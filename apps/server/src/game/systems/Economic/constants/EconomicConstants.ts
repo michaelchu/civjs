@@ -9,6 +9,13 @@
 import type { TaxRates, TaxRateConstraints } from '../types/EconomicTypes';
 
 /**
+ * Freeciv's configurable starting treasury defaults to 50 gold.
+ * @reference reference/freeciv/common/game.h GAME_DEFAULT_GOLD
+ * @reference reference/freeciv/server/srv_main.c:3406-3412
+ */
+export const DEFAULT_STARTING_GOLD = 50;
+
+/**
  * Default tax rate allocation for new players
  * Classic begins at 100% science, then Despotism's 60% maximum rate
  * redistributes the excess to tax.

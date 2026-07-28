@@ -370,19 +370,46 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   private sendPlayerInfoSnapshot(gameInstance: GameInstance, recipientPlayerId: string): void {
     for (const player of gameInstance.players.values()) {
       if (!player.color) continue;
+      const research = gameInstance.researchManager?.getPlayerResearch(player.id);
       this.sendPacketToPlayer(gameInstance, recipientPlayerId, PacketType.PLAYER_INFO, {
         id: player.id,
         name: player.leaderName ?? player.civilization,
         nation: player.nation ?? player.civilization,
         score: 0,
         gold: player.gold ?? 0,
-        science: player.science ?? 0,
+        goldPerTurn: player.goldPerTurn ?? 0,
+        science: research?.bulbsAccumulated ?? player.science ?? 0,
+        sciencePerTurn: research?.bulbsLastTurn ?? player.sciencePerTurn ?? 0,
         culture: player.history ?? 0,
         government: player.government ?? 'despotism',
         alive: player.isAlive ?? true,
         isAI: player.isAI ?? false,
         color: player.color,
       });
+    }
+  }
+
+  /**
+   * Refresh and broadcast authoritative resources after turn processing.
+   */
+  async broadcastPlayerInfo(gameId: string): Promise<void> {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) return;
+
+    const economicManager = gameInstance.turnManager.getEconomicManager();
+    for (const player of gameInstance.players.values()) {
+      if (economicManager) {
+        player.gold = await economicManager.getPlayerGold(player.id);
+        player.goldPerTurn =
+          economicManager.getLastTurnSummary(player.id)?.totals.netGoldChange ?? 0;
+      }
+      const research = gameInstance.researchManager.getPlayerResearch(player.id);
+      player.science = research?.bulbsAccumulated ?? player.science ?? 0;
+      player.sciencePerTurn = research?.bulbsLastTurn ?? 0;
+    }
+
+    for (const recipient of gameInstance.players.values()) {
+      if (recipient.isConnected) this.sendPlayerInfoSnapshot(gameInstance, recipient.id);
     }
   }
 

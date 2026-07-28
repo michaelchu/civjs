@@ -297,7 +297,9 @@ export class GameClient {
           nation: packet.data.nation,
           color: playerColorToHex(packet.data.color), // Convert RGB to hex
           gold: packet.data.gold,
+          goldPerTurn: packet.data.goldPerTurn ?? 0,
           science: packet.data.science,
+          sciencePerTurn: packet.data.sciencePerTurn ?? 0,
           history: players[packet.data.id]?.history ?? 0,
           culture: packet.data.culture,
           government: packet.data.government,

@@ -33,6 +33,7 @@ import {
   type RushBuildingCalculation,
   type GoldTransaction,
 } from './types/EconomicTypes';
+import { DEFAULT_STARTING_GOLD } from './constants/EconomicConstants';
 // Economic constants available but not currently used in this manager
 
 /**
@@ -44,6 +45,7 @@ export class EconomicManager {
   private treasuryService: TreasuryService;
   private isInitialized = false;
   private readonly effectsManager: EffectsManager;
+  private readonly lastTurnSummaries = new Map<string, PlayerEconomicSummary>();
 
   constructor(
     gameId: string,
@@ -90,7 +92,7 @@ export class EconomicManager {
    */
   public async initializePlayer(
     playerId: string,
-    startingGold: number = 50,
+    startingGold: number = DEFAULT_STARTING_GOLD,
     customTaxRates?: TaxRates
   ): Promise<void> {
     logger.info('Initializing player economic data', {
@@ -302,6 +304,7 @@ export class EconomicManager {
 
     // Get updated warnings
     economicSummary.warnings = this.treasuryService.getEconomicWarnings(playerId);
+    this.lastTurnSummaries.set(playerId, economicSummary);
 
     logger.debug('Processed turn economics', {
       gameId: this.gameId,
@@ -312,6 +315,10 @@ export class EconomicManager {
     });
 
     return economicSummary;
+  }
+
+  public getLastTurnSummary(playerId: string): PlayerEconomicSummary | undefined {
+    return this.lastTurnSummaries.get(playerId);
   }
 
   // ============================================================================
@@ -426,6 +433,7 @@ export class EconomicManager {
    */
   public cleanup(): void {
     this.resetEconomicData();
+    this.lastTurnSummaries.clear();
     this.isInitialized = false;
 
     logger.info('EconomicManager cleaned up', {

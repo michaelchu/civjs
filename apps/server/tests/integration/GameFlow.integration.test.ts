@@ -6,6 +6,7 @@ import {
   getTestDatabaseProvider,
 } from '../utils/testDatabase';
 import * as schema from '@database/schema';
+import { eq } from 'drizzle-orm';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 
 // Integration test to verify full game flow
@@ -97,6 +98,13 @@ describe('Game Integration Flow', () => {
       const game = gameManager.getGameInstance(gameId);
       expect(game).toBeDefined();
       expect(game!.players.size).toBe(2);
+      expect(game!.players.get(hostPlayerId)?.gold).toBe(50);
+      expect(gameManager.getPlayerResearch(gameId, hostPlayerId)?.currentTech).toBeDefined();
+
+      const persistedHost = await db.query.players.findFirst({
+        where: eq(schema.players.id, hostPlayerId),
+      });
+      expect(persistedHost?.gold).toBe(50);
 
       // Test city founding
       const cityId = await gameManager.foundCity(gameId, hostPlayerId, 'TestCity', 10, 10);

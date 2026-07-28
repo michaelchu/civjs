@@ -210,7 +210,9 @@ export interface PlayerInfoPacket {
     team?: string;
     score: number;
     gold: number;
+    goldPerTurn?: number;
     science: number;
+    sciencePerTurn?: number;
     culture: number;
     government: string;
     alive: boolean;

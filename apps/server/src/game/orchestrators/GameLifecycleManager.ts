@@ -20,7 +20,10 @@ import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
 import { CultureManager } from '@game/managers/CultureManager';
 import { EconomicManager } from '@game/systems/Economic/EconomicManager';
-import { DEFAULT_TAX_RATES } from '@game/systems/Economic/constants/EconomicConstants';
+import {
+  DEFAULT_STARTING_GOLD,
+  DEFAULT_TAX_RATES,
+} from '@game/systems/Economic/constants/EconomicConstants';
 import { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { BorderManager } from '@game/managers/BorderManager';
@@ -197,6 +200,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     this.validateStartConditions(game, hostId);
 
     this.logger.info('Starting game', { gameId, playerCount: game.players.length });
+
+    // Freeciv assigns the configured starting treasury when a new game begins.
+    // Recovery follows a separate path and therefore retains persisted balances.
+    // @reference reference/freeciv/server/srv_main.c:3406-3412
+    await this.initializeNewGamePlayerResources(gameId, game.players);
 
     // Update database to active state
     await this.activateGameRecord(gameId);
@@ -819,6 +827,21 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         currentTurn: 1,
       })
       .where(eq(games.id, gameId));
+  }
+
+  private async initializeNewGamePlayerResources(
+    gameId: string,
+    databasePlayers: Array<{ gold: number }>
+  ): Promise<void> {
+    await this.databaseProvider
+      .getDatabase()
+      .update(playerRecords)
+      .set({ gold: DEFAULT_STARTING_GOLD })
+      .where(eq(playerRecords.gameId, gameId));
+
+    for (const player of databasePlayers) {
+      player.gold = DEFAULT_STARTING_GOLD;
+    }
   }
 
   private async updateRedisForGameStart(gameId: string, playerCount: number): Promise<void> {
