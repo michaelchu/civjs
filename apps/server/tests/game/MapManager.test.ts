@@ -294,6 +294,26 @@ describe('MapManager', () => {
   });
 
   describe('seeded generation', () => {
+    it('keeps Quick Start random maps near the configured landmass target', async () => {
+      const quickStartMap = new MapManager(
+        40,
+        25,
+        'quick-start-landmass-regression',
+        'random',
+        'RANDOM'
+      );
+      await quickStartMap.generateMap(testPlayers, 'RANDOM');
+
+      const mapData = quickStartMap.getMapData()!;
+      const landTiles = mapData.tiles
+        .flat()
+        .filter(tile => !['ocean', 'deep_ocean', 'coast', 'lake'].includes(tile.terrain)).length;
+      const landRatio = landTiles / (mapData.width * mapData.height);
+
+      expect(landRatio).toBeGreaterThanOrEqual(0.28);
+      expect(landRatio).toBeLessThanOrEqual(0.33);
+    });
+
     it('preserves the pinned classic topology reference case', async () => {
       const referenceMap = new MapManager(20, 15, 'classic-topology-v1');
       await referenceMap.generateMap(new Map());
@@ -325,17 +345,17 @@ describe('MapManager', () => {
         ],
       }).toEqual({
         terrainCounts: {
-          deep_ocean: 129,
-          desert: 1,
-          forest: 18,
-          grassland: 41,
-          hills: 12,
-          jungle: 3,
-          lake: 9,
-          mountains: 3,
-          ocean: 56,
-          plains: 21,
-          swamp: 7,
+          coast: 3,
+          deep_ocean: 132,
+          forest: 16,
+          grassland: 35,
+          hills: 10,
+          jungle: 2,
+          lake: 11,
+          mountains: 2,
+          ocean: 64,
+          plains: 19,
+          swamp: 6,
         },
         landContinents: 2,
         corners: ['deep_ocean', 'deep_ocean', 'deep_ocean', 'deep_ocean'],

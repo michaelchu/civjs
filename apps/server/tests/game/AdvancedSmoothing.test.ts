@@ -342,6 +342,19 @@ describe('Advanced Smoothing System', () => {
       // Mountain level should be higher than shore level
       expect(mountainLevel).toBeGreaterThan(shoreLevel);
     });
+
+    test('should classify approximately the requested 30 percent as land', () => {
+      const generator = new FractalHeightGenerator(40, 25, random);
+      generator.generateRandomHeightMap(4);
+
+      const heights = generator.getHeightMap();
+      const shoreLevel = generator.getShoreLevel();
+      const landRatio = heights.filter(height => height >= shoreLevel).length / heights.length;
+
+      expect(shoreLevel).toBeGreaterThan(100);
+      expect(landRatio).toBeGreaterThanOrEqual(0.28);
+      expect(landRatio).toBeLessThanOrEqual(0.32);
+    });
   });
 
   describe('Performance and edge cases', () => {
