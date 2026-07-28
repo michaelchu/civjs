@@ -154,4 +154,36 @@ describe('GameClient management screens', () => {
       'host:setTurnTimeLimit',
     ]);
   });
+
+  it('sends city worklist and citizen-management mutations', async () => {
+    socket.emit.mockImplementation(
+      (_event: string, _data: unknown, callback: (value: unknown) => void) =>
+        callback({ success: true })
+    );
+
+    await gameClient.addCityWorklistItem('city-1', 'granary', 'building');
+    await gameClient.reorderCityWorklist('city-1', 1, 0);
+    await gameClient.convertCityWorkerToSpecialist('city-1', 4, 5, 0);
+    await gameClient.convertCitySpecialistToTile('city-1', 0, 6, 5);
+    await gameClient.renameCity('city-1', 'Roma');
+    await gameClient.disbandCity('city-2');
+
+    expect(socket.emit.mock.calls.map(call => call[0])).toEqual([
+      'city:addWorklist',
+      'city:reorderWorklist',
+      'city:workerToSpecialist',
+      'city:specialistToTile',
+      'city:rename',
+      'city:disband',
+    ]);
+    expect(socket.emit).toHaveBeenNthCalledWith(
+      1,
+      'city:addWorklist',
+      {
+        cityId: 'city-1',
+        items: [{ productionId: 'granary', type: 'building' }],
+      },
+      expect.any(Function)
+    );
+  });
 });

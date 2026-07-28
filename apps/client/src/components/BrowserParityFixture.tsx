@@ -21,7 +21,7 @@ const makeCity = (): City => ({
   granarySize: 20,
   granaryTurns: 5,
   citizens: { happy: 2, content: 4, unhappy: 1, angry: 1, specialists: {} },
-  buildings: [{ id: 'city_walls', name: 'city_walls', upkeep: 0 }],
+  buildings: [{ id: 'city_walls', name: 'city_walls', upkeep: 0, sellable: true }],
   presentUnits: ['unit-one'],
   supportedUnits: ['unit-one'],
   production: {

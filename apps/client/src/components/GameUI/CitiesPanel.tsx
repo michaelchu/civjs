@@ -64,8 +64,24 @@ export const CitiesPanel: React.FC = () => {
             Review output, growth, happiness, trade routes, supported units, and production.
           </p>
         </div>
-        <div className="rounded bg-gray-800 px-3 py-2 text-sm text-gray-300">
-          {ownedCities.length} {ownedCities.length === 1 ? 'city' : 'cities'}
+        <div className="flex items-center gap-2">
+          {ownedCities.length > 1 && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                void Promise.all(ownedCities.map(city => gameClient.optimizeCityCitizens(city.id)))
+                  .then(() => setFeedback(`Optimized ${ownedCities.length} cities`))
+                  .catch(error =>
+                    setFeedback(error instanceof Error ? error.message : 'Bulk optimization failed')
+                  );
+              }}
+            >
+              Optimize all
+            </Button>
+          )}
+          <div className="rounded bg-gray-800 px-3 py-2 text-sm text-gray-300">
+            {ownedCities.length} {ownedCities.length === 1 ? 'city' : 'cities'}
+          </div>
         </div>
       </div>
 
@@ -124,6 +140,26 @@ export const CitiesPanel: React.FC = () => {
         onProductionChange={(cityId, productionId, type) =>
           void changeProduction(cityId, productionId, type)
         }
+        onQueueAdd={(cityId, productionId, type) =>
+          gameClient.addCityWorklistItem(cityId, productionId, type)
+        }
+        onQueueRemove={(cityId, index) => gameClient.removeCityWorklistItem(cityId, index)}
+        onQueueReorder={(cityId, fromIndex, toIndex) =>
+          gameClient.reorderCityWorklist(cityId, fromIndex, toIndex)
+        }
+        onAssignCitizen={(cityId, x, y) => gameClient.assignCityCitizen(cityId, x, y)}
+        onWorkerToSpecialist={(cityId, x, y, specialistType) =>
+          gameClient.convertCityWorkerToSpecialist(cityId, x, y, specialistType)
+        }
+        onSpecialistToTile={(cityId, specialistType, x, y) =>
+          gameClient.convertCitySpecialistToTile(cityId, specialistType, x, y)
+        }
+        onChangeSpecialist={(cityId, fromType, toType) =>
+          gameClient.changeCitySpecialist(cityId, fromType, toType)
+        }
+        onRename={(cityId, name) => gameClient.renameCity(cityId, name)}
+        onSellBuilding={(cityId, buildingId) => gameClient.sellCityBuilding(cityId, buildingId)}
+        onDisband={cityId => gameClient.disbandCity(cityId)}
         onGovernorChange={(cityId, config) => gameClient.configureCityGovernor(cityId, config)}
         onOptimizeCitizens={cityId => gameClient.optimizeCityCitizens(cityId)}
         onBuyProduction={async cityId => {

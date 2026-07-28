@@ -6,7 +6,11 @@ import { PacketType, CityFoundSchema, CityProductionChangeSchema } from '@app-ty
 import { GameManager } from '@game/managers/GameManager';
 import { CityProductionHandler } from './CityProductionHandler';
 import { getUnitType } from '@game/constants/UnitConstants';
-import { GovernorPriority } from '@game/managers/CityManager';
+import {
+  GovernorPriority,
+  SPECIALIST_TYPES,
+  type ProductionItem,
+} from '@game/managers/CityManager';
 import { RequirementsManager } from '@game/managers/RequirementsManager';
 
 /**
@@ -192,6 +196,206 @@ export class CityManagementHandler extends BaseSocketHandler {
       });
     });
 
+    socket.on('city:addWorklist', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      if (!context || !Array.isArray(data?.items) || data.items.length === 0) {
+        callback({ success: false, error: 'Invalid worklist request' });
+        return;
+      }
+      const items: ProductionItem[] = data.items.map((item: any) => ({
+        kind: item.type,
+        value: item.productionId,
+      }));
+      const valid = items.every(
+        item =>
+          ['unit', 'building', 'wonder'].includes(item.kind) &&
+          typeof item.value === 'string' &&
+          item.value.length > 0
+      );
+      const player = context.game.players.get(context.player.id);
+      const productionHandler = new CityProductionHandler(
+        context.game.cityManager.getCitiesMap(),
+        context.game.players,
+        context.game.researchManager,
+        context.game.cityManager.setCityProduction.bind(context.game.cityManager),
+        context.game.turnManager
+          ? new RequirementsManager(context.game.turnManager.getCultureManager())
+          : undefined
+      );
+      const available =
+        valid &&
+        Boolean(player) &&
+        (
+          await Promise.all(
+            items.map(item =>
+              productionHandler.canCityBuild(
+                context.game.cityManager.getCity(data.cityId),
+                item.value,
+                item.kind,
+                player
+              )
+            )
+          )
+        ).every(Boolean);
+      const success =
+        available &&
+        (await context.game.cityManager.addToWorklist(data.cityId, items, context.player.id));
+      if (success) this.gameManager.broadcastCityData(context.game.id);
+      callback({ success, error: success ? undefined : 'One or more items cannot be queued' });
+    });
+
+    socket.on('city:removeWorklist', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      const success =
+        Boolean(context) &&
+        Number.isInteger(data?.index) &&
+        (await context!.game.cityManager.removeFromWorklist(
+          data.cityId,
+          data.index,
+          context!.player.id
+        ));
+      if (success) this.gameManager.broadcastCityData(context!.game.id);
+      callback({ success, error: success ? undefined : 'Invalid worklist item' });
+    });
+
+    socket.on('city:reorderWorklist', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      const success =
+        Boolean(context) &&
+        Number.isInteger(data?.fromIndex) &&
+        Number.isInteger(data?.toIndex) &&
+        (await context!.game.cityManager.reorderWorklist(
+          data.cityId,
+          data.fromIndex,
+          data.toIndex,
+          context!.player.id
+        ));
+      if (success) this.gameManager.broadcastCityData(context!.game.id);
+      callback({ success, error: success ? undefined : 'Invalid worklist reorder' });
+    });
+
+    socket.on('city:assignCitizen', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      const success =
+        Boolean(context) &&
+        Number.isInteger(data?.x) &&
+        Number.isInteger(data?.y) &&
+        (await context!.game.cityManager.assignCitizenToTile(data.cityId, data.x, data.y));
+      if (success) {
+        context!.game.cityManager.refreshCityOutputs(data.cityId);
+        await context!.game.cityManager.saveCity(data.cityId);
+        this.gameManager.broadcastCityData(context!.game.id);
+      }
+      callback({ success, error: success ? undefined : 'Citizen cannot work that tile' });
+    });
+
+    socket.on('city:workerToSpecialist', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      const specialistType = Number(data?.specialistType);
+      const success =
+        Boolean(context) &&
+        Number.isInteger(data?.x) &&
+        Number.isInteger(data?.y) &&
+        Object.prototype.hasOwnProperty.call(SPECIALIST_TYPES, specialistType) &&
+        (await context!.game.cityManager.convertTileWorkerToSpecialist(
+          data.cityId,
+          data.x,
+          data.y,
+          specialistType
+        ));
+      if (success) {
+        context!.game.cityManager.refreshCityOutputs(data.cityId);
+        await context!.game.cityManager.saveCity(data.cityId);
+        this.gameManager.broadcastCityData(context!.game.id);
+      }
+      callback({ success, error: success ? undefined : 'Worker cannot become that specialist' });
+    });
+
+    socket.on('city:specialistToTile', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      const specialistType = Number(data?.specialistType);
+      const success =
+        Boolean(context) &&
+        Number.isInteger(data?.x) &&
+        Number.isInteger(data?.y) &&
+        Object.prototype.hasOwnProperty.call(SPECIALIST_TYPES, specialistType) &&
+        (await context!.game.cityManager.convertSpecialistToTile(
+          data.cityId,
+          specialistType,
+          data.x,
+          data.y
+        ));
+      if (success) {
+        await context!.game.cityManager.saveCity(data.cityId);
+        this.gameManager.broadcastCityData(context!.game.id);
+      }
+      callback({ success, error: success ? undefined : 'Specialist cannot work that tile' });
+    });
+
+    socket.on('city:changeSpecialist', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      const fromType = Number(data?.fromType);
+      const toType = Number(data?.toType);
+      const valid =
+        Boolean(context) &&
+        Object.prototype.hasOwnProperty.call(SPECIALIST_TYPES, fromType) &&
+        Object.prototype.hasOwnProperty.call(SPECIALIST_TYPES, toType);
+      const success =
+        valid &&
+        (await context!.game.cityManager.changeSpecialist(
+          data.cityId,
+          fromType,
+          toType,
+          context!.player.id
+        ));
+      if (success) {
+        await context!.game.cityManager.saveCity(data.cityId);
+        this.gameManager.broadcastCityData(context!.game.id);
+      }
+      callback({ success, error: success ? undefined : 'Invalid specialist change' });
+    });
+
+    socket.on('city:rename', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      const name = typeof data?.name === 'string' ? data.name.trim() : '';
+      const success =
+        Boolean(context) &&
+        name.length > 0 &&
+        name.length <= 100 &&
+        (await context!.game.cityManager.renameCity(data.cityId, name, context!.player.id));
+      if (success) this.gameManager.broadcastCityData(context!.game.id);
+      callback({ success, error: success ? undefined : 'Invalid city name' });
+    });
+
+    socket.on('city:sellBuilding', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      if (!context || typeof data?.buildingId !== 'string') {
+        callback({ success: false, error: 'Invalid building sale' });
+        return;
+      }
+      const result = await context.game.cityManager.sellBuildingForPlayer(
+        data.cityId,
+        data.buildingId,
+        context.player.id
+      );
+      const remainingGold = await context.game.turnManager
+        ?.getEconomicManager()
+        ?.getPlayerGold(context.player.id);
+      if (result.success) this.gameManager.broadcastCityData(context.game.id);
+      callback({ ...result, remainingGold, error: result.reason });
+    });
+
+    socket.on('city:disband', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      if (!context) {
+        callback({ success: false, error: 'City not found or not owned by player' });
+        return;
+      }
+      const result = await context.game.cityManager.disbandCity(data.cityId, context.player.id);
+      if (result.success) this.gameManager.broadcastCityData(context.game.id);
+      callback({ success: result.success, error: result.reason });
+    });
+
     logger.debug(`${this.handlerName} registered handlers for socket ${socket.id}`);
   }
 
@@ -212,7 +416,7 @@ export class CityManagementHandler extends BaseSocketHandler {
     )
       return undefined;
     const game = this.gameManager.getGameInstance(connection.gameId!);
-    if (!game) return undefined;
+    if (!game || game.state !== 'active') return undefined;
     const player = Array.from(game.players.values()).find(
       candidate => candidate.userId === connection.userId
     );

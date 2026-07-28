@@ -114,10 +114,22 @@ export interface City {
     id: string;
     name: string;
     upkeep: number;
+    sellable: boolean;
   }>;
   // Units
   presentUnits: string[]; // Unit IDs in the city
   supportedUnits: string[]; // Unit IDs supported by this city
+  workableTiles?: Array<{
+    x: number;
+    y: number;
+    isWorked: boolean;
+    isCenter?: boolean;
+    isBlocked?: boolean;
+    outputs: { food: number; shields: number; trade: number };
+    terrain?: string;
+    resource?: string;
+    improvements?: string[];
+  }>;
   // Production
   production?: {
     target: string;

@@ -630,7 +630,9 @@ export class GameManagementHandler extends BaseSocketHandler {
         cities,
         'classic',
         undefined,
-        cityPresentations
+        cityPresentations,
+        gameInstance.unitManager.getAllUnits?.().values() ?? [],
+        playerId
       ),
       timestamp: Date.now(),
     });

@@ -23,6 +23,18 @@ describe('CityManagementHandler production socket flow', () => {
     getCityGovernorInfo: jest.Mock;
     optimizeCityManually: jest.Mock;
     buyProduction: jest.Mock;
+    addToWorklist: jest.Mock;
+    removeFromWorklist: jest.Mock;
+    reorderWorklist: jest.Mock;
+    assignCitizenToTile: jest.Mock;
+    convertTileWorkerToSpecialist: jest.Mock;
+    convertSpecialistToTile: jest.Mock;
+    changeSpecialist: jest.Mock;
+    refreshCityOutputs: jest.Mock;
+    saveCity: jest.Mock;
+    renameCity: jest.Mock;
+    sellBuildingForPlayer: jest.Mock;
+    disbandCity: jest.Mock;
   };
 
   beforeEach(() => {
@@ -53,6 +65,18 @@ describe('CityManagementHandler production socket flow', () => {
         goldSpent: 20,
         completed: true,
       }),
+      addToWorklist: jest.fn().mockResolvedValue(true),
+      removeFromWorklist: jest.fn().mockResolvedValue(true),
+      reorderWorklist: jest.fn().mockResolvedValue(true),
+      assignCitizenToTile: jest.fn().mockResolvedValue(true),
+      convertTileWorkerToSpecialist: jest.fn().mockResolvedValue(true),
+      convertSpecialistToTile: jest.fn().mockResolvedValue(true),
+      changeSpecialist: jest.fn().mockResolvedValue(true),
+      refreshCityOutputs: jest.fn(),
+      saveCity: jest.fn().mockResolvedValue(true),
+      renameCity: jest.fn().mockResolvedValue(true),
+      sellBuildingForPlayer: jest.fn().mockResolvedValue({ success: true, goldReceived: 20 }),
+      disbandCity: jest.fn().mockResolvedValue({ success: true }),
     };
     mockSocket = {
       id: socketId,
@@ -67,6 +91,8 @@ describe('CityManagementHandler production socket flow', () => {
   it('uses the authenticated player ID and persists a legacy socket production change', async () => {
     const gameManager = {
       getGameInstance: jest.fn().mockReturnValue({
+        id: gameId,
+        state: 'active',
         players: new Map([[playerId, { id: playerId, userId }]]),
         cityManager,
         researchManager: {
@@ -103,6 +129,8 @@ describe('CityManagementHandler production socket flow', () => {
 
   it('routes the canonical packet through the same authoritative production mutation', async () => {
     const gameInstance = {
+      id: gameId,
+      state: 'active',
       players: new Map([[playerId, { id: playerId, userId }]]),
       cityManager,
       researchManager: {
@@ -157,6 +185,8 @@ describe('CityManagementHandler production socket flow', () => {
   it('authorizes and applies governor settings for an owned city', async () => {
     const gameManager = {
       getGameInstance: jest.fn().mockReturnValue({
+        id: gameId,
+        state: 'active',
         players: new Map([[playerId, { id: playerId, userId }]]),
         cityManager,
         researchManager: { hasPlayerResearched: jest.fn().mockReturnValue(true) },
@@ -197,6 +227,8 @@ describe('CityManagementHandler production socket flow', () => {
   it('exposes citizen optimization and rush production for an owned city', async () => {
     const gameManager = {
       getGameInstance: jest.fn().mockReturnValue({
+        id: gameId,
+        state: 'active',
         players: new Map([[playerId, { id: playerId, userId }]]),
         cityManager,
         researchManager: { hasPlayerResearched: jest.fn().mockReturnValue(true) },
@@ -221,5 +253,65 @@ describe('CityManagementHandler production socket flow', () => {
       result: { success: true, goldSpent: 20, completed: true, remainingGold: undefined },
       error: undefined,
     });
+  });
+
+  it('exposes authenticated worklist, citizen, rename, and building-sale actions', async () => {
+    const broadcastCityData = jest.fn();
+    const gameManager = {
+      getGameInstance: jest.fn().mockReturnValue({
+        id: gameId,
+        state: 'active',
+        players: new Map([[playerId, { id: playerId, userId }]]),
+        cityManager,
+        researchManager: { hasPlayerResearched: jest.fn().mockReturnValue(true) },
+      }),
+      broadcastCityData,
+    } as unknown as GameManager;
+    const handler = new CityManagementHandler(
+      new Map([[socketId, { userId, gameId }]]),
+      gameManager
+    );
+    handler.register({ register: jest.fn() } as unknown as PacketHandler, {} as Server, mockSocket);
+
+    const queueCallback = jest.fn();
+    await socketEvents.get('city:addWorklist')!(
+      {
+        cityId: 'city-1',
+        items: [{ productionId: 'armor', type: 'unit' }],
+      },
+      queueCallback
+    );
+    expect(cityManager.addToWorklist).toHaveBeenCalledWith(
+      'city-1',
+      [{ kind: 'unit', value: 'armor' }],
+      playerId
+    );
+    expect(queueCallback).toHaveBeenCalledWith({ success: true, error: undefined });
+
+    const citizenCallback = jest.fn();
+    await socketEvents.get('city:assignCitizen')!(
+      { cityId: 'city-1', x: 2, y: 3 },
+      citizenCallback
+    );
+    expect(cityManager.assignCitizenToTile).toHaveBeenCalledWith('city-1', 2, 3);
+    expect(cityManager.saveCity).toHaveBeenCalledWith('city-1');
+
+    const renameCallback = jest.fn();
+    await socketEvents.get('city:rename')!(
+      { cityId: 'city-1', name: 'New Capital' },
+      renameCallback
+    );
+    expect(cityManager.renameCity).toHaveBeenCalledWith('city-1', 'New Capital', playerId);
+
+    const saleCallback = jest.fn();
+    await socketEvents.get('city:sellBuilding')!(
+      { cityId: 'city-1', buildingId: 'granary' },
+      saleCallback
+    );
+    expect(cityManager.sellBuildingForPlayer).toHaveBeenCalledWith('city-1', 'granary', playerId);
+    const disbandCallback = jest.fn();
+    await socketEvents.get('city:disband')!({ cityId: 'city-1' }, disbandCallback);
+    expect(cityManager.disbandCity).toHaveBeenCalledWith('city-1', playerId);
+    expect(broadcastCityData).toHaveBeenCalledWith(gameId);
   });
 });

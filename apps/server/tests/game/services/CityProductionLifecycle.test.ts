@@ -135,6 +135,54 @@ describe('city production lifecycle', () => {
     expect(cityState.shieldStock).toBe(4);
   });
 
+  it('advances to and removes the next authoritative worklist item', async () => {
+    const cityState = city({
+      currentProduction: 'warriors',
+      productionType: 'unit',
+      productionStock: 9,
+      productionPerTurn: 2,
+      worklist: [
+        { kind: 'building', value: 'granary' },
+        { kind: 'unit', value: 'explorer' },
+      ],
+    });
+
+    await turnService(cityState).processCityTurn(cityState.id, 7);
+
+    expect(cityState.currentProduction).toBe('granary');
+    expect(cityState.productionType).toBe('building');
+    expect(cityState.worklist).toEqual([{ kind: 'unit', value: 'explorer' }]);
+    expect(cityState.productionStock).toBe(1);
+  });
+
+  it('charges unit population cost without consuming the final citizen', async () => {
+    const completed = city({
+      population: 2,
+      size: 2,
+      currentProduction: 'settlers',
+      productionType: 'unit',
+      productionStock: 39,
+      productionPerTurn: 2,
+    });
+    await turnService(completed).processCityTurn(completed.id, 7);
+    expect(completed.population).toBe(1);
+    expect(completed.currentProduction).toBeNull();
+
+    const blocked = city({
+      population: 1,
+      size: 1,
+      currentProduction: 'settlers',
+      productionType: 'unit',
+      productionStock: 40,
+      productionPerTurn: 2,
+    });
+    const onComplete = jest.fn();
+    await turnService(blocked, onComplete).processCityTurn(blocked.id, 7);
+    expect(blocked.population).toBe(1);
+    expect(blocked.currentProduction).toBe('settlers');
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
   it('uses Freeciv rush premiums and the authoritative production stock', () => {
     const buildingCity = city({
       currentProduction: 'granary',

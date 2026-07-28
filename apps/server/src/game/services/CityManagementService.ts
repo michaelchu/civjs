@@ -107,7 +107,13 @@ export class CityManagementService extends BaseGameService {
     // Get updated city data and broadcast to all players
     const cityData = gameInstance.cityManager.getCity(cityId);
     if (cityData) {
-      const clientCityData = CityDataService.transformCityForClient(cityData);
+      const clientCityData = CityDataService.transformCityForClient(
+        cityData,
+        'classic',
+        undefined,
+        undefined,
+        gameInstance.unitManager.getAllUnits?.().values() ?? []
+      );
       this.broadcastToGame(gameId, 'city_production_changed', {
         gameId,
         city: clientCityData,

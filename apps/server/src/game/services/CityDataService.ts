@@ -19,6 +19,13 @@ export interface CityDataRulesetDependencies {
   buildings: RulesetBuildingsService;
 }
 
+export interface CityUnitSnapshot {
+  id: string;
+  x: number;
+  y: number;
+  homeCityId?: string;
+}
+
 const defaultRulesetDependencies: CityDataRulesetDependencies = {
   loader: rulesetLoader,
   buildings: rulesetBuildingsService,
@@ -85,11 +92,25 @@ export interface ClientCityData {
     id: string;
     name: string;
     upkeep: number;
+    sellable: boolean;
   }>;
 
   // Units
   presentUnits: string[];
   supportedUnits: string[];
+
+  // Owner-facing city-map state
+  workableTiles: Array<{
+    x: number;
+    y: number;
+    isWorked: boolean;
+    isCenter?: boolean;
+    isBlocked?: boolean;
+    outputs: { food: number; shields: number; trade: number };
+    terrain?: string;
+    resource?: string;
+    improvements?: string[];
+  }>;
 
   // Production info
   production?: {
@@ -148,9 +169,12 @@ export class CityDataService {
     city: CityState,
     rulesetName: string = 'classic',
     dependencies: CityDataRulesetDependencies = defaultRulesetDependencies,
-    presentation?: CityPresentation
+    presentation?: CityPresentation,
+    units: Iterable<CityUnitSnapshot> = [],
+    viewerPlayerId?: string
   ): ClientCityData {
     // Use actual calculated values from CityManager
+    const unitSnapshots = [...units];
     const civstyle = dependencies.loader.getCivstyle(rulesetName);
     const foodPerTurn = city.foodPerTurn ?? civstyle.min_city_center_food;
     const productionPerTurn = city.productionPerTurn ?? civstyle.min_city_center_shield;
@@ -188,7 +212,12 @@ export class CityDataService {
       if (!building) {
         throw new Error(`Building '${buildingId}' not found in ruleset '${rulesetName}'`);
       }
-      return { id: buildingId, name: building.name, upkeep: building.upkeep };
+      return {
+        id: buildingId,
+        name: building.name,
+        upkeep: building.upkeep,
+        sellable: building.genus === 'Improvement',
+      };
     });
 
     // Use actual happiness data from city state
@@ -244,7 +273,8 @@ export class CityDataService {
       x: city.x,
       y: city.y,
       size: city.population,
-      actualPopulation: city.population * 1000, // Actual population count
+      // Freeciv reports city_population() in thousands of citizens.
+      actualPopulation: city.population * (city.population + 1) * 5_000,
       presentation,
 
       // Legacy compatibility (for backward compatibility)
@@ -266,8 +296,30 @@ export class CityDataService {
 
       // Infrastructure
       buildings,
-      presentUnits: [], // TODO: Get units present in city from UnitManager
-      supportedUnits: [], // TODO: Get units supported by city from UnitManager
+      presentUnits:
+        viewerPlayerId === city.playerId
+          ? unitSnapshots
+              .filter(unit => unit.x === city.x && unit.y === city.y)
+              .map(unit => unit.id)
+          : [],
+      supportedUnits:
+        viewerPlayerId === city.playerId
+          ? unitSnapshots.filter(unit => unit.homeCityId === city.id).map(unit => unit.id)
+          : [],
+      workableTiles:
+        viewerPlayerId === city.playerId
+          ? (city.workableTiles ?? []).map(tile => ({
+              x: tile.x,
+              y: tile.y,
+              isWorked: tile.isWorked,
+              isCenter: tile.isCenter,
+              isBlocked: tile.isBlocked,
+              outputs: { ...tile.outputs },
+              terrain: tile.terrain,
+              resource: tile.resource,
+              improvements: tile.improvements ? [...tile.improvements] : undefined,
+            }))
+          : [],
 
       // Production system
       production,
@@ -303,16 +355,21 @@ export class CityDataService {
     cities: CityState[],
     rulesetName: string = 'classic',
     dependencies: CityDataRulesetDependencies = defaultRulesetDependencies,
-    presentations: Record<string, CityPresentation> = {}
+    presentations: Record<string, CityPresentation> = {},
+    units: Iterable<CityUnitSnapshot> = [],
+    viewerPlayerId?: string
   ): Record<string, ClientCityData> {
     const result: Record<string, ClientCityData> = {};
+    const unitSnapshots = [...units];
 
     for (const city of cities) {
       result[city.id] = this.transformCityForClient(
         city,
         rulesetName,
         dependencies,
-        presentations[city.id]
+        presentations[city.id],
+        unitSnapshots,
+        viewerPlayerId
       );
     }
 

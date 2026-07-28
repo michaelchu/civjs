@@ -219,6 +219,33 @@ describe('CityManager', () => {
       expect(retriedCity.buildings).toContain('palace');
     });
 
+    it('safely disbands a non-capital city but never the player’s only city', async () => {
+      const capital = await cityManager.foundCity(10, 10, 'Capital', 'player-123');
+      const second = await cityManager.foundCity(20, 20, 'Second', 'player-123');
+
+      await expect(cityManager.disbandCity(second.id, 'player-123')).resolves.toEqual({
+        success: true,
+      });
+      expect(cityManager.getCity(second.id)).toBeUndefined();
+      await expect(cityManager.disbandCity(capital.id, 'player-123')).resolves.toEqual({
+        success: false,
+        reason: 'Cannot disband your only city',
+      });
+    });
+
+    it('sells improvements for the classic shield cost and credits the treasury', async () => {
+      const city = await cityManager.foundCity(10, 10, 'Capital', 'player-123');
+      city.buildings.push('granary');
+      const addGold = jest.fn().mockResolvedValue(true);
+      cityManager.setTradeProviders(addGold, jest.fn(), jest.fn().mockResolvedValue('peace'));
+
+      await expect(
+        cityManager.sellBuildingForPlayer(city.id, 'granary', 'player-123')
+      ).resolves.toEqual({ success: true, goldReceived: 40 });
+      expect(addGold).toHaveBeenCalledWith('player-123', 40);
+      expect(city.buildings).not.toContain('granary');
+    });
+
     it('rejects a city two tiles from another player city', async () => {
       await cityManager.foundCity(10, 10, 'AI City', 'ai-player');
 

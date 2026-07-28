@@ -28,7 +28,7 @@ export class CityGovernorService extends BaseGameService {
       from: SpecialistType,
       to: SpecialistType,
       playerId: string
-    ) => Promise<void>,
+    ) => Promise<boolean>,
     private assignCitizenToTile: (cityId: string, tileX: number, tileY: number) => Promise<boolean>,
     _convertTileWorkerToSpecialist: (
       cityId: string,

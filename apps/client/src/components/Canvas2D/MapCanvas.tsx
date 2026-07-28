@@ -1442,6 +1442,26 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         availableProductions={productionData.availableProductions}
         isLoadingProductions={productionData.isLoading}
         onProductionChange={handleProductionChange}
+        onQueueAdd={(cityId, productionId, type) =>
+          gameClient.addCityWorklistItem(cityId, productionId, type)
+        }
+        onQueueRemove={(cityId, index) => gameClient.removeCityWorklistItem(cityId, index)}
+        onQueueReorder={(cityId, fromIndex, toIndex) =>
+          gameClient.reorderCityWorklist(cityId, fromIndex, toIndex)
+        }
+        onAssignCitizen={(cityId, x, y) => gameClient.assignCityCitizen(cityId, x, y)}
+        onWorkerToSpecialist={(cityId, x, y, specialistType) =>
+          gameClient.convertCityWorkerToSpecialist(cityId, x, y, specialistType)
+        }
+        onSpecialistToTile={(cityId, specialistType, x, y) =>
+          gameClient.convertCitySpecialistToTile(cityId, specialistType, x, y)
+        }
+        onChangeSpecialist={(cityId, fromType, toType) =>
+          gameClient.changeCitySpecialist(cityId, fromType, toType)
+        }
+        onRename={(cityId, name) => gameClient.renameCity(cityId, name)}
+        onSellBuilding={(cityId, buildingId) => gameClient.sellCityBuilding(cityId, buildingId)}
+        onDisband={cityId => gameClient.disbandCity(cityId)}
         onGovernorChange={(cityId, config) => gameClient.configureCityGovernor(cityId, config)}
         onOptimizeCitizens={cityId => gameClient.optimizeCityCitizens(cityId)}
         onBuyProduction={async cityId => {

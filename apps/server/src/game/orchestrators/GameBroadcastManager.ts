@@ -787,7 +787,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       visibleCities,
       rulesetName,
       undefined,
-      presentations
+      presentations,
+      gameInstance.unitManager.getAllUnits?.().values() ?? [],
+      playerId
     );
 
     const recipientId = gameInstance.players.get(playerId)?.userId || playerId;

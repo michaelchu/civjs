@@ -1798,6 +1798,121 @@ export class GameClient {
     return response.result;
   }
 
+  async addCityWorklistItem(
+    cityId: string,
+    productionId: string,
+    type: 'unit' | 'building' | 'wonder'
+  ): Promise<void> {
+    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
+      'city:addWorklist',
+      { cityId, items: [{ productionId, type }] }
+    );
+    if (!response.success) throw new Error(response.error || 'Failed to add worklist item');
+  }
+
+  async removeCityWorklistItem(cityId: string, index: number): Promise<void> {
+    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
+      'city:removeWorklist',
+      { cityId, index }
+    );
+    if (!response.success) throw new Error(response.error || 'Failed to remove worklist item');
+  }
+
+  async reorderCityWorklist(cityId: string, fromIndex: number, toIndex: number): Promise<void> {
+    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
+      'city:reorderWorklist',
+      { cityId, fromIndex, toIndex }
+    );
+    if (!response.success) throw new Error(response.error || 'Failed to reorder worklist');
+  }
+
+  async assignCityCitizen(cityId: string, x: number, y: number): Promise<void> {
+    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
+      'city:assignCitizen',
+      { cityId, x, y }
+    );
+    if (!response.success) throw new Error(response.error || 'Failed to assign citizen');
+  }
+
+  async convertCityWorkerToSpecialist(
+    cityId: string,
+    x: number,
+    y: number,
+    specialistType: number
+  ): Promise<void> {
+    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
+      'city:workerToSpecialist',
+      { cityId, x, y, specialistType }
+    );
+    if (!response.success) throw new Error(response.error || 'Failed to create specialist');
+  }
+
+  async convertCitySpecialistToTile(
+    cityId: string,
+    specialistType: number,
+    x: number,
+    y: number
+  ): Promise<void> {
+    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
+      'city:specialistToTile',
+      { cityId, specialistType, x, y }
+    );
+    if (!response.success) throw new Error(response.error || 'Failed to assign specialist');
+  }
+
+  async changeCitySpecialist(cityId: string, fromType: number, toType: number): Promise<void> {
+    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
+      'city:changeSpecialist',
+      { cityId, fromType, toType }
+    );
+    if (!response.success) throw new Error(response.error || 'Failed to change specialist');
+  }
+
+  async renameCity(cityId: string, name: string): Promise<void> {
+    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
+      'city:rename',
+      { cityId, name }
+    );
+    if (!response.success) throw new Error(response.error || 'Failed to rename city');
+  }
+
+  async sellCityBuilding(
+    cityId: string,
+    buildingId: string
+  ): Promise<{ goldReceived: number; remainingGold?: number }> {
+    const response = await this.requestSocketEvent<{
+      success: boolean;
+      goldReceived?: number;
+      remainingGold?: number;
+      error?: string;
+    }>('city:sellBuilding', { cityId, buildingId });
+    if (!response.success) throw new Error(response.error || 'Failed to sell building');
+    if (response.remainingGold !== undefined) {
+      const store = useGameStore.getState();
+      const player = store.players[store.currentPlayerId];
+      if (player) {
+        store.updateGameState({
+          players: {
+            ...store.players,
+            [player.id]: { ...player, gold: response.remainingGold },
+          },
+        });
+      }
+    }
+    return {
+      goldReceived: response.goldReceived ?? 0,
+      remainingGold: response.remainingGold,
+    };
+  }
+
+  async disbandCity(cityId: string): Promise<void> {
+    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
+      'city:disband',
+      { cityId }
+    );
+    if (!response.success) throw new Error(response.error || 'Failed to disband city');
+  }
+
   async getGovernmentState(): Promise<GovernmentState> {
     const response = await this.requestSocketEvent<{
       success: boolean;

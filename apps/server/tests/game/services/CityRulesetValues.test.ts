@@ -65,8 +65,8 @@ describe('ruleset-backed city values', () => {
     );
 
     expect(result.buildings).toEqual([
-      { id: 'marketplace', name: 'Marketplace', upkeep: 0 },
-      { id: 'city_walls', name: 'City Walls', upkeep: 0 },
+      { id: 'marketplace', name: 'Marketplace', upkeep: 0, sellable: true },
+      { id: 'city_walls', name: 'City Walls', upkeep: 0, sellable: true },
     ]);
     expect(rulesetBuildingsService.getBuildingTypes().cathedral.upkeep).toBe(3);
   });
@@ -79,6 +79,36 @@ describe('ruleset-backed city values', () => {
     });
 
     expect(result.surplus.food).toBe(-1);
+  });
+
+  it('uses the Freeciv population curve and reports present and supported units', () => {
+    const result = CityDataService.transformCityForClient(
+      city({ population: 2 }),
+      'classic',
+      undefined,
+      undefined,
+      [
+        { id: 'present', x: 5, y: 5 },
+        { id: 'supported', x: 8, y: 8, homeCityId: 'city-1' },
+        { id: 'other', x: 8, y: 8, homeCityId: 'city-2' },
+      ],
+      'player-1'
+    );
+
+    expect(result.actualPopulation).toBe(30_000);
+    expect(result.presentUnits).toEqual(['present']);
+    expect(result.supportedUnits).toEqual(['supported']);
+
+    const foreignView = CityDataService.transformCityForClient(
+      city({ population: 2 }),
+      'classic',
+      undefined,
+      undefined,
+      [{ id: 'supported', x: 8, y: 8, homeCityId: 'city-1' }],
+      'player-2'
+    );
+    expect(foreignView.supportedUnits).toEqual([]);
+    expect(foreignView.workableTiles).toEqual([]);
   });
 
   it('uses ruleset-backed terrain and resource yields', () => {

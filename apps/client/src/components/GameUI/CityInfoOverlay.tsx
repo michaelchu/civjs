@@ -40,6 +40,12 @@ import {
 } from 'lucide-react';
 import type { City, Unit, ProductionOption } from '../../types';
 
+const SPECIALIST_IDS: Record<string, number> = {
+  scientist: 0,
+  taxman: 1,
+  entertainer: 2,
+};
+
 interface CityInfoOverlayProps {
   city: City | null;
   isOpen: boolean;
@@ -55,6 +61,26 @@ interface CityInfoOverlayProps {
   onQueueAdd?: (cityId: string, productionId: string, type: 'unit' | 'building' | 'wonder') => void;
   onQueueRemove?: (cityId: string, index: number) => void;
   onQueueReorder?: (cityId: string, fromIndex: number, toIndex: number) => void;
+  onAssignCitizen?: (cityId: string, x: number, y: number) => Promise<void>;
+  onWorkerToSpecialist?: (
+    cityId: string,
+    x: number,
+    y: number,
+    specialistType: number
+  ) => Promise<void>;
+  onSpecialistToTile?: (
+    cityId: string,
+    specialistType: number,
+    x: number,
+    y: number
+  ) => Promise<void>;
+  onChangeSpecialist?: (cityId: string, fromType: number, toType: number) => Promise<void>;
+  onRename?: (cityId: string, name: string) => Promise<void>;
+  onSellBuilding?: (
+    cityId: string,
+    buildingId: string
+  ) => Promise<{ goldReceived: number; remainingGold?: number }>;
+  onDisband?: (cityId: string) => Promise<void>;
   onGovernorChange?: (
     cityId: string,
     config: {
@@ -96,6 +122,13 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
   onQueueAdd,
   onQueueRemove,
   onQueueReorder,
+  onAssignCitizen,
+  onWorkerToSpecialist,
+  onSpecialistToTile,
+  onChangeSpecialist,
+  onRename,
+  onSellBuilding,
+  onDisband,
   onGovernorChange,
   onOptimizeCitizens,
   onBuyProduction,
@@ -104,12 +137,16 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
   const [governorEnabled, setGovernorEnabled] = useState(city?.governor?.isEnabled ?? false);
   const [governorPriority, setGovernorPriority] = useState(city?.governor?.priority ?? 'balanced');
   const [managementMessage, setManagementMessage] = useState<string | null>(null);
+  const [cityName, setCityName] = useState(city?.name ?? '');
+  const [confirmDisband, setConfirmDisband] = useState(false);
 
   useEffect(() => {
     setGovernorEnabled(city?.governor?.isEnabled ?? false);
     setGovernorPriority(city?.governor?.priority ?? 'balanced');
     setManagementMessage(null);
-  }, [city?.id, city?.governor?.isEnabled, city?.governor?.priority]);
+    setCityName(city?.name ?? '');
+    setConfirmDisband(false);
+  }, [city?.id, city?.name, city?.governor?.isEnabled, city?.governor?.priority]);
 
   if (!city) {
     return null;
@@ -440,12 +477,35 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                       className="flex items-center justify-between p-3 bg-gray-50 rounded border hover:bg-gray-100 transition-colors"
                     >
                       <span className="text-sm font-medium">{building.name}</span>
-                      {building.upkeep > 0 && (
-                        <div className="flex items-center gap-1 text-xs text-red-600">
-                          <Coins className="h-3 w-3" />
-                          {building.upkeep}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {building.upkeep > 0 && (
+                          <div className="flex items-center gap-1 text-xs text-red-600">
+                            <Coins className="h-3 w-3" />
+                            {building.upkeep}
+                          </div>
+                        )}
+                        {onSellBuilding && building.sellable && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              void onSellBuilding(city.id, building.id)
+                                .then(result =>
+                                  setManagementMessage(
+                                    `Sold ${building.name} for ${result.goldReceived} gold`
+                                  )
+                                )
+                                .catch(error =>
+                                  setManagementMessage(
+                                    error instanceof Error ? error.message : 'Building sale failed'
+                                  )
+                                );
+                            }}
+                          >
+                            Sell
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -972,6 +1032,169 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                 {managementMessage}
               </div>
             )}
+
+            <div className="rounded-lg border p-4">
+              <h3 className="mb-3 font-medium">City administration</h3>
+              <div className="flex gap-2">
+                <input
+                  aria-label="City name"
+                  className="min-w-0 flex-1 rounded border bg-background p-2 text-sm"
+                  value={cityName}
+                  maxLength={100}
+                  onChange={event => setCityName(event.target.value)}
+                />
+                <Button
+                  variant="outline"
+                  disabled={!onRename || !cityName.trim() || cityName.trim() === city.name}
+                  onClick={() => {
+                    void onRename?.(city.id, cityName.trim())
+                      .then(() => setManagementMessage('City renamed'))
+                      .catch(error =>
+                        setManagementMessage(
+                          error instanceof Error ? error.message : 'City rename failed'
+                        )
+                      );
+                  }}
+                >
+                  Rename
+                </Button>
+              </div>
+              {onDisband && (
+                <div className="mt-4 border-t pt-4">
+                  {!confirmDisband ? (
+                    <Button variant="outline" onClick={() => setConfirmDisband(true)}>
+                      Disband city
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-red-700">Permanently disband {city.name}?</span>
+                      <Button
+                        onClick={() => {
+                          void onDisband(city.id)
+                            .then(() => {
+                              setManagementMessage('City disbanded');
+                              onClose();
+                            })
+                            .catch(error => {
+                              setConfirmDisband(false);
+                              setManagementMessage(
+                                error instanceof Error ? error.message : 'City disband failed'
+                              );
+                            });
+                        }}
+                      >
+                        Confirm
+                      </Button>
+                      <Button variant="ghost" onClick={() => setConfirmDisband(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-lg border p-4">
+              <h3 className="mb-1 font-medium">Worked tiles</h3>
+              <p className="mb-3 text-xs text-muted-foreground">
+                Move citizens between workable tiles and specialist jobs.
+              </p>
+              <div className="grid max-h-48 gap-2 overflow-y-auto sm:grid-cols-2">
+                {(city.workableTiles ?? []).map(tile => {
+                  const availableSpecialist = Object.entries(city.citizens.specialists).find(
+                    ([name, count]) => (SPECIALIST_IDS[name] ?? -1) >= 0 && count > 0
+                  );
+                  return (
+                    <div
+                      key={`${tile.x},${tile.y}`}
+                      className="flex items-center justify-between rounded border bg-gray-50 p-2 text-xs"
+                    >
+                      <div>
+                        <div className="font-medium">
+                          ({tile.x}, {tile.y}) {tile.isCenter ? 'Center' : ''}
+                        </div>
+                        <div className="text-muted-foreground">
+                          {tile.outputs.food} food · {tile.outputs.shields} shields ·{' '}
+                          {tile.outputs.trade} trade
+                        </div>
+                      </div>
+                      {!tile.isCenter && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            tile.isBlocked ||
+                            (tile.isWorked ? !onWorkerToSpecialist : !onAssignCitizen)
+                          }
+                          onClick={() => {
+                            const action = tile.isWorked
+                              ? onWorkerToSpecialist?.(city.id, tile.x, tile.y, 0)
+                              : availableSpecialist
+                                ? onSpecialistToTile?.(
+                                    city.id,
+                                    SPECIALIST_IDS[availableSpecialist[0]],
+                                    tile.x,
+                                    tile.y
+                                  )
+                                : onAssignCitizen?.(city.id, tile.x, tile.y);
+                            void action
+                              ?.then(() =>
+                                setManagementMessage(
+                                  tile.isWorked
+                                    ? 'Worker became a scientist'
+                                    : 'Citizen assigned to tile'
+                                )
+                              )
+                              .catch(error =>
+                                setManagementMessage(
+                                  error instanceof Error
+                                    ? error.message
+                                    : 'Citizen assignment failed'
+                                )
+                              );
+                          }}
+                        >
+                          {tile.isWorked ? 'Make scientist' : 'Work tile'}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {Object.entries(city.citizens.specialists).some(
+                ([name, count]) => SPECIALIST_IDS[name] !== undefined && count > 0
+              ) && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {Object.entries(city.citizens.specialists)
+                    .filter(([name, count]) => SPECIALIST_IDS[name] !== undefined && count > 0)
+                    .map(([name, count]) => {
+                      const fromType = SPECIALIST_IDS[name];
+                      const toType = (fromType + 1) % 3;
+                      return (
+                        <Button
+                          key={name}
+                          variant="outline"
+                          size="sm"
+                          disabled={!onChangeSpecialist}
+                          onClick={() => {
+                            void onChangeSpecialist?.(city.id, fromType, toType)
+                              .then(() => setManagementMessage('Specialist job changed'))
+                              .catch(error =>
+                                setManagementMessage(
+                                  error instanceof Error
+                                    ? error.message
+                                    : 'Specialist change failed'
+                                )
+                              );
+                          }}
+                        >
+                          {name} ({count}) → {['scientist', 'taxman', 'entertainer'][toType]}
+                        </Button>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
 
             <div className="rounded-lg border p-4">
               <h3 className="mb-3 font-medium">Citizen governor</h3>

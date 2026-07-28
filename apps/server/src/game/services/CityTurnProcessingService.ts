@@ -132,6 +132,7 @@ export interface CityTurnProcessingDependencies {
   applyCityHappiness?: (cityId: string) => void;
   getPlayerGovernment?: (playerId: string) => string;
   checkPollution: (cityId: string, currentTurn: number) => Promise<boolean>;
+  canCityContinueProduction?: (cityId: string, kind: 'unit' | 'building', value: string) => boolean;
   forceGovernmentRevolution?: (playerId: string) => Promise<void>;
   saveCityToDatabase: (city: CityState) => Promise<void>;
 }
@@ -471,9 +472,23 @@ export class CityTurnProcessingService extends BaseGameService {
     }
 
     if (newProductionStock >= productionCost) {
+      const populationCost =
+        city.productionType === 'unit' ? (UNIT_TYPES[city.currentProduction]?.pop_cost ?? 0) : 0;
+      // The default Freeciv city option does not allow a population-cost unit
+      // to consume the city's final citizen.
+      if (populationCost > 0 && city.population <= populationCost) {
+        city.productionStock = newProductionStock;
+        city.shieldStock = newProductionStock;
+        city.turnsToComplete = 0;
+        return;
+      }
       // Production completed
       city.productionStock = newProductionStock;
       city.shieldStock = newProductionStock;
+      if (populationCost > 0) {
+        city.population -= populationCost;
+        city.size = city.population;
+      }
       await this.completeProduction(city.id, productionCost);
     } else {
       city.productionStock = newProductionStock;
@@ -527,6 +542,23 @@ export class CityTurnProcessingService extends BaseGameService {
     city.productionStock = remainingStock;
     city.shieldStock = remainingStock;
     city.turnsToComplete = 0;
+
+    // Continue with the next authoritative worklist item. Invalidated items
+    // are discarded rather than leaving the city permanently idle.
+    while (city.worklist.length > 0 && !city.currentProduction) {
+      const next = city.worklist.shift() as ProductionItem;
+      const nextType = next.kind === 'wonder' ? 'building' : next.kind;
+      const exists =
+        (nextType === 'unit' && Boolean(UNIT_TYPES[next.value])) ||
+        (nextType === 'building' && Boolean(BUILDING_TYPES[next.value]));
+      if (
+        exists &&
+        (this.dependencies.canCityContinueProduction?.(city.id, nextType, next.value) ?? true)
+      ) {
+        city.currentProduction = next.value;
+        city.productionType = nextType;
+      }
+    }
 
     // Emit socket event if Socket.IO server is available
     if (this.dependencies.io && completedProductionType && completedProductionId) {

@@ -537,6 +537,7 @@ export class CityManager {
       applyCityHappiness: this.applyCityHappiness.bind(this),
       getPlayerGovernment: this.getPlayerGovernment.bind(this),
       checkPollution: this.checkPollution.bind(this),
+      canCityContinueProduction: this.canCityContinueProduction.bind(this),
       forceGovernmentRevolution: async playerId => {
         await this.governmentManager?.overthrowGovernment(
           playerId,
@@ -850,21 +851,21 @@ export class CityManager {
     fromType: SpecialistType,
     toType: SpecialistType,
     playerId: string
-  ): Promise<void> {
+  ): Promise<boolean> {
     const city = this.cities.get(cityId);
     if (!city) {
       logger.warn(`Cannot change specialist: city ${cityId} not found`);
-      return;
+      return false;
     }
 
     if (city.playerId !== playerId) {
       logger.warn(`Cannot change specialist: city ${cityId} not owned by player ${playerId}`);
-      return;
+      return false;
     }
 
     if (city.specialists[fromType] <= 0) {
       logger.warn(`Cannot change specialist: no ${fromType} specialists in city ${cityId}`);
-      return;
+      return false;
     }
 
     // Make the change
@@ -873,15 +874,18 @@ export class CityManager {
 
     // Recalculate city outputs
     this.calculateCityOutputs(cityId);
+    return true;
   }
 
   // === PRODUCTION QUEUE MANAGEMENT ===
 
-  async addToWorklist(cityId: string, items: ProductionItem[]): Promise<void> {
+  async addToWorklist(
+    cityId: string,
+    items: ProductionItem[],
+    playerId?: string
+  ): Promise<boolean> {
     const city = this.cities.get(cityId);
-    if (!city) {
-      return;
-    }
+    if (!city || (playerId && city.playerId !== playerId)) return false;
 
     // Validate each item can be built by this city
     const validItems = items.filter(item => {
@@ -890,6 +894,41 @@ export class CityManager {
     });
 
     city.worklist.push(...validItems);
+    await this.saveCityToDatabase(city);
+    return validItems.length === items.length;
+  }
+
+  async removeFromWorklist(cityId: string, index: number, playerId: string): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city || city.playerId !== playerId || index < 0 || index >= city.worklist.length) {
+      return false;
+    }
+    city.worklist.splice(index, 1);
+    await this.saveCityToDatabase(city);
+    return true;
+  }
+
+  async reorderWorklist(
+    cityId: string,
+    fromIndex: number,
+    toIndex: number,
+    playerId: string
+  ): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (
+      !city ||
+      city.playerId !== playerId ||
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= city.worklist.length ||
+      toIndex >= city.worklist.length
+    ) {
+      return false;
+    }
+    const [item] = city.worklist.splice(fromIndex, 1);
+    city.worklist.splice(toIndex, 0, item);
+    await this.saveCityToDatabase(city);
+    return true;
   }
 
   private canCityQueueItem(city: CityState, kind: 'unit' | 'building', value: string): boolean {
@@ -899,13 +938,38 @@ export class CityManager {
         return false;
       }
 
-      // Check if building type exists
-      return BUILDING_TYPES[value] !== undefined;
+      const building = BUILDING_TYPES[value];
+      if (!building) return false;
+      const playerTechs = this.playerTechsProvider(city.playerId);
+      if (building.requiredTech && !playerTechs.has(building.requiredTech)) return false;
+      if (building.requires?.some(required => !city.buildings.includes(required))) return false;
+      if (building.genus === 'GreatWonder') {
+        return ![...this.cities.values()].some(
+          candidate =>
+            candidate.id !== city.id &&
+            (candidate.buildings.includes(value) || candidate.currentProduction === value)
+        );
+      }
+      if (building.genus === 'SmallWonder') {
+        return ![...this.cities.values()].some(
+          candidate => candidate.playerId === city.playerId && candidate.buildings.includes(value)
+        );
+      }
+      return true;
     } else if (kind === 'unit') {
-      return Object.values(UNIT_TYPES).some(unitType => unitType.id === value);
+      const unit = UNIT_TYPES[value];
+      if (!unit || unit.flags?.includes('NoBuild') || unit.flags?.includes('BarbarianOnly')) {
+        return false;
+      }
+      return !unit.requiredTech || this.playerTechsProvider(city.playerId).has(unit.requiredTech);
     }
 
     return false;
+  }
+
+  canCityContinueProduction(cityId: string, kind: 'unit' | 'building', value: string): boolean {
+    const city = this.cities.get(cityId);
+    return Boolean(city && this.canCityQueueItem(city, kind, value));
   }
 
   async setCityProduction(
@@ -1529,6 +1593,24 @@ export class CityManager {
     );
   }
 
+  async convertSpecialistToTile(
+    cityId: string,
+    specialistType: SpecialistType,
+    tileX: number,
+    tileY: number
+  ): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city || (city.specialists[specialistType] ?? 0) <= 0) return false;
+    city.specialists[specialistType] -= 1;
+    const assigned = await this.assignCitizenToTile(cityId, tileX, tileY);
+    if (!assigned) {
+      city.specialists[specialistType] += 1;
+      return false;
+    }
+    this.calculateCityOutputs(cityId);
+    return true;
+  }
+
   getWorkableTiles(cityId: string): WorkableTile[] | null {
     if (!this.tileManagementService) return null;
     return this.tileManagementService.getWorkableTiles(cityId);
@@ -1551,6 +1633,35 @@ export class CityManager {
     const city = this.cities.get(cityId);
     if (sold && city) await this.saveCityToDatabase(city);
     return sold;
+  }
+
+  async sellBuildingForPlayer(
+    cityId: string,
+    buildingId: string,
+    playerId: string
+  ): Promise<{ success: boolean; goldReceived: number; reason?: string }> {
+    const city = this.cities.get(cityId);
+    if (!city || city.playerId !== playerId) {
+      return { success: false, goldReceived: 0, reason: 'City not found or not owned by player' };
+    }
+    const building = BUILDING_TYPES[buildingId];
+    if (!building || building.genus !== 'Improvement') {
+      return { success: false, goldReceived: 0, reason: 'Building cannot be sold' };
+    }
+    if (!(await this.sellBuilding(cityId, buildingId))) {
+      return { success: false, goldReceived: 0, reason: 'Building not present' };
+    }
+    // Classic uses shieldbox=100, so impr_sell_gold() returns build cost.
+    // @reference reference/freeciv/common/improvement.c:331-337
+    const goldReceived = Math.max(building.cost, 1);
+    if (!(await this.addPlayerGoldProvider(playerId, goldReceived))) {
+      city.buildings.push(buildingId);
+      await this.saveCityToDatabase(city);
+      return { success: false, goldReceived: 0, reason: 'Failed to credit treasury' };
+    }
+    this.calculateCityOutputs(cityId);
+    await this.saveCityToDatabase(city);
+    return { success: true, goldReceived };
   }
 
   calculateBuildingMaintenanceCost(cityId: string): number {
@@ -1817,6 +1928,39 @@ export class CityManager {
       this.callbacks.onCityDestroyed(city);
     }
 
+    return true;
+  }
+
+  async disbandCity(
+    cityId: string,
+    playerId: string
+  ): Promise<{ success: boolean; reason?: string }> {
+    const city = this.cities.get(cityId);
+    if (!city || city.playerId !== playerId) {
+      return { success: false, reason: 'City not found or not owned by player' };
+    }
+    if (this.getCitiesByPlayer(playerId).length <= 1) {
+      return { success: false, reason: 'Cannot disband your only city' };
+    }
+    const containsWonder = city.buildings.some(buildingId => {
+      const building = BUILDING_TYPES[buildingId];
+      return building?.genus === 'GreatWonder' || building?.genus === 'SmallWonder';
+    });
+    if (containsWonder) {
+      return { success: false, reason: 'Cannot disband a city containing a wonder' };
+    }
+    if (this.unitSupportProvider(city).length > 0) {
+      return { success: false, reason: 'Rehome supported units before disbanding this city' };
+    }
+    return (await this.destroyCity(cityId))
+      ? { success: true }
+      : { success: false, reason: 'Failed to disband city' };
+  }
+
+  async saveCity(cityId: string): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city) return false;
+    await this.saveCityToDatabase(city);
     return true;
   }
 
