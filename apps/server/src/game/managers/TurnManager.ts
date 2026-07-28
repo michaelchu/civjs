@@ -58,8 +58,10 @@ export class TurnManager {
   private turnDeadline: number | null = null;
   private pausedTimerSeconds: number | null = null;
   private processingPromise: Promise<void> | null = null;
+  private timerPersistencePromise: Promise<void> = Promise.resolve();
   private onTurnAdvanced?: (turn: number) => void | Promise<void>;
   private endGameEvaluator?: (turn: number, year: number) => Promise<boolean>;
+  private replaySnapshotProvider?: () => Record<string, unknown>;
 
   // Service dependencies
   private turnProcessingService: TurnProcessingService;
@@ -73,6 +75,7 @@ export class TurnManager {
   private economicManager?: EconomicManager;
   private governmentManager?: GovernmentManager;
   private cityManager: CityManager;
+  private unitManager: UnitManager;
   private researchManager: ResearchManager;
   private effectsManager: EffectsManager;
 
@@ -99,6 +102,7 @@ export class TurnManager {
     this.economicManager = economicManager;
     this.governmentManager = governmentManager;
     this.cityManager = cityManager;
+    this.unitManager = unitManager;
     this.researchManager = researchManager;
     this.effectsManager = effectsManager;
 
@@ -119,7 +123,15 @@ export class TurnManager {
       cityManager
     );
     this.turnPacketService = new TurnPacketService(io, gameId);
-    this.gameEventService = new GameEventService(gameId, broadcastManager);
+    this.gameEventService = new GameEventService(gameId, broadcastManager, databaseProvider);
+    this.gameEventService.setPlayerStatsProvider(playerId => ({
+      playerId,
+      citiesCount: this.cityManager.getPlayerCities(playerId).length,
+      unitsCount: this.unitManager.getPlayerUnits(playerId).length,
+      technologiesCount: this.researchManager.getResearchedTechs(playerId).length,
+      score: 0,
+      turn: this.currentTurn,
+    }));
     this.broadcastManager = broadcastManager;
     this.turnPhaseService = new TurnPhaseService(
       gameId,
@@ -135,7 +147,8 @@ export class TurnManager {
         cityManager,
         databaseProvider,
         economicManager
-      )
+      ),
+      databaseProvider
     );
 
     this.calendarService = new CalendarService(
@@ -167,9 +180,8 @@ export class TurnManager {
       this.playerActions.set(playerId, []);
     }
 
-    if (createTurnRecord) {
-      await this.createTurnRecord();
-    }
+    if (createTurnRecord) await this.createTurnRecord();
+    else await this.restoreOrCreateTurnRecord();
 
     if (broadcastTurnStart) {
       this.broadcastTurnStart();
@@ -199,6 +211,8 @@ export class TurnManager {
         clearTimeout(this.turnTimer);
         this.turnTimer = null;
       }
+      this.turnDeadline = null;
+      this.persistTimerState(null, null);
 
       // Get active player IDs
       const playerIds = Array.from(this.playerActions.keys());
@@ -269,6 +283,7 @@ export class TurnManager {
     };
 
     this.playerActions.get(playerId)!.push(playerAction);
+    this.turnProcessingService.queuePlayerAction(playerAction);
 
     logger.debug('Added player action', { gameId: this.gameId, playerId, actionType: action.type });
   }
@@ -305,7 +320,25 @@ export class TurnManager {
     }
   }
 
-  private async createTurnRecord(): Promise<void> {
+  private setCurrentTurnRecord(turnId: string): void {
+    this.turnPhaseService.setCurrentTurnId(turnId);
+    this.gameEventService.setCurrentTurnId(turnId);
+  }
+
+  private async restoreOrCreateTurnRecord(): Promise<void> {
+    const database = this.databaseProvider.getDatabase();
+    const [existing] = await database
+      .select({ id: gameTurns.id })
+      .from(gameTurns)
+      .where(and(eq(gameTurns.gameId, this.gameId), eq(gameTurns.turnNumber, this.currentTurn)));
+    if (existing?.id) {
+      this.setCurrentTurnRecord(existing.id);
+      return;
+    }
+    await this.createTurnRecord();
+  }
+
+  private async createTurnRecord(): Promise<string> {
     const turnData = {
       gameId: this.gameId,
       turnNumber: this.currentTurn,
@@ -316,8 +349,15 @@ export class TurnManager {
       statistics: {},
     };
 
-    await this.databaseProvider.getDatabase().insert(gameTurns).values(turnData);
+    const [record] = await this.databaseProvider
+      .getDatabase()
+      .insert(gameTurns)
+      .values(turnData)
+      .returning({ id: gameTurns.id });
+    if (!record?.id) throw new Error('Failed to create authoritative turn record');
+    this.setCurrentTurnRecord(record.id);
     logger.debug('Created turn record', { gameId: this.gameId, turn: this.currentTurn });
+    return record.id;
   }
 
   private async completeTurnRecord(phaseResult: {
@@ -338,6 +378,31 @@ export class TurnManager {
         itemsProcessed: phase.itemsProcessed,
       })),
     };
+    const allUnits = await this.unitManager.getAllUnits();
+    const units = allUnits instanceof Map ? Array.from(allUnits.values()) : allUnits;
+    const stateSnapshot = {
+      version: 2,
+      turn: this.currentTurn,
+      year: this.currentYear,
+      calendar: this.calendarService.getState(),
+      cities: this.cityManager.getAllCities(),
+      units,
+      research: Object.fromEntries(
+        Array.from(this.playerActions.keys()).map(playerId => {
+          const research = this.researchManager.getPlayerResearch(playerId);
+          return [
+            playerId,
+            research
+              ? {
+                  ...research,
+                  researchedTechs: Array.from(research.researchedTechs),
+                }
+              : null,
+          ];
+        })
+      ),
+      ...this.replaySnapshotProvider?.(),
+    };
     await this.databaseProvider
       .getDatabase()
       .update(gameTurns)
@@ -345,11 +410,7 @@ export class TurnManager {
         events: this.turnEvents,
         playerActions: actions,
         statistics,
-        stateSnapshot: {
-          version: 1,
-          turn: this.currentTurn,
-          year: this.currentYear,
-        },
+        stateSnapshot,
         endedAt: new Date(),
         duration: Math.max(0, Math.round(phaseResult.totalDuration / 1000)),
       })
@@ -478,6 +539,7 @@ export class TurnManager {
 
     this.turnDeadline = Date.now() + timeLimit * 1000;
     this.pausedTimerSeconds = null;
+    this.persistTimerState(new Date(this.turnDeadline), null);
     this.turnTimer = setTimeout(async () => {
       logger.info('Turn time limit reached, auto-processing turn', {
         gameId: this.gameId,
@@ -500,10 +562,12 @@ export class TurnManager {
   public clearTurnTimer(): void {
     if (this.turnTimer) {
       clearTimeout(this.turnTimer);
-      this.turnTimer = null;
-      this.turnDeadline = null;
       logger.debug('Turn timer cleared', { gameId: this.gameId });
     }
+    this.turnTimer = null;
+    this.turnDeadline = null;
+    this.pausedTimerSeconds = null;
+    this.persistTimerState(null, null);
   }
 
   public pauseTurnTimer(): void {
@@ -513,11 +577,55 @@ export class TurnManager {
     this.turnTimer = null;
     this.turnDeadline = null;
     this.pausedTimerSeconds = remainingSeconds;
+    this.persistTimerState(null, remainingSeconds);
   }
 
   public resumeTurnTimer(defaultTimeLimit: number): void {
     const remainingSeconds = this.pausedTimerSeconds ?? defaultTimeLimit;
     this.startTurnTimer(remainingSeconds);
+  }
+
+  public restoreTurnTimer(
+    deadline: Date | string | null | undefined,
+    pausedSeconds: number | null | undefined,
+    defaultTimeLimit: number
+  ): void {
+    if (pausedSeconds && pausedSeconds > 0) {
+      this.pausedTimerSeconds = pausedSeconds;
+      return;
+    }
+    if (!deadline) {
+      this.startTurnTimer(defaultTimeLimit);
+      return;
+    }
+    const remainingSeconds = Math.max(
+      1,
+      Math.ceil((new Date(deadline).getTime() - Date.now()) / 1000)
+    );
+    this.startTurnTimer(remainingSeconds);
+  }
+
+  public getRemainingTurnSeconds(): number | null {
+    if (this.pausedTimerSeconds !== null) return this.pausedTimerSeconds;
+    if (this.turnDeadline === null) return null;
+    return Math.max(1, Math.ceil((this.turnDeadline - Date.now()) / 1000));
+  }
+
+  private persistTimerState(deadline: Date | null, pausedSeconds: number | null): void {
+    this.timerPersistencePromise = this.timerPersistencePromise
+      .then(async () => {
+        await this.databaseProvider
+          .getDatabase()
+          .update(games)
+          .set({ turnDeadlineAt: deadline, pausedTimerSeconds: pausedSeconds })
+          .where(eq(games.id, this.gameId));
+      })
+      .catch(error => {
+        logger.warn('Failed to persist turn timer state', {
+          gameId: this.gameId,
+          error: error instanceof Error ? error.message : error,
+        });
+      });
   }
 
   public setTurnAdvancedCallback(callback: (turn: number) => void | Promise<void>): void {
@@ -526,6 +634,14 @@ export class TurnManager {
 
   public setEndGameEvaluator(evaluator: (turn: number, year: number) => Promise<boolean>): void {
     this.endGameEvaluator = evaluator;
+  }
+
+  public setReplaySnapshotProvider(provider: () => Record<string, unknown>): void {
+    this.replaySnapshotProvider = provider;
+  }
+
+  public async evaluateEndGameNow(): Promise<boolean> {
+    return (await this.endGameEvaluator?.(this.currentTurn, this.currentYear)) ?? false;
   }
 
   /**

@@ -24,7 +24,9 @@ jest.mock('@game/services/TurnPacketService', () => {
 
 jest.mock('@game/services/TurnProcessingService', () => {
   return {
-    TurnProcessingService: jest.fn().mockImplementation(() => ({})),
+    TurnProcessingService: jest.fn().mockImplementation(() => ({
+      queuePlayerAction: jest.fn(),
+    })),
   };
 });
 
@@ -40,6 +42,7 @@ jest.mock('@game/services/TurnPhaseService', () => {
       executePhaseProcessing: jest.fn(),
       getCurrentPhase: jest.fn(),
       getPhaseHistory: jest.fn(),
+      setCurrentTurnId: jest.fn(),
     })),
   };
 });
@@ -62,6 +65,7 @@ const mockCityManager = {
 const mockResearchManager = {
   processPlayerResearch: jest.fn(),
   completeResearch: jest.fn(),
+  getPlayerResearch: jest.fn(),
 } as any;
 
 const mockBorderManager = {
@@ -165,9 +169,13 @@ describe('TurnManager', () => {
 
       turnManager.addPlayerAction('player1', action);
 
-      // Verify action was added (we can't directly check private playerActions map)
-      // but we can verify no errors were thrown and the method executed
-      expect(true).toBe(true);
+      expect((turnManager as any).turnProcessingService.queuePlayerAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          playerId: 'player1',
+          type: 'unit_move',
+          priority: 3,
+        })
+      );
     });
 
     it('should handle actions for new players', () => {
@@ -292,7 +300,7 @@ describe('TurnManager', () => {
         expect.objectContaining({
           endedAt: expect.any(Date),
           duration: 2,
-          stateSnapshot: { version: 1, turn: 1, year: -4000 },
+          stateSnapshot: expect.objectContaining({ version: 2, turn: 1, year: -4000 }),
         })
       );
       expect(turnManager.getCurrentTurn()).toBe(1);
@@ -395,6 +403,18 @@ describe('TurnManager', () => {
       expect(clearTimeoutSpy).toHaveBeenCalled();
 
       clearTimeoutSpy.mockRestore();
+      jest.useRealTimers();
+    });
+
+    it('restores the persisted remaining time instead of resetting the deadline', () => {
+      jest.useFakeTimers();
+      const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+      const deadline = new Date(Date.now() + 42_000);
+
+      turnManager.restoreTurnTimer(deadline, null, 300);
+
+      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 42000);
+      expect(turnManager.getRemainingTurnSeconds()).toBe(42);
       jest.useRealTimers();
     });
   });

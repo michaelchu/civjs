@@ -141,6 +141,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       ruleset: rulesetName,
       historyInterestPml: rulesetLoader.getCultureRules(rulesetName).history_interest_pml,
       turnTimeLimit: gameConfig.turnTimeLimit,
+      maxTurns: gameConfig.maxTurns ?? 0,
       victoryConditions: gameConfig.victoryConditions?.length
         ? gameConfig.victoryConditions
         : ['conquest'],
@@ -848,6 +849,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         science: dbPlayer.science,
         government: dbPlayer.government,
         history: dbPlayer.history ?? 0,
+        teamId: dbPlayer.teamId ?? undefined,
+        hasConceded: dbPlayer.hasConceded ?? false,
         isReady: false,
         hasEndedTurn: false,
         isConnected: true,
@@ -873,6 +876,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         mapHeight: game.mapHeight ?? undefined,
         ruleset: game.ruleset ?? undefined,
         turnTimeLimit: game.turnTimeLimit ?? undefined,
+        maxTurns: game.maxTurns ?? 0,
         victoryConditions: game.victoryConditions as string[] | undefined,
         terrainSettings: (game.gameState as any)?.terrainSettings,
       },
@@ -1182,6 +1186,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         mapHeight: game.mapHeight,
         ruleset: game.ruleset,
         turnTimeLimit: game.turnTimeLimit,
+        maxTurns: game.maxTurns ?? 0,
         victoryConditions: game.victoryConditions,
         terrainSettings: terrainSettings,
       },

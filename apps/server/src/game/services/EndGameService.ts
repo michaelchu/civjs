@@ -20,6 +20,23 @@ export interface EndGameStanding {
   technologies: number;
   history: number;
   alive: boolean;
+  teamId?: string;
+  categoryScores: {
+    population: number;
+    cities: number;
+    units: number;
+    technologies: number;
+    culture: number;
+  };
+  spaceship?: SpaceshipState;
+}
+
+export interface SpaceshipState {
+  structurals: number;
+  components: number;
+  modules: number;
+  launchedTurn?: number;
+  arrivalTurn?: number;
 }
 
 export interface EndGameReport {
@@ -27,7 +44,15 @@ export interface EndGameReport {
   gameId: string;
   turn: number;
   year: number;
-  reason: 'conquest' | 'culture' | 'world_peace';
+  reason:
+    | 'conquest'
+    | 'team'
+    | 'allied'
+    | 'culture'
+    | 'world_peace'
+    | 'science'
+    | 'scenario'
+    | 'max_turns';
   winnerPlayerId: string;
   winnerPlayerIds: string[];
   standings: EndGameStanding[];
@@ -51,6 +76,7 @@ interface EvaluationContext {
   cultureManager?: CultureManager;
   diplomacyManager?: DiplomacyManager;
   rulesetName?: string;
+  maxTurns?: number;
 }
 
 /**
@@ -87,7 +113,14 @@ export class EndGameService {
       const technologies = context.researchManager.getResearchedTechs(playerId).length;
       const history = player?.history ?? 0;
       const alive =
-        (player?.isAlive ?? true) && (playerCities.length > 0 || playerUnits.length > 0);
+        (player?.isAlive ?? true) &&
+        !(player?.hasConceded ?? false) &&
+        (playerCities.length > 0 || playerUnits.length > 0);
+      const spaceship = this.getSpaceshipState(
+        playerCities,
+        player?.spaceshipState as Partial<SpaceshipState> | undefined,
+        context.turn
+      );
       const score =
         population * 10 +
         playerCities.length * 100 +
@@ -104,6 +137,15 @@ export class EndGameService {
         technologies,
         history,
         alive,
+        teamId: player?.teamId ?? undefined,
+        categoryScores: {
+          population: population * 10,
+          cities: playerCities.length * 100,
+          units: playerUnits.length * 20,
+          technologies: technologies * 50,
+          culture: history,
+        },
+        spaceship,
       };
     });
 
@@ -111,7 +153,11 @@ export class EndGameService {
       standings.map(standing =>
         database
           .update(players)
-          .set({ score: standing.score, isAlive: standing.alive })
+          .set({
+            score: standing.score,
+            isAlive: standing.alive,
+            spaceshipState: standing.spaceship,
+          })
           .where(eq(players.id, standing.playerId))
       )
     );
@@ -120,7 +166,31 @@ export class EndGameService {
     let reason: EndGameReport['reason'] | undefined;
     let winners: EndGameStanding[] = [];
 
+    const scenarioWinners = standings.filter(
+      standing => playerById.get(standing.playerId)?.isWinner === true
+    );
+    if (this.isEnabled(enabled, 'scenario') && scenarioWinners.length > 0) {
+      reason = 'scenario';
+      winners = scenarioWinners;
+    }
+
+    if (!reason && this.isEnabled(enabled, 'science', 'spaceship')) {
+      const arrived = survivors.filter(
+        standing =>
+          standing.spaceship?.arrivalTurn !== undefined &&
+          standing.spaceship.arrivalTurn <= context.turn
+      );
+      if (arrived.length > 0) {
+        const earliestArrival = Math.min(
+          ...arrived.map(standing => standing.spaceship!.arrivalTurn!)
+        );
+        reason = 'science';
+        winners = arrived.filter(standing => standing.spaceship!.arrivalTurn === earliestArrival);
+      }
+    }
+
     if (
+      !reason &&
       survivors.length > 1 &&
       this.isEnabled(enabled, 'world_peace', 'worldpeace') &&
       context.diplomacyManager
@@ -139,8 +209,24 @@ export class EndGameService {
       }
     }
 
-    if (!reason && enabled.includes('conquest') && survivors.length === 1) {
-      reason = 'conquest';
+    if (!reason && enabled.includes('conquest') && survivors.length > 0) {
+      const survivingTeams = new Set(
+        survivors.map(standing => standing.teamId || `player:${standing.playerId}`)
+      );
+      if (survivingTeams.size === 1) {
+        reason = survivors.length > 1 ? 'team' : 'conquest';
+        winners = survivors;
+      }
+    }
+
+    if (
+      !reason &&
+      this.isEnabled(enabled, 'allied', 'allied_victory') &&
+      survivors.length > 1 &&
+      context.diplomacyManager &&
+      (await this.areAllSurvivorsAllied(context.gameId, survivors, context.diplomacyManager))
+    ) {
+      reason = 'allied';
       winners = survivors;
     }
 
@@ -168,6 +254,12 @@ export class EndGameService {
         reason = 'culture';
         winners = [best.standing];
       }
+    }
+
+    if (!reason && context.maxTurns && context.maxTurns > 0 && context.turn >= context.maxTurns) {
+      const bestScore = Math.max(...standings.map(standing => standing.score));
+      reason = 'max_turns';
+      winners = standings.filter(standing => standing.score === bestScore);
     }
 
     if (!reason || winners.length === 0) return { ended: false };
@@ -198,6 +290,14 @@ export class EndGameService {
         endGameReport: report,
       })
       .where(eq(games.id, context.gameId));
+    await Promise.all(
+      standings.map(standing =>
+        database
+          .update(players)
+          .set({ isWinner: winnerPlayerIds.includes(standing.playerId) })
+          .where(eq(players.id, standing.playerId))
+      )
+    );
     this.io.to(`game:${context.gameId}`).emit('packet', {
       version: PROTOCOL_VERSION,
       type: PacketType.ENDGAME_REPORT,
@@ -209,6 +309,53 @@ export class EndGameService {
 
   private isEnabled(enabled: string[], ...aliases: string[]): boolean {
     return aliases.some(alias => enabled.includes(alias));
+  }
+
+  private getSpaceshipState(
+    playerCities: ReturnType<CityManager['getPlayerCities']>,
+    persisted: Partial<SpaceshipState> | undefined,
+    turn: number
+  ): SpaceshipState {
+    const buildings = playerCities.flatMap(city => city.buildings ?? []);
+    const state: SpaceshipState = {
+      structurals: buildings.filter(building => building === 'space_structural').length,
+      components: buildings.filter(building => building === 'space_component').length,
+      modules: buildings.filter(building => building === 'space_module').length,
+      launchedTurn: persisted?.launchedTurn,
+      arrivalTurn: persisted?.arrivalTurn,
+    };
+    // At the current city-production abstraction, a complete classic ship is
+    // represented by the minimum viable 16/8/3 part inventory and launches
+    // automatically. Travel is deterministic and survives process recovery.
+    if (
+      state.launchedTurn === undefined &&
+      state.structurals >= 16 &&
+      state.components >= 8 &&
+      state.modules >= 3
+    ) {
+      state.launchedTurn = turn;
+      state.arrivalTurn = turn + 10;
+    }
+    return state;
+  }
+
+  private async areAllSurvivorsAllied(
+    gameId: string,
+    survivors: EndGameStanding[],
+    diplomacyManager: DiplomacyManager
+  ): Promise<boolean> {
+    const snapshots = await Promise.all(
+      survivors.map(standing => diplomacyManager.getSnapshot(gameId, standing.playerId))
+    );
+    return snapshots.every((snapshot, index) =>
+      survivors.every((other, otherIndex) => {
+        if (index === otherIndex) return true;
+        if (survivors[index].teamId && survivors[index].teamId === other.teamId) return true;
+        return snapshot.nations.some(
+          nation => nation.id === other.playerId && nation.relation.state === 'alliance'
+        );
+      })
+    );
   }
 
   /**

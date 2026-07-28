@@ -190,4 +190,97 @@ describe('EndGameService', () => {
     );
     unitsByPlayer.defeated = [];
   });
+
+  it('persists a launch-ready spaceship and awards science victory on arrival', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const database = databaseProvider.getDatabase() as any;
+    database.query.players.findMany.mockResolvedValue([
+      {
+        id: 'winner',
+        civilization: 'Roman',
+        isAlive: true,
+        spaceshipState: {
+          structurals: 16,
+          components: 8,
+          modules: 3,
+          launchedTurn: 20,
+          arrivalTurn: 30,
+        },
+      },
+      { id: 'defeated', civilization: 'Greek', isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+
+    const result = await new EndGameService(databaseProvider, io).evaluate({
+      gameId: 'game-1',
+      turn: 30,
+      year: 1900,
+      victoryConditions: ['science'],
+      playerIds: ['winner', 'defeated'],
+      cityManager,
+      unitManager,
+      researchManager,
+    });
+
+    expect(result.report).toEqual(
+      expect.objectContaining({ reason: 'science', winnerPlayerIds: ['winner'] })
+    );
+    unitsByPlayer.defeated = [];
+  });
+
+  it('awards a surviving team together', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const database = databaseProvider.getDatabase() as any;
+    database.query.players.findMany.mockResolvedValue([
+      { id: 'winner', civilization: 'Roman', isAlive: true, teamId: 'team-1' },
+      { id: 'defeated', civilization: 'Greek', isAlive: true, teamId: 'team-1' },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+
+    const result = await new EndGameService(databaseProvider, io).evaluate({
+      gameId: 'game-1',
+      turn: 12,
+      year: -3500,
+      victoryConditions: ['conquest'],
+      playerIds: ['winner', 'defeated'],
+      cityManager,
+      unitManager,
+      researchManager,
+    });
+
+    expect(result.report).toEqual(
+      expect.objectContaining({
+        reason: 'team',
+        winnerPlayerIds: ['winner', 'defeated'],
+      })
+    );
+    unitsByPlayer.defeated = [];
+  });
+
+  it('uses deterministic score standings at the configured turn limit', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const database = databaseProvider.getDatabase() as any;
+    database.query.players.findMany.mockResolvedValue([
+      { id: 'winner', civilization: 'Roman', isAlive: true },
+      { id: 'defeated', civilization: 'Greek', isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+
+    const result = await new EndGameService(databaseProvider, io).evaluate({
+      gameId: 'game-1',
+      turn: 100,
+      year: 2000,
+      maxTurns: 100,
+      victoryConditions: [],
+      playerIds: ['winner', 'defeated'],
+      cityManager,
+      unitManager,
+      researchManager,
+    });
+
+    expect(result.report).toEqual(
+      expect.objectContaining({ reason: 'max_turns', winnerPlayerIds: ['winner'] })
+    );
+    unitsByPlayer.defeated = [];
+  });
 });

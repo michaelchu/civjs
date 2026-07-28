@@ -36,6 +36,7 @@ import {
 } from '@game/managers/DiplomacyManager';
 import { CivJSAIAdapter } from '@game/services/CivJSAIAdapter';
 import { EndGameService } from '@game/services/EndGameService';
+import { GameReplayService, type GameReplay } from '@game/services/GameReplayService';
 import { ActionType, type ActionResult } from '@app-types/shared/actions';
 import { getUnitType } from '@game/constants/UnitConstants';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
@@ -67,6 +68,7 @@ export interface GameConfig {
   mapHeight?: number;
   ruleset?: string;
   turnTimeLimit?: number;
+  maxTurns?: number;
   victoryConditions?: string[];
   terrainSettings?: TerrainSettings;
 }
@@ -89,6 +91,8 @@ export interface GameInstance {
   governmentManager?: GovernmentManager;
   lastActivity: Date;
   pauseReason?: 'host' | 'disconnect';
+  turnDeadlineAt?: Date | null;
+  pausedTimerSeconds?: number | null;
 }
 
 export interface PlayerState {
@@ -106,6 +110,8 @@ export interface PlayerState {
   science?: number;
   government?: string;
   history?: number;
+  teamId?: string;
+  hasConceded?: boolean;
   isReady: boolean;
   hasEndedTurn: boolean;
   isConnected: boolean;
@@ -145,6 +151,7 @@ export class GameManager {
   private diplomacyManager!: DiplomacyManager;
   private aiAdapter!: CivJSAIAdapter;
   private endGameService!: EndGameService;
+  private replayService!: GameReplayService;
 
   private constructor(io: SocketServer, databaseProvider?: DatabaseProvider) {
     this.io = io;
@@ -170,6 +177,7 @@ export class GameManager {
     this.gameStateManager = new GameStateManager(logger, this.databaseProvider);
     this.gameBroadcastManager = new GameBroadcastManager(this.io);
     this.endGameService = new EndGameService(this.databaseProvider, this.io);
+    this.replayService = new GameReplayService(this.databaseProvider);
 
     this.playerConnectionManager = new PlayerConnectionManager(
       this.databaseProvider,
@@ -944,6 +952,9 @@ export class GameManager {
       playerId => this.sharedVisionByGame.get(gameId)?.get(playerId) ?? new Set()
     );
     gameInstance.turnManager.setAIProcessor(() => this.aiAdapter.processTurn(gameId, gameInstance));
+    gameInstance.turnManager.setReplaySnapshotProvider(() => ({
+      map: gameInstance.mapManager.getMapData(),
+    }));
     gameInstance.turnManager.setEndGameEvaluator(async (turn, year) => {
       const evaluation = await this.endGameService.evaluate({
         gameId,
@@ -957,6 +968,7 @@ export class GameManager {
         cultureManager: gameInstance.turnManager.getCultureManager(),
         diplomacyManager: this.diplomacyManager,
         rulesetName: gameInstance.config.ruleset,
+        maxTurns: gameInstance.config.maxTurns,
       });
       if (!evaluation.ended) return false;
       gameInstance.state = 'ended';
@@ -973,7 +985,13 @@ export class GameManager {
     });
     await this.refreshSharedVision(gameId);
     if (gameInstance.state === 'active') {
-      gameInstance.turnManager.startTurnTimer(gameInstance.config.turnTimeLimit ?? 300);
+      gameInstance.turnManager.restoreTurnTimer(
+        gameInstance.turnDeadlineAt,
+        gameInstance.pausedTimerSeconds,
+        gameInstance.config.turnTimeLimit ?? 300
+      );
+      gameInstance.turnDeadlineAt = null;
+      gameInstance.pausedTimerSeconds = null;
     }
   }
 
@@ -996,6 +1014,14 @@ export class GameManager {
 
   public async getGame(gameId: string): Promise<any | null> {
     return await this.getGameById(gameId);
+  }
+
+  public async getGameReplay(gameId: string, throughTurn?: number): Promise<GameReplay | null> {
+    return this.replayService.getReplay(gameId, throughTurn);
+  }
+
+  public async reconstructGameAtTurn(gameId: string, turn: number): Promise<unknown | null> {
+    return this.replayService.reconstructAtTurn(gameId, turn);
   }
 
   public getGameInstance(gameId: string): GameInstance | null {
@@ -1276,6 +1302,25 @@ export class GameManager {
     return next;
   }
 
+  public async concedeGame(playerId: string): Promise<boolean> {
+    const gameId = this.playerToGame.get(playerId);
+    if (!gameId) throw new Error('Player is not in a game');
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance || gameInstance.state !== 'active') throw new Error('Game is not active');
+    const player = gameInstance.players.get(playerId);
+    if (!player) throw new Error('Player not found in game');
+    if (player.hasConceded) return false;
+
+    player.hasConceded = true;
+    player.isAlive = false;
+    await this.databaseProvider
+      .getDatabase()
+      .update(players)
+      .set({ hasConceded: true, isAlive: false, eliminatedAt: new Date() })
+      .where(eq(players.id, playerId));
+    return gameInstance.turnManager.evaluateEndGameNow();
+  }
+
   private async endTurnLocked(gameId: string, playerId: string): Promise<boolean> {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) {
@@ -1526,6 +1571,7 @@ export class GameManager {
     instance.pauseReason = paused ? 'host' : undefined;
     if (paused) instance.turnManager.pauseTurnTimer();
     else instance.turnManager.resumeTurnTimer(instance.config.turnTimeLimit ?? 300);
+    const remainingSeconds = instance.turnManager.getRemainingTurnSeconds();
     await this.databaseProvider
       .getDatabase()
       .update(games)
@@ -1533,6 +1579,8 @@ export class GameManager {
         status: paused ? 'paused' : 'active',
         pausedAt: paused ? new Date() : null,
         pauseReason: paused ? 'host' : null,
+        turnDeadlineAt: paused ? null : new Date(Date.now() + (remainingSeconds ?? 0) * 1000),
+        pausedTimerSeconds: paused ? remainingSeconds : null,
       })
       .where(eq(games.id, gameId));
     this.broadcastToGame(gameId, 'game-control-changed', { paused });

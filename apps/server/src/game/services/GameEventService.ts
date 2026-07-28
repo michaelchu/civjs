@@ -11,7 +11,7 @@
 
 import { logger } from '@utils/logger';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
-import { db } from '@database/index';
+import type { DatabaseProvider } from '@database';
 import { turnEvents, NewTurnEvent } from '@database/schema/turn-events';
 
 export enum GameEventType {
@@ -114,6 +114,15 @@ export interface EventProcessingResult {
   errors: string[];
 }
 
+export interface PlayerEventStats {
+  playerId: string;
+  citiesCount: number;
+  unitsCount: number;
+  technologiesCount: number;
+  score: number;
+  turn: number;
+}
+
 export class GameEventService {
   private gameId: string;
   private broadcastManager: GameBroadcastManager;
@@ -133,8 +142,13 @@ export class GameEventService {
   private maxRetries = 3;
 
   private currentTurnId: string | null = null;
+  private playerStatsProvider?: (playerId: string) => PlayerEventStats;
 
-  constructor(gameId: string, broadcastManager: GameBroadcastManager) {
+  constructor(
+    gameId: string,
+    broadcastManager: GameBroadcastManager,
+    private readonly databaseProvider: DatabaseProvider
+  ) {
     this.gameId = gameId;
     this.broadcastManager = broadcastManager;
 
@@ -152,6 +166,10 @@ export class GameEventService {
    */
   setCurrentTurnId(turnId: string): void {
     this.currentTurnId = turnId;
+  }
+
+  setPlayerStatsProvider(provider: (playerId: string) => PlayerEventStats): void {
+    this.playerStatsProvider = provider;
   }
 
   /**
@@ -190,7 +208,7 @@ export class GameEventService {
         relatedPlayerId: event.data.targetPlayerId || null,
       };
 
-      await db.insert(turnEvents).values(eventRecord);
+      await this.databaseProvider.getDatabase().insert(turnEvents).values(eventRecord);
     } catch (error) {
       // Log but don't throw - database issues shouldn't break event processing
       logger.warn('Failed to save event to database', {
@@ -609,17 +627,17 @@ export class GameEventService {
    * Get basic player stats for achievement checking
    * (This would integrate with actual game managers in a full implementation)
    */
-  private getPlayerStats(playerId: string): any {
-    // Simplified placeholder - in real implementation this would
-    // gather stats from CityManager, UnitManager, ResearchManager, etc.
-    return {
-      playerId,
-      citiesCount: 0,
-      unitsCount: 0,
-      technologiesCount: 0,
-      score: 0,
-      turn: 0,
-    };
+  private getPlayerStats(playerId: string): PlayerEventStats {
+    return (
+      this.playerStatsProvider?.(playerId) ?? {
+        playerId,
+        citiesCount: 0,
+        unitsCount: 0,
+        technologiesCount: 0,
+        score: 0,
+        turn: 0,
+      }
+    );
   }
 
   /**

@@ -17,7 +17,7 @@ import type { RandomEventsManager } from '@game/managers/RandomEventsManager';
 import type { DisasterManager } from '@game/managers/DisasterManager';
 import type { CultureManager } from '@game/managers/CultureManager';
 import { GameEventService, GameEventType } from './GameEventService';
-import { db } from '@database/index';
+import type { DatabaseProvider } from '@database';
 import { turnPhases, NewTurnPhase } from '@database/schema/turn-phases';
 import { eq } from 'drizzle-orm';
 
@@ -118,7 +118,8 @@ export class TurnPhaseService {
     gameEventService: GameEventService,
     randomEventsManager?: RandomEventsManager,
     cultureManager?: CultureManager,
-    disasterManager?: DisasterManager
+    disasterManager?: DisasterManager,
+    private readonly databaseProvider?: DatabaseProvider
   ) {
     this.gameId = gameId;
     this.turnProcessingService = turnProcessingService;
@@ -226,7 +227,9 @@ export class TurnPhaseService {
       actionsProcessed: 0,
     };
 
-    const [inserted] = await db
+    if (!this.databaseProvider) throw new Error('Database provider is required for phase tracking');
+    const [inserted] = await this.databaseProvider
+      .getDatabase()
       .insert(turnPhases)
       .values(phaseRecord)
       .returning({ id: turnPhases.id });
@@ -242,7 +245,9 @@ export class TurnPhaseService {
     startTime: Date,
     endTime: Date
   ): Promise<void> {
-    await db
+    if (!this.databaseProvider) throw new Error('Database provider is required for phase tracking');
+    await this.databaseProvider
+      .getDatabase()
       .update(turnPhases)
       .set({
         status: result.success ? 'completed' : 'failed',
@@ -362,15 +367,6 @@ export class TurnPhaseService {
 
       result.totalDuration = Date.now() - context.startTime;
 
-      // Process all queued events at the end of turn processing
-      // @reference freeciv/server/srv_main.c event processing and script hooks
-      const eventResult = await this.gameEventService.processQueuedEvents(turn, year);
-      logger.debug('Turn events processed', {
-        gameId: this.gameId,
-        turn,
-        ...eventResult,
-      });
-
       // Emit turn end event
       // @reference freeciv/server/srv_main.c script_server_signal_emit("turn_end")
       this.gameEventService.emitEvent(GameEventType.TURN_END, {
@@ -379,8 +375,16 @@ export class TurnPhaseService {
         playerIds,
         processingDuration: result.totalDuration,
         phasesCompleted: result.phases.filter(p => p.success).length,
-        eventsProcessed: eventResult.eventsProcessed,
-        achievementsUnlocked: eventResult.achievementsUnlocked,
+        eventsProcessed: 0,
+        achievementsUnlocked: 0,
+      });
+
+      // Persist every event, including TURN_END, against this turn.
+      const eventResult = await this.gameEventService.processQueuedEvents(turn, year);
+      logger.debug('Turn events processed', {
+        gameId: this.gameId,
+        turn,
+        ...eventResult,
       });
 
       logger.info('Multi-phase turn processing completed', {
@@ -490,7 +494,7 @@ export class TurnPhaseService {
           throw new Error(`Unknown phase: ${phase}`);
       }
 
-      phaseResult.success = true;
+      phaseResult.success = phaseResult.errors.length === 0;
       phaseResult.duration = Date.now() - phaseStartTime;
 
       // Update database record

@@ -33,7 +33,10 @@ export const games = pgTable('games', {
 
   // Timing
   turnTimeLimit: integer('turn_time_limit').default(300), // in seconds
+  maxTurns: integer('max_turns').default(0).notNull(), // 0 disables score victory
   turnStartedAt: timestamp('turn_started_at'),
+  turnDeadlineAt: timestamp('turn_deadline_at'),
+  pausedTimerSeconds: integer('paused_timer_seconds'),
   pausedAt: timestamp('paused_at'),
   pauseReason: varchar('pause_reason', { length: 20 }), // host, disconnect
 

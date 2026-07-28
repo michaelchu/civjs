@@ -459,6 +459,38 @@ describe('GameManager - Integration Tests with Real Database', () => {
         where: (games, { eq }) => eq(games.id, gameId),
       });
       expect(dbGame.currentTurn).toBe(initialTurn + 1);
+
+      const completedTurns = await db.query.gameTurns.findMany({
+        where: (turns, { and, eq }) =>
+          and(eq(turns.gameId, gameId), eq(turns.turnNumber, initialTurn)),
+      });
+      expect(completedTurns).toHaveLength(1);
+      expect(completedTurns[0].stateSnapshot).toEqual(
+        expect.objectContaining({ version: 2, turn: initialTurn })
+      );
+
+      const phases = await db.query.turnPhases.findMany({
+        where: (turnPhases, { eq }) => eq(turnPhases.turnId, completedTurns[0].id),
+      });
+      expect(phases).toHaveLength(11);
+      expect(phases.every(phase => phase.status === 'completed')).toBe(true);
+
+      const events = await db.query.turnEvents.findMany({
+        where: (turnEvents, { eq }) => eq(turnEvents.turnId, completedTurns[0].id),
+      });
+      expect(events.map(event => event.eventType)).toEqual(
+        expect.arrayContaining(['turn_begin', 'turn_end'])
+      );
+
+      const replay = await gameManager.getGameReplay(gameId, initialTurn);
+      expect(replay?.turns).toHaveLength(1);
+      expect(replay?.turns[0]).toEqual(
+        expect.objectContaining({
+          turn: initialTurn,
+          phases: expect.any(Array),
+          events: expect.any(Array),
+        })
+      );
     });
   });
 
