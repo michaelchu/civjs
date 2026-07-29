@@ -1052,7 +1052,7 @@ describe('AI authoritative manager boundaries', () => {
   it('produces a terrain improver and completes a requested road through authoritative managers', async () => {
     const scenario = await createActiveGame(2);
     const [, guest] = scenario.players;
-    const city = await foundPlayerCity(scenario, guest!.playerId, 'AI Infrastructure City');
+    let city = await foundPlayerCity(scenario, guest!.playerId, 'AI Infrastructure City');
     await gameManager.setPlayerAIControl(
       scenario.gameId,
       scenario.hostUserId,
@@ -1079,7 +1079,7 @@ describe('AI authoritative manager boundaries', () => {
     city.shieldStock = workerType.cost;
     await scenario.game.cityManager.processCityTurn(city.id, scenario.game.currentTurn);
 
-    const worker = scenario.game.unitManager
+    let worker = scenario.game.unitManager
       .getPlayerUnits(guest!.playerId)
       .find(unit => unit.unitTypeId === workerType.id && unit.homeCityId === city.id);
     expect(worker).toBeDefined();
@@ -1087,12 +1087,22 @@ describe('AI authoritative manager boundaries', () => {
     expect(await scenario.game.unitManager.moveUnit(worker!.id, target.x, target.y)).toBe(true);
     worker!.movementLeft = workerType.movement;
 
-    const unitController = (gameManager as any).aiOrchestrator.playerController.units;
+    let unitController = (gameManager as any).aiOrchestrator.playerController.units;
     expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
       0
     );
     expect(worker!.orders).toEqual([{ type: 'road' }]);
     expect(city.workerTaskRequests).toEqual([]);
+
+    gameManager.clearAllGames();
+    (GameManager as any).instance = null;
+    gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+    const recovered = await gameManager.recoverGameInstance(scenario.gameId);
+    expect(recovered?.unitManager.getUnit(worker!.id)?.orders).toEqual([{ type: 'road' }]);
+    scenario.game = recovered!;
+    city = scenario.game.cityManager.getCity(city.id)!;
+    worker = scenario.game.unitManager.getUnit(worker!.id)!;
+    unitController = (gameManager as any).aiOrchestrator.playerController.units;
 
     // Improvement duration is ruleset/tile dependent. Drive the authoritative
     // order processor until it completes, instead of assuming every road has
