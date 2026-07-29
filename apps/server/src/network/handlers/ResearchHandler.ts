@@ -9,7 +9,12 @@ import {
   ResearchListSchema,
   ResearchProgressSchema,
 } from '@app-types/packet';
-import { GameManager } from '@game/managers/GameManager';
+import { GameInstance, GameManager, PlayerState } from '@game/managers/GameManager';
+
+type ResearchContext = {
+  game: GameInstance;
+  player: PlayerState;
+};
 
 /**
  * Handles research-related packets: setting research, research goals, progress tracking
@@ -86,23 +91,15 @@ export class ResearchHandler extends BaseSocketHandler {
     }
 
     try {
-      const game = await this.resolveGame(connection);
-      if (!game || game.status !== 'active') {
+      const context = await this.resolveResearchContext(connection, false);
+      if (!context) {
         handler.send(socket, PacketType.RESEARCH_SET_REPLY, {
           success: false,
           message: 'Game is not active',
         });
         return;
       }
-
-      const player = this.resolvePlayer(connection, game);
-      if (!player) {
-        handler.send(socket, PacketType.RESEARCH_SET_REPLY, {
-          success: false,
-          message: 'Player not found in game',
-        });
-        return;
-      }
+      const { player } = context;
 
       await this.gameManager.setPlayerResearch(connection.gameId!, player.id, data.techId);
 
@@ -145,23 +142,15 @@ export class ResearchHandler extends BaseSocketHandler {
     }
 
     try {
-      const game = await this.resolveGame(connection);
-      if (!game || game.status !== 'active') {
+      const context = await this.resolveResearchContext(connection, false);
+      if (!context) {
         handler.send(socket, PacketType.RESEARCH_GOAL_SET_REPLY, {
           success: false,
           message: 'Game is not active',
         });
         return;
       }
-
-      const player = this.resolvePlayer(connection, game);
-      if (!player) {
-        handler.send(socket, PacketType.RESEARCH_GOAL_SET_REPLY, {
-          success: false,
-          message: 'Player not found in game',
-        });
-        return;
-      }
+      const { player } = context;
 
       await this.gameManager.setResearchGoal(connection.gameId!, player.id, data.techId);
 
@@ -194,11 +183,9 @@ export class ResearchHandler extends BaseSocketHandler {
     }
 
     try {
-      const game = await this.resolveGame(connection);
-      if (!game) return;
-
-      const player = this.resolvePlayer(connection, game);
-      if (!player) return;
+      const context = await this.resolveResearchContext(connection, true);
+      if (!context) return;
+      const { game, player } = context;
 
       const availableTechs = this.gameManager.getAvailableTechnologies(
         connection.gameId!,
@@ -235,9 +222,9 @@ export class ResearchHandler extends BaseSocketHandler {
     }
 
     try {
-      const ctx = await this.resolveProgressContext(connection);
-      if (!ctx) return;
-      const { player } = ctx;
+      const context = await this.resolveResearchContext(connection, true);
+      if (!context) return;
+      const { player } = context;
 
       const playerResearch = this.gameManager.getPlayerResearch(connection.gameId!, player.id);
       const progress = this.gameManager.getResearchProgress(connection.gameId!, player.id);
@@ -264,18 +251,25 @@ export class ResearchHandler extends BaseSocketHandler {
     return this.gameManager.getGame(connection.gameId);
   }
 
-  private resolvePlayer(connection: any, game: any): any | null {
+  private resolvePlayer(connection: any, game: GameInstance): PlayerState | null {
     if (!connection?.userId || !game?.players) return null;
     return (
       Array.from(game.players.values()).find((p: any) => p.userId === connection.userId) || null
     );
   }
 
-  private async resolveProgressContext(
-    connection: any
-  ): Promise<{ game: any; player: any } | null> {
-    const game = await this.resolveGame(connection);
+  private async resolveResearchContext(
+    connection: any,
+    allowPaused: boolean
+  ): Promise<ResearchContext | null> {
+    const persistedGame = await this.resolveGame(connection);
+    const allowedStatuses = allowPaused ? ['active', 'paused'] : ['active'];
+    if (!persistedGame || !allowedStatuses.includes(persistedGame.status)) return null;
+
+    let game = this.gameManager.getGameInstance(connection.gameId);
+    if (!game) game = await this.gameManager.recoverGameInstance(connection.gameId);
     if (!game) return null;
+
     const player = this.resolvePlayer(connection, game);
     if (!player) return null;
     return { game, player };

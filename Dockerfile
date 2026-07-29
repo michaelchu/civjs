@@ -30,5 +30,5 @@ RUN mkdir -p apps/server/public && cp -r apps/client/dist/* apps/server/public/
 # Expose port
 EXPOSE 3001
 
-# Start the server
-CMD ["node", "apps/server/dist/index.js"]
+# Run database migrations before starting the server.
+CMD ["npm", "run", "start:prod"]

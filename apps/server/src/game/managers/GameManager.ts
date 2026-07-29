@@ -1557,7 +1557,12 @@ export class GameManager {
 
     let gameInstance = this.games.get(gameId);
     if (!gameInstance) {
-      if (isConnected) gameInstance = (await this.recoverGameInstance(gameId)) ?? undefined;
+      if (isConnected) {
+        const persistedGame = await this.getGame(gameId);
+        if (persistedGame && ['active', 'paused'].includes(persistedGame.status)) {
+          gameInstance = (await this.recoverGameInstance(gameId)) ?? undefined;
+        }
+      }
       if (!gameInstance) {
         return this.playerConnectionManager.updatePlayerConnection(playerId, isConnected);
       }

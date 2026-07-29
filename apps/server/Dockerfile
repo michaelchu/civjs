@@ -44,5 +44,5 @@ USER nodejs
 # Expose port
 EXPOSE 3001
 
-# Default command (overridden by railway.toml)
-CMD ["node", "dist/index.js"]
+# Migrate before serving even when the platform does not apply railway.toml.
+CMD ["npm", "run", "start:prod"]

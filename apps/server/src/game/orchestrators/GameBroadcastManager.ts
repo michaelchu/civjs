@@ -15,6 +15,8 @@ import { rulesetActionsService } from '@game/services/RulesetActionsService';
 import { resolveCityPresentations } from '@game/services/CityPresentationService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
+const LOBBY_EVENTS = new Set(['player-joined', 'player-connection-changed']);
+
 export interface BroadcastService {
   broadcastToGame(gameId: string, event: string, data: any): void;
   broadcastPacketToGame(gameId: string, packetType: PacketType, data: any): void;
@@ -54,7 +56,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
    */
   broadcastToGame(gameId: string, event: string, data: any): void {
     const gameInstance = this.games.get(gameId);
-    if (!gameInstance) {
+    if (!gameInstance && !LOBBY_EVENTS.has(event)) {
       // Don't return early - still try to broadcast for compatibility
       this.logger.warn(
         'Broadcasting to game without local instance (might be normal during transitions)',

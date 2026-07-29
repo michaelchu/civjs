@@ -1,5 +1,6 @@
 import { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import { PacketType } from '@app-types/packet';
+import { logger } from '@utils/logger';
 
 jest.mock('../../src/utils/logger', () => ({
   logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
@@ -121,6 +122,24 @@ describe('GameBroadcastManager visibility sync', () => {
       borderManager: { getAllTileOwnership: () => [] },
     };
     manager.setGamesReference(new Map([[gameId, game as any]]));
+  });
+
+  it('broadcasts lobby connection events without warning about a missing runtime instance', () => {
+    manager.setGamesReference(new Map());
+
+    manager.broadcastToGame(gameId, 'player-connection-changed', {
+      playerId: playerOne,
+      isConnected: true,
+    });
+
+    expect(emitted).toEqual([
+      {
+        room: `game:${gameId}`,
+        event: 'player-connection-changed',
+        data: { playerId: playerOne, isConnected: true },
+      },
+    ]);
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it('broadcasts authoritative resource totals and per-turn changes', async () => {

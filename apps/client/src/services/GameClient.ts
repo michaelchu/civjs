@@ -201,13 +201,14 @@ export class GameClient {
 
     // Legacy event handlers removed - now handled via structured packets
 
-    this.socket.on('game_started', data => {
+    this.socket.on('game-started', data => {
       console.log('Game started:', data);
       useGameStore.getState().setClientState('running');
       // Set initial game phase to movement so turn done button works
       useGameStore.getState().updateGameState({
         phase: 'movement',
       });
+      this.refreshResearch();
     });
 
     // Handle unit movement updates

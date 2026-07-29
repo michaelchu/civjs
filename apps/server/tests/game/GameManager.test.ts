@@ -75,6 +75,23 @@ describe('GameManager', () => {
     });
   });
 
+  describe('player connection recovery', () => {
+    it('does not try to recover a waiting lobby when its player connects', async () => {
+      const playerId = 'waiting-player';
+      const gameId = 'waiting-game';
+      (gameManager as any).playerToGame.set(playerId, gameId);
+      const connectionUpdate = jest.fn().mockResolvedValue(undefined);
+      (gameManager as any).playerConnectionManager.updatePlayerConnection = connectionUpdate;
+      jest.spyOn(gameManager, 'getGame').mockResolvedValue({ id: gameId, status: 'waiting' });
+      const recover = jest.spyOn(gameManager, 'recoverGameInstance');
+
+      await gameManager.updatePlayerConnection(playerId, true);
+
+      expect(recover).not.toHaveBeenCalled();
+      expect(connectionUpdate).toHaveBeenCalledWith(playerId, true);
+    });
+  });
+
   describe('game creation', () => {
     const testConfig: GameConfig = {
       name: 'Test Game',
