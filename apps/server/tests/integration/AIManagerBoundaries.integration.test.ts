@@ -1150,6 +1150,31 @@ describe('AI authoritative manager boundaries', () => {
     });
   });
 
+  it('has the AI apply a feasible anti-starvation citizen allocation', async () => {
+    const scenario = await createActiveGame(2);
+    const [, guest] = scenario.players;
+    const city = await foundPlayerCity(scenario, guest!.playerId, 'AI Managed Citizen City');
+    for (const workable of city.workableTiles ?? []) {
+      scenario.game.mapManager.updateTileProperty(workable.x, workable.y, 'terrain', 'grassland');
+      scenario.game.mapManager.updateTileProperty(workable.x, workable.y, 'improvements', [
+        'irrigation',
+      ]);
+    }
+    scenario.game.cityManager.calculateCityOutputs(city.id);
+    city.foodStock = 0;
+    await gameManager.setPlayerAIControl(
+      scenario.gameId,
+      scenario.hostUserId,
+      guest!.playerId,
+      true,
+      { aiLevel: 'normal' }
+    );
+
+    const cityController = (gameManager as any).aiOrchestrator.playerController.city;
+    expect(await cityController.manageCitizens(scenario.game, guest!.playerId)).toBeGreaterThan(0);
+    expect(scenario.game.cityManager.getCity(city.id)!.foodPerTurn).toBeGreaterThanOrEqual(1);
+  });
+
   it('selects, completes, persists, and recovers a spaceship part through real managers', async () => {
     const scenario = await createActiveGame(2, { victoryConditions: ['science'] });
     const [, guest] = scenario.players;
