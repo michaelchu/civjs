@@ -157,6 +157,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       maxPlayers: gameConfig.maxPlayers || 8,
       mapWidth: gameConfig.mapWidth || 80,
       mapHeight: gameConfig.mapHeight || 50,
+      mapSeed: gameConfig.mapSeed,
       ruleset: rulesetName,
       historyInterestPml: rulesetLoader.getCultureRules(rulesetName).history_interest_pml,
       turnTimeLimit: gameConfig.turnTimeLimit,
@@ -1064,7 +1065,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return new MapManager(
       game.mapWidth,
       game.mapHeight,
-      undefined,
+      game.mapSeed ?? undefined,
       mapGenerator,
       undefined,
       startPosMode,

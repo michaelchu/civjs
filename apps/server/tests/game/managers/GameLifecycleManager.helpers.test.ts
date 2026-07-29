@@ -32,6 +32,31 @@ function createManager(overrides?: {
 }
 
 describe('GameLifecycleManager helper behavior', () => {
+  test('uses a configured map seed when constructing a map manager for replayable games', () => {
+    const manager = createManager();
+    const terrainSettings = {
+      generator: 'random',
+      landmass: 'normal',
+      huts: 15,
+      temperature: 50,
+      wetness: 50,
+      rivers: 50,
+      resources: 'normal',
+    };
+
+    const first = (manager as any).createMapManager(
+      { mapWidth: 20, mapHeight: 20, mapSeed: 'ai-validation-seed' },
+      terrainSettings
+    );
+    const second = (manager as any).createMapManager(
+      { mapWidth: 20, mapHeight: 20, mapSeed: 'ai-validation-seed' },
+      terrainSettings
+    );
+
+    expect(first.getSeed()).toBe('ai-validation-seed');
+    expect(second.getSeed()).toBe(first.getSeed());
+  });
+
   test('map persistence failures propagate to the game-start caller', async () => {
     const persistenceError = new Error('map write failed');
     const where = jest.fn().mockRejectedValue(persistenceError);

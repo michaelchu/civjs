@@ -41,7 +41,7 @@ describe('AI authoritative manager boundaries', () => {
 
   async function createActiveGame(
     playerCount: 2 | 3,
-    options: { victoryConditions?: string[]; maxTurns?: number } = {}
+    options: { victoryConditions?: string[]; maxTurns?: number; mapSeed?: string } = {}
   ): Promise<TestGame> {
     const db = getTestDatabase();
     const userIds = Array.from({ length: playerCount }, () => generateTestUUID());
@@ -1313,15 +1313,14 @@ describe('AI authoritative manager boundaries', () => {
     ).toMatchObject({ love: -7, warDesire: 0 });
   });
 
-  it.each([0.17, 0.53, 0.89])(
+  it.each(['ai-validation-alpha', 'ai-validation-bravo', 'ai-validation-charlie'])(
     'maintains AI world invariants across a multi-turn seed soak (%s)',
-    async mapRandom => {
-      const random = jest.spyOn(Math, 'random').mockReturnValue(mapRandom);
+    async mapSeed => {
       const scenario = await createActiveGame(2, {
         maxTurns: 20,
         victoryConditions: ['max_turns'],
+        mapSeed,
       });
-      random.mockRestore();
       const [host, guest] = scenario.players;
       await gameManager.setPlayerAIControl(
         scenario.gameId,
@@ -1343,6 +1342,7 @@ describe('AI authoritative manager boundaries', () => {
       }
 
       const map = scenario.game.mapManager.getMapData()!;
+      expect(map.seed).toBe(mapSeed);
       const units = scenario.game.unitManager.getAllUnits();
       let totalDecisions = 0;
       for (const player of scenario.game.players.values()) {

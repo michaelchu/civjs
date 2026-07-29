@@ -97,6 +97,8 @@ export interface GameConfig {
   maxPlayers?: number;
   mapWidth?: number;
   mapHeight?: number;
+  /** Optional seed for a reproducible generated map and AI validation replay. */
+  mapSeed?: string;
   ruleset?: string;
   turnTimeLimit?: number;
   maxTurns?: number;
