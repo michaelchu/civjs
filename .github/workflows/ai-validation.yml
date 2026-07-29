@@ -1,0 +1,39 @@
+name: AI validation matrix
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+jobs:
+  deterministic-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        run: cd apps/client && npm ci
+
+      - name: Install server dependencies
+        run: cd apps/server && npm ci
+
+      - name: Run 100-seed AI validation matrix
+        run: npm run test:ai-validation:100
+
+      - name: Upload AI validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-validation-diagnostics
+          path: apps/server/test-results/ai-validation
+          if-no-files-found: ignore
