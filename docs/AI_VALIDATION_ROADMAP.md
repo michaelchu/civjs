@@ -49,6 +49,9 @@ The first implementation steps are now in place:
   `apps/server/test-results/ai-validation/`, including configuration, current
   phase and turn, map/entity snapshot, AI planning state, failure diagnosis,
   and a focused Docker reproduction command.
+- AI state retains a bounded, restart-safe decision trace for recent subsystem
+  attempts (turn, phase label, action count, and error/rejection reason). The
+  trace is included in the matrix artifact through the saved AI state.
 - The larger `npm run test:ai-validation:100` matrix runs weekly and on manual
   dispatch in `.github/workflows/ai-validation.yml`, outside normal pull-
   request feedback. The job uploads any validation diagnostics as an artifact.
