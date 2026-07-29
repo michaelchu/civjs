@@ -325,11 +325,13 @@ describe('FreecivAIOrchestrator', () => {
           label: 'citizens',
           input: expect.objectContaining({ cities: 1, units: 4 }),
           economicDelta: expect.objectContaining({ production: expect.any(Number) }),
+          candidateScores: expect.objectContaining({ research: expect.any(Object) }),
         }),
         expect.objectContaining({
           turn: 0,
           label: 'state persistence',
           economicDelta: expect.objectContaining({ science: expect.any(Number) }),
+          candidateScores: expect.objectContaining({ cityProduction: expect.any(Object) }),
         }),
       ])
     );

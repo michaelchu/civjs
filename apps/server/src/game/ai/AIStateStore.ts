@@ -51,6 +51,10 @@ export interface AIDecisionTrace {
     trade: number;
     science: number;
   };
+  candidateScores?: {
+    cityProduction: Record<string, Record<string, number>>;
+    research: Record<string, number>;
+  };
   error?: string;
 }
 
@@ -94,6 +98,20 @@ function assertOptionalNumber(value: unknown, field: string): void {
 function assertTraceNumbers(value: unknown, field: string, keys: readonly string[]): void {
   if (!isRecord(value) || keys.some(key => typeof value[key] !== 'number')) {
     throw new Error(`AI state decision trace ${field} is invalid`);
+  }
+}
+
+function assertCandidateScores(value: unknown): void {
+  if (!isRecord(value) || !isRecord(value.cityProduction) || !isRecord(value.research)) {
+    throw new Error('AI state decision trace candidate scores are invalid');
+  }
+  for (const scores of Object.values(value.cityProduction)) {
+    if (!isRecord(scores) || Object.values(scores).some(score => typeof score !== 'number')) {
+      throw new Error('AI state decision trace city candidate scores are invalid');
+    }
+  }
+  if (Object.values(value.research).some(score => typeof score !== 'number')) {
+    throw new Error('AI state decision trace research candidate scores are invalid');
   }
 }
 
@@ -148,6 +166,7 @@ export function assertAIState(value: unknown): FreecivAIState {
           'science',
         ]);
       }
+      if (entry.candidateScores !== undefined) assertCandidateScores(entry.candidateScores);
     }
   }
   if (state.treasuryGoal !== undefined && !isTreasuryGoal(state.treasuryGoal)) {

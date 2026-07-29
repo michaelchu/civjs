@@ -113,6 +113,7 @@ export function buildAIValidationReplayFingerprint(game: GameInstance): string {
         trace.actions,
         trace.input ?? null,
         trace.economicDelta ?? null,
+        trace.candidateScores ?? null,
         trace.error ?? null,
       ])
       .sort((left, right) => `${left}`.localeCompare(`${right}`)),

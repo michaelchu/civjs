@@ -233,6 +233,7 @@ export class FreecivAIOrchestrator {
         actions,
         input: before.input,
         economicDelta: this.economicDelta(before.economy, after.economy),
+        candidateScores: this.candidateScores(state),
       });
       return actions;
     } catch (error) {
@@ -244,6 +245,7 @@ export class FreecivAIOrchestrator {
         actions: 0,
         input: before.input,
         economicDelta: this.economicDelta(before.economy, after.economy),
+        candidateScores: this.candidateScores(state),
         error: message,
       });
       logger.warn('CivJS AI decision failed', {
@@ -282,6 +284,22 @@ export class FreecivAIOrchestrator {
       production: after.production - before.production,
       trade: after.trade - before.trade,
       science: after.science - before.science,
+    };
+  }
+
+  private candidateScores(state: FreecivAIState) {
+    return {
+      cityProduction: Object.fromEntries(
+        Object.entries(state.cityWants)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([cityId, scores]) => [
+            cityId,
+            Object.fromEntries(Object.entries(scores).sort(([left], [right]) => left.localeCompare(right))),
+          ])
+      ),
+      research: Object.fromEntries(
+        Object.entries(state.techWants).sort(([left], [right]) => left.localeCompare(right))
+      ),
     };
   }
 
