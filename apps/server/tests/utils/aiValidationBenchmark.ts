@@ -24,7 +24,8 @@ export function scoreAIValidationPlayer(
     units: terminal.units,
     technologies: terminal.technologies,
     decisions: points.reduce(
-      (total, point) => total + (point.players.find(player => player.id === playerId)?.decisions ?? 0),
+      (total, point) =>
+        total + (point.players.find(player => player.id === playerId)?.decisions ?? 0),
       0
     ),
   };
@@ -39,7 +40,9 @@ export function scoreAIValidationPlayer(
   };
 }
 
-export function pairedBenchmarkWinner(scores: AIValidationBenchmarkScore[]): 'first' | 'second' | 'tie' {
+export function pairedBenchmarkWinner(
+  scores: AIValidationBenchmarkScore[]
+): 'first' | 'second' | 'tie' {
   if (scores.length !== 2) throw new Error('Paired benchmark requires exactly two scores');
   if (scores[0]!.total === scores[1]!.total) return 'tie';
   return scores[0]!.total > scores[1]!.total ? 'first' : 'second';

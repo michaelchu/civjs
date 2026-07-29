@@ -235,7 +235,10 @@ export class FreecivAIOrchestrator {
     }
   }
 
-  private recordDecision(state: FreecivAIState, entry: NonNullable<FreecivAIState['recentDecisionTrace']>[number]): void {
+  private recordDecision(
+    state: FreecivAIState,
+    entry: NonNullable<FreecivAIState['recentDecisionTrace']>[number]
+  ): void {
     state.recentDecisionTrace = [...(state.recentDecisionTrace ?? []), entry].slice(-50);
   }
 }

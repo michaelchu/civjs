@@ -7,11 +7,7 @@ import { assertAIState, type FreecivAIState } from '@game/ai/AIStateStore';
 import { hostileUnitsForPlanning } from '@game/ai/AITargeting';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
 import { aiValidationBaseline } from '../fixtures/aiValidationBaseline';
-import {
-  GameManager,
-  type GameConfig,
-  type GameInstance,
-} from '@game/managers/GameManager';
+import { GameManager, type GameConfig, type GameInstance } from '@game/managers/GameManager';
 import {
   assertAIValidationInvariants,
   assertAIValidationMetricBaseline,
@@ -61,15 +57,39 @@ type ValidationScenario = {
   terrainSettings: NonNullable<GameConfig['terrainSettings']>;
 };
 const terrainProfiles: ValidationScenario['terrainSettings'][] = [
-  { generator: 'random', landmass: 'sparse', huts: 0, temperature: 30, wetness: 30, rivers: 20, resources: 'sparse' },
-  { generator: 'random', landmass: 'normal', huts: 15, temperature: 50, wetness: 50, rivers: 50, resources: 'normal' },
-  { generator: 'random', landmass: 'dense', huts: 30, temperature: 70, wetness: 70, rivers: 80, resources: 'abundant' },
+  {
+    generator: 'random',
+    landmass: 'sparse',
+    huts: 0,
+    temperature: 30,
+    wetness: 30,
+    rivers: 20,
+    resources: 'sparse',
+  },
+  {
+    generator: 'random',
+    landmass: 'normal',
+    huts: 15,
+    temperature: 50,
+    wetness: 50,
+    rivers: 50,
+    resources: 'normal',
+  },
+  {
+    generator: 'random',
+    landmass: 'dense',
+    huts: 30,
+    temperature: 70,
+    wetness: 70,
+    rivers: 80,
+    resources: 'abundant',
+  },
 ];
 const validationScenarios: ValidationScenario[] = validationSeeds.map((mapSeed, index) => ({
   mapSeed,
   playerCount: index % 5 === 4 ? 3 : 2,
   aiLevel: (['easy', 'normal', 'hard'] as const)[index % 3]!,
-  victoryConditions: (index % 3 === 0 ? ['science'] : index % 3 === 1 ? ['conquest'] : ['max_turns']),
+  victoryConditions: index % 3 === 0 ? ['science'] : index % 3 === 1 ? ['conquest'] : ['max_turns'],
   mapWidth: index % 2 === 0 ? 20 : 24,
   mapHeight: index % 2 === 0 ? 20 : 16,
   terrainSettings: terrainProfiles[index % terrainProfiles.length]!,
@@ -713,9 +733,7 @@ describe('AI authoritative manager boundaries', () => {
     expect(enemyCity.population).toBeLessThan(initialPopulation);
   });
 
-  // TODO(ai-validation): Re-enable after manageAirAndParadrops selects the
-  // visible, legal airbase-to-undefended-city paradrop mission below.
-  it.skip('uses a real paratrooper to capture an undefended hostile city', async () => {
+  it('uses a real paratrooper to capture an undefended hostile city', async () => {
     const scenario = await createActiveGame(2, { mapSeed: 'ai-paradrop-target-01' });
     const [host, guest] = scenario.players;
     const enemyCity = await foundPlayerCity(scenario, guest!.playerId, 'Paradrop Target');
@@ -732,6 +750,7 @@ describe('AI authoritative manager boundaries', () => {
       .find(
         tile =>
           !['ocean', 'deep_ocean', 'lake'].includes(tile.terrain) &&
+          (tile.owner === undefined || tile.owner === host!.playerId) &&
           scenario.game.mapManager.getDistance(tile.x, tile.y, enemyCity.x, enemyCity.y) <=
             paratrooperType!.paratroopersRange &&
           !scenario.game.cityManager.getCityAt(tile.x, tile.y) &&
@@ -1089,9 +1108,9 @@ describe('AI authoritative manager boundaries', () => {
     worker!.movementLeft = workerType.movement;
 
     let unitController = (gameManager as any).aiOrchestrator.playerController.units;
-    expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
-      0
-    );
+    expect(
+      await unitController.automateWorkers(scenario.game, guest!.playerId, state)
+    ).toBeGreaterThan(0);
     expect(worker!.orders).toEqual([{ type: 'road' }]);
     expect(city.workerTaskRequests).toEqual([]);
 
@@ -1108,7 +1127,11 @@ describe('AI authoritative manager boundaries', () => {
     // Improvement duration is ruleset/tile dependent. Drive the authoritative
     // order processor until it completes, instead of assuming every road has
     // exactly the unit-test fixture's two-turn duration.
-    for (let attempt = 0; attempt < 20 && !scenario.game.mapManager.getTile(target.x, target.y)!.hasRoad; attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < 20 && !scenario.game.mapManager.getTile(target.x, target.y)!.hasRoad;
+      attempt += 1
+    ) {
       await scenario.game.unitManager.processUnitOrders(guest!.playerId);
     }
     const completed = scenario.game.mapManager.getTile(target.x, target.y)!;
@@ -1126,13 +1149,14 @@ describe('AI authoritative manager boundaries', () => {
       { x: target.x, y: target.y, action: ActionType.CLEAN_POLLUTION, want: 1_000 },
     ];
     worker!.movementLeft = workerType.movement;
-    expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
-      0
-    );
+    expect(
+      await unitController.automateWorkers(scenario.game, guest!.playerId, state)
+    ).toBeGreaterThan(0);
     expect(worker!.orders).toEqual([{ type: 'cleanPollution' }]);
     for (let attempt = 0; attempt < 20; attempt += 1) {
       await scenario.game.unitManager.processUnitOrders(guest!.playerId);
-      if (!scenario.game.mapManager.getTile(target.x, target.y)!.improvements.includes('pollution')) break;
+      if (!scenario.game.mapManager.getTile(target.x, target.y)!.improvements.includes('pollution'))
+        break;
     }
     expect(scenario.game.mapManager.getTile(target.x, target.y)!.improvements).not.toContain(
       'pollution'
@@ -1143,13 +1167,14 @@ describe('AI authoritative manager boundaries', () => {
       { x: target.x, y: target.y, action: ActionType.BUILD_MINE, want: 900 },
     ];
     worker!.movementLeft = workerType.movement;
-    expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
-      0
-    );
+    expect(
+      await unitController.automateWorkers(scenario.game, guest!.playerId, state)
+    ).toBeGreaterThan(0);
     expect(worker!.orders).toEqual([{ type: 'mine' }]);
     for (let attempt = 0; attempt < 20; attempt += 1) {
       await scenario.game.unitManager.processUnitOrders(guest!.playerId);
-      if (scenario.game.mapManager.getTile(target.x, target.y)!.improvements.includes('mine')) break;
+      if (scenario.game.mapManager.getTile(target.x, target.y)!.improvements.includes('mine'))
+        break;
     }
     expect(scenario.game.mapManager.getTile(target.x, target.y)!.improvements).toContain('mine');
 
@@ -1161,29 +1186,37 @@ describe('AI authoritative manager boundaries', () => {
       .map(position => scenario.game.mapManager.getTile(position.x, position.y))
       .find((tile): tile is NonNullable<typeof tile> => tile !== null);
     expect(irrigationSource).toBeDefined();
-    scenario.game.mapManager.updateTileProperty(irrigationSource!.x, irrigationSource!.y, 'terrain', 'ocean');
+    scenario.game.mapManager.updateTileProperty(
+      irrigationSource!.x,
+      irrigationSource!.y,
+      'terrain',
+      'ocean'
+    );
     city.workerTaskRequests = [
       { x: target.x, y: target.y, action: ActionType.BUILD_IRRIGATION, want: 800 },
     ];
     worker!.movementLeft = workerType.movement;
-    expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
-      0
-    );
+    expect(
+      await unitController.automateWorkers(scenario.game, guest!.playerId, state)
+    ).toBeGreaterThan(0);
     expect(worker!.orders).toEqual([{ type: 'irrigate' }]);
     for (let attempt = 0; attempt < 20; attempt += 1) {
       await scenario.game.unitManager.processUnitOrders(guest!.playerId);
-      if (scenario.game.mapManager.getTile(target.x, target.y)!.improvements.includes('irrigation')) break;
+      if (scenario.game.mapManager.getTile(target.x, target.y)!.improvements.includes('irrigation'))
+        break;
     }
-    expect(scenario.game.mapManager.getTile(target.x, target.y)!.improvements).toContain('irrigation');
+    expect(scenario.game.mapManager.getTile(target.x, target.y)!.improvements).toContain(
+      'irrigation'
+    );
 
     await scenario.game.researchManager.grantTechnology(guest!.playerId, 'railroad');
     city.workerTaskRequests = [
       { x: target.x, y: target.y, action: ActionType.BUILD_RAILROAD, want: 700 },
     ];
     worker!.movementLeft = workerType.movement;
-    expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
-      0
-    );
+    expect(
+      await unitController.automateWorkers(scenario.game, guest!.playerId, state)
+    ).toBeGreaterThan(0);
     expect(worker!.orders).toEqual([{ type: 'railroad' }]);
     for (let attempt = 0; attempt < 20; attempt += 1) {
       await scenario.game.unitManager.processUnitOrders(guest!.playerId);
@@ -1197,9 +1230,9 @@ describe('AI authoritative manager boundaries', () => {
       { x: target.x, y: target.y, action: ActionType.TRANSFORM_TERRAIN, want: 600 },
     ];
     worker!.movementLeft = workerType.movement;
-    expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
-      0
-    );
+    expect(
+      await unitController.automateWorkers(scenario.game, guest!.playerId, state)
+    ).toBeGreaterThan(0);
     expect(worker!.orders).toEqual([{ type: 'transform' }]);
     for (let attempt = 0; attempt < 30; attempt += 1) {
       await scenario.game.unitManager.processUnitOrders(guest!.playerId);
@@ -1314,7 +1347,9 @@ describe('AI authoritative manager boundaries', () => {
       city.y
     );
 
-    expect(await scenario.game.cityManager.captureCity(city.id, host!.playerId, attackerId)).toMatchObject({
+    expect(
+      await scenario.game.cityManager.captureCity(city.id, host!.playerId, attackerId)
+    ).toMatchObject({
       success: true,
     });
     expect(state.cityWants[city.id]).toBeUndefined();
@@ -1702,7 +1737,10 @@ describe('AI authoritative manager boundaries', () => {
             phase = 'recovery';
             gameManager.clearAllGames();
             (GameManager as any).instance = null;
-            gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+            gameManager = GameManager.getInstance(
+              createMockSocketServer(),
+              getTestDatabaseProvider()
+            );
             const recoveredGame = await gameManager.recoverGameInstance(scenario.gameId);
             expect(recoveredGame).not.toBeNull();
             expect(recoveredGame!.currentTurn).toBe(processingTurn + 1);

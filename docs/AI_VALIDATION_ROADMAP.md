@@ -62,9 +62,9 @@ The first implementation steps are now in place:
   known-good normalized snapshot from before the failing turn.
 - Empire-worker scenarios execute through authoritative managers: the AI
   produces a worker, reserves work, builds roads, clears pollution, builds
-  mines and irrigation, and builds railroads only after the road and technology
-  prerequisites are present. An active road order survives server recovery and
-  finishes exactly once afterward.
+  mines, irrigation, railroads only after the road and technology prerequisites
+  are present, and terrain transformations. An active road order survives
+  server recovery and finishes exactly once afterward.
 - City scenarios cover a feasible anti-starvation allocation, persisted citizen
   outputs, legal Currency-unlocked marketplace selection while excluding an
   existing Barracks, and threatened-city defensive production/rushing. The
@@ -79,16 +79,15 @@ The first implementation steps are now in place:
   in five deterministic Docker shards (seeds 01–25). Each configuration reached
   its configured terminal turn without an invariant violation; seeds 01, 13,
   and 25 exercised early, middle, and late recovery respectively.
-
-The real-paratrooper city-capture scenario remains temporarily skipped. A
-deterministic map, explicit visibility refresh, legal airbase, in-range unit,
-and undefended target still yield no selected paradrop mission. This is a
-functional AI mission-selection gap, not counted as validation coverage.
+- The focused Docker suite executes a legal airbase-to-undefended-city
+  paratrooper capture through the authoritative action path. The fixture
+  constrains its launch tile to neutral or friendly ownership, matching the
+  server's paradrop-source legality rule.
 
 This is intentionally a foundation rather than completion of the milestone:
 candidate-score/economic-delta traces, empirical 100-seed baseline results,
-full worker transformation coverage, and comparative strategic-strength match
-results remain required work.
+long-running multi-city empire lifecycle coverage, and comparative
+strategic-strength match results remain required work.
 
 ## Next validation milestone: deterministic simulation matrix
 

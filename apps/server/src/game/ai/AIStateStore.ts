@@ -106,7 +106,8 @@ export function assertAIState(value: unknown): FreecivAIState {
   assertOptionalNumber(state.lastDecisionCount, 'lastDecisionCount');
   assertOptionalNumber(state.inProgressTurn, 'inProgressTurn');
   if (state.recentDecisionTrace !== undefined) {
-    if (!Array.isArray(state.recentDecisionTrace)) throw new Error('AI state decision trace is invalid');
+    if (!Array.isArray(state.recentDecisionTrace))
+      throw new Error('AI state decision trace is invalid');
     for (const entry of state.recentDecisionTrace) {
       if (
         !isRecord(entry) ||

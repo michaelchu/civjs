@@ -76,15 +76,17 @@ export function buildAIValidationReplayFingerprint(game: GameInstance): string {
     state: game.state,
     turn: game.currentTurn,
     map: map
-      ? map.tiles.flat().map(tile => [
-          tile.x,
-          tile.y,
-          tile.terrain,
-          tile.resource ?? null,
-          tile.hasRoad,
-          tile.hasRailroad,
-          [...(tile.improvements ?? [])].sort(),
-        ])
+      ? map.tiles
+          .flat()
+          .map(tile => [
+            tile.x,
+            tile.y,
+            tile.terrain,
+            tile.resource ?? null,
+            tile.hasRoad,
+            tile.hasRailroad,
+            [...(tile.improvements ?? [])].sort(),
+          ])
       : null,
     cities: game.cityManager
       .getAllCities()
@@ -119,7 +121,9 @@ export function assertAIValidationMetricBaseline(
   }
 ): void {
   if (points.length < baseline.minimumTurnSamples) {
-    throw new Error(`AI validation recorded ${points.length} turn samples; expected ${baseline.minimumTurnSamples}`);
+    throw new Error(
+      `AI validation recorded ${points.length} turn samples; expected ${baseline.minimumTurnSamples}`
+    );
   }
   const perPlayer = new Map<string, AIValidationMetricPoint['players'][number][]>();
   for (const point of points) {
@@ -171,7 +175,8 @@ export function assertAIValidationInvariants(game: GameInstance): void {
     }
     if (unit.transportedBy) {
       const transport = units.get(unit.transportedBy);
-      if (!transport) violations.push(`unit ${unit.id} references missing transport ${unit.transportedBy}`);
+      if (!transport)
+        violations.push(`unit ${unit.id} references missing transport ${unit.transportedBy}`);
       else if (!transport.cargoUnits?.includes(unit.id)) {
         violations.push(`transport ${transport.id} does not contain cargo ${unit.id}`);
       } else if (unit.x !== transport.x || unit.y !== transport.y) {

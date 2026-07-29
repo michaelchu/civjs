@@ -449,6 +449,7 @@ describe('CityManager', () => {
     let city: any;
 
     beforeEach(async () => {
+      cityManager.setPlayerTechsProvider(() => new Set(['pottery']));
       city = await cityManager.foundCity(10, 10, 'TestCity', 'player-123');
     });
 

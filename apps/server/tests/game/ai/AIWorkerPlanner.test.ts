@@ -226,7 +226,11 @@ describe('Freeciv AI worker planner', () => {
     );
 
     const plan = planWorkerImprovements(coordinated);
-    expect(plan.assignments.filter(assignment => assignment.tile.x === shared.x && assignment.tile.y === shared.y)).toHaveLength(1);
+    expect(
+      plan.assignments.filter(
+        assignment => assignment.tile.x === shared.x && assignment.tile.y === shared.y
+      )
+    ).toHaveLength(1);
     expect(Object.values(plan.tasks)).toHaveLength(plan.assignments.length);
   });
 });
