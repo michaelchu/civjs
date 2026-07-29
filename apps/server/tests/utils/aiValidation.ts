@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { assertAIState } from '@game/ai/AIStateStore';
 import type { GameInstance } from '@game/managers/GameManager';
 
@@ -14,6 +16,12 @@ export interface AIValidationFailureArtifact {
     decisionCount: number;
     taskCount: number;
   }>;
+}
+
+export interface AIValidationArtifactContext {
+  configuration: Record<string, unknown>;
+  phase: string;
+  error: unknown;
 }
 
 /**
@@ -93,4 +101,48 @@ export function assertAIValidationInvariants(game: GameInstance): void {
     players,
   };
   throw new Error(`AI validation invariant failure\n${JSON.stringify(artifact, null, 2)}`);
+}
+
+/**
+ * Persists a replayable diagnostic only when a matrix case fails. Test output
+ * is deliberately ignored by Git, while the artifact itself is self-contained
+ * enough to rerun the exact seed/configuration from the focused Docker command.
+ */
+export function writeAIValidationFailureArtifact(
+  game: GameInstance,
+  context: AIValidationArtifactContext
+): string {
+  const map = game.mapManager.getMapData();
+  const outputDirectory = resolve(process.cwd(), 'test-results', 'ai-validation');
+  mkdirSync(outputDirectory, { recursive: true });
+  const safeSeed = (map?.seed ?? 'missing').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const filename = `failure-${safeSeed}-turn-${game.currentTurn}.json`;
+  const path = resolve(outputDirectory, filename);
+  const players = [...game.players.values()].map(player => ({
+    id: player.id,
+    aiState: assertAIState(player.aiState),
+  }));
+  const artifact = {
+    version: 1,
+    commit: process.env.GIT_COMMIT ?? 'unknown',
+    reproduction:
+      `AI_VALIDATION_SEED_COUNT=25 INTEGRATION_TEST_PATH=tests/integration/AIManagerBoundaries.integration.test.ts ` +
+      `npm run test:integration:path -- tests/integration/AIManagerBoundaries.integration.test.ts`,
+    configuration: context.configuration,
+    failure: {
+      turn: game.currentTurn,
+      phase: context.phase,
+      error: context.error instanceof Error ? context.error.message : String(context.error),
+    },
+    snapshot: {
+      gameId: game.id,
+      state: game.state,
+      map,
+      cities: game.cityManager.getAllCities(),
+      units: [...game.unitManager.getAllUnits().values()],
+      players,
+    },
+  };
+  writeFileSync(path, `${JSON.stringify(artifact, null, 2)}\n`, 'utf8');
+  return path;
 }

@@ -11,7 +11,10 @@ import {
   type GameConfig,
   type GameInstance,
 } from '@game/managers/GameManager';
-import { assertAIValidationInvariants } from '../utils/aiValidation';
+import {
+  assertAIValidationInvariants,
+  writeAIValidationFailureArtifact,
+} from '../utils/aiValidation';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 import {
   clearAllTables,
@@ -1438,31 +1441,43 @@ describe('AI authoritative manager boundaries', () => {
       let game = scenario.game;
       let recovered = false;
       let totalDecisions = 0;
+      let phase = 'turn-processing';
 
-      while (game.state === 'active') {
-        const processingTurn = game.currentTurn;
-        const startedAt = performance.now();
-        await game.turnManager.processTurn();
-        expect(performance.now() - startedAt).toBeLessThan(15_000);
-        assertAIValidationInvariants(game);
+      try {
+        while (game.state === 'active') {
+          const processingTurn = game.currentTurn;
+          const startedAt = performance.now();
+          await game.turnManager.processTurn();
+          expect(performance.now() - startedAt).toBeLessThan(15_000);
+          assertAIValidationInvariants(game);
 
-        for (const player of game.players.values()) {
-          const state = assertAIState(player.aiState);
-          expect(state.lastProcessedTurn).toBe(processingTurn);
-          totalDecisions += state.lastDecisionCount ?? 0;
+          for (const player of game.players.values()) {
+            const state = assertAIState(player.aiState);
+            expect(state.lastProcessedTurn).toBe(processingTurn);
+            totalDecisions += state.lastDecisionCount ?? 0;
+          }
+
+          if (!recovered && recoveryTurn === processingTurn && game.state === 'active') {
+            phase = 'recovery';
+            gameManager.clearAllGames();
+            (GameManager as any).instance = null;
+            gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+            const recoveredGame = await gameManager.recoverGameInstance(scenario.gameId);
+            expect(recoveredGame).not.toBeNull();
+            expect(recoveredGame!.currentTurn).toBe(processingTurn + 1);
+            assertAIValidationInvariants(recoveredGame!);
+            game = recoveredGame!;
+            recovered = true;
+            phase = 'turn-processing';
+          }
         }
-
-        if (!recovered && recoveryTurn === processingTurn && game.state === 'active') {
-          gameManager.clearAllGames();
-          (GameManager as any).instance = null;
-          gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
-          const recoveredGame = await gameManager.recoverGameInstance(scenario.gameId);
-          expect(recoveredGame).not.toBeNull();
-          expect(recoveredGame!.currentTurn).toBe(processingTurn + 1);
-          assertAIValidationInvariants(recoveredGame!);
-          game = recoveredGame!;
-          recovered = true;
-        }
+      } catch (error) {
+        const artifactPath = writeAIValidationFailureArtifact(game, {
+          configuration: validation,
+          phase,
+          error,
+        });
+        throw new Error(`AI validation artifact written to ${artifactPath}`, { cause: error });
       }
 
       const map = game.mapManager.getMapData()!;
