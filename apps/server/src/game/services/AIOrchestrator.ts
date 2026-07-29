@@ -56,14 +56,14 @@ export class FreecivAIOrchestrator {
         game,
         player.id,
         state,
-        (label, decision) => this.attempt(label, decision)
+        (label, decision) => this.attempt(state, game.currentTurn, label, decision)
       );
       actions += playerActions;
       state.lastProcessedTurn = game.currentTurn;
       state.lastDecisionCount = playerActions;
       delete state.inProgressTurn;
       player.aiState = state as unknown as Record<string, unknown>;
-      await this.attempt('state persistence', async () => {
+      await this.attempt(state, game.currentTurn, 'state persistence', async () => {
         await this.stateStore.save(gameId, player.id, state);
         return 0;
       });
@@ -211,15 +211,28 @@ export class FreecivAIOrchestrator {
     }
   }
 
-  private async attempt(label: string, decision: () => Promise<number>): Promise<number> {
+  private async attempt(
+    state: FreecivAIState,
+    turn: number,
+    label: string,
+    decision: () => Promise<number>
+  ): Promise<number> {
     try {
-      return await decision();
+      const actions = await decision();
+      this.recordDecision(state, { turn, label, actions });
+      return actions;
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.recordDecision(state, { turn, label, actions: 0, error: message });
       logger.warn('CivJS AI decision failed', {
         decision: label,
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
       });
       return 0;
     }
+  }
+
+  private recordDecision(state: FreecivAIState, entry: NonNullable<FreecivAIState['recentDecisionTrace']>[number]): void {
+    state.recentDecisionTrace = [...(state.recentDecisionTrace ?? []), entry].slice(-50);
   }
 }

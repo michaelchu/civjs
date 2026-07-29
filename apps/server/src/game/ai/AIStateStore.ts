@@ -35,6 +35,13 @@ export interface AIUnitTask {
   assignedTurn: number;
 }
 
+export interface AIDecisionTrace {
+  turn: number;
+  label: string;
+  actions: number;
+  error?: string;
+}
+
 export interface FreecivAIState {
   lastProcessedTurn?: number;
   lastDecisionCount?: number;
@@ -44,6 +51,7 @@ export interface FreecivAIState {
   cityWants: Record<string, Record<string, number>>;
   techWants: Record<string, number>;
   treasuryGoal?: AITreasuryGoal;
+  recentDecisionTrace?: AIDecisionTrace[];
 }
 
 export interface AITreasuryGoal {
@@ -97,6 +105,20 @@ export function assertAIState(value: unknown): FreecivAIState {
   assertOptionalNumber(state.lastProcessedTurn, 'lastProcessedTurn');
   assertOptionalNumber(state.lastDecisionCount, 'lastDecisionCount');
   assertOptionalNumber(state.inProgressTurn, 'inProgressTurn');
+  if (state.recentDecisionTrace !== undefined) {
+    if (!Array.isArray(state.recentDecisionTrace)) throw new Error('AI state decision trace is invalid');
+    for (const entry of state.recentDecisionTrace) {
+      if (
+        !isRecord(entry) ||
+        typeof entry.turn !== 'number' ||
+        typeof entry.label !== 'string' ||
+        typeof entry.actions !== 'number' ||
+        (entry.error !== undefined && typeof entry.error !== 'string')
+      ) {
+        throw new Error('AI state decision trace entry is invalid');
+      }
+    }
+  }
   if (state.treasuryGoal !== undefined && !isTreasuryGoal(state.treasuryGoal)) {
     throw new Error('AI state treasuryGoal is invalid');
   }
