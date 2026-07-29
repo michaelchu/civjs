@@ -109,6 +109,7 @@ export interface DiplomacyEvent {
   victimId?: string;
   severity?: number;
   justified?: boolean;
+  scope?: 'victim_only' | 'international_outcry';
 }
 
 const TREATY_TURNS = 16;
@@ -715,7 +716,8 @@ export class DiplomacyManager {
     gameId: string,
     offenderId: string,
     victimId: string,
-    severity: number = 100
+    severity: number = 100,
+    scope: DiplomacyEvent['scope'] = 'victim_only'
   ): Promise<void> {
     return this.withPairLock(gameId, offenderId, victimId, async () => {
       const [offender, victim] = await this.loadPair(gameId, offenderId, victimId);
@@ -735,6 +737,7 @@ export class DiplomacyManager {
         offenderId,
         victimId,
         severity,
+        scope,
         message: `${offender.leaderName} caused a diplomatic incident against ${victim.leaderName}.`,
       });
     });

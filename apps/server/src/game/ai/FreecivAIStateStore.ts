@@ -8,6 +8,7 @@ export interface AIDiplomacyMemory {
   warDesire: number;
   countdown: number;
   lastContactTurn?: number;
+  warCountdown?: number;
 }
 
 export interface AIUnitTask {

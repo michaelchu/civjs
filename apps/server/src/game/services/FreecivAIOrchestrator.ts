@@ -124,12 +124,19 @@ export class FreecivAIOrchestrator {
         memory.love = Math.max(-1000, memory.love - (playerId === victimId ? 366 : 33));
         if (playerId === victimId) memory.warDesire = Math.min(1000, memory.warDesire + 250);
       } else if (playerId === victimId) {
-        memory.love = Math.max(-1000, memory.love - Math.max(1, event.severity ?? 100));
-        memory.warDesire = Math.min(
-          1000,
-          memory.warDesire + Math.max(1, Math.round((event.severity ?? 100) / 2))
+        const severity =
+          Math.max(1, event.severity ?? 100) * (event.scope === 'international_outcry' ? 2 : 1);
+        memory.love = Math.max(-1000, memory.love - severity);
+        memory.warDesire = Math.min(1000, memory.warDesire + Math.max(1, Math.round(severity / 2)));
+      } else {
+        if (event.scope !== 'international_outcry') return false;
+        const severity = Math.max(1, event.severity ?? 100);
+        const worldPenalty = Math.max(
+          1,
+          Math.round(severity * (offenderId === victimId ? 35 / 1000 : 35 / 500))
         );
-      } else return false;
+        memory.love = Math.max(-1000, memory.love - worldPenalty);
+      }
       state.diplomacy[offenderId] = memory;
       return true;
     });

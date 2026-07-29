@@ -165,6 +165,7 @@ function createScenario() {
     }),
     respondToTreaty: jest.fn().mockResolvedValue(undefined),
     proposeTreaty: jest.fn().mockResolvedValue(undefined),
+    declareWar: jest.fn().mockResolvedValue(undefined),
   };
   const unitTypes: Record<string, Record<string, unknown>> = {
     settlers: { canFoundCity: true, canBuildImprovements: false, attack: 0, movement: 1 },
@@ -982,7 +983,7 @@ describe('FreecivAIOrchestrator', () => {
           relation: {
             state: 'peace',
             attitude: 100,
-            reputation: 0,
+            reputation: 500,
           },
         },
       ],
@@ -1004,6 +1005,86 @@ describe('FreecivAIOrchestrator', () => {
       love: 100,
       countdown: 5,
     });
+  });
+
+  it('declares war when the persisted profitable-target countdown expires', async () => {
+    const scenario = createScenario();
+    scenario.units.delete('settler');
+    const ai = scenario.game.players.get('ai') as any;
+    ai.aiLevel = 'hard';
+    ai.aiState = createAIState();
+    ai.aiState.diplomacy.human = {
+      love: 0,
+      warDesire: 500,
+      countdown: 0,
+      warCountdown: 0,
+    };
+    (scenario.game.cityManager as any).getPlayerCities = (playerId: string) =>
+      playerId === 'human'
+        ? [
+            {
+              id: 'rich-target',
+              playerId,
+              x: 6,
+              y: 6,
+              size: 12,
+              productionPerTurn: 20,
+              tradePerTurn: 20,
+              buildings: ['palace', 'marketplace', 'library'],
+            },
+          ]
+        : [
+            {
+              id: 'home-a',
+              playerId,
+              x: 3,
+              y: 3,
+              size: 3,
+              productionPerTurn: 3,
+              tradePerTurn: 3,
+              buildings: [],
+            },
+            {
+              id: 'home-b',
+              playerId,
+              x: 4,
+              y: 3,
+              size: 3,
+              productionPerTurn: 3,
+              tradePerTurn: 3,
+              buildings: [],
+            },
+          ];
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({
+      nations: [
+        {
+          id: 'human',
+          known: true,
+          canMeet: true,
+          isAI: false,
+          relation: {
+            state: 'peace',
+            maxState: 'peace',
+            sinceTurn: 1,
+            turnsLeft: 0,
+            contactTurnsLeft: 10,
+            hasReasonToCancel: 0,
+            embassy: false,
+            sharedVision: false,
+            reputation: 500,
+            attitude: 0,
+          },
+        },
+      ],
+    });
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.diplomacyManager.declareWar).toHaveBeenCalledWith('game', 'ai', 'human');
+    expect(ai.aiState.diplomacy.human.warCountdown).toBeUndefined();
   });
 
   it('assigns and fortifies a city guard instead of sending it on offense', async () => {
@@ -1209,13 +1290,26 @@ describe('FreecivAIOrchestrator', () => {
     expect(otherAI.aiState.diplomacy.human).toBeUndefined();
 
     orchestrator.onDiplomacyEvent('game', scenario.game as any, {
+      type: 'incident',
+      gameId: 'game',
+      playerIds: ['human', 'ai'],
+      offenderId: 'human',
+      victimId: 'ai',
+      severity: 143,
+      scope: 'international_outcry',
+      message: 'International outrage.',
+    });
+    expect(ai.aiState.diplomacy.human).toMatchObject({ love: -429, warDesire: 215 });
+    expect(otherAI.aiState.diplomacy.human).toMatchObject({ love: -10, warDesire: 0 });
+
+    orchestrator.onDiplomacyEvent('game', scenario.game as any, {
       type: 'war_declared',
       gameId: 'game',
       playerIds: ['human', 'ai'],
       message: 'War declared.',
     });
-    expect(ai.aiState.diplomacy.human).toMatchObject({ love: -509, warDesire: 322 });
-    expect(otherAI.aiState.diplomacy.human).toMatchObject({ love: -33, warDesire: 0 });
+    expect(ai.aiState.diplomacy.human).toMatchObject({ love: -795, warDesire: 465 });
+    expect(otherAI.aiState.diplomacy.human).toMatchObject({ love: -43, warDesire: 0 });
 
     orchestrator.onDiplomacyEvent('game', scenario.game as any, {
       type: 'war_declared',
@@ -1224,7 +1318,7 @@ describe('FreecivAIOrchestrator', () => {
       justified: true,
       message: 'Justified war declared.',
     });
-    expect(ai.aiState.diplomacy.human).toMatchObject({ love: -509, warDesire: 322 });
+    expect(ai.aiState.diplomacy.human).toMatchObject({ love: -795, warDesire: 465 });
   });
 
   it('optimizes AI citizens with starvation and unrest constraints', async () => {

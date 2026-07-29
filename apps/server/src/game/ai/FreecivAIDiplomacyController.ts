@@ -2,6 +2,12 @@ import { createAIProfile } from '@game/ai/FreecivAIProfile';
 import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
 import type { DiplomacyManager, TreatyClause } from '@game/managers/DiplomacyManager';
 import type { GameInstance } from '@game/managers/GameManager';
+import { UNIT_TYPES } from '@game/constants/UnitConstants';
+import {
+  calculateWarDesire,
+  evaluateTreaty,
+  type TreatyValuationContext,
+} from '@game/ai/FreecivAIDiplomacyPlanner';
 
 /**
  * Applies Freeciv diplomacy memory and treaty decisions through the
@@ -19,13 +25,40 @@ export class FreecivAIDiplomacyController {
     const snapshot = await this.diplomacyManager.getSnapshot(gameId, playerId);
     const player = game.players.get(playerId);
     const profile = createAIProfile(player?.aiLevel, player?.aiTraits);
+    const ownCities = game.cityManager.getPlayerCities(playerId);
+    const ownUnits = game.unitManager.getPlayerUnits(playerId);
+    const ownTechs = new Set(
+      game.researchManager.getResearchedTechs?.(playerId) ??
+        game.researchManager.getPlayerResearch(playerId)?.researchedTechs ??
+        []
+    );
+    const catalogue = new Map(
+      (
+        game.researchManager.getTechnologyCatalogue?.(playerId) ??
+        game.researchManager.getAvailableTechnologies(playerId)
+      ).map(technology => [technology.id, technology])
+    );
     let actions = 0;
+    const contacted = new Set<string>();
     for (const nation of snapshot.nations.slice().sort((a, b) => a.id.localeCompare(b.id))) {
       const memory = state.diplomacy[nation.id] ?? {
         love: 0,
         warDesire: 0,
         countdown: 0,
       };
+      const otherCities = game.cityManager.getPlayerCities(nation.id);
+      const otherUnits = game.unitManager.getPlayerUnits(nation.id);
+      const otherTechs = new Set(
+        game.researchManager.getResearchedTechs?.(nation.id) ??
+          game.researchManager.getPlayerResearch(nation.id)?.researchedTechs ??
+          []
+      );
+      const distance = Math.min(
+        30,
+        ...ownCities.flatMap(own =>
+          otherCities.map(other => game.mapManager.getDistance(own.x, own.y, other.x, other.y))
+        )
+      );
       memory.love = Math.max(
         -1000,
         Math.min(
@@ -33,18 +66,30 @@ export class FreecivAIDiplomacyController {
           Math.round(
             memory.love * 0.8 +
               (nation.relation.attitude ?? 0) +
-              (nation.relation.reputation ?? 0) / 10
+              ((nation.relation.reputation ?? 1000) - 500) / 10 -
+              (nation.relation.hasReasonToCancel > 0 ? 100 : 0)
           )
         )
       );
+      const assessedWarDesire = calculateWarDesire({
+        ownCities,
+        targetCities: otherCities,
+        ownUnits,
+        targetUnits: otherUnits,
+        unitTypes: UNIT_TYPES,
+        ownTechCount: ownTechs.size,
+        targetTechCount: otherTechs.size,
+        targetGold: game.players.get(nation.id)?.gold ?? 0,
+        distance: Number.isFinite(distance) ? distance : 30,
+        love: memory.love,
+        relation: nation.relation,
+        aggressiveTrait: profile.traits.aggressive,
+        diplomacyHandicap: profile.handicaps.has('diplomacy'),
+        targetIsHuman: !nation.isAI,
+      });
       memory.warDesire = Math.max(
         -1000,
-        Math.min(
-          1000,
-          memory.warDesire +
-            (nation.relation.state === 'war' ? 10 : -5) +
-            (profile.traits.aggressive - 50)
-        )
+        Math.min(1000, Math.round(memory.warDesire * 0.5 + assessedWarDesire))
       );
       memory.countdown = Math.max(0, memory.countdown - 1);
       state.diplomacy[nation.id] = memory;
@@ -55,14 +100,41 @@ export class FreecivAIDiplomacyController {
       if (profile.handicaps.has('away')) continue;
 
       const proposal = nation.relation.proposal;
+      const otherSnapshot = await this.diplomacyManager.getSnapshot(gameId, nation.id);
+      const ourRelations = new Map(
+        snapshot.nations.map(candidate => [candidate.id, candidate.relation])
+      );
+      const alliedWithEnemy = otherSnapshot.nations.some(
+        candidate =>
+          candidate.id !== playerId &&
+          ['alliance', 'team'].includes(candidate.relation.state) &&
+          ourRelations.get(candidate.id)?.state === 'war'
+      );
+      const sharedVisionSafe = !otherSnapshot.nations.some(candidate => {
+        if (!candidate.relation.givesSharedVision || candidate.id === playerId) return false;
+        const stateWithRecipient = ourRelations.get(candidate.id)?.state ?? 'no_contact';
+        return !['no_contact', 'alliance', 'team'].includes(stateWithRecipient);
+      });
       if (proposal?.status === 'pending' && proposal.recipientId === playerId) {
-        const accepted = this.evaluateTreaty(
+        const accepted = evaluateTreaty(
           proposal.clauses,
-          playerId,
-          nation.relation.state,
-          memory.love,
-          profile.handicaps.has('defensive')
-        );
+          this.treatyContext({
+            playerId,
+            otherPlayerId: nation.id,
+            game,
+            state,
+            love: memory.love,
+            relation: nation.relation,
+            ownCities,
+            otherCities,
+            ownTechs,
+            otherTechs,
+            catalogue,
+            diplomacyHandicap: profile.handicaps.has('diplomacy'),
+            alliedWithEnemy,
+            sharedVisionSafe,
+          })
+        ).acceptable;
         await this.diplomacyManager.respondToTreaty(
           gameId,
           playerId,
@@ -71,6 +143,7 @@ export class FreecivAIDiplomacyController {
           accepted
         );
         memory.countdown = 3;
+        contacted.add(nation.id);
         actions++;
         continue;
       }
@@ -83,11 +156,30 @@ export class FreecivAIDiplomacyController {
       ) {
         continue;
       }
-      const clauses = this.chooseProactiveTreaty(
-        nation.relation.state,
-        memory.love,
-        profile.handicaps
-      );
+      const clauses =
+        this.chooseProactiveTreaty(nation.relation.state, memory.love, profile.handicaps) ??
+        this.chooseTechnologyExchange(
+          playerId,
+          nation.id,
+          ownTechs,
+          otherTechs,
+          this.treatyContext({
+            playerId,
+            otherPlayerId: nation.id,
+            game,
+            state,
+            love: memory.love,
+            relation: nation.relation,
+            ownCities,
+            otherCities,
+            ownTechs,
+            otherTechs,
+            catalogue,
+            diplomacyHandicap: profile.handicaps.has('diplomacy'),
+            alliedWithEnemy,
+            sharedVisionSafe,
+          })
+        );
       if (!clauses) continue;
       await this.diplomacyManager.proposeTreaty(
         gameId,
@@ -98,30 +190,130 @@ export class FreecivAIDiplomacyController {
       );
       memory.lastContactTurn = game.currentTurn;
       memory.countdown = 5;
+      contacted.add(nation.id);
       actions++;
+    }
+
+    const warTarget = snapshot.nations
+      .filter(
+        nation =>
+          nation.known &&
+          nation.canMeet &&
+          !['war', 'team', 'no_contact'].includes(nation.relation.state) &&
+          !contacted.has(nation.id) &&
+          nation.relation.proposal?.status !== 'pending'
+      )
+      .map(nation => ({ nation, memory: state.diplomacy[nation.id] }))
+      .filter(
+        (
+          candidate
+        ): candidate is {
+          nation: (typeof snapshot.nations)[number];
+          memory: NonNullable<(typeof state.diplomacy)[string]>;
+        } => Boolean(candidate.memory)
+      )
+      .sort(
+        (left, right) =>
+          right.memory.warDesire - left.memory.warDesire ||
+          left.nation.id.localeCompare(right.nation.id)
+      )[0];
+    for (const [otherId, memory] of Object.entries(state.diplomacy)) {
+      if (otherId !== warTarget?.nation.id) delete memory.warCountdown;
+    }
+    if (
+      warTarget &&
+      warTarget.memory.warDesire >= 250 &&
+      !profile.handicaps.has('away') &&
+      !profile.handicaps.has('defensive')
+    ) {
+      if (warTarget.memory.warCountdown === undefined) {
+        warTarget.memory.warCountdown = 3;
+      } else if (warTarget.memory.warCountdown > 0) {
+        warTarget.memory.warCountdown--;
+      } else if (typeof this.diplomacyManager.declareWar === 'function') {
+        await this.diplomacyManager.declareWar(gameId, playerId, warTarget.nation.id);
+        delete warTarget.memory.warCountdown;
+        actions++;
+      }
+    } else if (warTarget) {
+      delete warTarget.memory.warCountdown;
     }
     return actions;
   }
 
-  private evaluateTreaty(
-    clauses: TreatyClause[],
+  private treatyContext(options: {
+    playerId: string;
+    otherPlayerId: string;
+    game: GameInstance;
+    state: FreecivAIState;
+    love: number;
+    relation: TreatyValuationContext['relation'];
+    ownCities: TreatyValuationContext['ownCities'];
+    otherCities: TreatyValuationContext['otherCities'];
+    ownTechs: ReadonlySet<string>;
+    otherTechs: ReadonlySet<string>;
+    catalogue: TreatyValuationContext['catalogue'];
+    diplomacyHandicap: boolean;
+    alliedWithEnemy: boolean;
+    sharedVisionSafe: boolean;
+  }): TreatyValuationContext {
+    return {
+      playerId: options.playerId,
+      otherPlayerId: options.otherPlayerId,
+      currentState: options.relation.state,
+      relation: options.relation,
+      love: options.love,
+      turn: options.game.currentTurn ?? 1,
+      ownCities: options.ownCities,
+      otherCities: options.otherCities,
+      ownTechs: options.ownTechs,
+      otherTechs: options.otherTechs,
+      catalogue: options.catalogue,
+      techWants: options.state.techWants,
+      diplomacyHandicap: options.diplomacyHandicap,
+      sharedVisionSafe: options.sharedVisionSafe,
+      alliedWithEnemy: options.alliedWithEnemy,
+    };
+  }
+
+  private chooseTechnologyExchange(
     playerId: string,
-    currentState: string,
-    love: number,
-    defensive: boolean
-  ): boolean {
-    return clauses.every(clause => {
-      if (clause.type === 'ceasefire') return currentState === 'war' || love >= -100;
-      if (clause.type === 'peace') return currentState !== 'alliance' && love >= -200;
-      if (clause.type === 'alliance') return !defensive && love >= 40;
-      if (clause.type === 'embassy' || clause.type === 'map' || clause.type === 'seamap') {
-        return clause.giverId !== playerId || love >= 0;
+    otherPlayerId: string,
+    ownTechs: ReadonlySet<string>,
+    otherTechs: ReadonlySet<string>,
+    context: TreatyValuationContext
+  ): TreatyClause[] | undefined {
+    if (!['peace', 'alliance'].includes(context.currentState)) return undefined;
+    const wanted = [...otherTechs]
+      .filter(techId => !ownTechs.has(techId) && context.catalogue.has(techId))
+      .sort(
+        (left, right) =>
+          (context.techWants[right] ?? 0) - (context.techWants[left] ?? 0) ||
+          left.localeCompare(right)
+      );
+    const offered = [...ownTechs]
+      .filter(techId => !otherTechs.has(techId) && context.catalogue.has(techId))
+      .sort((left, right) => left.localeCompare(right));
+    let best:
+      | {
+          clauses: TreatyClause[];
+          balance: number;
+        }
+      | undefined;
+    for (const receiveTech of wanted) {
+      for (const giveTech of offered) {
+        const clauses: TreatyClause[] = [
+          { type: 'technology', techId: receiveTech, giverId: otherPlayerId },
+          { type: 'technology', techId: giveTech, giverId: playerId },
+        ];
+        const valuation = evaluateTreaty(clauses, context);
+        if (!valuation.acceptable) continue;
+        if (!best || valuation.balance < best.balance) {
+          best = { clauses, balance: valuation.balance };
+        }
       }
-      if (clause.type === 'shared_vision') {
-        return clause.giverId !== playerId || love >= 100;
-      }
-      return clause.giverId !== playerId || love >= 200;
-    });
+    }
+    return best?.clauses;
   }
 
   private chooseProactiveTreaty(
