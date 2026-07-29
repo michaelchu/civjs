@@ -1195,6 +1195,13 @@ export class GameManager {
     gameInstance.visibilityManager.setSharedVisionProvider(
       playerId => this.sharedVisionByGame.get(gameId)?.get(playerId) ?? new Set()
     );
+    gameInstance.unitManager.setUnitDestroyedObserver(unit =>
+      this.aiAdapter.onUnitDestroyed(gameId, gameInstance, unit)
+    );
+    gameInstance.cityManager.setCallbacks({
+      onCityDestroyed: city => this.aiAdapter.onCityInvalidated(gameId, gameInstance, city.id),
+      onCityCaptured: city => this.aiAdapter.onCityInvalidated(gameId, gameInstance, city.id),
+    });
     gameInstance.turnManager.setAIProcessor(() => this.aiAdapter.processTurn(gameId, gameInstance));
     gameInstance.turnManager.setDiplomacyProcessor(async () => {
       const events = await this.diplomacyManager.processTurn(gameId);

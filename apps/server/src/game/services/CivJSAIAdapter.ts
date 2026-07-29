@@ -114,6 +114,42 @@ export class CivJSAIAdapter {
     return actions;
   }
 
+  /**
+   * Freeciv invalidates unit AI data at the lifecycle boundary instead of
+   * waiting for the next advisor pass. Remove both the destroyed unit's task
+   * and every assignment that charged it as a target.
+   */
+  onUnitDestroyed(gameId: string, game: GameInstance, unit: Unit): void {
+    for (const player of game.players.values()) {
+      if (!player.isAI) continue;
+      const state = normalizeAIState(player.aiState);
+      delete state.unitTasks[unit.id];
+      for (const [unitId, task] of Object.entries(state.unitTasks)) {
+        if (task.targetId === unit.id) delete state.unitTasks[unitId];
+      }
+      player.aiState = state as unknown as Record<string, unknown>;
+      void this.stateStore.save(gameId, player.id, state);
+    }
+  }
+
+  /**
+   * City removal/capture invalidates production wants and guard charges
+   * immediately. Capture clears references for every AI because ownership and
+   * diplomatic legality may have changed for both sides.
+   */
+  onCityInvalidated(gameId: string, game: GameInstance, cityId: string): void {
+    for (const player of game.players.values()) {
+      if (!player.isAI) continue;
+      const state = normalizeAIState(player.aiState);
+      delete state.cityWants[cityId];
+      for (const [unitId, task] of Object.entries(state.unitTasks)) {
+        if (task.targetId === cityId) delete state.unitTasks[unitId];
+      }
+      player.aiState = state as unknown as Record<string, unknown>;
+      void this.stateStore.save(gameId, player.id, state);
+    }
+  }
+
   private async attempt(label: string, decision: () => Promise<number>): Promise<number> {
     try {
       return await decision();

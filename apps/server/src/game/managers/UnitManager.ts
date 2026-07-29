@@ -212,6 +212,7 @@ export class UnitManager {
     added: string[];
     removed: string[];
   }) => void;
+  private unitDestroyedObserver?: (unit: Unit) => void;
 
   constructor(
     gameId: string,
@@ -286,6 +287,15 @@ export class UnitManager {
     this.gameManagerCallback = gameManagerCallback;
     this.effectsManager = effectsManager ?? new EffectsManager();
     this.actionSystem = new ActionSystem(gameId, gameManagerCallback, mapManager);
+  }
+
+  public setUnitDestroyedObserver(observer: (unit: Unit) => void): void {
+    this.unitDestroyedObserver = observer;
+  }
+
+  private notifyUnitDestroyed(unit: Unit): void {
+    this.gameManagerCallback?.broadcastUnitDestroyed?.(this.gameId, unit);
+    this.unitDestroyedObserver?.(unit);
   }
 
   public setCurrentTurnProvider(provider: () => number): void {
@@ -1197,7 +1207,7 @@ export class UnitManager {
 
     const lostUnit = { ...unit };
     await this.destroyUnit(unit.id);
-    this.gameManagerCallback?.broadcastUnitDestroyed?.(this.gameId, lostUnit);
+    this.notifyUnitDestroyed(lostUnit);
     logger.info(`Unit ${unit.id} destroyed after running out of fuel`);
     return false;
   }
@@ -1249,7 +1259,7 @@ export class UnitManager {
       }).value;
       if (retirementChance > 0 && this.random() * 100 < retirementChance) {
         await this.destroyUnit(unit.id);
-        this.gameManagerCallback?.broadcastUnitDestroyed?.(this.gameId, unit);
+        this.notifyUnitDestroyed(unit);
       }
     }
   }
@@ -2925,7 +2935,7 @@ export class UnitManager {
   private async handleFoundCity(unit: Unit, result: ActionResult): Promise<boolean> {
     if (result.unitDestroyed) {
       await this.destroyUnit(unit.id);
-      this.gameManagerCallback?.broadcastUnitDestroyed?.(this.gameId, unit);
+      this.notifyUnitDestroyed(unit);
       return true;
     }
     return false;

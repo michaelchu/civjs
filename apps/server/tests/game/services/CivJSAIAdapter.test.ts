@@ -492,4 +492,39 @@ describe('CivJSAIAdapter compatibility contract', () => {
     await expect(adapter.processTurn('active-game', scenario.game as any)).resolves.toBe(7);
     expect(scenario.setCityProduction).toHaveBeenCalled();
   });
+
+  it('invalidates destroyed unit and captured city assignments immediately', () => {
+    const scenario = createScenario();
+    const ai = scenario.game.players.get('ai') as any;
+    ai.aiState = {
+      version: 1,
+      diplomacy: {},
+      unitTasks: {
+        destroyed: { role: 'attack', assignedTurn: 1 },
+        hunter: { role: 'hunter', targetId: 'destroyed', assignedTurn: 1 },
+        guard: { role: 'guard', targetId: 'captured-city', assignedTurn: 1 },
+        survivor: { role: 'explore', assignedTurn: 1 },
+      },
+      cityWants: {
+        'captured-city': { granary: 10 },
+        capital: { temple: 5 },
+      },
+      techWants: {},
+    };
+    const adapter = new CivJSAIAdapter(scenario.diplomacyManager as any);
+
+    adapter.onUnitDestroyed(
+      'game',
+      scenario.game as any,
+      { id: 'destroyed', playerId: 'enemy' } as any
+    );
+    adapter.onCityInvalidated('game', scenario.game as any, 'captured-city');
+
+    expect(ai.aiState.unitTasks).toEqual({
+      survivor: { role: 'explore', assignedTurn: 1 },
+    });
+    expect(ai.aiState.cityWants).toEqual({
+      capital: { temple: 5 },
+    });
+  });
 });
