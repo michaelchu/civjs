@@ -1169,6 +1169,12 @@ describe('AI authoritative manager boundaries', () => {
       where: eq(schema.cities.id, city.id),
     });
     expect(persistedCity?.buildings).toContain('marketplace');
+
+    gameManager.clearAllGames();
+    (GameManager as any).instance = null;
+    gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+    const recovered = await gameManager.recoverGameInstance(scenario.gameId);
+    expect(recovered?.cityManager.getCity(city.id)?.buildings).toContain('marketplace');
   });
 
   it('persists an authoritative citizen optimization for a feasible founded city', async () => {
