@@ -536,6 +536,17 @@ export class GovernmentManager {
     }
   }
 
+  public calculateGovernmentEffect(
+    governmentId: string,
+    type: EffectType,
+    outputType?: OutputType
+  ): number {
+    return this.effectsManager.calculateEffect(type, {
+      government: governmentId,
+      outputType,
+    }).value;
+  }
+
   /**
    * Get unit support rules for current government using EffectsManager
    * Reference: freeciv city_support() in common/city.c:3100-3200

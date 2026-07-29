@@ -27,6 +27,7 @@ import { OutputType } from '@game/constants/GameConstants';
 import { planFerries } from '@game/ai/FreecivAIFerryPlanner';
 import { planAirMissions } from '@game/ai/FreecivAIAirPlanner';
 import { planDiplomatMissions } from '@game/ai/FreecivAIDiplomatPlanner';
+import { chooseGovernment } from '@game/ai/FreecivAIGovernmentPlanner';
 
 /**
  * Versioned compatibility contract for the currently landed Freeciv AI slice.
@@ -913,18 +914,26 @@ export class CivJSAIAdapter {
     const research = game.researchManager.getPlayerResearch(playerId);
     const current = manager?.getPlayerGovernment(playerId);
     if (!manager || !research || !current || current.revolutionTurns > 0) return 0;
+    const player = game.players.get(playerId);
+    const profile = createAIProfile(player?.aiLevel, player?.aiTraits);
+    if (profile.handicaps.has('revolution')) return 0;
 
     const available = manager
       .getAvailableGovernments(new Set(research.researchedTechs))
       .filter(candidate => candidate.available && candidate.id !== 'anarchy');
-    const preferredOrder = ['democracy', 'republic', 'communism', 'monarchy', 'despotism'];
-    const best = available.sort(
-      (a, b) =>
-        preferredOrder.indexOf(a.id) - preferredOrder.indexOf(b.id) || a.id.localeCompare(b.id)
-    )[0];
-    if (!best || best.id === current.currentGovernment) return 0;
-    if (!(await manager.canChangeGovernment(playerId, best.id))) return 0;
-    await manager.initiateRevolution(playerId, best.id);
+    const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
+    const best = chooseGovernment({
+      currentGovernmentId: current.currentGovernment,
+      availableGovernmentIds: available.map(candidate => candidate.id),
+      cities: game.cityManager.getPlayerCities(playerId),
+      units: game.unitManager.getPlayerUnits(playerId),
+      atWar: hostileIds.size > 0,
+      effect: (governmentId, type, outputType) =>
+        manager.calculateGovernmentEffect(governmentId, type, outputType),
+    });
+    if (!best) return 0;
+    if (!(await manager.canChangeGovernment(playerId, best.governmentId))) return 0;
+    await manager.initiateRevolution(playerId, best.governmentId);
     return 1;
   }
 
