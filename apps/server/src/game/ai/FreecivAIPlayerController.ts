@@ -61,7 +61,9 @@ export class FreecivAIPlayerController {
     actions += await run('combat', () =>
       this.units.attackAdjacentEnemies(gameId, game, playerId, state)
     );
-    actions += await run('exploration', () => this.units.automateExploration(game, playerId));
+    actions += await run('exploration', () =>
+      this.units.automateExploration(game, playerId, state)
+    );
     actions += await run('diplomacy', () =>
       this.diplomacy.processPlayer(gameId, game, playerId, state)
     );

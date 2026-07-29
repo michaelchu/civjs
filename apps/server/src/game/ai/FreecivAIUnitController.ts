@@ -11,6 +11,20 @@ import { planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
 import { planHunters } from '@game/ai/FreecivAIHunterPlanner';
 import { hostileUnitsForPlanning, sortedPlayerUnits } from '@game/ai/FreecivAITargeting';
 import { planWorkerImprovements, type WorkerAssignment } from '@game/ai/FreecivAIWorkerPlanner';
+import { planExploration, type ExplorationPlan } from '@game/ai/FreecivAIExplorerPlanner';
+
+function isAvailableExplorer(game: GameInstance, state: FreecivAIState, candidate: Unit): boolean {
+  const type = game.unitManager.getUnitType(candidate.unitTypeId);
+  if (candidate.movementLeft <= 0) return false;
+  if (candidate.transportedBy) return false;
+  if (!type) return false;
+  if (type.canBuildImprovements) return false;
+  if (type.canFoundCity) return false;
+  if (!type.roles?.includes('Explorer')) return false;
+  const task = state.unitTasks[candidate.id];
+  if (!task) return true;
+  return task.role === 'explore';
+}
 
 /**
  * Executes expansion, worker, transport, military, and special-unit decisions
@@ -461,25 +475,99 @@ export class FreecivAIUnitController {
     return result.success ? 1 : 0;
   }
 
-  async automateExploration(game: GameInstance, playerId: string): Promise<number> {
-    const unit = sortedPlayerUnits(game, playerId).find(candidate => {
-      const type = game.unitManager.getUnitType(candidate.unitTypeId);
-      return (
-        candidate.movementLeft > 0 &&
-        !candidate.automation &&
-        !type?.canBuildImprovements &&
-        (type?.attack ?? type?.combat ?? 0) <= 0 &&
-        game.unitManager.canUnitPerformAction(candidate.id, ActionType.AUTO_EXPLORE)
-      );
-    });
-    if (!unit) return 0;
-    const result = await game.unitManager.executeUnitAction(
-      unit.id,
-      ActionType.AUTO_EXPLORE,
-      undefined,
-      undefined,
-      playerId
+  async automateExploration(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    const map = game.mapManager.getMapData();
+    if (!map || typeof game.pathfindingManager?.findPath !== 'function') return 0;
+    const explorers = sortedPlayerUnits(game, playerId).filter(candidate =>
+      isAvailableExplorer(game, state, candidate)
     );
-    return result.success ? 1 : 0;
+    const relations = await this.hostilityPolicy.getRelationPlayerIds(game.id, playerId);
+    const visibleUnits = game.unitManager.getVisibleUnits(
+      playerId,
+      game.visibilityManager.getVisibleTiles(playerId),
+      game.visibilityManager.getDetectionTiles(playerId)
+    );
+    const nonAlliedUnits = visibleUnits.filter(
+      unit => unit.playerId !== playerId && !relations.allied.has(unit.playerId)
+    );
+    const nonAlliedCityTiles = new Set(
+      game.cityManager
+        .getAllCities()
+        .filter(
+          city =>
+            city.playerId !== playerId &&
+            !relations.allied.has(city.playerId) &&
+            game.visibilityManager.isTileExplored(playerId, city.x, city.y)
+        )
+        .map(city => `${city.x},${city.y}`)
+    );
+    const profile = createAIProfile(
+      game.players.get(playerId)?.aiLevel,
+      game.players.get(playerId)?.aiTraits
+    );
+    const plan = await planExploration({
+      turn: game.currentTurn,
+      playerId,
+      units: explorers,
+      map,
+      exploredTiles: game.visibilityManager.getExploredTiles(playerId),
+      hostileUnits: nonAlliedUnits.filter(unit => relations.hostile.has(unit.playerId)),
+      nonAlliedUnits,
+      nonAlliedCityTiles,
+      existingTasks: state.unitTasks,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      getNeighbors: (x, y) => game.mapManager.getNeighbors(x, y),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      squaredDistance: (fromX, fromY, toX, toY) =>
+        game.mapManager.getTopology().squaredDistance(fromX, fromY, toX, toY),
+      findPath: (unit, targetX, targetY) =>
+        game.pathfindingManager.findPath(unit, targetX, targetY),
+      knowsHuts: !profile.handicaps.has('huts'),
+    });
+    this.replaceExplorationTasks(state, plan);
+    return this.executeExplorationPlan(game, playerId, state, plan);
+  }
+
+  private replaceExplorationTasks(state: FreecivAIState, plan: ExplorationPlan): void {
+    for (const [unitId, task] of Object.entries(state.unitTasks)) {
+      if (task.role === 'explore') delete state.unitTasks[unitId];
+    }
+    Object.assign(state.unitTasks, plan.tasks);
+  }
+
+  private async executeExplorationPlan(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    plan: ExplorationPlan
+  ): Promise<number> {
+    let actions = 0;
+    for (const assignment of plan.assignments) {
+      if (
+        !game.unitManager.canUnitPerformAction(
+          assignment.unit.id,
+          ActionType.GOTO,
+          assignment.tile.x,
+          assignment.tile.y
+        )
+      ) {
+        delete state.unitTasks[assignment.unit.id];
+        continue;
+      }
+      const result = await game.unitManager.executeUnitAction(
+        assignment.unit.id,
+        ActionType.GOTO,
+        assignment.tile.x,
+        assignment.tile.y,
+        playerId
+      );
+      if (result.success) actions++;
+      else delete state.unitTasks[assignment.unit.id];
+    }
+    return actions;
   }
 }

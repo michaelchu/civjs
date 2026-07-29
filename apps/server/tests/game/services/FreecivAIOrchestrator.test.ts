@@ -19,6 +19,26 @@ type TestUnit = {
 };
 
 function createScenario() {
+  const mapTiles = Array.from({ length: 9 }, (_, x) =>
+    Array.from({ length: 9 }, (_, y) => ({
+      x,
+      y,
+      terrain: 'grassland',
+      riverMask: 0,
+      elevation: 100,
+      continentId: 1,
+      isExplored: false,
+      isVisible: false,
+      hasRoad: false,
+      hasRailroad: false,
+      improvements: [],
+      unitIds: [],
+      properties: {},
+      temperature: 'temperate',
+      wetness: 50,
+      owner: x === 3 && y === 3 ? 'ai' : undefined,
+    }))
+  );
   const units = new Map<string, TestUnit>([
     [
       'settler',
@@ -142,7 +162,16 @@ function createScenario() {
       defense: 1,
       range: 1,
     },
-    explorer: { canFoundCity: false, canBuildImprovements: false, attack: 0, movement: 3 },
+    explorer: {
+      canFoundCity: false,
+      canBuildImprovements: false,
+      attack: 0,
+      movement: 3,
+      sight: 2,
+      vision_radius_sq: 2,
+      rulesetUnitClass: 'Land',
+      roles: ['Explorer'],
+    },
   };
   const game = {
     state: 'active',
@@ -173,12 +202,16 @@ function createScenario() {
         },
       ],
       setCityProduction,
+      getAllCities: (): any[] => [],
     },
     visibilityManager: {
       updatePlayerVisibility: jest.fn(),
-      getVisibleTiles: () => [],
-      getDetectionTiles: () => [],
+      getVisibleTiles: () => new Set(['7,7', '6,7']),
+      getExploredTiles: () => new Set(['7,7', '6,7']),
+      getDetectionTiles: () => ({ invisible: new Set(), subsurface: new Set() }),
       isTileVisible: () => true,
+      isTileExplored: (_playerId: string, x: number, y: number) =>
+        (x === 7 && y === 7) || (x === 6 && y === 7),
     },
     unitManager: {
       getPlayerUnits: (playerId: string) =>
@@ -192,22 +225,34 @@ function createScenario() {
       attackUnit,
     },
     mapManager: {
+      getMapData: () => ({
+        width: 9,
+        height: 9,
+        tiles: mapTiles,
+        startingPositions: [],
+        seed: 'test',
+        generatedAt: new Date(0),
+      }),
       getDistance: (fromX: number, fromY: number, toX: number, toY: number) =>
         Math.max(Math.abs(fromX - toX), Math.abs(fromY - toY)),
-      getTile: (x: number, y: number) =>
-        x === 3 && y === 3
-          ? {
-              x,
-              y,
-              terrain: 'grassland',
-              owner: 'ai',
-              riverMask: 0,
-              hasRoad: false,
-              hasRailroad: false,
-              improvements: [],
-            }
-          : null,
-      getNeighbors: () => [],
+      getTile: (x: number, y: number) => mapTiles[x]?.[y] ?? null,
+      getNeighbors: (x: number, y: number) =>
+        mapTiles.flat().filter(tile => Math.max(Math.abs(tile.x - x), Math.abs(tile.y - y)) === 1),
+      getTopology: () => ({
+        squaredDistance: (fromX: number, fromY: number, toX: number, toY: number) =>
+          (fromX - toX) ** 2 + (fromY - toY) ** 2,
+      }),
+    },
+    pathfindingManager: {
+      findPath: jest.fn().mockImplementation(async (actor, targetX, targetY) => ({
+        valid: true,
+        path: [
+          { x: actor.x, y: actor.y, moveCost: 0 },
+          { x: targetX, y: targetY, moveCost: 1 },
+        ],
+        totalCost: Math.max(Math.abs(actor.x - targetX), Math.abs(actor.y - targetY)),
+        estimatedTurns: 1,
+      })),
     },
   };
 
@@ -253,13 +298,12 @@ describe('FreecivAIOrchestrator', () => {
       undefined,
       'ai'
     );
-    expect(scenario.executeUnitAction).toHaveBeenCalledWith(
-      'scout',
-      ActionType.AUTO_EXPLORE,
-      undefined,
-      undefined,
-      'ai'
-    );
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith('scout', ActionType.GOTO, 6, 7, 'ai');
+    expect((scenario.game.players.get('ai') as any).aiState.unitTasks.scout).toMatchObject({
+      role: 'explore',
+      targetX: 6,
+      targetY: 7,
+    });
     expect(scenario.attackUnit).toHaveBeenCalledWith('warrior', 'enemy');
     expect(scenario.diplomacyManager.respondToTreaty).toHaveBeenCalledWith(
       'game',
@@ -474,6 +518,7 @@ describe('FreecivAIOrchestrator', () => {
     scenario.units.delete('settler');
     scenario.units.delete('enemy');
     scenario.units.get('scout')!.automation = 'explore';
+    scenario.units.get('scout')!.movementLeft = 0;
     scenario.units.get('warrior')!.movementLeft = 0;
     scenario.game.researchManager.getPlayerResearch = () => ({ currentTech: 'alphabet' });
     scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
@@ -507,6 +552,7 @@ describe('FreecivAIOrchestrator', () => {
     scenario.units.delete('settler');
     scenario.units.delete('enemy');
     scenario.units.get('scout')!.automation = 'explore';
+    scenario.units.get('scout')!.movementLeft = 0;
     scenario.units.get('warrior')!.movementLeft = 0;
     scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
 

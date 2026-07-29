@@ -17,5 +17,10 @@ describe('DiplomacyHostilityPolicy', () => {
     await expect(policy.canAttack('game', 'player', 'ally')).resolves.toBe(false);
     await expect(policy.canAttack('game', 'player', 'neutral')).resolves.toBe(false);
     await expect(policy.canAttack('game', 'player', 'player')).resolves.toBe(false);
+
+    await expect(policy.getRelationPlayerIds('game', 'player')).resolves.toEqual({
+      hostile: new Set(['enemy']),
+      allied: new Set(['ally']),
+    });
   });
 });

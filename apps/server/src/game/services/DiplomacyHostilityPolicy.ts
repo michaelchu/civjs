@@ -15,9 +15,28 @@ export class DiplomacyHostilityPolicy {
   }
 
   async getHostilePlayerIds(gameId: string, playerId: string): Promise<Set<string>> {
+    return (await this.getRelationPlayerIds(gameId, playerId)).hostile;
+  }
+
+  async getRelationPlayerIds(
+    gameId: string,
+    playerId: string
+  ): Promise<{
+    hostile: Set<string>;
+    allied: Set<string>;
+  }> {
     const snapshot = await this.diplomacyManager.getSnapshot(gameId, playerId);
-    return new Set(
-      snapshot.nations.filter(nation => nation.relation.state === 'war').map(nation => nation.id)
-    );
+    return {
+      hostile: new Set(
+        snapshot.nations.filter(nation => nation.relation.state === 'war').map(nation => nation.id)
+      ),
+      allied: new Set(
+        snapshot.nations
+          .filter(
+            nation => nation.relation.state === 'alliance' || nation.relation.state === 'team'
+          )
+          .map(nation => nation.id)
+      ),
+    };
   }
 }
