@@ -1142,6 +1142,29 @@ describe('AI authoritative manager boundaries', () => {
     }
     expect(scenario.game.mapManager.getTile(target.x, target.y)!.improvements).toContain('mine');
 
+    scenario.game.mapManager.updateTileProperty(target.x, target.y, 'terrain', 'grassland');
+    scenario.game.mapManager.updateTileProperty(target.x, target.y, 'improvements', []);
+    const irrigationSource = scenario.game.mapManager
+      .getTopology()
+      .getCardinalNeighbors(target.x, target.y)
+      .map(position => scenario.game.mapManager.getTile(position.x, position.y))
+      .find((tile): tile is NonNullable<typeof tile> => tile !== null);
+    expect(irrigationSource).toBeDefined();
+    scenario.game.mapManager.updateTileProperty(irrigationSource!.x, irrigationSource!.y, 'terrain', 'ocean');
+    city.workerTaskRequests = [
+      { x: target.x, y: target.y, action: ActionType.BUILD_IRRIGATION, want: 800 },
+    ];
+    worker!.movementLeft = workerType.movement;
+    expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
+      0
+    );
+    expect(worker!.orders).toEqual([{ type: 'irrigate' }]);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await scenario.game.unitManager.processUnitOrders(guest!.playerId);
+      if (scenario.game.mapManager.getTile(target.x, target.y)!.improvements.includes('irrigation')) break;
+    }
+    expect(scenario.game.mapManager.getTile(target.x, target.y)!.improvements).toContain('irrigation');
+
     const persistedWorker = await getTestDatabase().query.units.findFirst({
       where: eq(schema.units.id, worker!.id),
     });
