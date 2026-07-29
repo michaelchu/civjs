@@ -163,6 +163,31 @@ export class GameManagementHandler extends BaseSocketHandler {
         callback({ success: false, error: error instanceof Error ? error.message : 'Failed' });
       }
     });
+
+    socket.on('host:setPlayerAIControl', async (data, callback) => {
+      const connection = this.getConnection(socket, this.activeConnections);
+      try {
+        if (!connection?.gameId || !connection.userId || this.isSpectator(connection)) {
+          throw new Error('Not an active player');
+        }
+        if (typeof data?.playerId !== 'string' || typeof data?.isAI !== 'boolean') {
+          throw new Error('Invalid player control request');
+        }
+        await this.gameManager.setPlayerAIControl(
+          connection.gameId,
+          connection.userId,
+          data.playerId,
+          data.isAI,
+          {
+            aiLevel: data.aiLevel,
+            controllerUserId: data.controllerUserId,
+          }
+        );
+        callback({ success: true, playerId: data.playerId, isAI: data.isAI });
+      } catch (error) {
+        callback({ success: false, error: error instanceof Error ? error.message : 'Failed' });
+      }
+    });
   }
 
   /**

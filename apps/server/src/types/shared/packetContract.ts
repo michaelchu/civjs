@@ -414,12 +414,14 @@ export const SOCKET_EVENT_CONTRACT: readonly SocketEventContractEntry[] = [
     classification: 'compatibility',
     sinceVersion: 1,
   },
-  ...['host:getControls', 'host:setPaused', 'host:setTurnTimeLimit'].map(event => ({
-    event,
-    family: 'host_controls',
-    classification: 'compatibility' as const,
-    sinceVersion: 1,
-  })),
+  ...['host:getControls', 'host:setPaused', 'host:setTurnTimeLimit', 'host:setPlayerAIControl'].map(
+    event => ({
+      event,
+      family: 'host_controls',
+      classification: 'compatibility' as const,
+      sinceVersion: 1,
+    })
+  ),
   {
     event: 'get_map_data',
     family: 'map',
@@ -471,14 +473,19 @@ export const SOCKET_EVENT_CONTRACT: readonly SocketEventContractEntry[] = [
     classification: 'compatibility' as const,
     sinceVersion: 1,
   })),
-  ...['game_created', 'game_started', 'game_deleted', 'game-ended', 'game-control-changed'].map(
-    event => ({
-      event,
-      family: 'lobby',
-      classification: 'notification' as const,
-      sinceVersion: 1,
-    })
-  ),
+  ...[
+    'game_created',
+    'game_started',
+    'game_deleted',
+    'game-ended',
+    'game-control-changed',
+    'player-control-changed',
+  ].map(event => ({
+    event,
+    family: 'lobby',
+    classification: 'notification' as const,
+    sinceVersion: 1,
+  })),
   ...[
     'cities_updated',
     'city:updated',

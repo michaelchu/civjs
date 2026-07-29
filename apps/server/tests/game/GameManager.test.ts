@@ -585,4 +585,114 @@ describe('GameManager', () => {
       expect(mockDb.insert).toHaveBeenCalled();
     });
   });
+
+  describe('runtime player control transfer', () => {
+    function installGame() {
+      const processTurn = jest.fn().mockResolvedValue(undefined);
+      const players = new Map<string, any>([
+        [
+          'host-player',
+          {
+            id: 'host-player',
+            userId: 'test-host-id',
+            isAI: false,
+            isAlive: true,
+            isConnected: true,
+            hasEndedTurn: true,
+            aiLevel: 'easy',
+          },
+        ],
+        [
+          'target-player',
+          {
+            id: 'target-player',
+            userId: 'target-user',
+            isAI: false,
+            isAlive: true,
+            isConnected: false,
+            hasEndedTurn: false,
+            aiLevel: 'normal',
+            aiState: { stale: true },
+          },
+        ],
+      ]);
+      (gameManager as any).games.set('test-game-id', {
+        id: 'test-game-id',
+        state: 'active',
+        config: { aiLevel: 'easy' },
+        currentTurn: 7,
+        players,
+        turnManager: {
+          processTurn,
+          getCurrentTurn: jest.fn(() => 8),
+        },
+      });
+      mockDb.query.games.findFirst.mockResolvedValue({
+        id: 'test-game-id',
+        hostId: 'test-host-id',
+      });
+      return { players, processTurn };
+    }
+
+    it('starts fresh native AI state and releases an outstanding human turn', async () => {
+      const { players, processTurn } = installGame();
+
+      await gameManager.setPlayerAIControl('test-game-id', 'test-host-id', 'target-player', true, {
+        aiLevel: 'hard',
+      });
+
+      expect(players.get('target-player')).toMatchObject({
+        isAI: true,
+        aiLevel: 'hard',
+        isConnected: false,
+        hasEndedTurn: false,
+        aiState: { diplomacy: {}, unitTasks: {}, cityWants: {}, techWants: {} },
+      });
+      expect(processTurn).toHaveBeenCalledTimes(1);
+      expect(mockDb.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isAI: true,
+          aiLevel: 'hard',
+          connectionStatus: 'disconnected',
+        })
+      );
+      expect(mockEmit).toHaveBeenCalledWith(
+        'player-control-changed',
+        expect.objectContaining({ playerId: 'target-player', isAI: true })
+      );
+    });
+
+    it('returns an AI civilization to one human controller', async () => {
+      const { players } = installGame();
+      const target = players.get('target-player');
+      target.isAI = true;
+      target.userId = null;
+
+      await gameManager.setPlayerAIControl('test-game-id', 'test-host-id', 'target-player', false, {
+        controllerUserId: 'replacement-user',
+      });
+
+      expect(target).toMatchObject({
+        isAI: false,
+        userId: 'replacement-user',
+        isConnected: false,
+        hasEndedTurn: false,
+      });
+    });
+
+    it('rejects non-host transfers and duplicate human ownership', async () => {
+      const { players } = installGame();
+      players.get('target-player').isAI = true;
+      players.get('target-player').userId = null;
+
+      await expect(
+        gameManager.setPlayerAIControl('test-game-id', 'not-host', 'target-player', true)
+      ).rejects.toThrow('Only the host');
+      await expect(
+        gameManager.setPlayerAIControl('test-game-id', 'test-host-id', 'target-player', false, {
+          controllerUserId: 'test-host-id',
+        })
+      ).rejects.toThrow('already owns another civilization');
+    });
+  });
 });

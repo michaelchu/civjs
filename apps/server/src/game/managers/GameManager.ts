@@ -37,10 +37,12 @@ import {
 import { FreecivAIOrchestrator } from '@game/services/FreecivAIOrchestrator';
 import {
   createAIProfile,
+  isSettableAILevel,
   type AILevel,
   type AITraits,
   type SettableAILevel,
 } from '@game/ai/FreecivAIProfile';
+import { createAIState } from '@game/ai/FreecivAIStateStore';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { EndGameService } from '@game/services/EndGameService';
 import { GameReplayService, type GameReplay } from '@game/services/GameReplayService';
@@ -1949,6 +1951,104 @@ export class GameManager {
       if (instance.state === 'active') instance.turnManager.startTurnTimer(turnTimeLimit);
     }
     this.broadcastToGame(gameId, 'game-control-changed', { turnTimeLimit });
+  }
+
+  /**
+   * Transfer a civilization between human and native AI control.
+   *
+   * AI takeover starts with a fresh native strategic state; returning control
+   * to a human likewise discards AI-only assignments rather than preserving a
+   * compatibility snapshot. Turning the last outstanding human over to the AI
+   * immediately releases the authoritative turn barrier.
+   *
+   * @reference reference/freeciv/server/commands.c:aitoggle_command
+   * @reference reference/freeciv/ai/default/classicai.c
+   */
+  public async setPlayerAIControl(
+    gameId: string,
+    requesterUserId: string,
+    playerId: string,
+    isAI: boolean,
+    options: { aiLevel?: SettableAILevel; controllerUserId?: string } = {}
+  ): Promise<void> {
+    const persistedGame = await this.databaseProvider.getDatabase().query.games.findFirst({
+      where: eq(games.id, gameId),
+    });
+    if (!persistedGame) throw new Error('Game not found');
+    if (persistedGame.hostId !== requesterUserId) {
+      throw new Error('Only the host can transfer player control');
+    }
+    let game = this.games.get(gameId);
+    if (!game) game = (await this.recoverGameInstance(gameId)) ?? undefined;
+    if (!game) throw new Error('Unable to load game');
+    if (!['waiting', 'active', 'paused'].includes(game.state)) {
+      throw new Error('Player control cannot be changed in the current game state');
+    }
+    const player = game.players.get(playerId);
+    if (!player) throw new Error('Player not found in game');
+    if (player.isAlive === false || player.hasConceded) {
+      throw new Error('Eliminated players cannot change control');
+    }
+
+    const aiLevel = isSettableAILevel(options.aiLevel)
+      ? options.aiLevel
+      : isSettableAILevel(player.aiLevel)
+        ? player.aiLevel
+        : isSettableAILevel(game.config.aiLevel)
+          ? game.config.aiLevel
+          : 'easy';
+    const controllerUserId = isAI ? player.userId : (options.controllerUserId ?? player.userId);
+    if (!isAI && !controllerUserId) {
+      throw new Error('Human control requires a controller user');
+    }
+    if (
+      !isAI &&
+      Array.from(game.players.values()).some(
+        candidate =>
+          candidate.id !== playerId && !candidate.isAI && candidate.userId === controllerUserId
+      )
+    ) {
+      throw new Error('Controller already owns another civilization in this game');
+    }
+
+    const aiState = createAIState();
+    player.isAI = isAI;
+    player.aiLevel = aiLevel;
+    player.aiState = aiState as unknown as Record<string, unknown>;
+    player.userId = controllerUserId ?? null;
+    player.hasEndedTurn = false;
+    player.isConnected = !isAI && controllerUserId === requesterUserId;
+    await this.databaseProvider
+      .getDatabase()
+      .update(players)
+      .set({
+        isAI,
+        aiLevel,
+        aiState,
+        userId: controllerUserId ?? null,
+        hasEndedTurn: false,
+        connectionStatus: player.isConnected ? 'connected' : 'disconnected',
+        lastActionAt: new Date(),
+      })
+      .where(eq(players.id, playerId));
+
+    this.broadcastToGame(gameId, 'player-control-changed', {
+      playerId,
+      isAI,
+      aiLevel,
+    });
+
+    if (
+      isAI &&
+      game.state === 'active' &&
+      Array.from(game.players.values())
+        .filter(candidate => !candidate.isAI && candidate.userId !== null)
+        .every(candidate => candidate.hasEndedTurn)
+    ) {
+      await game.turnManager.processTurn();
+      game.currentTurn = game.turnManager.getCurrentTurn();
+      for (const candidate of game.players.values()) candidate.hasEndedTurn = false;
+    }
   }
 
   public async cleanupInactiveGames(): Promise<void> {

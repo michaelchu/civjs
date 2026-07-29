@@ -247,6 +247,17 @@ export class GameClient {
     });
 
     this.socket.on('culture_updated', data => this.applyCultureUpdate(data));
+    this.socket.on('player-control-changed', (data: { playerId: string; isAI: boolean }) => {
+      const { players } = useGameStore.getState();
+      const player = players[data.playerId];
+      if (!player) return;
+      useGameStore.getState().updateGameState({
+        players: {
+          ...players,
+          [data.playerId]: { ...player, isHuman: !data.isAI },
+        },
+      });
+    });
     this.socket.on('diplomacy_event', data => {
       if (typeof data?.message === 'string') {
         useGameStore.getState().addNotification({ message: data.message, tone: 'info' });
@@ -2043,6 +2054,18 @@ export class GameClient {
       { turnTimeLimit }
     );
     if (!response.success) throw new Error(response.error || 'Failed to update turn timer');
+  }
+
+  async setPlayerAIControl(
+    playerId: string,
+    isAI: boolean,
+    options: { aiLevel?: string; controllerUserId?: string } = {}
+  ): Promise<void> {
+    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
+      'host:setPlayerAIControl',
+      { playerId, isAI, ...options }
+    );
+    if (!response.success) throw new Error(response.error || 'Failed to transfer player control');
   }
 
   private applyGovernmentState(state: GovernmentState): void {

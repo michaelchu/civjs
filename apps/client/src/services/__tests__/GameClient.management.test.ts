@@ -158,6 +158,10 @@ describe('GameClient management screens', () => {
       .mockImplementationOnce(
         (_event: string, _data: unknown, callback: (value: unknown) => void) =>
           callback({ success: true })
+      )
+      .mockImplementationOnce(
+        (_event: string, _data: unknown, callback: (value: unknown) => void) =>
+          callback({ success: true })
       );
 
     await expect(gameClient.getHostControls()).resolves.toMatchObject({
@@ -166,11 +170,20 @@ describe('GameClient management screens', () => {
     });
     await expect(gameClient.setGamePaused(true)).resolves.toBeUndefined();
     await expect(gameClient.setTurnTimeLimit(120)).resolves.toBeUndefined();
+    await expect(
+      gameClient.setPlayerAIControl('player-2', true, { aiLevel: 'hard' })
+    ).resolves.toBeUndefined();
     expect(socket.emit.mock.calls.map(call => call[0])).toEqual([
       'host:getControls',
       'host:setPaused',
       'host:setTurnTimeLimit',
+      'host:setPlayerAIControl',
     ]);
+    expect(socket.emit).toHaveBeenLastCalledWith(
+      'host:setPlayerAIControl',
+      { playerId: 'player-2', isAI: true, aiLevel: 'hard' },
+      expect.any(Function)
+    );
   });
 
   it('sends city worklist and citizen-management mutations', async () => {
