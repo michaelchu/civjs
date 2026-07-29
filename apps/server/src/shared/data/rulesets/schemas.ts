@@ -217,6 +217,17 @@ export const UnitTypeRulesetSchema = z
     vision_layer: z.enum(['Main', 'Stealth', 'Subsurface']).optional().default('Main'),
     transport_cap: z.number().min(0).optional().default(0),
     cargo: z.array(UnitClassSchema).optional().default([]),
+    targets: z.array(UnitClassSchema).optional().default([]),
+    bonuses: z
+      .array(
+        z.object({
+          flag: z.string(),
+          type: z.enum(['DefenseMultiplier', 'DefenseDivider', 'LowFirepower']),
+          value: z.number(),
+        })
+      )
+      .optional()
+      .default([]),
     fuel: z.number().min(0).optional().default(0),
     uk_happy: z.number().min(0).optional().default(0), // Unhappiness from unit
     uk_shield: z.number().min(0).optional().default(1), // Shield upkeep cost

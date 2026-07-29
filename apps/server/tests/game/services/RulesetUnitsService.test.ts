@@ -73,6 +73,21 @@ describe('RulesetUnitsService', () => {
     expect(rulesetUnitsService.getMovementType('unknown_unit')).toBeUndefined();
   });
 
+  it('preserves classic target classes and combat bonuses', () => {
+    const fighter = rulesetUnitsService.getUnitType('fighter')!;
+    const aegis = rulesetUnitsService.getUnitType('aegis_cruiser')!;
+
+    expect(fighter.targetClasses).toEqual(['Air', 'Missile']);
+    expect(fighter.combatBonuses).toContainEqual({
+      flag: 'Bomber',
+      type: 'DefenseMultiplier',
+      value: 1,
+    });
+    expect(aegis.combatBonuses).toEqual([
+      { flag: 'AirAttacker', type: 'DefenseMultiplier', value: 4 },
+    ]);
+  });
+
   it('keeps Workers buildable without a technology prerequisite', () => {
     expect(rulesetUnitsService.getUnitType('worker')).toEqual(
       expect.objectContaining({

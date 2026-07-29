@@ -21,6 +21,7 @@ import {
 } from '@game/ai/FreecivAICityDangerPlanner';
 import { rankVirtualMilitaryProduction } from '@game/ai/FreecivAIMilitaryProductionPlanner';
 import { rankHunterProduction } from '@game/ai/FreecivAIHunterPlanner';
+import { rankVirtualAirProduction } from '@game/ai/FreecivAIAirPlanner';
 
 /**
  * Executes citizen allocation, production, worklist, and city-local unit
@@ -161,6 +162,35 @@ export class FreecivAICityController {
         targetSelectionHandicap: profile.handicaps.has('targets'),
       });
       for (const [unitTypeId, want] of hunterWants) {
+        offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
+      }
+      const airWants = rankVirtualAirProduction({
+        gameId: game.id,
+        playerId,
+        city,
+        unitTypes: Object.values(UNIT_TYPES),
+        hostileUnits: prospectiveUnits,
+        hostileCities: prospectiveCities,
+        canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
+        getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+        distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+        attackerRating: unit => game.unitManager.calculateUnitAttackRating(unit),
+        defenderRating: (attacker, defender) =>
+          game.unitManager.calculateUnitDefenseRating(defender, attacker),
+        canAttack: (attacker, defender) => game.unitManager.canUnitTargetUnit(attacker, defender),
+        hasOccupierSupport: targetCity =>
+          units.some(unit => {
+            const type = game.unitManager.getUnitType(unit.unitTypeId);
+            return (
+              type?.rulesetUnitClassFlags.includes('CanOccupyCity') === true &&
+              type.flags?.includes('NonMil') !== true &&
+              game.mapManager.getDistance(unit.x, unit.y, targetCity.x, targetCity.y) <=
+                Math.max(1, type.movement) * 3
+            );
+          }),
+        planesHandicap: profile.handicaps.has('no_planes'),
+      });
+      for (const [unitTypeId, want] of airWants) {
         offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
       }
       const dangerAssessment = assessCityDanger({

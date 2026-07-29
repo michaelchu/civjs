@@ -32,6 +32,24 @@ describe('UnitManager', () => {
       expect(UNIT_TYPES.worker).toBeDefined();
       expect(UNIT_TYPES.worker.flags).toContain('Workers'); // Can build improvements via flag
     });
+
+    it('uses ruleset target classes for unreachable air units', async () => {
+      const bomber = await unitManager.createUnit('player-123', 'bomber', 10, 10);
+      const fighter = await unitManager.createUnit('player-456', 'fighter', 11, 10);
+
+      expect(unitManager.canUnitTargetUnit(bomber, fighter)).toBe(false);
+      expect(unitManager.canUnitTargetUnit(fighter, bomber)).toBe(true);
+    });
+
+    it('applies ruleset air-defense multipliers to authoritative combat ratings', async () => {
+      const bomber = await unitManager.createUnit('player-123', 'bomber', 10, 10);
+      const aegis = await unitManager.createUnit('player-456', 'aegis_cruiser', 11, 10);
+
+      const ordinaryRating = unitManager.calculateUnitDefenseRating(aegis);
+      const interceptedRating = unitManager.calculateUnitDefenseRating(aegis, bomber);
+
+      expect(interceptedRating).toBe(ordinaryRating * 5);
+    });
   });
 
   describe('unit creation', () => {
@@ -1231,6 +1249,41 @@ describe('UnitManager', () => {
       await manager.resetMovement('player-123');
 
       expect(manager.getUnit(bomber.id)?.fuel).toBe(UNIT_TYPES.bomber.fuel);
+    });
+
+    it('refuels aircraft in an allied city', async () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        { getTile: jest.fn(() => ({ terrain: 'grassland', improvements: [] })) },
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          getCityAt: jest.fn(() => ({ id: 'allied-city', playerId: 'ally' })),
+        }
+      );
+      manager.setAlliedPlayersProvider(() => new Set(['ally']));
+      const bomber = await manager.createUnit('player-123', 'bomber', 10, 10);
+      bomber.fuel = 1;
+
+      await manager.resetMovement('player-123');
+
+      expect(manager.getUnit(bomber.id)?.fuel).toBe(UNIT_TYPES.bomber.fuel);
+    });
+
+    it('lets a fueled aircraft launch from a carrier with its movement intact', async () => {
+      const carrier = await unitManager.createUnit('player-123', 'carrier', 10, 10);
+      const bomber = await unitManager.createUnit('player-123', 'bomber', 10, 10);
+      expect(await unitManager.loadUnitOntoTransport(carrier.id, bomber.id)).toBe(true);
+      bomber.movementLeft = UNIT_TYPES.bomber.movement;
+
+      expect(await unitManager.unloadUnit(bomber.id, 10, 10)).toBe(true);
+
+      expect(bomber.transportedBy).toBeUndefined();
+      expect(bomber.movementLeft).toBe(UNIT_TYPES.bomber.movement);
     });
   });
 

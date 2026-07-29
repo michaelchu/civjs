@@ -8,6 +8,12 @@ import type { UnitClass, UnitTypeRuleset } from '@shared/data/rulesets/schemas';
 
 export type UnitMovementType = 'land' | 'sea' | 'air';
 
+export interface UnitCombatBonus {
+  flag: string;
+  type: 'DefenseMultiplier' | 'DefenseDivider' | 'LowFirepower';
+  value: number;
+}
+
 export interface UnitType {
   id: string;
   name: string;
@@ -29,6 +35,8 @@ export interface UnitType {
   requiredTech?: string;
   transport_capacity?: number;
   cargoClasses: string[];
+  targetClasses?: string[];
+  combatBonuses?: UnitCombatBonus[];
   // Additional freeciv fields
   hitpoints?: number;
   firepower?: number;
@@ -132,6 +140,8 @@ export class RulesetUnitsService {
       requiredTech: unit.required_tech || unit.requiredTech,
       transport_capacity: unit.transport_cap,
       cargoClasses: [...unit.cargo],
+      targetClasses: [...unit.targets],
+      combatBonuses: [...unit.bonuses],
       // Additional freeciv fields
       hitpoints: unit.hitpoints,
       firepower: unit.firepower,

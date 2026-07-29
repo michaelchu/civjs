@@ -1070,6 +1070,7 @@ export class UnitManager {
         candidate =>
           candidate.playerId !== attacker.playerId &&
           !candidate.transportedBy &&
+          this.canUnitTargetUnit(attacker, candidate) &&
           (!hostilePlayers || hostilePlayers.has(candidate.playerId))
       )
       .sort((left, right) => {
@@ -1125,8 +1126,9 @@ export class UnitManager {
     }
 
     if (
-      attackerType.flags?.some(flag => flag === 'Fighter' || flag === 'AirAttacker') &&
-      defenderType.rulesetUnitClass === 'Helicopter'
+      attackerType.combatBonuses?.some(
+        bonus => bonus.type === 'LowFirepower' && defenderType.flags?.includes(bonus.flag)
+      )
     ) {
       defenderFirepower = Math.min(defenderFirepower, rules.low_firepower_combat_bonus);
     }
@@ -1323,7 +1325,13 @@ export class UnitManager {
   private isUnitBeingRefueled(unit: Unit): boolean {
     if (unit.transportedBy) return true;
     const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
-    if (city?.playerId === unit.playerId) return true;
+    if (
+      city &&
+      (city.playerId === unit.playerId ||
+        this.alliedPlayersProvider?.(unit.playerId).has(city.playerId))
+    ) {
+      return true;
+    }
 
     const tile = this.mapManager?.getTile?.(unit.x, unit.y);
     const extras = new Set<string>(
@@ -1500,6 +1508,22 @@ export class UnitManager {
     const veteranLevel = this.getVeteranLevel(unit.veteranLevel);
     strength = Math.floor(strength * veteranLevel.powerFactor);
 
+    if (attackerType) {
+      const defenseMultiplier =
+        1 +
+        (unitType.combatBonuses ?? [])
+          .filter(
+            bonus => bonus.type === 'DefenseMultiplier' && attackerType.flags?.includes(bonus.flag)
+          )
+          .reduce((sum, bonus) => sum + bonus.value, 0);
+      const defenseDivider =
+        1 +
+        (attackerType.combatBonuses ?? [])
+          .filter(bonus => bonus.type === 'DefenseDivider' && unitType.flags?.includes(bonus.flag))
+          .reduce((sum, bonus) => sum + bonus.value, 0);
+      strength = Math.floor((strength * defenseMultiplier) / Math.max(1, defenseDivider));
+    }
+
     if (unitType.rulesetUnitClassFlags.includes('TerrainDefense')) {
       const terrainDefense = rulesetLoader.getTerrain(this.getTerrainAt(unit.x, unit.y)).defense;
       strength = Math.floor((strength * (100 + terrainDefense)) / 100);
@@ -1603,6 +1627,29 @@ export class UnitManager {
         ? this.calculateModifiedFirepower(attacker, unit, attackerType, type).defender
         : Math.max(1, type.firepower ?? 1);
     return this.calculateCombatStrength(unit, type, attacker, attackerType) * hitpoints * firepower;
+  }
+
+  /**
+   * Resolve Freeciv's reachable-unit-class targeting. Classes without the
+   * Unreachable flag are implicit targets; unreachable classes require an
+   * explicit target entry unless the defender is in a city or native base.
+   *
+   * @reference reference/freeciv/server/ruleset/ruleload.c:2314-2387
+   * @reference reference/freeciv/common/aicore/pf_tools.c:50-81
+   */
+  canUnitTargetUnit(attacker: Unit, defender: Unit): boolean {
+    const attackerType = UNIT_TYPES[attacker.unitTypeId];
+    const defenderType = UNIT_TYPES[defender.unitTypeId];
+    if (!attackerType || !defenderType) return false;
+    if (!defenderType.rulesetUnitClassFlags.includes('Unreachable')) return true;
+    if (attackerType.targetClasses?.includes(defenderType.rulesetUnitClass ?? '')) return true;
+    if (this.gameManagerCallback?.getCityAt?.(defender.x, defender.y)) return true;
+    const extras = new Set(
+      ((this.mapManager?.getTile?.(defender.x, defender.y)?.improvements ?? []) as string[]).map(
+        extra => extra.toLowerCase()
+      )
+    );
+    return defenderType.unitClass === 'air' && extras.has('airbase');
   }
 
   calculateCityDefenseBonusAgainst(
@@ -2608,7 +2655,10 @@ export class UnitManager {
       return false;
     }
     return this.getUnitsAt(targetX, targetY).some(
-      target => target.playerId !== unit.playerId && !target.transportedBy
+      target =>
+        target.playerId !== unit.playerId &&
+        !target.transportedBy &&
+        this.canUnitTargetUnit(unit, target)
     );
   }
 
@@ -4032,9 +4082,13 @@ export class UnitManager {
     const y = targetY ?? transport.y;
     if (!this.canUnloadUnit(unitId, x, y)) return false;
 
-    const remainingMovement = UNIT_TYPES[cargo.unitTypeId].rulesetUnitClassFlags.includes('Missile')
-      ? cargo.movementLeft
-      : 0;
+    const cargoType = UNIT_TYPES[cargo.unitTypeId];
+    // Aircraft launch from a carrier as their normal movement; unloading land
+    // cargo is the action that consumes the passenger's turn.
+    const remainingMovement =
+      cargoType.unitClass === 'air' || cargoType.rulesetUnitClassFlags.includes('Missile')
+        ? cargo.movementLeft
+        : 0;
     transport.cargoUnits = (transport.cargoUnits ?? []).filter(id => id !== unitId);
     cargo.transportedBy = undefined;
     cargo.x = x;
