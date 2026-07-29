@@ -1103,6 +1103,29 @@ describe('AI authoritative manager boundaries', () => {
     expect(completed.hasRoad).toBe(true);
     expect(completed.improvements).toContain('road');
 
+    // Freeciv's autoworker prioritizes hazardous extras above ordinary yield
+    // work. Reuse the produced worker to verify the authoritative cleanup
+    // lifecycle rather than only planner ranking.
+    scenario.game.mapManager.updateTileProperty(target.x, target.y, 'improvements', [
+      ...completed.improvements,
+      'pollution',
+    ]);
+    city.workerTaskRequests = [
+      { x: target.x, y: target.y, action: ActionType.CLEAN_POLLUTION, want: 1_000 },
+    ];
+    worker!.movementLeft = workerType.movement;
+    expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
+      0
+    );
+    expect(worker!.orders).toEqual([{ type: 'cleanPollution' }]);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await scenario.game.unitManager.processUnitOrders(guest!.playerId);
+      if (!scenario.game.mapManager.getTile(target.x, target.y)!.improvements.includes('pollution')) break;
+    }
+    expect(scenario.game.mapManager.getTile(target.x, target.y)!.improvements).not.toContain(
+      'pollution'
+    );
+
     const persistedWorker = await getTestDatabase().query.units.findFirst({
       where: eq(schema.units.id, worker!.id),
     });
