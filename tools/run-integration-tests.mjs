@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 
 const composeArgs = ['compose', '-f', 'docker-compose.test.yml'];
 const testDatabaseUrl = 'postgresql://civjs:civjs_secret@127.0.0.1:55432/civjs_test';
+const focusedTestPath = process.env.INTEGRATION_TEST_PATH;
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -18,7 +19,10 @@ try {
   const startup = run('docker', [...composeArgs, 'up', '-d', '--wait']);
   if (startup !== 0) process.exitCode = startup;
   else {
-    exitCode = run('npm', ['run', 'test:integration:direct'], {
+    const testCommand = focusedTestPath
+      ? ['run', 'test:integration:path', '--', focusedTestPath]
+      : ['run', 'test:integration:direct'];
+    exitCode = run('npm', testCommand, {
       env: { ...process.env, TEST_DATABASE_URL: testDatabaseUrl },
     });
     process.exitCode = exitCode;

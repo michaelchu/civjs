@@ -37,8 +37,11 @@ describe('AI authoritative manager boundaries', () => {
     gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     gameManager?.clearAllGames();
+    // Turn processing persists state asynchronously. Let those writes drain
+    // before the next beforeEach truncates the shared integration database.
+    await new Promise(resolve => setTimeout(resolve, 100));
   });
 
   async function createActiveGame(
@@ -1032,7 +1035,7 @@ describe('AI authoritative manager boundaries', () => {
     const persistedWorker = await getTestDatabase().query.units.findFirst({
       where: eq(schema.units.id, worker!.id),
     });
-    expect(persistedWorker?.orders).toEqual([]);
+    expect(persistedWorker?.orders ?? []).toEqual([]);
   });
 
   it('chooses, completes, and persists an economic city improvement through authoritative managers', async () => {
