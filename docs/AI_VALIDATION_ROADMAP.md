@@ -49,6 +49,9 @@ The first implementation steps are now in place:
   `apps/server/test-results/ai-validation/`, including configuration, current
   phase and turn, map/entity snapshot, AI planning state, failure diagnosis,
   and a focused Docker reproduction command.
+- The larger `npm run test:ai-validation:100` matrix runs weekly and on manual
+  dispatch in `.github/workflows/ai-validation.yml`, outside normal pull-
+  request feedback. The job uploads any validation diagnostics as an artifact.
 
 The real-paratrooper city-capture scenario remains temporarily skipped because
 its mission selection still depends on generated-world visibility and combat
@@ -56,8 +59,8 @@ timing. It is not counted as validation coverage and should be re-enabled once
 that nondeterminism is resolved.
 
 This is intentionally a foundation rather than completion of the milestone:
-the 100-seed scheduled run, saved metric baselines, decision traces, and
-comparative strategic-strength benchmarks remain required work.
+saved metric baselines, decision traces, and comparative strategic-strength
+benchmarks remain required work.
 
 ## Next validation milestone: deterministic simulation matrix
 
