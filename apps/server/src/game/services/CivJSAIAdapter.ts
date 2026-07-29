@@ -20,6 +20,7 @@ import {
   normalizeAIState,
   type FreecivAIState,
 } from '@game/ai/FreecivAIStateStore';
+import { planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
 
 /**
  * Versioned compatibility contract for the currently landed Freeciv AI slice.
@@ -38,6 +39,7 @@ export const CIVJS_AI_CONTRACT = {
     'enable authoritative worker and exploration automation',
     'use legal caravan, city-join, home-city, and unit-upgrade outcomes',
     'score military targets by expected shield profit and pursue reachable targets',
+    'persist city guard assignments, reinforce danger, and fortify defenders',
     'value incoming treaties and make proactive cease-fire, peace, and alliance proposals',
     'persist difficulty, traits, diplomacy memory, assignments, and wants across restarts',
     'yield game completion to the authoritative conquest evaluator',
@@ -46,7 +48,7 @@ export const CIVJS_AI_CONTRACT = {
     'complete lifecycle event callbacks and use persisted assignments across every advisor',
     'complete city, technology, government, rates, spending, and advisor want parity',
     'settlement-site and worker-improvement reservation parity',
-    'guards, hunters, ferries, amphibious operations, air, paradrop, and diplomat planning',
+    'hunters, ferries, amphibious operations, air, paradrop, and diplomat planning',
     'complete Freeciv diplomacy threat, reputation, incident, and material-clause valuation',
   ],
 } as const;
@@ -88,8 +90,9 @@ export class CivJSAIAdapter {
         this.executeCityUnitActions(game, playerId)
       );
       actions += await this.attempt('workers', () => this.automateWorkers(game, playerId));
+      actions += await this.attempt('guards', () => this.manageCityGuards(game, playerId, state));
       actions += await this.attempt('combat', () =>
-        this.attackAdjacentEnemies(gameId, game, playerId)
+        this.attackAdjacentEnemies(gameId, game, playerId, state)
       );
       actions += await this.attempt('exploration', () => this.automateExploration(game, playerId));
       actions += await this.attempt('diplomacy', () =>
@@ -330,7 +333,8 @@ export class CivJSAIAdapter {
   private async attackAdjacentEnemies(
     gameId: string,
     game: GameInstance,
-    playerId: string
+    playerId: string,
+    state: FreecivAIState
   ): Promise<number> {
     const hostilePlayerIds = await this.hostilityPolicy.getHostilePlayerIds(gameId, playerId);
     const enemies = Array.from(game.unitManager.getAllUnits().values())
@@ -339,6 +343,8 @@ export class CivJSAIAdapter {
     let actions = 0;
 
     for (const attacker of this.sortedUnits(game, playerId)) {
+      if (state.unitTasks[attacker.id]?.role === 'guard') continue;
+      if (state.unitTasks[attacker.id]?.role === 'defend') continue;
       const type = game.unitManager.getUnitType(attacker.unitTypeId);
       if (attacker.movementLeft <= 0 || (type?.attack ?? type?.combat ?? 0) <= 0) continue;
       if (!type) continue;
@@ -383,6 +389,76 @@ export class CivJSAIAdapter {
         await game.unitManager.attackUnit(attacker.id, defender.id);
       }
       actions++;
+    }
+    return actions;
+  }
+
+  private async manageCityGuards(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    const cities = game.cityManager
+      .getPlayerCities(playerId)
+      .filter(city => Number.isFinite(city.x) && Number.isFinite(city.y));
+    if (cities.length === 0) return 0;
+    const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
+    const hostileUnits = Array.from(game.unitManager.getAllUnits().values()).filter(unit =>
+      hostileIds.has(unit.playerId)
+    );
+    const profile = createAIProfile(
+      game.players.get(playerId)?.aiLevel,
+      game.players.get(playerId)?.aiTraits
+    );
+    const plan = planCityGuards({
+      turn: game.currentTurn,
+      cities,
+      friendlyUnits: game.unitManager.getPlayerUnits(playerId),
+      hostileUnits,
+      existingTasks: state.unitTasks,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      dangerHandicap: profile.handicaps.has('danger'),
+    });
+
+    for (const [unitId, task] of Object.entries(state.unitTasks)) {
+      if (task.role === 'guard' || task.role === 'defend') {
+        delete state.unitTasks[unitId];
+      }
+    }
+    Object.assign(state.unitTasks, plan.assignments);
+
+    let actions = 0;
+    for (const [unitId, task] of Object.entries(plan.assignments).sort(([a], [b]) =>
+      a.localeCompare(b)
+    )) {
+      const unit = game.unitManager.getUnit(unitId);
+      const city = task.targetId ? game.cityManager.getCity(task.targetId) : undefined;
+      if (!unit || !city || unit.movementLeft <= 0) continue;
+      if (unit.x === city.x && unit.y === city.y) {
+        if (!unit.fortified && game.unitManager.canUnitPerformAction(unit.id, ActionType.FORTIFY)) {
+          const result = await game.unitManager.executeUnitAction(
+            unit.id,
+            ActionType.FORTIFY,
+            undefined,
+            undefined,
+            playerId
+          );
+          if (result.success) actions++;
+        }
+        continue;
+      }
+      if (!game.unitManager.canUnitPerformAction(unit.id, ActionType.GOTO, city.x, city.y)) {
+        continue;
+      }
+      const result = await game.unitManager.executeUnitAction(
+        unit.id,
+        ActionType.GOTO,
+        city.x,
+        city.y,
+        playerId
+      );
+      if (result.success) actions++;
     }
     return actions;
   }

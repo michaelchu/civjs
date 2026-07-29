@@ -133,7 +133,13 @@ function createScenario() {
   const unitTypes: Record<string, Record<string, unknown>> = {
     settlers: { canFoundCity: true, canBuildImprovements: false, attack: 0, movement: 1 },
     worker: { canFoundCity: false, canBuildImprovements: true, attack: 0, movement: 1 },
-    warriors: { canFoundCity: false, canBuildImprovements: false, attack: 1, range: 1 },
+    warriors: {
+      canFoundCity: false,
+      canBuildImprovements: false,
+      attack: 1,
+      defense: 1,
+      range: 1,
+    },
     explorer: { canFoundCity: false, canBuildImprovements: false, attack: 0, movement: 3 },
   };
   const game = {
@@ -375,6 +381,42 @@ describe('CivJSAIAdapter compatibility contract', () => {
     expect((scenario.game.players.get('ai') as any).aiState.diplomacy.human).toMatchObject({
       love: 100,
       countdown: 5,
+    });
+  });
+
+  it('assigns and fortifies a city guard instead of sending it on offense', async () => {
+    const scenario = createScenario();
+    const threatenedCity = {
+      id: 'frontier',
+      x: 4,
+      y: 4,
+      currentProduction: 'warriors',
+      goldPerTurn: 0,
+      buildings: [],
+    };
+    scenario.game.cityManager.getPlayerCities = () => [threatenedCity] as any;
+    (scenario.game.cityManager as any).getCity = (cityId: string) =>
+      cityId === threatenedCity.id ? threatenedCity : undefined;
+    scenario.units.delete('settler');
+    scenario.units.delete('worker');
+    scenario.units.delete('scout');
+
+    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith(
+      'warrior',
+      ActionType.FORTIFY,
+      undefined,
+      undefined,
+      'ai'
+    );
+    expect(scenario.attackUnit).not.toHaveBeenCalled();
+    expect((scenario.game.players.get('ai') as any).aiState.unitTasks.warrior).toMatchObject({
+      role: 'defend',
+      targetId: 'frontier',
     });
   });
 
