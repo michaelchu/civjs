@@ -40,6 +40,13 @@ export interface FreecivAIState {
   unitTasks: Record<string, AIUnitTask>;
   cityWants: Record<string, Record<string, number>>;
   techWants: Record<string, number>;
+  treasuryGoal?: AITreasuryGoal;
+}
+
+export interface AITreasuryGoal {
+  cityId: string;
+  amount: number;
+  reason: string;
 }
 
 export function createAIState(): FreecivAIState {
@@ -69,6 +76,17 @@ export function assertAIState(value: unknown): FreecivAIState {
   }
   if (state.lastDecisionCount !== undefined && typeof state.lastDecisionCount !== 'number') {
     throw new Error('AI state lastDecisionCount is invalid');
+  }
+  if (
+    state.treasuryGoal !== undefined &&
+    (!state.treasuryGoal ||
+      typeof state.treasuryGoal !== 'object' ||
+      typeof state.treasuryGoal.cityId !== 'string' ||
+      typeof state.treasuryGoal.amount !== 'number' ||
+      !Number.isFinite(state.treasuryGoal.amount) ||
+      typeof state.treasuryGoal.reason !== 'string')
+  ) {
+    throw new Error('AI state treasuryGoal is invalid');
   }
   return state as FreecivAIState;
 }

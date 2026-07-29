@@ -2,6 +2,7 @@ import { FreecivAIOrchestrator } from '@game/services/FreecivAIOrchestrator';
 import { FreecivAITransportController } from '@game/ai/FreecivAITransportController';
 import { createAIState } from '@game/ai/FreecivAIStateStore';
 import { ActionType } from '@app-types/shared/actions';
+import { EffectType } from '@game/managers/EffectsManager';
 
 type TestUnit = {
   id: string;
@@ -366,6 +367,126 @@ describe('FreecivAIOrchestrator', () => {
       'alliance-proposal',
       false
     );
+  });
+
+  it('persists an urgent treasury savings goal and rushes when it is funded', async () => {
+    const scenario = createScenario();
+    (scenario.game.players.get('ai') as any).aiLevel = 'hard';
+    const city = {
+      id: 'capital',
+      playerId: 'ai',
+      x: 4,
+      y: 4,
+      size: 4,
+      currentProduction: 'warriors',
+      productionType: 'unit',
+      goldPerTurn: 0,
+      foodPerTurn: 2,
+      tradePerTurn: 8,
+      buildings: [],
+      happiness: { happy: 1, content: 3, unhappy: 0, angry: 0 },
+      workableTiles: [{ x: 3, y: 3, isWorked: true }],
+    };
+    (scenario.game.cityManager as any).getPlayerCities = () => [city];
+    (scenario.game.cityManager as any).calculateBuyCost = () => ({
+      canBuy: true,
+      goldCost: 100,
+    });
+    const buyProduction = jest.fn().mockResolvedValue({ success: true });
+    (scenario.game.cityManager as any).buyProduction = buyProduction;
+    scenario.unitTypes.warriors.attack = 10;
+    const economicStatus = {
+      currentGold: 50,
+      taxRates: { tax: 30, luxury: 0, science: 70 },
+    };
+    const setPlayerTaxRates = jest.fn().mockReturnValue({ isValid: true });
+    (scenario.game as any).turnManager = {
+      getEconomicManager: () => ({
+        getPlayerEconomicStatus: async () => economicStatus,
+        getPlayerGold: async () => economicStatus.currentGold,
+        setPlayerTaxRates,
+      }),
+    };
+
+    const orchestrator = new FreecivAIOrchestrator(scenario.diplomacyManager as any);
+    await orchestrator.processTurn('game', scenario.game as any);
+
+    const state = (scenario.game.players.get('ai') as any).aiState;
+    expect(state.treasuryGoal).toMatchObject({
+      cityId: 'capital',
+      reason: 'rush warriors',
+    });
+    expect(setPlayerTaxRates).toHaveBeenCalledWith({
+      playerId: 'ai',
+      newRates: { tax: 60, luxury: 0, science: 40 },
+    });
+    expect(buyProduction).not.toHaveBeenCalled();
+
+    economicStatus.currentGold = 500;
+    await orchestrator.processTurn('game', scenario.game as any);
+    expect(buyProduction).toHaveBeenCalledWith('capital', 'ai');
+    expect(state.treasuryGoal).toBeUndefined();
+  });
+
+  it('applies a rate-limited majority celebration through the citizen optimizer', async () => {
+    const scenario = createScenario();
+    const cities = ['capital', 'second', 'small'].map((id, index) => ({
+      id,
+      playerId: 'ai',
+      x: index + 1,
+      y: 1,
+      size: index < 2 ? 4 : 2,
+      currentProduction: 'warriors',
+      productionType: 'unit',
+      goldPerTurn: 0,
+      foodPerTurn: index < 2 ? 2 : 0,
+      tradePerTurn: 10,
+      buildings: [],
+      happiness: { happy: 2, content: 2, unhappy: 0, angry: 0 },
+      workableTiles: [],
+    }));
+    (scenario.game.cityManager as any).getPlayerCities = () => cities;
+    (scenario.game.cityManager as any).calculateBuyCost = () => ({
+      canBuy: false,
+      goldCost: 0,
+    });
+    const optimizeCityManually = jest.fn().mockResolvedValue(true);
+    (scenario.game.cityManager as any).optimizeCityManually = optimizeCityManually;
+    (scenario.game as any).governmentManager = {
+      getPlayerGovernment: () => ({ currentGovernment: 'republic', revolutionTurns: 0 }),
+      calculateGovernmentEffect: (_governmentId: string, type: EffectType) => {
+        if (type === EffectType.RAPTURE_GROW) return 1;
+        if (type === EffectType.MAX_RATES) return 60;
+        return 0;
+      },
+    };
+    const setPlayerTaxRates = jest.fn().mockReturnValue({ isValid: true });
+    (scenario.game as any).turnManager = {
+      getEconomicManager: () => ({
+        getPlayerEconomicStatus: async () => ({
+          currentGold: 100,
+          taxRates: { tax: 30, luxury: 0, science: 70 },
+        }),
+        getPlayerGold: async () => 100,
+        setPlayerTaxRates,
+      }),
+    };
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(setPlayerTaxRates).toHaveBeenCalledWith({
+      playerId: 'ai',
+      newRates: { tax: 30, luxury: 60, science: 10 },
+    });
+    for (const cityId of ['capital', 'second']) {
+      expect(optimizeCityManually).toHaveBeenCalledWith(
+        cityId,
+        expect.objectContaining({ require_happy: true, max_growth: true })
+      );
+    }
   });
 
   it('reserves remote worker improvements and moves through authoritative goto', async () => {
@@ -1110,19 +1231,18 @@ describe('FreecivAIOrchestrator', () => {
     const scenario = createScenario();
     const optimizeCityManually = jest.fn().mockResolvedValue(true);
     (scenario.game.cityManager as any).optimizeCityManually = optimizeCityManually;
-    scenario.game.cityManager.getPlayerCities = () => [
-      {
-        id: 'capital',
-        size: 4,
-        foodStock: 0,
-        foodPerTurn: -1,
-        goldPerTurn: -2,
-        productionPerTurn: 2,
-        currentProduction: null,
-        buildings: [],
-        happiness: { happy: 0, content: 2, unhappy: 1, angry: 1 },
-      },
-    ];
+    const city = {
+      id: 'capital',
+      size: 4,
+      foodStock: 0,
+      foodPerTurn: -1,
+      goldPerTurn: -2,
+      productionPerTurn: 2,
+      currentProduction: null,
+      buildings: [],
+      happiness: { happy: 0, content: 2, unhappy: 1, angry: 1 },
+    };
+    scenario.game.cityManager.getPlayerCities = () => [city];
 
     await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
       'game',
@@ -1141,6 +1261,19 @@ describe('FreecivAIOrchestrator', () => {
     expect(parameters.minimal_surplus.food).toBe(2);
     expect(parameters.factor.food).toBe(24);
     expect(parameters.factor.luxury).toBe(20);
+
+    city.foodStock = 10;
+    city.foodPerTurn = 3;
+    city.happiness = { happy: 1, content: 3, unhappy: 0, angry: 0 };
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+    const reevaluated = optimizeCityManually.mock.calls.at(-1)![1];
+    expect(reevaluated.minimal_surplus.food).toBe(1);
+    expect(reevaluated.factor.food).toBe(8);
+    expect(reevaluated.require_happy).toBe(false);
+    expect(reevaluated.max_growth).toBe(true);
   });
 
   it('persists ranked wants and seeds an active city worklist', async () => {

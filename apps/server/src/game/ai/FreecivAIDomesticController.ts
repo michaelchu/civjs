@@ -15,6 +15,9 @@ import {
   rankThreatTechnologyWants,
 } from '@game/ai/FreecivAITechnologyWantPlanner';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { EffectType } from '@game/managers/EffectsManager';
+import { OutputType } from '@game/constants/GameConstants';
+import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
 
 /**
  * Executes empire-level research, government, and treasury decisions.
@@ -124,7 +127,11 @@ export class FreecivAIDomesticController {
     return 1;
   }
 
-  async manageEconomy(game: GameInstance, playerId: string): Promise<number> {
+  async manageEconomy(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
     const manager = game.turnManager.getEconomicManager?.();
     if (!manager) return 0;
     const status = await manager.getPlayerEconomicStatus(playerId);
@@ -136,6 +143,11 @@ export class FreecivAIDomesticController {
       game.players.get(playerId)?.aiTraits
     );
     const hostileUnits = hostileUnitsForPlanning(game, playerId, hostileIds, profile);
+    const governmentId = game.governmentManager?.getPlayerGovernment(playerId)?.currentGovernment;
+    const governmentEffect = (type: EffectType) =>
+      governmentId
+        ? (game.governmentManager?.calculateGovernmentEffect(governmentId, type) ?? 0)
+        : 0;
     const plan = planTreasury({
       currentGold: status.currentGold,
       netGold,
@@ -152,7 +164,13 @@ export class FreecivAIDomesticController {
           const type = game.unitManager.getUnitType(unit.unitTypeId);
           return sum + (type?.attack ?? type?.combat ?? 0) / Math.max(1, distance);
         }, 0),
+      maxRate: profile.handicaps.has('rates') ? governmentEffect(EffectType.MAX_RATES) || 100 : 100,
+      canRaptureGrow: governmentEffect(EffectType.RAPTURE_GROW) > 0,
+      awayMode: profile.handicaps.has('away'),
+      celebrateSize: Number(rulesetLoader.loadCitiesRuleset().parameters.celebrate_size_limit ?? 3),
+      existingSavingsGoal: state.treasuryGoal,
     });
+    state.treasuryGoal = plan.savingsGoal;
     const decisions = createAIDecisionSource(game, playerId, 'treasury');
     let actions = 0;
     if (
@@ -178,7 +196,22 @@ export class FreecivAIDomesticController {
       // @reference reference/freeciv/ai/default/daicity.c:568-573
       if (!decisions.fuzzy(`rush:${cityId}`, true)) continue;
       const result = await game.cityManager.buyProduction(cityId, playerId);
-      if (result.success) actions++;
+      if (result.success) {
+        state.treasuryGoal = undefined;
+        actions++;
+      }
+    }
+    if (typeof game.cityManager.optimizeCityManually === 'function') {
+      for (const cityId of plan.celebrationCityIds) {
+        const parameters = CitizenParameterFactory.createDefault();
+        parameters.require_happy = true;
+        parameters.allow_disorder = false;
+        parameters.allow_specialists = true;
+        parameters.max_growth = true;
+        parameters.factor[OutputType.FOOD] = 20;
+        parameters.minimal_surplus[OutputType.FOOD] = 1;
+        if (await game.cityManager.optimizeCityManually(cityId, parameters)) actions++;
+      }
     }
     return actions;
   }

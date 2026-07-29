@@ -75,4 +75,66 @@ describe('Freeciv AI treasury planner', () => {
     expect(plan.rates.luxury).toBe(10);
     expect(plan.rates.tax + plan.rates.luxury + plan.rates.science).toBe(100);
   });
+
+  it('uses rate-limited luxury when a majority can grow by celebration', () => {
+    const celebrant = city({
+      size: 4,
+      foodPerTurn: 2,
+      tradePerTurn: 10,
+      happiness: { happy: 2, content: 2, unhappy: 0, angry: 0 },
+    });
+    const plan = planTreasury({
+      ...base,
+      cities: [
+        celebrant,
+        { ...celebrant, id: 'second' },
+        city({ id: 'blocked', size: 2, foodPerTurn: 0 }),
+      ],
+      canRaptureGrow: true,
+      maxRate: 60,
+    });
+
+    expect(plan.celebrationCityIds).toEqual(['capital', 'second']);
+    expect(plan.rates.luxury).toBe(60);
+    expect(Math.max(...Object.values(plan.rates))).toBeLessThanOrEqual(60);
+    expect(plan.rates.tax + plan.rates.luxury + plan.rates.science).toBe(100);
+  });
+
+  it('persists an unaffordable rush target and raises tax until it is funded', () => {
+    const waiting = planTreasury({
+      ...base,
+      currentGold: 50,
+      atWar: true,
+      threat: () => 5,
+      buyCost: () => ({ canBuy: true, goldCost: 100 }),
+    });
+    expect(waiting.rushCityIds).toEqual([]);
+    expect(waiting.savingsGoal).toEqual({
+      cityId: 'capital',
+      amount: waiting.reserve + 100,
+      reason: 'rush warriors',
+    });
+
+    const saving = planTreasury({
+      ...base,
+      currentGold: 80,
+      atWar: true,
+      threat: () => 5,
+      buyCost: () => ({ canBuy: true, goldCost: 100 }),
+      existingSavingsGoal: waiting.savingsGoal,
+    });
+    expect(saving.rates.tax).toBe(60);
+    expect(saving.savingsGoal?.cityId).toBe('capital');
+
+    const funded = planTreasury({
+      ...base,
+      currentGold: 500,
+      atWar: true,
+      threat: () => 5,
+      buyCost: () => ({ canBuy: true, goldCost: 100 }),
+      existingSavingsGoal: waiting.savingsGoal,
+    });
+    expect(funded.rushCityIds).toEqual(['capital']);
+    expect(funded.savingsGoal).toBeUndefined();
+  });
 });

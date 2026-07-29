@@ -1,11 +1,14 @@
 import type { BuildingType, CityState } from '@game/managers/CityManager';
 import type { UnitType } from '@game/services/RulesetUnitsService';
+import type { AITreasuryGoal } from '@game/ai/FreecivAIStateStore';
 
 export interface TreasuryPlan {
   reserve: number;
   rates: { tax: number; luxury: number; science: number };
   rushCityIds: string[];
   sales: Array<{ cityId: string; buildingId: string }>;
+  savingsGoal?: AITreasuryGoal;
+  celebrationCityIds: string[];
 }
 
 interface TreasuryPlanningContext {
@@ -18,6 +21,11 @@ interface TreasuryPlanningContext {
   buildingTypes: Record<string, BuildingType>;
   buyCost: (cityId: string) => { canBuy: boolean; goldCost: number };
   threat: (city: CityState) => number;
+  maxRate?: number;
+  canRaptureGrow?: boolean;
+  awayMode?: boolean;
+  celebrateSize?: number;
+  existingSavingsGoal?: AITreasuryGoal;
 }
 
 export function calculateTreasuryReserve(
@@ -57,12 +65,51 @@ export function planTreasury(context: TreasuryPlanningContext): TreasuryPlan {
     0
   );
   const reserve = calculateTreasuryReserve(context);
-  const luxury = unrest > 0 ? Math.min(30, Math.ceil(unrest / 2) * 10) : 0;
-  const tax = Math.min(
-    100 - luxury,
-    context.currentGold < reserve || context.netGold < 0 ? 60 : 30
-  );
-  const rates = { tax, luxury, science: 100 - tax - luxury };
+  const maxRate = Math.max(34, Math.min(100, context.maxRate ?? 100));
+  const ordinaryLuxury = unrest > 0 ? Math.min(30, Math.ceil(unrest / 2) * 10) : 0;
+  const desiredTax =
+    context.currentGold < reserve ||
+    context.netGold < 0 ||
+    (context.existingSavingsGoal && context.currentGold < context.existingSavingsGoal.amount)
+      ? 60
+      : 30;
+  const celebrationCandidates =
+    context.canRaptureGrow && !context.awayMode
+      ? context.cities.filter(city => {
+          const size = city.size ?? city.population ?? 0;
+          const unhappy = city.happiness.unhappy + city.happiness.angry * 2;
+          const potentialLuxuryHappy = Math.floor(
+            (Math.max(0, city.tradePerTurn ?? 0) * maxRate) / 200
+          );
+          return (
+            size >= (context.celebrateSize ?? 3) &&
+            (city.foodPerTurn ?? 0) > 0 &&
+            city.happiness.angry === 0 &&
+            city.happiness.happy + potentialLuxuryHappy > unhappy
+          );
+        })
+      : [];
+  const celebrate =
+    context.cities.length > 0 && celebrationCandidates.length * 2 > context.cities.length;
+  const desiredLuxury = celebrate ? maxRate : ordinaryLuxury;
+  const tax = Math.min(maxRate, desiredTax, 100 - desiredLuxury);
+  const luxury = Math.min(maxRate, desiredLuxury, 100 - tax);
+  let science = Math.min(maxRate, 100 - tax - luxury);
+  let remaining = 100 - tax - luxury - science;
+  const balancedTax = Math.min(maxRate - tax, remaining);
+  const rates = {
+    tax: tax + balancedTax,
+    luxury,
+    science,
+  };
+  remaining -= balancedTax;
+  if (remaining > 0) {
+    const balancedLuxury = Math.min(maxRate - rates.luxury, remaining);
+    rates.luxury += balancedLuxury;
+    remaining -= balancedLuxury;
+  }
+  science = rates.science;
+  if (remaining > 0) rates.science = science + remaining;
 
   const sales: Array<{ cityId: string; buildingId: string }> = [];
   let projectedGold = context.currentGold + context.netGold;
@@ -96,34 +143,45 @@ export function planTreasury(context: TreasuryPlanningContext): TreasuryPlan {
     }
   }
 
-  const rushCityIds =
-    projectedGold <= reserve
-      ? []
-      : context.cities
-          .map(city => {
-            const cost = context.buyCost(city.id);
-            if (!cost.canBuy || cost.goldCost <= 0 || projectedGold - cost.goldCost < reserve) {
-              return { city, want: 0, goldCost: cost.goldCost };
-            }
-            const threat = context.threat(city);
-            let value = threat * 100;
-            if (city.productionType === 'unit' && city.currentProduction) {
-              const unit = context.unitTypes[city.currentProduction];
-              value +=
-                (unit?.defense ?? unit?.combat ?? 0) * threat * 30 +
-                (unit?.attack ?? unit?.combat ?? 0) * (context.atWar ? 15 : 3);
-              if (unit?.canFoundCity) value += Math.max(0, 4 - context.cities.length) * 40;
-            } else if (city.productionType === 'building' && city.currentProduction) {
-              const building = context.buildingTypes[city.currentProduction];
-              if (building) value += buildingStrategicValue(city, building);
-            }
-            if ((city.foodPerTurn ?? 0) < 0) value += 80;
-            return { city, want: value / Math.max(1, cost.goldCost), goldCost: cost.goldCost };
-          })
-          .filter(candidate => candidate.want > 1)
-          .sort((a, b) => b.want - a.want || a.city.id.localeCompare(b.city.id))
-          .slice(0, 1)
-          .map(candidate => candidate.city.id);
+  const rushCandidate = context.cities
+    .map(city => {
+      const cost = context.buyCost(city.id);
+      if (!cost.canBuy || cost.goldCost <= 0) return { city, want: 0, goldCost: cost.goldCost };
+      const threat = context.threat(city);
+      let value = threat * 100;
+      if (city.productionType === 'unit' && city.currentProduction) {
+        const unit = context.unitTypes[city.currentProduction];
+        value +=
+          (unit?.defense ?? unit?.combat ?? 0) * threat * 30 +
+          (unit?.attack ?? unit?.combat ?? 0) * (context.atWar ? 15 : 3);
+        if (unit?.canFoundCity) value += Math.max(0, 4 - context.cities.length) * 40;
+      } else if (city.productionType === 'building' && city.currentProduction) {
+        const building = context.buildingTypes[city.currentProduction];
+        if (building) value += buildingStrategicValue(city, building);
+      }
+      if ((city.foodPerTurn ?? 0) < 0) value += 80;
+      if (context.existingSavingsGoal?.cityId === city.id) value += cost.goldCost * 100;
+      return { city, want: value / Math.max(1, cost.goldCost), goldCost: cost.goldCost };
+    })
+    .filter(candidate => candidate.want > 1)
+    .sort((a, b) => b.want - a.want || a.city.id.localeCompare(b.city.id))[0];
+  const canRush = Boolean(rushCandidate && projectedGold - rushCandidate.goldCost >= reserve);
+  const rushCityIds = canRush && rushCandidate ? [rushCandidate.city.id] : [];
+  const savingsGoal =
+    !canRush && rushCandidate
+      ? {
+          cityId: rushCandidate.city.id,
+          amount: reserve + rushCandidate.goldCost,
+          reason: `rush ${rushCandidate.city.currentProduction ?? 'production'}`,
+        }
+      : undefined;
 
-  return { reserve, rates, rushCityIds, sales };
+  return {
+    reserve,
+    rates,
+    rushCityIds,
+    sales,
+    savingsGoal,
+    celebrationCityIds: celebrate ? celebrationCandidates.map(city => city.id).sort() : [],
+  };
 }
