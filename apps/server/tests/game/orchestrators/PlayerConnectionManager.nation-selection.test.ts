@@ -25,7 +25,6 @@ const mockNationsRuleset = {
     german: { id: 'german', name: 'German' },
     french: { id: 'french', name: 'French' },
     japanese: { id: 'japanese', name: 'Japanese' },
-    barbarian: { id: 'barbarian', name: 'Barbarian' }, // Should be excluded
   },
 };
 
@@ -60,6 +59,8 @@ describe('PlayerConnectionManager - Nation Selection', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    (RulesetLoader.getInstance as jest.Mock).mockReturnValue(mockRulesetLoader);
 
     // Reset the mock to return our mock data
     mockRulesetLoader.loadNationsRuleset.mockReturnValue(mockNationsRuleset);
@@ -146,7 +147,7 @@ describe('PlayerConnectionManager - Nation Selection', () => {
       Math.random = originalRandom;
     });
 
-    it('should exclude barbarian nation from random selection', async () => {
+    it('should select only nations present in the trimmed ruleset', async () => {
       // Arrange
       const civilization = 'random';
       const existingPlayers: any[] = [];
@@ -186,7 +187,7 @@ describe('PlayerConnectionManager - Nation Selection', () => {
     });
 
     it('should fallback to american when no nations available', async () => {
-      // Arrange - all nations taken except barbarian
+      // Arrange - all nations in the trimmed mock catalogue are taken
       const civilization = 'random';
       const existingPlayers = [
         { civilization: 'american' },

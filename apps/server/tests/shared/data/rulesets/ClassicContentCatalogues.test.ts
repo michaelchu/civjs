@@ -10,7 +10,7 @@ describe('Freeciv classic content catalogues', () => {
     expect(Object.keys(rulesetLoader.getBuildings())).toHaveLength(68);
     expect(Object.keys(rulesetLoader.getTechs())).toHaveLength(87);
     expect(Object.keys(rulesetLoader.getGovernments())).toHaveLength(6);
-    expect(Object.keys(rulesetLoader.getNations())).toHaveLength(571);
+    expect(Object.keys(rulesetLoader.getNations())).toHaveLength(25);
 
     const cities = rulesetLoader.loadCitiesRuleset();
     expect(Object.keys(cities.specialists)).toEqual(['elvis', 'scientist', 'taxman']);
@@ -89,7 +89,7 @@ describe('Freeciv classic content catalogues', () => {
     // Includes the default nation list plus the classic barbarian and pirate nations.
     // @reference reference/freeciv/data/classic/nations.ruleset
     expect(rulesetLoader.getNations().roman.leaders).toHaveLength(23);
-    expect(Object.keys(rulesetLoader.loadNationsRuleset().nation_sets)).toHaveLength(2);
+    expect(Object.keys(rulesetLoader.loadNationsRuleset().nation_sets)).toHaveLength(1);
     expect(Object.keys(rulesetLoader.loadNationsRuleset().nation_groups)).toHaveLength(11);
   });
 });

@@ -197,7 +197,7 @@ describe('GameManager', () => {
           gameId,
           userId: 'user-123',
           playerNumber: 1,
-          civilization: 'Romans',
+          civilization: 'roman',
           leaderName: 'Leader1',
           color: { r: 255, g: 0, b: 0 },
         },
@@ -205,12 +205,12 @@ describe('GameManager', () => {
     });
 
     it('should allow player to join game', async () => {
-      const result = await gameManager.joinGame(gameId, 'user-123', 'Romans');
+      const result = await gameManager.joinGame(gameId, 'user-123', 'roman');
 
       expect(result).toEqual(
         expect.objectContaining({
           playerId: 'player-id-1',
-          assignedNation: 'Romans',
+          assignedNation: 'roman',
           assignedColor: expect.any(Object),
         })
       );
@@ -235,7 +235,7 @@ describe('GameManager', () => {
 
     it('should return existing player ID if user already in game', async () => {
       // First join
-      const result1 = await gameManager.joinGame(gameId, 'user-123', 'Romans');
+      const result1 = await gameManager.joinGame(gameId, 'user-123', 'roman');
 
       // Mock database to return existing player for second join
       mockDb.query.games.findFirst.mockResolvedValueOnce({
@@ -249,7 +249,7 @@ describe('GameManager', () => {
             id: 'player-id-1',
             userId: 'user-123',
             playerNumber: 1,
-            civilization: 'Romans',
+            civilization: 'roman',
             color: { r: 128, g: 128, b: 128 }, // Fallback color for consistency
           },
         ],
@@ -260,7 +260,7 @@ describe('GameManager', () => {
 
       expect(result1).toEqual(expect.objectContaining({ playerId: 'player-id-1' }));
       expect(result2).toEqual(
-        expect.objectContaining({ playerId: 'player-id-1', assignedNation: 'Romans' })
+        expect.objectContaining({ playerId: 'player-id-1', assignedNation: 'roman' })
       );
     });
 
@@ -293,7 +293,7 @@ describe('GameManager', () => {
             id: 'existing-player',
             userId: 'existing-user',
             playerNumber: 1,
-            civilization: 'Romans',
+            civilization: 'roman',
           },
         ],
       });

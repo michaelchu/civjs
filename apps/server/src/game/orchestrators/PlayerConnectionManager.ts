@@ -16,7 +16,6 @@ import serverConfig from '@config';
 import { getNextPlayerColorTheme, type PlayerColor } from '../../utils/playerColors';
 import { isSettableAILevel } from '../ai/AIProfile';
 import { createAIState } from '../ai/AIStateStore';
-import { isCiv3To5Nation } from '../constants/NationSelectionConstants';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {
@@ -367,6 +366,10 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
   ): Promise<string> {
     // Validate nation is not already taken (reference: freeciv/server/plrhand.c:2129)
     if (civilization && civilization !== 'random') {
+      const nations = RulesetLoader.getInstance().loadNationsRuleset('classic').nations;
+      if (!nations[civilization] || civilization === 'barbarian' || civilization === 'pirate') {
+        throw new Error('That nation is not supported in the Civ III–V roster.');
+      }
       const existingPlayerWithNation = existingPlayers.find(p => p.civilization === civilization);
       if (existingPlayerWithNation) {
         throw new Error('That nation is already in use.');
@@ -383,11 +386,12 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         const nationsRuleset = loader.loadNationsRuleset('classic');
 
         if (nationsRuleset) {
-          // Get playable nations (exclude barbarian and already taken nations)
+          // Get supported nations that are not already taken.
           const takenNations = new Set(existingPlayers.map(p => p.civilization));
 
           const playableNations = Object.values(nationsRuleset.nations)
-            .filter(nation => isCiv3To5Nation(nation.id) && !takenNations.has(nation.id))
+            .filter(nation => nation.is_playable !== false)
+            .filter(nation => !takenNations.has(nation.id))
             .map(nation => nation.id);
 
           // Randomly select from available nations
@@ -415,20 +419,21 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
 
       if (!nationsRuleset) {
         // Fallback nations if ruleset loading fails
-        return ['american', 'roman', 'german', 'japanese', 'russian', 'british'];
+        return ['american', 'roman', 'german', 'japanese', 'russian', 'english'];
       }
 
-      // Get playable nations (exclude barbarian and already taken nations)
+      // Get supported nations that are not already taken.
       const takenNations = new Set(existingPlayers.map(p => p.civilization));
       const availableNations = Object.values(nationsRuleset.nations)
-        .filter(nation => isCiv3To5Nation(nation.id) && !takenNations.has(nation.id))
+        .filter(nation => nation.is_playable !== false)
+        .filter(nation => !takenNations.has(nation.id))
         .map(nation => nation.id);
 
       return availableNations;
     } catch (error) {
       this.logger.warn('Failed to load available nations, using fallback list', error);
       // Fallback nations
-      const fallbackNations = ['american', 'roman', 'german', 'japanese', 'russian', 'british'];
+      const fallbackNations = ['american', 'roman', 'german', 'japanese', 'russian', 'english'];
       const takenNations = new Set(existingPlayers.map(p => p.civilization));
       return fallbackNations.filter(nation => !takenNations.has(nation));
     }

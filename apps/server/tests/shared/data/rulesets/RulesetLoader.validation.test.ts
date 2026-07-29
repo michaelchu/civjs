@@ -97,8 +97,8 @@ describe('RulesetLoader validation', () => {
     expect(Object.keys(styles.nation_styles)).toHaveLength(6);
     expect(Object.keys(styles.city_styles)).toHaveLength(10);
     expect(Object.keys(styles.music_styles)).toHaveLength(11);
-    expect(Object.keys(nations.nations)).toHaveLength(571);
-    expect(Object.keys(nations.nation_sets)).toHaveLength(2);
+    expect(Object.keys(nations.nations)).toHaveLength(25);
+    expect(Object.keys(nations.nation_sets)).toHaveLength(1);
     expect(Object.keys(nations.nation_groups)).toHaveLength(11);
     expect(nations.nations.roman.leaders).toHaveLength(23);
     expect(Object.keys(cities.specialists)).toEqual(['elvis', 'scientist', 'taxman']);
