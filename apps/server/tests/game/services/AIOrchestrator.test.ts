@@ -311,6 +311,22 @@ function createScenario() {
 }
 
 describe('FreecivAIOrchestrator', () => {
+  it('records bounded subsystem decision traces in persisted AI state', async () => {
+    const scenario = createScenario();
+    const orchestrator = new FreecivAIOrchestrator(scenario.diplomacyManager as any);
+
+    await orchestrator.processTurn('game', scenario.game as any);
+
+    const trace = (scenario.game.players.get('ai') as any).aiState.recentDecisionTrace;
+    expect(trace).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ turn: 0, label: 'citizens' }),
+        expect.objectContaining({ turn: 0, label: 'state persistence' }),
+      ])
+    );
+    expect(trace.length).toBeLessThanOrEqual(50);
+  });
+
   it('covers expansion, economy, research, production, workers, combat, diplomacy, and action use', async () => {
     const scenario = createScenario();
     (scenario.game.cityManager as any).canFoundCityAt = (x: number, y: number) =>

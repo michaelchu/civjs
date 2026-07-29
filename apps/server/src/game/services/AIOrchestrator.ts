@@ -56,14 +56,14 @@ export class FreecivAIOrchestrator {
         game,
         player.id,
         state,
-        (label, decision) => this.attempt(state, game.currentTurn, label, decision)
+        (label, decision) => this.attempt(state, game.currentTurn ?? 0, label, decision)
       );
       actions += playerActions;
       state.lastProcessedTurn = game.currentTurn;
       state.lastDecisionCount = playerActions;
       delete state.inProgressTurn;
       player.aiState = state as unknown as Record<string, unknown>;
-      await this.attempt(state, game.currentTurn, 'state persistence', async () => {
+      await this.attempt(state, game.currentTurn ?? 0, 'state persistence', async () => {
         await this.stateStore.save(gameId, player.id, state);
         return 0;
       });
