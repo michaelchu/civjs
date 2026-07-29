@@ -1189,7 +1189,7 @@ describe('FreecivAIOrchestrator', () => {
       x: 0,
       y: 0,
     };
-    const passenger = {
+    const passenger: TestUnit = {
       ...scenario.units.get('settler')!,
       id: 'passenger',
       x: 2,
@@ -1230,7 +1230,7 @@ describe('FreecivAIOrchestrator', () => {
         return { success: true };
       }
     );
-    const state = {
+    const state: any = {
       diplomacy: {},
       cityWants: {},
       techWants: {},
@@ -1268,5 +1268,148 @@ describe('FreecivAIOrchestrator', () => {
       'ai'
     );
     expect(passenger.transportedBy).toBe('ferry');
+  });
+
+  it('pools co-located passengers up to ferry capacity under one passenger-in-charge', async () => {
+    const scenario = createScenario();
+    const ferry = {
+      ...scenario.units.get('warrior')!,
+      id: 'ferry',
+      unitTypeId: 'transport',
+      x: 1,
+      y: 1,
+    };
+    const first = {
+      ...scenario.units.get('settler')!,
+      id: 'first',
+      x: 1,
+      y: 1,
+    };
+    const second = {
+      ...scenario.units.get('settler')!,
+      id: 'second',
+      x: 1,
+      y: 1,
+    };
+    scenario.units.clear();
+    scenario.units.set(ferry.id, ferry);
+    scenario.units.set(first.id, first);
+    scenario.units.set(second.id, second);
+    scenario.unitTypes.transport = {
+      unitClass: 'naval',
+      rulesetUnitClass: 'sea',
+      transport_capacity: 2,
+      cargoClasses: ['land'],
+    };
+    scenario.unitTypes.settlers.rulesetUnitClass = 'land';
+    (scenario.game.unitManager as any).getTransportCapacityRemaining = () => 2;
+    const loadUnitOntoTransport = jest.fn(async (ferryId: string, passengerId: string) => {
+      scenario.units.get(passengerId)!.transportedBy = ferryId;
+      return true;
+    });
+    (scenario.game.unitManager as any).loadUnitOntoTransport = loadUnitOntoTransport;
+    const state: any = {
+      diplomacy: {},
+      cityWants: {},
+      techWants: {},
+      unitTasks: {
+        first: { role: 'settle' as const, targetX: 7, targetY: 7, assignedTurn: 1 },
+        second: { role: 'guard' as const, targetX: 7, targetY: 7, assignedTurn: 1 },
+      },
+    };
+
+    const actions = await new FreecivAITransportController().manageFerries(
+      scenario.game as any,
+      'ai',
+      state
+    );
+
+    expect(actions).toBe(2);
+    expect(loadUnitOntoTransport).toHaveBeenCalledTimes(2);
+    expect(state.unitTasks.ferry).toMatchObject({ role: 'ferry', targetId: 'first' });
+    expect(first.transportedBy).toBe('ferry');
+    expect(second.transportedBy).toBe('ferry');
+  });
+
+  it('delivers an embarked passenger through a reachable coastal beachhead', async () => {
+    const scenario = createScenario();
+    const ferry = {
+      ...scenario.units.get('warrior')!,
+      id: 'ferry',
+      unitTypeId: 'transport',
+      x: 0,
+      y: 1,
+    };
+    const passenger: TestUnit = {
+      ...scenario.units.get('settler')!,
+      id: 'passenger',
+      x: 0,
+      y: 1,
+      transportedBy: 'ferry',
+    };
+    scenario.units.clear();
+    scenario.units.set(ferry.id, ferry);
+    scenario.units.set(passenger.id, passenger);
+    scenario.unitTypes.transport = {
+      unitClass: 'naval',
+      rulesetUnitClass: 'sea',
+      transport_capacity: 2,
+      cargoClasses: ['land'],
+    };
+    scenario.unitTypes.settlers.rulesetUnitClass = 'land';
+    (scenario.game as any).config = { mapWidth: 3, mapHeight: 2 };
+    (scenario.game.mapManager as any).getDistance = (
+      fromX: number,
+      fromY: number,
+      toX: number,
+      toY: number
+    ) => Math.abs(fromX - toX) + Math.abs(fromY - toY);
+    (scenario.game.mapManager as any).isValidPosition = (x: number, y: number) =>
+      x >= 0 && x < 3 && y >= 0 && y < 2;
+    (scenario.game.mapManager as any).getNeighbors = (x: number, y: number) =>
+      [
+        { x: x - 1, y },
+        { x: x + 1, y },
+        { x, y: y - 1 },
+        { x, y: y + 1 },
+      ].filter(position => position.x >= 0 && position.x < 3 && position.y >= 0 && position.y < 2);
+    (scenario.game.unitManager as any).getTransportCapacityRemaining = () => 0;
+    (scenario.game.unitManager as any).canContinuePathFrom = (unit: TestUnit, x: number) =>
+      unit.id === 'ferry' ? x === 0 : x >= 1;
+    (scenario.game.unitManager as any).getUnitsAt = () => [];
+    (scenario.game as any).pathfindingManager.findPath = jest.fn().mockResolvedValue({
+      valid: true,
+      path: [{ x: 0, y: 1, moveCost: 0 }],
+      totalCost: 1,
+      estimatedTurns: 1,
+    });
+    (scenario.game.unitManager as any).canUnloadUnit = (unitId: string, x: number, y: number) =>
+      unitId === 'passenger' && x === 1 && y === 1;
+    const unloadUnit = jest.fn(async (_unitId: string, x: number, y: number) => {
+      passenger.transportedBy = undefined;
+      passenger.x = x;
+      passenger.y = y;
+      return true;
+    });
+    (scenario.game.unitManager as any).unloadUnit = unloadUnit;
+    const state: any = {
+      diplomacy: {},
+      cityWants: {},
+      techWants: {},
+      unitTasks: {
+        ferry: { role: 'ferry', targetId: 'passenger', assignedTurn: 1 },
+        passenger: { role: 'settle', targetX: 2, targetY: 1, assignedTurn: 1 },
+      },
+    };
+
+    const actions = await new FreecivAITransportController().manageFerries(
+      scenario.game as any,
+      'ai',
+      state
+    );
+
+    expect(actions).toBe(1);
+    expect(unloadUnit).toHaveBeenCalledWith('passenger', 1, 1);
+    expect({ x: passenger.x, y: passenger.y }).toEqual({ x: 1, y: 1 });
   });
 });

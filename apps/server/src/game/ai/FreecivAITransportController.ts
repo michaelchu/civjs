@@ -1,6 +1,6 @@
 import { ActionType } from '@app-types/shared/actions';
-import { planFerries } from '@game/ai/FreecivAIFerryPlanner';
-import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
+import { planFerries, scoreFerryBeachhead } from '@game/ai/FreecivAIFerryPlanner';
+import type { AIUnitTask, FreecivAIState } from '@game/ai/FreecivAIStateStore';
 import type { GameInstance } from '@game/managers/GameManager';
 import type { Unit } from '@game/managers/UnitManager';
 
@@ -25,6 +25,7 @@ export class FreecivAITransportController {
       if (task.role === 'ferry') delete state.unitTasks[unitId];
     }
     for (const assignment of plan) {
+      if (state.unitTasks[assignment.ferry.id]?.role === 'ferry') continue;
       state.unitTasks[assignment.ferry.id] = {
         role: 'ferry',
         targetId: assignment.passenger.id,
@@ -35,6 +36,7 @@ export class FreecivAITransportController {
     }
 
     let actions = 0;
+    const movedFerries = new Set<string>();
     for (const assignment of plan) {
       const { ferry, passenger } = assignment;
       if (assignment.phase === 'embarked') {
@@ -51,7 +53,7 @@ export class FreecivAITransportController {
           ferry,
           game.mapManager.getNeighbors(passenger.x, passenger.y)
         );
-        if (rendezvous && ferry.movementLeft > 0) {
+        if (rendezvous && ferry.movementLeft > 0 && !movedFerries.has(ferry.id)) {
           const result = await game.unitManager.executeUnitAction(
             ferry.id,
             ActionType.GOTO,
@@ -59,7 +61,10 @@ export class FreecivAITransportController {
             rendezvous.y,
             playerId
           );
-          if (result.success) actions++;
+          if (result.success) {
+            actions++;
+            movedFerries.add(ferry.id);
+          }
         }
         // A land unit embarks through the authoritative movement path by
         // entering the adjacent transport's tile.
@@ -84,7 +89,8 @@ export class FreecivAITransportController {
         ferry,
         passenger,
         assignment.destinationX,
-        assignment.destinationY
+        assignment.destinationY,
+        assignment.missionRole
       );
       if (!landing) continue;
       if (game.unitManager.canUnloadUnit(passenger.id, landing.landX, landing.landY)) {
@@ -92,7 +98,7 @@ export class FreecivAITransportController {
           actions++;
         continue;
       }
-      if (ferry.movementLeft > 0) {
+      if (ferry.movementLeft > 0 && !movedFerries.has(ferry.id)) {
         const result = await game.unitManager.executeUnitAction(
           ferry.id,
           ActionType.GOTO,
@@ -100,7 +106,10 @@ export class FreecivAITransportController {
           landing.waterY,
           playerId
         );
-        if (result.success) actions++;
+        if (result.success) {
+          actions++;
+          movedFerries.add(ferry.id);
+        }
       }
     }
     return actions;
@@ -144,9 +153,10 @@ export class FreecivAITransportController {
     ferry: Unit,
     passenger: Unit,
     destinationX: number,
-    destinationY: number
+    destinationY: number,
+    missionRole: AIUnitTask['role']
   ): Promise<{ landX: number; landY: number; waterX: number; waterY: number } | null> {
-    const landCandidates: Array<{ x: number; y: number; distance: number }> = [];
+    const landCandidates: Array<{ x: number; y: number; score: number }> = [];
     const width = game.config.mapWidth ?? 80;
     const height = game.config.mapHeight ?? 50;
     for (let y = 0; y < height; y++) {
@@ -163,15 +173,32 @@ export class FreecivAITransportController {
           .getUnitsAt(x, y)
           .some(candidate => candidate.playerId !== passenger.playerId);
         if (enemy) continue;
+        const positions = [{ x, y }, ...game.mapManager.getNeighbors(x, y)];
+        const nearbyUnits = positions.flatMap(position =>
+          game.unitManager.getUnitsAt(position.x, position.y)
+        );
+        const enemyThreat = nearbyUnits
+          .filter(unit => unit.playerId !== passenger.playerId)
+          .reduce((sum, unit) => sum + game.unitManager.calculateUnitAttackRating(unit), 0);
+        const friendlySupport = nearbyUnits
+          .filter(unit => unit.playerId === passenger.playerId && unit.id !== passenger.id)
+          .reduce((sum, unit) => sum + game.unitManager.calculateUnitDefenseRating(unit), 0);
+        const landingUnit = { ...passenger, x, y, transportedBy: undefined };
         landCandidates.push({
           x,
           y,
-          distance: game.mapManager.getDistance(x, y, destinationX, destinationY),
+          score: scoreFerryBeachhead({
+            missionRole,
+            distance: game.mapManager.getDistance(x, y, destinationX, destinationY),
+            enemyThreat,
+            friendlySupport,
+            landingDefense: game.unitManager.calculateUnitDefenseRating(landingUnit),
+          }),
         });
       }
     }
     landCandidates.sort(
-      (left, right) => left.distance - right.distance || left.y - right.y || left.x - right.x
+      (left, right) => left.score - right.score || left.y - right.y || left.x - right.x
     );
 
     for (const land of landCandidates) {

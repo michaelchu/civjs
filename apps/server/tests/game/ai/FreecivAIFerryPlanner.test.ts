@@ -1,4 +1,4 @@
-import { planFerries } from '@game/ai/FreecivAIFerryPlanner';
+import { planFerries, scoreFerryBeachhead } from '@game/ai/FreecivAIFerryPlanner';
 
 const unit = (id: string, unitTypeId: string, x: number, y: number, transportedBy?: string) =>
   ({
@@ -89,5 +89,46 @@ describe('Freeciv AI ferry planner', () => {
       distance: () => 0,
     });
     expect(plan).toEqual([]);
+  });
+
+  it('pools multiple passengers onto one ferry without exceeding planned capacity', () => {
+    const plan = planFerries({
+      friendlyUnits: [
+        unit('boat', 'ferry', 0, 0),
+        unit('first', 'settler', 1, 0),
+        unit('second', 'settler', 1, 1),
+        unit('third', 'settler', 2, 0),
+      ],
+      existingTasks: {
+        first: { role: 'settle', targetX: 10, targetY: 3, assignedTurn: 1 },
+        second: { role: 'guard', targetX: 10, targetY: 3, assignedTurn: 1 },
+        third: { role: 'attack', targetX: 10, targetY: 3, assignedTurn: 1 },
+      },
+      getType: id => types[id],
+      capacityRemaining: () => 2,
+      distance: (x1, y1, x2, y2) => Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)),
+    });
+
+    expect(plan.map(assignment => assignment.passenger.id)).toEqual(['first', 'second']);
+    expect(new Set(plan.map(assignment => assignment.ferry.id))).toEqual(new Set(['boat']));
+  });
+
+  it('prefers a supported beachhead over an equally distant threatened landing', () => {
+    const threatened = scoreFerryBeachhead({
+      missionRole: 'attack',
+      distance: 2,
+      enemyThreat: 100,
+      friendlySupport: 0,
+      landingDefense: 20,
+    });
+    const supported = scoreFerryBeachhead({
+      missionRole: 'attack',
+      distance: 2,
+      enemyThreat: 20,
+      friendlySupport: 100,
+      landingDefense: 80,
+    });
+
+    expect(supported).toBeLessThan(threatened);
   });
 });
