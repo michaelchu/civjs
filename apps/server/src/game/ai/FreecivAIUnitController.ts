@@ -8,7 +8,7 @@ import { createAIDecisionSource } from '@game/ai/FreecivAIDecisionSource';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
-import { planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
+import { chooseGuardRendezvous, planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
 import { planHunters } from '@game/ai/FreecivAIHunterPlanner';
 import {
   hostileUnitsForPlanning,
@@ -579,7 +579,6 @@ export class FreecivAIUnitController {
     const cities = game.cityManager
       .getPlayerCities(playerId)
       .filter(city => Number.isFinite(city.x) && Number.isFinite(city.y));
-    if (cities.length === 0) return 0;
     const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
     const profile = createAIProfile(
       game.players.get(playerId)?.aiLevel,
@@ -616,6 +615,7 @@ export class FreecivAIUnitController {
         );
         return (attack * 100) / Math.max(1, 100 + defenseBonus);
       },
+      unitAttackerStrength: unit => game.unitManager.calculateUnitAttackRating(unit),
       profile,
     });
 
@@ -631,12 +631,23 @@ export class FreecivAIUnitController {
       a.localeCompare(b)
     )) {
       const unit = game.unitManager.getUnit(unitId);
-      const city = task.targetId ? game.cityManager.getCity(task.targetId) : undefined;
-      if (!unit || !city || unit.movementLeft <= 0) continue;
+      const city = task.targetId ? game.cityManager.getCity?.(task.targetId) : undefined;
+      const charge = task.targetId ? game.unitManager.getUnit(task.targetId) : undefined;
+      if (!unit || (!city && !charge) || unit.movementLeft <= 0) continue;
       if (profile.handicaps.has('away') && (unit.fortified || unit.sentryUntil !== undefined)) {
         continue;
       }
-      if (unit.x === city.x && unit.y === city.y) {
+      const destination = city
+        ? { x: city.x, y: city.y }
+        : chooseGuardRendezvous(
+            unit,
+            charge!,
+            state.unitTasks[charge!.id],
+            unitTypeId => game.unitManager.getUnitType(unitTypeId),
+            (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY)
+          );
+      if (unit.x === destination.x && unit.y === destination.y) {
+        if (!city) continue;
         if (!unit.fortified && game.unitManager.canUnitPerformAction(unit.id, ActionType.FORTIFY)) {
           const result = await game.unitManager.executeUnitAction(
             unit.id,
@@ -649,14 +660,21 @@ export class FreecivAIUnitController {
         }
         continue;
       }
-      if (!game.unitManager.canUnitPerformAction(unit.id, ActionType.GOTO, city.x, city.y)) {
+      if (
+        !game.unitManager.canUnitPerformAction(
+          unit.id,
+          ActionType.GOTO,
+          destination.x,
+          destination.y
+        )
+      ) {
         continue;
       }
       const result = await game.unitManager.executeUnitAction(
         unit.id,
         ActionType.GOTO,
-        city.x,
-        city.y,
+        destination.x,
+        destination.y,
         playerId
       );
       if (result.success) actions++;

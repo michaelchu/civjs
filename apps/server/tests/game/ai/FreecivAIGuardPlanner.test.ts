@@ -1,4 +1,4 @@
-import { planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
+import { chooseGuardRendezvous, planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
 
 const city = (id: string, x: number, y: number) => ({ id, x, y, playerId: 'ai' }) as any;
@@ -26,6 +26,7 @@ const types: Record<string, any> = {
     hitpoints: 10,
     canFoundCity: false,
     canBuildImprovements: false,
+    roles: ['DefendGood'],
   },
   attacker: {
     id: 'attacker',
@@ -41,6 +42,17 @@ const types: Record<string, any> = {
     flags: [],
     canFoundCity: false,
     canBuildImprovements: false,
+  },
+  diplomat: {
+    id: 'diplomat',
+    attack: 0,
+    defense: 1,
+    combat: 0,
+    movement: 1,
+    hitpoints: 10,
+    canFoundCity: false,
+    canBuildImprovements: false,
+    flags: ['Diplomat', 'NonMil'],
   },
 };
 
@@ -101,5 +113,82 @@ describe('Freeciv AI guard planner', () => {
     });
 
     expect(plan.assessments[0]).toMatchObject({ danger: 1, urgency: 10, graveDanger: 1 });
+  });
+
+  it('assigns one stronger persistent escort to a vulnerable diplomat', () => {
+    const plan = planCityGuards({
+      turn: 7,
+      cities: [],
+      friendlyUnits: [
+        unit('diplomat', 'diplomat', 3, 3),
+        unit('escort-a', 'defender', 2, 3),
+        unit('escort-b', 'defender', 4, 3),
+      ],
+      hostileUnits: [],
+      existingTasks: {
+        diplomat: {
+          role: 'diplomat',
+          targetId: 'enemy-city',
+          targetX: 8,
+          targetY: 3,
+          assignedTurn: 6,
+        },
+      },
+      getType: id => types[id],
+      distance: (x1, y1, x2, y2) => Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)),
+      profile: createAIProfile('normal'),
+    });
+
+    expect(Object.values(plan.assignments)).toHaveLength(1);
+    expect(plan.assignments['escort-a']).toMatchObject({
+      role: 'guard',
+      targetId: 'diplomat',
+      assignedTurn: 7,
+    });
+  });
+
+  it('dismisses a destroyed charge and reassigns its guard to a replacement', () => {
+    const plan = planCityGuards({
+      turn: 9,
+      cities: [],
+      friendlyUnits: [unit('replacement', 'diplomat', 2, 2), unit('escort', 'defender', 1, 2)],
+      hostileUnits: [],
+      existingTasks: {
+        escort: { role: 'guard', targetId: 'destroyed', assignedTurn: 5 },
+        replacement: {
+          role: 'diplomat',
+          targetId: 'enemy-city',
+          targetX: 5,
+          targetY: 2,
+          assignedTurn: 8,
+        },
+      },
+      getType: id => types[id],
+      distance: (x1, y1, x2, y2) => Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)),
+      profile: createAIProfile('normal'),
+    });
+
+    expect(plan.assignments.escort).toMatchObject({
+      role: 'guard',
+      targetId: 'replacement',
+      assignedTurn: 9,
+    });
+  });
+
+  it('rendezvouses at the charge destination when it is closer than the charge', () => {
+    const rendezvous = chooseGuardRendezvous(
+      unit('escort', 'defender', 0, 0),
+      unit('diplomat', 'diplomat', 4, 0),
+      {
+        role: 'diplomat',
+        targetX: 2,
+        targetY: 0,
+        assignedTurn: 1,
+      },
+      id => types[id],
+      (x1, y1, x2, y2) => Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2))
+    );
+
+    expect(rendezvous).toEqual({ x: 2, y: 0 });
   });
 });

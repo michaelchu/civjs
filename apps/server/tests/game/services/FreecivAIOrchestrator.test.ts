@@ -564,6 +564,19 @@ describe('FreecivAIOrchestrator', () => {
       targetId: 'capital',
       assignedTurn: 1,
     };
+    scenario.game.cityManager.getPlayerCities = () =>
+      [
+        {
+          id: 'capital',
+          playerId: 'ai',
+          x: 3,
+          y: 3,
+          buildings: [],
+          happiness: { happy: 0, content: 1, unhappy: 0, angry: 0 },
+        },
+      ] as any;
+    (scenario.game.cityManager as any).getCity = (cityId: string) =>
+      cityId === 'capital' ? scenario.game.cityManager.getPlayerCities()[0] : undefined;
     scenario.game.visibilityManager.getVisibleTiles = () => new Set(['4,4', '5,4']);
     (scenario.game.visibilityManager as any).getExploredTiles = () => new Set(['4,4', '5,4']);
     scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
@@ -579,6 +592,59 @@ describe('FreecivAIOrchestrator', () => {
       expect.any(Number)
     );
     expect((scenario.game.players.get('ai') as any).aiState.unitTasks.warrior.role).toBe('guard');
+  });
+
+  it('moves a persistent guard to rendezvous with its vulnerable unit charge', async () => {
+    const scenario = createScenario();
+    scenario.units.delete('scout');
+    scenario.units.delete('enemy');
+    scenario.units.set('diplomat', {
+      id: 'diplomat',
+      playerId: 'ai',
+      unitTypeId: 'diplomat',
+      x: 6,
+      y: 4,
+      movementLeft: 1,
+      health: 100,
+      veteranLevel: 0,
+      experience: 0,
+      fortified: false,
+    });
+    Object.assign(scenario.unitTypes.warriors, {
+      unitClass: 'military',
+      defense: 4,
+      hitpoints: 100,
+      roles: ['DefendGood'],
+    });
+    scenario.unitTypes.diplomat = {
+      unitClass: 'civilian',
+      attack: 0,
+      defense: 1,
+      movement: 1,
+      hitpoints: 100,
+      flags: ['Diplomat', 'NonMil'],
+      roles: ['DiplomatStartUnit'],
+    };
+    (scenario.game.players.get('ai') as any).aiState.unitTasks.diplomat = {
+      role: 'diplomat',
+      targetId: 'foreign-city',
+      targetX: 8,
+      targetY: 4,
+      assignedTurn: 1,
+    };
+    scenario.game.cityManager.getPlayerCities = () => [];
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect((scenario.game.players.get('ai') as any).aiState.unitTasks.warrior).toMatchObject({
+      role: 'guard',
+      targetId: 'diplomat',
+    });
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith('warrior', ActionType.GOTO, 6, 4, 'ai');
   });
 
   it('uses nuclear consequences instead of ordinary combat for nuclear actors', async () => {
