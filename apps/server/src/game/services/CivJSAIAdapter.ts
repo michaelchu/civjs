@@ -22,6 +22,8 @@ import {
 } from '@game/ai/FreecivAIStateStore';
 import { planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
 import { planHunters } from '@game/ai/FreecivAIHunterPlanner';
+import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
+import { OutputType } from '@game/constants/GameConstants';
 
 /**
  * Versioned compatibility contract for the currently landed Freeciv AI slice.
@@ -37,6 +39,7 @@ export const CIVJS_AI_CONTRACT = {
     'score every legal city production using domestic, expansion, defense, and military wants',
     'aggregate research wants from unit, building, and government unlocks',
     'adjust government and tax policy through authoritative managers',
+    'optimize AI citizen, tile, and specialist assignments with Freeciv output constraints',
     'enable authoritative worker and exploration automation',
     'use legal caravan, city-join, home-city, and unit-upgrade outcomes',
     'score military targets by expected shield profit and pursue reachable targets',
@@ -48,7 +51,7 @@ export const CIVJS_AI_CONTRACT = {
   ],
   remaining: [
     'complete lifecycle event callbacks and use persisted assignments across every advisor',
-    'complete city, technology, government, rates, spending, and advisor want parity',
+    'complete city, technology, government, rates, spending, and worklist advisor want parity',
     'settlement-site and worker-improvement reservation parity',
     'ferries, amphibious operations, air, paradrop, and diplomat planning',
     'complete Freeciv diplomacy threat, reputation, incident, and material-clause valuation',
@@ -86,6 +89,7 @@ export class CivJSAIAdapter {
       actions += await this.attempt('research', () => this.selectResearch(game, playerId));
       actions += await this.attempt('government', () => this.manageGovernment(game, playerId));
       actions += await this.attempt('economy', () => this.manageEconomy(game, playerId));
+      actions += await this.attempt('citizens', () => this.manageCitizens(game, playerId));
       actions += await this.attempt('production', () => this.selectCityProduction(game, playerId));
       actions += await this.attempt('expansion', () => this.foundReadyCities(game, playerId));
       actions += await this.attempt('city unit actions', () =>
@@ -192,6 +196,36 @@ export class CivJSAIAdapter {
     if (!choice || choice.id === research?.currentTech) return 0;
     await game.researchManager.setCurrentResearch(playerId, choice.id);
     return 1;
+  }
+
+  private async manageCitizens(game: GameInstance, playerId: string): Promise<number> {
+    if (typeof game.cityManager.optimizeCityManually !== 'function') return 0;
+    const player = game.players.get(playerId);
+    const profile = createAIProfile(player?.aiLevel, player?.aiTraits);
+    let actions = 0;
+    for (const city of game.cityManager
+      .getPlayerCities(playerId)
+      .slice()
+      .sort((a, b) => a.id.localeCompare(b.id))) {
+      const parameters = CitizenParameterFactory.createDefault();
+      const unrest = city.happiness.unhappy + city.happiness.angry;
+      parameters.minimal_surplus[OutputType.FOOD] = (city.foodStock ?? 0) <= 0 ? 2 : 1;
+      parameters.minimal_surplus[OutputType.SHIELD] = 1;
+      parameters.factor[OutputType.FOOD] = (city.foodPerTurn ?? 0) <= 0 ? 24 : 8;
+      parameters.factor[OutputType.SHIELD] = 6 + profile.traits.builder / 20;
+      parameters.factor[OutputType.TRADE] = 3;
+      parameters.factor[OutputType.GOLD] = (city.goldPerTurn ?? 0) < 0 ? 10 : 3;
+      parameters.factor[OutputType.LUXURY] = unrest > 0 ? 20 : 2;
+      parameters.factor[OutputType.SCIENCE] = 4 + profile.traits.builder / 25;
+      parameters.happy_factor = unrest > 0 ? 20 : 2;
+      parameters.max_growth = city.size < 8 && (city.foodPerTurn ?? 0) >= 0;
+      parameters.require_happy = unrest > 0;
+      parameters.allow_disorder = false;
+      parameters.allow_specialists = true;
+      const optimized = await game.cityManager.optimizeCityManually(city.id, parameters);
+      if (optimized) actions++;
+    }
+    return actions;
   }
 
   private async selectCityProduction(game: GameInstance, playerId: string): Promise<number> {

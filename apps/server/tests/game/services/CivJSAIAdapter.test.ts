@@ -527,4 +527,41 @@ describe('CivJSAIAdapter compatibility contract', () => {
       capital: { temple: 5 },
     });
   });
+
+  it('optimizes AI citizens with starvation and unrest constraints', async () => {
+    const scenario = createScenario();
+    const optimizeCityManually = jest.fn().mockResolvedValue(true);
+    (scenario.game.cityManager as any).optimizeCityManually = optimizeCityManually;
+    scenario.game.cityManager.getPlayerCities = () => [
+      {
+        id: 'capital',
+        size: 4,
+        foodStock: 0,
+        foodPerTurn: -1,
+        goldPerTurn: -2,
+        productionPerTurn: 2,
+        currentProduction: null,
+        buildings: [],
+        happiness: { happy: 0, content: 2, unhappy: 1, angry: 1 },
+      },
+    ];
+
+    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(optimizeCityManually).toHaveBeenCalledWith(
+      'capital',
+      expect.objectContaining({
+        require_happy: true,
+        allow_disorder: false,
+        allow_specialists: true,
+      })
+    );
+    const parameters = optimizeCityManually.mock.calls[0][1];
+    expect(parameters.minimal_surplus.food).toBe(2);
+    expect(parameters.factor.food).toBe(24);
+    expect(parameters.factor.luxury).toBe(20);
+  });
 });
