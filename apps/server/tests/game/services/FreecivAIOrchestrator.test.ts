@@ -109,7 +109,7 @@ function createScenario() {
         x: 5,
         y: 4,
         movementLeft: 3,
-        health: 100,
+        health: 50,
         veteranLevel: 0,
         experience: 0,
         fortified: false,
@@ -173,6 +173,11 @@ function createScenario() {
       attack: 1,
       defense: 1,
       range: 1,
+      movement: 1,
+      firepower: 1,
+      cost: 10,
+      rulesetUnitClassFlags: ['CanOccupyCity'],
+      flags: [],
     },
     explorer: {
       canFoundCity: false,
@@ -215,6 +220,7 @@ function createScenario() {
       ],
       setCityProduction,
       getAllCities: (): any[] => [],
+      getCityAt: () => null,
     },
     visibilityManager: {
       updatePlayerVisibility: jest.fn(),
@@ -398,6 +404,59 @@ describe('FreecivAIOrchestrator', () => {
     expect((scenario.game.players.get('ai') as any).aiState.unitTasks.warrior).toMatchObject({
       role: 'recover',
       targetId: 'refuge',
+    });
+  });
+
+  it('captures a visible undefended hostile city as a military objective', async () => {
+    const scenario = createScenario();
+    scenario.units.delete('enemy');
+    (scenario.game.cityManager as any).getAllCities = () => [
+      {
+        id: 'enemy-city',
+        playerId: 'human',
+        x: 5,
+        y: 4,
+        size: 3,
+        buildings: [],
+      },
+    ];
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith('warrior', ActionType.GOTO, 5, 4, 'ai');
+    expect((scenario.game.players.get('ai') as any).aiState.unitTasks.warrior).toMatchObject({
+      role: 'attack',
+      targetId: 'enemy-city',
+    });
+  });
+
+  it('withdraws a sub-half-health attacker when no worthy objective exists', async () => {
+    const scenario = createScenario();
+    scenario.units.delete('enemy');
+    scenario.units.get('warrior')!.health = 49;
+    (scenario.game.cityManager as any).getAllCities = () => [
+      {
+        id: 'safe-city',
+        playerId: 'ai',
+        x: 3,
+        y: 4,
+        size: 2,
+        buildings: [],
+      },
+    ];
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith('warrior', ActionType.GOTO, 3, 4, 'ai');
+    expect((scenario.game.players.get('ai') as any).aiState.unitTasks.warrior).toMatchObject({
+      role: 'retreat',
+      targetId: 'safe-city',
     });
   });
 

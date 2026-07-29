@@ -986,7 +986,27 @@ export class UnitManager {
       const hostileUnitsRemain = this.getUnitsAt(defender.x, defender.y).some(
         unit => unit.playerId === defender.playerId
       );
-      if (!attackerDestroyed && attackerType.range === 1 && !hostileUnitsRemain) {
+      const targetCity = this.gameManagerCallback?.getCityAt?.(defender.x, defender.y);
+      let canOccupyTarget = !targetCity || targetCity.playerId === attacker.playerId;
+      if (
+        !hostileUnitsRemain &&
+        targetCity &&
+        targetCity.playerId !== attacker.playerId &&
+        this.canUnitCaptureCity(attackerType)
+      ) {
+        canOccupyTarget =
+          (await this.gameManagerCallback?.captureCity?.(
+            targetCity.id,
+            attacker.playerId,
+            attacker.id
+          )) === true;
+      }
+      if (
+        !attackerDestroyed &&
+        attackerType.range === 1 &&
+        !hostileUnitsRemain &&
+        canOccupyTarget
+      ) {
         attacker.x = defender.x;
         attacker.y = defender.y;
         await this.databaseProvider
@@ -1020,6 +1040,13 @@ export class UnitManager {
 
     logger.info(`Combat: ${attackerId} vs ${defenderId}`, result);
     return result;
+  }
+
+  private canUnitCaptureCity(unitType: UnitType): boolean {
+    return (
+      unitType.rulesetUnitClassFlags.includes('CanOccupyCity') &&
+      !unitType.flags?.includes('NonMil')
+    );
   }
 
   /**

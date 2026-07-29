@@ -811,6 +811,40 @@ describe('UnitManager', () => {
       expect(deterministicManager.getUnit(attacker.id)).toMatchObject({ x: 11, y: 10 });
     });
 
+    it('captures a hostile city after its final defender is defeated', async () => {
+      let owner = 'player-456';
+      const captureCity = jest.fn(async () => {
+        owner = 'player-123';
+        return true;
+      });
+      const cityAwareManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: async () => '',
+          requestPath: async () => ({ success: true }),
+          broadcastUnitMoved: () => undefined,
+          getCityAt: (x, y) =>
+            x === 11 && y === 10 ? { id: 'target-city', playerId: owner, buildings: [] } : null,
+          captureCity,
+        },
+        undefined,
+        () => 0.99
+      );
+      const attacker = await cityAwareManager.createUnit('player-123', 'legion', 10, 10);
+      const defender = await cityAwareManager.createUnit('player-456', 'warriors', 11, 10);
+      defender.health = 1;
+
+      const result = await cityAwareManager.attackUnit(attacker.id, defender.id);
+
+      expect(result.defenderDestroyed).toBe(true);
+      expect(captureCity).toHaveBeenCalledWith('target-city', 'player-123', attacker.id);
+      expect(cityAwareManager.getUnit(attacker.id)).toMatchObject({ x: 11, y: 10 });
+    });
+
     it('selects the strongest eligible defender instead of trusting the requested unit id', async () => {
       const deterministicManager = new UnitManager(
         gameId,

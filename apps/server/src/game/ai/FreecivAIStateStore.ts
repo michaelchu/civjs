@@ -22,6 +22,7 @@ export interface AIUnitTask {
     | 'worker'
     | 'explore'
     | 'recover'
+    | 'retreat'
     | 'ferry'
     | 'diplomat';
   targetId?: string;

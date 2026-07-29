@@ -73,7 +73,7 @@ export function planCityGuards(context: GuardPlanningContext): GuardPlan {
   const candidateUnits = context.friendlyUnits.filter(
     unit =>
       isGuardCandidate(unit, context.getType(unit.unitTypeId)) &&
-      context.existingTasks[unit.id]?.role !== 'recover'
+      !['recover', 'retreat'].includes(context.existingTasks[unit.id]?.role ?? '')
   );
   const assessments = context.cities.map(city => {
     const defenders = candidateUnits.filter(unit => unit.x === city.x && unit.y === city.y);

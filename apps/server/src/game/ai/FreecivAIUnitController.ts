@@ -2,14 +2,18 @@ import type { GameInstance } from '@game/managers/GameManager';
 import type { Unit } from '@game/managers/UnitManager';
 import { ActionType } from '@app-types/shared/actions';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
-import { rankCitySites, rankMilitaryTargets } from '@game/ai/FreecivAIPlanner';
+import { rankCitySites } from '@game/ai/FreecivAIPlanner';
 import { createAIDecisionSource } from '@game/ai/FreecivAIDecisionSource';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
 import { planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
 import { planHunters } from '@game/ai/FreecivAIHunterPlanner';
-import { hostileUnitsForPlanning, sortedPlayerUnits } from '@game/ai/FreecivAITargeting';
+import {
+  hostileUnitsForPlanning,
+  sortedPlayerUnits,
+  targetableForeignCities,
+} from '@game/ai/FreecivAITargeting';
 import { planWorkerImprovements, type WorkerAssignment } from '@game/ai/FreecivAIWorkerPlanner';
 import {
   explorationAdditionalStepCost,
@@ -18,6 +22,7 @@ import {
 } from '@game/ai/FreecivAIExplorerPlanner';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import { planMilitaryRecovery } from '@game/ai/FreecivAIRecoveryPlanner';
+import { rankMilitaryObjectives, type MilitaryObjective } from '@game/ai/FreecivAIMilitaryPlanner';
 
 function unitAttack(type: UnitType): number {
   return type.attack ?? type.combat ?? 0;
@@ -305,7 +310,11 @@ export class FreecivAIUnitController {
     const enemies = hostileUnitsForPlanning(game, playerId, hostilePlayerIds, profile)
       .filter(unit => !unit.transportedBy)
       .sort((a, b) => a.id.localeCompare(b.id));
+    const hostileCities = targetableForeignCities(game, playerId, hostilePlayerIds, profile);
     const decisions = createAIDecisionSource(game, playerId, 'military-target');
+    for (const [unitId, task] of Object.entries(state.unitTasks)) {
+      if (task.role === 'attack' || task.role === 'retreat') delete state.unitTasks[unitId];
+    }
     let actions = 0;
 
     for (const attacker of sortedPlayerUnits(game, playerId)) {
@@ -324,52 +333,132 @@ export class FreecivAIUnitController {
       const type = game.unitManager.getUnitType(attacker.unitTypeId);
       if (attacker.movementLeft <= 0 || (type?.attack ?? type?.combat ?? 0) <= 0) continue;
       if (!type) continue;
-      const ranked = rankMilitaryTargets(
+      const ranked = rankMilitaryObjectives({
         attacker,
-        type,
-        enemies.filter(target => Boolean(game.unitManager.getUnit(target.id))),
-        unitTypeId => game.unitManager.getUnitType(unitTypeId),
-        target => game.mapManager.getDistance(attacker.x, attacker.y, target.x, target.y)
-      );
+        attackerType: type,
+        hostileUnits: enemies.filter(target => Boolean(game.unitManager.getUnit(target.id))),
+        hostileCities,
+        getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+        distance: (targetX, targetY) =>
+          game.mapManager.getDistance(attacker.x, attacker.y, targetX, targetY),
+        isStackProtected: (x, y) => {
+          const tile = game.mapManager.getTile(x, y);
+          return Boolean(
+            game.cityManager.getCityAt(x, y) ||
+              tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
+          );
+        },
+      });
       const considered = ranked.filter(target =>
-        decisions.fuzzy(`${attacker.id}:${target.unit.id}`, true)
+        decisions.fuzzy(`${attacker.id}:${target.targetId}`, true)
       );
-      let defender = considered.find(target => target.distance <= (type.range ?? 1))?.unit;
-      if (!defender) {
-        const target = considered[0]?.unit;
-        if (target) {
-          actions += await this.moveTowardMilitaryTarget(game, attacker, target);
-          defender =
-            game.unitManager.getUnit(target.id) &&
-            game.mapManager.getDistance(attacker.x, attacker.y, target.x, target.y) <=
-              (type.range ?? 1)
-              ? target
-              : undefined;
-        }
+      const objective = considered[0];
+      if (!objective) {
+        actions += await this.retreatDamagedUnit(game, attacker, playerId, state);
+        continue;
       }
-      if (!defender) continue;
-      if (type?.flags?.includes('Nuclear')) {
-        await game.unitManager.executeUnitAction(
-          attacker.id,
-          ActionType.NUCLEAR_EXPLOSION,
-          defender.x,
-          defender.y,
-          playerId
-        );
-      } else if (type?.rulesetUnitClassFlags?.includes('Missile')) {
-        await game.unitManager.executeUnitAction(
-          attacker.id,
-          ActionType.SUICIDE_ATTACK,
-          defender.x,
-          defender.y,
-          playerId
-        );
-      } else {
-        await game.unitManager.attackUnit(attacker.id, defender.id);
-      }
-      actions++;
+      state.unitTasks[attacker.id] = {
+        role: 'attack',
+        targetId: objective.targetId,
+        targetX: objective.x,
+        targetY: objective.y,
+        assignedTurn: game.currentTurn,
+      };
+      actions += await this.executeMilitaryObjective(game, attacker, type, objective, playerId);
     }
     return actions;
+  }
+
+  private async executeMilitaryObjective(
+    game: GameInstance,
+    attacker: Unit,
+    type: UnitType,
+    objective: MilitaryObjective,
+    playerId: string
+  ): Promise<number> {
+    if (!objective.defender) {
+      const result = await game.unitManager.executeUnitAction(
+        attacker.id,
+        ActionType.GOTO,
+        objective.x,
+        objective.y,
+        playerId
+      );
+      return result.success ? 1 : 0;
+    }
+    const distance = game.mapManager.getDistance(attacker.x, attacker.y, objective.x, objective.y);
+    if (distance > (type.range ?? 1)) {
+      return this.moveTowardMilitaryTarget(game, attacker, objective.x, objective.y);
+    }
+    const defender = game.unitManager.getUnit(objective.defender.id);
+    if (!defender) return 0;
+    if (type.flags?.includes('Nuclear')) {
+      await game.unitManager.executeUnitAction(
+        attacker.id,
+        ActionType.NUCLEAR_EXPLOSION,
+        defender.x,
+        defender.y,
+        playerId
+      );
+    } else if (type.rulesetUnitClassFlags?.includes('Missile')) {
+      await game.unitManager.executeUnitAction(
+        attacker.id,
+        ActionType.SUICIDE_ATTACK,
+        defender.x,
+        defender.y,
+        playerId
+      );
+    } else {
+      await game.unitManager.attackUnit(attacker.id, defender.id);
+    }
+    return 1;
+  }
+
+  private async retreatDamagedUnit(
+    game: GameInstance,
+    unit: Unit,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    if (unit.health >= 50 || unit.movementLeft <= 0) return 0;
+    const relations = await this.hostilityPolicy.getRelationPlayerIds(game.id, playerId);
+    const owners = new Set([playerId, ...relations.allied]);
+    const candidates = await Promise.all(
+      game.cityManager
+        .getAllCities()
+        .filter(city => owners.has(city.playerId))
+        .map(async city => ({
+          city,
+          path: await game.pathfindingManager.findPath(unit, city.x, city.y),
+          regeneration: game.unitManager.calculateUnitHitpointRecovery(unit, city.x, city.y)
+            .regeneration,
+        }))
+    );
+    const destination = candidates
+      .filter(candidate => candidate.path.valid)
+      .sort(
+        (left, right) =>
+          left.path.totalCost * (left.regeneration > 0 ? 1 : 3) -
+            right.path.totalCost * (right.regeneration > 0 ? 1 : 3) ||
+          left.city.id.localeCompare(right.city.id)
+      )[0]?.city;
+    if (!destination) return 0;
+    state.unitTasks[unit.id] = {
+      role: 'retreat',
+      targetId: destination.id,
+      targetX: destination.x,
+      targetY: destination.y,
+      assignedTurn: game.currentTurn,
+    };
+    if (unit.x === destination.x && unit.y === destination.y) return 0;
+    const result = await game.unitManager.executeUnitAction(
+      unit.id,
+      ActionType.GOTO,
+      destination.x,
+      destination.y,
+      playerId
+    );
+    return result.success ? 1 : 0;
   }
 
   async manageMilitaryRecovery(
@@ -535,7 +624,7 @@ export class FreecivAIUnitController {
         actions++;
         continue;
       }
-      actions += await this.moveTowardMilitaryTarget(game, hunter, target);
+      actions += await this.moveTowardMilitaryTarget(game, hunter, target.x, target.y);
     }
     return actions;
   }
@@ -543,7 +632,8 @@ export class FreecivAIUnitController {
   private async moveTowardMilitaryTarget(
     game: GameInstance,
     attacker: Unit,
-    target: Unit
+    targetX: number,
+    targetY: number
   ): Promise<number> {
     if (
       typeof game.mapManager.getNeighbors !== 'function' ||
@@ -552,7 +642,7 @@ export class FreecivAIUnitController {
       return 0;
     }
     const candidates = await Promise.all(
-      game.mapManager.getNeighbors(target.x, target.y).map(async tile => ({
+      game.mapManager.getNeighbors(targetX, targetY).map(async tile => ({
         tile,
         path: await game.pathfindingManager.findPath(attacker, tile.x, tile.y),
       }))
