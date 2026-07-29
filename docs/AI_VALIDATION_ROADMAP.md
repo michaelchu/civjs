@@ -52,18 +52,39 @@ The first implementation steps are now in place:
 - AI state retains a bounded, restart-safe decision trace for recent subsystem
   attempts (turn, phase label, action count, and error/rejection reason). The
   trace is included in the matrix artifact through the saved AI state.
+- A normalized terminal replay fingerprint compares map features, city/unit
+  state, behavioral metrics, and decision outcomes while excluding generated
+  database IDs. The focused suite runs the same seeded terminal game twice and
+  asserts identical authoritative outcomes.
+- Per-turn behavioral metrics have a committed, deliberately conservative
+  baseline for minimum samples, AI activity, and prolonged idle detection.
+- Failure artifacts now contain both the failure-time snapshot and the last
+  known-good normalized snapshot from before the failing turn.
+- Empire-worker scenarios execute through authoritative managers: the AI
+  produces a worker, reserves work, builds roads, clears pollution, builds
+  mines and irrigation, and builds railroads only after the road and technology
+  prerequisites are present. An active road order survives server recovery and
+  finishes exactly once afterward.
+- City scenarios cover a feasible anti-starvation allocation, persisted citizen
+  outputs, legal Currency-unlocked marketplace selection while excluding an
+  existing Barracks, and threatened-city defensive production/rushing. The
+  economic building and emergency defense both survive recovery.
+- The worker planner has an explicit overlapping two-city request case that
+  confirms a shared tile is reserved by at most one worker. A paired-match
+  benchmark scorer is available for future swapped-position strength runs.
 - The larger `npm run test:ai-validation:100` matrix runs weekly and on manual
   dispatch in `.github/workflows/ai-validation.yml`, outside normal pull-
   request feedback. The job uploads any validation diagnostics as an artifact.
 
-The real-paratrooper city-capture scenario remains temporarily skipped because
-its mission selection still depends on generated-world visibility and combat
-timing. It is not counted as validation coverage and should be re-enabled once
-that nondeterminism is resolved.
+The real-paratrooper city-capture scenario remains temporarily skipped. A
+deterministic map, explicit visibility refresh, legal airbase, in-range unit,
+and undefended target still yield no selected paradrop mission. This is a
+functional AI mission-selection gap, not counted as validation coverage.
 
 This is intentionally a foundation rather than completion of the milestone:
-saved metric baselines, decision traces, and comparative strategic-strength
-benchmarks remain required work.
+candidate-score/economic-delta traces, empirical 25/100-seed baseline results,
+full worker transformation coverage, city capture/loss lifecycle coverage, and
+comparative strategic-strength match results remain required work.
 
 ## Next validation milestone: deterministic simulation matrix
 
