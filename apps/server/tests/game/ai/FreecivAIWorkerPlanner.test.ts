@@ -65,6 +65,8 @@ function context(tiles: any[], workers: any[], overrides: Record<string, unknown
       tiles.filter(
         candidate => Math.max(Math.abs(candidate.x - x), Math.abs(candidate.y - y)) === 1
       ),
+    getCardinalNeighbors: (x: number, y: number) =>
+      tiles.filter(candidate => Math.abs(candidate.x - x) + Math.abs(candidate.y - y) === 1),
     getType: (unitTypeId: string) =>
       unitTypeId === 'worker'
         ? { canBuildImprovements: true, movement: 1, attack: 0 }
@@ -151,5 +153,44 @@ describe('Freeciv AI worker planner', () => {
       })
     );
     expect(withoutDependency.assignments[0].action).not.toBe(ActionType.BUILD_RAILROAD);
+  });
+
+  it('extends irrigation only from a cardinal classic water source', () => {
+    const target = tile(1, 1, 'grassland');
+    const diagonalWater = tile(2, 2, 'ocean');
+    const cardinalWater = tile(1, 2, 'ocean');
+
+    const withoutSource = planWorkerImprovements(
+      context([target, diagonalWater], [worker('worker', 1, 1)])
+    );
+    expect(withoutSource.assignments[0]?.action).not.toBe(ActionType.BUILD_IRRIGATION);
+
+    const withSource = planWorkerImprovements(
+      context([target, diagonalWater, cardinalWater], [worker('worker', 1, 1)])
+    );
+    expect(withSource.assignments[0]).toMatchObject({
+      action: ActionType.BUILD_IRRIGATION,
+      tile: target,
+    });
+  });
+
+  it('prioritizes a reachable city worker request using travel amortization', () => {
+    const near = tile(1, 1, 'hills');
+    const requested = tile(3, 1, 'grassland');
+    const requestedContext = context([near, requested], [worker('worker', 0, 1)]);
+    requestedContext.cities[0].workerTaskRequests = [
+      {
+        x: requested.x,
+        y: requested.y,
+        action: ActionType.BUILD_ROAD,
+        want: 100,
+      },
+    ];
+
+    expect(planWorkerImprovements(requestedContext).assignments[0]).toMatchObject({
+      tile: requested,
+      action: ActionType.BUILD_ROAD,
+      requestCityId: 'city',
+    });
   });
 });

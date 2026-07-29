@@ -43,7 +43,8 @@ function hasOverseasMission(task: AIUnitTask | undefined): task is AIUnitTask {
       task.role !== 'ferry' &&
       task.targetX !== undefined &&
       task.targetY !== undefined &&
-      ['settle', 'attack', 'guard', 'diplomat'].includes(task.role)
+      (['settle', 'attack', 'guard', 'diplomat'].includes(task.role) ||
+        (task.role === 'worker' && task.transportRequired === true))
   );
 }
 

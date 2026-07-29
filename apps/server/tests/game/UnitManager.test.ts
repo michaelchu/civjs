@@ -121,7 +121,11 @@ describe('UnitManager', () => {
       improvements: [] as string[],
     };
     const mapManager = {
-      getTile: jest.fn(() => tile),
+      getTile: jest.fn((..._coordinates: number[]) => tile),
+      getTopology: jest.fn(() => ({
+        getCardinalNeighbors: jest.fn(() => [{ x: 10, y: 9 }]),
+        isValidCoordinate: jest.fn(() => true),
+      })),
       updateTileProperty: jest.fn((_x: number, _y: number, property: string, value: unknown) => {
         (tile as Record<string, unknown>)[property] = value;
       }),
@@ -133,6 +137,8 @@ describe('UnitManager', () => {
       tile.hasRailroad = false;
       tile.improvements = [];
       mapManager.getTile.mockClear();
+      mapManager.getTile.mockImplementation((..._coordinates: number[]) => tile);
+      mapManager.getTopology.mockClear();
       mapManager.updateTileProperty.mockClear();
       unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, mapManager);
     });
@@ -194,6 +200,18 @@ describe('UnitManager', () => {
 
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_IRRIGATION)).toBe(false);
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_ROAD)).toBe(true);
+    });
+
+    it('requires a cardinal water source before starting classic irrigation', async () => {
+      const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_IRRIGATION)).toBe(false);
+
+      mapManager.getTile.mockImplementation((...coordinates: number[]) => {
+        const [x, y] = coordinates;
+        return x === 10 && y === 9 ? ({ ...tile, x, y, terrain: 'ocean' } as typeof tile) : tile;
+      });
+      expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_IRRIGATION)).toBe(true);
     });
 
     it('completes a queued pillage activity and removes the authoritative extra', async () => {

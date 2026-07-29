@@ -29,6 +29,7 @@ export interface AIUnitTask {
   targetX?: number;
   targetY?: number;
   action?: ActionType;
+  transportRequired?: boolean;
   assignedTurn: number;
 }
 

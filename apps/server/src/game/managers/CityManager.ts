@@ -203,6 +203,7 @@ export interface CityState {
   // Tile management
   workableTiles?: WorkableTile[];
   citizenAssignments?: Record<string, boolean>;
+  workerTaskRequests?: CityWorkerTaskRequest[];
 
   // Trade and economics
   tradeRoutes: TradeRoute[];
@@ -222,6 +223,24 @@ export interface CityState {
   // A classic airport may participate in one airlift per turn.
   airliftUsedTurn?: number;
 }
+
+export interface CityWorkerTaskRequest {
+  x: number;
+  y: number;
+  action: ActionType;
+  want: number;
+}
+
+const CITY_WORKER_TASK_ACTIONS = new Set<ActionType>([
+  ActionType.BUILD_ROAD,
+  ActionType.BUILD_RAILROAD,
+  ActionType.BUILD_IRRIGATION,
+  ActionType.BUILD_MINE,
+  ActionType.CULTIVATE,
+  ActionType.PLANT,
+  ActionType.TRANSFORM_TERRAIN,
+  ActionType.CLEAN_POLLUTION,
+]);
 
 export interface BuildingType {
   id: string;
@@ -2163,6 +2182,45 @@ export class CityManager {
 
   public getCity(cityId: string): CityState | undefined {
     return this.cities.get(cityId);
+  }
+
+  /**
+   * Record a city-prioritized infrastructure request for the autoworker
+   * advisor. Requests are deliberately native CityState, not Freeciv packet
+   * compatibility state.
+   *
+   * @reference reference/freeciv/server/advisors/autoworkers.c:837-919
+   */
+  public requestWorkerTask(
+    cityId: string,
+    playerId: string,
+    request: CityWorkerTaskRequest
+  ): boolean {
+    const city = this.cities.get(cityId);
+    if (
+      !city ||
+      city.playerId !== playerId ||
+      !CITY_WORKER_TASK_ACTIONS.has(request.action) ||
+      !Number.isFinite(request.want) ||
+      request.want < 0 ||
+      !(city.workableTiles ?? []).some(tile => tile.x === request.x && tile.y === request.y)
+    ) {
+      return false;
+    }
+    city.workerTaskRequests = (city.workerTaskRequests ?? []).filter(
+      existing =>
+        existing.x !== request.x || existing.y !== request.y || existing.action !== request.action
+    );
+    city.workerTaskRequests.push({ ...request });
+    return true;
+  }
+
+  public clearWorkerTaskRequest(cityId: string, x: number, y: number, action: ActionType): void {
+    const city = this.cities.get(cityId);
+    if (!city?.workerTaskRequests) return;
+    city.workerTaskRequests = city.workerTaskRequests.filter(
+      request => request.x !== x || request.y !== y || request.action !== action
+    );
   }
 
   /**

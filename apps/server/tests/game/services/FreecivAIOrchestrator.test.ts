@@ -39,6 +39,7 @@ function createScenario() {
       owner: x === 3 && y === 3 ? 'ai' : undefined,
     }))
   );
+  mapTiles[3]![2]!.riverMask = 1;
   const units = new Map<string, TestUnit>([
     [
       'settler',
@@ -270,6 +271,13 @@ function createScenario() {
       getNeighbors: (x: number, y: number) =>
         mapTiles.flat().filter(tile => Math.max(Math.abs(tile.x - x), Math.abs(tile.y - y)) === 1),
       getTopology: () => ({
+        getCardinalNeighbors: (x: number, y: number) =>
+          [
+            { x: x - 1, y },
+            { x: x + 1, y },
+            { x, y: y - 1 },
+            { x, y: y + 1 },
+          ].filter(position => mapTiles[position.x]?.[position.y]),
         squaredDistance: (fromX: number, fromY: number, toX: number, toY: number) =>
           (fromX - toX) ** 2 + (fromY - toY) ** 2,
       }),
@@ -389,6 +397,43 @@ describe('FreecivAIOrchestrator', () => {
       targetX: 3,
       targetY: 3,
     });
+  });
+
+  it('consumes an authoritative city worker request after starting its activity', async () => {
+    const scenario = createScenario();
+    const city = {
+      id: 'capital',
+      playerId: 'ai',
+      currentProduction: null,
+      goldPerTurn: -2,
+      buildings: [],
+      workableTiles: [{ x: 3, y: 3, isWorked: true }],
+      workerTaskRequests: [
+        {
+          x: 3,
+          y: 3,
+          action: ActionType.BUILD_ROAD,
+          want: 100,
+        },
+      ],
+    };
+    (scenario.game.cityManager as any).getPlayerCities = () => [city];
+    const clearWorkerTaskRequest = jest.fn();
+    (scenario.game.cityManager as any).clearWorkerTaskRequest = clearWorkerTaskRequest;
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith(
+      'worker',
+      ActionType.BUILD_ROAD,
+      undefined,
+      undefined,
+      'ai'
+    );
+    expect(clearWorkerTaskRequest).toHaveBeenCalledWith('capital', 3, 3, ActionType.BUILD_ROAD);
   });
 
   it('withdraws a critically damaged military unit before guard and combat planning', async () => {
@@ -1242,6 +1287,65 @@ describe('FreecivAIOrchestrator', () => {
         tasks['b-settler'].targetY
       )
     ).toBeGreaterThanOrEqual(3);
+  });
+
+  it('marks an unreachable cross-continent worker task as ferry demand', async () => {
+    const scenario = createScenario();
+    const worker = scenario.units.get('worker')!;
+    worker.x = 1;
+    worker.y = 1;
+    const ferry = {
+      ...scenario.units.get('warrior')!,
+      id: 'ferry',
+      unitTypeId: 'transport',
+      x: 0,
+      y: 0,
+    };
+    scenario.units.clear();
+    scenario.units.set(worker.id, worker);
+    scenario.units.set(ferry.id, ferry);
+    scenario.unitTypes.worker.rulesetUnitClass = 'land';
+    scenario.unitTypes.transport = {
+      unitClass: 'naval',
+      rulesetUnitClass: 'sea',
+      transport_capacity: 1,
+      cargoClasses: ['land'],
+    };
+    (scenario.game.unitManager as any).getTransportCapacityRemaining = () => 1;
+    (scenario.game.unitManager as any).canContinuePathFrom = () => false;
+    scenario.game.mapManager.getTile(3, 3)!.continentId = 2;
+    (scenario.game as any).pathfindingManager = {
+      findPath: jest.fn().mockResolvedValue({
+        valid: false,
+        path: [],
+        totalCost: 0,
+        estimatedTurns: 0,
+      }),
+    };
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    const tasks = (scenario.game.players.get('ai') as any).aiState.unitTasks;
+    expect(tasks.worker).toMatchObject({
+      role: 'worker',
+      targetX: 3,
+      targetY: 3,
+      transportRequired: true,
+    });
+    expect(tasks.ferry).toMatchObject({ role: 'ferry', targetId: 'worker' });
+
+    worker.transportedBy = 'ferry';
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+    expect((scenario.game.players.get('ai') as any).aiState.unitTasks.worker).toMatchObject({
+      role: 'worker',
+      transportRequired: true,
+    });
   });
 
   it('routes ferry rendezvous to water and embarks the passenger authoritatively', async () => {

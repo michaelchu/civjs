@@ -1,3 +1,4 @@
+import { ActionType } from '@app-types/shared/actions';
 import { planFerries, scoreFerryBeachhead } from '@game/ai/FreecivAIFerryPlanner';
 
 const unit = (id: string, unitTypeId: string, x: number, y: number, transportedBy?: string) =>
@@ -24,6 +25,12 @@ const types: Record<string, any> = {
   },
   settler: {
     id: 'settler',
+    unitClass: 'civilian',
+    rulesetUnitClass: 'Land',
+    cargoClasses: [],
+  },
+  worker: {
+    id: 'worker',
     unitClass: 'civilian',
     rulesetUnitClass: 'Land',
     cargoClasses: [],
@@ -111,6 +118,51 @@ describe('Freeciv AI ferry planner', () => {
 
     expect(plan.map(assignment => assignment.passenger.id)).toEqual(['first', 'second']);
     expect(new Set(plan.map(assignment => assignment.ferry.id))).toEqual(new Set(['boat']));
+  });
+
+  it('carries workers only after land pathing identifies cross-continent demand', () => {
+    const friendlyUnits = [unit('boat', 'ferry', 0, 0), unit('worker', 'worker', 1, 0)];
+    const base = {
+      friendlyUnits,
+      getType: (id: string) => types[id],
+      capacityRemaining: () => 1,
+      distance: () => 1,
+    };
+
+    expect(
+      planFerries({
+        ...base,
+        existingTasks: {
+          worker: {
+            role: 'worker',
+            action: ActionType.BUILD_ROAD,
+            targetX: 8,
+            targetY: 8,
+            assignedTurn: 2,
+          },
+        },
+      })
+    ).toEqual([]);
+
+    expect(
+      planFerries({
+        ...base,
+        existingTasks: {
+          worker: {
+            role: 'worker',
+            action: ActionType.BUILD_ROAD,
+            targetX: 8,
+            targetY: 8,
+            transportRequired: true,
+            assignedTurn: 2,
+          },
+        },
+      })[0]
+    ).toMatchObject({
+      ferry: { id: 'boat' },
+      passenger: { id: 'worker' },
+      missionRole: 'worker',
+    });
   });
 
   it('prefers a supported beachhead over an equally distant threatened landing', () => {

@@ -12,7 +12,8 @@ import { Unit, UnitOrder } from '@game/managers/UnitManager';
 import { SINGLE_MOVE } from '@game/constants/MovementConstants';
 import { getUnitType } from '@game/constants/UnitConstants';
 import type { MapManager } from '@game/managers/MapManager';
-import type { TerrainType } from '@game/map/MapTypes';
+import type { MapTile, TerrainType } from '@game/map/MapTypes';
+import { hasClassicIrrigationSource } from '@game/rules/ClassicIrrigationRules';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 // Action definitions based on freeciv classic ruleset
@@ -718,8 +719,19 @@ export class ActionSystem {
 
     const tile = this.mapManager?.getTile(unit.x, unit.y);
     const terrain = tile && rulesetLoader.getTerrain(tile.terrain);
+    const cardinalNeighbors =
+      this.mapManager
+        ?.getTopology?.()
+        .getCardinalNeighbors(unit.x, unit.y)
+        .map(({ x, y }: { x: number; y: number }) => this.mapManager?.getTile(x, y))
+        .filter((neighbor: MapTile | null | undefined): neighbor is MapTile => Boolean(neighbor)) ??
+      [];
     return Boolean(
-      tile && terrain && terrain.irrigationTime > 0 && !tile.improvements.includes('irrigation')
+      tile &&
+        terrain &&
+        terrain.irrigationTime > 0 &&
+        !tile.improvements.includes('irrigation') &&
+        hasClassicIrrigationSource(cardinalNeighbors)
     );
   }
 

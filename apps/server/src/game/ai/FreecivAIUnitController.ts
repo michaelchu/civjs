@@ -281,6 +281,12 @@ export class FreecivAIUnitController {
       existingTasks: state.unitTasks,
       getTile: (x, y) => game.mapManager.getTile(x, y),
       getNeighbors: (x, y) => game.mapManager.getNeighbors(x, y),
+      getCardinalNeighbors: (x, y) =>
+        game.mapManager
+          .getTopology()
+          .getCardinalNeighbors(x, y)
+          .map(position => game.mapManager.getTile(position.x, position.y))
+          .filter((tile): tile is NonNullable<typeof tile> => tile !== null),
       getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
       researchedTechs:
@@ -288,7 +294,9 @@ export class FreecivAIUnitController {
     });
 
     for (const [unitId, task] of Object.entries(state.unitTasks)) {
-      if (task.role === 'worker') delete state.unitTasks[unitId];
+      if (task.role !== 'worker') continue;
+      const worker = game.unitManager.getUnit(unitId);
+      if (!worker?.transportedBy) delete state.unitTasks[unitId];
     }
     Object.assign(state.unitTasks, plan.tasks);
 
@@ -331,6 +339,14 @@ export class FreecivAIUnitController {
       undefined,
       playerId
     );
+    if (result.success && assignment.requestCityId) {
+      game.cityManager.clearWorkerTaskRequest(
+        assignment.requestCityId,
+        assignment.tile.x,
+        assignment.tile.y,
+        assignment.action
+      );
+    }
     return result.success ? 1 : 0;
   }
 
@@ -355,6 +371,17 @@ export class FreecivAIUnitController {
     }
     const path = await game.pathfindingManager.findPath(unit, assignment.tile.x, assignment.tile.y);
     if (!path.valid || path.path.length < 2) {
+      const source = game.mapManager.getTile(unit.x, unit.y);
+      if (
+        source &&
+        source.continentId > 0 &&
+        assignment.tile.continentId > 0 &&
+        source.continentId !== assignment.tile.continentId
+      ) {
+        const task = state.unitTasks[unit.id];
+        if (task?.role === 'worker') task.transportRequired = true;
+        return 0;
+      }
       delete state.unitTasks[unit.id];
       return 0;
     }

@@ -3,6 +3,7 @@ import type { AIUnitTask } from '@game/ai/FreecivAIStateStore';
 import type { CityState } from '@game/managers/CityManager';
 import type { MapTile } from '@game/managers/MapManager';
 import type { Unit } from '@game/managers/UnitManager';
+import { hasClassicIrrigationSource } from '@game/rules/ClassicIrrigationRules';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
@@ -13,6 +14,7 @@ export interface WorkerAssignment {
   want: number;
   travelTurns: number;
   workTurns: number;
+  requestCityId?: string;
 }
 
 interface WorkerPlanningContext {
@@ -24,6 +26,7 @@ interface WorkerPlanningContext {
   existingTasks: Readonly<Record<string, AIUnitTask>>;
   getTile: (x: number, y: number) => MapTile | null;
   getNeighbors: (x: number, y: number) => MapTile[];
+  getCardinalNeighbors: (x: number, y: number) => MapTile[];
   getType: (unitTypeId: string) => UnitType | undefined;
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   researchedTechs: ReadonlySet<string>;
@@ -39,6 +42,7 @@ interface CandidateTile {
   tile: MapTile;
   worked: boolean;
   currentValue: number;
+  requests: Array<{ cityId: string; action: ActionType; want: number }>;
 }
 
 const OUTPUT_WEIGHTS = { food: 3, shields: 2, trade: 1 };
@@ -108,10 +112,14 @@ function cleanupChoices(tile: MapTile): ImprovementChoice[] {
     : [];
 }
 
-function yieldChoices(tile: MapTile): ImprovementChoice[] {
+function yieldChoices(context: WorkerPlanningContext, tile: MapTile): ImprovementChoice[] {
   const terrain = rulesetLoader.getTerrain(tile.terrain);
   const choices: ImprovementChoice[] = [];
-  if (terrain.irrigationTime > 0 && !tile.improvements.includes('irrigation')) {
+  if (
+    terrain.irrigationTime > 0 &&
+    !tile.improvements.includes('irrigation') &&
+    hasClassicIrrigationSource(context.getCardinalNeighbors(tile.x, tile.y))
+  ) {
     choices.push({
       action: ActionType.BUILD_IRRIGATION,
       benefit: terrain.irrigationFoodIncr * OUTPUT_WEIGHTS.food,
@@ -175,7 +183,7 @@ function terrainChangeChoices(tile: MapTile): ImprovementChoice[] {
 function improvementChoices(context: WorkerPlanningContext, tile: MapTile): ImprovementChoice[] {
   return [
     ...cleanupChoices(tile),
-    ...yieldChoices(tile),
+    ...yieldChoices(context, tile),
     ...basicRoadChoices(context, tile),
     ...railroadChoices(context, tile),
     ...terrainChangeChoices(tile),
@@ -193,9 +201,21 @@ function candidateTiles(context: WorkerPlanningContext): CandidateTile[] {
         tile,
         worked: workable.isWorked,
         currentValue: currentTileValue(tile),
+        requests: (city.workerTaskRequests ?? [])
+          .filter(request => request.x === tile.x && request.y === tile.y)
+          .map(request => ({
+            cityId: city.id,
+            action: request.action,
+            want: request.want,
+          })),
       };
       const existing = candidates.get(key);
-      if (!existing || (!existing.worked && candidate.worked)) candidates.set(key, candidate);
+      if (!existing) {
+        candidates.set(key, candidate);
+      } else {
+        existing.worked ||= candidate.worked;
+        existing.requests.push(...candidate.requests);
+      }
     }
   }
   return [...candidates.values()];
@@ -247,14 +267,31 @@ function scoreChoice(
   const delay = travelTurns + workTurns;
   const useFactor = candidate.worked ? 2 : 1;
   const resultingTileBonus = candidate.worked ? 0 : candidate.currentValue + choice.benefit;
-  const want = (choice.benefit * useFactor * 100 + resultingTileBonus * 10) / (10 + delay);
+  let want = (choice.benefit * useFactor * 100 + resultingTileBonus * 10) / (10 + delay);
+  const request = candidate.requests
+    .filter(item => item.action === choice.action)
+    .sort((left, right) => right.want - left.want || left.cityId.localeCompare(right.cityId))[0];
+  const requestedWant = request ? ((request.want + 1) * 10) / (travelTurns + 1) : 0;
+  if (
+    isSameTask(context.existingTasks[worker.id], {
+      unit: worker,
+      tile: candidate.tile,
+      action: choice.action,
+      want,
+      travelTurns,
+      workTurns,
+    })
+  ) {
+    want *= 1.1;
+  }
   return {
     unit: worker,
     tile: candidate.tile,
     action: choice.action,
-    want,
+    want: Math.max(want, requestedWant),
     travelTurns,
     workTurns,
+    requestCityId: request?.cityId,
   };
 }
 

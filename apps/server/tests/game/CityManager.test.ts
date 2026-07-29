@@ -12,6 +12,7 @@ import { EffectsManager } from '@game/managers/EffectsManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { MapManager } from '@game/managers/MapManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
+import { ActionType } from '@app-types/shared/actions';
 
 describe('CityManager', () => {
   let cityManager: CityManager;
@@ -124,6 +125,29 @@ describe('CityManager', () => {
       city.currentProduction = 'marketplace';
       await expect(cityManager.helpWonder(city.id, 'player-123', 50)).resolves.toBe(false);
       await expect(cityManager.helpWonder(city.id, 'player-456', 50)).resolves.toBe(false);
+    });
+  });
+
+  describe('worker task requests', () => {
+    it('records, replaces, authorizes, and clears native city requests', async () => {
+      const city = await cityManager.foundCity(10, 10, 'Workers', 'player-123');
+      const tile = city.workableTiles![0]!;
+      const request = {
+        x: tile.x,
+        y: tile.y,
+        action: ActionType.BUILD_ROAD,
+        want: 40,
+      };
+
+      expect(cityManager.requestWorkerTask(city.id, 'player-456', request)).toBe(false);
+      expect(cityManager.requestWorkerTask(city.id, 'player-123', request)).toBe(true);
+      expect(cityManager.requestWorkerTask(city.id, 'player-123', { ...request, want: 80 })).toBe(
+        true
+      );
+      expect(city.workerTaskRequests).toEqual([{ ...request, want: 80 }]);
+
+      cityManager.clearWorkerTaskRequest(city.id, tile.x, tile.y, ActionType.BUILD_ROAD);
+      expect(city.workerTaskRequests).toEqual([]);
     });
   });
 
