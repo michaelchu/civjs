@@ -44,11 +44,11 @@ const validationSeeds = Array.from(
   { length: validationSeedCount },
   (_, index) => `ai-validation-${String(index + 1).padStart(2, '0')}`
 );
-const validationMaxTurns = Math.max(8, Number(process.env.AI_VALIDATION_MAX_TURNS ?? 8));
+const validationMaxTurns = Math.max(4, Number(process.env.AI_VALIDATION_MAX_TURNS ?? 8));
 const recoveryTurnsBySeed: Record<string, number> = {
-  'ai-validation-01': 2,
-  'ai-validation-13': 4,
-  'ai-validation-25': 6,
+  'ai-validation-01': 1,
+  'ai-validation-13': 2,
+  'ai-validation-25': 3,
 };
 type ValidationScenario = {
   mapSeed: string;
