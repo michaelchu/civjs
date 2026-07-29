@@ -81,14 +81,18 @@ The first implementation steps are now in place:
   in five deterministic Docker shards (seeds 01–25). Each configuration reached
   its configured terminal turn without an invariant violation; seeds 01, 13,
   and 25 exercised early, middle, and late recovery respectively.
+- The scheduled 100-configuration terminal matrix has also completed against
+  disposable Docker PostgreSQL without emitting a failure artifact. This is the
+  initial empirical baseline; it remains intentionally conservative until
+  longer-game metrics and comparative matches are collected.
 - The focused Docker suite executes a legal airbase-to-undefended-city
   paratrooper capture through the authoritative action path. The fixture
   constrains its launch tile to neutral or friendly ownership, matching the
   server's paradrop-source legality rule.
 
 This is intentionally a foundation rather than completion of the milestone:
-selected-action identity in planner traces, empirical 100-seed baseline
-results, long-running multi-city empire lifecycle coverage, and comparative
+selected-action identity in planner traces, longer-game behavioral baselines,
+long-running multi-city empire lifecycle coverage, and comparative
 strategic-strength match results remain required work.
 
 ## Next validation milestone: deterministic simulation matrix
