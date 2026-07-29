@@ -1,7 +1,19 @@
 import { ActionType } from '@app-types/shared/actions';
 import { FreecivAISpecialUnitController } from '@game/ai/FreecivAISpecialUnitController';
 import { createAIState } from '@game/ai/FreecivAIStateStore';
+import {
+  calculateDiplomatBribeCost,
+  calculateDiplomatInciteCost,
+} from '@game/services/DiplomatActionEconomics';
 import { makeAICity, makeAITile, makeAIUnit } from '../../fixtures/aiFixtures';
+
+jest.mock('@game/services/DiplomatActionEconomics', () => ({
+  calculateDiplomatBribeCost: jest.fn(),
+  calculateDiplomatInciteCost: jest.fn(),
+}));
+
+const mockedBribeCost = jest.mocked(calculateDiplomatBribeCost);
+const mockedInciteCost = jest.mocked(calculateDiplomatInciteCost);
 
 const unit = (id: string, unitTypeId: string, x: number, y: number) =>
   makeAIUnit({
@@ -126,9 +138,31 @@ const types: Record<string, any> = {
     bombardRate: 0,
     paratroopersRange: 0,
   },
+  spy: {
+    id: 'spy',
+    unitClass: 'civilian',
+    rulesetUnitClass: 'Land',
+    rulesetUnitClassFlags: [],
+    flags: ['Diplomat', 'Spy'],
+    cargoClasses: [],
+    transport_capacity: 0,
+    attack: 0,
+    defense: 0,
+    combat: 0,
+    hitpoints: 10,
+    movement: 3,
+    cost: 30,
+    bombardRate: 0,
+    paratroopersRange: 0,
+  },
 };
 
 describe('Freeciv AI special-unit controller air integration', () => {
+  beforeEach(() => {
+    mockedBribeCost.mockReturnValue(50);
+    mockedInciteCost.mockResolvedValue(50);
+  });
+
   it('flies an aircraft to a compatible carrier and loads through authoritative actions', async () => {
     const bomber = unit('bomber', 'bomber', 1, 0);
     const carrier = unit('carrier', 'carrier', 0, 0);
@@ -541,6 +575,182 @@ describe('Freeciv AI special-unit controller air integration', () => {
         ['diplomat', ActionType.GOTO, 2, 0, 'ai'],
         ['diplomat', ActionType.ESTABLISH_EMBASSY, 3, 0, 'ai'],
       ]);
+    }
+  );
+
+  it.each([
+    {
+      name: 'technology theft',
+      unitTypeId: 'diplomat',
+      relationState: 'peace',
+      enemyTechs: ['alphabet'],
+      targetBuildings: [],
+      targetSize: 4,
+      gold: 500,
+      hasEmbassy: true,
+      succeeds: true,
+      expectedAction: ActionType.STEAL_TECH,
+      expectedActions: 1,
+    },
+    {
+      name: 'city incitement',
+      unitTypeId: 'diplomat',
+      relationState: 'peace',
+      enemyTechs: [],
+      targetBuildings: [],
+      targetSize: 4,
+      gold: 500,
+      hasEmbassy: true,
+      succeeds: true,
+      expectedAction: ActionType.INCITE_CITY,
+      expectedActions: 1,
+    },
+    {
+      name: 'wartime sabotage',
+      unitTypeId: 'spy',
+      relationState: 'war',
+      enemyTechs: [],
+      targetBuildings: ['granary'],
+      targetSize: 4,
+      gold: 0,
+      hasEmbassy: true,
+      succeeds: true,
+      expectedAction: ActionType.SABOTAGE_CITY,
+      expectedActions: 1,
+    },
+    {
+      name: 'wartime poisoning',
+      unitTypeId: 'spy',
+      relationState: 'war',
+      enemyTechs: [],
+      targetBuildings: [],
+      targetSize: 4,
+      gold: 0,
+      hasEmbassy: true,
+      succeeds: true,
+      expectedAction: ActionType.POISON_WATER,
+      expectedActions: 1,
+    },
+    {
+      name: 'failed embassy establishment',
+      unitTypeId: 'diplomat',
+      relationState: 'peace',
+      enemyTechs: [],
+      targetBuildings: [],
+      targetSize: 4,
+      gold: 0,
+      hasEmbassy: false,
+      succeeds: false,
+      expectedAction: ActionType.ESTABLISH_EMBASSY,
+      expectedActions: 0,
+    },
+  ])(
+    'executes adjacent $name through the authoritative action API',
+    async ({
+      unitTypeId,
+      relationState,
+      enemyTechs,
+      targetBuildings,
+      targetSize,
+      gold,
+      hasEmbassy,
+      succeeds,
+      expectedAction,
+      expectedActions,
+    }) => {
+      const diplomat = unit('diplomat', unitTypeId, 0, 0);
+      const units = new Map([[diplomat.id, diplomat]]);
+      const target = makeAICity({
+        id: 'target',
+        name: 'Target',
+        playerId: 'enemy',
+        x: 1,
+        y: 0,
+        size: targetSize,
+        population: targetSize,
+        buildings: targetBuildings,
+      });
+      const executeUnitAction = jest.fn().mockResolvedValue({ success: succeeds });
+      const game = {
+        id: 'game',
+        currentTurn: 7,
+        players: new Map([
+          ['ai', { id: 'ai', aiLevel: 'hard', gold }],
+          ['enemy', { id: 'enemy', isAlive: true }],
+        ]),
+        cityManager: {
+          getAllCities: jest.fn(() => [target]),
+          getPlayerCities: jest.fn((playerId: string) => (playerId === 'enemy' ? [target] : [])),
+          getCityAt: jest.fn((x: number, y: number) =>
+            x === target.x && y === target.y ? target : undefined
+          ),
+        },
+        unitManager: {
+          getPlayerUnits: jest.fn(() => [diplomat]),
+          getAllUnits: jest.fn(() => units),
+          getUnit: jest.fn((id: string) => units.get(id)),
+          getUnitsAt: jest.fn(() => []),
+          getUnitType: jest.fn((id: string) => types[id]),
+          calculateDiplomatActionOdds: jest.fn(() => ({
+            successChance: 1,
+            escapeChance: 1,
+          })),
+          calculateUnitAttackRating: jest.fn(() => 0),
+          calculateUnitDefenseRating: jest.fn(() => 0),
+          executeUnitAction,
+        },
+        researchManager: {
+          getResearchedTechs: jest.fn((playerId: string) =>
+            playerId === 'enemy' ? enemyTechs : []
+          ),
+        },
+        turnManager: {
+          getEconomicManager: jest.fn(() => ({
+            getPlayerGold: jest.fn(async (playerId: string) => (playerId === 'ai' ? gold : 0)),
+          })),
+        },
+        mapManager: {
+          getDistance: (x1: number, y1: number, x2: number, y2: number) =>
+            Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)),
+          getNeighbors: jest.fn(() => [{ x: 0, y: 0 }]),
+        },
+        pathfindingManager: {
+          findPath: jest.fn(async () => ({ valid: true, totalCost: 1, path: [] })),
+        },
+        visibilityManager: {},
+      } as any;
+      const hostility = {
+        getDiplomacySnapshot: jest.fn().mockResolvedValue({
+          nations: [
+            {
+              id: 'enemy',
+              isAlive: true,
+              relation: { state: relationState, embassy: hasEmbassy },
+            },
+          ],
+        }),
+        getRelationPlayerIds: jest.fn().mockResolvedValue({
+          hostile: new Set(relationState === 'war' ? ['enemy'] : []),
+          allied: new Set(),
+          unknown: new Set(),
+        }),
+      } as any;
+
+      const actions = await new FreecivAISpecialUnitController(hostility).manageDiplomatUnits(
+        'game',
+        game,
+        'ai',
+        createAIState()
+      );
+
+      expect(actions).toBe(expectedActions);
+      expect(executeUnitAction).toHaveBeenCalledWith(
+        'diplomat',
+        expectedAction,
+        target.x,
+        target.y,
+        'ai'
+      );
     }
   );
 });

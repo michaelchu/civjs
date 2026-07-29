@@ -66,4 +66,58 @@ describe('Freeciv AI spaceship planner', () => {
       }).pursuing
     ).toBe(false);
   });
+
+  it('does not pursue when the player has no surviving city', () => {
+    const plan = planSpaceship({
+      enabled: true,
+      playerId: 'ai',
+      citiesByPlayer: new Map([
+        ['ai', []],
+        ['rival', [city('rival', 'rival', 10)]],
+      ]),
+      technologyCount: () => 10,
+      spaceshipState: () => ({}),
+    });
+
+    expect(plan.pursuing).toBe(false);
+    expect(plan.buildingWants.size).toBe(0);
+  });
+
+  it('does not pursue when another player leads both production and technology', () => {
+    const plan = planSpaceship({
+      enabled: true,
+      playerId: 'ai',
+      citiesByPlayer: new Map([
+        ['ai', [city('capital', 'ai', 5)]],
+        ['rival', [city('rival', 'rival', 20)]],
+      ]),
+      technologyCount: playerId => (playerId === 'rival' ? 12 : 8),
+      spaceshipState: () => ({}),
+    });
+
+    expect(plan.pursuing).toBe(false);
+    expect(plan.leaderId).toBeUndefined();
+  });
+
+  it('responds to a rival ship lead and discounts part production in a wonder city', () => {
+    const wonderCity = city('wonder', 'ai', 10, ['apollo_program']);
+    wonderCity.productionType = 'building';
+    wonderCity.currentProduction = 'great_library';
+    const plan = planSpaceship({
+      enabled: true,
+      playerId: 'ai',
+      citiesByPlayer: new Map([
+        ['ai', [wonderCity, city('factory', 'ai', 8)]],
+        ['rival', [city('rival', 'rival', 20)]],
+      ]),
+      technologyCount: playerId => (playerId === 'rival' ? 12 : 8),
+      spaceshipState: playerId => (playerId === 'rival' ? { structurals: 3 } : {}),
+    });
+
+    expect(plan.pursuing).toBe(true);
+    expect(plan.leaderId).toBe('rival');
+    expect(plan.buildingWants.get('wonder')?.get('space_structural')?.want).toBe(120);
+    expect(plan.buildingWants.get('factory')?.get('space_structural')?.want).toBe(210);
+    expect(plan.technologyWants.get('plastics')).toBe(210);
+  });
 });

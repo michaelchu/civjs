@@ -139,4 +139,137 @@ describe('Freeciv AI treasury planner', () => {
     expect(funded.rushCityIds).toEqual(['capital']);
     expect(funded.savingsGoal).toBeUndefined();
   });
+
+  it('balances constrained rates without exceeding the government maximum', () => {
+    const plan = planTreasury({
+      ...base,
+      maxRate: 34,
+    });
+
+    expect(plan.rates).toEqual({ tax: 34, luxury: 32, science: 34 });
+    expect(Object.values(plan.rates).every(rate => rate <= 34)).toBe(true);
+  });
+
+  it('does not celebrate in away mode even when a majority is eligible', () => {
+    const celebrant = city({
+      size: 5,
+      tradePerTurn: 20,
+      foodPerTurn: 3,
+      happiness: { happy: 3, content: 2, unhappy: 0, angry: 0 },
+    });
+    const plan = planTreasury({
+      ...base,
+      cities: [celebrant, { ...celebrant, id: 'second' }],
+      canRaptureGrow: true,
+      awayMode: true,
+    });
+
+    expect(plan.celebrationCityIds).toEqual([]);
+    expect(plan.rates.luxury).toBe(0);
+  });
+
+  it('sells low-value upkeep before strategically valuable infrastructure', () => {
+    const plan = planTreasury({
+      ...base,
+      currentGold: -60,
+      netGold: -10,
+      cities: [
+        city({
+          buildings: ['marketplace', 'granary'],
+          foodPerTurn: -1,
+          grossTradePerTurn: 12,
+          happiness: { happy: 0, content: 1, unhappy: 2, angry: 0 },
+        }),
+      ],
+      buildingTypes: {
+        marketplace: {
+          id: 'marketplace',
+          genus: 'Improvement',
+          cost: 20,
+          upkeep: 2,
+          effects: {},
+        } as any,
+        granary: {
+          id: 'granary',
+          genus: 'Improvement',
+          cost: 100,
+          upkeep: 2,
+          effects: {
+            foodBonus: 1,
+            happinessEffect: 1,
+            corruptionReduction: 10,
+          },
+        } as any,
+      },
+    });
+
+    expect(plan.sales).toEqual([
+      { cityId: 'capital', buildingId: 'marketplace' },
+      { cityId: 'capital', buildingId: 'granary' },
+    ]);
+  });
+
+  it.each([
+    {
+      name: 'expansion unit',
+      city: city({ currentProduction: 'settlers' }),
+      unitTypes: {
+        ...base.unitTypes,
+        settlers: {
+          id: 'settlers',
+          attack: 0,
+          defense: 1,
+          combat: 0,
+          canFoundCity: true,
+        } as any,
+      },
+    },
+    {
+      name: 'starvation recovery',
+      city: city({ foodPerTurn: -2 }),
+      unitTypes: base.unitTypes,
+    },
+    {
+      name: 'strategic building',
+      city: city({ productionType: 'building', currentProduction: 'aqueduct', size: 8 }),
+      unitTypes: base.unitTypes,
+      buildingTypes: {
+        aqueduct: {
+          id: 'aqueduct',
+          genus: 'Improvement',
+          cost: 80,
+          effects: { maxCitySize: 10 },
+        } as any,
+      },
+    },
+  ])('rushes affordable $name production when its benefit repays cost', scenario => {
+    const plan = planTreasury({
+      ...base,
+      currentGold: 500,
+      cities: [scenario.city],
+      unitTypes: scenario.unitTypes,
+      buildingTypes: scenario.buildingTypes ?? {},
+      buyCost: () => ({ canBuy: true, goldCost: 20 }),
+    });
+
+    expect(plan.rushCityIds).toEqual(['capital']);
+  });
+
+  it('ignores unavailable and zero-cost purchases', () => {
+    const unavailable = planTreasury({
+      ...base,
+      currentGold: 500,
+      threat: () => 10,
+      buyCost: () => ({ canBuy: false, goldCost: 40 }),
+    });
+    const free = planTreasury({
+      ...base,
+      currentGold: 500,
+      threat: () => 10,
+      buyCost: () => ({ canBuy: true, goldCost: 0 }),
+    });
+
+    expect(unavailable.rushCityIds).toEqual([]);
+    expect(free.rushCityIds).toEqual([]);
+  });
 });

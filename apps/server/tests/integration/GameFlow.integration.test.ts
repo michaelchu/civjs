@@ -274,6 +274,7 @@ describe('Game Integration Flow', () => {
 
     it('plays a complete multi-turn AI match with progress, recovery, combat, and victory', async () => {
       const db = getTestDatabase();
+      const mapSeedSource = jest.spyOn(Math, 'random').mockReturnValue(0.42);
       const hostUserId = generateTestUUID();
       const secondAIUserId = generateTestUUID();
       const maxTurns = 30;
@@ -306,6 +307,7 @@ describe('Game Integration Flow', () => {
       });
       const host = await gameManager.joinGame(gameId, hostUserId, 'romans');
       const secondAI = await gameManager.joinGame(gameId, secondAIUserId, 'greeks');
+      mapSeedSource.mockRestore();
       const aiPlayerIds = [host.playerId, secondAI.playerId];
 
       await gameManager.setPlayerAIControl(gameId, hostUserId, secondAI.playerId, true, {
@@ -324,6 +326,7 @@ describe('Game Integration Flow', () => {
       const decisionsByPlayer = new Map(aiPlayerIds.map(playerId => [playerId, 0]));
       const worldStates = new Set<string>();
       let maxObservedProductionStock = 0;
+      let maxObservedResearchProgress = 0;
 
       const recordProgress = (completedTurn: number) => {
         const game = gameManager.getGameInstance(gameId)!;
@@ -345,6 +348,7 @@ describe('Game Integration Flow', () => {
           ...aiCities.map(city => city.productionStock ?? 0),
           0
         );
+        maxObservedResearchProgress = Math.max(maxObservedResearchProgress, researchProgress);
 
         worldStates.add(
           JSON.stringify({
@@ -444,10 +448,14 @@ describe('Game Integration Flow', () => {
       const defenderId = await gameManager.createUnit(
         gameId,
         secondAI.playerId,
-        'warriors',
+        'howitzer',
         defenderTile!.x,
         defenderTile!.y
       );
+      const exposedDefender = recoveredGame!.unitManager.getUnit(defenderId)!;
+      exposedDefender.health = 1;
+      exposedDefender.movementLeft = 0;
+      const defenderInitialHealth = exposedDefender.health;
       const diplomatId = await gameManager.createUnit(
         gameId,
         host.playerId,
@@ -485,6 +493,7 @@ describe('Game Integration Flow', () => {
       expect(finalGame.currentTurn).toBe(maxTurns);
       expect(worldStates.size).toBeGreaterThan(5);
       expect(maxObservedProductionStock).toBeGreaterThan(0);
+      expect(maxObservedResearchProgress).toBeGreaterThan(0);
       expect(finalTechnologyCount).toBeGreaterThan(initialTechnologyCount);
       expect(finalAIUnits.length).toBeGreaterThan(0);
       expect([...decisionsByPlayer.values()].every(count => count > 0)).toBe(true);
@@ -492,9 +501,7 @@ describe('Game Integration Flow', () => {
         !attackerAfter ||
           !defenderAfter ||
           attackerAfter.health < 100 ||
-          defenderAfter.health < 100 ||
-          attackerAfter.x !== attackerTile!.x ||
-          attackerAfter.y !== attackerTile!.y
+          defenderAfter.health !== defenderInitialHealth
       ).toBe(true);
 
       const persistedGame = await db.query.games.findFirst({
