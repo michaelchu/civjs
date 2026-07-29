@@ -64,7 +64,7 @@ describe('AI authoritative manager boundaries', () => {
       ruleset: 'classic',
       ...options,
     });
-    const nations = ['romans', 'greeks', 'egyptians'] as const;
+    const nations = ['roman', 'greek', 'egyptian'] as const;
     const players: JoinedPlayer[] = [];
     const originalMinimumPlayers = serverConfig.game.minPlayersToStart;
     if (playerCount === 3) serverConfig.game.minPlayersToStart = 3;
@@ -488,7 +488,10 @@ describe('AI authoritative manager boundaries', () => {
     expect(recovered?.unitManager.getUnit(ferryId)?.cargoUnits).toContain(passengerId);
     const recoveredState = assertAIState(recovered?.players.get(guest!.playerId)?.aiState);
 
-    for (let turn = 0; turn < 30; turn += 1) {
+    // Ferry routing searches the full map for a safe beachhead, so the
+    // number of turns depends on the generated island layout. Keep the
+    // simulation bound comfortably above the largest 20x20 route.
+    for (let turn = 0; turn < 100; turn += 1) {
       recovered!.currentTurn += 1;
       for (const unitId of [ferryId, passengerId]) {
         const unit = recovered!.unitManager.getUnit(unitId);

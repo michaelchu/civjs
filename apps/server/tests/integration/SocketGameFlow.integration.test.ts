@@ -157,7 +157,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
         maxPlayers: 2,
         mapWidth: 40,
         mapHeight: 25,
-        selectedNation: 'romans',
+        selectedNation: 'roman',
       },
     });
     const createReply = await created;
@@ -170,7 +170,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     const mapPacket = waitForPacket(guest, PacketType.MAP_INFO);
     const joined = await emitWithAck<{ success: boolean; playerId: string }>(guest, 'join_game', {
       gameId,
-      selectedNation: 'greeks',
+      selectedNation: 'greek',
     });
     expect(joined).toMatchObject({ success: true });
     expect((await mapPacket).data).toMatchObject({ xsize: 40, ysize: 25 });
@@ -824,7 +824,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     const reconnect = await emitWithAck<{ success: boolean; playerId: string }>(
       returning,
       'join_game',
-      { gameId, selectedNation: 'romans' }
+      { gameId, selectedNation: 'roman' }
     );
     expect(reconnect).toMatchObject({ success: true });
     expect((await returningMap).data).toMatchObject({ xsize: 40, ysize: 25 });

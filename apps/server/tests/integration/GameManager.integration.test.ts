@@ -90,8 +90,8 @@ describe('GameManager - Integration Tests with Real Database', () => {
       ]);
 
       // Add players - game will auto-start when minimum players join
-      await gameManager.joinGame(gameId, user1Id, 'romans');
-      await gameManager.joinGame(gameId, user2Id, 'greeks');
+      await gameManager.joinGame(gameId, user1Id, 'roman');
+      await gameManager.joinGame(gameId, user2Id, 'greek');
       // Game should auto-start after second player joins (MIN_PLAYERS_TO_START=2)
 
       // Verify game exists in memory
@@ -176,14 +176,14 @@ describe('GameManager - Integration Tests with Real Database', () => {
         },
       ]);
 
-      const result1 = await gameManager.joinGame(gameId, userId1, 'romans');
-      const result2 = await gameManager.joinGame(gameId, userId2, 'greeks');
+      const result1 = await gameManager.joinGame(gameId, userId1, 'roman');
+      const result2 = await gameManager.joinGame(gameId, userId2, 'greek');
 
       expect(result1.playerId).toBeTruthy();
       expect(result2.playerId).toBeTruthy();
       expect(result1.playerId).not.toBe(result2.playerId);
-      expect(result1.assignedNation).toBe('romans');
-      expect(result2.assignedNation).toBe('greeks');
+      expect(result1.assignedNation).toBe('roman');
+      expect(result2.assignedNation).toBe('greek');
 
       // Verify players in memory
       const game = gameManager.getGameInstance(gameId);
@@ -196,8 +196,8 @@ describe('GameManager - Integration Tests with Real Database', () => {
       });
 
       expect(dbPlayers).toHaveLength(2);
-      expect(dbPlayers.some(p => p.nation === 'romans')).toBe(true);
-      expect(dbPlayers.some(p => p.nation === 'greeks')).toBe(true);
+      expect(dbPlayers.some(p => p.nation === 'roman')).toBe(true);
+      expect(dbPlayers.some(p => p.nation === 'greek')).toBe(true);
     });
 
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
@@ -231,11 +231,11 @@ describe('GameManager - Integration Tests with Real Database', () => {
         },
       ]);
 
-      await gameManager.joinGame(gameId, userId1, 'romans');
-      await gameManager.joinGame(gameId, userId2, 'greeks');
+      await gameManager.joinGame(gameId, userId1, 'roman');
+      await gameManager.joinGame(gameId, userId2, 'greek');
 
       // Third player should be rejected
-      await expect(gameManager.joinGame(gameId, userId3, 'egyptians')).rejects.toThrow();
+      await expect(gameManager.joinGame(gameId, userId3, 'egyptian')).rejects.toThrow();
 
       // Verify only 2 players in database
       const db = getTestDatabase();
@@ -266,10 +266,10 @@ describe('GameManager - Integration Tests with Real Database', () => {
         },
       ]);
 
-      await gameManager.joinGame(gameId, userId1, 'romans');
+      await gameManager.joinGame(gameId, userId1, 'roman');
 
       // Second player tries same nation
-      await expect(gameManager.joinGame(gameId, userId2, 'romans')).rejects.toThrow();
+      await expect(gameManager.joinGame(gameId, userId2, 'roman')).rejects.toThrow();
 
       // Verify only one player in database
       const db = getTestDatabase();
@@ -302,8 +302,8 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
       const gameId = await gameManager.createGame(gameConfig);
       // Join players
-      await gameManager.joinGame(gameId, hostData.user.id, 'romans');
-      await gameManager.joinGame(gameId, user2Data.user.id, 'greeks');
+      await gameManager.joinGame(gameId, hostData.user.id, 'roman');
+      await gameManager.joinGame(gameId, user2Data.user.id, 'greek');
 
       // Give auto-start a chance, but then manually start if needed
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -344,7 +344,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
       };
 
       const gameId = await gameManager.createGame(gameConfig);
-      await gameManager.joinGame(gameId, hostData.user.id, 'romans');
+      await gameManager.joinGame(gameId, hostData.user.id, 'roman');
 
       // Try to start game as non-host (should fail)
       await expect(gameManager.startGame(gameId, user2Data.user.id)).rejects.toThrow(

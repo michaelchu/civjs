@@ -329,6 +329,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       temperature: tile.temperature || 0,
       moisture: tile.moisture || 0,
       riverMask: tile.riverMask || 0,
+      continentId: tile.continentId ?? 0,
       special: tile.special || null,
       x: tile.x,
       y: tile.y,

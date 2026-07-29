@@ -84,14 +84,14 @@ describe('Game Integration Flow', () => {
       expect(gameId).toBeDefined();
 
       // Join players
-      const hostResult = await gameManager.joinGame(gameId, hostUserId, 'romans');
-      const guestResult = await gameManager.joinGame(gameId, guestUserId, 'greeks');
+      const hostResult = await gameManager.joinGame(gameId, hostUserId, 'roman');
+      const guestResult = await gameManager.joinGame(gameId, guestUserId, 'greek');
 
       expect(hostResult.playerId).toBeDefined();
       expect(guestResult.playerId).toBeDefined();
       expect(hostResult.playerId).not.toBe(guestResult.playerId);
-      expect(hostResult.assignedNation).toBe('romans');
-      expect(guestResult.assignedNation).toBe('greeks');
+      expect(hostResult.assignedNation).toBe('roman');
+      expect(guestResult.assignedNation).toBe('greek');
 
       const hostPlayerId = hostResult.playerId;
       const guestPlayerId = guestResult.playerId;
@@ -146,7 +146,7 @@ describe('Game Integration Flow', () => {
       expect(turnAdvanced2).toBe(true); // Now turn advances
 
       // A joined player can reconnect to the same active game without creating a new player.
-      const reconnectResult = await gameManager.joinGame(gameId, hostUserId, 'romans');
+      const reconnectResult = await gameManager.joinGame(gameId, hostUserId, 'roman');
       expect(reconnectResult.playerId).toBe(hostPlayerId);
 
       // Integration test complete - all managers working together
@@ -181,8 +181,8 @@ describe('Game Integration Flow', () => {
         mapHeight: 20,
         ruleset: 'classic',
       });
-      const host = await gameManager.joinGame(gameId, hostUserId, 'romans');
-      const guest = await gameManager.joinGame(gameId, guestUserId, 'greeks');
+      const host = await gameManager.joinGame(gameId, hostUserId, 'roman');
+      const guest = await gameManager.joinGame(gameId, guestUserId, 'greek');
 
       for (let completedTurns = 0; completedTurns < 20; completedTurns += 1) {
         expect(await gameManager.endTurn(host.playerId)).toBe(false);
@@ -203,7 +203,7 @@ describe('Game Integration Flow', () => {
 
       expect(recoveredGame).not.toBeNull();
       expect(recoveredGame!.currentTurn).toBe(21);
-      expect((await recoveredManager.joinGame(gameId, hostUserId, 'romans')).playerId).toBe(
+      expect((await recoveredManager.joinGame(gameId, hostUserId, 'roman')).playerId).toBe(
         host.playerId
       );
     });
@@ -236,8 +236,8 @@ describe('Game Integration Flow', () => {
         mapHeight: 20,
         ruleset: 'classic',
       });
-      const host = await gameManager.joinGame(gameId, hostUserId, 'romans');
-      const aiPlayer = await gameManager.joinGame(gameId, aiOwnerUserId, 'greeks');
+      const host = await gameManager.joinGame(gameId, hostUserId, 'roman');
+      const aiPlayer = await gameManager.joinGame(gameId, aiOwnerUserId, 'greek');
 
       await gameManager.setPlayerAIControl(gameId, hostUserId, aiPlayer.playerId, true, {
         aiLevel: 'hard',
@@ -305,8 +305,8 @@ describe('Game Integration Flow', () => {
         maxTurns,
         victoryConditions: ['max_turns'],
       });
-      const host = await gameManager.joinGame(gameId, hostUserId, 'romans');
-      const secondAI = await gameManager.joinGame(gameId, secondAIUserId, 'greeks');
+      const host = await gameManager.joinGame(gameId, hostUserId, 'roman');
+      const secondAI = await gameManager.joinGame(gameId, secondAIUserId, 'greek');
       mapSeedSource.mockRestore();
       const aiPlayerIds = [host.playerId, secondAI.playerId];
 
@@ -547,8 +547,8 @@ describe('Game Integration Flow', () => {
         mapHeight: 20,
         ruleset: 'classic',
       });
-      const host = await gameManager.joinGame(gameId, hostUserId, 'romans');
-      await gameManager.joinGame(gameId, guestUserId, 'greeks');
+      const host = await gameManager.joinGame(gameId, hostUserId, 'roman');
+      await gameManager.joinGame(gameId, guestUserId, 'greek');
 
       const activeGame = gameManager.getGameInstance(gameId)!;
       const originalMap = activeGame.mapManager.getMapData()!;
@@ -577,7 +577,7 @@ describe('Game Integration Flow', () => {
       expect(recoveredGame!.borderManager.getAllTileOwnership().length).toBeGreaterThan(0);
 
       // Rejoining uses the original player record rather than creating another one.
-      const reconnect = await restartedManager.joinGame(gameId, hostUserId, 'romans');
+      const reconnect = await restartedManager.joinGame(gameId, hostUserId, 'roman');
       expect(reconnect.playerId).toBe(host.playerId);
     });
 
@@ -625,8 +625,8 @@ describe('Game Integration Flow', () => {
       ]);
 
       const gameId = await gameManager.createGame(gameConfig);
-      const playerResult = await gameManager.joinGame(gameId, user1Id, 'romans');
-      await gameManager.joinGame(gameId, user2Id, 'greeks'); // Need 2 players to start, game will auto-start
+      const playerResult = await gameManager.joinGame(gameId, user1Id, 'roman');
+      await gameManager.joinGame(gameId, user2Id, 'greek'); // Need 2 players to start, game will auto-start
 
       const playerId = playerResult.playerId;
 
