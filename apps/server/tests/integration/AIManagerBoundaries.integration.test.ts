@@ -6,7 +6,11 @@ import { createAIProfile } from '@game/ai/AIProfile';
 import { assertAIState, type FreecivAIState } from '@game/ai/AIStateStore';
 import { hostileUnitsForPlanning } from '@game/ai/AITargeting';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
-import { GameManager, type GameInstance } from '@game/managers/GameManager';
+import {
+  GameManager,
+  type GameConfig,
+  type GameInstance,
+} from '@game/managers/GameManager';
 import { assertAIValidationInvariants } from '../utils/aiValidation';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 import {
@@ -33,6 +37,35 @@ const validationSeeds = Array.from(
   { length: validationSeedCount },
   (_, index) => `ai-validation-${String(index + 1).padStart(2, '0')}`
 );
+const validationMaxTurns = Math.max(8, Number(process.env.AI_VALIDATION_MAX_TURNS ?? 8));
+const recoveryTurnsBySeed: Record<string, number> = {
+  'ai-validation-01': 2,
+  'ai-validation-13': 4,
+  'ai-validation-25': 6,
+};
+type ValidationScenario = {
+  mapSeed: string;
+  playerCount: 2 | 3;
+  aiLevel: 'easy' | 'normal' | 'hard';
+  victoryConditions: string[];
+  mapWidth: number;
+  mapHeight: number;
+  terrainSettings: NonNullable<GameConfig['terrainSettings']>;
+};
+const terrainProfiles: ValidationScenario['terrainSettings'][] = [
+  { generator: 'random', landmass: 'sparse', huts: 0, temperature: 30, wetness: 30, rivers: 20, resources: 'sparse' },
+  { generator: 'random', landmass: 'normal', huts: 15, temperature: 50, wetness: 50, rivers: 50, resources: 'normal' },
+  { generator: 'random', landmass: 'dense', huts: 30, temperature: 70, wetness: 70, rivers: 80, resources: 'abundant' },
+];
+const validationScenarios: ValidationScenario[] = validationSeeds.map((mapSeed, index) => ({
+  mapSeed,
+  playerCount: index % 5 === 4 ? 3 : 2,
+  aiLevel: (['easy', 'normal', 'hard'] as const)[index % 3]!,
+  victoryConditions: (index % 3 === 0 ? ['science'] : index % 3 === 1 ? ['conquest'] : ['max_turns']),
+  mapWidth: index % 2 === 0 ? 20 : 24,
+  mapHeight: index % 2 === 0 ? 20 : 16,
+  terrainSettings: terrainProfiles[index % terrainProfiles.length]!,
+}));
 
 describe('AI authoritative manager boundaries', () => {
   let gameManager: GameManager;
@@ -52,7 +85,12 @@ describe('AI authoritative manager boundaries', () => {
 
   async function createActiveGame(
     playerCount: 2 | 3,
-    options: { victoryConditions?: string[]; maxTurns?: number; mapSeed?: string } = {}
+    options: Partial<
+      Pick<
+        GameConfig,
+        'victoryConditions' | 'maxTurns' | 'mapSeed' | 'mapWidth' | 'mapHeight' | 'terrainSettings'
+      >
+    > = {}
   ): Promise<TestGame> {
     const db = getTestDatabase();
     const userIds = Array.from({ length: playerCount }, () => generateTestUUID());
@@ -1035,8 +1073,12 @@ describe('AI authoritative manager boundaries', () => {
     expect(worker!.orders).toEqual([{ type: 'road' }]);
     expect(city.workerTaskRequests).toEqual([]);
 
-    await scenario.game.unitManager.processUnitOrders(guest!.playerId);
-    await scenario.game.unitManager.processUnitOrders(guest!.playerId);
+    // Improvement duration is ruleset/tile dependent. Drive the authoritative
+    // order processor until it completes, instead of assuming every road has
+    // exactly the unit-test fixture's two-turn duration.
+    for (let attempt = 0; attempt < 5 && !scenario.game.mapManager.getTile(target.x, target.y)!.hasRoad; attempt += 1) {
+      await scenario.game.unitManager.processUnitOrders(guest!.playerId);
+    }
     const completed = scenario.game.mapManager.getTile(target.x, target.y)!;
     expect(completed.hasRoad).toBe(true);
     expect(completed.improvements).toContain('road');
@@ -1371,43 +1413,64 @@ describe('AI authoritative manager boundaries', () => {
     ).toMatchObject({ love: -7, warDesire: 0 });
   });
 
-  it.each(validationSeeds)(
-    'maintains AI world invariants across a multi-turn seed soak (%s)',
-    async mapSeed => {
-      const scenario = await createActiveGame(2, {
-        maxTurns: 20,
-        victoryConditions: ['max_turns'],
-        mapSeed,
+  it.each(validationScenarios)(
+    'reaches a terminal turn limit with valid AI state across seed $mapSeed',
+    async validation => {
+      const scenario = await createActiveGame(validation.playerCount, {
+        maxTurns: validationMaxTurns,
+        victoryConditions: validation.victoryConditions,
+        mapSeed: validation.mapSeed,
+        mapWidth: validation.mapWidth,
+        mapHeight: validation.mapHeight,
+        terrainSettings: validation.terrainSettings,
       });
-      const [host, guest] = scenario.players;
-      await gameManager.setPlayerAIControl(
-        scenario.gameId,
-        scenario.hostUserId,
-        guest!.playerId,
-        true,
-        { aiLevel: 'hard' }
-      );
-      await gameManager.setPlayerAIControl(
-        scenario.gameId,
-        scenario.hostUserId,
-        host!.playerId,
-        true,
-        { aiLevel: 'hard' }
-      );
-
-      for (let turn = 0; turn < 6; turn += 1) {
-        await scenario.game.turnManager.processTurn();
+      for (const player of scenario.players) {
+        await gameManager.setPlayerAIControl(
+          scenario.gameId,
+          scenario.hostUserId,
+          player.playerId,
+          true,
+          { aiLevel: validation.aiLevel }
+        );
       }
 
-      const map = scenario.game.mapManager.getMapData()!;
-      expect(map.seed).toBe(mapSeed);
+      const recoveryTurn = recoveryTurnsBySeed[validation.mapSeed];
+      let game = scenario.game;
+      let recovered = false;
       let totalDecisions = 0;
-      for (const player of scenario.game.players.values()) {
-        const state = assertAIState(player.aiState);
-        totalDecisions += state.lastDecisionCount ?? 0;
+
+      while (game.state === 'active') {
+        const processingTurn = game.currentTurn;
+        const startedAt = performance.now();
+        await game.turnManager.processTurn();
+        expect(performance.now() - startedAt).toBeLessThan(15_000);
+        assertAIValidationInvariants(game);
+
+        for (const player of game.players.values()) {
+          const state = assertAIState(player.aiState);
+          expect(state.lastProcessedTurn).toBe(processingTurn);
+          totalDecisions += state.lastDecisionCount ?? 0;
+        }
+
+        if (!recovered && recoveryTurn === processingTurn && game.state === 'active') {
+          gameManager.clearAllGames();
+          (GameManager as any).instance = null;
+          gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+          const recoveredGame = await gameManager.recoverGameInstance(scenario.gameId);
+          expect(recoveredGame).not.toBeNull();
+          expect(recoveredGame!.currentTurn).toBe(processingTurn + 1);
+          assertAIValidationInvariants(recoveredGame!);
+          game = recoveredGame!;
+          recovered = true;
+        }
       }
+
+      const map = game.mapManager.getMapData()!;
+      expect(map.seed).toBe(validation.mapSeed);
+      expect(game.state).toBe('ended');
+      expect(game.currentTurn).toBe(validationMaxTurns);
       expect(totalDecisions).toBeGreaterThan(0);
-      assertAIValidationInvariants(scenario.game);
+      assertAIValidationInvariants(game);
     }
   );
 });
