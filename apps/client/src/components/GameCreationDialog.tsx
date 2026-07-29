@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Input } from './ui/input';
 import { Combobox } from './ui/combobox';
 import { useNationSelection } from '../hooks/useNations';
-import { useGameCreationStore } from '../store/gameCreationStore';
+import { useGameCreationStore, type GameCreationFormState } from '../store/gameCreationStore';
 
 export const GameCreationDialog: React.FC = () => {
   const { formData, updateFormData, resetAll, _hasHydrated } = useGameCreationStore();
@@ -37,7 +37,15 @@ export const GameCreationDialog: React.FC = () => {
   }
 
   // Destructure form data for easier access
-  const { playerName, gameName, gameType, maxPlayers, mapSize, selectedNation } = formData;
+  const {
+    playerName,
+    gameName,
+    gameType,
+    maxPlayers,
+    mapSize,
+    selectedNation,
+    aiLevel = 'easy',
+  } = formData;
 
   const handleBack = () => {
     // Clear the stored form data when canceling
@@ -71,6 +79,7 @@ export const GameCreationDialog: React.FC = () => {
       maxPlayers: gameType === 'single' ? 1 : maxPlayers,
       mapSize,
       selectedNation,
+      aiLevel,
     });
 
     // Navigate to terrain settings
@@ -93,6 +102,15 @@ export const GameCreationDialog: React.FC = () => {
     { value: '4', label: '4 Players' },
     { value: '6', label: '6 Players' },
     { value: '8', label: '8 Players' },
+  ];
+
+  const aiLevelOptions = [
+    { value: 'restricted', label: 'Restricted' },
+    { value: 'novice', label: 'Novice' },
+    { value: 'easy', label: 'Easy' },
+    { value: 'normal', label: 'Normal' },
+    { value: 'hard', label: 'Hard' },
+    { value: 'cheating', label: 'Cheating' },
   ];
 
   // Create nation options from the fetched nations
@@ -224,6 +242,30 @@ export const GameCreationDialog: React.FC = () => {
                     placeholder="Select map size"
                   />
                 </div>
+
+                {gameType === 'single' && (
+                  <div>
+                    <label
+                      htmlFor="aiLevel"
+                      className="block text-sm font-medium text-foreground mb-2"
+                    >
+                      AI Difficulty
+                    </label>
+                    <Combobox
+                      options={aiLevelOptions}
+                      value={aiLevel}
+                      onValueChange={value =>
+                        updateFormData({
+                          aiLevel: value as GameCreationFormState['aiLevel'],
+                        })
+                      }
+                      placeholder="Select AI difficulty"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Applies to every AI opponent created for this game.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {gameType === 'multiplayer' && (

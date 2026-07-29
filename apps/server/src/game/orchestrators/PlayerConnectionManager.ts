@@ -14,6 +14,7 @@ import { eq } from 'drizzle-orm';
 import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import serverConfig from '@config';
 import { getNextPlayerColorTheme, type PlayerColor } from '../../utils/playerColors';
+import { isSettableAILevel } from '../ai/FreecivAIProfile';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {
@@ -248,6 +249,9 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     }
 
     const aiPlayersNeeded = minPlayers - currentPlayerCount;
+    const configuredAILevel = isSettableAILevel((game.gameState as any)?.aiLevel)
+      ? (game.gameState as any).aiLevel
+      : 'easy';
     this.logger.info('Adding AI players to meet minimum requirements', {
       gameId,
       currentPlayerCount,
@@ -295,7 +299,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         color: safeAiTheme.primary, // Store primary color for backward compatibility
         connectionStatus: 'connected',
         isAI: true,
-        aiLevel: 'easy',
+        aiLevel: configuredAILevel,
         aiTraits: { expansionist: 50, trader: 50, aggressive: 50, builder: 50 },
         aiState: {},
         isReady: true,

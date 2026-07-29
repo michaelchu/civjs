@@ -1,4 +1,8 @@
-import { normalizeAIState } from '@game/ai/FreecivAIStateStore';
+import {
+  FreecivAIStateStore,
+  normalizeAIState,
+  type FreecivAIState,
+} from '@game/ai/FreecivAIStateStore';
 
 describe('Freeciv AI state', () => {
   it('normalizes legacy or absent player state', () => {
@@ -29,5 +33,45 @@ describe('Freeciv AI state', () => {
       cityWants: {},
       techWants: {},
     });
+  });
+
+  it('serializes saves per player and snapshots mutable state', async () => {
+    const writes: FreecivAIState[] = [];
+    const completions: Array<() => void> = [];
+    const database = {
+      update: jest.fn(() => ({
+        set: jest.fn((value: { aiState: FreecivAIState }) => {
+          writes.push(value.aiState);
+          return {
+            where: jest.fn(
+              () =>
+                new Promise<void>(resolve => {
+                  completions.push(resolve);
+                })
+            ),
+          };
+        }),
+      })),
+    };
+    const store = new FreecivAIStateStore({
+      getDatabase: () => database,
+    } as any);
+    const state = normalizeAIState(undefined);
+    state.lastProcessedTurn = 1;
+
+    const first = store.save('game', 'ai', state);
+    state.lastProcessedTurn = 2;
+    const second = store.save('game', 'ai', state);
+
+    await new Promise(resolve => setImmediate(resolve));
+    expect(writes).toHaveLength(1);
+    expect(writes[0].lastProcessedTurn).toBe(1);
+    completions.shift()!();
+    await first;
+    await new Promise(resolve => setImmediate(resolve));
+    expect(writes).toHaveLength(2);
+    expect(writes[1].lastProcessedTurn).toBe(2);
+    completions.shift()!();
+    await second;
   });
 });

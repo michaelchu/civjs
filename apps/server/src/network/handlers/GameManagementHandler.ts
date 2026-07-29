@@ -220,6 +220,7 @@ export class GameManagementHandler extends BaseSocketHandler {
         turnTimeLimit: data.turnTimeLimit,
         victoryConditions: data.victoryConditions,
         terrainSettings: data.terrainSettings,
+        aiLevel: data.aiLevel,
       });
 
       // Automatically join the creator as a player

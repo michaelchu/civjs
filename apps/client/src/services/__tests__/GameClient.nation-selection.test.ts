@@ -315,6 +315,7 @@ describe('GameClient - Nation Selection', () => {
         maxPlayers: 4,
         mapSize: 'standard',
         selectedNation: 'japanese',
+        aiLevel: 'hard' as const,
       };
 
       // Mock authentication
@@ -359,6 +360,7 @@ describe('GameClient - Nation Selection', () => {
           type: 200, // GAME_CREATE
           data: expect.objectContaining({
             selectedNation: 'japanese',
+            aiLevel: 'hard',
           }),
         })
       );

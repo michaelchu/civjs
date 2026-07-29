@@ -467,7 +467,6 @@ export class UnitActionHandler extends BaseSocketHandler {
         connection.gameId!,
         data.unitId,
         result.unitDestroyed,
-        unitBeforeAction,
         targetUnitsBeforeAction,
         gameInstance
       );
@@ -505,13 +504,10 @@ export class UnitActionHandler extends BaseSocketHandler {
     gameId: string,
     unitId: string,
     unitDestroyed: boolean | undefined,
-    unitBeforeAction: any,
     targetUnitsBeforeAction: any[],
     gameInstance: NonNullable<ReturnType<GameManager['getGameInstance']>>
   ): void {
-    if (unitDestroyed) {
-      if (unitBeforeAction) this.gameManager.broadcastUnitDestroyed(gameId, unitBeforeAction);
-    } else {
+    if (!unitDestroyed) {
       const updatedUnit = gameInstance.unitManager.getUnit(unitId);
       if (updatedUnit) this.gameManager.broadcastUnitInfo(gameId, updatedUnit);
     }
@@ -519,7 +515,6 @@ export class UnitActionHandler extends BaseSocketHandler {
       if (targetBefore.id === unitId) continue;
       const targetAfter = gameInstance.unitManager.getUnit(targetBefore.id);
       if (targetAfter) this.gameManager.broadcastUnitInfo(gameId, targetAfter);
-      else this.gameManager.broadcastUnitDestroyed(gameId, targetBefore);
     }
   }
 

@@ -35,7 +35,7 @@ import {
   type TreatyProposal,
 } from '@game/managers/DiplomacyManager';
 import { CivJSAIAdapter } from '@game/services/CivJSAIAdapter';
-import type { AILevel, AITraits } from '@game/ai/FreecivAIProfile';
+import type { AILevel, AITraits, SettableAILevel } from '@game/ai/FreecivAIProfile';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { EndGameService } from '@game/services/EndGameService';
 import { GameReplayService, type GameReplay } from '@game/services/GameReplayService';
@@ -78,6 +78,8 @@ export interface GameConfig {
   maxTurns?: number;
   victoryConditions?: string[];
   terrainSettings?: TerrainSettings;
+  /** Default difficulty assigned to AI players created for this game. */
+  aiLevel?: SettableAILevel;
 }
 
 export interface GameInstance {
@@ -894,8 +896,7 @@ export class GameManager {
       const failure = await attemptMission();
       if (failure) return failure;
       const sabotage = await game.unitManager.sabotageUnit(target.id);
-      if (sabotage.destroyed) this.broadcastUnitDestroyed(gameId, target);
-      else this.broadcastUnitInfo(gameId, sabotage.unit!);
+      if (!sabotage.destroyed) this.broadcastUnitInfo(gameId, sabotage.unit!);
       result = {
         success: true,
         message: `Sabotaged ${target.unitTypeId}; remaining health ${sabotage.unit?.health ?? 0}`,
@@ -1332,7 +1333,6 @@ export class GameManager {
       const unitType = getUnitType(unit.unitTypeId);
       if (tileOwner !== otherPlayerId || unitType?.flags?.includes('NonMil')) continue;
       await game.unitManager.removeUnit(unit.id);
-      this.gameBroadcastManager.broadcastUnitDestroyed(gameId, unit);
     }
   }
 

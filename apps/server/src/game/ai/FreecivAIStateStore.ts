@@ -62,14 +62,28 @@ export function normalizeAIState(value: unknown): FreecivAIState {
  * @reference reference/freeciv/ai/default/daiunit.c:dai_unit_save
  */
 export class FreecivAIStateStore {
+  private readonly persistenceQueues = new Map<string, Promise<void>>();
+
   constructor(private readonly databaseProvider?: DatabaseProvider) {}
 
   async save(gameId: string, playerId: string, state: FreecivAIState): Promise<void> {
     if (!this.databaseProvider) return;
-    await this.databaseProvider
-      .getDatabase()
-      .update(players)
-      .set({ aiState: state })
-      .where(and(eq(players.gameId, gameId), eq(players.id, playerId)));
+    const key = `${gameId}:${playerId}`;
+    const snapshot = structuredClone(state);
+    const previous = this.persistenceQueues.get(key) ?? Promise.resolve();
+    const next = previous
+      .catch(() => undefined)
+      .then(async () => {
+        await this.databaseProvider!.getDatabase()
+          .update(players)
+          .set({ aiState: snapshot })
+          .where(and(eq(players.gameId, gameId), eq(players.id, playerId)));
+      });
+    this.persistenceQueues.set(key, next);
+    try {
+      await next;
+    } finally {
+      if (this.persistenceQueues.get(key) === next) this.persistenceQueues.delete(key);
+    }
   }
 }

@@ -853,7 +853,6 @@ export class CityManagementHandler extends BaseSocketHandler {
     if (!unit) return;
 
     await gameInstance.unitManager.removeUnit(unitId);
-    this.gameManager.broadcastUnitDestroyed(gameId, unit);
 
     logger.debug('Settler unit consumed by city founding', {
       unitId,

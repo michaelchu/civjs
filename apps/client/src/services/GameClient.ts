@@ -1054,6 +1054,7 @@ export class GameClient {
     maxPlayers: number;
     mapSize: string;
     selectedNation: string;
+    aiLevel?: 'restricted' | 'novice' | 'easy' | 'normal' | 'hard' | 'cheating';
     terrainSettings?: {
       generator: string;
       landmass: string;
@@ -1093,6 +1094,7 @@ export class GameClient {
           mapHeight: dimensions.height,
           ruleset: 'classic',
           selectedNation: gameData.selectedNation,
+          aiLevel: gameData.aiLevel,
           victoryConditions: ['conquest'],
           turnTimeLimit: 120,
           terrainSettings: gameData.terrainSettings || {

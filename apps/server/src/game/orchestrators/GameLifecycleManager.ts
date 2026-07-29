@@ -159,6 +159,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         ? gameConfig.victoryConditions
         : ['conquest'],
       gameState: {
+        // Freeciv stores a game default skill and copies it to generated AI
+        // players. Keep easy as the compatible default, but persist the
+        // creator's selection rather than hard-coding each player.
+        aiLevel: gameConfig.aiLevel || 'easy',
         terrainSettings: gameConfig.terrainSettings || {
           generator: 'random',
           landmass: 'normal',
@@ -1003,6 +1007,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         maxTurns: game.maxTurns ?? 0,
         victoryConditions: game.victoryConditions as string[] | undefined,
         terrainSettings: (game.gameState as any)?.terrainSettings,
+        aiLevel: (game.gameState as any)?.aiLevel,
       },
       state: 'active',
       currentTurn: 1,
@@ -1313,6 +1318,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         maxTurns: game.maxTurns ?? 0,
         victoryConditions: game.victoryConditions,
         terrainSettings: terrainSettings,
+        aiLevel: (game.gameState as any)?.aiLevel,
       },
       state: 'active',
       currentTurn: 1,

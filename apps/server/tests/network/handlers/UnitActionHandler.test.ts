@@ -351,7 +351,7 @@ describe('UnitActionHandler', () => {
       });
     });
 
-    it('visibility-scopes destruction using the unit last-known position', async () => {
+    it('leaves destruction broadcasting to the authoritative UnitManager', async () => {
       const unit = { id: mockUnitId, playerId: mockPlayerId, x: 4, y: 5 };
       const getUnit = jest.fn().mockReturnValueOnce(unit).mockReturnValue(undefined);
       mockGameManager.getGameInstance.mockReturnValue({
@@ -367,7 +367,7 @@ describe('UnitActionHandler', () => {
 
       await getUnitActionHandler()({ unitId: mockUnitId, actionType: 'disband_unit' }, jest.fn());
 
-      expect(mockGameManager.broadcastUnitDestroyed).toHaveBeenCalledWith(mockGameId, unit);
+      expect(mockGameManager.broadcastUnitDestroyed).not.toHaveBeenCalled();
       expect(mockGameManager.broadcastUnitInfo).not.toHaveBeenCalled();
       expect(mockIo.to).not.toHaveBeenCalled();
     });
@@ -397,7 +397,7 @@ describe('UnitActionHandler', () => {
       expect(mockGameManager.broadcastUnitInfo).toHaveBeenCalledWith(mockGameId, target);
     });
 
-    it('broadcasts both actor and blast victims removed by a nuclear action', async () => {
+    it('does not duplicate authoritative nuclear destruction broadcasts', async () => {
       const actor = { id: mockUnitId, playerId: mockPlayerId, x: 4, y: 5 };
       const target = { id: 'target-unit', playerId: 'other-player', x: 5, y: 5 };
       const getUnit = jest.fn().mockReturnValueOnce(actor).mockReturnValue(undefined);
@@ -430,8 +430,7 @@ describe('UnitActionHandler', () => {
         jest.fn()
       );
 
-      expect(mockGameManager.broadcastUnitDestroyed).toHaveBeenCalledWith(mockGameId, actor);
-      expect(mockGameManager.broadcastUnitDestroyed).toHaveBeenCalledWith(mockGameId, target);
+      expect(mockGameManager.broadcastUnitDestroyed).not.toHaveBeenCalled();
       expect(mockGameManager.broadcastCityData).toHaveBeenCalledWith(mockGameId);
     });
 

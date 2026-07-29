@@ -394,4 +394,52 @@ describe('PlayerConnectionManager - Nation Selection', () => {
       expect(valuesCall.nation).toBe('american'); // Should fallback to american
     });
   });
+
+  describe('AI difficulty', () => {
+    it('copies the game-level Freeciv difficulty to generated AI players', async () => {
+      mockDatabase.query.games.findFirst.mockResolvedValue({
+        id: mockGameId,
+        status: 'waiting',
+        gameState: { aiLevel: 'hard' },
+        players: [],
+      });
+      const inserted: any[] = [];
+      mockDatabase.insert.mockReturnValue({
+        values: jest.fn((value: any) => {
+          inserted.push(value);
+          return {
+            returning: jest.fn().mockResolvedValue([{ id: `ai-${inserted.length}` }]),
+          };
+        }),
+      });
+
+      await playerManager.ensureMinimumPlayers(mockGameId);
+
+      expect(inserted.length).toBeGreaterThan(0);
+      expect(inserted.every(player => player.aiLevel === 'hard')).toBe(true);
+    });
+
+    it('falls back to Freeciv easy for legacy or invalid game settings', async () => {
+      mockDatabase.query.games.findFirst.mockResolvedValue({
+        id: mockGameId,
+        status: 'waiting',
+        gameState: { aiLevel: 'away' },
+        players: [],
+      });
+      const inserted: any[] = [];
+      mockDatabase.insert.mockReturnValue({
+        values: jest.fn((value: any) => {
+          inserted.push(value);
+          return {
+            returning: jest.fn().mockResolvedValue([{ id: `ai-${inserted.length}` }]),
+          };
+        }),
+      });
+
+      await playerManager.ensureMinimumPlayers(mockGameId);
+
+      expect(inserted.length).toBeGreaterThan(0);
+      expect(inserted.every(player => player.aiLevel === 'easy')).toBe(true);
+    });
+  });
 });

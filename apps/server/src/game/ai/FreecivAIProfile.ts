@@ -10,6 +10,23 @@ export const AI_LEVELS = [
 
 export type AILevel = (typeof AI_LEVELS)[number];
 
+/**
+ * Freeciv's "away" profile is an internal temporary mode, not a difficulty a
+ * game creator can assign to an AI player.
+ *
+ * @reference reference/freeciv/server/settings.c (SSET_AI_LEVEL)
+ * @reference reference/freeciv/server/commands.c (set_ai_level_direct)
+ */
+export const SETTABLE_AI_LEVELS = [
+  'restricted',
+  'novice',
+  'easy',
+  'normal',
+  'hard',
+  'cheating',
+] as const;
+export type SettableAILevel = (typeof SETTABLE_AI_LEVELS)[number];
+
 export interface AITraits {
   expansionist: number;
   trader: number;
@@ -149,4 +166,8 @@ function clampTrait(value: number): number {
 
 export function isAILevel(value: unknown): value is AILevel {
   return typeof value === 'string' && (AI_LEVELS as readonly string[]).includes(value);
+}
+
+export function isSettableAILevel(value: unknown): value is SettableAILevel {
+  return typeof value === 'string' && (SETTABLE_AI_LEVELS as readonly string[]).includes(value);
 }

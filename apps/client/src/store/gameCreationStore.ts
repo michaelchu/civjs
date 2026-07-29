@@ -8,6 +8,7 @@ export interface GameCreationFormState {
   maxPlayers: number;
   mapSize: string;
   selectedNation: string;
+  aiLevel: 'restricted' | 'novice' | 'easy' | 'normal' | 'hard' | 'cheating';
 }
 
 export interface TerrainSettings {
@@ -48,6 +49,7 @@ const initialFormData: GameCreationFormState = {
   maxPlayers: 4,
   mapSize: 'standard',
   selectedNation: 'random',
+  aiLevel: 'easy',
 };
 
 const initialTerrainSettings: TerrainSettings = {

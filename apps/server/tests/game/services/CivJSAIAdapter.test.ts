@@ -169,10 +169,17 @@ function createScenario() {
       ],
       setCityProduction,
     },
+    visibilityManager: {
+      updatePlayerVisibility: jest.fn(),
+      getVisibleTiles: () => [],
+      getDetectionTiles: () => [],
+      isTileVisible: () => true,
+    },
     unitManager: {
       getPlayerUnits: (playerId: string) =>
         Array.from(units.values()).filter(unit => unit.playerId === playerId),
       getAllUnits: () => units,
+      getVisibleUnits: () => Array.from(units.values()),
       getUnit: (unitId: string) => units.get(unitId),
       getUnitType: (unitTypeId: string) => unitTypes[unitTypeId],
       canUnitPerformAction: () => true,
@@ -602,5 +609,131 @@ describe('CivJSAIAdapter compatibility contract', () => {
     );
     const ai = scenario.game.players.get('ai') as any;
     expect(Object.keys(ai.aiState.cityWants.capital).length).toBeGreaterThan(0);
+  });
+
+  it('keeps accumulated research on the active technology', async () => {
+    const scenario = createScenario();
+    scenario.game.researchManager.getPlayerResearch = () => ({
+      currentTech: 'writing',
+      researchedTechs: [],
+    });
+    (scenario.game.researchManager as any).getTechnologyCatalogue = () => [
+      { id: 'writing', cost: 30, requirements: [] },
+      { id: 'alphabet', cost: 10, requirements: [] },
+    ];
+    scenario.units.delete('enemy');
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
+
+    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.setCurrentResearch).not.toHaveBeenCalled();
+  });
+
+  it('honors the Freeciv target-visibility handicap by difficulty', async () => {
+    const easy = createScenario();
+    (easy.game.players.get('ai') as any).aiLevel = 'easy';
+    (easy.game.unitManager as any).getVisibleUnits = (playerId: string) =>
+      Array.from(easy.units.values()).filter(unit => unit.playerId === playerId);
+
+    await new CivJSAIAdapter(easy.diplomacyManager as any).processTurn('game', easy.game as any);
+    expect(easy.attackUnit).not.toHaveBeenCalled();
+
+    const hard = createScenario();
+    (hard.game.players.get('ai') as any).aiLevel = 'hard';
+    (hard.game.unitManager as any).getVisibleUnits = () => [];
+    await new CivJSAIAdapter(hard.diplomacyManager as any).processTurn('game', hard.game as any);
+    expect(hard.attackUnit).toHaveBeenCalledWith('warrior', 'enemy');
+  });
+
+  it('routes ferry rendezvous to water and embarks the passenger authoritatively', async () => {
+    const scenario = createScenario();
+    const ferry = {
+      ...scenario.units.get('warrior')!,
+      id: 'ferry',
+      unitTypeId: 'transport',
+      x: 0,
+      y: 0,
+    };
+    const passenger = {
+      ...scenario.units.get('settler')!,
+      id: 'passenger',
+      x: 2,
+      y: 0,
+    };
+    scenario.units.clear();
+    scenario.units.set(ferry.id, ferry);
+    scenario.units.set(passenger.id, passenger);
+    scenario.unitTypes.transport = {
+      unitClass: 'naval',
+      rulesetUnitClass: 'sea',
+      transport_capacity: 1,
+      cargoClasses: ['land'],
+    };
+    scenario.unitTypes.settlers.rulesetUnitClass = 'land';
+    (scenario.game.unitManager as any).getTransportCapacityRemaining = () => 1;
+    (scenario.game.unitManager as any).canContinuePathFrom = (
+      unit: TestUnit,
+      x: number,
+      y: number
+    ) => unit.id === 'ferry' && x === 1 && y === 0;
+    (scenario.game.mapManager as any).getNeighbors = () => [{ x: 1, y: 0 }];
+    (scenario.game as any).pathfindingManager = {
+      findPath: jest.fn().mockResolvedValue({
+        valid: true,
+        path: [],
+        totalCost: 3,
+        estimatedTurns: 1,
+      }),
+    };
+    scenario.executeUnitAction.mockImplementation(
+      async (unitId: string, action: ActionType, x?: number, y?: number) => {
+        expect(action).toBe(ActionType.GOTO);
+        const unit = scenario.units.get(unitId)!;
+        unit.x = x!;
+        unit.y = y!;
+        if (unitId === 'passenger') passenger.transportedBy = 'ferry';
+        return { success: true };
+      }
+    );
+    const state = {
+      version: 1 as const,
+      diplomacy: {},
+      cityWants: {},
+      techWants: {},
+      unitTasks: {
+        passenger: {
+          role: 'settle' as const,
+          targetX: 7,
+          targetY: 7,
+          assignedTurn: 1,
+        },
+      },
+    };
+
+    const actions = await (
+      new CivJSAIAdapter(scenario.diplomacyManager as any) as any
+    ).manageFerries(scenario.game, 'ai', state);
+
+    expect(actions).toBe(2);
+    expect(scenario.executeUnitAction).toHaveBeenNthCalledWith(
+      1,
+      'ferry',
+      ActionType.GOTO,
+      1,
+      0,
+      'ai'
+    );
+    expect(scenario.executeUnitAction).toHaveBeenNthCalledWith(
+      2,
+      'passenger',
+      ActionType.GOTO,
+      1,
+      0,
+      'ai'
+    );
+    expect(passenger.transportedBy).toBe('ferry');
   });
 });

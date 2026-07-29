@@ -91,7 +91,6 @@ export class UnitManagementService extends BaseGameService {
       throw new Error('Unit not found or does not belong to player');
     }
 
-    const unitBeforeMove = { ...unit };
     const moved = await gameInstance.unitManager.moveUnit(unitId, x, y);
 
     if (moved) {
@@ -103,7 +102,6 @@ export class UnitManagementService extends BaseGameService {
         this.unitBroadcaster?.broadcastUnitInfo(gameId, updatedUnit);
       } else {
         gameInstance.visibilityManager.onUnitDestroyed(playerId);
-        this.unitBroadcaster?.broadcastUnitDestroyed(gameId, unitBeforeMove);
       }
     }
 
@@ -135,7 +133,6 @@ export class UnitManagementService extends BaseGameService {
       throw new Error('Attacking unit not found or does not belong to player');
     }
 
-    const attackerSnapshot = gameInstance.unitManager.getUnit(attackerUnitId);
     const requestedDefenderSnapshot = gameInstance.unitManager.getUnit(defenderUnitId);
     const defenderStackSnapshots = requestedDefenderSnapshot
       ? gameInstance.unitManager
@@ -150,19 +147,9 @@ export class UnitManagementService extends BaseGameService {
 
     // Update visibility for relevant players if units were destroyed
     if (combatResult.attackerDestroyed) {
-      if (attackerSnapshot) {
-        this.unitBroadcaster?.broadcastUnitDestroyed(gameId, attackerSnapshot);
-      }
       gameInstance.visibilityManager.onUnitDestroyed(playerId);
     }
     if (combatResult.defenderDestroyed) {
-      for (const destroyedUnit of defenderStackSnapshots.filter(
-        unit =>
-          unit.id === combatResult.defenderId ||
-          combatResult.collateralDestroyedIds?.includes(unit.id)
-      )) {
-        this.unitBroadcaster?.broadcastUnitDestroyed(gameId, destroyedUnit);
-      }
       if (defenderSnapshot) {
         gameInstance.visibilityManager.onUnitDestroyed(defenderSnapshot.playerId);
       }

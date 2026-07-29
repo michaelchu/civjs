@@ -166,6 +166,7 @@ describe('GameManagementHandler', () => {
         mapWidth: 50,
         mapHeight: 50,
         selectedNation: 'romans',
+        aiLevel: 'hard',
       };
 
       mockGameManager.createGame.mockResolvedValue(mockGameId);
@@ -188,6 +189,7 @@ describe('GameManagementHandler', () => {
           name: 'New Game',
           hostId: mockUserId,
           maxPlayers: 4,
+          aiLevel: 'hard',
         })
       );
 

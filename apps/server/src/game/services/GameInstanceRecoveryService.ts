@@ -22,6 +22,7 @@ import { Server as SocketServer } from 'socket.io';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { GovernmentManager } from '@game/managers/GovernmentManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { isSettableAILevel } from '@game/ai/FreecivAIProfile';
 
 /**
  * GameInstanceRecoveryService - Extracted game recovery operations from GameManager
@@ -537,6 +538,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
           'science',
           'culture',
         ],
+        aiLevel: isSettableAILevel((game.gameState as any)?.aiLevel)
+          ? (game.gameState as any).aiLevel
+          : 'easy',
       },
       state: game.status as GameState,
       pauseReason: game.pauseReason ?? undefined,

@@ -313,8 +313,24 @@ export class UnitManager {
   }
 
   private notifyUnitDestroyed(unit: Unit): void {
-    this.gameManagerCallback?.broadcastUnitDestroyed?.(this.gameId, unit);
-    this.unitDestroyedObserver?.(unit);
+    try {
+      this.gameManagerCallback?.broadcastUnitDestroyed?.(this.gameId, unit);
+    } catch (error) {
+      logger.error('Failed to broadcast authoritative unit destruction', {
+        gameId: this.gameId,
+        unitId: unit.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    try {
+      this.unitDestroyedObserver?.(unit);
+    } catch (error) {
+      logger.error('Failed to notify unit destruction observer', {
+        gameId: this.gameId,
+        unitId: unit.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   public setCurrentTurnProvider(provider: () => number): void {
@@ -1224,9 +1240,7 @@ export class UnitManager {
     }
     if (unit.fuel > 0) return true;
 
-    const lostUnit = { ...unit };
     await this.destroyUnit(unit.id);
-    this.notifyUnitDestroyed(lostUnit);
     logger.info(`Unit ${unit.id} destroyed after running out of fuel`);
     return false;
   }
@@ -1278,7 +1292,6 @@ export class UnitManager {
       }).value;
       if (retirementChance > 0 && this.random() * 100 < retirementChance) {
         await this.destroyUnit(unit.id);
-        this.notifyUnitDestroyed(unit);
       }
     }
   }
@@ -1775,6 +1788,10 @@ export class UnitManager {
     }
     this.units.delete(unitId);
     await this.databaseProvider.getDatabase().delete(units).where(eq(units.id, unitId));
+    // All authoritative removals, including combat collateral and cargo loss,
+    // pass through this method. Notify once here so clients and AI lifecycle
+    // state cannot miss a path or receive duplicate path-specific events.
+    this.notifyUnitDestroyed(unit);
     logger.info(`Unit ${unitId} destroyed`);
   }
 
@@ -2971,7 +2988,6 @@ export class UnitManager {
   private async handleFoundCity(unit: Unit, result: ActionResult): Promise<boolean> {
     if (result.unitDestroyed) {
       await this.destroyUnit(unit.id);
-      this.notifyUnitDestroyed(unit);
       return true;
     }
     return false;

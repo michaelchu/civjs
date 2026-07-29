@@ -24,6 +24,7 @@ describe('TerrainSettingsDialog', () => {
         maxPlayers: 4,
         mapSize: 'standard',
         selectedNation: 'random',
+        aiLevel: 'normal',
       },
       terrainSettings: {
         generator: 'random',

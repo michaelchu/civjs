@@ -268,6 +268,8 @@ describe('UnitManager', () => {
         broadcastUnitMoved: jest.fn(),
         broadcastUnitDestroyed,
       });
+      const destroyedObserver = jest.fn();
+      unitManager.setUnitDestroyedObserver(destroyedObserver);
       const settlers = await unitManager.createUnit('player-123', 'settlers', 10, 10);
 
       await expect(
@@ -282,6 +284,9 @@ describe('UnitManager', () => {
 
       expect(unitManager.getUnit(settlers.id)).toBeUndefined();
       expect(broadcastUnitDestroyed).toHaveBeenCalledWith(gameId, settlers);
+      expect(broadcastUnitDestroyed).toHaveBeenCalledTimes(1);
+      expect(destroyedObserver).toHaveBeenCalledWith(settlers);
+      expect(destroyedObserver).toHaveBeenCalledTimes(1);
     });
 
     it('delegates a legal join-city action and consumes the actor', async () => {

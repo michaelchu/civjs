@@ -12,7 +12,7 @@ import {
   rankCitySites,
   rankMilitaryTargets,
 } from '@game/ai/FreecivAIPlanner';
-import { createAIProfile } from '@game/ai/FreecivAIProfile';
+import { createAIProfile, type AIProfile } from '@game/ai/FreecivAIProfile';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { DatabaseProvider } from '@database';
 import {
@@ -93,6 +93,7 @@ export class CivJSAIAdapter {
       const playerId = player.id;
       const state = normalizeAIState(player.aiState);
       player.aiState = state as unknown as Record<string, unknown>;
+      game.visibilityManager.updatePlayerVisibility(playerId);
       const actionsBeforePlayer = actions;
       actions += await this.attempt('research', () => this.selectResearch(game, playerId));
       actions += await this.attempt('government', () => this.manageGovernment(game, playerId));
@@ -151,7 +152,13 @@ export class CivJSAIAdapter {
         if (task.targetId === unit.id) delete state.unitTasks[unitId];
       }
       player.aiState = state as unknown as Record<string, unknown>;
-      void this.stateStore.save(gameId, player.id, state);
+      void this.stateStore.save(gameId, player.id, state).catch(error => {
+        logger.warn('CivJS AI lifecycle state persistence failed', {
+          gameId,
+          playerId: player.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
     }
   }
 
@@ -169,7 +176,13 @@ export class CivJSAIAdapter {
         if (task.targetId === cityId) delete state.unitTasks[unitId];
       }
       player.aiState = state as unknown as Record<string, unknown>;
-      void this.stateStore.save(gameId, player.id, state);
+      void this.stateStore.save(gameId, player.id, state).catch(error => {
+        logger.warn('CivJS AI lifecycle state persistence failed', {
+          gameId,
+          playerId: player.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
     }
   }
 
@@ -224,6 +237,11 @@ export class CivJSAIAdapter {
     ) {
       await game.researchManager.setResearchGoal(playerId, researchChoice.goalId);
     }
+    // Freeciv retains an active research target unless an advisor explicitly
+    // decides that changing it is worth the configured technology-switch
+    // penalty. CivJS currently has the classic 100% penalty, so routine
+    // re-ranking must never discard accumulated bulbs.
+    if (research?.currentTech) return 0;
     if (choice.id === research?.currentTech) return 0;
     await game.researchManager.setCurrentResearch(playerId, choice.id);
     return 1;
@@ -276,18 +294,13 @@ export class CivJSAIAdapter {
     const hostilePlayerIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
     const player = game.players.get(playerId);
     const profile = createAIProfile(player?.aiLevel, player?.aiTraits);
-    const hostileUnits = Array.from(game.unitManager.getAllUnits().values()).filter(unit =>
-      hostilePlayerIds.has(unit.playerId)
-    );
+    const hostileUnits = this.hostileUnitsForPlanning(game, playerId, hostilePlayerIds, profile);
     const reservedWonders = new Set(
       cities
-        .filter(city => {
-          const building = city.currentProduction
-            ? BUILDING_TYPES[city.currentProduction]
-            : undefined;
-          return building?.genus === 'GreatWonder';
-        })
-        .map(city => city.currentProduction!)
+        .flatMap(city => [city.currentProduction, ...(city.worklist ?? []).map(item => item.value)])
+        .filter((buildingId): buildingId is string =>
+          Boolean(buildingId && BUILDING_TYPES[buildingId]?.genus === 'GreatWonder')
+        )
     );
 
     for (const city of cities) {
@@ -340,6 +353,11 @@ export class CivJSAIAdapter {
           queued.length > 0 &&
           (await game.cityManager.addToWorklist(city.id, queued, playerId))
         ) {
+          for (const item of queued) {
+            if (BUILDING_TYPES[item.value]?.genus === 'GreatWonder') {
+              reservedWonders.add(item.value);
+            }
+          }
           actions++;
         }
         continue;
@@ -413,9 +431,7 @@ export class CivJSAIAdapter {
     const profile = createAIProfile(player?.aiLevel, player?.aiTraits);
     const cities = game.cityManager.getAllCities();
     const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, unit.playerId);
-    const hostileUnits = Array.from(game.unitManager.getAllUnits().values()).filter(enemy =>
-      hostileIds.has(enemy.playerId)
-    );
+    const hostileUnits = this.hostileUnitsForPlanning(game, unit.playerId, hostileIds, profile);
     const candidates = rankCitySites(
       map.tiles
         .flat()
@@ -511,8 +527,12 @@ export class CivJSAIAdapter {
     state: FreecivAIState
   ): Promise<number> {
     const hostilePlayerIds = await this.hostilityPolicy.getHostilePlayerIds(gameId, playerId);
-    const enemies = Array.from(game.unitManager.getAllUnits().values())
-      .filter(unit => hostilePlayerIds.has(unit.playerId) && !unit.transportedBy)
+    const profile = createAIProfile(
+      game.players.get(playerId)?.aiLevel,
+      game.players.get(playerId)?.aiTraits
+    );
+    const enemies = this.hostileUnitsForPlanning(game, playerId, hostilePlayerIds, profile)
+      .filter(unit => !unit.transportedBy)
       .sort((a, b) => a.id.localeCompare(b.id));
     let actions = 0;
 
@@ -580,13 +600,11 @@ export class CivJSAIAdapter {
       .filter(city => Number.isFinite(city.x) && Number.isFinite(city.y));
     if (cities.length === 0) return 0;
     const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
-    const hostileUnits = Array.from(game.unitManager.getAllUnits().values()).filter(unit =>
-      hostileIds.has(unit.playerId)
-    );
     const profile = createAIProfile(
       game.players.get(playerId)?.aiLevel,
       game.players.get(playerId)?.aiTraits
     );
+    const hostileUnits = this.hostileUnitsForPlanning(game, playerId, hostileIds, profile);
     const plan = planCityGuards({
       turn: game.currentTurn,
       cities,
@@ -673,47 +691,54 @@ export class CivJSAIAdapter {
         continue;
       }
       if (assignment.phase === 'rendezvous') {
-        if (ferry.movementLeft > 0) {
+        if (ferry.x === passenger.x && ferry.y === passenger.y) {
+          if (await game.unitManager.loadUnitOntoTransport(ferry.id, passenger.id)) actions++;
+          continue;
+        }
+        const rendezvous = await this.findReachableFerryWaypoint(
+          game,
+          ferry,
+          game.mapManager.getNeighbors(passenger.x, passenger.y)
+        );
+        if (rendezvous && ferry.movementLeft > 0) {
           const result = await game.unitManager.executeUnitAction(
             ferry.id,
             ActionType.GOTO,
-            passenger.x,
-            passenger.y,
+            rendezvous.x,
+            rendezvous.y,
             playerId
           );
           if (result.success) actions++;
         }
+        // A land unit embarks through the authoritative movement path by
+        // entering the adjacent transport's tile. Freeciv likewise moves the
+        // passenger to the boat; naval units cannot path onto its land tile.
         if (
-          ferry.x === passenger.x &&
-          ferry.y === passenger.y &&
+          game.mapManager.getDistance(ferry.x, ferry.y, passenger.x, passenger.y) <= 1 &&
           !passenger.transportedBy &&
-          (await game.unitManager.loadUnitOntoTransport(ferry.id, passenger.id))
+          passenger.movementLeft > 0
         ) {
-          actions++;
+          const result = await game.unitManager.executeUnitAction(
+            passenger.id,
+            ActionType.GOTO,
+            ferry.x,
+            ferry.y,
+            playerId
+          );
+          if (result.success) actions++;
         }
         continue;
       }
-      const distance = game.mapManager.getDistance(
-        ferry.x,
-        ferry.y,
+      const landing = await this.findFerryLanding(
+        game,
+        ferry,
+        passenger,
         assignment.destinationX,
         assignment.destinationY
       );
-      if (
-        distance <= 1 &&
-        game.unitManager.canUnloadUnit(
-          passenger.id,
-          assignment.destinationX,
-          assignment.destinationY
-        )
-      ) {
-        if (
-          await game.unitManager.unloadUnit(
-            passenger.id,
-            assignment.destinationX,
-            assignment.destinationY
-          )
-        ) {
+      if (!landing) continue;
+      if (game.unitManager.canUnloadUnit(passenger.id, landing.landX, landing.landY)) {
+        if (await game.unitManager.unloadUnit(passenger.id, landing.landX, landing.landY)) {
           actions++;
         }
         continue;
@@ -722,14 +747,104 @@ export class CivJSAIAdapter {
         const result = await game.unitManager.executeUnitAction(
           ferry.id,
           ActionType.GOTO,
-          assignment.destinationX,
-          assignment.destinationY,
+          landing.waterX,
+          landing.waterY,
           playerId
         );
         if (result.success) actions++;
       }
     }
     return actions;
+  }
+
+  /**
+   * Select a native, reachable water tile next to the passenger. This is the
+   * CivJS equivalent of Freeciv's ferry rendezvous beach search.
+   *
+   * @reference reference/freeciv/ai/default/daiferry.c:dai_gobyboat
+   */
+  private async findReachableFerryWaypoint(
+    game: GameInstance,
+    ferry: Unit,
+    candidates: Array<{ x: number; y: number }>
+  ): Promise<{ x: number; y: number } | null> {
+    const reachable: Array<{ x: number; y: number; turns: number; cost: number }> = [];
+    for (const candidate of candidates) {
+      if (!game.unitManager.canContinuePathFrom(ferry, candidate.x, candidate.y)) continue;
+      const path = await game.pathfindingManager.findPath(ferry, candidate.x, candidate.y);
+      if (!path.valid) continue;
+      reachable.push({
+        x: candidate.x,
+        y: candidate.y,
+        turns: path.estimatedTurns,
+        cost: path.totalCost,
+      });
+    }
+    reachable.sort(
+      (left, right) =>
+        left.turns - right.turns || left.cost - right.cost || left.y - right.y || left.x - right.x
+    );
+    return reachable[0] ?? null;
+  }
+
+  /**
+   * Find a legal beachhead and the adjacent naval waypoint from which cargo
+   * can unload. Search is intentionally map-complete: inland objectives and
+   * irregular coastlines must not silently disable ferry missions.
+   *
+   * @reference reference/freeciv/ai/default/daiferry.c:dai_find_beachhead
+   */
+  private async findFerryLanding(
+    game: GameInstance,
+    ferry: Unit,
+    passenger: Unit,
+    destinationX: number,
+    destinationY: number
+  ): Promise<{ landX: number; landY: number; waterX: number; waterY: number } | null> {
+    const landCandidates: Array<{ x: number; y: number; distance: number }> = [];
+    const width = game.config.mapWidth ?? 80;
+    const height = game.config.mapHeight ?? 50;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (
+          !game.mapManager.isValidPosition(x, y) ||
+          !game.unitManager.canContinuePathFrom(passenger, x, y)
+        ) {
+          continue;
+        }
+        const city = game.cityManager.getCityAt(x, y);
+        if (city && city.playerId !== passenger.playerId) continue;
+        const enemy = game.unitManager
+          .getUnitsAt(x, y)
+          .some(candidate => candidate.playerId !== passenger.playerId);
+        if (enemy) continue;
+        landCandidates.push({
+          x,
+          y,
+          distance: game.mapManager.getDistance(x, y, destinationX, destinationY),
+        });
+      }
+    }
+    landCandidates.sort(
+      (left, right) => left.distance - right.distance || left.y - right.y || left.x - right.x
+    );
+
+    for (const land of landCandidates) {
+      const water = await this.findReachableFerryWaypoint(
+        game,
+        ferry,
+        game.mapManager.getNeighbors(land.x, land.y)
+      );
+      if (water) {
+        return {
+          landX: land.x,
+          landY: land.y,
+          waterX: water.x,
+          waterY: water.y,
+        };
+      }
+    }
+    return null;
   }
 
   private async manageAirAndParadrops(
@@ -746,11 +861,9 @@ export class CivJSAIAdapter {
     );
     const missions = planAirMissions({
       friendlyUnits: game.unitManager.getPlayerUnits(playerId),
-      hostileUnits: Array.from(game.unitManager.getAllUnits().values()).filter(unit =>
-        hostileIds.has(unit.playerId)
-      ),
+      hostileUnits: this.hostileUnitsForPlanning(game, playerId, hostileIds, profile),
       friendlyCities: allCities.filter(city => city.playerId === playerId),
-      hostileCities: allCities.filter(city => hostileIds.has(city.playerId)),
+      hostileCities: this.targetableForeignCities(game, playerId, hostileIds, profile),
       getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
       planesHandicap: profile.handicaps.has('no_planes'),
@@ -829,10 +942,13 @@ export class CivJSAIAdapter {
         game.unitManager.getUnitType(unit.unitTypeId)?.flags?.includes('Diplomat')
       ),
       friendlyUnits: units,
-      hostileUnits: Array.from(game.unitManager.getAllUnits().values()).filter(unit =>
-        hostileIds.has(unit.playerId)
+      hostileUnits: this.hostileUnitsForPlanning(game, playerId, hostileIds, profile),
+      foreignCities: this.targetableForeignCities(
+        game,
+        playerId,
+        new Set(cities.filter(city => city.playerId !== playerId).map(city => city.playerId)),
+        profile
       ),
-      foreignCities: cities.filter(city => city.playerId !== playerId),
       friendlyCities: cities.filter(city => city.playerId === playerId),
       hostilePlayerIds: hostileIds,
       getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
@@ -888,8 +1004,12 @@ export class CivJSAIAdapter {
     state: FreecivAIState
   ): Promise<number> {
     const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(gameId, playerId);
-    const hostileUnits = Array.from(game.unitManager.getAllUnits().values()).filter(
-      unit => hostileIds.has(unit.playerId) && !unit.transportedBy
+    const profile = createAIProfile(
+      game.players.get(playerId)?.aiLevel,
+      game.players.get(playerId)?.aiTraits
+    );
+    const hostileUnits = this.hostileUnitsForPlanning(game, playerId, hostileIds, profile).filter(
+      unit => !unit.transportedBy
     );
     const plan = planHunters({
       turn: game.currentTurn,
@@ -997,9 +1117,11 @@ export class CivJSAIAdapter {
     const cities = game.cityManager.getPlayerCities(playerId);
     const netGold = cities.reduce((sum, city) => sum + (city.goldPerTurn ?? 0), 0);
     const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
-    const hostileUnits = Array.from(game.unitManager.getAllUnits().values()).filter(unit =>
-      hostileIds.has(unit.playerId)
+    const profile = createAIProfile(
+      game.players.get(playerId)?.aiLevel,
+      game.players.get(playerId)?.aiTraits
     );
+    const hostileUnits = this.hostileUnitsForPlanning(game, playerId, hostileIds, profile);
     const plan = planTreasury({
       currentGold: status.currentGold,
       netGold,
@@ -1070,6 +1192,44 @@ export class CivJSAIAdapter {
       .getPlayerUnits(playerId)
       .slice()
       .sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  /**
+   * H_TARGETS is the Freeciv limitation that prevents lower-skill AI from
+   * selecting units or cities under fog. Higher levels deliberately retain
+   * Freeciv's omniscient target selection when that handicap is absent.
+   *
+   * @reference reference/freeciv/ai/default/daiunit.c
+   * @reference reference/freeciv/ai/default/daiair.c
+   */
+  private hostileUnitsForPlanning(
+    game: GameInstance,
+    playerId: string,
+    hostilePlayerIds: ReadonlySet<string>,
+    profile: AIProfile
+  ): Unit[] {
+    const candidates = profile.handicaps.has('targets')
+      ? game.unitManager.getVisibleUnits(
+          playerId,
+          game.visibilityManager.getVisibleTiles(playerId),
+          game.visibilityManager.getDetectionTiles(playerId)
+        )
+      : Array.from(game.unitManager.getAllUnits().values());
+    return candidates.filter(unit => hostilePlayerIds.has(unit.playerId));
+  }
+
+  private targetableForeignCities(
+    game: GameInstance,
+    playerId: string,
+    targetPlayerIds: ReadonlySet<string>,
+    profile: AIProfile
+  ) {
+    return (game.cityManager.getAllCities?.() ?? []).filter(
+      city =>
+        targetPlayerIds.has(city.playerId) &&
+        (!profile.handicaps.has('targets') ||
+          game.visibilityManager.isTileVisible(playerId, city.x, city.y))
+    );
   }
 
   private async manageDiplomacy(
