@@ -40,9 +40,10 @@ type TestGame = {
 };
 
 const validationSeedCount = Math.max(1, Number(process.env.AI_VALIDATION_SEED_COUNT ?? 3));
+const validationSeedOffset = Math.max(0, Number(process.env.AI_VALIDATION_SEED_OFFSET ?? 0));
 const validationSeeds = Array.from(
   { length: validationSeedCount },
-  (_, index) => `ai-validation-${String(index + 1).padStart(2, '0')}`
+  (_, index) => `ai-validation-${String(validationSeedOffset + index + 1).padStart(2, '0')}`
 );
 const validationMaxTurns = Math.max(4, Number(process.env.AI_VALIDATION_MAX_TURNS ?? 8));
 const recoveryTurnsBySeed: Record<string, number> = {

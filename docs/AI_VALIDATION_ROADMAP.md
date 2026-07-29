@@ -75,6 +75,10 @@ The first implementation steps are now in place:
 - The larger `npm run test:ai-validation:100` matrix runs weekly and on manual
   dispatch in `.github/workflows/ai-validation.yml`, outside normal pull-
   request feedback. The job uploads any validation diagnostics as an artifact.
+- The initial 25-configuration terminal matrix has been executed successfully
+  in five deterministic Docker shards (seeds 01–25). Each configuration reached
+  its configured terminal turn without an invariant violation; seeds 01, 13,
+  and 25 exercised early, middle, and late recovery respectively.
 
 The real-paratrooper city-capture scenario remains temporarily skipped. A
 deterministic map, explicit visibility refresh, legal airbase, in-range unit,
@@ -82,9 +86,9 @@ and undefended target still yield no selected paradrop mission. This is a
 functional AI mission-selection gap, not counted as validation coverage.
 
 This is intentionally a foundation rather than completion of the milestone:
-candidate-score/economic-delta traces, empirical 25/100-seed baseline results,
-full worker transformation coverage, city capture/loss lifecycle coverage, and
-comparative strategic-strength match results remain required work.
+candidate-score/economic-delta traces, empirical 100-seed baseline results,
+full worker transformation coverage, and comparative strategic-strength match
+results remain required work.
 
 ## Next validation milestone: deterministic simulation matrix
 

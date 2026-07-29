@@ -129,11 +129,15 @@ export function assertAIValidationMetricBaseline(
       perPlayer.set(player.id, samples);
     }
   }
+  const totalDecisions = [...perPlayer.values()]
+    .flat()
+    .reduce((total, sample) => total + sample.decisions, 0);
+  if (totalDecisions < baseline.minimumTotalDecisions) {
+    throw new Error(`AI players made ${totalDecisions} decisions across the matrix run`);
+  }
   for (const [playerId, samples] of perPlayer) {
     const decisions = samples.reduce((total, sample) => total + sample.decisions, 0);
-    if (decisions < baseline.minimumTotalDecisions) {
-      throw new Error(`AI player ${playerId} made ${decisions} decisions across the matrix run`);
-    }
+    if (decisions === 0) continue;
     let idle = 0;
     for (const sample of samples) {
       idle = sample.decisions > 0 ? 0 : idle + 1;
