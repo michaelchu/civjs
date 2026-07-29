@@ -24,6 +24,24 @@ The current suite should therefore be treated as strong evidence of functional
 correctness and manager integration, not proof that the AI consistently plays
 well.
 
+## Implemented validation foundation
+
+The first implementation steps are now in place:
+
+- `GameConfig.mapSeed` is persisted and used during map creation, making a
+  configured generated world replayable instead of relying on mocked global
+  randomness.
+- The integration soak uses named deterministic seeds and emits a compact
+  failure artifact containing the seed, turn, player/task summaries,
+  violations, and reproduction command.
+- Authoritative integration scenarios now cover an AI producing a terrain
+  improver, completing a requested road, and selecting, completing, and
+  persisting an economic city improvement.
+
+This is intentionally a foundation rather than completion of the milestone:
+the matrix is still only a small smoke set, recovery injection is not yet
+systematic, and the 25- and 100-seed scheduled runs remain required work.
+
 ## Next validation milestone: deterministic simulation matrix
 
 Build a headless simulation harness that runs complete AI games across a
