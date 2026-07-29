@@ -22,6 +22,46 @@ export interface AIValidationArtifactContext {
   configuration: Record<string, unknown>;
   phase: string;
   error: unknown;
+  metrics?: AIValidationMetricPoint[];
+}
+
+export interface AIValidationMetricPoint {
+  turn: number;
+  players: Array<{
+    id: string;
+    cities: number;
+    population: number;
+    production: number;
+    trade: number;
+    science: number;
+    units: number;
+    technologies: number;
+    tasks: number;
+    decisions: number;
+  }>;
+}
+
+/** Capture strategy-neutral, per-turn health data for matrix baselines. */
+export function captureAIValidationMetrics(game: GameInstance): AIValidationMetricPoint {
+  return {
+    turn: game.currentTurn,
+    players: [...game.players.values()].map(player => {
+      const cities = game.cityManager.getPlayerCities(player.id);
+      const state = assertAIState(player.aiState);
+      return {
+        id: player.id,
+        cities: cities.length,
+        population: cities.reduce((total, city) => total + city.population, 0),
+        production: cities.reduce((total, city) => total + (city.productionPerTurn ?? 0), 0),
+        trade: cities.reduce((total, city) => total + (city.tradePerTurn ?? 0), 0),
+        science: cities.reduce((total, city) => total + (city.sciencePerTurn ?? 0), 0),
+        units: game.unitManager.getPlayerUnits(player.id).length,
+        technologies: game.researchManager.getResearchedTechs(player.id).length,
+        tasks: Object.keys(state.unitTasks).length,
+        decisions: state.lastDecisionCount ?? 0,
+      };
+    }),
+  };
 }
 
 /**
@@ -134,6 +174,7 @@ export function writeAIValidationFailureArtifact(
       phase: context.phase,
       error: context.error instanceof Error ? context.error.message : String(context.error),
     },
+    metrics: context.metrics,
     snapshot: {
       gameId: game.id,
       state: game.state,

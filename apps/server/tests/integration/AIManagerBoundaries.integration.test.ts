@@ -13,6 +13,7 @@ import {
 } from '@game/managers/GameManager';
 import {
   assertAIValidationInvariants,
+  captureAIValidationMetrics,
   writeAIValidationFailureArtifact,
 } from '../utils/aiValidation';
 import { createMockSocketServer } from '../utils/gameTestUtils';
@@ -1442,6 +1443,7 @@ describe('AI authoritative manager boundaries', () => {
       let recovered = false;
       let totalDecisions = 0;
       let phase = 'turn-processing';
+      const metrics = [];
 
       try {
         while (game.state === 'active') {
@@ -1450,6 +1452,7 @@ describe('AI authoritative manager boundaries', () => {
           await game.turnManager.processTurn();
           expect(performance.now() - startedAt).toBeLessThan(15_000);
           assertAIValidationInvariants(game);
+          metrics.push(captureAIValidationMetrics(game));
 
           for (const player of game.players.values()) {
             const state = assertAIState(player.aiState);
@@ -1466,6 +1469,7 @@ describe('AI authoritative manager boundaries', () => {
             expect(recoveredGame).not.toBeNull();
             expect(recoveredGame!.currentTurn).toBe(processingTurn + 1);
             assertAIValidationInvariants(recoveredGame!);
+            metrics.push(captureAIValidationMetrics(recoveredGame!));
             game = recoveredGame!;
             recovered = true;
             phase = 'turn-processing';
@@ -1476,6 +1480,7 @@ describe('AI authoritative manager boundaries', () => {
           configuration: validation,
           phase,
           error,
+          metrics,
         });
         throw new Error(`AI validation artifact written to ${artifactPath}`, { cause: error });
       }
@@ -1485,6 +1490,10 @@ describe('AI authoritative manager boundaries', () => {
       expect(game.state).toBe('ended');
       expect(game.currentTurn).toBe(validationMaxTurns);
       expect(totalDecisions).toBeGreaterThan(0);
+      // Games begin their active lifecycle at turn 2, so a turn-limit of N
+      // produces N - 1 processed-turn samples (plus any recovery sample).
+      expect(metrics.length).toBeGreaterThanOrEqual(validationMaxTurns - 1);
+      expect(metrics.every(point => point.players.every(player => player.units >= 0))).toBe(true);
       assertAIValidationInvariants(game);
     }
   );

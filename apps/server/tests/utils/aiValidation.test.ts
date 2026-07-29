@@ -1,5 +1,5 @@
 import { createAIState } from '@game/ai/AIStateStore';
-import { assertAIValidationInvariants } from './aiValidation';
+import { assertAIValidationInvariants, captureAIValidationMetrics } from './aiValidation';
 
 function gameFixture(overrides: Record<string, unknown> = {}) {
   const player = { id: 'ai', aiState: createAIState() };
@@ -17,6 +17,9 @@ function gameFixture(overrides: Record<string, unknown> = {}) {
     cityManager: {
       getAllCities: () => [],
       getPlayerCities: () => [],
+    },
+    researchManager: {
+      getResearchedTechs: () => [],
     },
     ...overrides,
   } as any;
@@ -43,5 +46,22 @@ describe('AI validation invariants', () => {
 
     expect(() => assertAIValidationInvariants(game)).toThrow('validation-seed');
     expect(() => assertAIValidationInvariants(game)).toThrow('lost-unit has no owner');
+  });
+
+  it('captures per-player behavioral health metrics', () => {
+    const metrics = captureAIValidationMetrics(gameFixture());
+
+    expect(metrics).toEqual({
+      turn: 7,
+      players: [
+        expect.objectContaining({
+          id: 'ai',
+          cities: 0,
+          population: 0,
+          units: 0,
+          technologies: 0,
+        }),
+      ],
+    });
   });
 });
