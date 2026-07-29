@@ -1454,6 +1454,15 @@ describe('AI authoritative manager boundaries', () => {
     expect(retryActions).toBe(0);
     expect(city.productionStock).toBe(stockAfterRush);
     expect(await economy.getPlayerGold(guest!.playerId)).toBe(goldAfterRush);
+
+    gameManager.clearAllGames();
+    (GameManager as any).instance = null;
+    gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+    const recovered = await gameManager.recoverGameInstance(scenario.gameId);
+    expect(recovered?.cityManager.getCity(city.id)).toMatchObject({
+      currentProduction: 'warriors',
+      productionStock: stockAfterRush,
+    });
   });
 
   it('persists victim and observer diplomacy memory at the incident boundary and through recovery', async () => {
