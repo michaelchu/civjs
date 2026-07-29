@@ -17,6 +17,7 @@ export interface AIChoice<T> {
   value: T;
   want: number;
   reason: string;
+  goalId?: string;
 }
 
 export interface ProductionChoice {
@@ -196,6 +197,7 @@ export interface ResearchPlanningContext {
   militaryPressure: number;
   cityCount: number;
   profile?: AIProfile;
+  researchedTechs?: ReadonlySet<string>;
 }
 
 function normalizeId(value: string): string {
@@ -213,12 +215,17 @@ function normalizeId(value: string): string {
  * @reference reference/freeciv/ai/default/daitech.c
  */
 export function chooseResearch(context: ResearchPlanningContext): AIChoice<Technology> | undefined {
-  const choices = context.available.map(tech => {
+  const directWants = new Map<string, { want: number; reasons: string[] }>();
+  for (const tech of context.catalogue) {
     let want = 1;
     const reasons: string[] = [];
 
     for (const unit of Object.values(context.unitTypes)) {
       if (normalizeId(unit.requiredTech ?? '') !== normalizeId(tech.id)) continue;
+      const replacement = unit.obsolete_by ? context.unitTypes[unit.obsolete_by] : undefined;
+      if (replacement?.requiredTech && context.researchedTechs?.has(replacement.requiredTech)) {
+        continue;
+      }
       const military =
         unitAttack(unit) * Math.max(1, unit.movement) +
         unitDefense(unit) * (1 + context.militaryPressure);
@@ -250,6 +257,45 @@ export function chooseResearch(context: ResearchPlanningContext): AIChoice<Techn
       want += 80 + context.cityCount * 10;
       reasons.push('government');
     }
+    directWants.set(tech.id, { want, reasons });
+  }
+
+  const techById = new Map(context.catalogue.map(tech => [tech.id, tech]));
+  const distanceToPrerequisite = (
+    goalId: string,
+    prerequisiteId: string,
+    visiting = new Set<string>()
+  ): number | undefined => {
+    if (goalId === prerequisiteId) return 0;
+    if (visiting.has(goalId)) return undefined;
+    const goal = techById.get(goalId);
+    if (!goal) return undefined;
+    const nextVisiting = new Set(visiting).add(goalId);
+    const distances = goal.requirements
+      .map(requirement => distanceToPrerequisite(requirement, prerequisiteId, nextVisiting))
+      .filter((distance): distance is number => distance !== undefined);
+    return distances.length > 0 ? Math.min(...distances) + 1 : undefined;
+  };
+
+  const choices = context.available.map(tech => {
+    const direct = directWants.get(tech.id) ?? { want: 1, reasons: [] };
+    let want = direct.want;
+    const reasons = [...direct.reasons];
+    let goalId = tech.id;
+    let bestGoalContribution = direct.want;
+    for (const goal of context.catalogue) {
+      if (context.researchedTechs?.has(goal.id) || goal.id === tech.id) continue;
+      const distance = distanceToPrerequisite(goal.id, tech.id);
+      if (distance === undefined) continue;
+      const goalWant = directWants.get(goal.id)?.want ?? 1;
+      const contribution = amortize(goalWant, distance * 3) / (distance + 1);
+      want += contribution;
+      if (contribution > bestGoalContribution) {
+        bestGoalContribution = contribution;
+        goalId = goal.id;
+      }
+      if (goalWant > 1) reasons.push(`goal:${goal.id}`);
+    }
 
     // Present value per bulb keeps a cheap useful advance competitive without
     // allowing cost alone to determine the research path.
@@ -258,6 +304,7 @@ export function chooseResearch(context: ResearchPlanningContext): AIChoice<Techn
       value: tech,
       want,
       reason: reasons.join('+') || 'future options',
+      goalId,
     };
   });
 

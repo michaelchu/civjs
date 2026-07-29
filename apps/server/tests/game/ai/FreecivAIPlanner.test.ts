@@ -155,6 +155,107 @@ describe('Freeciv AI want planner', () => {
     expect(choice?.reason).toContain('unit:strong_unit');
   });
 
+  it('propagates downstream unlock wants into a recursive research goal', () => {
+    const alphabet = {
+      id: 'alphabet',
+      name: 'Alphabet',
+      cost: 20,
+      requirements: [],
+      flags: [],
+    };
+    const bronze = {
+      id: 'bronze',
+      name: 'Bronze',
+      cost: 20,
+      requirements: [],
+      flags: [],
+    };
+    const writing = {
+      id: 'writing',
+      name: 'Writing',
+      cost: 40,
+      requirements: ['alphabet'],
+      flags: [],
+    };
+    const choice = chooseResearch({
+      available: [bronze, alphabet],
+      catalogue: [alphabet, bronze, writing],
+      unitTypes: {
+        legion: {
+          id: 'legion',
+          attack: 10,
+          defense: 5,
+          combat: 10,
+          movement: 3,
+          requiredTech: 'writing',
+        } as any,
+      },
+      buildingTypes: {},
+      governmentTechs: new Set(),
+      militaryPressure: 1,
+      cityCount: 1,
+      researchedTechs: new Set(),
+    });
+
+    expect(choice?.value.id).toBe('alphabet');
+    expect(choice?.goalId).toBe('writing');
+    expect(choice?.reason).toContain('goal:writing');
+  });
+
+  it('suppresses unit unlock wants when its replacement is already available', () => {
+    const oldTech = {
+      id: 'old_tech',
+      name: 'Old',
+      cost: 20,
+      requirements: [],
+      flags: [],
+    };
+    const useful = {
+      id: 'useful',
+      name: 'Useful',
+      cost: 20,
+      requirements: [],
+      flags: [],
+    };
+    const choice = chooseResearch({
+      available: [oldTech, useful],
+      catalogue: [oldTech, useful],
+      unitTypes: {
+        obsolete: {
+          id: 'obsolete',
+          attack: 20,
+          defense: 10,
+          combat: 20,
+          movement: 3,
+          requiredTech: 'old_tech',
+          obsolete_by: 'replacement',
+        } as any,
+        replacement: {
+          id: 'replacement',
+          attack: 21,
+          defense: 11,
+          combat: 21,
+          movement: 3,
+          requiredTech: 'modern_tech',
+        } as any,
+      },
+      buildingTypes: {
+        library: {
+          id: 'library',
+          requiredTech: 'useful',
+          cost: 40,
+          effects: { scienceBonus: 2 },
+        } as any,
+      },
+      governmentTechs: new Set(),
+      militaryPressure: 0,
+      cityCount: 1,
+      researchedTechs: new Set(['modern_tech']),
+    });
+
+    expect(choice?.value.id).toBe('useful');
+  });
+
   it('ranks profitable vulnerable targets ahead of expensive fights', () => {
     const attacker = unit('attacker', 'attacker');
     const worker = unit('worker', 'worker', { playerId: 'enemy', x: 4, y: 2 });

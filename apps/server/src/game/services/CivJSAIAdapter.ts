@@ -196,7 +196,7 @@ export class CivJSAIAdapter {
     const player = game.players.get(playerId);
     const profile = createAIProfile(player?.aiLevel, player?.aiTraits);
     const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
-    const choice = catalogue
+    const researchChoice = catalogue
       ? chooseResearch({
           available,
           catalogue,
@@ -206,9 +206,21 @@ export class CivJSAIAdapter {
           militaryPressure: hostileIds.size,
           cityCount: cities.length,
           profile,
-        })?.value
-      : available.sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))[0];
-    if (!choice || choice.id === research?.currentTech) return 0;
+          researchedTechs: research?.researchedTechs,
+        })
+      : undefined;
+    const choice =
+      researchChoice?.value ??
+      available.sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))[0];
+    if (!choice) return 0;
+    if (
+      researchChoice?.goalId &&
+      researchChoice.goalId !== research?.techGoal &&
+      typeof game.researchManager.setResearchGoal === 'function'
+    ) {
+      await game.researchManager.setResearchGoal(playerId, researchChoice.goalId);
+    }
+    if (choice.id === research?.currentTech) return 0;
     await game.researchManager.setCurrentResearch(playerId, choice.id);
     return 1;
   }
