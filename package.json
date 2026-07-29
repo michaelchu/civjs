@@ -22,6 +22,7 @@
   "test:integration:direct": "cd apps/server && npm run test:integration",
   "test:integration:docker": "npm run test:integration",
   "test:ai-validation": "INTEGRATION_TEST_PATH=tests/integration/AIManagerBoundaries.integration.test.ts node tools/run-integration-tests.mjs",
+  "test:ai-validation:matrix": "AI_VALIDATION_SEED_COUNT=25 INTEGRATION_TEST_PATH=tests/integration/AIManagerBoundaries.integration.test.ts node tools/run-integration-tests.mjs",
     "test:integration:path": "cd apps/server && npm run test:integration:path --",
     "test:integration:watch": "cd apps/server && npm run test:integration:watch",
     "test:all": "npm run test:unit && npm run test:integration",
