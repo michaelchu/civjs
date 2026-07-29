@@ -1625,6 +1625,10 @@ export class CityManager {
 
     // Delegate to CityOptimizationService for manual optimization
     const result = await this.optimizationService.optimizeCityManually(cityId, parameters);
+    if (result.success) {
+      const city = this.cities.get(cityId);
+      if (city) await this.saveCityToDatabase(city);
+    }
     return result.success;
   }
 

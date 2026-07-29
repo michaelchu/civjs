@@ -1132,6 +1132,24 @@ describe('AI authoritative manager boundaries', () => {
     expect(persistedCity?.buildings).toContain('marketplace');
   });
 
+  it('persists an authoritative citizen optimization for a feasible founded city', async () => {
+    const scenario = await createActiveGame(2);
+    const [, guest] = scenario.players;
+    const city = await foundPlayerCity(scenario, guest!.playerId, 'AI Citizen City');
+
+    expect(await scenario.game.cityManager.optimizeCityManually(city.id)).toBe(true);
+    const managed = scenario.game.cityManager.getCity(city.id)!;
+    const persistedCity = await getTestDatabase().query.cities.findFirst({
+      where: eq(schema.cities.id, city.id),
+    });
+    expect(persistedCity).toMatchObject({
+      foodPerTurn: managed.foodPerTurn,
+      productionPerTurn: managed.productionPerTurn,
+      tradePerTurn: managed.tradePerTurn,
+      sciencePerTurn: managed.sciencePerTurn,
+    });
+  });
+
   it('selects, completes, persists, and recovers a spaceship part through real managers', async () => {
     const scenario = await createActiveGame(2, { victoryConditions: ['science'] });
     const [, guest] = scenario.players;
