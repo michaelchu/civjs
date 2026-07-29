@@ -19,7 +19,7 @@ import { VisibilityMapService } from '@game/services/VisibilityMapService';
 import { GameInstanceRecoveryService } from '@game/services/GameInstanceRecoveryService';
 
 // Keep existing imports for delegation
-import { BUILDING_TYPES, CityManager, type CityState } from '@game/managers/CityManager';
+import { CityManager, type CityState } from '@game/managers/CityManager';
 import { MapManager } from '@game/managers/MapManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { ResearchManager } from '@game/managers/ResearchManager';
@@ -51,8 +51,11 @@ import {
 } from '@game/services/NativeSaveService';
 import { ActionType, type ActionResult } from '@app-types/shared/actions';
 import { getUnitType } from '@game/constants/UnitConstants';
-import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { GoldSpendingType } from '@game/systems/Economic/types/EconomicTypes';
+import {
+  calculateDiplomatBribeCost,
+  calculateDiplomatInciteCost,
+} from '@game/services/DiplomatActionEconomics';
 
 // Freeciv dai_incident_simple() converts action badness into MAX_AI_LOVE / 35
 // victim penalties. CivJS stores love on the same -1000..1000 scale.
@@ -1127,18 +1130,7 @@ export class GameManager {
    * @reference reference/freeciv/common/unit.c:2371-2471 unit_bribe_cost()
    */
   private calculateBribeCost(game: GameInstance, target: Unit, ownerGold: number): number {
-    const targetType = getUnitType(target.unitTypeId);
-    const capital = game.cityManager
-      .getPlayerCities(target.playerId)
-      .find(city => city.buildings.includes('palace'));
-    const distance = capital
-      ? game.mapManager.getDistance(capital.x, capital.y, target.x, target.y)
-      : 32;
-    const { base_bribe_cost: baseBribeCost } = rulesetLoader.loadGameRulesRuleset().game_parameters;
-    let cost = (baseBribeCost + ownerGold) / (distance + 2);
-    cost *= (targetType?.cost ?? 10) / 10;
-    cost *= 0.5 * (1 + target.health / 100);
-    return Math.max(1, Math.floor(cost));
+    return calculateDiplomatBribeCost(game, target, ownerGold);
   }
 
   /**
@@ -1148,37 +1140,7 @@ export class GameManager {
    * @reference reference/freeciv/data/classic/game.ruleset:208-216
    */
   private async calculateInciteCost(game: GameInstance, city: CityState): Promise<number> {
-    const economicManager = game.turnManager.getEconomicManager()!;
-    const ownerGold = await economicManager.getPlayerGold(city.playerId);
-    const parameters = rulesetLoader.loadGameRulesRuleset().game_parameters;
-    const unitCost = game.unitManager
-      .getUnitsAt(city.x, city.y)
-      .reduce(
-        (sum, unit) =>
-          sum + (getUnitType(unit.unitTypeId)?.cost ?? 0) * parameters.incite_unit_factor,
-        0
-      );
-    const improvementCost = city.buildings.reduce(
-      (sum, building) =>
-        sum + (BUILDING_TYPES[building]?.cost ?? 0) * parameters.incite_improvement_factor,
-      0
-    );
-    let cost = ownerGold + parameters.base_incite_cost + unitCost + improvementCost;
-    if (city.happiness.unhappy === 0 && city.happiness.angry === 0) cost *= 2;
-    const capital = game.cityManager
-      .getPlayerCities(city.playerId)
-      .find(candidate => candidate.buildings.includes('palace'));
-    const distance = capital
-      ? game.mapManager.getDistance(capital.x, capital.y, city.x, city.y)
-      : 32;
-    const effectiveSize = Math.max(
-      1,
-      city.size + city.happiness.happy - city.happiness.unhappy - city.happiness.angry * 3
-    );
-    return Math.max(
-      1,
-      Math.floor((cost * effectiveSize * parameters.incite_total_factor) / ((distance + 3) * 100))
-    );
+    return calculateDiplomatInciteCost(game, city);
   }
 
   private async stealFirstAvailableTechnology(

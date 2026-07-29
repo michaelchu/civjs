@@ -23,6 +23,13 @@ import { rankVirtualMilitaryProduction } from '@game/ai/FreecivAIMilitaryProduct
 import { rankHunterProduction } from '@game/ai/FreecivAIHunterPlanner';
 import { rankVirtualAirProduction } from '@game/ai/FreecivAIAirPlanner';
 import { rankVirtualParadropProduction } from '@game/ai/FreecivAIParadropPlanner';
+import {
+  rankDiplomatTechnologyWants,
+  rankVirtualDiplomatProduction,
+} from '@game/ai/FreecivAIDiplomatPlanner';
+import { calculateDiplomatInciteCost } from '@game/services/DiplomatActionEconomics';
+import { calculateTreasuryReserve } from '@game/ai/FreecivAITreasuryPlanner';
+import type { Unit } from '@game/managers/UnitManager';
 
 /**
  * Executes citizen allocation, production, worklist, and city-local unit
@@ -81,6 +88,28 @@ export class FreecivAICityController {
       unit => game.unitManager.getUnitType(unit.unitTypeId)?.canFoundCity
     );
     const relations = await this.hostilityPolicy.getRelationPlayerIds(game.id, playerId);
+    const diplomacySnapshot = (await this.hostilityPolicy.getDiplomacySnapshot?.(
+      game.id,
+      playerId
+    )) ?? {
+      nations: [...game.players.values()]
+        .filter(candidate => candidate.id !== playerId)
+        .map(candidate => ({
+          id: candidate.id,
+          isAlive: candidate.isAlive !== false,
+          relation: {
+            state: relations.hostile.has(candidate.id)
+              ? ('war' as const)
+              : relations.allied.has(candidate.id)
+                ? ('alliance' as const)
+                : ('no_contact' as const),
+            embassy: false,
+          },
+        })),
+    };
+    const relationByPlayer = new Map(
+      diplomacySnapshot.nations.map(nation => [nation.id, nation.relation])
+    );
     const hostilePlayerIds = relations.hostile;
     const player = game.players.get(playerId);
     const profile = createAIProfile(player?.aiLevel, player?.aiTraits);
@@ -111,6 +140,33 @@ export class FreecivAICityController {
     const exploredTiles = game.visibilityManager.getExploredTiles?.(playerId) ?? new Set<string>();
     const knownTechs = new Set(
       game.researchManager.getPlayerResearch(playerId)?.researchedTechs ?? []
+    );
+    const economicManager = game.turnManager?.getEconomicManager?.();
+    const gold =
+      (await economicManager?.getPlayerGold(playerId)) ?? game.players.get(playerId)?.gold ?? 0;
+    const goldReserve = calculateTreasuryReserve({
+      cities,
+      unitCount: units.length,
+      atWar: relations.hostile.size > 0,
+      netGold: game.players.get(playerId)?.goldPerTurn ?? 0,
+    });
+    const foreignCityIds = new Set(
+      allKnownCities.filter(city => city.playerId !== playerId).map(city => city.playerId)
+    );
+    const diplomatTargetCities = targetableForeignCities(game, playerId, foreignCityIds, profile);
+    const inciteCosts = new Map<string, number>();
+    await Promise.all(
+      diplomatTargetCities.map(async city => {
+        inciteCosts.set(city.id, await calculateDiplomatInciteCost(game, city));
+      })
+    );
+    const stealableTechs = new Map(
+      diplomacySnapshot.nations.map(nation => [
+        nation.id,
+        [...(game.researchManager.getPlayerResearch(nation.id)?.researchedTechs ?? [])].filter(
+          tech => !knownTechs.has(tech)
+        ).length,
+      ])
     );
     const threatTravelTimes = await buildCityThreatTravelTimes({
       cities,
@@ -226,6 +282,124 @@ export class FreecivAICityController {
       });
       for (const [unitTypeId, want] of paradropWants) {
         offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
+      }
+      const diplomatTypes = Object.values(UNIT_TYPES).filter(
+        type =>
+          type.flags?.includes('Diplomat') &&
+          (canContinueProduction?.(city.id, 'unit', type.id) ?? false)
+      );
+      const diplomatTravelTurns = new Map<string, number>();
+      await Promise.all(
+        diplomatTypes.flatMap(type =>
+          diplomatTargetCities.map(async target => {
+            const virtual = {
+              id: `virtual-diplomat:${city.id}:${type.id}`,
+              gameId: game.id,
+              playerId,
+              unitTypeId: type.id,
+              x: city.x,
+              y: city.y,
+              movementLeft: type.movement,
+              health: 100,
+              veteranLevel: 0,
+              experience: 0,
+              fortified: false,
+            } as Unit;
+            const candidates = await Promise.all(
+              game.mapManager
+                .getNeighbors(target.x, target.y)
+                .map(tile => game.pathfindingManager.findPath(virtual, tile.x, tile.y))
+            );
+            const cost = candidates
+              .filter(path => path.valid)
+              .reduce((best, path) => Math.min(best, path.totalCost), Infinity);
+            diplomatTravelTurns.set(
+              `${type.id}:${target.id}`,
+              Number.isFinite(cost)
+                ? Math.max(1, Math.ceil(cost / Math.max(1, type.movement)))
+                : Infinity
+            );
+          })
+        )
+      );
+      const diplomatThreat = hostileUnits.some(enemy => {
+        const type = game.unitManager.getUnitType(enemy.unitTypeId);
+        return (
+          type?.flags?.includes('Diplomat') === true &&
+          game.mapManager.getDistance(enemy.x, enemy.y, city.x, city.y) <=
+            Math.max(1, type.movement) * 3
+        );
+      });
+      const conventionalDefenderCount = units.filter(unit => {
+        const type = game.unitManager.getUnitType(unit.unitTypeId);
+        return (
+          unit.x === city.x &&
+          unit.y === city.y &&
+          type?.flags?.includes('Diplomat') !== true &&
+          type?.flags?.includes('NonMil') !== true
+        );
+      }).length;
+      const diplomatWants = rankVirtualDiplomatProduction({
+        playerId,
+        city,
+        unitTypes: Object.values(UNIT_TYPES),
+        friendlyUnits: units,
+        foreignCities: diplomatTargetCities,
+        canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
+        travelTurns: (type, target) =>
+          diplomatTravelTurns.get(`${type.id}:${target.id}`) ?? Infinity,
+        relation: otherPlayerId => {
+          const relation = relationByPlayer.get(otherPlayerId);
+          return {
+            allied: relation?.state === 'alliance' || relation?.state === 'team',
+            atWar: relation?.state === 'war',
+            hasEmbassy: relation?.embassy ?? false,
+          };
+        },
+        countStealableTechs: otherPlayerId => stealableTechs.get(otherPlayerId) ?? 0,
+        inciteCost: target => inciteCosts.get(target.id) ?? Infinity,
+        canInciteCity: target =>
+          !target.buildings.includes('palace') &&
+          game.governmentManager?.getPlayerGovernment(target.playerId)?.currentGovernment !==
+            'democracy',
+        actionOdds: (type, action) =>
+          game.unitManager.calculateDiplomatActionOdds(
+            {
+              id: `virtual-diplomat:${city.id}:${type.id}`,
+              gameId: game.id,
+              playerId,
+              unitTypeId: type.id,
+              x: city.x,
+              y: city.y,
+              movementLeft: type.movement,
+              health: 100,
+              veteranLevel: 0,
+              experience: 0,
+              fortified: false,
+            },
+            action
+          ),
+        cityDiplomatThreat: diplomatThreat,
+        cityUrgency: hostileUnits.filter(
+          enemy => game.mapManager.getDistance(enemy.x, enemy.y, city.x, city.y) <= 3
+        ).length,
+        conventionalDefenderCount,
+        gold,
+        goldReserve,
+        diplomatHandicap: profile.handicaps.has('diplomat'),
+      });
+      for (const [unitTypeId, want] of diplomatWants) {
+        offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
+      }
+      const diplomatTechWants = rankDiplomatTechnologyWants({
+        unitTypes: Object.values(UNIT_TYPES),
+        knownTechs,
+        cityDiplomatThreat: diplomatThreat,
+        conventionalDefenderCount,
+        canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
+      });
+      for (const [techId, want] of diplomatTechWants) {
+        state.techWants[techId] = (state.techWants[techId] ?? 0) + want;
       }
       const dangerAssessment = assessCityDanger({
         city,

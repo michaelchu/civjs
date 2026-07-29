@@ -20,6 +20,18 @@ interface TreasuryPlanningContext {
   threat: (city: CityState) => number;
 }
 
+export function calculateTreasuryReserve(
+  context: Pick<TreasuryPlanningContext, 'cities' | 'unitCount' | 'atWar' | 'netGold'>
+): number {
+  return (
+    20 +
+    context.cities.length * 10 +
+    Math.ceil(context.unitCount / 4) * 5 +
+    (context.atWar ? 30 : 0) +
+    Math.max(0, -context.netGold) * 3
+  );
+}
+
 function buildingStrategicValue(city: CityState, building: BuildingType): number {
   const effects = building.effects ?? {};
   const unrest = city.happiness.unhappy + city.happiness.angry;
@@ -44,12 +56,7 @@ export function planTreasury(context: TreasuryPlanningContext): TreasuryPlan {
     (sum, city) => sum + city.happiness.unhappy + city.happiness.angry,
     0
   );
-  const reserve =
-    20 +
-    context.cities.length * 10 +
-    Math.ceil(context.unitCount / 4) * 5 +
-    (context.atWar ? 30 : 0) +
-    Math.max(0, -context.netGold) * 3;
+  const reserve = calculateTreasuryReserve(context);
   const luxury = unrest > 0 ? Math.min(30, Math.ceil(unrest / 2) * 10) : 0;
   const tax = Math.min(
     100 - luxury,

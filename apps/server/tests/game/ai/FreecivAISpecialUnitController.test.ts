@@ -88,6 +88,23 @@ const types: Record<string, any> = {
     bombardRate: 0,
     paratroopersRange: 0,
   },
+  diplomat: {
+    id: 'diplomat',
+    unitClass: 'civilian',
+    rulesetUnitClass: 'Land',
+    rulesetUnitClassFlags: [],
+    flags: ['Diplomat'],
+    cargoClasses: [],
+    transport_capacity: 0,
+    attack: 0,
+    defense: 0,
+    combat: 0,
+    hitpoints: 10,
+    movement: 3,
+    cost: 30,
+    bombardRate: 0,
+    paratroopersRange: 0,
+  },
 };
 
 describe('Freeciv AI special-unit controller air integration', () => {
@@ -209,5 +226,106 @@ describe('Freeciv AI special-unit controller air integration', () => {
 
     expect(actions).toBe(1);
     expect(attackUnit).toHaveBeenCalledWith('para', 'enemy');
+  });
+
+  it('moves beside a foreign city and performs the chosen mission in the same turn', async () => {
+    const diplomat = unit('diplomat', 'diplomat', 0, 0);
+    diplomat.movementLeft = 6;
+    const units = new Map([[diplomat.id, diplomat]]);
+    const target = {
+      id: 'target',
+      name: 'Target',
+      playerId: 'enemy',
+      x: 3,
+      y: 0,
+      size: 4,
+      buildings: [],
+      happiness: { happy: 0, content: 4, unhappy: 0, angry: 0 },
+    };
+    const executeUnitAction = jest.fn(
+      async (_unitId: string, action: ActionType, targetX: number, targetY: number) => {
+        if (action === ActionType.GOTO) {
+          diplomat.x = targetX;
+          diplomat.y = targetY;
+          diplomat.movementLeft = 3;
+        }
+        return { success: true };
+      }
+    );
+    const game = {
+      id: 'game',
+      currentTurn: 7,
+      players: new Map([
+        ['ai', { id: 'ai', aiLevel: 'hard', gold: 500 }],
+        ['enemy', { id: 'enemy', isAlive: true }],
+      ]),
+      cityManager: {
+        getAllCities: jest.fn(() => [target]),
+        getPlayerCities: jest.fn((playerId: string) => (playerId === 'enemy' ? [target] : [])),
+        getCityAt: jest.fn((x: number, y: number) =>
+          x === target.x && y === target.y ? target : undefined
+        ),
+      },
+      unitManager: {
+        getPlayerUnits: jest.fn(() => [diplomat]),
+        getAllUnits: jest.fn(() => units),
+        getUnit: jest.fn((id: string) => units.get(id)),
+        getUnitsAt: jest.fn(() => []),
+        getUnitType: jest.fn((id: string) => types[id]),
+        calculateDiplomatActionOdds: jest.fn(() => ({
+          successChance: 1,
+          escapeChance: 0,
+        })),
+        calculateUnitAttackRating: jest.fn(() => 0),
+        calculateUnitDefenseRating: jest.fn(() => 0),
+        executeUnitAction,
+      },
+      researchManager: {
+        getResearchedTechs: jest.fn(() => []),
+      },
+      turnManager: {
+        getEconomicManager: jest.fn(() => ({
+          getPlayerGold: jest.fn(async (playerId: string) => (playerId === 'ai' ? 500 : 0)),
+        })),
+      },
+      mapManager: {
+        getDistance: (x1: number, y1: number, x2: number, y2: number) =>
+          Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)),
+        getNeighbors: jest.fn(() => [{ x: 2, y: 0 }]),
+      },
+      pathfindingManager: {
+        findPath: jest.fn(async () => ({ valid: true, totalCost: 2, path: [] })),
+      },
+      visibilityManager: {},
+    } as any;
+    const hostility = {
+      getDiplomacySnapshot: jest.fn().mockResolvedValue({
+        nations: [
+          {
+            id: 'enemy',
+            isAlive: true,
+            relation: { state: 'peace', embassy: false },
+          },
+        ],
+      }),
+      getRelationPlayerIds: jest.fn().mockResolvedValue({
+        hostile: new Set(),
+        allied: new Set(),
+        unknown: new Set(),
+      }),
+    } as any;
+
+    const actions = await new FreecivAISpecialUnitController(hostility).manageDiplomatUnits(
+      'game',
+      game,
+      'ai',
+      createAIState()
+    );
+
+    expect(actions).toBe(2);
+    expect(executeUnitAction.mock.calls).toEqual([
+      ['diplomat', ActionType.GOTO, 2, 0, 'ai'],
+      ['diplomat', ActionType.ESTABLISH_EMBASSY, 3, 0, 'ai'],
+    ]);
   });
 });

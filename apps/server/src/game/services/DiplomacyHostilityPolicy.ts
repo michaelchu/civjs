@@ -18,6 +18,10 @@ export class DiplomacyHostilityPolicy {
     return (await this.getRelationPlayerIds(gameId, playerId)).hostile;
   }
 
+  async getDiplomacySnapshot(gameId: string, playerId: string) {
+    return this.diplomacyManager.getSnapshot(gameId, playerId);
+  }
+
   async getRelationPlayerIds(
     gameId: string,
     playerId: string

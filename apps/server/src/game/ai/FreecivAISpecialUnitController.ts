@@ -8,6 +8,11 @@ import { hostileUnitsForPlanning, targetableForeignCities } from '@game/ai/Freec
 import type { GameInstance } from '@game/managers/GameManager';
 import type { Unit } from '@game/managers/UnitManager';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
+import {
+  calculateDiplomatBribeCost,
+  calculateDiplomatInciteCost,
+} from '@game/services/DiplomatActionEconomics';
+import { calculateTreasuryReserve } from '@game/ai/FreecivAITreasuryPlanner';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 /**
@@ -388,29 +393,168 @@ export class FreecivAISpecialUnitController {
     playerId: string,
     state: FreecivAIState
   ): Promise<number> {
-    const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(gameId, playerId);
     const units = game.unitManager.getPlayerUnits(playerId);
+    const diplomats = units.filter(unit =>
+      game.unitManager.getUnitType(unit.unitTypeId)?.flags?.includes('Diplomat')
+    );
+    if (diplomats.length === 0) return 0;
+    const snapshot = await this.hostilityPolicy.getDiplomacySnapshot(gameId, playerId);
+    const relations = await this.hostilityPolicy.getRelationPlayerIds(gameId, playerId);
     const cities = game.cityManager.getAllCities?.() ?? [];
     const profile = createAIProfile(
       game.players.get(playerId)?.aiLevel,
       game.players.get(playerId)?.aiTraits
     );
+    const relationByPlayer = new Map(snapshot.nations.map(nation => [nation.id, nation.relation]));
+    const allForeignPlayerIds = new Set(
+      snapshot.nations.filter(nation => nation.isAlive).map(nation => nation.id)
+    );
+    const potentiallyHostileIds = new Set(
+      [...allForeignPlayerIds].filter(otherPlayerId => !relations.allied.has(otherPlayerId))
+    );
+    const foreignUnits = hostileUnitsForPlanning(game, playerId, potentiallyHostileIds, profile);
+    const foreignCities = targetableForeignCities(game, playerId, allForeignPlayerIds, profile);
+    const friendlyCities = cities.filter(city => city.playerId === playerId);
+    const economicManager = game.turnManager.getEconomicManager();
+    const gold =
+      (await economicManager?.getPlayerGold(playerId)) ?? game.players.get(playerId)?.gold ?? 0;
+    const goldReserve = calculateTreasuryReserve({
+      cities: friendlyCities,
+      unitCount: units.length,
+      atWar: relations.hostile.size > 0,
+      netGold: game.players.get(playerId)?.goldPerTurn ?? 0,
+    });
+    const ownerGold = new Map<string, number>();
+    await Promise.all(
+      [...new Set(foreignUnits.map(unit => unit.playerId))].map(async ownerId => {
+        ownerGold.set(ownerId, (await economicManager?.getPlayerGold(ownerId)) ?? 0);
+      })
+    );
+    const inciteCosts = new Map<string, number>();
+    await Promise.all(
+      foreignCities.map(async city => {
+        inciteCosts.set(city.id, await calculateDiplomatInciteCost(game, city));
+      })
+    );
+    const travelCosts = new Map<string, number>();
+    const targets = [
+      ...foreignCities.map(target => ({ ...target, approach: true })),
+      ...foreignUnits.map(target => ({ ...target, approach: true })),
+      ...friendlyCities.map(target => ({ ...target, approach: false })),
+    ];
+    await Promise.all(
+      diplomats.flatMap(diplomat =>
+        targets.map(async target => {
+          const key = `${diplomat.id}:${target.x},${target.y}`;
+          if (game.mapManager.getDistance(diplomat.x, diplomat.y, target.x, target.y) <= 1) {
+            travelCosts.set(key, 0);
+            return;
+          }
+          if (target.approach) {
+            const approach = await this.findDiplomatApproach(game, diplomat, target.x, target.y);
+            travelCosts.set(key, approach?.cost ?? Infinity);
+          } else {
+            const path = await game.pathfindingManager.findPath(diplomat, target.x, target.y);
+            travelCosts.set(key, path.valid ? path.totalCost : Infinity);
+          }
+        })
+      )
+    );
+    const stealableTechs = new Map(
+      snapshot.nations.map(nation => {
+        const known = new Set(game.researchManager.getResearchedTechs(playerId));
+        return [
+          nation.id,
+          game.researchManager.getResearchedTechs(nation.id).filter(tech => !known.has(tech))
+            .length,
+        ] as const;
+      })
+    );
+    const cityDiplomatThreat = (city: (typeof cities)[number]) =>
+      foreignUnits.some(enemy => {
+        const type = game.unitManager.getUnitType(enemy.unitTypeId);
+        return (
+          type?.flags?.includes('Diplomat') === true &&
+          game.mapManager.getDistance(enemy.x, enemy.y, city.x, city.y) <=
+            Math.max(1, type.movement) * 3
+        );
+      });
     const missions = planDiplomatMissions({
-      diplomats: units.filter(unit =>
-        game.unitManager.getUnitType(unit.unitTypeId)?.flags?.includes('Diplomat')
-      ),
+      diplomats,
       friendlyUnits: units,
-      hostileUnits: hostileUnitsForPlanning(game, playerId, hostileIds, profile),
-      foreignCities: targetableForeignCities(
-        game,
-        playerId,
-        new Set(cities.filter(city => city.playerId !== playerId).map(city => city.playerId)),
-        profile
+      foreignUnits: foreignUnits.filter(
+        target =>
+          !game.cityManager.getCityAt(target.x, target.y) &&
+          game.unitManager.getUnitsAt(target.x, target.y).filter(unit => unit.id !== target.id)
+            .length === 0
       ),
-      friendlyCities: cities.filter(city => city.playerId === playerId),
-      hostilePlayerIds: hostileIds,
+      foreignCities,
+      friendlyCities,
       getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      travelCost: (unit, targetX, targetY) =>
+        travelCosts.get(`${unit.id}:${targetX},${targetY}`) ?? Infinity,
+      relation: otherPlayerId => {
+        const relation = relationByPlayer.get(otherPlayerId);
+        return {
+          allied: relation?.state === 'alliance' || relation?.state === 'team',
+          atWar: relation?.state === 'war',
+          hasEmbassy: relation?.embassy ?? false,
+        };
+      },
+      countStealableTechs: otherPlayerId => stealableTechs.get(otherPlayerId) ?? 0,
+      inciteCost: city => inciteCosts.get(city.id) ?? Infinity,
+      bribeCost: target =>
+        calculateDiplomatBribeCost(game, target, ownerGold.get(target.playerId) ?? 0),
+      canBribeUnit: target =>
+        !game.unitManager.getUnitType(target.unitTypeId)?.flags?.includes('Unbribable') &&
+        game.governmentManager?.getPlayerGovernment(target.playerId)?.currentGovernment !==
+          'democracy',
+      canInciteCity: city =>
+        !city.buildings.includes('palace') &&
+        game.governmentManager?.getPlayerGovernment(city.playerId)?.currentGovernment !==
+          'democracy',
+      actionOdds: (actor, action, defender) =>
+        game.unitManager.calculateDiplomatActionOdds(actor, action, defender),
+      cityUrgency: city =>
+        foreignUnits.reduce((urgency, enemy) => {
+          const type = game.unitManager.getUnitType(enemy.unitTypeId);
+          if (
+            !type?.rulesetUnitClassFlags.includes('CanOccupyCity') ||
+            type.flags?.includes('NonMil')
+          ) {
+            return urgency;
+          }
+          const distance = game.mapManager.getDistance(enemy.x, enemy.y, city.x, city.y);
+          return distance <= Math.max(1, type.movement) * 3
+            ? urgency + 1 + Number(distance <= Math.max(1, type.movement)) * 10
+            : urgency;
+        }, 0),
+      cityDiplomatThreat,
+      cityDiplomatDefender: city =>
+        foreignUnits.find(unit => {
+          const type = game.unitManager.getUnitType(unit.unitTypeId);
+          return (
+            unit.x === city.x && unit.y === city.y && type?.flags?.includes('Diplomat') === true
+          );
+        }),
+      unitThreatensDiplomat: (target, diplomat, travelCost) => {
+        const targetType = game.unitManager.getUnitType(target.unitTypeId);
+        const defenders = units.filter(
+          unit => unit.x === diplomat.x && unit.y === diplomat.y && unit.id !== diplomat.id
+        );
+        const bestDefense = defenders.reduce(
+          (best, defender) =>
+            Math.max(best, game.unitManager.calculateUnitDefenseRating(defender, target)),
+          0
+        );
+        return (
+          game.unitManager.calculateUnitAttackRating(target) > bestDefense &&
+          (targetType?.movement ?? 0) > travelCost
+        );
+      },
+      gold,
+      goldReserve,
       diplomatHandicap: profile.handicaps.has('diplomat'),
       noBribeWarFooting: profile.handicaps.has('no_bribe_war_footing'),
     });
@@ -424,18 +568,20 @@ export class FreecivAISpecialUnitController {
         targetId: mission.targetId,
         targetX: mission.targetX,
         targetY: mission.targetY,
+        action: mission.action,
         assignedTurn: game.currentTurn,
       };
-      if (mission.unit.movementLeft <= 0) continue;
-      const distance = game.mapManager.getDistance(
-        mission.unit.x,
-        mission.unit.y,
+      let actor = game.unitManager.getUnit(mission.unit.id);
+      if (!actor || actor.movementLeft <= 0 || mission.kind === 'hold') continue;
+      let distance = game.mapManager.getDistance(
+        actor.x,
+        actor.y,
         mission.targetX,
         mission.targetY
       );
       if (mission.kind === 'action' && mission.action && distance <= 1) {
         const result = await game.unitManager.executeUnitAction(
-          mission.unit.id,
+          actor.id,
           mission.action,
           mission.targetX,
           mission.targetY,
@@ -444,15 +590,79 @@ export class FreecivAISpecialUnitController {
         if (result.success) actions++;
         continue;
       }
-      const result = await game.unitManager.executeUnitAction(
-        mission.unit.id,
-        ActionType.GOTO,
-        mission.targetX,
-        mission.targetY,
-        playerId
-      );
-      if (result.success) actions++;
+      if (mission.kind === 'defend') {
+        const result = await game.unitManager.executeUnitAction(
+          actor.id,
+          ActionType.GOTO,
+          mission.targetX,
+          mission.targetY,
+          playerId
+        );
+        if (result.success) actions++;
+      } else {
+        const moved = await this.moveDiplomatTowardTarget(
+          game,
+          actor,
+          mission.targetX,
+          mission.targetY
+        );
+        actions += moved;
+      }
+      actor = game.unitManager.getUnit(mission.unit.id);
+      if (!actor || !mission.action || actor.movementLeft <= 0) continue;
+      distance = game.mapManager.getDistance(actor.x, actor.y, mission.targetX, mission.targetY);
+      if (distance <= 1) {
+        const result = await game.unitManager.executeUnitAction(
+          actor.id,
+          mission.action,
+          mission.targetX,
+          mission.targetY,
+          playerId
+        );
+        if (result.success) actions++;
+      }
     }
     return actions;
+  }
+
+  private async findDiplomatApproach(
+    game: GameInstance,
+    diplomat: Unit,
+    targetX: number,
+    targetY: number
+  ): Promise<{ x: number; y: number; cost: number } | undefined> {
+    const candidates = await Promise.all(
+      game.mapManager.getNeighbors(targetX, targetY).map(async tile => ({
+        tile,
+        path: await game.pathfindingManager.findPath(diplomat, tile.x, tile.y),
+      }))
+    );
+    const best = candidates
+      .filter(candidate => candidate.path.valid)
+      .sort(
+        (left, right) =>
+          left.path.totalCost - right.path.totalCost ||
+          left.tile.x - right.tile.x ||
+          left.tile.y - right.tile.y
+      )[0];
+    return best ? { x: best.tile.x, y: best.tile.y, cost: best.path.totalCost } : undefined;
+  }
+
+  private async moveDiplomatTowardTarget(
+    game: GameInstance,
+    diplomat: Unit,
+    targetX: number,
+    targetY: number
+  ): Promise<number> {
+    const approach = await this.findDiplomatApproach(game, diplomat, targetX, targetY);
+    if (!approach) return 0;
+    const result = await game.unitManager.executeUnitAction(
+      diplomat.id,
+      ActionType.GOTO,
+      approach.x,
+      approach.y,
+      diplomat.playerId
+    );
+    return result.success ? 1 : 0;
   }
 }

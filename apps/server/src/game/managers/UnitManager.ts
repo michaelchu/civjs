@@ -2139,6 +2139,27 @@ export class UnitManager {
       return { success: false, actorSurvives: false, successChance: 0, escapeChance: 0 };
     }
 
+    const defender = defenderId ? this.units.get(defenderId) : undefined;
+    const odds = this.calculateDiplomatActionOdds(actor, actionType, defender);
+    const success = this.random() < odds.successChance;
+    const actorSurvives = success && odds.escapeChance > 0 && this.random() < odds.escapeChance;
+    return {
+      success,
+      actorSurvives,
+      successChance: odds.successChance * 100,
+      escapeChance: odds.escapeChance * 100,
+    };
+  }
+
+  /**
+   * Pure action-specific diplomatic contest and escape odds for advisors.
+   * Resolution consumes randomness separately in resolveDiplomatAction().
+   */
+  calculateDiplomatActionOdds(
+    actor: Unit,
+    actionType: ActionType,
+    defender?: Unit
+  ): { successChance: number; escapeChance: number } {
     const actorType = UNIT_TYPES[actor.unitTypeId];
     const isSpy = actorType.flags?.includes('Spy') ?? false;
     const guaranteedActions = new Set([
@@ -2150,7 +2171,6 @@ export class UnitManager {
     let successChance = guaranteedActions.has(actionType) ? 100 : isSpy ? 75 : 50;
     successChance += actor.veteranLevel * 5;
 
-    const defender = defenderId ? this.units.get(defenderId) : undefined;
     if (defender) {
       const defenderType = UNIT_TYPES[defender.unitTypeId];
       if (defenderType.flags?.includes('Diplomat')) {
@@ -2158,21 +2178,21 @@ export class UnitManager {
       }
     }
     successChance = Math.max(5, Math.min(100, successChance));
-    const success = this.random() * 100 < successChance;
-
     const escapeActions = new Set([
       ActionType.STEAL_TECH,
       ActionType.SABOTAGE_CITY,
       ActionType.SABOTAGE_UNIT,
       ActionType.POISON_WATER,
     ]);
-    const escapeChance = isSpy
+    const escapeChancePercent = isSpy
       ? escapeActions.has(actionType)
         ? Math.min(95, 75 + actor.veteranLevel * 5)
         : 100
       : 0;
-    const actorSurvives = success && isSpy && this.random() * 100 < escapeChance;
-    return { success, actorSurvives, successChance, escapeChance };
+    return {
+      successChance: successChance / 100,
+      escapeChance: escapeChancePercent / 100,
+    };
   }
 
   /**
