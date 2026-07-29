@@ -242,6 +242,8 @@ describe('DiplomacyManager', () => {
   });
 
   it('downgrades alliances to armistice and tracks justified cancellation incidents', async () => {
+    const eventSink = jest.fn();
+    manager.setEventSink(eventSink);
     await manager.establishContact('game-1', 'p1', 'p2');
     const alliance = await manager.proposeTreaty('game-1', 'p1', 'p2', [{ type: 'alliance' }]);
     await manager.respondToTreaty('game-1', 'p2', 'p1', alliance.id, true);
@@ -259,7 +261,23 @@ describe('DiplomacyManager', () => {
       attitude: -100,
       hasReasonToCancel: 2,
     });
+    expect(eventSink).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: 'incident',
+        playerIds: ['p2', 'p1'],
+        offenderId: 'p2',
+        victimId: 'p1',
+        severity: 100,
+      })
+    );
     await expect(manager.cancelPact('game-1', 'p1', 'p2')).resolves.toBeUndefined();
+    expect(eventSink).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: 'war_declared',
+        playerIds: ['p1', 'p2'],
+        justified: true,
+      })
+    );
   });
 
   it('supports repeated material types and contributions from both parties', async () => {

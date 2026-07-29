@@ -49,6 +49,18 @@ import { getUnitType } from '@game/constants/UnitConstants';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { GoldSpendingType } from '@game/systems/Economic/types/EconomicTypes';
 
+// Freeciv dai_incident_simple() converts action badness into MAX_AI_LOVE / 35
+// victim penalties. CivJS stores love on the same -1000..1000 scale.
+// @reference reference/freeciv/ai/default/daidiplomacy.c:2000-2225
+const AI_INCIDENT_SEVERITY: Partial<Record<ActionType, number>> = {
+  [ActionType.STEAL_TECH]: 143,
+  [ActionType.SABOTAGE_CITY]: 143,
+  [ActionType.POISON_WATER]: 143,
+  [ActionType.INCITE_CITY]: 286,
+  [ActionType.BRIBE_UNIT]: 143,
+  [ActionType.SABOTAGE_UNIT]: 86,
+};
+
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
 
@@ -247,6 +259,8 @@ export class GameManager {
     );
     this.diplomacyManager.setEventSink(event => {
       this.gameBroadcastManager.broadcastToGame(event.gameId, 'diplomacy_event', event);
+      const game = this.games.get(event.gameId);
+      if (game) this.aiOrchestrator.onDiplomacyEvent(event.gameId, game, event);
     });
     this.hostilityPolicy = new DiplomacyHostilityPolicy(this.diplomacyManager);
     this.aiOrchestrator = new FreecivAIOrchestrator(
@@ -792,7 +806,12 @@ export class GameManager {
         ActionType.INCITE_CITY,
       ].includes(actionType)
     ) {
-      await this.diplomacyManager.recordIncident(gameId, playerId, targetOwnerId);
+      await this.diplomacyManager.recordIncident(
+        gameId,
+        playerId,
+        targetOwnerId,
+        AI_INCIDENT_SEVERITY[actionType] ?? 100
+      );
     }
     if (!actorSurvives) {
       await game.unitManager.removeUnit(unit.id);
@@ -904,7 +923,12 @@ export class GameManager {
       };
     }
 
-    await this.diplomacyManager.recordIncident(gameId, playerId, target.playerId);
+    await this.diplomacyManager.recordIncident(
+      gameId,
+      playerId,
+      target.playerId,
+      AI_INCIDENT_SEVERITY[actionType] ?? 100
+    );
     if (!actorSurvives) {
       await game.unitManager.removeUnit(actor.id);
       result.unitDestroyed = true;
@@ -1196,8 +1220,8 @@ export class GameManager {
     gameInstance.visibilityManager.setSharedVisionProvider(
       playerId => this.sharedVisionByGame.get(gameId)?.get(playerId) ?? new Set()
     );
-    gameInstance.unitManager.setUnitDestroyedObserver(unit =>
-      this.aiOrchestrator.onUnitDestroyed(gameId, gameInstance, unit)
+    gameInstance.unitManager.setUnitLifecycleObserver(event =>
+      this.aiOrchestrator.onUnitLifecycle(gameId, gameInstance, event)
     );
     gameInstance.unitManager.setDiplomatActionExecutor(
       (playerId, unitId, actionType, targetX, targetY) =>

@@ -508,11 +508,10 @@ describe('FreecivAIOrchestrator', () => {
     };
     const orchestrator = new FreecivAIOrchestrator(scenario.diplomacyManager as any);
 
-    orchestrator.onUnitDestroyed(
-      'game',
-      scenario.game as any,
-      { id: 'destroyed', playerId: 'enemy' } as any
-    );
+    orchestrator.onUnitLifecycle('game', scenario.game as any, {
+      type: 'destroyed',
+      unit: { id: 'destroyed', playerId: 'enemy' } as any,
+    });
     orchestrator.onCityInvalidated('game', scenario.game as any, 'captured-city');
 
     expect(ai.aiState.unitTasks).toEqual({
@@ -521,6 +520,85 @@ describe('FreecivAIOrchestrator', () => {
     expect(ai.aiState.cityWants).toEqual({
       capital: { temple: 5 },
     });
+  });
+
+  it('tracks moved targets and invalidates tasks when a unit changes owner', () => {
+    const scenario = createScenario();
+    const ai = scenario.game.players.get('ai') as any;
+    ai.aiState = {
+      diplomacy: {},
+      unitTasks: {
+        target: { role: 'guard', assignedTurn: 1 },
+        hunter: {
+          role: 'hunter',
+          targetId: 'target',
+          targetX: 2,
+          targetY: 3,
+          assignedTurn: 1,
+        },
+      },
+      cityWants: {},
+      techWants: {},
+    };
+    const orchestrator = new FreecivAIOrchestrator(scenario.diplomacyManager as any);
+    const target = { id: 'target', playerId: 'human', x: 8, y: 9 } as any;
+
+    orchestrator.onUnitLifecycle('game', scenario.game as any, {
+      type: 'moved',
+      unit: target,
+      previousX: 2,
+      previousY: 3,
+    });
+    expect(ai.aiState.unitTasks.hunter).toMatchObject({ targetX: 8, targetY: 9 });
+
+    orchestrator.onUnitLifecycle('game', scenario.game as any, {
+      type: 'owner_changed',
+      unit: { ...target, playerId: 'ai' },
+      previousPlayerId: 'human',
+    });
+    expect(ai.aiState.unitTasks).toEqual({});
+  });
+
+  it('applies action and war incidents to persistent diplomacy memory immediately', () => {
+    const scenario = createScenario();
+    scenario.game.players.set('other-ai', {
+      id: 'other-ai',
+      isAI: true,
+      aiState: createAIState(),
+    });
+    const ai = scenario.game.players.get('ai') as any;
+    const otherAI = scenario.game.players.get('other-ai') as any;
+    const orchestrator = new FreecivAIOrchestrator(scenario.diplomacyManager as any);
+
+    orchestrator.onDiplomacyEvent('game', scenario.game as any, {
+      type: 'incident',
+      gameId: 'game',
+      playerIds: ['human', 'ai'],
+      offenderId: 'human',
+      victimId: 'ai',
+      severity: 143,
+      message: 'Technology stolen.',
+    });
+    expect(ai.aiState.diplomacy.human).toMatchObject({ love: -143, warDesire: 72 });
+    expect(otherAI.aiState.diplomacy.human).toBeUndefined();
+
+    orchestrator.onDiplomacyEvent('game', scenario.game as any, {
+      type: 'war_declared',
+      gameId: 'game',
+      playerIds: ['human', 'ai'],
+      message: 'War declared.',
+    });
+    expect(ai.aiState.diplomacy.human).toMatchObject({ love: -509, warDesire: 322 });
+    expect(otherAI.aiState.diplomacy.human).toMatchObject({ love: -33, warDesire: 0 });
+
+    orchestrator.onDiplomacyEvent('game', scenario.game as any, {
+      type: 'war_declared',
+      gameId: 'game',
+      playerIds: ['human', 'ai'],
+      justified: true,
+      message: 'Justified war declared.',
+    });
+    expect(ai.aiState.diplomacy.human).toMatchObject({ love: -509, warDesire: 322 });
   });
 
   it('optimizes AI citizens with starvation and unrest constraints', async () => {

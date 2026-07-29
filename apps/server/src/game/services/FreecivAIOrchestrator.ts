@@ -5,9 +5,9 @@ import {
   FreecivAIStateStore,
   type FreecivAIState,
 } from '@game/ai/FreecivAIStateStore';
-import type { DiplomacyManager } from '@game/managers/DiplomacyManager';
+import type { DiplomacyEvent, DiplomacyManager } from '@game/managers/DiplomacyManager';
 import type { GameInstance } from '@game/managers/GameManager';
-import type { Unit } from '@game/managers/UnitManager';
+import type { UnitLifecycleEvent } from '@game/managers/UnitManager';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { logger } from '@utils/logger';
 
@@ -57,17 +57,28 @@ export class FreecivAIOrchestrator {
     return actions;
   }
 
-  /**
-   * Freeciv invalidates unit AI data at the lifecycle boundary instead of
-   * waiting for the next advisor pass. Remove both the destroyed unit's task
-   * and every assignment that charged it as a target.
-   */
-  onUnitDestroyed(gameId: string, game: GameInstance, unit: Unit): void {
+  onUnitLifecycle(gameId: string, game: GameInstance, event: UnitLifecycleEvent): void {
+    if (event.type === 'created') return;
     this.mutateAllAIStates(gameId, game, state => {
-      delete state.unitTasks[unit.id];
-      for (const [unitId, task] of Object.entries(state.unitTasks)) {
-        if (task.targetId === unit.id) delete state.unitTasks[unitId];
+      if (event.type === 'moved') {
+        let changed = false;
+        for (const task of Object.values(state.unitTasks)) {
+          if (task.targetId !== event.unit.id) continue;
+          task.targetX = event.unit.x;
+          task.targetY = event.unit.y;
+          changed = true;
+        }
+        return changed;
       }
+
+      let changed = delete state.unitTasks[event.unit.id];
+      for (const [unitId, task] of Object.entries(state.unitTasks)) {
+        if (task.targetId === event.unit.id) {
+          delete state.unitTasks[unitId];
+          changed = true;
+        }
+      }
+      return changed;
     });
   }
 
@@ -78,30 +89,77 @@ export class FreecivAIOrchestrator {
    */
   onCityInvalidated(gameId: string, game: GameInstance, cityId: string): void {
     this.mutateAllAIStates(gameId, game, state => {
-      delete state.cityWants[cityId];
+      let changed = delete state.cityWants[cityId];
       for (const [unitId, task] of Object.entries(state.unitTasks)) {
-        if (task.targetId === cityId) delete state.unitTasks[unitId];
+        if (task.targetId === cityId) {
+          delete state.unitTasks[unitId];
+          changed = true;
+        }
       }
+      return changed;
+    });
+  }
+
+  /**
+   * Apply Freeciv's persistent relationship consequences at the incident
+   * boundary. The regular diplomacy phase can then decay and reassess this
+   * memory without losing events that occurred between AI turns.
+   */
+  onDiplomacyEvent(gameId: string, game: GameInstance, event: DiplomacyEvent): void {
+    if (event.type !== 'incident' && event.type !== 'war_declared') return;
+    if (event.type === 'war_declared' && event.justified) return;
+    const offenderId = event.offenderId ?? event.playerIds[0];
+    const victimId = event.victimId ?? event.playerIds[1];
+
+    this.mutateAllAIStates(gameId, game, (state, playerId) => {
+      if (playerId === offenderId) return false;
+      const memory = state.diplomacy[offenderId] ?? {
+        love: 0,
+        warDesire: 0,
+        countdown: 0,
+      };
+      if (event.type === 'war_declared') {
+        // Freeciv applies a world penalty of MAX_AI_LOVE / 30 and an
+        // additional victim penalty of MAX_AI_LOVE / 3.
+        memory.love = Math.max(-1000, memory.love - (playerId === victimId ? 366 : 33));
+        if (playerId === victimId) memory.warDesire = Math.min(1000, memory.warDesire + 250);
+      } else if (playerId === victimId) {
+        memory.love = Math.max(-1000, memory.love - Math.max(1, event.severity ?? 100));
+        memory.warDesire = Math.min(
+          1000,
+          memory.warDesire + Math.max(1, Math.round((event.severity ?? 100) / 2))
+        );
+      } else return false;
+      state.diplomacy[offenderId] = memory;
+      return true;
     });
   }
 
   private mutateAllAIStates(
     gameId: string,
     game: GameInstance,
-    mutate: (state: FreecivAIState) => void
+    mutate: (state: FreecivAIState, playerId: string) => boolean
   ): void {
     for (const player of game.players.values()) {
       if (!player.isAI) continue;
-      const state = assertAIState(player.aiState);
-      mutate(state);
-      player.aiState = state as unknown as Record<string, unknown>;
-      void this.stateStore.save(gameId, player.id, state).catch(error => {
-        logger.warn('CivJS AI lifecycle state persistence failed', {
+      try {
+        const state = assertAIState(player.aiState);
+        if (!mutate(state, player.id)) continue;
+        player.aiState = state as unknown as Record<string, unknown>;
+        void this.stateStore.save(gameId, player.id, state).catch(error => {
+          logger.warn('CivJS AI lifecycle state persistence failed', {
+            gameId,
+            playerId: player.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      } catch (error) {
+        logger.warn('CivJS AI lifecycle mutation failed', {
           gameId,
           playerId: player.id,
           error: error instanceof Error ? error.message : String(error),
         });
-      });
+      }
     }
   }
 

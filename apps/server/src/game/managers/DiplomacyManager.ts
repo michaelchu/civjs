@@ -100,10 +100,15 @@ export interface DiplomacyEvent {
     | 'ceasefire_expired'
     | 'armistice_completed'
     | 'war_declared'
-    | 'vision_cancelled';
+    | 'vision_cancelled'
+    | 'incident';
   gameId: string;
   playerIds: [string, string];
   message: string;
+  offenderId?: string;
+  victimId?: string;
+  severity?: number;
+  justified?: boolean;
 }
 
 const TREATY_TURNS = 16;
@@ -632,6 +637,7 @@ export class DiplomacyManager {
       type: 'war_declared',
       gameId,
       playerIds: [player.id, other.id],
+      justified: relation.hasReasonToCancel > 0,
       message: `${player.leaderName} declared war on ${other.leaderName}.`,
     });
   }
@@ -675,10 +681,14 @@ export class DiplomacyManager {
         },
       ]);
       await this.emitEvent({
-        type: 'cancelled',
+        type: nextState === 'war' ? 'war_declared' : 'cancelled',
         gameId,
         playerIds: [player.id, other.id],
-        message: `${player.leaderName} cancelled the existing pact.`,
+        justified: relation.hasReasonToCancel > 0,
+        message:
+          nextState === 'war'
+            ? `${player.leaderName} cancelled the pact and declared war on ${other.leaderName}.`
+            : `${player.leaderName} cancelled the existing pact.`,
       });
     });
   }
@@ -718,6 +728,15 @@ export class DiplomacyManager {
           hasReasonToCancel: 2,
         },
       ]);
+      await this.emitEvent({
+        type: 'incident',
+        gameId,
+        playerIds: [offenderId, victimId],
+        offenderId,
+        victimId,
+        severity,
+        message: `${offender.leaderName} caused a diplomatic incident against ${victim.leaderName}.`,
+      });
     });
   }
 

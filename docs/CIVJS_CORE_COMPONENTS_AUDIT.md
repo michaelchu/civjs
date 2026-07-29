@@ -160,8 +160,11 @@ The required target is functional parity with the vendored Freeciv
 classic/default AI for the supported classic ruleset. `FreecivAIOrchestrator`
 owns lifecycle and ordered dispatch while domain controllers execute the
 native port through authoritative managers. It is not a compatibility boundary
-or an intentional scope limit. Subsystem mappings and acceptance evidence are
-maintained in [`AI_PORTING_INVENTORY.md`](AI_PORTING_INVENTORY.md).
+or an intentional scope limit. Authoritative unit movement, ownership, and
+destruction events now keep persistent tasks coherent, while diplomatic
+incidents update relationship memory at the event boundary. Subsystem mappings
+and acceptance evidence are maintained in
+[`AI_PORTING_INVENTORY.md`](AI_PORTING_INVENTORY.md).
 
 ### Client, UI, and user-facing systems
 

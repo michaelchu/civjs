@@ -268,9 +268,10 @@ describe('UnitManager', () => {
         broadcastUnitMoved: jest.fn(),
         broadcastUnitDestroyed,
       });
-      const destroyedObserver = jest.fn();
-      unitManager.setUnitDestroyedObserver(destroyedObserver);
+      const lifecycleObserver = jest.fn();
+      unitManager.setUnitLifecycleObserver(lifecycleObserver);
       const settlers = await unitManager.createUnit('player-123', 'settlers', 10, 10);
+      lifecycleObserver.mockClear();
 
       await expect(
         unitManager.executeUnitAction(
@@ -285,8 +286,8 @@ describe('UnitManager', () => {
       expect(unitManager.getUnit(settlers.id)).toBeUndefined();
       expect(broadcastUnitDestroyed).toHaveBeenCalledWith(gameId, settlers);
       expect(broadcastUnitDestroyed).toHaveBeenCalledTimes(1);
-      expect(destroyedObserver).toHaveBeenCalledWith(settlers);
-      expect(destroyedObserver).toHaveBeenCalledTimes(1);
+      expect(lifecycleObserver).toHaveBeenCalledWith({ type: 'destroyed', unit: settlers });
+      expect(lifecycleObserver).toHaveBeenCalledTimes(1);
     });
 
     it('delegates a legal join-city action and consumes the actor', async () => {
@@ -344,6 +345,8 @@ describe('UnitManager', () => {
     });
 
     it('should move unit successfully', async () => {
+      const lifecycleObserver = jest.fn();
+      unitManager.setUnitLifecycleObserver(lifecycleObserver);
       const result = await unitManager.moveUnit(unitId, 11, 10);
 
       expect(result).toBe(true);
@@ -353,6 +356,12 @@ describe('UnitManager', () => {
       expect(unit!.y).toBe(10);
       expect(unit!.movementLeft).toBe(0); // Used 1 movement point for basic terrain
       expect(unit!.fortified).toBe(false);
+      expect(lifecycleObserver).toHaveBeenCalledWith({
+        type: 'moved',
+        unit,
+        previousX: 10,
+        previousY: 10,
+      });
 
       // Database operations are handled by MockDatabaseProvider
     });
@@ -1127,8 +1136,12 @@ describe('UnitManager', () => {
     });
 
     it('persists bribed ownership and clears the unit orders and movement', async () => {
+      const lifecycleObserver = jest.fn();
+      unitManager.setUnitLifecycleObserver(lifecycleObserver);
       const unit = await unitManager.createUnit('player-456', 'warriors', 10, 10);
       unit.orders = [{ type: 'move', targetX: 11, targetY: 10 }];
+      expect(lifecycleObserver).toHaveBeenLastCalledWith({ type: 'created', unit });
+      lifecycleObserver.mockClear();
 
       await unitManager.bribeUnit(unit.id, 'player-123', 'home-city');
 
@@ -1142,6 +1155,11 @@ describe('UnitManager', () => {
       expect((mockDbProvider.getDatabase() as any).set).toHaveBeenLastCalledWith(
         expect.objectContaining({ playerId: 'player-123', movementPoints: '0' })
       );
+      expect(lifecycleObserver).toHaveBeenCalledWith({
+        type: 'owner_changed',
+        unit,
+        previousPlayerId: 'player-456',
+      });
     });
 
     it('halves the target unit remaining health', async () => {

@@ -47,6 +47,12 @@ export interface Unit {
   createdTurn?: number;
 }
 
+export type UnitLifecycleEvent =
+  | { type: 'created'; unit: Unit }
+  | { type: 'moved'; unit: Unit; previousX: number; previousY: number }
+  | { type: 'owner_changed'; unit: Unit; previousPlayerId: string }
+  | { type: 'destroyed'; unit: Unit };
+
 export interface VeteranLevel {
   name: string;
   powerFactor: number; // Multiplier for attack/defense strength
@@ -212,7 +218,7 @@ export class UnitManager {
     added: string[];
     removed: string[];
   }) => void;
-  private unitDestroyedObserver?: (unit: Unit) => void;
+  private unitLifecycleObserver?: (event: UnitLifecycleEvent) => void;
   private diplomatActionExecutor?: (
     playerId: string,
     unitId: string,
@@ -296,8 +302,8 @@ export class UnitManager {
     this.actionSystem = new ActionSystem(gameId, gameManagerCallback, mapManager);
   }
 
-  public setUnitDestroyedObserver(observer: (unit: Unit) => void): void {
-    this.unitDestroyedObserver = observer;
+  public setUnitLifecycleObserver(observer: (event: UnitLifecycleEvent) => void): void {
+    this.unitLifecycleObserver = observer;
   }
 
   public setDiplomatActionExecutor(
@@ -312,22 +318,26 @@ export class UnitManager {
     this.diplomatActionExecutor = executor;
   }
 
-  private notifyUnitDestroyed(unit: Unit): void {
-    try {
-      this.gameManagerCallback?.broadcastUnitDestroyed?.(this.gameId, unit);
-    } catch (error) {
-      logger.error('Failed to broadcast authoritative unit destruction', {
-        gameId: this.gameId,
-        unitId: unit.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
+  private notifyUnitLifecycle(event: UnitLifecycleEvent): void {
+    const { unit } = event;
+    if (event.type === 'destroyed') {
+      try {
+        this.gameManagerCallback?.broadcastUnitDestroyed?.(this.gameId, unit);
+      } catch (error) {
+        logger.error('Failed to broadcast authoritative unit destruction', {
+          gameId: this.gameId,
+          unitId: unit.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
     try {
-      this.unitDestroyedObserver?.(unit);
+      this.unitLifecycleObserver?.(event);
     } catch (error) {
-      logger.error('Failed to notify unit destruction observer', {
+      logger.error('Failed to notify unit lifecycle observer', {
         gameId: this.gameId,
         unitId: unit.id,
+        eventType: event.type,
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -463,6 +473,7 @@ export class UnitManager {
     };
 
     this.units.set(unit.id, unit);
+    this.notifyUnitLifecycle({ type: 'created', unit });
     logger.info(`Created unit ${unit.id} at (${x}, ${y})`);
 
     return unit;
@@ -523,6 +534,9 @@ export class UnitManager {
     const effectiveMovementCost = embarkTransport ? SINGLE_MOVE : movementCost;
     this.ensureSufficientMovement(unit);
 
+    const previousX = unit.x;
+    const previousY = unit.y;
+
     // Update unit state
     unit.x = newX;
     unit.y = newY;
@@ -561,6 +575,19 @@ export class UnitManager {
     await this.resolveEnteredTile(unit);
     await this.establishAdjacentContacts(unit);
 
+    if (this.units.has(unit.id)) {
+      this.notifyUnitLifecycle({ type: 'moved', unit, previousX, previousY });
+      for (const cargoUnit of cargo) {
+        if (this.units.has(cargoUnit.id)) {
+          this.notifyUnitLifecycle({
+            type: 'moved',
+            unit: cargoUnit,
+            previousX,
+            previousY,
+          });
+        }
+      }
+    }
     logger.info(`Unit ${unitId} moved to (${newX}, ${newY})`);
     return true;
   }
@@ -1791,7 +1818,7 @@ export class UnitManager {
     // All authoritative removals, including combat collateral and cargo loss,
     // pass through this method. Notify once here so clients and AI lifecycle
     // state cannot miss a path or receive duplicate path-specific events.
-    this.notifyUnitDestroyed(unit);
+    this.notifyUnitLifecycle({ type: 'destroyed', unit });
     logger.info(`Unit ${unitId} destroyed`);
   }
 
@@ -1819,6 +1846,7 @@ export class UnitManager {
   async bribeUnit(unitId: string, newPlayerId: string, homeCityId?: string): Promise<Unit> {
     const unit = this.units.get(unitId);
     if (!unit) throw new Error('Target unit not found');
+    const previousPlayerId = unit.playerId;
     unit.playerId = newPlayerId;
     unit.homeCityId = homeCityId;
     unit.orders = [];
@@ -1836,6 +1864,9 @@ export class UnitManager {
         isFortified: false,
       })
       .where(eq(units.id, unitId));
+    if (previousPlayerId !== newPlayerId) {
+      this.notifyUnitLifecycle({ type: 'owner_changed', unit, previousPlayerId });
+    }
     return unit;
   }
 
