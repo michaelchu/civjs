@@ -22,6 +22,7 @@ import {
 import { rankVirtualMilitaryProduction } from '@game/ai/FreecivAIMilitaryProductionPlanner';
 import { rankHunterProduction } from '@game/ai/FreecivAIHunterPlanner';
 import { rankVirtualAirProduction } from '@game/ai/FreecivAIAirPlanner';
+import { rankVirtualParadropProduction } from '@game/ai/FreecivAIParadropPlanner';
 
 /**
  * Executes citizen allocation, production, worklist, and city-local unit
@@ -104,6 +105,13 @@ export class FreecivAICityController {
       potentiallyHostileIds,
       profile
     );
+    const allKnownCities = game.cityManager.getAllCities?.() ?? cities;
+    const allUnits = [...game.unitManager.getAllUnits().values()];
+    const mapTiles = game.mapManager.getMapData?.()?.tiles.flat() ?? [];
+    const exploredTiles = game.visibilityManager.getExploredTiles?.(playerId) ?? new Set<string>();
+    const knownTechs = new Set(
+      game.researchManager.getPlayerResearch(playerId)?.researchedTechs ?? []
+    );
     const threatTravelTimes = await buildCityThreatTravelTimes({
       cities,
       threateningUnits: hostileUnits,
@@ -122,6 +130,16 @@ export class FreecivAICityController {
     );
 
     for (const city of cities) {
+      for (const type of Object.values(UNIT_TYPES)) {
+        if (
+          type.paratroopersRange > 0 &&
+          type.flags?.includes('Paratroopers') &&
+          type.requiredTech &&
+          !knownTechs.has(type.requiredTech)
+        ) {
+          state.techWants[type.requiredTech] = (state.techWants[type.requiredTech] ?? 0) + 2;
+        }
+      }
       const offensiveUnitWants = await rankVirtualMilitaryProduction({
         gameId: game.id,
         playerId,
@@ -191,6 +209,22 @@ export class FreecivAICityController {
         planesHandicap: profile.handicaps.has('no_planes'),
       });
       for (const [unitTypeId, want] of airWants) {
+        offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
+      }
+      const paradropWants = rankVirtualParadropProduction({
+        gameId: game.id,
+        playerId,
+        city,
+        unitTypes: Object.values(UNIT_TYPES),
+        units: allUnits,
+        cities: allKnownCities,
+        alliedPlayerIds: relations.allied,
+        tiles: mapTiles,
+        canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
+        isKnown: tile => !profile.handicaps.has('map') || exploredTiles.has(`${tile.x},${tile.y}`),
+        distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      });
+      for (const [unitTypeId, want] of paradropWants) {
         offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
       }
       const dangerAssessment = assessCityDanger({

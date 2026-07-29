@@ -38,15 +38,7 @@ export type AirMission =
       targetY: number;
       want: number;
     }
-  | { unit: Unit; kind: 'strike'; target: Unit; targetX: number; targetY: number; want: number }
-  | {
-      unit: Unit;
-      kind: 'paradrop';
-      targetCity: CityState;
-      targetX: number;
-      targetY: number;
-      want: number;
-    };
+  | { unit: Unit; kind: 'strike'; target: Unit; targetX: number; targetY: number; want: number };
 
 interface AirPlanningContext {
   friendlyUnits: Unit[];
@@ -330,41 +322,11 @@ export function rankVirtualAirProduction(
  */
 export function planAirMissions(context: AirPlanningContext): AirMission[] {
   const missions: AirMission[] = [];
-  const hostileAt = (x: number, y: number) =>
-    context.hostileUnits.filter(unit => unit.x === x && unit.y === y);
   const bases = context.refuelPoints ?? fallbackRefuelPoints(context.friendlyCities);
 
   for (const unit of [...context.friendlyUnits].sort((a, b) => a.id.localeCompare(b.id))) {
     const type = context.getType(unit.unitTypeId);
     if (!type) continue;
-
-    if (!unit.transportedBy && type.paratroopersRange > 0) {
-      const target = context.hostileCities
-        .filter(
-          city =>
-            context.distance(unit.x, unit.y, city.x, city.y) <= type.paratroopersRange &&
-            hostileAt(city.x, city.y).length === 0
-        )
-        .map(city => ({
-          city,
-          want:
-            city.size * 100 -
-            context.distance(unit.x, unit.y, city.x, city.y) * 5 +
-            city.buildings.length * 20,
-        }))
-        .sort((a, b) => b.want - a.want || a.city.id.localeCompare(b.city.id))[0];
-      if (target) {
-        missions.push({
-          unit,
-          kind: 'paradrop',
-          targetCity: target.city,
-          targetX: target.city.x,
-          targetY: target.city.y,
-          want: target.want,
-        });
-        continue;
-      }
-    }
 
     if (type.unitClass !== 'air') continue;
     const atBase = currentRefuelPoint(unit, bases);

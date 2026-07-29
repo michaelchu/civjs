@@ -282,16 +282,4 @@ describe('Freeciv AI air planner', () => {
     });
     expect(wants.size).toBe(0);
   });
-
-  it('paradrops into the most valuable undefended hostile city in range', () => {
-    const missions = planAirMissions({
-      friendlyUnits: [unit('para', 'paratrooper', 0, 0)],
-      hostileUnits: [],
-      friendlyCities: [],
-      hostileCities: [city('small', 'enemy', 2, 0, 2), city('large', 'enemy', 4, 0, 6)],
-      getType: id => types[id],
-      distance,
-    });
-    expect(missions[0]).toMatchObject({ kind: 'paradrop', targetCity: { id: 'large' } });
-  });
 });

@@ -1,12 +1,14 @@
 import { ActionType } from '@app-types/shared/actions';
 import { planAirMissions, type AirRefuelPoint } from '@game/ai/FreecivAIAirPlanner';
 import { planDiplomatMissions } from '@game/ai/FreecivAIDiplomatPlanner';
+import { planParadropMissions } from '@game/ai/FreecivAIParadropPlanner';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
 import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
 import { hostileUnitsForPlanning, targetableForeignCities } from '@game/ai/FreecivAITargeting';
 import type { GameInstance } from '@game/managers/GameManager';
 import type { Unit } from '@game/managers/UnitManager';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 /**
  * Executes air, paradrop, diplomat, and spy missions through authoritative
@@ -32,6 +34,10 @@ export class FreecivAISpecialUnitController {
     );
     const hostileUnits = hostileUnitsForPlanning(game, playerId, hostileIds, profile);
     const friendlyCities = allCities.filter(city => friendlyOwners.has(city.playerId));
+    const friendlyPlanningUnits = [...game.unitManager.getAllUnits().values()].filter(unit =>
+      friendlyOwners.has(unit.playerId)
+    );
+    const mapTiles = game.mapManager.getMapData?.()?.tiles.flat() ?? [];
     const refuelPoints: AirRefuelPoint[] = friendlyCities.map(city => {
       const defenders = friendlyUnits.filter(
         unit => unit.x === city.x && unit.y === city.y && !unit.transportedBy
@@ -58,7 +64,7 @@ export class FreecivAISpecialUnitController {
         },
       };
     });
-    for (const tile of game.mapManager.getMapData()?.tiles.flat() ?? []) {
+    for (const tile of mapTiles) {
       if (
         !tile.improvements.some(extra => extra.toLowerCase() === 'airbase') ||
         hostileUnits.some(unit => unit.x === tile.x && unit.y === tile.y)
@@ -127,34 +133,64 @@ export class FreecivAISpecialUnitController {
         }),
       planesHandicap: profile.handicaps.has('no_planes'),
     });
+    const exploredTiles = game.visibilityManager.getExploredTiles?.(playerId) ?? new Set<string>();
+    const visibleTiles = game.visibilityManager.getVisibleTiles?.(playerId) ?? new Set<string>();
+    const paradropMissions = planParadropMissions({
+      paratroopers: friendlyUnits.filter(unit => {
+        const type = game.unitManager.getUnitType(unit.unitTypeId);
+        return type?.flags?.includes('Paratroopers') && type.paratroopersRange > 0;
+      }),
+      friendlyUnits: friendlyPlanningUnits,
+      hostileUnits,
+      friendlyCities,
+      hostileCities: targetableForeignCities(game, playerId, hostileIds, profile),
+      tiles: mapTiles,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      canParadropTo: (unit, tile) =>
+        game.unitManager.canUnitPerformAction(unit.id, ActionType.PARADROP, tile.x, tile.y),
+      isKnown: tile => !profile.handicaps.has('map') || exploredTiles.has(`${tile.x},${tile.y}`),
+      isSeen: tile => !profile.handicaps.has('fog') || visibleTiles.has(`${tile.x},${tile.y}`),
+      cityUrgency: city =>
+        hostileUnits.reduce((urgency, enemy) => {
+          const type = game.unitManager.getUnitType(enemy.unitTypeId);
+          if (
+            !type?.rulesetUnitClassFlags.includes('CanOccupyCity') ||
+            type.flags?.includes('NonMil')
+          ) {
+            return urgency;
+          }
+          const distance = game.mapManager.getDistance(enemy.x, enemy.y, city.x, city.y);
+          if (distance > Math.max(1, type.movement) * 3) return urgency;
+          return urgency + 1 + (distance <= Math.max(1, type.movement) ? 10 : 0);
+        }, 0),
+      terrainDefense: tile => rulesetLoader.getTerrain(tile.terrain).defense,
+      isStackProtected: tile =>
+        Boolean(
+          game.cityManager.getCityAt(tile.x, tile.y) ||
+            tile.improvements.some(extra => ['fortress', 'airbase'].includes(extra.toLowerCase()))
+        ),
+      canAttack: (attacker, defender) => game.unitManager.canUnitTargetUnit(attacker, defender),
+      defenderRating: (attacker, defender) =>
+        game.unitManager.calculateUnitDefenseRating(defender, attacker),
+      winChance: (attacker, defender) =>
+        game.unitManager.calculateUnitWinChance(attacker, defender),
+      fogHandicap: profile.handicaps.has('fog'),
+    });
     for (const [unitId, task] of Object.entries(state.unitTasks)) {
       if (task.role === 'air' || task.role === 'paradrop') delete state.unitTasks[unitId];
     }
     let actions = 0;
     for (const mission of missions) {
       state.unitTasks[mission.unit.id] = {
-        role: mission.kind === 'paradrop' ? 'paradrop' : 'air',
-        targetId:
-          mission.kind === 'strike'
-            ? mission.target.id
-            : mission.kind === 'paradrop'
-              ? mission.targetCity.id
-              : undefined,
+        role: 'air',
+        targetId: mission.kind === 'strike' ? mission.target.id : undefined,
         targetX: mission.targetX,
         targetY: mission.targetY,
         assignedTurn: game.currentTurn,
       };
       if (mission.kind === 'hold' || mission.unit.movementLeft <= 0) continue;
-      if (mission.kind === 'paradrop') {
-        const result = await game.unitManager.executeUnitAction(
-          mission.unit.id,
-          ActionType.PARADROP,
-          mission.targetX,
-          mission.targetY,
-          playerId
-        );
-        if (result.success) actions++;
-      } else if (mission.kind === 'return' || mission.kind === 'rebase') {
+      if (mission.kind === 'return' || mission.kind === 'rebase') {
         const result = await game.unitManager.executeUnitAction(
           mission.unit.id,
           ActionType.GOTO,
@@ -224,7 +260,95 @@ export class FreecivAISpecialUnitController {
         }
       }
     }
+    for (const mission of paradropMissions) {
+      state.unitTasks[mission.unit.id] = {
+        role: 'paradrop',
+        targetId:
+          mission.kind === 'tactical'
+            ? mission.attackTarget.id
+            : 'targetCity' in mission
+              ? mission.targetCity.id
+              : undefined,
+        targetX: mission.targetX,
+        targetY: mission.targetY,
+        assignedTurn: game.currentTurn,
+      };
+      const actor = game.unitManager.getUnit(mission.unit.id);
+      if (!actor || actor.movementLeft <= 0) continue;
+      const rampage = await this.attackAdjacentWithParatrooper(game, actor, hostileUnits);
+      actions += rampage;
+      const ready = game.unitManager.getUnit(actor.id);
+      if (!ready || ready.movementLeft <= 0 || rampage > 0 || mission.kind === 'hold') continue;
+      if (mission.kind === 'return') {
+        const result = await game.unitManager.executeUnitAction(
+          ready.id,
+          ActionType.GOTO,
+          mission.targetX,
+          mission.targetY,
+          playerId
+        );
+        if (result.success) actions++;
+        continue;
+      }
+      const result = await game.unitManager.executeUnitAction(
+        ready.id,
+        ActionType.PARADROP,
+        mission.targetX,
+        mission.targetY,
+        playerId
+      );
+      if (!result.success) continue;
+      actions++;
+      const landed = game.unitManager.getUnit(ready.id);
+      if (landed?.movementLeft) {
+        actions += await this.attackAdjacentWithParatrooper(
+          game,
+          landed,
+          hostileUnits,
+          mission.kind === 'tactical' ? mission.attackTarget.id : undefined
+        );
+      }
+    }
     return actions;
+  }
+
+  private async attackAdjacentWithParatrooper(
+    game: GameInstance,
+    unit: Unit,
+    hostileUnits: Unit[],
+    preferredTargetId?: string
+  ): Promise<number> {
+    const candidates = hostileUnits
+      .map(candidate => game.unitManager.getUnit(candidate.id))
+      .filter((candidate): candidate is Unit => Boolean(candidate))
+      .filter(
+        candidate =>
+          game.mapManager.getDistance(unit.x, unit.y, candidate.x, candidate.y) <= 1 &&
+          game.unitManager.canUnitTargetUnit(unit, candidate)
+      )
+      .map(candidate => {
+        const chance = game.unitManager.calculateUnitWinChance(unit, candidate);
+        const targetType = game.unitManager.getUnitType(candidate.unitTypeId);
+        const actorType = game.unitManager.getUnitType(unit.unitTypeId);
+        return {
+          candidate,
+          want:
+            chance * Math.max(1, targetType?.cost ?? 1) -
+            (1 - chance) * Math.max(1, actorType?.cost ?? 1),
+        };
+      })
+      .filter(candidate => candidate.want > 0)
+      .sort(
+        (left, right) =>
+          Number(right.candidate.id === preferredTargetId) -
+            Number(left.candidate.id === preferredTargetId) ||
+          right.want - left.want ||
+          left.candidate.id.localeCompare(right.candidate.id)
+      );
+    const target = candidates[0]?.candidate;
+    if (!target) return 0;
+    await game.unitManager.attackUnit(unit.id, target.id);
+    return 1;
   }
 
   private async moveAircraftToTarget(

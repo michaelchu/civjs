@@ -45,6 +45,7 @@ export interface Unit {
   cargoUnits?: string[]; // IDs of units being transported by this unit
   homeCityId?: string;
   createdTurn?: number;
+  lastActionTurn?: number;
 }
 
 export interface UnitHitpointRecovery {
@@ -476,6 +477,7 @@ export class UnitManager {
       fortified: false,
       homeCityId,
       createdTurn,
+      lastActionTurn: undefined,
       automation: undefined,
     };
 
@@ -1470,6 +1472,7 @@ export class UnitManager {
         cargoUnits: Array.isArray(dbUnit.cargoUnits) ? (dbUnit.cargoUnits as string[]) : [],
         homeCityId: dbUnit.homeCityId ?? undefined,
         createdTurn: dbUnit.createdTurn,
+        lastActionTurn: dbUnit.lastActionTurn ?? undefined,
         automation: dbUnit.isAutomated
           ? dbUnit.currentOrder === 'autoSettler'
             ? 'settler'
@@ -1627,6 +1630,47 @@ export class UnitManager {
         ? this.calculateModifiedFirepower(attacker, unit, attackerType, type).defender
         : Math.max(1, type.firepower ?? 1);
     return this.calculateCombatStrength(unit, type, attacker, attackerType) * hitpoints * firepower;
+  }
+
+  /**
+   * Exact classic repeated-round combat win probability, using the same
+   * authoritative powers and situational firepower as real combat.
+   *
+   * @reference reference/freeciv/common/combat.c:334-401 win_chance
+   * @reference reference/freeciv/common/combat.c:480-497 unit_win_chance
+   */
+  calculateUnitWinChance(attacker: Unit, defender: Unit): number {
+    const attackerType = UNIT_TYPES[attacker.unitTypeId];
+    const defenderType = UNIT_TYPES[defender.unitTypeId];
+    if (!attackerType || !defenderType) return 0;
+    const attack = this.calculateAttackStrength(attacker, attackerType);
+    const defense = this.calculateCombatStrength(defender, defenderType, attacker, attackerType);
+    const firepower = this.calculateModifiedFirepower(
+      attacker,
+      defender,
+      attackerType,
+      defenderType
+    );
+    const attackerHp = Math.max(
+      1,
+      Math.ceil((Math.max(1, attackerType.hitpoints ?? 10) * attacker.health) / 100)
+    );
+    const defenderHp = Math.max(
+      1,
+      Math.ceil((Math.max(1, defenderType.hitpoints ?? 10) * defender.health) / 100)
+    );
+    const attackerLossRounds = Math.ceil(attackerHp / Math.max(1, firepower.defender));
+    const defenderLossRounds = Math.ceil(defenderHp / Math.max(1, firepower.attacker));
+    const attackerRoundLoss = attack + defense === 0 ? 0.5 : defense / (attack + defense);
+    const defenderRoundLoss = 1 - attackerRoundLoss;
+    let term = Math.pow(defenderRoundLoss, defenderLossRounds - 1);
+    let probability = term;
+    for (let lostRounds = 1; lostRounds < attackerLossRounds; lostRounds++) {
+      term *= (lostRounds + defenderLossRounds - 1) / lostRounds;
+      term *= attackerRoundLoss;
+      probability += term;
+    }
+    return Math.max(0, Math.min(1, probability * defenderRoundLoss));
   }
 
   /**
@@ -2402,16 +2446,27 @@ export class UnitManager {
       unitType.flags?.includes('Paratroopers') &&
         unitType.paratroopersRange > 0 &&
         !unit.transportedBy &&
+        unit.lastActionTurn !== (this.currentTurnProvider?.() ?? 1) &&
         unit.movementLeft >= SINGLE_MOVE
     );
   }
 
   private hasParadropSource(unit: Unit): boolean {
     const sourceCity = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
-    if (sourceCity?.playerId === unit.playerId) return true;
+    if (
+      sourceCity &&
+      (sourceCity.playerId === unit.playerId ||
+        this.alliedPlayersProvider?.(unit.playerId).has(sourceCity.playerId))
+    ) {
+      return true;
+    }
     const sourceTile = this.mapManager?.getTile(unit.x, unit.y);
     if (!sourceTile || !this.tileHasExtra(sourceTile, 'airbase')) return false;
-    return sourceTile.owner === undefined || sourceTile.owner === unit.playerId;
+    return (
+      sourceTile.owner === undefined ||
+      sourceTile.owner === unit.playerId ||
+      this.alliedPlayersProvider?.(unit.playerId).has(sourceTile.owner) === true
+    );
   }
 
   private tileHasExtra(tile: { improvements?: string[] }, extraName: string): boolean {
@@ -2434,7 +2489,10 @@ export class UnitManager {
     const x = targetX as number;
     const y = targetY as number;
     const targetCity = this.gameManagerCallback?.getCityAt?.(x, y);
-    const hostileUnits = this.getUnitsAt(x, y).filter(target => target.playerId !== unit.playerId);
+    const alliedPlayers = this.alliedPlayersProvider?.(unit.playerId) ?? new Set<string>();
+    const hostileUnits = this.getUnitsAt(x, y).filter(
+      target => target.playerId !== unit.playerId && !alliedPlayers.has(target.playerId)
+    );
     const territoryError = await this.validateParadropTerritory(unit, x, y, targetCity);
     if (territoryError) return territoryError;
     if (hostileUnits.length > 0) {
@@ -2449,6 +2507,7 @@ export class UnitManager {
     unit.x = x;
     unit.y = y;
     unit.fortified = false;
+    unit.lastActionTurn = this.currentTurnProvider?.() ?? 1;
     await this.databaseProvider
       .getDatabase()
       .update(units)
@@ -2472,7 +2531,7 @@ export class UnitManager {
     const targetOwner = targetCity?.playerId ?? this.mapManager?.getTile(x, y)?.owner;
     if (!targetOwner || targetOwner === unit.playerId) return undefined;
     const relation = await this.getDiplomaticState(unit.playerId, targetOwner);
-    if (relation !== 'war') {
+    if (relation !== 'war' && relation !== 'alliance' && relation !== 'team') {
       return { success: false, message: 'Cannot paradrop onto foreign territory without war' };
     }
     if (!targetCity) return undefined;

@@ -50,6 +50,13 @@ describe('UnitManager', () => {
 
       expect(interceptedRating).toBe(ordinaryRating * 5);
     });
+
+    it('calculates the exact symmetric combat win probability', async () => {
+      const attacker = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      const defender = await unitManager.createUnit('player-456', 'warriors', 11, 10);
+
+      expect(unitManager.calculateUnitWinChance(attacker, defender)).toBeCloseTo(0.5);
+    });
   });
 
   describe('unit creation', () => {
@@ -1384,6 +1391,57 @@ describe('UnitManager', () => {
         newMovementLeft: 3,
       });
       expect(manager.getUnit(paratroopers.id)).toMatchObject({ x: 16, y: 10 });
+      await expect(
+        manager.executeUnitAction(paratroopers.id, ActionType.PARADROP, 17, 10, 'player-123')
+      ).resolves.toMatchObject({ success: false });
+    });
+
+    it('allows a paradrop to launch from an allied city', async () => {
+      const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, specialMap, {
+        foundCity: jest.fn(),
+        requestPath: jest.fn(),
+        broadcastUnitMoved: jest.fn(),
+        getCityAt: (x, y) =>
+          x === 10 && y === 10 ? { id: 'allied-source', playerId: 'player-456' } : null,
+      });
+      manager.setAlliedPlayersProvider(() => new Set(['player-456']));
+      const paratroopers = await manager.createUnit('player-123', 'paratroopers', 10, 10);
+
+      await expect(
+        manager.executeUnitAction(paratroopers.id, ActionType.PARADROP, 16, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, newPosition: { x: 16, y: 10 } });
+    });
+
+    it('allows a paradrop to launch from an allied airbase', async () => {
+      const alliedAirbaseMap = {
+        getTile: jest.fn((x: number, y: number) => ({
+          ...tile,
+          x,
+          y,
+          owner: x === 10 && y === 10 ? 'player-456' : undefined,
+          improvements: x === 10 && y === 10 ? ['airbase'] : [],
+        })),
+        updateTileProperty: jest.fn(),
+      };
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        alliedAirbaseMap,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          getCityAt: () => null,
+        }
+      );
+      manager.setAlliedPlayersProvider(() => new Set(['player-456']));
+      const paratroopers = await manager.createUnit('player-123', 'paratroopers', 10, 10);
+
+      await expect(
+        manager.executeUnitAction(paratroopers.id, ActionType.PARADROP, 16, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, newPosition: { x: 16, y: 10 } });
     });
 
     it('resolves a contested paradrop by destroying the landing unit', async () => {
