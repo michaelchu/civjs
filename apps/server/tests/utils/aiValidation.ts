@@ -72,6 +72,15 @@ export function captureAIValidationMetrics(game: GameInstance): AIValidationMetr
  */
 export function buildAIValidationReplayFingerprint(game: GameInstance): string {
   const map = game.mapManager.getMapData();
+  const cityLabels = new Map(
+    game.cityManager.getAllCities().map(city => [city.id, `${city.x},${city.y}`])
+  );
+  const normalizeCityEntries = <T>(entries: Record<string, T>) =>
+    Object.fromEntries(
+      Object.entries(entries)
+        .map(([cityId, value]) => [cityLabels.get(cityId) ?? cityId, value] as [string, T])
+        .sort(([left], [right]) => left.localeCompare(right))
+    );
   return JSON.stringify({
     state: game.state,
     turn: game.currentTurn,
@@ -107,15 +116,26 @@ export function buildAIValidationReplayFingerprint(game: GameInstance): string {
     metrics: captureAIValidationMetrics(game).players.map(({ id: _id, ...metrics }) => metrics),
     decisions: [...game.players.values()]
       .flatMap(player => assertAIState(player.aiState).recentDecisionTrace ?? [])
-      .map(trace => [
-        trace.turn,
-        trace.label,
-        trace.actions,
-        trace.input ?? null,
-        trace.economicDelta ?? null,
-        trace.candidateScores ?? null,
-        trace.error ?? null,
-      ])
+      .map(trace => {
+        const candidateScores = trace.candidateScores && {
+          cityProduction: normalizeCityEntries(trace.candidateScores.cityProduction),
+          research: trace.candidateScores.research,
+        };
+        const selectedActions = trace.selectedActions && {
+          cityProduction: normalizeCityEntries(trace.selectedActions.cityProduction),
+          research: trace.selectedActions.research,
+        };
+        return [
+          trace.turn,
+          trace.label,
+          trace.actions,
+          trace.input ?? null,
+          trace.economicDelta ?? null,
+          candidateScores ?? null,
+          selectedActions ?? null,
+          trace.error ?? null,
+        ];
+      })
       .sort((left, right) => `${left}`.localeCompare(`${right}`)),
   });
 }

@@ -55,6 +55,10 @@ export interface AIDecisionTrace {
     cityProduction: Record<string, Record<string, number>>;
     research: Record<string, number>;
   };
+  selectedActions?: {
+    cityProduction: Record<string, string | null>;
+    research: string | null;
+  };
   error?: string;
 }
 
@@ -115,6 +119,18 @@ function assertCandidateScores(value: unknown): void {
   }
 }
 
+function assertSelectedActions(value: unknown): void {
+  if (!isRecord(value) || !isRecord(value.cityProduction)) {
+    throw new Error('AI state decision trace selected actions are invalid');
+  }
+  if (Object.values(value.cityProduction).some(action => action !== null && typeof action !== 'string')) {
+    throw new Error('AI state decision trace city selected actions are invalid');
+  }
+  if (value.research !== null && typeof value.research !== 'string') {
+    throw new Error('AI state decision trace selected research action is invalid');
+  }
+}
+
 function isTreasuryGoal(value: unknown): value is AITreasuryGoal {
   if (!isRecord(value)) return false;
   return (
@@ -167,6 +183,7 @@ export function assertAIState(value: unknown): FreecivAIState {
         ]);
       }
       if (entry.candidateScores !== undefined) assertCandidateScores(entry.candidateScores);
+      if (entry.selectedActions !== undefined) assertSelectedActions(entry.selectedActions);
     }
   }
   if (state.treasuryGoal !== undefined && !isTreasuryGoal(state.treasuryGoal)) {

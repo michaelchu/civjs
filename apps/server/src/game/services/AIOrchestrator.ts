@@ -234,6 +234,7 @@ export class FreecivAIOrchestrator {
         input: before.input,
         economicDelta: this.economicDelta(before.economy, after.economy),
         candidateScores: this.candidateScores(state),
+        selectedActions: this.selectedActions(game, playerId),
       });
       return actions;
     } catch (error) {
@@ -246,6 +247,7 @@ export class FreecivAIOrchestrator {
         input: before.input,
         economicDelta: this.economicDelta(before.economy, after.economy),
         candidateScores: this.candidateScores(state),
+        selectedActions: this.selectedActions(game, playerId),
         error: message,
       });
       logger.warn('CivJS AI decision failed', {
@@ -258,6 +260,7 @@ export class FreecivAIOrchestrator {
 
   private traceSnapshot(game: GameInstance, playerId: string, state: FreecivAIState) {
     const cities = game.cityManager.getPlayerCities(playerId);
+    const finite = (value: number | undefined) => (Number.isFinite(value) ? (value as number) : 0);
     return {
       input: {
         cities: cities.length,
@@ -265,11 +268,11 @@ export class FreecivAIOrchestrator {
         tasks: Object.keys(state.unitTasks).length,
       },
       economy: {
-        population: cities.reduce((total, city) => total + city.population, 0),
-        food: cities.reduce((total, city) => total + (city.foodPerTurn ?? 0), 0),
-        production: cities.reduce((total, city) => total + (city.productionPerTurn ?? 0), 0),
-        trade: cities.reduce((total, city) => total + (city.tradePerTurn ?? 0), 0),
-        science: cities.reduce((total, city) => total + (city.sciencePerTurn ?? 0), 0),
+        population: cities.reduce((total, city) => total + finite(city.population), 0),
+        food: cities.reduce((total, city) => total + finite(city.foodPerTurn), 0),
+        production: cities.reduce((total, city) => total + finite(city.productionPerTurn), 0),
+        trade: cities.reduce((total, city) => total + finite(city.tradePerTurn), 0),
+        science: cities.reduce((total, city) => total + finite(city.sciencePerTurn), 0),
       },
     };
   }
@@ -300,6 +303,18 @@ export class FreecivAIOrchestrator {
       research: Object.fromEntries(
         Object.entries(state.techWants).sort(([left], [right]) => left.localeCompare(right))
       ),
+    };
+  }
+
+  private selectedActions(game: GameInstance, playerId: string) {
+    return {
+      cityProduction: Object.fromEntries(
+        game.cityManager
+          .getPlayerCities(playerId)
+          .sort((left, right) => left.id.localeCompare(right.id))
+          .map(city => [city.id, city.currentProduction ?? null])
+      ),
+      research: game.researchManager.getPlayerResearch(playerId)?.currentTech ?? null,
     };
   }
 

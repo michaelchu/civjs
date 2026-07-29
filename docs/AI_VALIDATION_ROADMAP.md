@@ -51,9 +51,10 @@ The first implementation steps are now in place:
   and a focused Docker reproduction command.
 - AI state retains a bounded, restart-safe decision trace for recent subsystem
   attempts (turn, phase label, input city/unit/task footprint, action count,
-  ranked city-production/research candidate scores, authoritative post-action
-  economic delta, and error/rejection reason). The trace is included in the
-  matrix artifact through the saved AI state.
+  ranked city-production/research candidate scores, authoritative selected
+  city production/research, post-action economic delta, and error/rejection
+  reason). The trace is included in the matrix artifact through the saved AI
+  state.
 - A normalized terminal replay fingerprint compares map features, city/unit
   state, behavioral metrics, and decision outcomes while excluding generated
   database IDs. The focused suite runs the same seeded terminal game twice and
@@ -91,9 +92,9 @@ The first implementation steps are now in place:
   server's paradrop-source legality rule.
 
 This is intentionally a foundation rather than completion of the milestone:
-selected-action identity in planner traces, longer-game behavioral baselines,
-long-running multi-city empire lifecycle coverage, and comparative
-strategic-strength match results remain required work.
+longer-game behavioral baselines, long-running multi-city empire lifecycle
+coverage, and comparative strategic-strength match results remain required
+work.
 
 ## Next validation milestone: deterministic simulation matrix
 
