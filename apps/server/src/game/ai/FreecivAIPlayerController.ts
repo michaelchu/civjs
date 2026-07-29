@@ -49,6 +49,9 @@ export class FreecivAIPlayerController {
     actions += await run('research', () => this.domestic.selectResearch(game, playerId, state));
     actions += await run('expansion', () => this.units.foundReadyCities(game, playerId, state));
     actions += await run('city unit actions', () => this.city.executeUnitActions(game, playerId));
+    actions += await run('wonder helpers', () =>
+      this.city.manageWonderHelpers(game, playerId, state)
+    );
     actions += await run('workers', () => this.units.automateWorkers(game, playerId, state));
     actions += await run('ferries', () => this.transport.manageFerries(game, playerId, state));
     actions += await run('recovery', () =>

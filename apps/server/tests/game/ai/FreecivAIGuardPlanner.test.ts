@@ -54,6 +54,17 @@ const types: Record<string, any> = {
     canBuildImprovements: false,
     flags: ['Diplomat', 'NonMil'],
   },
+  caravan: {
+    id: 'caravan',
+    attack: 0,
+    defense: 1,
+    combat: 0,
+    movement: 1,
+    hitpoints: 10,
+    canFoundCity: false,
+    canBuildImprovements: false,
+    flags: ['HelpWonder', 'NonMil'],
+  },
 };
 
 describe('Freeciv AI guard planner', () => {
@@ -75,6 +86,23 @@ describe('Freeciv AI guard planner', () => {
       assignedTurn: 5,
     });
     expect(plan.assessments.find(item => item.city.id === 'frontier')?.urgency).toBe(11);
+  });
+
+  it('does not divert nonmilitary wonder helpers into city defense', () => {
+    const plan = planCityGuards({
+      turn: 5,
+      cities: [city('frontier', 5, 5)],
+      friendlyUnits: [unit('helper', 'caravan', 5, 5)],
+      hostileUnits: [unit('enemy', 'attacker', 6, 5, 'enemy')],
+      existingTasks: {
+        helper: { role: 'caravan', targetId: 'frontier', assignedTurn: 3 },
+      },
+      getType: id => types[id],
+      distance: (x1, y1, x2, y2) => Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)),
+      profile: createAIProfile('normal'),
+    });
+
+    expect(plan.assignments.helper).toBeUndefined();
   });
 
   it('preserves sane assignments and dismisses destroyed charges', () => {

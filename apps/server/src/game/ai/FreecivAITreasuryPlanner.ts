@@ -43,13 +43,26 @@ export function calculateTreasuryReserve(
 function buildingStrategicValue(city: CityState, building: BuildingType): number {
   const effects = building.effects ?? {};
   const unrest = city.happiness.unhappy + city.happiness.angry;
+  const oceanTiles = (city.workableTiles ?? []).filter(tile =>
+    ['ocean', 'deep_ocean', 'coast', 'lake'].includes(tile.terrain ?? '')
+  ).length;
+  const citySize = city.size ?? city.population ?? 0;
   return (
     (effects.foodBonus ?? 0) * ((city.foodPerTurn ?? 0) <= 0 ? 30 : 8) +
     (effects.productionBonus ?? 0) * 10 +
     (effects.scienceBonus ?? 0) * 8 +
     (effects.goldBonus ?? 0) * 8 +
     (effects.happinessEffect ?? 0) * (unrest > 0 ? 30 : 8) +
-    (effects.defenseBonus ?? 0) * 15
+    (effects.defenseBonus ?? 0) * 15 +
+    (effects.oceanFood ?? 0) * oceanTiles * 12 +
+    (effects.oceanShields ?? 0) * oceanTiles * 12 +
+    (effects.immediateTechs ?? 0) * 50 +
+    (effects.techParasitePlayers ?? 0) * 20 +
+    ((effects.corruptionReduction ?? 0) *
+      Math.max(0, city.grossTradePerTurn ?? city.tradePerTurn ?? 0)) /
+      10 +
+    (effects.maxCitySize !== undefined && citySize >= effects.maxCitySize - 2 ? 60 : 0) +
+    (effects.unlimitedCitySize && citySize >= 10 ? 80 : 0)
   );
 }
 

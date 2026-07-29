@@ -42,5 +42,12 @@ describe('RulesetBuildingsService', () => {
     expect(buildings).not.toHaveProperty('monument');
     expect(buildings.airport).toMatchObject({ requiredTech: 'radio' });
     expect(buildings.bank.requires).toEqual(['marketplace']);
+    expect(buildings.aqueduct.effects.maxCitySize).toBe(12);
+    expect(buildings.sewer_system.effects.unlimitedCitySize).toBe(true);
+    expect(buildings.harbor.effects.oceanFood).toBe(1);
+    expect(buildings.offshore_platform.effects.oceanShields).toBe(1);
+    expect(buildings.darwins_voyage.effects.immediateTechs).toBe(2);
+    expect(buildings.great_library.effects.techParasitePlayers).toBe(2);
+    expect(buildings.courthouse.effects.corruptionReduction).toBe(50);
   });
 });

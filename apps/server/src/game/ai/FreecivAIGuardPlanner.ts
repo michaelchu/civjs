@@ -37,6 +37,7 @@ function isGuardCandidate(unit: Unit, type: UnitType | undefined): type is UnitT
       !unit.transportedBy &&
       !type.canFoundCity &&
       !type.canBuildImprovements &&
+      !type.flags?.includes('NonMil') &&
       (type.defense ?? type.combat ?? 0) > 0
   );
 }

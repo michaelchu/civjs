@@ -290,6 +290,7 @@ export const BuildingEffectsSchema = z.object({
   oceanShields: z.number().optional(),
   immediateTechs: z.number().optional(),
   techParasitePlayers: z.number().optional(),
+  corruptionReduction: z.number().optional(),
 });
 
 export const BuildingGenusSchema = z.enum([

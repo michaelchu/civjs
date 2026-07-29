@@ -24,7 +24,8 @@ export interface AIUnitTask {
     | 'recover'
     | 'retreat'
     | 'ferry'
-    | 'diplomat';
+    | 'diplomat'
+    | 'caravan';
   targetId?: string;
   targetX?: number;
   targetY?: number;

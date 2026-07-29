@@ -207,6 +207,75 @@ describe('Freeciv AI want planner', () => {
     expect(ranked.map(choice => choice.value.id)).toContain('granary');
   });
 
+  it('values ruleset-driven growth, ocean, technology, and corruption effects', () => {
+    const ranked = rankCityProduction({
+      city: city({
+        size: 10,
+        tradePerTurn: 12,
+        grossTradePerTurn: 18,
+        productionPerTurn: 10,
+        workableTiles: [
+          {
+            x: 1,
+            y: 1,
+            isWorked: true,
+            terrain: 'ocean',
+            outputs: { food: 1, shields: 0, trade: 2 },
+          },
+          {
+            x: 2,
+            y: 1,
+            isWorked: false,
+            terrain: 'coast',
+            outputs: { food: 1, shields: 0, trade: 2 },
+          },
+        ],
+      }),
+      cities: [city()],
+      units: [],
+      unitTypes: {},
+      buildingTypes: {
+        aqueduct: {
+          id: 'aqueduct',
+          cost: 20,
+          genus: 'Improvement',
+          effects: { maxCitySize: 12 },
+        } as any,
+        harbor: {
+          id: 'harbor',
+          cost: 20,
+          genus: 'Improvement',
+          effects: { oceanFood: 1 },
+        } as any,
+        darwin: {
+          id: 'darwin',
+          cost: 20,
+          genus: 'GreatWonder',
+          effects: { immediateTechs: 2 },
+        } as any,
+        courthouse: {
+          id: 'courthouse',
+          cost: 20,
+          genus: 'Improvement',
+          effects: { corruptionReduction: 50 },
+        } as any,
+      },
+      canBuild: () => true,
+      dangerAssessment: {
+        danger: 0,
+        urgency: 0,
+        graveDanger: 0,
+        defense: 0,
+        defenseDeficit: 0,
+      },
+    });
+
+    expect(ranked.map(choice => choice.value.id)).toEqual(
+      expect.arrayContaining(['aqueduct', 'harbor', 'darwin', 'courthouse'])
+    );
+    expect(ranked[0].value.id).toBe('darwin');
+  });
+
   it('uses target-specific virtual attacker wants instead of generic attack strength', () => {
     const ranked = rankCityProduction({
       city: city({ productionPerTurn: 10 }),

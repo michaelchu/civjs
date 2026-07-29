@@ -1315,6 +1315,77 @@ describe('FreecivAIOrchestrator', () => {
     expect(Object.keys(ai.aiState.cityWants.capital).length).toBeGreaterThan(0);
   });
 
+  it('holds wonder helpers until their combined shields can finish construction', async () => {
+    const scenario = createScenario();
+    const wonderCity = {
+      id: 'wonder',
+      playerId: 'ai',
+      x: 2,
+      y: 2,
+      size: 4,
+      currentProduction: 'pyramids',
+      productionType: 'building',
+      productionStock: 100,
+      productionPerTurn: 10,
+      goldPerTurn: 0,
+      foodPerTurn: 2,
+      tradePerTurn: 4,
+      buildings: [],
+      happiness: { happy: 0, content: 4, unhappy: 0, angry: 0 },
+      worklist: [],
+      workableTiles: [],
+    };
+    (scenario.game.cityManager as any).getPlayerCities = () => [wonderCity];
+    (scenario.game.cityManager as any).getAllCities = () => [wonderCity];
+    (scenario.game.cityManager as any).canCityContinueProduction = () => false;
+    scenario.unitTypes.caravan = {
+      cost: 50,
+      movement: 1,
+      attack: 0,
+      defense: 1,
+      flags: ['HelpWonder', 'NonMil'],
+      rulesetUnitClass: 'land',
+      unitClass: 'civilian',
+    };
+    const first = {
+      ...scenario.units.get('settler')!,
+      id: 'first-caravan',
+      unitTypeId: 'caravan',
+      x: 2,
+      y: 2,
+    };
+    scenario.units.clear();
+    scenario.units.set(first.id, first);
+    scenario.executeUnitAction.mockClear();
+    const orchestrator = new FreecivAIOrchestrator(scenario.diplomacyManager as any);
+
+    await orchestrator.processTurn('game', scenario.game as any);
+    expect(
+      scenario.executeUnitAction.mock.calls.filter(
+        ([, action]) => action === ActionType.HELP_WONDER
+      )
+    ).toHaveLength(0);
+
+    const second = { ...first, id: 'second-caravan' };
+    scenario.units.set(second.id, second);
+    await orchestrator.processTurn('game', scenario.game as any);
+
+    expect(
+      scenario.executeUnitAction.mock.calls.filter(
+        ([, action]) => action === ActionType.HELP_WONDER
+      )
+    ).toEqual([
+      ['first-caravan', ActionType.HELP_WONDER, 2, 2, 'ai'],
+      ['second-caravan', ActionType.HELP_WONDER, 2, 2, 'ai'],
+    ]);
+    expect(
+      (scenario.game.players.get('ai') as any).aiState.unitTasks['first-caravan']
+    ).toMatchObject({
+      role: 'caravan',
+      targetId: 'wonder',
+    });
+  });
+
   it('keeps accumulated research when a replacement want does not repay the switch penalty', async () => {
     const scenario = createScenario();
     scenario.game.researchManager.getPlayerResearch = () => ({

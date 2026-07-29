@@ -19,6 +19,13 @@ export interface RulesetBuildingType {
     goldBonus?: number;
     luxuryBonus?: number;
     happinessEffect?: number;
+    maxCitySize?: number;
+    unlimitedCitySize?: boolean;
+    oceanFood?: number;
+    oceanShields?: number;
+    immediateTechs?: number;
+    techParasitePlayers?: number;
+    corruptionReduction?: number;
   };
 }
 

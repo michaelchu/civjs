@@ -106,6 +106,9 @@ export function rankCityProduction(
     Math.max(0, 1 - defendersOnTile.length) * 90 +
     context.dangerAssessment.defenseDeficit +
     context.dangerAssessment.urgency;
+  const oceanTiles = (city.workableTiles ?? []).filter(tile =>
+    ['ocean', 'deep_ocean', 'coast', 'lake'].includes(tile.terrain ?? '')
+  ).length;
 
   for (const type of Object.values(unitTypes)) {
     if (!canBuild('unit', type.id)) continue;
@@ -129,18 +132,17 @@ export function rankCityProduction(
       want += defenseNeed * defense;
       reasons.push('defense');
     }
-    if (attack > 0) {
-      const targetWant = context.offensiveUnitWants?.get(type.id);
-      if (targetWant !== undefined) {
-        want += targetWant * aggressionWeight;
-        reasons.push('targeted military');
-      } else if (!context.offensiveUnitWants) {
-        want +=
-          ((attack * Math.max(1, type.movement) * Math.max(1, type.firepower ?? 1) * 14) /
-            Math.max(1, type.cost)) *
-          aggressionWeight;
-        reasons.push('military');
-      }
+    const targetWant = context.offensiveUnitWants?.get(type.id);
+    if (targetWant !== undefined) {
+      want += targetWant * (attack > 0 ? aggressionWeight : 1);
+      reasons.push(attack > 0 ? 'targeted military' : 'strategic support');
+    }
+    if (attack > 0 && targetWant === undefined && !context.offensiveUnitWants) {
+      want +=
+        ((attack * Math.max(1, type.movement) * Math.max(1, type.firepower ?? 1) * 14) /
+          Math.max(1, type.cost)) *
+        aggressionWeight;
+      reasons.push('military');
     }
     if ((type.transport_capacity ?? 0) > 0) {
       const landUnits = units.filter(unit => unitTypes[unit.unitTypeId]?.unitClass === 'military');
@@ -176,7 +178,21 @@ export function rankCityProduction(
       (effects.goldBonus ?? 0) * 16 +
       (effects.luxuryBonus ?? 0) * 10 +
       (effects.happinessEffect ?? 0) * 30 +
-      (effects.defenseBonus ?? 0) * Math.max(10, defenseNeed);
+      (effects.defenseBonus ?? 0) * Math.max(10, defenseNeed) +
+      (effects.oceanFood ?? 0) * oceanTiles * 24 +
+      (effects.oceanShields ?? 0) * oceanTiles * 22 +
+      (effects.immediateTechs ?? 0) * 150 +
+      (effects.techParasitePlayers ?? 0) * 50 +
+      ((effects.corruptionReduction ?? 0) *
+        Math.max(0, city.grossTradePerTurn ?? city.tradePerTurn ?? 0)) /
+        5;
+    const citySize = city.size ?? city.population ?? 0;
+    if (effects.maxCitySize !== undefined) {
+      want += Math.max(0, citySize - (effects.maxCitySize - 4)) * 60;
+    }
+    if (effects.unlimitedCitySize) {
+      want += Math.max(0, citySize - 8) * 45;
+    }
     if ((effects.defenseBonus ?? 0) > 0) {
       want = reevaluateDefensiveBuildingWant(want, context.dangerAssessment);
     }

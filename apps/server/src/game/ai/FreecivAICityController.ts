@@ -30,6 +30,7 @@ import {
 import { calculateDiplomatInciteCost } from '@game/services/DiplomatActionEconomics';
 import { calculateTreasuryReserve } from '@game/ai/FreecivAITreasuryPlanner';
 import type { Unit } from '@game/managers/UnitManager';
+import { planWonderCoordination } from '@game/ai/FreecivAIWonderPlanner';
 
 /**
  * Executes citizen allocation, production, worklist, and city-local unit
@@ -184,6 +185,18 @@ export class FreecivAICityController {
           Boolean(buildingId && BUILDING_TYPES[buildingId]?.genus === 'GreatWonder')
         )
     );
+    const wonderPlan = planWonderCoordination({
+      cities,
+      units,
+      unitTypes: UNIT_TYPES,
+      buildingTypes: BUILDING_TYPES,
+      canBuild: (cityId, unitTypeId) =>
+        canContinueProduction?.(cityId, 'unit', unitTypeId) ?? false,
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+    });
+    for (const [techId, want] of wonderPlan.technologyWants) {
+      state.techWants[techId] = (state.techWants[techId] ?? 0) + want;
+    }
 
     for (const city of cities) {
       for (const type of Object.values(UNIT_TYPES)) {
@@ -391,6 +404,9 @@ export class FreecivAICityController {
       for (const [unitTypeId, want] of diplomatWants) {
         offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
       }
+      for (const [unitTypeId, want] of wonderPlan.productionWants.get(city.id) ?? []) {
+        offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
+      }
       const diplomatTechWants = rankDiplomatTechnologyWants({
         unitTypes: Object.values(UNIT_TYPES),
         knownTechs,
@@ -497,7 +513,6 @@ export class FreecivAICityController {
 
   async executeUnitActions(game: GameInstance, playerId: string): Promise<number> {
     const preferences = [
-      ActionType.HELP_WONDER,
       ActionType.MARKETPLACE,
       ActionType.JOIN_CITY,
       ActionType.CHANGE_HOME_CITY,
@@ -520,6 +535,101 @@ export class FreecivAICityController {
         );
         if (result.success) actions++;
         break;
+      }
+    }
+    return actions;
+  }
+
+  async manageWonderHelpers(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    const cities = game.cityManager.getPlayerCities(playerId);
+    const units = game.unitManager.getPlayerUnits(playerId);
+    const plan = planWonderCoordination({
+      cities,
+      units,
+      unitTypes: UNIT_TYPES,
+      buildingTypes: BUILDING_TYPES,
+      canBuild: (cityId, unitTypeId) =>
+        game.cityManager.canCityContinueProduction?.(cityId, 'unit', unitTypeId) ?? false,
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+    });
+    const assignedIds = new Set(plan.assignments.map(assignment => assignment.unit.id));
+    for (const [unitId, task] of Object.entries(state.unitTasks)) {
+      if (task.role === 'caravan' && !assignedIds.has(unitId)) delete state.unitTasks[unitId];
+    }
+
+    let actions = 0;
+    for (const assignment of plan.assignments) {
+      const unit = game.unitManager.getUnit(assignment.unit.id);
+      if (!unit) continue;
+      const task = {
+        role: 'caravan' as const,
+        targetId: assignment.targetCity.id,
+        targetX: assignment.targetCity.x,
+        targetY: assignment.targetCity.y,
+        assignedTurn:
+          state.unitTasks[unit.id]?.role === 'caravan'
+            ? state.unitTasks[unit.id]!.assignedTurn
+            : game.currentTurn,
+      };
+      state.unitTasks[unit.id] = task;
+      if (unit.transportedBy || unit.movementLeft <= 0) continue;
+      if (unit.x === assignment.targetCity.x && unit.y === assignment.targetCity.y) {
+        if (
+          plan.releaseHelpers &&
+          game.unitManager.canUnitPerformAction(unit.id, ActionType.HELP_WONDER, unit.x, unit.y)
+        ) {
+          const result = await game.unitManager.executeUnitAction(
+            unit.id,
+            ActionType.HELP_WONDER,
+            unit.x,
+            unit.y,
+            playerId
+          );
+          if (result.success) actions++;
+        }
+        continue;
+      }
+      const path = await game.pathfindingManager.findPath(
+        unit,
+        assignment.targetCity.x,
+        assignment.targetCity.y
+      );
+      if (!path.valid || path.path.length < 2) {
+        const source = game.mapManager.getTile(unit.x, unit.y);
+        const target = game.mapManager.getTile(assignment.targetCity.x, assignment.targetCity.y);
+        if (
+          source &&
+          target &&
+          source.continentId > 0 &&
+          target.continentId > 0 &&
+          source.continentId !== target.continentId
+        ) {
+          state.unitTasks[unit.id]!.transportRequired = true;
+        } else {
+          delete state.unitTasks[unit.id];
+        }
+        continue;
+      }
+      if (
+        game.unitManager.canUnitPerformAction(
+          unit.id,
+          ActionType.GOTO,
+          assignment.targetCity.x,
+          assignment.targetCity.y
+        )
+      ) {
+        const result = await game.unitManager.executeUnitAction(
+          unit.id,
+          ActionType.GOTO,
+          assignment.targetCity.x,
+          assignment.targetCity.y,
+          playerId
+        );
+        if (result.success) actions++;
       }
     }
     return actions;
