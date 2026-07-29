@@ -80,7 +80,11 @@ describe('AI authoritative manager boundaries', () => {
       serverConfig.game.minPlayersToStart = originalMinimumPlayers;
     }
 
-    const game = gameManager.getGameInstance(gameId);
+    let game = gameManager.getGameInstance(gameId);
+    for (let attempt = 0; !game && attempt < 50; attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+      game = gameManager.getGameInstance(gameId);
+    }
     if (!game) throw new Error('Expected active game instance');
     return { gameId, hostUserId: userIds[0]!, players, game };
   }
@@ -161,6 +165,7 @@ describe('AI authoritative manager boundaries', () => {
       const tile = game.mapManager.getTile(workable.x, workable.y);
       if (
         tile &&
+        game.mapManager.getDistance(city.x, city.y, tile.x, tile.y) === 1 &&
         !['ocean', 'deep_ocean', 'lake'].includes(tile.terrain) &&
         !tile.hasRoad &&
         !tile.improvements.includes('road') &&
@@ -997,20 +1002,19 @@ describe('AI authoritative manager boundaries', () => {
     const cityController = (gameManager as any).aiOrchestrator.playerController.city;
     await cityController.selectProduction(scenario.game, guest!.playerId, state);
 
-    expect(city.currentProduction).toBe('settlers');
-    const settlerType = scenario.game.unitManager.getUnitType('settlers')!;
-    expect(settlerType.canBuildImprovements).toBe(true);
-    city.productionStock = settlerType.cost;
-    city.shieldStock = settlerType.cost;
+    const workerType = scenario.game.unitManager.getUnitType(city.currentProduction!)!;
+    expect(workerType.canBuildImprovements).toBe(true);
+    city.productionStock = workerType.cost;
+    city.shieldStock = workerType.cost;
     await scenario.game.cityManager.processCityTurn(city.id, scenario.game.currentTurn);
 
     const worker = scenario.game.unitManager
       .getPlayerUnits(guest!.playerId)
-      .find(unit => unit.unitTypeId === 'settlers' && unit.homeCityId === city.id);
+      .find(unit => unit.unitTypeId === workerType.id && unit.homeCityId === city.id);
     expect(worker).toBeDefined();
 
     expect(await scenario.game.unitManager.moveUnit(worker!.id, target.x, target.y)).toBe(true);
-    worker!.movementLeft = settlerType.movement;
+    worker!.movementLeft = workerType.movement;
 
     const unitController = (gameManager as any).aiOrchestrator.playerController.units;
     expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
@@ -1044,7 +1048,9 @@ describe('AI authoritative manager boundaries', () => {
     );
 
     await gameManager.createUnit(scenario.gameId, guest!.playerId, 'settlers', city.x, city.y);
+    await gameManager.createUnit(scenario.gameId, guest!.playerId, 'worker', city.x, city.y);
     await gameManager.createUnit(scenario.gameId, guest!.playerId, 'warriors', city.x, city.y);
+    await scenario.game.researchManager.grantTechnology(guest!.playerId, 'currency');
     city.currentProduction = null;
     city.productionType = null;
     city.worklist = [];

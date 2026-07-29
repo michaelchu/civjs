@@ -277,11 +277,13 @@ export async function createTestGameAndPlayer() {
   return { game, player, user };
 }
 
-// Test database connection string
-const testConnectionString =
-  process.env.TEST_DATABASE_URL ||
-  process.env.DATABASE_URL ||
-  'postgresql://civjs:civjs_secret@localhost:5432/civjs_test';
+function getTestConnectionString(): string {
+  return (
+    process.env.TEST_DATABASE_URL ||
+    process.env.DATABASE_URL ||
+    'postgresql://civjs:civjs_secret@localhost:5432/civjs_test'
+  );
+}
 
 // Create test database connection
 let testQueryClient: postgres.Sql | null = null;
@@ -289,6 +291,7 @@ let testDb: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
 export async function setupTestDatabase() {
   try {
+    const testConnectionString = getTestConnectionString();
     // Create connection
     testQueryClient = postgres(testConnectionString, {
       prepare: false,
