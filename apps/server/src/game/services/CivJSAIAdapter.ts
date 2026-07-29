@@ -24,6 +24,7 @@ import { planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
 import { planHunters } from '@game/ai/FreecivAIHunterPlanner';
 import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
 import { OutputType } from '@game/constants/GameConstants';
+import { planFerries } from '@game/ai/FreecivAIFerryPlanner';
 
 /**
  * Versioned compatibility contract for the currently landed Freeciv AI slice.
@@ -45,6 +46,7 @@ export const CIVJS_AI_CONTRACT = {
     'score military targets by expected shield profit and pursue reachable targets',
     'persist city guard assignments, reinforce danger, and fortify defenders',
     'assign specialist hunters to persistent high-value mobile targets',
+    'pair ferryboats with passengers and execute rendezvous, loading, delivery, and unloading',
     'value incoming treaties and make proactive cease-fire, peace, and alliance proposals',
     'persist difficulty, traits, diplomacy memory, assignments, and wants across restarts',
     'yield game completion to the authoritative conquest evaluator',
@@ -53,7 +55,7 @@ export const CIVJS_AI_CONTRACT = {
     'complete lifecycle event callbacks and use persisted assignments across every advisor',
     'complete city, technology, government, rates, spending, and worklist advisor want parity',
     'settlement-site and worker-improvement reservation parity',
-    'ferries, amphibious operations, air, paradrop, and diplomat planning',
+    'complete amphibious invasion coordination, air, paradrop, and diplomat planning',
     'complete Freeciv diplomacy threat, reputation, incident, and material-clause valuation',
   ],
 } as const;
@@ -91,11 +93,14 @@ export class CivJSAIAdapter {
       actions += await this.attempt('economy', () => this.manageEconomy(game, playerId));
       actions += await this.attempt('citizens', () => this.manageCitizens(game, playerId));
       actions += await this.attempt('production', () => this.selectCityProduction(game, playerId));
-      actions += await this.attempt('expansion', () => this.foundReadyCities(game, playerId));
+      actions += await this.attempt('expansion', () =>
+        this.foundReadyCities(game, playerId, state)
+      );
       actions += await this.attempt('city unit actions', () =>
         this.executeCityUnitActions(game, playerId)
       );
       actions += await this.attempt('workers', () => this.automateWorkers(game, playerId));
+      actions += await this.attempt('ferries', () => this.manageFerries(game, playerId, state));
       actions += await this.attempt('guards', () => this.manageCityGuards(game, playerId, state));
       actions += await this.attempt('hunters', () =>
         this.manageHunters(gameId, game, playerId, state)
@@ -285,10 +290,18 @@ export class CivJSAIAdapter {
     return actions;
   }
 
-  private async foundReadyCities(game: GameInstance, playerId: string): Promise<number> {
+  private async foundReadyCities(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
     let actions = 0;
     for (const unit of this.sortedUnits(game, playerId)) {
-      if (unit.movementLeft <= 0 || !game.unitManager.getUnitType(unit.unitTypeId)?.canFoundCity) {
+      if (
+        unit.movementLeft <= 0 ||
+        unit.transportedBy ||
+        !game.unitManager.getUnitType(unit.unitTypeId)?.canFoundCity
+      ) {
         continue;
       }
       if (game.unitManager.canUnitPerformAction(unit.id, ActionType.FOUND_CITY)) {
@@ -302,12 +315,16 @@ export class CivJSAIAdapter {
         if (result.success) actions++;
         continue;
       }
-      actions += await this.moveSettlerTowardBestSite(game, unit);
+      actions += await this.moveSettlerTowardBestSite(game, unit, state);
     }
     return actions;
   }
 
-  private async moveSettlerTowardBestSite(game: GameInstance, unit: Unit): Promise<number> {
+  private async moveSettlerTowardBestSite(
+    game: GameInstance,
+    unit: Unit,
+    state: FreecivAIState
+  ): Promise<number> {
     const map = game.mapManager.getMapData?.();
     if (
       !map ||
@@ -344,6 +361,12 @@ export class CivJSAIAdapter {
       (profile.expansion / 100) * (profile.traits.expansionist / 50)
     ).slice(0, 24);
     for (const candidate of candidates) {
+      state.unitTasks[unit.id] = {
+        role: 'settle',
+        targetX: candidate.tile.x,
+        targetY: candidate.tile.y,
+        assignedTurn: game.currentTurn,
+      };
       const path = await game.pathfindingManager.findPath(unit, candidate.tile.x, candidate.tile.y);
       if (!path.valid || path.path.length < 2) continue;
       const result = await game.unitManager.executeUnitAction(
@@ -535,6 +558,98 @@ export class CivJSAIAdapter {
         playerId
       );
       if (result.success) actions++;
+    }
+    return actions;
+  }
+
+  private async manageFerries(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    const plan = planFerries({
+      friendlyUnits: game.unitManager.getPlayerUnits(playerId),
+      existingTasks: state.unitTasks,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      capacityRemaining: ferryId => game.unitManager.getTransportCapacityRemaining(ferryId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+    });
+    for (const [unitId, task] of Object.entries(state.unitTasks)) {
+      if (task.role === 'ferry') delete state.unitTasks[unitId];
+    }
+    for (const assignment of plan) {
+      state.unitTasks[assignment.ferry.id] = {
+        role: 'ferry',
+        targetId: assignment.passenger.id,
+        targetX: assignment.destinationX,
+        targetY: assignment.destinationY,
+        assignedTurn: game.currentTurn,
+      };
+    }
+
+    let actions = 0;
+    for (const assignment of plan) {
+      const { ferry, passenger } = assignment;
+      if (assignment.phase === 'embarked') {
+        if (await game.unitManager.loadUnitOntoTransport(ferry.id, passenger.id)) actions++;
+        continue;
+      }
+      if (assignment.phase === 'rendezvous') {
+        if (ferry.movementLeft > 0) {
+          const result = await game.unitManager.executeUnitAction(
+            ferry.id,
+            ActionType.GOTO,
+            passenger.x,
+            passenger.y,
+            playerId
+          );
+          if (result.success) actions++;
+        }
+        if (
+          ferry.x === passenger.x &&
+          ferry.y === passenger.y &&
+          !passenger.transportedBy &&
+          (await game.unitManager.loadUnitOntoTransport(ferry.id, passenger.id))
+        ) {
+          actions++;
+        }
+        continue;
+      }
+      const distance = game.mapManager.getDistance(
+        ferry.x,
+        ferry.y,
+        assignment.destinationX,
+        assignment.destinationY
+      );
+      if (
+        distance <= 1 &&
+        game.unitManager.canUnloadUnit(
+          passenger.id,
+          assignment.destinationX,
+          assignment.destinationY
+        )
+      ) {
+        if (
+          await game.unitManager.unloadUnit(
+            passenger.id,
+            assignment.destinationX,
+            assignment.destinationY
+          )
+        ) {
+          actions++;
+        }
+        continue;
+      }
+      if (ferry.movementLeft > 0) {
+        const result = await game.unitManager.executeUnitAction(
+          ferry.id,
+          ActionType.GOTO,
+          assignment.destinationX,
+          assignment.destinationY,
+          playerId
+        );
+        if (result.success) actions++;
+      }
     }
     return actions;
   }
