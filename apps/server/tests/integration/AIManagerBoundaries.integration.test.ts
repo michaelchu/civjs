@@ -1080,7 +1080,7 @@ describe('AI authoritative manager boundaries', () => {
     // Improvement duration is ruleset/tile dependent. Drive the authoritative
     // order processor until it completes, instead of assuming every road has
     // exactly the unit-test fixture's two-turn duration.
-    for (let attempt = 0; attempt < 5 && !scenario.game.mapManager.getTile(target.x, target.y)!.hasRoad; attempt += 1) {
+    for (let attempt = 0; attempt < 20 && !scenario.game.mapManager.getTile(target.x, target.y)!.hasRoad; attempt += 1) {
       await scenario.game.unitManager.processUnitOrders(guest!.playerId);
     }
     const completed = scenario.game.mapManager.getTile(target.x, target.y)!;
@@ -1172,7 +1172,16 @@ describe('AI authoritative manager boundaries', () => {
 
     const cityController = (gameManager as any).aiOrchestrator.playerController.city;
     expect(await cityController.manageCitizens(scenario.game, guest!.playerId)).toBeGreaterThan(0);
-    expect(scenario.game.cityManager.getCity(city.id)!.foodPerTurn).toBeGreaterThanOrEqual(1);
+    const managed = scenario.game.cityManager.getCity(city.id)!;
+    expect(managed.foodPerTurn).toBeGreaterThanOrEqual(1);
+
+    gameManager.clearAllGames();
+    (GameManager as any).instance = null;
+    gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+    const recovered = await gameManager.recoverGameInstance(scenario.gameId);
+    expect(recovered?.cityManager.getCity(city.id)).toMatchObject({
+      foodPerTurn: managed.foodPerTurn,
+    });
   });
 
   it('selects, completes, persists, and recovers a spaceship part through real managers', async () => {
