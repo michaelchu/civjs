@@ -34,6 +34,8 @@ export interface ProductionPlanningContext {
   canBuild: (kind: 'unit' | 'building', id: string) => boolean;
   nearbyEnemyStrength: number;
   profile?: AIProfile;
+  reservedWonders?: ReadonlySet<string>;
+  excludedChoices?: ReadonlySet<string>;
 }
 
 const MORT = 24;
@@ -67,9 +69,9 @@ function unitAttack(type: UnitType): number {
  * @reference reference/freeciv/ai/default/daidomestic.c
  * @reference reference/freeciv/ai/default/daimilitary.c
  */
-export function chooseCityProduction(
+export function rankCityProduction(
   context: ProductionPlanningContext
-): AIChoice<ProductionChoice> | undefined {
+): AIChoice<ProductionChoice>[] {
   const { city, cities, units, unitTypes, buildingTypes, canBuild } = context;
   const choices: AIChoice<ProductionChoice>[] = [];
   const cityUnits = units.filter(unit => unit.homeCityId === city.id);
@@ -98,6 +100,7 @@ export function chooseCityProduction(
 
   for (const type of Object.values(unitTypes)) {
     if (!canBuild('unit', type.id)) continue;
+    if (context.excludedChoices?.has(`unit:${type.id}`)) continue;
     const delay = turnsToBuild(city, type.cost);
     let want = 0;
     const reasons: string[] = [];
@@ -145,6 +148,10 @@ export function chooseCityProduction(
 
   for (const building of Object.values(buildingTypes)) {
     if (!canBuild('building', building.id)) continue;
+    if (context.excludedChoices?.has(`building:${building.id}`)) continue;
+    if (building.genus === 'GreatWonder' && context.reservedWonders?.has(building.id)) {
+      continue;
+    }
     const delay = turnsToBuild(city, building.cost);
     const effects = building.effects ?? {};
     let want =
@@ -185,7 +192,13 @@ export function chooseCityProduction(
       b.want - a.want ||
       a.value.kind.localeCompare(b.value.kind) ||
       a.value.id.localeCompare(b.value.id)
-  )[0];
+  );
+}
+
+export function chooseCityProduction(
+  context: ProductionPlanningContext
+): AIChoice<ProductionChoice> | undefined {
+  return rankCityProduction(context)[0];
 }
 
 export interface ResearchPlanningContext {

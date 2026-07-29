@@ -564,4 +564,43 @@ describe('CivJSAIAdapter compatibility contract', () => {
     expect(parameters.factor.food).toBe(24);
     expect(parameters.factor.luxury).toBe(20);
   });
+
+  it('persists ranked wants and seeds an active city worklist', async () => {
+    const scenario = createScenario();
+    const addToWorklist = jest.fn().mockResolvedValue(true);
+    const activeCity = {
+      id: 'capital',
+      name: 'Capital',
+      x: 2,
+      y: 2,
+      playerId: 'ai',
+      population: 3,
+      size: 3,
+      currentProduction: 'warriors',
+      productionType: 'unit',
+      productionPerTurn: 3,
+      foodPerTurn: 2,
+      goldPerTurn: 0,
+      defenseStrength: 1,
+      buildings: [],
+      worklist: [],
+      happiness: { happy: 0, content: 3, unhappy: 0, angry: 0 },
+    };
+    (scenario.game.cityManager as any).getPlayerCities = () => [activeCity];
+    (scenario.game.cityManager as any).canCityContinueProduction = () => true;
+    (scenario.game.cityManager as any).addToWorklist = addToWorklist;
+
+    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(addToWorklist).toHaveBeenCalledWith(
+      'capital',
+      expect.arrayContaining([expect.objectContaining({ value: expect.any(String) })]),
+      'ai'
+    );
+    const ai = scenario.game.players.get('ai') as any;
+    expect(Object.keys(ai.aiState.cityWants.capital).length).toBeGreaterThan(0);
+  });
 });

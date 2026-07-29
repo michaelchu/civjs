@@ -7,8 +7,8 @@ import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolic
 import { BUILDING_TYPES } from '@game/managers/CityManager';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import {
-  chooseCityProduction,
   chooseResearch,
+  rankCityProduction,
   rankCitySites,
   rankMilitaryTargets,
 } from '@game/ai/FreecivAIPlanner';
@@ -98,7 +98,9 @@ export class CivJSAIAdapter {
       actions += await this.attempt('government', () => this.manageGovernment(game, playerId));
       actions += await this.attempt('economy', () => this.manageEconomy(game, playerId));
       actions += await this.attempt('citizens', () => this.manageCitizens(game, playerId));
-      actions += await this.attempt('production', () => this.selectCityProduction(game, playerId));
+      actions += await this.attempt('production', () =>
+        this.selectCityProduction(game, playerId, state)
+      );
       actions += await this.attempt('expansion', () =>
         this.foundReadyCities(game, playerId, state)
       );
@@ -257,7 +259,11 @@ export class CivJSAIAdapter {
     return actions;
   }
 
-  private async selectCityProduction(game: GameInstance, playerId: string): Promise<number> {
+  private async selectCityProduction(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
     let actions = 0;
     const cities = game.cityManager
       .getPlayerCities(playerId)
@@ -273,13 +279,21 @@ export class CivJSAIAdapter {
     const hostileUnits = Array.from(game.unitManager.getAllUnits().values()).filter(unit =>
       hostilePlayerIds.has(unit.playerId)
     );
+    const reservedWonders = new Set(
+      cities
+        .filter(city => {
+          const building = city.currentProduction
+            ? BUILDING_TYPES[city.currentProduction]
+            : undefined;
+          return building?.genus === 'GreatWonder';
+        })
+        .map(city => city.currentProduction!)
+    );
 
     for (const city of cities) {
-      if (city.currentProduction) continue;
-
-      const scored =
+      const ranked =
         typeof game.cityManager.canCityContinueProduction === 'function'
-          ? chooseCityProduction({
+          ? rankCityProduction({
               city,
               cities,
               units,
@@ -293,8 +307,45 @@ export class CivJSAIAdapter {
                 return sum + (enemyType?.attack ?? enemyType?.combat ?? 0) / Math.max(1, distance);
               }, 0),
               profile,
+              reservedWonders,
+              excludedChoices: new Set(
+                [
+                  city.currentProduction && city.productionType
+                    ? `${city.productionType}:${city.currentProduction}`
+                    : undefined,
+                  ...(city.worklist ?? []).map(item => {
+                    const kind = item.kind === 'wonder' ? 'building' : item.kind;
+                    return `${kind}:${item.value}`;
+                  }),
+                ].filter((value): value is string => Boolean(value))
+              ),
             })
-          : undefined;
+          : [];
+      state.cityWants[city.id] = Object.fromEntries(
+        ranked.slice(0, 12).map(choice => [`${choice.value.kind}:${choice.value.id}`, choice.want])
+      );
+      if (
+        city.currentProduction &&
+        (city.worklist?.length ?? 0) === 0 &&
+        typeof game.cityManager.addToWorklist === 'function'
+      ) {
+        const queued = ranked.slice(0, 2).map(choice => ({
+          kind:
+            BUILDING_TYPES[choice.value.id]?.genus === 'GreatWonder'
+              ? ('wonder' as const)
+              : choice.value.kind,
+          value: choice.value.id,
+        }));
+        if (
+          queued.length > 0 &&
+          (await game.cityManager.addToWorklist(city.id, queued, playerId))
+        ) {
+          actions++;
+        }
+        continue;
+      }
+      if (city.currentProduction) continue;
+      const scored = ranked[0];
 
       let type: 'unit' | 'building' = scored?.value.kind ?? 'unit';
       let id = scored?.value.id ?? 'warriors';
@@ -309,6 +360,7 @@ export class CivJSAIAdapter {
       }
 
       await game.cityManager.setCityProduction(city.id, type, id, playerId);
+      if (BUILDING_TYPES[id]?.genus === 'GreatWonder') reservedWonders.add(id);
       actions++;
     }
     return actions;

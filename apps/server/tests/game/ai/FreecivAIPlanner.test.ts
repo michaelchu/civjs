@@ -2,6 +2,7 @@ import {
   amortize,
   chooseCityProduction,
   chooseResearch,
+  rankCityProduction,
   rankCitySites,
   rankMilitaryTargets,
 } from '@game/ai/FreecivAIPlanner';
@@ -153,6 +154,44 @@ describe('Freeciv AI want planner', () => {
 
     expect(choice?.value.id).toBe('useful');
     expect(choice?.reason).toContain('unit:strong_unit');
+  });
+
+  it('reserves a Great Wonder and exposes ranked follow-up choices', () => {
+    const ranked = rankCityProduction({
+      city: city(),
+      cities: [city()],
+      units: [],
+      unitTypes: {
+        warrior: {
+          id: 'warrior',
+          cost: 10,
+          attack: 1,
+          defense: 1,
+          combat: 1,
+          movement: 1,
+        } as any,
+      },
+      buildingTypes: {
+        wonder: {
+          id: 'wonder',
+          cost: 40,
+          genus: 'GreatWonder',
+          effects: { scienceBonus: 10 },
+        } as any,
+        granary: {
+          id: 'granary',
+          cost: 20,
+          genus: 'Improvement',
+          effects: { foodBonus: 2 },
+        } as any,
+      },
+      canBuild: () => true,
+      nearbyEnemyStrength: 0,
+      reservedWonders: new Set(['wonder']),
+    });
+    expect(ranked.length).toBeGreaterThan(1);
+    expect(ranked.map(choice => choice.value.id)).not.toContain('wonder');
+    expect(ranked.map(choice => choice.value.id)).toContain('granary');
   });
 
   it('propagates downstream unlock wants into a recursive research goal', () => {
