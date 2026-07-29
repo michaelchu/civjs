@@ -94,6 +94,17 @@ export class FreecivAICityController {
         threateningUnits: hostileUnits,
         profile,
         getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+        defenderStrength: unit => game.unitManager.calculateUnitDefenseRating(unit),
+        attackerStrength: (enemy, enemyType) => {
+          const attack = game.unitManager.calculateUnitAttackRating(enemy);
+          const defenseBonus = game.unitManager.calculateCityDefenseBonusAgainst(
+            enemy,
+            enemyType,
+            city.x,
+            city.y
+          );
+          return (attack * 100) / Math.max(1, 100 + defenseBonus);
+        },
         travelTurns: (enemy, target) =>
           threatTravelTimes.get(cityThreatTravelKey(enemy.id, target.id)),
       });

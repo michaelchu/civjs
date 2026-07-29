@@ -33,6 +33,8 @@ export interface MilitaryPlanningContext {
   travelTurns: (targetX: number, targetY: number) => number | undefined;
   isStackProtected: (x: number, y: number) => boolean;
   invasionSupport?: ReadonlyMap<string, CityInvasionSupport>;
+  attackerRating?: (unit: Unit, type: UnitType) => number;
+  defenderRating?: (attacker: Unit, defender: Unit, defenderType: UnitType) => number;
 }
 
 export interface MilitaryCampaignPlanningContext {
@@ -44,6 +46,8 @@ export interface MilitaryCampaignPlanningContext {
   travelTurns: (attacker: Unit, targetX: number, targetY: number) => number | undefined;
   isStackProtected: (x: number, y: number) => boolean;
   acceptObjective?: (attacker: Unit, objective: MilitaryObjective) => boolean;
+  attackerRating?: (unit: Unit, type: UnitType) => number;
+  defenderRating?: (attacker: Unit, defender: Unit, defenderType: UnitType) => number;
 }
 
 export interface MilitaryCampaignPlan {
@@ -140,13 +144,14 @@ function adjustInvasionSupport(
   cityId: string,
   unit: Unit,
   type: UnitType,
-  direction: 1 | -1
+  direction: 1 | -1,
+  rateAttack: (unit: Unit, type: UnitType) => number = attackRating
 ): void {
   const current = support.get(cityId) ?? emptyInvasionSupport();
   support.set(cityId, {
     attacks: Math.max(0, current.attacks + direction * availableAttacks(type)),
     occupiers: Math.max(0, current.occupiers + direction * (canOccupyCity(type) ? 1 : 0)),
-    attackRating: Math.max(0, current.attackRating + direction * attackRating(unit, type)),
+    attackRating: Math.max(0, current.attackRating + direction * rateAttack(unit, type)),
     buildCost: Math.max(0, current.buildCost + direction * Math.max(1, type.cost)),
   });
 }
@@ -162,19 +167,18 @@ function groupStacks(units: Unit[]): Unit[][] {
   return [...stacks.values()];
 }
 
-function selectDefender(
-  stack: Unit[],
-  getType: MilitaryPlanningContext['getType']
-): Unit | undefined {
+function selectDefender(stack: Unit[], context: MilitaryPlanningContext): Unit | undefined {
   return stack
-    .filter(unit => getType(unit.unitTypeId))
+    .filter(unit => context.getType(unit.unitTypeId))
     .sort((left, right) => {
-      const leftType = getType(left.unitTypeId)!;
-      const rightType = getType(right.unitTypeId)!;
-      return (
-        defenseRating(right, rightType) - defenseRating(left, leftType) ||
-        left.id.localeCompare(right.id)
-      );
+      const leftType = context.getType(left.unitTypeId)!;
+      const rightType = context.getType(right.unitTypeId)!;
+      const leftRating =
+        context.defenderRating?.(context.attacker, left, leftType) ?? defenseRating(left, leftType);
+      const rightRating =
+        context.defenderRating?.(context.attacker, right, rightType) ??
+        defenseRating(right, rightType);
+      return rightRating - leftRating || left.id.localeCompare(right.id);
     })[0];
 }
 
@@ -187,7 +191,7 @@ function scoreStack(
   stack: Unit[],
   city?: CityState
 ): MilitaryObjective | undefined {
-  const defender = selectDefender(stack, context.getType);
+  const defender = selectDefender(stack, context);
   if (!defender) return undefined;
   const defenderType = context.getType(defender.unitTypeId)!;
   const protectedStack = context.isStackProtected(defender.x, defender.y);
@@ -203,8 +207,14 @@ function scoreStack(
   if (city && reserves > 0 && (canOccupyCity(context.attackerType) || support.occupiers > 0)) {
     benefit += (cityWorth(city) * reserves) / 5;
   }
-  const attack = (attackRating(context.attacker, context.attackerType) + support.attackRating) ** 2;
-  const vulnerability = defenseRating(defender, defenderType) ** 2;
+  const attack =
+    ((context.attackerRating?.(context.attacker, context.attackerType) ??
+      attackRating(context.attacker, context.attackerType)) +
+      support.attackRating) **
+    2;
+  const vulnerability =
+    (context.defenderRating?.(context.attacker, defender, defenderType) ??
+      defenseRating(defender, defenderType)) ** 2;
   const victimCount = city ? stack.length : vulnerableUnits.length;
   const travelTurns = context.travelTurns(defender.x, defender.y);
   if (travelTurns === undefined || travelTurns > 10) return undefined;
@@ -320,7 +330,14 @@ export function planMilitaryCampaign(
   for (const attacker of attackers) {
     const cityId = context.existingCityTargets?.get(attacker.unit.id);
     if (cityId && cityIds.has(cityId)) {
-      adjustInvasionSupport(support, cityId, attacker.unit, attacker.type, 1);
+      adjustInvasionSupport(
+        support,
+        cityId,
+        attacker.unit,
+        attacker.type,
+        1,
+        context.attackerRating
+      );
     }
   }
 
@@ -328,7 +345,14 @@ export function planMilitaryCampaign(
   for (const attacker of attackers) {
     const previousCityId = context.existingCityTargets?.get(attacker.unit.id);
     if (previousCityId && cityIds.has(previousCityId)) {
-      adjustInvasionSupport(support, previousCityId, attacker.unit, attacker.type, -1);
+      adjustInvasionSupport(
+        support,
+        previousCityId,
+        attacker.unit,
+        attacker.type,
+        -1,
+        context.attackerRating
+      );
     }
 
     const objective = rankMilitaryObjectives({
@@ -340,12 +364,21 @@ export function planMilitaryCampaign(
       travelTurns: (targetX, targetY) => context.travelTurns(attacker.unit, targetX, targetY),
       isStackProtected: context.isStackProtected,
       invasionSupport: support,
+      attackerRating: context.attackerRating,
+      defenderRating: context.defenderRating,
     }).find(candidate => context.acceptObjective?.(attacker.unit, candidate) ?? true);
     if (!objective) continue;
 
     assignments.set(attacker.unit.id, objective);
     if (objective.kind === 'city' && cityIds.has(objective.targetId)) {
-      adjustInvasionSupport(support, objective.targetId, attacker.unit, attacker.type, 1);
+      adjustInvasionSupport(
+        support,
+        objective.targetId,
+        attacker.unit,
+        attacker.type,
+        1,
+        context.attackerRating
+      );
     }
   }
 

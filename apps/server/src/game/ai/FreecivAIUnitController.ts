@@ -379,6 +379,9 @@ export class FreecivAIUnitController {
       },
       acceptObjective: (attacker, target) =>
         decisions.fuzzy(`${attacker.id}:${target.targetId}`, true),
+      attackerRating: unit => game.unitManager.calculateUnitAttackRating(unit),
+      defenderRating: (attacker, defender) =>
+        game.unitManager.calculateUnitDefenseRating(defender, attacker),
     });
 
     for (const { unit: plannedAttacker, type } of attackers) {
@@ -573,6 +576,17 @@ export class FreecivAIUnitController {
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
       threatTravelTurns: (unit, city) =>
         threatTravelTimes.get(cityThreatTravelKey(unit.id, city.id)),
+      defenderStrength: unit => game.unitManager.calculateUnitDefenseRating(unit),
+      attackerStrength: (unit, type, city) => {
+        const attack = game.unitManager.calculateUnitAttackRating(unit);
+        const defenseBonus = game.unitManager.calculateCityDefenseBonusAgainst(
+          unit,
+          type,
+          city.x,
+          city.y
+        );
+        return (attack * 100) / Math.max(1, 100 + defenseBonus);
+      },
       profile,
     });
 

@@ -931,6 +931,45 @@ describe('UnitManager', () => {
       expect(strength).toBe(3);
     });
 
+    it('evaluates City Walls against the attacker and lets Howitzers ignore them', async () => {
+      const cityAwareUnitManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: async () => '',
+          requestPath: async () => ({ success: true }),
+          broadcastUnitMoved: () => undefined,
+          getCityAt: (x, y) =>
+            x === 11 && y === 10
+              ? { id: 'city-walls', playerId: 'player-456', buildings: ['city_walls'] }
+              : null,
+        },
+        new EffectsManager()
+      );
+      const defender = await cityAwareUnitManager.createUnit('player-456', 'warriors', 11, 10);
+      const legion = await cityAwareUnitManager.createUnit('player-123', 'legion', 10, 10);
+      const howitzer = await cityAwareUnitManager.createUnit('player-123', 'howitzer', 10, 9);
+
+      const versusLegion = (cityAwareUnitManager as any).calculateCombatStrength(
+        defender,
+        UNIT_TYPES.warriors,
+        legion,
+        UNIT_TYPES.legion
+      );
+      const versusHowitzer = (cityAwareUnitManager as any).calculateCombatStrength(
+        defender,
+        UNIT_TYPES.warriors,
+        howitzer,
+        UNIT_TYPES.howitzer
+      );
+
+      expect(versusLegion).toBe(3);
+      expect(versusHowitzer).toBe(1);
+    });
+
     it('applies the classic fortified defense bonus from Fortify_Defense_Bonus', async () => {
       const effectsAwareUnitManager = new UnitManager(
         gameId,

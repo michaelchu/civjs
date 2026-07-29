@@ -99,6 +99,20 @@ describe('Freeciv AI city danger planner', () => {
     expect(assessment).toMatchObject({ urgency: 1, graveDanger: 0 });
   });
 
+  it('uses attacker-specific city-defense-adjusted strength', () => {
+    const assessment = assessCityDanger({
+      city,
+      friendlyUnits: [],
+      threateningUnits: [unit('enemy', 'attacker', 6, 5)],
+      profile: createAIProfile('normal'),
+      getType: id => types[id],
+      travelTurns: () => 1,
+      attackerStrength: () => 10,
+    });
+
+    expect(assessment.danger).toBe(100);
+  });
+
   it('escalates defensive building wants under urgent overwhelming danger', () => {
     expect(
       reevaluateDefensiveBuildingWant(40, {

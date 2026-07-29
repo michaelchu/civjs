@@ -25,6 +25,8 @@ interface GuardPlanningContext {
   getType: (unitTypeId: string) => UnitType | undefined;
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   threatTravelTurns?: (unit: Unit, city: CityState) => number | undefined;
+  defenderStrength?: (unit: Unit, type: UnitType) => number;
+  attackerStrength?: (unit: Unit, type: UnitType, city: CityState) => number;
   profile: AIProfile;
 }
 
@@ -61,6 +63,10 @@ export function planCityGuards(context: GuardPlanningContext): GuardPlan {
       threateningUnits: context.hostileUnits,
       profile: context.profile,
       getType: context.getType,
+      defenderStrength: context.defenderStrength,
+      attackerStrength: context.attackerStrength
+        ? (unit, type) => context.attackerStrength!(unit, type, city)
+        : undefined,
       travelTurns: (hostile, target) => {
         const planned = context.threatTravelTurns?.(hostile, target);
         if (context.threatTravelTurns) return planned;
@@ -107,7 +113,9 @@ export function planCityGuards(context: GuardPlanningContext): GuardPlan {
       )
       .reduce((sum, unit) => {
         const type = context.getType(unit.unitTypeId);
-        return type ? sum + unitDefenseRating(unit, type) : sum;
+        return type
+          ? sum + (context.defenderStrength?.(unit, type) ?? unitDefenseRating(unit, type))
+          : sum;
       }, 0);
     const neededLinearDefense = Math.sqrt(assessment.danger);
 
@@ -119,7 +127,7 @@ export function planCityGuards(context: GuardPlanningContext): GuardPlan {
           const travel = context.distance(unit.x, unit.y, assessment.city.x, assessment.city.y);
           return {
             unit,
-            rating: unitDefenseRating(unit, type),
+            rating: context.defenderStrength?.(unit, type) ?? unitDefenseRating(unit, type),
             travel,
           };
         })

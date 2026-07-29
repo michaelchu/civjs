@@ -902,7 +902,12 @@ export class UnitManager {
     }
 
     const attackerStrength = this.calculateAttackStrength(attacker, attackerType);
-    const defenderStrength = this.calculateCombatStrength(defender, defenderType);
+    const defenderStrength = this.calculateCombatStrength(
+      defender,
+      defenderType,
+      attacker,
+      attackerType
+    );
     const attackerStartingHealth = attacker.health;
     const defenderStartingHealth = defender.health;
     const firepower = this.calculateModifiedFirepower(
@@ -1071,11 +1076,16 @@ export class UnitManager {
         const leftType = UNIT_TYPES[left.unitTypeId];
         const rightType = UNIT_TYPES[right.unitTypeId];
         const leftScore =
-          this.calculateCombatStrength(left, leftType) *
+          this.calculateCombatStrength(left, leftType, attacker, UNIT_TYPES[attacker.unitTypeId]) *
           Math.max(1, left.health) *
           Math.max(1, leftType.firepower ?? 1);
         const rightScore =
-          this.calculateCombatStrength(right, rightType) *
+          this.calculateCombatStrength(
+            right,
+            rightType,
+            attacker,
+            UNIT_TYPES[attacker.unitTypeId]
+          ) *
           Math.max(1, right.health) *
           Math.max(1, rightType.firepower ?? 1);
         return rightScore - leftScore || left.id.localeCompare(right.id);
@@ -1104,7 +1114,7 @@ export class UnitManager {
     if (
       city &&
       attackerType.flags?.includes('BadWallAttacker') &&
-      this.calculateAttackSpecificCityDefenseBonus(attacker, attackerType, defender, city) > 0
+      this.calculateAttackSpecificCityDefenseBonus(attacker, attackerType, defender) > 0
     ) {
       attackerFirepower = Math.min(attackerFirepower, rules.low_firepower_badwallattacker);
     }
@@ -1139,24 +1149,9 @@ export class UnitManager {
   private calculateAttackSpecificCityDefenseBonus(
     attacker: Unit,
     attackerType: UnitType,
-    defender: Unit,
-    city: CityAtLocation
+    defender: Unit
   ): number {
-    if (!this.effectsManager) return 0;
-
-    return this.effectsManager.calculateEffect(EffectType.DEFEND_BONUS, {
-      playerId: city.playerId,
-      unitId: attacker.id,
-      unitType: attacker.unitTypeId,
-      unitClass: attackerType.rulesetUnitClass,
-      unitClassFlags: new Set(attackerType.rulesetUnitClassFlags),
-      unitTypeFlags: new Set(attackerType.flags),
-      tileX: defender.x,
-      tileY: defender.y,
-      tileIsCityCenter: true,
-      cityBuildings: new Set(city.buildings ?? []),
-      playerBuildings: new Set(this.gameManagerCallback?.getPlayerBuildings?.(city.playerId) ?? []),
-    }).value;
+    return this.calculateCityDefenseBonusAgainst(attacker, attackerType, defender.x, defender.y);
   }
 
   /**
@@ -1494,7 +1489,12 @@ export class UnitManager {
    * @reference reference/freeciv/common/combat.c:650-708
    * @reference freeciv/common/combat.c defense_multiplication() / EFT_FORTIFY_DEFENSE_BONUS
    */
-  private calculateCombatStrength(unit: Unit, unitType: UnitType): number {
+  private calculateCombatStrength(
+    unit: Unit,
+    unitType: UnitType,
+    attacker?: Unit,
+    attackerType?: UnitType
+  ): number {
     let strength = unitType.defense ?? unitType.combat;
 
     const veteranLevel = this.getVeteranLevel(unit.veteranLevel);
@@ -1521,7 +1521,8 @@ export class UnitManager {
     );
 
     strength = Math.floor(
-      (strength * (100 + this.calculateCityDefenseBonus(unit, unitType))) / 100
+      (strength * (100 + this.calculateCityDefenseBonus(unit, unitType, attacker, attackerType))) /
+        100
     );
 
     return Math.max(0, strength);
@@ -1554,21 +1555,76 @@ export class UnitManager {
     }).value;
   }
 
-  private calculateCityDefenseBonus(unit: Unit, unitType: UnitType): number {
+  private calculateCityDefenseBonus(
+    unit: Unit,
+    unitType: UnitType,
+    attacker?: Unit,
+    attackerType?: UnitType
+  ): number {
     const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
     if (!city || city.playerId !== unit.playerId || !this.effectsManager) return 0;
 
     return this.effectsManager.calculateEffect(EffectType.DEFEND_BONUS, {
       playerId: unit.playerId,
-      unitId: unit.id,
-      unitType: unit.unitTypeId,
-      unitClass: unitType.rulesetUnitClass,
-      unitTypeFlags: new Set(unitType.flags),
+      unitId: attacker?.id ?? unit.id,
+      unitType: attacker?.unitTypeId ?? unit.unitTypeId,
+      unitClass: attackerType?.rulesetUnitClass ?? unitType.rulesetUnitClass,
+      unitClassFlags: new Set(
+        attackerType?.rulesetUnitClassFlags ?? unitType.rulesetUnitClassFlags
+      ),
+      unitTypeFlags: new Set(attackerType?.flags ?? unitType.flags),
       tileX: unit.x,
       tileY: unit.y,
       tileIsCityCenter: true,
       cityBuildings: new Set(city.buildings ?? []),
       playerBuildings: new Set(this.gameManagerCallback?.getPlayerBuildings?.(unit.playerId) ?? []),
+    }).value;
+  }
+
+  /**
+   * Expose the authoritative combat ratings used by AI advisors. Keeping
+   * these here prevents planning from drifting from terrain, fortification,
+   * city, veteran, hit-point, and firepower rules used by real combat.
+   */
+  calculateUnitAttackRating(unit: Unit): number {
+    const type = UNIT_TYPES[unit.unitTypeId];
+    if (!type) return 0;
+    const hitpoints = Math.max(1, type.hitpoints ?? 10) * Math.max(0.01, unit.health / 100);
+    return this.calculateAttackStrength(unit, type) * hitpoints * Math.max(1, type.firepower ?? 1);
+  }
+
+  calculateUnitDefenseRating(unit: Unit, attacker?: Unit): number {
+    const type = UNIT_TYPES[unit.unitTypeId];
+    if (!type) return 0;
+    const attackerType = attacker ? UNIT_TYPES[attacker.unitTypeId] : undefined;
+    const hitpoints = Math.max(1, type.hitpoints ?? 10) * Math.max(0.01, unit.health / 100);
+    const firepower =
+      attacker && attackerType
+        ? this.calculateModifiedFirepower(attacker, unit, attackerType, type).defender
+        : Math.max(1, type.firepower ?? 1);
+    return this.calculateCombatStrength(unit, type, attacker, attackerType) * hitpoints * firepower;
+  }
+
+  calculateCityDefenseBonusAgainst(
+    attacker: Unit,
+    attackerType: UnitType,
+    cityX: number,
+    cityY: number
+  ): number {
+    const city = this.gameManagerCallback?.getCityAt?.(cityX, cityY);
+    if (!city || !this.effectsManager) return 0;
+    return this.effectsManager.calculateEffect(EffectType.DEFEND_BONUS, {
+      playerId: city.playerId,
+      unitId: attacker.id,
+      unitType: attacker.unitTypeId,
+      unitClass: attackerType.rulesetUnitClass,
+      unitClassFlags: new Set(attackerType.rulesetUnitClassFlags),
+      unitTypeFlags: new Set(attackerType.flags),
+      tileX: cityX,
+      tileY: cityY,
+      tileIsCityCenter: true,
+      cityBuildings: new Set(city.buildings ?? []),
+      playerBuildings: new Set(this.gameManagerCallback?.getPlayerBuildings?.(city.playerId) ?? []),
     }).value;
   }
 

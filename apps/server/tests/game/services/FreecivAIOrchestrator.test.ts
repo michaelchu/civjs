@@ -238,6 +238,12 @@ function createScenario() {
       getVisibleUnits: () => Array.from(units.values()),
       getUnit: (unitId: string) => units.get(unitId),
       getUnitType: (unitTypeId: string) => unitTypes[unitTypeId],
+      calculateUnitAttackRating: (unit: TestUnit) =>
+        Number(unitTypes[unit.unitTypeId]?.attack ?? 0) * Math.max(1, unit.health),
+      calculateUnitDefenseRating: (unit: TestUnit) =>
+        Number(unitTypes[unit.unitTypeId]?.defense ?? unitTypes[unit.unitTypeId]?.attack ?? 0) *
+        Math.max(1, unit.health),
+      calculateCityDefenseBonusAgainst: () => 0,
       canUnitPerformAction: () => true,
       executeUnitAction,
       attackUnit,
