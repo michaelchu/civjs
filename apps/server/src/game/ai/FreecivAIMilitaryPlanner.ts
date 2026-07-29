@@ -12,6 +12,15 @@ export interface ProjectedCityDefender {
   unitTypeId: string;
 }
 
+export interface ProjectedCityDefenderContext {
+  gameId: string;
+  city: CityState;
+  attacker: Unit;
+  unitTypes: Iterable<UnitType>;
+  canBuild: (cityId: string, unitTypeId: string) => boolean;
+  rateDefense: (defender: Unit, attacker: Unit) => number;
+}
+
 export interface MilitaryObjective {
   kind: 'stack' | 'city';
   x: number;
@@ -105,6 +114,49 @@ export async function buildMilitaryTravelTimes(
     )
   );
   return times;
+}
+
+/**
+ * Select the strongest defensive unit a target city could complete before an
+ * attacker arrives. Ties prefer the cheaper equivalent.
+ *
+ * @reference reference/freeciv/ai/default/daimilitary.c:process_attacker_want
+ */
+export function selectProjectedCityDefender(
+  context: ProjectedCityDefenderContext
+): ProjectedCityDefender | undefined {
+  return [...context.unitTypes]
+    .filter(
+      type =>
+        type.roles?.some(role => role === 'DefendGood' || role === 'DefendOk') &&
+        context.canBuild(context.city.id, type.id)
+    )
+    .map(type => {
+      const projected: Unit = {
+        id: `projected:${context.city.id}:${type.id}`,
+        gameId: context.gameId,
+        playerId: context.city.playerId,
+        unitTypeId: type.id,
+        x: context.city.x,
+        y: context.city.y,
+        movementLeft: type.movement,
+        health: type.hitpoints ?? 100,
+        veteranLevel: 0,
+        experience: 0,
+        fortified: false,
+      };
+      return {
+        rating: context.rateDefense(projected, context.attacker),
+        cost: Math.max(1, type.cost),
+        unitTypeId: type.id,
+      };
+    })
+    .sort(
+      (left, right) =>
+        right.rating - left.rating ||
+        left.cost - right.cost ||
+        left.unitTypeId.localeCompare(right.unitTypeId)
+    )[0];
 }
 
 export function killDesire(

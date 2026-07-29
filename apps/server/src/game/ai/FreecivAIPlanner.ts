@@ -43,6 +43,7 @@ export interface ProductionPlanningContext {
   profile?: AIProfile;
   reservedWonders?: ReadonlySet<string>;
   excludedChoices?: ReadonlySet<string>;
+  offensiveUnitWants?: ReadonlyMap<string, number>;
 }
 
 const MORT = 24;
@@ -129,11 +130,17 @@ export function rankCityProduction(
       reasons.push('defense');
     }
     if (attack > 0) {
-      want +=
-        ((attack * Math.max(1, type.movement) * Math.max(1, type.firepower ?? 1) * 14) /
-          Math.max(1, type.cost)) *
-        aggressionWeight;
-      reasons.push('military');
+      const targetWant = context.offensiveUnitWants?.get(type.id);
+      if (targetWant !== undefined) {
+        want += targetWant * aggressionWeight;
+        reasons.push('targeted military');
+      } else if (!context.offensiveUnitWants) {
+        want +=
+          ((attack * Math.max(1, type.movement) * Math.max(1, type.firepower ?? 1) * 14) /
+            Math.max(1, type.cost)) *
+          aggressionWeight;
+        reasons.push('military');
+      }
     }
     if ((type.transport_capacity ?? 0) > 0) {
       const landUnits = units.filter(unit => unitTypes[unit.unitTypeId]?.unitClass === 'military');

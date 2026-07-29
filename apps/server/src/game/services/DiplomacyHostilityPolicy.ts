@@ -24,6 +24,7 @@ export class DiplomacyHostilityPolicy {
   ): Promise<{
     hostile: Set<string>;
     allied: Set<string>;
+    unknown: Set<string>;
   }> {
     const snapshot = await this.diplomacyManager.getSnapshot(gameId, playerId);
     return {
@@ -36,6 +37,9 @@ export class DiplomacyHostilityPolicy {
             nation => nation.relation.state === 'alliance' || nation.relation.state === 'team'
           )
           .map(nation => nation.id)
+      ),
+      unknown: new Set(
+        snapshot.nations.filter(nation => nation.known === false).map(nation => nation.id)
       ),
     };
   }

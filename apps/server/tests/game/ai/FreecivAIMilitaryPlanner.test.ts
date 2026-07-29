@@ -3,6 +3,7 @@ import {
   killDesire,
   planMilitaryCampaign,
   rankMilitaryObjectives,
+  selectProjectedCityDefender,
   type MilitaryPlanningContext,
 } from '@game/ai/FreecivAIMilitaryPlanner';
 
@@ -162,6 +163,30 @@ describe('FreecivAIMilitaryPlanner', () => {
 
     expect(withoutProjection[0]).toMatchObject({ targetId: target.id });
     expect(withProjection).toEqual([]);
+  });
+
+  it('selects the strongest legal projected defender against this attacker', () => {
+    const attacker = context().attacker;
+    const target = {
+      id: 'city',
+      playerId: 'enemy',
+      x: 2,
+      y: 0,
+    } as any;
+    const projected = selectProjectedCityDefender({
+      gameId: 'game',
+      city: target,
+      attacker,
+      unitTypes: [
+        { id: 'cheap', roles: ['DefendOk'], movement: 1, hitpoints: 100, cost: 20 },
+        { id: 'strong', roles: ['DefendGood'], movement: 1, hitpoints: 100, cost: 40 },
+        { id: 'illegal', roles: ['DefendGood'], movement: 1, hitpoints: 100, cost: 10 },
+      ] as any,
+      canBuild: (_cityId, typeId) => typeId !== 'illegal',
+      rateDefense: defender => (defender.unitTypeId === 'strong' ? 80 : 40),
+    });
+
+    expect(projected).toEqual({ rating: 80, cost: 40, unitTypeId: 'strong' });
   });
 
   it('charges the higher Freeciv travel cost for military unhappiness', () => {

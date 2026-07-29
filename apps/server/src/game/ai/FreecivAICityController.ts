@@ -4,7 +4,12 @@ import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { rankCityProduction } from '@game/ai/FreecivAIPlanner';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
 import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
-import { hostileUnitsForPlanning, sortedPlayerUnits } from '@game/ai/FreecivAITargeting';
+import {
+  hostileUnitsForPlanning,
+  potentiallyHostilePlayerIds,
+  sortedPlayerUnits,
+  targetableForeignCities,
+} from '@game/ai/FreecivAITargeting';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
 import type { GameInstance } from '@game/managers/GameManager';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
@@ -14,6 +19,7 @@ import {
   buildCityThreatTravelTimes,
   cityThreatTravelKey,
 } from '@game/ai/FreecivAICityDangerPlanner';
+import { rankVirtualMilitaryProduction } from '@game/ai/FreecivAIMilitaryProductionPlanner';
 
 /**
  * Executes citizen allocation, production, worklist, and city-local unit
@@ -63,13 +69,39 @@ export class FreecivAICityController {
       .slice()
       .sort((a, b) => a.id.localeCompare(b.id));
     const units = game.unitManager.getPlayerUnits(playerId);
+    const canContinueProduction =
+      typeof game.cityManager.canCityContinueProduction === 'function'
+        ? (cityId: string, kind: 'unit' | 'building', id: string) =>
+            game.cityManager.canCityContinueProduction(cityId, kind, id)
+        : undefined;
     let expansionQueued = units.some(
       unit => game.unitManager.getUnitType(unit.unitTypeId)?.canFoundCity
     );
-    const hostilePlayerIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
+    const relations = await this.hostilityPolicy.getRelationPlayerIds(game.id, playerId);
+    const hostilePlayerIds = relations.hostile;
     const player = game.players.get(playerId);
     const profile = createAIProfile(player?.aiLevel, player?.aiTraits);
     const hostileUnits = hostileUnitsForPlanning(game, playerId, hostilePlayerIds, profile);
+    const potentiallyHostileIds = potentiallyHostilePlayerIds(
+      game.players.keys(),
+      playerId,
+      hostilePlayerIds,
+      relations.allied,
+      relations.unknown,
+      state
+    );
+    const prospectiveUnits = hostileUnitsForPlanning(
+      game,
+      playerId,
+      potentiallyHostileIds,
+      profile
+    );
+    const prospectiveCities = targetableForeignCities(
+      game,
+      playerId,
+      potentiallyHostileIds,
+      profile
+    );
     const threatTravelTimes = await buildCityThreatTravelTimes({
       cities,
       threateningUnits: hostileUnits,
@@ -88,6 +120,33 @@ export class FreecivAICityController {
     );
 
     for (const city of cities) {
+      const offensiveUnitWants = await rankVirtualMilitaryProduction({
+        gameId: game.id,
+        playerId,
+        city,
+        unitTypes: Object.values(UNIT_TYPES),
+        targetUnits: prospectiveUnits,
+        targetCities: prospectiveCities,
+        canBuild: (cityId, unitTypeId) =>
+          canContinueProduction?.(cityId, 'unit', unitTypeId) ?? false,
+        getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+        getNeighbors: (x, y) => game.mapManager.getNeighbors(x, y),
+        findPath: (unit, targetX, targetY) =>
+          game.pathfindingManager.findPath(unit, targetX, targetY),
+        isStackProtected: (x, y) => {
+          const tile = game.mapManager.getTile(x, y);
+          return Boolean(
+            game.cityManager.getCityAt(x, y) ||
+              tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
+          );
+        },
+        rateAttack: unit => game.unitManager.calculateUnitAttackRating(unit),
+        rateDefense: (defender, attacker) =>
+          game.unitManager.calculateUnitDefenseRating(defender, attacker),
+        causesMilitaryUnhappiness: () =>
+          typeof game.cityManager.getCityMilitaryUnhappiness === 'function' &&
+          game.cityManager.getCityMilitaryUnhappiness(city.id) > 0,
+      });
       const dangerAssessment = assessCityDanger({
         city,
         friendlyUnits: units,
@@ -108,31 +167,31 @@ export class FreecivAICityController {
         travelTurns: (enemy, target) =>
           threatTravelTimes.get(cityThreatTravelKey(enemy.id, target.id)),
       });
-      const ranked =
-        typeof game.cityManager.canCityContinueProduction === 'function'
-          ? rankCityProduction({
-              city,
-              cities,
-              units,
-              unitTypes: UNIT_TYPES,
-              buildingTypes: BUILDING_TYPES,
-              canBuild: (kind, id) => game.cityManager.canCityContinueProduction(city.id, kind, id),
-              dangerAssessment,
-              profile,
-              reservedWonders,
-              excludedChoices: new Set(
-                [
-                  city.currentProduction && city.productionType
-                    ? `${city.productionType}:${city.currentProduction}`
-                    : undefined,
-                  ...(city.worklist ?? []).map(item => {
-                    const kind = item.kind === 'wonder' ? 'building' : item.kind;
-                    return `${kind}:${item.value}`;
-                  }),
-                ].filter((value): value is string => Boolean(value))
-              ),
-            })
-          : [];
+      const ranked = canContinueProduction
+        ? rankCityProduction({
+            city,
+            cities,
+            units,
+            unitTypes: UNIT_TYPES,
+            buildingTypes: BUILDING_TYPES,
+            canBuild: (kind, id) => canContinueProduction(city.id, kind, id),
+            dangerAssessment,
+            profile,
+            offensiveUnitWants,
+            reservedWonders,
+            excludedChoices: new Set(
+              [
+                city.currentProduction && city.productionType
+                  ? `${city.productionType}:${city.currentProduction}`
+                  : undefined,
+                ...(city.worklist ?? []).map(item => {
+                  const kind = item.kind === 'wonder' ? 'building' : item.kind;
+                  return `${kind}:${item.value}`;
+                }),
+              ].filter((value): value is string => Boolean(value))
+            ),
+          })
+        : [];
       state.cityWants[city.id] = Object.fromEntries(
         ranked.slice(0, 12).map(choice => [`${choice.value.kind}:${choice.value.id}`, choice.want])
       );

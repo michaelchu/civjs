@@ -206,6 +206,50 @@ describe('Freeciv AI want planner', () => {
     expect(ranked.map(choice => choice.value.id)).toContain('granary');
   });
 
+  it('uses target-specific virtual attacker wants instead of generic attack strength', () => {
+    const ranked = rankCityProduction({
+      city: city({ productionPerTurn: 10 }),
+      cities: [city()],
+      units: [],
+      unitTypes: {
+        generic: {
+          id: 'generic',
+          cost: 10,
+          attack: 10,
+          defense: 0,
+          combat: 10,
+          movement: 1,
+        } as any,
+        counter: {
+          id: 'counter',
+          cost: 20,
+          attack: 2,
+          defense: 0,
+          combat: 2,
+          movement: 1,
+        } as any,
+      },
+      buildingTypes: {},
+      canBuild: () => true,
+      dangerAssessment: {
+        danger: 0,
+        urgency: 0,
+        graveDanger: 0,
+        defense: 0,
+        defenseDeficit: 0,
+      },
+      offensiveUnitWants: new Map([
+        ['generic', 20],
+        ['counter', 200],
+      ]),
+    });
+
+    expect(ranked[0]).toMatchObject({
+      value: { kind: 'unit', id: 'counter' },
+      reason: 'targeted military',
+    });
+  });
+
   it('propagates downstream unlock wants into a recursive research goal', () => {
     const alphabet = {
       id: 'alphabet',

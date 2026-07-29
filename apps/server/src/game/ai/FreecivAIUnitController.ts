@@ -27,6 +27,7 @@ import {
   buildMilitaryTravelTimes,
   militaryTravelKey,
   planMilitaryCampaign,
+  selectProjectedCityDefender,
   type MilitaryObjective,
 } from '@game/ai/FreecivAIMilitaryPlanner';
 import {
@@ -386,38 +387,16 @@ export class FreecivAIUnitController {
       projectedDefender:
         typeof game.cityManager.canCityContinueProduction === 'function'
           ? (city, attacker) =>
-              Object.values(UNIT_TYPES)
-                .filter(
-                  type =>
-                    type.roles?.some(role => role === 'DefendGood' || role === 'DefendOk') &&
-                    game.cityManager.canCityContinueProduction(city.id, 'unit', type.id)
-                )
-                .map(type => {
-                  const projected: Unit = {
-                    id: `projected:${city.id}:${type.id}`,
-                    gameId: game.id,
-                    playerId: city.playerId,
-                    unitTypeId: type.id,
-                    x: city.x,
-                    y: city.y,
-                    movementLeft: type.movement,
-                    health: 100,
-                    veteranLevel: 0,
-                    experience: 0,
-                    fortified: false,
-                  };
-                  return {
-                    rating: game.unitManager.calculateUnitDefenseRating(projected, attacker),
-                    cost: Math.max(1, type.cost),
-                    unitTypeId: type.id,
-                  };
-                })
-                .sort(
-                  (left, right) =>
-                    right.rating - left.rating ||
-                    left.cost - right.cost ||
-                    left.unitTypeId.localeCompare(right.unitTypeId)
-                )[0]
+              selectProjectedCityDefender({
+                gameId: game.id,
+                city,
+                attacker,
+                unitTypes: Object.values(UNIT_TYPES),
+                canBuild: (cityId, unitTypeId) =>
+                  game.cityManager.canCityContinueProduction(cityId, 'unit', unitTypeId),
+                rateDefense: (defender, projectedAttacker) =>
+                  game.unitManager.calculateUnitDefenseRating(defender, projectedAttacker),
+              })
           : undefined,
       causesMilitaryUnhappiness: attacker => {
         if (

@@ -7,7 +7,7 @@ describe('DiplomacyHostilityPolicy', () => {
         nations: [
           { id: 'enemy', relation: { state: 'war' } },
           { id: 'ally', relation: { state: 'alliance' } },
-          { id: 'neutral', relation: { state: 'peace' } },
+          { id: 'neutral', known: false, relation: { state: 'peace' } },
         ],
       }),
     };
@@ -21,6 +21,7 @@ describe('DiplomacyHostilityPolicy', () => {
     await expect(policy.getRelationPlayerIds('game', 'player')).resolves.toEqual({
       hostile: new Set(['enemy']),
       allied: new Set(['ally']),
+      unknown: new Set(['neutral']),
     });
   });
 });
