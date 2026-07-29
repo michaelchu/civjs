@@ -172,10 +172,23 @@ describe('AI authoritative manager boundaries', () => {
           tile => isWater(tile.terrain) && game.unitManager.getUnitsAt(tile.x, tile.y).length === 0
         );
       if (!embark) continue;
+      const reachableWater = new Set<string>();
+      const frontier = [embark];
+      while (frontier.length > 0) {
+        const water = frontier.pop()!;
+        const key = `${water.x},${water.y}`;
+        if (reachableWater.has(key)) continue;
+        reachableWater.add(key);
+        frontier.push(
+          ...game.mapManager.getNeighbors(water.x, water.y).filter(tile => isWater(tile.terrain))
+        );
+      }
       const destination = landTiles.find(
         tile =>
           tile.continentId !== start.continentId &&
-          game.mapManager.getNeighbors(tile.x, tile.y).some(neighbor => isWater(neighbor.terrain))
+          game.mapManager
+            .getNeighbors(tile.x, tile.y)
+            .some(neighbor => reachableWater.has(`${neighbor.x},${neighbor.y}`))
       );
       if (destination) return { start, embark, destination };
     }
@@ -727,6 +740,9 @@ describe('AI authoritative manager boundaries', () => {
   it('launches a carrier aircraft for a profitable authoritative strike', async () => {
     const scenario = await createActiveGame(2);
     const [host, guest] = scenario.players;
+    for (const unit of scenario.game.unitManager.getPlayerUnits(guest!.playerId)) {
+      await scenario.game.unitManager.removeUnit(unit.id);
+    }
     const coast = findCrossContinentTransportSetup(scenario.game);
     const carrierId = await gameManager.createUnit(
       scenario.gameId,

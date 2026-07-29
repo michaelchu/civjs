@@ -16,6 +16,7 @@ import serverConfig from '@config';
 import { getNextPlayerColorTheme, type PlayerColor } from '../../utils/playerColors';
 import { isSettableAILevel } from '../ai/AIProfile';
 import { createAIState } from '../ai/AIStateStore';
+import { isCiv3To5Nation } from '../constants/NationSelectionConstants';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {
@@ -386,7 +387,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
           const takenNations = new Set(existingPlayers.map(p => p.civilization));
 
           const playableNations = Object.values(nationsRuleset.nations)
-            .filter(nation => nation.id !== 'barbarian' && !takenNations.has(nation.id))
+            .filter(nation => isCiv3To5Nation(nation.id) && !takenNations.has(nation.id))
             .map(nation => nation.id);
 
           // Randomly select from available nations
@@ -420,7 +421,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       // Get playable nations (exclude barbarian and already taken nations)
       const takenNations = new Set(existingPlayers.map(p => p.civilization));
       const availableNations = Object.values(nationsRuleset.nations)
-        .filter(nation => nation.id !== 'barbarian' && !takenNations.has(nation.id))
+        .filter(nation => isCiv3To5Nation(nation.id) && !takenNations.has(nation.id))
         .map(nation => nation.id);
 
       return availableNations;

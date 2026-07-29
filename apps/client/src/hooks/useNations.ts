@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { nationsApi, type Nation, type NationTraits, type NationLeader } from '../services/api';
+import { CIV_3_TO_5_NATION_IDS } from '../constants/nationSelection';
 
 /**
  * Hook state interfaces
@@ -141,8 +142,8 @@ export function useNation(id: string, ruleset: string = 'classic') {
 export function useNationSelection(ruleset: string = 'classic') {
   const { nations, loading, error, metadata, refetch } = useNations(ruleset);
 
-  // Filter out barbarian nation from player selection
-  const playableNations = nations.filter(nation => nation.id !== 'barbarian');
+  // Keep the lobby roster aligned with the server's Civ III–V selection policy.
+  const playableNations = nations.filter(nation => CIV_3_TO_5_NATION_IDS.has(nation.id));
 
   // Sort nations alphabetically by name
   const sortedNations = [...playableNations].sort((a, b) => a.name.localeCompare(b.name));
