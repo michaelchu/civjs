@@ -637,6 +637,8 @@ describe('AI authoritative manager boundaries', () => {
     const enemyCity = await foundPlayerCity(scenario, guest!.playerId, 'Paradrop Target');
     enemyCity.population = 2;
     enemyCity.size = 2;
+    const paratrooperType = scenario.game.unitManager.getUnitType('paratroopers');
+    expect(paratrooperType).toBeDefined();
     for (const unit of scenario.game.unitManager.getPlayerUnits(guest!.playerId)) {
       await scenario.game.unitManager.removeUnit(unit.id);
     }
@@ -646,7 +648,8 @@ describe('AI authoritative manager boundaries', () => {
       .find(
         tile =>
           !['ocean', 'deep_ocean', 'lake'].includes(tile.terrain) &&
-          scenario.game.mapManager.getDistance(tile.x, tile.y, enemyCity.x, enemyCity.y) <= 8 &&
+          scenario.game.mapManager.getDistance(tile.x, tile.y, enemyCity.x, enemyCity.y) <=
+            paratrooperType!.paratroopersRange &&
           !scenario.game.cityManager.getCityAt(tile.x, tile.y) &&
           scenario.game.unitManager.getUnitsAt(tile.x, tile.y).length === 0
       );
