@@ -49,6 +49,11 @@ export class FreecivAIDiplomacyController {
       memory.countdown = Math.max(0, memory.countdown - 1);
       state.diplomacy[nation.id] = memory;
 
+      // Freeciv keeps diplomatic memory current in away mode, but refuses
+      // treaties until normal AI control resumes.
+      // @reference reference/freeciv/ai/default/daidiplomacy.c:375-385
+      if (profile.handicaps.has('away')) continue;
+
       const proposal = nation.relation.proposal;
       if (proposal?.status === 'pending' && proposal.recipientId === playerId) {
         const accepted = this.evaluateTreaty(

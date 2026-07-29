@@ -23,6 +23,7 @@ interface DiplomatPlanningContext {
   getType: (unitTypeId: string) => UnitType | undefined;
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   diplomatHandicap?: boolean;
+  noBribeWarFooting?: boolean;
 }
 
 function isDiplomat(type: UnitType | undefined): boolean {
@@ -70,8 +71,8 @@ export function planDiplomatMissions(context: DiplomatPlanningContext): Diplomat
         return (
           !reservedTargets.has(unit.id) &&
           !unit.transportedBy &&
-          !unitType?.canFoundCity &&
-          !unitType?.canBuildImprovements
+          (!context.noBribeWarFooting ||
+            (!unitType?.canFoundCity && !unitType?.canBuildImprovements))
         );
       })
       .map(unit => {

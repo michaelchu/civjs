@@ -55,6 +55,7 @@ export class ResearchManager {
   private gameId: string;
   private databaseProvider: DatabaseProvider;
   private currentTurnProvider?: () => number;
+  private scienceCostProvider: (playerId: string) => number = () => 100;
 
   constructor(
     gameId: string,
@@ -68,6 +69,10 @@ export class ResearchManager {
 
   public setCurrentTurnProvider(provider: () => number): void {
     this.currentTurnProvider = provider;
+  }
+
+  public setScienceCostProvider(provider: (playerId: string) => number): void {
+    this.scienceCostProvider = provider;
   }
 
   /**
@@ -260,7 +265,8 @@ export class ResearchManager {
     playerResearch.bulbsLastTurn = bulbs;
 
     // Check if technology is completed
-    if (playerResearch.bulbsAccumulated >= tech.cost) {
+    const effectiveCost = this.getEffectiveTechnologyCost(playerId, tech.cost);
+    if (playerResearch.bulbsAccumulated >= effectiveCost) {
       const completedTech = playerResearch.currentTech;
       await this.completeTechnology(playerId, completedTech);
       return completedTech;
@@ -292,7 +298,8 @@ export class ResearchManager {
     }
 
     // Save excess bulbs
-    const excessBulbs = playerResearch.bulbsAccumulated - tech.cost;
+    const excessBulbs =
+      playerResearch.bulbsAccumulated - this.getEffectiveTechnologyCost(playerId, tech.cost);
     playerResearch.bulbsAccumulated = 0;
     playerResearch.currentTech = undefined;
 
@@ -339,6 +346,14 @@ export class ResearchManager {
     }
 
     await this.saveResearchState(playerResearch);
+  }
+
+  private getEffectiveTechnologyCost(playerId: string, baseCost: number): number {
+    // Freeciv's difficulty science_cost scales the technology cost rather
+    // than changing the player's bulb output.
+    // @reference reference/freeciv/common/research.c
+    const scienceCost = Math.max(1, this.scienceCostProvider(playerId));
+    return Math.max(1, Math.ceil((baseCost * scienceCost) / 100));
   }
 
   private async saveResearchState(playerResearch: PlayerResearch): Promise<void> {
@@ -413,13 +428,14 @@ export class ResearchManager {
       return null;
     }
 
-    const remaining = tech.cost - playerResearch.bulbsAccumulated;
+    const effectiveCost = this.getEffectiveTechnologyCost(playerId, tech.cost);
+    const remaining = effectiveCost - playerResearch.bulbsAccumulated;
     const turnsRemaining =
       playerResearch.bulbsLastTurn > 0 ? Math.ceil(remaining / playerResearch.bulbsLastTurn) : -1;
 
     return {
       current: playerResearch.bulbsAccumulated,
-      required: tech.cost,
+      required: effectiveCost,
       turnsRemaining,
     };
   }

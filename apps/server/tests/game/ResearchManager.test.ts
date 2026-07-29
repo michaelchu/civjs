@@ -222,6 +222,19 @@ describe('ResearchManager', () => {
       expect(research!.bulbsAccumulated).toBe(5); // 15 - 10 = 5 excess
     });
 
+    it('applies the AI difficulty science-cost multiplier to cost and overflow', async () => {
+      researchManager.setScienceCostProvider(playerId => (playerId === 'player-123' ? 250 : 100));
+
+      expect(researchManager.getResearchProgress('player-123')).toEqual({
+        current: 0,
+        required: 25,
+        turnsRemaining: -1,
+      });
+      expect(await researchManager.addResearchPoints('player-123', 24)).toBeNull();
+      expect(await researchManager.addResearchPoints('player-123', 6)).toBe('pottery');
+      expect(researchManager.getPlayerResearch('player-123')!.bulbsAccumulated).toBe(5);
+    });
+
     it('routes the next research through a goal prerequisite chain', async () => {
       await researchManager.setResearchGoal('player-123', 'mathematics');
 

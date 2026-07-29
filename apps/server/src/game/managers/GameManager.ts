@@ -35,7 +35,12 @@ import {
   type TreatyProposal,
 } from '@game/managers/DiplomacyManager';
 import { FreecivAIOrchestrator } from '@game/services/FreecivAIOrchestrator';
-import type { AILevel, AITraits, SettableAILevel } from '@game/ai/FreecivAIProfile';
+import {
+  createAIProfile,
+  type AILevel,
+  type AITraits,
+  type SettableAILevel,
+} from '@game/ai/FreecivAIProfile';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { EndGameService } from '@game/services/EndGameService';
 import { GameReplayService, type GameReplay } from '@game/services/GameReplayService';
@@ -1220,6 +1225,10 @@ export class GameManager {
     gameInstance.visibilityManager.setSharedVisionProvider(
       playerId => this.sharedVisionByGame.get(gameId)?.get(playerId) ?? new Set()
     );
+    gameInstance.researchManager.setScienceCostProvider(playerId => {
+      const player = gameInstance.players.get(playerId);
+      return player?.isAI ? createAIProfile(player.aiLevel, player.aiTraits).scienceCost : 100;
+    });
     gameInstance.unitManager.setUnitLifecycleObserver(event =>
       this.aiOrchestrator.onUnitLifecycle(gameId, gameInstance, event)
     );

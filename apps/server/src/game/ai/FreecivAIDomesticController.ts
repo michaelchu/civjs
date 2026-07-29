@@ -6,6 +6,7 @@ import { chooseResearch } from '@game/ai/FreecivAIPlanner';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
 import { hostileUnitsForPlanning } from '@game/ai/FreecivAITargeting';
 import { planTreasury } from '@game/ai/FreecivAITreasuryPlanner';
+import { createAIDecisionSource } from '@game/ai/FreecivAIDecisionSource';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 
 /**
@@ -118,6 +119,7 @@ export class FreecivAIDomesticController {
           return sum + (type?.attack ?? type?.combat ?? 0) / Math.max(1, distance);
         }, 0),
     });
+    const decisions = createAIDecisionSource(game, playerId, 'treasury');
     let actions = 0;
     if (
       status.taxRates.tax !== plan.rates.tax ||
@@ -138,6 +140,9 @@ export class FreecivAIDomesticController {
       }
     }
     for (const cityId of plan.rushCityIds) {
+      // Freeciv applies ai_fuzzy while selecting the highest-want city to buy.
+      // @reference reference/freeciv/ai/default/daicity.c:568-573
+      if (!decisions.fuzzy(`rush:${cityId}`, true)) continue;
       const result = await game.cityManager.buyProduction(cityId, playerId);
       if (result.success) actions++;
     }

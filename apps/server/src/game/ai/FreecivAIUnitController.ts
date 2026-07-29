@@ -3,6 +3,7 @@ import type { Unit } from '@game/managers/UnitManager';
 import { ActionType } from '@app-types/shared/actions';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { rankCitySites, rankMilitaryTargets } from '@game/ai/FreecivAIPlanner';
+import { createAIDecisionSource } from '@game/ai/FreecivAIDecisionSource';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
@@ -137,6 +138,7 @@ export class FreecivAIUnitController {
     const enemies = hostileUnitsForPlanning(game, playerId, hostilePlayerIds, profile)
       .filter(unit => !unit.transportedBy)
       .sort((a, b) => a.id.localeCompare(b.id));
+    const decisions = createAIDecisionSource(game, playerId, 'military-target');
     let actions = 0;
 
     for (const attacker of sortedPlayerUnits(game, playerId)) {
@@ -145,6 +147,12 @@ export class FreecivAIUnitController {
       if (state.unitTasks[attacker.id]?.role === 'hunter') continue;
       if (state.unitTasks[attacker.id]?.role === 'air') continue;
       if (state.unitTasks[attacker.id]?.role === 'paradrop') continue;
+      if (
+        profile.handicaps.has('away') &&
+        (attacker.fortified || attacker.sentryUntil !== undefined)
+      ) {
+        continue;
+      }
       const type = game.unitManager.getUnitType(attacker.unitTypeId);
       if (attacker.movementLeft <= 0 || (type?.attack ?? type?.combat ?? 0) <= 0) continue;
       if (!type) continue;
@@ -155,9 +163,12 @@ export class FreecivAIUnitController {
         unitTypeId => game.unitManager.getUnitType(unitTypeId),
         target => game.mapManager.getDistance(attacker.x, attacker.y, target.x, target.y)
       );
-      let defender = ranked.find(target => target.distance <= (type.range ?? 1))?.unit;
+      const considered = ranked.filter(target =>
+        decisions.fuzzy(`${attacker.id}:${target.unit.id}`, true)
+      );
+      let defender = considered.find(target => target.distance <= (type.range ?? 1))?.unit;
       if (!defender) {
-        const target = ranked[0]?.unit;
+        const target = considered[0]?.unit;
         if (target) {
           actions += await this.moveTowardMilitaryTarget(game, attacker, target);
           defender =
@@ -233,6 +244,9 @@ export class FreecivAIUnitController {
       const unit = game.unitManager.getUnit(unitId);
       const city = task.targetId ? game.cityManager.getCity(task.targetId) : undefined;
       if (!unit || !city || unit.movementLeft <= 0) continue;
+      if (profile.handicaps.has('away') && (unit.fortified || unit.sentryUntil !== undefined)) {
+        continue;
+      }
       if (unit.x === city.x && unit.y === city.y) {
         if (!unit.fortified && game.unitManager.canUnitPerformAction(unit.id, ActionType.FORTIFY)) {
           const result = await game.unitManager.executeUnitAction(
@@ -295,6 +309,9 @@ export class FreecivAIUnitController {
       const hunter = game.unitManager.getUnit(unitId);
       const target = task.targetId ? game.unitManager.getUnit(task.targetId) : undefined;
       if (!hunter || !target || hunter.movementLeft <= 0) continue;
+      if (profile.handicaps.has('away') && (hunter.fortified || hunter.sentryUntil !== undefined)) {
+        continue;
+      }
       const type = game.unitManager.getUnitType(hunter.unitTypeId);
       if (!type) continue;
       if (

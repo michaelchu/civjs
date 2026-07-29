@@ -107,6 +107,7 @@ export class FreecivAICityController {
       state.cityWants[city.id] = Object.fromEntries(
         ranked.slice(0, 12).map(choice => [`${choice.value.kind}:${choice.value.id}`, choice.want])
       );
+      if (profile.handicaps.has('away') && city.currentProduction) continue;
       if (
         city.currentProduction &&
         (city.worklist?.length ?? 0) === 0 &&

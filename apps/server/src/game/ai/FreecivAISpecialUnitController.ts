@@ -121,6 +121,7 @@ export class FreecivAISpecialUnitController {
       getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
       diplomatHandicap: profile.handicaps.has('diplomat'),
+      noBribeWarFooting: profile.handicaps.has('no_bribe_war_footing'),
     });
     for (const [unitId, task] of Object.entries(state.unitTasks)) {
       if (task.role === 'diplomat') delete state.unitTasks[unitId];

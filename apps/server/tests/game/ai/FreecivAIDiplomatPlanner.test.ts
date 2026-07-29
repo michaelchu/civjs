@@ -20,6 +20,7 @@ const types: Record<string, any> = {
   diplomat: { flags: ['Diplomat'], cost: 30 },
   spy: { flags: ['Diplomat', 'Spy'], cost: 50 },
   cavalry: { flags: [], cost: 80, canFoundCity: false, canBuildImprovements: false },
+  settlers: { flags: [], cost: 40, canFoundCity: true, canBuildImprovements: true },
 };
 const base = {
   friendlyUnits: [] as any[],
@@ -66,5 +67,19 @@ describe('Freeciv AI diplomat planner', () => {
         diplomatHandicap: true,
       })
     ).toEqual([]);
+  });
+
+  it('only excludes workers and founders when the war-footing handicap is active', () => {
+    const context = {
+      ...base,
+      diplomats: [unit('dip', 'diplomat', 0, 0)],
+      hostileUnits: [unit('settlers', 'settlers', 1, 0, 'enemy')],
+    };
+
+    expect(planDiplomatMissions(context)[0]).toMatchObject({
+      action: ActionType.BRIBE_UNIT,
+      targetId: 'settlers',
+    });
+    expect(planDiplomatMissions({ ...context, noBribeWarFooting: true })).toEqual([]);
   });
 });
