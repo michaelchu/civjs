@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { ActionType } from '@app-types/shared/actions';
 import serverConfig from '@config';
 import * as schema from '@database/schema';
 import { createAIProfile } from '@game/ai/AIProfile';
@@ -149,6 +150,24 @@ describe('AI authoritative manager boundaries', () => {
       if (neighbor) return { from: tile, to: neighbor };
     }
     throw new Error('Expected two adjacent unoccupied land tiles');
+  }
+
+  function findRoadableCityTile(game: GameInstance, cityId: string) {
+    const city = game.cityManager.getCity(cityId);
+    if (!city) throw new Error('Expected city');
+    for (const workable of city.workableTiles ?? []) {
+      const tile = game.mapManager.getTile(workable.x, workable.y);
+      if (
+        tile &&
+        !['ocean', 'deep_ocean', 'lake'].includes(tile.terrain) &&
+        !tile.hasRoad &&
+        !tile.improvements.includes('road') &&
+        !game.cityManager.getCityAt(tile.x, tile.y)
+      ) {
+        return tile;
+      }
+    }
+    throw new Error(`Expected an unimproved roadable tile for city ${cityId}`);
   }
 
   function findCrossContinentTransportSetup(game: GameInstance) {
@@ -950,6 +969,63 @@ describe('AI authoritative manager boundaries', () => {
         worklist: city.worklist,
       }).toEqual(expectedQueues.get(city.id));
     }
+  });
+
+  it('produces a terrain improver and completes a requested road through authoritative managers', async () => {
+    const scenario = await createActiveGame(2);
+    const [, guest] = scenario.players;
+    const city = await foundPlayerCity(scenario, guest!.playerId, 'AI Infrastructure City');
+    await gameManager.setPlayerAIControl(
+      scenario.gameId,
+      scenario.hostUserId,
+      guest!.playerId,
+      true,
+      { aiLevel: 'normal' }
+    );
+
+    const state = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
+    city.currentProduction = null;
+    city.productionType = null;
+    city.worklist = [];
+    const cityController = (gameManager as any).aiOrchestrator.playerController.city;
+    await cityController.selectProduction(scenario.game, guest!.playerId, state);
+
+    expect(city.currentProduction).toBe('settlers');
+    const settlerType = scenario.game.unitManager.getUnitType('settlers')!;
+    expect(settlerType.canBuildImprovements).toBe(true);
+    city.productionStock = settlerType.cost;
+    city.shieldStock = settlerType.cost;
+    await scenario.game.cityManager.processCityTurn(city.id, scenario.game.currentTurn);
+
+    const worker = scenario.game.unitManager
+      .getPlayerUnits(guest!.playerId)
+      .find(unit => unit.unitTypeId === 'settlers' && unit.homeCityId === city.id);
+    expect(worker).toBeDefined();
+
+    const target = findRoadableCityTile(scenario.game, city.id);
+    expect(await scenario.game.unitManager.moveUnit(worker!.id, target.x, target.y)).toBe(true);
+    worker!.movementLeft = settlerType.movement;
+    city.workerTaskRequests = [
+      { x: target.x, y: target.y, action: ActionType.BUILD_ROAD, want: 500 },
+    ];
+
+    const unitController = (gameManager as any).aiOrchestrator.playerController.units;
+    expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
+      0
+    );
+    expect(worker!.orders).toEqual([{ type: 'road' }]);
+    expect(city.workerTaskRequests).toEqual([]);
+
+    await scenario.game.unitManager.processUnitOrders(guest!.playerId);
+    await scenario.game.unitManager.processUnitOrders(guest!.playerId);
+    const completed = scenario.game.mapManager.getTile(target.x, target.y)!;
+    expect(completed.hasRoad).toBe(true);
+    expect(completed.improvements).toContain('road');
+
+    const persistedWorker = await getTestDatabase().query.units.findFirst({
+      where: eq(schema.units.id, worker!.id),
+    });
+    expect(persistedWorker?.orders).toEqual([]);
   });
 
   it('selects, completes, persists, and recovers a spaceship part through real managers', async () => {
