@@ -1,7 +1,9 @@
 import { planTreasury } from '@game/ai/FreecivAITreasuryPlanner';
+import type { CityState } from '@game/managers/CityManager';
+import { makeAICity } from '../../fixtures/aiFixtures';
 
-const city = (overrides: Record<string, unknown> = {}) =>
-  ({
+const city = (overrides: Partial<CityState> = {}) =>
+  makeAICity({
     id: 'capital',
     buildings: [],
     goldPerTurn: 0,
@@ -10,7 +12,7 @@ const city = (overrides: Record<string, unknown> = {}) =>
     currentProduction: 'warriors',
     happiness: { happy: 0, content: 2, unhappy: 0, angry: 0 },
     ...overrides,
-  }) as any;
+  });
 
 const base = {
   currentGold: 100,

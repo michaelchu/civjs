@@ -1,7 +1,8 @@
 import { planAirMissions, rankVirtualAirProduction } from '@game/ai/FreecivAIAirPlanner';
+import { makeAICity, makeAIUnit } from '../../fixtures/aiFixtures';
 
 const unit = (id: string, unitTypeId: string, x: number, y: number, fuel?: number) =>
-  ({
+  makeAIUnit({
     id,
     playerId: id.startsWith('enemy') ? 'enemy' : 'ai',
     unitTypeId,
@@ -13,9 +14,9 @@ const unit = (id: string, unitTypeId: string, x: number, y: number, fuel?: numbe
     veteranLevel: 0,
     experience: 0,
     fortified: false,
-  }) as any;
+  });
 const city = (id: string, playerId: string, x: number, y: number, size = 4) =>
-  ({ id, playerId, x, y, size, buildings: [] }) as any;
+  makeAICity({ id, name: id, playerId, x, y, size, population: size, buildings: [] });
 const types: Record<string, any> = {
   bomber: {
     unitClass: 'air',

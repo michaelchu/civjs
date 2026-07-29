@@ -3,12 +3,9 @@ import {
   rankEffectTechnologyWants,
   rankThreatTechnologyWants,
 } from '@game/ai/FreecivAITechnologyWantPlanner';
+import { makeAICity } from '../../fixtures/aiFixtures';
 
-const city = (buildings: string[] = []) =>
-  ({
-    id: 'capital',
-    buildings,
-  }) as any;
+const city = (buildings: string[] = []) => makeAICity({ id: 'capital', buildings });
 
 describe('Freeciv AI technology want planner', () => {
   it('values a technology-gated effect only where its other requirements hold', () => {

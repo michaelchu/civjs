@@ -2,6 +2,8 @@ import {
   planParadropMissions,
   rankVirtualParadropProduction,
 } from '@game/ai/FreecivAIParadropPlanner';
+import type { TerrainType } from '@game/map/MapTypes';
+import { makeAICity, makeAIUnit, makeTerrainTile } from '../../fixtures/aiFixtures';
 
 const unit = (
   id: string,
@@ -9,9 +11,8 @@ const unit = (
   y: number,
   playerId = id.startsWith('enemy') ? 'enemy' : 'ai'
 ) =>
-  ({
+  makeAIUnit({
     id,
-    gameId: 'game',
     playerId,
     unitTypeId: id.startsWith('enemy') ? 'tank' : 'paratroopers',
     x,
@@ -21,27 +22,11 @@ const unit = (
     veteranLevel: 0,
     experience: 0,
     fortified: false,
-  }) as any;
+  });
 const city = (id: string, playerId: string, x: number, y: number, size = 4) =>
-  ({ id, playerId, x, y, size, buildings: [], happiness: {} }) as any;
-const tile = (x: number, y: number, continentId = 1, terrain = 'grassland') =>
-  ({
-    x,
-    y,
-    terrain,
-    continentId,
-    improvements: [],
-    unitIds: [],
-    riverMask: 0,
-    elevation: 0,
-    isExplored: true,
-    isVisible: true,
-    hasRoad: false,
-    hasRailroad: false,
-    properties: {},
-    temperature: 'temperate',
-    wetness: 50,
-  }) as any;
+  makeAICity({ id, name: id, playerId, x, y, size, population: size, buildings: [] });
+const tile = (x: number, y: number, continentId = 1, terrain: TerrainType = 'grassland') =>
+  makeTerrainTile(x, y, terrain, { continentId });
 const types: Record<string, any> = {
   paratroopers: {
     id: 'paratroopers',

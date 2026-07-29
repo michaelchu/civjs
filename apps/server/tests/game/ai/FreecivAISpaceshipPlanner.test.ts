@@ -1,4 +1,5 @@
 import { planSpaceship } from '@game/ai/FreecivAISpaceshipPlanner';
+import { makeAICity } from '../../fixtures/aiFixtures';
 
 function city(
   id: string,
@@ -6,15 +7,13 @@ function city(
   productionPerTurn: number,
   buildings: string[] = []
 ): any {
-  return {
+  return makeAICity({
     id,
+    name: id,
     playerId,
     productionPerTurn,
     buildings,
-    worklist: [],
-    currentProduction: null,
-    productionType: null,
-  };
+  });
 }
 
 describe('Freeciv AI spaceship planner', () => {

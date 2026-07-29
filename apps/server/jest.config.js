@@ -7,9 +7,12 @@ module.exports = {
     ? ['/node_modules/', 'tests/e2e/audit/']
     : ['/node_modules/'],
   transform: {
-    '^.+\\.ts$': ['ts-jest', {
-      tsconfig: 'tsconfig.json'
-    }],
+    '^.+\\.ts$': [
+      'ts-jest',
+      {
+        tsconfig: 'tsconfig.json',
+      },
+    ],
   },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
@@ -26,6 +29,14 @@ module.exports = {
   coverageDirectory: 'coverage',
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts', '!src/index.ts'],
   coverageReporters: ['text', 'lcov', 'json-summary'],
+  coverageThreshold: {
+    'src/game/ai/': {
+      statements: 84,
+      branches: 69,
+      functions: 82,
+      lines: 87,
+    },
+  },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   testTimeout: 10000,
   clearMocks: true,

@@ -1,23 +1,16 @@
 import { planWonderCoordination } from '@game/ai/FreecivAIWonderPlanner';
+import type { CityState } from '@game/managers/CityManager';
+import { makeAICity, makeAIUnit } from '../../fixtures/aiFixtures';
 
-const city = (id: string, overrides: Record<string, unknown> = {}) =>
-  ({
+const city = (id: string, overrides: Partial<CityState> = {}) =>
+  makeAICity({
     id,
-    x: 0,
-    y: 0,
     productionPerTurn: 10,
-    buildings: [],
     ...overrides,
-  }) as any;
+  });
 
 const helper = (id: string, x: number, y: number) =>
-  ({
-    id,
-    playerId: 'ai',
-    unitTypeId: 'caravan',
-    x,
-    y,
-  }) as any;
+  makeAIUnit({ id, unitTypeId: 'caravan', x, y });
 
 const unitTypes = {
   caravan: {

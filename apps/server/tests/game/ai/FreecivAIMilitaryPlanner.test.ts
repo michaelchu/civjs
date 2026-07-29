@@ -6,19 +6,17 @@ import {
   selectProjectedCityDefender,
   type MilitaryPlanningContext,
 } from '@game/ai/FreecivAIMilitaryPlanner';
+import { makeAIUnit } from '../../fixtures/aiFixtures';
 
 function unit(id: string, unitTypeId: string, x: number, y: number, health = 100): any {
-  return {
+  return makeAIUnit({
     id,
     playerId: id === 'attacker' ? 'ai' : 'enemy',
     unitTypeId,
     x,
     y,
-    movementLeft: 3,
     health,
-    veteranLevel: 0,
-    fortified: false,
-  };
+  });
 }
 
 function context(overrides: Partial<MilitaryPlanningContext> = {}): MilitaryPlanningContext {

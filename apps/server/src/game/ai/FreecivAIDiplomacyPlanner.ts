@@ -208,9 +208,14 @@ function valuePactClause(context: TreatyValuationContext, clause: PactClause): n
     case 'ceasefire':
       return context.currentState === 'war' ? context.love : -NEVER_ACCEPT;
     case 'peace':
-      return !context.alliedWithEnemy && ['war', 'ceasefire'].includes(context.currentState)
-        ? context.love - 10
-        : -NEVER_ACCEPT;
+      if (
+        context.alliedWithEnemy ||
+        !['ceasefire', 'armistice'].includes(context.currentState) ||
+        (context.currentState === 'ceasefire' && context.relation.turnsLeft > 4)
+      ) {
+        return -NEVER_ACCEPT;
+      }
+      return context.love - 10;
     case 'alliance':
       return !context.alliedWithEnemy && context.currentState === 'peace' && context.love >= 100
         ? context.love - 80

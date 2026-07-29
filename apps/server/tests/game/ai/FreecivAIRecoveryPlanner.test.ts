@@ -2,23 +2,14 @@ import {
   planMilitaryRecovery,
   type RecoveryPlanningContext,
 } from '@game/ai/FreecivAIRecoveryPlanner';
+import { makeAICity, makeAIUnit } from '../../fixtures/aiFixtures';
 
 function unit(health: number): any {
-  return {
-    id: 'warrior',
-    playerId: 'ai',
-    unitTypeId: 'warriors',
-    x: 0,
-    y: 0,
-    movementLeft: 3,
-    health,
-    veteranLevel: 0,
-    fortified: false,
-  };
+  return makeAIUnit({ id: 'warrior', unitTypeId: 'warriors', health });
 }
 
 function city(id: string, x: number): any {
-  return { id, playerId: 'ai', x, y: 0, buildings: [] };
+  return makeAICity({ id, name: id, x });
 }
 
 function context(health: number, overrides: Partial<RecoveryPlanningContext> = {}) {

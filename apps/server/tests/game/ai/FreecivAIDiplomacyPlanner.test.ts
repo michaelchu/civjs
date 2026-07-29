@@ -3,6 +3,7 @@ import {
   evaluateTreaty,
   type TreatyValuationContext,
 } from '@game/ai/FreecivAIDiplomacyPlanner';
+import type { DiplomaticState, TreatyClause } from '@game/managers/DiplomacyManager';
 
 function city(id: string, overrides: Record<string, unknown> = {}): any {
   return {
@@ -179,4 +180,63 @@ describe('Freeciv AI diplomacy planner', () => {
       ).acceptable
     ).toBe(true);
   });
+
+  it.each<{
+    currentState: DiplomaticState;
+    turnsLeft: number;
+    clause: TreatyClause;
+    acceptable: boolean;
+  }>([
+    {
+      currentState: 'war',
+      turnsLeft: 0,
+      clause: { type: 'peace', giverId: 'other' },
+      acceptable: false,
+    },
+    {
+      currentState: 'war',
+      turnsLeft: 0,
+      clause: { type: 'ceasefire', giverId: 'other' },
+      acceptable: true,
+    },
+    {
+      currentState: 'ceasefire',
+      turnsLeft: 5,
+      clause: { type: 'peace', giverId: 'other' },
+      acceptable: false,
+    },
+    {
+      currentState: 'ceasefire',
+      turnsLeft: 4,
+      clause: { type: 'peace', giverId: 'other' },
+      acceptable: true,
+    },
+    {
+      currentState: 'armistice',
+      turnsLeft: 0,
+      clause: { type: 'peace', giverId: 'other' },
+      acceptable: true,
+    },
+    {
+      currentState: 'peace',
+      turnsLeft: 0,
+      clause: { type: 'alliance', giverId: 'other' },
+      acceptable: true,
+    },
+  ])(
+    'enforces the reference treaty ladder for $currentState and $clause.type',
+    ({ currentState, turnsLeft, clause, acceptable }) => {
+      // @reference reference/freeciv/ai/default/daidiplomacy.c:406-449
+      const context = treatyContext({
+        currentState,
+        relation: {
+          ...treatyContext().relation,
+          state: currentState,
+          turnsLeft,
+        },
+      });
+
+      expect(evaluateTreaty([clause], context).acceptable).toBe(acceptable);
+    }
+  );
 });

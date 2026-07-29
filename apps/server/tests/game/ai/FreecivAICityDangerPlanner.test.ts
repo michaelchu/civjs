@@ -6,18 +6,11 @@ import {
   reevaluateDefensiveBuildingWant,
 } from '@game/ai/FreecivAICityDangerPlanner';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
+import { makeAICity, makeAIUnit } from '../../fixtures/aiFixtures';
 
-const city = { id: 'capital', x: 5, y: 5, playerId: 'ai' } as any;
+const city = makeAICity({ id: 'capital', name: 'Capital', x: 5, y: 5 });
 const unit = (id: string, unitTypeId: string, x: number, y: number, playerId = 'enemy') =>
-  ({
-    id,
-    unitTypeId,
-    x,
-    y,
-    playerId,
-    health: 100,
-    veteranLevel: 0,
-  }) as any;
+  makeAIUnit({ id, unitTypeId, x, y, playerId });
 
 const types: Record<string, any> = {
   attacker: {

@@ -1,20 +1,11 @@
 import { chooseGuardRendezvous, planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
+import { makeAICity, makeAIUnit } from '../../fixtures/aiFixtures';
 
-const city = (id: string, x: number, y: number) => ({ id, x, y, playerId: 'ai' }) as any;
+const city = (id: string, x: number, y: number) => makeAICity({ id, name: id, x, y });
 
 const unit = (id: string, unitTypeId: string, x: number, y: number, playerId = 'ai') =>
-  ({
-    id,
-    unitTypeId,
-    x,
-    y,
-    playerId,
-    health: 100,
-    veteranLevel: 0,
-    movementLeft: 3,
-    fortified: false,
-  }) as any;
+  makeAIUnit({ id, unitTypeId, x, y, playerId });
 
 const types: Record<string, any> = {
   defender: {

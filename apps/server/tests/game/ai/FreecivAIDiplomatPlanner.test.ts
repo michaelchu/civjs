@@ -4,9 +4,10 @@ import {
   rankDiplomatTechnologyWants,
   rankVirtualDiplomatProduction,
 } from '@game/ai/FreecivAIDiplomatPlanner';
+import { makeAICity, makeAIUnit } from '../../fixtures/aiFixtures';
 
 const unit = (id: string, unitTypeId: string, x: number, y: number, playerId = 'ai') =>
-  ({
+  makeAIUnit({
     id,
     unitTypeId,
     x,
@@ -17,10 +18,11 @@ const unit = (id: string, unitTypeId: string, x: number, y: number, playerId = '
     veteranLevel: 0,
     experience: 0,
     fortified: false,
-  }) as any;
+  });
 const city = (id: string, playerId: string, x: number, y: number, buildings: string[] = []) =>
-  ({
+  makeAICity({
     id,
+    name: id,
     playerId,
     x,
     y,
@@ -32,7 +34,7 @@ const city = (id: string, playerId: string, x: number, y: number, buildings: str
     tradePerTurn: 3,
     sciencePerTurn: 2,
     goldPerTurn: 1,
-  }) as any;
+  });
 const types: Record<string, any> = {
   diplomat: {
     id: 'diplomat',

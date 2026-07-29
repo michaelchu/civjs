@@ -206,6 +206,70 @@ describe('Game Integration Flow', () => {
       );
     });
 
+    it('processes an AI turn through authoritative managers and persists its decisions', async () => {
+      const db = getTestDatabase();
+      const hostUserId = generateTestUUID();
+      const aiOwnerUserId = generateTestUUID();
+
+      await db.insert(schema.users).values([
+        {
+          id: hostUserId,
+          username: `AIFlowHost_${Date.now()}`,
+          email: `ai_flow_host_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+        {
+          id: aiOwnerUserId,
+          username: `AIFlowGuest_${Date.now()}`,
+          email: `ai_flow_guest_${Date.now()}@test.com`,
+          passwordHash: 'test-hash',
+        },
+      ]);
+
+      const gameId = await gameManager.createGame({
+        name: 'AI Manager Integration Test',
+        hostId: hostUserId,
+        maxPlayers: 2,
+        mapWidth: 20,
+        mapHeight: 20,
+        ruleset: 'classic',
+      });
+      const host = await gameManager.joinGame(gameId, hostUserId, 'romans');
+      const aiPlayer = await gameManager.joinGame(gameId, aiOwnerUserId, 'greeks');
+
+      await gameManager.setPlayerAIControl(gameId, hostUserId, aiPlayer.playerId, true, {
+        aiLevel: 'hard',
+      });
+
+      const game = gameManager.getGameInstance(gameId)!;
+      const aiUnitsBefore = [...game.unitManager.getAllUnits().values()].filter(
+        unit => unit.playerId === aiPlayer.playerId
+      );
+      expect(aiUnitsBefore.length).toBeGreaterThan(0);
+
+      expect(await gameManager.endTurn(host.playerId)).toBe(true);
+      expect(game.currentTurn).toBe(2);
+
+      const state = game.players.get(aiPlayer.playerId)?.aiState;
+      expect(state).toMatchObject({
+        lastProcessedTurn: 1,
+      });
+      expect(state?.lastDecisionCount).toEqual(expect.any(Number));
+      expect(state?.lastDecisionCount).toBeGreaterThan(0);
+
+      const persistedAI = await db.query.players.findFirst({
+        where: eq(schema.players.id, aiPlayer.playerId),
+      });
+      expect(persistedAI).toMatchObject({
+        isAI: true,
+        aiLevel: 'hard',
+      });
+      expect(persistedAI?.aiState).toMatchObject({
+        lastProcessedTurn: 1,
+        lastDecisionCount: state?.lastDecisionCount,
+      });
+    });
+
     it('should recover persisted map, units, cities, and borders after a server restart', async () => {
       const db = getTestDatabase();
       const hostUserId = generateTestUUID();

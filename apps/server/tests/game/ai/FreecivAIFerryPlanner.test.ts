@@ -1,20 +1,9 @@
 import { ActionType } from '@app-types/shared/actions';
 import { planFerries, scoreFerryBeachhead } from '@game/ai/FreecivAIFerryPlanner';
+import { makeAIUnit } from '../../fixtures/aiFixtures';
 
 const unit = (id: string, unitTypeId: string, x: number, y: number, transportedBy?: string) =>
-  ({
-    id,
-    playerId: 'ai',
-    unitTypeId,
-    x,
-    y,
-    transportedBy,
-    movementLeft: 3,
-    health: 100,
-    veteranLevel: 0,
-    experience: 0,
-    fortified: false,
-  }) as any;
+  makeAIUnit({ id, unitTypeId, x, y, transportedBy });
 
 const types: Record<string, any> = {
   ferry: {

@@ -3,19 +3,10 @@ import {
   planHunters,
   rankHunterProduction,
 } from '@game/ai/FreecivAIHunterPlanner';
+import { makeAIUnit } from '../../fixtures/aiFixtures';
 
 const unit = (id: string, unitTypeId: string, x: number, y: number, playerId = 'ai') =>
-  ({
-    id,
-    unitTypeId,
-    x,
-    y,
-    playerId,
-    health: 100,
-    veteranLevel: 0,
-    movementLeft: 3,
-    fortified: false,
-  }) as any;
+  makeAIUnit({ id, unitTypeId, x, y, playerId });
 
 const types: Record<string, any> = {
   hunter: { id: 'hunter', roles: ['Hunter'], attack: 8, combat: 8, movement: 3, cost: 50 },

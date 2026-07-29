@@ -361,7 +361,7 @@ describe('FreecivAIOrchestrator', () => {
       'ai',
       'human',
       'peace-proposal',
-      true
+      false
     );
     expect(scenario.diplomacyManager.respondToTreaty).toHaveBeenCalledWith(
       'game',
