@@ -93,14 +93,16 @@ The first implementation steps are now in place:
   disposable Docker PostgreSQL without emitting a failure artifact. This is the
   initial empirical baseline; it remains intentionally conservative until
   longer-game metrics and comparative matches are collected.
+- The scheduled workflow now also runs a 25-seed, 12-turn long-horizon matrix.
+  Its initial three-seed Docker probe passed with the same invariant, recovery,
+  behavioral-metric, and failure-artifact checks as the smoke matrix.
 - The focused Docker suite executes a legal airbase-to-undefended-city
   paratrooper capture through the authoritative action path. The fixture
   constrains its launch tile to neutral or friendly ownership, matching the
   server's paradrop-source legality rule.
 
 This is intentionally a foundation rather than completion of the milestone:
-longer-game behavioral baselines and statistically meaningful comparative
-strength thresholds remain required work.
+Statistically meaningful comparative strength thresholds remain required work.
 
 ## Next validation milestone: deterministic simulation matrix
 
