@@ -136,6 +136,50 @@ describe('FreecivAIMilitaryPlanner', () => {
     expect(plan).toEqual([]);
   });
 
+  it('accounts for a stronger defender the target city can finish before arrival', () => {
+    const target = {
+      id: 'city',
+      playerId: 'enemy',
+      x: 2,
+      y: 0,
+      size: 3,
+      buildings: [],
+    } as any;
+    const withoutProjection = rankMilitaryObjectives(
+      context({ hostileUnits: [], hostileCities: [target] })
+    );
+    const withProjection = rankMilitaryObjectives(
+      context({
+        hostileUnits: [],
+        hostileCities: [target],
+        projectedDefender: () => ({
+          rating: 1000,
+          cost: 40,
+          unitTypeId: 'future-defender',
+        }),
+      })
+    );
+
+    expect(withoutProjection[0]).toMatchObject({ targetId: target.id });
+    expect(withProjection).toEqual([]);
+  });
+
+  it('charges the higher Freeciv travel cost for military unhappiness', () => {
+    const content = rankMilitaryObjectives(
+      context({
+        hostileUnits: [unit('guard', 'warrior', 2, 0)],
+      })
+    )[0];
+    const unhappy = rankMilitaryObjectives(
+      context({
+        hostileUnits: [unit('guard', 'warrior', 2, 0)],
+        causesMilitaryUnhappiness: () => true,
+      })
+    )[0];
+
+    expect(unhappy.want).toBeLessThan(content.want);
+  });
+
   it('coordinates city attackers and requisitions an occupier for committed assault strength', () => {
     const base = context();
     const artilleryType = {

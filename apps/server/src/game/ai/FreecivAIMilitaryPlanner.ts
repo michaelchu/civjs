@@ -4,6 +4,13 @@ import type { Unit } from '@game/managers/UnitManager';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 
 const SHIELD_WEIGHTING = 17;
+const TRADE_WEIGHTING = 18;
+
+export interface ProjectedCityDefender {
+  rating: number;
+  cost: number;
+  unitTypeId: string;
+}
 
 export interface MilitaryObjective {
   kind: 'stack' | 'city';
@@ -35,6 +42,8 @@ export interface MilitaryPlanningContext {
   invasionSupport?: ReadonlyMap<string, CityInvasionSupport>;
   attackerRating?: (unit: Unit, type: UnitType) => number;
   defenderRating?: (attacker: Unit, defender: Unit, defenderType: UnitType) => number;
+  projectedDefender?: (city: CityState, attacker: Unit) => ProjectedCityDefender | undefined;
+  causesMilitaryUnhappiness?: (attacker: Unit) => boolean;
 }
 
 export interface MilitaryCampaignPlanningContext {
@@ -48,6 +57,8 @@ export interface MilitaryCampaignPlanningContext {
   acceptObjective?: (attacker: Unit, objective: MilitaryObjective) => boolean;
   attackerRating?: (unit: Unit, type: UnitType) => number;
   defenderRating?: (attacker: Unit, defender: Unit, defenderType: UnitType) => number;
+  projectedDefender?: (city: CityState, attacker: Unit) => ProjectedCityDefender | undefined;
+  causesMilitaryUnhappiness?: (attacker: Unit) => boolean;
 }
 
 export interface MilitaryCampaignPlan {
@@ -212,12 +223,20 @@ function scoreStack(
       attackRating(context.attacker, context.attackerType)) +
       support.attackRating) **
     2;
-  const vulnerability =
-    (context.defenderRating?.(context.attacker, defender, defenderType) ??
-      defenseRating(defender, defenderType)) ** 2;
+  let selectedDefense =
+    context.defenderRating?.(context.attacker, defender, defenderType) ??
+    defenseRating(defender, defenderType);
   const victimCount = city ? stack.length : vulnerableUnits.length;
   const travelTurns = context.travelTurns(defender.x, defender.y);
   if (travelTurns === undefined || travelTurns > 10) return undefined;
+  if (city && travelTurns > 1) {
+    const projected = context.projectedDefender?.(city, context.attacker);
+    if (projected && projected.rating > selectedDefense) {
+      selectedDefense = projected.rating;
+      benefit = Math.max(benefit, projected.cost);
+    }
+  }
+  const vulnerability = selectedDefense ** 2;
   const currentCost = Math.max(1, context.attackerType.cost);
   const needsOccupier =
     city && canOccupyCity(context.attackerType) && support.occupiers === 0 && support.attacks > 0;
@@ -231,7 +250,10 @@ function scoreStack(
           vulnerability,
           victimCount + (city ? 1 : 0)
         )) -
-    travelTurns * SHIELD_WEIGHTING;
+    travelTurns *
+      (context.causesMilitaryUnhappiness?.(context.attacker)
+        ? SHIELD_WEIGHTING + 2 * TRADE_WEIGHTING
+        : SHIELD_WEIGHTING);
   const want = amortize(raw, travelTurns);
   if (want <= 0) return undefined;
   return {
@@ -255,12 +277,30 @@ function scoreUndefendedCity(
   const travelTurns = context.travelTurns(city.x, city.y);
   if (travelTurns === undefined || travelTurns > 10) return undefined;
   const support = context.invasionSupport?.get(city.id) ?? emptyInvasionSupport();
-  const benefit = cityWorth(city);
+  const projected =
+    travelTurns > 1 ? context.projectedDefender?.(city, context.attacker) : undefined;
+  const benefit = cityWorth(city) + (projected?.cost ?? 0);
+  const attack =
+    (context.attackerRating?.(context.attacker, context.attackerType) ??
+      attackRating(context.attacker, context.attackerType)) ** 2;
   const raw =
     support.occupiers === 0 && support.attacks > 0
       ? Math.max(1, context.attackerType.cost) * SHIELD_WEIGHTING
-      : benefit * SHIELD_WEIGHTING;
-  const want = amortize(raw - travelTurns * SHIELD_WEIGHTING, travelTurns);
+      : projected
+        ? killDesire(
+            benefit,
+            attack,
+            Math.max(1, context.attackerType.cost) + support.buildCost,
+            projected.rating ** 2,
+            1
+          )
+        : benefit * SHIELD_WEIGHTING;
+  const travelCost =
+    travelTurns *
+    (context.causesMilitaryUnhappiness?.(context.attacker)
+      ? SHIELD_WEIGHTING + 2 * TRADE_WEIGHTING
+      : SHIELD_WEIGHTING);
+  const want = amortize(raw - travelCost, travelTurns);
   if (want <= 0) return undefined;
   return {
     kind: 'city',
@@ -366,6 +406,8 @@ export function planMilitaryCampaign(
       invasionSupport: support,
       attackerRating: context.attackerRating,
       defenderRating: context.defenderRating,
+      projectedDefender: context.projectedDefender,
+      causesMilitaryUnhappiness: context.causesMilitaryUnhappiness,
     }).find(candidate => context.acceptObjective?.(attacker.unit, candidate) ?? true);
     if (!objective) continue;
 

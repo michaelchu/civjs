@@ -1373,6 +1373,11 @@ export class CityManager {
     };
   }
 
+  getCityMilitaryUnhappiness(cityId: string): number {
+    const city = this.cities.get(cityId);
+    return city ? this.getCityHappinessSupport(city).militaryUnhappiness : 0;
+  }
+
   public calculateCityOutputs(cityId: string): {
     food: number;
     shields: number;
