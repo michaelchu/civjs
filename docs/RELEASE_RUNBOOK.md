@@ -25,8 +25,8 @@ npm run backup:verify -- <archive.dump>`. The verifier checks the SHA-256
 3. Run `npm run format:check`, `npm run lint`, `npm run typecheck`,
    `npm run test:unit`, `npm run test:e2e`, and `npm run build`.
 4. Run all PostgreSQL integration tests in a disposable local service with
-   `npm run test:integration:docker`. To use an already isolated database
-   instead, run `TEST_DATABASE_URL=... npm run test:integration`.
+   `npm run test:integration`. To use an already isolated database instead,
+   run `TEST_DATABASE_URL=... npm run test:integration:direct`.
 5. Apply migrations with `npm run db:migrate:prod` from `apps/server`.
 6. Start the server only after migrations succeed.
 

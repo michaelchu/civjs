@@ -18,7 +18,7 @@ try {
   const startup = run('docker', [...composeArgs, 'up', '-d', '--wait']);
   if (startup !== 0) process.exitCode = startup;
   else {
-    exitCode = run('npm', ['run', 'test:integration'], {
+    exitCode = run('npm', ['run', 'test:integration:direct'], {
       env: { ...process.env, TEST_DATABASE_URL: testDatabaseUrl },
     });
     process.exitCode = exitCode;

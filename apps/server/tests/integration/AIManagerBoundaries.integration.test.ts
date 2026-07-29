@@ -986,9 +986,14 @@ describe('AI authoritative manager boundaries', () => {
     );
 
     const state = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
+    const target = findRoadableCityTile(scenario.game, city.id);
     city.currentProduction = null;
     city.productionType = null;
     city.worklist = [];
+    city.buildings.push('barracks');
+    city.workerTaskRequests = [
+      { x: target.x, y: target.y, action: ActionType.BUILD_ROAD, want: 500 },
+    ];
     const cityController = (gameManager as any).aiOrchestrator.playerController.city;
     await cityController.selectProduction(scenario.game, guest!.playerId, state);
 
@@ -1004,12 +1009,8 @@ describe('AI authoritative manager boundaries', () => {
       .find(unit => unit.unitTypeId === 'settlers' && unit.homeCityId === city.id);
     expect(worker).toBeDefined();
 
-    const target = findRoadableCityTile(scenario.game, city.id);
     expect(await scenario.game.unitManager.moveUnit(worker!.id, target.x, target.y)).toBe(true);
     worker!.movementLeft = settlerType.movement;
-    city.workerTaskRequests = [
-      { x: target.x, y: target.y, action: ActionType.BUILD_ROAD, want: 500 },
-    ];
 
     const unitController = (gameManager as any).aiOrchestrator.playerController.units;
     expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
@@ -1047,6 +1048,7 @@ describe('AI authoritative manager boundaries', () => {
     city.currentProduction = null;
     city.productionType = null;
     city.worklist = [];
+    city.buildings.push('barracks');
     city.goldPerTurn = -10;
     const state = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
     const cityController = (gameManager as any).aiOrchestrator.playerController.city;

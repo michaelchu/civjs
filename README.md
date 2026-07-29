@@ -97,7 +97,7 @@ npm run typecheck           # Type-check both applications
 # Tests
 npm run test                # All unit tests (client and server)
 npm run test:unit           # Same as npm run test
-npm run test:integration    # Server integration tests (PostgreSQL required)
+npm run test:integration    # Server integration tests (disposable Docker PostgreSQL)
 npm run test:all            # Unit and integration tests
 
 # Docker
@@ -106,9 +106,9 @@ npm run docker:up           # Start the existing complete stack
 npm run docker:down         # Stop the complete stack
 ```
 
-Integration tests require an isolated PostgreSQL test database. See
-`apps/server/tests/setup.integration.ts` for the required `TEST_DATABASE_URL`
-configuration.
+Integration tests default to a disposable Docker PostgreSQL database. To run
+against an already isolated database, use
+`TEST_DATABASE_URL=... npm run test:integration:direct`.
 
 ## Architecture
 
