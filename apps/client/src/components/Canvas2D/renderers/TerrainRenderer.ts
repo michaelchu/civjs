@@ -568,8 +568,31 @@ export class TerrainRenderer extends BaseRenderer {
               break;
             }
             case MATCH_PAIR: {
-              // MATCH_PAIR doesn't work in freeciv-web either (returns empty array)
-              // Skip this corner entirely
+              // MATCH_PAIR encodes whether each adjacent tile has the
+              // secondary match index, then uses the corresponding generated
+              // cell sprite (for example lake_cell_u_s_l_s).
+              const thatMatchIndex = dlp['match_index'][1];
+              const b1 = m[2] == thatMatchIndex ? 1 : 0;
+              const b2 = m[1] == thatMatchIndex ? 1 : 0;
+              const b3 = m[0] == thatMatchIndex ? 1 : 0;
+              array_index = array_index * 2 + b1;
+              array_index = array_index * 2 + b2;
+              array_index = array_index * 2 + b3;
+
+              const matchTypes = (window as any).ts_layer?.[l]?.match_types || [];
+              const thisMatchLetter = matchTypes[dlp['match_index'][0]]?.[0] || '';
+              const thatMatchLetter = matchTypes[thatMatchIndex]?.[0] || '';
+              const matchTypeLetter = (matchIndex: number): string =>
+                matchIndex == thatMatchIndex ? thatMatchLetter : thisMatchLetter;
+              // Sprite names are preloaded in m[0], m[1], m[2] order. The
+              // draw-time bit packing above is intentionally reversed.
+              const matchLetters = [m[0], m[1], m[2]].map(matchTypeLetter).join('_');
+              const directionLetters = ['u', 'd', 'r', 'l'];
+              result_sprites.push({
+                key: `t.l${l}.${pterrain['graphic_str']}_cell_${directionLetters[i]}_${matchLetters}`,
+                offset_x: x,
+                offset_y: y,
+              });
               continue;
             }
             case MATCH_FULL: {

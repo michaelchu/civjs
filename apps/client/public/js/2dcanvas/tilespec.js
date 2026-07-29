@@ -767,16 +767,34 @@ function fill_terrain_sprite_array(l, ptile, pterrain, tterrain_near) {
             array_index = array_index * 2 + b3;
             break;
           case MATCH_PAIR:
-            // FIXME: This doesn't work!
-            /*var b1 = (m[2] == that_match_index) ? 1 : 0;
-            var b2 = (m[1] == that_match_index) ? 1 : 0;
-            var b3 = (m[0] == that_match_index) ? 1 : 0;
+            var that_match_index = dlp['match_index'][1];
+            var b1 = m[2] == that_match_index ? 1 : 0;
+            var b2 = m[1] == that_match_index ? 1 : 0;
+            var b3 = m[0] == that_match_index ? 1 : 0;
             array_index = array_index * 2 + b1;
             array_index = array_index * 2 + b2;
-            array_index = array_index * 2 + b3;*/
-
-            return [];
-
+            array_index = array_index * 2 + b3;
+            var match_types = ts_layer[l]['match_types'];
+            var this_match_letter = match_types[dlp['match_index'][0]][0];
+            var that_match_letter = match_types[that_match_index][0];
+            var match_letters = [m[0], m[1], m[2]]
+              .map(function (match_index) {
+                return match_index == that_match_index ? that_match_letter : this_match_letter;
+              })
+              .join('_');
+            result_sprites.push({
+              key:
+                't.l' +
+                l +
+                '.' +
+                pterrain['graphic_str'] +
+                '_cell_' +
+                ['u', 'd', 'r', 'l'][i] +
+                '_' +
+                match_letters,
+              offset_x: x,
+              offset_y: y,
+            });
             break;
           case MATCH_FULL:
             {
