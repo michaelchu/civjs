@@ -5,6 +5,7 @@ import * as schema from '@database/schema';
 import { createAIProfile } from '@game/ai/AIProfile';
 import { assertAIState, type FreecivAIState } from '@game/ai/AIStateStore';
 import { hostileUnitsForPlanning } from '@game/ai/AITargeting';
+import { BUILDING_TYPES } from '@game/managers/CityManager';
 import { GameManager, type GameInstance } from '@game/managers/GameManager';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 import {
@@ -1026,6 +1027,42 @@ describe('AI authoritative manager boundaries', () => {
       where: eq(schema.units.id, worker!.id),
     });
     expect(persistedWorker?.orders).toEqual([]);
+  });
+
+  it('chooses, completes, and persists an economic city improvement through authoritative managers', async () => {
+    const scenario = await createActiveGame(2);
+    const [, guest] = scenario.players;
+    const city = await foundPlayerCity(scenario, guest!.playerId, 'AI Economy City');
+    await gameManager.setPlayerAIControl(
+      scenario.gameId,
+      scenario.hostUserId,
+      guest!.playerId,
+      true,
+      { aiLevel: 'normal' }
+    );
+
+    await gameManager.createUnit(scenario.gameId, guest!.playerId, 'settlers', city.x, city.y);
+    await gameManager.createUnit(scenario.gameId, guest!.playerId, 'warriors', city.x, city.y);
+    city.currentProduction = null;
+    city.productionType = null;
+    city.worklist = [];
+    city.goldPerTurn = -10;
+    const state = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
+    const cityController = (gameManager as any).aiOrchestrator.playerController.city;
+
+    await cityController.selectProduction(scenario.game, guest!.playerId, state);
+
+    expect(city.currentProduction).toBe('marketplace');
+    const marketplace = BUILDING_TYPES.marketplace;
+    city.productionStock = marketplace.cost;
+    city.shieldStock = marketplace.cost;
+    await scenario.game.cityManager.processCityTurn(city.id, scenario.game.currentTurn);
+    expect(city.buildings).toContain('marketplace');
+
+    const persistedCity = await getTestDatabase().query.cities.findFirst({
+      where: eq(schema.cities.id, city.id),
+    });
+    expect(persistedCity?.buildings).toContain('marketplace');
   });
 
   it('selects, completes, persists, and recovers a spaceship part through real managers', async () => {
