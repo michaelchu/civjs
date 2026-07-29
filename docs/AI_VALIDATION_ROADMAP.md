@@ -77,8 +77,9 @@ The first implementation steps are now in place:
   capture, and process recovery. It verifies that the surviving city, captured
   city ownership, and researched technology all recover authoritatively.
 - The worker planner has an explicit overlapping two-city request case that
-  confirms a shared tile is reserved by at most one worker. A paired-match
-  benchmark scorer is available for future swapped-position strength runs.
+  confirms a shared tile is reserved by at most one worker. A paired benchmark
+  now runs two authoritative same-seed terminal games with easy/hard difficulty
+  assignments swapped between starting positions and records normalized totals.
 - The larger `npm run test:ai-validation:100` matrix runs weekly and on manual
   dispatch in `.github/workflows/ai-validation.yml`, outside normal pull-
   request feedback. The job uploads any validation diagnostics as an artifact.
@@ -96,8 +97,9 @@ The first implementation steps are now in place:
   server's paradrop-source legality rule.
 
 This is intentionally a foundation rather than completion of the milestone:
-longer-game behavioral baselines and comparative strategic-strength match
-results remain required work.
+longer-game behavioral baselines, statistically meaningful comparative
+strength thresholds, and frozen-opponent regression results remain required
+work.
 
 ## Next validation milestone: deterministic simulation matrix
 

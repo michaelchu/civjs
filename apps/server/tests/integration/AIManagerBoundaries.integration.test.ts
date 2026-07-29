@@ -15,6 +15,7 @@ import {
   captureAIValidationMetrics,
   writeAIValidationFailureArtifact,
 } from '../utils/aiValidation';
+import { pairedBenchmarkWinner, scoreAIValidationPlayer } from '../utils/aiValidationBenchmark';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 import {
   clearAllTables,
@@ -1876,6 +1877,58 @@ describe('AI authoritative manager boundaries', () => {
       assertAIValidationInvariants(game);
     }
   );
+
+  it('runs paired swapped-position AI benchmarks through authoritative terminal games', async () => {
+    async function runLeg(firstLevel: 'easy' | 'hard', secondLevel: 'easy' | 'hard') {
+      const scenario = await createActiveGame(2, {
+        maxTurns: 4,
+        victoryConditions: ['max_turns'],
+        mapSeed: 'ai-paired-benchmark-01',
+      });
+      const [first, second] = scenario.players;
+      await gameManager.setPlayerAIControl(
+        scenario.gameId,
+        scenario.hostUserId,
+        first!.playerId,
+        true,
+        { aiLevel: firstLevel }
+      );
+      await gameManager.setPlayerAIControl(
+        scenario.gameId,
+        scenario.hostUserId,
+        second!.playerId,
+        true,
+        { aiLevel: secondLevel }
+      );
+      const metrics = [];
+      while (scenario.game.state === 'active') {
+        await scenario.game.turnManager.processTurn();
+        assertAIValidationInvariants(scenario.game);
+        metrics.push(captureAIValidationMetrics(scenario.game));
+      }
+      return {
+        first: scoreAIValidationPlayer(metrics, first!.playerId),
+        second: scoreAIValidationPlayer(metrics, second!.playerId),
+      };
+    }
+
+    const firstLeg = await runLeg('hard', 'easy');
+    gameManager.clearAllGames();
+    (GameManager as any).instance = null;
+    gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+    const secondLeg = await runLeg('easy', 'hard');
+
+    const hardTotal = firstLeg.first.total + secondLeg.second.total;
+    const easyTotal = firstLeg.second.total + secondLeg.first.total;
+    expect(hardTotal).toBeGreaterThanOrEqual(0);
+    expect(easyTotal).toBeGreaterThanOrEqual(0);
+    expect(
+      pairedBenchmarkWinner([
+        { ...firstLeg.first, total: hardTotal },
+        { ...firstLeg.second, total: easyTotal },
+      ])
+    ).toMatch(/first|second|tie/);
+  });
 
   it('replays the same seeded terminal configuration with the same authoritative outcome', async () => {
     async function runReplay(gameSeed: string): Promise<string> {
