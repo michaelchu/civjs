@@ -50,7 +50,8 @@ The first implementation steps are now in place:
   phase and turn, map/entity snapshot, AI planning state, failure diagnosis,
   and a focused Docker reproduction command.
 - AI state retains a bounded, restart-safe decision trace for recent subsystem
-  attempts (turn, phase label, action count, and error/rejection reason). The
+  attempts (turn, phase label, input city/unit/task footprint, action count,
+  authoritative post-action economic delta, and error/rejection reason). The
   trace is included in the matrix artifact through the saved AI state.
 - A normalized terminal replay fingerprint compares map features, city/unit
   state, behavioral metrics, and decision outcomes while excluding generated
@@ -85,9 +86,9 @@ The first implementation steps are now in place:
   server's paradrop-source legality rule.
 
 This is intentionally a foundation rather than completion of the milestone:
-candidate-score/economic-delta traces, empirical 100-seed baseline results,
-long-running multi-city empire lifecycle coverage, and comparative
-strategic-strength match results remain required work.
+candidate-score traces, empirical 100-seed baseline results, long-running
+multi-city empire lifecycle coverage, and comparative strategic-strength match
+results remain required work.
 
 ## Next validation milestone: deterministic simulation matrix
 

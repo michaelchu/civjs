@@ -56,14 +56,15 @@ export class FreecivAIOrchestrator {
         game,
         player.id,
         state,
-        (label, decision) => this.attempt(state, game.currentTurn ?? 0, label, decision)
+        (label, decision) =>
+          this.attempt(state, game, player.id, game.currentTurn ?? 0, label, decision)
       );
       actions += playerActions;
       state.lastProcessedTurn = game.currentTurn;
       state.lastDecisionCount = playerActions;
       delete state.inProgressTurn;
       player.aiState = state as unknown as Record<string, unknown>;
-      await this.attempt(state, game.currentTurn ?? 0, 'state persistence', async () => {
+      await this.attempt(state, game, player.id, game.currentTurn ?? 0, 'state persistence', async () => {
         await this.stateStore.save(gameId, player.id, state);
         return 0;
       });
@@ -216,23 +217,72 @@ export class FreecivAIOrchestrator {
 
   private async attempt(
     state: FreecivAIState,
+    game: GameInstance,
+    playerId: string,
     turn: number,
     label: string,
     decision: () => Promise<number>
   ): Promise<number> {
+    const before = this.traceSnapshot(game, playerId, state);
     try {
       const actions = await decision();
-      this.recordDecision(state, { turn, label, actions });
+      const after = this.traceSnapshot(game, playerId, state);
+      this.recordDecision(state, {
+        turn,
+        label,
+        actions,
+        input: before.input,
+        economicDelta: this.economicDelta(before.economy, after.economy),
+      });
       return actions;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.recordDecision(state, { turn, label, actions: 0, error: message });
+      const after = this.traceSnapshot(game, playerId, state);
+      this.recordDecision(state, {
+        turn,
+        label,
+        actions: 0,
+        input: before.input,
+        economicDelta: this.economicDelta(before.economy, after.economy),
+        error: message,
+      });
       logger.warn('CivJS AI decision failed', {
         decision: label,
         error: message,
       });
       return 0;
     }
+  }
+
+  private traceSnapshot(game: GameInstance, playerId: string, state: FreecivAIState) {
+    const cities = game.cityManager.getPlayerCities(playerId);
+    return {
+      input: {
+        cities: cities.length,
+        units: game.unitManager.getPlayerUnits(playerId).length,
+        tasks: Object.keys(state.unitTasks).length,
+      },
+      economy: {
+        population: cities.reduce((total, city) => total + city.population, 0),
+        food: cities.reduce((total, city) => total + (city.foodPerTurn ?? 0), 0),
+        production: cities.reduce((total, city) => total + (city.productionPerTurn ?? 0), 0),
+        trade: cities.reduce((total, city) => total + (city.tradePerTurn ?? 0), 0),
+        science: cities.reduce((total, city) => total + (city.sciencePerTurn ?? 0), 0),
+      },
+    };
+  }
+
+  private economicDelta(
+    before: ReturnType<FreecivAIOrchestrator['traceSnapshot']>['economy'],
+    after: ReturnType<FreecivAIOrchestrator['traceSnapshot']>['economy']
+  ) {
+    return {
+      population: after.population - before.population,
+      food: after.food - before.food,
+      production: after.production - before.production,
+      trade: after.trade - before.trade,
+      science: after.science - before.science,
+    };
   }
 
   private recordDecision(

@@ -39,6 +39,18 @@ export interface AIDecisionTrace {
   turn: number;
   label: string;
   actions: number;
+  input?: {
+    cities: number;
+    units: number;
+    tasks: number;
+  };
+  economicDelta?: {
+    population: number;
+    food: number;
+    production: number;
+    trade: number;
+    science: number;
+  };
   error?: string;
 }
 
@@ -76,6 +88,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function assertOptionalNumber(value: unknown, field: string): void {
   if (value !== undefined && typeof value !== 'number') {
     throw new Error(`AI state ${field} is invalid`);
+  }
+}
+
+function assertTraceNumbers(value: unknown, field: string, keys: readonly string[]): void {
+  if (!isRecord(value) || keys.some(key => typeof value[key] !== 'number')) {
+    throw new Error(`AI state decision trace ${field} is invalid`);
   }
 }
 
@@ -117,6 +135,18 @@ export function assertAIState(value: unknown): FreecivAIState {
         (entry.error !== undefined && typeof entry.error !== 'string')
       ) {
         throw new Error('AI state decision trace entry is invalid');
+      }
+      if (entry.input !== undefined) {
+        assertTraceNumbers(entry.input, 'input', ['cities', 'units', 'tasks']);
+      }
+      if (entry.economicDelta !== undefined) {
+        assertTraceNumbers(entry.economicDelta, 'economic delta', [
+          'population',
+          'food',
+          'production',
+          'trade',
+          'science',
+        ]);
       }
     }
   }

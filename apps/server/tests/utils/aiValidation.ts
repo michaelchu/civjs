@@ -107,7 +107,14 @@ export function buildAIValidationReplayFingerprint(game: GameInstance): string {
     metrics: captureAIValidationMetrics(game).players.map(({ id: _id, ...metrics }) => metrics),
     decisions: [...game.players.values()]
       .flatMap(player => assertAIState(player.aiState).recentDecisionTrace ?? [])
-      .map(trace => [trace.turn, trace.label, trace.actions, trace.error ?? null])
+      .map(trace => [
+        trace.turn,
+        trace.label,
+        trace.actions,
+        trace.input ?? null,
+        trace.economicDelta ?? null,
+        trace.error ?? null,
+      ])
       .sort((left, right) => `${left}`.localeCompare(`${right}`)),
   });
 }

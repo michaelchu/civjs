@@ -320,8 +320,17 @@ describe('FreecivAIOrchestrator', () => {
     const trace = (scenario.game.players.get('ai') as any).aiState.recentDecisionTrace;
     expect(trace).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ turn: 0, label: 'citizens' }),
-        expect.objectContaining({ turn: 0, label: 'state persistence' }),
+        expect.objectContaining({
+          turn: 0,
+          label: 'citizens',
+          input: expect.objectContaining({ cities: 1, units: 4 }),
+          economicDelta: expect.objectContaining({ production: expect.any(Number) }),
+        }),
+        expect.objectContaining({
+          turn: 0,
+          label: 'state persistence',
+          economicDelta: expect.objectContaining({ science: expect.any(Number) }),
+        }),
       ])
     );
     expect(trace.length).toBeLessThanOrEqual(50);
