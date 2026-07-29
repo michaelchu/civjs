@@ -25,6 +25,7 @@ import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import type { Server as SocketServer } from 'socket.io';
 import type { CityGovernorService } from './CityGovernorService';
 import type { CityTileManagementService } from './CityTileManagementService';
+import { isSpaceshipPart } from './SpaceshipService';
 
 // Import types from CityManager (we'll need to make these available)
 export interface CityState {
@@ -543,7 +544,10 @@ export class CityTurnProcessingService extends BaseGameService {
 
     if (city.productionType === 'building') {
       // Add the building to the city
-      if (!city.buildings.includes(city.currentProduction)) {
+      if (
+        !isSpaceshipPart(city.currentProduction) &&
+        !city.buildings.includes(city.currentProduction)
+      ) {
         city.buildings.push(city.currentProduction);
       }
     } else if (city.productionType === 'unit') {
@@ -570,6 +574,16 @@ export class CityTurnProcessingService extends BaseGameService {
     city.productionStock = remainingStock;
     city.shieldStock = remainingStock;
     city.turnsToComplete = 0;
+
+    // Commit national/unit state before validating the next worklist item.
+    // This is significant for capped repeatable projects such as spaceship
+    // parts: the newly completed part must count against the next choice.
+    if (this.dependencies.callbacks.onCityProductionComplete) {
+      const result = this.dependencies.callbacks.onCityProductionComplete(city, productionItem);
+      if (result instanceof Promise) {
+        await result;
+      }
+    }
 
     // Continue with the next authoritative worklist item. Invalidated items
     // are discarded rather than leaving the city permanently idle.
@@ -605,14 +619,6 @@ export class CityTurnProcessingService extends BaseGameService {
           productionType: completedProductionType,
           productionId: completedProductionId,
         });
-      }
-    }
-
-    // Trigger callback
-    if (this.dependencies.callbacks.onCityProductionComplete) {
-      const result = this.dependencies.callbacks.onCityProductionComplete(city, productionItem);
-      if (result instanceof Promise) {
-        await result;
       }
     }
   }

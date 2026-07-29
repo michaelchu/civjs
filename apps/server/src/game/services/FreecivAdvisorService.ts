@@ -11,6 +11,7 @@ import { EffectType } from '@game/managers/EffectsManager';
 import type { GameInstance } from '@game/managers/GameManager';
 import type { Unit } from '@game/managers/UnitManager';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
+import { planSpaceship } from '@game/ai/FreecivAISpaceshipPlanner';
 
 export interface AdvisorRecommendations {
   playerId: string;
@@ -74,6 +75,21 @@ export class FreecivAdvisorService {
     const cities = game.cityManager.getPlayerCities(playerId);
     const research = game.researchManager.getPlayerResearch(playerId);
     const knownTechs = new Set(research?.researchedTechs ?? []);
+    const spaceshipPlan = planSpaceship({
+      enabled: (game.config?.victoryConditions ?? []).some(condition =>
+        ['science', 'spaceship'].includes(condition)
+      ),
+      playerId,
+      citiesByPlayer: new Map(
+        [...game.players.keys()].map(candidateId => [
+          candidateId,
+          game.cityManager.getPlayerCities(candidateId),
+        ])
+      ),
+      technologyCount: candidateId =>
+        game.researchManager.getPlayerResearch(candidateId)?.researchedTechs.size ?? 0,
+      spaceshipState: candidateId => game.players.get(candidateId)?.spaceshipState,
+    });
     const governmentTechs = new Set<string>();
     for (const government of Object.values(game.governmentManager?.getAllGovernments?.() ?? {})) {
       for (const requirement of government.reqs ?? []) {
@@ -109,6 +125,7 @@ export class FreecivAdvisorService {
           game.cityManager.canCityContinueProduction?.(city.id, kind, id) ?? false,
         dangerAssessment: danger,
         profile,
+        buildingWants: spaceshipPlan.buildingWants.get(city.id),
       })
         .slice(0, 5)
         .map(choice => ({
@@ -136,13 +153,14 @@ export class FreecivAdvisorService {
       cityCount: cities.length,
       profile,
       researchedTechs: knownTechs,
-      strategicTechWants: new Map(
-        Object.entries(
+      strategicTechWants: new Map([
+        ...Object.entries(
           player.isAI && player.aiState && typeof player.aiState.techWants === 'object'
             ? (player.aiState.techWants as Record<string, number>)
             : {}
-        )
-      ),
+        ),
+        ...spaceshipPlan.technologyWants,
+      ]),
     })
       .slice(0, 5)
       .map(choice => ({

@@ -27,6 +27,9 @@ export interface WarDesireContext {
   aggressiveTrait: number;
   diplomacyHandicap: boolean;
   targetIsHuman: boolean;
+  pursuingSpaceVictory?: boolean;
+  targetSpaceshipProgress?: number;
+  targetSpaceshipLaunched?: boolean;
 }
 
 function attackPower(unit: Unit, unitTypes: Readonly<Record<string, UnitType>>): number {
@@ -67,6 +70,10 @@ export function calculateWarDesire(context: WarDesireContext): number {
   fear += Math.max(0, context.targetTechCount - context.ownTechCount) * 100;
   want -= Math.max(0, (want * context.love) / 2000);
   want += (context.aggressiveTrait - 50) * 4;
+  if (!context.pursuingSpaceVictory) {
+    want += Math.round((context.targetSpaceshipProgress ?? 0) * 250);
+    if (context.targetSpaceshipLaunched) want += 2000;
+  }
   want = amortize(want, context.distance);
   if (context.relation.state === 'alliance') want /= 4;
   else if (context.relation.state === 'peace' && context.relation.hasReasonToCancel <= 0)

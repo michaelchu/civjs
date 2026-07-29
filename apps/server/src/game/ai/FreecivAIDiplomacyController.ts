@@ -8,6 +8,11 @@ import {
   evaluateTreaty,
   type TreatyValuationContext,
 } from '@game/ai/FreecivAIDiplomacyPlanner';
+import {
+  isSpaceshipOptimal,
+  normalizeSpaceshipState,
+  spaceshipProgress,
+} from '@game/services/SpaceshipService';
 
 /**
  * Applies Freeciv diplomacy memory and treaty decisions through the
@@ -38,6 +43,21 @@ export class FreecivAIDiplomacyController {
         game.researchManager.getAvailableTechnologies(playerId)
       ).map(technology => [technology.id, technology])
     );
+    const spaceRaceEnabled = (game.config?.victoryConditions ?? []).some(condition =>
+      ['science', 'spaceship'].includes(condition)
+    );
+    const spaceshipByPlayer = new Map(
+      [...game.players.keys()].map(candidateId => {
+        const counts = normalizeSpaceshipState(game.players.get(candidateId)?.spaceshipState);
+        return [candidateId, { counts, progress: spaceshipProgress(counts) }] as const;
+      })
+    );
+    const spaceLeaderId = spaceRaceEnabled
+      ? [...spaceshipByPlayer.entries()].sort(
+          ([leftId, left], [rightId, right]) =>
+            right.progress - left.progress || leftId.localeCompare(rightId)
+        )[0]?.[0]
+      : undefined;
     let actions = 0;
     const contacted = new Set<string>();
     for (const nation of snapshot.nations.slice().sort((a, b) => a.id.localeCompare(b.id))) {
@@ -86,6 +106,20 @@ export class FreecivAIDiplomacyController {
         aggressiveTrait: profile.traits.aggressive,
         diplomacyHandicap: profile.handicaps.has('diplomacy'),
         targetIsHuman: !nation.isAI,
+        pursuingSpaceVictory:
+          spaceRaceEnabled &&
+          spaceLeaderId === playerId &&
+          (spaceshipByPlayer.get(playerId)?.progress ?? 0) > 0,
+        targetSpaceshipProgress: spaceshipByPlayer.get(nation.id)?.progress ?? 0,
+        targetSpaceshipLaunched:
+          spaceshipByPlayer.get(nation.id)?.counts.launchedTurn !== undefined ||
+          isSpaceshipOptimal(
+            spaceshipByPlayer.get(nation.id)?.counts ?? {
+              structurals: 0,
+              components: 0,
+              modules: 0,
+            }
+          ),
       });
       memory.warDesire = Math.max(
         -1000,

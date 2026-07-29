@@ -47,6 +47,13 @@ import { CityTurnProcessingService } from '@game/services/CityTurnProcessingServ
 import { CityCalculationService } from '@game/services/CityCalculationService';
 import { CityHappinessService } from '@game/services/CityHappinessService';
 import { CityOptimizationService } from '@game/services/CityOptimizationService';
+import {
+  countSpaceshipPartCommitments,
+  isSpaceshipPart,
+  normalizeSpaceshipState,
+  SPACESHIP_PART_LIMITS,
+  type SpaceshipState,
+} from '@game/services/SpaceshipService';
 
 // Following original Freeciv city radius logic
 export const CITY_MAP_DEFAULT_RADIUS = 2;
@@ -329,6 +336,8 @@ export class CityManager {
   private playerGovernmentProvider?: (playerId: string) => string;
   private playerTechsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private playerBuildingsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
+  private playerSpaceshipProvider: (playerId: string) => SpaceshipState = () =>
+    normalizeSpaceshipState(undefined);
   private playerTaxRatesProvider: (playerId: string) => TaxRates = () => ({
     ...DEFAULT_TAX_RATES,
   });
@@ -386,6 +395,10 @@ export class CityManager {
   public setPlayerBuildingsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
     this.playerBuildingsProvider = provider;
     this.happinessService.setPlayerBuildingsProvider(provider);
+  }
+
+  public setPlayerSpaceshipProvider(provider: (playerId: string) => SpaceshipState): void {
+    this.playerSpaceshipProvider = provider;
   }
 
   public setPlayerTaxRatesProvider(provider: (playerId: string) => TaxRates): void {
@@ -991,8 +1004,10 @@ export class CityManager {
 
   private canCityQueueItem(city: CityState, kind: 'unit' | 'building', value: string): boolean {
     if (kind === 'building') {
-      // Check if building already exists
-      if (city.buildings.includes(value)) {
+      const spaceshipPart = isSpaceshipPart(value);
+      // Spaceship parts are repeatable national projects, not improvements
+      // installed once in a city.
+      if (!spaceshipPart && city.buildings.includes(value)) {
         return false;
       }
 
@@ -1001,6 +1016,30 @@ export class CityManager {
       const playerTechs = this.playerTechsProvider(city.playerId);
       if (building.requiredTech && !playerTechs.has(building.requiredTech)) return false;
       if (building.requires?.some(required => !city.buildings.includes(required))) return false;
+      if (spaceshipPart) {
+        if (
+          ![...this.cities.values()].some(candidate =>
+            candidate.buildings.includes('apollo_program')
+          )
+        ) {
+          return false;
+        }
+        const playerCities = [...this.cities.values()].filter(
+          candidate => candidate.playerId === city.playerId
+        );
+        const commitments = countSpaceshipPartCommitments(
+          this.playerSpaceshipProvider(city.playerId),
+          playerCities,
+          value
+        );
+        const currentProject = city.currentProduction === value;
+        if (
+          commitments > SPACESHIP_PART_LIMITS[value] ||
+          (!currentProject && commitments >= SPACESHIP_PART_LIMITS[value])
+        ) {
+          return false;
+        }
+      }
       if (building.genus === 'GreatWonder') {
         return ![...this.cities.values()].some(
           candidate =>
@@ -1047,13 +1086,16 @@ export class CityManager {
 
     // Validate production choice with specific error messages
     if (productionType === 'building') {
-      if (city.buildings.includes(productionId)) {
+      if (!isSpaceshipPart(productionId) && city.buildings.includes(productionId)) {
         throw new Error(`Building already exists: ${productionId}`);
       }
       if (!BUILDING_TYPES[productionId]) {
         throw new Error(`Unknown building type: ${productionId}`);
       }
       const building = BUILDING_TYPES[productionId];
+      if (isSpaceshipPart(productionId) && !this.canCityQueueItem(city, 'building', productionId)) {
+        throw new Error(`Spaceship part is not currently available: ${productionId}`);
+      }
       if (
         building.genus === 'GreatWonder' &&
         [...this.cities.values()].some(

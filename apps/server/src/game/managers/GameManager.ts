@@ -56,6 +56,7 @@ import {
   type NativeSaveArchive,
 } from '@game/services/NativeSaveService';
 import { ActionType, type ActionResult } from '@app-types/shared/actions';
+import type { SpaceshipState } from '@game/services/SpaceshipService';
 import { getUnitType } from '@game/constants/UnitConstants';
 import { GoldSpendingType } from '@game/systems/Economic/types/EconomicTypes';
 import {
@@ -152,6 +153,7 @@ export interface PlayerState {
   history?: number;
   teamId?: string;
   hasConceded?: boolean;
+  spaceshipState?: SpaceshipState;
   isReady: boolean;
   hasEndedTurn: boolean;
   isConnected: boolean;

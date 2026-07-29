@@ -91,6 +91,30 @@ describe('Freeciv AI diplomacy planner', () => {
     expect(profitable).toBeGreaterThan(dangerous);
   });
 
+  it('treats a rival launch as an overriding war target unless pursuing the space race', () => {
+    const base = {
+      ownCities: [city('home')],
+      targetCities: [city('rival')],
+      ownUnits: [],
+      targetUnits: [],
+      unitTypes: {},
+      ownTechCount: 10,
+      targetTechCount: 10,
+      targetGold: 0,
+      distance: 3,
+      love: 500,
+      relation: { ...treatyContext().relation, state: 'alliance' },
+      aggressiveTrait: 50,
+      diplomacyHandicap: false,
+      targetIsHuman: false,
+      targetSpaceshipProgress: 3,
+      targetSpaceshipLaunched: true,
+    } as any;
+
+    expect(calculateWarDesire(base)).toBeGreaterThan(250);
+    expect(calculateWarDesire({ ...base, pursuingSpaceVictory: true })).toBeLessThan(250);
+  });
+
   it('accepts a favorable technology exchange and rejects gold extortion', () => {
     expect(
       evaluateTreaty(

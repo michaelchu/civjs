@@ -50,6 +50,11 @@ import type {
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { assertAIState } from '@game/ai/FreecivAIStateStore';
 import { ScenarioUnavailableError } from '@game/map/ScenarioProvider';
+import {
+  completeSpaceshipPart,
+  isSpaceshipPart,
+  normalizeSpaceshipState,
+} from '@game/services/SpaceshipService';
 
 export interface GameLifecycleService {
   createGame(gameConfig: GameConfig): Promise<string>;
@@ -351,6 +356,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     cityManager.setPlayerBuildingsProvider(
       playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
     );
+    cityManager.setPlayerSpaceshipProvider(playerId =>
+      normalizeSpaceshipState(players.get(playerId)?.spaceshipState)
+    );
     cityManager.setPlayerGovernmentProvider(playerId => {
       const government = governmentManager.getPlayerGovernment(playerId)?.currentGovernment;
       if (!government) {
@@ -435,6 +443,17 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
             });
           }
         } else {
+          if (isSpaceshipPart(item.value)) {
+            const owner = players.get(city.playerId);
+            if (!owner) throw new Error(`Spaceship owner not found: ${city.playerId}`);
+            owner.spaceshipState = completeSpaceshipPart(owner.spaceshipState, item.value);
+            await this.databaseProvider
+              .getDatabase()
+              .update(playerRecords)
+              .set({ spaceshipState: owner.spaceshipState })
+              .where(eq(playerRecords.id, city.playerId));
+            return;
+          }
           const immediateTechs = effectsManager.calculateEffect(EffectType.GIVE_IMMEDIATE_TECH, {
             playerId: city.playerId,
             cityId: city.id,
@@ -973,6 +992,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         history: dbPlayer.history ?? 0,
         teamId: dbPlayer.teamId ?? undefined,
         hasConceded: dbPlayer.hasConceded ?? false,
+        spaceshipState: normalizeSpaceshipState(dbPlayer.spaceshipState),
         isReady: false,
         hasEndedTurn: false,
         isConnected: true,

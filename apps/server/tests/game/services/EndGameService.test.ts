@@ -228,6 +228,108 @@ describe('EndGameService', () => {
     unitsByPlayer.defeated = [];
   });
 
+  it('automatically launches a newly completed national spaceship', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const database = databaseProvider.getDatabase() as any;
+    database.query.players.findMany.mockResolvedValue([
+      {
+        id: 'winner',
+        civilization: 'Roman',
+        isAlive: true,
+        spaceshipState: { structurals: 16, components: 8, modules: 3 },
+      },
+      { id: 'defeated', civilization: 'Greek', isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+
+    await expect(
+      new EndGameService(databaseProvider, io).evaluate({
+        gameId: 'game-1',
+        turn: 20,
+        year: 1800,
+        victoryConditions: ['science'],
+        playerIds: ['winner', 'defeated'],
+        cityManager,
+        unitManager,
+        researchManager,
+      })
+    ).resolves.toEqual({ ended: false });
+
+    expect(database.update).toHaveBeenCalled();
+    expect(database.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spaceshipState: {
+          structurals: 16,
+          components: 8,
+          modules: 3,
+          launchedTurn: 20,
+          arrivalTurn: 30,
+        },
+      })
+    );
+    unitsByPlayer.defeated = [];
+  });
+
+  it('waits for the best possible ship before launching for a default AI player', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const database = databaseProvider.getDatabase() as any;
+    const winner = {
+      id: 'winner',
+      civilization: 'Roman',
+      isAlive: true,
+      isAI: true,
+      spaceshipState: { structurals: 16, components: 8, modules: 3 },
+    };
+    database.query.players.findMany.mockResolvedValue([
+      winner,
+      { id: 'defeated', civilization: 'Greek', isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+    const service = new EndGameService(databaseProvider, io);
+
+    await service.evaluate({
+      gameId: 'game-1',
+      turn: 20,
+      year: 1800,
+      victoryConditions: ['science'],
+      playerIds: ['winner', 'defeated'],
+      cityManager,
+      unitManager,
+      researchManager,
+    });
+    expect(database.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spaceshipState: { structurals: 16, components: 8, modules: 3 },
+      })
+    );
+
+    winner.spaceshipState = { structurals: 32, components: 16, modules: 12 };
+    jest.clearAllMocks();
+    database.query.players.findMany.mockResolvedValue([
+      winner,
+      { id: 'defeated', civilization: 'Greek', isAlive: true },
+    ]);
+    await service.evaluate({
+      gameId: 'game-1',
+      turn: 21,
+      year: 1820,
+      victoryConditions: ['science'],
+      playerIds: ['winner', 'defeated'],
+      cityManager,
+      unitManager,
+      researchManager,
+    });
+    expect(database.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spaceshipState: expect.objectContaining({
+          launchedTurn: 21,
+          arrivalTurn: 31,
+        }),
+      })
+    );
+    unitsByPlayer.defeated = [];
+  });
+
   it('awards a surviving team together', async () => {
     const databaseProvider = createMockDatabaseProvider();
     const database = databaseProvider.getDatabase() as any;

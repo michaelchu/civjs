@@ -13,6 +13,11 @@ import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { MapManager } from '@game/managers/MapManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 import { ActionType } from '@app-types/shared/actions';
+import {
+  completeSpaceshipPart,
+  normalizeSpaceshipState,
+  type SpaceshipState,
+} from '@game/services/SpaceshipService';
 
 describe('CityManager', () => {
   let cityManager: CityManager;
@@ -481,6 +486,37 @@ describe('CityManager', () => {
       expect(city.currentProduction).toBe('warriors');
       expect(city.productionType).toBe('unit');
       expect(city.worklist).toEqual([]);
+    });
+
+    it('builds repeatable spaceship parts after Apollo while enforcing the ship cap', async () => {
+      let spaceshipState: SpaceshipState = normalizeSpaceshipState(undefined);
+      cityManager.setPlayerTechsProvider(
+        () => new Set(['space_flight', 'plastics', 'superconductors'])
+      );
+      cityManager.setPlayerSpaceshipProvider(() => spaceshipState);
+      cityManager.setCallbacks({
+        onCityProductionComplete: (_completedCity, item) => {
+          if (item.value === 'space_structural') {
+            spaceshipState = completeSpaceshipPart(spaceshipState, item.value);
+          }
+        },
+      });
+      city.buildings.push('apollo_program', 'factory');
+
+      for (let completed = 0; completed < 2; completed++) {
+        await cityManager.setCityProduction(city.id, 'building', 'space_structural', 'player-123');
+        city.productionStock = BUILDING_TYPES.space_structural.cost;
+        city.shieldStock = BUILDING_TYPES.space_structural.cost;
+        await cityManager.processCityTurn(city.id, completed + 1);
+      }
+
+      expect(spaceshipState.structurals).toBe(2);
+      expect(city.buildings).not.toContain('space_structural');
+
+      spaceshipState.structurals = 32;
+      expect(cityManager.canCityContinueProduction(city.id, 'building', 'space_structural')).toBe(
+        false
+      );
     });
   });
 

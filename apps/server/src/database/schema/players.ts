@@ -60,7 +60,9 @@ export const players = pgTable('players', {
 
   // Score
   score: integer('score').default(0).notNull(),
-  spaceshipState: jsonb('spaceship_state').default({}).notNull(),
+  spaceshipState: jsonb('spaceship_state')
+    .default({ structurals: 0, components: 0, modules: 0 })
+    .notNull(),
 
   // Diplomacy
   knownPlayers: jsonb('known_players').default([]).notNull(), // array of player IDs

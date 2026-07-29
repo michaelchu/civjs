@@ -44,6 +44,7 @@ export interface ProductionPlanningContext {
   reservedWonders?: ReadonlySet<string>;
   excludedChoices?: ReadonlySet<string>;
   offensiveUnitWants?: ReadonlyMap<string, number>;
+  buildingWants?: ReadonlyMap<string, { want: number; reason: string }>;
 }
 
 const MORT = 24;
@@ -210,13 +211,15 @@ export function rankCityProduction(
     }
     if (building.genus === 'GreatWonder') want += Math.max(0, city.productionPerTurn ?? 0) * 4;
     if (building.genus === 'Convert') want = Math.max(want, 1);
+    const strategicWant = context.buildingWants?.get(building.id);
+    if (strategicWant) want += strategicWant.want;
 
     want = amortize(want, delay);
     if (want > 0) {
       choices.push({
         value: { kind: 'building', id: building.id },
         want,
-        reason: 'domestic effects',
+        reason: strategicWant?.reason ?? 'domestic effects',
       });
     }
   }

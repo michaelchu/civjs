@@ -9,6 +9,12 @@ import type { ResearchManager } from '@game/managers/ResearchManager';
 import type { UnitManager } from '@game/managers/UnitManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
+import {
+  isSpaceshipComplete,
+  isSpaceshipOptimal,
+  normalizeSpaceshipState,
+  type SpaceshipState,
+} from '@game/services/SpaceshipService';
 
 export interface EndGameStanding {
   playerId: string;
@@ -29,14 +35,6 @@ export interface EndGameStanding {
     culture: number;
   };
   spaceship?: SpaceshipState;
-}
-
-export interface SpaceshipState {
-  structurals: number;
-  components: number;
-  modules: number;
-  launchedTurn?: number;
-  arrivalTurn?: number;
 }
 
 export interface EndGameReport {
@@ -117,9 +115,9 @@ export class EndGameService {
         !(player?.hasConceded ?? false) &&
         (playerCities.length > 0 || playerUnits.length > 0);
       const spaceship = this.getSpaceshipState(
-        playerCities,
-        player?.spaceshipState as Partial<SpaceshipState> | undefined,
-        context.turn
+        player?.spaceshipState,
+        context.turn,
+        player?.isAI === true
       );
       const score =
         population * 10 +
@@ -312,27 +310,15 @@ export class EndGameService {
   }
 
   private getSpaceshipState(
-    playerCities: ReturnType<CityManager['getPlayerCities']>,
-    persisted: Partial<SpaceshipState> | undefined,
-    turn: number
+    persisted: unknown,
+    turn: number,
+    waitForOptimal: boolean
   ): SpaceshipState {
-    const buildings = playerCities.flatMap(city => city.buildings ?? []);
-    const state: SpaceshipState = {
-      structurals: buildings.filter(building => building === 'space_structural').length,
-      components: buildings.filter(building => building === 'space_component').length,
-      modules: buildings.filter(building => building === 'space_module').length,
-      launchedTurn: persisted?.launchedTurn,
-      arrivalTurn: persisted?.arrivalTurn,
-    };
-    // At the current city-production abstraction, a complete classic ship is
-    // represented by the minimum viable 16/8/3 part inventory and launches
-    // automatically. Travel is deterministic and survives process recovery.
-    if (
-      state.launchedTurn === undefined &&
-      state.structurals >= 16 &&
-      state.components >= 8 &&
-      state.modules >= 3
-    ) {
+    const state = normalizeSpaceshipState(persisted);
+    const launchReady = waitForOptimal ? isSpaceshipOptimal(state) : isSpaceshipComplete(state);
+    // Humans launch at the minimum viable ship in the current native flow;
+    // default AI follows Freeciv and waits for the best possible ship.
+    if (state.launchedTurn === undefined && launchReady) {
       state.launchedTurn = turn;
       state.arrivalTurn = turn + 10;
     }

@@ -135,6 +135,39 @@ describe('CityProductionHandler', () => {
       );
     });
 
+    it('offers repeatable spaceship parts after Apollo until the national cap', async () => {
+      mockCities.get('city-1').buildings.push('apollo_program', 'factory');
+      mockPlayers.get('player-1').spaceshipState = {
+        structurals: 1,
+        components: 0,
+        modules: 0,
+      };
+
+      await handler.getAvailableProductions(mockSocket, {
+        cityId: 'city-1',
+        playerId: 'player-1',
+      });
+      let call = (mockSocket.emit as jest.MockedFunction<any>).mock.calls.find(
+        (entry: any) => entry[0] === 'city:availableProductions'
+      );
+      expect(
+        call[1].productions.find((production: any) => production.id === 'space_structural')
+      ).toEqual(expect.objectContaining({ available: true }));
+
+      mockPlayers.get('player-1').spaceshipState.structurals = 32;
+      (mockSocket.emit as jest.MockedFunction<any>).mockClear();
+      await handler.getAvailableProductions(mockSocket, {
+        cityId: 'city-1',
+        playerId: 'player-1',
+      });
+      call = (mockSocket.emit as jest.MockedFunction<any>).mock.calls.find(
+        (entry: any) => entry[0] === 'city:availableProductions'
+      );
+      expect(
+        call[1].productions.find((production: any) => production.id === 'space_structural')
+      ).toEqual(expect.objectContaining({ available: false }));
+    });
+
     it('should emit error for non-existent city', async () => {
       await handler.getAvailableProductions(mockSocket, {
         cityId: 'non-existent',

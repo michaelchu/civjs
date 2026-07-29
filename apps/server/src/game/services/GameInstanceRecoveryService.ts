@@ -24,6 +24,11 @@ import { GovernmentManager } from '@game/managers/GovernmentManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { isSettableAILevel } from '@game/ai/FreecivAIProfile';
 import { assertAIState } from '@game/ai/FreecivAIStateStore';
+import {
+  completeSpaceshipPart,
+  isSpaceshipPart,
+  normalizeSpaceshipState,
+} from '@game/services/SpaceshipService';
 
 /**
  * GameInstanceRecoveryService - Extracted game recovery operations from GameManager
@@ -154,6 +159,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
         history: dbPlayer.history ?? 0,
         teamId: dbPlayer.teamId ?? undefined,
         hasConceded: dbPlayer.hasConceded ?? false,
+        spaceshipState: normalizeSpaceshipState(dbPlayer.spaceshipState),
         isReady: dbPlayer.isReady || false,
         hasEndedTurn: dbPlayer.hasEndedTurn || false,
         isConnected: dbPlayer.connectionStatus === 'connected',
@@ -275,6 +281,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
     cityManager.setPlayerBuildingsProvider(
       playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
     );
+    cityManager.setPlayerSpaceshipProvider(playerId =>
+      normalizeSpaceshipState(players.get(playerId)?.spaceshipState)
+    );
     cityManager.setPlayerGovernmentProvider(playerId => {
       const government = governmentManager.getPlayerGovernment(playerId)?.currentGovernment;
       if (!government) {
@@ -328,6 +337,17 @@ export class GameInstanceRecoveryService extends BaseGameService {
       onCityProductionComplete: async (city, item) => {
         if (item.kind === 'unit') {
           await unitManager.createUnit(city.playerId, item.value, city.x, city.y, city.id);
+          return;
+        }
+        if (isSpaceshipPart(item.value)) {
+          const owner = players.get(city.playerId);
+          if (!owner) throw new Error(`Spaceship owner not found: ${city.playerId}`);
+          owner.spaceshipState = completeSpaceshipPart(owner.spaceshipState, item.value);
+          await this.databaseProvider
+            .getDatabase()
+            .update(playerRecords)
+            .set({ spaceshipState: owner.spaceshipState })
+            .where(eq(playerRecords.id, city.playerId));
           return;
         }
         const immediateTechs = effectsManager.calculateEffect(EffectType.GIVE_IMMEDIATE_TECH, {

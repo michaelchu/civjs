@@ -31,6 +31,7 @@ import { calculateDiplomatInciteCost } from '@game/services/DiplomatActionEconom
 import { calculateTreasuryReserve } from '@game/ai/FreecivAITreasuryPlanner';
 import type { Unit } from '@game/managers/UnitManager';
 import { planWonderCoordination } from '@game/ai/FreecivAIWonderPlanner';
+import { planSpaceship } from '@game/ai/FreecivAISpaceshipPlanner';
 
 /**
  * Executes citizen allocation, production, worklist, and city-local unit
@@ -142,6 +143,25 @@ export class FreecivAICityController {
     const knownTechs = new Set(
       game.researchManager.getPlayerResearch(playerId)?.researchedTechs ?? []
     );
+    const citiesByPlayer = new Map(
+      [...game.players.keys()].map(candidateId => [
+        candidateId,
+        game.cityManager.getPlayerCities(candidateId),
+      ])
+    );
+    const spaceshipPlan = planSpaceship({
+      enabled: (game.config?.victoryConditions ?? []).some(condition =>
+        ['science', 'spaceship'].includes(condition)
+      ),
+      playerId,
+      citiesByPlayer,
+      technologyCount: candidateId =>
+        game.researchManager.getPlayerResearch(candidateId)?.researchedTechs.size ?? 0,
+      spaceshipState: candidateId => game.players.get(candidateId)?.spaceshipState,
+    });
+    for (const [techId, want] of spaceshipPlan.technologyWants) {
+      state.techWants[techId] = (state.techWants[techId] ?? 0) + want;
+    }
     const economicManager = game.turnManager?.getEconomicManager?.();
     const gold =
       (await economicManager?.getPlayerGold(playerId)) ?? game.players.get(playerId)?.gold ?? 0;
@@ -448,6 +468,7 @@ export class FreecivAICityController {
             dangerAssessment,
             profile,
             offensiveUnitWants,
+            buildingWants: spaceshipPlan.buildingWants.get(city.id),
             reservedWonders,
             excludedChoices: new Set(
               [

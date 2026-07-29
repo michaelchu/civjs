@@ -1409,6 +1409,65 @@ describe('FreecivAIOrchestrator', () => {
     expect(Object.keys(ai.aiState.cityWants.capital).length).toBeGreaterThan(0);
   });
 
+  it('selects repeatable spaceship parts through the authoritative production path', async () => {
+    const scenario = createScenario();
+    const city = {
+      id: 'capital',
+      name: 'Capital',
+      x: 2,
+      y: 2,
+      playerId: 'ai',
+      population: 5,
+      size: 5,
+      currentProduction: null,
+      productionType: null,
+      productionPerTurn: 20,
+      foodPerTurn: 3,
+      goldPerTurn: 2,
+      tradePerTurn: 8,
+      defenseStrength: 1,
+      buildings: ['apollo_program', 'factory'],
+      worklist: [],
+      workableTiles: [],
+      happiness: { happy: 1, content: 4, unhappy: 0, angry: 0 },
+    };
+    (scenario.game as any).config = { victoryConditions: ['science'] };
+    (scenario.game.players.get('ai') as any).spaceshipState = {
+      structurals: 1,
+      components: 0,
+      modules: 0,
+    };
+    (scenario.game.cityManager as any).getPlayerCities = (candidateId: string) =>
+      candidateId === 'ai' ? [city] : [];
+    scenario.game.cityManager.getAllCities = () => [city];
+    (scenario.game.cityManager as any).canCityContinueProduction = (
+      _cityId: string,
+      kind: string,
+      id: string
+    ) => kind === 'building' && id.startsWith('space_');
+    scenario.game.researchManager.getPlayerResearch = () => ({
+      currentTech: undefined,
+      researchedTechs: new Set(['space_flight', 'plastics', 'superconductors']),
+    });
+    scenario.units.clear();
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.setCityProduction).toHaveBeenCalledWith(
+      'capital',
+      'building',
+      'space_structural',
+      'ai'
+    );
+    expect((scenario.game.players.get('ai') as any).aiState.techWants).toMatchObject({
+      plastics: 630,
+      superconductors: 630,
+    });
+  });
+
   it('holds wonder helpers until their combined shields can finish construction', async () => {
     const scenario = createScenario();
     const wonderCity = {

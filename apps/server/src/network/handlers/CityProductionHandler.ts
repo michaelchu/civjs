@@ -3,6 +3,12 @@ import { Socket } from 'socket.io';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
 import type { RequirementsManager } from '@game/managers/RequirementsManager';
+import {
+  countSpaceshipPartCommitments,
+  isSpaceshipPart,
+  normalizeSpaceshipState,
+  SPACESHIP_PART_LIMITS,
+} from '@game/services/SpaceshipService';
 // ProductionOption interface - shared between client and server
 interface ProductionOption {
   id: string;
@@ -271,8 +277,33 @@ export class CityProductionHandler {
    */
   private async canCityBuildBuilding(city: any, buildingType: any, player: any): Promise<boolean> {
     // Check if already built (can't build duplicates)
-    if (city.buildings?.includes(buildingType.id)) {
+    const buildingId = String(buildingType.id);
+    if (!isSpaceshipPart(buildingId) && city.buildings?.includes(buildingId)) {
       return false;
+    }
+    if (isSpaceshipPart(buildingId)) {
+      if (
+        ![...this.cities.values()].some(candidate =>
+          candidate.buildings?.includes('apollo_program')
+        )
+      ) {
+        return false;
+      }
+      const playerCities = [...this.cities.values()].filter(
+        candidate => candidate.playerId === player.id
+      );
+      const commitments = countSpaceshipPartCommitments(
+        normalizeSpaceshipState(player.spaceshipState),
+        playerCities,
+        buildingId
+      );
+      const currentProject = city.currentProduction === buildingId;
+      if (
+        commitments > SPACESHIP_PART_LIMITS[buildingId] ||
+        (!currentProject && commitments >= SPACESHIP_PART_LIMITS[buildingId])
+      ) {
+        return false;
+      }
     }
 
     if (buildingType.genus === 'GreatWonder') {

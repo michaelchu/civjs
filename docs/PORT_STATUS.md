@@ -73,7 +73,9 @@ porting requirement.
 Full Freeciv classic/default-AI functional parity is implemented for the
 supported classic baseline. Subsystem mappings and focused evidence are tracked
 directly in [`AI_PORTING_INVENTORY.md`](AI_PORTING_INVENTORY.md); no runtime
-compatibility contract narrows that scope.
+compatibility contract narrows that scope. The native port includes science
+victory strategy, national spaceship-part state, launch planning, and response
+to rival ships.
 
 ## Verification
 
