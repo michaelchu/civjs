@@ -7,6 +7,7 @@ import { assertAIState, type FreecivAIState } from '@game/ai/AIStateStore';
 import { hostileUnitsForPlanning } from '@game/ai/AITargeting';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
 import { GameManager, type GameInstance } from '@game/managers/GameManager';
+import { assertAIValidationInvariants } from '../utils/aiValidation';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 import {
   clearAllTables,
@@ -1380,45 +1381,13 @@ describe('AI authoritative manager boundaries', () => {
 
       const map = scenario.game.mapManager.getMapData()!;
       expect(map.seed).toBe(mapSeed);
-      const units = scenario.game.unitManager.getAllUnits();
       let totalDecisions = 0;
       for (const player of scenario.game.players.values()) {
         const state = assertAIState(player.aiState);
         totalDecisions += state.lastDecisionCount ?? 0;
-        const ownedIds = new Set(
-          scenario.game.unitManager.getPlayerUnits(player.id).map(unit => unit.id)
-        );
-        expect(Object.keys(state.unitTasks).every(unitId => ownedIds.has(unitId))).toBe(true);
       }
       expect(totalDecisions).toBeGreaterThan(0);
-
-      for (const unit of units.values()) {
-        expect(scenario.game.players.has(unit.playerId)).toBe(true);
-        expect(Number.isFinite(unit.x) && Number.isFinite(unit.y)).toBe(true);
-        expect(unit.x).toBeGreaterThanOrEqual(0);
-        expect(unit.y).toBeGreaterThanOrEqual(0);
-        expect(unit.x).toBeLessThan(map.width);
-        expect(unit.y).toBeLessThan(map.height);
-        expect(Number.isFinite(unit.health) && Number.isFinite(unit.movementLeft)).toBe(true);
-        if (unit.transportedBy) {
-          const transport = units.get(unit.transportedBy);
-          expect(transport).toBeDefined();
-          expect(transport?.cargoUnits).toContain(unit.id);
-          expect([unit.x, unit.y]).toEqual([transport?.x, transport?.y]);
-        }
-        for (const cargoId of unit.cargoUnits ?? []) {
-          expect(units.get(cargoId)?.transportedBy).toBe(unit.id);
-        }
-      }
-      for (const city of scenario.game.cityManager.getAllCities()) {
-        expect(scenario.game.players.has(city.playerId)).toBe(true);
-        expect(Number.isFinite(city.population)).toBe(true);
-        expect(city.population).toBeGreaterThan(0);
-        expect(city.x).toBeGreaterThanOrEqual(0);
-        expect(city.y).toBeGreaterThanOrEqual(0);
-        expect(city.x).toBeLessThan(map.width);
-        expect(city.y).toBeLessThan(map.height);
-      }
+      assertAIValidationInvariants(scenario.game);
     }
   );
 });

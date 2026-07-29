@@ -1017,6 +1017,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         maxPlayers: game.maxPlayers ?? undefined,
         mapWidth: game.mapWidth ?? undefined,
         mapHeight: game.mapHeight ?? undefined,
+        mapSeed: game.mapSeed ?? undefined,
         ruleset: game.ruleset ?? undefined,
         turnTimeLimit: game.turnTimeLimit ?? undefined,
         maxTurns: game.maxTurns ?? 0,
