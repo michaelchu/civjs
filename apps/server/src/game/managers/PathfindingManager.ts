@@ -15,6 +15,21 @@ export interface PathfindingResult {
   totalCost: number;
   estimatedTurns: number;
   valid: boolean;
+  weightedCost?: number;
+}
+
+export interface PathfindingOptions {
+  /**
+   * Adds non-negative planning cost without changing authoritative movement
+   * consumption. Return a negative value to make a step unavailable.
+   */
+  additionalStepCost?: (
+    unit: Unit,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number
+  ) => number;
 }
 
 export interface AccessibleTile {
@@ -83,7 +98,12 @@ export class PathfindingManager {
    * @reference freeciv/common/aicore/path_finding.c:pf_map_iterate() - Path iteration algorithm
    * @compliance Uses movement cost calculation and heuristic matching freeciv standards
    */
-  async findPath(unit: Unit, targetX: number, targetY: number): Promise<PathfindingResult> {
+  async findPath(
+    unit: Unit,
+    targetX: number,
+    targetY: number,
+    options: PathfindingOptions = {}
+  ): Promise<PathfindingResult> {
     const startTime = Date.now();
 
     logger.debug('PathfindingManager.findPath called', {
@@ -122,7 +142,7 @@ export class PathfindingManager {
       }
 
       // Run A* pathfinding
-      const path = this.aStar({ x: unit.x, y: unit.y }, { x: targetX, y: targetY }, unit);
+      const path = this.aStar({ x: unit.x, y: unit.y }, { x: targetX, y: targetY }, unit, options);
 
       if (!path || path.length === 0) {
         return {
@@ -133,26 +153,16 @@ export class PathfindingManager {
         };
       }
 
-      // Convert to PathTile format and calculate costs
-      const pathTiles = this.convertToPathTiles(path, unit);
-      const totalCost = pathTiles.reduce((sum, tile) => sum + tile.moveCost, 0);
-      const estimatedTurns = this.calculateTurns(totalCost, unit);
-
-      const result = {
-        path: pathTiles,
-        totalCost,
-        estimatedTurns,
-        valid: true,
-      };
+      const result = this.buildSuccessfulResult(path, unit, options);
 
       const duration = Date.now() - startTime;
       logger.info('Pathfinding completed', {
         unitId: unit.id,
         from: { x: unit.x, y: unit.y },
         to: { x: targetX, y: targetY },
-        pathLength: pathTiles.length,
-        totalCost,
-        estimatedTurns,
+        pathLength: result.path.length,
+        totalCost: result.totalCost,
+        estimatedTurns: result.estimatedTurns,
         durationMs: duration,
       });
 
@@ -172,6 +182,23 @@ export class PathfindingManager {
         valid: false,
       };
     }
+  }
+
+  private buildSuccessfulResult(
+    path: AStarNode[],
+    unit: Unit,
+    options: PathfindingOptions
+  ): PathfindingResult {
+    const pathTiles = this.convertToPathTiles(path, unit);
+    const totalCost = pathTiles.reduce((sum, tile) => sum + tile.moveCost, 0);
+    const lastNode = path[path.length - 1];
+    return {
+      path: pathTiles,
+      totalCost,
+      estimatedTurns: this.calculateTurns(totalCost, unit),
+      ...(options.additionalStepCost ? { weightedCost: lastNode.gCost } : {}),
+      valid: true,
+    };
   }
 
   /**
@@ -246,7 +273,8 @@ export class PathfindingManager {
   private aStar(
     start: { x: number; y: number },
     goal: { x: number; y: number },
-    unit: Unit
+    unit: Unit,
+    options: PathfindingOptions
   ): AStarNode[] | null {
     const { openSet, closedSet, nodes } = this.initializeAStarSearch(start, goal);
 
@@ -262,7 +290,7 @@ export class PathfindingManager {
         return this.reconstructPath(current);
       }
 
-      this.processNeighbors(current, goal, unit, openSet, closedSet, nodes);
+      this.processNeighbors(current, goal, unit, options, openSet, closedSet, nodes);
     }
 
     // No path found
@@ -320,6 +348,7 @@ export class PathfindingManager {
     current: AStarNode,
     goal: { x: number; y: number },
     unit: Unit,
+    options: PathfindingOptions,
     openSet: AStarNode[],
     closedSet: Set<string>,
     nodes: Map<string, AStarNode>
@@ -327,7 +356,7 @@ export class PathfindingManager {
     const neighbors = this.getNeighbors(current.x, current.y);
 
     for (const neighbor of neighbors) {
-      this.processNeighborNode(current, neighbor, goal, unit, openSet, closedSet, nodes);
+      this.processNeighborNode(current, neighbor, goal, unit, options, openSet, closedSet, nodes);
     }
   }
 
@@ -339,6 +368,7 @@ export class PathfindingManager {
     neighbor: { x: number; y: number },
     goal: { x: number; y: number },
     unit: Unit,
+    options: PathfindingOptions,
     openSet: AStarNode[],
     closedSet: Set<string>,
     nodes: Map<string, AStarNode>
@@ -361,7 +391,11 @@ export class PathfindingManager {
       return; // Unwalkable terrain
     }
 
-    const tentativeGCost = current.gCost + moveCost;
+    const additionalCost =
+      options.additionalStepCost?.(unit, current.x, current.y, neighbor.x, neighbor.y) ?? 0;
+    if (!Number.isFinite(additionalCost)) return;
+    if (additionalCost < 0) return;
+    const tentativeGCost = current.gCost + moveCost + additionalCost;
     let neighborNode = nodes.get(neighborKey);
 
     if (!neighborNode) {

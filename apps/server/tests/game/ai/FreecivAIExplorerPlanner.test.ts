@@ -91,6 +91,7 @@ function context(
       totalCost: Math.max(Math.abs(actor.x - targetX), Math.abs(actor.y - targetY)),
       estimatedTurns: 1,
     }),
+    mayExploreTile: () => true,
     knowsHuts: false,
     ...overrides,
   };
@@ -137,7 +138,7 @@ describe('FreecivAIExplorerPlanner', () => {
     expect(plan.tasks.scout).toMatchObject({ role: 'explore', targetX: 4, targetY: 2 });
   });
 
-  it('rejects paths exposed to an immediate hostile strike', async () => {
+  it('discounts paths exposed to an immediate hostile strike', async () => {
     const planning = context(
       [
         [1, 2],
@@ -184,6 +185,19 @@ describe('FreecivAIExplorerPlanner', () => {
     expect(
       plan.assignments.find(assignment => assignment.tile.x === 4 && assignment.tile.y === 2)
     ).toBeUndefined();
+  });
+
+  it('excludes frontier tiles that the unit may not enter under a treaty', async () => {
+    const planning = context([
+      [1, 2],
+      [2, 2],
+    ]);
+    planning.map.tiles[2][2].owner = 'neutral';
+    planning.mayExploreTile = (_unit, candidate) => candidate.owner !== 'neutral';
+
+    const plan = await planExploration(planning);
+
+    expect(plan.assignments).toHaveLength(0);
   });
 
   it('reserves distinct destinations for multiple explorers', async () => {

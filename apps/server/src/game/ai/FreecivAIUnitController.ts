@@ -11,19 +11,73 @@ import { planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
 import { planHunters } from '@game/ai/FreecivAIHunterPlanner';
 import { hostileUnitsForPlanning, sortedPlayerUnits } from '@game/ai/FreecivAITargeting';
 import { planWorkerImprovements, type WorkerAssignment } from '@game/ai/FreecivAIWorkerPlanner';
-import { planExploration, type ExplorationPlan } from '@game/ai/FreecivAIExplorerPlanner';
+import {
+  explorationAdditionalStepCost,
+  planExploration,
+  type ExplorationPlan,
+} from '@game/ai/FreecivAIExplorerPlanner';
+import type { UnitType } from '@game/services/RulesetUnitsService';
 
-function isAvailableExplorer(game: GameInstance, state: FreecivAIState, candidate: Unit): boolean {
+function unitAttack(type: UnitType): number {
+  return type.attack ?? type.combat ?? 0;
+}
+
+function hasPositiveValue(value: number | undefined): boolean {
+  return Number(value) > 0;
+}
+
+function isSpecializedAwayFromExploration(type: UnitType): boolean {
+  return [
+    hasPositiveValue(type.transport_capacity),
+    hasPositiveValue(type.fuel),
+    hasPositiveValue(type.paratroopersRange),
+    type.flags?.includes('GameLoss') === true,
+  ].includes(true);
+}
+
+function shouldPreserveInactiveUnit(candidate: Unit, preserveInactive: boolean): boolean {
+  if (!preserveInactive) return false;
+  return [candidate.fortified, candidate.sentryUntil !== undefined].includes(true);
+}
+
+function hasBasicExplorerAvailability(
+  game: GameInstance,
+  state: FreecivAIState,
+  candidate: Unit
+): boolean {
   const type = game.unitManager.getUnitType(candidate.unitTypeId);
   if (candidate.movementLeft <= 0) return false;
   if (candidate.transportedBy) return false;
   if (!type) return false;
   if (type.canBuildImprovements) return false;
   if (type.canFoundCity) return false;
-  if (!type.roles?.includes('Explorer')) return false;
   const task = state.unitTasks[candidate.id];
-  if (!task) return true;
-  return task.role === 'explore';
+  if (task && task.role !== 'explore') return false;
+  return true;
+}
+
+function isIdleMilitaryExplorer(
+  type: UnitType,
+  candidate: Unit,
+  preserveInactive: boolean
+): boolean {
+  if (!['military', 'naval'].includes(type.unitClass)) return false;
+  if (unitAttack(type) <= 0) return false;
+  if (isSpecializedAwayFromExploration(type)) return false;
+  if (shouldPreserveInactiveUnit(candidate, preserveInactive)) return false;
+  return true;
+}
+
+function isAvailableExplorer(
+  game: GameInstance,
+  state: FreecivAIState,
+  candidate: Unit,
+  preserveInactive: boolean
+): boolean {
+  if (!hasBasicExplorerAvailability(game, state, candidate)) return false;
+  const type = game.unitManager.getUnitType(candidate.unitTypeId)!;
+  if (type.roles?.includes('Explorer')) return true;
+  return isIdleMilitaryExplorer(type, candidate, preserveInactive);
 }
 
 /**
@@ -482,8 +536,12 @@ export class FreecivAIUnitController {
   ): Promise<number> {
     const map = game.mapManager.getMapData();
     if (!map || typeof game.pathfindingManager?.findPath !== 'function') return 0;
+    const profile = createAIProfile(
+      game.players.get(playerId)?.aiLevel,
+      game.players.get(playerId)?.aiTraits
+    );
     const explorers = sortedPlayerUnits(game, playerId).filter(candidate =>
-      isAvailableExplorer(game, state, candidate)
+      isAvailableExplorer(game, state, candidate, profile.handicaps.has('away'))
     );
     const relations = await this.hostilityPolicy.getRelationPlayerIds(game.id, playerId);
     const visibleUnits = game.unitManager.getVisibleUnits(
@@ -505,31 +563,40 @@ export class FreecivAIUnitController {
         )
         .map(city => `${city.x},${city.y}`)
     );
-    const profile = createAIProfile(
-      game.players.get(playerId)?.aiLevel,
-      game.players.get(playerId)?.aiTraits
-    );
-    const plan = await planExploration({
-      turn: game.currentTurn,
-      playerId,
-      units: explorers,
+    const routeContext = {
       map,
       exploredTiles: game.visibilityManager.getExploredTiles(playerId),
       hostileUnits: nonAlliedUnits.filter(unit => relations.hostile.has(unit.playerId)),
       nonAlliedUnits,
       nonAlliedCityTiles,
+      getType: (unitTypeId: string) => game.unitManager.getUnitType(unitTypeId),
+      distance: (fromX: number, fromY: number, toX: number, toY: number) =>
+        game.mapManager.getDistance(fromX, fromY, toX, toY),
+      mayExploreTile: (unit: Unit, tile: (typeof map.tiles)[number][number]) => {
+        if (!tile.owner || tile.owner === playerId || relations.allied.has(tile.owner)) return true;
+        const type = game.unitManager.getUnitType(unit.unitTypeId);
+        if (type?.unitClass === 'civilian' || type?.flags?.includes('NonMil')) return true;
+        return relations.hostile.has(tile.owner);
+      },
+    };
+    const plan = await planExploration({
+      turn: game.currentTurn,
+      playerId,
+      units: explorers,
+      ...routeContext,
       existingTasks: state.unitTasks,
-      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
       getNeighbors: (x, y) => game.mapManager.getNeighbors(x, y),
-      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
       squaredDistance: (fromX, fromY, toX, toY) =>
         game.mapManager.getTopology().squaredDistance(fromX, fromY, toX, toY),
       findPath: (unit, targetX, targetY) =>
-        game.pathfindingManager.findPath(unit, targetX, targetY),
+        game.pathfindingManager.findPath(unit, targetX, targetY, {
+          additionalStepCost: (actor, _fromX, _fromY, toX, toY) =>
+            explorationAdditionalStepCost(routeContext, actor, toX, toY),
+        }),
       knowsHuts: !profile.handicaps.has('huts'),
     });
     this.replaceExplorationTasks(state, plan);
-    return this.executeExplorationPlan(game, playerId, state, plan);
+    return this.executeExplorationPlan(game, state, plan);
   }
 
   private replaceExplorationTasks(state: FreecivAIState, plan: ExplorationPlan): void {
@@ -541,33 +608,34 @@ export class FreecivAIUnitController {
 
   private async executeExplorationPlan(
     game: GameInstance,
-    playerId: string,
     state: FreecivAIState,
     plan: ExplorationPlan
   ): Promise<number> {
     let actions = 0;
     for (const assignment of plan.assignments) {
-      if (
-        !game.unitManager.canUnitPerformAction(
-          assignment.unit.id,
-          ActionType.GOTO,
-          assignment.tile.x,
-          assignment.tile.y
-        )
-      ) {
-        delete state.unitTasks[assignment.unit.id];
-        continue;
-      }
-      const result = await game.unitManager.executeUnitAction(
-        assignment.unit.id,
-        ActionType.GOTO,
-        assignment.tile.x,
-        assignment.tile.y,
-        playerId
-      );
-      if (result.success) actions++;
-      else delete state.unitTasks[assignment.unit.id];
+      if (await this.followExplorationPath(game, state, assignment)) actions++;
     }
     return actions;
+  }
+
+  private async followExplorationPath(
+    game: GameInstance,
+    state: FreecivAIState,
+    assignment: ExplorationPlan['assignments'][number]
+  ): Promise<boolean> {
+    let moved = false;
+    try {
+      for (const step of assignment.path.path.slice(1)) {
+        const unit = game.unitManager.getUnit(assignment.unit.id);
+        if (!unit || unit.movementLeft <= 0) break;
+        if (!(await game.unitManager.moveUnit(unit.id, step.x, step.y))) break;
+        moved = true;
+      }
+    } catch {
+      delete state.unitTasks[assignment.unit.id];
+      return false;
+    }
+    if (!moved) delete state.unitTasks[assignment.unit.id];
+    return moved;
   }
 }

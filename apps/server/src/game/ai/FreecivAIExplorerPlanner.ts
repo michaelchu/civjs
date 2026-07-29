@@ -40,6 +40,7 @@ export interface ExplorerPlanningContext {
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   squaredDistance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   findPath: (unit: Unit, targetX: number, targetY: number) => Promise<PathfindingResult>;
+  mayExploreTile: (unit: Unit, tile: MapTile) => boolean;
   knowsHuts: boolean;
 }
 
@@ -82,6 +83,11 @@ function tilesInVision(
     );
 }
 
+function knownHutBonus(context: ExplorerPlanningContext, tile: MapTile): number {
+  if (!context.knowsHuts) return 0;
+  return tile.improvements.some(extra => extra.toLowerCase() === 'hut') ? HUT_SCORE : 0;
+}
+
 /**
  * Freeciv values frontier tiles by expected information revealed, with extra
  * weight for discovering terrain unlike the explorer's native terrain.
@@ -94,7 +100,13 @@ export function explorationDesirability(
   tile: MapTile
 ): number {
   const type = context.getType(unit.unitTypeId);
-  if (!type || !context.exploredTiles.has(tileKey(tile.x, tile.y))) return 0;
+  if (
+    !type ||
+    !context.exploredTiles.has(tileKey(tile.x, tile.y)) ||
+    !context.mayExploreTile(unit, tile)
+  ) {
+    return 0;
+  }
   let desirable = 0;
   let unknown = 0;
   for (const visible of tilesInVision(context, tile, type.vision_radius_sq ?? type.sight)) {
@@ -107,20 +119,57 @@ export function explorationDesirability(
     }
   }
   if (unknown === 0) desirable = 0;
-  if (context.knowsHuts && tile.improvements.some(extra => extra.toLowerCase() === 'hut')) {
-    desirable += HUT_SCORE;
-  }
-  return desirable;
+  return desirable + knownHutBonus(context, tile);
 }
 
-function hostileStrikeRange(context: ExplorerPlanningContext, hostile: Unit): number {
+function hostileStrikeRange(
+  context: Pick<ExplorerPlanningContext, 'getType'>,
+  hostile: Unit
+): number {
   const type = context.getType(hostile.unitTypeId);
   if (!type || (type.attack ?? type.combat) <= 0) return 0;
   const movement = Math.max(0, Math.ceil(hostile.movementLeft / 3));
   return movement + Math.max(1, type.range ?? 1);
 }
 
-function pathIsSafe(
+export function explorationAdditionalStepCost(
+  context: Pick<
+    ExplorerPlanningContext,
+    | 'exploredTiles'
+    | 'hostileUnits'
+    | 'nonAlliedUnits'
+    | 'nonAlliedCityTiles'
+    | 'getType'
+    | 'distance'
+    | 'mayExploreTile'
+    | 'map'
+  >,
+  unit: Unit,
+  toX: number,
+  toY: number
+): number {
+  const key = tileKey(toX, toY);
+  if (!context.exploredTiles.has(key)) return -1;
+  const tile = context.map.tiles[toX]?.[toY];
+  if (!tile || !context.mayExploreTile(unit, tile)) return -1;
+  if (context.nonAlliedCityTiles.has(key)) return -1;
+  if (context.nonAlliedUnits.some(other => other.x === toX && other.y === toY)) return -1;
+  const defense = Math.max(1, context.getType(unit.unitTypeId)?.defense ?? 1);
+  return context.hostileUnits.reduce((risk, hostile) => {
+    const distance = context.distance(toX, toY, hostile.x, hostile.y);
+    const exposure = hostileStrikeRange(context, hostile) + 1 - distance;
+    if (exposure <= 0) return risk;
+    const attack = Math.max(
+      1,
+      context.getType(hostile.unitTypeId)?.attack ??
+        context.getType(hostile.unitTypeId)?.combat ??
+        1
+    );
+    return risk + Math.ceil((3 * exposure * attack) / defense);
+  }, 0);
+}
+
+function pathUsesKnownLegalTiles(
   context: ExplorerPlanningContext,
   path: PathfindingResult,
   unit: Unit
@@ -129,16 +178,31 @@ function pathIsSafe(
   return path.path.every(step => {
     const key = tileKey(step.x, step.y);
     if (!context.exploredTiles.has(key)) return false;
+    const tile = context.map.tiles[step.x]?.[step.y];
+    if (!tile || !context.mayExploreTile(unit, tile)) return false;
     const isStart = step.x === unit.x && step.y === unit.y;
     if (!isStart && occupied.has(key)) return false;
     if (context.nonAlliedCityTiles.has(key)) return false;
-    if (isStart) return true;
-    return context.hostileUnits.every(
-      hostile =>
-        context.distance(step.x, step.y, hostile.x, hostile.y) >
-        hostileStrikeRange(context, hostile)
-    );
+    return true;
   });
+}
+
+function weightedPathCost(
+  context: ExplorerPlanningContext,
+  unit: Unit,
+  path: PathfindingResult
+): number {
+  if (path.weightedCost !== undefined) return path.weightedCost;
+  return (
+    path.totalCost +
+    path.path
+      .slice(1)
+      .reduce(
+        (risk, step) =>
+          risk + Math.max(0, explorationAdditionalStepCost(context, unit, step.x, step.y)),
+        0
+      )
+  );
 }
 
 function initialCandidateWant(
@@ -184,7 +248,7 @@ async function rankedAssignmentsForUnit(
   );
   return reached
     .filter(candidate => candidate.path.valid && candidate.path.path.length > 1)
-    .filter(candidate => pathIsSafe(context, candidate.path, unit))
+    .filter(candidate => pathUsesKnownLegalTiles(context, candidate.path, unit))
     .map(candidate => {
       const persistent =
         candidate.tile.x === existing?.targetX && candidate.tile.y === existing?.targetY ? 1.05 : 1;
@@ -193,7 +257,10 @@ async function rankedAssignmentsForUnit(
         tile: candidate.tile,
         path: candidate.path,
         desirability: candidate.desirability,
-        want: candidate.desirability * DISTANCE_FACTOR ** candidate.path.totalCost * persistent,
+        want:
+          candidate.desirability *
+          DISTANCE_FACTOR ** weightedPathCost(context, unit, candidate.path) *
+          persistent,
       };
     })
     .sort(

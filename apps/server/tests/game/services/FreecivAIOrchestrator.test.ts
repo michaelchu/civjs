@@ -117,7 +117,19 @@ function createScenario() {
     ],
   ]);
   const executeUnitAction = jest.fn().mockResolvedValue({ success: true });
-  const attackUnit = jest.fn().mockResolvedValue({ defenderDestroyed: true });
+  const attackUnit = jest.fn().mockImplementation(async (attackerId: string) => {
+    const attacker = units.get(attackerId);
+    if (attacker) attacker.movementLeft = 0;
+    return { defenderDestroyed: true };
+  });
+  const moveUnit = jest.fn().mockImplementation(async (unitId: string, x: number, y: number) => {
+    const actor = units.get(unitId);
+    if (!actor) return false;
+    actor.x = x;
+    actor.y = y;
+    actor.movementLeft = 0;
+    return true;
+  });
   const setCurrentResearch = jest.fn().mockResolvedValue(undefined);
   const setCityProduction = jest.fn().mockResolvedValue(true);
   const diplomacyManager = {
@@ -223,6 +235,7 @@ function createScenario() {
       canUnitPerformAction: () => true,
       executeUnitAction,
       attackUnit,
+      moveUnit,
     },
     mapManager: {
       getMapData: () => ({
@@ -261,6 +274,7 @@ function createScenario() {
     diplomacyManager,
     executeUnitAction,
     game,
+    moveUnit,
     setCityProduction,
     setCurrentResearch,
     unitTypes,
@@ -298,7 +312,14 @@ describe('FreecivAIOrchestrator', () => {
       undefined,
       'ai'
     );
-    expect(scenario.executeUnitAction).toHaveBeenCalledWith('scout', ActionType.GOTO, 6, 7, 'ai');
+    expect(scenario.moveUnit).toHaveBeenCalledWith('scout', 6, 7);
+    expect(scenario.executeUnitAction).not.toHaveBeenCalledWith(
+      'scout',
+      ActionType.AUTO_EXPLORE,
+      undefined,
+      undefined,
+      'ai'
+    );
     expect((scenario.game.players.get('ai') as any).aiState.unitTasks.scout).toMatchObject({
       role: 'explore',
       targetX: 6,
@@ -350,6 +371,121 @@ describe('FreecivAIOrchestrator', () => {
       targetX: 3,
       targetY: 3,
     });
+  });
+
+  it('falls back to exploration with an otherwise idle military unit', async () => {
+    const scenario = createScenario();
+    scenario.units.delete('scout');
+    scenario.units.delete('enemy');
+    scenario.unitTypes.warriors.unitClass = 'military';
+    scenario.unitTypes.warriors.sight = 2;
+    scenario.unitTypes.warriors.vision_radius_sq = 2;
+    scenario.game.visibilityManager.getVisibleTiles = () => new Set(['4,4', '5,4']);
+    (scenario.game.visibilityManager as any).getExploredTiles = () => new Set(['4,4', '5,4']);
+    (scenario.game.visibilityManager as any).isTileExplored = (
+      _playerId: string,
+      x: number,
+      y: number
+    ) => (x === 4 && y === 4) || (x === 5 && y === 4);
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.moveUnit).toHaveBeenCalledWith('warrior', 5, 4);
+    expect((scenario.game.players.get('ai') as any).aiState.unitTasks.warrior).toMatchObject({
+      role: 'explore',
+      targetX: 5,
+      targetY: 4,
+    });
+  });
+
+  it('executes the selected safe route rather than recalculating a direct goto', async () => {
+    const scenario = createScenario();
+    scenario.units.delete('enemy');
+    scenario.units.get('warrior')!.movementLeft = 0;
+    scenario.game.visibilityManager.getVisibleTiles = () => new Set(['7,7', '6,6', '6,7']);
+    (scenario.game.visibilityManager as any).getExploredTiles = () =>
+      new Set(['7,7', '6,6', '6,7']);
+    (scenario.game.pathfindingManager as any).findPath = jest
+      .fn()
+      .mockImplementation(async (actor, targetX, targetY) => ({
+        valid: targetX === 6 && targetY === 7,
+        path: [
+          { x: actor.x, y: actor.y, moveCost: 0 },
+          { x: 6, y: 6, moveCost: 1 },
+          { x: 6, y: 7, moveCost: 1 },
+        ],
+        totalCost: 2,
+        weightedCost: 2,
+        estimatedTurns: 1,
+      }));
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.moveUnit).toHaveBeenCalledWith('scout', 6, 6);
+    expect(scenario.moveUnit).not.toHaveBeenCalledWith('scout', 6, 7);
+    expect((scenario.game.players.get('ai') as any).aiState.unitTasks.scout).toMatchObject({
+      role: 'explore',
+      targetX: 6,
+      targetY: 7,
+    });
+  });
+
+  it('does not wake fortified military units for fallback exploration in away mode', async () => {
+    const scenario = createScenario();
+    scenario.units.delete('scout');
+    scenario.units.delete('enemy');
+    scenario.units.get('warrior')!.fortified = true;
+    scenario.unitTypes.warriors.unitClass = 'military';
+    (scenario.game.players.get('ai') as any).aiLevel = 'away';
+    scenario.game.visibilityManager.getVisibleTiles = () => new Set(['4,4', '5,4']);
+    (scenario.game.visibilityManager as any).getExploredTiles = () => new Set(['4,4', '5,4']);
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.moveUnit).not.toHaveBeenCalledWith(
+      'warrior',
+      expect.any(Number),
+      expect.any(Number)
+    );
+  });
+
+  it('preserves an existing military role instead of assigning fallback exploration', async () => {
+    const scenario = createScenario();
+    scenario.units.delete('scout');
+    scenario.units.delete('enemy');
+    scenario.unitTypes.warriors.unitClass = 'military';
+    (scenario.game.players.get('ai') as any).aiState.unitTasks.warrior = {
+      role: 'guard',
+      targetId: 'capital',
+      assignedTurn: 1,
+    };
+    scenario.game.visibilityManager.getVisibleTiles = () => new Set(['4,4', '5,4']);
+    (scenario.game.visibilityManager as any).getExploredTiles = () => new Set(['4,4', '5,4']);
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.moveUnit).not.toHaveBeenCalledWith(
+      'warrior',
+      expect.any(Number),
+      expect.any(Number)
+    );
+    expect((scenario.game.players.get('ai') as any).aiState.unitTasks.warrior.role).toBe('guard');
   });
 
   it('uses nuclear consequences instead of ordinary combat for nuclear actors', async () => {

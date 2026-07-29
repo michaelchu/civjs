@@ -136,6 +136,19 @@ describe('PathfindingManager', () => {
       expect(movementPolicy.getUnitMaxMovement).toHaveBeenCalledWith('warriors');
     });
 
+    it('uses additive planning cost to choose a safer route without changing movement cost', async () => {
+      mockMapManager.getTile.mockReturnValue({ terrain: 'grassland' });
+
+      const result = await pathfindingManager.findPath(mockUnit, 7, 5, {
+        additionalStepCost: (_unit, _fromX, _fromY, toX, toY) => (toX === 6 && toY === 5 ? 100 : 0),
+      });
+
+      expect(result.valid).toBe(true);
+      expect(result.path).not.toContainEqual(expect.objectContaining({ x: 6, y: 5 }));
+      expect(result.totalCost).toBe(6);
+      expect(result.weightedCost).toBe(6);
+    });
+
     it('should calculate correct estimated turns', async () => {
       // Mock terrain
       mockMapManager.getTile.mockReturnValue({ terrain: 'grassland' });
