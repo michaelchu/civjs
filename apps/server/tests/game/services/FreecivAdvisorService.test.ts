@@ -28,6 +28,22 @@ describe('FreecivAdvisorService', () => {
       gold: 80,
       aiTraits: { expansionist: 50, trader: 50, aggressive: 50, builder: 50 },
     };
+    const unreachableEnemy = {
+      id: 'enemy-unit',
+      playerId: 'enemy',
+      unitTypeId: 'warriors',
+      x: 1,
+      y: 0,
+      health: 100,
+      veteranLevel: 0,
+      movementLeft: 1,
+    };
+    const findPath = jest.fn().mockResolvedValue({
+      valid: false,
+      path: [],
+      totalCost: 0,
+      estimatedTurns: 0,
+    });
     const tile = {
       x: 0,
       y: 0,
@@ -43,7 +59,19 @@ describe('FreecivAdvisorService', () => {
     const game = {
       id: 'game',
       currentTurn: 12,
-      players: new Map([['human', player]]),
+      players: new Map([
+        ['human', player],
+        [
+          'enemy',
+          {
+            id: 'enemy',
+            userId: 'enemy-user',
+            isAI: false,
+            gold: 0,
+            aiTraits: { expansionist: 50, trader: 50, aggressive: 50, builder: 50 },
+          },
+        ],
+      ]),
       cityManager: {
         getPlayerCities: () => [city],
         getAllCities: () => [city],
@@ -52,11 +80,26 @@ describe('FreecivAdvisorService', () => {
         calculateBuyCost: () => ({ canBuy: false, goldCost: 0 }),
       },
       unitManager: {
-        getVisibleUnits: () => [],
+        getVisibleUnits: () => [unreachableEnemy],
         getPlayerUnits: () => [],
-        getUnitType: () => undefined,
+        getUnit: (unitId: string) =>
+          unitId === unreachableEnemy.id ? unreachableEnemy : undefined,
+        getUnitType: (unitTypeId: string) =>
+          unitTypeId === 'warriors'
+            ? {
+                id: 'warriors',
+                attack: 2,
+                defense: 1,
+                movement: 1,
+                firepower: 1,
+                hitpoints: 10,
+                flags: [],
+                rulesetUnitClassFlags: ['CanOccupyCity'],
+              }
+            : undefined,
         calculateUnitDefenseRating: () => 0,
-        calculateUnitAttackRating: () => 0,
+        calculateUnitAttackRating: () => 20,
+        calculateCityDefenseBonusAgainst: () => 0,
       },
       visibilityManager: {
         getVisibleTiles: () => new Set(['0,0']),
@@ -115,18 +158,13 @@ describe('FreecivAdvisorService', () => {
         }),
       },
       pathfindingManager: {
-        findPath: async () => ({
-          valid: false,
-          path: [],
-          totalCost: 0,
-          estimatedTurns: 0,
-        }),
+        findPath,
       },
     };
     const before = JSON.stringify({ city, player });
     const service = new FreecivAdvisorService({
       getRelationPlayerIds: async () => ({
-        hostile: new Set(),
+        hostile: new Set(['enemy']),
         allied: new Set(),
         unknown: new Set(),
       }),
@@ -150,6 +188,8 @@ describe('FreecivAdvisorService', () => {
       kind: 'building',
       id: 'granary',
     });
+    expect(advice.cities[0].danger).toBe(0);
+    expect(findPath).toHaveBeenCalledWith(unreachableEnemy, city.x, city.y);
     expect(JSON.stringify({ city, player })).toBe(before);
   });
 });

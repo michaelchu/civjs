@@ -75,6 +75,7 @@ interface EvaluationContext {
   diplomacyManager?: DiplomacyManager;
   rulesetName?: string;
   maxTurns?: number;
+  spaceshipStateSink?: (playerId: string, state: SpaceshipState) => void;
 }
 
 /**
@@ -148,16 +149,19 @@ export class EndGameService {
     });
 
     await Promise.all(
-      standings.map(standing =>
-        database
+      standings.map(async standing => {
+        await database
           .update(players)
           .set({
             score: standing.score,
             isAlive: standing.alive,
             spaceshipState: standing.spaceship,
           })
-          .where(eq(players.id, standing.playerId))
-      )
+          .where(eq(players.id, standing.playerId));
+        if (standing.spaceship) {
+          context.spaceshipStateSink?.(standing.playerId, standing.spaceship);
+        }
+      })
     );
 
     const survivors = standings.filter(standing => standing.alive);

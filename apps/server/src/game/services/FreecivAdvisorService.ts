@@ -1,7 +1,7 @@
 import { ActionType } from '@app-types/shared/actions';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
-import { assessCityDanger } from '@game/ai/FreecivAICityDangerPlanner';
+import { buildAuthoritativeCityDangerAssessments } from '@game/ai/FreecivAICityDangerPlanner';
 import { explorationAdditionalStepCost, planExploration } from '@game/ai/FreecivAIExplorerPlanner';
 import { rankCityProduction, rankMilitaryTargets, rankResearch } from '@game/ai/FreecivAIPlanner';
 import { planTreasury } from '@game/ai/FreecivAITreasuryPlanner';
@@ -96,25 +96,16 @@ export class FreecivAdvisorService {
         if (requirement.type.toLowerCase() === 'tech') governmentTechs.add(requirement.name);
       }
     }
+    const dangerByCity = await buildAuthoritativeCityDangerAssessments({
+      game,
+      cities,
+      friendlyUnits,
+      threateningUnits: hostileUnits,
+      profile,
+    });
 
     const cityRecommendations = cities.map(city => {
-      const danger = assessCityDanger({
-        city,
-        friendlyUnits,
-        threateningUnits: hostileUnits,
-        profile,
-        getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
-        travelTurns: (unit, target) => {
-          const type = game.unitManager.getUnitType(unit.unitTypeId);
-          if (!type) return undefined;
-          return Math.ceil(
-            game.mapManager.getDistance(unit.x, unit.y, target.x, target.y) /
-              Math.max(1, type.movement)
-          );
-        },
-        defenderStrength: unit => game.unitManager.calculateUnitDefenseRating(unit),
-        attackerStrength: unit => game.unitManager.calculateUnitAttackRating(unit),
-      });
+      const danger = dangerByCity.get(city.id)!;
       const production = rankCityProduction({
         city,
         cities,

@@ -1,5 +1,6 @@
 import type { AIProfile } from '@game/ai/FreecivAIProfile';
 import type { CityState } from '@game/managers/CityManager';
+import type { GameInstance } from '@game/managers/GameManager';
 import type { Unit } from '@game/managers/UnitManager';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 
@@ -120,6 +121,48 @@ export async function buildCityThreatTravelTimes(
     )
   );
   return travelTimes;
+}
+
+export async function buildAuthoritativeCityDangerAssessments(options: {
+  game: GameInstance;
+  cities: CityState[];
+  friendlyUnits: Unit[];
+  threateningUnits: Unit[];
+  profile: AIProfile;
+}): Promise<Map<string, CityDangerAssessment>> {
+  const { game, cities, friendlyUnits, threateningUnits, profile } = options;
+  const travelTimes = await buildCityThreatTravelTimes({
+    cities,
+    threateningUnits,
+    getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+    getUnit: unitId => game.unitManager.getUnit(unitId),
+    distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+    findPath: (unit, targetX, targetY) => game.pathfindingManager.findPath(unit, targetX, targetY),
+  });
+  return new Map(
+    cities.map(city => [
+      city.id,
+      assessCityDanger({
+        city,
+        friendlyUnits,
+        threateningUnits,
+        profile,
+        getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+        defenderStrength: unit => game.unitManager.calculateUnitDefenseRating(unit),
+        attackerStrength: (enemy, enemyType) => {
+          const attack = game.unitManager.calculateUnitAttackRating(enemy);
+          const defenseBonus = game.unitManager.calculateCityDefenseBonusAgainst(
+            enemy,
+            enemyType,
+            city.x,
+            city.y
+          );
+          return (attack * 100) / Math.max(1, 100 + defenseBonus);
+        },
+        travelTurns: enemy => travelTimes.get(cityThreatTravelKey(enemy.id, city.id)),
+      }),
+    ])
+  );
 }
 
 export function canUnitOccupyCity(type: UnitType): boolean {

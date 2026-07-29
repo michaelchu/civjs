@@ -179,7 +179,7 @@ export class GameManager {
   private sharedVisionByGame = new Map<string, Map<string, Set<string>>>();
   private hostilePlayersByGame = new Map<string, Map<string, Set<string>>>();
   private alliedPlayersByGame = new Map<string, Map<string, Set<string>>>();
-  private endTurnLocks = new Map<string, Promise<boolean>>();
+  private endTurnLocks = new Map<string, Promise<unknown>>();
   private treatyPlayerLocks = new Map<string, Promise<unknown>>();
 
   // Extracted service components
@@ -1250,6 +1250,10 @@ export class GameManager {
         diplomacyManager: this.diplomacyManager,
         rulesetName: gameInstance.config.ruleset,
         maxTurns: gameInstance.config.maxTurns,
+        spaceshipStateSink: (playerId, state) => {
+          const player = gameInstance.players.get(playerId);
+          if (player) player.spaceshipState = state;
+        },
       });
       if (!evaluation.ended) return false;
       gameInstance.state = 'ended';
@@ -1638,10 +1642,14 @@ export class GameManager {
     if (!gameId) {
       return Promise.reject(new Error('Player not in any game'));
     }
-    const previous = this.endTurnLocks.get(gameId) ?? Promise.resolve(false);
+    return this.withEndTurnLock(gameId, () => this.endTurnLocked(gameId, playerId));
+  }
+
+  private withEndTurnLock<T>(gameId: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.endTurnLocks.get(gameId) ?? Promise.resolve();
     const next = previous
-      .catch(() => false)
-      .then(() => this.endTurnLocked(gameId, playerId))
+      .catch(() => undefined)
+      .then(operation)
       .finally(() => {
         if (this.endTurnLocks.get(gameId) === next) this.endTurnLocks.delete(gameId);
       });
@@ -1989,6 +1997,19 @@ export class GameManager {
     let game = this.games.get(gameId);
     if (!game) game = (await this.recoverGameInstance(gameId)) ?? undefined;
     if (!game) throw new Error('Unable to load game');
+    await this.withEndTurnLock(gameId, () =>
+      this.setPlayerAIControlLocked(gameId, requesterUserId, playerId, isAI, options, game)
+    );
+  }
+
+  private async setPlayerAIControlLocked(
+    gameId: string,
+    requesterUserId: string,
+    playerId: string,
+    isAI: boolean,
+    options: { aiLevel?: SettableAILevel; controllerUserId?: string },
+    game: GameInstance
+  ): Promise<void> {
     if (!['waiting', 'active', 'paused'].includes(game.state)) {
       throw new Error('Player control cannot be changed in the current game state');
     }

@@ -135,11 +135,17 @@ function resultingState(currentState: DiplomaticState, clauses: TreatyClause[]):
   return (pact?.type as DiplomaticState | undefined) ?? currentState;
 }
 
-function valueClause(
-  context: TreatyValuationContext,
-  clause: TreatyClause,
-  afterState: DiplomaticState
-): number {
+type MaterialClause = Extract<TreatyClause, { type: 'technology' | 'gold' | 'city' }>;
+type InformationClause = {
+  type: 'map' | 'seamap' | 'shared_vision' | 'embassy';
+  giverId?: string;
+};
+type PactClause = {
+  type: 'ceasefire' | 'peace' | 'alliance';
+  giverId?: string;
+};
+
+function valueMaterialClause(context: TreatyValuationContext, clause: MaterialClause): number {
   const giving = clause.giverId === context.playerId;
   switch (clause.type) {
     case 'technology': {
@@ -165,6 +171,16 @@ function valueClause(
       if (city.buildings.includes('palace') || context.ownCities.length <= 3) return -NEVER_ACCEPT;
       return -worth * 15;
     }
+  }
+}
+
+function valueInformationClause(
+  context: TreatyValuationContext,
+  clause: InformationClause,
+  afterState: DiplomaticState
+): number {
+  const giving = clause.giverId === context.playerId;
+  switch (clause.type) {
     case 'map':
       if (!giving || afterState === 'alliance') return 0;
       return (
@@ -184,6 +200,11 @@ function valueClause(
       return afterState === 'peace'
         ? -5 * context.turn
         : Math.min(-50 * context.turn + context.love, -5 * context.turn);
+  }
+}
+
+function valuePactClause(context: TreatyValuationContext, clause: PactClause): number {
+  switch (clause.type) {
     case 'ceasefire':
       return context.currentState === 'war' ? context.love : -NEVER_ACCEPT;
     case 'peace':
@@ -194,6 +215,28 @@ function valueClause(
       return !context.alliedWithEnemy && context.currentState === 'peace' && context.love >= 100
         ? context.love - 80
         : -NEVER_ACCEPT;
+  }
+}
+
+function valueClause(
+  context: TreatyValuationContext,
+  clause: TreatyClause,
+  afterState: DiplomaticState
+): number {
+  switch (clause.type) {
+    case 'technology':
+    case 'gold':
+    case 'city':
+      return valueMaterialClause(context, clause);
+    case 'map':
+    case 'seamap':
+    case 'shared_vision':
+    case 'embassy':
+      return valueInformationClause(context, clause as InformationClause, afterState);
+    case 'ceasefire':
+    case 'peace':
+    case 'alliance':
+      return valuePactClause(context, clause as PactClause);
   }
 }
 

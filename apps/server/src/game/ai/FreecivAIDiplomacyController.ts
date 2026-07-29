@@ -1,6 +1,10 @@
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
-import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
-import type { DiplomacyManager, TreatyClause } from '@game/managers/DiplomacyManager';
+import type { AIDiplomacyMemory, FreecivAIState } from '@game/ai/FreecivAIStateStore';
+import type {
+  DiplomacyManager,
+  DiplomacySnapshot,
+  TreatyClause,
+} from '@game/managers/DiplomacyManager';
 import type { GameInstance } from '@game/managers/GameManager';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import {
@@ -61,11 +65,6 @@ export class FreecivAIDiplomacyController {
     let actions = 0;
     const contacted = new Set<string>();
     for (const nation of snapshot.nations.slice().sort((a, b) => a.id.localeCompare(b.id))) {
-      const memory = state.diplomacy[nation.id] ?? {
-        love: 0,
-        warDesire: 0,
-        countdown: 0,
-      };
       const otherCities = game.cityManager.getPlayerCities(nation.id);
       const otherUnits = game.unitManager.getPlayerUnits(nation.id);
       const otherTechs = new Set(
@@ -73,161 +72,269 @@ export class FreecivAIDiplomacyController {
           game.researchManager.getPlayerResearch(nation.id)?.researchedTechs ??
           []
       );
-      const distance = Math.min(
-        30,
-        ...ownCities.flatMap(own =>
-          otherCities.map(other => game.mapManager.getDistance(own.x, own.y, other.x, other.y))
-        )
-      );
-      memory.love = Math.max(
-        -1000,
-        Math.min(
-          1000,
-          Math.round(
-            memory.love * 0.8 +
-              (nation.relation.attitude ?? 0) +
-              ((nation.relation.reputation ?? 1000) - 500) / 10 -
-              (nation.relation.hasReasonToCancel > 0 ? 100 : 0)
-          )
-        )
-      );
-      const assessedWarDesire = calculateWarDesire({
+      const memory = this.updateDiplomacyMemory({
+        memory: state.diplomacy[nation.id],
+        nation,
+        game,
+        playerId,
         ownCities,
-        targetCities: otherCities,
         ownUnits,
-        targetUnits: otherUnits,
-        unitTypes: UNIT_TYPES,
-        ownTechCount: ownTechs.size,
-        targetTechCount: otherTechs.size,
-        targetGold: game.players.get(nation.id)?.gold ?? 0,
-        distance: Number.isFinite(distance) ? distance : 30,
-        love: memory.love,
-        relation: nation.relation,
+        ownTechs,
+        otherCities,
+        otherUnits,
+        otherTechs,
         aggressiveTrait: profile.traits.aggressive,
         diplomacyHandicap: profile.handicaps.has('diplomacy'),
-        targetIsHuman: !nation.isAI,
-        pursuingSpaceVictory:
-          spaceRaceEnabled &&
-          spaceLeaderId === playerId &&
-          (spaceshipByPlayer.get(playerId)?.progress ?? 0) > 0,
-        targetSpaceshipProgress: spaceshipByPlayer.get(nation.id)?.progress ?? 0,
-        targetSpaceshipLaunched:
-          spaceshipByPlayer.get(nation.id)?.counts.launchedTurn !== undefined ||
-          isSpaceshipOptimal(
-            spaceshipByPlayer.get(nation.id)?.counts ?? {
-              structurals: 0,
-              components: 0,
-              modules: 0,
-            }
-          ),
+        spaceRaceEnabled,
+        spaceLeaderId,
+        spaceshipByPlayer,
       });
-      memory.warDesire = Math.max(
-        -1000,
-        Math.min(1000, Math.round(memory.warDesire * 0.5 + assessedWarDesire))
-      );
-      memory.countdown = Math.max(0, memory.countdown - 1);
       state.diplomacy[nation.id] = memory;
 
-      // Freeciv keeps diplomatic memory current in away mode, but refuses
-      // treaties until normal AI control resumes.
-      // @reference reference/freeciv/ai/default/daidiplomacy.c:375-385
-      if (profile.handicaps.has('away')) continue;
-
-      const proposal = nation.relation.proposal;
-      const otherSnapshot = await this.diplomacyManager.getSnapshot(gameId, nation.id);
-      const ourRelations = new Map(
-        snapshot.nations.map(candidate => [candidate.id, candidate.relation])
-      );
-      const alliedWithEnemy = otherSnapshot.nations.some(
-        candidate =>
-          candidate.id !== playerId &&
-          ['alliance', 'team'].includes(candidate.relation.state) &&
-          ourRelations.get(candidate.id)?.state === 'war'
-      );
-      const sharedVisionSafe = !otherSnapshot.nations.some(candidate => {
-        if (!candidate.relation.givesSharedVision || candidate.id === playerId) return false;
-        const stateWithRecipient = ourRelations.get(candidate.id)?.state ?? 'no_contact';
-        return !['no_contact', 'alliance', 'team'].includes(stateWithRecipient);
+      const madeContact = await this.processNationTreaty({
+        gameId,
+        game,
+        playerId,
+        state,
+        snapshot,
+        nation,
+        memory,
+        ownCities,
+        otherCities,
+        ownTechs,
+        otherTechs,
+        catalogue,
+        handicaps: profile.handicaps,
       });
-      if (proposal?.status === 'pending' && proposal.recipientId === playerId) {
-        const accepted = evaluateTreaty(
-          proposal.clauses,
-          this.treatyContext({
-            playerId,
-            otherPlayerId: nation.id,
-            game,
-            state,
-            love: memory.love,
-            relation: nation.relation,
-            ownCities,
-            otherCities,
-            ownTechs,
-            otherTechs,
-            catalogue,
-            diplomacyHandicap: profile.handicaps.has('diplomacy'),
-            alliedWithEnemy,
-            sharedVisionSafe,
-          })
-        ).acceptable;
-        await this.diplomacyManager.respondToTreaty(
-          gameId,
-          playerId,
-          nation.id,
-          proposal.id,
-          accepted
-        );
-        memory.countdown = 3;
+      if (madeContact) {
         contacted.add(nation.id);
         actions++;
-        continue;
       }
-      if (
-        proposal?.status === 'pending' ||
-        memory.countdown > 0 ||
-        !nation.known ||
-        !nation.canMeet ||
-        typeof this.diplomacyManager.proposeTreaty !== 'function'
-      ) {
-        continue;
+    }
+
+    actions += await this.processWarCountdown({
+      gameId,
+      playerId,
+      state,
+      snapshot,
+      contacted,
+      away: profile.handicaps.has('away'),
+      defensive: profile.handicaps.has('defensive'),
+    });
+    return actions;
+  }
+
+  private updateDiplomacyMemory(options: {
+    memory?: AIDiplomacyMemory;
+    nation: DiplomacySnapshot['nations'][number];
+    game: GameInstance;
+    playerId: string;
+    ownCities: ReturnType<GameInstance['cityManager']['getPlayerCities']>;
+    ownUnits: ReturnType<GameInstance['unitManager']['getPlayerUnits']>;
+    ownTechs: ReadonlySet<string>;
+    otherCities: ReturnType<GameInstance['cityManager']['getPlayerCities']>;
+    otherUnits: ReturnType<GameInstance['unitManager']['getPlayerUnits']>;
+    otherTechs: ReadonlySet<string>;
+    aggressiveTrait: number;
+    diplomacyHandicap: boolean;
+    spaceRaceEnabled: boolean;
+    spaceLeaderId?: string;
+    spaceshipByPlayer: Map<
+      string,
+      {
+        counts: ReturnType<typeof normalizeSpaceshipState>;
+        progress: number;
       }
-      const clauses =
-        this.chooseProactiveTreaty(nation.relation.state, memory.love, profile.handicaps) ??
-        this.chooseTechnologyExchange(
-          playerId,
-          nation.id,
-          ownTechs,
-          otherTechs,
-          this.treatyContext({
-            playerId,
-            otherPlayerId: nation.id,
-            game,
-            state,
-            love: memory.love,
-            relation: nation.relation,
-            ownCities,
-            otherCities,
-            ownTechs,
-            otherTechs,
-            catalogue,
-            diplomacyHandicap: profile.handicaps.has('diplomacy'),
-            alliedWithEnemy,
-            sharedVisionSafe,
-          })
-        );
-      if (!clauses) continue;
-      await this.diplomacyManager.proposeTreaty(
+    >;
+  }): AIDiplomacyMemory {
+    const {
+      nation,
+      game,
+      playerId,
+      ownCities,
+      ownUnits,
+      ownTechs,
+      otherCities,
+      otherUnits,
+      otherTechs,
+      aggressiveTrait,
+      diplomacyHandicap,
+      spaceRaceEnabled,
+      spaceLeaderId,
+      spaceshipByPlayer,
+    } = options;
+    const memory = options.memory ?? { love: 0, warDesire: 0, countdown: 0 };
+    const distance = Math.min(
+      30,
+      ...ownCities.flatMap(own =>
+        otherCities.map(other => game.mapManager.getDistance(own.x, own.y, other.x, other.y))
+      )
+    );
+    memory.love = Math.max(
+      -1000,
+      Math.min(
+        1000,
+        Math.round(
+          memory.love * 0.8 +
+            (nation.relation.attitude ?? 0) +
+            ((nation.relation.reputation ?? 1000) - 500) / 10 -
+            (nation.relation.hasReasonToCancel > 0 ? 100 : 0)
+        )
+      )
+    );
+    const targetSpaceship = spaceshipByPlayer.get(nation.id);
+    const assessedWarDesire = calculateWarDesire({
+      ownCities,
+      targetCities: otherCities,
+      ownUnits,
+      targetUnits: otherUnits,
+      unitTypes: UNIT_TYPES,
+      ownTechCount: ownTechs.size,
+      targetTechCount: otherTechs.size,
+      targetGold: game.players.get(nation.id)?.gold ?? 0,
+      distance: Number.isFinite(distance) ? distance : 30,
+      love: memory.love,
+      relation: nation.relation,
+      aggressiveTrait,
+      diplomacyHandicap,
+      targetIsHuman: !nation.isAI,
+      pursuingSpaceVictory:
+        spaceRaceEnabled &&
+        spaceLeaderId === playerId &&
+        (spaceshipByPlayer.get(playerId)?.progress ?? 0) > 0,
+      targetSpaceshipProgress: targetSpaceship?.progress ?? 0,
+      targetSpaceshipLaunched:
+        targetSpaceship?.counts.launchedTurn !== undefined ||
+        isSpaceshipOptimal(
+          targetSpaceship?.counts ?? {
+            structurals: 0,
+            components: 0,
+            modules: 0,
+          }
+        ),
+    });
+    memory.warDesire = Math.max(
+      -1000,
+      Math.min(1000, Math.round(memory.warDesire * 0.5 + assessedWarDesire))
+    );
+    memory.countdown = Math.max(0, memory.countdown - 1);
+    return memory;
+  }
+
+  private async processNationTreaty(options: {
+    gameId: string;
+    game: GameInstance;
+    playerId: string;
+    state: FreecivAIState;
+    snapshot: DiplomacySnapshot;
+    nation: DiplomacySnapshot['nations'][number];
+    memory: AIDiplomacyMemory;
+    ownCities: TreatyValuationContext['ownCities'];
+    otherCities: TreatyValuationContext['otherCities'];
+    ownTechs: ReadonlySet<string>;
+    otherTechs: ReadonlySet<string>;
+    catalogue: TreatyValuationContext['catalogue'];
+    handicaps: ReadonlySet<string>;
+  }): Promise<boolean> {
+    const {
+      gameId,
+      game,
+      playerId,
+      state,
+      snapshot,
+      nation,
+      memory,
+      ownCities,
+      otherCities,
+      ownTechs,
+      otherTechs,
+      catalogue,
+      handicaps,
+    } = options;
+    // Freeciv keeps diplomatic memory current in away mode, but refuses
+    // treaties until normal AI control resumes.
+    // @reference reference/freeciv/ai/default/daidiplomacy.c:375-385
+    if (handicaps.has('away')) return false;
+
+    const proposal = nation.relation.proposal;
+    const otherSnapshot = await this.diplomacyManager.getSnapshot(gameId, nation.id);
+    const ourRelations = new Map(
+      snapshot.nations.map(candidate => [candidate.id, candidate.relation])
+    );
+    const alliedWithEnemy = otherSnapshot.nations.some(
+      candidate =>
+        candidate.id !== playerId &&
+        ['alliance', 'team'].includes(candidate.relation.state) &&
+        ourRelations.get(candidate.id)?.state === 'war'
+    );
+    const sharedVisionSafe = !otherSnapshot.nations.some(candidate => {
+      if (!candidate.relation.givesSharedVision || candidate.id === playerId) return false;
+      const stateWithRecipient = ourRelations.get(candidate.id)?.state ?? 'no_contact';
+      return !['no_contact', 'alliance', 'team'].includes(stateWithRecipient);
+    });
+    const context = this.treatyContext({
+      playerId,
+      otherPlayerId: nation.id,
+      game,
+      state,
+      love: memory.love,
+      relation: nation.relation,
+      ownCities,
+      otherCities,
+      ownTechs,
+      otherTechs,
+      catalogue,
+      diplomacyHandicap: handicaps.has('diplomacy'),
+      alliedWithEnemy,
+      sharedVisionSafe,
+    });
+    if (proposal?.status === 'pending' && proposal.recipientId === playerId) {
+      const accepted = evaluateTreaty(proposal.clauses, context).acceptable;
+      await this.diplomacyManager.respondToTreaty(
         gameId,
         playerId,
         nation.id,
-        clauses,
-        `ai:${game.currentTurn}:${playerId}:${nation.id}:${clauses[0].type}`
+        proposal.id,
+        accepted
       );
-      memory.lastContactTurn = game.currentTurn;
-      memory.countdown = 5;
-      contacted.add(nation.id);
-      actions++;
+      memory.countdown = 3;
+      return true;
     }
+    if (
+      proposal?.status === 'pending' ||
+      memory.countdown > 0 ||
+      !nation.known ||
+      !nation.canMeet ||
+      typeof this.diplomacyManager.proposeTreaty !== 'function'
+    ) {
+      return false;
+    }
+    const clauses =
+      this.chooseProactiveTreaty(nation.relation.state, memory.love, handicaps) ??
+      this.chooseTechnologyExchange(playerId, nation.id, ownTechs, otherTechs, context);
+    if (!clauses) return false;
+    await this.diplomacyManager.proposeTreaty(
+      gameId,
+      playerId,
+      nation.id,
+      clauses,
+      `ai:${game.currentTurn}:${playerId}:${nation.id}:${clauses[0].type}`
+    );
+    memory.lastContactTurn = game.currentTurn;
+    memory.countdown = 5;
+    return true;
+  }
 
+  private async processWarCountdown(options: {
+    gameId: string;
+    playerId: string;
+    state: FreecivAIState;
+    snapshot: DiplomacySnapshot;
+    contacted: ReadonlySet<string>;
+    away: boolean;
+    defensive: boolean;
+  }): Promise<number> {
+    const { gameId, playerId, state, snapshot, contacted, away, defensive } = options;
     const warTarget = snapshot.nations
       .filter(
         nation =>
@@ -254,12 +361,7 @@ export class FreecivAIDiplomacyController {
     for (const [otherId, memory] of Object.entries(state.diplomacy)) {
       if (otherId !== warTarget?.nation.id) delete memory.warCountdown;
     }
-    if (
-      warTarget &&
-      warTarget.memory.warDesire >= 250 &&
-      !profile.handicaps.has('away') &&
-      !profile.handicaps.has('defensive')
-    ) {
+    if (warTarget && warTarget.memory.warDesire >= 250 && !away && !defensive) {
       if (warTarget.memory.warCountdown === undefined) {
         warTarget.memory.warCountdown = 3;
       } else if (warTarget.memory.warCountdown > 0) {
@@ -267,12 +369,12 @@ export class FreecivAIDiplomacyController {
       } else if (typeof this.diplomacyManager.declareWar === 'function') {
         await this.diplomacyManager.declareWar(gameId, playerId, warTarget.nation.id);
         delete warTarget.memory.warCountdown;
-        actions++;
+        return 1;
       }
     } else if (warTarget) {
       delete warTarget.memory.warCountdown;
     }
-    return actions;
+    return 0;
   }
 
   private treatyContext(options: {

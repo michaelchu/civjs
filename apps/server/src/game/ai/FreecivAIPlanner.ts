@@ -68,21 +68,18 @@ function unitAttack(type: UnitType): number {
   return Math.max(0, type.attack ?? type.combat ?? 0);
 }
 
-/**
- * A ruleset-driven first port of Freeciv's domestic and military build wants.
- * It deliberately scores every legal choice instead of naming fixed units or
- * buildings. More specialized advisors can add wants without replacing this
- * shared choice surface.
- *
- * @reference reference/freeciv/ai/default/daicity.c
- * @reference reference/freeciv/ai/default/daidomestic.c
- * @reference reference/freeciv/ai/default/daimilitary.c
- */
-export function rankCityProduction(
-  context: ProductionPlanningContext
-): AIChoice<ProductionChoice>[] {
-  const { city, cities, units, unitTypes, buildingTypes, canBuild } = context;
-  const choices: AIChoice<ProductionChoice>[] = [];
+interface ProductionMetrics {
+  cityUnits: Unit[];
+  expansionNeed: number;
+  workerNeed: number;
+  defenseNeed: number;
+  oceanTiles: number;
+  aggressionWeight: number;
+  builderWeight: number;
+}
+
+function calculateProductionMetrics(context: ProductionPlanningContext): ProductionMetrics {
+  const { city, cities, units, unitTypes } = context;
   const cityUnits = units.filter(unit => unit.homeCityId === city.id);
   const defendersOnTile = units.filter(unit => {
     const type = unitTypes[unit.unitTypeId];
@@ -99,62 +96,68 @@ export function rankCityProduction(
   const expansionWeight =
     ((context.profile?.expansion ?? 100) / 100) *
     ((context.profile?.traits.expansionist ?? 50) / 50);
-  const aggressionWeight = (context.profile?.traits.aggressive ?? 50) / 50;
-  const builderWeight = (context.profile?.traits.builder ?? 50) / 50;
-  const expansionNeed = Math.max(0, cities.length + 1 - settlerCount * 2) * expansionWeight;
-  const workerNeed = Math.max(0, cities.length - workerCount);
-  const defenseNeed =
-    Math.max(0, 1 - defendersOnTile.length) * 90 +
-    context.dangerAssessment.defenseDeficit +
-    context.dangerAssessment.urgency;
-  const oceanTiles = (city.workableTiles ?? []).filter(tile =>
-    ['ocean', 'deep_ocean', 'coast', 'lake'].includes(tile.terrain ?? '')
-  ).length;
+  return {
+    cityUnits,
+    expansionNeed: Math.max(0, cities.length + 1 - settlerCount * 2) * expansionWeight,
+    workerNeed: Math.max(0, cities.length - workerCount),
+    defenseNeed:
+      Math.max(0, 1 - defendersOnTile.length) * 90 +
+      context.dangerAssessment.defenseDeficit +
+      context.dangerAssessment.urgency,
+    oceanTiles: (city.workableTiles ?? []).filter(tile =>
+      ['ocean', 'deep_ocean', 'coast', 'lake'].includes(tile.terrain ?? '')
+    ).length,
+    aggressionWeight: (context.profile?.traits.aggressive ?? 50) / 50,
+    builderWeight: (context.profile?.traits.builder ?? 50) / 50,
+  };
+}
 
-  for (const type of Object.values(unitTypes)) {
-    if (!canBuild('unit', type.id)) continue;
+function rankUnitProduction(
+  context: ProductionPlanningContext,
+  metrics: ProductionMetrics
+): AIChoice<ProductionChoice>[] {
+  const choices: AIChoice<ProductionChoice>[] = [];
+  for (const type of Object.values(context.unitTypes)) {
+    if (!context.canBuild('unit', type.id)) continue;
     if (context.excludedChoices?.has(`unit:${type.id}`)) continue;
-    const delay = turnsToBuild(city, type.cost);
     let want = 0;
     const reasons: string[] = [];
-
     if (type.canFoundCity) {
-      want += expansionNeed * 45;
+      want += metrics.expansionNeed * 45;
       reasons.push('expansion');
     }
     if (type.canBuildImprovements) {
-      want += workerNeed * 35;
+      want += metrics.workerNeed * 35;
       reasons.push('infrastructure');
     }
-
     const defense = unitDefense(type);
     const attack = unitAttack(type);
     if (defense > 0) {
-      want += defenseNeed * defense;
+      want += metrics.defenseNeed * defense;
       reasons.push('defense');
     }
     const targetWant = context.offensiveUnitWants?.get(type.id);
     if (targetWant !== undefined) {
-      want += targetWant * (attack > 0 ? aggressionWeight : 1);
+      want += targetWant * (attack > 0 ? metrics.aggressionWeight : 1);
       reasons.push(attack > 0 ? 'targeted military' : 'strategic support');
     }
     if (attack > 0 && targetWant === undefined && !context.offensiveUnitWants) {
       want +=
         ((attack * Math.max(1, type.movement) * Math.max(1, type.firepower ?? 1) * 14) /
           Math.max(1, type.cost)) *
-        aggressionWeight;
+        metrics.aggressionWeight;
       reasons.push('military');
     }
     if ((type.transport_capacity ?? 0) > 0) {
-      const landUnits = units.filter(unit => unitTypes[unit.unitTypeId]?.unitClass === 'military');
+      const landUnits = context.units.filter(
+        unit => context.unitTypes[unit.unitTypeId]?.unitClass === 'military'
+      );
       want += landUnits.length * 4;
       reasons.push('transport');
     }
-
-    // Avoid support-heavy units when this city is already running a deficit.
     const support = (type.uk_gold ?? 0) + (type.uk_shield ?? 0) * 2 + (type.uk_food ?? 0) * 2;
-    want -= support * Math.max(1, cityUnits.length);
-    want = amortize(want, delay);
+    want -= support * Math.max(1, metrics.cityUnits.length);
+    want = amortize(want, turnsToBuild(context.city, type.cost));
     if (want > 0) {
       choices.push({
         value: { kind: 'unit', id: type.id },
@@ -163,58 +166,73 @@ export function rankCityProduction(
       });
     }
   }
+  return choices;
+}
 
-  for (const building of Object.values(buildingTypes)) {
-    if (!canBuild('building', building.id)) continue;
+function buildingEffectsWant(
+  context: ProductionPlanningContext,
+  building: BuildingType,
+  metrics: ProductionMetrics
+): number {
+  const effects = building.effects ?? {};
+  return (
+    (effects.foodBonus ?? 0) * 24 +
+    (effects.productionBonus ?? 0) * 22 +
+    (effects.scienceBonus ?? 0) * 18 +
+    (effects.goldBonus ?? 0) * 16 +
+    (effects.luxuryBonus ?? 0) * 10 +
+    (effects.happinessEffect ?? 0) * 30 +
+    (effects.defenseBonus ?? 0) * Math.max(10, metrics.defenseNeed) +
+    (effects.oceanFood ?? 0) * metrics.oceanTiles * 24 +
+    (effects.oceanShields ?? 0) * metrics.oceanTiles * 22 +
+    (effects.immediateTechs ?? 0) * 150 +
+    (effects.techParasitePlayers ?? 0) * 50 +
+    ((effects.corruptionReduction ?? 0) *
+      Math.max(0, context.city.grossTradePerTurn ?? context.city.tradePerTurn ?? 0)) /
+      5
+  );
+}
+
+function rankBuildingProduction(
+  context: ProductionPlanningContext,
+  metrics: ProductionMetrics
+): AIChoice<ProductionChoice>[] {
+  const choices: AIChoice<ProductionChoice>[] = [];
+  const citySize = context.city.size ?? context.city.population ?? 0;
+  for (const building of Object.values(context.buildingTypes)) {
+    if (!context.canBuild('building', building.id)) continue;
     if (context.excludedChoices?.has(`building:${building.id}`)) continue;
-    if (building.genus === 'GreatWonder' && context.reservedWonders?.has(building.id)) {
-      continue;
-    }
-    const delay = turnsToBuild(city, building.cost);
+    if (building.genus === 'GreatWonder' && context.reservedWonders?.has(building.id)) continue;
     const effects = building.effects ?? {};
-    let want =
-      (effects.foodBonus ?? 0) * 24 +
-      (effects.productionBonus ?? 0) * 22 +
-      (effects.scienceBonus ?? 0) * 18 +
-      (effects.goldBonus ?? 0) * 16 +
-      (effects.luxuryBonus ?? 0) * 10 +
-      (effects.happinessEffect ?? 0) * 30 +
-      (effects.defenseBonus ?? 0) * Math.max(10, defenseNeed) +
-      (effects.oceanFood ?? 0) * oceanTiles * 24 +
-      (effects.oceanShields ?? 0) * oceanTiles * 22 +
-      (effects.immediateTechs ?? 0) * 150 +
-      (effects.techParasitePlayers ?? 0) * 50 +
-      ((effects.corruptionReduction ?? 0) *
-        Math.max(0, city.grossTradePerTurn ?? city.tradePerTurn ?? 0)) /
-        5;
-    const citySize = city.size ?? city.population ?? 0;
+    let want = buildingEffectsWant(context, building, metrics);
     if (effects.maxCitySize !== undefined) {
       want += Math.max(0, citySize - (effects.maxCitySize - 4)) * 60;
     }
-    if (effects.unlimitedCitySize) {
-      want += Math.max(0, citySize - 8) * 45;
-    }
+    if (effects.unlimitedCitySize) want += Math.max(0, citySize - 8) * 45;
     if ((effects.defenseBonus ?? 0) > 0) {
       want = reevaluateDefensiveBuildingWant(want, context.dangerAssessment);
     }
-    want *= builderWeight;
-
+    want *= metrics.builderWeight;
     const id = building.id.toLowerCase();
-    if ((city.goldPerTurn ?? 0) < 0 && (id.includes('market') || effects.goldBonus)) {
+    if ((context.city.goldPerTurn ?? 0) < 0 && (id.includes('market') || effects.goldBonus)) {
       want += 120;
     }
-    if ((city.foodPerTurn ?? 0) <= 0 && (id.includes('granary') || effects.foodBonus)) {
+    if ((context.city.foodPerTurn ?? 0) <= 0 && (id.includes('granary') || effects.foodBonus)) {
       want += 100;
     }
-    if (city.happiness.unhappy + city.happiness.angry > 0 && effects.happinessEffect) {
+    if (
+      context.city.happiness.unhappy + context.city.happiness.angry > 0 &&
+      effects.happinessEffect
+    ) {
       want += 100;
     }
-    if (building.genus === 'GreatWonder') want += Math.max(0, city.productionPerTurn ?? 0) * 4;
+    if (building.genus === 'GreatWonder') {
+      want += Math.max(0, context.city.productionPerTurn ?? 0) * 4;
+    }
     if (building.genus === 'Convert') want = Math.max(want, 1);
     const strategicWant = context.buildingWants?.get(building.id);
     if (strategicWant) want += strategicWant.want;
-
-    want = amortize(want, delay);
+    want = amortize(want, turnsToBuild(context.city, building.cost));
     if (want > 0) {
       choices.push({
         value: { kind: 'building', id: building.id },
@@ -223,7 +241,27 @@ export function rankCityProduction(
       });
     }
   }
+  return choices;
+}
 
+/**
+ * A ruleset-driven first port of Freeciv's domestic and military build wants.
+ * It deliberately scores every legal choice instead of naming fixed units or
+ * buildings. More specialized advisors can add wants without replacing this
+ * shared choice surface.
+ *
+ * @reference reference/freeciv/ai/default/daicity.c
+ * @reference reference/freeciv/ai/default/daidomestic.c
+ * @reference reference/freeciv/ai/default/daimilitary.c
+ */
+export function rankCityProduction(
+  context: ProductionPlanningContext
+): AIChoice<ProductionChoice>[] {
+  const metrics = calculateProductionMetrics(context);
+  const choices = [
+    ...rankUnitProduction(context, metrics),
+    ...rankBuildingProduction(context, metrics),
+  ];
   return choices.sort(
     (a, b) =>
       b.want - a.want ||

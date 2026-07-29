@@ -37,10 +37,41 @@ export class FreecivAIDomesticController {
     playerId: string,
     state: FreecivAIState
   ): Promise<number> {
+    const { research, available, ranked } = await this.rankResearchChoices(game, playerId, state);
+    const researchChoice = ranked[0];
+    const choice =
+      researchChoice?.value ??
+      available.sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))[0];
+    if (!choice) return 0;
+    if (
+      researchChoice?.goalId &&
+      researchChoice.goalId !== research?.techGoal &&
+      typeof game.researchManager.setResearchGoal === 'function'
+    ) {
+      await game.researchManager.setResearchGoal(playerId, researchChoice.goalId);
+    }
+    if (research?.currentTech) {
+      if (choice.id === research.currentTech) return 0;
+      const currentWant = ranked.find(
+        candidate => candidate.value.id === research.currentTech
+      )?.want;
+      const penalty = Math.max(0, research.bulbsAccumulated ?? 0);
+      if (currentWant === undefined || (researchChoice?.want ?? 0) - currentWant <= penalty) {
+        return 0;
+      }
+    }
+    if (choice.id === research?.currentTech) return 0;
+    await game.researchManager.setCurrentResearch(playerId, choice.id);
+    return 1;
+  }
+
+  private async rankResearchChoices(game: GameInstance, playerId: string, state: FreecivAIState) {
     const research = game.researchManager.getPlayerResearch(playerId);
     const catalogue = game.researchManager.getTechnologyCatalogue?.(playerId);
-    if (research?.currentTech && !catalogue) return 0;
     const available = game.researchManager.getAvailableTechnologies(playerId);
+    if (research?.currentTech && !catalogue) {
+      return { research, available: [], ranked: [] };
+    }
     const governmentTechs = new Set<string>();
     for (const government of Object.values(game.governmentManager?.getAllGovernments?.() ?? {})) {
       for (const requirement of government.reqs ?? []) {
@@ -79,31 +110,7 @@ export class FreecivAIDomesticController {
         })
       : [];
     state.techWants = Object.fromEntries(strategicTechWants);
-    const researchChoice = ranked[0];
-    const choice =
-      researchChoice?.value ??
-      available.sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))[0];
-    if (!choice) return 0;
-    if (
-      researchChoice?.goalId &&
-      researchChoice.goalId !== research?.techGoal &&
-      typeof game.researchManager.setResearchGoal === 'function'
-    ) {
-      await game.researchManager.setResearchGoal(playerId, researchChoice.goalId);
-    }
-    if (research?.currentTech) {
-      if (choice.id === research.currentTech) return 0;
-      const currentWant = ranked.find(
-        candidate => candidate.value.id === research.currentTech
-      )?.want;
-      const penalty = Math.max(0, research.bulbsAccumulated ?? 0);
-      if (currentWant === undefined || (researchChoice?.want ?? 0) - currentWant <= penalty) {
-        return 0;
-      }
-    }
-    if (choice.id === research?.currentTech) return 0;
-    await game.researchManager.setCurrentResearch(playerId, choice.id);
-    return 1;
+    return { research, available, ranked };
   }
 
   async manageGovernment(

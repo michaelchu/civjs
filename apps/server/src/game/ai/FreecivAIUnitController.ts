@@ -134,7 +134,13 @@ export class FreecivAIUnitController {
     }
 
     for (const unit of settlers) {
-      if (game.unitManager.canUnitPerformAction(unit.id, ActionType.FOUND_CITY)) {
+      const task = state.unitTasks[unit.id];
+      const reachedAssignedSite =
+        task?.role === 'settle' && task.targetX === unit.x && task.targetY === unit.y;
+      if (
+        reachedAssignedSite &&
+        game.unitManager.canUnitPerformAction(unit.id, ActionType.FOUND_CITY)
+      ) {
         const result = await game.unitManager.executeUnitAction(
           unit.id,
           ActionType.FOUND_CITY,
@@ -223,8 +229,15 @@ export class FreecivAIUnitController {
       })
       .slice(0, 24);
     for (const candidate of candidates) {
-      const path = await game.pathfindingManager.findPath(unit, candidate.tile.x, candidate.tile.y);
-      if (!path.valid || path.path.length < 2) continue;
+      const isCurrentTile = candidate.tile.x === unit.x && candidate.tile.y === unit.y;
+      if (!isCurrentTile) {
+        const path = await game.pathfindingManager.findPath(
+          unit,
+          candidate.tile.x,
+          candidate.tile.y
+        );
+        if (!path.valid || path.path.length < 2) continue;
+      }
       for (const [key, ownerId] of reservedSites) {
         if (ownerId === unit.id) reservedSites.delete(key);
       }
@@ -236,6 +249,28 @@ export class FreecivAIUnitController {
         targetY: candidate.tile.y,
         assignedTurn: game.currentTurn,
       };
+      if (isCurrentTile) {
+        if (!game.unitManager.canUnitPerformAction(unit.id, ActionType.FOUND_CITY)) {
+          reservedSites.delete(key);
+          delete state.unitTasks[unit.id];
+          continue;
+        }
+        const result = await game.unitManager.executeUnitAction(
+          unit.id,
+          ActionType.FOUND_CITY,
+          undefined,
+          undefined,
+          unit.playerId
+        );
+        if (result.success) {
+          reservedSites.delete(key);
+          delete state.unitTasks[unit.id];
+          return 1;
+        }
+        reservedSites.delete(key);
+        delete state.unitTasks[unit.id];
+        continue;
+      }
       const result = await game.unitManager.executeUnitAction(
         unit.id,
         ActionType.GOTO,

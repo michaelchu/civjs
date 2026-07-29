@@ -22,7 +22,7 @@
     "test:integration:path": "jest --config jest.integration.config.js --runInBand --forceExit --runTestsByPath",
     "test:integration:ci": "jest --config jest.integration.config.js --runInBand --forceExit",
     "test:integration:watch": "jest --config jest.integration.config.js --watch",
-    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" --max-warnings 126",
     "lint:fix": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",

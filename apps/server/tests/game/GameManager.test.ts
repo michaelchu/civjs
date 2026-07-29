@@ -627,6 +627,8 @@ describe('GameManager', () => {
           getCurrentTurn: jest.fn(() => 8),
         },
       });
+      (gameManager as any).playerToGame.set('host-player', 'test-game-id');
+      (gameManager as any).playerToGame.set('target-player', 'test-game-id');
       mockDb.query.games.findFirst.mockResolvedValue({
         id: 'test-game-id',
         hostId: 'test-host-id',
@@ -678,6 +680,34 @@ describe('GameManager', () => {
         isConnected: false,
         hasEndedTurn: false,
       });
+    });
+
+    it('serializes control transfer behind an in-flight end-turn operation', async () => {
+      const { players, processTurn } = installGame();
+      let releaseTurn!: () => void;
+      processTurn.mockImplementation(
+        () =>
+          new Promise<void>(resolve => {
+            releaseTurn = resolve;
+          })
+      );
+
+      const endTurn = gameManager.endTurn('target-player');
+      while (!releaseTurn) await Promise.resolve();
+      const transfer = gameManager.setPlayerAIControl(
+        'test-game-id',
+        'test-host-id',
+        'target-player',
+        true
+      );
+      await Promise.resolve();
+
+      expect(players.get('target-player').isAI).toBe(false);
+      releaseTurn();
+      await Promise.all([endTurn, transfer]);
+
+      expect(players.get('target-player').isAI).toBe(true);
+      expect(processTurn).toHaveBeenCalledTimes(1);
     });
 
     it('rejects non-host transfers and duplicate human ownership', async () => {

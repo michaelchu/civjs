@@ -241,6 +241,7 @@ describe('EndGameService', () => {
       { id: 'defeated', civilization: 'Greek', isAlive: true },
     ]);
     unitsByPlayer.defeated = [{ id: 'unit-2' }];
+    const spaceshipStateSink = jest.fn();
 
     await expect(
       new EndGameService(databaseProvider, io).evaluate({
@@ -252,6 +253,7 @@ describe('EndGameService', () => {
         cityManager,
         unitManager,
         researchManager,
+        spaceshipStateSink,
       })
     ).resolves.toEqual({ ended: false });
 
@@ -267,6 +269,13 @@ describe('EndGameService', () => {
         },
       })
     );
+    expect(spaceshipStateSink).toHaveBeenCalledWith('winner', {
+      structurals: 16,
+      components: 8,
+      modules: 3,
+      launchedTurn: 20,
+      arrivalTurn: 30,
+    });
     unitsByPlayer.defeated = [];
   });
 

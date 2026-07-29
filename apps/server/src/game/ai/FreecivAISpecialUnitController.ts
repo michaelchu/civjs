@@ -1,7 +1,11 @@
 import { ActionType } from '@app-types/shared/actions';
-import { planAirMissions, type AirRefuelPoint } from '@game/ai/FreecivAIAirPlanner';
+import {
+  planAirMissions,
+  type AirMission,
+  type AirRefuelPoint,
+} from '@game/ai/FreecivAIAirPlanner';
 import { planDiplomatMissions } from '@game/ai/FreecivAIDiplomatPlanner';
-import { planParadropMissions } from '@game/ai/FreecivAIParadropPlanner';
+import { planParadropMissions, type ParadropMission } from '@game/ai/FreecivAIParadropPlanner';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
 import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
 import { hostileUnitsForPlanning, targetableForeignCities } from '@game/ai/FreecivAITargeting';
@@ -14,6 +18,90 @@ import {
 } from '@game/services/DiplomatActionEconomics';
 import { calculateTreasuryReserve } from '@game/ai/FreecivAITreasuryPlanner';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import type { CityState } from '@game/managers/CityManager';
+import type { MapTile } from '@game/map/MapTypes';
+
+function buildAirRefuelPoints(options: {
+  game: GameInstance;
+  friendlyUnits: Unit[];
+  friendlyCities: CityState[];
+  hostileUnits: Unit[];
+  mapTiles: MapTile[];
+}): AirRefuelPoint[] {
+  const { game, friendlyUnits, friendlyCities, hostileUnits, mapTiles } = options;
+  const points: AirRefuelPoint[] = friendlyCities.map(city => {
+    const defenders = friendlyUnits.filter(
+      unit => unit.x === city.x && unit.y === city.y && !unit.transportedBy
+    );
+    const graveDanger = hostileUnits.filter(enemy => {
+      const type = game.unitManager.getUnitType(enemy.unitTypeId);
+      return (
+        game.mapManager.getDistance(enemy.x, enemy.y, city.x, city.y) <= 1 &&
+        type?.rulesetUnitClassFlags.includes('CanOccupyCity') === true &&
+        type.flags?.includes('NonMil') !== true
+      );
+    }).length;
+    return {
+      id: city.id,
+      kind: 'city',
+      x: city.x,
+      y: city.y,
+      city,
+      graveDanger,
+      defenderCount: defenders.length,
+      recoveryTurns: (unit: Unit) => {
+        const gain = game.unitManager.calculateUnitHitpointRecovery(unit, city.x, city.y).gain;
+        return gain > 0 ? Math.ceil(Math.max(0, 100 - unit.health) / gain) : Infinity;
+      },
+    };
+  });
+  for (const tile of mapTiles) {
+    if (
+      !tile.improvements.some(extra => extra.toLowerCase() === 'airbase') ||
+      hostileUnits.some(unit => unit.x === tile.x && unit.y === tile.y)
+    ) {
+      continue;
+    }
+    points.push({
+      id: `airbase:${tile.x},${tile.y}`,
+      kind: 'airbase',
+      x: tile.x,
+      y: tile.y,
+      recoveryTurns: unit => {
+        const gain = game.unitManager.calculateUnitHitpointRecovery(unit, tile.x, tile.y).gain;
+        return gain > 0 ? Math.ceil(Math.max(0, 100 - unit.health) / gain) : Infinity;
+      },
+    });
+  }
+  for (const carrier of friendlyUnits) {
+    const type = game.unitManager.getUnitType(carrier.unitTypeId);
+    if (
+      !type ||
+      (type.transport_capacity ?? 0) <= 0 ||
+      !type.cargoClasses.some(unitClass => ['Air', 'Helicopter', 'Missile'].includes(unitClass))
+    ) {
+      continue;
+    }
+    points.push({
+      id: carrier.id,
+      kind: 'carrier',
+      x: carrier.x,
+      y: carrier.y,
+      carrier,
+      cargoClasses: type.cargoClasses,
+      remainingCapacity: game.unitManager.getTransportCapacityRemaining(carrier.id),
+      recoveryTurns: unit => {
+        const gain = game.unitManager.calculateUnitHitpointRecovery(
+          unit,
+          carrier.x,
+          carrier.y
+        ).gain;
+        return gain > 0 ? Math.ceil(Math.max(0, 100 - unit.health) / gain) : Infinity;
+      },
+    });
+  }
+  return points;
+}
 
 /**
  * Executes air, paradrop, diplomat, and spy missions through authoritative
@@ -43,77 +131,13 @@ export class FreecivAISpecialUnitController {
       friendlyOwners.has(unit.playerId)
     );
     const mapTiles = game.mapManager.getMapData?.()?.tiles.flat() ?? [];
-    const refuelPoints: AirRefuelPoint[] = friendlyCities.map(city => {
-      const defenders = friendlyUnits.filter(
-        unit => unit.x === city.x && unit.y === city.y && !unit.transportedBy
-      );
-      const graveDanger = hostileUnits.filter(enemy => {
-        const type = game.unitManager.getUnitType(enemy.unitTypeId);
-        return (
-          game.mapManager.getDistance(enemy.x, enemy.y, city.x, city.y) <= 1 &&
-          type?.rulesetUnitClassFlags.includes('CanOccupyCity') === true &&
-          type.flags?.includes('NonMil') !== true
-        );
-      }).length;
-      return {
-        id: city.id,
-        kind: 'city' as const,
-        x: city.x,
-        y: city.y,
-        city,
-        graveDanger,
-        defenderCount: defenders.length,
-        recoveryTurns: (unit: (typeof friendlyUnits)[number]) => {
-          const gain = game.unitManager.calculateUnitHitpointRecovery(unit, city.x, city.y).gain;
-          return gain > 0 ? Math.ceil(Math.max(0, 100 - unit.health) / gain) : Infinity;
-        },
-      };
+    const refuelPoints = buildAirRefuelPoints({
+      game,
+      friendlyUnits,
+      friendlyCities,
+      hostileUnits,
+      mapTiles,
     });
-    for (const tile of mapTiles) {
-      if (
-        !tile.improvements.some(extra => extra.toLowerCase() === 'airbase') ||
-        hostileUnits.some(unit => unit.x === tile.x && unit.y === tile.y)
-      ) {
-        continue;
-      }
-      refuelPoints.push({
-        id: `airbase:${tile.x},${tile.y}`,
-        kind: 'airbase',
-        x: tile.x,
-        y: tile.y,
-        recoveryTurns: unit => {
-          const gain = game.unitManager.calculateUnitHitpointRecovery(unit, tile.x, tile.y).gain;
-          return gain > 0 ? Math.ceil(Math.max(0, 100 - unit.health) / gain) : Infinity;
-        },
-      });
-    }
-    for (const carrier of friendlyUnits) {
-      const type = game.unitManager.getUnitType(carrier.unitTypeId);
-      if (
-        !type ||
-        (type.transport_capacity ?? 0) <= 0 ||
-        !type.cargoClasses.some(unitClass => ['Air', 'Helicopter', 'Missile'].includes(unitClass))
-      ) {
-        continue;
-      }
-      refuelPoints.push({
-        id: carrier.id,
-        kind: 'carrier',
-        x: carrier.x,
-        y: carrier.y,
-        carrier,
-        cargoClasses: type.cargoClasses,
-        remainingCapacity: game.unitManager.getTransportCapacityRemaining(carrier.id),
-        recoveryTurns: unit => {
-          const gain = game.unitManager.calculateUnitHitpointRecovery(
-            unit,
-            carrier.x,
-            carrier.y
-          ).gain;
-          return gain > 0 ? Math.ceil(Math.max(0, 100 - unit.health) / gain) : Infinity;
-        },
-      });
-    }
     const missions = planAirMissions({
       friendlyUnits,
       hostileUnits,
@@ -185,6 +209,23 @@ export class FreecivAISpecialUnitController {
     for (const [unitId, task] of Object.entries(state.unitTasks)) {
       if (task.role === 'air' || task.role === 'paradrop') delete state.unitTasks[unitId];
     }
+    const airActions = await this.executeAirMissions(game, playerId, state, missions);
+    const paradropActions = await this.executeParadropMissions(
+      game,
+      playerId,
+      state,
+      hostileUnits,
+      paradropMissions
+    );
+    return airActions + paradropActions;
+  }
+
+  private async executeAirMissions(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    missions: AirMission[]
+  ): Promise<number> {
     let actions = 0;
     for (const mission of missions) {
       state.unitTasks[mission.unit.id] = {
@@ -265,7 +306,18 @@ export class FreecivAISpecialUnitController {
         }
       }
     }
-    for (const mission of paradropMissions) {
+    return actions;
+  }
+
+  private async executeParadropMissions(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    hostileUnits: Unit[],
+    missions: ParadropMission[]
+  ): Promise<number> {
+    let actions = 0;
+    for (const mission of missions) {
       state.unitTasks[mission.unit.id] = {
         role: 'paradrop',
         targetId:

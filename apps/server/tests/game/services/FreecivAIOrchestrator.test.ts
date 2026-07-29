@@ -313,6 +313,8 @@ function createScenario() {
 describe('FreecivAIOrchestrator', () => {
   it('covers expansion, economy, research, production, workers, combat, diplomacy, and action use', async () => {
     const scenario = createScenario();
+    (scenario.game.cityManager as any).canFoundCityAt = (x: number, y: number) =>
+      x === 2 && y === 2;
     const actions = await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
       'game',
       scenario.game as any
@@ -1192,7 +1194,7 @@ describe('FreecivAIOrchestrator', () => {
     scenario.game.researchManager.setCurrentResearch.mockRejectedValueOnce(
       new Error('invalid target')
     );
-    await expect(orchestrator.processTurn('active-game', scenario.game as any)).resolves.toBe(7);
+    await expect(orchestrator.processTurn('active-game', scenario.game as any)).resolves.toBe(6);
     expect(scenario.setCityProduction).toHaveBeenCalled();
   });
 
@@ -1737,6 +1739,40 @@ describe('FreecivAIOrchestrator', () => {
         tasks['b-settler'].targetY
       )
     ).toBeGreaterThanOrEqual(3);
+  });
+
+  it('does not found on a legal intermediate tile before reaching the reserved site', async () => {
+    const scenario = createScenario();
+    const settler = scenario.units.get('settler')!;
+    settler.x = 2;
+    settler.y = 2;
+    (scenario.game.cityManager as any).canFoundCityAt = () => true;
+    (scenario.game.players.get('ai') as any).aiState.unitTasks[settler.id] = {
+      role: 'settle',
+      targetX: 8,
+      targetY: 8,
+      assignedTurn: 1,
+    };
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.executeUnitAction).not.toHaveBeenCalledWith(
+      settler.id,
+      ActionType.FOUND_CITY,
+      undefined,
+      undefined,
+      settler.playerId
+    );
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith(
+      settler.id,
+      ActionType.GOTO,
+      8,
+      8,
+      settler.playerId
+    );
   });
 
   it('marks an unreachable cross-continent worker task as ferry demand', async () => {

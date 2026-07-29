@@ -1,8 +1,12 @@
 import { ActionType } from '@app-types/shared/actions';
 import { OutputType } from '@game/constants/GameConstants';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
-import { rankCityProduction } from '@game/ai/FreecivAIPlanner';
-import { createAIProfile } from '@game/ai/FreecivAIProfile';
+import {
+  rankCityProduction,
+  type AIChoice,
+  type ProductionChoice,
+} from '@game/ai/FreecivAIPlanner';
+import { createAIProfile, type AIProfile } from '@game/ai/FreecivAIProfile';
 import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
 import {
   hostileUnitsForPlanning,
@@ -10,15 +14,11 @@ import {
   sortedPlayerUnits,
   targetableForeignCities,
 } from '@game/ai/FreecivAITargeting';
-import { BUILDING_TYPES } from '@game/managers/CityManager';
+import { BUILDING_TYPES, type CityState } from '@game/managers/CityManager';
 import type { GameInstance } from '@game/managers/GameManager';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
-import {
-  assessCityDanger,
-  buildCityThreatTravelTimes,
-  cityThreatTravelKey,
-} from '@game/ai/FreecivAICityDangerPlanner';
+import { buildAuthoritativeCityDangerAssessments } from '@game/ai/FreecivAICityDangerPlanner';
 import { rankVirtualMilitaryProduction } from '@game/ai/FreecivAIMilitaryProductionPlanner';
 import { rankHunterProduction } from '@game/ai/FreecivAIHunterPlanner';
 import { rankVirtualAirProduction } from '@game/ai/FreecivAIAirPlanner';
@@ -32,6 +32,34 @@ import { calculateTreasuryReserve } from '@game/ai/FreecivAITreasuryPlanner';
 import type { Unit } from '@game/managers/UnitManager';
 import { planWonderCoordination } from '@game/ai/FreecivAIWonderPlanner';
 import { planSpaceship } from '@game/ai/FreecivAISpaceshipPlanner';
+import type { DiplomaticState } from '@game/managers/DiplomacyManager';
+import type { MapTile } from '@game/map/MapTypes';
+
+function mergeWant(wants: Map<string, number>, id: string, want: number): void {
+  wants.set(id, Math.max(want, wants.get(id) ?? 0));
+}
+
+function createVirtualDiplomat(
+  gameId: string,
+  playerId: string,
+  city: CityState,
+  unitTypeId: string,
+  movement: number
+): Unit {
+  return {
+    id: `virtual-diplomat:${city.id}:${unitTypeId}`,
+    gameId,
+    playerId,
+    unitTypeId,
+    x: city.x,
+    y: city.y,
+    movementLeft: movement,
+    health: 100,
+    veteranLevel: 0,
+    experience: 0,
+    fortified: false,
+  };
+}
 
 /**
  * Executes citizen allocation, production, worklist, and city-local unit
@@ -76,6 +104,118 @@ export class FreecivAICityController {
     state: FreecivAIState
   ): Promise<number> {
     let actions = 0;
+    const context = await this.prepareProduction(game, playerId, state);
+    const {
+      cities,
+      units,
+      canContinueProduction,
+      relations,
+      relationByPlayer,
+      profile,
+      hostileUnits,
+      prospectiveUnits,
+      prospectiveCities,
+      allKnownCities,
+      allUnits,
+      mapTiles,
+      exploredTiles,
+      knownTechs,
+      spaceshipPlan,
+      gold,
+      goldReserve,
+      diplomatTargetCities,
+      inciteCosts,
+      stealableTechs,
+      dangerByCity,
+      reservedWonders,
+      wonderPlan,
+    } = context;
+    let { expansionQueued } = context;
+
+    for (const city of cities) {
+      for (const type of Object.values(UNIT_TYPES)) {
+        if (
+          type.paratroopersRange > 0 &&
+          type.flags?.includes('Paratroopers') &&
+          type.requiredTech &&
+          !knownTechs.has(type.requiredTech)
+        ) {
+          state.techWants[type.requiredTech] = (state.techWants[type.requiredTech] ?? 0) + 2;
+        }
+      }
+      const offensiveUnitWants = await this.rankOffensiveProduction({
+        game,
+        playerId,
+        state,
+        city,
+        units,
+        hostileUnits,
+        prospectiveUnits,
+        prospectiveCities,
+        allUnits,
+        allKnownCities,
+        mapTiles,
+        exploredTiles,
+        alliedPlayerIds: relations.allied,
+        diplomatTargetCities,
+        canContinueProduction,
+        relationByPlayer,
+        stealableTechs,
+        inciteCosts,
+        knownTechs,
+        gold,
+        goldReserve,
+        profile,
+      });
+      for (const [unitTypeId, want] of wonderPlan.productionWants.get(city.id) ?? []) {
+        mergeWant(offensiveUnitWants, unitTypeId, want);
+      }
+      const dangerAssessment = dangerByCity.get(city.id)!;
+      const ranked = canContinueProduction
+        ? rankCityProduction({
+            city,
+            cities,
+            units,
+            unitTypes: UNIT_TYPES,
+            buildingTypes: BUILDING_TYPES,
+            canBuild: (kind, id) => canContinueProduction(city.id, kind, id),
+            dangerAssessment,
+            profile,
+            offensiveUnitWants,
+            buildingWants: spaceshipPlan.buildingWants.get(city.id),
+            reservedWonders,
+            excludedChoices: new Set(
+              [
+                city.currentProduction && city.productionType
+                  ? `${city.productionType}:${city.currentProduction}`
+                  : undefined,
+                ...(city.worklist ?? []).map(item => {
+                  const kind = item.kind === 'wonder' ? 'building' : item.kind;
+                  return `${kind}:${item.value}`;
+                }),
+              ].filter((value): value is string => Boolean(value))
+            ),
+          })
+        : [];
+      state.cityWants[city.id] = Object.fromEntries(
+        ranked.slice(0, 12).map(choice => [`${choice.value.kind}:${choice.value.id}`, choice.want])
+      );
+      const applied = await this.applyRankedCityProduction({
+        game,
+        playerId,
+        city,
+        ranked,
+        profile,
+        reservedWonders,
+        expansionQueued,
+      });
+      actions += applied.actions;
+      expansionQueued = applied.expansionQueued;
+    }
+    return actions;
+  }
+
+  private async prepareProduction(game: GameInstance, playerId: string, state: FreecivAIState) {
     const cities = game.cityManager
       .getPlayerCities(playerId)
       .slice()
@@ -86,7 +226,7 @@ export class FreecivAICityController {
         ? (cityId: string, kind: 'unit' | 'building', id: string) =>
             game.cityManager.canCityContinueProduction(cityId, kind, id)
         : undefined;
-    let expansionQueued = units.some(
+    const expansionQueued = units.some(
       unit => game.unitManager.getUnitType(unit.unitTypeId)?.canFoundCity
     );
     const relations = await this.hostilityPolicy.getRelationPlayerIds(game.id, playerId);
@@ -189,14 +329,12 @@ export class FreecivAICityController {
         ).length,
       ])
     );
-    const threatTravelTimes = await buildCityThreatTravelTimes({
+    const dangerByCity = await buildAuthoritativeCityDangerAssessments({
+      game,
       cities,
       threateningUnits: hostileUnits,
-      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
-      getUnit: unitId => game.unitManager.getUnit(unitId),
-      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
-      findPath: (unit, targetX, targetY) =>
-        game.pathfindingManager.findPath(unit, targetX, targetY),
+      friendlyUnits: units,
+      profile,
     });
     const reservedWonders = new Set(
       cities
@@ -217,319 +355,372 @@ export class FreecivAICityController {
     for (const [techId, want] of wonderPlan.technologyWants) {
       state.techWants[techId] = (state.techWants[techId] ?? 0) + want;
     }
+    return {
+      cities,
+      units,
+      canContinueProduction,
+      expansionQueued,
+      relations,
+      relationByPlayer,
+      profile,
+      hostileUnits,
+      prospectiveUnits,
+      prospectiveCities,
+      allKnownCities,
+      allUnits,
+      mapTiles,
+      exploredTiles,
+      knownTechs,
+      spaceshipPlan,
+      gold,
+      goldReserve,
+      diplomatTargetCities,
+      inciteCosts,
+      stealableTechs,
+      dangerByCity,
+      reservedWonders,
+      wonderPlan,
+    };
+  }
 
-    for (const city of cities) {
-      for (const type of Object.values(UNIT_TYPES)) {
-        if (
-          type.paratroopersRange > 0 &&
-          type.flags?.includes('Paratroopers') &&
-          type.requiredTech &&
-          !knownTechs.has(type.requiredTech)
-        ) {
-          state.techWants[type.requiredTech] = (state.techWants[type.requiredTech] ?? 0) + 2;
-        }
-      }
-      const offensiveUnitWants = await rankVirtualMilitaryProduction({
-        gameId: game.id,
-        playerId,
-        city,
-        unitTypes: Object.values(UNIT_TYPES),
-        targetUnits: prospectiveUnits,
-        targetCities: prospectiveCities,
-        canBuild: (cityId, unitTypeId) =>
-          canContinueProduction?.(cityId, 'unit', unitTypeId) ?? false,
-        getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
-        getNeighbors: (x, y) => game.mapManager.getNeighbors(x, y),
-        findPath: (unit, targetX, targetY) =>
-          game.pathfindingManager.findPath(unit, targetX, targetY),
-        isStackProtected: (x, y) => {
-          const tile = game.mapManager.getTile(x, y);
-          return Boolean(
-            game.cityManager.getCityAt(x, y) ||
-              tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
-          );
-        },
-        rateAttack: unit => game.unitManager.calculateUnitAttackRating(unit),
-        rateDefense: (defender, attacker) =>
-          game.unitManager.calculateUnitDefenseRating(defender, attacker),
-        causesMilitaryUnhappiness: () =>
-          typeof game.cityManager.getCityMilitaryUnhappiness === 'function' &&
-          game.cityManager.getCityMilitaryUnhappiness(city.id) > 0,
-      });
-      const hunterWants = rankHunterProduction({
-        gameId: game.id,
-        playerId,
-        city,
-        friendlyUnits: units,
-        hostileUnits: prospectiveUnits,
-        unitTypes: Object.values(UNIT_TYPES),
-        canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
-        getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
-        distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
-        targetSelectionHandicap: profile.handicaps.has('targets'),
-      });
-      for (const [unitTypeId, want] of hunterWants) {
-        offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
-      }
-      const airWants = rankVirtualAirProduction({
-        gameId: game.id,
-        playerId,
-        city,
-        unitTypes: Object.values(UNIT_TYPES),
-        hostileUnits: prospectiveUnits,
-        hostileCities: prospectiveCities,
-        canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
-        getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
-        distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
-        attackerRating: unit => game.unitManager.calculateUnitAttackRating(unit),
-        defenderRating: (attacker, defender) =>
-          game.unitManager.calculateUnitDefenseRating(defender, attacker),
-        canAttack: (attacker, defender) => game.unitManager.canUnitTargetUnit(attacker, defender),
-        hasOccupierSupport: targetCity =>
-          units.some(unit => {
-            const type = game.unitManager.getUnitType(unit.unitTypeId);
-            return (
-              type?.rulesetUnitClassFlags.includes('CanOccupyCity') === true &&
-              type.flags?.includes('NonMil') !== true &&
-              game.mapManager.getDistance(unit.x, unit.y, targetCity.x, targetCity.y) <=
-                Math.max(1, type.movement) * 3
-            );
-          }),
-        planesHandicap: profile.handicaps.has('no_planes'),
-      });
-      for (const [unitTypeId, want] of airWants) {
-        offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
-      }
-      const paradropWants = rankVirtualParadropProduction({
-        gameId: game.id,
-        playerId,
-        city,
-        unitTypes: Object.values(UNIT_TYPES),
-        units: allUnits,
-        cities: allKnownCities,
-        alliedPlayerIds: relations.allied,
-        tiles: mapTiles,
-        canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
-        isKnown: tile => !profile.handicaps.has('map') || exploredTiles.has(`${tile.x},${tile.y}`),
-        distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
-      });
-      for (const [unitTypeId, want] of paradropWants) {
-        offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
-      }
-      const diplomatTypes = Object.values(UNIT_TYPES).filter(
-        type =>
-          type.flags?.includes('Diplomat') &&
-          (canContinueProduction?.(city.id, 'unit', type.id) ?? false)
-      );
-      const diplomatTravelTurns = new Map<string, number>();
-      await Promise.all(
-        diplomatTypes.flatMap(type =>
-          diplomatTargetCities.map(async target => {
-            const virtual = {
-              id: `virtual-diplomat:${city.id}:${type.id}`,
-              gameId: game.id,
-              playerId,
-              unitTypeId: type.id,
-              x: city.x,
-              y: city.y,
-              movementLeft: type.movement,
-              health: 100,
-              veteranLevel: 0,
-              experience: 0,
-              fortified: false,
-            } as Unit;
-            const candidates = await Promise.all(
-              game.mapManager
-                .getNeighbors(target.x, target.y)
-                .map(tile => game.pathfindingManager.findPath(virtual, tile.x, tile.y))
-            );
-            const cost = candidates
-              .filter(path => path.valid)
-              .reduce((best, path) => Math.min(best, path.totalCost), Infinity);
-            diplomatTravelTurns.set(
-              `${type.id}:${target.id}`,
-              Number.isFinite(cost)
-                ? Math.max(1, Math.ceil(cost / Math.max(1, type.movement)))
-                : Infinity
-            );
-          })
-        )
-      );
-      const diplomatThreat = hostileUnits.some(enemy => {
-        const type = game.unitManager.getUnitType(enemy.unitTypeId);
-        return (
-          type?.flags?.includes('Diplomat') === true &&
-          game.mapManager.getDistance(enemy.x, enemy.y, city.x, city.y) <=
-            Math.max(1, type.movement) * 3
+  private async rankOffensiveProduction(options: {
+    game: GameInstance;
+    playerId: string;
+    state: FreecivAIState;
+    city: CityState;
+    units: Unit[];
+    hostileUnits: Unit[];
+    prospectiveUnits: Unit[];
+    prospectiveCities: CityState[];
+    allUnits: Unit[];
+    allKnownCities: CityState[];
+    mapTiles: MapTile[];
+    exploredTiles: Set<string>;
+    alliedPlayerIds: Set<string>;
+    diplomatTargetCities: CityState[];
+    canContinueProduction?: (cityId: string, kind: 'unit' | 'building', id: string) => boolean;
+    relationByPlayer: Map<string, { state: DiplomaticState; embassy: boolean }>;
+    stealableTechs: Map<string, number>;
+    inciteCosts: Map<string, number>;
+    knownTechs: Set<string>;
+    gold: number;
+    goldReserve: number;
+    profile: AIProfile;
+  }): Promise<Map<string, number>> {
+    const {
+      game,
+      playerId,
+      state,
+      city,
+      units,
+      hostileUnits,
+      prospectiveUnits,
+      prospectiveCities,
+      allUnits,
+      allKnownCities,
+      mapTiles,
+      exploredTiles,
+      alliedPlayerIds,
+      diplomatTargetCities,
+      canContinueProduction,
+      relationByPlayer,
+      stealableTechs,
+      inciteCosts,
+      knownTechs,
+      gold,
+      goldReserve,
+      profile,
+    } = options;
+    const offensiveUnitWants = await rankVirtualMilitaryProduction({
+      gameId: game.id,
+      playerId,
+      city,
+      unitTypes: Object.values(UNIT_TYPES),
+      targetUnits: prospectiveUnits,
+      targetCities: prospectiveCities,
+      canBuild: (cityId, unitTypeId) =>
+        canContinueProduction?.(cityId, 'unit', unitTypeId) ?? false,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      getNeighbors: (x, y) => game.mapManager.getNeighbors(x, y),
+      findPath: (unit, targetX, targetY) =>
+        game.pathfindingManager.findPath(unit, targetX, targetY),
+      isStackProtected: (x, y) => {
+        const tile = game.mapManager.getTile(x, y);
+        return Boolean(
+          game.cityManager.getCityAt(x, y) ||
+            tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
         );
-      });
-      const conventionalDefenderCount = units.filter(unit => {
-        const type = game.unitManager.getUnitType(unit.unitTypeId);
-        return (
-          unit.x === city.x &&
-          unit.y === city.y &&
-          type?.flags?.includes('Diplomat') !== true &&
-          type?.flags?.includes('NonMil') !== true
-        );
-      }).length;
-      const diplomatWants = rankVirtualDiplomatProduction({
-        playerId,
-        city,
-        unitTypes: Object.values(UNIT_TYPES),
-        friendlyUnits: units,
-        foreignCities: diplomatTargetCities,
-        canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
-        travelTurns: (type, target) =>
-          diplomatTravelTurns.get(`${type.id}:${target.id}`) ?? Infinity,
-        relation: otherPlayerId => {
-          const relation = relationByPlayer.get(otherPlayerId);
-          return {
-            allied: relation?.state === 'alliance' || relation?.state === 'team',
-            atWar: relation?.state === 'war',
-            hasEmbassy: relation?.embassy ?? false,
-          };
-        },
-        countStealableTechs: otherPlayerId => stealableTechs.get(otherPlayerId) ?? 0,
-        inciteCost: target => inciteCosts.get(target.id) ?? Infinity,
-        canInciteCity: target =>
-          !target.buildings.includes('palace') &&
-          game.governmentManager?.getPlayerGovernment(target.playerId)?.currentGovernment !==
-            'democracy',
-        actionOdds: (type, action) =>
-          game.unitManager.calculateDiplomatActionOdds(
-            {
-              id: `virtual-diplomat:${city.id}:${type.id}`,
-              gameId: game.id,
-              playerId,
-              unitTypeId: type.id,
-              x: city.x,
-              y: city.y,
-              movementLeft: type.movement,
-              health: 100,
-              veteranLevel: 0,
-              experience: 0,
-              fortified: false,
-            },
-            action
-          ),
-        cityDiplomatThreat: diplomatThreat,
-        cityUrgency: hostileUnits.filter(
-          enemy => game.mapManager.getDistance(enemy.x, enemy.y, city.x, city.y) <= 3
-        ).length,
-        conventionalDefenderCount,
-        gold,
-        goldReserve,
-        diplomatHandicap: profile.handicaps.has('diplomat'),
-      });
-      for (const [unitTypeId, want] of diplomatWants) {
-        offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
-      }
-      for (const [unitTypeId, want] of wonderPlan.productionWants.get(city.id) ?? []) {
-        offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
-      }
-      const diplomatTechWants = rankDiplomatTechnologyWants({
-        unitTypes: Object.values(UNIT_TYPES),
-        knownTechs,
-        cityDiplomatThreat: diplomatThreat,
-        conventionalDefenderCount,
-        canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
-      });
-      for (const [techId, want] of diplomatTechWants) {
-        state.techWants[techId] = (state.techWants[techId] ?? 0) + want;
-      }
-      const dangerAssessment = assessCityDanger({
-        city,
-        friendlyUnits: units,
-        threateningUnits: hostileUnits,
-        profile,
-        getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
-        defenderStrength: unit => game.unitManager.calculateUnitDefenseRating(unit),
-        attackerStrength: (enemy, enemyType) => {
-          const attack = game.unitManager.calculateUnitAttackRating(enemy);
-          const defenseBonus = game.unitManager.calculateCityDefenseBonusAgainst(
-            enemy,
-            enemyType,
-            city.x,
-            city.y
-          );
-          return (attack * 100) / Math.max(1, 100 + defenseBonus);
-        },
-        travelTurns: (enemy, target) =>
-          threatTravelTimes.get(cityThreatTravelKey(enemy.id, target.id)),
-      });
-      const ranked = canContinueProduction
-        ? rankCityProduction({
-            city,
-            cities,
-            units,
-            unitTypes: UNIT_TYPES,
-            buildingTypes: BUILDING_TYPES,
-            canBuild: (kind, id) => canContinueProduction(city.id, kind, id),
-            dangerAssessment,
-            profile,
-            offensiveUnitWants,
-            buildingWants: spaceshipPlan.buildingWants.get(city.id),
-            reservedWonders,
-            excludedChoices: new Set(
-              [
-                city.currentProduction && city.productionType
-                  ? `${city.productionType}:${city.currentProduction}`
-                  : undefined,
-                ...(city.worklist ?? []).map(item => {
-                  const kind = item.kind === 'wonder' ? 'building' : item.kind;
-                  return `${kind}:${item.value}`;
-                }),
-              ].filter((value): value is string => Boolean(value))
-            ),
-          })
-        : [];
-      state.cityWants[city.id] = Object.fromEntries(
-        ranked.slice(0, 12).map(choice => [`${choice.value.kind}:${choice.value.id}`, choice.want])
-      );
-      if (profile.handicaps.has('away') && city.currentProduction) continue;
-      if (
-        city.currentProduction &&
-        (city.worklist?.length ?? 0) === 0 &&
-        typeof game.cityManager.addToWorklist === 'function'
-      ) {
-        const queued = ranked.slice(0, 2).map(choice => ({
-          kind:
-            BUILDING_TYPES[choice.value.id]?.genus === 'GreatWonder'
-              ? ('wonder' as const)
-              : choice.value.kind,
-          value: choice.value.id,
-        }));
-        if (
-          queued.length > 0 &&
-          (await game.cityManager.addToWorklist(city.id, queued, playerId))
-        ) {
-          for (const item of queued) {
-            if (BUILDING_TYPES[item.value]?.genus === 'GreatWonder') {
-              reservedWonders.add(item.value);
-            }
-          }
-          actions++;
-        }
-        continue;
-      }
-      if (city.currentProduction) continue;
-      const scored = ranked[0];
-
-      let type: 'unit' | 'building' = scored?.value.kind ?? 'unit';
-      let id = scored?.value.id ?? 'warriors';
-      if (!scored && (city.goldPerTurn ?? 0) < 0 && !city.buildings.includes('marketplace')) {
-        type = 'building';
-        id = 'marketplace';
-      } else if (!scored && !expansionQueued) {
-        id = 'settlers';
-      }
-      if (game.unitManager.getUnitType(id)?.canFoundCity) expansionQueued = true;
-
-      await game.cityManager.setCityProduction(city.id, type, id, playerId);
-      if (BUILDING_TYPES[id]?.genus === 'GreatWonder') reservedWonders.add(id);
-      actions++;
+      },
+      rateAttack: unit => game.unitManager.calculateUnitAttackRating(unit),
+      rateDefense: (defender, attacker) =>
+        game.unitManager.calculateUnitDefenseRating(defender, attacker),
+      causesMilitaryUnhappiness: () =>
+        typeof game.cityManager.getCityMilitaryUnhappiness === 'function' &&
+        game.cityManager.getCityMilitaryUnhappiness(city.id) > 0,
+    });
+    const hunterWants = rankHunterProduction({
+      gameId: game.id,
+      playerId,
+      city,
+      friendlyUnits: units,
+      hostileUnits: prospectiveUnits,
+      unitTypes: Object.values(UNIT_TYPES),
+      canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      targetSelectionHandicap: profile.handicaps.has('targets'),
+    });
+    for (const [unitTypeId, want] of hunterWants) {
+      mergeWant(offensiveUnitWants, unitTypeId, want);
     }
-    return actions;
+    const airWants = rankVirtualAirProduction({
+      gameId: game.id,
+      playerId,
+      city,
+      unitTypes: Object.values(UNIT_TYPES),
+      hostileUnits: prospectiveUnits,
+      hostileCities: prospectiveCities,
+      canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      attackerRating: unit => game.unitManager.calculateUnitAttackRating(unit),
+      defenderRating: (attacker, defender) =>
+        game.unitManager.calculateUnitDefenseRating(defender, attacker),
+      canAttack: (attacker, defender) => game.unitManager.canUnitTargetUnit(attacker, defender),
+      hasOccupierSupport: targetCity =>
+        units.some(unit => {
+          const type = game.unitManager.getUnitType(unit.unitTypeId);
+          return (
+            type?.rulesetUnitClassFlags.includes('CanOccupyCity') === true &&
+            type.flags?.includes('NonMil') !== true &&
+            game.mapManager.getDistance(unit.x, unit.y, targetCity.x, targetCity.y) <=
+              Math.max(1, type.movement) * 3
+          );
+        }),
+      planesHandicap: profile.handicaps.has('no_planes'),
+    });
+    for (const [unitTypeId, want] of airWants) {
+      mergeWant(offensiveUnitWants, unitTypeId, want);
+    }
+    const paradropWants = rankVirtualParadropProduction({
+      gameId: game.id,
+      playerId,
+      city,
+      unitTypes: Object.values(UNIT_TYPES),
+      units: allUnits,
+      cities: allKnownCities,
+      alliedPlayerIds,
+      tiles: mapTiles,
+      canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
+      isKnown: tile => !profile.handicaps.has('map') || exploredTiles.has(`${tile.x},${tile.y}`),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+    });
+    for (const [unitTypeId, want] of paradropWants) {
+      mergeWant(offensiveUnitWants, unitTypeId, want);
+    }
+    await this.addDiplomatProductionWants({
+      game,
+      playerId,
+      state,
+      city,
+      units,
+      hostileUnits,
+      diplomatTargetCities,
+      canContinueProduction,
+      relationByPlayer,
+      stealableTechs,
+      inciteCosts,
+      knownTechs,
+      gold,
+      goldReserve,
+      profile,
+      offensiveUnitWants,
+    });
+    return offensiveUnitWants;
+  }
+
+  private async addDiplomatProductionWants(options: {
+    game: GameInstance;
+    playerId: string;
+    state: FreecivAIState;
+    city: CityState;
+    units: Unit[];
+    hostileUnits: Unit[];
+    diplomatTargetCities: CityState[];
+    canContinueProduction?: (cityId: string, kind: 'unit' | 'building', id: string) => boolean;
+    relationByPlayer: Map<string, { state: DiplomaticState; embassy: boolean }>;
+    stealableTechs: Map<string, number>;
+    inciteCosts: Map<string, number>;
+    knownTechs: Set<string>;
+    gold: number;
+    goldReserve: number;
+    profile: AIProfile;
+    offensiveUnitWants: Map<string, number>;
+  }): Promise<void> {
+    const {
+      game,
+      playerId,
+      state,
+      city,
+      units,
+      hostileUnits,
+      diplomatTargetCities,
+      canContinueProduction,
+      relationByPlayer,
+      stealableTechs,
+      inciteCosts,
+      knownTechs,
+      gold,
+      goldReserve,
+      profile,
+      offensiveUnitWants,
+    } = options;
+    const diplomatTypes = Object.values(UNIT_TYPES).filter(
+      type =>
+        type.flags?.includes('Diplomat') &&
+        (canContinueProduction?.(city.id, 'unit', type.id) ?? false)
+    );
+    const diplomatTravelTurns = new Map<string, number>();
+    await Promise.all(
+      diplomatTypes.flatMap(type =>
+        diplomatTargetCities.map(async target => {
+          const virtual = createVirtualDiplomat(game.id, playerId, city, type.id, type.movement);
+          const candidates = await Promise.all(
+            game.mapManager
+              .getNeighbors(target.x, target.y)
+              .map(tile => game.pathfindingManager.findPath(virtual, tile.x, tile.y))
+          );
+          const cost = candidates
+            .filter(path => path.valid)
+            .reduce((best, path) => Math.min(best, path.totalCost), Infinity);
+          diplomatTravelTurns.set(
+            `${type.id}:${target.id}`,
+            Number.isFinite(cost)
+              ? Math.max(1, Math.ceil(cost / Math.max(1, type.movement)))
+              : Infinity
+          );
+        })
+      )
+    );
+    const diplomatThreat = hostileUnits.some(enemy => {
+      const type = game.unitManager.getUnitType(enemy.unitTypeId);
+      return (
+        type?.flags?.includes('Diplomat') === true &&
+        game.mapManager.getDistance(enemy.x, enemy.y, city.x, city.y) <=
+          Math.max(1, type.movement) * 3
+      );
+    });
+    const conventionalDefenderCount = units.filter(unit => {
+      const type = game.unitManager.getUnitType(unit.unitTypeId);
+      return (
+        unit.x === city.x &&
+        unit.y === city.y &&
+        type?.flags?.includes('Diplomat') !== true &&
+        type?.flags?.includes('NonMil') !== true
+      );
+    }).length;
+    const diplomatWants = rankVirtualDiplomatProduction({
+      playerId,
+      city,
+      unitTypes: Object.values(UNIT_TYPES),
+      friendlyUnits: units,
+      foreignCities: diplomatTargetCities,
+      canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
+      travelTurns: (type, target) => diplomatTravelTurns.get(`${type.id}:${target.id}`) ?? Infinity,
+      relation: otherPlayerId => {
+        const relation = relationByPlayer.get(otherPlayerId);
+        return {
+          allied: relation?.state === 'alliance' || relation?.state === 'team',
+          atWar: relation?.state === 'war',
+          hasEmbassy: relation?.embassy ?? false,
+        };
+      },
+      countStealableTechs: otherPlayerId => stealableTechs.get(otherPlayerId) ?? 0,
+      inciteCost: target => inciteCosts.get(target.id) ?? Infinity,
+      canInciteCity: target =>
+        !target.buildings.includes('palace') &&
+        game.governmentManager?.getPlayerGovernment(target.playerId)?.currentGovernment !==
+          'democracy',
+      actionOdds: (type, action) =>
+        game.unitManager.calculateDiplomatActionOdds(
+          createVirtualDiplomat(game.id, playerId, city, type.id, type.movement),
+          action
+        ),
+      cityDiplomatThreat: diplomatThreat,
+      cityUrgency: hostileUnits.filter(
+        enemy => game.mapManager.getDistance(enemy.x, enemy.y, city.x, city.y) <= 3
+      ).length,
+      conventionalDefenderCount,
+      gold,
+      goldReserve,
+      diplomatHandicap: profile.handicaps.has('diplomat'),
+    });
+    for (const [unitTypeId, want] of diplomatWants) {
+      mergeWant(offensiveUnitWants, unitTypeId, want);
+    }
+    const diplomatTechWants = rankDiplomatTechnologyWants({
+      unitTypes: Object.values(UNIT_TYPES),
+      knownTechs,
+      cityDiplomatThreat: diplomatThreat,
+      conventionalDefenderCount,
+      canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
+    });
+    for (const [techId, want] of diplomatTechWants) {
+      state.techWants[techId] = (state.techWants[techId] ?? 0) + want;
+    }
+  }
+
+  private async applyRankedCityProduction(options: {
+    game: GameInstance;
+    playerId: string;
+    city: CityState;
+    ranked: AIChoice<ProductionChoice>[];
+    profile: AIProfile;
+    reservedWonders: Set<string>;
+    expansionQueued: boolean;
+  }): Promise<{ actions: number; expansionQueued: boolean }> {
+    const { game, playerId, city, ranked, profile, reservedWonders } = options;
+    let { expansionQueued } = options;
+    if (profile.handicaps.has('away') && city.currentProduction) {
+      return { actions: 0, expansionQueued };
+    }
+    if (
+      city.currentProduction &&
+      (city.worklist?.length ?? 0) === 0 &&
+      typeof game.cityManager.addToWorklist === 'function'
+    ) {
+      const queued = ranked.slice(0, 2).map(choice => ({
+        kind:
+          BUILDING_TYPES[choice.value.id]?.genus === 'GreatWonder'
+            ? ('wonder' as const)
+            : choice.value.kind,
+        value: choice.value.id,
+      }));
+      const added =
+        queued.length > 0 && (await game.cityManager.addToWorklist(city.id, queued, playerId));
+      if (added) {
+        for (const item of queued) {
+          if (BUILDING_TYPES[item.value]?.genus === 'GreatWonder') {
+            reservedWonders.add(item.value);
+          }
+        }
+      }
+      return { actions: Number(added), expansionQueued };
+    }
+    if (city.currentProduction) return { actions: 0, expansionQueued };
+    const scored = ranked[0];
+    let type: 'unit' | 'building' = scored?.value.kind ?? 'unit';
+    let id = scored?.value.id ?? 'warriors';
+    if (!scored && (city.goldPerTurn ?? 0) < 0 && !city.buildings.includes('marketplace')) {
+      type = 'building';
+      id = 'marketplace';
+    } else if (!scored && !expansionQueued) {
+      id = 'settlers';
+    }
+    if (game.unitManager.getUnitType(id)?.canFoundCity) expansionQueued = true;
+    await game.cityManager.setCityProduction(city.id, type, id, playerId);
+    if (BUILDING_TYPES[id]?.genus === 'GreatWonder') reservedWonders.add(id);
+    return { actions: 1, expansionQueued };
   }
 
   async executeUnitActions(game: GameInstance, playerId: string): Promise<number> {
