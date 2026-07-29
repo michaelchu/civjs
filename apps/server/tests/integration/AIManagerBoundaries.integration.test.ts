@@ -1211,6 +1211,14 @@ describe('AI authoritative manager boundaries', () => {
     await gameManager.createUnit(scenario.gameId, guest!.playerId, 'settlers', city.x, city.y);
     await gameManager.createUnit(scenario.gameId, guest!.playerId, 'worker', city.x, city.y);
     await gameManager.createUnit(scenario.gameId, guest!.playerId, 'warriors', city.x, city.y);
+    await expect(
+      scenario.game.cityManager.setCityProduction(
+        city.id,
+        'building',
+        'marketplace',
+        guest!.playerId
+      )
+    ).rejects.toThrow('Building is not currently available: marketplace');
     await scenario.game.researchManager.grantTechnology(guest!.playerId, 'currency');
     city.currentProduction = null;
     city.productionType = null;

@@ -1093,8 +1093,8 @@ export class CityManager {
         throw new Error(`Unknown building type: ${productionId}`);
       }
       const building = BUILDING_TYPES[productionId];
-      if (isSpaceshipPart(productionId) && !this.canCityQueueItem(city, 'building', productionId)) {
-        throw new Error(`Spaceship part is not currently available: ${productionId}`);
+      if (!this.canCityQueueItem(city, 'building', productionId)) {
+        throw new Error(`Building is not currently available: ${productionId}`);
       }
       if (
         building.genus === 'GreatWonder' &&
