@@ -236,6 +236,12 @@ function createScenario() {
       executeUnitAction,
       attackUnit,
       moveUnit,
+      calculateUnitHitpointRecovery: () => ({
+        regeneration: 0,
+        minimum: 33,
+        secondary: 10,
+        gain: 10,
+      }),
     },
     mapManager: {
       getMapData: () => ({
@@ -370,6 +376,28 @@ describe('FreecivAIOrchestrator', () => {
       action: ActionType.BUILD_IRRIGATION,
       targetX: 3,
       targetY: 3,
+    });
+  });
+
+  it('withdraws a critically damaged military unit before guard and combat planning', async () => {
+    const scenario = createScenario();
+    scenario.units.get('warrior')!.health = 24;
+    scenario.unitTypes.warriors.unitClass = 'military';
+    scenario.unitTypes.warriors.rulesetUnitClass = 'Land';
+    (scenario.game.cityManager as any).getAllCities = () => [
+      { id: 'refuge', playerId: 'ai', x: 3, y: 4, buildings: [] },
+    ];
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith('warrior', ActionType.GOTO, 3, 4, 'ai');
+    expect(scenario.attackUnit).not.toHaveBeenCalledWith('warrior', 'enemy');
+    expect((scenario.game.players.get('ai') as any).aiState.unitTasks.warrior).toMatchObject({
+      role: 'recover',
+      targetId: 'refuge',
     });
   });
 

@@ -1031,6 +1031,42 @@ describe('UnitManager', () => {
       const unit = unitManager.getUnit(unitId);
       expect(unit!.health).toBe(100); // Capped at 100
     });
+
+    it('applies Min_HP_Pct as Freeciv minimum coordinate regeneration', () => {
+      const unit = unitManager.getUnit(unitId)!;
+      unit.health = 50;
+      const effects = (unitManager as any).effectsManager as EffectsManager;
+      jest.spyOn(effects, 'calculateEffect').mockImplementation((type: any) => ({
+        value: type === 'Min_HP_Pct' ? 33 : type === 'HP_Regen_2' ? 10 : 0,
+        effects: [],
+      }));
+
+      expect(unitManager.calculateUnitHitpointRecovery(unit)).toMatchObject({
+        minimum: 33,
+        secondary: 10,
+        gain: 43,
+      });
+    });
+
+    it('uses regeneration buildings in an allied city', () => {
+      const alliedCityManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        { getTile: () => ({ improvements: [] }) },
+        {
+          getCityAt: () => ({
+            id: 'allied-city',
+            playerId: 'ally',
+            buildings: ['barracks'],
+          }),
+        } as any
+      );
+      const unit = unitManager.getUnit(unitId)!;
+
+      expect(alliedCityManager.calculateUnitHitpointRecovery(unit, 4, 4).regeneration).toBe(100);
+    });
   });
 
   describe('turn management', () => {

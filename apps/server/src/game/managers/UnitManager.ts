@@ -47,6 +47,13 @@ export interface Unit {
   createdTurn?: number;
 }
 
+export interface UnitHitpointRecovery {
+  regeneration: number;
+  minimum: number;
+  secondary: number;
+  gain: number;
+}
+
 export type UnitLifecycleEvent =
   | { type: 'created'; unit: Unit }
   | { type: 'moved'; unit: Unit; previousX: number; previousY: number }
@@ -1201,31 +1208,8 @@ export class UnitManager {
         // Restore full movement points in fragments
         unit.movementLeft = unitType.movement * 3;
 
-        const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
         if (this.effectsManager && unit.health < 100) {
-          const tile = this.mapManager?.getTile?.(unit.x, unit.y);
-          const context: EffectContext = {
-            playerId,
-            unitType: unit.unitTypeId,
-            unitClass: unitType.rulesetUnitClass,
-            unitClassFlags: new Set(unitType.rulesetUnitClassFlags),
-            unitActivity: unit.fortified ? 'Fortified' : 'Idle',
-            tileIsCityCenter: city !== undefined,
-            tileExtras: new Set<string>((tile?.improvements ?? []) as string[]),
-            cityBuildings: new Set(
-              city && city.playerId === playerId ? (city.buildings ?? []) : []
-            ),
-          };
-          const regeneration = this.effectsManager.calculateEffect(
-            EffectType.HP_REGEN,
-            context
-          ).value;
-          const minimum = this.effectsManager.calculateEffect(EffectType.MIN_HP_PCT, context).value;
-          const secondary = this.effectsManager.calculateEffect(
-            EffectType.HP_REGEN_2,
-            context
-          ).value;
-          const gain = Math.max(regeneration, minimum) + secondary;
+          const { gain } = this.calculateUnitHitpointRecovery(unit);
           unit.health = Math.min(100, unit.health + Math.max(0, gain));
         }
       }
@@ -1245,6 +1229,48 @@ export class UnitManager {
           .where(eq(units.id, unit.id));
       }
     }
+  }
+
+  public calculateUnitHitpointRecovery(
+    unit: Unit,
+    x: number = unit.x,
+    y: number = unit.y
+  ): UnitHitpointRecovery {
+    if (!this.effectsManager) {
+      return { regeneration: 0, minimum: 0, secondary: 0, gain: 0 };
+    }
+    const unitType = UNIT_TYPES[unit.unitTypeId];
+    if (!unitType) return { regeneration: 0, minimum: 0, secondary: 0, gain: 0 };
+    const context = this.createHitpointRecoveryContext(unit, unitType, x, y);
+    const regeneration = this.effectsManager.calculateEffect(EffectType.HP_REGEN, context).value;
+    const minimum = this.effectsManager.calculateEffect(EffectType.MIN_HP_PCT, context).value;
+    const secondary = this.effectsManager.calculateEffect(EffectType.HP_REGEN_2, context).value;
+    return {
+      regeneration,
+      minimum,
+      secondary,
+      gain: Math.max(regeneration, minimum) + secondary,
+    };
+  }
+
+  private createHitpointRecoveryContext(
+    unit: Unit,
+    unitType: UnitType,
+    x: number,
+    y: number
+  ): EffectContext {
+    const city = this.gameManagerCallback?.getCityAt?.(x, y);
+    const tile = this.mapManager?.getTile?.(x, y);
+    return {
+      playerId: unit.playerId,
+      unitType: unit.unitTypeId,
+      unitClass: unitType.rulesetUnitClass,
+      unitClassFlags: new Set(unitType.rulesetUnitClassFlags),
+      unitActivity: unit.fortified ? 'Fortified' : 'Idle',
+      tileIsCityCenter: city !== undefined,
+      tileExtras: new Set<string>((tile?.improvements ?? []) as string[]),
+      cityBuildings: new Set(city?.buildings ?? []),
+    };
   }
 
   /**

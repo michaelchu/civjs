@@ -17,6 +17,7 @@ import {
   type ExplorationPlan,
 } from '@game/ai/FreecivAIExplorerPlanner';
 import type { UnitType } from '@game/services/RulesetUnitsService';
+import { planMilitaryRecovery } from '@game/ai/FreecivAIRecoveryPlanner';
 
 function unitAttack(type: UnitType): number {
   return type.attack ?? type.combat ?? 0;
@@ -313,6 +314,7 @@ export class FreecivAIUnitController {
       if (state.unitTasks[attacker.id]?.role === 'hunter') continue;
       if (state.unitTasks[attacker.id]?.role === 'air') continue;
       if (state.unitTasks[attacker.id]?.role === 'paradrop') continue;
+      if (state.unitTasks[attacker.id]?.role === 'recover') continue;
       if (
         profile.handicaps.has('away') &&
         (attacker.fortified || attacker.sentryUntil !== undefined)
@@ -366,6 +368,52 @@ export class FreecivAIUnitController {
         await game.unitManager.attackUnit(attacker.id, defender.id);
       }
       actions++;
+    }
+    return actions;
+  }
+
+  async manageMilitaryRecovery(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    const relations = await this.hostilityPolicy.getRelationPlayerIds(game.id, playerId);
+    const friendlyCityOwners = new Set([playerId, ...relations.allied]);
+    const plan = await planMilitaryRecovery({
+      turn: game.currentTurn,
+      units: game.unitManager.getPlayerUnits(playerId),
+      cities: game.cityManager.getAllCities().filter(city => friendlyCityOwners.has(city.playerId)),
+      existingTasks: state.unitTasks,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      findPath: (unit, targetX, targetY) =>
+        game.pathfindingManager.findPath(unit, targetX, targetY),
+      hasAcceleratedRegeneration: (unit, city) =>
+        game.unitManager.calculateUnitHitpointRecovery(unit, city.x, city.y).regeneration > 0,
+    });
+
+    for (const [unitId, task] of Object.entries(state.unitTasks)) {
+      if (task.role === 'recover') delete state.unitTasks[unitId];
+    }
+    Object.assign(state.unitTasks, plan.tasks);
+
+    let actions = 0;
+    for (const assignment of plan.assignments) {
+      const unit = game.unitManager.getUnit(assignment.unit.id);
+      if (
+        !unit ||
+        unit.movementLeft <= 0 ||
+        (unit.x === assignment.city.x && unit.y === assignment.city.y)
+      ) {
+        continue;
+      }
+      const result = await game.unitManager.executeUnitAction(
+        unit.id,
+        ActionType.GOTO,
+        assignment.city.x,
+        assignment.city.y,
+        playerId
+      );
+      if (result.success) actions++;
     }
     return actions;
   }

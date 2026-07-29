@@ -70,8 +70,10 @@ function isGuardCandidate(unit: Unit, type: UnitType | undefined): type is UnitT
  * @reference reference/freeciv/ai/default/daiguard.c
  */
 export function planCityGuards(context: GuardPlanningContext): GuardPlan {
-  const candidateUnits = context.friendlyUnits.filter(unit =>
-    isGuardCandidate(unit, context.getType(unit.unitTypeId))
+  const candidateUnits = context.friendlyUnits.filter(
+    unit =>
+      isGuardCandidate(unit, context.getType(unit.unitTypeId)) &&
+      context.existingTasks[unit.id]?.role !== 'recover'
   );
   const assessments = context.cities.map(city => {
     const defenders = candidateUnits.filter(unit => unit.x === city.x && unit.y === city.y);
