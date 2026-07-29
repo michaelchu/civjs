@@ -1267,6 +1267,49 @@ describe('AI authoritative manager boundaries', () => {
     });
   });
 
+  it('invalidates AI city production references when a city is captured and recovers ownership', async () => {
+    const scenario = await createActiveGame(2);
+    const [host, guest] = scenario.players;
+    const city = await foundPlayerCity(scenario, guest!.playerId, 'AI Captured City');
+    city.population = 2;
+    city.size = 2;
+    await gameManager.setPlayerAIControl(
+      scenario.gameId,
+      scenario.hostUserId,
+      guest!.playerId,
+      true,
+      { aiLevel: 'normal' }
+    );
+    const state = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
+    state.cityWants[city.id] = { 'building:marketplace': 100 };
+    state.unitTasks['city-bound-unit'] = {
+      role: 'guard',
+      targetId: city.id,
+      targetX: city.x,
+      targetY: city.y,
+      assignedTurn: scenario.game.currentTurn,
+    };
+    const attackerId = await gameManager.createUnit(
+      scenario.gameId,
+      host!.playerId,
+      'warriors',
+      city.x,
+      city.y
+    );
+
+    expect(await scenario.game.cityManager.captureCity(city.id, host!.playerId, attackerId)).toMatchObject({
+      success: true,
+    });
+    expect(state.cityWants[city.id]).toBeUndefined();
+    expect(state.unitTasks['city-bound-unit']).toBeUndefined();
+
+    gameManager.clearAllGames();
+    (GameManager as any).instance = null;
+    gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+    const recovered = await gameManager.recoverGameInstance(scenario.gameId);
+    expect(recovered?.cityManager.getCity(city.id)?.playerId).toBe(host!.playerId);
+  });
+
   it('has the AI apply a feasible anti-starvation citizen allocation', async () => {
     const scenario = await createActiveGame(2);
     const [, guest] = scenario.players;
