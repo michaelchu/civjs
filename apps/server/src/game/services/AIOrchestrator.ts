@@ -38,6 +38,18 @@ export class FreecivAIOrchestrator {
       if (!player.isAI) continue;
       const state = assertAIState(player.aiState);
       player.aiState = state as unknown as Record<string, unknown>;
+      if (typeof game.currentTurn === 'number' && state.lastProcessedTurn === game.currentTurn) {
+        continue;
+      }
+      if (typeof game.currentTurn === 'number' && state.inProgressTurn === game.currentTurn) {
+        state.lastProcessedTurn = game.currentTurn;
+        state.lastDecisionCount = 0;
+        delete state.inProgressTurn;
+        await this.stateStore.save(gameId, player.id, state);
+        continue;
+      }
+      state.inProgressTurn = game.currentTurn;
+      await this.stateStore.save(gameId, player.id, state);
       game.visibilityManager.updatePlayerVisibility(player.id);
       const playerActions = await this.playerController.processPlayer(
         gameId,
@@ -49,6 +61,7 @@ export class FreecivAIOrchestrator {
       actions += playerActions;
       state.lastProcessedTurn = game.currentTurn;
       state.lastDecisionCount = playerActions;
+      delete state.inProgressTurn;
       player.aiState = state as unknown as Record<string, unknown>;
       await this.attempt('state persistence', async () => {
         await this.stateStore.save(gameId, player.id, state);

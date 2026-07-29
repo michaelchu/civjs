@@ -38,6 +38,7 @@ export interface AIUnitTask {
 export interface FreecivAIState {
   lastProcessedTurn?: number;
   lastDecisionCount?: number;
+  inProgressTurn?: number;
   diplomacy: Record<string, AIDiplomacyMemory>;
   unitTasks: Record<string, AIUnitTask>;
   cityWants: Record<string, Record<string, number>>;
@@ -95,6 +96,7 @@ export function assertAIState(value: unknown): FreecivAIState {
   }
   assertOptionalNumber(state.lastProcessedTurn, 'lastProcessedTurn');
   assertOptionalNumber(state.lastDecisionCount, 'lastDecisionCount');
+  assertOptionalNumber(state.inProgressTurn, 'inProgressTurn');
   if (state.treasuryGoal !== undefined && !isTreasuryGoal(state.treasuryGoal)) {
     throw new Error('AI state treasuryGoal is invalid');
   }

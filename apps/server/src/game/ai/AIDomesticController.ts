@@ -207,7 +207,10 @@ export class FreecivAIDomesticController {
     const governmentDistance = (governmentId: string) =>
       (governments[governmentId]?.reqs ?? [])
         .filter(requirement => requirement.type.toLowerCase() === 'tech')
-        .reduce((sum, requirement) => sum + distanceToTech(requirement.name), 0);
+        .reduce(
+          (sum, requirement) => sum + distanceToTech(normalizeRulesetId(requirement.name)),
+          0
+        );
     const updateFutureGovernmentWants = () => {
       const futureChoices = rankGovernments({
         ...planningContext,

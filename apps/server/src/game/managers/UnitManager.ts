@@ -4165,7 +4165,9 @@ export class UnitManager {
     // Aircraft launch from a carrier as their normal movement; unloading land
     // cargo is the action that consumes the passenger's turn.
     const remainingMovement =
-      cargoType.unitClass === 'air' || cargoType.rulesetUnitClassFlags.includes('Missile')
+      cargoType.unitClass === 'air' ||
+      cargoType.rulesetUnitClass === 'Missile' ||
+      cargoType.rulesetUnitClassFlags.includes('Missile')
         ? cargo.movementLeft
         : 0;
     transport.cargoUnits = (transport.cargoUnits ?? []).filter(id => id !== unitId);
