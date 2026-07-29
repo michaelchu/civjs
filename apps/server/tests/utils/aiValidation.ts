@@ -109,6 +109,40 @@ export function buildAIValidationReplayFingerprint(game: GameInstance): string {
   });
 }
 
+export function assertAIValidationMetricBaseline(
+  points: AIValidationMetricPoint[],
+  baseline: {
+    minimumTurnSamples: number;
+    minimumTotalDecisions: number;
+    maximumConsecutiveIdleDecisionTurns: number;
+  }
+): void {
+  if (points.length < baseline.minimumTurnSamples) {
+    throw new Error(`AI validation recorded ${points.length} turn samples; expected ${baseline.minimumTurnSamples}`);
+  }
+  const perPlayer = new Map<string, AIValidationMetricPoint['players'][number][]>();
+  for (const point of points) {
+    for (const player of point.players) {
+      const samples = perPlayer.get(player.id) ?? [];
+      samples.push(player);
+      perPlayer.set(player.id, samples);
+    }
+  }
+  for (const [playerId, samples] of perPlayer) {
+    const decisions = samples.reduce((total, sample) => total + sample.decisions, 0);
+    if (decisions < baseline.minimumTotalDecisions) {
+      throw new Error(`AI player ${playerId} made ${decisions} decisions across the matrix run`);
+    }
+    let idle = 0;
+    for (const sample of samples) {
+      idle = sample.decisions > 0 ? 0 : idle + 1;
+      if (idle > baseline.maximumConsecutiveIdleDecisionTurns) {
+        throw new Error(`AI player ${playerId} was idle for ${idle} consecutive turns`);
+      }
+    }
+  }
+}
+
 /**
  * Produces a compact, copyable artifact for deterministic AI simulation failures.
  * Keep this independent of persistence so the same invariant set can run in

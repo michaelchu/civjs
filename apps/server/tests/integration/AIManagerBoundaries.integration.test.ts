@@ -6,6 +6,7 @@ import { createAIProfile } from '@game/ai/AIProfile';
 import { assertAIState, type FreecivAIState } from '@game/ai/AIStateStore';
 import { hostileUnitsForPlanning } from '@game/ai/AITargeting';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
+import { aiValidationBaseline } from '../fixtures/aiValidationBaseline';
 import {
   GameManager,
   type GameConfig,
@@ -13,6 +14,7 @@ import {
 } from '@game/managers/GameManager';
 import {
   assertAIValidationInvariants,
+  assertAIValidationMetricBaseline,
   buildAIValidationReplayFingerprint,
   captureAIValidationMetrics,
   writeAIValidationFailureArtifact,
@@ -1560,6 +1562,7 @@ describe('AI authoritative manager boundaries', () => {
       // produces N - 1 processed-turn samples (plus any recovery sample).
       expect(metrics.length).toBeGreaterThanOrEqual(validationMaxTurns - 1);
       expect(metrics.every(point => point.players.every(player => player.units >= 0))).toBe(true);
+      assertAIValidationMetricBaseline(metrics, aiValidationBaseline);
       assertAIValidationInvariants(game);
     }
   );
