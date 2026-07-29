@@ -712,10 +712,10 @@ describe('AI authoritative manager boundaries', () => {
     expect(enemyCity.population).toBeLessThan(initialPopulation);
   });
 
-  // TODO(ai-validation): Re-enable once paradrop mission selection no longer
-  // depends on generated-world visibility and combat timing.
+  // TODO(ai-validation): Re-enable after manageAirAndParadrops selects the
+  // visible, legal airbase-to-undefended-city paradrop mission below.
   it.skip('uses a real paratrooper to capture an undefended hostile city', async () => {
-    const scenario = await createActiveGame(2);
+    const scenario = await createActiveGame(2, { mapSeed: 'ai-paradrop-target-01' });
     const [host, guest] = scenario.players;
     const enemyCity = await foundPlayerCity(scenario, guest!.playerId, 'Paradrop Target');
     enemyCity.population = 2;
@@ -756,6 +756,7 @@ describe('AI authoritative manager boundaries', () => {
       true,
       { aiLevel: 'hard' }
     );
+    scenario.game.visibilityManager.updatePlayerVisibility(host!.playerId);
     const state = assertAIState(scenario.game.players.get(host!.playerId)?.aiState);
 
     const actions = await (
@@ -1550,6 +1551,7 @@ describe('AI authoritative manager boundaries', () => {
       let totalDecisions = 0;
       let phase = 'turn-processing';
       const metrics = [];
+      let lastKnownGoodSnapshot = buildAIValidationReplayFingerprint(game);
 
       try {
         while (game.state === 'active') {
@@ -1559,6 +1561,7 @@ describe('AI authoritative manager boundaries', () => {
           expect(performance.now() - startedAt).toBeLessThan(15_000);
           assertAIValidationInvariants(game);
           metrics.push(captureAIValidationMetrics(game));
+          lastKnownGoodSnapshot = buildAIValidationReplayFingerprint(game);
 
           for (const player of game.players.values()) {
             const state = assertAIState(player.aiState);
@@ -1576,6 +1579,7 @@ describe('AI authoritative manager boundaries', () => {
             expect(recoveredGame!.currentTurn).toBe(processingTurn + 1);
             assertAIValidationInvariants(recoveredGame!);
             metrics.push(captureAIValidationMetrics(recoveredGame!));
+            lastKnownGoodSnapshot = buildAIValidationReplayFingerprint(recoveredGame!);
             game = recoveredGame!;
             recovered = true;
             phase = 'turn-processing';
@@ -1587,6 +1591,7 @@ describe('AI authoritative manager boundaries', () => {
           phase,
           error,
           metrics,
+          lastKnownGoodSnapshot,
         });
         throw new Error(`AI validation artifact written to ${artifactPath}`, { cause: error });
       }

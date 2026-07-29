@@ -23,6 +23,7 @@ export interface AIValidationArtifactContext {
   phase: string;
   error: unknown;
   metrics?: AIValidationMetricPoint[];
+  lastKnownGoodSnapshot?: string;
 }
 
 export interface AIValidationMetricPoint {
@@ -254,6 +255,7 @@ export function writeAIValidationFailureArtifact(
       error: context.error instanceof Error ? context.error.message : String(context.error),
     },
     metrics: context.metrics,
+    lastKnownGoodSnapshot: context.lastKnownGoodSnapshot,
     snapshot: {
       gameId: game.id,
       state: game.state,
