@@ -42,7 +42,7 @@ export class FreecivAIPlayerController {
   ): Promise<number> {
     let actions = 0;
     state.techWants = {};
-    actions += await run('government', () => this.domestic.manageGovernment(game, playerId));
+    actions += await run('government', () => this.domestic.manageGovernment(game, playerId, state));
     actions += await run('economy', () => this.domestic.manageEconomy(game, playerId, state));
     actions += await run('citizens', () => this.city.manageCitizens(game, playerId));
     actions += await run('production', () => this.city.selectProduction(game, playerId, state));

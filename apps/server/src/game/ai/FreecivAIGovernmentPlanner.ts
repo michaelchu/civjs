@@ -19,6 +19,7 @@ interface GovernmentPlanningContext {
   effect: (governmentId: string, type: EffectType, outputType?: OutputType) => number;
   expectedRevolutionTurns?: number;
   planningHorizon?: number;
+  researchDistance?: (governmentId: string) => number;
 }
 
 function empireOutput(cities: CityState[]): number {
@@ -75,7 +76,7 @@ function governmentValue(
  * @reference reference/freeciv/ai/default/daidata.c:dai_gov_value
  * @reference reference/freeciv/ai/default/daitools.c:dai_government_change
  */
-export function chooseGovernment(context: GovernmentPlanningContext): GovernmentChoice | undefined {
+export function rankGovernments(context: GovernmentPlanningContext): GovernmentChoice[] {
   const baseOutput = empireOutput(context.cities);
   const currentValue = governmentValue(context.currentGovernmentId, context, baseOutput);
   const horizon = context.planningHorizon ?? 20;
@@ -83,7 +84,11 @@ export function chooseGovernment(context: GovernmentPlanningContext): Government
   return context.availableGovernmentIds
     .filter(id => id !== 'anarchy' && id !== context.currentGovernmentId)
     .map(governmentId => {
-      const value = governmentValue(governmentId, context, baseOutput);
+      const distance = Math.max(0, context.researchDistance?.(governmentId) ?? 0);
+      const value = amortizedGovernmentValue(
+        governmentValue(governmentId, context, baseOutput),
+        distance
+      );
       const revolutionCost = baseOutput * revolutionTurns;
       const netGain = (value - currentValue) * horizon - revolutionCost;
       return {
@@ -94,6 +99,16 @@ export function chooseGovernment(context: GovernmentPlanningContext): Government
         reason: `effect value ${value.toFixed(1)} vs ${currentValue.toFixed(1)}; anarchy ${revolutionCost.toFixed(1)}`,
       };
     })
-    .filter(choice => choice.netGain > 0)
-    .sort((a, b) => b.netGain - a.netGain || a.governmentId.localeCompare(b.governmentId))[0];
+    .sort((a, b) => b.netGain - a.netGain || a.governmentId.localeCompare(b.governmentId));
+}
+
+function amortizedGovernmentValue(value: number, researchDistance: number): number {
+  return value * Math.pow(23 / 24, researchDistance);
+}
+
+export function chooseGovernment(context: GovernmentPlanningContext): GovernmentChoice | undefined {
+  return rankGovernments(context).find(
+    choice =>
+      choice.netGain > 0 && Math.max(0, context.researchDistance?.(choice.governmentId) ?? 0) === 0
+  );
 }

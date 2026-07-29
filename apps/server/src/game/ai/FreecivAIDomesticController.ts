@@ -1,7 +1,7 @@
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
 import type { GameInstance } from '@game/managers/GameManager';
-import { chooseGovernment } from '@game/ai/FreecivAIGovernmentPlanner';
+import { chooseGovernment, rankGovernments } from '@game/ai/FreecivAIGovernmentPlanner';
 import { rankResearch } from '@game/ai/FreecivAIPlanner';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
 import { hostileUnitsForPlanning } from '@game/ai/FreecivAITargeting';
@@ -15,9 +15,16 @@ import {
   rankThreatTechnologyWants,
 } from '@game/ai/FreecivAITechnologyWantPlanner';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import { EffectType } from '@game/managers/EffectsManager';
-import { OutputType } from '@game/constants/GameConstants';
+import { EffectType, OutputType as EffectOutputType } from '@game/managers/EffectsManager';
+import { OutputType as CityOutputType } from '@game/constants/GameConstants';
 import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
+
+function normalizeRulesetId(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+}
 
 /**
  * Executes empire-level research, government, and treasury decisions.
@@ -99,7 +106,11 @@ export class FreecivAIDomesticController {
     return 1;
   }
 
-  async manageGovernment(game: GameInstance, playerId: string): Promise<number> {
+  async manageGovernment(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
     const manager = game.governmentManager;
     const research = game.researchManager.getPlayerResearch(playerId);
     const current = manager?.getPlayerGovernment(playerId);
@@ -112,14 +123,55 @@ export class FreecivAIDomesticController {
       .getAvailableGovernments(new Set(research.researchedTechs))
       .filter(candidate => candidate.available && candidate.id !== 'anarchy');
     const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
-    const best = chooseGovernment({
+    const planningContext = {
       currentGovernmentId: current.currentGovernment,
-      availableGovernmentIds: available.map(candidate => candidate.id),
       cities: game.cityManager.getPlayerCities(playerId),
       units: game.unitManager.getPlayerUnits(playerId),
       atWar: hostileIds.size > 0,
-      effect: (governmentId, type, outputType) =>
+      effect: (governmentId: string, type: EffectType, outputType?: EffectOutputType) =>
         manager.calculateGovernmentEffect(governmentId, type, outputType),
+    };
+    const governments = manager.getAllGovernments();
+    const catalogue = game.researchManager.getTechnologyCatalogue?.(playerId) ?? [];
+    const techById = new Map(catalogue.map(tech => [normalizeRulesetId(tech.id), tech]));
+    const knownTechs = new Set([...research.researchedTechs].map(normalizeRulesetId));
+    const distanceToTech = (techId: string, visiting = new Set<string>()): number => {
+      const normalized = normalizeRulesetId(techId);
+      if (knownTechs.has(normalized)) return 0;
+      if (visiting.has(normalized)) return Number.POSITIVE_INFINITY;
+      const tech = techById.get(normalized);
+      if (!tech) return 1;
+      const next = new Set(visiting).add(normalized);
+      const prerequisiteDistance = tech.requirements.reduce(
+        (sum, requirement) => sum + distanceToTech(requirement, next),
+        0
+      );
+      return 1 + prerequisiteDistance;
+    };
+    const governmentDistance = (governmentId: string) =>
+      (governments[governmentId]?.reqs ?? [])
+        .filter(requirement => requirement.type.toLowerCase() === 'tech')
+        .reduce((sum, requirement) => sum + distanceToTech(requirement.name), 0);
+    const futureChoices = rankGovernments({
+      ...planningContext,
+      availableGovernmentIds: Object.keys(governments),
+      researchDistance: governmentDistance,
+    });
+    for (const choice of futureChoices) {
+      const distance = governmentDistance(choice.governmentId);
+      if (distance <= 0 || !Number.isFinite(distance) || choice.netGain <= 0) continue;
+      const techRequirements = (governments[choice.governmentId]?.reqs ?? []).filter(
+        requirement => requirement.type.toLowerCase() === 'tech'
+      );
+      for (const requirement of techRequirements) {
+        const techId = normalizeRulesetId(requirement.name);
+        state.techWants[techId] =
+          (state.techWants[techId] ?? 0) + choice.netGain / Math.max(1, 20 * distance);
+      }
+    }
+    const best = chooseGovernment({
+      ...planningContext,
+      availableGovernmentIds: available.map(candidate => candidate.id),
     });
     if (!best) return 0;
     if (!(await manager.canChangeGovernment(playerId, best.governmentId))) return 0;
@@ -208,8 +260,8 @@ export class FreecivAIDomesticController {
         parameters.allow_disorder = false;
         parameters.allow_specialists = true;
         parameters.max_growth = true;
-        parameters.factor[OutputType.FOOD] = 20;
-        parameters.minimal_surplus[OutputType.FOOD] = 1;
+        parameters.factor[CityOutputType.FOOD] = 20;
+        parameters.minimal_surplus[CityOutputType.FOOD] = 1;
         if (await game.cityManager.optimizeCityManually(cityId, parameters)) actions++;
       }
     }

@@ -1365,6 +1365,70 @@ describe('FreecivAIOrchestrator', () => {
     expect(state.techWants.writing).toBeGreaterThanOrEqual(1000);
   });
 
+  it('feeds an amortized future-government value into its prerequisite goal', async () => {
+    const scenario = createScenario();
+    (scenario.game.players.get('ai') as any).aiLevel = 'hard';
+    (scenario.game as any).governmentManager = {
+      getPlayerGovernment: () => ({ currentGovernment: 'despotism', revolutionTurns: 0 }),
+      getAvailableGovernments: () => [{ id: 'despotism', available: true }],
+      getAllGovernments: () => ({
+        despotism: { id: 'despotism', reqs: [] },
+        republic: {
+          id: 'republic',
+          reqs: [{ type: 'tech', name: 'The Republic', range: 'Player' }],
+        },
+      }),
+      calculateGovernmentEffect: (governmentId: string, type: EffectType) =>
+        governmentId === 'republic' && type === EffectType.MAKE_CONTENT ? 10 : 0,
+      canChangeGovernment: jest.fn().mockResolvedValue(false),
+    };
+    (scenario.game.cityManager as any).getPlayerCities = () => [
+      {
+        id: 'capital',
+        playerId: 'ai',
+        foodPerTurn: 2,
+        productionPerTurn: 3,
+        tradePerTurn: 4,
+        goldPerTurn: 1,
+        sciencePerTurn: 2,
+        buildings: [],
+        happiness: { happy: 0, content: 3, unhappy: 0, angry: 0 },
+        currentProduction: 'warriors',
+        productionType: 'unit',
+        worklist: [],
+      },
+    ];
+    scenario.game.researchManager.getPlayerResearch = () => ({
+      currentTech: undefined,
+      bulbsAccumulated: 0,
+      researchedTechs: new Set(),
+    });
+    (scenario.game.researchManager as any).getTechnologyCatalogue = () => [
+      { id: 'alphabet', name: 'Alphabet', cost: 10, requirements: [], flags: [] },
+      {
+        id: 'the_republic',
+        name: 'The Republic',
+        cost: 40,
+        requirements: ['alphabet'],
+        flags: [],
+      },
+    ];
+    scenario.game.researchManager.getAvailableTechnologies = () => [
+      { id: 'alphabet', name: 'Alphabet', cost: 10, requirements: [], flags: [] },
+    ];
+    scenario.units.delete('enemy');
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    const state = (scenario.game.players.get('ai') as any).aiState;
+    expect(state.techWants.the_republic).toBeGreaterThan(0);
+    expect(scenario.setCurrentResearch).toHaveBeenCalledWith('ai', 'alphabet');
+  });
+
   it('honors the Freeciv target-visibility handicap by difficulty', async () => {
     const easy = createScenario();
     (easy.game.players.get('ai') as any).aiLevel = 'easy';

@@ -1,4 +1,4 @@
-import { chooseGovernment } from '@game/ai/FreecivAIGovernmentPlanner';
+import { chooseGovernment, rankGovernments } from '@game/ai/FreecivAIGovernmentPlanner';
 import { EffectType, OutputType } from '@game/managers/EffectsManager';
 
 const city = {
@@ -72,5 +72,33 @@ describe('Freeciv AI government planner', () => {
     });
     expect(peace?.governmentId).toBe('republic');
     expect(war).toBeUndefined();
+  });
+
+  it('amortizes future governments by exact prerequisite distance without revolting early', () => {
+    const context = {
+      currentGovernmentId: 'despotism',
+      availableGovernmentIds: ['despotism', 'republic'],
+      cities: [city],
+      units: [],
+      atWar: false,
+      effect: (government: string, type: EffectType, output?: OutputType) =>
+        government === 'republic' && type === EffectType.OUTPUT_BONUS && output === OutputType.TRADE
+          ? 100
+          : 0,
+      expectedRevolutionTurns: 0,
+    };
+    const immediate = rankGovernments({ ...context, researchDistance: () => 0 })[0];
+    const future = rankGovernments({
+      ...context,
+      researchDistance: government => (government === 'republic' ? 4 : 0),
+    })[0];
+
+    expect(future.value).toBeLessThan(immediate.value);
+    expect(
+      chooseGovernment({
+        ...context,
+        researchDistance: government => (government === 'republic' ? 4 : 0),
+      })
+    ).toBeUndefined();
   });
 });
