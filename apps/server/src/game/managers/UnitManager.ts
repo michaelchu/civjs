@@ -213,6 +213,13 @@ export class UnitManager {
     removed: string[];
   }) => void;
   private unitDestroyedObserver?: (unit: Unit) => void;
+  private diplomatActionExecutor?: (
+    playerId: string,
+    unitId: string,
+    actionType: ActionType,
+    targetX: number,
+    targetY: number
+  ) => Promise<ActionResult>;
 
   constructor(
     gameId: string,
@@ -291,6 +298,18 @@ export class UnitManager {
 
   public setUnitDestroyedObserver(observer: (unit: Unit) => void): void {
     this.unitDestroyedObserver = observer;
+  }
+
+  public setDiplomatActionExecutor(
+    executor: (
+      playerId: string,
+      unitId: string,
+      actionType: ActionType,
+      targetX: number,
+      targetY: number
+    ) => Promise<ActionResult>
+  ): void {
+    this.diplomatActionExecutor = executor;
   }
 
   private notifyUnitDestroyed(unit: Unit): void {
@@ -1952,6 +1971,23 @@ export class UnitManager {
     }
     if (actionType === ActionType.SUICIDE_ATTACK) {
       return this.executeSuicideAttack(unit, targetX, targetY);
+    }
+    if (
+      [
+        ActionType.ESTABLISH_EMBASSY,
+        ActionType.BRIBE_UNIT,
+        ActionType.STEAL_TECH,
+        ActionType.INVESTIGATE_CITY,
+        ActionType.INCITE_CITY,
+        ActionType.SABOTAGE_CITY,
+        ActionType.SABOTAGE_UNIT,
+        ActionType.POISON_WATER,
+      ].includes(actionType) &&
+      this.diplomatActionExecutor &&
+      targetX !== undefined &&
+      targetY !== undefined
+    ) {
+      return this.diplomatActionExecutor(unit.playerId, unit.id, actionType, targetX, targetY);
     }
     if (actionType === ActionType.AUTO_EXPLORE || actionType === ActionType.AUTO_SETTLER) {
       return this.setAutomation(unit, actionType);

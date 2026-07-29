@@ -1198,6 +1198,10 @@ export class GameManager {
     gameInstance.unitManager.setUnitDestroyedObserver(unit =>
       this.aiAdapter.onUnitDestroyed(gameId, gameInstance, unit)
     );
+    gameInstance.unitManager.setDiplomatActionExecutor(
+      (playerId, unitId, actionType, targetX, targetY) =>
+        this.executeDiplomatAction(gameId, playerId, unitId, actionType, targetX, targetY)
+    );
     gameInstance.cityManager.setCallbacks({
       onCityDestroyed: city => this.aiAdapter.onCityInvalidated(gameId, gameInstance, city.id),
       onCityCaptured: city => this.aiAdapter.onCityInvalidated(gameId, gameInstance, city.id),

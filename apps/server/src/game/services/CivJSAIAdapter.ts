@@ -26,6 +26,7 @@ import { CitizenParameterFactory } from '@game/systems/CitizenManagement/Citizen
 import { OutputType } from '@game/constants/GameConstants';
 import { planFerries } from '@game/ai/FreecivAIFerryPlanner';
 import { planAirMissions } from '@game/ai/FreecivAIAirPlanner';
+import { planDiplomatMissions } from '@game/ai/FreecivAIDiplomatPlanner';
 
 /**
  * Versioned compatibility contract for the currently landed Freeciv AI slice.
@@ -49,6 +50,7 @@ export const CIVJS_AI_CONTRACT = {
     'assign specialist hunters to persistent high-value mobile targets',
     'pair ferryboats with passengers and execute rendezvous, loading, delivery, and unloading',
     'plan fuel-safe air strikes, base returns, and undefended-city paradrops',
+    'plan defensive diplomats, embassies, espionage, and military-unit bribery',
     'value incoming treaties and make proactive cease-fire, peace, and alliance proposals',
     'persist difficulty, traits, diplomacy memory, assignments, and wants across restarts',
     'yield game completion to the authoritative conquest evaluator',
@@ -57,7 +59,7 @@ export const CIVJS_AI_CONTRACT = {
     'complete lifecycle event callbacks and use persisted assignments across every advisor',
     'complete city, technology, government, rates, spending, and worklist advisor want parity',
     'settlement-site and worker-improvement reservation parity',
-    'complete amphibious invasion coordination, air-defense/refueling depth, and diplomat planning',
+    'complete amphibious invasion coordination, air-defense/refueling depth, and advanced espionage valuation',
     'complete Freeciv diplomacy threat, reputation, incident, and material-clause valuation',
   ],
 } as const;
@@ -104,6 +106,9 @@ export class CivJSAIAdapter {
       actions += await this.attempt('workers', () => this.automateWorkers(game, playerId));
       actions += await this.attempt('ferries', () => this.manageFerries(game, playerId, state));
       actions += await this.attempt('guards', () => this.manageCityGuards(game, playerId, state));
+      actions += await this.attempt('diplomats', () =>
+        this.manageDiplomatUnits(gameId, game, playerId, state)
+      );
       actions += await this.attempt('air', () =>
         this.manageAirAndParadrops(gameId, game, playerId, state)
       );
@@ -736,6 +741,76 @@ export class CivJSAIAdapter {
           actions++;
         }
       }
+    }
+    return actions;
+  }
+
+  private async manageDiplomatUnits(
+    gameId: string,
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(gameId, playerId);
+    const units = game.unitManager.getPlayerUnits(playerId);
+    const cities = game.cityManager.getAllCities?.() ?? [];
+    const profile = createAIProfile(
+      game.players.get(playerId)?.aiLevel,
+      game.players.get(playerId)?.aiTraits
+    );
+    const missions = planDiplomatMissions({
+      diplomats: units.filter(unit =>
+        game.unitManager.getUnitType(unit.unitTypeId)?.flags?.includes('Diplomat')
+      ),
+      friendlyUnits: units,
+      hostileUnits: Array.from(game.unitManager.getAllUnits().values()).filter(unit =>
+        hostileIds.has(unit.playerId)
+      ),
+      foreignCities: cities.filter(city => city.playerId !== playerId),
+      friendlyCities: cities.filter(city => city.playerId === playerId),
+      hostilePlayerIds: hostileIds,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      diplomatHandicap: profile.handicaps.has('diplomat'),
+    });
+    for (const [unitId, task] of Object.entries(state.unitTasks)) {
+      if (task.role === 'diplomat') delete state.unitTasks[unitId];
+    }
+    let actions = 0;
+    for (const mission of missions) {
+      state.unitTasks[mission.unit.id] = {
+        role: 'diplomat',
+        targetId: mission.targetId,
+        targetX: mission.targetX,
+        targetY: mission.targetY,
+        assignedTurn: game.currentTurn,
+      };
+      if (mission.unit.movementLeft <= 0) continue;
+      const distance = game.mapManager.getDistance(
+        mission.unit.x,
+        mission.unit.y,
+        mission.targetX,
+        mission.targetY
+      );
+      if (mission.kind === 'action' && mission.action && distance <= 1) {
+        const result = await game.unitManager.executeUnitAction(
+          mission.unit.id,
+          mission.action,
+          mission.targetX,
+          mission.targetY,
+          playerId
+        );
+        if (result.success) actions++;
+        continue;
+      }
+      const result = await game.unitManager.executeUnitAction(
+        mission.unit.id,
+        ActionType.GOTO,
+        mission.targetX,
+        mission.targetY,
+        playerId
+      );
+      if (result.success) actions++;
     }
     return actions;
   }
