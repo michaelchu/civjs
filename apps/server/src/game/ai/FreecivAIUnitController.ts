@@ -22,7 +22,12 @@ import {
 } from '@game/ai/FreecivAIExplorerPlanner';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import { planMilitaryRecovery } from '@game/ai/FreecivAIRecoveryPlanner';
-import { rankMilitaryObjectives, type MilitaryObjective } from '@game/ai/FreecivAIMilitaryPlanner';
+import {
+  buildMilitaryTravelTimes,
+  militaryTravelKey,
+  planMilitaryCampaign,
+  type MilitaryObjective,
+} from '@game/ai/FreecivAIMilitaryPlanner';
 import {
   buildCityThreatTravelTimes,
   cityThreatTravelKey,
@@ -316,47 +321,70 @@ export class FreecivAIUnitController {
       .sort((a, b) => a.id.localeCompare(b.id));
     const hostileCities = targetableForeignCities(game, playerId, hostilePlayerIds, profile);
     const decisions = createAIDecisionSource(game, playerId, 'military-target');
+    const existingCityTargets = new Map(
+      Object.entries(state.unitTasks)
+        .filter(
+          ([, task]) =>
+            task.role === 'attack' &&
+            Boolean(task.targetId && hostileCities.some(city => city.id === task.targetId))
+        )
+        .map(([unitId, task]) => [unitId, task.targetId!] as const)
+    );
     for (const [unitId, task] of Object.entries(state.unitTasks)) {
       if (task.role === 'attack' || task.role === 'retreat') delete state.unitTasks[unitId];
     }
     let actions = 0;
-
-    for (const attacker of sortedPlayerUnits(game, playerId)) {
-      if (state.unitTasks[attacker.id]?.role === 'guard') continue;
-      if (state.unitTasks[attacker.id]?.role === 'defend') continue;
-      if (state.unitTasks[attacker.id]?.role === 'hunter') continue;
-      if (state.unitTasks[attacker.id]?.role === 'air') continue;
-      if (state.unitTasks[attacker.id]?.role === 'paradrop') continue;
-      if (state.unitTasks[attacker.id]?.role === 'recover') continue;
+    const attackers = sortedPlayerUnits(game, playerId).flatMap(attacker => {
+      if (
+        ['guard', 'defend', 'hunter', 'air', 'paradrop', 'recover'].includes(
+          state.unitTasks[attacker.id]?.role ?? ''
+        )
+      ) {
+        return [];
+      }
       if (
         profile.handicaps.has('away') &&
         (attacker.fortified || attacker.sentryUntil !== undefined)
       ) {
-        continue;
+        return [];
       }
       const type = game.unitManager.getUnitType(attacker.unitTypeId);
-      if (attacker.movementLeft <= 0 || (type?.attack ?? type?.combat ?? 0) <= 0) continue;
-      if (!type) continue;
-      const ranked = rankMilitaryObjectives({
-        attacker,
-        attackerType: type,
-        hostileUnits: enemies.filter(target => Boolean(game.unitManager.getUnit(target.id))),
-        hostileCities,
-        getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
-        distance: (targetX, targetY) =>
-          game.mapManager.getDistance(attacker.x, attacker.y, targetX, targetY),
-        isStackProtected: (x, y) => {
-          const tile = game.mapManager.getTile(x, y);
-          return Boolean(
-            game.cityManager.getCityAt(x, y) ||
-              tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
-          );
-        },
-      });
-      const considered = ranked.filter(target =>
-        decisions.fuzzy(`${attacker.id}:${target.targetId}`, true)
-      );
-      const objective = considered[0];
+      if (attacker.movementLeft <= 0 || !type || (type.attack ?? type.combat ?? 0) <= 0) return [];
+      return [{ unit: attacker, type }];
+    });
+    const militaryTravelTimes = await buildMilitaryTravelTimes({
+      attackers: attackers.map(attacker => attacker.unit),
+      targets: [
+        ...enemies.map(enemy => ({ x: enemy.x, y: enemy.y })),
+        ...hostileCities.map(city => ({ x: city.x, y: city.y })),
+      ],
+      getNeighbors: (x, y) => game.mapManager.getNeighbors(x, y),
+      findPath: (unit, targetX, targetY) =>
+        game.pathfindingManager.findPath(unit, targetX, targetY),
+    });
+    const campaign = planMilitaryCampaign({
+      attackers,
+      hostileUnits: enemies.filter(target => Boolean(game.unitManager.getUnit(target.id))),
+      hostileCities,
+      existingCityTargets,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      travelTurns: (attacker, targetX, targetY) =>
+        militaryTravelTimes.get(militaryTravelKey(attacker.id, targetX, targetY)),
+      isStackProtected: (x, y) => {
+        const tile = game.mapManager.getTile(x, y);
+        return Boolean(
+          game.cityManager.getCityAt(x, y) ||
+            tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
+        );
+      },
+      acceptObjective: (attacker, target) =>
+        decisions.fuzzy(`${attacker.id}:${target.targetId}`, true),
+    });
+
+    for (const { unit: plannedAttacker, type } of attackers) {
+      const attacker = game.unitManager.getUnit(plannedAttacker.id);
+      if (!attacker) continue;
+      const objective = campaign.assignments.get(attacker.id);
       if (!objective) {
         actions += await this.retreatDamagedUnit(game, attacker, playerId, state);
         continue;

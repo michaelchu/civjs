@@ -1,5 +1,7 @@
 import {
+  buildMilitaryTravelTimes,
   killDesire,
+  planMilitaryCampaign,
   rankMilitaryObjectives,
   type MilitaryPlanningContext,
 } from '@game/ai/FreecivAIMilitaryPlanner';
@@ -56,7 +58,7 @@ function context(overrides: Partial<MilitaryPlanningContext> = {}): MilitaryPlan
     hostileUnits: [unit('guard', 'warrior', 1, 0), unit('settler', 'settler', 1, 0)],
     hostileCities: [],
     getType: id => types[id],
-    distance: (x, y) => Math.max(Math.abs(x), Math.abs(y)),
+    travelTurns: (x, y) => Math.max(Math.abs(x), Math.abs(y)),
     isStackProtected: () => false,
     ...overrides,
   };
@@ -74,6 +76,29 @@ describe('FreecivAIMilitaryPlanner', () => {
     expect(exposed).toMatchObject({ kind: 'stack', victimCount: 2, benefit: 40 });
     expect(protectedTarget).toMatchObject({ victimCount: 1, benefit: 10 });
     expect(exposed.want).toBeGreaterThan(protectedTarget.want);
+  });
+
+  it('counts every city defender as an invasion victim while valuing only the selected defender', () => {
+    const target = {
+      id: 'city',
+      playerId: 'enemy',
+      x: 1,
+      y: 0,
+      size: 3,
+      buildings: [],
+    } as any;
+    const objective = rankMilitaryObjectives(
+      context({
+        hostileCities: [target],
+        isStackProtected: () => true,
+      })
+    )[0];
+
+    expect(objective).toMatchObject({
+      kind: 'city',
+      victimCount: 2,
+      benefit: 10,
+    });
   });
 
   it('targets an undefended hostile city only with an occupying unit', () => {
@@ -109,5 +134,102 @@ describe('FreecivAIMilitaryPlanner', () => {
     );
 
     expect(plan).toEqual([]);
+  });
+
+  it('coordinates city attackers and requisitions an occupier for committed assault strength', () => {
+    const base = context();
+    const artilleryType = {
+      ...base.attackerType,
+      id: 'artillery',
+      attack: 8,
+      cost: 50,
+      rulesetUnitClassFlags: [],
+    };
+    const artillery = {
+      ...unit('a-artillery', 'artillery', 0, 0),
+      playerId: 'ai',
+    };
+    const occupier = {
+      ...unit('b-occupier', 'legion', 0, 0),
+      playerId: 'ai',
+    };
+    const target = {
+      id: 'target-city',
+      playerId: 'enemy',
+      x: 1,
+      y: 0,
+      size: 4,
+      buildings: [],
+    } as any;
+    const guard = unit('guard', 'warrior', 1, 0);
+
+    const plan = planMilitaryCampaign({
+      attackers: [
+        { unit: artillery, type: artilleryType },
+        { unit: occupier, type: base.attackerType },
+      ],
+      hostileUnits: [guard],
+      hostileCities: [target],
+      getType: id => (id === 'artillery' ? artilleryType : base.getType(id)),
+      travelTurns: (attacker, x, y) => Math.max(Math.abs(attacker.x - x), Math.abs(attacker.y - y)),
+      isStackProtected: () => true,
+    });
+
+    expect(plan.assignments.get(artillery.id)).toMatchObject({
+      kind: 'city',
+      targetId: target.id,
+    });
+    expect(plan.assignments.get(occupier.id)).toMatchObject({
+      kind: 'city',
+      targetId: target.id,
+    });
+    expect(plan.invasionSupport.get(target.id)).toMatchObject({
+      occupiers: 1,
+      buildCost: 90,
+    });
+  });
+
+  it('removes a unit from persisted invasion support before reconsidering it', () => {
+    const base = context();
+    const attacker = base.attacker;
+    const target = {
+      id: 'target-city',
+      playerId: 'enemy',
+      x: 2,
+      y: 0,
+      size: 2,
+      buildings: [],
+    } as any;
+    const plan = planMilitaryCampaign({
+      attackers: [{ unit: attacker, type: base.attackerType }],
+      hostileUnits: [],
+      hostileCities: [target],
+      existingCityTargets: new Map([[attacker.id, target.id]]),
+      getType: base.getType,
+      travelTurns: (_attacker, x, y) => Math.max(Math.abs(x), Math.abs(y)),
+      isStackProtected: () => true,
+    });
+
+    expect(plan.invasionSupport.get(target.id)).toMatchObject({
+      occupiers: 1,
+      buildCost: 40,
+    });
+  });
+
+  it('rejects unreachable military targets using authoritative route results', async () => {
+    const attacker = context().attacker;
+    const times = await buildMilitaryTravelTimes({
+      attackers: [attacker],
+      targets: [
+        { x: 4, y: 4 },
+        { x: 8, y: 8 },
+      ],
+      getNeighbors: (x, y) => [{ x: x - 1, y }],
+      findPath: async (_unit, x) =>
+        x <= 4 ? { valid: true, estimatedTurns: 3 } : { valid: false, estimatedTurns: 0 },
+    });
+
+    expect(times.get(`${attacker.id}:4,4`)).toBe(3);
+    expect(times.has(`${attacker.id}:8,8`)).toBe(false);
   });
 });

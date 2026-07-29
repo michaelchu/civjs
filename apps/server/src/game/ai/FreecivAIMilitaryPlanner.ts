@@ -12,9 +12,16 @@ export interface MilitaryObjective {
   targetId: string;
   defender?: Unit;
   want: number;
-  distance: number;
+  travelTurns: number;
   victimCount: number;
   benefit: number;
+}
+
+export interface CityInvasionSupport {
+  attacks: number;
+  occupiers: number;
+  attackRating: number;
+  buildCost: number;
 }
 
 export interface MilitaryPlanningContext {
@@ -23,8 +30,66 @@ export interface MilitaryPlanningContext {
   hostileUnits: Unit[];
   hostileCities: CityState[];
   getType: (unitTypeId: string) => UnitType | undefined;
-  distance: (targetX: number, targetY: number) => number;
+  travelTurns: (targetX: number, targetY: number) => number | undefined;
   isStackProtected: (x: number, y: number) => boolean;
+  invasionSupport?: ReadonlyMap<string, CityInvasionSupport>;
+}
+
+export interface MilitaryCampaignPlanningContext {
+  attackers: Array<{ unit: Unit; type: UnitType }>;
+  hostileUnits: Unit[];
+  hostileCities: CityState[];
+  existingCityTargets?: ReadonlyMap<string, string>;
+  getType: (unitTypeId: string) => UnitType | undefined;
+  travelTurns: (attacker: Unit, targetX: number, targetY: number) => number | undefined;
+  isStackProtected: (x: number, y: number) => boolean;
+  acceptObjective?: (attacker: Unit, objective: MilitaryObjective) => boolean;
+}
+
+export interface MilitaryCampaignPlan {
+  assignments: Map<string, MilitaryObjective>;
+  invasionSupport: Map<string, CityInvasionSupport>;
+}
+
+export interface MilitaryTravelPlanningContext {
+  attackers: Unit[];
+  targets: Array<{ x: number; y: number }>;
+  getNeighbors: (x: number, y: number) => Array<{ x: number; y: number }>;
+  findPath: (
+    unit: Unit,
+    targetX: number,
+    targetY: number
+  ) => Promise<{ valid: boolean; estimatedTurns: number }>;
+}
+
+export function militaryTravelKey(unitId: string, x: number, y: number): string {
+  return `${unitId}:${x},${y}`;
+}
+
+export async function buildMilitaryTravelTimes(
+  context: MilitaryTravelPlanningContext
+): Promise<Map<string, number>> {
+  const times = new Map<string, number>();
+  const targets = new Map(
+    context.targets.map(target => [`${target.x},${target.y}`, target] as const)
+  );
+  await Promise.all(
+    context.attackers.flatMap(attacker =>
+      [...targets.values()].map(async target => {
+        const destinations = [target, ...context.getNeighbors(target.x, target.y)];
+        const paths = await Promise.all(
+          destinations.map(destination => context.findPath(attacker, destination.x, destination.y))
+        );
+        const validTurns = paths
+          .filter(path => path.valid)
+          .map(path => Math.max(0, path.estimatedTurns));
+        if (validTurns.length > 0) {
+          times.set(militaryTravelKey(attacker.id, target.x, target.y), Math.min(...validTurns));
+        }
+      })
+    )
+  );
+  return times;
 }
 
 export function killDesire(
@@ -60,6 +125,30 @@ function canOccupyCity(type: UnitType): boolean {
     type.rulesetUnitClassFlags?.includes('CanOccupyCity') === true &&
     type.flags?.includes('NonMil') !== true
   );
+}
+
+function availableAttacks(type: UnitType): number {
+  return Math.max(1, type.movement ?? 1);
+}
+
+function emptyInvasionSupport(): CityInvasionSupport {
+  return { attacks: 0, occupiers: 0, attackRating: 0, buildCost: 0 };
+}
+
+function adjustInvasionSupport(
+  support: Map<string, CityInvasionSupport>,
+  cityId: string,
+  unit: Unit,
+  type: UnitType,
+  direction: 1 | -1
+): void {
+  const current = support.get(cityId) ?? emptyInvasionSupport();
+  support.set(cityId, {
+    attacks: Math.max(0, current.attacks + direction * availableAttacks(type)),
+    occupiers: Math.max(0, current.occupiers + direction * (canOccupyCity(type) ? 1 : 0)),
+    attackRating: Math.max(0, current.attackRating + direction * attackRating(unit, type)),
+    buildCost: Math.max(0, current.buildCost + direction * Math.max(1, type.cost)),
+  });
 }
 
 function groupStacks(units: Unit[]): Unit[][] {
@@ -103,26 +192,37 @@ function scoreStack(
   const defenderType = context.getType(defender.unitTypeId)!;
   const protectedStack = context.isStackProtected(defender.x, defender.y);
   const vulnerableUnits = protectedStack ? [defender] : stack;
-  const benefit =
-    vulnerableUnits.reduce(
-      (sum, unit) => sum + Math.max(1, context.getType(unit.unitTypeId)?.cost ?? 1),
-      0
-    ) + (city && canOccupyCity(context.attackerType) ? cityWorth(city) : 0);
-  const attack = attackRating(context.attacker, context.attackerType) ** 2;
+  const support = city
+    ? (context.invasionSupport?.get(city.id) ?? emptyInvasionSupport())
+    : emptyInvasionSupport();
+  const reserves = support.attacks - stack.length;
+  let benefit = vulnerableUnits.reduce(
+    (sum, unit) => sum + Math.max(1, context.getType(unit.unitTypeId)?.cost ?? 1),
+    0
+  );
+  if (city && reserves > 0 && (canOccupyCity(context.attackerType) || support.occupiers > 0)) {
+    benefit += (cityWorth(city) * reserves) / 5;
+  }
+  const attack = (attackRating(context.attacker, context.attackerType) + support.attackRating) ** 2;
   const vulnerability = defenseRating(defender, defenderType) ** 2;
-  const victimCount = vulnerableUnits.length;
-  const distance = context.distance(defender.x, defender.y);
-  if (distance / Math.max(1, context.attackerType.movement) > 10) return undefined;
+  const victimCount = city ? stack.length : vulnerableUnits.length;
+  const travelTurns = context.travelTurns(defender.x, defender.y);
+  if (travelTurns === undefined || travelTurns > 10) return undefined;
+  const currentCost = Math.max(1, context.attackerType.cost);
+  const needsOccupier =
+    city && canOccupyCity(context.attackerType) && support.occupiers === 0 && support.attacks > 0;
   const raw =
-    killDesire(
-      benefit,
-      attack,
-      Math.max(1, context.attackerType.cost),
-      vulnerability,
-      victimCount
-    ) -
-    (distance / Math.max(1, context.attackerType.movement)) * SHIELD_WEIGHTING;
-  const want = amortize(raw, distance / Math.max(1, context.attackerType.movement));
+    (needsOccupier
+      ? currentCost * SHIELD_WEIGHTING
+      : killDesire(
+          benefit,
+          attack,
+          currentCost + support.buildCost,
+          vulnerability,
+          victimCount + (city ? 1 : 0)
+        )) -
+    travelTurns * SHIELD_WEIGHTING;
+  const want = amortize(raw, travelTurns);
   if (want <= 0) return undefined;
   return {
     kind: city ? 'city' : 'stack',
@@ -131,7 +231,7 @@ function scoreStack(
     targetId: city?.id ?? defender.id,
     defender,
     want,
-    distance,
+    travelTurns,
     victimCount,
     benefit,
   };
@@ -142,11 +242,15 @@ function scoreUndefendedCity(
   city: CityState
 ): MilitaryObjective | undefined {
   if (!canOccupyCity(context.attackerType)) return undefined;
-  const distance = context.distance(city.x, city.y);
-  const turns = distance / Math.max(1, context.attackerType.movement);
-  if (turns > 10) return undefined;
+  const travelTurns = context.travelTurns(city.x, city.y);
+  if (travelTurns === undefined || travelTurns > 10) return undefined;
+  const support = context.invasionSupport?.get(city.id) ?? emptyInvasionSupport();
   const benefit = cityWorth(city);
-  const want = amortize(benefit * SHIELD_WEIGHTING - turns * SHIELD_WEIGHTING, turns);
+  const raw =
+    support.occupiers === 0 && support.attacks > 0
+      ? Math.max(1, context.attackerType.cost) * SHIELD_WEIGHTING
+      : benefit * SHIELD_WEIGHTING;
+  const want = amortize(raw - travelTurns * SHIELD_WEIGHTING, travelTurns);
   if (want <= 0) return undefined;
   return {
     kind: 'city',
@@ -154,7 +258,7 @@ function scoreUndefendedCity(
     y: city.y,
     targetId: city.id,
     want,
-    distance,
+    travelTurns,
     victimCount: 0,
     benefit,
   };
@@ -189,7 +293,61 @@ export function rankMilitaryObjectives(context: MilitaryPlanningContext): Milita
   return objectives.sort(
     (left, right) =>
       right.want - left.want ||
-      left.distance - right.distance ||
+      left.travelTurns - right.travelTurns ||
       left.targetId.localeCompare(right.targetId)
   );
+}
+
+/**
+ * Plan a player's attackers as one campaign. Each city tracks the attack
+ * capacity, occupiers, combat rating, and shield cost already committed to
+ * it. Previous attack destinations seed the calculation, then each unit is
+ * removed and reconsidered so it is never counted twice.
+ *
+ * @reference reference/freeciv/ai/default/daiunit.c:single_invader
+ * @reference reference/freeciv/ai/default/daiunit.c:invasion_funct
+ * @reference reference/freeciv/ai/default/daiunit.c:find_something_to_kill
+ */
+export function planMilitaryCampaign(
+  context: MilitaryCampaignPlanningContext
+): MilitaryCampaignPlan {
+  const cityIds = new Set(context.hostileCities.map(city => city.id));
+  const support = new Map<string, CityInvasionSupport>();
+  const attackers = context.attackers
+    .slice()
+    .sort((left, right) => left.unit.id.localeCompare(right.unit.id));
+
+  for (const attacker of attackers) {
+    const cityId = context.existingCityTargets?.get(attacker.unit.id);
+    if (cityId && cityIds.has(cityId)) {
+      adjustInvasionSupport(support, cityId, attacker.unit, attacker.type, 1);
+    }
+  }
+
+  const assignments = new Map<string, MilitaryObjective>();
+  for (const attacker of attackers) {
+    const previousCityId = context.existingCityTargets?.get(attacker.unit.id);
+    if (previousCityId && cityIds.has(previousCityId)) {
+      adjustInvasionSupport(support, previousCityId, attacker.unit, attacker.type, -1);
+    }
+
+    const objective = rankMilitaryObjectives({
+      attacker: attacker.unit,
+      attackerType: attacker.type,
+      hostileUnits: context.hostileUnits,
+      hostileCities: context.hostileCities,
+      getType: context.getType,
+      travelTurns: (targetX, targetY) => context.travelTurns(attacker.unit, targetX, targetY),
+      isStackProtected: context.isStackProtected,
+      invasionSupport: support,
+    }).find(candidate => context.acceptObjective?.(attacker.unit, candidate) ?? true);
+    if (!objective) continue;
+
+    assignments.set(attacker.unit.id, objective);
+    if (objective.kind === 'city' && cityIds.has(objective.targetId)) {
+      adjustInvasionSupport(support, objective.targetId, attacker.unit, attacker.type, 1);
+    }
+  }
+
+  return { assignments, invasionSupport: support };
 }
