@@ -1,4 +1,5 @@
 import { planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
+import { createAIProfile } from '@game/ai/FreecivAIProfile';
 
 const city = (id: string, x: number, y: number) => ({ id, x, y, playerId: 'ai' }) as any;
 
@@ -34,6 +35,10 @@ const types: Record<string, any> = {
     movement: 3,
     hitpoints: 10,
     firepower: 1,
+    bombardRate: 0,
+    cargoClasses: [],
+    rulesetUnitClassFlags: ['CanOccupyCity'],
+    flags: [],
     canFoundCity: false,
     canBuildImprovements: false,
   },
@@ -49,6 +54,7 @@ describe('Freeciv AI guard planner', () => {
       existingTasks: {},
       getType: id => types[id],
       distance: (x1, y1, x2, y2) => Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)),
+      profile: createAIProfile('normal'),
     });
 
     expect(plan.assignments.near).toMatchObject({
@@ -56,7 +62,7 @@ describe('Freeciv AI guard planner', () => {
       targetId: 'frontier',
       assignedTurn: 5,
     });
-    expect(plan.assessments.find(item => item.city.id === 'frontier')?.urgency).toBe(1);
+    expect(plan.assessments.find(item => item.city.id === 'frontier')?.urgency).toBe(11);
   });
 
   it('preserves sane assignments and dismisses destroyed charges', () => {
@@ -71,6 +77,7 @@ describe('Freeciv AI guard planner', () => {
       },
       getType: id => types[id],
       distance: (x1, y1, x2, y2) => Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)),
+      profile: createAIProfile('normal'),
     });
 
     expect(plan.assignments.kept).toEqual({
@@ -90,9 +97,9 @@ describe('Freeciv AI guard planner', () => {
       existingTasks: {},
       getType: id => types[id],
       distance: () => 0,
-      dangerHandicap: true,
+      profile: createAIProfile('restricted'),
     });
 
-    expect(plan.assessments[0]).toMatchObject({ danger: 1, urgency: 1 });
+    expect(plan.assessments[0]).toMatchObject({ danger: 1, urgency: 10, graveDanger: 1 });
   });
 });

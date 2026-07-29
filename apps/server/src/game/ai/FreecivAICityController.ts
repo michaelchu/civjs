@@ -9,6 +9,11 @@ import { BUILDING_TYPES } from '@game/managers/CityManager';
 import type { GameInstance } from '@game/managers/GameManager';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
+import {
+  assessCityDanger,
+  buildCityThreatTravelTimes,
+  cityThreatTravelKey,
+} from '@game/ai/FreecivAICityDangerPlanner';
 
 /**
  * Executes citizen allocation, production, worklist, and city-local unit
@@ -65,6 +70,15 @@ export class FreecivAICityController {
     const player = game.players.get(playerId);
     const profile = createAIProfile(player?.aiLevel, player?.aiTraits);
     const hostileUnits = hostileUnitsForPlanning(game, playerId, hostilePlayerIds, profile);
+    const threatTravelTimes = await buildCityThreatTravelTimes({
+      cities,
+      threateningUnits: hostileUnits,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      getUnit: unitId => game.unitManager.getUnit(unitId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      findPath: (unit, targetX, targetY) =>
+        game.pathfindingManager.findPath(unit, targetX, targetY),
+    });
     const reservedWonders = new Set(
       cities
         .flatMap(city => [city.currentProduction, ...(city.worklist ?? []).map(item => item.value)])
@@ -74,6 +88,15 @@ export class FreecivAICityController {
     );
 
     for (const city of cities) {
+      const dangerAssessment = assessCityDanger({
+        city,
+        friendlyUnits: units,
+        threateningUnits: hostileUnits,
+        profile,
+        getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+        travelTurns: (enemy, target) =>
+          threatTravelTimes.get(cityThreatTravelKey(enemy.id, target.id)),
+      });
       const ranked =
         typeof game.cityManager.canCityContinueProduction === 'function'
           ? rankCityProduction({
@@ -83,12 +106,7 @@ export class FreecivAICityController {
               unitTypes: UNIT_TYPES,
               buildingTypes: BUILDING_TYPES,
               canBuild: (kind, id) => game.cityManager.canCityContinueProduction(city.id, kind, id),
-              nearbyEnemyStrength: hostileUnits.reduce((sum, enemy) => {
-                const distance = game.mapManager.getDistance(city.x, city.y, enemy.x, enemy.y);
-                if (distance > 4) return sum;
-                const enemyType = game.unitManager.getUnitType(enemy.unitTypeId);
-                return sum + (enemyType?.attack ?? enemyType?.combat ?? 0) / Math.max(1, distance);
-              }, 0),
+              dangerAssessment,
               profile,
               reservedWonders,
               excludedChoices: new Set(

@@ -23,6 +23,10 @@ import {
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import { planMilitaryRecovery } from '@game/ai/FreecivAIRecoveryPlanner';
 import { rankMilitaryObjectives, type MilitaryObjective } from '@game/ai/FreecivAIMilitaryPlanner';
+import {
+  buildCityThreatTravelTimes,
+  cityThreatTravelKey,
+} from '@game/ai/FreecivAICityDangerPlanner';
 
 function unitAttack(type: UnitType): number {
   return type.attack ?? type.combat ?? 0;
@@ -522,6 +526,15 @@ export class FreecivAIUnitController {
       game.players.get(playerId)?.aiTraits
     );
     const hostileUnits = hostileUnitsForPlanning(game, playerId, hostileIds, profile);
+    const threatTravelTimes = await buildCityThreatTravelTimes({
+      cities,
+      threateningUnits: hostileUnits,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      getUnit: unitId => game.unitManager.getUnit(unitId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      findPath: (unit, targetX, targetY) =>
+        game.pathfindingManager.findPath(unit, targetX, targetY),
+    });
     const plan = planCityGuards({
       turn: game.currentTurn,
       cities,
@@ -530,7 +543,9 @@ export class FreecivAIUnitController {
       existingTasks: state.unitTasks,
       getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
-      dangerHandicap: profile.handicaps.has('danger'),
+      threatTravelTurns: (unit, city) =>
+        threatTravelTimes.get(cityThreatTravelKey(unit.id, city.id)),
+      profile,
     });
 
     for (const [unitId, task] of Object.entries(state.unitTasks)) {

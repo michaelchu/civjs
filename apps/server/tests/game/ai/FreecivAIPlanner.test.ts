@@ -59,7 +59,13 @@ describe('Freeciv AI want planner', () => {
       city: city({ defenseStrength: 0 }),
       cities: [city()],
       units: [],
-      nearbyEnemyStrength: 8,
+      dangerAssessment: {
+        danger: 6400,
+        urgency: 11,
+        graveDanger: 1,
+        defense: 0,
+        defenseDeficit: 6400,
+      },
       unitTypes: {
         settler: {
           id: 'settler',
@@ -186,7 +192,13 @@ describe('Freeciv AI want planner', () => {
         } as any,
       },
       canBuild: () => true,
-      nearbyEnemyStrength: 0,
+      dangerAssessment: {
+        danger: 0,
+        urgency: 0,
+        graveDanger: 0,
+        defense: 0,
+        defenseDeficit: 0,
+      },
       reservedWonders: new Set(['wonder']),
     });
     expect(ranked.length).toBeGreaterThan(1);

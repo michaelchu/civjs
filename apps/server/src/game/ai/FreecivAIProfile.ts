@@ -49,6 +49,7 @@ export type AIHandicap =
   | 'revolution'
   | 'expansion'
   | 'danger'
+  | 'assess_danger_limited'
   | 'ceasefire'
   | 'no_bribe_war_footing'
   | 'production_change_penalty';
@@ -75,6 +76,7 @@ const HANDICAPS = {
     'revolution',
     'expansion',
     'danger',
+    'assess_danger_limited',
     'ceasefire',
     'no_bribe_war_footing',
     'production_change_penalty',
@@ -91,6 +93,7 @@ const HANDICAPS = {
     'revolution',
     'expansion',
     'danger',
+    'assess_danger_limited',
     'ceasefire',
     'no_bribe_war_footing',
     'production_change_penalty',
@@ -106,6 +109,7 @@ const HANDICAPS = {
     'diplomacy',
     'revolution',
     'expansion',
+    'assess_danger_limited',
     'ceasefire',
     'no_bribe_war_footing',
   ],
@@ -121,6 +125,7 @@ const HANDICAPS = {
     'huts',
     'revolution',
     'production_change_penalty',
+    'assess_danger_limited',
   ],
 } satisfies Record<AILevel, AIHandicap[]>;
 

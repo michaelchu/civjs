@@ -2,14 +2,14 @@ import type { CityState } from '@game/managers/CityManager';
 import type { Unit } from '@game/managers/UnitManager';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import type { AIUnitTask } from '@game/ai/FreecivAIStateStore';
+import {
+  assessCityDanger,
+  unitDefenseRating,
+  type CityDangerAssessment,
+} from '@game/ai/FreecivAICityDangerPlanner';
+import type { AIProfile } from '@game/ai/FreecivAIProfile';
 
-export interface CityDangerAssessment {
-  city: CityState;
-  danger: number;
-  urgency: number;
-  defense: number;
-  requiredDefense: number;
-}
+export type { CityDangerAssessment } from '@game/ai/FreecivAICityDangerPlanner';
 
 export interface GuardPlan {
   assessments: CityDangerAssessment[];
@@ -24,29 +24,8 @@ interface GuardPlanningContext {
   existingTasks: Record<string, AIUnitTask>;
   getType: (unitTypeId: string) => UnitType | undefined;
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
-  dangerHandicap?: boolean;
-}
-
-function defenseRating(unit: Unit, type: UnitType): number {
-  const veteranBonus = 1 + unit.veteranLevel * 0.25;
-  const health = Math.max(0.1, unit.health / 100);
-  return (
-    Math.max(0, type.defense ?? type.combat ?? 0) *
-    Math.max(1, type.hitpoints ?? 10) *
-    veteranBonus *
-    health
-  );
-}
-
-function attackRating(unit: Unit, type: UnitType): number {
-  const veteranBonus = 1 + unit.veteranLevel * 0.25;
-  const health = Math.max(0.1, unit.health / 100);
-  return (
-    Math.max(0, type.attack ?? type.combat ?? 0) *
-    Math.max(1, type.firepower ?? 1) *
-    veteranBonus *
-    health
-  );
+  threatTravelTurns?: (unit: Unit, city: CityState) => number | undefined;
+  profile: AIProfile;
 }
 
 function isGuardCandidate(unit: Unit, type: UnitType | undefined): type is UnitType {
@@ -75,36 +54,25 @@ export function planCityGuards(context: GuardPlanningContext): GuardPlan {
       isGuardCandidate(unit, context.getType(unit.unitTypeId)) &&
       !['recover', 'retreat'].includes(context.existingTasks[unit.id]?.role ?? '')
   );
-  const assessments = context.cities.map(city => {
-    const defenders = candidateUnits.filter(unit => unit.x === city.x && unit.y === city.y);
-    const linearDefense = defenders.reduce((sum, unit) => {
-      const type = context.getType(unit.unitTypeId);
-      return type ? sum + defenseRating(unit, type) : sum;
-    }, 0);
-    let danger = 0;
-    let urgency = 0;
-    for (const hostile of context.hostileUnits) {
-      const type = context.getType(hostile.unitTypeId);
-      if (!type) continue;
-      const distance = context.distance(city.x, city.y, hostile.x, hostile.y);
-      const movement = Math.max(1, type.movement ?? 1);
-      const turns = Math.ceil(distance / movement);
-      if (turns > 3) continue;
-      danger += attackRating(hostile, type) / Math.max(1, turns);
-      if (turns <= 1) urgency++;
-    }
-    if (context.dangerHandicap) {
-      danger = Math.max(danger, 1);
-      urgency = Math.max(urgency, 1);
-    }
-    return {
+  const assessments = context.cities.map(city =>
+    assessCityDanger({
       city,
-      danger,
-      urgency,
-      defense: linearDefense * linearDefense,
-      requiredDefense: Math.max(1, danger * danger * (urgency > 0 ? 1.5 : 1)),
-    };
-  });
+      friendlyUnits: candidateUnits,
+      threateningUnits: context.hostileUnits,
+      profile: context.profile,
+      getType: context.getType,
+      travelTurns: (hostile, target) => {
+        const planned = context.threatTravelTurns?.(hostile, target);
+        if (context.threatTravelTurns) return planned;
+        const type = context.getType(hostile.unitTypeId);
+        if (!type) return undefined;
+        return Math.ceil(
+          context.distance(hostile.x, hostile.y, target.x, target.y) /
+            Math.max(1, type.movement ?? 1)
+        );
+      },
+    })
+  );
 
   const cityById = new Map(context.cities.map(city => [city.id, city]));
   const unitById = new Map(candidateUnits.map(unit => [unit.id, unit]));
@@ -127,7 +95,7 @@ export function planCityGuards(context: GuardPlanningContext): GuardPlan {
     .sort(
       (a, b) =>
         b.urgency - a.urgency ||
-        b.requiredDefense - b.defense - (a.requiredDefense - a.defense) ||
+        b.defenseDeficit - a.defenseDeficit ||
         a.city.id.localeCompare(b.city.id)
     );
   for (const assessment of orderedCities) {
@@ -139,9 +107,9 @@ export function planCityGuards(context: GuardPlanningContext): GuardPlan {
       )
       .reduce((sum, unit) => {
         const type = context.getType(unit.unitTypeId);
-        return type ? sum + defenseRating(unit, type) : sum;
+        return type ? sum + unitDefenseRating(unit, type) : sum;
       }, 0);
-    const neededLinearDefense = Math.sqrt(assessment.requiredDefense);
+    const neededLinearDefense = Math.sqrt(assessment.danger);
 
     while (plannedDefense < neededLinearDefense) {
       const guard = candidateUnits
@@ -151,7 +119,7 @@ export function planCityGuards(context: GuardPlanningContext): GuardPlan {
           const travel = context.distance(unit.x, unit.y, assessment.city.x, assessment.city.y);
           return {
             unit,
-            rating: defenseRating(unit, type),
+            rating: unitDefenseRating(unit, type),
             travel,
           };
         })

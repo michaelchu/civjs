@@ -4,6 +4,10 @@ import type { Unit } from '@game/managers/UnitManager';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import type { AIProfile } from '@game/ai/FreecivAIProfile';
 import type { MapTile, TerrainType } from '@game/map/MapTypes';
+import {
+  reevaluateDefensiveBuildingWant,
+  type CityDangerAssessment,
+} from '@game/ai/FreecivAICityDangerPlanner';
 
 /**
  * Freeciv represents competing choices with an `adv_choice.want` value.
@@ -32,7 +36,10 @@ export interface ProductionPlanningContext {
   unitTypes: Record<string, UnitType>;
   buildingTypes: Record<string, BuildingType>;
   canBuild: (kind: 'unit' | 'building', id: string) => boolean;
-  nearbyEnemyStrength: number;
+  dangerAssessment: Pick<
+    CityDangerAssessment,
+    'danger' | 'urgency' | 'graveDanger' | 'defense' | 'defenseDeficit'
+  >;
   profile?: AIProfile;
   reservedWonders?: ReadonlySet<string>;
   excludedChoices?: ReadonlySet<string>;
@@ -96,7 +103,8 @@ export function rankCityProduction(
   const workerNeed = Math.max(0, cities.length - workerCount);
   const defenseNeed =
     Math.max(0, 1 - defendersOnTile.length) * 90 +
-    Math.max(0, context.nearbyEnemyStrength - (city.defenseStrength ?? 0)) * 12;
+    context.dangerAssessment.defenseDeficit +
+    context.dangerAssessment.urgency;
 
   for (const type of Object.values(unitTypes)) {
     if (!canBuild('unit', type.id)) continue;
@@ -162,6 +170,9 @@ export function rankCityProduction(
       (effects.luxuryBonus ?? 0) * 10 +
       (effects.happinessEffect ?? 0) * 30 +
       (effects.defenseBonus ?? 0) * Math.max(10, defenseNeed);
+    if ((effects.defenseBonus ?? 0) > 0) {
+      want = reevaluateDefensiveBuildingWant(want, context.dangerAssessment);
+    }
     want *= builderWeight;
 
     const id = building.id.toLowerCase();
