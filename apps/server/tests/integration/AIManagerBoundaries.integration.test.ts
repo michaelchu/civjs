@@ -1165,6 +1165,21 @@ describe('AI authoritative manager boundaries', () => {
     }
     expect(scenario.game.mapManager.getTile(target.x, target.y)!.improvements).toContain('irrigation');
 
+    await scenario.game.researchManager.grantTechnology(guest!.playerId, 'railroad');
+    city.workerTaskRequests = [
+      { x: target.x, y: target.y, action: ActionType.BUILD_RAILROAD, want: 700 },
+    ];
+    worker!.movementLeft = workerType.movement;
+    expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
+      0
+    );
+    expect(worker!.orders).toEqual([{ type: 'railroad' }]);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await scenario.game.unitManager.processUnitOrders(guest!.playerId);
+      if (scenario.game.mapManager.getTile(target.x, target.y)!.hasRailroad) break;
+    }
+    expect(scenario.game.mapManager.getTile(target.x, target.y)!.hasRailroad).toBe(true);
+
     const persistedWorker = await getTestDatabase().query.units.findFirst({
       where: eq(schema.units.id, worker!.id),
     });
