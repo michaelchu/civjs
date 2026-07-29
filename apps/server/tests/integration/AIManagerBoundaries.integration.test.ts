@@ -7,6 +7,7 @@ import { assertAIState, type FreecivAIState } from '@game/ai/AIStateStore';
 import { hostileUnitsForPlanning } from '@game/ai/AITargeting';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
 import { aiValidationBaseline } from '../fixtures/aiValidationBaseline';
+import { aiPairedBenchmarkBaseline } from '../fixtures/aiValidationBenchmarkBaseline';
 import { GameManager, type GameConfig, type GameInstance } from '@game/managers/GameManager';
 import {
   assertAIValidationInvariants,
@@ -1881,9 +1882,9 @@ describe('AI authoritative manager boundaries', () => {
   it('runs paired swapped-position AI benchmarks through authoritative terminal games', async () => {
     async function runLeg(firstLevel: 'easy' | 'hard', secondLevel: 'easy' | 'hard') {
       const scenario = await createActiveGame(2, {
-        maxTurns: 4,
+        maxTurns: aiPairedBenchmarkBaseline.maxTurns,
         victoryConditions: ['max_turns'],
-        mapSeed: 'ai-paired-benchmark-01',
+        mapSeed: aiPairedBenchmarkBaseline.mapSeed,
       });
       const [first, second] = scenario.players;
       await gameManager.setPlayerAIControl(
@@ -1920,14 +1921,14 @@ describe('AI authoritative manager boundaries', () => {
 
     const hardTotal = firstLeg.first.total + secondLeg.second.total;
     const easyTotal = firstLeg.second.total + secondLeg.first.total;
-    expect(hardTotal).toBeGreaterThanOrEqual(0);
-    expect(easyTotal).toBeGreaterThanOrEqual(0);
+    expect(hardTotal).toBeGreaterThanOrEqual(aiPairedBenchmarkBaseline.hardTotal);
+    expect(easyTotal).toBeGreaterThanOrEqual(aiPairedBenchmarkBaseline.easyTotal);
     expect(
       pairedBenchmarkWinner([
         { ...firstLeg.first, total: hardTotal },
         { ...firstLeg.second, total: easyTotal },
       ])
-    ).toMatch(/first|second|tie/);
+    ).toBe('first');
   });
 
   it('replays the same seeded terminal configuration with the same authoritative outcome', async () => {
