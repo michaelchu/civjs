@@ -98,7 +98,7 @@
       "uk_food": 1,
       "uk_gold": 0,
       "tp_defense": "Alight",
-      "flags": ["Workers", "Cant_Fortify", "NonMil", "HasNoZOC", "AddToCity", "Cities"],
+      "flags": ["Cant_Fortify", "NonMil", "HasNoZOC", "AddToCity", "Cities"],
       "veteran_names": "green",
       "veteran_base_raise_chance": 0,
       "veteran_work_raise_chance": 0,
@@ -107,7 +107,7 @@
       "roles": ["CitiesStartUnit"],
       "helptext": [
         "Settlers are one of the key units in the game, as they are your mainmeans of founding new cities.",
-        "Settlers can also perform most of the same terrain alterations asWorkers (but cannot build Airbases or Buoys).",
+        "Settlers are dedicated city-founding units and cannot perform worker terrain alterations.",
         "Upkeep for Settlers is in food as well as production, and a Settlercan die if its supporting city runs out of food. Settlers in aRepublic or Democracy require twice as much food per turn."
       ],
       "id": "settlers",

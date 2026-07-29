@@ -128,8 +128,8 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
       );
     }
 
-    // Worker actions. Classic Settlers, Workers, and Engineers all carry the
-    // ruleset's Workers flag and therefore share terrain activities.
+    // Worker actions. Only units with the ruleset's Workers flag can perform
+    // terrain activities; Settlers are dedicated city-founding units here.
     if (unit.capabilities?.canBuildImprovements) {
       actions.push({ separator: true });
 

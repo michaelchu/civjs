@@ -97,4 +97,13 @@ describe('RulesetUnitsService', () => {
       })
     );
   });
+
+  it('keeps Settlers focused on founding cities rather than worker improvements', () => {
+    expect(rulesetUnitsService.getUnitType('settlers')).toEqual(
+      expect.objectContaining({
+        canFoundCity: true,
+        canBuildImprovements: false,
+      })
+    );
+  });
 });
