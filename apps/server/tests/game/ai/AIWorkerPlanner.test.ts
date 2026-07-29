@@ -193,4 +193,40 @@ describe('Freeciv AI worker planner', () => {
       requestCityId: 'city',
     });
   });
+
+  it('coordinates overlapping city requests without reserving the same tile twice', () => {
+    const shared = tile(2, 1, 'grassland');
+    const alternate = tile(4, 1, 'hills');
+    const coordinated = context(
+      [shared, alternate],
+      [worker('first-worker', 1, 1), worker('second-worker', 3, 1)],
+      {
+        cities: [
+          {
+            id: 'first-city',
+            playerId: 'ai',
+            workableTiles: [
+              { x: shared.x, y: shared.y, isWorked: true },
+              { x: alternate.x, y: alternate.y, isWorked: true },
+            ],
+            workerTaskRequests: [
+              { x: shared.x, y: shared.y, action: ActionType.BUILD_ROAD, want: 500 },
+            ],
+          },
+          {
+            id: 'second-city',
+            playerId: 'ai',
+            workableTiles: [{ x: shared.x, y: shared.y, isWorked: true }],
+            workerTaskRequests: [
+              { x: shared.x, y: shared.y, action: ActionType.BUILD_ROAD, want: 450 },
+            ],
+          },
+        ],
+      }
+    );
+
+    const plan = planWorkerImprovements(coordinated);
+    expect(plan.assignments.filter(assignment => assignment.tile.x === shared.x && assignment.tile.y === shared.y)).toHaveLength(1);
+    expect(Object.values(plan.tasks)).toHaveLength(plan.assignments.length);
+  });
 });
