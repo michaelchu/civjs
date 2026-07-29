@@ -25,6 +25,7 @@ import { planHunters } from '@game/ai/FreecivAIHunterPlanner';
 import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
 import { OutputType } from '@game/constants/GameConstants';
 import { planFerries } from '@game/ai/FreecivAIFerryPlanner';
+import { planAirMissions } from '@game/ai/FreecivAIAirPlanner';
 
 /**
  * Versioned compatibility contract for the currently landed Freeciv AI slice.
@@ -47,6 +48,7 @@ export const CIVJS_AI_CONTRACT = {
     'persist city guard assignments, reinforce danger, and fortify defenders',
     'assign specialist hunters to persistent high-value mobile targets',
     'pair ferryboats with passengers and execute rendezvous, loading, delivery, and unloading',
+    'plan fuel-safe air strikes, base returns, and undefended-city paradrops',
     'value incoming treaties and make proactive cease-fire, peace, and alliance proposals',
     'persist difficulty, traits, diplomacy memory, assignments, and wants across restarts',
     'yield game completion to the authoritative conquest evaluator',
@@ -55,7 +57,7 @@ export const CIVJS_AI_CONTRACT = {
     'complete lifecycle event callbacks and use persisted assignments across every advisor',
     'complete city, technology, government, rates, spending, and worklist advisor want parity',
     'settlement-site and worker-improvement reservation parity',
-    'complete amphibious invasion coordination, air, paradrop, and diplomat planning',
+    'complete amphibious invasion coordination, air-defense/refueling depth, and diplomat planning',
     'complete Freeciv diplomacy threat, reputation, incident, and material-clause valuation',
   ],
 } as const;
@@ -102,6 +104,9 @@ export class CivJSAIAdapter {
       actions += await this.attempt('workers', () => this.automateWorkers(game, playerId));
       actions += await this.attempt('ferries', () => this.manageFerries(game, playerId, state));
       actions += await this.attempt('guards', () => this.manageCityGuards(game, playerId, state));
+      actions += await this.attempt('air', () =>
+        this.manageAirAndParadrops(gameId, game, playerId, state)
+      );
       actions += await this.attempt('hunters', () =>
         this.manageHunters(gameId, game, playerId, state)
       );
@@ -444,6 +449,8 @@ export class CivJSAIAdapter {
       if (state.unitTasks[attacker.id]?.role === 'guard') continue;
       if (state.unitTasks[attacker.id]?.role === 'defend') continue;
       if (state.unitTasks[attacker.id]?.role === 'hunter') continue;
+      if (state.unitTasks[attacker.id]?.role === 'air') continue;
+      if (state.unitTasks[attacker.id]?.role === 'paradrop') continue;
       const type = game.unitManager.getUnitType(attacker.unitTypeId);
       if (attacker.movementLeft <= 0 || (type?.attack ?? type?.combat ?? 0) <= 0) continue;
       if (!type) continue;
@@ -649,6 +656,85 @@ export class CivJSAIAdapter {
           playerId
         );
         if (result.success) actions++;
+      }
+    }
+    return actions;
+  }
+
+  private async manageAirAndParadrops(
+    gameId: string,
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(gameId, playerId);
+    const allCities = game.cityManager.getAllCities?.() ?? [];
+    const profile = createAIProfile(
+      game.players.get(playerId)?.aiLevel,
+      game.players.get(playerId)?.aiTraits
+    );
+    const missions = planAirMissions({
+      friendlyUnits: game.unitManager.getPlayerUnits(playerId),
+      hostileUnits: Array.from(game.unitManager.getAllUnits().values()).filter(unit =>
+        hostileIds.has(unit.playerId)
+      ),
+      friendlyCities: allCities.filter(city => city.playerId === playerId),
+      hostileCities: allCities.filter(city => hostileIds.has(city.playerId)),
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      planesHandicap: profile.handicaps.has('no_planes'),
+    });
+    for (const [unitId, task] of Object.entries(state.unitTasks)) {
+      if (task.role === 'air' || task.role === 'paradrop') delete state.unitTasks[unitId];
+    }
+    let actions = 0;
+    for (const mission of missions) {
+      state.unitTasks[mission.unit.id] = {
+        role: mission.kind === 'paradrop' ? 'paradrop' : 'air',
+        targetId:
+          mission.kind === 'strike'
+            ? mission.target.id
+            : mission.kind === 'paradrop'
+              ? mission.targetCity.id
+              : undefined,
+        targetX: mission.targetX,
+        targetY: mission.targetY,
+        assignedTurn: game.currentTurn,
+      };
+      if (mission.unit.movementLeft <= 0) continue;
+      if (mission.kind === 'paradrop') {
+        const result = await game.unitManager.executeUnitAction(
+          mission.unit.id,
+          ActionType.PARADROP,
+          mission.targetX,
+          mission.targetY,
+          playerId
+        );
+        if (result.success) actions++;
+      } else if (mission.kind === 'return') {
+        const result = await game.unitManager.executeUnitAction(
+          mission.unit.id,
+          ActionType.GOTO,
+          mission.targetX,
+          mission.targetY,
+          playerId
+        );
+        if (result.success) actions++;
+      } else {
+        const type = game.unitManager.getUnitType(mission.unit.unitTypeId);
+        if ((type?.bombardRate ?? 0) > 0) {
+          const result = await game.unitManager.executeUnitAction(
+            mission.unit.id,
+            ActionType.BOMBARD,
+            mission.targetX,
+            mission.targetY,
+            playerId
+          );
+          if (result.success) actions++;
+        } else {
+          await game.unitManager.attackUnit(mission.unit.id, mission.target.id);
+          actions++;
+        }
       }
     }
     return actions;

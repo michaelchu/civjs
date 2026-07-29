@@ -15,6 +15,8 @@ export interface AIUnitTask {
     | 'defend'
     | 'guard'
     | 'hunter'
+    | 'air'
+    | 'paradrop'
     | 'settle'
     | 'worker'
     | 'explore'
