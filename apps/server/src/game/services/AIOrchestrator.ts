@@ -67,6 +67,9 @@ export class FreecivAIOrchestrator {
         await this.stateStore.save(gameId, player.id, state);
         return 0;
       });
+      // The persistence attempt itself is traced after its write completes;
+      // save once more so restart recovery sees that final trace entry too.
+      await this.stateStore.save(gameId, player.id, state);
     }
     return actions;
   }

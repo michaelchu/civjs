@@ -13,6 +13,7 @@ import {
 } from '@game/managers/GameManager';
 import {
   assertAIValidationInvariants,
+  buildAIValidationReplayFingerprint,
   captureAIValidationMetrics,
   writeAIValidationFailureArtifact,
 } from '../utils/aiValidation';
@@ -824,7 +825,20 @@ describe('AI authoritative manager boundaries', () => {
   });
 
   it('launches a carrier aircraft for a profitable authoritative strike', async () => {
-    const scenario = await createActiveGame(2);
+    const scenario = await createActiveGame(2, {
+      mapSeed: 'ai-carrier-continents-01',
+      mapWidth: 40,
+      mapHeight: 30,
+      terrainSettings: {
+        generator: 'random',
+        landmass: 'sparse',
+        huts: 0,
+        temperature: 50,
+        wetness: 50,
+        rivers: 30,
+        resources: 'normal',
+      },
+    });
     const [host, guest] = scenario.players;
     for (const unit of scenario.game.unitManager.getPlayerUnits(guest!.playerId)) {
       await scenario.game.unitManager.removeUnit(unit.id);
@@ -1549,4 +1563,32 @@ describe('AI authoritative manager boundaries', () => {
       assertAIValidationInvariants(game);
     }
   );
+
+  it('replays the same seeded terminal configuration with the same authoritative outcome', async () => {
+    async function runReplay(gameSeed: string): Promise<string> {
+      const scenario = await createActiveGame(2, {
+        maxTurns: 4,
+        victoryConditions: ['max_turns'],
+        mapSeed: gameSeed,
+      });
+      for (const player of scenario.players) {
+        await gameManager.setPlayerAIControl(
+          scenario.gameId,
+          scenario.hostUserId,
+          player.playerId,
+          true,
+          { aiLevel: 'normal' }
+        );
+      }
+      while (scenario.game.state === 'active') {
+        await scenario.game.turnManager.processTurn();
+      }
+      return buildAIValidationReplayFingerprint(scenario.game);
+    }
+
+    const first = await runReplay('ai-validation-replay-01');
+    gameManager.clearAllGames();
+    const second = await runReplay('ai-validation-replay-01');
+    expect(second).toBe(first);
+  });
 });

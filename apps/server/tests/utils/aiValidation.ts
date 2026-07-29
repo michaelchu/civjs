@@ -65,6 +65,51 @@ export function captureAIValidationMetrics(game: GameInstance): AIValidationMetr
 }
 
 /**
+ * Stable replay comparison payload. Database IDs and wall-clock values are
+ * deliberately excluded: two executions of the same seed need to agree on
+ * authoritative game state and decisions, not generated UUIDs.
+ */
+export function buildAIValidationReplayFingerprint(game: GameInstance): string {
+  const map = game.mapManager.getMapData();
+  return JSON.stringify({
+    state: game.state,
+    turn: game.currentTurn,
+    map: map
+      ? map.tiles.flat().map(tile => [
+          tile.x,
+          tile.y,
+          tile.terrain,
+          tile.resource ?? null,
+          tile.hasRoad,
+          tile.hasRailroad,
+          [...(tile.improvements ?? [])].sort(),
+        ])
+      : null,
+    cities: game.cityManager
+      .getAllCities()
+      .map(city => [
+        city.x,
+        city.y,
+        city.population,
+        city.foodPerTurn ?? 0,
+        city.productionPerTurn ?? 0,
+        city.tradePerTurn ?? 0,
+        city.sciencePerTurn ?? 0,
+        [...city.buildings].sort(),
+      ])
+      .sort((left, right) => `${left}`.localeCompare(`${right}`)),
+    units: [...game.unitManager.getAllUnits().values()]
+      .map(unit => [unit.unitTypeId, unit.x, unit.y, unit.health, unit.transportedBy ?? null])
+      .sort((left, right) => `${left}`.localeCompare(`${right}`)),
+    metrics: captureAIValidationMetrics(game).players.map(({ id: _id, ...metrics }) => metrics),
+    decisions: [...game.players.values()]
+      .flatMap(player => assertAIState(player.aiState).recentDecisionTrace ?? [])
+      .map(trace => [trace.turn, trace.label, trace.actions, trace.error ?? null])
+      .sort((left, right) => `${left}`.localeCompare(`${right}`)),
+  });
+}
+
+/**
  * Produces a compact, copyable artifact for deterministic AI simulation failures.
  * Keep this independent of persistence so the same invariant set can run in
  * database integration tests and future headless runners.
